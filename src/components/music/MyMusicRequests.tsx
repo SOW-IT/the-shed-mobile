@@ -6,7 +6,16 @@ import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
+import { useSpotifyPlaylist } from "./useSpotifyPlaylist";
+
 export type MusicRequest = Doc<"musicRequests">;
+type SpotifySong = {
+  title: string;
+  artist: string;
+  link: string;
+  albumArtUrl?: string;
+};
+
 const spotifyTrackUrl = (value: string): string | null => {
   try {
     const url = new URL(value.trim());
@@ -58,6 +67,9 @@ export const NewMusicRequestSheet = ({
   const duplicateBlocked =
     !duplicateIsSelf && duplicate !== undefined && duplicate !== null;
   const getSpotifyTrack = useAction(api.spotify.getTrack);
+  const spotifyPlaylist = useSpotifyPlaylist();
+  const [playlistLink, setPlaylistLink] = useState("");
+  const [importingPlaylist, setImportingPlaylist] = useState(false);
   const submit = useMutation(api.musicRequests.submit);
   const update = useMutation(api.musicRequests.update);
   const [submitting, setSubmitting] = useState(false);
@@ -95,6 +107,10 @@ export const NewMusicRequestSheet = ({
       Alert.alert("Already added", "Song is already on your list.");
       return;
     }
+    if (songs.length >= 50) {
+      Alert.alert("List full", "You can submit up to 50 songs at once.");
+      return;
+    }
     setSongs((current) => [
       ...current,
       {
@@ -106,6 +122,40 @@ export const NewMusicRequestSheet = ({
     ]);
     clearSong();
   };
+  const importPlaylist = async () => {
+    if (importingPlaylist || submitting) return;
+    setImportingPlaylist(true);
+    try {
+      const result = await spotifyPlaylist.importPlaylist(playlistLink.trim());
+      const existing = new Set(
+        songs.map(
+          (song) => spotifyTrackUrl(song.link) ?? song.link.toLowerCase(),
+        ),
+      );
+      const available = Math.max(0, 50 - songs.length);
+      const fresh = result.songs.filter((song: SpotifySong) => {
+        const key = spotifyTrackUrl(song.link) ?? song.link.toLowerCase();
+
+        if (existing.has(key)) return false;
+
+        existing.add(key);
+        return true;
+      });
+      const toAdd = fresh.slice(0, available);
+      setSongs((current) => [...current, ...toAdd]);
+      Alert.alert(
+        "Playlist imported",
+        `${toAdd.length} song(s) added from ${result.name}.${result.limited ? " Only the first 50 playlist entries were fetched." : ""}${fresh.length > available ? " The submission limit is 50 songs." : ""} Existing requests will be skipped when submitted.`,
+      );
+    } catch (error) {
+      Alert.alert(
+        "Couldn't import playlist",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setImportingPlaylist(false);
+    }
+  };
   useEffect(() => {
     if (!visible) return;
     setTitle(prefill?.title ?? "");
@@ -116,6 +166,7 @@ export const NewMusicRequestSheet = ({
     setAlbumArtUrl(prefill?.albumArtUrl ?? null);
     setSpotifyError(null);
     setSongs([]);
+    setPlaylistLink("");
   }, [visible, prefill?._id]);
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
@@ -268,6 +319,7 @@ export const NewMusicRequestSheet = ({
             disabled={
               submitting ||
               fetchingSpotify ||
+              importingPlaylist ||
               (songs.length === 0 && duplicateBlocked) ||
               (songs.length === 0 && !!duplicateLink && duplicate === undefined)
             }
@@ -349,6 +401,76 @@ export const NewMusicRequestSheet = ({
           </View>
         ) : null}
       </View>
+      {!prefill && (
+        <View
+          style={[
+            styles.spotifySection,
+            { borderColor: t.separator, backgroundColor: t.card },
+          ]}
+        >
+          <View style={styles.spotifyHeading}>
+            <Ionicons name="list-outline" size={20} color={t.primary} />
+            <Text style={[styles.spotifyTitle, { color: t.text }]}>
+              Import Spotify playlist
+            </Text>
+          </View>
+          <Text style={[typography.caption, { color: t.muted }]}>
+            Import up to 50 playlist songs into your request list. You can
+            remove songs before submitting.
+          </Text>
+          <Text style={[typography.caption, { color: t.muted }]}>
+            {spotifyPlaylist.connected
+              ? "Spotify connected"
+              : "Connect Spotify to import playlists you own or collaborate on."}
+          </Text>
+
+          {spotifyPlaylist.connected ? (
+            <Btn
+              title="Disconnect Spotify"
+              variant="ghost"
+              onPress={() =>
+                void spotifyPlaylist
+                  .disconnect()
+                  .catch((e: unknown) => Alert.alert("Spotify", String(e)))
+              }
+            />
+          ) : (
+            <Btn
+              title={
+                spotifyPlaylist.connecting
+                  ? "Connecting Spotify..."
+                  : "Connect Spotify"
+              }
+              onPress={() =>
+                void spotifyPlaylist
+                  .connect()
+                  .catch((e: unknown) => Alert.alert("Spotify", String(e)))
+              }
+              disabled={!spotifyPlaylist.ready || spotifyPlaylist.connecting}
+            />
+          )}
+
+          <Field
+            label="Spotify Playlist URL"
+            value={playlistLink}
+            onChangeText={setPlaylistLink}
+            placeholder="https://open.spotify.com/playlist/..."
+            autoCapitalize="none"
+          />
+          <Btn
+            title={importingPlaylist ? "Importing..." : "Import playlist"}
+            icon="download-outline"
+            onPress={() => void importPlaylist()}
+            disabled={
+              importingPlaylist ||
+              submitting ||
+              !playlistLink.trim() ||
+              !spotifyPlaylist.connected ||
+              songs.length >= 50
+            }
+          />
+        </View>
+      )}
       {albumArtUrl ? (
         <View style={styles.preview}>
           <Image
