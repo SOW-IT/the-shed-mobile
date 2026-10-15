@@ -1,6 +1,7 @@
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient, useConvexAuth } from "convex/react";
 import { requireOptionalNativeModule } from "expo";
+import { useFonts } from "expo-font";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
@@ -12,6 +13,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppSidebar } from "@/components/nav/AppSidebar";
 import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
+import { FONT_SOURCES } from "@/fonts";
 import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
 import { LoadingState } from "@/components/ui";
 import { durations, useAppTheme } from "@/theme";
@@ -134,6 +136,9 @@ export default function RootLayout() {
   useEffect(() => {
     void DevMenuPreferences?.setPreferencesAsync({ showFloatingActionButton: false });
   }, []);
+  // Bundled, so this takes a moment; if a face fails, carry on with the system font.
+  const [fontsLoaded, fontError] = useFonts(FONT_SOURCES);
+  const fontsReady = fontsLoaded || fontError !== null;
   const t = useAppTheme();
   const baseTheme = t.dark ? DarkTheme : DefaultTheme;
   const navTheme = {
@@ -147,7 +152,7 @@ export default function RootLayout() {
         <ThemeProvider value={navTheme}>
           <StatusBar style="auto" />
           <View style={{ flex: 1, backgroundColor: background }}>
-            {convex ? (
+            {!fontsReady ? null : convex ? (
               <ConvexAuthProvider
                 client={convex}
                 storage={Platform.OS === "web" ? undefined : secureStorage}

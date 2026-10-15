@@ -6,6 +6,41 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.4] - 2026-10-16
+
+### Added
+- **Setting your church says who will see it.** In Profile, staff are warned
+  that anyone using The SHED can see their church, with their name, on the
+  Churches page; members are told only staff and campus leaders can see
+  theirs. Editing a member's record says the same for their church. The note
+  shows under the picker and at the top of the list while choosing.
+
+### Changed
+- **Members' churches are only for staff and campus leaders.** People with no
+  staff assignment this year no longer appear on the Churches page, and their
+  church no longer shows on their profile, for anyone else. Staff and campus leaders still see
+  everyone, and the page says members are only visible to them.
+- **The Churches filter picks any mix of people and campuses.** One row has
+  Campus leaders, Staff, and Members (for staff and campus leaders); the other
+  has each campus, plus No campus. Nothing picked shows everyone; pick one or
+  more in a row to show only them, and tap again to unpick. Everyone and
+  Volunteers are gone, since nothing picked is everyone and leaders plus staff
+  is the old Volunteers. Each option shows how many people it covers, the
+  line under the filter counts the churches and people showing, and Show
+  everyone clears it.
+- **A fresh look across the app.** Titles, headings and big numbers use a new
+  typeface, Familjen Grotesk; buttons and links are back in SOW's evergreen;
+  cards are flat with a fine edge instead of a shadow; and section labels are
+  in plain sentence case instead of capitals. The current bottom tab sits on
+  a soft pill, Home's values are one list, and Profile's service history is
+  one card with a row per year.
+- **Map pins grow with the number of people.** The church more people go to
+  has a bigger label, one fewer go to a smaller one, instead of a number on
+  each pin.
+
+### Fixed
+- **The church map on iPhone has rounded corners** like the cards around it.
+
 ## [2.9.3] - 2026-10-16
 
 ### Changed

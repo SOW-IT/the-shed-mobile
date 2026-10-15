@@ -23,7 +23,7 @@ import {
   Txt,
   YearPill,
 } from "@/components/ui";
-import { spacing } from "@/theme";
+import { spacing, typography } from "@/theme";
 
 type Group = { title: string; statuses: EventRequestStatus[] };
 
@@ -133,7 +133,7 @@ export default function EventRequestsScreen() {
     return (
       <ChromeScreen>
         <Card>
-          <Txt style={{ fontSize: 18, fontWeight: "700" }}>Event Requests</Txt>
+          <Txt style={typography.section}>Event Requests</Txt>
           <Muted>
             {me.profile
               ? "Event requests are for SOW staff, not campus leaders."

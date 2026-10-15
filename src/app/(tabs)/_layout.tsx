@@ -22,12 +22,22 @@ import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useReportAppVersion } from "@/hooks/useReportAppVersion";
 import { useReportSeen } from "@/hooks/useReportSeen";
-import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
+import { BOTTOM_TAB_HEIGHT, radius, useAppTheme } from "@/theme";
+
+/** The current tab's icon sits on a soft pill. */
+const TabPill = ({ focused, children }: { focused: boolean; children: React.ReactNode }) => {
+  const t = useAppTheme();
+  return (
+    <View style={[styles.tabPill, focused && { backgroundColor: t.primarySoft }]}>{children}</View>
+  );
+};
 
 const tabIcon =
   (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) => {
     const TabBarIcon = ({ color, focused }: { color: ColorValue; focused: boolean }) => (
-      <Ionicons name={focused ? filled : outline} size={23} color={color} />
+      <TabPill focused={focused}>
+        <Ionicons name={focused ? filled : outline} size={22} color={color} />
+      </TabPill>
     );
     return TabBarIcon;
   };
@@ -41,17 +51,17 @@ const InsightsTabIcon = ({
 }) => {
   const t = useAppTheme();
   return (
-    <View style={{ position: "relative" }}>
+    <TabPill focused={focused}>
       <Ionicons
         name={focused ? "stats-chart" : "stats-chart-outline"}
-        size={23}
+        size={22}
         color={color}
       />
       <View
         style={{
           position: "absolute",
-          top: -6,
-          right: -15,
+          top: -1,
+          right: -2,
           backgroundColor: t.accent,
           borderRadius: 4,
           paddingHorizontal: 3,
@@ -62,7 +72,7 @@ const InsightsTabIcon = ({
           BETA
         </Text>
       </View>
-    </View>
+    </TabPill>
   );
 };
 
@@ -185,11 +195,12 @@ export default function TabsLayout() {
         },
         tabBarStyle: {
           backgroundColor: t.card,
-          borderTopWidth: 0,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: t.border,
           height: BOTTOM_TAB_HEIGHT + insets.bottom,
           paddingBottom: insets.bottom,
           paddingTop: 0,
-          ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
+          elevation: 0,
         },
       }}
     >
@@ -269,6 +280,13 @@ const styles = StyleSheet.create({
   },
   tabButtonInner: {
     flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabPill: {
+    width: 58,
+    height: 32,
+    borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
   },

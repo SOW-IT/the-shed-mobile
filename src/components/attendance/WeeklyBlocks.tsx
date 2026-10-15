@@ -35,7 +35,7 @@ function CategoryPill({ pill }: { pill: Pill }) {
 function Panel({ title, icon, trailing, children }: { title: string; icon?: string; trailing?: ReactNode; children: ReactNode }) {
   const t = useAppTheme();
   return (
-    <View style={[styles.panel, { backgroundColor: t.card }, t.shadowCard]}>
+    <View style={[styles.panel, { backgroundColor: t.card }, t.surfaceEdge]}>
       <View style={styles.panelHeader}>
         {icon ? (
           <Ionicons
@@ -351,7 +351,7 @@ export function renderWeeklyBlock(
       return <MonthRows key={key} block={block} />;
     case "memberHeader":
       return (
-        <View key={key} style={[styles.panel, styles.header, { backgroundColor: t.card }, t.shadowCard]}>
+        <View key={key} style={[styles.panel, styles.header, { backgroundColor: t.card }, t.surfaceEdge]}>
           <Avatar photo={block.photo ?? null} name={block.name} size={72} />
           <Text style={[typography.title, { color: t.text, textAlign: "center" }]}>{block.name}</Text>
           {block.lines.length ? (

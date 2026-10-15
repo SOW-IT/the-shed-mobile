@@ -23,31 +23,36 @@ export const spacing = {
   xxxl: 36,
 } as const;
 
+// One radius per level: surfaces (lg), controls and nested blocks (md),
+// small marks (sm), and full only for chips, pills and avatars.
 export const radius = {
-  sm: 10,
-  md: 14,
-  lg: 20,
-  xl: 28,
+  sm: 8,
+  md: 12,
+  lg: 18,
+  xl: 24,
   full: 999,
 } as const;
 
+/**
+ * Familjen Grotesk, loaded in the root layout, carries titles, headings and
+ * big numbers; everything else is the system font. Each weight is its own
+ * family, so display styles never set fontWeight (iOS would swap the face).
+ */
+export const fonts = {
+  display: "FamiljenGrotesk-Bold",
+  displaySemi: "FamiljenGrotesk-SemiBold",
+} as const;
+
 export const typography = {
-  largeTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    letterSpacing: -0.8,
-  } as TextStyle,
-  title: { fontSize: 21, fontWeight: "800", letterSpacing: -0.5 } as TextStyle,
-  headline: { fontSize: 16, fontWeight: "700", letterSpacing: -0.3 } as TextStyle,
+  largeTitle: { fontFamily: fonts.display, fontSize: 32, lineHeight: 37, letterSpacing: -0.6 } as TextStyle,
+  title: { fontFamily: fonts.display, fontSize: 22, lineHeight: 27, letterSpacing: -0.3 } as TextStyle,
+  section: { fontFamily: fonts.display, fontSize: 18, lineHeight: 23, letterSpacing: -0.2 } as TextStyle,
+  headline: { fontFamily: fonts.displaySemi, fontSize: 16.5, lineHeight: 21, letterSpacing: -0.1 } as TextStyle,
   body: { fontSize: 15, letterSpacing: -0.15, lineHeight: 21 } as TextStyle,
-  caption: { fontSize: 13, letterSpacing: -0.05 } as TextStyle,
-  label: {
-    fontSize: 11.5,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  } as TextStyle,
-  amount: { fontSize: 26, fontWeight: "800", letterSpacing: -0.8 } as TextStyle,
+  caption: { fontSize: 13, letterSpacing: -0.05, lineHeight: 18 } as TextStyle,
+  label: { fontSize: 13, fontWeight: "600", letterSpacing: -0.05 } as TextStyle,
+  amount: { fontFamily: fonts.display, fontSize: 28, lineHeight: 32, letterSpacing: -0.6 } as TextStyle,
+  stat: { fontFamily: fonts.display, fontSize: 34, lineHeight: 38, letterSpacing: -0.8 } as TextStyle,
 } as const;
 
 export interface AppTheme {
@@ -77,7 +82,8 @@ export interface AppTheme {
   chip: Record<"PAID" | "DECLINED" | "default", { bg: string; fg: string }>;
   errorBackground: string;
   errorText: string;
-  shadowCard: ViewStyle;
+  /** The hairline edge of a resting surface (cards, list blocks). Surfaces are flat; only floating things get a shadow. */
+  surfaceEdge: ViewStyle;
   shadowFloat: ViewStyle;
 }
 
@@ -103,33 +109,31 @@ export const shadowStyle = (
         elevation,
       };
 
-const lightShadowCard = shadowStyle("#0F2523", 0.07, 14, 5, 2);
-const lightShadowFloat = shadowStyle("#0F2523", 0.16, 22, 10, 8);
-const darkShadowCard = shadowStyle("#000000", 0.3, 14, 5, 2);
-const darkShadowFloat = shadowStyle("#000000", 0.45, 22, 10, 8);
+const lightShadowFloat = shadowStyle("#0F2523", 0.14, 24, 10, 8);
+const darkShadowFloat = shadowStyle("#000000", 0.45, 24, 10, 8);
 
 const light: AppTheme = {
   dark: false,
   background: "#F5F3E3",
-  card: "#FFFFFF",
+  card: "#FFFEF8",
   text: "#0F2523",
-  muted: "#5C6B62",
-  faint: "#8C988F",
-  border: "#DDE2D5",
-  separator: "#EDEBDD",
-  inputBackground: "#F4F2E6",
-  primary: "#283E42",
+  muted: "#56665E",
+  faint: "#87938B",
+  border: "#DCD9C4",
+  separator: "#ECE9D8",
+  inputBackground: "#F3F1E3",
+  primary: "#1D4A41",
   onPrimary: "#F5F3E3",
-  primarySoft: "#DFEAE9",
-  accent: "#CD643C",
-  accentSoft: "#F8E6DB",
-  success: "#3E6B4F",
-  successSoft: "#E2F1DA",
-  danger: "#B5403D",
-  dangerSoft: "#F6DFD9",
-  warning: "#8A5E1A",
-  warningSoft: "#EDD88A",
-  ghost: "#ECEFE4",
+  primarySoft: "#DCE8E0",
+  accent: "#C9603A",
+  accentSoft: "#F6E3D8",
+  success: "#356B48",
+  successSoft: "#DDEED6",
+  danger: "#B03E37",
+  dangerSoft: "#F5DED8",
+  warning: "#7F5612",
+  warningSoft: "#F2E2B4",
+  ghost: "#EAE8D8",
   ghostText: "#0F2523",
   overlay: "rgba(15, 37, 35, 0.45)",
   chip: {
@@ -137,25 +141,25 @@ const light: AppTheme = {
     DECLINED: { bg: "#F6DFD9", fg: "#9C3A23" },
     default: { bg: "#F6E8CD", fg: "#8A5E1A" },
   },
-  errorBackground: "#F6DFD9",
+  errorBackground: "#F5DED8",
   errorText: "#7C3015",
-  shadowCard: lightShadowCard,
+  surfaceEdge: { borderWidth: 1, borderColor: "#E4E1CD" },
   shadowFloat: lightShadowFloat,
 };
 
 const dark: AppTheme = {
   dark: true,
-  background: "#0F2523",
-  card: "#1B3330",
+  background: "#0B1D1B",
+  card: "#132A27",
   text: "#F5F3E3",
-  muted: "#A9BDB2",
-  faint: "#74897E",
-  border: "#2C4A45",
-  separator: "#27433E",
-  inputBackground: "#142B28",
-  primary: "#C3D9D8",
-  onPrimary: "#0F2523",
-  primarySoft: "#24403C",
+  muted: "#A6BAAF",
+  faint: "#71877C",
+  border: "#2A4842",
+  separator: "#1F3A35",
+  inputBackground: "#0F2421",
+  primary: "#BCDCCD",
+  onPrimary: "#0B1D1B",
+  primarySoft: "#1F3E37",
   accent: "#E5AD66",
   accentSoft: "#3C3122",
   success: "#6FA983",
@@ -164,7 +168,7 @@ const dark: AppTheme = {
   dangerSoft: "#46251B",
   warning: "#E5AD66",
   warningSoft: "#4A3A1C",
-  ghost: "#27433E",
+  ghost: "#21403A",
   ghostText: "#F5F3E3",
   overlay: "rgba(0, 0, 0, 0.6)",
   chip: {
@@ -174,7 +178,7 @@ const dark: AppTheme = {
   },
   errorBackground: "#52281A",
   errorText: "#F2D4C6",
-  shadowCard: darkShadowCard,
+  surfaceEdge: { borderWidth: 1, borderColor: "#1F3A35" },
   shadowFloat: darkShadowFloat,
 };
 

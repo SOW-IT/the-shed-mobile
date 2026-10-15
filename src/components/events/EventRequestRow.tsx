@@ -62,7 +62,7 @@ export const EventRequestRow = ({
       accessibilityLabel={`${event.name}, ${formatDateTimeRange(event.startsAt, event.endsAt)}`}
       style={({ pressed }) => [
         styles.row,
-        t.shadowCard,
+        t.surfaceEdge,
         { backgroundColor: t.card },
         pressed && { opacity: 0.7 },
       ]}

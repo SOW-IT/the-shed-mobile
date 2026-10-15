@@ -172,7 +172,9 @@ export const update = mutation({
 
 /**
  * The Churches page: every church with the staff (who picked it in their
- * Profile) and members (set on their attendance record) who go there.
+ * Profile) and members (set on their attendance record) who go there. Only
+ * staff and campus leaders see members; everyone else sees staff and campus
+ * leaders only.
  */
 const LEADER_ROLES = [
   "Director",
@@ -274,6 +276,7 @@ export const directory = query({
       for (const user of users) {
         if (!user.email) continue;
         const profile = await currentProfile(ctx, user.email);
+        if (!profile && !staffViewer) continue;
         const member = profile ? null : await findMemberByEmail(ctx, user.email);
         people.push({
           name: personDisplayName(user.name, user.email) || user.email,
@@ -286,6 +289,7 @@ export const directory = query({
       }
       for (const member of members) {
         const profile = await staffProfileOfMember(ctx, member._id, currentStaffYear());
+        if (!profile && !staffViewer) continue;
         if (profile && (await signedInUser(ctx, profile.email))?.churchId) continue;
         people.push({
           name: profile?.name ?? member.name,

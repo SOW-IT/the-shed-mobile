@@ -326,8 +326,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.sm,
   },
-  name: { fontSize: 20, fontWeight: "800", letterSpacing: -0.4 },
-  nameSidebar: { fontSize: 17, fontWeight: "800", letterSpacing: -0.3 },
+  name: { ...typography.title, fontSize: 20 },
+  nameSidebar: { ...typography.headline, fontSize: 17 },
   bell: { padding: spacing.xs },
   bellBadge: {
     position: "absolute",

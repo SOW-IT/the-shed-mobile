@@ -205,49 +205,55 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
         </FadeInView>
       ) : null}
 
-      <SectionTitle>Service History</SectionTitle>
+      <SectionTitle>Service history</SectionTitle>
       {profile.serviceHistory.length === 0 ? (
         <Muted>No service history yet.</Muted>
       ) : (
-        profile.serviceHistory.map((entry, index) => (
-          <FadeInView key={entry.year} delay={stagger(index + 2)}>
-            <Card style={styles.historyCard}>
-              <View style={[styles.yearBadge, { backgroundColor: t.inputBackground }]}>
-                <Text style={[styles.yearBadgeText, { color: t.text }]}>
-                  {entry.year}
-                </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                {entry.year === currentYear ? (
-                  <Txt style={{ fontWeight: "700" }}>current</Txt>
-                ) : null}
-                {(entry.assignments ?? []).length > 0 ? (
-                  <View style={styles.assignmentChips}>
-                    {entry.assignments.map((a, i) => (
-                      <View
-                        key={i}
-                        style={[styles.assignmentChip, { backgroundColor: t.primarySoft }]}
-                      >
-                        <Text
-                          style={[
-                            styles.assignmentChipText,
-                            { color: t.dark ? t.text : t.primary },
-                          ]}
+        <FadeInView delay={stagger(2)}>
+          <Card style={styles.history}>
+            {profile.serviceHistory.map((entry, index) => (
+              <View
+                key={entry.year}
+                style={[
+                  styles.historyRow,
+                  index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.separator },
+                ]}
+              >
+                <View style={styles.yearCol}>
+                  <Text style={[styles.yearText, { color: t.text }]}>{entry.year}</Text>
+                  {entry.year === currentYear ? (
+                    <Text style={[typography.caption, { color: t.muted }]}>This year</Text>
+                  ) : null}
+                </View>
+                <View style={{ flex: 1 }}>
+                  {(entry.assignments ?? []).length > 0 ? (
+                    <View style={styles.assignmentChips}>
+                      {entry.assignments.map((a, i) => (
+                        <View
+                          key={i}
+                          style={[styles.assignmentChip, { backgroundColor: t.primarySoft }]}
                         >
-                          {formatAssignment(a)}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Txt style={{ fontWeight: "700" }}>
-                    {entry.roles.map(acronym).join(", ") || "—"}
-                  </Txt>
-                )}
+                          <Text
+                            style={[
+                              styles.assignmentChipText,
+                              { color: t.dark ? t.text : t.primary },
+                            ]}
+                          >
+                            {formatAssignment(a)}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Txt style={{ fontWeight: "700" }}>
+                      {entry.roles.map(acronym).join(", ") || "—"}
+                    </Txt>
+                  )}
+                </View>
               </View>
-            </Card>
-          </FadeInView>
-        ))
+            ))}
+          </Card>
+        </FadeInView>
       )}
       {profile.isMe && <DeleteAccountCard />}
       {profile.isMe && (
@@ -301,15 +307,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  historyCard: {
+  history: { paddingVertical: spacing.xs, gap: 0 },
+  historyRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
+    paddingVertical: spacing.md,
   },
-  yearBadge: {
-    borderRadius: radius.md,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  yearBadgeText: { fontSize: 14, fontWeight: "800", letterSpacing: -0.3 },
+  yearCol: { width: 64 },
+  yearText: { ...typography.section },
 });

@@ -40,12 +40,14 @@ const openInMaps = (address: string) => {
   );
 };
 
-/** Where a church meets (tap for the map) and when. */
-export function ChurchDetails({ church, onEdit }: { church: Church; onEdit?: () => void }) {
+/** Where a church meets (tap for the map) and when. `bare` drops the tinted box, for a card of its own. */
+export function ChurchDetails({ church, onEdit, bare }: { church: Church; onEdit?: () => void; bare?: boolean }) {
   const t = useAppTheme();
   return (
-    <View style={[styles.details, { backgroundColor: t.inputBackground }]}>
-      <Text style={[typography.headline, { color: t.text }]}>{church.name}</Text>
+    <View style={[styles.details, bare ? styles.bare : { backgroundColor: t.inputBackground }]}>
+      <Text style={[bare ? typography.title : typography.headline, { color: t.text }, bare && styles.bareTitle]}>
+        {church.name}
+      </Text>
       {church.address ? (
         <Pressable
           accessibilityRole="link"
@@ -274,17 +276,58 @@ export function ChurchForm({
 }
 
 /**
+ * Who sees a church once it's set: a staff member's own church is on the
+ * Churches page for anyone; a member's only for staff and campus leaders.
+ */
+export type ChurchVisibility = "yours-public" | "yours-leaders" | "member" | "staff-record";
+
+const VISIBILITY_NOTES: Record<ChurchVisibility, string> = {
+  "yours-public": "Anyone using The SHED can see your church, with your name, on the Churches page.",
+  "yours-leaders": "Only staff and campus leaders can see your church.",
+  member: "Only staff and campus leaders can see a member's church.",
+  "staff-record": "They're on staff this year, so their church shows with their name on the Churches page for anyone using The SHED.",
+};
+
+/** Says who will see the church, shown under the picker and while picking. */
+export function ChurchVisibilityNote({ visibility }: { visibility: ChurchVisibility }) {
+  const t = useAppTheme();
+  const open = visibility === "yours-public" || visibility === "staff-record";
+  return (
+    <View
+      accessibilityRole="text"
+      style={[
+        styles.note,
+        open ? { backgroundColor: t.warningSoft } : { backgroundColor: t.inputBackground },
+      ]}
+    >
+      <Ionicons
+        name={open ? "eye-outline" : "lock-closed-outline"}
+        size={16}
+        color={open ? t.warning : t.muted}
+        style={{ marginTop: 1 }}
+      />
+      <Text style={[typography.caption, { color: open ? t.warning : t.muted, flex: 1 }, open && { fontWeight: "600" }]}>
+        {VISIBILITY_NOTES[visibility]}
+      </Text>
+    </View>
+  );
+}
+
+/**
  * A church dropdown over the shared list, with "Add a church" at the bottom
- * (which picks the new one). `onChange(null)` clears it.
+ * (which picks the new one). `onChange(null)` clears it. `visibility` says
+ * who will see it, under the field and at the top of the list.
  */
 export function ChurchSelect({
   label = "Local church",
   churchId,
   onChange,
+  visibility,
 }: {
   label?: string;
   churchId: Id<"churches"> | null;
   onChange: (churchId: Id<"churches"> | null) => void;
+  visibility: ChurchVisibility;
 }) {
   const t = useAppTheme();
   const churches = useQuery(api.churches.list);
@@ -311,7 +354,12 @@ export function ChurchSelect({
         <Ionicons name="chevron-down" size={18} color={t.muted} />
       </Pressable>
 
+      <ChurchVisibilityNote visibility={visibility} />
+
       <OptionSheet visible={listOpen} title={label} onClose={() => setListOpen(false)}>
+        <View style={styles.sheetNote}>
+          <ChurchVisibilityNote visibility={visibility} />
+        </View>
         {(churches ?? []).map((option) => {
           const on = option._id === churchId;
           return (
@@ -393,6 +441,7 @@ export function ChurchSelect({
 /** Your local church in your Profile: picked from the list, with its details. */
 export function ChurchPicker({ church }: { church: Church | null }) {
   const setChurch = useMutation(api.profile.setChurch);
+  // Staff (campus leaders too) can edit churches, and theirs is on the Churches page for anyone.
   const canEdit = useCanEditChurches();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -408,7 +457,11 @@ export function ChurchPicker({ church }: { church: Church | null }) {
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <ChurchSelect churchId={church?._id ?? null} onChange={(id) => void choose(id)} />
+      <ChurchSelect
+        churchId={church?._id ?? null}
+        onChange={(id) => void choose(id)}
+        visibility={canEdit ? "yours-public" : "yours-leaders"}
+      />
       {church ? <ChurchDetails church={church} onEdit={canEdit ? () => setEditing(true) : undefined} /> : null}
       <ErrorBanner message={error} />
       <ChurchForm
@@ -432,6 +485,17 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   details: { borderRadius: radius.md, padding: spacing.md, gap: spacing.xs },
+  bare: { padding: 0, borderRadius: 0, paddingRight: spacing.xxl },
+  bareTitle: { marginBottom: 2 },
+  note: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  sheetNote: { marginBottom: spacing.sm },
   detailRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   link: { flex: 1, textDecorationLine: "underline" },
   editLink: { alignSelf: "flex-start", paddingTop: spacing.xs },

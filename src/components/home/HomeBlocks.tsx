@@ -45,8 +45,8 @@ const open = (url: string) =>
 export function HomeBlocks({ blocks }: { blocks: HomeBlock[] }) {
   return (
     <View style={styles.page}>
-      {blocks.map((block, i) => {
-        const node = renderBlock(block, i);
+      {groupListCards(blocks).map((item, i) => {
+        const node = Array.isArray(item) ? <ListCard blocks={item} /> : renderBlock(item, i);
         return node ? (
           <FadeInView key={i} delay={i === 0 ? 40 : stagger(i)}>
             {node}
@@ -56,6 +56,52 @@ export function HomeBlocks({ blocks }: { blocks: HomeBlock[] }) {
     </View>
   );
 }
+
+type CardBlock = Extract<HomeBlock, { type: "card" }>;
+
+// A plain card with a dot and no buttons is one item of a list (like Our
+// values), so a run of them is drawn as one card rather than a stack.
+const isListItem = (block: HomeBlock): block is CardBlock =>
+  block.type === "card" &&
+  block.tone !== "primary" &&
+  Boolean(block.dot) &&
+  !block.icon &&
+  !block.campus &&
+  block.buttons.length === 0;
+
+const groupListCards = (blocks: HomeBlock[]): (HomeBlock | CardBlock[])[] => {
+  const out: (HomeBlock | CardBlock[])[] = [];
+  for (const block of blocks) {
+    const last = out[out.length - 1];
+    if (isListItem(block) && Array.isArray(last)) last.push(block);
+    else out.push(isListItem(block) ? [block] : block);
+  }
+  return out.map((item) => (Array.isArray(item) && item.length === 1 ? item[0] : item));
+};
+
+const ListCard = ({ blocks }: { blocks: CardBlock[] }) => {
+  const t = useAppTheme();
+  return (
+    <Card style={{ paddingVertical: spacing.xs, gap: 0 }}>
+      {blocks.map((block, i) => (
+        <View
+          key={i}
+          style={[styles.listItem, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.separator }]}
+        >
+          {block.title ? (
+            <View style={styles.titleRow}>
+              <View style={[styles.dot, { backgroundColor: t.accent }]} />
+              <Txt style={styles.cardTitle}>{block.title}</Txt>
+            </View>
+          ) : null}
+          {paragraphs(block.body).map((para, j) => (
+            <Muted key={j}>{para}</Muted>
+          ))}
+        </View>
+      ))}
+    </Card>
+  );
+};
 
 const renderBlock = (block: HomeBlock, index: number) => {
   switch (block.type) {
@@ -127,7 +173,7 @@ const HomeCard = ({ block }: { block: Extract<HomeBlock, { type: "card" }> }) =>
   const body = paragraphs(block.body);
   if (block.tone === "primary") {
     return (
-      <View style={[styles.featureCard, t.shadowCard, { backgroundColor: t.primary }]}>
+      <View style={[styles.featureCard, t.surfaceEdge, { backgroundColor: t.primary }]}>
         {block.title ? (
           <Txt style={[styles.cardTitle, { color: t.onPrimary }]}>{block.title}</Txt>
         ) : null}
@@ -244,7 +290,7 @@ const Campuses = ({ campuses }: { campuses: HomeCampus[] }) => {
             onPress={() => setSelected(campus)}
             style={({ pressed }) => [
               styles.connectCard,
-              t.shadowCard,
+              t.surfaceEdge,
               {
                 backgroundColor: t.card,
                 borderLeftColor: universityColour(campus.name) ?? t.primary,
@@ -411,13 +457,16 @@ const styles = StyleSheet.create({
   heroMark: { width: 72, height: 72 },
   mission: {
     ...typography.title,
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: -0.5,
     textAlign: "center",
-    lineHeight: 30,
     maxWidth: 560,
   },
   titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  cardTitle: { fontSize: 16, fontWeight: "700" },
+  cardTitle: { ...typography.headline },
+  listItem: { gap: spacing.xs, paddingVertical: spacing.md },
   buttonRow: {
     flexDirection: "row",
     flexWrap: "wrap",

@@ -26,7 +26,7 @@ import {
   Txt,
   YearPill,
 } from "@/components/ui";
-import { spacing } from "@/theme";
+import { spacing, typography } from "@/theme";
 
 type Group = { title: string; statuses: DesignRequestStatus[] };
 
@@ -147,7 +147,7 @@ export default function DesignRequestsScreen() {
     return (
       <ChromeScreen>
         <Card>
-          <Txt style={{ fontSize: 18, fontWeight: "700" }}>Design Requests</Txt>
+          <Txt style={typography.section}>Design Requests</Txt>
           <Muted>
             Design requests are for SOW staff. No role or department is assigned to{" "}
             {me.email} for {me.year} yet.

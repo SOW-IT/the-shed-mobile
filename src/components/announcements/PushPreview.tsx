@@ -15,7 +15,7 @@ export const PushPreview = ({ title, message }: { title: string; message: string
       style={[styles.wallpaper, { backgroundColor: t.dark ? "#1B3431" : "#C9DAD7" }]}
       accessibilityLabel={`Notification preview: ${title || "no title"}. ${message}`}
     >
-      <View style={[styles.banner, t.shadowCard, { backgroundColor: banner }]}>
+      <View style={[styles.banner, t.surfaceEdge, { backgroundColor: banner }]}>
         <Image
           source={require("../../../assets/images/icon.png")}
           style={styles.icon}

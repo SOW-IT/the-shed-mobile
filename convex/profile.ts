@@ -14,6 +14,7 @@ import {
 import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
 import { viewOf } from "./churches";
+import { isAssigned } from "./staffMembers";
 import { photoUrl } from "./photo";
 
 export const get = query({
@@ -64,10 +65,14 @@ export const get = query({
       .sort((a, b) => b.year - a.year);
 
     const anyProfile = serviceHistory.find((h) => h.name) ?? null;
-    const church = user?.churchId ? await ctx.db.get("churches", user.churchId) : null;
     const isMe =
       callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail);
     const seesPrivate = isMe || (await optionalProfile(ctx)) !== null;
+    // A member's church (no staff profile this year) is only for staff and
+    // campus leaders, as on the Churches page.
+    const onStaff = serviceHistory.some((h) => h.year === currentStaffYear() && isAssigned(h));
+    const church =
+      user?.churchId && (onStaff || seesPrivate) ? await ctx.db.get("churches", user.churchId) : null;
     const directorySync = isMe && dirUser
       ? await ctx.db
           .query("syncState")
@@ -89,7 +94,7 @@ export const get = query({
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: await photoUrl(ctx, user, dirUser),
       church: church ? viewOf(church) : null,
-      // Like the church, only for signed-in staff.
+      // Only for signed-in staff.
       lastOnlineAt: seesPrivate ? await lastOnlineAt(ctx, email) : null,
       hasSignedIn: seesPrivate ? await hasSignedIn(ctx, email) : null,
       serviceHistory: serviceHistory.map((h) => ({

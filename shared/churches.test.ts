@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   churchAcronym,
   churchCampuses,
+  churchFilterCounts,
   churchPagePath,
   churchPeopleMatching,
   cleanInstagram,
@@ -12,8 +13,10 @@ import {
   isChurchFilterActive,
   isServiceTime,
   mainCampus,
+  NO_CAMPUS,
   NO_CHURCH_FILTER,
   sortServices,
+  togglePicked,
   websiteLabel,
 } from "./churches";
 
@@ -122,28 +125,44 @@ describe("church filters", () => {
   const names = (filter: Parameters<typeof churchPeopleMatching>[1]) =>
     churchPeopleMatching(people, filter).map((p) => p.name);
 
-  test("each audience keeps its people", () => {
+  test("nothing picked shows everyone; picked groups show only them", () => {
     expect(names(NO_CHURCH_FILTER)).toEqual(["Lia", "Lou", "Sam", "Sue", "Max", "Mia"]);
-    expect(names({ audience: "volunteers", campuses: [] })).toEqual(["Lia", "Lou", "Sam", "Sue"]);
-    expect(names({ audience: "leaders", campuses: [] })).toEqual(["Lia", "Lou"]);
-    expect(names({ audience: "staff", campuses: [] })).toEqual(["Sam", "Sue"]);
+    expect(names({ groups: ["leader"], campuses: [] })).toEqual(["Lia", "Lou"]);
+    expect(names({ groups: ["leader", "staff"], campuses: [] })).toEqual(["Lia", "Lou", "Sam", "Sue"]);
+    expect(names({ groups: ["leader", "staff", "member"], campuses: [] })).toEqual(names(NO_CHURCH_FILTER));
   });
 
-  test("campuses narrow any audience and drop people with no campus", () => {
-    expect(names({ audience: "everyone", campuses: ["UNSW"] })).toEqual(["Lia", "Max"]);
-    expect(names({ audience: "volunteers", campuses: ["USYD", "UNSW"] })).toEqual(["Lia", "Lou", "Sue"]);
-    expect(names({ audience: "staff", campuses: ["UNSW"] })).toEqual([]);
+  test("picked campuses show only their people; no campus is a choice of its own", () => {
+    expect(names({ groups: [], campuses: ["UNSW"] })).toEqual(["Lia", "Max"]);
+    expect(names({ groups: [], campuses: ["USYD", NO_CAMPUS] })).toEqual(["Lou", "Sam", "Sue", "Mia"]);
+    expect(names({ groups: ["staff"], campuses: ["UNSW"] })).toEqual([]);
+    expect(names({ groups: ["leader", "member"], campuses: ["UNSW"] })).toEqual(["Lia", "Max"]);
   });
 
-  test("a filter is active once it leaves Everyone or picks a campus", () => {
+  test("a filter is active once anything is picked", () => {
     expect(isChurchFilterActive(NO_CHURCH_FILTER)).toBe(false);
-    expect(isChurchFilterActive({ audience: "staff", campuses: [] })).toBe(true);
-    expect(isChurchFilterActive({ audience: "everyone", campuses: ["UNSW"] })).toBe(true);
+    expect(isChurchFilterActive({ groups: ["staff"], campuses: [] })).toBe(true);
+    expect(isChurchFilterActive({ groups: [], campuses: ["UNSW"] })).toBe(true);
   });
 
-  test("campuses are listed once, by label", () => {
-    expect(churchCampuses(people, (c) => (c === "UNSW" ? "Z" : "A"))).toEqual(["USYD", "UNSW"]);
+  test("a tap picks an option, and another unpicks it", () => {
+    expect(togglePicked([], "UNSW")).toEqual(["UNSW"]);
+    expect(togglePicked(["UNSW", "USYD"], "UNSW")).toEqual(["USYD"]);
+  });
+
+  test("campuses are listed once, by label, with no campus last", () => {
+    expect(churchCampuses(people, (c) => (c === "UNSW" ? "Z" : "A"))).toEqual(["USYD", "UNSW", NO_CAMPUS]);
+    expect(churchCampuses(people.filter((p) => p.campus), (c) => c)).toEqual(["UNSW", "USYD"]);
     expect(churchCampuses([], (c) => c)).toEqual([]);
+  });
+
+  test("each option counts who it covers, given the other filter", () => {
+    const all = churchFilterCounts(people, NO_CHURCH_FILTER);
+    expect(Object.fromEntries(all.groups)).toEqual({ leader: 2, staff: 2, member: 2 });
+    expect(Object.fromEntries(all.campuses)).toEqual({ UNSW: 2, USYD: 2, [NO_CAMPUS]: 2 });
+    const some = churchFilterCounts(people, { groups: ["leader", "staff"], campuses: ["USYD"] });
+    expect(Object.fromEntries(some.groups)).toEqual({ leader: 1, staff: 1 });
+    expect(Object.fromEntries(some.campuses)).toEqual({ UNSW: 1, USYD: 2, [NO_CAMPUS]: 1 });
   });
 
   test("the main campus is the most common one, ties broken by name", () => {

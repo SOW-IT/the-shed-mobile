@@ -143,7 +143,7 @@ describe("who can add and edit churches", () => {
     const forVisitors = await t.query(api.churches.directory, {});
     expect(forVisitors.map((d) => [d.church.name, d.church.address, d.people.map((p) => [p.name, p.email]), d.peopleCount])).toEqual([
       ["Abba Church", null, [], 0],
-      ["Grace Church", "1 Church St", [["Sam Staff", STAFF], ["Gus Guest", null]], 2],
+      ["Grace Church", "1 Church St", [["Sam Staff", STAFF]], 1],
     ]);
     expect(await t.run((ctx) => ctx.db.get("churches", grace))).toMatchObject({ name: "Grace Church", address: "1 Church St" });
   });
@@ -167,11 +167,7 @@ describe("an account with no staff profile sees what a visitor sees", () => {
         .sort();
 
     expect(await people(outsider)).toEqual(await people(t));
-    expect(await people(outsider)).toEqual([
-      ["Gus Guest", null, false],
-      ["Mia Member", null, false],
-      ["Sam Staff", STAFF, false],
-    ]);
+    expect(await people(outsider)).toEqual([["Sam Staff", STAFF, false]]);
     expect(await people(sam)).toEqual([
       ["Gus Guest", "gus@gmail.com", false],
       ["Mia Member", null, true],
@@ -292,12 +288,6 @@ describe("the Churches page", () => {
       ["Sam Staff", "Staff", STAFF, null],
       ["Pia President", "President", "pia@sow.org.au", null],
       ["Eve Exec", "Executive", "eve@sow.org.au", null],
-      ["Amy Member", "Member", null, null],
-      ["Gus Gone", "Member", null, null],
-      ["Zed Member", "Member", null, null],
-      ["Ali Alumni", "Alumni", null, null],
-      ["Fay Former", "Alumni", null, null],
-      ["Olly Old", "Alumni", null, null],
     ]);
   });
 
@@ -318,8 +308,44 @@ describe("the Churches page", () => {
       await ctx.db.insert("staffProfiles", { email: "olly@sow.org.au", year: YEAR, memberId: olly, assignments: [] });
       await ctx.db.insert("users", { email: "olly@sow.org.au", name: "Olly User", churchId: grace });
     });
-    const forVisitors = (await t.query(api.churches.directory, {}))[0].people;
-    expect(forVisitors.find((p) => p.name === "Olly User")).toMatchObject({ role: "Alumni", email: null });
+    const forStaff = (await sam.query(api.churches.directory, {}))[0].people;
+    expect(forStaff.find((p) => p.name === "Olly User")).toMatchObject({ role: "Alumni", group: "member" });
+    expect((await t.query(api.churches.directory, {}))[0].people).toEqual([]);
+  });
+
+  test("members' churches are only for staff and campus leaders", async () => {
+    const { t, sam } = await setup();
+    const grace = await sam.mutation(api.churches.add, { name: "Grace Church" });
+    await sam.mutation(api.profile.setChurch, { churchId: grace });
+    const ids = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: "pia@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "President", university: "University of Sydney" }],
+      });
+      await ctx.db.insert("attendanceMembers", { name: "Mia Member", churchId: grace });
+      return {
+        pia: await ctx.db.insert("users", { email: "pia@sow.org.au", name: "Pia President", churchId: grace }),
+        max: await ctx.db.insert("users", { email: "max@sow.org.au", name: "Max Member", churchId: grace }),
+      };
+    });
+    const pia = signedIn(t, ids.pia, "pia@sow.org.au");
+    const max = signedIn(t, ids.max, "max@sow.org.au");
+    const names = async (who: { query: typeof t.query }) =>
+      (await who.query(api.churches.directory, {}))[0].people.map((p) => p.name).sort();
+
+    const everyone = ["Max Member", "Mia Member", "Pia President", "Sam Staff"];
+    expect(await names(sam)).toEqual(everyone);
+    expect(await names(pia)).toEqual(everyone);
+    expect(await names(max)).toEqual(["Pia President", "Sam Staff"]);
+    expect(await names(t)).toEqual(["Pia President", "Sam Staff"]);
+
+    const churchOf = async (who: { query: typeof t.query }, email: string) =>
+      (await who.query(api.profile.get, { email }))?.church?.name ?? null;
+    expect(await churchOf(sam, "max@sow.org.au")).toBe("Grace Church");
+    expect(await churchOf(max, "max@sow.org.au")).toBe("Grace Church");
+    expect(await churchOf(t, "max@sow.org.au")).toBeNull();
+    expect(await churchOf(t, "pia@sow.org.au")).toBe("Grace Church");
   });
 
   test("a person's leading role, and where a role sorts", () => {

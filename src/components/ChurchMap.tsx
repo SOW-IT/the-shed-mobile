@@ -6,8 +6,9 @@ import { radius, useAppTheme } from "../theme";
 import {
   PIN_NAME_MAX_WIDTH,
   pinAccessibilityLabel,
-  pinColours,
+  pinRing,
   pinLabel,
+  pinSize,
   pinZIndex,
   type ChurchPin,
 } from "./churchPins";
@@ -56,6 +57,7 @@ export function ChurchMap({
     pin.church.location ? [{ pin, position: pin.church.location }] : []
   );
   const placedKey = JSON.stringify(placed.map(({ position }) => position));
+  const most = Math.max(0, ...pins.map((pin) => pin.people));
 
   return (
     <View style={styles.map}>
@@ -73,7 +75,8 @@ export function ChurchMap({
         >
           {placed.map(({ pin, position }) => {
             const on = pin.church._id === selectedId;
-            const { ring, badgeText } = pinColours(pin, t.primary);
+            const ring = pinRing(pin, t.primary);
+            const size = pinSize(pin.people, most);
             return (
               <AdvancedMarker
                 key={pin.church._id}
@@ -92,39 +95,19 @@ export function ChurchMap({
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 5,
                       maxWidth: PIN_NAME_MAX_WIDTH,
-                      height: 26,
+                      height: size.height,
                       boxSizing: "border-box",
-                      padding: pin.people > 0 ? "0 10px 0 3px" : "0 10px",
+                      padding: `0 ${size.paddingHorizontal}px`,
                       borderRadius: 999,
                       border: `1.5px solid ${on ? t.primary : ring}`,
                       background: on ? t.primary : t.card,
                       color: on ? t.onPrimary : t.text,
-                      font: "700 12px/1 system-ui, -apple-system, sans-serif",
+                      font: `700 ${size.fontSize}px/1 system-ui, -apple-system, sans-serif`,
                       letterSpacing: 0.2,
                       boxShadow: "0 1px 4px rgba(0, 0, 0, 0.3)",
                     }}
                   >
-                    {pin.people > 0 ? (
-                      <span
-                        style={{
-                          minWidth: 18,
-                          height: 18,
-                          boxSizing: "border-box",
-                          padding: "0 4px",
-                          borderRadius: 999,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          background: on ? t.onPrimary : ring,
-                          color: on ? t.primary : badgeText,
-                          font: "800 10.5px/1 system-ui, -apple-system, sans-serif",
-                        }}
-                      >
-                        {pin.people}
-                      </span>
-                    ) : null}
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {pinLabel(pin, on)}
                     </span>

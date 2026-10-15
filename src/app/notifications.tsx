@@ -64,7 +64,7 @@ export default function NotificationsScreen() {
         accessibilityRole="button"
         style={({ pressed }) => [
           styles.row,
-          t.shadowCard,
+          t.surfaceEdge,
           { backgroundColor: n.read ? t.card : t.primarySoft },
           pressed && { opacity: 0.7 },
         ]}

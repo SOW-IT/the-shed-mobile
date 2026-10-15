@@ -34,7 +34,7 @@ function SelectorFab({
         style={({ pressed }) => [
           styles.fab,
           styles.fabRight,
-          t.shadowCard,
+          t.surfaceEdge,
           { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
         ]}
       >
@@ -200,7 +200,7 @@ export function PeriodFab({
                           style={({ pressed }) => [
                             styles.periodCell,
                             styles.periodButton,
-                            selected && [{ backgroundColor: t.primary }, t.shadowCard],
+                            selected && [{ backgroundColor: t.primary }, t.surfaceEdge],
                             pressed && !selected && { backgroundColor: t.card },
                           ]}
                         >
@@ -244,7 +244,7 @@ export function ChartModeFab({
       style={({ pressed }) => [
         styles.fab,
         styles.fabLeft,
-        t.shadowCard,
+        t.surfaceEdge,
         { backgroundColor: t.card, opacity: pressed ? 0.85 : 1 },
       ]}
     >
