@@ -1,6 +1,6 @@
 import * as AuthSession from "expo-auth-session";
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const clientId = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID ?? "";
 const redirectUri = "theshedmobile://spotify-callback";
@@ -69,25 +69,23 @@ export function useSpotifyPlaylist() {
     await SecureStore.deleteItemAsync(tokenKey);
   };
 
-  useEffect(() => {
-    let active = true;
-    SecureStore.getItemAsync(tokenKey)
-      .then((stored) => {
-        if (!active || !stored) return;
-        const parsed = JSON.parse(stored) as Token;
-        tokenRef.current = parsed;
-        setToken(parsed);
-      })
-      .catch((error: unknown) =>
-        console.warn("Spotify token restore failed", error),
-      )
-      .finally(() => {
-        if (active) setReady(true);
-      });
-    return () => {
-      active = false;
-    };
+  const refreshConnection = useCallback(async () => {
+    try {
+      const stored = await SecureStore.getItemAsync(tokenKey);
+      const next = stored ? (JSON.parse(stored) as Token) : null;
+
+      tokenRef.current = next;
+      setToken(next);
+    } catch (error) {
+      console.warn("Spotify token restore failed", error);
+    } finally {
+      setReady(true);
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshConnection();
+  }, [refreshConnection]);
 
   useEffect(() => {
     if (!response) return;
@@ -267,5 +265,6 @@ export function useSpotifyPlaylist() {
     connect,
     disconnect,
     importPlaylist,
+    refreshConnection,
   };
 }

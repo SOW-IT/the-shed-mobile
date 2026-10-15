@@ -15,7 +15,19 @@ type SpotifySong = {
   link: string;
   albumArtUrl?: string;
 };
-
+const detectSpotifyLink = (value: string): "track" | "playlist" | null => {
+  try {
+    const url = new URL(value.trim());
+    if (!["open.spotify.com", "www.open.spotify.com"].includes(url.hostname))
+      return null;
+    const match = url.pathname.match(
+      /^\/(?:intl-[a-zA-Z-]+\/)?(track|playlist)\/[a-zA-Z0-9]+\/?$/,
+    );
+    return match ? (match[1] as "track" | "playlist") : null;
+  } catch {
+    return null;
+  }
+};
 const spotifyTrackUrl = (value: string): string | null => {
   try {
     const url = new URL(value.trim());
@@ -52,6 +64,7 @@ export const NewMusicRequestSheet = ({
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
+  const [manualExpanded, setManualExpanded] = useState(false);
   // Check either the Spotify autofill field or the final song link.
   const duplicateLink = link.trim()
     ? spotifyTrackUrl(link)
@@ -68,7 +81,13 @@ export const NewMusicRequestSheet = ({
     !duplicateIsSelf && duplicate !== undefined && duplicate !== null;
   const getSpotifyTrack = useAction(api.spotify.getTrack);
   const spotifyPlaylist = useSpotifyPlaylist();
-  const [playlistLink, setPlaylistLink] = useState("");
+  useEffect(() => {
+    if (visible) {
+      void spotifyPlaylist.refreshConnection();
+    }
+  }, [visible, spotifyPlaylist.refreshConnection]);
+
+  const spotifyLinkType = detectSpotifyLink(spotifyLink);
   const [importingPlaylist, setImportingPlaylist] = useState(false);
   const submit = useMutation(api.musicRequests.submit);
   const update = useMutation(api.musicRequests.update);
@@ -124,9 +143,16 @@ export const NewMusicRequestSheet = ({
   };
   const importPlaylist = async () => {
     if (importingPlaylist || submitting) return;
+    if (!spotifyPlaylist.connected) {
+      Alert.alert(
+        "Spotify not connected",
+        "Open your Profile page and connect Spotify to import playlists.",
+      );
+      return;
+    }
     setImportingPlaylist(true);
     try {
-      const result = await spotifyPlaylist.importPlaylist(playlistLink.trim());
+      const result = await spotifyPlaylist.importPlaylist(spotifyLink.trim());
       const existing = new Set(
         songs.map(
           (song) => spotifyTrackUrl(song.link) ?? song.link.toLowerCase(),
@@ -135,9 +161,7 @@ export const NewMusicRequestSheet = ({
       const available = Math.max(0, 50 - songs.length);
       const fresh = result.songs.filter((song: SpotifySong) => {
         const key = spotifyTrackUrl(song.link) ?? song.link.toLowerCase();
-
         if (existing.has(key)) return false;
-
         existing.add(key);
         return true;
       });
@@ -166,7 +190,7 @@ export const NewMusicRequestSheet = ({
     setAlbumArtUrl(prefill?.albumArtUrl ?? null);
     setSpotifyError(null);
     setSongs([]);
-    setPlaylistLink("");
+    setManualExpanded(!!prefill);
   }, [visible, prefill?._id]);
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
@@ -184,6 +208,7 @@ export const NewMusicRequestSheet = ({
       setArtist(track.artist);
       setLink(track.link);
       setAlbumArtUrl(track.albumArtUrl);
+      setManualExpanded(true);
     } catch (error) {
       setSpotifyError(
         error instanceof Error
@@ -339,15 +364,14 @@ export const NewMusicRequestSheet = ({
         <View style={styles.spotifyHeading}>
           <Ionicons name="musical-notes-outline" size={20} color={t.primary} />
           <Text style={[styles.spotifyTitle, { color: t.text }]}>
-            Autofill from Spotify
+            Add from Spotify
           </Text>
         </View>
         <Text style={[typography.caption, { color: t.muted }]}>
-          Paste a Spotify song link to automatically fill in the title, artist,
-          link and album artwork.
+          Paste a song or playlist link. We’ll detect it automatically.
         </Text>
         <Field
-          label="Spotify Track URL"
+          label="Spotify song or playlist URL"
           value={spotifyLink}
           onChangeText={(value) => {
             setSpotifyLink(value);
@@ -357,20 +381,104 @@ export const NewMusicRequestSheet = ({
             setLink("");
             setAlbumArtUrl(null);
           }}
-          placeholder="https://open.spotify.com/track/..."
+          placeholder="https://open.spotify.com/track/... or playlist/..."
           autoCapitalize="none"
         />
         <Btn
-          title={fetchingSpotify ? "Finding song..." : "Autofill"}
-          icon="search-outline"
-          onPress={() => void autofillSpotify()}
-          disabled={fetchingSpotify || !spotifyLink.trim()}
+          title={
+            spotifyLinkType === "playlist"
+              ? importingPlaylist
+                ? "Importing..."
+                : "Import playlist"
+              : fetchingSpotify
+                ? "Finding song..."
+                : "Autofill song"
+          }
+          icon={
+            spotifyLinkType === "playlist"
+              ? "download-outline"
+              : "search-outline"
+          }
+          onPress={() =>
+            void (spotifyLinkType === "playlist"
+              ? importPlaylist()
+              : autofillSpotify())
+          }
+          disabled={
+            !spotifyLinkType ||
+            fetchingSpotify ||
+            importingPlaylist ||
+            submitting ||
+            (spotifyLinkType === "playlist" &&
+              (songs.length >= 50 || !!prefill))
+          }
         />
+        {spotifyLink.trim() && !spotifyLinkType ? (
+          <Text style={[typography.caption, { color: t.warning }]}>
+            Enter a valid Spotify track or playlist URL.
+          </Text>
+        ) : null}
+        {spotifyLinkType === "playlist" &&
+        !spotifyPlaylist.connected &&
+        !prefill ? (
+          <Text style={[typography.caption, { color: t.muted }]}>
+            Connect Spotify from your Profile page to import playlists.
+          </Text>
+        ) : null}
         {spotifyError ? (
           <Text style={[typography.caption, { color: t.warning }]}>
             {spotifyError}
           </Text>
         ) : null}
+        {!prefill && (
+          <View style={{ marginTop: spacing.sm }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.xs,
+              }}
+            >
+              <Ionicons
+                name={
+                  !spotifyPlaylist.ready
+                    ? "time-outline"
+                    : spotifyPlaylist.connected
+                      ? "checkmark-circle"
+                      : "close-circle"
+                }
+                size={17}
+                color={
+                  !spotifyPlaylist.ready
+                    ? t.muted
+                    : spotifyPlaylist.connected
+                      ? "#1DB954"
+                      : "#EF4444"
+                }
+              />
+              <Text
+                style={[
+                  typography.caption,
+                  {
+                    color: !spotifyPlaylist.ready
+                      ? t.muted
+                      : spotifyPlaylist.connected
+                        ? "#1DB954"
+                        : "#EF4444",
+                    fontWeight: "600",
+                  },
+                ]}
+              >
+                {!spotifyPlaylist.ready
+                  ? "Checking Spotify connection..."
+                  : spotifyPlaylist.connected
+                    ? "Spotify connected"
+                    : "Spotify not connected"}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {duplicate && !duplicateIsSelf ? (
           <View
             style={{
@@ -401,76 +509,6 @@ export const NewMusicRequestSheet = ({
           </View>
         ) : null}
       </View>
-      {!prefill && (
-        <View
-          style={[
-            styles.spotifySection,
-            { borderColor: t.separator, backgroundColor: t.card },
-          ]}
-        >
-          <View style={styles.spotifyHeading}>
-            <Ionicons name="list-outline" size={20} color={t.primary} />
-            <Text style={[styles.spotifyTitle, { color: t.text }]}>
-              Import Spotify playlist
-            </Text>
-          </View>
-          <Text style={[typography.caption, { color: t.muted }]}>
-            Import up to 50 playlist songs into your request list. You can
-            remove songs before submitting.
-          </Text>
-          <Text style={[typography.caption, { color: t.muted }]}>
-            {spotifyPlaylist.connected
-              ? "Spotify connected"
-              : "Connect Spotify to import playlists you own or collaborate on."}
-          </Text>
-
-          {spotifyPlaylist.connected ? (
-            <Btn
-              title="Disconnect Spotify"
-              variant="ghost"
-              onPress={() =>
-                void spotifyPlaylist
-                  .disconnect()
-                  .catch((e: unknown) => Alert.alert("Spotify", String(e)))
-              }
-            />
-          ) : (
-            <Btn
-              title={
-                spotifyPlaylist.connecting
-                  ? "Connecting Spotify..."
-                  : "Connect Spotify"
-              }
-              onPress={() =>
-                void spotifyPlaylist
-                  .connect()
-                  .catch((e: unknown) => Alert.alert("Spotify", String(e)))
-              }
-              disabled={!spotifyPlaylist.ready || spotifyPlaylist.connecting}
-            />
-          )}
-
-          <Field
-            label="Spotify Playlist URL"
-            value={playlistLink}
-            onChangeText={setPlaylistLink}
-            placeholder="https://open.spotify.com/playlist/..."
-            autoCapitalize="none"
-          />
-          <Btn
-            title={importingPlaylist ? "Importing..." : "Import playlist"}
-            icon="download-outline"
-            onPress={() => void importPlaylist()}
-            disabled={
-              importingPlaylist ||
-              submitting ||
-              !playlistLink.trim() ||
-              !spotifyPlaylist.connected ||
-              songs.length >= 50
-            }
-          />
-        </View>
-      )}
       {albumArtUrl ? (
         <View style={styles.preview}>
           <Image
@@ -480,24 +518,58 @@ export const NewMusicRequestSheet = ({
           />
         </View>
       ) : null}
-      <Field
-        label="Song Title"
-        value={title}
-        onChangeText={setTitle}
-        placeholder="Enter song title"
-      />
-      <Field
-        label="Artist"
-        value={artist}
-        onChangeText={setArtist}
-        placeholder="Enter artist name"
-      />
-      <Field
-        label="Link"
-        value={link}
-        onChangeText={setLink}
-        placeholder="Spotify or YouTube link"
-      />
+      <Pressable
+        onPress={() => setManualExpanded((prev) => !prev)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: manualExpanded }}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingVertical: spacing.md,
+        }}
+      >
+        <Text style={{ color: t.text, fontWeight: "700" }}>
+          Add song manually
+        </Text>
+        <Ionicons
+          name={manualExpanded ? "chevron-up" : "chevron-down"}
+          size={22}
+          color={t.muted}
+        />
+      </Pressable>
+      {manualExpanded && (
+        <View style={{ gap: spacing.md }}>
+          <Field
+            label="Song Title"
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Enter song title"
+          />
+          <Field
+            label="Artist"
+            value={artist}
+            onChangeText={setArtist}
+            placeholder="Enter artist name"
+          />
+          <Field
+            label="Link"
+            value={link}
+            onChangeText={setLink}
+            placeholder="Spotify or YouTube link"
+          />
+          <Btn
+            title="Add song to list"
+            icon="add-outline"
+            onPress={addSong}
+            disabled={
+              fetchingSpotify ||
+              duplicateBlocked ||
+              (!!duplicateLink && duplicate === undefined)
+            }
+          />
+        </View>
+      )}
       {!prefill && (
         <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
           <Text style={{ color: t.text, fontWeight: "800" }}>
@@ -540,20 +612,6 @@ export const NewMusicRequestSheet = ({
               </Pressable>
             </View>
           ))}
-          <Btn
-            title="Add song to list"
-            icon="add-outline"
-            onPress={addSong}
-            disabled={
-              fetchingSpotify ||
-              duplicateBlocked ||
-              (!!duplicateLink && duplicate === undefined)
-            }
-          />
-          <Text style={[typography.caption, { color: t.muted }]}>
-            Add multiple songs, remove any before submitting, then submit them
-            together. Duplicate tracks are skipped.
-          </Text>
         </View>
       )}
       {!hideRequestComment && (

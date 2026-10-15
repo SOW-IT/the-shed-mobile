@@ -1,22 +1,23 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery } from "convex/react";
-import Constants from "expo-constants";
-import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
-import { ReactNode, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { timeAgo } from "../../shared/datetime";
-import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
-import { api } from "../../convex/_generated/api";
-import { ChromeScreen } from "./ChromeScreen";
-import { ChurchDetails, ChurchPicker } from "./ChurchPicker";
-import { DeleteAccountCard } from "./DeleteAccountCard";
-import { radius, spacing, typography, useAppTheme } from "../theme";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import {
   getLocalFileSizeBytes,
   uploadLocalFileToUrl,
 } from "@/lib/uploadLocalFile";
+import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import { useMutation, useQuery } from "convex/react";
+import Constants from "expo-constants";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import { ReactNode, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { api } from "../../convex/_generated/api";
+import { timeAgo } from "../../shared/datetime";
+import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
+import { radius, spacing, typography, useAppTheme } from "../theme";
+import { ChromeScreen } from "./ChromeScreen";
+import { ChurchDetails, ChurchPicker } from "./ChurchPicker";
+import { DeleteAccountCard } from "./DeleteAccountCard";
+import { useSpotifyPlaylist } from "./music/useSpotifyPlaylist";
 import {
   Avatar,
   Card,
@@ -49,17 +50,161 @@ const ProfileFrame = ({
     </Screen>
   );
 
+function SpotifyConnectionCard() {
+  const t = useAppTheme();
+  const spotify = useSpotifyPlaylist();
+
+  const statusColor = spotify.connected ? "#1DB954" : "#EF4444";
+
+  const handleConnect = async () => {
+    try {
+      await spotify.connect();
+    } catch (e) {
+      Alert.alert("Spotify", errorMessage(e));
+    }
+  };
+
+  const handleDisconnect = () => {
+    Alert.alert(
+      "Disconnect Spotify",
+      "You will need to reconnect to import playlists.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: () => {
+            void spotify.disconnect().catch((e: unknown) => {
+              Alert.alert("Spotify", errorMessage(e));
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  return (
+    <Card style={{ gap: spacing.md }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.md,
+        }}
+      >
+        {/* Spotify logo */}
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: "#1DB954",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <FontAwesome name="spotify" size={27} color="#FFFFFF" />
+        </View>
+
+        {/* Account status */}
+        <View style={{ flex: 1, gap: 5 }}>
+          <Text
+            style={[typography.label, { color: t.text, fontWeight: "700" }]}
+          >
+            Spotify
+          </Text>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            {spotify.ready ? (
+              <Ionicons
+                name={spotify.connected ? "checkmark-circle" : "close-circle"}
+                size={15}
+                color={statusColor}
+              />
+            ) : (
+              <Ionicons name="time-outline" size={15} color={t.muted} />
+            )}
+
+            <Text
+              style={[
+                typography.caption,
+                {
+                  color: spotify.ready ? statusColor : t.muted,
+                  fontWeight: "600",
+                },
+              ]}
+            >
+              {!spotify.ready
+                ? "Checking connection..."
+                : spotify.connected
+                  ? "Connected"
+                  : "Not connected"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Connect / Disconnect */}
+        {spotify.ready && (
+          <Pressable
+            disabled={spotify.connecting}
+            onPress={
+              spotify.connected ? handleDisconnect : () => void handleConnect()
+            }
+            style={{
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+              borderRadius: radius.md,
+              backgroundColor: t.inputBackground,
+              opacity: spotify.connecting ? 0.5 : 1,
+            }}
+          >
+            <Text
+              style={[
+                typography.caption,
+                {
+                  color: t.text,
+                  fontWeight: "700",
+                },
+              ]}
+            >
+              {spotify.connecting
+                ? "Connecting..."
+                : spotify.connected
+                  ? "Disconnect"
+                  : "Connect"}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    </Card>
+  );
+}
+
 /**
  * A person's profile. Your own (`asTab`) is a root screen from the side menu,
  * with the top bar; anyone else's opens on top of the screen you came from,
  * with a back button.
  */
-export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: boolean }) => {
+export const ProfileView = ({
+  email,
+  asTab = false,
+}: {
+  email?: string;
+  asTab?: boolean;
+}) => {
   const t = useAppTheme();
   const profile = useQuery(api.profile.get, email ? { email } : {});
   // Keeps "Last online 5m ago" current while the profile is open.
   useMinuteTick();
-  const generateAvatarUploadUrl = useMutation(api.profile.generateAvatarUploadUrl);
+  const generateAvatarUploadUrl = useMutation(
+    api.profile.generateAvatarUploadUrl,
+  );
   const setAvatar = useMutation(api.profile.setAvatar);
 
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +239,9 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
       const size = await getLocalFileSizeBytes(asset.uri);
       if (size > MAX_UPLOAD_BYTES) {
         const maxMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
-        throw new Error(`Image is too large. Please choose one ${maxMb}MB or less.`);
+        throw new Error(
+          `Image is too large. Please choose one ${maxMb}MB or less.`,
+        );
       }
       const uploadUrl = await generateAvatarUploadUrl();
       const storageId = await uploadLocalFileToUrl(uploadUrl, {
@@ -130,15 +277,24 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
               </Pressable>
             )}
           </View>
-          <Text style={[typography.title, { color: t.text, textAlign: "center" }]}>
+          <Text
+            style={[typography.title, { color: t.text, textAlign: "center" }]}
+          >
             {profile.name ?? profile.email}
           </Text>
           {profile.email ? (
-            <Text style={[typography.caption, { color: t.muted }]}>{profile.email}</Text>
+            <Text style={[typography.caption, { color: t.muted }]}>
+              {profile.email}
+            </Text>
           ) : null}
           {profile.isMe ? (
             profile.googleSyncedAt ? (
-              <View style={[styles.syncChip, { backgroundColor: t.inputBackground }]}>
+              <View
+                style={[
+                  styles.syncChip,
+                  { backgroundColor: t.inputBackground },
+                ]}
+              >
                 <Ionicons name="logo-google" size={12} color={t.muted} />
                 <Text style={[typography.caption, { color: t.muted }]}>
                   Synced from Google {timeAgo(profile.googleSyncedAt)}
@@ -155,7 +311,12 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
             </Text>
           ) : null}
           {current ? (
-            <View style={[styles.assignmentPill, { backgroundColor: t.primarySoft }]}>
+            <View
+              style={[
+                styles.assignmentPill,
+                { backgroundColor: t.primarySoft },
+              ]}
+            >
               <Text
                 style={[
                   typography.caption,
@@ -181,7 +342,10 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
       {profile.isMe && (
         <FadeInView delay={stagger(1)}>
           <Card>
-            <ChurchPicker church={profile.church} typedChurch={profile.typedChurch} />
+            <ChurchPicker
+              church={profile.church}
+              typedChurch={profile.typedChurch}
+            />
           </Card>
         </FadeInView>
       )}
@@ -191,14 +355,26 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
           <Pressable
             accessibilityRole="link"
             accessibilityLabel={`${profile.church.name}. See who goes there`}
-            onPress={() => router.push({ pathname: "/churches", params: { church: profile.church!._id } })}
+            onPress={() =>
+              router.push({
+                pathname: "/churches",
+                params: { church: profile.church!._id },
+              })
+            }
             style={({ pressed }) => pressed && { opacity: 0.85 }}
           >
             <Card style={{ gap: spacing.sm }}>
-              <Text style={[typography.label, { color: t.muted }]}>Local church</Text>
+              <Text style={[typography.label, { color: t.muted }]}>
+                Local church
+              </Text>
               <ChurchDetails church={profile.church} />
               <View style={styles.seeWho}>
-                <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
+                <Text
+                  style={[
+                    typography.caption,
+                    { color: t.primary, fontWeight: "700" },
+                  ]}
+                >
                   See who goes there
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={t.primary} />
@@ -215,7 +391,12 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
         profile.serviceHistory.map((entry, index) => (
           <FadeInView key={entry.year} delay={stagger(index + 2)}>
             <Card style={styles.historyCard}>
-              <View style={[styles.yearBadge, { backgroundColor: t.inputBackground }]}>
+              <View
+                style={[
+                  styles.yearBadge,
+                  { backgroundColor: t.inputBackground },
+                ]}
+              >
                 <Text style={[styles.yearBadgeText, { color: t.text }]}>
                   {entry.year}
                 </Text>
@@ -229,7 +410,10 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
                     {entry.assignments.map((a, i) => (
                       <View
                         key={i}
-                        style={[styles.assignmentChip, { backgroundColor: t.primarySoft }]}
+                        style={[
+                          styles.assignmentChip,
+                          { backgroundColor: t.primarySoft },
+                        ]}
                       >
                         <Text
                           style={[
@@ -252,9 +436,16 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
           </FadeInView>
         ))
       )}
+      {profile.isMe && (
+        <FadeInView delay={stagger(2)}>
+          <SpotifyConnectionCard />
+        </FadeInView>
+      )}
       {profile.isMe && <DeleteAccountCard />}
       {profile.isMe && (
-        <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>
+        <Text
+          style={[typography.caption, { color: t.muted, textAlign: "center" }]}
+        >
           Version {Constants.expoConfig?.version ?? "—"}
         </Text>
       )}
@@ -271,7 +462,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  seeWho: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-end" },
+  seeWho: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    alignSelf: "flex-end",
+  },
   hero: { alignItems: "center", paddingVertical: spacing.xxl },
   cameraBadge: {
     position: "absolute",
