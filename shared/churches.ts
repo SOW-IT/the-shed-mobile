@@ -92,3 +92,54 @@ export const cleanInstagram = (text: string | undefined): string | undefined | n
 };
 
 export const instagramUrl = (handle: string) => `https://www.instagram.com/${handle}/`;
+
+export type ChurchPersonGroup = "leader" | "staff" | "member";
+
+export type ChurchAudience = "everyone" | "volunteers" | "leaders" | "staff";
+
+export const CHURCH_AUDIENCES: readonly { key: ChurchAudience; label: string }[] = [
+  { key: "everyone", label: "Everyone" },
+  { key: "volunteers", label: "Volunteers" },
+  { key: "leaders", label: "Campus leaders" },
+  { key: "staff", label: "Staff" },
+];
+
+const AUDIENCE_GROUPS: Record<ChurchAudience, readonly ChurchPersonGroup[]> = {
+  everyone: ["leader", "staff", "member"],
+  volunteers: ["leader", "staff"],
+  leaders: ["leader"],
+  staff: ["staff"],
+};
+
+export type ChurchFilter = { audience: ChurchAudience; campuses: readonly string[] };
+
+export const NO_CHURCH_FILTER: ChurchFilter = { audience: "everyone", campuses: [] };
+
+export const isChurchFilterActive = (filter: ChurchFilter) =>
+  filter.audience !== "everyone" || filter.campuses.length > 0;
+
+type Filterable = { group: ChurchPersonGroup; campus: string | null };
+
+export const churchPeopleMatching = <P extends Filterable>(people: readonly P[], filter: ChurchFilter): P[] =>
+  people.filter(
+    (person) =>
+      AUDIENCE_GROUPS[filter.audience].includes(person.group) &&
+      (filter.campuses.length === 0 || (person.campus !== null && filter.campuses.includes(person.campus)))
+  );
+
+export const churchCampuses = (people: readonly Filterable[], label: (campus: string) => string): string[] =>
+  [...new Set(people.flatMap((person) => (person.campus ? [person.campus] : [])))].sort((a, b) =>
+    label(a).localeCompare(label(b))
+  );
+
+export const mainCampus = (people: readonly Filterable[]): string | null => {
+  const counts = new Map<string, number>();
+  for (const person of people) {
+    if (person.campus) counts.set(person.campus, (counts.get(person.campus) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  for (const [campus, count] of counts) {
+    if (best === null || count > counts.get(best)! || (count === counts.get(best) && campus < best)) best = campus;
+  }
+  return best;
+};
