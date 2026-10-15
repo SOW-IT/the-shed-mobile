@@ -30,9 +30,6 @@ import {
 
 const ROSTER_HISTORY_EVENT_LIMIT = 60;
 
-const scoreKey = (row: { memberId?: Id<"attendanceMembers"> }) =>
-  row.memberId ? `member:${row.memberId}` : "";
-
 export type RosterEntry = {
   key: string;
   kind: "staff" | "member";
@@ -152,8 +149,7 @@ export const roster = query({
     );
     otherHistory.forEach((historyEvent, i) => {
       for (const row of historyAttendances[i]) {
-        const key = scoreKey(row);
-        if (!key) continue;
+        const key = `member:${row.memberId}`;
         const score = scores.get(key) ?? {
           tagMatches: 0,
           subgroupMatches: 0,
@@ -217,7 +213,7 @@ export const listByEvent = query({
 
     const withNames = await Promise.all(
       rows.map(async (row) => {
-        const member = row.memberId ? await ctx.db.get(row.memberId) : null;
+        const member = await ctx.db.get(row.memberId);
         const profile = member ? await staffProfileOfMember(ctx, member._id, profileYear) : null;
         if (profile) {
           const email = profile.email.toLowerCase();
@@ -262,15 +258,14 @@ export const listByEvent = query({
         };
       })
     );
-    const byIdentity = new Map<string, (typeof withNames)[number]>();
+    const earliestByMember = new Map<Id<"attendanceMembers">, (typeof withNames)[number]>();
     for (const row of withNames) {
-      const identity = row.memberId ? `member:${row.memberId}` : `row:${row._id}`;
-      const existing = byIdentity.get(identity);
+      const existing = earliestByMember.get(row.memberId);
       if (!existing || row.signInTime < existing.signInTime) {
-        byIdentity.set(identity, row);
+        earliestByMember.set(row.memberId, row);
       }
     }
-    return [...byIdentity.values()].sort((a, b) => b.signInTime - a.signInTime);
+    return [...earliestByMember.values()].sort((a, b) => b.signInTime - a.signInTime);
   },
 });
 
@@ -351,7 +346,7 @@ export const updateRecord = mutation({
     if (Object.keys(patch).length === 0) return;
     await ctx.db.patch(attendanceId, patch);
     const event = await ctx.db.get(row.eventId);
-    const member = row.memberId ? await ctx.db.get(row.memberId) : null;
+    const member = await ctx.db.get(row.memberId);
     const who = member
       ? await memberDisplayName(
           ctx,

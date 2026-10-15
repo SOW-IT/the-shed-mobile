@@ -14,7 +14,6 @@ export default defineConfig({
         "**/_generated/**",
         "**/*.test.ts",
         "convex/env.d.ts",
-        "convex/rollcallImport.ts",
         "convex/devE2E.ts",
         "convex/auth.ts",
         "convex/auth.config.ts",

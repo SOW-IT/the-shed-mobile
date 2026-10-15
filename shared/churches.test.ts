@@ -13,7 +13,6 @@ import {
   isServiceTime,
   mainCampus,
   NO_CHURCH_FILTER,
-  parseServiceTimes,
   sortServices,
   websiteLabel,
 } from "./churches";
@@ -83,21 +82,6 @@ describe("service times", () => {
         { day: 6, time: "18:30" },
       ])
     ).toBe("Sunday 9am, 11am and 6pm · Saturday 6:30pm");
-  });
-
-  test("typed text is read back into days and times", () => {
-    expect(parseServiceTimes("Sunday 10am and 12pm")).toEqual([
-      { day: 0, time: "10:00" },
-      { day: 0, time: "12:00" },
-    ]);
-    expect(parseServiceTimes("Sunday 1:15pm")).toEqual([{ day: 0, time: "13:15" }]);
-    expect(parseServiceTimes("Sat 6.30pm, Sun 9am")).toEqual([
-      { day: 0, time: "09:00" },
-      { day: 6, time: "18:30" },
-    ]);
-    expect(parseServiceTimes("10am")).toEqual([{ day: 0, time: "10:00" }]);
-    expect(parseServiceTimes("Wednesday 12am")).toEqual([{ day: 3, time: "00:00" }]);
-    expect(parseServiceTimes("13pm, 0am, sometime")).toEqual([]);
   });
 });
 

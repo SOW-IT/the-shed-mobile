@@ -171,9 +171,6 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
           ) : (
             <Muted>No assignment for {currentYear}</Muted>
           )}
-          {!profile.isMe && !profile.church && profile.typedChurch ? (
-            <Muted>Church: {profile.typedChurch}</Muted>
-          ) : null}
           <ErrorBanner message={error} />
         </Card>
       </FadeInView>
@@ -181,7 +178,7 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
       {profile.isMe && (
         <FadeInView delay={stagger(1)}>
           <Card>
-            <ChurchPicker church={profile.church} typedChurch={profile.typedChurch} />
+            <ChurchPicker church={profile.church} />
           </Card>
         </FadeInView>
       )}

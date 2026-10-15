@@ -87,12 +87,8 @@ async function setup() {
         tagIds: mark ? [tag] : [],
         ...(mark ? { weekly: mark } : {}),
       });
-    const signIn = (eventId: Id<"events">, who: Id<"attendanceMembers"> | string) =>
-      ctx.db.insert("attendance", {
-        eventId,
-        signInTime: Date.now(),
-        ...(typeof who === "string" && who.includes("@") ? { email: who } : { memberId: who as Id<"attendanceMembers"> }),
-      });
+    const signIn = (eventId: Id<"events">, memberId: Id<"attendanceMembers">) =>
+      ctx.db.insert("attendance", { eventId, memberId, signInTime: Date.now() });
     const weeklies: Id<"events">[] = [];
     for (const [i, at] of T2_2025.entries()) {
       const e = await event("Weeklies", at, [UNSW], { year: 2025, slot: 2, week: i + 1 });
@@ -397,11 +393,8 @@ describe("nightly builds only redo what changed", () => {
     for (const key of Object.keys(views)) expect(after[key].computedAt).toBeGreaterThan(views[key].computedAt);
   });
 
-  test("staff are keyed by their member row; a sign-in with no member is left out", async () => {
+  test("staff are keyed by their member row", async () => {
     const { t, leader, ids } = await setup();
-    await t.run((ctx) =>
-      ctx.db.insert("attendance", { eventId: ids.weeklies.at(-1)!, signInTime: 0 })
-    );
     await rebuild(t);
     const now = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!;
     const lee = block(now.blocks, "people").rows.find((r) => r.name === "Lee Leader")!;

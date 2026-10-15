@@ -1045,18 +1045,16 @@ describe("attendance audit names the person by member", () => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
       await ctx.db.delete(gone);
       const orphan = await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: dateStart });
-      const memberless = await ctx.db.insert("attendance", { eventId, signInTime: dateStart });
       const staffRow = await ctx.db.insert("attendance", { eventId, memberId: otherMember, signInTime: dateStart });
       await ctx.db.delete(eventId);
-      return { gone, orphan, memberless, staffRow };
+      return { gone, orphan, staffRow };
     });
     await expect(
       staff.mutation(api.attendance.updateRecord, { attendanceId: ids.orphan, notes: "x" })
     ).resolves.toBeNull();
-    await staff.mutation(api.attendance.updateRecord, { attendanceId: ids.memberless, notes: "y" });
     await staff.mutation(api.attendance.updateRecord, { attendanceId: ids.staffRow, notes: "z" });
     const updates = (await allLogs(t)).filter((l) => l.action === "attendance.update");
-    expect(updates.filter((l) => l.summary === `Edited A member's record for "an event"`)).toHaveLength(2);
+    expect(updates.filter((l) => l.summary === `Edited A member's record for "an event"`)).toHaveLength(1);
     const staffEdit = updates.find((l) => l.memberId === otherMember)!;
     expect(staffEdit.summary).toMatch(/record for "an event"$/);
     expect(staffEdit.subjectEmail).toBe(OTHER);
@@ -1073,7 +1071,7 @@ describe("attendance audit names the person by member", () => {
     expect(staffOut.summary).toMatch(/signed out of "an event"$/);
     expect(staffOut.detail).toBeUndefined();
     const left = await t.run((ctx) => ctx.db.query("attendance").collect());
-    expect(left.map((r) => r._id)).toEqual([ids.memberless]);
+    expect(left).toEqual([]);
   });
 
   test("editing a record that no longer exists throws", async () => {
@@ -1087,7 +1085,8 @@ describe("attendance audit names the person by member", () => {
       subgroups: [USYD],
     });
     const attendanceId = await t.run(async (ctx) => {
-      const id = await ctx.db.insert("attendance", { eventId, signInTime: dateStart });
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Brief" });
+      const id = await ctx.db.insert("attendance", { eventId, memberId, signInTime: dateStart });
       await ctx.db.delete(id);
       return id;
     });

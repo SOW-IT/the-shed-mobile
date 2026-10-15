@@ -6,7 +6,6 @@ import {
   rolesOfLike,
   staffYearForDate,
   sydneyCalendarYear,
-  SYDNEY_TIME_ZONE,
 } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
@@ -942,7 +941,6 @@ export const merge = mutation({
     await ctx.db.patch(survivor.row._id, {
       ...(await fieldsFor()),
       churchId: keep.row.churchId ?? remove.churchId,
-      sourceImportId: keep.row.sourceImportId ?? remove.sourceImportId,
     });
     await ctx.db.delete(victim.row._id);
 

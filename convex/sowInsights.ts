@@ -25,7 +25,7 @@ async function toSowEvent(ctx: QueryCtx, event: Doc<"events">): Promise<SowEvent
     .query("attendance")
     .withIndex("by_event", (q) => q.eq("eventId", event._id))
     .take(MAX_SIGN_INS_PER_EVENT);
-  const people = new Set(rows.map((r) => (r.memberId ? `member:${r.memberId}` : `signin:${r._id}`)));
+  const people = new Set(rows.map((r) => `member:${r.memberId}`));
   return { id: event._id, name: event.name, at: event.dateStart, people: [...people] };
 }
 

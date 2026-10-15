@@ -54,6 +54,7 @@ async function setup() {
     const nina = await member("Nina None", { [campusField]: "c1" });
     const newbie = await member("Ned New");
     const pat = await member("Pat Placeholder");
+    const walkIn = await member("Wes Walkin");
     const profile = async (memberId: Id<"attendanceMembers">, email: string, year: number, role: string, university?: string) =>
       ctx.db.insert("staffProfiles", {
         email,
@@ -69,10 +70,10 @@ async function setup() {
     await profile(olly, "olly@sow.org.au", 2027, "Staff");
     await ctx.db.insert("staffProfiles", { email: "pat@sow.org.au", year: 2027, memberId: pat, name: "Pat Placeholder", assignments: [] });
 
-    const event = async (name: string, at: number, tagIds: Id<"attendanceTags">[], who: (Id<"attendanceMembers"> | null)[], subgroups = [SOW]) => {
+    const event = async (name: string, at: number, tagIds: Id<"attendanceTags">[], who: Id<"attendanceMembers">[], subgroups = [SOW]) => {
       const eventId = await ctx.db.insert("events", { name, dateStart: at, dateEnd: at + 3600_000, subgroups, tagIds });
       for (const memberId of who) {
-        await ctx.db.insert("attendance", { eventId, signInTime: at, ...(memberId ? { memberId } : {}) });
+        await ctx.db.insert("attendance", { eventId, memberId, signInTime: at });
       }
     };
     await event("OCT 2023 TWIG", mon(2023, 10, 9), [twig], [lee]);
@@ -80,7 +81,7 @@ async function setup() {
     await event("NOV 10th TWIG", mon(2025, 11, 10), [twig], [lee]);
     await event("TWIG 1 Dec", mon(2025, 12, 1), [twig], []);
     await event("TWIG Feb", mon(2026, 2, 2), [twig], [lee]);
-    await event("November PPN", mon(2025, 11, 17), [twig, ppn], [lee, nina, null]);
+    await event("November PPN", mon(2025, 11, 17), [twig, ppn], [lee, nina, walkIn]);
     await event("MARCH PPN", mon(2026, 3, 17), [twig, ppn], [lee]);
     await event("Intercampus PPN", mon(2026, 8, 1), [ppn], [lee, uma], [UNSW]);
     await event("BAM PPN weekly", mon(2026, 8, 5), [weeklyPpn], [lee], [UNSW]);

@@ -54,7 +54,6 @@ export default defineSchema({
     // Lower-case, single-spaced name, so the same church isn't added twice.
     nameKey: v.string(),
     address: v.optional(v.string()),
-    serviceTimes: v.optional(v.string()),
     services: v.optional(v.array(v.object({ day: v.number(), time: v.string() }))),
     website: v.optional(v.string()),
     instagram: v.optional(v.string()),
@@ -411,8 +410,7 @@ export default defineSchema({
     .index("by_requester_and_status", ["requesterEmail", "status"])
     .index("by_department_and_year", ["department", "year"])
     .index("by_department_and_status", ["department", "status"])
-    .index("by_status", ["status"])
-    .index("by_legacyKey", ["legacyKey"]),
+    .index("by_status", ["status"]),
 
   // One of an event's three forms. Marketing keeps `answers` (the form in
   // convex/eventRequestForm.ts), Risk keeps `risk` and Finance keeps
@@ -435,8 +433,7 @@ export default defineSchema({
     decidedBy: v.optional(v.string()),
     changesReason: v.optional(v.string()),
   })
-    .index("by_eventRequest_and_kind", ["eventRequestId", "kind"])
-    .index("by_kind_and_status", ["kind", "status"]),
+    .index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
 
   eventRequestEvents: defineTable({
     eventRequestId: v.id("eventRequests"),
@@ -549,7 +546,7 @@ export default defineSchema({
 
   attendance: defineTable({
     eventId: v.id("events"),
-    memberId: v.optional(v.id("attendanceMembers")),
+    memberId: v.id("attendanceMembers"),
     signInTime: v.number(),
     notes: v.optional(v.string()),
   })
@@ -572,11 +569,6 @@ export default defineSchema({
     computedAt: v.number(),
     data: metricsDataValidator,
   })
-    .index("by_subgroup_and_range", [
-      "subgroup",
-      "rangeWeeks",
-      "includeCollaborative",
-    ])
     .index("by_subgroup_range_year", [
       "subgroup",
       "rangeWeeks",
