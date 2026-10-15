@@ -210,9 +210,7 @@ export const run = internalMutation({
       let name = event.name;
       let mark: WeeklyMark | null = isWeekly ? (event.weekly ?? null) : null;
       let nextTags = beforeTags.filter((id) => !tags.mergedIds.has(id) && (isWeekly || !weekliesIds.has(id)));
-      if (beforeTags.some((id) => tags.mergedIds.has(id)) && tags.socialId && !isWeekly) {
-        nextTags = [...nextTags, tags.socialId];
-      }
+      const hadMergedTag = beforeTags.some((id) => tags.mergedIds.has(id));
       let unmapped: string | undefined;
 
       if (isWeekly && owner) {
@@ -244,8 +242,10 @@ export const run = internalMutation({
           .map((t) => tags.eventTagIds.get(t.name))
           .filter((id): id is Id<"attendanceTags"> => !!id);
         nextTags = [...nextTags, ...fromName];
+        const isPpn = !!eventsPpn && nextTags.includes(eventsPpn);
+        if (hadMergedTag && tags.socialId && !isPpn) nextTags = [...nextTags, tags.socialId];
         const sow = subgroups.some((s) => isOrgWideSubgroup(s));
-        if (sow && eventsPpn && twig && nextTags.includes(eventsPpn)) nextTags = [...nextTags, twig];
+        if (sow && isPpn && twig) nextTags = [...nextTags, twig];
       }
 
       nextTags = [...new Set(nextTags)];

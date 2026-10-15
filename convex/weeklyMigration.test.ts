@@ -147,7 +147,7 @@ function expectedEventChanges(events: Events) {
       subgroups: [UNSW, USYD],
       kind: "event",
       before: { name: "Intercampus PPN", tags: ["Event"], mark: null },
-      after: { name: "Intercampus PPN", tags: ["Social", "PPN"], mark: null },
+      after: { name: "Intercampus PPN", tags: ["PPN"], mark: null },
     },
     {
       eventId: events.bam,
@@ -319,7 +319,7 @@ describe("weeklyMigration.run", () => {
     expect(read("gamesNight")).toEqual({ name: "T2W3", tagIds: [wm, weeklyLabel("Games Night")], weekly: mark(2025, 2, 3) });
     expect(read("retreat")).toEqual({ name: "Retreat", tagIds: [tags.retreat], weekly: undefined });
     expect(read("seasons")).toEqual({ name: "SEASONS #3", tagIds: [tags.seasons], weekly: undefined });
-    expect(read("intercampusPpn")).toEqual({ name: "Intercampus PPN", tagIds: [tags.social, tags.ppn], weekly: undefined });
+    expect(read("intercampusPpn")).toEqual({ name: "Intercampus PPN", tagIds: [tags.ppn], weekly: undefined });
     expect(read("bam")).toEqual({ name: "S2W4", tagIds: [wm, weeklyLabel("BAM")], weekly: mark(2025, 2, 4) });
     expect(read("trivia")).toEqual({ name: "Trivia", tagIds: [tags.social], weekly: undefined });
     expect(read("t3w1")).toEqual({ name: "T3W1", tagIds: [wm], weekly: mark(2025, 3, 1) });

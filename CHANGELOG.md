@@ -28,7 +28,8 @@ All notable changes to **The SHED** mobile app. This project follows
   its name turned into tags ("S2 WM #13 PPN" is now S2W13 tagged PPN). Shared
   weeklies like Mega Weeklies got a term and week from their owning campus
   (Insights still leaves them out of campus terms).
-- **Tags tidied:** Event and Other Events merged into Social; Retreat,
+- **Tags tidied:** Event and Other Events merged into Social (a PPN, like
+  Intercampus PPN, takes PPN instead); Retreat,
   Mid-Sem Break and PPN can be used by every campus and SOW; the SOW monthly
   PPNs (and the September Farewells) also carry TWIG.
 - **Weeks go up to 14**, and a weekly's term is always in its date's year.
