@@ -36,8 +36,8 @@ Apps older than 2.9.0 don't show the switcher; they keep the Campuses view.
 | Held | At least one sign-in. A TWIG or PPN with none is left out of every number and listed under **No roll taken**. |
 | Staff year | 1 Oct to 30 Sep. A view shows one staff year, compared with the one before. |
 | Campus leader | A staff profile that staff year with a university role (Student Leader, President, Vice President, Executive). Their campus is that role's university. |
-| Organiser | A staff profile that staff year with no university role. |
-| No staff profile | No staff profile with an assignment that staff year, or a sign-in with no member. |
+| Organiser | A staff profile that staff year with at least one assignment, none of them a university role. |
+| No staff profile | No staff profile that staff year, a profile with no assignments (which doesn't make anyone staff, as everywhere in the app), or a sign-in with no member. |
 
 ## TWIG
 
@@ -77,10 +77,12 @@ Everyone counts; people with no staff profile are noted, never flagged.
 ## The query
 
 `convex/sowInsights.ts` computes on each read. There's no snapshot or cron:
-prod has about 40 TWIG/PPN events and 1,500 sign-ins. It reads every event by
-date (`MAX_EVENTS`), keeps the ones the tags make TWIG or PPN, reads their
-sign-ins (`attendance.by_event`) and resolves people with the weekly Insights'
-`resolvePeople`, by staff year. It's reactive, so a sign-in shows straight
+prod has about 40 TWIG/PPN events and 1,500 sign-ins. It reads every event,
+newest first (`MAX_EVENTS`, so if the cap is ever reached it's the oldest that
+drop off), keeps the ones the tags make TWIG or PPN, and lists every staff
+year that has one of that kind (plus the current year) in the picker. It
+reads their sign-ins (`attendance.by_event`) and resolves people with the
+weekly Insights' `resolvePeople`, by staff year. It's reactive, so a sign-in shows straight
 away. If it ever gets slow, precompute per staff year the way
 `weeklyInsightViews` does.
 

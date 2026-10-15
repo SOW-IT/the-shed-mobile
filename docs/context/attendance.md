@@ -178,7 +178,10 @@ _Avoid_: TWIG PPN for a campus PPN (that has the PPN tag alone)
 **Campus leader** / **Organiser**:
 For a staff year, a campus leader has a staff profile with a university role
 (Student Leader, President, Vice President, Executive); an organiser has a
-profile with no university role. TWIG Insights counts only campus leaders.
+profile with at least one assignment, none of them a university role. A
+profile with no assignments isn't staff (see Staff on top), so TWIG Insights
+lists that person as having no staff profile. TWIG Insights counts only
+campus leaders.
 _Avoid_: leader (ambiguous with the weekly Leader category)
 
 **Sign-in tag**:

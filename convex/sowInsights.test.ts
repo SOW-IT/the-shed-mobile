@@ -53,6 +53,7 @@ async function setup() {
     const olly = await member("Olly Organiser");
     const nina = await member("Nina None", { [campusField]: "c1" });
     const newbie = await member("Ned New");
+    const pat = await member("Pat Placeholder");
     const profile = async (memberId: Id<"attendanceMembers">, email: string, year: number, role: string, university?: string) =>
       ctx.db.insert("staffProfiles", {
         email,
@@ -66,6 +67,7 @@ async function setup() {
     await profile(uma, "uma@sow.org.au", 2027, "President", USYD);
     await profile(olly, "olly@sow.org.au", 2026, "Executive", MQ);
     await profile(olly, "olly@sow.org.au", 2027, "Staff");
+    await ctx.db.insert("staffProfiles", { email: "pat@sow.org.au", year: 2027, memberId: pat, name: "Pat Placeholder", assignments: [] });
 
     const event = async (name: string, at: number, tagIds: Id<"attendanceTags">[], who: (Id<"attendanceMembers"> | null)[], subgroups = [SOW]) => {
       const eventId = await ctx.db.insert("events", { name, dateStart: at, dateEnd: at + 3600_000, subgroups, tagIds });
@@ -73,6 +75,7 @@ async function setup() {
         await ctx.db.insert("attendance", { eventId, signInTime: at, ...(memberId ? { memberId } : {}) });
       }
     };
+    await event("OCT 2023 TWIG", mon(2023, 10, 9), [twig], [lee]);
     await event("OCT 13th TWIG", mon(2025, 10, 13), [twig], [lee, olly]);
     await event("NOV 10th TWIG", mon(2025, 11, 10), [twig], [lee]);
     await event("TWIG 1 Dec", mon(2025, 12, 1), [twig], []);
@@ -85,7 +88,7 @@ async function setup() {
     await ctx.db.delete("attendanceTags", removed);
     await event("Old tag", mon(2026, 8, 6), [removed], [lee]);
 
-    await event("TWIG OCT 12", mon(2026, 10, 12), [twig], [lee, uma, olly, nina]);
+    await event("TWIG OCT 12", mon(2026, 10, 12), [twig], [lee, uma, olly, nina, pat]);
     await event("TWIG OCT 19", mon(2026, 10, 19), [twig], [lee, uma]);
     await event("TWIG OCT 26", mon(2026, 10, 26), [twig], [uma]);
     await event("TWIG NOV 9", mon(2026, 11, 9), [twig], [uma]);
@@ -108,6 +111,7 @@ describe("SOW TWIG and PPN Insights", () => {
     expect(view.years).toEqual([
       { key: "2027", label: "Staff year 2027" },
       { key: "2026", label: "Staff year 2026" },
+      { key: "2024", label: "Staff year 2024" },
     ]);
     const blocks = view.blocks;
     expect(pick(blocks, "caption")[0].text).toBe(
@@ -143,6 +147,7 @@ describe("SOW TWIG and PPN Insights", () => {
       ["Lee Leader", "leader", "2/4 · 50%", null],
       ["Nina None", "none", "1/4 · 25%", "No staff profile for 2027"],
       ["Olly Organiser", "staff", "1/4 · 25%", null],
+      ["Pat Placeholder", "none", "1/4 · 25%", "No staff profile for 2027"],
       ["Uma Usyd", "leader", "4/4 · 100%", null],
     ]);
     expect(pick(blocks, "eventList")[0].rows).toEqual([{ title: "TWIG NOV 16", subtitle: "16 Nov 2026" }]);
