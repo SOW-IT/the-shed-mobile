@@ -195,13 +195,25 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   come back) and a visitors list, charts, and everyone's attendance % and
   category (Regular, Irregular, Newcomer, Visitor, Leader, Staff/alumni/guests)
   with filters, sorting and search; tapping someone opens their attendance
-  page. For SOW, each campus's weekly average with past week / month / year
-  ranges. Layout, charts and wording come from the backend
-  (`weeklyInsights.view`, `generalMetrics.view`, `attendanceMetrics.view`), so
+  page. For SOW, a Campuses / TWIG / PPN switcher: each campus's weekly
+  average with past week / month / year ranges, then TWIG (campus leaders
+  only) and PPN (everyone, month by month) by staff year. Layout, charts,
+  wording and the SOW tabs come from the backend (`weeklyInsights.view`,
+  `generalMetrics.view`, `attendanceMetrics.view`, `sowInsights.tabs`,
+  `sowInsights.view`), so
   they change with a Convex deploy rather than an app release. A nightly build
   redoes only what changed since the night before, so roll-call changes show
-  the next morning. See [docs/weekly-insights.md](docs/weekly-insights.md) and
+  the next morning (TWIG and PPN are live). See
+  [docs/weekly-insights.md](docs/weekly-insights.md),
+  [docs/sow-insights.md](docs/sow-insights.md) and
   [docs/attendance-metrics.md](docs/attendance-metrics.md).
+- **Update prompt**: phones ask for the store version when it's older than the
+  server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
+  banner that can be dismissed; below `minimum`, a full screen with only the
+  store button. Nothing is asked until a policy is set:
+  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "recommended": "2.9.0"}'`
+  (`minimum`, and an optional `message` to replace the default text; `null`
+  clears one). Staging builds and the web are never asked.
 
 ## Getting started
 

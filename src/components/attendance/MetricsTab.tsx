@@ -13,10 +13,12 @@ import { isOrgWideSubgroup, subgroupColour } from "../../../shared/rollcall";
 import { type WeeklyBlock } from "../../../shared/weeklyInsightsView";
 import { CampusMark } from "@/components/CampusMark";
 import { InsightsBlocks } from "@/components/attendance/InsightsBlocks";
-import { FadeInView, LoadingState, stagger } from "@/components/ui";
+import { FadeInView, LoadingState, Segmented, stagger } from "@/components/ui";
 import { spacing, useAppTheme } from "@/theme";
 
 const CAMPUS_MARK = 40;
+
+export type SowTabChoice = { key: string; label: string; picker: "range" | "years" };
 
 // The layout comes from the server (see InsightsBlocks): `weeklyInsights.view`
 // for a campus, passed in as `weeklyView`, and `attendanceMetrics.view` for SOW.
@@ -29,6 +31,10 @@ export function MetricsTab({
   rangeWeeks,
   includeCollaborative,
   weeklyView,
+  sowTabs,
+  sowTab,
+  onSowTabChange,
+  sowTabView,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
@@ -38,6 +44,10 @@ export function MetricsTab({
   rangeWeeks: number;
   includeCollaborative: boolean;
   weeklyView: { period: string | null; blocks: WeeklyBlock[] } | null | undefined;
+  sowTabs?: SowTabChoice[] | null;
+  sowTab?: SowTabChoice | null;
+  onSowTabChange?: (key: string) => void;
+  sowTabView?: { year: number; blocks: WeeklyBlock[] } | null;
 }) {
   const t = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -45,11 +55,17 @@ export function MetricsTab({
   const [containerWidth, setContainerWidth] = useState(windowWidth);
 
   const orgWide = !!subgroup && isOrgWideSubgroup(subgroup);
+  const usesRange = !sowTab || sowTab.picker === "range";
   const sowView = useQuery(
     api.attendanceMetrics.view,
-    subgroup && orgWide ? { subgroup, rangeWeeks, includeCollaborative } : "skip"
+    subgroup && orgWide && usesRange ? { subgroup, rangeWeeks, includeCollaborative } : "skip"
   );
-  const view = orgWide ? sowView : weeklyView;
+  const view = !orgWide ? weeklyView : usesRange ? sowView : sowTabView;
+  const viewKey = !orgWide
+    ? `${subgroup}-${weeklyView?.period}`
+    : usesRange
+      ? `${subgroup}-${rangeWeeks}-${includeCollaborative}`
+      : `${subgroup}-${sowTab?.key}-${sowTabView?.year}`;
 
   const onLayout = (e: LayoutChangeEvent) =>
     setContainerWidth(e.nativeEvent.layout.width);
@@ -83,11 +99,19 @@ export function MetricsTab({
         </View>
       ) : null}
 
+      {orgWide && sowTabs && sowTabs.length > 1 && onSowTabChange ? (
+        <Segmented
+          segments={sowTabs}
+          active={sowTab?.key ?? sowTabs[0].key}
+          onChange={onSowTabChange}
+        />
+      ) : null}
+
       {subgroup && view === undefined ? (
         <LoadingState />
       ) : view ? (
         <InsightsBlocks
-          key={orgWide ? `${subgroup}-${rangeWeeks}-${includeCollaborative}` : `${subgroup}-${weeklyView?.period}`}
+          key={viewKey}
           blocks={view.blocks}
           width={containerWidth}
           onOpenMember={onOpenMember}

@@ -117,7 +117,8 @@ reason (at risk → lapsed → declining → newcomer-no-return → re-engaged).
 
 - **SOW:** the weekly-meeting average for each campus over the chosen range
   (from each campus's recent weeklies), then SOW events' three numbers.
-  There's no follow-up list at org level.
+  There's no follow-up list at org level. From 2.9.0 this is the **Campuses**
+  tab; TWIG and PPN have their own tabs ([sow-insights.md](sow-insights.md)).
 - **A campus (before 2.5.0, historical):** three numbers, one chart and Needs
   follow-up, from these Snapshots. A campus is now its weeklies view; see
   [weekly-insights.md](weekly-insights.md).

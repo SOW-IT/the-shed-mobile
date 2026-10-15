@@ -143,6 +143,30 @@ describe("attendance tags (branch coverage)", () => {
     expect(updated.subgroups).toContain(USYD);
   });
 
+  test("a weekly tag never applies to SOW, which has no weeklies", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [
+        { name: "Retreat", colour: "purple", subgroups: ["SOW", USYD] },
+        { name: "BAM", colour: "orange", list: "weeklies", subgroups: ["SOW", USYD] },
+      ],
+      deleteIds: [],
+    });
+    const byName = async () =>
+      new Map((await leader.query(api.attendanceTags.list, {})).map((tag) => [tag.name, tag]));
+    let tags = await byName();
+    expect(tags.get("Retreat")!.subgroups).toEqual(["SOW", USYD]);
+    expect(tags.get("BAM")!.subgroups).toEqual([USYD]);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: tags.get("Retreat")!._id, name: "Retreat", colour: "purple", list: "weeklies", subgroups: ["ALL"] }],
+      deleteIds: [],
+    });
+    tags = await byName();
+    expect(tags.get("Retreat")).toMatchObject({ list: "weeklies" });
+    expect(tags.get("Retreat")!.subgroups).toBeUndefined();
+  });
+
   test("deleteIds skips tags that don't exist", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);

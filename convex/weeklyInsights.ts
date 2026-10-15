@@ -91,7 +91,7 @@ const INDEX_WEEKLIES_WEEKS = 60;
 const NEVER = Number.MAX_SAFE_INTEGER;
 // Bump when what a view shows changes, so every campus redoes its views on
 // the next build after a deploy.
-export const VIEW_VERSION = 4;
+export const VIEW_VERSION = 5;
 
 export async function readSettings(
   ctx: QueryCtx
@@ -343,7 +343,7 @@ const personValidator = v.object({
   info: personInfo,
 });
 
-async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Promise<WeeklyPerson[]> {
+export async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Promise<WeeklyPerson[]> {
   const profileByMemberYear = new Map<string, Doc<"staffProfiles">>();
   for (const year of years) {
     const profiles = await ctx.db

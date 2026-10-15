@@ -201,6 +201,25 @@ describe("term view", () => {
     expect(byType(blocks, "people")[0].subtitle).toBe("Everyone who came in T1 2026 or the term before.");
   });
 
+  test("a semester campus says semester, not term", () => {
+    const sems = terms.map((t) => ({ ...t, system: "semesters" as const }));
+    const blocks = buildTermBlocks({
+      computedAt: 1,
+      result: computeTerm(sems, 1, c),
+      before: computeTerm(sems, 0, c),
+      running: true,
+      followUps: null,
+    });
+    expect(byType(blocks, "people")[0].subtitle).toBe("Everyone who came in T1 2026 or the semester before.");
+    expect(byType(blocks, "cards")[0].cards[0].info?.body).toContain("the same point in the semester");
+    const alone = buildTermBlocks({ computedAt: 1, result: computeTerm(sems, 0, c), before: null, running: false, followUps: null });
+    expect(byType(alone, "caption")[0].text).toContain("There's no earlier semester to compare with.");
+    const ana = computeTerm(sems, 1, c).rows.find((r) => r.key === "Ana")!;
+    const member = buildMemberBlocks({ name: "Ana", lines: [], details: [], history: [{ term: sems[1], row: ana }], followUp: null, events: [], year: 2026 });
+    expect(byType(member, "termHistory")[0].title).toBe("Weeklies by semester");
+    expect(byType(member, "weekGrid")[0].subtitle).toBe("Weeklies attended this semester");
+  });
+
   test("a finished term: compared with the whole term before", () => {
     const blocks = buildTermBlocks({
       computedAt: 1,

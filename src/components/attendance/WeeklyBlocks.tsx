@@ -279,6 +279,57 @@ function FollowUpGroups({ block, onOpen }: { block: Block<"followUpGroups">; onO
   );
 }
 
+function MonthRows({ block }: { block: Block<"monthRows"> }) {
+  const t = useAppTheme();
+  const deltaColour = { up: t.success, down: t.danger, flat: t.muted };
+  return (
+    <Panel title={block.title} icon="calendar-outline">
+      {block.subtitle ? <Text style={[typography.caption, { color: t.muted }]}>{block.subtitle}</Text> : null}
+      {block.rows.length === 0 ? (
+        <Text style={[typography.caption, { color: t.muted }]}>{block.emptyText}</Text>
+      ) : (
+        block.rows.map((row) => (
+          <View key={row.key} style={[styles.monthRow, { borderTopColor: t.separator }]}>
+            <View style={styles.monthHeader}>
+              <Text style={[typography.headline, { color: t.text, flex: 1 }]} numberOfLines={2}>
+                {row.title}
+              </Text>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={[typography.title, { color: t.text }]}>{row.value}</Text>
+                {row.delta ? (
+                  <Text style={[typography.caption, { color: deltaColour[row.delta.direction], fontWeight: "800" }]}>
+                    {row.delta.text}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+            {[row.hint, ...row.lines].filter(Boolean).map((line, i) => (
+              <Text key={i} style={[typography.caption, { color: t.muted }]}>
+                {line}
+              </Text>
+            ))}
+            {row.splits.map((split) => (
+              <View key={split.title} style={styles.splitRow}>
+                <Text style={[typography.caption, { color: t.muted, width: 70 }]}>{split.title}</Text>
+                <View style={styles.splitParts}>
+                  {split.parts.map((part) => (
+                    <View key={part.label} style={[styles.splitPart, { backgroundColor: t.ghost }]}>
+                      <View style={[styles.dot, { backgroundColor: part.colour ?? t.muted }]} />
+                      <Text style={[typography.caption, { color: t.text }]}>
+                        {part.label} <Text style={{ fontWeight: "800" }}>{part.value}</Text>
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </View>
+        ))
+      )}
+    </Panel>
+  );
+}
+
 /** Draws a campus weeklies block, or nothing for a type it doesn't know. */
 export function renderWeeklyBlock(
   block: WeeklyBlock,
@@ -296,6 +347,8 @@ export function renderWeeklyBlock(
       return <PeopleList key={key} block={block} onOpen={ctx.onOpenPerson} />;
     case "followUpGroups":
       return <FollowUpGroups key={key} block={block} onOpen={ctx.onOpenPerson} />;
+    case "monthRows":
+      return <MonthRows key={key} block={block} />;
     case "memberHeader":
       return (
         <View key={key} style={[styles.panel, styles.header, { backgroundColor: t.card }, t.shadowCard]}>
@@ -456,6 +509,18 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  monthRow: { gap: 6, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth },
+  monthHeader: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  splitRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs },
+  splitParts: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  splitPart: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
   week: {
     minWidth: 44,
     paddingHorizontal: 8,

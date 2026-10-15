@@ -61,6 +61,16 @@ export default function InsightsScreen() {
     api.weeklyInsights.view,
     campusSelected && me?.profile ? { subgroup: campus, period: periodByCampus[campus] } : "skip"
   );
+  const sowSelected = !!campus && !campusSelected;
+  const sowTabs = useQuery(api.sowInsights.tabs, sowSelected && me?.profile ? {} : "skip");
+  const [sowTabKey, setSowTabKey] = useState<string | null>(null);
+  const [sowYear, setSowYear] = useState<number | undefined>(undefined);
+  const sowTab = sowTabs?.find((tab) => tab.key === sowTabKey) ?? sowTabs?.[0] ?? null;
+  const sowYearsTab = sowTab?.picker === "years" ? sowTab : null;
+  const sowTabView = useQuery(
+    api.sowInsights.view,
+    sowSelected && sowYearsTab && me?.profile ? { mode: sowYearsTab.key, staffYear: sowYear } : "skip"
+  );
   const openPerson = (personKey: string) =>
     router.push({
       pathname: "/attendance/member/[key]",
@@ -116,6 +126,10 @@ export default function InsightsScreen() {
         rangeWeeks={attendanceWeeks}
         includeCollaborative={includeCollaborative}
         weeklyView={weeklyView}
+        sowTabs={sowTabs}
+        sowTab={sowTab}
+        onSowTabChange={setSowTabKey}
+        sowTabView={sowTabView}
       />
     ),
   };
@@ -130,6 +144,15 @@ export default function InsightsScreen() {
             periods={weeklyView.periods}
             value={weeklyView.period}
             onChange={(key) => setPeriodByCampus((current) => ({ ...current, [campus!]: key }))}
+          />
+        ) : null
+      ) : activeKey === "attendance" && isStaff && sowYearsTab ? (
+        sowTabView?.years.length ? (
+          <PeriodFab
+            periods={sowTabView.years}
+            value={String(sowTabView.year)}
+            onChange={(key) => setSowYear(Number(key))}
+            sheetTitle={sowYearsTab.pickerTitle}
           />
         ) : null
       ) : activeKey === "attendance" && isStaff ? (

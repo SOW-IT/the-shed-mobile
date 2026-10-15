@@ -1265,7 +1265,7 @@ export default function AdminScreen() {
                           onPress={() =>
                             setDeleteConfirm({
                               name: division.name,
-                              message: `Its departments and all staff assignments in this division will also be removed.`,
+                              message: `Its departments are removed with it. Anyone still assigned to the division or its departments has to be reassigned first.`,
                               onConfirm: () => void run(() => removeDivision({ year: selectedYear, name: division.name })),
                             })
                           }
@@ -1365,7 +1365,7 @@ export default function AdminScreen() {
                           onPress={() =>
                             setDeleteConfirm({
                               name: university,
-                              message: `All campus assignments for this university will also be removed.`,
+                              message: `Anyone still assigned to this university has to be reassigned first.`,
                               onConfirm: () => void run(() => removeUniversity({ year: selectedYear, name: university })),
                             })
                           }
@@ -1515,7 +1515,7 @@ export default function AdminScreen() {
                           onPress={() =>
                             setDeleteConfirm({
                               name: department.name,
-                              message: `All staff assignments to this department will also be removed.`,
+                              message: `Anyone still assigned to this department has to be reassigned first.`,
                               onConfirm: () => void run(() => removeDepartment({ year: selectedYear, name: department.name })),
                             })
                           }
