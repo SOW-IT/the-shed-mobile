@@ -27,7 +27,6 @@ import {
   subgroupLabel,
   subgroupMatches,
   isWeekliesTagName,
-  LEGACY_WEEKLIES_TAG_NAME,
   tagListOf,
   WEEKLIES_TAG_NAME,
 } from "./rollcall";
@@ -195,11 +194,10 @@ describe("subgroupColour", () => {
 });
 
 describe("weekly tags", () => {
-  test("the Weeklies tag goes by its new name or the old Weekly Meeting", () => {
+  test("only a tag named Weeklies is the weekly tag", () => {
     expect(WEEKLIES_TAG_NAME).toBe("Weeklies");
-    expect(LEGACY_WEEKLIES_TAG_NAME).toBe("Weekly Meeting");
     expect(isWeekliesTagName("Weeklies")).toBe(true);
-    expect(isWeekliesTagName("Weekly Meeting")).toBe(true);
+    expect(isWeekliesTagName("Weekly Meeting")).toBe(false);
     expect(isWeekliesTagName("weeklies")).toBe(false);
     expect(isWeekliesTagName("Social")).toBe(false);
   });

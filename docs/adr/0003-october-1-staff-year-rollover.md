@@ -18,8 +18,7 @@ on the 30th or after the flip. Admins then configure next from a populated
 copy rather than a blank one. Cron: `0 11 30 9 *` (11:00 UTC = 21:00 AEST;
 midnight 1 Oct is always AEST). Three hours is slack for the copy plus the
 Insights fan-out to *finish* before the flip. Cron name: `staff year prefill`.
-Function: `prefillNextStaffYear`. `rollOverStaffYear` stays as an alias so old
-runbooks still work. The clock is the rollover.
+Function: `prefillNextStaffYear`. The clock is the rollover.
 
 **The 21:00–midnight window.** Evening sign-ins must not leave the incoming
 snapshot stuck at 21:00. From 21:00 until the flip, a dirty recompute updates

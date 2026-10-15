@@ -5,14 +5,27 @@ import { useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { subgroupLabel } from "../../shared/rollcall";
+import {
+  CHURCH_AUDIENCES,
+  churchCampuses,
+  churchPeopleMatching,
+  isChurchFilterActive,
+  mainCampus,
+  NO_CHURCH_FILTER,
+  type ChurchAudience,
+  type ChurchFilter,
+} from "../../shared/churches";
+import { subgroupColour, subgroupLabel } from "../../shared/rollcall";
+import { CampusMark } from "./CampusMark";
 import { ChromeScreen } from "./ChromeScreen";
-import { ChurchMap, churchMapAvailable } from "./ChurchMap";
+import { ChurchMap, churchMapAvailable, type ChurchPin } from "./ChurchMap";
 import { type Church, ChurchDetails, ChurchForm, useCanEditChurches } from "./ChurchPicker";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { Btn, Card, EmptyState, FadeInView, LoadingState, ScrollCap, SearchField, stagger } from "./ui";
 
-type Entry = NonNullable<ReturnType<typeof useQuery<typeof api.churches.directory>>>[number];
+type Entry = NonNullable<ReturnType<typeof useQuery<typeof api.churches.directory>>>[number] & {
+  everyone: number;
+};
 
 const PEOPLE_PREVIEW = 5;
 const PERSON_ROW_HEIGHT = 44;
@@ -89,7 +102,12 @@ function ChurchCard({
       ) : (
         <View>
           <Text style={[styles.groupTitle, { color: t.muted }]}>
-            People <Text style={{ color: t.faint }}>{entry.people.length}</Text>
+            People{" "}
+            <Text style={{ color: t.faint }}>
+              {entry.people.length === entry.everyone
+                ? entry.people.length
+                : `${entry.people.length} of ${entry.everyone}`}
+            </Text>
           </Text>
           {expanded ? (
             <ScrollCap maxHeight={PERSON_ROW_HEIGHT * EXPANDED_VISIBLE_ROWS} count={entry.people.length}>
@@ -136,6 +154,7 @@ export function ChurchesView() {
   const directory = useQuery(api.churches.directory);
   const canEdit = useCanEditChurches();
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<ChurchFilter>(NO_CHURCH_FILTER);
   const [form, setForm] = useState<{ church: Church | null } | null>(null);
   const [selectedId, setSelectedId] = useState<Id<"churches"> | null>(null);
   const { church: linkedChurch } = useLocalSearchParams<{ church?: string }>();
@@ -157,14 +176,42 @@ export function ChurchesView() {
   };
 
   const q = search.trim().toLowerCase();
-  const shown = (directory ?? []).filter(
-    (entry) =>
-      !q ||
-      entry.church.name.toLowerCase().includes(q) ||
-      entry.people.some((p) => p.name.toLowerCase().includes(q))
+  const filtering = isChurchFilterActive(filter);
+  const campuses = churchCampuses(
+    (directory ?? []).flatMap((entry) => entry.people),
+    subgroupLabel
   );
-  const onMap = shown.map((entry) => entry.church).filter((church) => church.location);
+  const shown: Entry[] = (directory ?? [])
+    .map((entry) => ({
+      ...entry,
+      people: churchPeopleMatching(entry.people, filter),
+      everyone: entry.people.length,
+    }))
+    .filter(
+      (entry) =>
+        (!filtering || entry.people.length > 0) &&
+        (!q ||
+          entry.church.name.toLowerCase().includes(q) ||
+          entry.people.some((p) => p.name.toLowerCase().includes(q)))
+    );
+  const pins: ChurchPin[] = shown
+    .filter((entry) => entry.church.location)
+    .map((entry) => {
+      const campus = mainCampus(entry.people);
+      return {
+        church: entry.church,
+        people: entry.people.length,
+        colour: campus ? subgroupColour(campus) : null,
+      };
+    });
   const selected = shown.find((entry) => entry.church._id === selectedId) ?? null;
+  const toggleCampus = (campus: string) =>
+    setFilter((prev) => ({
+      ...prev,
+      campuses: prev.campuses.includes(campus)
+        ? prev.campuses.filter((c) => c !== campus)
+        : [...prev.campuses, campus],
+    }));
 
   return (
     <ChromeScreen scrollRef={scrollRef}>
@@ -185,9 +232,65 @@ export function ChurchesView() {
       ) : (
         <>
           <SearchField value={search} onChangeText={setSearch} placeholder="Search churches or people" />
-          {churchMapAvailable && onMap.length > 0 ? (
+          <View style={[styles.audiences, { backgroundColor: t.ghost }]}>
+            {CHURCH_AUDIENCES.map(({ key, label }) => {
+              const on = filter.audience === key;
+              return (
+                <Pressable
+                  key={key}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => setFilter((prev) => ({ ...prev, audience: key as ChurchAudience }))}
+                  style={({ pressed }) => [
+                    styles.audience,
+                    on && [{ backgroundColor: t.card }, t.shadowFloat],
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                    style={[styles.audienceText, { color: on ? t.text : t.muted }, on && { fontWeight: "700" }]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {campuses.length > 1 ? (
+            <View style={styles.chips}>
+              {campuses.map((campus) => {
+                const on = filter.campuses.includes(campus);
+                return (
+                  <Pressable
+                    key={campus}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={subgroupLabel(campus)}
+                    onPress={() => toggleCampus(campus)}
+                    style={({ pressed }) => [
+                      styles.campusChip,
+                      {
+                        borderColor: on ? t.primary : t.border,
+                        backgroundColor: on ? t.primarySoft : "transparent",
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <CampusMark campus={campus} variant="circle" circleDiameter={18} />
+                    <Text style={[typography.caption, styles.chipText, { color: t.text }]}>
+                      {subgroupLabel(campus)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+          {churchMapAvailable && pins.length > 0 ? (
             <FadeInView>
-              <ChurchMap churches={onMap} selectedId={selected?.church._id ?? null} onSelect={choose} />
+              <ChurchMap pins={pins} selectedId={selected?.church._id ?? null} onSelect={choose} />
             </FadeInView>
           ) : null}
           {selected ? (
@@ -209,7 +312,12 @@ export function ChurchesView() {
               </FadeInView>
             ))}
           {shown.length === 0 ? (
-            <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>Nothing matches.</Text>
+            <View style={styles.nothing}>
+              <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>Nothing matches.</Text>
+              {filtering ? (
+                <Btn title="Show everyone" variant="ghost" onPress={() => setFilter(NO_CHURCH_FILTER)} />
+              ) : null}
+            </View>
           ) : null}
         </>
       )}
@@ -235,6 +343,29 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   role: { maxWidth: "45%", textAlign: "right" },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  audiences: { flexDirection: "row", borderRadius: radius.full, padding: 4 },
+  audience: {
+    flexGrow: 1,
+    flexShrink: 1,
+    alignItems: "center",
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    borderRadius: radius.full,
+  },
+  audienceText: { fontSize: 13, fontWeight: "600" },
+  campusChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
+    paddingLeft: 4,
+    paddingRight: 12,
+    borderRadius: radius.full,
+    borderWidth: 1.5,
+  },
+  chipText: { fontSize: 13, fontWeight: "700" },
+  nothing: { alignItems: "center", gap: spacing.sm },
   campus: { borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   close: {
     position: "absolute",

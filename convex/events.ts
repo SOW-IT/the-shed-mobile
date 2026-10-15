@@ -12,7 +12,6 @@ import {
   SOW_SUBGROUP,
   subgroupLabel,
   isWeekliesTagName,
-  isOrgWideSubgroup,
   WEEKLIES_TAG_NAME,
 } from "../shared/rollcall";
 import { internal } from "./_generated/api";
@@ -26,10 +25,8 @@ import {
 } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 import { memberDisplayName } from "./staffMembers";
-import { campusWeeklies, readSettings } from "./weeklyInsights";
+import { readSettings } from "./weeklyInsights";
 import {
-  markFromName,
-  suggestWeekly,
   termSystemFor,
   WEEK_MAX,
   type WeeklyMark,
@@ -48,13 +45,6 @@ const weeklyMarkArg = v.object({
   year: v.number(),
   slot: v.number(),
   week: v.number(),
-  key: v.optional(v.string()),
-});
-
-const markOnly = ({ year, slot, week }: WeeklyMark & { key?: string }): WeeklyMark => ({
-  year,
-  slot,
-  week,
 });
 
 const EVENTS_PAGE_SIZE = 20;
@@ -129,36 +119,12 @@ const annotate = async (ctx: QueryCtx, event: Doc<"events">) => {
 
 async function weekliesTagIds(ctx: QueryCtx): Promise<Id<"attendanceTags">[]> {
   const tags = await ctx.db.query("attendanceTags").take(500);
-  return tags
-    .filter((t) => isWeekliesTagName(t.name))
-    .sort((a, b) => Number(b.name === WEEKLIES_TAG_NAME) - Number(a.name === WEEKLIES_TAG_NAME))
-    .map((t) => t._id);
+  return tags.filter((t) => isWeekliesTagName(t.name)).map((t) => t._id);
 }
 
 async function weekliesTag(ctx: MutationCtx): Promise<Id<"attendanceTags">> {
   const [existing] = await weekliesTagIds(ctx);
   return existing ?? (await ctx.db.insert("attendanceTags", { name: WEEKLIES_TAG_NAME }));
-}
-
-export async function inferWeekly(
-  ctx: QueryCtx,
-  args: { name: string; dateStart: number; subgroup: string; eventId?: Id<"events"> }
-): Promise<WeeklyMark | null> {
-  if (isOrgWideSubgroup(args.subgroup)) return null;
-  const { settings } = await readSettings(ctx);
-  const system = termSystemFor(args.subgroup, settings);
-  const fromName = markFromName(args.name, system);
-  const suggested = suggestWeekly(
-    await campusWeeklies(ctx, args.subgroup, settings, args.eventId),
-    args.dateStart,
-    system,
-    settings.termGapDays
-  );
-  return {
-    year: sydneyCalendarYear(new Date(args.dateStart)),
-    slot: fromName.slot ?? suggested.slot,
-    week: fromName.week ?? suggested.week,
-  };
 }
 
 async function validateEventFields(
@@ -170,7 +136,6 @@ async function validateEventFields(
     subgroups: string[];
     tagIds?: Id<"attendanceTags">[];
     weekly?: WeeklyMark | null;
-    eventId?: Id<"events">;
   }
 ) {
   const trimmed = args.name.trim();
@@ -195,15 +160,7 @@ async function validateEventFields(
   }
   let uniqueTagIds = args.tagIds?.length ? [...new Set(args.tagIds)] : undefined;
   const weeklyTags = new Set(await weekliesTagIds(ctx));
-  let weekly = args.weekly;
-  if (weekly === undefined && uniqueTagIds?.some((id) => weeklyTags.has(id))) {
-    weekly = await inferWeekly(ctx, {
-      name: trimmed,
-      dateStart: args.dateStart,
-      subgroup: uniqueSubgroups[0],
-      eventId: args.eventId,
-    });
-  }
+  const weekly = args.weekly;
   if (weekly) {
     const { settings } = await readSettings(ctx);
     const system = termSystemFor(uniqueSubgroups[0], settings);
@@ -410,8 +367,7 @@ export const create = mutation({
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(weeklyMarkArg),
   },
-  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds, weekly: rawWeekly }) => {
-    const weekly = rawWeekly && markOnly(rawWeekly);
+  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds, weekly }) => {
     const { email } = await requireProfile(ctx);
     const eventFields = await validateEventFields(ctx, {
       name,
@@ -451,9 +407,8 @@ export const update = mutation({
   returns: v.null(),
   handler: async (
     ctx,
-    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly: rawWeekly }
+    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly }
   ) => {
-    const weekly = rawWeekly ? markOnly(rawWeekly) : rawWeekly;
     const { email } = await requireProfile(ctx);
     const existing = await ctx.db.get(eventId);
     if (!existing) throw new ConvexError("Event not found.");
@@ -464,7 +419,6 @@ export const update = mutation({
       subgroups,
       tagIds,
       weekly: weekly === undefined ? existing.weekly : weekly,
-      eventId,
     });
     await ctx.db.patch(eventId, eventFields);
     const changes: string[] = [];

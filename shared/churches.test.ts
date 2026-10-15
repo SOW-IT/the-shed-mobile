@@ -1,13 +1,18 @@
 import { describe, expect, test } from "vitest";
 import {
   churchAcronym,
+  churchCampuses,
   churchPagePath,
+  churchPeopleMatching,
   cleanInstagram,
   cleanWebsite,
   formatClock,
   formatServices,
   instagramUrl,
+  isChurchFilterActive,
   isServiceTime,
+  mainCampus,
+  NO_CHURCH_FILTER,
   parseServiceTimes,
   sortServices,
   websiteLabel,
@@ -118,5 +123,49 @@ describe("website and Instagram", () => {
     expect(cleanInstagram("instagram.com/harbourcity")).toBe("harbourcity");
     expect(cleanInstagram("@not a handle")).toBeNull();
     expect(instagramUrl("harbourcity")).toBe("https://www.instagram.com/harbourcity/");
+  });
+});
+
+describe("church filters", () => {
+  const people = [
+    { name: "Lia", group: "leader" as const, campus: "UNSW" },
+    { name: "Lou", group: "leader" as const, campus: "USYD" },
+    { name: "Sam", group: "staff" as const, campus: null },
+    { name: "Sue", group: "staff" as const, campus: "USYD" },
+    { name: "Max", group: "member" as const, campus: "UNSW" },
+    { name: "Mia", group: "member" as const, campus: null },
+  ];
+  const names = (filter: Parameters<typeof churchPeopleMatching>[1]) =>
+    churchPeopleMatching(people, filter).map((p) => p.name);
+
+  test("each audience keeps its people", () => {
+    expect(names(NO_CHURCH_FILTER)).toEqual(["Lia", "Lou", "Sam", "Sue", "Max", "Mia"]);
+    expect(names({ audience: "volunteers", campuses: [] })).toEqual(["Lia", "Lou", "Sam", "Sue"]);
+    expect(names({ audience: "leaders", campuses: [] })).toEqual(["Lia", "Lou"]);
+    expect(names({ audience: "staff", campuses: [] })).toEqual(["Sam", "Sue"]);
+  });
+
+  test("campuses narrow any audience and drop people with no campus", () => {
+    expect(names({ audience: "everyone", campuses: ["UNSW"] })).toEqual(["Lia", "Max"]);
+    expect(names({ audience: "volunteers", campuses: ["USYD", "UNSW"] })).toEqual(["Lia", "Lou", "Sue"]);
+    expect(names({ audience: "staff", campuses: ["UNSW"] })).toEqual([]);
+  });
+
+  test("a filter is active once it leaves Everyone or picks a campus", () => {
+    expect(isChurchFilterActive(NO_CHURCH_FILTER)).toBe(false);
+    expect(isChurchFilterActive({ audience: "staff", campuses: [] })).toBe(true);
+    expect(isChurchFilterActive({ audience: "everyone", campuses: ["UNSW"] })).toBe(true);
+  });
+
+  test("campuses are listed once, by label", () => {
+    expect(churchCampuses(people, (c) => (c === "UNSW" ? "Z" : "A"))).toEqual(["USYD", "UNSW"]);
+    expect(churchCampuses([], (c) => c)).toEqual([]);
+  });
+
+  test("the main campus is the most common one, ties broken by name", () => {
+    expect(mainCampus(people)).toBe("UNSW");
+    expect(mainCampus([...people, { group: "member", campus: "USYD" }])).toBe("USYD");
+    expect(mainCampus([{ group: "staff", campus: null }])).toBeNull();
+    expect(mainCampus([])).toBeNull();
   });
 });

@@ -182,13 +182,19 @@ export const FooterAction = ({
               <Pressable
                 onPress={cancel.onPress}
                 disabled={cancel.disabled}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: Boolean(cancel.disabled) }}
                 style={({ pressed }) => [
                   styles.footerAction,
-                  { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border },
+                  {
+                    backgroundColor: t.card,
+                    borderWidth: 1.5,
+                    borderColor: cancel.disabled ? t.separator : t.border,
+                  },
                   pressed && !cancel.disabled && { opacity: 0.7 },
                 ]}
               >
-                <Text style={[styles.footerActionText, { color: t.text }]}>
+                <Text style={[styles.footerActionText, { color: cancel.disabled ? t.faint : t.text }]}>
                   {cancel.title ?? "Cancel"}
                 </Text>
               </Pressable>
@@ -209,12 +215,14 @@ export const FooterAction = ({
                 Animated.spring(scale, { toValue: 1, useNativeDriver: USE_NATIVE_DRIVER, speed: 20, bounciness: 6 }).start()
               }
               disabled={disabled}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: Boolean(disabled) }}
               style={[
                 styles.footerAction,
-                { backgroundColor: t.primary },
+                { backgroundColor: disabled ? t.ghost : t.primary },
               ]}
             >
-              <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>
+              <Text style={[styles.footerActionText, { color: disabled ? t.faint : t.onPrimary }]}>{title}</Text>
             </Pressable>
           </Animated.View>
         </View>

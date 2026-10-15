@@ -7,6 +7,7 @@ import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { sameName, WIPE_BATCH } from "./account";
 import schema from "./schema";
+import { linkUserProfiles } from "./userLink";
 
 const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
@@ -209,7 +210,7 @@ describe("account.deleteMine", () => {
     });
 
     const again = await t.run(async (ctx) => ctx.db.insert("users", { email: STAFF, name: "Sam Smith" }));
-    await t.mutation(internal.userLink.link, { userId: again });
+    await t.run((ctx) => linkUserProfiles(ctx, again));
     await t.run(async (ctx) => {
       const [profile] = await ctx.db.query("staffProfiles").take(10);
       expect(profile.userId).toBe(again);

@@ -611,15 +611,15 @@ export function CreateEventSheet({
                   key={sg}
                   disabled={isOwner}
                   accessibilityRole="checkbox"
-                  accessibilityState={{ checked: on }}
+                  accessibilityState={{ checked: on, disabled: isOwner }}
                   onPress={() => toggleCollaborator(sg)}
                   style={({ pressed }) => [
                     styles.campusChip,
-                    { borderColor: on ? t.primary : t.border, opacity: pressed ? 0.7 : 1 },
+                    { borderColor: on ? t.primary : t.border, opacity: isOwner ? 0.45 : pressed ? 0.7 : 1 },
                   ]}
                 >
                   <CampusMark campus={sg} variant="circle" circleDiameter={22} />
-                  <Txt>{`${subgroupLabel(sg)}${isOwner ? " · owner" : ""}`}</Txt>
+                  <Txt>{subgroupLabel(sg)}</Txt>
                 </Pressable>
               );
             })}

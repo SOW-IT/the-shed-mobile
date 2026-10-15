@@ -171,8 +171,8 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
           ) : (
             <Muted>No assignment for {currentYear}</Muted>
           )}
-          {!profile.isMe && !profile.church && profile.localChurch ? (
-            <Muted>Church: {profile.localChurch}</Muted>
+          {!profile.isMe && !profile.church && profile.typedChurch ? (
+            <Muted>Church: {profile.typedChurch}</Muted>
           ) : null}
           <ErrorBanner message={error} />
         </Card>

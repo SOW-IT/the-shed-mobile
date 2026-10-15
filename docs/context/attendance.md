@@ -181,7 +181,8 @@ For a staff year, a campus leader has a staff profile with a university role
 profile with at least one assignment, none of them a university role. A
 profile with no assignments isn't staff (see Staff on top), so TWIG Insights
 lists that person as having no staff profile. TWIG Insights counts only
-campus leaders.
+campus leaders. The Churches page filter calls organisers **Staff**, and
+campus leaders and organisers together **Volunteers**.
 _Avoid_: leader (ambiguous with the weekly Leader category)
 
 **Sign-in tag**:

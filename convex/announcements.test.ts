@@ -232,10 +232,9 @@ describe("sending now", () => {
     expect(batch[0]).toMatchObject({ subject: "Staff meeting moved", reply_to: ADMIN });
     expect(batch[0].text).toContain("This week's staff meeting is on Thursday at 7pm.");
     expect(batch[0].text).toContain("— Ada Admin, via THE SHED");
-    expect(batch.find((m) => m.to[0] === FIN)?.text).toContain(`/announcements/${id}#app`);
-    expect(batch.find((m) => m.to[0] === IT_HEAD)?.text).toMatch(
-      new RegExp(`/announcements/${id}$`)
-    );
+    for (const to of [FIN, IT_HEAD]) {
+      expect(batch.find((m) => m.to[0] === to)?.text).toMatch(new RegExp(`/announcements/${id}$`));
+    }
   });
 
   test("large audiences go out in batches", async () => {

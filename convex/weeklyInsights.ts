@@ -889,10 +889,8 @@ export const suggestWeekly = query({
       options: v.array(markOption),
       suggested: v.object({ key: v.string(), year: v.number(), slot: v.number(), week: v.number() }),
       name: v.string(),
-      previous: v.optional(v.union(v.null(), v.object({ dateStart: v.number(), dateEnd: v.number() }))),
-      taken: v.optional(
-        v.array(v.object({ year: v.number(), slot: v.number(), week: v.number(), name: v.string() }))
-      ),
+      previous: v.union(v.null(), v.object({ dateStart: v.number(), dateEnd: v.number() })),
+      taken: v.array(v.object({ year: v.number(), slot: v.number(), week: v.number(), name: v.string() })),
     })
   ),
   handler: async (ctx, { subgroup, dateStart, eventId }) => {

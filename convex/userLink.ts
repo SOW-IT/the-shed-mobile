@@ -1,7 +1,6 @@
-import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { internalMutation, MutationCtx } from "./_generated/server";
+import { MutationCtx } from "./_generated/server";
 import { isOrgEmail } from "./model";
 
 const LEGACY_EMAIL_DOMAINS = ["sowaustralia.com"];
@@ -186,11 +185,3 @@ export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {
     }
   }
 }
-
-export const link = internalMutation({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
-    await linkUserProfiles(ctx, args.userId);
-    return null;
-  },
-});
