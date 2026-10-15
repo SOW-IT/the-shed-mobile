@@ -343,7 +343,7 @@ const personValidator = v.object({
   info: personInfo,
 });
 
-async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Promise<WeeklyPerson[]> {
+export async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Promise<WeeklyPerson[]> {
   const profileByMemberYear = new Map<string, Doc<"staffProfiles">>();
   for (const year of years) {
     const profiles = await ctx.db

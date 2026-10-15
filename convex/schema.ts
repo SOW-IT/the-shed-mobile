@@ -122,6 +122,13 @@ export default defineSchema({
     seenAt: v.number(),
   }).index("by_email_and_platform", ["email", "platform"]),
 
+  appUpdatePolicy: defineTable({
+    platform: v.union(v.literal("ios"), v.literal("android")),
+    minimum: v.optional(v.string()),
+    recommended: v.optional(v.string()),
+    message: v.optional(v.string()),
+  }).index("by_platform", ["platform"]),
+
   // When someone last had The SHED open, on the web or in the app. Written
   // at most every few minutes; see presence.ts.
   lastSeen: defineTable({

@@ -1,6 +1,12 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, MutationCtx, QueryCtx } from "./_generated/server";
-import { appCanOpen, APP_LINK_MARKER, isAppVersion, versionNeededFor } from "../shared/appLinks";
+import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import {
+  appCanOpen,
+  APP_LINK_MARKER,
+  isAppVersion,
+  updateStatusFor,
+  versionNeededFor,
+} from "../shared/appLinks";
 import { optionalEmail } from "./model";
 
 type Ctx = QueryCtx | MutationCtx;
@@ -52,3 +58,60 @@ export async function emailLinkFor(ctx: Ctx, email: string, path: string): Promi
     ? `${path}${APP_LINK_MARKER}`
     : path;
 }
+
+const platformValidator = v.union(v.literal("ios"), v.literal("android"));
+
+const policyFor = (ctx: Ctx, platform: "ios" | "android") =>
+  ctx.db
+    .query("appUpdatePolicy")
+    .withIndex("by_platform", (q) => q.eq("platform", platform))
+    .unique();
+
+export const updateStatus = query({
+  args: { platform: platformValidator, version: v.string() },
+  returns: v.object({
+    status: v.union(v.literal("ok"), v.literal("recommended"), v.literal("required")),
+    latest: v.union(v.string(), v.null()),
+    message: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, { platform, version }) => {
+    const policy = await policyFor(ctx, platform);
+    return {
+      status: updateStatusFor(version, policy),
+      latest: policy?.recommended ?? policy?.minimum ?? null,
+      message: policy?.message ?? null,
+    };
+  },
+});
+
+export const setUpdatePolicy = internalMutation({
+  args: {
+    platform: platformValidator,
+    minimum: v.optional(v.union(v.string(), v.null())),
+    recommended: v.optional(v.union(v.string(), v.null())),
+    message: v.optional(v.union(v.string(), v.null())),
+  },
+  returns: v.object({
+    minimum: v.union(v.string(), v.null()),
+    recommended: v.union(v.string(), v.null()),
+    message: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, { platform, minimum, recommended, message }) => {
+    for (const value of [minimum, recommended]) {
+      if (value && !isAppVersion(value)) throw new ConvexError(`"${value}" isn't an app version like 2.9.0.`);
+    }
+    const existing = await policyFor(ctx, platform);
+    const next = {
+      minimum: (minimum === undefined ? existing?.minimum : minimum) ?? undefined,
+      recommended: (recommended === undefined ? existing?.recommended : recommended) ?? undefined,
+      message: (message === undefined ? existing?.message : message?.trim() || null) ?? undefined,
+    };
+    if (existing) await ctx.db.replace("appUpdatePolicy", existing._id, { platform, ...next });
+    else await ctx.db.insert("appUpdatePolicy", { platform, ...next });
+    return {
+      minimum: next.minimum ?? null,
+      recommended: next.recommended ?? null,
+      message: next.message ?? null,
+    };
+  },
+});

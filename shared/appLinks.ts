@@ -85,3 +85,14 @@ export const appCanOpen = (path: string, version: string | null | undefined): bo
   if (!needed) return true;
   return !!version && compareVersions(version, needed) >= 0;
 };
+
+export type UpdateStatus = "ok" | "recommended" | "required";
+
+export type UpdatePolicy = { minimum?: string; recommended?: string };
+
+export const updateStatusFor = (version: string, policy: UpdatePolicy | null): UpdateStatus => {
+  if (!isAppVersion(version) || !policy) return "ok";
+  if (policy.minimum && compareVersions(version, policy.minimum) < 0) return "required";
+  if (policy.recommended && compareVersions(version, policy.recommended) < 0) return "recommended";
+  return "ok";
+};

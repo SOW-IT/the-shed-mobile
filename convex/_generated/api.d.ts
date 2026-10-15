@@ -62,6 +62,7 @@ import type * as push from "../push.js";
 import type * as reminders from "../reminders.js";
 import type * as requests from "../requests.js";
 import type * as rollcallImport from "../rollcallImport.js";
+import type * as sowInsights from "../sowInsights.js";
 import type * as staffLeavers from "../staffLeavers.js";
 import type * as staffMembers from "../staffMembers.js";
 import type * as userLink from "../userLink.js";
@@ -130,6 +131,7 @@ declare const fullApi: ApiFromModules<{
   reminders: typeof reminders;
   requests: typeof requests;
   rollcallImport: typeof rollcallImport;
+  sowInsights: typeof sowInsights;
   staffLeavers: typeof staffLeavers;
   staffMembers: typeof staffMembers;
   userLink: typeof userLink;

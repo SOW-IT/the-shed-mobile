@@ -7,6 +7,7 @@ import {
   appVariantFrom,
   compareVersions,
   isAppVersion,
+  updateStatusFor,
   versionNeededFor,
 } from "./appLinks";
 
@@ -64,5 +65,16 @@ describe("the app's own links and web-only pages", () => {
     expect(isAppVersion("2.3.1")).toBe(true);
     expect(isAppVersion("2.3")).toBe(false);
     expect(isAppVersion("v2.3.1")).toBe(false);
+  });
+
+  test("an app below the minimum must update; below the recommended one is nudged", () => {
+    const policy = { minimum: "2.8.0", recommended: "2.9.0" };
+    expect(updateStatusFor("2.7.9", policy)).toBe("required");
+    expect(updateStatusFor("2.8.0", policy)).toBe("recommended");
+    expect(updateStatusFor("2.9.0", policy)).toBe("ok");
+    expect(updateStatusFor("2.7.0", { recommended: "2.9.0" })).toBe("recommended");
+    expect(updateStatusFor("2.7.0", {})).toBe("ok");
+    expect(updateStatusFor("2.7.0", null)).toBe("ok");
+    expect(updateStatusFor("dev", policy)).toBe("ok");
   });
 });

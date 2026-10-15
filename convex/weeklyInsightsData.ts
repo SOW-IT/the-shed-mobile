@@ -91,6 +91,35 @@ export const weeklyBlockValidator = v.union(
       v.object({ title: v.string(), subtitle: v.string(), tag: v.optional(v.string()) })
     ),
     emptyText: v.string(),
+  }),
+  v.object({
+    type: v.literal("monthRows"),
+    title: v.string(),
+    subtitle: v.optional(v.string()),
+    rows: v.array(
+      v.object({
+        key: v.string(),
+        title: v.string(),
+        value: v.string(),
+        delta: v.optional(
+          v.object({
+            text: v.string(),
+            direction: v.union(v.literal("up"), v.literal("down"), v.literal("flat")),
+          })
+        ),
+        hint: v.optional(v.string()),
+        lines: v.array(v.string()),
+        splits: v.array(
+          v.object({
+            title: v.string(),
+            parts: v.array(
+              v.object({ label: v.string(), value: v.number(), colour: v.optional(v.string()) })
+            ),
+          })
+        ),
+      })
+    ),
+    emptyText: v.string(),
   })
 );
 

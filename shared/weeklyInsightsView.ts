@@ -94,7 +94,24 @@ export type WeeklyBlock =
       title: string;
       rows: { title: string; subtitle: string; tag?: string }[];
       emptyText: string;
+    }
+  | {
+      type: "monthRows";
+      title: string;
+      subtitle?: string;
+      rows: MonthRow[];
+      emptyText: string;
     };
+
+export type MonthRow = {
+  key: string;
+  title: string;
+  value: string;
+  delta?: { text: string; direction: "up" | "down" | "flat" };
+  hint?: string;
+  lines: string[];
+  splits: { title: string; parts: { label: string; value: number; colour?: string }[] }[];
+};
 
 /** A choice in the term picker. `group` (the year), `short` and `slot` let
  *  the picker lay each year out as one row of terms; older apps just list
@@ -243,7 +260,7 @@ export function followUpBlocks(people: WeeklyFollowUp[], year: number): WeeklyBl
   ];
 }
 
-const countDelta = (now: number | null, then: number | null): ViewCard["delta"] => {
+export const countDelta = (now: number | null, then: number | null): ViewCard["delta"] => {
   if (now === null || then === null || then === 0) return undefined;
   const pct = Math.round(((now - then) / then) * 100);
   return { text: `${pct > 0 ? "+" : ""}${pct}%`, direction: pct > 0 ? "up" : pct < 0 ? "down" : "flat" };
