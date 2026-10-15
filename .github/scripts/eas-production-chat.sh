@@ -83,7 +83,7 @@ jq -n \
       }]
     }' > "$message_file"
 
-if ! curl --fail-with-body -sS -X POST \
+if ! curl --fail-with-body -sS --connect-timeout 10 --max-time 20 -X POST \
   -H "Content-Type: application/json; charset=UTF-8" \
   --data @"$message_file" \
   "$webhook_url" > /dev/null; then
