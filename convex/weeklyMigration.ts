@@ -244,8 +244,7 @@ export const run = internalMutation({
         nextTags = [...nextTags, ...fromName];
         const isPpn = !!eventsPpn && nextTags.includes(eventsPpn);
         if (hadMergedTag && tags.socialId && !isPpn) nextTags = [...nextTags, tags.socialId];
-        const sow = subgroups.some((s) => isOrgWideSubgroup(s));
-        if (sow && isPpn && twig) nextTags = [...nextTags, twig];
+        if (!owner && isPpn && twig) nextTags = [...nextTags, twig];
       }
 
       nextTags = [...new Set(nextTags)];

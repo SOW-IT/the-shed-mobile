@@ -416,6 +416,30 @@ describe("weeklyMigration.run", () => {
     expect(applied.eventChanges[0].after.tags).toEqual(["Weeklies"]);
   });
 
+  test("only a PPN that SOW owns gets TWIG", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("attendanceTags", { name: "TWIG", list: "events", subgroups: [SOW] });
+      await ctx.db.insert("attendanceTags", { name: "PPN", list: "events" });
+      for (const [name, subgroups] of [
+        ["SOW PPN", [SOW, UNSW]],
+        ["Campus PPN", [UNSW, SOW]],
+      ] as const) {
+        await ctx.db.insert("events", {
+          name,
+          dateStart: wed(2026, 3, 4),
+          dateEnd: wed(2026, 3, 4),
+          subgroups: [...subgroups],
+        });
+      }
+    });
+    const dry = await migrate(t);
+    expect(dry.eventChanges.map((c) => [c.after.name, c.after.tags])).toEqual([
+      ["SOW PPN", ["PPN", "TWIG"]],
+      ["Campus PPN", ["PPN"]],
+    ]);
+  });
+
   test("a dry run reports the same terms and weeks the real run writes", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
