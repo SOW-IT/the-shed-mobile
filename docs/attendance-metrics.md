@@ -67,7 +67,7 @@ reading every event's attendance in one mutation. It:
    newest `MAX_EVENTS` (`gatherEvents`). Because the look-back equals the
    longest preset range, the **Past year** tab has no earlier period to
    compare against, so its "change vs previous period" is always blank.
-2. Marks events tagged **"Weekly Meeting"** as weekly meetings.
+2. Marks events with a term and week (`weekly`) as weekly meetings.
 3. Reads attendance in chunks of `ATTENDANCE_CHUNK` events per transaction
    (`gatherAttendanceChunk`), keyed by the shared `personKey`.
 4. Resolves each attendee's display name / subtitle / photo and cheap breakdown

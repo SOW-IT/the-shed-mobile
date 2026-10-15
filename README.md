@@ -155,9 +155,11 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   signs in once for the whole event.
   Post-event sign-ins can be reversed; sign-ins made during an event can't,
   except within 10 minutes of being made.
-- **Tags & metadata**: per-year event tags (including the **"Weekly Meeting"**
-  tag that drives the weekly-meeting analytics) and configurable member metadata
-  fields (Year, Gender, Campus, Role, …).
+- **Tags & metadata**: event tags in two lists, **Weeklies** (labels like BAM
+  or PPN) and **Other events**, plus the automatic **Weeklies** tag on every
+  weekly (a weekly is defined by its term and week, which drive the
+  weekly-meeting analytics), and configurable member metadata fields (Year,
+  Gender, Campus, Role, …).
 - **Merge duplicates**: fold two records for one person into one, moving every
   attendance record across (shared events collapse to one record). Someone who
   is staff this year can't be merged away, and two people who were both staff
