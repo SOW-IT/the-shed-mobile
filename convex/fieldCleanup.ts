@@ -12,22 +12,31 @@ const typedChurchResult = v.object({
   email: v.union(v.string(), v.null()),
   typed: v.string(),
   church: v.union(v.string(), v.null()),
-  action: v.union(v.literal("linked"), v.literal("added and linked"), v.literal("already had a church")),
+  action: v.union(
+    v.literal("linked"),
+    v.literal("added and linked"),
+    v.literal("already had a church"),
+    v.literal("cleared blank")
+  ),
 });
 
 export const linkTypedChurches = internalMutation({
   args: { dryRun: v.optional(v.boolean()) },
   returns: v.object({ dryRun: v.boolean(), results: v.array(typedChurchResult) }),
   handler: async (ctx, { dryRun = true }) => {
-    const users = (await ctx.db.query("users").take(MAX_USERS)).filter((u) => u.localChurch?.trim());
+    const users = (await ctx.db.query("users").take(MAX_USERS)).filter((u) => u.localChurch !== undefined);
     const added = new Map<string, Id<"churches"> | null>();
     const results = [];
     for (const user of users) {
       const typed = user.localChurch!.trim().replace(/\s+/g, " ");
       const base = { userId: user._id, email: user.email ?? null, typed };
-      if (user.churchId) {
-        const current = await ctx.db.get("churches", user.churchId);
-        results.push({ ...base, church: current?.name ?? null, action: "already had a church" as const });
+      const current = user.churchId ? await ctx.db.get("churches", user.churchId) : null;
+      if (current || !typed) {
+        results.push({
+          ...base,
+          church: current?.name ?? null,
+          action: current ? ("already had a church" as const) : ("cleared blank" as const),
+        });
         if (!dryRun) await ctx.db.patch("users", user._id, { localChurch: undefined });
         continue;
       }

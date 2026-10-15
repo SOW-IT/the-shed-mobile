@@ -30,6 +30,7 @@ describe("linkTypedChurches", () => {
       ["ben@sow.org.au", "new life christian church", "new life christian church", "linked"],
       [null, "harbour city church", "Harbour City Church", "linked"],
       ["dan@sow.org.au", "Old Text", "Grace Church", "already had a church"],
+      ["eve@sow.org.au", "", null, "cleared blank"],
     ]);
     expect(await t.run((ctx) => ctx.db.query("churches").collect())).toHaveLength(2);
 
@@ -44,21 +45,27 @@ describe("linkTypedChurches", () => {
     expect(after.churches).toHaveLength(3);
     const [ana, ben, cat, dan, eve, fay] = after.users.map((u) => u!);
     expect([ana.churchId, ben.churchId, cat.churchId, dan.churchId]).toEqual([added._id, added._id, ids.listed, ids.picked]);
-    expect([ana, ben, cat, dan, fay].every((u) => u.localChurch === undefined)).toBe(true);
-    expect(eve.localChurch).toBe("   ");
+    expect([ana, ben, cat, dan, eve, fay].every((u) => u.localChurch === undefined)).toBe(true);
+    expect(eve.churchId).toBeUndefined();
 
     expect((await t.mutation(internal.fieldCleanup.linkTypedChurches, { dryRun: false })).results).toEqual([]);
   });
 
-  test("a church already picked that was since removed shows no name", async () => {
+  test("someone whose picked church was since removed is relinked from what they typed", async () => {
     const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
+    const gus = await t.run(async (ctx) => {
       const gone = await ctx.db.insert("churches", { name: "Gone", nameKey: "gone", addedBy: "x" });
       await ctx.db.delete(gone);
-      await ctx.db.insert("users", { email: "gus@sow.org.au", localChurch: "Gone", churchId: gone });
+      return await ctx.db.insert("users", { email: "gus@sow.org.au", localChurch: "Gone Church", churchId: gone });
     });
-    const dry = await t.mutation(internal.fieldCleanup.linkTypedChurches, {});
-    expect(dry.results[0]).toMatchObject({ church: null, action: "already had a church" });
+    const real = await t.mutation(internal.fieldCleanup.linkTypedChurches, { dryRun: false });
+    expect(real.results[0]).toMatchObject({ church: "Gone Church", action: "added and linked" });
+    const after = await t.run(async (ctx) => ({
+      user: await ctx.db.get(gus),
+      church: await ctx.db.query("churches").first(),
+    }));
+    expect(after.user).toMatchObject({ churchId: after.church!._id });
+    expect(after.user!.localChurch).toBeUndefined();
   });
 });
 
