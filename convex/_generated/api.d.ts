@@ -67,6 +67,7 @@ import type * as staffMembers from "../staffMembers.js";
 import type * as userLink from "../userLink.js";
 import type * as weeklyInsights from "../weeklyInsights.js";
 import type * as weeklyInsightsData from "../weeklyInsightsData.js";
+import type * as weeklyMigration from "../weeklyMigration.js";
 
 import type {
   ApiFromModules,
@@ -134,6 +135,7 @@ declare const fullApi: ApiFromModules<{
   userLink: typeof userLink;
   weeklyInsights: typeof weeklyInsights;
   weeklyInsightsData: typeof weeklyInsightsData;
+  weeklyMigration: typeof weeklyMigration;
 }>;
 
 /**

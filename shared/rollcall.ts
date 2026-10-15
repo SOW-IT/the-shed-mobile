@@ -41,7 +41,16 @@ export const subgroupColour = (subgroup: string): string =>
     ? UNIVERSITY_COLOURS.SOW
     : (universityColour(subgroup) ?? "#64748b");
 
-export const WEEKLY_MEETING_TAG_NAME = "Weekly Meeting";
+export const WEEKLIES_TAG_NAME = "Weeklies";
+
+export const LEGACY_WEEKLIES_TAG_NAME = "Weekly Meeting";
+
+export const isWeekliesTagName = (name: string): boolean =>
+  name === WEEKLIES_TAG_NAME || name === LEGACY_WEEKLIES_TAG_NAME;
+
+export type TagList = "weeklies" | "events";
+
+export const tagListOf = (tag: { list?: TagList }): TagList => tag.list ?? "events";
 
 export const contrastingText = (hex: string): string => {
   const r = parseInt(hex.slice(1, 3), 16);

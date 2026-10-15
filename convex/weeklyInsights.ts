@@ -18,7 +18,6 @@ import {
   normalizeSubgroups,
   personDisplayName,
   subgroupLabel,
-  WEEKLY_MEETING_TAG_NAME,
 } from "../shared/rollcall";
 import { canonicalEmailKey } from "../shared/rollcallImport";
 import {
@@ -124,11 +123,6 @@ const indexFor = (ctx: QueryCtx, subgroup: string) =>
     .query("weeklyInsightIndex")
     .withIndex("by_subgroup", (q) => q.eq("subgroup", subgroup))
     .unique();
-
-async function weeklyTagIds(ctx: QueryCtx): Promise<Set<Id<"attendanceTags">>> {
-  const tags = await ctx.db.query("attendanceTags").take(500);
-  return new Set(tags.filter((t) => t.name === WEEKLY_MEETING_TAG_NAME).map((t) => t._id));
-}
 
 type FactsDoc = Doc<"weeklyTermFacts">;
 
@@ -283,7 +277,6 @@ export const weeklyEventsPage = internalQuery({
     continueCursor: v.string(),
   }),
   handler: async (ctx, { subgroup, now, includeJoint, paginationOpts }) => {
-    const weekly = await weeklyTagIds(ctx);
     const result = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) => q.lte("dateStart", now))
@@ -294,7 +287,7 @@ export const weeklyEventsPage = internalQuery({
         .filter(
           (e) =>
             eventIncludesSubgroup(e.subgroups, subgroup) &&
-            (e.tagIds ?? []).some((id) => weekly.has(id)) &&
+            !!e.weekly &&
             (includeJoint || normalizeSubgroups(e.subgroups).length === 1)
         )
         .map((e) => ({
@@ -864,20 +857,19 @@ export const setSettings = internalMutation({
 
 /** A campus's weeklies as Insights sees them: one campus, tagged Weekly
  *  Meeting or created as a Weekly (joint ones only if the setting allows). */
-async function campusWeeklies(
+export async function campusWeeklies(
   ctx: QueryCtx,
   subgroup: string,
   settings: WeeklySettings,
   except?: Id<"events">
 ): Promise<HeldWeekly[]> {
-  const weekly = await weeklyTagIds(ctx);
   const events = await ctx.db.query("events").withIndex("by_dateStart").take(MAX_EVENTS);
   return events
     .filter(
       (e) =>
         e._id !== except &&
         eventIncludesSubgroup(e.subgroups, subgroup) &&
-        (!!e.weekly || (e.tagIds ?? []).some((id) => weekly.has(id))) &&
+        !!e.weekly &&
         (settings.jointWeeklies || normalizeSubgroups(e.subgroups).length === 1)
     )
     .map((e) => ({ eventId: e._id, at: e.dateStart, count: 1, name: e.name, mark: e.weekly ?? null }));
@@ -897,6 +889,10 @@ export const suggestWeekly = query({
       options: v.array(markOption),
       suggested: v.object({ key: v.string(), year: v.number(), slot: v.number(), week: v.number() }),
       name: v.string(),
+      previous: v.optional(v.union(v.null(), v.object({ dateStart: v.number(), dateEnd: v.number() }))),
+      taken: v.optional(
+        v.array(v.object({ year: v.number(), slot: v.number(), week: v.number(), name: v.string() }))
+      ),
     })
   ),
   handler: async (ctx, { subgroup, dateStart, eventId }) => {
@@ -904,19 +900,20 @@ export const suggestWeekly = query({
     const canonical = canonicalSubgroup(subgroup);
     const { settings } = await readSettings(ctx);
     const system = termSystemFor(canonical, settings);
-    const s = suggestFrom(
-      await campusWeeklies(ctx, canonical, settings, eventId),
-      dateStart,
-      system,
-      settings.termGapDays
-    );
-    // The form adds the suggested term if it isn't one of these.
-    const options = termOptions(system, sydneyCalendarYear(new Date(dateStart)));
+    const weeklies = await campusWeeklies(ctx, canonical, settings, eventId);
+    const s = suggestFrom(weeklies, dateStart, system, settings.termGapDays);
+    const year = sydneyCalendarYear(new Date(dateStart));
+    const latest = weeklies.length ? weeklies[weeklies.length - 1] : null;
+    const latestEvent = latest ? await ctx.db.get("events", latest.eventId as Id<"events">) : null;
     return {
       system,
-      options,
+      options: termOptions(system, year),
       suggested: { key: s.key, year: s.year, slot: s.slot, week: s.week },
       name: weeklyName(system, s.slot, s.week),
+      previous: latestEvent ? { dateStart: latestEvent.dateStart, dateEnd: latestEvent.dateEnd } : null,
+      taken: weeklies.flatMap((w) =>
+        w.mark && w.mark.year === year ? [{ ...w.mark, name: w.name ?? "" }] : []
+      ),
     };
   },
 });
@@ -976,7 +973,6 @@ async function eventsAttended(ctx: QueryCtx, key: string): Promise<MemberEvent[]
         .withIndex("by_member", (q) => q.eq("memberId", id))
         .take(MAX_MEMBER_EVENTS)
     : [];
-  const weekly = await weeklyTagIds(ctx);
   const seen = new Set<string>();
   const events: MemberEvent[] = [];
   for (const row of rows) {
@@ -988,7 +984,7 @@ async function eventsAttended(ctx: QueryCtx, key: string): Promise<MemberEvent[]
       name: event.name,
       at: event.dateStart,
       campuses: normalizeSubgroups(event.subgroups).map(subgroupLabel).join(" · "),
-      weekly: (event.tagIds ?? []).some((id) => weekly.has(id)),
+      weekly: !!event.weekly,
     });
   }
   return events.sort((a, b) => b.at - a.at);

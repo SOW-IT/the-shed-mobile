@@ -14,7 +14,6 @@ import {
   personDisplayName,
   SOW_SUBGROUP,
   subgroupLabel,
-  WEEKLY_MEETING_TAG_NAME,
 } from "../shared/rollcall";
 import {
   CAMPUS_FIELD_KEY,
@@ -36,7 +35,7 @@ import {
 } from "../shared/attendanceMetrics";
 import { internal } from "./_generated/api";
 import { isAssigned } from "./staffMembers";
-import { Doc, Id } from "./_generated/dataModel";
+import { Doc } from "./_generated/dataModel";
 import {
   action,
   internalAction,
@@ -124,22 +123,13 @@ export const gatherEvents = internalQuery({
       .filter((e) => eventIncludesSubgroup(e.subgroups, canonical))
       .slice(0, MAX_EVENTS);
 
-    const tagIds = new Set<Id<"attendanceTags">>();
-    for (const e of events) for (const id of e.tagIds ?? []) tagIds.add(id);
-    const tagDocs = await Promise.all([...tagIds].map((id) => ctx.db.get(id)));
-    const weeklyTagIds = new Set(
-      tagDocs
-        .filter((t): t is Doc<"attendanceTags"> => !!t && t.name === WEEKLY_MEETING_TAG_NAME)
-        .map((t) => t._id as Id<"attendanceTags">)
-    );
-
     const metricsEvents: MetricsEvent[] = events.map((e) => ({
       id: e._id,
       name: e.name,
       dateStart: e.dateStart,
       subgroups: e.subgroups,
       collaborative: normalizeSubgroups(e.subgroups).length > 1,
-      isWeeklyMeeting: (e.tagIds ?? []).some((id) => weeklyTagIds.has(id)),
+      isWeeklyMeeting: !!e.weekly,
     }));
     return { eventIds: events.map((e) => e._id), metricsEvents };
   },

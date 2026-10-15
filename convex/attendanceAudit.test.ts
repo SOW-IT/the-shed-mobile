@@ -729,18 +729,18 @@ describe("audit logging across attendance mutations", () => {
     const staff = asUser(t, ADMIN);
 
     await staff.mutation(api.attendanceTags.saveAll, {
-      tags: [{ name: "Weekly" }],
+      tags: [{ name: "Social" }],
       deleteIds: [],
     });
     let tags = await staff.query(api.attendanceTags.list, {});
     const tagId = tags[0]._id;
 
     await staff.mutation(api.attendanceTags.saveAll, {
-      tags: [{ id: tagId, name: "Weekly Meeting" }],
+      tags: [{ id: tagId, name: "Social Night" }],
       deleteIds: [],
     });
     await staff.mutation(api.attendanceTags.saveAll, {
-      tags: [{ id: tagId, name: "Weekly Meeting", colour: "#abcdef" }],
+      tags: [{ id: tagId, name: "Social Night", colour: "#abcdef" }],
       deleteIds: [],
     });
     await staff.mutation(api.attendanceTags.saveAll, {
@@ -780,6 +780,19 @@ describe("audit logging across attendance mutations", () => {
     const updates = (await allLogs(t)).filter((l) => l.action === "tag.update");
     expect(updates).toHaveLength(1);
     expect(updates[0].summary).toContain("Beta");
+  });
+
+  test("moving a tag to the other list logs an update; re-saving without a list logs nothing", async () => {
+    const t = await setup();
+    const staff = asUser(t, ADMIN);
+    await staff.mutation(api.attendanceTags.saveAll, { tags: [{ name: "PPN" }], deleteIds: [] });
+    const [tag] = await staff.query(api.attendanceTags.list, {});
+    await staff.mutation(api.attendanceTags.saveAll, { tags: [{ id: tag._id, name: "PPN" }], deleteIds: [] });
+    await staff.mutation(api.attendanceTags.saveAll, { tags: [{ id: tag._id, name: "PPN", list: "events" }], deleteIds: [] });
+    expect((await allLogs(t)).filter((l) => l.action === "tag.update")).toHaveLength(0);
+    await staff.mutation(api.attendanceTags.saveAll, { tags: [{ id: tag._id, name: "PPN", list: "weeklies" }], deleteIds: [] });
+    const updates = (await allLogs(t)).filter((l) => l.action === "tag.update");
+    expect(updates.map((l) => l.summary)).toEqual(['Updated tag "PPN"']);
   });
 
   test("member fields log create, rename, unchanged-skip and delete", async () => {

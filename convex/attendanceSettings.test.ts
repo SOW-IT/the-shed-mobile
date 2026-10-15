@@ -223,7 +223,7 @@ describe("attendance tags", () => {
         tags: [{ name: "retreat" }],
         deleteIds: [],
       })
-    ).rejects.toThrow(/already exists/i);
+    ).rejects.toThrow('Other events already has a tag named "retreat".');
     const [tag] = await leader.query(api.attendanceTags.list, {});
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ id: tag._id, name: "Retreat", colour: "teal" }],
@@ -238,6 +238,143 @@ describe("attendance tags", () => {
     const after = await leader.query(api.attendanceTags.list, {});
     expect(after).toHaveLength(1);
     expect(after[0].colour).toBe("red");
+  });
+});
+
+describe("attendance tags in two lists", () => {
+  const listed = async (t: TestConvex<typeof schema>) =>
+    (await asUser(t, LEADER).query(api.attendanceTags.list, {})).map((tag) => `${tag.list ?? "-"}:${tag.name}`);
+
+  test("new tags go in Other events unless they say Weeklies", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ name: "Social" }, { name: "BAM", list: "weeklies" }, { name: "Retreat", list: "events" }],
+      deleteIds: [],
+    });
+    expect(await listed(t)).toEqual(["weeklies:BAM", "events:Retreat", "events:Social"]);
+  });
+
+  test("a name is unique within a list, but both lists can have it", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ name: "PPN", list: "events" }, { name: "ppn", list: "weeklies" }],
+      deleteIds: [],
+    });
+    expect(await listed(t)).toEqual(["weeklies:ppn", "events:PPN"]);
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, {
+        tags: [{ name: "Mega", list: "weeklies" }, { name: "MEGA", list: "weeklies" }],
+        deleteIds: [],
+      })
+    ).rejects.toThrow('Duplicate tag "MEGA" in Weeklies.');
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "Social" }, { name: "social" }], deleteIds: [] })
+    ).rejects.toThrow('Duplicate tag "social" in Other events.');
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: " PPN ", list: "weeklies" }], deleteIds: [] })
+    ).rejects.toThrow('Weeklies already has a tag named "PPN".');
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "PPN" }], deleteIds: [] })
+    ).rejects.toThrow('Other events already has a tag named "PPN".');
+  });
+
+  test("a saved tag sent without a list stays in its list", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ name: "Games Night", list: "weeklies" }, { name: "Games Night" }],
+      deleteIds: [],
+    });
+    const tags = await leader.query(api.attendanceTags.list, {});
+    const weekly = tags.find((tag) => tag.list === "weeklies")!;
+    const event = tags.find((tag) => tag.list === "events")!;
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [
+        { id: weekly._id, name: "Games Night", colour: "cyan" },
+        { id: event._id, name: "Games Night" },
+      ],
+      deleteIds: [],
+    });
+    const saved = await t.run((ctx) => ctx.db.get(weekly._id));
+    expect(saved).toMatchObject({ list: "weeklies", colour: "cyan" });
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: event._id, name: "Party", list: "weeklies" }],
+      deleteIds: [],
+    });
+    expect(await listed(t)).toEqual(["weeklies:Games Night", "weeklies:Party"]);
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, {
+        tags: [{ id: event._id, name: "Games Night" }],
+        deleteIds: [],
+      })
+    ).rejects.toThrow('Weeklies already has a tag named "Games Night".');
+  });
+
+  test("a tag saved before lists existed counts as Other events", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const old = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Seasons" }));
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "seasons", list: "events" }], deleteIds: [] })
+    ).rejects.toThrow(/Other events already has/);
+    await leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: old, name: "Seasons" }], deleteIds: [] });
+    expect((await t.run((ctx) => ctx.db.get(old)))!.list).toBeUndefined();
+    await leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "Seasons", list: "weeklies" }], deleteIds: [] });
+    expect(await listed(t)).toEqual(["-:Seasons", "weeklies:Seasons"]);
+  });
+
+  test("the Weeklies tag, by either name, can't be renamed or deleted", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const [weeklies, legacy] = await t.run(async (ctx) => [
+      await ctx.db.insert("attendanceTags", { name: "Weeklies" }),
+      await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" }),
+    ]);
+    for (const id of [weeklies, legacy]) {
+      await expect(
+        leader.mutation(api.attendanceTags.saveAll, { tags: [], deleteIds: [id] })
+      ).rejects.toThrow("The Weeklies tag can't be deleted; every weekly gets it.");
+    }
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: weeklies, name: "Weekly" }], deleteIds: [] })
+    ).rejects.toThrow("The Weeklies tag can't be renamed; every weekly gets it.");
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: legacy, name: "Weeklies 2" }], deleteIds: [] })
+    ).rejects.toThrow(/can't be renamed/);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [
+        { id: weeklies, name: "Weeklies", colour: "amber" },
+        { id: legacy, name: "Weekly Meeting" },
+      ],
+      deleteIds: [],
+    });
+    expect(await t.run((ctx) => ctx.db.get(weeklies))).toMatchObject({ name: "Weeklies", colour: "amber" });
+    expect(await t.run((ctx) => ctx.db.query("attendanceTags").collect())).toHaveLength(2);
+  });
+
+  test("no other tag can take the Weeklies name, in either list", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const [, social] = await t.run(async (ctx) => [
+      await ctx.db.insert("attendanceTags", { name: "Weeklies" }),
+      await ctx.db.insert("attendanceTags", { name: "Social", list: "events" }),
+    ]);
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "Weeklies", list: "weeklies" }], deleteIds: [] })
+    ).rejects.toThrow('"Weeklies" is the automatic tag every weekly gets; pick another name.');
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: social, name: "Weekly Meeting" }], deleteIds: [] })
+    ).rejects.toThrow('"Weekly Meeting" is the automatic tag every weekly gets; pick another name.');
+  });
+
+  test("a tag both saved and deleted is just deleted", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const id = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Gone", list: "events" }));
+    await leader.mutation(api.attendanceTags.saveAll, { tags: [{ id, name: "Gone" }], deleteIds: [id] });
+    expect(await t.run((ctx) => ctx.db.get(id))).toBeNull();
   });
 });
 

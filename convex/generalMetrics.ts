@@ -1,6 +1,5 @@
 import { type Infer, v } from "convex/values";
 import { internalMutation, query, type QueryCtx } from "./_generated/server";
-import { Doc, Id } from "./_generated/dataModel";
 import { currentStaffYear } from "./model";
 import { viewBlockValidator } from "./metricsData";
 import { buildGeneralView } from "../shared/generalMetricsView";
@@ -8,7 +7,6 @@ import { OUTSOURCE, staffYearStartMs, sydneyCalendarYear } from "../shared/flow"
 import {
   isOrgWideSubgroup,
   normalizeSubgroups,
-  WEEKLY_MEETING_TAG_NAME,
 } from "../shared/rollcall";
 import {
   roleFilterMatches,
@@ -481,20 +479,9 @@ async function computeCampusWeeklyAttendance(
     .order("desc")
     .take(MAX_EVENTS_SCAN);
 
-  const tagIds = new Set<Id<"attendanceTags">>();
-  for (const e of events) for (const id of e.tagIds ?? []) tagIds.add(id);
-  const tagDocs = await Promise.all([...tagIds].map((id) => ctx.db.get(id)));
-  const weeklyTagIds = new Set(
-    tagDocs
-      .filter(
-        (t): t is Doc<"attendanceTags"> =>
-          !!t && t.name === WEEKLY_MEETING_TAG_NAME
-      )
-      .map((t) => t._id)
-  );
   const weeklyMeetings = events.filter(
     (e) =>
-      (e.tagIds ?? []).some((id) => weeklyTagIds.has(id)) &&
+      !!e.weekly &&
       calendarYear(e.dateStart) >= CAMPUS_ATTENDANCE_START_YEAR &&
       calendarYear(e.dateStart) <= currentYear
   );

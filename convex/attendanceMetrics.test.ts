@@ -508,6 +508,24 @@ describe("attendanceMetrics", () => {
     expect(role?.rows.map((r) => r.label)).toEqual(["Member"]);
   });
 
+  test("an event with the old weekly tag but no term and week isn't a weekly", async () => {
+    const { t, leader } = await setup();
+    const e = await t.run(async (ctx) => {
+      const tagId = await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" });
+      return ctx.db.insert("events", { name: "Weekly Meeting", ...window(2), subgroups: [USYD], tagIds: [tagId] });
+    });
+    await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
+    const snap = await leader.query(api.attendanceMetrics.snapshot, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    expect(snap!.data.weeklyTrend).toHaveLength(0);
+    expect(snap!.data.summary.weeklyConsistency).toBeNull();
+  });
+
   test("detects Weekly Meeting tagged events", async () => {
     const { t, leader } = await setup();
     const tagId = await t.run((ctx) =>

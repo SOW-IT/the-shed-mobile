@@ -504,6 +504,7 @@ export default defineSchema({
     name: v.string(),
     colour: v.optional(v.string()),
     subgroups: v.optional(v.array(v.string())),
+    list: v.optional(v.union(v.literal("weeklies"), v.literal("events"))),
   }),
 
   attendanceMetadata: defineTable({
