@@ -8,6 +8,7 @@ import {
   compareVersions,
   isAppVersion,
   NEWER_PAGES,
+  searchWithoutSignInParams,
   updateStatusFor,
   versionNeededFor,
 } from "./appLinks";
@@ -90,5 +91,16 @@ describe("the app's own links and web-only pages", () => {
     expect(updateStatusFor("2.7.0", {})).toBe("ok");
     expect(updateStatusFor("2.7.0", null)).toBe("ok");
     expect(updateStatusFor("dev", policy)).toBe("ok");
+  });
+});
+
+describe("links surviving a web sign-in", () => {
+  test("keeps the link's own query and drops what the sign-in hands back", () => {
+    expect(searchWithoutSignInParams("?tab=review&focus=abc&thread=1&code=123")).toBe(
+      "?tab=review&focus=abc&thread=1"
+    );
+    expect(searchWithoutSignInParams("?code=123&state=x&scope=email&authuser=0&prompt=none&hd=sow.org.au")).toBe("");
+    expect(searchWithoutSignInParams("?error=access_denied&error_description=no&id=7")).toBe("?id=7");
+    expect(searchWithoutSignInParams("")).toBe("");
   });
 });

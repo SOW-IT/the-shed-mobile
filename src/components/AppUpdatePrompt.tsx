@@ -1,17 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import Constants from "expo-constants";
-import { useState } from "react";
+import * as SecureStore from "expo-secure-store";
+import { useEffect, useState } from "react";
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { appLinkForScheme } from "../../shared/appLinks";
 import { Btn } from "@/components/ui";
+import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
 import { appVersion } from "@/hooks/useReportAppVersion";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const nativePlatform = (): "ios" | "android" | null =>
   Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : null;
+
+const DISMISSED_KEY = "updatePromptDismissedFor";
 
 const appScheme = (): string | undefined => {
   const scheme = Constants.expoConfig?.scheme;
@@ -21,7 +25,7 @@ const appScheme = (): string | undefined => {
 export function AppUpdatePrompt() {
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedFor, setDismissedFor] = useState<string | null | undefined>(undefined);
   const platform = nativePlatform();
   const version = appVersion();
   const link = appLinkForScheme(appScheme());
@@ -30,6 +34,13 @@ export function AppUpdatePrompt() {
     api.appInstalls.updateStatus,
     platform && version && storeUrl ? { platform, version } : "skip"
   );
+  useEffect(() => {
+    if (!platform) return;
+    SecureStore.getItemAsync(DISMISSED_KEY).then(
+      (value) => setDismissedFor(value),
+      () => setDismissedFor(null)
+    );
+  }, [platform]);
   if (!check || !storeUrl || check.status === "ok") return null;
   const openStore = () => void Linking.openURL(storeUrl).catch(() => {});
 
@@ -50,10 +61,19 @@ export function AppUpdatePrompt() {
     );
   }
 
-  if (dismissed) return null;
+  const recommended = check.latest ?? "";
+  if (dismissedFor === undefined || dismissedFor === recommended) return null;
+  const dismiss = () => {
+    setDismissedFor(recommended);
+    void SecureStore.setItemAsync(DISMISSED_KEY, recommended).catch(() => {});
+  };
   return (
     <View
-      style={[styles.banner, { top: insets.top + spacing.xs, backgroundColor: t.card }, t.surfaceEdge]}
+      style={[
+        styles.banner,
+        { top: insets.top + TOP_BAR_HEIGHT + spacing.xs, backgroundColor: t.card },
+        t.shadowFloat,
+      ]}
       accessibilityRole="alert"
     >
       <Ionicons name="sparkles-outline" size={20} color={t.primary} />
@@ -72,7 +92,7 @@ export function AppUpdatePrompt() {
         accessibilityRole="button"
         accessibilityLabel="Not now"
         hitSlop={10}
-        onPress={() => setDismissed(true)}
+        onPress={dismiss}
       >
         <Ionicons name="close" size={20} color={t.muted} />
       </Pressable>

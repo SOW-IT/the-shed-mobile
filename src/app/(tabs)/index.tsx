@@ -1,4 +1,3 @@
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -18,6 +17,7 @@ import { GuideSheet, MyRequests } from "@/components/MyRequests";
 import { type RequestPrefill } from "@/components/MyRequests";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { ReviewList } from "@/components/ReviewList";
+import { SignInPrompt } from "@/components/SignInPrompt";
 import {
   Btn,
   Card,
@@ -32,10 +32,11 @@ import {
   Txt,
   WarningBanner,
 } from "@/components/ui";
+import { useSignOut } from "@/hooks/usePushRegistration";
 import { typography } from "@/theme";
 
 export default function RequestsScreen() {
-  const { signOut } = useAuthActions();
+  const signOut = useSignOut();
   const me = useQuery(api.directory.me);
   const structure = useQuery(
     api.directory.yearStructure,
@@ -146,7 +147,7 @@ export default function RequestsScreen() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
     if (typeof tab === "string") setActive(tab);
-  }, [tab]);
+  }, [tab, reopen]);
   const markReadForRequest = useMutation(api.notifications.markReadForRequest);
   useEffect(() => {
     if (focusId) {
@@ -197,7 +198,14 @@ export default function RequestsScreen() {
 
   if (me?.isCampusLeader) return <Redirect href="/attendance" />;
 
-  if (me === null) return <Redirect href="/home" />;
+  if (me === null) {
+    if (!focusId && typeof tab !== "string") return <Redirect href="/home" />;
+    return (
+      <ChromeScreen>
+        <SignInPrompt what={focusId ? "reimbursement request" : "page"} />
+      </ChromeScreen>
+    );
+  }
 
   if (me.profile === null) {
     return (

@@ -123,3 +123,31 @@ describe("app versions", () => {
     ]);
   });
 });
+
+describe("update status", () => {
+  test("names the newer of the recommended and minimum versions as the one to update to", async () => {
+    const t = await setup();
+    await t.mutation(internal.appInstalls.setUpdatePolicy, {
+      platform: "android",
+      recommended: "2.9.1",
+      minimum: "2.9.4",
+    });
+    expect(
+      await t.query(api.appInstalls.updateStatus, { platform: "android", version: "2.9.0" })
+    ).toEqual({ status: "required", latest: "2.9.4", message: null });
+    await t.mutation(internal.appInstalls.setUpdatePolicy, {
+      platform: "android",
+      recommended: "2.10.0",
+    });
+    expect(
+      await t.query(api.appInstalls.updateStatus, { platform: "android", version: "2.9.4" })
+    ).toEqual({ status: "recommended", latest: "2.10.0", message: null });
+    await t.mutation(internal.appInstalls.setUpdatePolicy, {
+      platform: "android",
+      recommended: "2.9.4",
+    });
+    expect(
+      await t.query(api.appInstalls.updateStatus, { platform: "android", version: "2.9.4" })
+    ).toEqual({ status: "ok", latest: "2.9.4", message: null });
+  });
+});

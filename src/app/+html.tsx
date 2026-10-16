@@ -104,7 +104,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
               div[aria-modal="true"] { z-index: 9999 !important; }
               html, body, #root, #root > div { background-color: #F5F3E3; }
               @media (prefers-color-scheme: dark) {
-                html, body, #root, #root > div { background-color: #0F2523; }
+                html, body, #root, #root > div { background-color: #0B1D1B; }
               }
               input:focus, textarea:focus { outline: none; }
             `,
