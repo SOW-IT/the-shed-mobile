@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { spacing, useAppTheme } from "@/theme";
-import { eventStaffYear } from "../../shared/flow";
+import { eventStaffYear, nextStepAfter, STEP_LABELS } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
@@ -116,17 +116,15 @@ const PaySheet = ({
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on request change
-    setPaidAmount("");
+    setPaidAmount(
+      request?.receipt ? Math.min(request.receipt.totalAmount, request.amount).toFixed(2) : ""
+    );
     setComment("");
     setError(null);
   }, [request]);
 
   const handlePay = async () => {
-    if (!request || paying) return;
-    if (!(Number(paidAmount) > 0)) {
-      setError("Enter the amount that was paid.");
-      return;
-    }
+    if (!request || paying || !(Number(paidAmount) > 0)) return;
     setError(null);
     setPaying(true);
     try {
@@ -156,13 +154,14 @@ const PaySheet = ({
             title="Mark as Paid"
             variant="success"
             loading={paying}
+            disabled={!(Number(paidAmount) > 0)}
             onPress={handlePay}
           />
           <Btn title="Back" variant="ghost" onPress={onClose} />
         </View>
       }
     >
-      <Muted>Only pay after you have sent the money to the account.</Muted>
+      <Muted>Only mark it paid after you have sent the money to the account.</Muted>
       {request ? <ReceiptRecipientList request={request} /> : null}
       <Field
         label="Paid amount ($)"
@@ -227,6 +226,15 @@ export const ReviewList = ({
         }
       : "skip"
   );
+  const approveRequester = approveRequesterName ?? approveTarget?.request.requesterEmail;
+  const approveActors = useQuery(
+    api.requests.stepActors,
+    approveTarget ? { requestId: approveTarget.request._id } : "skip"
+  );
+  const approveNext = approveTarget
+    ? nextStepAfter(approveTarget.request, approveTarget.step)
+    : null;
+  const approveNextName = approveNext ? approveActors?.[approveNext]?.name : null;
 
   const handleApprove = async (request: Doc<"requests">, step: Step) => {
     setError(null);
@@ -319,6 +327,7 @@ export const ReviewList = ({
                         <IconButton
                           name="cash-outline"
                           size={40}
+                          label="Mark paid"
                           bg={t.successSoft}
                           color={t.success}
                           accessibilityLabel="Mark as paid"
@@ -356,7 +365,11 @@ export const ReviewList = ({
         title="Approve request?"
         message={
           approveTarget
-            ? `$${formatAmount(approveTarget.request.amount)} from ${approveRequesterName ?? approveTarget.request.requesterEmail}. Moves to the next step.`
+            ? `$${formatAmount(approveTarget.request.amount)} from ${approveRequester}. ${
+                approveNext
+                  ? `Next: ${approveNextName ? `${approveNextName}, ` : ""}${STEP_LABELS[approveNext]}.`
+                  : `This is the last approval. ${approveRequester} is then asked for the receipt.`
+              }`
             : undefined
         }
         confirmLabel="Approve"

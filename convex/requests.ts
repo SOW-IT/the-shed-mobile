@@ -18,6 +18,7 @@ import {
   requestDeclined,
   requestFullyApproved,
   staffYearStartMs,
+  STEP_FIELDS,
   STEP_LABELS,
   type ApprovalStatus,
 } from "../shared/flow";
@@ -55,13 +56,6 @@ type Ctx = QueryCtx | MutationCtx;
 
 const requestYear = (r: Pick<Doc<"requests">, "_creationTime">): number =>
   eventStaffYear(r._creationTime);
-
-const STEP_FIELDS = {
-  hod: "approvedByHOD",
-  budgetManager: "approvedByBudgetManager",
-  director: "approvedByDirector",
-  financeHead: "approvedByFinanceHead",
-} as const;
 
 type Step = keyof typeof STEP_FIELDS;
 

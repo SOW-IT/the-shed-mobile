@@ -431,6 +431,15 @@ export const RequestCard = ({
         <View style={styles.topSide}>
           <Text style={[typography.amount, { color: t.text }]}>${formatAmount(request.amount)}</Text>
         </View>
+        {collapsible && !expanded && (unreadComments ?? 0) > 0 ? (
+          <View
+            accessibilityLabel={`${unreadComments} new ${unreadComments === 1 ? "comment" : "comments"}`}
+            style={[styles.unreadChip, { backgroundColor: t.primarySoft }]}
+          >
+            <Ionicons name="chatbubble-ellipses" size={12} color={t.primary} />
+            <Text style={[styles.statusPillText, { color: t.primary }]}>{unreadComments}</Text>
+          </View>
+        ) : null}
         <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
           <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
             {status}
@@ -570,6 +579,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     maxWidth: "60%",
+  },
+  unreadChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: spacing.xs,
   },
   statusPillText: {
     fontSize: 11,

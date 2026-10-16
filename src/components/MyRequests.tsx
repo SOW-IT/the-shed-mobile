@@ -536,29 +536,18 @@ const ReceiptSheet = ({
     }
   };
 
+  const complete =
+    recipients.every(
+      (recipient) =>
+        recipient.accountName.trim() !== "" &&
+        recipient.bsb !== "" &&
+        recipient.accountNumber !== "" &&
+        Number(recipient.amount) > 0
+    ) && recipients.some((recipient) => recipient.files.length > 0);
+
   const handleSubmit = () => {
-    if (!request) return;
+    if (!request || !complete) return;
     setError(null);
-    for (const [index, recipient] of recipients.entries()) {
-      const which = recipients.length === 1 ? "" : ` for recipient ${index + 1}`;
-      if (
-        !recipient.accountName.trim() ||
-        !recipient.bsb ||
-        !recipient.accountNumber ||
-        !recipient.amount
-      ) {
-        setError(`Fill in every field${which}.`);
-        return;
-      }
-      if (!(Number(recipient.amount) > 0)) {
-        setError(`The amount${which} must be a positive number.`);
-        return;
-      }
-    }
-    if (!recipients.some((recipient) => recipient.files.length > 0)) {
-      setError("Attach at least one receipt file.");
-      return;
-    }
     const total = sumAmounts(recipients.map((r) => Number(r.amount)));
     if (toCents(total) > toCents(request.amount)) {
       setConfirmExceeds({ total });
@@ -582,7 +571,7 @@ const ReceiptSheet = ({
           <Btn
             title="Submit Receipt"
             onPress={handleSubmit}
-            disabled={uploading}
+            disabled={uploading || !complete}
             loading={sending}
           />
           <Btn title="Cancel" variant="ghost" onPress={onClose} />
@@ -909,6 +898,8 @@ export const MyRequests = ({
                   {needsReceipt && (
                     <IconButton
                       name="cloud-upload-outline"
+                      size={40}
+                      label="Add receipt"
                       bg={t.successSoft}
                       color={t.success}
                       accessibilityLabel="Submit receipt"

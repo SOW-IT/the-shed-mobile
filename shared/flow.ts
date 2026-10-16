@@ -352,6 +352,16 @@ export const currentStep = (r: ApprovalState): ApprovalStep | null => {
   return null;
 };
 
+export const STEP_FIELDS = {
+  hod: "approvedByHOD",
+  budgetManager: "approvedByBudgetManager",
+  director: "approvedByDirector",
+  financeHead: "approvedByFinanceHead",
+} as const;
+
+export const nextStepAfter = (r: ApprovalState, step: ApprovalStep): ApprovalStep | null =>
+  currentStep({ ...r, [STEP_FIELDS[step]]: APPROVED });
+
 export const REACTION_EMOJIS: readonly string[] = [
   "👍", "👎", "❤️", "🔥", "🎉", "😂", "😅", "🙏", "👀", "✅",
   "❌", "⚠️", "💰", "💸", "🧾", "📎", "⏳", "🚀", "💯", "🤝",

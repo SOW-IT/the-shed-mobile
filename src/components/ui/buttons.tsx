@@ -315,12 +315,14 @@ export const IconButton = ({
   badgeTextColor,
   accessibilityLabel,
   disabled,
+  label,
 }: {
   name: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
   color?: string;
   bg?: string;
   size?: number;
+  label?: string;
   badge?: number;
   badgeColor?: string;
   badgeTextColor?: string;
@@ -342,10 +344,14 @@ export const IconButton = ({
         style={[
           styles.iconButton,
           { width: size, height: size, backgroundColor: bg ?? t.ghost },
+          label ? { width: "auto", minWidth: size, flexDirection: "row", gap: 6, paddingHorizontal: 14 } : null,
           disabled && { opacity: 0.5 },
         ]}
       >
         <Ionicons name={name} size={Math.round(size * 0.5)} color={color ?? t.ghostText} />
+        {label ? (
+          <Text style={[typography.caption, { color: color ?? t.ghostText, fontWeight: "700" }]}>{label}</Text>
+        ) : null}
         {badge != null && badge > 0 ? (
           <View style={[styles.iconBadge, { backgroundColor: badgeColor ?? t.accent }]}>
             <Text style={[styles.iconBadgeText, badgeTextColor ? { color: badgeTextColor } : null]}>
