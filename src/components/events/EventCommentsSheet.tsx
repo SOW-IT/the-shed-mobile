@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useEffect } from "react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import type { SubFormKind } from "@shared/eventRequests";
+import { SUB_FORM_TEAMS, type SubFormKind } from "@shared/eventRequests";
 import { CommentThreadSheet } from "@/components/CommentThreadSheet";
 import { useRetained, useThreadActive } from "@/components/CommentsSheet";
 
@@ -57,11 +57,9 @@ export const EventCommentsSheet = ({
       visible={visible}
       onClose={onClose}
       comments={loaded}
-      onSend={(body) =>
-        canPost
-          ? add({ id, form, body })
-          : Promise.reject(new Error("Only the requester's side and this form's team can comment."))
-      }
+      onSend={(body) => add({ id, form, body })}
+      canPost={canPost}
+      readOnlyNote={`Only the requester's department and the ${SUB_FORM_TEAMS[form]} team can comment on this form.`}
     />
   );
 };

@@ -218,12 +218,15 @@ export const BankTab = () => {
     name: string,
     isPreferred: boolean
   ) => {
+    const next = others[0];
     setDeleteTarget({
       id,
       title: `Delete "${name}"?`,
-      message: isPreferred
-        ? "This is your auto-fill account. Deleting it turns off payment auto-fill."
-        : undefined,
+      message: !isPreferred
+        ? undefined
+        : next
+          ? `This is your auto-fill account. "${next.accountName}" will auto-fill instead.`
+          : "This is your auto-fill account. Deleting it turns off payment auto-fill.",
     });
   };
 

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RiskRatingPill } from "./EventPills";
+import { LabelledField } from "./LabelledField";
 
 /** The Risk form while it's being filled in; each row has a key for the list. */
 export type RiskDraft = { noRisks: boolean; risks: (RiskRow & { key: string })[]; contingencies: string };
@@ -341,12 +342,9 @@ const RiskRowEditor = ({
         describe={likelihoodOf}
         onSelect={(likelihood) => onChange({ ...row, likelihood })}
       />
-      <Field
-        label={
-          score && score.rating !== "Low"
-            ? "How will you reduce it? (required)"
-            : "How will you reduce it? (optional for Low risks)"
-        }
+      <LabelledField
+        label="How will you reduce it?"
+        required={!!score && score.rating !== "Low"}
         value={row.mitigation ?? ""}
         onChangeText={(mitigation) => onChange({ ...row, mitigation })}
         placeholder="e.g. Tape cables down and put chairs around them"

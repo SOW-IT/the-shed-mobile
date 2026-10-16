@@ -6,7 +6,7 @@ import {
   eventRequestPdfFilename,
   type EventRequestPdfInput,
 } from "./eventRequestPdf";
-import { eventHistoryLabel, subFormStatusLine, type FormStatusFacts } from "./eventRequestText";
+import { eventHistoryLabel, subFormCardLine, subFormStatusLine, type FormStatusFacts } from "./eventRequestText";
 
 const AT = Date.UTC(2026, 9, 6, 9, 49);
 
@@ -146,12 +146,38 @@ describe("event request text", () => {
     expect(eventHistoryLabel("mystery", null)).toBe("mystery");
   });
 
+  test("card lines leave out what the status chip already says", () => {
+    const fill = { imported: false, canFill: true };
+    const view = { imported: false, canFill: false };
+    expect(subFormCardLine("risk", facts({ status: "DRAFT" }), fill)).toBeNull();
+    expect(subFormCardLine("risk", facts({ status: "DRAFT", updatedAt: AT }), view)).toBeNull();
+    expect(subFormCardLine("risk", facts({ status: "DRAFT", updatedAt: AT }), fill)).toBe(
+      "Draft saved on 6 Oct 2026, 8:49 pm."
+    );
+    expect(subFormCardLine("risk", facts({ status: "NOT_REQUIRED" }), view)).toBeNull();
+    expect(subFormCardLine("risk", facts({ status: "NOT_REQUIRED" }), { imported: true, canFill: false })).toBe(
+      "Not needed: this event came from the old SHED, which had no Risk form."
+    );
+    expect(subFormCardLine("finance", facts({ status: "NOT_REQUIRED" }), view)).toBe(
+      "No money in or out, so Finance doesn't need to approve it."
+    );
+    expect(subFormCardLine("risk", facts({ status: "APPROVED", decidedByName: "Kate", decidedAt: AT }), view)).toBe(
+      "Approved by Kate on 6 Oct 2026, 8:49 pm."
+    );
+  });
+
   test("status lines", () => {
     const opts = { imported: false, canFill: false };
     expect(subFormStatusLine("risk", facts({ status: "DRAFT" }), { imported: false, canFill: true })).toBe(
       "Not filled in yet."
     );
     expect(subFormStatusLine("risk", facts({ status: "DRAFT" }), opts)).toBe("Not submitted yet.");
+    expect(
+      subFormStatusLine("risk", facts({ status: "DRAFT", updatedAt: AT }), { imported: false, canFill: true })
+    ).toBe("Draft saved on 6 Oct 2026, 8:49 pm. Not submitted yet.");
+    expect(subFormStatusLine("risk", facts({ status: "DRAFT", updatedAt: AT }), opts)).toBe(
+      "Not submitted yet."
+    );
     expect(
       subFormStatusLine("finance", facts({ status: "PENDING", directorApprovedByName: "Dan" }), opts)
     ).toBe("Approved by the Director (Dan). Waiting for the Finance Head (Fiona).");

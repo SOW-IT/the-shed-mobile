@@ -462,6 +462,27 @@ describe("the Risk form", () => {
     ]);
   });
 
+  test("a submit error names the row as the form shows it, blank rows included", async () => {
+    const t = await setup();
+    const id = await create(t);
+    await expect(
+      submitRisk(
+        t,
+        id,
+        risks({ risks: [{ description: " " }, { description: "Rain", category: "safety" }] })
+      )
+    ).rejects.toThrow("Risk 2: pick how bad it could be.");
+    await expect(
+      submitFinance(t, id, {
+        income: [
+          { label: "", amount: 0 },
+          { label: " ", amount: 25 },
+        ],
+        expenses: [],
+      })
+    ).rejects.toThrow("Income line 2: say what it's for.");
+  });
+
   test("can't be sent without a Compliance Head", async () => {
     const t = await setup({ heads: { ...HEADS, Compliance: undefined } });
     const id = await create(t);

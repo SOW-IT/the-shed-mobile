@@ -15,7 +15,7 @@ import {
 import { EventStatusPill, SubFormStatusPill } from "@/components/events/EventPills";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
-import { eventHistoryLabel, subFormStatusLine } from "@/lib/eventRequestText";
+import { eventHistoryLabel, subFormCardLine } from "@/lib/eventRequestText";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
   Btn,
@@ -53,6 +53,7 @@ const FormCard = ({
   const t = useAppTheme();
   const form = data.forms[kind];
   const action = form.can.decide ? "Review" : form.can.fill ? "Fill In" : "View";
+  const cardLine = subFormCardLine(kind, form, { imported: !!data.event.legacyKey, canFill: form.can.fill });
   return (
     <Pressable
       onPress={onOpen}
@@ -77,9 +78,7 @@ const FormCard = ({
             </View>
           ) : null}
         </View>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {subFormStatusLine(kind, form, { imported: !!data.event.legacyKey, canFill: form.can.fill })}
-        </Text>
+        {cardLine ? <Text style={[typography.caption, { color: t.muted }]}>{cardLine}</Text> : null}
       </View>
       <Text style={[typography.label, { color: form.can.decide || form.can.fill ? t.primary : t.faint }]}>
         {action}

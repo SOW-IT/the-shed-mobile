@@ -48,6 +48,7 @@ export type FormStatusFacts = {
   decidedByName: string | null;
   directorApprovedByName: string | null;
   decidedAt?: number;
+  updatedAt?: number;
   changesReason?: string;
   risk?: { noRisks: boolean };
 };
@@ -61,7 +62,10 @@ export const subFormStatusLine = (
   const on = (at: number | undefined) => (at ? ` on ${sydneyDateTime(at)}` : "");
   switch (form.status) {
     case "DRAFT":
-      return opts.canFill ? "Not filled in yet." : "Not submitted yet.";
+      if (!opts.canFill) return "Not submitted yet.";
+      return form.updatedAt
+        ? `Draft saved${on(form.updatedAt)}. Not submitted yet.`
+        : "Not filled in yet.";
     case "PENDING": {
       const who = form.approverName ? `${form.approverTitle} (${form.approverName})` : form.approverTitle;
       const director =
@@ -81,4 +85,16 @@ export const subFormStatusLine = (
         ? "Not needed: this event came from the old SHED, which had no Risk form."
         : "Not required.";
   }
+};
+
+export const subFormCardLine = (
+  kind: SubFormKind,
+  form: FormStatusFacts,
+  opts: { imported: boolean; canFill: boolean }
+): string | null => {
+  if (form.status === "DRAFT") {
+    return opts.canFill && form.updatedAt ? `Draft saved on ${sydneyDateTime(form.updatedAt)}.` : null;
+  }
+  if (form.status === "NOT_REQUIRED" && kind !== "finance" && !form.risk?.noRisks && !opts.imported) return null;
+  return subFormStatusLine(kind, form, opts);
 };

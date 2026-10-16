@@ -118,16 +118,26 @@ const StepInfoModal = ({
         <LoadingState />
       ) : (
         <>
-          <View style={{ gap: 2 }}>
-            {info.name ? (
-              <Txt style={{ fontWeight: "700" }}>{info.name}</Txt>
-            ) : null}
-            {info.email ? (
-              <Muted>{info.email}</Muted>
-            ) : (
-              <Muted>No one assigned to this step yet.</Muted>
-            )}
-          </View>
+          {info.autoApproved ? (
+            <View style={{ gap: 2 }}>
+              <Txt style={{ fontWeight: "700" }}>Auto-approved</Txt>
+              <Muted>
+                Approved automatically when {info.name ?? info.email ?? "the requester"} submitted
+                the request.
+              </Muted>
+            </View>
+          ) : (
+            <View style={{ gap: 2 }}>
+              {info.name ? (
+                <Txt style={{ fontWeight: "700" }}>{info.name}</Txt>
+              ) : null}
+              {info.email ? (
+                <Muted>{info.email}</Muted>
+              ) : (
+                <Muted>No one assigned to this step yet.</Muted>
+              )}
+            </View>
+          )}
           {info.isDelegated ? (
             <Muted>
               {info.name ?? "This person"} is covering for {officeholderLabel}
@@ -209,7 +219,9 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
           const labelColor = isApproved ? t.success : isDeclined ? t.danger : isActive ? t.warning : t.faint;
 
           const actor = actors?.[step];
-          const displayName = actor?.name ?? (actor?.email ? actor.email : null);
+          const displayName = actor?.autoApproved
+            ? "Auto-approved"
+            : actor?.name ?? (actor?.email ? actor.email : null);
 
           return (
             <React.Fragment key={step}>

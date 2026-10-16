@@ -116,6 +116,7 @@ export default function DesignRequestsScreen() {
     staff ? (mineYear === null ? {} : { year: mineYear }) : "skip"
   );
   const queue = useQuery(api.designRequests.queue, team ? {} : "skip");
+  const waitingOnMe = useQuery(api.designRequests.waitingOnMe, team ? {} : "skip") ?? 0;
   const shownArchiveYear = archiveYear ?? me?.year;
   const archive = useQuery(
     api.designRequests.archive,
@@ -159,9 +160,6 @@ export default function DesignRequestsScreen() {
 
   const unreadIn = (rows: DesignRequestListRow[] | null | undefined) =>
     (rows ?? []).reduce((sum, r) => sum + (unread[r._id] ?? 0), 0);
-  const waitingOnMe = (queue ?? []).filter((r) =>
-    viewer?.isMarketingHead ? r.status === "PENDING" : r.status === "APPROVED"
-  ).length;
   const badge = (count: number) => (count > 0 ? count : undefined);
 
   const mineYears = years?.mine ?? [];

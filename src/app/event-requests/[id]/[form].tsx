@@ -15,8 +15,6 @@ import {
   eventSize,
   financeProblem,
   isSubFormKind,
-  normalizeFinance,
-  normalizeRisk,
   riskProblem,
   SUB_FORM_LABELS,
   type SubFormKind,
@@ -27,6 +25,7 @@ import {
   FormQuestions,
   type FormDraft,
 } from "@/components/forms/FormQuestions";
+import { CommentsButton } from "@/components/CommentThreadSheet";
 import { EventCommentsSheet } from "@/components/events/EventCommentsSheet";
 import { SubFormStatusPill } from "@/components/events/EventPills";
 import {
@@ -44,8 +43,9 @@ import {
   RiskView,
   type RiskDraft,
 } from "@/components/events/RiskForm";
+import { LabelledField } from "@/components/events/LabelledField";
 import { SignInPrompt } from "@/components/SignInPrompt";
-import { subFormStatusLine } from "@/lib/eventRequestText";
+import { subFormCardLine } from "@/lib/eventRequestText";
 import {
   Btn,
   Card,
@@ -54,7 +54,6 @@ import {
   ErrorBanner,
   errorMessage,
   FadeInView,
-  Field,
   FooterAction,
   LoadingState,
   Muted,
@@ -212,7 +211,7 @@ export default function EventSubFormScreen() {
     }
     if (kind === "risk" && drafts.risk) {
       const risk = riskDataFrom(drafts.risk);
-      const problem = submit ? riskProblem(normalizeRisk(risk)) : null;
+      const problem = submit ? riskProblem(risk) : null;
       if (problem) return setError(problem);
       return void run(
         () => saveRisk({ id: event._id, risk, submit }),
@@ -221,7 +220,7 @@ export default function EventSubFormScreen() {
     }
     if (kind === "finance" && drafts.finance) {
       const finance = financeDataFrom(drafts.finance);
-      const problem = submit ? financeProblem(normalizeFinance(finance)) : null;
+      const problem = submit ? financeProblem(finance) : null;
       if (problem) return setError(problem);
       return void run(
         () => saveFinance({ id: event._id, finance, submit }),
@@ -273,7 +272,7 @@ export default function EventSubFormScreen() {
   }
 
   const unreadCount = unread[event._id]?.[kind] ?? 0;
-  const statusLine = subFormStatusLine(kind, current, {
+  const statusLine = subFormCardLine(kind, current, {
     imported: !!event.legacyKey,
     canFill,
   });
@@ -307,9 +306,9 @@ export default function EventSubFormScreen() {
                   <Text selectable style={[typography.body, { color: t.danger }]}>
                     {statusLine}
                   </Text>
-                ) : (
+                ) : statusLine ? (
                   <Muted>{statusLine}</Muted>
-                )}
+                ) : null}
                 {canFill ? null : <ErrorBanner message={error} />}
                 <Row>
                   {current.can.decide ? (
@@ -331,12 +330,7 @@ export default function EventSubFormScreen() {
                       />
                     </>
                   ) : null}
-                  <Btn
-                    title={unreadCount > 0 ? `Comments (${unreadCount} new)` : "Comments"}
-                    variant="tonal"
-                    icon="chatbubbles-outline"
-                    onPress={() => setCommentsOpen(true)}
-                  />
+                  <CommentsButton unread={unreadCount} onPress={() => setCommentsOpen(true)} />
                   {current.can.reopen ? (
                     <Btn title="Reopen to Change" variant="ghost" onPress={() => setConfirmReopen(true)} />
                   ) : null}
@@ -379,7 +373,13 @@ export default function EventSubFormScreen() {
         }
       >
         <Muted>The requester will be told what to change, and can submit the form again.</Muted>
-        <Field label="What needs to change? (required)" value={reason} onChangeText={setReason} multiline />
+        <LabelledField
+          label="What needs to change?"
+          required
+          value={reason}
+          onChangeText={setReason}
+          multiline
+        />
         <ErrorBanner message={error} />
       </Sheet>
 

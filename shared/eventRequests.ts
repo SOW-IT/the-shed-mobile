@@ -255,27 +255,32 @@ export const rowScore = (row: RiskRow) =>
     ? riskScore(row.likelihood, row.consequence)
     : null;
 
+const normalizeRiskRow = (row: RiskRow): RiskRow => ({
+  description: row.description.trim(),
+  ...(row.category ? { category: row.category } : {}),
+  ...(isRiskLevel(row.consequence) ? { consequence: row.consequence } : {}),
+  ...(isRiskLevel(row.likelihood) ? { likelihood: row.likelihood } : {}),
+  ...(clean(row.mitigation) ? { mitigation: clean(row.mitigation) } : {}),
+  ...(clean(row.legacyRating) ? { legacyRating: clean(row.legacyRating) } : {}),
+});
+
+const isFilledRiskRow = (row: RiskRow) =>
+  !!(row.description || row.category || row.consequence || row.likelihood || row.mitigation);
+
+const numberedRows = <T>(
+  rows: readonly T[],
+  normalize: (row: T) => T,
+  isFilled: (row: T) => boolean
+): { row: T; number: number }[] =>
+  rows
+    .map((row, index) => ({ row: normalize(row), number: index + 1 }))
+    .filter(({ row }) => isFilled(row));
+
 /** The form as it's stored: text trimmed, blank rows dropped, and no rows when there are no risks. */
 export const normalizeRisk = (data: RiskData): RiskData => {
   const risks = data.noRisks
     ? []
-    : data.risks
-        .map((row) => ({
-          description: row.description.trim(),
-          ...(row.category ? { category: row.category } : {}),
-          ...(isRiskLevel(row.consequence) ? { consequence: row.consequence } : {}),
-          ...(isRiskLevel(row.likelihood) ? { likelihood: row.likelihood } : {}),
-          ...(clean(row.mitigation) ? { mitigation: clean(row.mitigation) } : {}),
-          ...(clean(row.legacyRating) ? { legacyRating: clean(row.legacyRating) } : {}),
-        }))
-        .filter(
-          (row) =>
-            row.description ||
-            row.category ||
-            row.consequence ||
-            row.likelihood ||
-            row.mitigation
-        );
+    : numberedRows(data.risks, normalizeRiskRow, isFilledRiskRow).map(({ row }) => row);
   return {
     noRisks: data.noRisks,
     risks,
@@ -300,14 +305,15 @@ export const riskDraftProblem = (data: RiskData): string | null => {
 
 /** What stops the form being submitted, as a message to fix, or null. */
 export const riskProblem = (data: RiskData): string | null => {
-  const draft = riskDraftProblem(data);
+  const draft = riskDraftProblem(normalizeRisk(data));
   if (draft) return draft;
   if (data.noRisks) return null;
-  if (data.risks.length === 0) {
+  const rows = numberedRows(data.risks, normalizeRiskRow, isFilledRiskRow);
+  if (rows.length === 0) {
     return 'Add at least one risk, or tick "This event has no notable risks".';
   }
-  for (const [index, row] of data.risks.entries()) {
-    const which = `Risk ${index + 1}`;
+  for (const { row, number } of rows) {
+    const which = `Risk ${number}`;
     if (!row.description) return `${which}: describe the risk.`;
     if (!row.category) return `${which}: pick what kind of risk it is.`;
     if (!isRiskLevel(row.consequence)) return `${which}: pick how bad it could be.`;
@@ -340,13 +346,15 @@ export interface FinanceData {
 export const MAX_FINANCE_LINES = 60;
 const MAX_FINANCE_AMOUNT = 1_000_000;
 
+const normalizeLine = (line: FinanceLine): FinanceLine => ({
+  label: line.label.trim(),
+  amount: Number.isFinite(line.amount) ? toCents(line.amount) / 100 : 0,
+});
+
+const isFilledLine = (line: FinanceLine) => !!line.label || line.amount !== 0;
+
 const normalizeLines = (lines: readonly FinanceLine[]): FinanceLine[] =>
-  lines
-    .map((line) => ({
-      label: line.label.trim(),
-      amount: Number.isFinite(line.amount) ? toCents(line.amount) / 100 : 0,
-    }))
-    .filter((line) => line.label || line.amount !== 0);
+  numberedRows(lines, normalizeLine, isFilledLine).map(({ row }) => row);
 
 /** The form as it's stored: labels trimmed, amounts in cents, empty lines dropped. */
 export const normalizeFinance = (data: FinanceData): FinanceData => ({
@@ -393,17 +401,18 @@ export const financeDraftProblem = (data: FinanceData): string | null => {
 
 /** What stops the form being submitted, as a message to fix, or null. */
 export const financeProblem = (data: FinanceData): string | null => {
-  const draft = financeDraftProblem(data);
+  const normalized = normalizeFinance(data);
+  const draft = financeDraftProblem(normalized);
   if (draft) return draft;
   for (const [title, lines] of [
     ["Income", data.income],
     ["Expenses", data.expenses],
   ] as const) {
-    for (const [index, line] of lines.entries()) {
-      if (!line.label) return `${title} line ${index + 1}: say what it's for.`;
+    for (const { row, number } of numberedRows(lines, normalizeLine, isFilledLine)) {
+      if (!row.label) return `${title} line ${number}: say what it's for.`;
     }
   }
-  if (data.spreadsheetUrl && !isValidUrl(data.spreadsheetUrl)) {
+  if (normalized.spreadsheetUrl && !isValidUrl(normalized.spreadsheetUrl)) {
     return "The spreadsheet link needs to be a full link, starting with https://";
   }
   return null;

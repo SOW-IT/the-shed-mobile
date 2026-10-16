@@ -7,6 +7,7 @@ import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
 import { ReceiptRecipientList } from "@/components/ReceiptRecipientList";
+import { LabelledField } from "@/components/events/LabelledField";
 import {
   Btn,
   ConfirmDialog,
@@ -86,6 +87,7 @@ const DeclineSheet = ({
             title="Decline"
             variant="danger"
             loading={submitting}
+            disabled={reason.trim() === ""}
             onPress={handleDecline}
           />
           <Btn title="Back" variant="ghost" onPress={onClose} />
@@ -93,7 +95,7 @@ const DeclineSheet = ({
       }
     >
       <Muted>The requester will be emailed your reason.</Muted>
-      <Field label="Reason (required)" value={reason} onChangeText={setReason} multiline />
+      <LabelledField label="Reason" required value={reason} onChangeText={setReason} multiline />
       <ErrorBanner message={error} />
     </Sheet>
   );
