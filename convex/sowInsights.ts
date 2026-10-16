@@ -89,6 +89,7 @@ export const view = query({
       ...new Set([current, ...events.map((e) => staffYearForDate(new Date(e.dateStart)))]),
     ].sort((a, b) => b - a);
     const year = staffYear !== undefined && years.includes(staffYear) ? staffYear : current;
+    const earlierYear = years.find((y) => y < year);
     const inYear = (y: number) =>
       events.filter((e) => e.dateStart >= staffYearStartMs(y) && e.dateStart < staffYearStartMs(y + 1));
     const load = (list: Doc<"events">[]) => Promise.all(list.map((e) => toSowEvent(ctx, e)));
@@ -107,7 +108,7 @@ export const view = query({
       return {
         years: yearOptions,
         year,
-        blocks: buildTwigBlocks({ result, people, missesForFollowUp: rules.followUpMisses }),
+        blocks: buildTwigBlocks({ result, people, missesForFollowUp: rules.followUpMisses, earlierYear }),
       };
     }
     const earlier = await load(events.filter((e) => e.dateStart < staffYearStartMs(year - 1)));
@@ -118,6 +119,6 @@ export const view = query({
       earlier: [...earlier, ...lastYear],
       people,
     });
-    return { years: yearOptions, year, blocks: buildPpnBlocks({ result }) };
+    return { years: yearOptions, year, blocks: buildPpnBlocks({ result, earlierYear }) };
   },
 });

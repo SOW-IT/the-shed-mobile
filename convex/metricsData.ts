@@ -133,7 +133,7 @@ export const viewBlockValidator = v.union(
   v.object({
     type: v.literal("breakdown"),
     title: v.string(),
-    rows: v.array(v.object({ label: v.string(), value: v.number() })),
+    rows: v.array(v.object({ label: v.string(), value: v.number(), colour: v.optional(v.string()) })),
   }),
   v.object({
     type: v.literal("followUps"),
@@ -148,5 +148,6 @@ export const viewBlockValidator = v.union(
     icon: v.string(),
     title: v.string(),
     message: v.string(),
+    action: v.optional(v.object({ label: v.string(), period: v.string() })),
   })
 );

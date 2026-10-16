@@ -125,7 +125,7 @@ describe("SOW TWIG and PPN Insights", () => {
     expect(cards.map((c) => [c.label, c.value, c.hint])).toEqual([
       ["Average attendance", "1.5", "vs 1.5"],
       ["People", "2", "vs 2"],
-      ["Regulars", "2", "vs 2"],
+      ["Regulars", "2", undefined],
     ]);
     const bars = pick(blocks, "multiBars")[0];
     expect(bars.points.map((p) => [p.label, p.segments.map((s) => s.value)])).toEqual([

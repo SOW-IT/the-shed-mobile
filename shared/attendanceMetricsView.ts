@@ -6,6 +6,7 @@ import {
   type SubgroupMetricsData,
   type TrendPoint,
 } from "./attendanceMetrics";
+import { subgroupColour } from "./rollcall";
 
 // The Insights → Attendance tab is laid out here, on the server, and the app
 // only knows how to draw each block type. Changing what the tab shows, its
@@ -61,7 +62,7 @@ export type ViewBlock =
       keepZeros?: boolean;
     }
   | { type: "bars"; title: string; colour: ViewColour; points: TrendPoint[] }
-  | { type: "breakdown"; title: string; rows: { label: string; value: number }[] }
+  | { type: "breakdown"; title: string; rows: { label: string; value: number; colour?: ViewPaint }[] }
   | {
       type: "followUps";
       title: string;
@@ -70,7 +71,13 @@ export type ViewBlock =
       preview: number;
       emptyText: string;
     }
-  | { type: "empty"; icon: string; title: string; message: string };
+  | {
+      type: "empty";
+      icon: string;
+      title: string;
+      message: string;
+      action?: { label: string; period: string };
+    };
 
 export const FOLLOW_UP_PREVIEW = 5;
 export const FOLLOW_UP_MAX = 25;
@@ -174,7 +181,11 @@ export function buildAttendanceView(input: {
       blocks.push({
         type: "breakdown",
         title: "Weekly avg by campus",
-        rows: campusWeekly.map((c) => ({ label: c.campus, value: c.avgWeekly })),
+        rows: campusWeekly.map((c) => ({
+          label: c.campus,
+          value: c.avgWeekly,
+          colour: subgroupColour(c.campus),
+        })),
       });
     }
     if (data.hasEnoughHistory) {

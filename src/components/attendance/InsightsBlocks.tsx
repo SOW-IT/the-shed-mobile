@@ -49,6 +49,7 @@ export function InsightsBlocks({
   onOpenMember,
   onOpenPerson,
   onEditMember,
+  onPickPeriod,
 }: {
   blocks: (ViewBlock | WeeklyBlock)[];
   width: number;
@@ -56,6 +57,7 @@ export function InsightsBlocks({
   /** Campus weeklies rows open the person's page by their key. */
   onOpenPerson?: (personKey: string, subgroup?: string) => void;
   onEditMember?: (memberId: string) => void;
+  onPickPeriod?: (period: string) => void;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -252,6 +254,11 @@ export function InsightsBlocks({
             }
             title={block.title}
             message={block.message}
+            action={
+              block.action && onPickPeriod
+                ? { label: block.action.label, onPress: () => onPickPeriod(block.action!.period) }
+                : undefined
+            }
           />
         );
       default:

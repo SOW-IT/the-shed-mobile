@@ -132,6 +132,7 @@ export default function InsightsScreen() {
         sowTab={sowTab}
         onSowTabChange={setSowTabKey}
         sowTabView={sowTabView}
+        onSowYearChange={setSowYear}
       />
     ),
   };

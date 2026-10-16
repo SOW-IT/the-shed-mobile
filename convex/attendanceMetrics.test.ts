@@ -2,7 +2,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
-import { SOW_SUBGROUP } from "../shared/rollcall";
+import { SOW_SUBGROUP, subgroupColour } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
 import type { MutationCtx } from "./_generated/server";
 import schema from "./schema";
@@ -653,12 +653,12 @@ describe("campus weekly averages in the SOW view", () => {
       await weeklyIndex(ctx, "Macquarie", [{ at: now - 90 * DAY, count: 5, joint: false }]);
     });
     expect(await campusRows(leader, false)).toEqual([
-      { label: UNSW, value: 40 },
-      { label: USYD, value: 12.5 },
+      { label: UNSW, value: 40, colour: subgroupColour(UNSW) },
+      { label: USYD, value: 12.5, colour: subgroupColour(USYD) },
     ]);
     expect(await campusRows(leader)).toEqual([
-      { label: USYD, value: 41.7 },
-      { label: UNSW, value: 40 },
+      { label: USYD, value: 41.7, colour: subgroupColour(USYD) },
+      { label: UNSW, value: 40, colour: subgroupColour(UNSW) },
     ]);
   });
 
@@ -739,7 +739,7 @@ describe("view", () => {
     expect(view?.blocks[1]).toEqual({
       type: "breakdown",
       title: "Weekly avg by campus",
-      rows: [{ label: USYD, value: 42 }],
+      rows: [{ label: USYD, value: 42, colour: subgroupColour(USYD) }],
     });
   });
 

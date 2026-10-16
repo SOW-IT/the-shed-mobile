@@ -1279,7 +1279,7 @@ export function BreakdownBars({
   rows,
   wideLabels = false,
 }: {
-  rows: { label: string; value: number }[];
+  rows: { label: string; value: number; colour?: string }[];
   wideLabels?: boolean;
 }) {
   const t = useAppTheme();
@@ -1306,7 +1306,7 @@ export function BreakdownBars({
               style={{
                 width: `${(r.value / max) * 100}%`,
                 height: "100%",
-                backgroundColor: t.primary,
+                backgroundColor: r.colour ?? t.primary,
                 borderRadius: radius.full,
               }}
             />

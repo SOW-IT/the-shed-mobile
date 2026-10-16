@@ -35,6 +35,7 @@ export function MetricsTab({
   sowTab,
   onSowTabChange,
   sowTabView,
+  onSowYearChange,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
@@ -48,6 +49,7 @@ export function MetricsTab({
   sowTab?: SowTabChoice | null;
   onSowTabChange?: (key: string) => void;
   sowTabView?: { year: number; blocks: WeeklyBlock[] } | null;
+  onSowYearChange?: (year: number) => void;
 }) {
   const t = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -116,6 +118,7 @@ export function MetricsTab({
           width={containerWidth}
           onOpenMember={onOpenMember}
           onOpenPerson={onOpenPerson}
+          onPickPeriod={onSowYearChange ? (period) => onSowYearChange(Number(period)) : undefined}
         />
       ) : null}
       <View style={{ height: 96 }} />
