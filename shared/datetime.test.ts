@@ -135,8 +135,7 @@ describe("compactAgo", () => {
 
   it("switches to an absolute date once a week old", () => {
     const stamp = agoBy(7 * 24 * 60 * 60_000);
-    expect(stamp).not.toMatch(/^\d+[mhd]$/);
-    expect(stamp.length).toBeGreaterThan(0);
+    expect(stamp).toMatch(/^13 June?$/);
   });
 
   it("defaults `now` to the current time", () => {

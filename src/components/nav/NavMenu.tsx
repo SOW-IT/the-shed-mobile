@@ -1,17 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useConvexAuth, useQuery } from "convex/react";
-import { type Href, usePathname, useRouter } from "expo-router";
-import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { api } from "../../../convex/_generated/api";
-import { Avatar, ConfirmDialog } from "@/components/ui";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
+import { Avatar, ConfirmDialog } from "@/components/ui";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
 import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
-import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import { useSignOut } from "@/hooks/usePushRegistration";
+import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import {
   activeNavKey,
   badgeText,
@@ -24,6 +17,20 @@ import {
   sidebarItems,
 } from "@/lib/navMenu";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { useConvexAuth, useQuery } from "convex/react";
+import { type Href, usePathname, useRouter } from "expo-router";
+import { useState } from "react";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { api } from "../../../convex/_generated/api";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -122,7 +129,11 @@ export const NavMenu = ({
           accessibilityLabel="Open your profile"
           style={({ pressed }) => pressed && { opacity: 0.7 }}
         >
-          <Avatar photo={me?.photo ?? null} name={me?.name ?? null} size={avatarSize} />
+          <Avatar
+            photo={me?.photo ?? null}
+            name={me?.name ?? null}
+            size={avatarSize}
+          />
         </Pressable>
         {sidebar && viewer.isStaff ? (
           <Pressable
@@ -154,12 +165,18 @@ export const NavMenu = ({
       >
         <Text
           numberOfLines={1}
-          style={[sidebar ? styles.nameSidebar : styles.name, { color: t.text }]}
+          style={[
+            sidebar ? styles.nameSidebar : styles.name,
+            { color: t.text },
+          ]}
         >
           {me?.name ?? me?.email ?? ""}
         </Text>
         {role ? (
-          <Text numberOfLines={2} style={[typography.caption, { color: t.muted }]}>
+          <Text
+            numberOfLines={2}
+            style={[typography.caption, { color: t.muted }]}
+          >
             {role}
           </Text>
         ) : null}
@@ -168,7 +185,10 @@ export const NavMenu = ({
   ) : (
     // Drops just below the "Sign in" label (sidebar padding + avatar + label).
     <SignInMenu
-      anchor={{ top: insets.top + spacing.lg + avatarSize + 40, left: spacing.lg }}
+      anchor={{
+        top: insets.top + spacing.lg + avatarSize + 40,
+        left: spacing.lg,
+      }}
     >
       {(openSignIn) => (
         <Pressable
@@ -190,7 +210,12 @@ export const NavMenu = ({
           >
             <Ionicons name="person" size={avatarSize * 0.5} color={t.faint} />
           </View>
-          <Text style={[sidebar ? styles.nameSidebar : styles.name, { color: t.text }]}>
+          <Text
+            style={[
+              sidebar ? styles.nameSidebar : styles.name,
+              { color: t.text },
+            ]}
+          >
             Sign in
           </Text>
         </Pressable>
@@ -229,7 +254,9 @@ export const NavMenu = ({
               onPress={() => go(key)}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={badge > 0 ? `${label}, ${badge} to action` : label}
+              accessibilityLabel={
+                badge > 0 ? `${label}, ${badge} to action` : label
+              }
               style={({ pressed }) => [
                 styles.item,
                 sidebar ? styles.itemSidebar : styles.itemDrawer,
@@ -258,7 +285,9 @@ export const NavMenu = ({
                 </View>
               ) : null}
               {badge > 0 ? (
-                <View style={[styles.countBadge, { backgroundColor: t.warning }]}>
+                <View
+                  style={[styles.countBadge, { backgroundColor: t.warning }]}
+                >
                   <Text style={styles.badgeText}>{badgeText(badge)}</Text>
                 </View>
               ) : null}
@@ -273,7 +302,11 @@ export const NavMenu = ({
             onPress={() => setConfirmingSignOut(true)}
             accessibilityRole="button"
             accessibilityLabel="Sign out"
-            style={({ pressed }) => [styles.item, styles.minorItem, pressed && { opacity: 0.6 }]}
+            style={({ pressed }) => [
+              styles.item,
+              styles.minorItem,
+              pressed && { opacity: 0.6 },
+            ]}
           >
             <Ionicons name="log-out-outline" size={22} color={t.text} />
             <Text style={[styles.minorLabel, { color: t.text }]}>Sign out</Text>
@@ -290,7 +323,7 @@ export const NavMenu = ({
                   Alert.alert(
                     "Sign-out failed",
                     "Something went wrong signing you out. Please try again.",
-                    [{ text: "OK" }]
+                    [{ text: "OK" }],
                   );
                 });
             }}
@@ -351,11 +384,26 @@ const styles = StyleSheet.create({
   },
   itemDrawer: { gap: spacing.xl, paddingVertical: spacing.md + 2 },
   itemSidebar: { gap: spacing.lg, paddingVertical: spacing.sm + 2 },
-  labelDrawer: { fontSize: 21, fontWeight: "700", letterSpacing: -0.4, flexShrink: 1 },
-  labelSidebar: { fontSize: 17, fontWeight: "600", letterSpacing: -0.3, flexShrink: 1 },
+  labelDrawer: {
+    fontSize: 21,
+    fontWeight: "700",
+    letterSpacing: -0.4,
+    flexShrink: 1,
+  },
+  labelSidebar: {
+    fontSize: 17,
+    fontWeight: "600",
+    letterSpacing: -0.3,
+    flexShrink: 1,
+  },
   labelSelected: { fontWeight: "800" },
   tag: { borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
-  tagText: { color: "#ffffff", fontSize: 9, fontWeight: "800", letterSpacing: 0.2 },
+  tagText: {
+    color: "#ffffff",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
   countBadge: {
     minWidth: 22,
     height: 22,

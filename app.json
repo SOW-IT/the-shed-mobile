@@ -2,7 +2,7 @@
   "expo": {
     "name": "The SHED",
     "slug": "the-shed-mobile",
-    "version": "2.9.5",
+    "version": "2.9.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "theshedmobile",
@@ -77,6 +77,15 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow THE SHED to access your photos for profile pictures and receipt uploads."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false
+          }
         }
       ]
     ],

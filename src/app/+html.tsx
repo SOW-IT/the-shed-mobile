@@ -1,4 +1,4 @@
-import { ScrollViewStyleReset } from "expo-router/html";
+import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
 import { APP_LINK_MARKER, appLinkFor, NEWER_PAGES } from "../../shared/appLinks";
 
 // Rendered at build time: the dev web build sets EXPO_PUBLIC_APP_VARIANT=staging
@@ -6,8 +6,9 @@ import { APP_LINK_MARKER, appLinkFor, NEWER_PAGES } from "../../shared/appLinks"
 const APP_LINK = appLinkFor(process.env.EXPO_PUBLIC_APP_VARIANT);
 
 export default function Root({ children }: { children: React.ReactNode }) {
+  const { htmlAttributes, bodyAttributes, headNodes, bodyNodes } = useServerDocumentContext();
   return (
-    <html lang="en">
+    <html lang="en" {...htmlAttributes}>
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
@@ -110,8 +111,12 @@ export default function Root({ children }: { children: React.ReactNode }) {
             `,
           }}
         />
+        {headNodes}
       </head>
-      <body>{children}</body>
+      <body {...bodyAttributes}>
+        {children}
+        {bodyNodes}
+      </body>
     </html>
   );
 }

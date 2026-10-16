@@ -1,3 +1,9 @@
+import { useWideLayout } from "@/components/nav/layout";
+import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
+import { usePushRegistration } from "@/hooks/usePushRegistration";
+import { useReportAppVersion } from "@/hooks/useReportAppVersion";
+import { useReportSeen } from "@/hooks/useReportSeen";
+import { BOTTOM_TAB_HEIGHT, radius, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { Tabs } from "expo-router";
@@ -17,30 +23,46 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
-import { useWideLayout } from "@/components/nav/layout";
-import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
-import { usePushRegistration } from "@/hooks/usePushRegistration";
-import { useReportAppVersion } from "@/hooks/useReportAppVersion";
-import { useReportSeen } from "@/hooks/useReportSeen";
-import { BOTTOM_TAB_HEIGHT, radius, useAppTheme } from "@/theme";
 
 /** The current tab's icon sits on a soft pill. */
-const TabPill = ({ focused, children }: { focused: boolean; children: React.ReactNode }) => {
+const TabPill = ({
+  focused,
+  children,
+}: {
+  focused: boolean;
+  children: React.ReactNode;
+}) => {
   const t = useAppTheme();
   return (
-    <View style={[styles.tabPill, focused && { backgroundColor: t.primarySoft }]}>{children}</View>
+    <View
+      style={[styles.tabPill, focused && { backgroundColor: t.primarySoft }]}
+    >
+      {children}
+    </View>
   );
 };
 
-const tabIcon =
-  (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) => {
-    const TabBarIcon = ({ color, focused }: { color: ColorValue; focused: boolean }) => (
-      <TabPill focused={focused}>
-        <Ionicons name={focused ? filled : outline} size={22} color={color} />
-      </TabPill>
-    );
-    return TabBarIcon;
-  };
+const tabIcon = (
+  outline: keyof typeof Ionicons.glyphMap,
+  filled: keyof typeof Ionicons.glyphMap,
+) => {
+  const TabBarIcon = ({
+    color,
+    focused,
+  }: {
+    color: ColorValue;
+    focused: boolean;
+  }) => (
+    <TabPill focused={focused}>
+      <Ionicons
+        name={focused ? filled : outline}
+        size={22}
+        color={color as string}
+      />
+    </TabPill>
+  );
+  return TabBarIcon;
+};
 
 const InsightsTabIcon = ({
   color,
@@ -55,7 +77,7 @@ const InsightsTabIcon = ({
       <Ionicons
         name={focused ? "stats-chart" : "stats-chart-outline"}
         size={22}
-        color={color}
+        color={color as string}
       />
       <View
         style={{
@@ -68,7 +90,14 @@ const InsightsTabIcon = ({
           paddingVertical: 0,
         }}
       >
-        <Text style={{ color: "#ffffff", fontSize: 6, fontWeight: "800", letterSpacing: 0.2 }}>
+        <Text
+          style={{
+            color: "#ffffff",
+            fontSize: 6,
+            fontWeight: "800",
+            letterSpacing: 0.2,
+          }}
+        >
           BETA
         </Text>
       </View>
@@ -78,8 +107,7 @@ const InsightsTabIcon = ({
 
 type TabBarButtonProps = {
   children?:
-    | React.ReactNode
-    | ((state: PressableStateCallbackType) => React.ReactNode);
+    React.ReactNode | ((state: PressableStateCallbackType) => React.ReactNode);
   style?: StyleProp<ViewStyle>;
   href?: string | null;
   onPress?: ((e: GestureResponderEvent) => void) | null;
@@ -92,7 +120,13 @@ type TabBarButtonProps = {
   disabled?: boolean | null;
 };
 
-const inactivePressableState = { pressed: false, hovered: false, focused: false };
+const inactivePressableState = {
+  pressed: false,
+  hovered: false,
+  focused: false,
+};
+
+const sideMenuOnly = { tabBarItemStyle: { display: "none" as const } };
 
 const AnimatedTabBarButton = ({
   children,
@@ -100,6 +134,8 @@ const AnimatedTabBarButton = ({
   onPress,
   onPressIn,
   onPressOut,
+  onLongPress,
+  disabled,
   ...rest
 }: TabBarButtonProps) => {
   const { scale, onPressIn: scaleIn, onPressOut: scaleOut } = usePressScale();
@@ -113,8 +149,7 @@ const AnimatedTabBarButton = ({
         shiftKey?: boolean;
         button?: number | null;
       };
-      const hasModifier =
-        we.metaKey || we.altKey || we.ctrlKey || we.shiftKey;
+      const hasModifier = we.metaKey || we.altKey || we.ctrlKey || we.shiftKey;
       const isLeftClick = we.button == null || we.button === 0;
       if (!hasModifier && isLeftClick) {
         we.preventDefault?.();
@@ -127,6 +162,8 @@ const AnimatedTabBarButton = ({
   return (
     <Pressable
       {...rest}
+      disabled={disabled ?? undefined}
+      onLongPress={onLongPress ?? undefined}
       style={[style, styles.tabButton]}
       onPress={handlePress}
       onPressIn={(e) => {
@@ -138,7 +175,9 @@ const AnimatedTabBarButton = ({
         onPressOut?.(e);
       }}
     >
-      <Animated.View style={[styles.tabButtonInner, { transform: [{ scale }] }]}>
+      <Animated.View
+        style={[styles.tabButtonInner, { transform: [{ scale }] }]}
+      >
         {typeof children === "function"
           ? children(inactivePressableState)
           : children}
@@ -153,11 +192,13 @@ export default function TabsLayout() {
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   const waitingForRole = isAuthenticated && me === undefined;
-  usePushRegistration({ navigationReady: !waitingForRole, signedInAs: me?.email ?? null });
+  usePushRegistration({
+    navigationReady: !waitingForRole,
+    signedInAs: me?.email ?? null,
+  });
   useReportAppVersion();
   useReportSeen();
 
-  const isCampusLeader = me?.isCampusLeader ?? false;
   const isStaff = !!me?.profile;
 
   // Wide screens navigate from the sidebar; keep only the home-indicator gap.
@@ -169,17 +210,10 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      initialRouteName={
-        !isAuthenticated
-          ? "home"
-          : !isStaff
-            ? "org"
-            : isCampusLeader
-              ? "attendance"
-              : "index"
-      }
       backBehavior="history"
-      tabBar={wide ? () => <View style={{ height: insets.bottom }} /> : undefined}
+      tabBar={
+        wide ? () => <View style={{ height: insets.bottom }} /> : undefined
+      }
       screenListeners={{ tabPress: () => hapticSelect() }}
       screenOptions={{
         headerShown: false,
@@ -217,32 +251,35 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Reimbursements",
-          href: null,
+          ...sideMenuOnly,
         }}
       />
       {/* Design Requests, Event Requests and Profile also open from the side menu only. */}
       <Tabs.Screen
         name="design-requests"
-        options={{ title: "Design Requests", href: null }}
+        options={{ title: "Design Requests", ...sideMenuOnly }}
       />
       <Tabs.Screen
         name="event-requests"
-        options={{ title: "Event Requests", href: null }}
+        options={{ title: "Event Requests", ...sideMenuOnly }}
       />
-      <Tabs.Screen name="profile" options={{ title: "Profile", href: null }} />
+      <Tabs.Screen
+        name="profile"
+        options={{ title: "Profile", ...sideMenuOnly }}
+      />
       <Tabs.Screen
         name="attendance"
         options={{
           title: "Attendance",
-          ...(isStaff ? {} : { href: null }),
+          ...(isStaff ? {} : sideMenuOnly),
           tabBarIcon: tabIcon("checkbox-outline", "checkbox"),
         }}
       />
       <Tabs.Screen
         name="music"
         options={{
-          title: "Praise Music",
-          href: null,
+          title: "Praise List",
+          tabBarItemStyle: { display: "none" },
         }}
       />
       <Tabs.Screen
@@ -265,7 +302,7 @@ export default function TabsLayout() {
         name="churches"
         options={{
           title: "Churches",
-          ...(isStaff ? { href: null } : {}),
+          ...(isStaff ? sideMenuOnly : {}),
           tabBarIcon: tabIcon("business-outline", "business"),
         }}
       />
@@ -273,7 +310,7 @@ export default function TabsLayout() {
         name="admin"
         options={{
           title: "Admin",
-          href: null,
+          ...sideMenuOnly,
           tabBarIcon: tabIcon("settings-outline", "settings"),
         }}
       />

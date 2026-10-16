@@ -9,6 +9,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type ViewInstance,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@convex/_generated/api";
@@ -367,7 +368,7 @@ export default function EventAttendanceScreen() {
   const searchQuery = search.trim().toLowerCase();
   const isSearching = searchQuery.length > 0;
 
-  const columnsRef = useRef<View>(null);
+  const columnsRef = useRef<ViewInstance>(null);
   const [columnsHeight, setColumnsHeight] = useState<number>();
   const [footerHeight, setFooterHeight] = useState(0);
   const hasFooter = (isSearching && canEdit) || pastEvent;

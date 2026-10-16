@@ -11,7 +11,9 @@ import {
   type NativeSyntheticEvent,
   Platform,
   ScrollView,
+  type ScrollViewInstance,
   View,
+  type ViewInstance,
   type ViewStyle,
 } from "react-native";
 import { spacing, useAppTheme } from "@/theme";
@@ -89,9 +91,9 @@ export const Grid = ({
   const [edges, setEdges] = useState({ atTop: true, atBottom: false });
   const [contentRight, setContentRight] = useState<number | null>(null);
   const itemRights = useRef(new Map<number, number>());
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const scrollBy = useScrollBy();
-  const toggleRef = useRef<View>(null);
+  const toggleRef = useRef<ViewInstance>(null);
   // Window y of the toggle just before collapsing, so the page can be
   // scrolled to keep it under the finger once the box shrinks back.
   const collapseAnchorY = useRef<number | null>(null);
@@ -272,8 +274,8 @@ export const ScrollCap = ({
   const [contentHeight, setContentHeight] = useState(0);
   const [edges, setEdges] = useState({ atTop: true, atBottom: false });
   const [seenCount, setSeenCount] = useState(count);
-  const scrollRef = useRef<ScrollView>(null);
-  const toggleRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const toggleRef = useRef<ViewInstance>(null);
   const scrollBy = useScrollBy();
   const collapseAnchorY = useRef<number | null>(null);
   const overflows = contentHeight > maxHeight + 1;

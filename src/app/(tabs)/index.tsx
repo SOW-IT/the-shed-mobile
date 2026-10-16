@@ -208,6 +208,7 @@ export default function RequestsScreen() {
   }
 
   if (me.profile === null) {
+    if (!focusId && typeof tab !== "string") return <Redirect href="/org" />;
     return (
       <ChromeScreen>
         <FadeInView>

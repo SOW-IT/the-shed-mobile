@@ -28,13 +28,13 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
-  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 
+type ScrollViewInstance = React.ElementRef<typeof Animated.ScrollView>;
 export type { TopBarScrollProps } from "@/components/useTopBarCollapse";
 
 export type PagerTab = {
@@ -64,7 +64,7 @@ export type PagerCarouselProps = {
   onScrollStateChange?: (
     state: PagerScrollState,
     scrollPos: number,
-    settledIndex?: number
+    settledIndex?: number,
   ) => void;
 };
 
@@ -322,7 +322,7 @@ export const PagerScreen = ({
     [makeScrollHandler],
   );
 
-  const pageScrollRefs = useRef<Record<string, ScrollView | null>>({});
+  const pageScrollRefs = useRef<Record<string, ScrollViewInstance | null>>({});
   const scrollByForTab = useRef<Record<string, (dy: number) => void>>({});
   const scrollByFor = (tabKey: string) => {
     if (!scrollByForTab.current[tabKey]) {
@@ -337,6 +337,7 @@ export const PagerScreen = ({
 
   const renderPage = (tab: PagerTab) => {
     const tabScrollProps = scrollPropsForTab(tab.key);
+
     return tab.selfScrolling ? (
       <PagerFooterClearanceContext.Provider
         value={
@@ -349,7 +350,7 @@ export const PagerScreen = ({
       </PagerFooterClearanceContext.Provider>
     ) : (
       <Animated.ScrollView
-        ref={(el: ScrollView | null) => {
+        ref={(el) => {
           pageScrollRefs.current[tab.key] = el;
         }}
         showsVerticalScrollIndicator={false}
@@ -374,7 +375,6 @@ export const PagerScreen = ({
       </Animated.ScrollView>
     );
   };
-
   return (
     <PagerTopBarInsetContext.Provider value={topBarInset}>
       <View style={[styles.screen, { backgroundColor: t.background }]}>

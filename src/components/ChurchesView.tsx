@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import {
@@ -223,7 +223,7 @@ function ChurchCard({
 export function ChurchesView() {
   const t = useAppTheme();
   const router = useRouter();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const directory = useQuery(api.churches.directory);
   // Staff and campus leaders can edit churches, and they're who gets members.
   const canEdit = useCanEditChurches();
@@ -258,20 +258,21 @@ export function ChurchesView() {
   const everyone = (directory ?? []).flatMap((entry) => entry.people);
   const groups = CHURCH_GROUPS.filter(({ key }) => key !== "member" || canEdit);
   const campuses = churchCampuses(everyone, subgroupLabel);
-  const counts = churchFilterCounts(everyone, filter);
-  const shown: Entry[] = (directory ?? [])
+  const matchesSearch = (entry: { church: { name: string }; people: readonly { name: string }[] }) =>
+    !q ||
+    entry.church.name.toLowerCase().includes(q) ||
+    entry.people.some((p) => p.name.toLowerCase().includes(q));
+  const searched = (directory ?? []).filter(matchesSearch);
+  const counts = churchFilterCounts(searched, filter, (entry, people) =>
+    matchesSearch({ church: entry.church, people })
+  );
+  const shown: Entry[] = searched
     .map((entry) => ({
       ...entry,
       people: churchPeopleMatching(entry.people, filter),
       everyone: entry.people.length,
     }))
-    .filter(
-      (entry) =>
-        (!filtering || entry.people.length > 0) &&
-        (!q ||
-          entry.church.name.toLowerCase().includes(q) ||
-          entry.people.some((p) => p.name.toLowerCase().includes(q)))
-    );
+    .filter((entry) => (!filtering || entry.people.length > 0) && matchesSearch(entry));
   const shownPeople = shown.reduce((sum, entry) => sum + entry.people.length, 0);
   const pins: ChurchPin[] = shown
     .filter((entry) => entry.church.location)

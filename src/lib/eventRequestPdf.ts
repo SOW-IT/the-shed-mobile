@@ -184,12 +184,10 @@ export async function buildEventRequestPdf(input: EventRequestPdfInput): Promise
       w.text(formatAnswer(field, given) ?? "-", { font: regular, size: 10.5, color: TEXT, gap: 6 });
     }
   };
-  w.rule();
-  w.text("THE EVENT", { font: bold, size: 9, color: MUTED, gap: 6 });
+  w.heading("THE EVENT", { font: bold, size: 9, color: MUTED, gap: 6 }, 30);
   answers(input.eventFields, event.answers);
 
-  w.rule();
-  w.text("MARKETING", { font: bold, size: 9, color: MUTED, gap: 4 });
+  w.heading("MARKETING", { font: bold, size: 9, color: MUTED, gap: 4 }, 30);
   w.text(statusOf("marketing"), { font: regular, size: 10, color: MUTED, gap: 6 });
   answers(input.marketingFields, forms.marketing.answers ?? {});
 
@@ -283,8 +281,7 @@ export async function buildEventRequestPdf(input: EventRequestPdfInput): Promise
   }
 
   if (input.history.length > 0) {
-    w.rule();
-    w.text("HISTORY", { font: bold, size: 9, color: MUTED, gap: 6 });
+    w.heading("HISTORY", { font: bold, size: 9, color: MUTED, gap: 6 }, 30);
     for (const h of input.history) {
       const detail = h.detail ? ` - ${h.detail}` : "";
       w.text(`${sydneyDateTime(h.at)}  ${h.label}, ${h.actorName}${detail}`, {

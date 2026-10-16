@@ -6,10 +6,12 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type ViewInstance,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { typedMatches } from "../../../shared/typedConfirm";
@@ -148,8 +150,8 @@ export const Sheet = ({
       hide.remove();
     };
   }, [visible]);
-  const scrollRef = useRef<ScrollView>(null);
-  const innerRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const innerRef = useRef<ViewInstance>(null);
   const scrollY = useRef(0);
   const viewportHeight = useRef(0);
   // iOS only scrolls far enough to show the caret, which leaves the bottom of
@@ -264,7 +266,7 @@ export const Sheet = ({
               <ScrollView
                 ref={scrollRef}
                 // Typed as never-null, but it is null until the sheet mounts.
-                innerViewRef={innerRef as RefObject<View>}
+                innerViewRef={innerRef as RefObject<ViewInstance>}
                 style={styles.sheetScroll}
                 contentContainerStyle={bodyStyle}
                 keyboardShouldPersistTaps="handled"
