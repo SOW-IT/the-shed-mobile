@@ -6,6 +6,7 @@ import { compactAgo } from "@shared/datetime";
 import { QUICK_REACTION_EMOJIS, REACTION_EMOJIS } from "@shared/flow";
 import {
   Avatar,
+  Btn,
   errorMessage,
   ErrorBanner,
   IconButton,
@@ -40,12 +41,16 @@ export const CommentThreadSheet = ({
   comments,
   onSend,
   onReact,
+  canPost = true,
+  readOnlyNote = "You can read these comments but can't add to them.",
 }: {
   visible: boolean;
   onClose: () => void;
   comments: ThreadComment[] | null | undefined;
   onSend: (body: string) => Promise<unknown>;
   onReact?: (commentId: string, emoji: string) => Promise<unknown>;
+  canPost?: boolean;
+  readOnlyNote?: string;
 }) => {
   const t = useAppTheme();
   const [draft, setDraft] = useState("");
@@ -100,37 +105,41 @@ export const CommentThreadSheet = ({
         keyboardAnchor="bottom"
         stickToBottom
         footer={
-          <>
-            <ErrorBanner message={error} />
-            <View style={styles.composer}>
-              <TextInput
-                value={draft}
-                onChangeText={setDraft}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                placeholder="Write a comment…"
-                placeholderTextColor={t.faint}
-                multiline
-                style={[
-                  styles.composerInput,
-                  {
-                    backgroundColor: t.inputBackground,
-                    color: t.text,
-                    borderColor: focused ? t.primary : t.border,
-                  },
-                ]}
-              />
-              <IconButton
-                name="arrow-up"
-                bg={canSend ? t.primary : t.ghost}
-                color={canSend ? t.onPrimary : t.faint}
-                size={40}
-                accessibilityLabel="Send comment"
-                disabled={!canSend}
-                onPress={() => void send()}
-              />
-            </View>
-          </>
+          canPost ? (
+            <>
+              <ErrorBanner message={error} />
+              <View style={styles.composer}>
+                <TextInput
+                  value={draft}
+                  onChangeText={setDraft}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  placeholder="Write a comment…"
+                  placeholderTextColor={t.faint}
+                  multiline
+                  style={[
+                    styles.composerInput,
+                    {
+                      backgroundColor: t.inputBackground,
+                      color: t.text,
+                      borderColor: focused ? t.primary : t.border,
+                    },
+                  ]}
+                />
+                <IconButton
+                  name="arrow-up"
+                  bg={canSend ? t.primary : t.ghost}
+                  color={canSend ? t.onPrimary : t.faint}
+                  size={40}
+                  accessibilityLabel="Send comment"
+                  disabled={!canSend}
+                  onPress={() => void send()}
+                />
+              </View>
+            </>
+          ) : (
+            <Muted>{readOnlyNote}</Muted>
+          )
         }
       >
         {comments === undefined ? (
@@ -259,7 +268,48 @@ export const CommentThreadSheet = ({
   );
 };
 
+export const CommentsButton = ({
+  unread,
+  onPress,
+}: {
+  unread: number;
+  onPress: () => void;
+}) => (
+  <View>
+    <Btn
+      title="Comments"
+      variant="tonal"
+      icon="chatbubbles-outline"
+      onPress={onPress}
+    />
+    {unread > 0 ? (
+      <View
+        pointerEvents="none"
+        accessibilityLabel={`${unread} new`}
+        style={styles.unreadBadge}
+      >
+        <Text style={styles.unreadBadgeText}>{unread > 99 ? "99+" : unread}</Text>
+      </View>
+    ) : null}
+  </View>
+);
+
 const styles = StyleSheet.create({
+  unreadBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#cccccc",
+  },
+  unreadBadgeText: { color: "#333333", fontSize: 11, fontWeight: "800" },
   loading: { alignSelf: "flex-start", paddingVertical: 2 },
   commentRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
   commentHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

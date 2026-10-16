@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
+import { FilterBar } from "@/components/attendance/FilterBar";
 import { MemberRow } from "@/components/attendance/MemberRow";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
@@ -16,6 +16,8 @@ import {
 import {
   Btn,
   EmptyState,
+  ErrorBanner,
+  errorMessage,
   LoadingState,
   MultiSelect,
   SearchField,
@@ -59,6 +61,7 @@ export function MembersTab({
   const [sortAsc, setSortAsc] = useState(true);
   const [filters, setFilters] = useState<Record<string, string[]>>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
   useEffect(() => {
     void ensureDefaults({}).catch(() => {});
   }, [ensureDefaults]);
@@ -131,92 +134,52 @@ export function MembersTab({
       {...scrollProps}
     >
       <View style={[styles.stickyControls, { backgroundColor: t.background }]}>
-      <View style={styles.filterSummary}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: filtersOpen }}
-          onPress={() => setFiltersOpen((open) => !open)}
-          style={({ pressed }) => [
-            styles.filterButton,
-            { backgroundColor: t.ghost },
-            pressed && { opacity: 0.72 },
-          ]}
-        >
-          <Ionicons name="filter-outline" size={16} color={t.ghostText} />
-          <Text style={[styles.filterButtonText, { color: t.ghostText }]}>
-            Filters
-          </Text>
-        </Pressable>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {activeFilterCount} active
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          disabled={activeFilterCount === 0}
-          onPress={() => setFilters({})}
-          style={({ pressed }) => [
-            styles.clearFilters,
-            activeFilterCount === 0 && { opacity: 0.45 },
-            pressed && { opacity: 0.65 },
-          ]}
-        >
-          <Text style={[typography.caption, styles.clearFiltersText, { color: t.primary }]}>
-            Clear All
-          </Text>
-        </Pressable>
-      </View>
-
-      {filtersOpen ? (
-        <View
-          style={[
-            styles.filterPanel,
-            {
-              backgroundColor: t.card,
-              borderColor: t.separator,
-            },
-          ]}
-        >
-          <View style={styles.sortRow}>
-            <View style={styles.sortSelect}>
-              <Select
-                label="Sort by"
-                value={sortKey}
-                options={sortOptions}
-                onSelect={setSortKey}
-              />
-            </View>
-            <Btn
-              title={sortAsc ? "Asc" : "Desc"}
-              variant="ghost"
-              onPress={() => setSortAsc((v) => !v)}
+      <FilterBar
+        count={activeFilterCount}
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((open) => !open)}
+        onClear={() => setFilters({})}
+      >
+        <View style={styles.sortRow}>
+          <View style={styles.sortSelect}>
+            <Select
+              label="Sort by"
+              value={sortKey}
+              options={sortOptions}
+              onSelect={setSortKey}
             />
           </View>
-
-          {selectFilters.map((field) => (
-            <MultiSelect
-              key={field._id}
-              label={`Filter: ${field.key}`}
-              values={filters[field._id] ?? []}
-              options={[
-                { label: "Unselected", value: "unset" },
-                ...(field.key === ROLE_FIELD_KEY
-                  ? orderedRoleFilterOptions(field.values, field.lockedValues)
-                  : orderedSelectOptions(field.values, field.lockedValues)
-                ).map(({ id, label }) => ({ label, value: id })),
-              ]}
-              placeholder="All"
-              onSelect={(values) =>
-                setFilters((prev) => {
-                  const next = { ...prev };
-                  if (values.length === 0) delete next[field._id];
-                  else next[field._id] = values;
-                  return next;
-                })
-              }
-            />
-          ))}
+          <Btn
+            title={sortAsc ? "Asc" : "Desc"}
+            variant="ghost"
+            onPress={() => setSortAsc((v) => !v)}
+          />
         </View>
-      ) : null}
+
+        {selectFilters.map((field) => (
+          <MultiSelect
+            key={field._id}
+            label={`Filter: ${field.key}`}
+            values={filters[field._id] ?? []}
+            options={[
+              { label: "Unselected", value: "unset" },
+              ...(field.key === ROLE_FIELD_KEY
+                ? orderedRoleFilterOptions(field.values, field.lockedValues)
+                : orderedSelectOptions(field.values, field.lockedValues)
+              ).map(({ id, label }) => ({ label, value: id })),
+            ]}
+            placeholder="All"
+            onSelect={(values) =>
+              setFilters((prev) => {
+                const next = { ...prev };
+                if (values.length === 0) delete next[field._id];
+                else next[field._id] = values;
+                return next;
+              })
+            }
+          />
+        ))}
+      </FilterBar>
 
         <SearchField
           value={search}
@@ -226,13 +189,14 @@ export function MembersTab({
           loading={search !== debouncedSearch || refreshing}
           style={styles.search}
         />
+        <ErrorBanner message={openError} />
       </View>
 
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>
-        <Text style={[typography.label, { color: t.muted }]}>MEMBERS</Text>
+        <Text style={[typography.label, { color: t.muted }]}>Members</Text>
         <View style={[styles.totalPill, { backgroundColor: t.ghost }]}>
           <Text style={[styles.totalPillText, { color: t.ghostText }]}>
-            TOTAL: {total}
+            {`${total.toLocaleString("en-AU")} ${total === 1 ? "member" : "members"}`}
           </Text>
         </View>
       </View>
@@ -252,12 +216,15 @@ export function MembersTab({
               university={row.university}
               roles={row.roles}
               onPress={() => {
+                setOpenError(null);
                 if (row.memberId) {
                   onEditMember(row.memberId as Id<"attendanceMembers">);
                 } else if (row.email) {
                   void ensureForStaff({ staffEmail: row.email, staffYear: year })
                     .then(onEditMember)
-                    .catch((e) => console.error("ensureForStaff failed", e));
+                    .catch((e) =>
+                      setOpenError(`Couldn't open ${row.name}: ${errorMessage(e)}`)
+                    );
                 }
               }}
             />
@@ -275,33 +242,6 @@ export function MembersTab({
 
 const styles = StyleSheet.create({
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
-  filterSummary: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  filterButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    height: 36,
-  },
-  filterButtonText: { fontSize: 13, fontWeight: "700" },
-  clearFilters: {
-    marginLeft: "auto",
-    paddingHorizontal: 4,
-    paddingVertical: 6,
-  },
-  clearFiltersText: { fontWeight: "600" },
-  filterPanel: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.md,
-    marginBottom: spacing.sm,
-  },
   sortRow: {
     flexDirection: "row",
     alignItems: "flex-end",

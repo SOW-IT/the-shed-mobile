@@ -3,6 +3,7 @@ import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_gen
 import {
   appCanOpen,
   APP_LINK_MARKER,
+  compareVersions,
   isAppVersion,
   updateStatusFor,
   versionNeededFor,
@@ -67,6 +68,14 @@ const policyFor = (ctx: Ctx, platform: "ios" | "android") =>
     .withIndex("by_platform", (q) => q.eq("platform", platform))
     .unique();
 
+const newestOf = (...versions: (string | undefined)[]): string | null =>
+  versions
+    .filter((version): version is string => !!version)
+    .reduce<string | null>(
+      (newest, version) => (newest && compareVersions(newest, version) >= 0 ? newest : version),
+      null
+    );
+
 export const updateStatus = query({
   args: { platform: platformValidator, version: v.string() },
   returns: v.object({
@@ -78,7 +87,7 @@ export const updateStatus = query({
     const policy = await policyFor(ctx, platform);
     return {
       status: updateStatusFor(version, policy),
-      latest: policy?.recommended ?? policy?.minimum ?? null,
+      latest: newestOf(policy?.recommended, policy?.minimum),
       message: policy?.message ?? null,
     };
   },

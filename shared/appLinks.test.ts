@@ -7,6 +7,8 @@ import {
   appVariantFrom,
   compareVersions,
   isAppVersion,
+  NEWER_PAGES,
+  searchWithoutSignInParams,
   updateStatusFor,
   versionNeededFor,
 } from "./appLinks";
@@ -40,20 +42,33 @@ describe("the app's own links and web-only pages", () => {
   });
 
   test("newer pages need a new enough app", () => {
-    expect(versionNeededFor("/event-requests")).toBe("2.3.0");
-    expect(versionNeededFor("/event-requests/abc/risk?thread=1")).toBe("2.3.0");
-    expect(versionNeededFor("/event-requestsx")).toBeNull();
-    expect(versionNeededFor("/design-requests/abc")).toBe("2.2.0");
-    expect(appCanOpen("/design-requests/abc", null)).toBe(false);
-    expect(appCanOpen("/design-requests/abc", "2.1.9")).toBe(false);
-    expect(appCanOpen("/design-requests/abc", "2.2.0")).toBe(true);
-    expect(versionNeededFor("/churches?church=abc")).toBe("2.5.5");
-    expect(appCanOpen("/churches", "2.5.4")).toBe(false);
-    expect(versionNeededFor("/request/abc")).toBeNull();
-    expect(appCanOpen("/event-requests/abc", null)).toBe(false);
-    expect(appCanOpen("/event-requests/abc", "2.2.9")).toBe(false);
-    expect(appCanOpen("/event-requests/abc", "2.3.0")).toBe(true);
-    expect(appCanOpen("/event-requests/abc", "2.10.0")).toBe(true);
+    const pages = [
+      { prefix: "/design-requests", since: "2.2.0" },
+      { prefix: "/event-requests", since: "2.3.0" },
+      { prefix: "/churches", since: "2.5.5" },
+    ];
+    expect(versionNeededFor("/event-requests", pages)).toBe("2.3.0");
+    expect(versionNeededFor("/event-requests/abc/risk?thread=1", pages)).toBe("2.3.0");
+    expect(versionNeededFor("/event-requestsx", pages)).toBeNull();
+    expect(versionNeededFor("/design-requests/abc", pages)).toBe("2.2.0");
+    expect(appCanOpen("/design-requests/abc", null, pages)).toBe(false);
+    expect(appCanOpen("/design-requests/abc", "2.1.9", pages)).toBe(false);
+    expect(appCanOpen("/design-requests/abc", "2.2.0", pages)).toBe(true);
+    expect(versionNeededFor("/churches?church=abc", pages)).toBe("2.5.5");
+    expect(appCanOpen("/churches", "2.5.4", pages)).toBe(false);
+    expect(versionNeededFor("/request/abc", pages)).toBeNull();
+    expect(appCanOpen("/event-requests/abc", null, pages)).toBe(false);
+    expect(appCanOpen("/event-requests/abc", "2.2.9", pages)).toBe(false);
+    expect(appCanOpen("/event-requests/abc", "2.3.0", pages)).toBe(true);
+    expect(appCanOpen("/event-requests/abc", "2.10.0", pages)).toBe(true);
+  });
+
+  test("every supported app opens every page", () => {
+    expect(NEWER_PAGES).toEqual([]);
+    expect(versionNeededFor("/event-requests/abc")).toBeNull();
+    expect(versionNeededFor("/churches?church=abc")).toBeNull();
+    expect(appCanOpen("/announcements/abc", null)).toBe(true);
+    expect(appCanOpen("/design-requests/abc", "2.1.9")).toBe(true);
   });
 
   test("versions", () => {
@@ -76,5 +91,16 @@ describe("the app's own links and web-only pages", () => {
     expect(updateStatusFor("2.7.0", {})).toBe("ok");
     expect(updateStatusFor("2.7.0", null)).toBe("ok");
     expect(updateStatusFor("dev", policy)).toBe("ok");
+  });
+});
+
+describe("links surviving a web sign-in", () => {
+  test("keeps the link's own query and drops what the sign-in hands back", () => {
+    expect(searchWithoutSignInParams("?tab=review&focus=abc&thread=1&code=123")).toBe(
+      "?tab=review&focus=abc&thread=1"
+    );
+    expect(searchWithoutSignInParams("?code=123&state=x&scope=email&authuser=0&prompt=none&hd=sow.org.au")).toBe("");
+    expect(searchWithoutSignInParams("?error=access_denied&error_description=no&id=7")).toBe("?id=7");
+    expect(searchWithoutSignInParams("")).toBe("");
   });
 });

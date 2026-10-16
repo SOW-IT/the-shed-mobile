@@ -23,7 +23,7 @@ import {
   Txt,
   YearPill,
 } from "@/components/ui";
-import { spacing } from "@/theme";
+import { spacing, typography } from "@/theme";
 
 type Group = { title: string; statuses: EventRequestStatus[] };
 
@@ -47,7 +47,7 @@ const EventList = ({
   rows: EventRequestListRow[] | null | undefined;
   groups?: Group[];
   unread: Unread;
-  empty: { title: string; message: string };
+  empty: { title: string; message: string; action?: { label: string; onPress: () => void } };
   header?: ReactNode;
 }) => {
   const router = useRouter();
@@ -58,7 +58,12 @@ const EventList = ({
         {header}
         {rows === undefined ? <LoadingState /> : null}
         {rows !== undefined && (rows === null || rows.length === 0) ? (
-          <EmptyState icon="calendar-outline" title={empty.title} message={empty.message} />
+          <EmptyState
+            icon="calendar-outline"
+            title={empty.title}
+            message={empty.message}
+            action={empty.action}
+          />
         ) : null}
         {groups.map((group) => {
           const inGroup = (rows ?? []).filter((r) => group.statuses.includes(r.status));
@@ -133,7 +138,7 @@ export default function EventRequestsScreen() {
     return (
       <ChromeScreen>
         <Card>
-          <Txt style={{ fontSize: 18, fontWeight: "700" }}>Event Requests</Txt>
+          <Txt style={typography.section}>Event Requests</Txt>
           <Muted>
             {me.profile
               ? "Event requests are for SOW staff, not campus leaders."
@@ -149,6 +154,9 @@ export default function EventRequestsScreen() {
   const waitingOnMe = (review ?? []).reduce((n, r) => n + (r.waitingOnMe?.length ?? 0), 0);
   const badge = (count: number) => (count > 0 ? count : undefined);
   const mineYears = years?.mine ?? [];
+
+  const allYears = years?.all ?? [];
+  const earlierAllYear = allYears.find((y) => y < (shownAllYear ?? me.year));
 
   const tabs: PagerTab[] = [
     {
@@ -213,7 +221,14 @@ export default function EventRequestsScreen() {
                 unread={unread}
                 empty={{
                   title: "Nothing here",
-                  message: `There were no event requests in ${shownAllYear}.`,
+                  message:
+                    shownAllYear === me.year
+                      ? `No event requests yet in ${me.year}.`
+                      : `There were no event requests in ${shownAllYear}.`,
+                  action:
+                    earlierAllYear === undefined
+                      ? undefined
+                      : { label: `See ${earlierAllYear}`, onPress: () => setAllYear(earlierAllYear) },
                 }}
               />
             ),
@@ -222,7 +237,6 @@ export default function EventRequestsScreen() {
       : []),
   ];
   const activeKey = tabs.some((t) => t.key === active) ? active : "mine";
-  const allYears = years?.all ?? [];
 
   return (
     <PagerScreen

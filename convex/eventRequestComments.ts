@@ -18,7 +18,7 @@ import {
   teamOf,
   tell,
 } from "./eventRequestAccess";
-import { displayName } from "./model";
+import { commentRows, displayName } from "./model";
 
 const COMMENTS_LIMIT = 500;
 const MAX_COMMENT_LENGTH = 2000;
@@ -44,24 +44,7 @@ export const list = query({
     const event = await ctx.db.get("eventRequests", args.id);
     if (!event || !(await accessTo(ctx, caller, event)).canView) return null;
     const comments = await commentsFor(ctx, args.id, args.form).take(COMMENTS_LIMIT);
-    const names = new Map<string, Promise<string>>();
-    return await Promise.all(
-      comments.map(async (comment) => {
-        let name = names.get(comment.authorEmail);
-        if (!name) {
-          name = displayName(ctx, comment.authorEmail, event.year);
-          names.set(comment.authorEmail, name);
-        }
-        return {
-          id: comment._id,
-          authorEmail: comment.authorEmail,
-          authorName: await name,
-          body: comment.body,
-          at: comment.postedAt,
-          isMine: comment.authorEmail === caller.email,
-        };
-      })
-    );
+    return await commentRows(ctx, comments, event.year, caller.email);
   },
 });
 

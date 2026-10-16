@@ -15,20 +15,20 @@ import {
 import { EventStatusPill, SubFormStatusPill } from "@/components/events/EventPills";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
-import { eventHistoryLabel, subFormStatusLine } from "@/lib/eventRequestText";
+import { eventHistoryLabel, subFormCardLine } from "@/lib/eventRequestText";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
   Btn,
   Card,
   EmptyState,
   ErrorBanner,
-  errorMessage,
   FadeInView,
   Field,
   LoadingState,
   Muted,
   ReadableColumn,
   Row,
+  runBusy,
   Screen,
   SectionTitle,
   Sheet,
@@ -53,6 +53,11 @@ const FormCard = ({
   const t = useAppTheme();
   const form = data.forms[kind];
   const action = form.can.decide ? "Review" : form.can.fill ? "Fill In" : "View";
+  const cardLine = subFormCardLine(kind, form, {
+    imported: !!data.event.legacyKey,
+    canFill: form.can.fill,
+    canDecide: form.can.decide,
+  });
   return (
     <Pressable
       onPress={onOpen}
@@ -60,7 +65,7 @@ const FormCard = ({
       accessibilityLabel={`${SUB_FORM_LABELS[kind]} form: ${action}`}
       style={({ pressed }) => [
         styles.formCard,
-        t.shadowCard,
+        t.surfaceEdge,
         { backgroundColor: t.card },
         form.can.decide && { borderColor: t.accent, borderWidth: 1.5 },
         pressed && { opacity: 0.7 },
@@ -77,9 +82,7 @@ const FormCard = ({
             </View>
           ) : null}
         </View>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {subFormStatusLine(kind, form, { imported: !!data.event.legacyKey, canFill: form.can.fill })}
-        </Text>
+        {cardLine ? <Text style={[typography.caption, { color: t.muted }]}>{cardLine}</Text> : null}
       </View>
       <Text style={[typography.label, { color: form.can.decide || form.can.fill ? t.primary : t.faint }]}>
         {action}
@@ -167,19 +170,8 @@ export default function EventRequestScreen() {
   }
 
   const { event, can } = data;
-  const run = async (action: () => Promise<unknown>, after?: () => void) => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-      after?.();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const run = (action: () => Promise<unknown>, after?: () => void) =>
+    runBusy(busy, setBusy, setError, action, after);
 
   const downloadPdf = () =>
     run(async () => {

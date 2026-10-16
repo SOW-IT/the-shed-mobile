@@ -68,6 +68,7 @@ const WebPickerField = ({
   max,
   onChange,
   onClear,
+  needed,
 }: {
   label: string;
   type: "date" | "time";
@@ -79,6 +80,7 @@ const WebPickerField = ({
   max?: string;
   onChange: (value: string) => void;
   onClear?: () => void;
+  needed?: boolean;
 }) => {
   const t = useAppTheme();
   const [focused, setFocused] = useState(false);
@@ -95,14 +97,14 @@ const WebPickerField = ({
           paddingHorizontal: 12,
           borderRadius: 10,
           borderWidth: 1.5,
-          borderColor: focused ? t.primary : "transparent",
+          borderColor: focused || (needed && !display) ? t.primary : "transparent",
           backgroundColor: t.inputBackground,
         }}
       >
-        <Ionicons name={icon} size={16} color={t.faint} />
+        <Ionicons name={icon} size={16} color={needed && !display ? t.primary : t.faint} />
         <Txt
           numberOfLines={1}
-          style={[typography.body, { flex: 1, color: display ? t.text : t.faint }]}
+          style={[typography.body, { flex: 1, color: display ? t.text : needed ? t.primary : t.faint }]}
         >
           {display ?? placeholder}
         </Txt>
@@ -149,6 +151,7 @@ export const WebDateInput = ({
   placeholder = "Select date",
   onChange,
   onClear,
+  needed,
 }: {
   label: string;
   value: string;
@@ -157,6 +160,7 @@ export const WebDateInput = ({
   placeholder?: string;
   onChange: (value: string) => void;
   onClear?: () => void;
+  needed?: boolean;
 }) => {
   const date = parseDateInputValue(value);
   return (
@@ -171,6 +175,7 @@ export const WebDateInput = ({
       max={max}
       onChange={onChange}
       onClear={onClear}
+      needed={needed}
     />
   );
 };

@@ -1,11 +1,5 @@
 // The prebuilt bundle, not "pdf-lib": see pdfLibBundle.d.ts.
-import {
-  PDFDocument,
-  PDFFont,
-  PDFPage,
-  rgb,
-  StandardFonts,
-} from "pdf-lib/dist/pdf-lib.esm.min.js";
+import { PDFDocument, PDFFont, rgb, StandardFonts } from "pdf-lib/dist/pdf-lib.esm.min.js";
 import {
   formatAnswer,
   formatDateTimeRange,
@@ -30,6 +24,7 @@ import {
 } from "../../shared/eventRequests";
 import { money } from "../../shared/money";
 import { subFormStatusLine, type FormStatusFacts } from "./eventRequestText";
+import { MARGIN, MUTED, PAGE, PdfWriter, TEXT, WIDTH } from "./pdfWriter";
 import { sydneyDateTime } from "./sydneyTime";
 
 export type EventRequestPdfInput = {
@@ -66,109 +61,21 @@ export type EventRequestPdfInput = {
 export const eventRequestPdfFilename = (e: { year: number; number: number; name: string }) =>
   `event-request-${e.year}-${e.number}-${e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.pdf`;
 
-const PAGE = { width: 595.28, height: 841.89 }; // A4, in points
-const MARGIN = 45;
-const WIDTH = PAGE.width - 2 * MARGIN;
-const TEXT = rgb(0.06, 0.15, 0.14);
-const MUTED = rgb(0.36, 0.42, 0.38);
-const RULE = rgb(0.8, 0.84, 0.82);
 // The Governance Review Form's blues.
 const BAND = rgb(0.06, 0.27, 0.36);
 const HEADER = rgb(0.13, 0.36, 0.6);
 const SHADE = rgb(0.86, 0.91, 0.96);
 const WHITE = rgb(1, 1, 1);
 
-type Style = { font: PDFFont; size: number; color: typeof TEXT; gap?: number };
 type Cell = { text: string; bold?: boolean; fill?: typeof TEXT; color?: typeof TEXT };
 
-/**
- * Lays text and simple tables out top to bottom across as many pages as it
- * needs. The PDF's built-in fonts only cover Western European characters, so
- * anything else (emoji, other scripts) prints as "?" rather than failing.
- */
-class Writer {
-  pages: PDFPage[] = [];
-  private page!: PDFPage;
-  private y = 0;
-  private charsets = new Map<PDFFont, Set<number>>();
-
+class EventWriter extends PdfWriter {
   constructor(
-    private doc: PDFDocument,
+    doc: PDFDocument,
     private regular: PDFFont,
     private bold: PDFFont
   ) {
-    this.newPage();
-  }
-
-  newPage() {
-    this.page = this.doc.addPage([PAGE.width, PAGE.height]);
-    this.pages.push(this.page);
-    this.y = PAGE.height - MARGIN;
-  }
-
-  private clean(font: PDFFont, text: string) {
-    let supported = this.charsets.get(font);
-    if (!supported) {
-      supported = new Set(font.getCharacterSet());
-      this.charsets.set(font, supported);
-    }
-    return [...text.replace(/\t/g, "  ").replace(/[–—]/g, "-").replace(/[×]/g, "x")]
-      .map((ch) => (ch === "\n" || supported.has(ch.codePointAt(0) as number) ? ch : "?"))
-      .join("");
-  }
-
-  /** `text` broken into lines no wider than `width`. */
-  wrap(text: string, font: PDFFont, size: number, width = WIDTH): string[] {
-    const fits = (s: string) => font.widthOfTextAtSize(s, size) <= width;
-    const lines: string[] = [];
-    for (const paragraph of this.clean(font, text).split(/\r?\n/)) {
-      let line = "";
-      for (const word of paragraph.split(" ")) {
-        const candidate = line ? `${line} ${word}` : word;
-        if (fits(candidate)) {
-          line = candidate;
-          continue;
-        }
-        if (line) lines.push(line);
-        // A word longer than the line (a long link) is split by character.
-        line = "";
-        for (const ch of word) {
-          if (!fits(line + ch)) {
-            lines.push(line);
-            line = "";
-          }
-          line += ch;
-        }
-      }
-      lines.push(line);
-    }
-    return lines;
-  }
-
-  text(text: string, style: Style) {
-    const lineHeight = style.size * 1.35;
-    for (const line of this.wrap(text, style.font, style.size)) {
-      if (this.y - lineHeight < MARGIN) this.newPage();
-      this.y -= lineHeight;
-      this.page.drawText(line, { x: MARGIN, y: this.y, size: style.size, font: style.font, color: style.color });
-    }
-    this.y -= style.gap ?? 0;
-  }
-
-  space(points: number) {
-    this.y -= points;
-  }
-
-  rule() {
-    if (this.y - 16 < MARGIN) this.newPage();
-    this.y -= 8;
-    this.page.drawLine({
-      start: { x: MARGIN, y: this.y },
-      end: { x: PAGE.width - MARGIN, y: this.y },
-      thickness: 0.75,
-      color: RULE,
-    });
-    this.y -= 8;
+    super(doc);
   }
 
   /** A full-width dark band with white text, like the form's section headers. */
@@ -252,7 +159,7 @@ export async function buildEventRequestPdf(input: EventRequestPdfInput): Promise
   doc.setCreator("THE SHED");
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const w = new Writer(doc, regular, bold);
+  const w = new EventWriter(doc, regular, bold);
   const requester = input.data.requesterName ?? event.requesterEmail;
   const statusOf = (kind: SubFormKind) =>
     `${SUB_FORM_LABELS[kind]} form: ${subFormStatusLine(kind, forms[kind], { imported: !!event.legacyKey, canFill: false })}`;
@@ -273,7 +180,7 @@ export async function buildEventRequestPdf(input: EventRequestPdfInput): Promise
   const answers = (fields: readonly FormField[], given: FormAnswers) => {
     for (const field of fields) {
       if (!isFieldShown(field, given)) continue;
-      w.text(field.shortLabel, { font: bold, size: 9, color: MUTED, gap: 1 });
+      w.text(field.shortLabel, { font: bold, size: 9, color: MUTED, gap: 1 }, 10.5 * 1.35);
       w.text(formatAnswer(field, given) ?? "-", { font: regular, size: 10.5, color: TEXT, gap: 6 });
     }
   };
@@ -389,15 +296,6 @@ export async function buildEventRequestPdf(input: EventRequestPdfInput): Promise
     }
   }
 
-  const footer = `THE SHED - ${event.name} - downloaded ${sydneyDateTime(input.generatedAt)}`;
-  w.pages.forEach((page, i) => {
-    page.drawText(`${footer} - page ${i + 1} of ${w.pages.length}`.replace(/[^\x20-\x7E]/g, "?"), {
-      x: MARGIN,
-      y: MARGIN / 2,
-      size: 8,
-      font: regular,
-      color: MUTED,
-    });
-  });
+  w.footer(`THE SHED - ${event.name} - downloaded ${sydneyDateTime(input.generatedAt)}`, regular);
   return await doc.save();
 }

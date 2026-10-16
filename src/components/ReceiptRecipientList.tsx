@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
+import { eventStaffYear } from "../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { formatAmount, LoadingBar, Muted, Row, Txt } from "@/components/ui";
 
@@ -16,6 +17,7 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
   const anyDeleted = (files ?? []).some((r) =>
     (r?.attachments ?? []).some((f) => f.deleted)
   );
+  const staffYear = eventStaffYear(request._creationTime);
   return (
     <View style={{ gap: spacing.sm }}>
       {receipt.recipients.map((recipient, i) => (
@@ -75,8 +77,7 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
       ) : null}
       {anyDeleted ? (
         <Text style={[typography.caption, { color: t.muted, fontStyle: "italic" }]}>
-          Receipt files are deleted one year after a request is paid. The file
-          names remain for reference, but they can no longer be opened.
+          {`Receipt files for the ${staffYear} staff year were deleted when the staff year rolled over on 1 October ${staffYear + 1}. Only the file names remain for reference.`}
         </Text>
       ) : null}
     </View>

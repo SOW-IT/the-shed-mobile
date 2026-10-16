@@ -1,18 +1,37 @@
-import { useQuery } from "convex/react";
-import type { FunctionReference } from "convex/server";
-import {
-  type MutableRefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useQueries } from "convex/react";
+import { type FunctionReference, getFunctionName, makeFunctionReference } from "convex/server";
+import { convexToJson, type JSONValue, jsonToConvex, type Value } from "convex/values";
+import { type MutableRefObject, useCallback, useEffect, useMemo, useState } from "react";
 
 type PageResult = { isDone: boolean; continueCursor: string | null };
 
 type PagedQueryRef = FunctionReference<"query", "public", any, PageResult | null>;
 
+type Requests = Record<string, { query: FunctionReference<"query">; args: Record<string, Value> }>;
+
 const EMPTY: never[] = [];
+
+const FIRST_PAGE: (string | null)[] = [null];
+
+const chainedCursors = (
+  cursors: (string | null)[],
+  pages: (PageResult | null | undefined)[]
+): (string | null)[] => {
+  const next = [cursors[0]];
+  for (let i = 1; i < cursors.length; i++) {
+    const before = pages[i - 1];
+    if (before === undefined) {
+      next.push(cursors[i]);
+      continue;
+    }
+    if (before === null || before.isDone || before.continueCursor == null) break;
+    next.push(before.continueCursor);
+  }
+  return next;
+};
+
+const sameList = <T,>(a: readonly T[], b: readonly T[]) =>
+  a.length === b.length && a.every((item, i) => item === b[i]);
 
 /**
  * Cursor-paginated Convex query whose pages accumulate into one list.
@@ -46,61 +65,90 @@ export function usePagedQuery<Query extends PagedQueryRef, Row>(
   /** Rows shown are the previous scope's, held while the new one loads. */
   refreshing: boolean;
 } {
-  const { scopeKey, loadMoreRef } = opts;
-  // Callbacks are read from a ref inside effects so that inline `rowsOf` /
-  // `keyOf` closures never retrigger the accumulation effect.
-  const latest = useRef(opts);
-  useEffect(() => {
-    latest.current = opts;
-  });
+  const { scopeKey, loadMoreRef, rowsOf, keyOf } = opts;
 
-  const [paging, setPaging] = useState<{ scopeKey: string; cursor: string | null }>({
+  const [paging, setPaging] = useState<{ scopeKey: string; cursors: (string | null)[] }>({
     scopeKey,
-    cursor: null,
+    cursors: FIRST_PAGE,
   });
-  const cursor = paging.scopeKey === scopeKey ? paging.cursor : null;
+  const cursors = paging.scopeKey === scopeKey ? paging.cursors : FIRST_PAGE;
 
-  const typedUseQuery = useQuery as (
-    q: Query,
-    a: Query["_args"] | "skip"
-  ) => Query["_returnType"] | undefined;
-  const result = typedUseQuery(query, opts.args(cursor));
-
-  const [acc, setAcc] = useState<{ scopeKey: string; rows: Row[] }>({
-    scopeKey,
-    rows: [],
-  });
-  useEffect(() => {
-    if (result === undefined || result === null) return;
-    const { rowsOf, keyOf } = latest.current;
-    const incoming = rowsOf(result as NonNullable<Query["_returnType"]>);
-    setAcc((prev) => {
-      if (!cursor || prev.scopeKey !== scopeKey) return { scopeKey, rows: [...incoming] };
-      const seen = new Set(prev.rows.map(keyOf));
-      return {
-        scopeKey,
-        rows: [...prev.rows, ...incoming.filter((row) => !seen.has(keyOf(row)))],
-      };
+  const argsKey = JSON.stringify(
+    cursors.map((cursor) => {
+      const args = opts.args(cursor);
+      return args === "skip" ? null : convexToJson(args as Value);
+    })
+  );
+  const queryName = getFunctionName(query);
+  const requests = useMemo(() => {
+    const ref = makeFunctionReference<"query">(queryName);
+    const out: Requests = {};
+    (JSON.parse(argsKey) as (JSONValue | null)[]).forEach((args, i) => {
+      if (args !== null) {
+        out[String(i)] = { query: ref, args: jsonToConvex(args) as Record<string, Value> };
+      }
     });
-  }, [result, cursor, scopeKey]);
+    return out;
+  }, [argsKey, queryName]);
+  const results = useQueries(requests);
+  const pages = cursors.map((_, i) => {
+    const result = results[String(i)];
+    if (result instanceof Error) throw result;
+    return result as Query["_returnType"] | undefined;
+  });
 
-  const stale = acc.scopeKey !== scopeKey;
-  // Until the new scope's first page lands, optionally keep showing the old
-  // rows so a search-as-you-type list doesn't flash to a spinner.
-  const holding = stale && Boolean(opts.keepRowsWhileLoading) && result !== null;
-  const rows = !stale || holding ? acc.rows : (EMPTY as Row[]);
-  const hasMore = result != null && !result.isDone;
-  const continueCursor = result?.continueCursor ?? null;
+  const chained = chainedCursors(cursors, pages);
+  const chainMoved = paging.scopeKey === scopeKey && !sameList(chained, cursors);
+  if (chainMoved) setPaging({ scopeKey, cursors: chained });
 
-  const pending = useRef(false);
-  useEffect(() => {
-    pending.current = false;
-  }, [cursor, result?.isDone]);
+  const [held, setHeld] = useState<{ scopeKey: string; pages: (Query["_returnType"] | undefined)[] }>({
+    scopeKey,
+    pages: [],
+  });
+  const heldPages = held.scopeKey === scopeKey ? held.pages : EMPTY;
+  const shown = pages.map((page, i) => page ?? heldPages[i]);
+  if (
+    (pages[0] !== undefined || held.scopeKey === scopeKey) &&
+    !(held.scopeKey === scopeKey && sameList(shown, held.pages))
+  ) {
+    setHeld({ scopeKey, pages: shown });
+  }
+
+  const holding =
+    held.scopeKey !== scopeKey && Boolean(opts.keepRowsWhileLoading) && pages[0] === undefined;
+  const rows: Row[] = [];
+  const seen = new Set<string>();
+  for (const page of holding ? held.pages : shown) {
+    if (page == null) continue;
+    for (const row of rowsOf(page as NonNullable<Query["_returnType"]>)) {
+      const key = keyOf(row);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push(row);
+    }
+  }
+
+  const last = shown[shown.length - 1];
+  const hasMore = last != null && !last.isDone;
+  const lastFresh = pages[pages.length - 1];
+  const nextCursor =
+    lastFresh != null && !lastFresh.isDone ? lastFresh.continueCursor : null;
+  const pageCount = cursors.length;
+  const lastPageEmpty =
+    !chainMoved &&
+    lastFresh != null &&
+    nextCursor != null &&
+    nextCursor !== cursors[pageCount - 1] &&
+    rowsOf(lastFresh as NonNullable<Query["_returnType"]>).length === 0;
+  if (lastPageEmpty) setPaging({ scopeKey, cursors: [...cursors, nextCursor] });
+
   const loadMore = useCallback(() => {
-    if (pending.current || !hasMore || continueCursor == null) return;
-    pending.current = true;
-    setPaging({ scopeKey, cursor: continueCursor });
-  }, [hasMore, continueCursor, scopeKey]);
+    if (nextCursor == null) return;
+    setPaging((prev) => {
+      const base = prev.scopeKey === scopeKey ? prev.cursors : FIRST_PAGE;
+      return base.length === pageCount ? { scopeKey, cursors: [...base, nextCursor] } : prev;
+    });
+  }, [nextCursor, pageCount, scopeKey]);
 
   useEffect(() => {
     if (!loadMoreRef) return;
@@ -111,11 +159,11 @@ export function usePagedQuery<Query extends PagedQueryRef, Row>(
   }, [loadMoreRef, hasMore, loadMore]);
 
   return {
-    rows,
-    result,
+    rows: holding || rows.length > 0 ? rows : (EMPTY as Row[]),
+    result: shown[0],
     hasMore,
     loadMore,
-    loadingFirstPage: result === undefined && rows.length === 0,
+    loadingFirstPage: shown[0] === undefined && rows.length === 0,
     refreshing: holding,
   };
 }

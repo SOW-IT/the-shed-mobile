@@ -13,25 +13,22 @@ import {
   resolveUniversity,
   ROLE_FIELD_KEY,
 } from "../shared/attendanceMemberMeta";
-import { canReverseSignIn, reversibleOnlyByGrace, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, personKey, subgroupMatches } from "../shared/rollcall";
+import { auditEventName, canReverseSignIn, reversibleOnlyByGrace, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personKey, subgroupMatches } from "../shared/rollcall";
 import { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
+import { memberAuditName, staffDisplayName } from "./attendanceMembers";
 import { photoFor } from "./photo";
 import {
   assignedProfileForEmail,
   isAssigned,
   knownMemberId,
-  memberDisplayName,
   staffMemberForEmail,
   staffProfileOfMember,
 } from "./staffMembers";
 
 const ROSTER_HISTORY_EVENT_LIMIT = 60;
-
-const scoreKey = (row: { memberId?: Id<"attendanceMembers"> }) =>
-  row.memberId ? `member:${row.memberId}` : "";
 
 export type RosterEntry = {
   key: string;
@@ -103,7 +100,7 @@ export const roster = query({
         kind: "staff" as const,
         email: p.email,
         memberId: shadow?._id,
-        name: personDisplayName(p.name, p.email),
+        name: staffDisplayName(p, shadow?.name),
         roles,
         campuses,
         university: campuses[0] ?? resolveUniversity(metadataFields, shadow?.metadata, campuses),
@@ -152,8 +149,7 @@ export const roster = query({
     );
     otherHistory.forEach((historyEvent, i) => {
       for (const row of historyAttendances[i]) {
-        const key = scoreKey(row);
-        if (!key) continue;
+        const key = `member:${row.memberId}`;
         const score = scores.get(key) ?? {
           tagMatches: 0,
           subgroupMatches: 0,
@@ -217,7 +213,7 @@ export const listByEvent = query({
 
     const withNames = await Promise.all(
       rows.map(async (row) => {
-        const member = row.memberId ? await ctx.db.get(row.memberId) : null;
+        const member = await ctx.db.get(row.memberId);
         const profile = member ? await staffProfileOfMember(ctx, member._id, profileYear) : null;
         if (profile) {
           const email = profile.email.toLowerCase();
@@ -236,7 +232,7 @@ export const listByEvent = query({
           return {
             ...row,
             email,
-            name: personDisplayName(profile.name ?? member?.name, email),
+            name: staffDisplayName(profile, member?.name),
             kind: "staff" as const,
             roles,
             campuses,
@@ -262,15 +258,14 @@ export const listByEvent = query({
         };
       })
     );
-    const byIdentity = new Map<string, (typeof withNames)[number]>();
+    const earliestByMember = new Map<Id<"attendanceMembers">, (typeof withNames)[number]>();
     for (const row of withNames) {
-      const identity = row.memberId ? `member:${row.memberId}` : `row:${row._id}`;
-      const existing = byIdentity.get(identity);
+      const existing = earliestByMember.get(row.memberId);
       if (!existing || row.signInTime < existing.signInTime) {
-        byIdentity.set(identity, row);
+        earliestByMember.set(row.memberId, row);
       }
     }
-    return [...byIdentity.values()].sort((a, b) => b.signInTime - a.signInTime);
+    return [...earliestByMember.values()].sort((a, b) => b.signInTime - a.signInTime);
   },
 });
 
@@ -312,12 +307,12 @@ export const signIn = mutation({
       memberId,
       signInTime: Date.now(),
     });
-    const { name, email: subjectEmail } = await memberDisplayName(ctx, member, year);
+    const { name, email: subjectEmail } = await memberAuditName(ctx, member, year);
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "attendance",
       action: "attendance.signIn",
-      summary: `${name} signed in to "${event.name}"`,
+      summary: `${name} signed in to ${auditEventName(event)}`,
       eventId,
       memberId,
       subjectEmail,
@@ -342,36 +337,35 @@ export const updateRecord = mutation({
     ) {
       throw new ConvexError("That sign-in time isn't a valid date.");
     }
-    const patch: { notes?: string; signInTime?: number } = {};
-    if (notes !== undefined) {
-      const trimmed = notes.trim();
-      patch.notes = trimmed || undefined;
-    }
-    if (signInTime !== undefined) patch.signInTime = signInTime;
-    if (Object.keys(patch).length === 0) return;
-    await ctx.db.patch(attendanceId, patch);
+    const nextNotes = notes === undefined ? row.notes : notes.trim() || undefined;
+    const notesChanged = nextNotes !== row.notes;
+    const timeChanged = signInTime !== undefined && signInTime !== row.signInTime;
+    if (!notesChanged && !timeChanged) return;
+    await ctx.db.patch(attendanceId, {
+      ...(notesChanged ? { notes: nextNotes } : {}),
+      ...(timeChanged ? { signInTime } : {}),
+    });
     const event = await ctx.db.get(row.eventId);
-    const member = row.memberId ? await ctx.db.get(row.memberId) : null;
+    const member = await ctx.db.get(row.memberId);
     const who = member
-      ? await memberDisplayName(
+      ? await memberAuditName(
           ctx,
           member,
           event ? eventStaffYear(event.dateStart) : staffYearForDate(new Date())
         )
       : { name: "A member", email: undefined };
-    const fields = [
-      patch.notes !== undefined ? "notes" : null,
-      patch.signInTime !== undefined ? "sign-in time" : null,
-    ].filter(Boolean);
+    const fields = [notesChanged ? "notes" : null, timeChanged ? "sign-in time" : null].filter(
+      Boolean
+    );
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "attendance",
       action: "attendance.update",
-      summary: `Edited ${who.name}'s record for "${event?.name ?? "an event"}"`,
+      summary: `Edited ${who.name}'s record for ${auditEventName(event)}`,
       eventId: row.eventId,
       memberId: row.memberId,
       subjectEmail: who.email,
-      detail: fields.length ? `Changed: ${fields.join(", ")}` : undefined,
+      detail: `Changed: ${fields.join(", ")}`,
     });
   },
 });
@@ -419,13 +413,13 @@ export const signOut = mutation({
     await ctx.db.delete(existing._id);
     const member = await ctx.db.get(memberId);
     const who = member
-      ? await memberDisplayName(ctx, member, year)
+      ? await memberAuditName(ctx, member, year)
       : { name: "A member", email: undefined };
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "attendance",
       action: "attendance.signOut",
-      summary: `${who.name} signed out of "${event?.name ?? "an event"}"`,
+      summary: `${who.name} signed out of ${auditEventName(event)}`,
       eventId,
       memberId,
       subjectEmail: who.email,

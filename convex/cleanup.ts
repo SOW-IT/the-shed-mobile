@@ -80,37 +80,3 @@ export const purgeOldReceiptFiles = internalMutation({
     return null;
   },
 });
-
-export const purgeReceiptFilesCreatedBefore = internalMutation({
-  args: {
-    beforeMs: v.number(),
-    cursor: v.optional(v.union(v.string(), v.null())),
-    batch: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const batch = args.batch ?? 50;
-    const page = await ctx.db
-      .query("requests")
-      .withIndex("by_creation_time", (q) => q.lt("_creationTime", args.beforeMs))
-      .paginate({ numItems: batch, cursor: args.cursor ?? null });
-
-    let filesDeleted = 0;
-    let requestsTouched = 0;
-    for (const request of page.page) {
-      const purged = await purgeRequestReceiptFiles(ctx, request);
-      filesDeleted += purged.filesDeleted;
-      if (purged.filesDeleted > 0) requestsTouched++;
-    }
-
-    console.log(
-      `purgeReceiptFilesCreatedBefore: deleted ${filesDeleted} file(s) across ${requestsTouched} request(s) created before ${new Date(args.beforeMs).toISOString()} (done=${page.isDone})`
-    );
-    return {
-      filesDeleted,
-      requestsTouched,
-      scanned: page.page.length,
-      isDone: page.isDone,
-      continueCursor: page.continueCursor,
-    };
-  },
-});

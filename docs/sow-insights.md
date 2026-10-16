@@ -46,7 +46,9 @@ counted; people with no staff profile are listed and flagged.
 
 - **Cards**: Average attendance (campus leaders per held TWIG), People
   (different campus leaders), Regulars (campus leaders at half or more of the
-  year's held TWIGs, `regularShare`). The year in progress is compared with
+  year's held TWIGs, `regularShare`, counted once more than `followUpMisses`
+  TWIGs have a roll; until then the card shows "–, After 3 TWIGs" and nobody
+  is tagged Regular). The year in progress is compared with
   last staff year **up to the same date**; a past year with the whole year
   before. When last year had no TWIG with a roll by that date, the caption
   says so and the cards show no comparison.
@@ -59,6 +61,8 @@ counted; people with no staff profile are listed and flagged.
   / No staff profile, each with their share of held TWIGs and when they last
   came. Filters by group and Regular.
 - **No roll taken**.
+- A year with no TWIG (or PPN) roll yet shows an empty state with a button to
+  the latest earlier staff year.
 
 ## PPN
 

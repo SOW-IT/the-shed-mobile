@@ -218,12 +218,15 @@ export const BankTab = () => {
     name: string,
     isPreferred: boolean
   ) => {
+    const next = others[0];
     setDeleteTarget({
       id,
       title: `Delete "${name}"?`,
-      message: isPreferred
-        ? "This is your auto-fill account. Deleting it turns off payment auto-fill."
-        : undefined,
+      message: !isPreferred
+        ? undefined
+        : next
+          ? `This is your auto-fill account. "${next.accountName}" will auto-fill instead.`
+          : "This is your auto-fill account. Deleting it turns off payment auto-fill.",
     });
   };
 
@@ -239,6 +242,8 @@ export const BankTab = () => {
     nameDraft.trim() === editingAccount.accountName &&
     bsbDraft === editingAccount.bsb &&
     numberDraft === editingAccount.accountNumber;
+
+  const draftIncomplete = nameDraft.trim() === "" || bsbDraft === "" || numberDraft === "";
 
   const accountForm = (isAdd: boolean) => (
     <Card style={styles.bankCard}>
@@ -278,7 +283,7 @@ export const BankTab = () => {
         <Btn
           title={isAdd ? "Add Account" : "Save"}
           onPress={() => void save()}
-          disabled={saving || (!isAdd && editUnchanged)}
+          disabled={saving || draftIncomplete || (!isAdd && editUnchanged)}
         />
       </Row>
     </Card>

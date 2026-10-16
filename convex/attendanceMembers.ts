@@ -6,7 +6,6 @@ import {
   rolesOfLike,
   staffYearForDate,
   sydneyCalendarYear,
-  SYDNEY_TIME_ZONE,
 } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
@@ -17,6 +16,7 @@ import {
   resolveUniversity,
   ROLE_FIELD_KEY,
   roleFilterMatches,
+  sameMetadata,
   staffLockedMetadata,
   STUDENT_YEAR_FIELD_KEY,
   yearMetadataSortKey,
@@ -76,6 +76,22 @@ const allMetadataFields = async (
   (await ctx.db.query("attendanceMetadata").collect()).sort(
     (a, b) => a.order - b.order
   );
+
+export const staffDisplayName = (
+  profile: Doc<"staffProfiles">,
+  memberName?: string
+): string => staffRowName(profile, memberName) ?? profile.email.split("@")[0];
+
+export async function memberAuditName(
+  ctx: QueryCtx | MutationCtx,
+  member: Doc<"attendanceMembers">,
+  year: number
+): Promise<{ name: string; email: string | undefined }> {
+  const profile = await staffProfileOfMember(ctx, member._id, year);
+  return profile
+    ? { name: staffDisplayName(profile, member.name), email: profile.email.toLowerCase() }
+    : { name: member.name, email: undefined };
+}
 
 const staffSubtitle = (roles: string[]): string | undefined =>
   roles.length > 0 ? roles.join(" · ") : undefined;
@@ -142,7 +158,7 @@ export const list = query({
       rows.push({
         key: `staff:${p.email}`,
         kind: "staff",
-        name: staffRowName(p, shadow?.name) ?? personDisplayName(p.name, p.email),
+        name: staffDisplayName(p, shadow?.name),
         email: p.email,
         personalEmail: shadow?.email,
         memberId: shadow?._id,
@@ -469,10 +485,18 @@ export const update = mutation({
       const staffName = profileOwnName(profile) ?? personName(name);
       if (!staffName) throw new ConvexError("Name is required.");
       const fields = await allMetadataFields(ctx);
+      const staffMetadata = memberOwnMetadata(fields, metadata, row.metadata);
+      if (
+        staffName === row.name &&
+        personal === row.email &&
+        sameMetadata(staffMetadata, row.metadata)
+      ) {
+        return;
+      }
       await ctx.db.patch(memberId, {
         name: staffName,
         email: personal,
-        metadata: memberOwnMetadata(fields, metadata, row.metadata),
+        metadata: staffMetadata,
       });
       await logAttendanceAction(ctx, {
         actorEmail,
@@ -499,11 +523,24 @@ export const update = mutation({
     if (ownEmail && (await isStaffAddress(ctx, ownEmail))) {
       throw new ConvexError(NOT_PERSONAL(ownEmail));
     }
+    const nextMetadata = staffNow
+      ? memberOwnMetadata(await allMetadataFields(ctx), metadata, row.metadata)
+      : metadata;
+    const nextChurch =
+      churchId === undefined ? row.churchId : ((await checkedChurch(ctx, churchId)) ?? undefined);
+    if (
+      trimmed === row.name &&
+      ownEmail === row.email &&
+      nextChurch === row.churchId &&
+      sameMetadata(nextMetadata, row.metadata)
+    ) {
+      return;
+    }
     await ctx.db.patch(memberId, {
       name: trimmed,
       email: ownEmail,
-      metadata: staffNow ? memberOwnMetadata(await allMetadataFields(ctx), metadata, row.metadata) : metadata,
-      ...(churchId === undefined ? {} : { churchId: (await checkedChurch(ctx, churchId)) ?? undefined }),
+      metadata: nextMetadata,
+      ...(churchId === undefined ? {} : { churchId: nextChurch }),
     });
     await logAttendanceAction(ctx, {
       actorEmail,
@@ -514,8 +551,6 @@ export const update = mutation({
     });
   },
 });
-
-
 
 export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
@@ -746,7 +781,7 @@ const keepSide = (keep: MergeKeep, fields: MetadataField[]): MergeSide =>
         metadata: keep.row.metadata ?? {},
       }
     : {
-        name: staffRowName(keep.profile, keep.row?.name) ?? personDisplayName(keep.profile.name, keep.email),
+        name: staffDisplayName(keep.profile, keep.row?.name),
         email: keep.email,
         metadata: staffLockedMetadata(fields, keep.profile, keep.row?.metadata),
       };
@@ -942,7 +977,6 @@ export const merge = mutation({
     await ctx.db.patch(survivor.row._id, {
       ...(await fieldsFor()),
       churchId: keep.row.churchId ?? remove.churchId,
-      sourceImportId: keep.row.sourceImportId ?? remove.sourceImportId,
     });
     await ctx.db.delete(victim.row._id);
 
@@ -959,14 +993,14 @@ export const merge = mutation({
             ? `; combined ${combined} event${combined === 1 ? "" : "s"} both were signed in to`
             : ""),
         ...(taken.length ? [`Took from "${remove.name}": ${taken.join(", ")}`] : []),
-        `Removed member "${victim.row.name}" (${victim.row._id})`,
+        `Removed member "${remove.name}" (${victim.row._id})`,
       ].join("\n"),
     });
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "member",
       action: "member.mergedAway",
-      summary: `"${victim.row.name}" was merged into "${keptName}"`,
+      summary: `"${remove.name}" was merged into "${keptName}"`,
       memberId: victim.row._id,
       detail: `Kept as ${survivor.row._id}`,
     });

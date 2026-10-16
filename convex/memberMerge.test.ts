@@ -214,7 +214,7 @@ describe("merging a member into another member", () => {
   });
 });
 
-describe("the kept person's church and import id survive the merge", () => {
+describe("the kept person's church survives the merge", () => {
   test("when the removed record has more sign-ins and survives, it takes the kept person's church", async () => {
     const s = await setup();
     const { grace, hope } = await s.t.run(async (ctx) => ({
@@ -224,8 +224,8 @@ describe("the kept person's church and import id survive the merge", () => {
     const keep = await s.member("Alice Kim");
     const dup = await s.member("Alice K");
     await s.t.run(async (ctx) => {
-      await ctx.db.patch(keep, { churchId: grace, sourceImportId: "keep-import" });
-      await ctx.db.patch(dup, { churchId: hope, sourceImportId: "dup-import" });
+      await ctx.db.patch(keep, { churchId: grace });
+      await ctx.db.patch(dup, { churchId: hope });
     });
     for (const at of [1_000, 2_000, 3_000]) {
       await s.signIn(await s.event(`W${at}`, at), { memberId: dup }, at + 100);
@@ -241,7 +241,6 @@ describe("the kept person's church and import id survive the merge", () => {
     expect(await s.t.run((ctx) => ctx.db.get(dup))).toMatchObject({
       name: "Alice Kim",
       churchId: grace,
-      sourceImportId: "keep-import",
     });
   });
 
@@ -328,8 +327,14 @@ describe("merging a member into staff", () => {
     });
     const log = (await s.audit()).find((r) => r.action === "member.merge")!;
     expect(log).toMatchObject({ memberId: dup, subjectEmail: LEADER });
-    expect(log.summary).toBe(`Merged "Leader Nickname" into staff "${LEADER}"`);
-    expect(log.detail).toContain(`Removed member "${leaderName}" (${leaderRow})`);
+    expect(log.summary).toBe(`Merged "Leader Nickname" into staff "${LEADER.split("@")[0]}"`);
+    expect(log.detail).toContain(`Removed member "Leader Nickname" (${leaderRow})`);
+    const away = (await s.audit()).find((r) => r.action === "member.mergedAway")!;
+    expect(away).toMatchObject({
+      memberId: leaderRow,
+      summary: `"Leader Nickname" was merged into "${LEADER.split("@")[0]}"`,
+      detail: `Kept as ${dup}`,
+    });
   });
 
   test("keeps the staff person's row when it has as long a history and is older", async () => {

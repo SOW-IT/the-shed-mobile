@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { Keyboard, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { formatMetadataFieldValue } from "../../../shared/attendanceMemberMeta";
-import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
+import { formatMetadataFieldValue, metadataSubtitle } from "../../../shared/attendanceMemberMeta";
 import type { MergeResolutions, MergeSide } from "../../../shared/memberMerge";
+import { typedMatches } from "../../../shared/typedConfirm";
 import { MemberRow } from "@/components/attendance/MemberRow";
 import {
   Btn,
@@ -24,6 +24,7 @@ import {
   WarningBanner,
 } from "@/components/ui";
 import { useHeldValue } from "@/hooks/useHeldValue";
+import { sydneyDay } from "@/lib/sydneyTime";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type Picked = {
@@ -41,14 +42,7 @@ type History = { events: number; lastAttended: number | null };
 const historyLine = (h: History) =>
   h.events === 0
     ? "Not signed in to any events"
-    : `${plural(h.events, "event")} · last ${new Date(h.lastAttended!).toLocaleDateString(
-        "en-AU",
-        { timeZone: SYDNEY_TIME_ZONE, day: "numeric", month: "short", year: "numeric" }
-      )}`;
-
-const sameTypedName = (typed: string, name: string) =>
-  typed.trim().replace(/\s+/g, " ").toLowerCase() ===
-  name.trim().replace(/\s+/g, " ").toLowerCase();
+    : `${plural(h.events, "event")} · last ${sydneyDay(h.lastAttended!)}`;
 
 /**
  * Merge a duplicate into the member (or staff person) being edited. Only a
@@ -204,14 +198,6 @@ export function MergeMemberSheet({
     return formatMetadataFieldValue(field.key, value, year, field.values) || value;
   };
 
-  const summary = (side: MergeSide) =>
-    metadataFields
-      .map((f) =>
-        formatMetadataFieldValue(f.key, side.metadata[f._id] ?? "", year, f.values)
-      )
-      .filter(Boolean)
-      .join(" · ");
-
   const onMerge = async () => {
     if (!mergeArgs || !ready || previewStale || submitting) return;
     setSubmitting(true);
@@ -236,7 +222,7 @@ export function MergeMemberSheet({
     staff: boolean
   ) => {
     const colour = tone === "keep" ? t.success : t.danger;
-    const detail = summary(side);
+    const detail = metadataSubtitle(metadataFields, side.metadata, year);
     return (
       <View
         style={[
@@ -289,7 +275,7 @@ export function MergeMemberSheet({
               icon="git-merge-outline"
               loading={submitting}
               disabled={
-                previewStale || !removeName || !sameTypedName(confirmText, removeName)
+                previewStale || !typedMatches(confirmText, removeName)
               }
               onPress={() => void onMerge()}
             />
@@ -322,10 +308,8 @@ export function MergeMemberSheet({
       {!picked ? (
         <>
           <Txt style={[typography.body, { color: t.text }]}>
-            Search for the duplicate. Their attendance moves across.{" "}
-            {isStaff
-              ? "Only members can be merged into staff."
-              : "Picking staff merges this member into them."}
+            Search for the duplicate. Their attendance moves across.
+            {isStaff ? "" : " Picking staff merges this member into them."}
           </Txt>
           <SearchField
             value={search}
@@ -377,11 +361,11 @@ export function MergeMemberSheet({
         <LoadingState />
       ) : (
         <>
-          {personCard("KEEPING", ready.keep, "keep", ready.keep.kind === "staff")}
+          {personCard("Keeping", ready.keep, "keep", ready.keep.kind === "staff")}
           <View style={{ alignItems: "center" }}>
             <Ionicons name="arrow-up" size={20} color={t.muted} />
           </View>
-          {personCard("MERGING IN, THEN REMOVING", ready.remove, "remove", false)}
+          {personCard("Merging in, then removing", ready.remove, "remove", false)}
           {canSwap && ready.remove.history.events > ready.keep.history.events ? (
             <WarningBanner
               message={`${ready.remove.name} has more history (${ready.remove.history.events} vs ${ready.keep.history.events} events). Swap to keep them?`}
@@ -430,7 +414,7 @@ export function MergeMemberSheet({
           {ready.conflicts.length > 0 ? (
             <>
               <Text style={[typography.label, { color: t.muted, marginTop: spacing.sm }]}>
-                CHOOSE WHAT TO KEEP
+                Choose what to keep
               </Text>
               {ready.conflicts.map((conflict) => (
                 <View key={conflict.field} style={{ gap: 2 }}>

@@ -57,12 +57,24 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   same list in Edit member. The **Churches** page (side menu) lists every
   church with the staff and members who go there.
   Each person shows their role, leaders first, and a map pins every church
-  with an address (see [Church map](#church-map-optional)). Only people with
-  a staff profile this year add or edit churches.
+  with an address (see [Church map](#church-map-optional)), each pin sized by
+  how many people go there and ringed in the colour of their main campus. Two rows of
+  filter chips narrow the page and the map: who (campus leaders, staff,
+  members) and which campus (plus "no campus"). Nothing picked shows everyone;
+  picking chips in a row shows only those, and each chip counts who it covers.
+  Only people with a staff profile this year add or edit churches.
   `churches:remindToSetChurch` reminds this year's staff who haven't picked
-  one (in-app notification and push). Other people's emails, member ids and
-  typed churches are for staff only: anyone else, signed in or not, sees each
-  church with the names, roles and campuses of who goes there.
+  one (in-app notification and push). Members (no staff assignment this year)
+  are only listed for staff and campus leaders, along with their emails and
+  member ids: anyone else, signed in or not, sees each church with the names,
+  roles, campuses and staff emails of the staff and campus leaders who go
+  there. The church pickers say who will see the church before it's set.
+- **Look**: one theme (`src/theme.ts`) in SOW's evergreen and cream, light and
+  dark. Titles, headings and big numbers use Familjen Grotesk (bundled in
+  `assets/fonts`, OFL, loaded in the root layout); everything else is the
+  system font. Resting surfaces are flat with a hairline edge
+  (`surfaceEdge`); only floating things (sheets, the footer button) get a
+  shadow.
 - **Last online**: someone else's profile shows when they last had The SHED
   open (staff viewers only), or that they haven't signed in yet. The app
   and website report it while open, at most every 5 minutes
@@ -94,8 +106,7 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   thread. The Events department, the three teams, the Director and admins can
   see every event. Team emails go to marketing@, compliance@ and
   finance@sow.org.au. Any event downloads as a PDF whose Risk and Finance
-  pages follow the Governance Review Form. Old event forms are copied in with
-  `scripts/import-event-requests.mjs` (safe to re-run).
+  pages follow the Governance Review Form.
 - **Announcements** (`convex/announcements.ts`, rules in
   `shared/announcements.ts`), from the side menu for admins (the Human
   Resources division among them). A title and message go to **all leaders**
@@ -186,8 +197,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **Audit log**: an immutable trail of every attendance-area action (event /
   member / tag / metadata edits, merges and deletes, and each
   sign-in/edit/sign-out), read by the Attendance → Audit tab.
-- **CSV import/export**: bulk-import historical roll-call data and export
-  attendance.
+- **CSV export**: export attendance.
 - **Insights** (a dedicated bottom tab): for a campus, its **weekly meetings**
   by term (T1–T3 / Sem 1–2) or calendar year: cards against the term before
   (a year against last year), a
@@ -211,7 +221,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
   banner that can be dismissed; below `minimum`, a full screen with only the
   store button. Nothing is asked until a policy is set:
-  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "recommended": "2.9.0"}'`
+  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "minimum": "2.9.0", "recommended": "2.9.1"}'`
   (`minimum`, and an optional `message` to replace the default text; `null`
   clears one). Staging builds and the web are never asked.
 
@@ -317,7 +327,7 @@ Six workflows, in `.github/workflows/`:
 | Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
 | Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT). Database-only export, file storage excluded. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped |
 | EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app |
-| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app |
+| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app, then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
 
 Both EAS workflows take a **platform** input (`both` / `ios` / `android`,
 default `both`) and are never triggered by a PR or a merge.
@@ -329,8 +339,10 @@ separate build, not a re-pointed domain.
 
 Repository secrets these need: `CONVEX_DEPLOY_KEY` (prod backend deploys and
 the GCS backup), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` (dev web), and
-`EXPO_TOKEN` (both EAS workflows). Only **Deploy web (dev)** degrades
-gracefully when its secrets are missing. It warns and skips. The other four
+`EXPO_TOKEN` (both EAS workflows), and `GOOGLE_CHAT_WEBHOOK_URL` (the Data and
+IT space's incoming webhook, for EAS Production's Chat post). Only **Deploy
+web (dev)** and the Chat post degrade gracefully when their secrets are
+missing. They skip. The other four
 have no such guard and will **fail** the run, which is the right behaviour for
 a deploy but worth knowing before you add a workflow to a fork. The backup also
 needs the repository *variables*
@@ -492,7 +504,7 @@ The `convex-test` + shared-logic suite (run in CI with coverage thresholds)
 covers the reimbursement flow (the auto-approval matrix, approval ordering and
 authorization, decline behaviour, admin permissions, the Budget
 Manager-must-be-Finance rule, and the October 1 rollover) as well as the
-Attendance area: roll-call, events, members, tags, metadata, audit, import, and
+Attendance area: roll-call, events, members, tags, metadata, audit, and
 the Insights metrics precompute.
 
 ## Not yet implemented

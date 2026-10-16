@@ -257,6 +257,92 @@ const dateTimeProblem = (
   return compare(field.notBefore, 1) ?? compare(field.notAfter, -1);
 };
 
+const fieldProblem = (
+  fields: readonly FormField[],
+  field: FormField,
+  answers: FormAnswers,
+  today: string,
+  previous: FormAnswers | undefined
+): string | null => {
+  const value = answers[field.key];
+  const limit = field.maxLength ?? MAX_ANSWER_LENGTH;
+  for (const text of [value, answers[otherKey(field)]]) {
+    if (typeof text === "string" && text.length > limit) {
+      return `"${field.shortLabel}" can be at most ${limit} characters.`;
+    }
+  }
+  if (value === undefined) {
+    return field.required ? missing(field) : null;
+  }
+  if (field.kind === "checkboxes" || field.kind === "choice") {
+    const chosen = Array.isArray(value) ? value : [value as string];
+    const before = previous?.[field.key];
+    const had = Array.isArray(before) ? before : [before];
+    const retired = (field.options ?? []).find(
+      (o) => o.retired && chosen.includes(o.value) && !had.includes(o.value)
+    );
+    if (retired) {
+      return `"${retired.label}" is no longer an option for "${field.shortLabel}".`;
+    }
+  }
+  if (
+    field.kind === "checkboxes" &&
+    field.otherOption &&
+    (value as string[]).includes(field.otherOption) &&
+    answers[otherKey(field)] === undefined
+  ) {
+    return `Say what "Other" is for "${field.shortLabel}".`;
+  }
+  if (field.kind === "money" || field.kind === "number") {
+    const amount = value as number;
+    if (amount < 0) return missing(field);
+    if (field.max !== undefined && amount > field.max) {
+      return field.kind === "money"
+        ? `"${field.shortLabel}" can be at most $${formatAmount(field.max)}.`
+        : `"${field.shortLabel}" can be at most ${formatAmount(field.max)}.`;
+    }
+  }
+  if (field.kind === "date") {
+    const date = value as string;
+    if (!isValidDateString(date)) return missing(field);
+    if (field.notInPast && date < today && date !== previous?.[field.key]) {
+      return `"${field.shortLabel}" can't be in the past.`;
+    }
+  }
+  if (field.kind === "dateTime") {
+    const problem = dateTimeProblem(fields, field, answers, today, previous);
+    if (problem) return problem;
+  }
+  if (field.kind === "url" && !isValidUrl(value as string)) {
+    return `"${field.shortLabel}" needs to be a full link, starting with https://`;
+  }
+  return null;
+};
+
+export const answersProblemAt = (
+  fields: readonly FormField[],
+  answers: FormAnswers,
+  today: string,
+  previous?: FormAnswers
+): { key: string; message: string } | null => {
+  for (const field of fields) {
+    if (!isFieldShown(field, answers)) continue;
+    const message = fieldProblem(fields, field, answers, today, previous);
+    if (message) return { key: field.key, message };
+  }
+  return null;
+};
+
+export const questionNumber = (
+  fields: readonly FormField[],
+  answers: FormAnswers,
+  key: string
+): number | undefined => {
+  const numbered = fields.filter((field) => isFieldShown(field, answers) && !field.showWhen);
+  const index = numbered.findIndex((field) => field.key === key);
+  return index === -1 ? undefined : index + 1;
+};
+
 /**
  * What's wrong with a set of normalised answers, as a message for whoever's
  * filling them in, or null when they can be submitted. A date that can't be
@@ -268,65 +354,7 @@ export const answersProblem = (
   answers: FormAnswers,
   today: string,
   previous?: FormAnswers
-): string | null => {
-  for (const field of fields) {
-    if (!isFieldShown(field, answers)) continue;
-    const value = answers[field.key];
-    const limit = field.maxLength ?? MAX_ANSWER_LENGTH;
-    for (const text of [value, answers[otherKey(field)]]) {
-      if (typeof text === "string" && text.length > limit) {
-        return `"${field.shortLabel}" can be at most ${limit} characters.`;
-      }
-    }
-    if (value === undefined) {
-      if (field.required) return missing(field);
-      continue;
-    }
-    if (field.kind === "checkboxes" || field.kind === "choice") {
-      const chosen = Array.isArray(value) ? value : [value as string];
-      const before = previous?.[field.key];
-      const had = Array.isArray(before) ? before : [before];
-      const retired = (field.options ?? []).find(
-        (o) => o.retired && chosen.includes(o.value) && !had.includes(o.value)
-      );
-      if (retired) {
-        return `"${retired.label}" is no longer an option for "${field.shortLabel}".`;
-      }
-    }
-    if (
-      field.kind === "checkboxes" &&
-      field.otherOption &&
-      (value as string[]).includes(field.otherOption) &&
-      answers[otherKey(field)] === undefined
-    ) {
-      return `Say what "Other" is for "${field.shortLabel}".`;
-    }
-    if (field.kind === "money" || field.kind === "number") {
-      const amount = value as number;
-      if (amount < 0) return missing(field);
-      if (field.max !== undefined && amount > field.max) {
-        return field.kind === "money"
-          ? `"${field.shortLabel}" can be at most $${formatAmount(field.max)}.`
-          : `"${field.shortLabel}" can be at most ${formatAmount(field.max)}.`;
-      }
-    }
-    if (field.kind === "date") {
-      const date = value as string;
-      if (!isValidDateString(date)) return missing(field);
-      if (field.notInPast && date < today && date !== previous?.[field.key]) {
-        return `"${field.shortLabel}" can't be in the past.`;
-      }
-    }
-    if (field.kind === "dateTime") {
-      const problem = dateTimeProblem(fields, field, answers, today, previous);
-      if (problem) return problem;
-    }
-    if (field.kind === "url" && !isValidUrl(value as string)) {
-      return `"${field.shortLabel}" needs to be a full link, starting with https://`;
-    }
-  }
-  return null;
-};
+): string | null => answersProblemAt(fields, answers, today, previous)?.message ?? null;
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

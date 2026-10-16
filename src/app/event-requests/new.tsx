@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { answersProblem, normalizeAnswers, sydneyToday } from "@shared/forms";
+import { answersProblemAt, normalizeAnswers, questionNumber, sydneyToday } from "@shared/forms";
 import {
   answersFromDraft,
   draftFromAnswers,
@@ -43,6 +43,7 @@ export default function EventRequestFormScreen() {
   const update = useMutation(api.eventRequests.update);
   const [draft, setDraft] = useState<FormDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<{ key: string; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
   // Events starting before this date get a gentle "that's soon" warning.
   const [leadCutoff] = useState(() => sydneyToday(new Date(Date.now() + LEAD_DAYS * DAY)));
@@ -97,9 +98,11 @@ export default function EventRequestFormScreen() {
   const save = async () => {
     if (saving) return;
     const answers = normalizeAnswers(fields, answersFromDraft(fields, draft));
-    const problem = answersProblem(fields, answers, today, existing?.event.answers);
-    if (problem) {
-      setError(problem);
+    const found = answersProblemAt(fields, answers, today, existing?.event.answers);
+    setProblem(found);
+    if (found) {
+      const number = questionNumber(fields, answers, found.key);
+      setError(number === undefined ? found.message : `Question ${number}: ${found.message}`);
       return;
     }
     setError(null);
@@ -144,9 +147,11 @@ export default function EventRequestFormScreen() {
             onChange={(next) => {
               setDraft(next);
               if (error) setError(null);
+              if (problem) setProblem(null);
             }}
             departments={departments}
             minDate={minDate}
+            problem={problem}
           />
           <WarningBanner
             message={

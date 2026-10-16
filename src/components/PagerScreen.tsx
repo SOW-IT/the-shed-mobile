@@ -55,6 +55,19 @@ const FOOTER_SETTLE_MS = 140;
 
 export type PagerScrollState = "idle" | "dragging" | "settling";
 
+export type PagerCarouselProps = {
+  tabs: PagerTab[];
+  activeKey: string;
+  onActiveKeyChange: (key: string) => void;
+  renderPage: (tab: PagerTab) => ReactNode;
+  position?: Animated.Value;
+  onScrollStateChange?: (
+    state: PagerScrollState,
+    scrollPos: number,
+    settledIndex?: number
+  ) => void;
+};
+
 type PagerTabFooter = {
   tabKey: string;
   node: ReactNode;

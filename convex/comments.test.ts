@@ -270,6 +270,31 @@ describe("add", () => {
     expect(pushedTokens).toContain("ExponentPushToken[henry]");
   });
 
+  test("an earlier approver's comment still reaches the requester, once", async () => {
+    const t = await setup();
+    const id = await submit(t);
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
+    const commentNotes = (email: string) =>
+      t.run(async (ctx) =>
+        (
+          await ctx.db
+            .query("notifications")
+            .withIndex("by_request", (q) => q.eq("requestId", id))
+            .collect()
+        ).filter((n) => n.userEmail === email && n.title === "New comment")
+      );
+
+    await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "approved it" });
+    expect(await commentNotes(RACHEL)).toHaveLength(1);
+    expect(await commentNotes(BELLA)).toHaveLength(1);
+    expect(await commentNotes(HENRY)).toHaveLength(0);
+
+    await asUser(t, BELLA).mutation(api.requests.approve, { requestId: id, step: "budgetManager" });
+    await asUser(t, FIONA).mutation(api.requests.approve, { requestId: id, step: "financeHead" });
+    await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "all done" });
+    expect(await commentNotes(RACHEL)).toHaveLength(2);
+  });
+
   test("rejects a comment on a missing request", async () => {
     const t = await setup();
     const id = await submit(t);
@@ -384,6 +409,41 @@ describe("unreadCount + markRead", () => {
     expect(await asUser(t, RACHEL).query(api.comments.myUnreadTotal, {})).toBe(0);
 
     expect(await asUser(t, HENRY).query(api.comments.myUnreadTotal, {})).toBe(0);
+  });
+
+  test("myUnreadTotal leaves out last year's completed requests, like the Mine list", async () => {
+    const t = convexTest(schema, modules);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    let paid: string;
+    let open: string;
+    try {
+      vi.setSystemTime(staffYearStartMs(YEAR - 1) + 86_400_000);
+      const seed = (extra: { paid?: boolean; receipt?: { totalAmount: number; recipients: [] } }) =>
+        t.run(async (ctx) => {
+          const requestId = await ctx.db.insert("requests", {
+            requesterEmail: RACHEL,
+            department: "Marketing",
+            description: "last year",
+            amount: 100,
+            approvedByHOD: "APPROVED",
+            approvedByBudgetManager: "APPROVED",
+            approvedByFinanceHead: "APPROVED",
+            ...extra,
+          });
+          await ctx.db.insert("requestComments", { requestId, authorEmail: HENRY, body: "hi" });
+          return requestId;
+        });
+      paid = await seed({ paid: true, receipt: { totalAmount: 100, recipients: [] } });
+      open = await seed({});
+    } finally {
+      vi.useRealTimers();
+    }
+    await runSetup(t);
+
+    const listed = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(listed.map((r) => r._id)).toEqual([open]);
+    expect(listed.map((r) => r._id)).not.toContain(paid);
+    expect(await asUser(t, RACHEL).query(api.comments.myUnreadTotal, {})).toBe(1);
   });
 });
 

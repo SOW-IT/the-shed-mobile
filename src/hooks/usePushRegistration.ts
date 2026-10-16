@@ -1,9 +1,10 @@
+import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation } from "convex/react";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { type Href, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { AppState, Platform } from "react-native";
 import { consumeNotificationDeepLink } from "../../shared/deepLinks";
 import { api } from "../../convex/_generated/api";
@@ -18,6 +19,10 @@ Notifications.setNotificationHandler({
 });
 
 const handledNotificationIds = new Set<string>();
+
+let thisPhoneToken: string | null = null;
+
+const UNREGISTER_WAIT_MS = 3000;
 
 /**
  * Gets this phone's push token and saves it for the signed-in person. Only
@@ -49,8 +54,34 @@ async function registerThisPhone(
 
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   await register({ token });
+  thisPhoneToken = token;
   return true;
 }
+
+const withReopenToken = (url: string, token: string) =>
+  `${url}${url.includes("?") ? "&" : "?"}reopen=${encodeURIComponent(token)}`;
+
+export const useSignOut = () => {
+  const { signOut } = useAuthActions();
+  const register = useMutation(api.push.register);
+  const unregister = useMutation(api.push.unregister);
+  return useCallback(async () => {
+    const token = thisPhoneToken;
+    if (token) {
+      await Promise.race([
+        unregister({ token }).catch((e: unknown) => console.warn("Push unregister failed:", e)),
+        new Promise((resolve) => setTimeout(resolve, UNREGISTER_WAIT_MS)),
+      ]);
+    }
+    try {
+      await signOut();
+      if (thisPhoneToken === token) thisPhoneToken = null;
+    } catch (e) {
+      if (token) void register({ token }).catch(() => {});
+      throw e;
+    }
+  }, [signOut, register, unregister]);
+};
 
 export const usePushRegistration = (opts?: {
   navigationReady?: boolean;
@@ -70,8 +101,8 @@ export const usePushRegistration = (opts?: {
       if (response) {
         Notifications.clearLastNotificationResponse();
       }
-      if (url) {
-        router.push(url as Href);
+      if (url && response) {
+        router.push(withReopenToken(url, response.notification.request.identifier) as Href);
       }
     };
 

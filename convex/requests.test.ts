@@ -9,6 +9,7 @@ import {
   nextApproverEmail,
   nextApproverWithYear,
 } from "./requests";
+import { linkUserProfiles } from "./userLink";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -731,14 +732,15 @@ describe("admin and per-year rules", () => {
       subject: `${rachelUserId}|session1`,
       issuer: "test",
     });
-    await rachelSignedIn.mutation(api.profile.updateChurch, {
-      localChurch: "SOW City Church",
-    });
+    const churchId = await t.run((ctx) =>
+      ctx.db.insert("churches", { name: "SOW City Church", nameKey: "sow city church", addedBy: ADMIN })
+    );
+    await rachelSignedIn.mutation(api.profile.setChurch, { churchId });
 
     const viewed = (await asUser(t, HENRY).query(api.profile.get, { email: RACHEL }))!;
     expect(viewed.isMe).toBe(false);
     expect(viewed.name).toBe("Rachel R");
-    expect(viewed.localChurch).toBe("SOW City Church");
+    expect(viewed.church?.name).toBe("SOW City Church");
     expect(viewed.serviceHistory).toEqual([
       {
         year: YEAR,
@@ -854,7 +856,7 @@ describe("admin and per-year rules", () => {
     const bellaUserId = await t.run((ctx) =>
       ctx.db.insert("users", { email: BELLA, name: "Bella B" })
     );
-    await t.mutation(internal.userLink.link, { userId: bellaUserId });
+    await t.run((ctx) => linkUserProfiles(ctx, bellaUserId));
     const bound = await t.run(async (ctx) =>
       (await ctx.db.query("staffProfiles").take(100)).find((p) => p.email === BELLA)
     );
@@ -863,11 +865,11 @@ describe("admin and per-year rules", () => {
     const rachelUserId = await t.run((ctx) =>
       ctx.db.insert("users", { email: RACHEL, name: "Rachel R" })
     );
-    await t.mutation(internal.userLink.link, { userId: rachelUserId });
+    await t.run((ctx) => linkUserProfiles(ctx, rachelUserId));
     await t.run((ctx) =>
       ctx.db.patch("users", rachelUserId, { email: "rachel.renamed@sow.org.au" })
     );
-    await t.mutation(internal.userLink.link, { userId: rachelUserId });
+    await t.run((ctx) => linkUserProfiles(ctx, rachelUserId));
 
     const renamed = asUser(t, "rachel.renamed@sow.org.au");
     const mine = (await renamed.query(api.requests.myRequests, {}))!;
@@ -882,11 +884,11 @@ describe("admin and per-year rules", () => {
     const fionaUserId = await t.run((ctx) =>
       ctx.db.insert("users", { email: FIONA, name: "Fiona F" })
     );
-    await t.mutation(internal.userLink.link, { userId: fionaUserId });
+    await t.run((ctx) => linkUserProfiles(ctx, fionaUserId));
     await t.run((ctx) =>
       ctx.db.patch("users", fionaUserId, { email: "fiona.new@sow.org.au" })
     );
-    await t.mutation(internal.userLink.link, { userId: fionaUserId });
+    await t.run((ctx) => linkUserProfiles(ctx, fionaUserId));
     const structure = (await asUser(t, ADMIN).query(api.directory.yearStructure, {
       year: YEAR,
     }))!;

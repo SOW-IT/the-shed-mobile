@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import { sydneyCalendarYear, SYDNEY_TIME_ZONE } from "@shared/flow";
+import { sydneyCalendarYear } from "@shared/flow";
 import type { NameMatch } from "@shared/mergeSuggestions";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
 import {
@@ -17,6 +17,7 @@ import {
   Row,
   Txt,
 } from "@/components/ui";
+import { sydneyDay } from "@/lib/sydneyTime";
 import { spacing, typography, useAppTheme } from "@/theme";
 
 type Suggestion = NonNullable<
@@ -35,14 +36,7 @@ const MATCH_LABELS: Record<NameMatch, string> = {
 const signInLine = (c: Candidate) =>
   c.signIns === 0
     ? "No sign-ins"
-    : `${c.signIns} sign-in${c.signIns === 1 ? "" : "s"} · last ${new Date(
-        c.lastSignIn!
-      ).toLocaleDateString("en-AU", {
-        timeZone: SYDNEY_TIME_ZONE,
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })}`;
+    : `${c.signIns} sign-in${c.signIns === 1 ? "" : "s"} · last ${sydneyDay(c.lastSignIn!)}`;
 
 type MergeTarget = {
   memberId: Id<"attendanceMembers">;
@@ -86,7 +80,7 @@ export function SuggestedMerges({
       <Grid fixedWidth={360} align="start">
         {suggestions.map((s) => (
           <Card key={s.staffEmail}>
-            <Text style={[typography.label, { color: t.muted }]}>STAFF</Text>
+            <Text style={[typography.label, { color: t.muted }]}>Staff</Text>
             <Txt style={{ fontWeight: "600" }}>{s.staffName}</Txt>
             <Muted>{[...s.roles, ...s.universities].join(" · ") || "Staff"}</Muted>
             <Muted>{s.staffEmail}</Muted>
@@ -98,8 +92,8 @@ export function SuggestedMerges({
                 {i === 0 ? (
                   <Text style={[typography.label, { color: t.muted }]}>
                     {s.candidates.length === 1
-                      ? "IN ATTENDANCE AS A MEMBER"
-                      : `IN ATTENDANCE AS ${s.candidates.length} MEMBERS`}
+                      ? "In attendance as a member"
+                      : `In attendance as ${s.candidates.length} members`}
                   </Text>
                 ) : null}
                 <View>

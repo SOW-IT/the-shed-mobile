@@ -250,6 +250,14 @@ export const cancel = mutation({
   },
 });
 
+const NO_AUDIENCE_REASON =
+  "No one matched who it was for when it was due, so it didn't go out. A division, department, role or campus it named may have been renamed or removed.";
+
+const foundNoAudience = (announcement: Doc<"announcements">) =>
+  announcement.status === "cancelled" &&
+  announcement.cancelledBy === undefined &&
+  announcement.recipientCount === 0;
+
 async function row(
   ctx: Ctx,
   announcement: Doc<"announcements">,
@@ -275,6 +283,7 @@ async function row(
     people: announcement.recipientCount ?? null,
     withApp: announcement.pushCount ?? null,
     emailed: announcement.emailCount ?? null,
+    notSentReason: foundNoAudience(announcement) ? NO_AUDIENCE_REASON : null,
   };
 }
 
@@ -298,11 +307,22 @@ export const list = query({
       .withIndex("by_status_and_sendAt", (q) => q.eq("status", "sent"))
       .order("desc")
       .take(20);
+    const cancelled = await ctx.db
+      .query("announcements")
+      .withIndex("by_status_and_sendAt", (q) => q.eq("status", "cancelled"))
+      .order("desc")
+      .take(50);
     const names = new Map<string, string>();
     return {
       mine: await senderActivity(ctx, caller.email, Date.now()),
       scheduled: await Promise.all(scheduled.map((a) => row(ctx, a, names, caller.year))),
       sent: await Promise.all(sent.map((a) => row(ctx, a, names, caller.year))),
+      notSent: await Promise.all(
+        cancelled
+          .filter(foundNoAudience)
+          .slice(0, 20)
+          .map((a) => row(ctx, a, names, caller.year))
+      ),
     };
   },
 });
@@ -345,6 +365,7 @@ export const get = query({
             people: view.people,
             withApp: view.withApp,
             emailed: view.emailed,
+            notSentReason: view.notSentReason,
           }
         : null,
     };
@@ -364,6 +385,15 @@ export const deliver = internalMutation({
     if (!announcement || announcement.status !== "scheduled") return null;
     const year = yearOf(announcement);
     const recipients = await audienceEmails(ctx, announcement.audience, year);
+    if (recipients.length === 0) {
+      await ctx.db.patch("announcements", announcement._id, {
+        status: "cancelled",
+        cancelledAt: Date.now(),
+        jobId: undefined,
+        recipientCount: 0,
+      });
+      return null;
+    }
     const url = announcementPath(announcement._id);
     const { title, message } = announcement;
 

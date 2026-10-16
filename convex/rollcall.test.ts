@@ -1389,8 +1389,11 @@ describe("guards + edge cases", () => {
       subgroups: [USYD],
     });
     await t.run(async (ctx) => {
+      const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      await ctx.db.delete(gone);
       await ctx.db.insert("attendance", {
         eventId,
+        memberId: gone,
         signInTime: Date.now(),
       });
     });
@@ -1564,7 +1567,7 @@ describe("staff sign-in and sign-out by email", () => {
     expect(created[0].subjectEmail).toBe("fresh@sow.org.au");
     const signIns = logs.filter((l) => l.action === "attendance.signIn" && l.memberId === linked);
     expect(signIns).toHaveLength(2);
-    expect(signIns[0].summary).toBe('fresh person signed in to "E"');
+    expect(signIns[0].summary).toBe('Fresh Person signed in to "E" (USYD)');
     expect(signIns[0].subjectEmail).toBe("fresh@sow.org.au");
 
     const [listed] = await leader.query(api.attendance.listByEvent, { eventId });
@@ -1667,13 +1670,13 @@ describe("staff sign-in and sign-out by email", () => {
     const out = logs.find((l) => l.action === "attendance.signOut")!;
     expect(out.memberId).toBe(staffMemberId);
     expect(out.subjectEmail).toBe(STAFF);
-    expect(out.summary).toBe('staff@sow.org.au signed out of "Live"');
+    expect(out.summary).toBe('staff signed out of "Live" (USYD)');
     expect(out.detail).toBeUndefined();
   });
 });
 
 describe("listByEvent identity", () => {
-  test("two rows for one member collapse to the earliest sign-in; memberless and orphaned rows stay separate as Unknown", async () => {
+  test("two rows for one member collapse to the earliest sign-in; an orphaned row stays separate as Unknown", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
@@ -1695,19 +1698,18 @@ describe("listByEvent identity", () => {
       });
       await ctx.db.insert("attendance", { eventId, memberId: staffMemberId, signInTime: dateStart + 3_000 });
       await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: dateStart + 2_000 });
-      await ctx.db.insert("attendance", { eventId, signInTime: dateStart + 4_000 });
       return { early };
     });
     const listed = await leader.query(api.attendance.listByEvent, { eventId });
-    expect(listed).toHaveLength(3);
+    expect(listed).toHaveLength(2);
     const staffRows = listed.filter((r) => r.memberId === staffMemberId);
     expect(staffRows).toHaveLength(1);
     expect(staffRows[0]._id).toBe(early);
     expect(staffRows[0].email).toBe(STAFF);
     const unknown = listed.filter((r) => r.name === "Unknown");
-    expect(unknown).toHaveLength(2);
+    expect(unknown).toHaveLength(1);
     expect(unknown.every((r) => r.kind === "member" && r.email === undefined)).toBe(true);
-    expect(listed.map((r) => r.signInTime)).toEqual([dateStart + 4_000, dateStart + 2_000, dateStart + 1_000]);
+    expect(listed.map((r) => r.signInTime)).toEqual([dateStart + 2_000, dateStart + 1_000]);
   });
 
   test("an invalid or missing event id lists nothing", async () => {
@@ -1727,7 +1729,7 @@ describe("listByEvent identity", () => {
 });
 
 describe("roster ranking history", () => {
-  test("scores history by member, staff and plain alike, and a memberless history row counts for no one", async () => {
+  test("scores history by member, staff and plain alike", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
@@ -1740,7 +1742,6 @@ describe("roster ranking history", () => {
       subgroups: [USYD],
     });
     await t.run(async (ctx) => {
-      await ctx.db.insert("attendance", { eventId: pastId, signInTime: dateStart - 86_400_000 });
       await ctx.db.insert("attendance", { eventId: pastId, memberId: staffMemberId, signInTime: dateStart - 86_400_000 });
       await ctx.db.insert("attendance", { eventId: pastId, memberId: guestId, signInTime: dateStart - 86_400_000 });
     });
@@ -1772,5 +1773,82 @@ describe("event lookups skip ids that no longer resolve", () => {
       numItems: 5,
     });
     expect(page.events.map((e) => e._id)).toEqual([kept]);
+  });
+});
+
+describe("a staff person's name follows one rule in every list", () => {
+  test("profile name, then the member row's own name, never an email", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Night",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const staffMember = await memberOf(t, STAFF);
+    const leaderMember = await memberOf(t, LEADER);
+    await t.run(async (ctx) => {
+      for (const email of [STAFF, LEADER]) {
+        const profile = await ctx.db
+          .query("staffProfiles")
+          .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", YEAR))
+          .first();
+        await ctx.db.patch(profile!._id, { name: email });
+      }
+      await ctx.db.patch(staffMember, { name: "Sid Staff" });
+      await ctx.db.patch(leaderMember, { name: LEADER });
+    });
+    await leader.mutation(api.attendance.signIn, { eventId, email: STAFF });
+    await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
+
+    const namesEverywhere = async () => {
+      const roster = await leader.query(api.attendance.roster, { year: YEAR });
+      const signedIn = await leader.query(api.attendance.listByEvent, { eventId });
+      const members = await leader.query(api.attendanceMembers.list, {
+        year: YEAR,
+        paginationOpts: { numItems: 50, cursor: null },
+      });
+      const exported = await leader.query(api.attendanceExport.eventsForExport, {
+        subgroup: USYD,
+      });
+      const rows = exported!.events.find((e) => e._id === eventId)!.rows;
+      return [STAFF, LEADER].map((email) => [
+        roster.find((r) => r.email === email)?.name,
+        signedIn.find((r) => r.email === email)?.name,
+        members.page.find((r) => r.email === email)?.name,
+        rows.find((r) => r.email === email)?.name,
+      ]);
+    };
+
+    expect(await namesEverywhere()).toEqual([
+      ["Sid Staff", "Sid Staff", "Sid Staff", "Sid Staff"],
+      ["leader", "leader", "leader", "leader"],
+    ]);
+    const signIns = await t.run((ctx) =>
+      ctx.db
+        .query("attendanceAuditLog")
+        .filter((q) => q.eq(q.field("action"), "attendance.signIn"))
+        .collect()
+    );
+    expect(signIns.map((l) => l.summary).sort()).toEqual([
+      'Sid Staff signed in to "Night" (USYD)',
+      'leader signed in to "Night" (USYD)',
+    ]);
+
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", STAFF).eq("year", YEAR))
+        .first();
+      await ctx.db.patch(profile!._id, { name: "Stella Staff" });
+    });
+    expect((await namesEverywhere())[0]).toEqual([
+      "Stella Staff",
+      "Stella Staff",
+      "Stella Staff",
+      "Stella Staff",
+    ]);
   });
 });

@@ -1,4 +1,4 @@
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ReactNode, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -10,7 +10,10 @@ import {
   isFieldShown,
   type DesignField,
 } from "@shared/designRequests";
+import { CommentsButton } from "@/components/CommentThreadSheet";
 import { DesignCommentsSheet } from "@/components/design/DesignCommentsSheet";
+import { LabelledField } from "@/components/events/LabelledField";
+import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { DesignStatusPill } from "@/components/design/DesignStatusPill";
@@ -20,13 +23,13 @@ import {
   ConfirmDialog,
   EmptyState,
   ErrorBanner,
-  errorMessage,
   FadeInView,
   Field,
   LoadingState,
   Muted,
   ReadableColumn,
   Row,
+  runBusy,
   Screen,
   SectionTitle,
   Sheet,
@@ -145,6 +148,7 @@ const StatusLines = ({
 export default function DesignRequestScreen() {
   const t = useAppTheme();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { id, thread, reopen } = useLocalSearchParams<{
     id: string;
     thread?: string;
@@ -194,6 +198,13 @@ export default function DesignRequestScreen() {
   const goBack = () =>
     router.canGoBack() ? router.back() : router.replace("/design-requests");
 
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <Screen title="Design request" onBack={goBack}>
+        <SignInPrompt what="design request" />
+      </Screen>
+    );
+  }
   if (data === undefined) {
     return (
       <Screen title="Design request" onBack={goBack}>
@@ -214,19 +225,8 @@ export default function DesignRequestScreen() {
   }
 
   const { request, can } = data;
-  const run = async (action: () => Promise<unknown>, after?: () => void) => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-      after?.();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const run = (action: () => Promise<unknown>, after?: () => void) =>
+    runBusy(busy, setBusy, setError, action, after);
   const unreadCount = unread[request._id] ?? 0;
 
   // Built on the device from what this page shows, plus its history and comments.
@@ -332,12 +332,7 @@ export default function DesignRequestScreen() {
                     />
                   ) : null}
                   {can.comment ? (
-                    <Btn
-                      title={unreadCount > 0 ? `Comments (${unreadCount} new)` : "Comments"}
-                      variant="tonal"
-                      icon="chatbubbles-outline"
-                      onPress={() => setCommentsOpen(true)}
-                    />
+                    <CommentsButton unread={unreadCount} onPress={() => setCommentsOpen(true)} />
                   ) : null}
                   <Btn
                     title="Download PDF"
@@ -394,7 +389,7 @@ export default function DesignRequestScreen() {
         }
       >
         <Muted>The requester and the Marketing team will be told your reason.</Muted>
-        <Field label="Reason (required)" value={reason} onChangeText={setReason} multiline />
+        <LabelledField label="Reason" required value={reason} onChangeText={setReason} multiline />
         <ErrorBanner message={error} />
       </Sheet>
 

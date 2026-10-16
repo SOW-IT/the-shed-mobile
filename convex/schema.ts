@@ -46,9 +46,6 @@ export default defineSchema({
     isAnonymous: v.optional(v.boolean()),
     // The church they picked from the list (`churches`).
     churchId: v.optional(v.id("churches")),
-    // What they typed before churches were a list; shown as a hint until
-    // they pick one.
-    localChurch: v.optional(v.string()),
     avatarId: v.optional(v.id("_storage")),
   })
     .index("email", ["email"])
@@ -60,10 +57,7 @@ export default defineSchema({
     // Lower-case, single-spaced name, so the same church isn't added twice.
     nameKey: v.string(),
     address: v.optional(v.string()),
-    serviceTimes: v.optional(v.string()),
-    services: v.optional(
-      v.array(v.object({ day: v.number(), time: v.string() })),
-    ),
+    services: v.optional(v.array(v.object({ day: v.number(), time: v.string() }))),
     website: v.optional(v.string()),
     instagram: v.optional(v.string()),
     addedBy: v.string(),
@@ -428,8 +422,7 @@ export default defineSchema({
     .index("by_requester_and_status", ["requesterEmail", "status"])
     .index("by_department_and_year", ["department", "year"])
     .index("by_department_and_status", ["department", "status"])
-    .index("by_status", ["status"])
-    .index("by_legacyKey", ["legacyKey"]),
+    .index("by_status", ["status"]),
 
   // One of an event's three forms. Marketing keeps `answers` (the form in
   // convex/eventRequestForm.ts), Risk keeps `risk` and Finance keeps
@@ -452,8 +445,7 @@ export default defineSchema({
     decidedBy: v.optional(v.string()),
     changesReason: v.optional(v.string()),
   })
-    .index("by_eventRequest_and_kind", ["eventRequestId", "kind"])
-    .index("by_kind_and_status", ["kind", "status"]),
+    .index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
 
   eventRequestEvents: defineTable({
     eventRequestId: v.id("eventRequests"),
@@ -500,15 +492,13 @@ export default defineSchema({
     name: v.string(),
     dateStart: v.number(),
     dateEnd: v.number(),
-    sourceImportId: v.optional(v.string()),
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     // A campus weekly's term and week, set when it was created as a Weekly
     // (or by the backfill). Insights trusts these over dates and names.
     weekly: v.optional(weeklyMarkValidator),
   })
-    .index("by_dateStart", ["dateStart"])
-    .index("by_sourceImportId", ["sourceImportId"]),
+    .index("by_dateStart", ["dateStart"]),
 
   attendanceAuditLog: defineTable({
     actorEmail: v.string(),
@@ -553,13 +543,11 @@ export default defineSchema({
     // A plain member's own email. On a staff person's row it is their staff
     // email, which links the row to their staff profile.
     email: v.optional(v.string()),
-    sourceImportId: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
     // A plain member's local church (staff set theirs in their Profile).
     churchId: v.optional(v.id("churches")),
   })
     .index("by_email", ["email"])
-    .index("by_source_import_id", ["sourceImportId"])
     .index("by_name", ["name"])
     .index("by_churchId", ["churchId"]),
 
@@ -574,7 +562,7 @@ export default defineSchema({
 
   attendance: defineTable({
     eventId: v.id("events"),
-    memberId: v.optional(v.id("attendanceMembers")),
+    memberId: v.id("attendanceMembers"),
     signInTime: v.number(),
     notes: v.optional(v.string()),
   })
@@ -597,44 +585,12 @@ export default defineSchema({
     computedAt: v.number(),
     data: metricsDataValidator,
   })
-    .index("by_subgroup_and_range", [
-      "subgroup",
-      "rangeWeeks",
-      "includeCollaborative",
-    ])
     .index("by_subgroup_range_year", [
       "subgroup",
       "rangeWeeks",
       "includeCollaborative",
       "staffYear",
     ]),
-
-  attendanceMetricsRuns: defineTable({
-    subgroup: v.string(),
-    staffYear: v.number(),
-    computedAt: v.number(),
-    // Set only by a manual refresh (`recomputeNow`); the nightly cron never
-    // touches it, so the manual-refresh cooldown is measured against real
-    // manual refreshes rather than the last automatic rebuild.
-    lastManualRefreshAt: v.optional(v.number()),
-    variants: v.array(v.string()),
-  }).index("by_subgroup_and_year", ["subgroup", "staffYear"]),
-
-  // The one number the SOW campus comparison needs from each Snapshot, written
-  // alongside it so the comparison doesn't read every campus's full Snapshot.
-  attendanceMetricsWeeklyAverages: defineTable({
-    subgroup: v.string(),
-    rangeWeeks: v.number(),
-    includeCollaborative: v.boolean(),
-    staffYear: v.number(),
-    computedAt: v.number(),
-    avgWeekly: v.union(v.number(), v.null()),
-  }).index("by_year_range_collab_subgroup", [
-    "staffYear",
-    "rangeWeeks",
-    "includeCollaborative",
-    "subgroup",
-  ]),
 
   // One row: the Insights → General campus weekly-attendance chart, rebuilt by
   // the nightly Insights rebuild so opening the tab reads this instead of

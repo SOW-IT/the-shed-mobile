@@ -6,6 +6,171 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.5] - 2026-10-16
+
+A pass through every screen as each kind of user (signed out, personal
+account, no staff profile, campus leader, staff, approvers, admin), fixing what
+was broken and showing things instead of explaining them.
+
+### Changed
+- **Forms wait until they're complete.** New reimbursement, Submit Receipt,
+  Add Account and Mark as Paid are muted until every needed field is filled,
+  instead of failing with a message. Mark as Paid starts at the amount owed.
+- **New design and event requests point at the question that needs an
+  answer.** It's outlined in red with the problem under it, and the banner
+  names the question number shown on screen.
+- **Approving says who's next.** "Next: Brandon Teng, Finance Head." or "This
+  is the last approval. Tony Le is then asked for the receipt." An approver
+  looking at their own queue reads "Waiting for your approval."
+- **Actions that matter are words, not bare icons.** "Add receipt" and "Mark
+  paid" on request cards; event request cards mark each form with a status
+  icon (circle, clock, alert, tick, dash) instead of a coloured dot.
+- **Insights is easier to read.** Campus bars use each campus's colour; chart
+  tooltips name the period ("Sem 2 2026 · 104"); SOW TWIG only calls someone
+  Regular once 3 TWIGs have a roll; a new staff year with nothing yet offers a
+  button to the year before (TWIG, PPN, and the All tabs of design and event
+  requests).
+- **Member rows say what each value is**: "Year 2", "Arc Member" and
+  "@handle" instead of "2", "Yes" and "handle".
+- **Edit Home shows icons and campuses.** The icon pickers show each icon, and
+  a card's campus logo is picked from the campuses that have one instead of
+  typed.
+- **Dates read the same everywhere**, day first ("16 Oct 2026, 12:09 pm"),
+  whatever language the device is set to.
+- **Profile says what kind of account it is.** A personal (Apple) account says
+  "Personal account" and has no empty service history; a SOW account with no
+  staff profile says "No staff profile for 2027".
+- **Smaller tidy-ups across Attendance, Requests and Admin**: owner and taken
+  weeks shown in the event editor, lock icons on rows an ended event keeps,
+  read-only Tags and Metadata for people who can't change them, a "Not signed
+  in" filter chip and side-by-side actions in Admin, an update pill in the top
+  bar instead of a banner over the tabs.
+- **Exporting one event skips the layout question.** A grid of one event says
+  nothing a list doesn't, so single-event exports go straight to the list.
+- **Four-step requests show each approver's full name**, wrapping onto a second
+  line instead of cutting it off.
+- **The merge review card uses the member row wording** ("Year 6 · Arc
+  Member") instead of "6 · Yes".
+- **Less code to maintain.** Props and helpers nothing used are gone, and the
+  two PDF exports, the Members and Audit filter bars, and the screens' busy
+  handling each share one implementation. About 450 fewer lines.
+
+### Fixed
+- **A merge showed twice in the Audit tab, with database ids.** It shows once,
+  in words.
+- **Collapsed request cards hid their unread comments** even though the Review
+  tab counted them. They now show a comment count.
+- **A signed-out reimbursement link said the request was deleted.** It asks
+  you to sign in, like design and event request links.
+- **Western Sydney's campus mark read "USYD"** and a deleted dropdown option
+  showed as a bare number on member rows.
+- **Requests**: the requester hears about every comment on their request; an
+  auto-approved step says so; double-tapping Submit makes one request; a
+  read-only comment thread says why instead of offering a box; Risk and
+  Finance errors use the row numbers on screen.
+- **Admin and shell**: renaming a locked name is blocked and renames carry
+  through to requests and announcements; sign-out stops pushes to that device;
+  notifications keep an Unread section for the visit; the sign-out confirm
+  spells The SHED.
+- **Attendance**: lists stay live past the first page without a crash; search
+  with no matches says so; typing a name to confirm ignores case.
+- **The dev-only test sign-in no longer renames a real account** to its email
+  prefix.
+- **Downloads**: exported CSVs open in Excel with curly quotes and emoji
+  intact, and request times are Sydney time instead of UTC; an approved event
+  Finance form over $5,000 names the Director as well as the Finance Head, on
+  screen and in the PDF; PDF headings and question labels no longer sit alone
+  at the bottom of a page.
+
+## [2.9.4] - 2026-10-16
+
+### Added
+- **Setting your church says who will see it.** In Profile, staff are warned
+  that anyone using The SHED can see their church, with their name, on the
+  Churches page; members are told only staff and campus leaders can see
+  theirs. Editing a member's record says the same for their church. The note
+  shows under the picker and at the top of the list while choosing.
+
+### Changed
+- **Members' churches are only for staff and campus leaders.** People with no
+  staff assignment this year no longer appear on the Churches page, and their
+  church no longer shows on their profile, for anyone else. Staff and campus leaders still see
+  everyone, and the page says members are only visible to them.
+- **The Churches filter picks any mix of people and campuses.** One row has
+  Campus leaders, Staff, and Members (for staff and campus leaders); the other
+  has each campus, plus No campus. Nothing picked shows everyone; pick one or
+  more in a row to show only them, and tap again to unpick. Everyone and
+  Volunteers are gone, since nothing picked is everyone and leaders plus staff
+  is the old Volunteers. Each option shows how many people it covers, the
+  line under the filter counts the churches and people showing, and Show
+  everyone clears it.
+- **A fresh look across the app.** Titles, headings and big numbers use a new
+  typeface, Familjen Grotesk; buttons and links are back in SOW's evergreen;
+  cards are flat with a fine edge instead of a shadow; and section labels are
+  in plain sentence case instead of capitals. The current bottom tab sits on
+  a soft pill, Home's values are one list, and Profile's service history is
+  one card with a row per year.
+- **Map pins grow with the number of people.** The church more people go to
+  has a bigger label, one fewer go to a smaller one, instead of a number on
+  each pin.
+
+### Fixed
+- **The church map on iPhone has rounded corners** like the cards around it.
+
+## [2.9.3] - 2026-10-16
+
+### Changed
+- **The typed church and old import ids are gone from the database.** 2.9.2's
+  clean-up ran on production (three churches added and linked, import ids
+  cleared from 220 events and 1,200 members), so the empty fields and their
+  indexes are removed along with the one-off clean-up code.
+
+## [2.9.2] - 2026-10-16
+
+### Changed
+- **The last typed churches are on the list.** The three staff whose church
+  was still only typed text (Redeemer Presbyterian Church, Sydney Elim
+  Presbyterian Church, New Life Christian Church) are linked to new list
+  entries with those names, so they show on the Churches page. Where each
+  meets and when can be filled in from the page. Profiles no longer show or
+  hint at typed text.
+- **Leftover data from old imports is cleared.** The one-off import from the
+  old Roll Call app is retired, and the import ids it left on 220 events and
+  1,200 members are removed. Unused search indexes and the old free-text
+  service times column are gone, and every sign-in now has to belong to a
+  member (all of them already do).
+
+## [2.9.1] - 2026-10-15
+
+### Added
+- **Filter the Churches page by who goes.** Everyone, Volunteers (campus
+  leaders and staff together), Campus leaders or Staff, and one or more campuses.
+  The list, each church's People count ("3 of 8") and the map all follow the
+  filter, and churches nobody matching goes to drop out. Campus leaders are
+  staff with a campus role that staff year, the same rule as TWIG Insights.
+- **Map pins show who goes.** Each pin has the number of people (after the
+  filter) in the colour of their main campus, bigger churches sit on top, and
+  the chosen church's pin spells out its full name. The Apple map behind them
+  is the muted style so the pins stand out.
+
+### Changed
+- **Tags has a Weeklies | Other events switch at the top**, like Admin's
+  Structure, instead of both lists on one long page. Moving a tag to the other
+  list takes you there with it.
+- **Save and Cancel look switched off until something changes**, on Tags and
+  every other screen with a Save button at the bottom. They were already
+  disabled; now they look it.
+- **The owning campus in Shared with is shown, not labelled.** It's always
+  selected and can't be removed, so it's drawn selected but faded, instead of
+  "· owner" after its name.
+- **2.9.0 is now the oldest supported app.** The server no longer keeps code
+  for older builds: Insights screens from before 2.0.1, the typed church field
+  from before 2.5.5, weeklies that arrive without a term and week (2.7.0 and
+  older), the old Weekly Meeting tag name, and web links held back from apps
+  older than 2.5.5. Finished one-off jobs went too (the 2.8.0 weekly rename,
+  the 2.5.6 church list set-up, the 2.3.0 event form import and others).
+  The SOW Insights card now says "Average turnout at weeklies".
+
 ## [2.9.0] - 2026-10-15
 
 ### Added

@@ -13,7 +13,6 @@ import {
 } from "../shared/attendanceMemberMeta";
 import { canonicalSubgroup, subgroupMatches } from "../shared/rollcall";
 import {
-  internalMutation,
   mutation,
   type MutationCtx,
   query,
@@ -296,12 +295,11 @@ export const saveAll = mutation({
           ? [...GENDER_OPTION_IDS, "Male", "Female"]
           : key === STUDENT_YEAR_FIELD_KEY
             ? [...STUDENT_YEAR_LEVELS]
-            :
-              key === "Campus"
-          ? universityNames
-          : key === "Role"
-            ? orgRoles
-            : field.lockedValues;
+            : key === "Campus"
+              ? universityNames
+              : key === "Role"
+                ? orgRoles
+                : field.lockedValues;
 
       if (field.type === "select" && values) {
         for (const locked of lockedValues ?? []) {
@@ -390,74 +388,5 @@ export const saveAll = mutation({
               .join(", ")}`,
       });
     }
-  },
-});
-
-export const consolidateAttendanceMetadata = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const rows = await ctx.db.query("attendanceMetadata").collect();
-    const groupKey = (r: (typeof rows)[number]) =>
-      `${r.key} ${canonicalSubgroup(r.subgroup ?? "")}`;
-    const groups = new Map<string, typeof rows>();
-    for (const r of rows) {
-      const g = groups.get(groupKey(r)) ?? [];
-      g.push(r);
-      groups.set(groupKey(r), g);
-    }
-
-    const members = await ctx.db.query("attendanceMembers").collect();
-    let merged = 0;
-
-    for (const group of groups.values()) {
-      const sorted = [...group].sort(
-        (a, b) => a.order - b.order || a._creationTime - b._creationTime
-      );
-      const survivor = sorted[0];
-      const losers = sorted.slice(1);
-
-      const survivorValues = { ...(survivor.values ?? {}) };
-      const idForLabel = new Map<string, string>();
-      for (const [id, label] of Object.entries(survivorValues)) {
-        if (!idForLabel.has(label)) idForLabel.set(label, id);
-      }
-      const ensureLabel = (label: string): string => {
-        const existing = idForLabel.get(label);
-        if (existing) return existing;
-        const id = String(nextNumericKey(survivorValues));
-        survivorValues[id] = label;
-        idForLabel.set(label, id);
-        return id;
-      };
-
-      for (const loser of losers) {
-        for (const label of Object.values(loser.values ?? {})) ensureLabel(label);
-        const remapOption = (value: string): string => {
-          if (loser.type !== "select") return value;
-          const label = loser.values?.[value];
-          return label === undefined ? value : ensureLabel(label);
-        };
-        for (const member of members) {
-          const meta = member.metadata;
-          if (!meta || meta[loser._id] === undefined) continue;
-          const next = { ...meta };
-          const value = next[loser._id];
-          delete next[loser._id];
-          if (next[survivor._id] === undefined) {
-            next[survivor._id] = remapOption(value);
-          }
-          await ctx.db.patch(member._id, { metadata: next });
-          member.metadata = next;
-        }
-        await ctx.db.delete(loser._id);
-        merged++;
-      }
-
-      if (survivor.type === "select") {
-        await ctx.db.patch(survivor._id, { values: survivorValues });
-      }
-    }
-
-    return { groups: groups.size, merged };
   },
 });

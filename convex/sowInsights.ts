@@ -25,7 +25,7 @@ async function toSowEvent(ctx: QueryCtx, event: Doc<"events">): Promise<SowEvent
     .query("attendance")
     .withIndex("by_event", (q) => q.eq("eventId", event._id))
     .take(MAX_SIGN_INS_PER_EVENT);
-  const people = new Set(rows.map((r) => (r.memberId ? `member:${r.memberId}` : `signin:${r._id}`)));
+  const people = new Set(rows.map((r) => `member:${r.memberId}`));
   return { id: event._id, name: event.name, at: event.dateStart, people: [...people] };
 }
 
@@ -77,7 +77,11 @@ export const view = query({
     const now = Date.now();
     const tags = new Map((await ctx.db.query("attendanceTags").take(MAX_TAGS)).map((t) => [t._id, t]));
     const events = (
-      await ctx.db.query("events").withIndex("by_dateStart").order("desc").take(MAX_EVENTS)
+      await ctx.db
+        .query("events")
+        .withIndex("by_dateStart", (q) => q.lte("dateStart", now))
+        .order("desc")
+        .take(MAX_EVENTS)
     ).filter((e) => sowModeOf((e.tagIds ?? []).flatMap((id) => tags.get(id) ?? [])) === mode);
 
     const current = currentStaffYear();
@@ -85,6 +89,7 @@ export const view = query({
       ...new Set([current, ...events.map((e) => staffYearForDate(new Date(e.dateStart)))]),
     ].sort((a, b) => b - a);
     const year = staffYear !== undefined && years.includes(staffYear) ? staffYear : current;
+    const earlierYear = years.find((y) => y < year);
     const inYear = (y: number) =>
       events.filter((e) => e.dateStart >= staffYearStartMs(y) && e.dateStart < staffYearStartMs(y + 1));
     const load = (list: Doc<"events">[]) => Promise.all(list.map((e) => toSowEvent(ctx, e)));
@@ -103,7 +108,7 @@ export const view = query({
       return {
         years: yearOptions,
         year,
-        blocks: buildTwigBlocks({ result, people, missesForFollowUp: rules.followUpMisses }),
+        blocks: buildTwigBlocks({ result, people, missesForFollowUp: rules.followUpMisses, earlierYear }),
       };
     }
     const earlier = await load(events.filter((e) => e.dateStart < staffYearStartMs(year - 1)));
@@ -114,6 +119,6 @@ export const view = query({
       earlier: [...earlier, ...lastYear],
       people,
     });
-    return { years: yearOptions, year, blocks: buildPpnBlocks({ result }) };
+    return { years: yearOptions, year, blocks: buildPpnBlocks({ result, earlierYear }) };
   },
 });

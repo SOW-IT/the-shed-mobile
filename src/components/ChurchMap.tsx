@@ -2,9 +2,18 @@ import { AdvancedMarker, APIProvider, Map, useMap, useMapsLibrary } from "@vis.g
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { Id } from "../../convex/_generated/dataModel";
-import { churchAcronym } from "../../shared/churches";
 import { radius, useAppTheme } from "../theme";
-import type { Church } from "./ChurchPicker";
+import {
+  PIN_NAME_MAX_WIDTH,
+  pinAccessibilityLabel,
+  pinRing,
+  pinLabel,
+  pinSize,
+  pinZIndex,
+  type ChurchPin,
+} from "./churchPins";
+
+export type { ChurchPin } from "./churchPins";
 
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 const MAP_ID = process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
@@ -14,7 +23,7 @@ export const churchMapAvailable = API_KEY.length > 0;
 const SYDNEY = { lat: -33.8, lng: 151.05 };
 const SINGLE_CHURCH_ZOOM = 14;
 
-type Placed = { church: Church; position: { lat: number; lng: number } };
+type Placed = { pin: ChurchPin; position: { lat: number; lng: number } };
 
 function FitToChurches({ placedKey }: { placedKey: string }) {
   const map = useMap();
@@ -35,19 +44,20 @@ function FitToChurches({ placedKey }: { placedKey: string }) {
 }
 
 export function ChurchMap({
-  churches,
+  pins,
   selectedId,
   onSelect,
 }: {
-  churches: readonly Church[];
+  pins: readonly ChurchPin[];
   selectedId: Id<"churches"> | null;
   onSelect: (churchId: Id<"churches">) => void;
 }) {
   const t = useAppTheme();
-  const placed: Placed[] = churches.flatMap((church) =>
-    church.location ? [{ church, position: church.location }] : []
+  const placed: Placed[] = pins.flatMap((pin) =>
+    pin.church.location ? [{ pin, position: pin.church.location }] : []
   );
   const placedKey = JSON.stringify(placed.map(({ position }) => position));
+  const most = Math.max(0, ...pins.map((pin) => pin.people));
 
   return (
     <View style={styles.map}>
@@ -63,46 +73,53 @@ export function ChurchMap({
           colorScheme={t.dark ? "DARK" : "LIGHT"}
           style={{ width: "100%", height: "100%" }}
         >
-          {placed.map(({ church, position }) => {
-            const on = church._id === selectedId;
+          {placed.map(({ pin, position }) => {
+            const on = pin.church._id === selectedId;
+            const ring = pinRing(pin, t.primary);
+            const size = pinSize(pin.people, most);
             return (
               <AdvancedMarker
-                key={church._id}
+                key={pin.church._id}
                 position={position}
-                title={church.name}
-                zIndex={on ? 2 : 1}
-                onClick={() => onSelect(church._id)}
+                title={pin.church.name}
+                zIndex={pinZIndex(pin, on)}
+                onClick={() => onSelect(pin.church._id)}
               >
                 <div
                   role="button"
-                  aria-label={`${church.name}. Show who goes there`}
-                  data-church-pin={church.name}
+                  aria-label={pinAccessibilityLabel(pin)}
+                  data-church-pin={pin.church.name}
                   style={{ display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" }}
                 >
                   <div
                     style={{
-                      maxWidth: 120,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      padding: "4px 10px",
+                      display: "flex",
+                      alignItems: "center",
+                      maxWidth: PIN_NAME_MAX_WIDTH,
+                      height: size.height,
+                      boxSizing: "border-box",
+                      padding: `0 ${size.paddingHorizontal}px`,
                       borderRadius: 999,
-                      border: `1px solid ${t.primary}`,
+                      border: `1.5px solid ${on ? t.primary : ring}`,
                       background: on ? t.primary : t.card,
                       color: on ? t.onPrimary : t.text,
-                      font: "700 12px/1.3 system-ui, -apple-system, sans-serif",
-                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.25)",
+                      font: `700 ${size.fontSize}px/1 system-ui, -apple-system, sans-serif`,
+                      letterSpacing: 0.2,
+                      boxShadow: "0 1px 4px rgba(0, 0, 0, 0.3)",
                     }}
                   >
-                    {churchAcronym(church.name)}
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {pinLabel(pin, on)}
+                    </span>
                   </div>
                   <div
                     style={{
                       width: 0,
                       height: 0,
-                      borderLeft: "6px solid transparent",
-                      borderRight: "6px solid transparent",
-                      borderTop: `8px solid ${t.primary}`,
+                      marginTop: -1,
+                      borderLeft: "5px solid transparent",
+                      borderRight: "5px solid transparent",
+                      borderTop: `6px solid ${on ? t.primary : ring}`,
                     }}
                   />
                 </div>

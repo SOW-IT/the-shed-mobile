@@ -46,12 +46,9 @@ export const appLinkForScheme = (scheme: string | undefined): AppLink =>
  * on a phone the web keeps these pages to itself unless the link says the
  * person's app is new enough (`#app`, see `appCanOpen`).
  */
-export const NEWER_PAGES: readonly { prefix: string; since: string }[] = [
-  { prefix: "/design-requests", since: "2.2.0" },
-  { prefix: "/event-requests", since: "2.3.0" },
-  { prefix: "/announcements", since: "2.4.0" },
-  { prefix: "/churches", since: "2.5.5" },
-];
+export type NewerPage = { prefix: string; since: string };
+
+export const NEWER_PAGES: readonly NewerPage[] = [];
 
 /** The marker on a link whose recipient's app can open it. */
 export const APP_LINK_MARKER = "#app";
@@ -71,28 +68,50 @@ export const compareVersions = (a: string, b: string): number => {
 export const isAppVersion = (value: string): boolean => /^\d+\.\d+\.\d+$/.test(value);
 
 /** The app version a page needs, or null when every version has it. */
-export const versionNeededFor = (path: string): string | null => {
+export const versionNeededFor = (path: string, pages: readonly NewerPage[] = NEWER_PAGES): string | null => {
   const pathname = path.split(/[?#]/)[0];
-  const page = NEWER_PAGES.find(
+  const page = pages.find(
     (p) => pathname === p.prefix || pathname.startsWith(`${p.prefix}/`)
   );
   return page?.since ?? null;
 };
 
 /** Whether an app of `version` (null: unknown or an old app) can open `path`. */
-export const appCanOpen = (path: string, version: string | null | undefined): boolean => {
-  const needed = versionNeededFor(path);
+export const appCanOpen = (
+  path: string,
+  version: string | null | undefined,
+  pages: readonly NewerPage[] = NEWER_PAGES
+): boolean => {
+  const needed = versionNeededFor(path, pages);
   if (!needed) return true;
   return !!version && compareVersions(version, needed) >= 0;
 };
 
-export type UpdateStatus = "ok" | "recommended" | "required";
+type UpdateStatus = "ok" | "recommended" | "required";
 
-export type UpdatePolicy = { minimum?: string; recommended?: string };
+type UpdatePolicy = { minimum?: string; recommended?: string };
 
 export const updateStatusFor = (version: string, policy: UpdatePolicy | null): UpdateStatus => {
   if (!isAppVersion(version) || !policy) return "ok";
   if (policy.minimum && compareVersions(version, policy.minimum) < 0) return "required";
   if (policy.recommended && compareVersions(version, policy.recommended) < 0) return "recommended";
   return "ok";
+};
+
+const SIGN_IN_RETURN_PARAMS = [
+  "code",
+  "state",
+  "scope",
+  "authuser",
+  "prompt",
+  "hd",
+  "error",
+  "error_description",
+] as const;
+
+export const searchWithoutSignInParams = (search: string): string => {
+  const params = new URLSearchParams(search);
+  for (const key of SIGN_IN_RETURN_PARAMS) params.delete(key);
+  const rest = params.toString();
+  return rest ? `?${rest}` : "";
 };

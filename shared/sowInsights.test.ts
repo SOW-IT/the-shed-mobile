@@ -97,7 +97,7 @@ describe("TWIG", () => {
       rules: RULES,
     });
     expect(past.running).toBe(false);
-    expect(past.lastLabel).toBe("2026");
+    expect(past.lastLabel).toBe("staff year 2026");
     expect(past.followUp).toEqual([]);
   });
 
@@ -126,7 +126,12 @@ describe("TWIG", () => {
       "people",
       "eventList",
     ]);
-    expect(pick(blocks, "cards")[0].cards[0].info?.body).toContain("the same point in last staff year");
+    expect(pick(blocks, "caption")[0].text).toBe(
+      "Staff year 2027: 4 TWIGs so far, compared with staff year 2026, to 20 Nov 2025. Only campus leaders are counted."
+    );
+    const cards = pick(blocks, "cards")[0].cards;
+    expect(cards[0].info?.body).toContain("Compared with staff year 2026, to 20 Nov 2025: the same point in last staff year.");
+    expect(cards.map((c) => c.hint)).toEqual(["vs 0", "vs 0", "vs 0"]);
     expect(pick(blocks, "multiBars")[0].points.map((p) => p.label)).toEqual(["5 Oct", "12 Oct", "19 Oct", "26 Oct", "#5"]);
     const rows = pick(blocks, "people")[0].rows;
     expect(rows.find((r) => r.key === "x")).toMatchObject({
@@ -135,8 +140,21 @@ describe("TWIG", () => {
       warning: "No staff profile for 2027",
       category: { label: "No staff profile" },
     });
-    expect(rows.find((r) => r.key === "s")?.category.label).toBe("Organiser");
-    expect(rows.find((r) => r.key === "a")).toMatchObject({ category: { label: "UNSW" }, tags: ["leader", "regular"] });
+    expect(rows.find((r) => r.key === "x")?.subgroup).toBeUndefined();
+    expect(rows.find((r) => r.key === "s")).toMatchObject({ category: { label: "Organiser" }, dimmed: true, badge: undefined });
+    expect(rows.find((r) => r.key === "a")).toMatchObject({
+      category: { label: "UNSW" },
+      tags: ["leader", "regular"],
+      badge: { label: "Regular", colour: "#16A34A" },
+      dimmed: undefined,
+      subgroup: UNSW,
+      secondary: "Last came 12 Oct 2026",
+    });
+    expect(pick(blocks, "people")[0].subtitle).toBe("Everyone who came to a TWIG in staff year 2027.");
+    expect(pick(blocks, "followUpGroups")[0].groups[0].people.map((p) => [p.key, p.subgroup])).toEqual([
+      ["a", UNSW],
+      ["c", UNSW],
+    ]);
     expect(pick(blocks, "people")[0].filters.map((f) => f.key)).toEqual(["leader", "staff", "none", "regular"]);
   });
 
@@ -156,7 +174,10 @@ describe("TWIG", () => {
     expect(pick(blocks, "multiBars")[0].legend.map((l) => l.key)).toEqual(["now"]);
     expect(pick(blocks, "followUpGroups")[0].groups).toEqual([]);
     expect(pick(blocks, "eventList")).toEqual([]);
-    expect(pick(blocks, "cards")[0].cards.every((c) => !c.hint)).toBe(true);
+    const cards = pick(blocks, "cards")[0].cards;
+    expect(cards.filter((c) => c.label !== "Regulars").every((c) => !c.hint)).toBe(true);
+    expect(cards.find((c) => c.label === "Regulars")).toMatchObject({ value: "–", hint: "After 3 TWIGs" });
+    expect(result.rows.every((r) => !r.regular)).toBe(true);
 
     const nothing = computeTwig({ year: 2027, events: [], lastEvents: [], people, now: NOW, rules: RULES });
     expect(buildTwigBlocks({ result: nothing, people, missesForFollowUp: 2 }).map((b) => b.type)).toEqual(["empty"]);
@@ -172,14 +193,31 @@ describe("TWIG", () => {
       rules: RULES,
     });
     expect(result.last).toBeNull();
-    expect(result.lastLabel).toBe("2026 up to 15 Oct");
+    expect(result.lastLabel).toBe("staff year 2026, to 15 Oct 2025");
     const blocks = buildTwigBlocks({ result, people, missesForFollowUp: 2 });
     expect(pick(blocks, "caption")[0].text).toBe(
-      "Staff year 2027: 1 TWIG so far. No TWIG in 2026 up to 15 Oct had a roll, so there's nothing to compare with yet. Only campus leaders are counted."
+      "Staff year 2027: 1 TWIG so far. No TWIG had a roll in staff year 2026, to 15 Oct 2025, so there's nothing to compare with yet. Only campus leaders are counted."
     );
-    expect(pick(blocks, "cards")[0].cards.every((c) => !c.hint && !c.delta)).toBe(true);
+    expect(
+      pick(blocks, "cards")[0].cards.every((c) => !c.delta && (c.label === "Regulars" || !c.hint))
+    ).toBe(true);
     expect(pick(blocks, "followUpGroups")[0].emptyText).toBe("Follow-up starts once 3 TWIGs have a roll.");
     expect(pick(blocks, "multiBars")[0].points.map((p) => p.segments.map((x) => x.value))).toEqual([[1, 0]]);
+  });
+
+  test("a row opens a campus page only for a real campus, not SOW", () => {
+    const sowPeople: SowPeople = new Map([["o", person("o", { "2027": leader("SOW") })]]);
+    const result = computeTwig({
+      year: 2027,
+      events: [event("t1", at(2026, 10, 5), ["o"])],
+      lastEvents: [],
+      people: sowPeople,
+      now: NOW,
+      rules: RULES,
+    });
+    const [row] = pick(buildTwigBlocks({ result, people: sowPeople, missesForFollowUp: 2 }), "people")[0].rows;
+    expect(row.key).toBe("o");
+    expect(row.subgroup).toBeUndefined();
   });
 
   test("a past year's cards say what they're compared with", () => {
@@ -193,6 +231,7 @@ describe("TWIG", () => {
     });
     const blocks = buildTwigBlocks({ result, people, missesForFollowUp: 2 });
     expect(pick(blocks, "cards")[0].cards[0].info?.body).toContain("Compared with staff year 2025.");
+    expect(pick(blocks, "cards")[0].cards[0].hint).toBe("vs 1");
     expect(pick(blocks, "followUpGroups")).toEqual([]);
   });
 });

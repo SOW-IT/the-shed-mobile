@@ -6,7 +6,6 @@ import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
 import { SUB_FORM_INBOXES, type FinanceData, type RiskData } from "../shared/eventRequests";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { NEVER_FINISHED_NOTE } from "./eventRequestImport";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -463,6 +462,27 @@ describe("the Risk form", () => {
     ]);
   });
 
+  test("a submit error names the row as the form shows it, blank rows included", async () => {
+    const t = await setup();
+    const id = await create(t);
+    await expect(
+      submitRisk(
+        t,
+        id,
+        risks({ risks: [{ description: " " }, { description: "Rain", category: "safety" }] })
+      )
+    ).rejects.toThrow("Risk 2: pick how bad it could be.");
+    await expect(
+      submitFinance(t, id, {
+        income: [
+          { label: "", amount: 0 },
+          { label: " ", amount: 25 },
+        ],
+        expenses: [],
+      })
+    ).rejects.toThrow("Income line 2: say what it's for.");
+  });
+
   test("can't be sent without a Compliance Head", async () => {
     const t = await setup({ heads: { ...HEADS, Compliance: undefined } });
     const id = await create(t);
@@ -801,188 +821,3 @@ describe("the forms", () => {
   });
 });
 
-describe("importing from the old web app", () => {
-  const ms = (days: number) => PINNED_NOW + days * DAY;
-  const legacy = (over: Record<string, unknown> = {}) => ({
-    year: YEAR - 1,
-    id: "abc",
-    number: 1,
-    userID: "uid-eva",
-    userEmail: "Eva@sowaustralia.com",
-    userDepartment: "Events",
-    name: " SOW Camp ",
-    purpose: "Camp",
-    goals: "Grow",
-    location: "Tops",
-    registrationGoal: 110,
-    audience: "All",
-    eventStartTime: ms(-100),
-    eventEndTime: ms(-96),
-    submittedTime: ms(-200),
-    updatedTime: ms(-150),
-    marketing: {
-      status: "Approved",
-      keyMessage: "Imago Dei",
-      theme: "N/A",
-      flyers: true,
-      flyersSpecifications: "",
-      otherPrintedSpecifications: "Use the welcome post",
-      promoVideo: true,
-      promoVideoSpecifications: "Show last year",
-      prizeInventive: true,
-      designNeedsApproval: "Yes",
-      promoStart: "2025-11-21",
-      importantPromotionInformation: "Dates",
-    },
-    finance: {
-      status: "Approved",
-      salesRevenues: [{ type: "Rego", unitPrice: 300, quantity: 100, total: 30000, justification: "" }],
-      directExpenses: [
-        { type: "Venue", unitPrice: 380, quantity: 110, total: 41800, justification: "Tops prices" },
-        { type: "", unitPrice: 0, quantity: 0, total: 0, justification: "" },
-      ],
-      travelOthers: [{ type: "Bus", total: 500 }],
-    },
-    ...over,
-  });
-
-  const importOne = (t: T, event: Record<string, unknown>) =>
-    t.mutation(internal.eventRequestImport.importLegacy, { events: [event as never] });
-
-  test("a finished event comes in approved, without a Risk form to fill in", async () => {
-    const t = await setup();
-    expect(await importOne(t, legacy())).toEqual({ inserted: 1, updated: 0, skipped: 0 });
-    const [event] = await t.run((ctx) => ctx.db.query("eventRequests").collect());
-    const data = await get(t, event._id, ADMIN);
-    expect(data.event).toMatchObject({
-      year: YEAR - 1,
-      number: 1,
-      requesterEmail: EVA,
-      department: "Events",
-      name: "SOW Camp",
-      status: "APPROVED",
-      approvedAt: ms(-150),
-      legacyKey: `${YEAR - 1}/abc`,
-    });
-    expect(data.event.answers).toMatchObject({ audience: "all", registrationGoal: 110 });
-    expect(data.forms.risk.status).toBe("NOT_REQUIRED");
-    expect(data.forms.marketing).toMatchObject({
-      status: "APPROVED",
-      answers: {
-        keyMessage: "Imago Dei",
-        visualStyle: "N/A",
-        printed: ["flyers", "other"],
-        printed_other: "Use the welcome post",
-        digital: ["promoVideo"],
-        digital_promoVideo: "Show last year",
-        promotion: ["prizeIncentive"],
-        runByYou: true,
-        multipleDrafts: false,
-        promoStart: "2025-11-21",
-        postInfo: "Dates",
-      },
-    });
-    expect(data.forms.finance.finance).toEqual({
-      income: [{ label: "Rego (100 × $300)", amount: 30000 }],
-      expenses: [
-        { label: "Direct: Venue (110 × $380), Tops prices", amount: 41800 },
-        { label: "Travel and other: Bus", amount: 500 },
-      ],
-    });
-    expect(await actions(t, event._id)).toEqual(["imported"]);
-  });
-
-  test("an unfinished event: cancelled if it's passed, still in progress if not", async () => {
-    const t = await setup();
-    await importOne(t, legacy({ id: "past", finance: { status: "Submitted" }, risk: undefined }));
-    await importOne(
-      t,
-      legacy({
-        id: "soon",
-        number: 2,
-        eventStartTime: ms(30),
-        eventEndTime: undefined,
-        marketing: { status: "Request for change", requestForChangeReason: "More detail", promoStart: ms(5) },
-        finance: undefined,
-        risk: {
-          status: "Approved",
-          entries: [
-            {
-              task: "Buffet",
-              hazards: "Crowds",
-              riskIdentification: "Pushing",
-              proposedControlMeasures: "Queue in groups",
-              residualRiskLevel: "High Risk",
-            },
-          ],
-        },
-        userEmail: undefined,
-        userDepartment: undefined,
-        audience: undefined,
-        name: undefined,
-      })
-    );
-    const events = await t.run((ctx) => ctx.db.query("eventRequests").collect());
-    const past = events.find((e) => e.legacyKey?.endsWith("/past"))!;
-    const soon = events.find((e) => e.legacyKey?.endsWith("/soon"))!;
-    expect(past).toMatchObject({ status: "CANCELLED", cancelNote: NEVER_FINISHED_NOTE });
-    const pastForms = (await get(t, past._id, ADMIN)).forms;
-    expect(pastForms.finance).toMatchObject({ status: "PENDING", step: "financeHead" });
-    expect(pastForms.risk.status).toBe("NOT_REQUIRED");
-
-    expect(soon).toMatchObject({
-      status: "IN_PROGRESS",
-      name: "Untitled event",
-      department: "Events",
-      requesterEmail: "uid-eva@legacy.invalid",
-    });
-    expect(soon.endsAt).toBe(soon.startsAt);
-    const soonForms = (await get(t, soon._id, ADMIN)).forms;
-    expect(soonForms.marketing).toMatchObject({
-      status: "CHANGES_REQUESTED",
-      changesReason: "More detail",
-      answers: { promoStart: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) },
-    });
-    expect(soonForms.finance).toMatchObject({ status: "DRAFT", finance: { income: [], expenses: [] } });
-    expect(soonForms.risk).toMatchObject({
-      status: "APPROVED",
-      risk: {
-        risks: [
-          {
-            description: "Buffet\nHazards: Crowds\nRisks: Pushing",
-            mitigation: "Queue in groups",
-            legacyRating: "High Risk",
-          },
-        ],
-      },
-    });
-  });
-
-  test("an old number already used by an event made in THE SHED moves to the end", async () => {
-    const t = await setup();
-    await create(t); // #1 this year
-    await importOne(t, legacy({ year: YEAR, eventStartTime: ms(30) }));
-    const imported = (await t.run((ctx) => ctx.db.query("eventRequests").collect())).find(
-      (e) => e.legacyKey
-    )!;
-    expect(imported.number).toBe(2);
-    // A re-run keeps the number it was given.
-    await importOne(t, legacy({ year: YEAR, eventStartTime: ms(30), name: "Renamed" }));
-    const again = await t.run((ctx) => ctx.db.get("eventRequests", imported._id));
-    expect(again).toMatchObject({ number: 2, name: "Renamed" });
-  });
-
-  test("re-running updates untouched events and leaves ones acted on", async () => {
-    const t = await setup();
-    await importOne(t, legacy({ eventStartTime: ms(30), finance: { status: "Submitted" } }));
-    expect(await importOne(t, legacy({ name: "Renamed", eventStartTime: ms(30), finance: { status: "Submitted" } }))).toEqual({
-      inserted: 0,
-      updated: 1,
-      skipped: 0,
-    });
-    const [event] = await t.run((ctx) => ctx.db.query("eventRequests").collect());
-    expect(event.name).toBe("Renamed");
-    await asUser(t, EVA).mutation(api.eventRequests.cancel, { id: event._id });
-    expect(await importOne(t, legacy({ name: "Again" }))).toEqual({ inserted: 0, updated: 0, skipped: 1 });
-  });
-});

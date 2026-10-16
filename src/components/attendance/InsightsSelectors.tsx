@@ -11,20 +11,15 @@ function SelectorFab({
   icon = "options-outline",
   sheetTitle,
   children,
-  onClosed,
 }: {
   label: string;
   icon?: keyof typeof Ionicons.glyphMap;
   sheetTitle: string;
   children: (close: () => void) => ReactNode;
-  onClosed?: () => void;
 }) {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
-  const close = () => {
-    setOpen(false);
-    onClosed?.();
-  };
+  const close = () => setOpen(false);
   return (
     <>
       <Pressable
@@ -34,7 +29,7 @@ function SelectorFab({
         style={({ pressed }) => [
           styles.fab,
           styles.fabRight,
-          t.shadowCard,
+          t.surfaceEdge,
           { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
         ]}
       >
@@ -143,14 +138,16 @@ export function PeriodFab({
   value,
   onChange,
   sheetTitle = "Term or year",
+  placeholder = "Term",
 }: {
   periods: PickerPeriod[];
   value: string | null;
   onChange: (key: string) => void;
   sheetTitle?: string;
+  placeholder?: string;
 }) {
   const t = useAppTheme();
-  const label = periods.find((p) => p.key === value)?.label ?? "Term";
+  const label = periods.find((p) => p.key === value)?.label ?? placeholder;
   const grouped = periods.length > 0 && periods.every((p) => p.group && p.short && p.kind);
   const years = [...new Set(periods.map((p) => p.group!))];
   const columns = Math.max(0, ...periods.map((p) => p.slot ?? 0));
@@ -200,7 +197,7 @@ export function PeriodFab({
                           style={({ pressed }) => [
                             styles.periodCell,
                             styles.periodButton,
-                            selected && [{ backgroundColor: t.primary }, t.shadowCard],
+                            selected && [{ backgroundColor: t.primary }, t.surfaceEdge],
                             pressed && !selected && { backgroundColor: t.card },
                           ]}
                         >
@@ -244,7 +241,7 @@ export function ChartModeFab({
       style={({ pressed }) => [
         styles.fab,
         styles.fabLeft,
-        t.shadowCard,
+        t.surfaceEdge,
         { backgroundColor: t.card, opacity: pressed ? 0.85 : 1 },
       ]}
     >

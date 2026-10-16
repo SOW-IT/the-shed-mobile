@@ -182,13 +182,19 @@ export const FooterAction = ({
               <Pressable
                 onPress={cancel.onPress}
                 disabled={cancel.disabled}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: Boolean(cancel.disabled) }}
                 style={({ pressed }) => [
                   styles.footerAction,
-                  { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border },
+                  {
+                    backgroundColor: t.card,
+                    borderWidth: 1.5,
+                    borderColor: cancel.disabled ? t.separator : t.border,
+                  },
                   pressed && !cancel.disabled && { opacity: 0.7 },
                 ]}
               >
-                <Text style={[styles.footerActionText, { color: t.text }]}>
+                <Text style={[styles.footerActionText, { color: cancel.disabled ? t.faint : t.text }]}>
                   {cancel.title ?? "Cancel"}
                 </Text>
               </Pressable>
@@ -209,12 +215,14 @@ export const FooterAction = ({
                 Animated.spring(scale, { toValue: 1, useNativeDriver: USE_NATIVE_DRIVER, speed: 20, bounciness: 6 }).start()
               }
               disabled={disabled}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: Boolean(disabled) }}
               style={[
                 styles.footerAction,
-                { backgroundColor: t.primary },
+                { backgroundColor: disabled ? t.ghost : t.primary },
               ]}
             >
-              <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>
+              <Text style={[styles.footerActionText, { color: disabled ? t.faint : t.onPrimary }]}>{title}</Text>
             </Pressable>
           </Animated.View>
         </View>
@@ -307,12 +315,14 @@ export const IconButton = ({
   badgeTextColor,
   accessibilityLabel,
   disabled,
+  label,
 }: {
   name: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
   color?: string;
   bg?: string;
   size?: number;
+  label?: string;
   badge?: number;
   badgeColor?: string;
   badgeTextColor?: string;
@@ -334,10 +344,14 @@ export const IconButton = ({
         style={[
           styles.iconButton,
           { width: size, height: size, backgroundColor: bg ?? t.ghost },
+          label ? { width: "auto", minWidth: size, flexDirection: "row", gap: 6, paddingHorizontal: 14 } : null,
           disabled && { opacity: 0.5 },
         ]}
       >
         <Ionicons name={name} size={Math.round(size * 0.5)} color={color ?? t.ghostText} />
+        {label ? (
+          <Text style={[typography.caption, { color: color ?? t.ghostText, fontWeight: "700" }]}>{label}</Text>
+        ) : null}
         {badge != null && badge > 0 ? (
           <View style={[styles.iconBadge, { backgroundColor: badgeColor ?? t.accent }]}>
             <Text style={[styles.iconBadgeText, badgeTextColor ? { color: badgeTextColor } : null]}>

@@ -349,33 +349,32 @@ describe("attendance tags in two lists", () => {
     expect(await listed(t)).toEqual(["-:Seasons", "weeklies:Seasons"]);
   });
 
-  test("the Weeklies tag, by either name, can't be renamed or deleted", async () => {
+  test("the Weeklies tag can't be renamed or deleted", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    const [weeklies, legacy] = await t.run(async (ctx) => [
-      await ctx.db.insert("attendanceTags", { name: "Weeklies" }),
-      await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" }),
-    ]);
-    for (const id of [weeklies, legacy]) {
-      await expect(
-        leader.mutation(api.attendanceTags.saveAll, { tags: [], deleteIds: [id] })
-      ).rejects.toThrow("The Weeklies tag can't be deleted; every weekly gets it.");
-    }
+    const weeklies = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Weeklies" }));
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [], deleteIds: [weeklies] })
+    ).rejects.toThrow("The Weeklies tag can't be deleted; every weekly gets it.");
     await expect(
       leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: weeklies, name: "Weekly" }], deleteIds: [] })
     ).rejects.toThrow("The Weeklies tag can't be renamed; every weekly gets it.");
-    await expect(
-      leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: legacy, name: "Weeklies 2" }], deleteIds: [] })
-    ).rejects.toThrow(/can't be renamed/);
     await leader.mutation(api.attendanceTags.saveAll, {
-      tags: [
-        { id: weeklies, name: "Weeklies", colour: "amber" },
-        { id: legacy, name: "Weekly Meeting" },
-      ],
+      tags: [{ id: weeklies, name: "Weeklies", colour: "amber" }],
       deleteIds: [],
     });
     expect(await t.run((ctx) => ctx.db.get(weeklies))).toMatchObject({ name: "Weeklies", colour: "amber" });
-    expect(await t.run((ctx) => ctx.db.query("attendanceTags").collect())).toHaveLength(2);
+    expect(await t.run((ctx) => ctx.db.query("attendanceTags").collect())).toHaveLength(1);
+  });
+
+  test("a tag named Weekly Meeting is an ordinary tag", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const old = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Weekly Meeting" }));
+    await leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: old, name: "Weekly Catch-up" }], deleteIds: [] });
+    expect(await t.run((ctx) => ctx.db.get(old))).toMatchObject({ name: "Weekly Catch-up" });
+    await leader.mutation(api.attendanceTags.saveAll, { tags: [], deleteIds: [old] });
+    expect(await t.run((ctx) => ctx.db.get(old))).toBeNull();
   });
 
   test("no other tag can take the Weeklies name, in either list", async () => {
@@ -389,8 +388,11 @@ describe("attendance tags in two lists", () => {
       leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "Weeklies", list: "weeklies" }], deleteIds: [] })
     ).rejects.toThrow('"Weeklies" is the automatic tag every weekly gets; pick another name.');
     await expect(
-      leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: social, name: "Weekly Meeting" }], deleteIds: [] })
-    ).rejects.toThrow('"Weekly Meeting" is the automatic tag every weekly gets; pick another name.');
+      leader.mutation(api.attendanceTags.saveAll, {
+        tags: [{ id: social, name: "Weeklies", list: "weeklies" }],
+        deleteIds: [],
+      })
+    ).rejects.toThrow('"Weeklies" is the automatic tag every weekly gets; pick another name.');
   });
 
   test("a tag both saved and deleted is just deleted", async () => {
@@ -1385,85 +1387,5 @@ describe("attendanceMembers.byName", () => {
     expect(
       await leader.query(api.attendanceMembers.byName, { name: "nobody" })
     ).toEqual([]);
-  });
-});
-
-describe("consolidateAttendanceMetadata migration", () => {
-  test("merges duplicate fields into one global set and remaps member metadata", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const genderA = await ctx.db.insert("attendanceMetadata", {
-        key: "Gender",
-        type: "select" as const,
-        order: 1,
-        values: { "1": "Male", "2": "Female" },
-      });
-      const genderB = await ctx.db.insert("attendanceMetadata", {
-        key: "Gender",
-        type: "select" as const,
-        order: 1,
-        values: { "1": "Female", "2": "Male", "3": "Other" },
-      });
-      const notesA = await ctx.db.insert("attendanceMetadata", {
-        key: "Notes",
-        type: "input" as const,
-        order: 2,
-      });
-      const notesB = await ctx.db.insert("attendanceMetadata", {
-        key: "Notes",
-        type: "input" as const,
-        order: 2,
-      });
-      const m = await ctx.db.insert("attendanceMembers", {
-        name: "M",
-        metadata: { [genderB]: "1" },
-      });
-      const n = await ctx.db.insert("attendanceMembers", {
-        name: "N",
-        metadata: { [genderA]: "1", [genderB]: "2" },
-      });
-      const p = await ctx.db.insert("attendanceMembers", {
-        name: "P",
-        metadata: { [genderB]: "9" },
-      });
-      const q = await ctx.db.insert("attendanceMembers", {
-        name: "Q",
-        metadata: { [notesB]: "hi" },
-      });
-      return { genderA, genderB, notesA, notesB, m, n, p, q };
-    });
-
-    const result = await t.mutation(
-      internal.attendanceMetadata.consolidateAttendanceMetadata,
-      {}
-    );
-    expect(result.merged).toBe(2);
-
-    const rows = await t.run(async (ctx) =>
-      ctx.db.query("attendanceMetadata").collect()
-    );
-    const gender = rows.filter((r) => r.key === "Gender");
-    expect(gender).toHaveLength(1);
-    expect(gender[0]._id).toBe(ids.genderA);
-    expect(Object.values(gender[0].values ?? {})).toContain("Other");
-    expect(rows.filter((r) => r.key === "Notes")).toHaveLength(1);
-
-    const meta = async (id: typeof ids.m) =>
-      (await t.run(async (ctx) => ctx.db.get(id)))!.metadata!;
-    const survFemaleId = Object.entries(gender[0].values ?? {}).find(
-      ([, label]) => label === "Female"
-    )![0];
-    expect((await meta(ids.m))[ids.genderA]).toBe(survFemaleId);
-    expect((await meta(ids.m))[ids.genderB]).toBeUndefined();
-    expect((await meta(ids.n))[ids.genderA]).toBe("1");
-    expect((await meta(ids.n))[ids.genderB]).toBeUndefined();
-    expect((await meta(ids.p))[ids.genderA]).toBe("9");
-    expect((await meta(ids.q))[ids.notesA]).toBe("hi");
-
-    const again = await t.mutation(
-      internal.attendanceMetadata.consolidateAttendanceMetadata,
-      {}
-    );
-    expect(again.merged).toBe(0);
   });
 });

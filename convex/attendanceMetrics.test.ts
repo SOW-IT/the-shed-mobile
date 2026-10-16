@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
-import { SOW_SUBGROUP } from "../shared/rollcall";
+import { staffYearForDate, staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
+import { SOW_SUBGROUP, subgroupColour } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
 import type { MutationCtx } from "./_generated/server";
 import schema from "./schema";
@@ -28,6 +28,25 @@ const DAY = 24 * 60 * 60 * 1000;
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
+
+const snapshotOf = (
+  t: TestConvex<typeof schema>,
+  subgroup: string,
+  rangeWeeks: number,
+  includeCollaborative = true
+) =>
+  t.run((ctx) =>
+    ctx.db
+      .query("attendanceMetricsSnapshots")
+      .withIndex("by_subgroup_range_year", (q) =>
+        q
+          .eq("subgroup", subgroup)
+          .eq("rangeWeeks", rangeWeeks)
+          .eq("includeCollaborative", includeCollaborative)
+          .eq("staffYear", YEAR)
+      )
+      .unique()
+  );
 
 async function setup() {
   const t = convexTest(schema, modules);
@@ -99,23 +118,9 @@ describe("attendanceMetrics", () => {
     expect(scheduled.some((j) => j.subgroup === USYD)).toBe(true);
   });
 
-  test("snapshot returns null when not signed in", async () => {
-    const { t } = await setup();
-    expect(
-      await t.query(api.attendanceMetrics.snapshot, {
-        subgroup: USYD,
-        rangeWeeks: 4,
-      })
-    ).toBeNull();
-  });
-
-  test("snapshot is null before a recompute, populated after", async () => {
-    const { leader } = await setup();
-    const before = await leader.query(api.attendanceMetrics.snapshot, {
-      subgroup: USYD,
-      rangeWeeks: 4,
-    });
-    expect(before).toBeNull();
+  test("a snapshot is missing before a recompute, populated after", async () => {
+    const { t, leader } = await setup();
+    expect(await snapshotOf(t, USYD, 4)).toBeNull();
 
     const e1 = await leader.mutation(api.events.create, {
       name: "Meeting 1",
@@ -135,10 +140,7 @@ describe("attendanceMetrics", () => {
       subgroup: USYD,
     });
 
-    const after = await leader.query(api.attendanceMetrics.snapshot, {
-      subgroup: USYD,
-      rangeWeeks: 4,
-    });
+    const after = await snapshotOf(t, USYD, 4);
     expect(after).not.toBeNull();
     expect(after!.data.summary.eventsHeld).toBe(2);
     expect(after!.data.summary.uniqueAttendees).toBe(2);
@@ -147,7 +149,7 @@ describe("attendanceMetrics", () => {
   });
 
   test("recompute writes every range + collaborative variant", async () => {
-    const { leader } = await setup();
+    const { t, leader } = await setup();
     const e = await leader.mutation(api.events.create, {
       name: "Meeting",
       ...window(2),
@@ -160,82 +162,13 @@ describe("attendanceMetrics", () => {
 
     for (const rangeWeeks of [1, 4, 52]) {
       for (const includeCollaborative of [true, false]) {
-        const snap = await leader.query(api.attendanceMetrics.snapshot, {
-          subgroup: USYD,
-          rangeWeeks,
-          includeCollaborative,
-        });
+        const snap = await snapshotOf(t, USYD, rangeWeeks, includeCollaborative);
         expect(snap, `range ${rangeWeeks} collab ${includeCollaborative}`).not.toBeNull();
       }
     }
   });
 
-  test("liveSnapshot returns null when not signed in", async () => {
-    const { t } = await setup();
-    const end = Date.now();
-    const start = end - 14 * DAY;
-    expect(
-      await t.action(api.attendanceMetrics.liveSnapshot, {
-        subgroup: USYD,
-        rangeStartMs: start,
-        rangeEndMs: end,
-        includeCollaborative: true,
-      })
-    ).toBeNull();
-  });
-
-  test("liveSnapshot computes a custom range on demand", async () => {
-    const { leader } = await setup();
-    const e1 = await leader.mutation(api.events.create, {
-      name: "Custom A",
-      ...window(10),
-      subgroups: [USYD],
-    });
-    const e2 = await leader.mutation(api.events.create, {
-      name: "Custom B",
-      ...window(2),
-      subgroups: [USYD],
-    });
-    await leader.mutation(api.attendance.signIn, { eventId: e1, email: LEADER });
-    await leader.mutation(api.attendance.signIn, { eventId: e2, email: LEADER });
-    await leader.mutation(api.attendance.signIn, { eventId: e2, email: STAFF });
-
-    const end = Date.now();
-    const start = end - 5 * DAY;
-    const live = await leader.action(api.attendanceMetrics.liveSnapshot, {
-      subgroup: USYD,
-      rangeStartMs: start,
-      rangeEndMs: end,
-      includeCollaborative: true,
-    });
-    expect(live).not.toBeNull();
-    expect(live!.data.summary.eventsHeld).toBe(1);
-    expect(live!.data.summary.uniqueAttendees).toBe(2);
-    expect(live!.computedAt).toBeGreaterThan(0);
-  });
-
-  test("liveSnapshot rejects inverted or over-long ranges", async () => {
-    const { leader } = await setup();
-    const end = Date.now();
-    await expect(
-      leader.action(api.attendanceMetrics.liveSnapshot, {
-        subgroup: USYD,
-        rangeStartMs: end,
-        rangeEndMs: end - DAY,
-        includeCollaborative: true,
-      })
-    ).rejects.toThrow(/start before the end/i);
-    await expect(
-      leader.action(api.attendanceMetrics.liveSnapshot, {
-        subgroup: USYD,
-        rangeStartMs: end - 3 * 365 * DAY,
-        rangeEndMs: end,
-        includeCollaborative: true,
-      })
-    ).rejects.toThrow(/two years/i);
-  });
-
-  test("liveSnapshot still finds range events when many later events exist", async () => {
+  test("gathering a range still finds its events when many later events exist", async () => {
     const { t, leader } = await setup();
     const rangeEnd = Date.now() - 30 * DAY;
     const rangeStart = rangeEnd - 14 * DAY;
@@ -266,15 +199,19 @@ describe("attendanceMetrics", () => {
       }
     });
 
-    const live = await leader.action(api.attendanceMetrics.liveSnapshot, {
+    const gathered = await t.query(internal.attendanceMetrics.gatherEvents, {
       subgroup: USYD,
-      rangeStartMs: rangeStart,
-      rangeEndMs: rangeEnd,
-      includeCollaborative: true,
+      loadStart: rangeStart,
+      loadEnd: rangeEnd,
     });
-    expect(live).not.toBeNull();
-    expect(live!.data.summary.eventsHeld).toBe(1);
-    expect(live!.data.summary.uniqueAttendees).toBe(1);
+    expect(gathered.eventIds).toEqual([inRangeId]);
+    expect(gathered.metricsEvents).toEqual([
+      expect.objectContaining({ id: inRangeId, isWeeklyMeeting: false, collaborative: false }),
+    ]);
+    const attendance = await t.query(internal.attendanceMetrics.gatherAttendanceChunk, {
+      eventIds: gathered.eventIds,
+    });
+    expect(attendance).toHaveLength(1);
   });
 
   test("recomputeAll (daily cron entry) rebuilds SOW and every campus, for older apps", async () => {
@@ -319,10 +256,7 @@ describe("attendanceMetrics", () => {
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
-    const snap = await leader.query(api.attendanceMetrics.snapshot, {
-      subgroup: USYD,
-      rangeWeeks: 4,
-    });
+    const snap = await snapshotOf(t, USYD, 4);
     expect(snap!.data.summary.uniqueAttendees).toBe(1);
     const role = snap!.data.breakdowns.find((b) => b.field === "Role");
     expect(role?.rows.some((r) => r.label === "Member")).toBe(true);
@@ -376,10 +310,7 @@ describe("attendanceMetrics", () => {
       subgroup: USYD,
     });
 
-    const snap = await leader.query(api.attendanceMetrics.snapshot, {
-      subgroup: USYD,
-      rangeWeeks: 4,
-    });
+    const snap = await snapshotOf(t, USYD, 4);
     expect(snap!.data.leadersVsOthers).toEqual([
       expect.objectContaining({ primary: 3, rest: 2 }),
     ]);
@@ -392,10 +323,7 @@ describe("attendanceMetrics", () => {
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: SOW_SUBGROUP,
     });
-    const orgSnap = await leader.query(api.attendanceMetrics.snapshot, {
-      subgroup: SOW_SUBGROUP,
-      rangeWeeks: 4,
-    });
+    const orgSnap = await snapshotOf(t, SOW_SUBGROUP, 4);
     expect(orgSnap!.data.campusMix).toBeUndefined();
     expect(orgSnap!.data.leadersVsOthers).toBeDefined();
   });
@@ -416,17 +344,13 @@ describe("attendanceMetrics", () => {
         memberId,
         assignments: [{ role: "Student Leader", university: USYD }],
       });
-      await ctx.db.insert("attendance", { eventId: e, signInTime: Date.now() });
       return memberId;
     });
     await leader.mutation(api.attendance.signIn, { eventId: e, memberId: ghost });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
-    const snap = await leader.query(api.attendanceMetrics.snapshot, {
-      subgroup: USYD,
-      rangeWeeks: 4,
-    });
+    const snap = await snapshotOf(t, USYD, 4);
     expect(snap!.data.summary.uniqueAttendees).toBe(1);
     const role = snap!.data.breakdowns.find((b) => b.field === "Role");
     expect(role?.rows.map((r) => r.label)).toEqual(["Member"]);
@@ -500,51 +424,40 @@ describe("attendanceMetrics", () => {
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
-    const snap = await leader.query(api.attendanceMetrics.snapshot, {
-      subgroup: USYD,
-      rangeWeeks: 4,
-    });
+    const snap = await snapshotOf(t, USYD, 4);
     const role = snap!.data.breakdowns.find((b) => b.field === "Role");
     expect(role?.rows.map((r) => r.label)).toEqual(["Member"]);
   });
 
-  test("an event with the old weekly tag but no term and week isn't a weekly", async () => {
+  test("an event with the Weeklies tag but no term and week isn't a weekly", async () => {
     const { t, leader } = await setup();
     const e = await t.run(async (ctx) => {
-      const tagId = await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" });
+      const tagId = await ctx.db.insert("attendanceTags", { name: "Weeklies" });
       return ctx.db.insert("events", { name: "Weekly Meeting", ...window(2), subgroups: [USYD], tagIds: [tagId] });
     });
     await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
-    const snap = await leader.query(api.attendanceMetrics.snapshot, {
-      subgroup: USYD,
-      rangeWeeks: 4,
-    });
+    const snap = await snapshotOf(t, USYD, 4);
     expect(snap!.data.weeklyTrend).toHaveLength(0);
     expect(snap!.data.summary.weeklyConsistency).toBeNull();
   });
 
-  test("detects Weekly Meeting tagged events", async () => {
+  test("detects events marked as a weekly", async () => {
     const { t, leader } = await setup();
-    const tagId = await t.run((ctx) =>
-      ctx.db.insert("attendanceTags", { name: "Weekly Meeting" })
-    );
+    const at = window(2);
     const e = await leader.mutation(api.events.create, {
       name: "Weekly Meeting",
-      ...window(2),
+      ...at,
       subgroups: [USYD],
-      tagIds: [tagId],
+      weekly: { year: sydneyCalendarYear(new Date(at.dateStart)), slot: 1, week: 3 },
     });
     await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
-    const snap = await leader.query(api.attendanceMetrics.snapshot, {
-      subgroup: USYD,
-      rangeWeeks: 4,
-    });
+    const snap = await snapshotOf(t, USYD, 4);
     expect(snap!.data.weeklyTrend).toHaveLength(1);
     expect(snap!.data.summary.weeklyConsistency).not.toBeNull();
   });
@@ -566,7 +479,7 @@ describe("attendanceMetrics", () => {
     const rows = await t.run((ctx) =>
       ctx.db
         .query("attendanceMetricsSnapshots")
-        .withIndex("by_subgroup_and_range", (q) =>
+        .withIndex("by_subgroup_range_year", (q) =>
           q
             .eq("subgroup", USYD)
             .eq("rangeWeeks", 4)
@@ -577,37 +490,32 @@ describe("attendanceMetrics", () => {
     expect(rows).toHaveLength(1);
   });
 
-  test("snapshot keeps a previous-year row while reading the current year", async () => {
+  test("the view keeps a previous-year row while reading the current year", async () => {
     const { t, leader } = await setup();
-    await t.run((ctx) =>
-      ctx.db.insert("attendanceMetricsSnapshots", {
-        subgroup: USYD,
-        rangeWeeks: 4,
-        includeCollaborative: true,
-        staffYear: YEAR - 1,
-        computedAt: Date.now(),
-        data: EMPTY_DATA,
-      })
-    );
-    await t.run((ctx) =>
-      ctx.db.insert("attendanceMetricsSnapshots", {
-        subgroup: USYD,
-        rangeWeeks: 4,
-        includeCollaborative: true,
-        staffYear: YEAR,
-        computedAt: Date.now(),
-        data: EMPTY_DATA,
-      })
-    );
-    const snap = await leader.query(api.attendanceMetrics.snapshot, {
+    for (const [staffYear, computedAt] of [
+      [YEAR - 1, 111],
+      [YEAR, 222],
+    ]) {
+      await t.run((ctx) =>
+        ctx.db.insert("attendanceMetricsSnapshots", {
+          subgroup: USYD,
+          rangeWeeks: 4,
+          includeCollaborative: true,
+          staffYear,
+          computedAt,
+          data: EMPTY_DATA,
+        })
+      );
+    }
+    const view = await leader.query(api.attendanceMetrics.view, {
       subgroup: USYD,
       rangeWeeks: 4,
     });
-    expect(snap?.staffYear).toBe(YEAR);
+    expect(view?.blocks[0]).toEqual({ type: "updated", computedAt: 222 });
     const rows = await t.run((ctx) =>
       ctx.db
         .query("attendanceMetricsSnapshots")
-        .withIndex("by_subgroup_and_range", (q) =>
+        .withIndex("by_subgroup_range_year", (q) =>
           q
             .eq("subgroup", USYD)
             .eq("rangeWeeks", 4)
@@ -618,7 +526,7 @@ describe("attendanceMetrics", () => {
     expect(rows).toHaveLength(2);
   });
 
-  test("snapshot ignores a stale previous-staff-year row", async () => {
+  test("the view ignores a stale previous-staff-year row", async () => {
     const { t, leader } = await setup();
     await t.run((ctx) =>
       ctx.db.insert("attendanceMetricsSnapshots", {
@@ -630,16 +538,18 @@ describe("attendanceMetrics", () => {
         data: EMPTY_DATA,
       })
     );
-    const snap = await leader.query(api.attendanceMetrics.snapshot, {
+    const view = await leader.query(api.attendanceMetrics.view, {
       subgroup: USYD,
       rangeWeeks: 4,
     });
-    expect(snap).toBeNull();
+    expect(view?.blocks).toEqual([
+      expect.objectContaining({ type: "empty", title: "Not ready yet" }),
+    ]);
   });
 
   test("recompute heals duplicate snapshot rows and reads the newest", async () => {
     const { t, leader } = await setup();
-    for (const computedAt of [Date.now() - 1000, Date.now()]) {
+    for (const computedAt of [111, 222]) {
       await t.run((ctx) =>
         ctx.db.insert("attendanceMetricsSnapshots", {
           subgroup: USYD,
@@ -651,19 +561,18 @@ describe("attendanceMetrics", () => {
         })
       );
     }
-    expect(
-      await leader.query(api.attendanceMetrics.snapshot, {
-        subgroup: USYD,
-        rangeWeeks: 4,
-      })
-    ).not.toBeNull();
+    const view = await leader.query(api.attendanceMetrics.view, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    expect(view?.blocks[0]).toEqual({ type: "updated", computedAt: 222 });
     await t.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
     const rows = await t.run((ctx) =>
       ctx.db
         .query("attendanceMetricsSnapshots")
-        .withIndex("by_subgroup_and_range", (q) =>
+        .withIndex("by_subgroup_range_year", (q) =>
           q
             .eq("subgroup", USYD)
             .eq("rangeWeeks", 4)
@@ -700,18 +609,27 @@ const EMPTY_DATA = {
   hasWeeklyMeetings: false,
 };
 
-describe("campusWeeklyAverages", () => {
-  const snap = (avgWeekly: number | null) => ({
-    ...EMPTY_DATA,
-    summary: { ...EMPTY_DATA.summary, avgWeeklyAttendance: avgWeekly },
-  });
+describe("campus weekly averages in the SOW view", () => {
+  const sowSnapshot = (t: TestConvex<typeof schema>, includeCollaborative: boolean) =>
+    t.mutation(internal.attendanceMetrics.writeSnapshots, {
+      subgroup: SOW_SUBGROUP,
+      staffYear: YEAR,
+      computedAt: 1234,
+      snapshots: [{ rangeWeeks: 4, includeCollaborative, data: EMPTY_DATA }],
+    });
 
-  test("returns null when not signed in", async () => {
-    const { t } = await setup();
-    expect(
-      await t.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 8 })
-    ).toBeNull();
-  });
+  const campusRows = async (
+    leader: ReturnType<typeof asUser>,
+    includeCollaborative?: boolean
+  ) => {
+    const view = await leader.query(api.attendanceMetrics.view, {
+      subgroup: SOW_SUBGROUP,
+      rangeWeeks: 4,
+      includeCollaborative,
+    });
+    const block = view?.blocks.find((b) => b.type === "breakdown");
+    return block?.type === "breakdown" ? block.rows : null;
+  };
 
   test("averages each campus's weeklies in the range from its weeklies index, highest first", async () => {
     const { t, leader } = await setup();
@@ -720,6 +638,8 @@ describe("campusWeeklyAverages", () => {
     for (const name of [UNSW, "Macquarie", "No Index Uni"]) {
       await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name });
     }
+    await sowSnapshot(t, false);
+    await sowSnapshot(t, true);
     const now = Date.now();
     await t.run(async (ctx) => {
       await weeklyIndex(ctx, USYD, [
@@ -732,47 +652,25 @@ describe("campusWeeklyAverages", () => {
       await weeklyIndex(ctx, UNSW, [{ at: now - 3 * DAY, count: 40, joint: false }]);
       await weeklyIndex(ctx, "Macquarie", [{ at: now - 90 * DAY, count: 5, joint: false }]);
     });
-    expect(
-      await leader.query(api.attendanceMetrics.campusWeeklyAverages, {
-        rangeWeeks: 4,
-        includeCollaborative: false,
-      })
-    ).toEqual([
-      { campus: UNSW, avgWeekly: 40 },
-      { campus: USYD, avgWeekly: 12.5 },
+    expect(await campusRows(leader, false)).toEqual([
+      { label: UNSW, value: 40, colour: subgroupColour(UNSW) },
+      { label: USYD, value: 12.5, colour: subgroupColour(USYD) },
     ]);
-    expect(
-      await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 4 })
-    ).toEqual([
-      { campus: USYD, avgWeekly: 41.7 },
-      { campus: UNSW, avgWeekly: 40 },
-    ]);
-  });
-
-  test("the SOW rebuild still writes its small weekly-average row", async () => {
-    const { t } = await setup();
-    const write = (avgWeekly: number) =>
-      t.mutation(internal.attendanceMetrics.writeSnapshots, {
-        subgroup: SOW_SUBGROUP,
-        staffYear: YEAR,
-        computedAt: Date.now(),
-        snapshots: [{ rangeWeeks: 4, includeCollaborative: true, data: snap(avgWeekly) }],
-      });
-    await write(30);
-    await write(31);
-    const rows = await t.run((ctx) =>
-      ctx.db.query("attendanceMetricsWeeklyAverages").collect()
-    );
-    expect(rows.map((r) => [r.subgroup, r.rangeWeeks, r.avgWeekly])).toEqual([
-      [SOW_SUBGROUP, 4, 31],
+    expect(await campusRows(leader)).toEqual([
+      { label: USYD, value: 41.7, colour: subgroupColour(USYD) },
+      { label: UNSW, value: 40, colour: subgroupColour(UNSW) },
     ]);
   });
 
   test("a campus with no weeklies index is left out", async () => {
-    const { leader } = await setup();
-    expect(
-      await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 4 })
-    ).toEqual([]);
+    const { t, leader } = await setup();
+    await sowSnapshot(t, true);
+    expect(await campusRows(leader)).toBeNull();
+    const view = await leader.query(api.attendanceMetrics.view, {
+      subgroup: SOW_SUBGROUP,
+      rangeWeeks: 4,
+    });
+    expect(view?.blocks.map((b) => b.type)).toEqual(["updated", "empty"]);
   });
 });
 
@@ -841,7 +739,7 @@ describe("view", () => {
     expect(view?.blocks[1]).toEqual({
       type: "breakdown",
       title: "Weekly avg by campus",
-      rows: [{ label: USYD, value: 42 }],
+      rows: [{ label: USYD, value: 42, colour: subgroupColour(USYD) }],
     });
   });
 

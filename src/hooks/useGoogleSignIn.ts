@@ -5,6 +5,7 @@ import * as Linking from "expo-linking";
 import { maybeCompleteAuthSession, openAuthSessionAsync } from "expo-web-browser";
 import { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
+import { searchWithoutSignInParams } from "../../shared/appLinks";
 
 maybeCompleteAuthSession();
 
@@ -16,6 +17,9 @@ export type SignInOutcome = "signed-in" | "cancelled" | "rejected" | "error";
 const PROVIDER = "google";
 
 const PENDING_PROVIDER_KEY = "pendingGoogleAuthProvider";
+
+const pageWithoutSignInParams = () =>
+  `${window.location.pathname}${searchWithoutSignInParams(window.location.search)}`;
 
 const codeFromUrl = (url: string): string | null => {
   const fromExpo = Linking.parse(url).queryParams?.code;
@@ -46,14 +50,14 @@ export const useWebAuthCodeExchange = () => {
     if (!code) {
       if (pending) {
         window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
-        window.history.replaceState({}, "", window.location.pathname);
+        window.history.replaceState({}, "", pageWithoutSignInParams());
         // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot on load
         setRejected(true);
       }
       return;
     }
     const exchange = () => {
-      window.history.replaceState({}, "", window.location.pathname);
+      window.history.replaceState({}, "", pageWithoutSignInParams());
       window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
       setBusy(true);
       void signIn(PROVIDER, { code })
@@ -66,7 +70,7 @@ export const useWebAuthCodeExchange = () => {
     // a listener added after that just sees it cleared.
     if ((window as { __shedCodeToApp?: boolean }).__shedCodeToApp) {
       const dropped = () => {
-        window.history.replaceState({}, "", window.location.pathname);
+        window.history.replaceState({}, "", pageWithoutSignInParams());
         window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
         setBusy(false);
       };
@@ -102,7 +106,7 @@ export const useGoogleSignIn = () => {
         window.sessionStorage.setItem(PENDING_PROVIDER_KEY, PROVIDER);
         // Back to this page afterwards, so an emailed link still lands where it pointed.
         await signIn(PROVIDER, {
-          redirectTo: `${window.location.origin}${window.location.pathname}`,
+          redirectTo: `${window.location.origin}${pageWithoutSignInParams()}`,
         });
         return "cancelled";
       }

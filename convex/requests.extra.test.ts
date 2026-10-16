@@ -530,6 +530,136 @@ describe("stepActors", () => {
   });
 });
 
+describe("canNudge cooldown", () => {
+  test("says when the next nudge is allowed, a day after the last one", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    const rachel = asUser(t, RACHEL);
+    expect(await rachel.query(api.requests.canNudge, { requestId: request._id })).toEqual({
+      onCooldown: false,
+      remainingMs: 0,
+      availableAt: 0,
+    });
+
+    await rachel.mutation(api.requests.nudge, { requestId: request._id });
+    const sentAt = await t.run(
+      async (ctx) => (await ctx.db.query("requestNudges").first())!.sentAt
+    );
+    const status = (await rachel.query(api.requests.canNudge, { requestId: request._id }))!;
+    expect(status.onCooldown).toBe(true);
+    expect(status.availableAt).toBe(sentAt + 24 * 60 * 60 * 1000);
+    expect(status.remainingMs).toBeGreaterThan(0);
+  });
+});
+
+describe("reviewed leaves out what is still waiting on the caller", () => {
+  test("a request ready to pay shows once, under Ready to Pay, until it is paid", async () => {
+    const t = await setup();
+    const id = await approvedRequest(t);
+    const fiona = asUser(t, FIONA);
+    expect((await fiona.query(api.requests.reviewed, {}))!.map((r) => r._id)).toContain(id);
+
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id,
+      recipients: [
+        { accountName: "R", bsb: "062000", accountNumber: "1234", amount: 100, attachments: [await storedReceipt(t)] },
+      ],
+    });
+    expect((await fiona.query(api.requests.toReview, {}))!.readyToPay.map((r) => r._id)).toEqual([id]);
+    expect((await fiona.query(api.requests.reviewed, {}))!.map((r) => r._id)).not.toContain(id);
+
+    await fiona.mutation(api.requests.pay, { requestId: id, paidAmount: 100 });
+    expect((await fiona.query(api.requests.toReview, {}))!.readyToPay).toEqual([]);
+    expect((await fiona.query(api.requests.reviewed, {}))!.map((r) => r._id)).toContain(id);
+  });
+
+  test("a request the caller approved at one step and must approve at the next shows only to review", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: BELLA,
+      toEmail: HENRY,
+    });
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    const henry = asUser(t, HENRY);
+    await henry.mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+
+    expect((await henry.query(api.requests.toReview, {}))!.budgetManager.map((r) => r._id)).toEqual([
+      request._id,
+    ]);
+    expect((await henry.query(api.requests.reviewed, {}))!.map((r) => r._id)).not.toContain(
+      request._id
+    );
+  });
+});
+
+describe("auto-approved steps", () => {
+  const submitAs = async (
+    t: TestConvex<typeof schema>,
+    email: string,
+    amount: number,
+    department?: string
+  ) => {
+    await asUser(t, email).mutation(api.requests.submit, { description: "own", amount, department });
+    const [request] = (await asUser(t, email).query(api.requests.myRequests, {}))!;
+    return request._id;
+  };
+
+  test("a Finance staffer's own request shows HOD as auto-approved, not covered", async () => {
+    const t = await setup();
+    const CARL = "carl@sow.org.au";
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: CARL,
+      roles: ["Staff"],
+      department: "Finance",
+    });
+    await t.run((ctx) => ctx.db.insert("directoryUsers", { email: CARL, name: "Carl C" }));
+    const id = await submitAs(t, CARL, 80);
+
+    const actors = (await asUser(t, CARL).query(api.requests.stepActors, { requestId: id }))!;
+    expect(actors.hod).toMatchObject({
+      autoApproved: true,
+      isDelegated: false,
+      email: CARL,
+      name: "Carl C",
+      officeholderEmail: FIONA,
+    });
+    expect(actors.hod.actedAt).toBeTypeOf("number");
+    expect(actors.budgetManager).toMatchObject({ autoApproved: false, email: BELLA });
+
+    const hod = (await asUser(t, CARL).query(api.requests.stepInfo, { requestId: id, step: "hod" }))!;
+    expect(hod).toMatchObject({ autoApproved: true, isDelegated: false, email: CARL });
+    expect(hod.events.map((e) => e.action)).toEqual(["auto-approved"]);
+  });
+
+  test("the Finance Head's and the Director's own steps are auto-approved, not stand-ins", async () => {
+    const t = await setup();
+    const fionaRequest = await submitAs(t, FIONA, 9000);
+    const fiona = (await asUser(t, FIONA).query(api.requests.stepActors, {
+      requestId: fionaRequest,
+    }))!;
+    for (const step of ["hod", "budgetManager", "financeHead"] as const) {
+      expect(fiona[step]).toMatchObject({ autoApproved: true, isDelegated: false, email: FIONA });
+    }
+    expect(fiona.director).toMatchObject({ autoApproved: false, isDelegated: false, email: DAN });
+
+    const danRequest = await submitAs(t, DAN, 6000, "Marketing");
+    const dan = (await asUser(t, DAN).query(api.requests.stepActors, { requestId: danRequest }))!;
+    expect(dan.hod).toMatchObject({ autoApproved: true, isDelegated: false, officeholderEmail: HENRY });
+    expect(dan.director).toMatchObject({ autoApproved: true, isDelegated: false });
+  });
+
+  test("an approval by the officeholder is not auto-approved", async () => {
+    const t = await setup();
+    const id = await approvedRequest(t);
+    const actors = (await asUser(t, RACHEL).query(api.requests.stepActors, { requestId: id }))!;
+    expect(actors.hod).toMatchObject({ autoApproved: false, isDelegated: false, email: HENRY });
+  });
+});
+
 describe("get", () => {
   test("returns null when unauthenticated, the doc when signed in", async () => {
     const t = await setup();
@@ -976,34 +1106,6 @@ describe("pay", () => {
       ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", BELLA)).collect()
     );
     expect(bellaNotes.some((n) => n.title === "Paid amount changed")).toBe(false);
-  });
-});
-
-describe("cleanup.purgeReceiptFilesCreatedBefore", () => {
-  test("pages through requests created before the cutoff", async () => {
-    const t = await setup();
-    const id = await approvedRequest(t);
-    const file = await storedReceipt(t);
-    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
-      requestId: id,
-      recipients: [
-        { accountName: "Rachel", bsb: "123456", accountNumber: "12345678", amount: 100, attachments: [file] },
-      ],
-    });
-    const created = (await t.run((ctx) => ctx.db.get("requests", id)))!._creationTime;
-    const first = await t.mutation(internal.cleanup.purgeReceiptFilesCreatedBefore, {
-      beforeMs: created + 1,
-      batch: 1,
-    });
-    expect(first.filesDeleted).toBeGreaterThanOrEqual(0);
-    const second = await t.mutation(internal.cleanup.purgeReceiptFilesCreatedBefore, {
-      beforeMs: created + 1,
-      cursor: first.continueCursor,
-      batch: 1,
-    });
-    expect(second.filesDeleted + first.filesDeleted).toBeGreaterThanOrEqual(1);
-    const request = (await t.run((ctx) => ctx.db.get("requests", id)))!;
-    expect(request.receipt!.recipients[0].attachments![0].deleted).toBe(true);
   });
 });
 

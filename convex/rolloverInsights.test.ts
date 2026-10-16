@@ -2,9 +2,10 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { RANGE_WEEKS } from "../shared/attendanceMetrics";
-import { staffYearStartMs } from "../shared/flow";
+import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { SOW_SUBGROUP } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
+import { computeStaffTrends } from "./generalMetrics";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -22,8 +23,6 @@ const UNSW = "University of New South Wales";
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
 
-type AsUser = ReturnType<typeof asUser>;
-
 const at = (ms: number) => vi.setSystemTime(new Date(ms));
 
 const scheduledSubgroups = async (t: TestConvex<typeof schema>) =>
@@ -34,8 +33,36 @@ const scheduledSubgroups = async (t: TestConvex<typeof schema>) =>
       .map((j) => (j.args[0] as { subgroup: string }).subgroup);
   });
 
-const snap = (u: AsUser, subgroup = USYD, rangeWeeks = 4) =>
-  u.query(api.attendanceMetrics.snapshot, { subgroup, rangeWeeks });
+const snap = (t: TestConvex<typeof schema>, subgroup = USYD, rangeWeeks = 4) => {
+  const staffYear = staffYearForDate(new Date());
+  return t.run((ctx) =>
+    ctx.db
+      .query("attendanceMetricsSnapshots")
+      .withIndex("by_subgroup_range_year", (q) =>
+        q
+          .eq("subgroup", subgroup)
+          .eq("rangeWeeks", rangeWeeks)
+          .eq("includeCollaborative", true)
+          .eq("staffYear", staffYear)
+      )
+      .unique()
+  );
+};
+
+const trendsOf = (t: TestConvex<typeof schema>) => t.run((ctx) => computeStaffTrends(ctx));
+
+const campusWeekly = async (t: TestConvex<typeof schema>) => {
+  const { blocks } = await t.query(api.generalMetrics.view, { scope: "all" });
+  const chart = blocks.find((b) => b.type === "multiBars" && b.title === "Weekly avg by campus");
+  if (chart?.type !== "multiBars") return { years: [], campuses: [] };
+  return {
+    years: chart.points.map((p) => p.at),
+    campuses: chart.legend.map(({ key }) => ({
+      campus: key,
+      averages: chart.points.map((p) => p.segments.find((s) => s.key === key)?.value),
+    })),
+  };
+};
 
 const roleRows = (data: { breakdowns: { field: string; rows: unknown[] }[] }) =>
   data.breakdowns.find((b) => b.field === "Role")?.rows;
@@ -99,33 +126,31 @@ async function setupBeforeRollover() {
 
 describe("October rollover → Attendance Insights", () => {
   test("every precomputed snapshot goes 'not ready' the instant the year flips", async () => {
-    const { leader } = await setupBeforeRollover();
+    const { t, leader } = await setupBeforeRollover();
 
-    const before = await snap(leader);
+    const before = await snap(t);
     expect(before).not.toBeNull();
     expect(before!.staffYear).toBe(2026);
     expect(before!.data.summary.eventsHeld).toBe(2);
+    expect(
+      (await leader.query(api.attendanceMetrics.view, { subgroup: USYD, rangeWeeks: 4 }))?.blocks[0]
+    ).toMatchObject({ type: "updated" });
 
     at(ROLLOVER + 60_000);
     for (const subgroup of [USYD, UNSW, SOW_SUBGROUP]) {
       for (const rangeWeeks of RANGE_WEEKS) {
         for (const includeCollaborative of [true, false]) {
-          expect(
-            await leader.query(api.attendanceMetrics.snapshot, {
-              subgroup,
-              rangeWeeks,
-              includeCollaborative,
-            }),
-            `${subgroup} range ${rangeWeeks} collab ${includeCollaborative}`
-          ).toBeNull();
+          const view = await leader.query(api.attendanceMetrics.view, {
+            subgroup,
+            rangeWeeks,
+            includeCollaborative,
+          });
+          expect(view?.blocks, `${subgroup} range ${rangeWeeks} collab ${includeCollaborative}`).toEqual([
+            expect.objectContaining({ type: "empty", title: "Not ready yet" }),
+          ]);
         }
       }
     }
-    expect(
-      await leader.query(api.attendanceMetrics.campusWeeklyAverages, {
-        rangeWeeks: 4,
-      })
-    ).toEqual([]);
   });
 
   test("the daily rebuilds cover SOW and every current-year campus, including a new one", async () => {
@@ -154,10 +179,10 @@ describe("October rollover → Attendance Insights", () => {
     for (const subgroup of [USYD, newCampus]) {
       await leader.action(internal.attendanceMetrics.recomputeSubgroup, { subgroup });
     }
-    const after = await snap(leader);
+    const after = await snap(t);
     expect(after!.staffYear).toBe(2027);
     expect(after!.data.summary.eventsHeld).toBe(2);
-    const fresh = await snap(leader, newCampus);
+    const fresh = await snap(t, newCampus);
     expect(fresh!.staffYear).toBe(2027);
     expect(fresh!.data.hasEnoughHistory).toBe(false);
   });
@@ -166,7 +191,7 @@ describe("October rollover → Attendance Insights", () => {
     const { t } = await setupBeforeRollover();
     at(ROLLOVER + 60_000);
 
-    await t.mutation(internal.admin.rollOverStaffYear, {});
+    await t.mutation(internal.admin.prefillNextStaffYear, {});
     const jobs = await t.run(async (ctx) =>
       ctx.db.system.query("_scheduled_functions").collect()
     );
@@ -176,9 +201,9 @@ describe("October rollover → Attendance Insights", () => {
   });
 
   test("September's numbers keep 2026 identities after the flip", async () => {
-    const { leader } = await setupBeforeRollover();
+    const { t, leader } = await setupBeforeRollover();
 
-    const before = await snap(leader);
+    const before = await snap(t);
     expect(roleRows(before!.data)).toEqual(
       expect.arrayContaining([
         { label: "Staff", value: 1 },
@@ -190,7 +215,7 @@ describe("October rollover → Attendance Insights", () => {
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
-    const after = await snap(leader);
+    const after = await snap(t);
 
     expect(after!.data.summary.eventsHeld).toBe(2);
     expect(after!.data.summary.uniqueAttendees).toBe(2);
@@ -206,7 +231,7 @@ describe("October rollover → Attendance Insights", () => {
 
 describe("October rollover → General Insights", () => {
   test("campus weekly averages omit the empty new year instead of plotting zero", async () => {
-    const { t, leader } = await setupBeforeRollover();
+    const { t } = await setupBeforeRollover();
     await t.run(async (ctx) => {
       const tag = await ctx.db
         .query("attendanceTags")
@@ -222,12 +247,12 @@ describe("October rollover → General Insights", () => {
       }
     });
 
-    const before = await leader.query(api.generalMetrics.campusWeeklyAttendance, {});
+    const before = await campusWeekly(t);
     expect(before.years.at(-1)).toBe(2026);
     expect(before.campuses[0].averages.at(-1)).toBeGreaterThan(0);
 
     at(ROLLOVER + 60_000);
-    const after = await leader.query(api.generalMetrics.campusWeeklyAttendance, {});
+    const after = await campusWeekly(t);
     expect(after.years.at(-1)).toBe(2026);
     expect(after.years).not.toContain(2027);
     for (const campus of after.campuses) {
@@ -237,28 +262,28 @@ describe("October rollover → General Insights", () => {
   });
 
   test("staff trends pick up the new current year the instant the clock flips", async () => {
-    const { leader } = await setupBeforeRollover();
+    const { t } = await setupBeforeRollover();
 
-    const before = await leader.query(api.generalMetrics.staffTrends, {});
-    expect(before!.years).not.toContain(2027);
-    expect(before!.years.at(-1)).toBe(2026);
+    const before = await trendsOf(t);
+    expect(before.years).not.toContain(2027);
+    expect(before.years.at(-1)).toBe(2026);
 
     at(ROLLOVER + 60_000);
-    const after = await leader.query(api.generalMetrics.staffTrends, {});
-    expect(after!.years.at(-1)).toBe(2027);
-    expect(after!.years).toContain(2026);
-    expect(before!.staff.at(-1)).toBe(2);
-    expect(after!.staff.at(-1)).toBe(0);
+    const after = await trendsOf(t);
+    expect(after.years.at(-1)).toBe(2027);
+    expect(after.years).toContain(2026);
+    expect(before.staff.at(-1)).toBe(2);
+    expect(after.staff.at(-1)).toBe(0);
   });
 
   test("rate series use the new year the instant the clock flips (no grace)", async () => {
-    const { leader } = await setupBeforeRollover();
+    const { t } = await setupBeforeRollover();
     at(ROLLOVER + 60_000);
-    const after = await leader.query(api.generalMetrics.staffTrends, {});
-    expect(after!.years.at(-1)).toBe(2027);
-    expect(after!.turnover.staff.at(-1)).toBe(100);
-    expect(after!.retention.staff.at(-1)).toBe(0);
-    expect(after!.retention.studentLeaders.at(-1)).toBe(100);
-    expect(after!.turnover.studentLeaders.at(-1)).toBe(0);
+    const after = await trendsOf(t);
+    expect(after.years.at(-1)).toBe(2027);
+    expect(after.turnover.staff.at(-1)).toBe(100);
+    expect(after.retention.staff.at(-1)).toBe(0);
+    expect(after.retention.studentLeaders.at(-1)).toBe(100);
+    expect(after.turnover.studentLeaders.at(-1)).toBe(0);
   });
 });

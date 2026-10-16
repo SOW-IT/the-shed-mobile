@@ -2,7 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
   DIRECTOR_APPROVAL_THRESHOLD,
@@ -14,6 +14,7 @@ import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
+import { useMinuteTick } from "@/hooks/useMinuteTick";
 import {
   getLocalFileSizeBytes,
   uploadLocalFileToUrl,
@@ -139,6 +140,8 @@ const NewRequestSheet = ({
   const [amount, setAmount] = useState("");
   const [department, setDepartment] = useState(defaultDepartment);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (!prefill) return;
@@ -153,20 +156,13 @@ const NewRequestSheet = ({
     if (department === "" && defaultDepartment !== "") setDepartment(defaultDepartment);
   }, [defaultDepartment, department]);
 
+  const complete = description.trim() !== "" && Number(amount) > 0 && department.trim() !== "";
+
   const handleSubmit = async () => {
+    if (submittingRef.current || !complete) return;
     setError(null);
-    if (description.trim() === "") {
-      setError("Please describe what the request is for.");
-      return;
-    }
-    if (!(Number(amount) > 0)) {
-      setError("Amount must be a positive number.");
-      return;
-    }
-    if (department.trim() === "") {
-      setError("Pick a department for this request.");
-      return;
-    }
+    submittingRef.current = true;
+    setSubmitting(true);
     try {
       await submit({ description, amount: Number(amount), department });
       setDescription("");
@@ -175,6 +171,9 @@ const NewRequestSheet = ({
       onClose();
     } catch (e) {
       setError(errorMessage(e));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -186,7 +185,7 @@ const NewRequestSheet = ({
       footer={
         <Row spread>
           <Btn title="Cancel" variant="ghost" onPress={onClose} />
-          <Btn title="Submit Request" onPress={handleSubmit} />
+          <Btn title="Submit Request" onPress={handleSubmit} loading={submitting} disabled={!complete} />
         </Row>
       }
     >
@@ -343,6 +342,8 @@ const ReceiptSheet = ({
   const forgetAccount = useMutation(api.bankAccounts.remove);
   const [recipients, setRecipients] = useState<DraftRecipient[]>([emptyRecipient()]);
   const [uploading, setUploading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmExceeds, setConfirmExceeds] = useState<{ total: number } | null>(
     null
@@ -510,7 +511,9 @@ const ReceiptSheet = ({
   };
 
   const send = async () => {
-    if (!request) return;
+    if (!request || sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
     try {
       await submitReceipt({
         requestId: request._id,
@@ -527,32 +530,24 @@ const ReceiptSheet = ({
       onClose();
     } catch (e) {
       setError(errorMessage(e));
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
     }
   };
 
+  const complete =
+    recipients.every(
+      (recipient) =>
+        recipient.accountName.trim() !== "" &&
+        recipient.bsb !== "" &&
+        recipient.accountNumber !== "" &&
+        Number(recipient.amount) > 0
+    ) && recipients.some((recipient) => recipient.files.length > 0);
+
   const handleSubmit = () => {
-    if (!request) return;
+    if (!request || !complete) return;
     setError(null);
-    for (const [index, recipient] of recipients.entries()) {
-      const which = recipients.length === 1 ? "" : ` for recipient ${index + 1}`;
-      if (
-        !recipient.accountName.trim() ||
-        !recipient.bsb ||
-        !recipient.accountNumber ||
-        !recipient.amount
-      ) {
-        setError(`Fill in every field${which}.`);
-        return;
-      }
-      if (!(Number(recipient.amount) > 0)) {
-        setError(`The amount${which} must be a positive number.`);
-        return;
-      }
-    }
-    if (!recipients.some((recipient) => recipient.files.length > 0)) {
-      setError("Attach at least one receipt file.");
-      return;
-    }
     const total = sumAmounts(recipients.map((r) => Number(r.amount)));
     if (toCents(total) > toCents(request.amount)) {
       setConfirmExceeds({ total });
@@ -573,7 +568,12 @@ const ReceiptSheet = ({
       title="Submit Receipt"
       footer={
         <View style={{ gap: spacing.sm }}>
-          <Btn title="Submit Receipt" onPress={handleSubmit} disabled={uploading} />
+          <Btn
+            title="Submit Receipt"
+            onPress={handleSubmit}
+            disabled={uploading || !complete}
+            loading={sending}
+          />
           <Btn title="Cancel" variant="ghost" onPress={onClose} />
         </View>
       }
@@ -696,39 +696,6 @@ const ReceiptSheet = ({
   );
 };
 
-type NudgeStatus = { onCooldown: boolean; remainingMs: number };
-
-const NudgeButton = ({
-  request,
-  onNudge,
-}: {
-  request: Doc<"requests">;
-  onNudge: (request: Doc<"requests">, status: NudgeStatus | null) => void;
-}) => {
-  const t = useAppTheme();
-  const status = useQuery(api.requests.canNudge, { requestId: request._id });
-  const eligible = status != null;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Nudge approver"
-      disabled={!eligible}
-      onPress={() => onNudge(request, status ?? null)}
-      style={({ pressed }) => [
-        nudgeButtonStyle,
-        eligible ? { backgroundColor: t.primarySoft } : undefined,
-        pressed && eligible ? { opacity: 0.7 } : undefined,
-      ]}
-    >
-      <MaterialCommunityIcons
-        name="hand-pointing-up"
-        size={22}
-        color={eligible ? t.primary : t.faint}
-      />
-    </Pressable>
-  );
-};
-
 const formatCooldown = (ms: number): string => {
   const mins = Math.ceil(ms / 60000);
   if (mins < 1) return "under a minute";
@@ -738,6 +705,49 @@ const formatCooldown = (ms: number): string => {
   return `${m}m`;
 };
 
+const cooldownLeftMs = (availableAt: number): number =>
+  Math.max(0, availableAt - Date.now());
+
+const NudgeButton = ({
+  request,
+  onNudge,
+}: {
+  request: Doc<"requests">;
+  onNudge: (request: Doc<"requests">) => void;
+}) => {
+  const t = useAppTheme();
+  useMinuteTick();
+  const status = useQuery(api.requests.canNudge, { requestId: request._id });
+  const waitMs = status ? cooldownLeftMs(status.availableAt) : 0;
+  const coolingDown = waitMs > 0;
+  const enabled = status != null && !coolingDown;
+  const wait = coolingDown ? formatCooldown(waitMs) : null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={wait ? `Nudge again in ${wait}` : "Nudge approver"}
+      accessibilityState={{ disabled: !enabled }}
+      disabled={!enabled}
+      onPress={() => onNudge(request)}
+      style={({ pressed }) => [
+        nudgeButtonStyle,
+        wait ? [styles.nudgeCooldown, { backgroundColor: t.ghost }] : undefined,
+        enabled ? { backgroundColor: t.primarySoft } : undefined,
+        pressed && enabled ? { opacity: 0.7 } : undefined,
+      ]}
+    >
+      <MaterialCommunityIcons
+        name="hand-pointing-up"
+        size={22}
+        color={enabled ? t.primary : t.faint}
+      />
+      {wait ? (
+        <Text style={[typography.caption, { color: t.faint, fontWeight: "600" }]}>{wait}</Text>
+      ) : null}
+    </Pressable>
+  );
+};
+
 export const MyRequests = ({
   departments,
   defaultDepartment,
@@ -745,8 +755,6 @@ export const MyRequests = ({
   prefill,
   onResubmit,
   onNewClose,
-  year,
-  readOnly = false,
   directorThreshold = DIRECTOR_APPROVAL_THRESHOLD,
   focusId,
   focusThread = false,
@@ -759,8 +767,6 @@ export const MyRequests = ({
   prefill: RequestPrefill | null;
   onResubmit: (prefill: RequestPrefill) => void;
   onNewClose: () => void;
-  year?: number;
-  readOnly?: boolean;
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
@@ -768,10 +774,7 @@ export const MyRequests = ({
   directorThreshold?: number;
 }) => {
   const t = useAppTheme();
-  const requests = useQuery(
-    api.requests.myRequests,
-    year !== undefined ? { year } : {}
-  );
+  const requests = useQuery(api.requests.myRequests, {});
   const cancel = useMutation(api.requests.cancel);
   const deleteDeclined = useMutation(api.requests.deleteDeclined);
   const sendNudge = useMutation(api.requests.nudge);
@@ -782,7 +785,6 @@ export const MyRequests = ({
     message: string;
     confirmLabel: string;
     destructive?: boolean;
-    confirmDisabled?: boolean;
     onConfirm: () => void;
   } | null>(null);
 
@@ -794,28 +796,13 @@ export const MyRequests = ({
     });
   };
 
-  const handleCancel = async (requestId: Id<"requests">) => {
+  const runOn = async (
+    action: (args: { requestId: Id<"requests"> }) => Promise<unknown>,
+    requestId: Id<"requests">
+  ) => {
     setError(null);
     try {
-      await cancel({ requestId });
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  };
-
-  const handleDeleteDeclined = async (requestId: Id<"requests">) => {
-    setError(null);
-    try {
-      await deleteDeclined({ requestId });
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  };
-
-  const handleNudge = async (requestId: Id<"requests">) => {
-    setError(null);
-    try {
-      await sendNudge({ requestId });
+      await action({ requestId });
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -829,12 +816,8 @@ export const MyRequests = ({
       ) : requests.length === 0 ? (
         <EmptyState
           icon="receipt-outline"
-          title={readOnly ? `No requests in ${year}` : "No requests yet"}
-          message={
-            readOnly
-              ? "You didn't submit any requests this staff year."
-              : "Tap “Make Request” below to submit your first one."
-          }
+          title="No requests yet"
+          message="Tap “Make Request” below to submit your first one."
         />
       ) : (
         <Grid minColumnWidth={380}>
@@ -847,10 +830,8 @@ export const MyRequests = ({
             return b._creationTime - a._creationTime;
           })
           .map((request, index) => {
-            const needsReceipt =
-              !readOnly && requestFullyApproved(request) && !request.receipt;
+            const needsReceipt = requestFullyApproved(request) && !request.receipt;
             const canNudgeRequest =
-              !readOnly &&
               !requestCompleted(request) &&
               !requestDeclined(request) &&
               !needsReceipt;
@@ -865,15 +846,13 @@ export const MyRequests = ({
                   deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
                   onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
                   onCancel={
-                    readOnly
-                      ? undefined
-                      : requestDeclined(request)
+                    requestDeclined(request)
                       ? () =>
                           setConfirm({
                             title: "Delete request?",
                             message: `Your declined $${formatAmount(request.amount)} request ("${request.description}") will be permanently deleted.`,
                             confirmLabel: "Delete",
-                            onConfirm: () => void handleDeleteDeclined(request._id),
+                            onConfirm: () => void runOn(deleteDeclined, request._id),
                           })
                       : !requestCompleted(request)
                       ? () =>
@@ -881,7 +860,7 @@ export const MyRequests = ({
                             title: "Cancel request?",
                             message: `Your $${formatAmount(request.amount)} request ("${request.description}") and its approvals will be permanently deleted.`,
                             confirmLabel: "Cancel Request",
-                            onConfirm: () => void handleCancel(request._id),
+                            onConfirm: () => void runOn(cancel, request._id),
                           })
                       : undefined
                   }
@@ -889,13 +868,15 @@ export const MyRequests = ({
                   {needsReceipt && (
                     <IconButton
                       name="cloud-upload-outline"
+                      size={40}
+                      label="Add receipt"
                       bg={t.successSoft}
                       color={t.success}
                       accessibilityLabel="Submit receipt"
                       onPress={() => setReceiptFor(request)}
                     />
                   )}
-                  {!readOnly && requestDeclined(request) && (
+                  {requestDeclined(request) && (
                     <IconButton
                       name="refresh"
                       bg={t.primarySoft}
@@ -907,19 +888,15 @@ export const MyRequests = ({
                   {canNudgeRequest && (
                     <NudgeButton
                       request={request}
-                      onNudge={(r, status) => {
-                        const onCooldown = status?.onCooldown ?? false;
+                      onNudge={(r) =>
                         setConfirm({
                           title: "Send a nudge?",
-                          message: onCooldown
-                            ? `You can nudge again in ${formatCooldown(status?.remainingMs ?? 0)}.`
-                            : `Reminds whoever needs to action your $${formatAmount(r.amount)} request ("${r.description}"). Once per day.`,
+                          message: `Reminds whoever needs to action your $${formatAmount(r.amount)} request ("${r.description}"). Once per day.`,
                           confirmLabel: "Send Nudge",
                           destructive: false,
-                          confirmDisabled: onCooldown,
-                          onConfirm: () => void handleNudge(r._id),
-                        });
-                      }}
+                          onConfirm: () => void runOn(sendNudge, r._id),
+                        })
+                      }
                     />
                   )}
                 </RequestCard>
@@ -943,7 +920,6 @@ export const MyRequests = ({
         message={confirm?.message}
         confirmLabel={confirm?.confirmLabel}
         destructive={confirm?.destructive ?? true}
-        confirmDisabled={confirm?.confirmDisabled ?? false}
         onConfirm={() => confirm?.onConfirm()}
         onClose={() => setConfirm(null)}
       />
@@ -995,6 +971,13 @@ const styles = StyleSheet.create({
   },
   savedChipForget: {
     paddingLeft: 2,
+  },
+  nudgeCooldown: {
+    width: "auto",
+    minWidth: 40,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 12,
   },
   saveToggleRow: {
     flexDirection: "row",

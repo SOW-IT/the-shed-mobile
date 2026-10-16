@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { ReactNode } from "react";
 import { Platform, Text, View } from "react-native";
 import {
@@ -79,15 +80,17 @@ const toggle = (values: string[], value: string): string[] =>
 const Question = ({
   number,
   field,
+  problem,
   children,
 }: {
   number?: number;
   field: FormField;
+  problem?: string;
   children: ReactNode;
 }) => {
   const t = useAppTheme();
   return (
-    <Card>
+    <Card style={problem ? { borderWidth: 1.5, borderColor: t.danger } : undefined}>
       <Text style={[typography.headline, { color: t.text }]}>
         {number !== undefined ? `${number}. ` : ""}
         {field.label}
@@ -95,6 +98,12 @@ const Question = ({
       </Text>
       {field.hint ? <Muted>{field.hint}</Muted> : null}
       {children}
+      {problem ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Ionicons name="alert-circle" size={16} color={t.danger} />
+          <Text style={[typography.caption, { color: t.danger, flex: 1, fontWeight: "600" }]}>{problem}</Text>
+        </View>
+      ) : null}
     </Card>
   );
 };
@@ -318,11 +327,13 @@ export const FormQuestions = ({
   departments,
   minDate,
   size = null,
+  problem = null,
 }: {
   fields: readonly FormField[];
   draft: FormDraft;
   onChange: (draft: FormDraft) => void;
   departments: string[];
+  problem?: { key: string; message: string } | null;
   /** The earliest date a "not in the past" question accepts. */
   minDate: string;
   size?: EventSize | null;
@@ -335,7 +346,11 @@ export const FormQuestions = ({
       {shown.map((field) => (
         <View key={field.key} style={{ gap: spacing.md }}>
           {field.section ? <SectionTitle>{field.section}</SectionTitle> : null}
-          <Question number={field.showWhen ? undefined : ++number} field={field}>
+          <Question
+            number={field.showWhen ? undefined : ++number}
+            field={field}
+            problem={problem?.key === field.key ? problem.message : undefined}
+          >
             <FieldInput
               field={field}
               draft={draft}

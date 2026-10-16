@@ -8,7 +8,7 @@ import {
   parseDateInputValue,
   toDateInputValue,
 } from "../../../shared/datetime";
-import { subgroupLabel } from "../../../shared/rollcall";
+import { subgroupLabel, tagFilterLabels } from "../../../shared/rollcall";
 import {
   ATTENDANCE_PCT_HEADER,
   buildAttendanceCsv,
@@ -149,7 +149,7 @@ export function ExportSheet({
   const [format, setFormat] = useState<ExportFormat>("list");
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isMatrix = format === "matrix";
+  const isMatrix = !isEvent && format === "matrix";
 
   useEffect(() => {
     if (!visible) return;
@@ -274,28 +274,27 @@ export function ExportSheet({
         />
       }
     >
-      <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
-        Layout
-      </Txt>
-      <View style={{ gap: 6 }}>
-        <ToggleRow
-          radio
-          label="List by event"
-          subtitle="One section per event with each person's sign-in"
-          checked={!isMatrix}
-          onPress={() => setExportFormat("list")}
-        />
-        <ToggleRow
-          radio
-          label="Grid by person"
-          subtitle="People down the side, events across the top, with attendance %"
-          checked={isMatrix}
-          onPress={() => setExportFormat("matrix")}
-        />
-      </View>
-
       {!isEvent ? (
         <>
+          <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
+            Layout
+          </Txt>
+          <View style={{ gap: 6 }}>
+            <ToggleRow
+              radio
+              label="List by event"
+              subtitle="One section per event with each person's sign-in"
+              checked={!isMatrix}
+              onPress={() => setExportFormat("list")}
+            />
+            <ToggleRow
+              radio
+              label="Grid by person"
+              subtitle="People down the side, events across the top, with attendance %"
+              checked={isMatrix}
+              onPress={() => setExportFormat("matrix")}
+            />
+          </View>
           <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
             Time range
           </Txt>
@@ -308,6 +307,7 @@ export function ExportSheet({
                   min={toInputDate(MIN_DATE.getTime())}
                   max={toInputDate(toMs ?? nowMs)}
                   onChange={(s) => setFromMs(fromInputDate(s))}
+                  needed
                 />
                 <WebDateInput
                   label="To"
@@ -327,6 +327,7 @@ export function ExportSheet({
                   min={toInputDate(MIN_DATE.getTime())}
                   max={toInputDate(toMs ?? nowMs)}
                   onChange={(s) => setFromMs(fromInputDate(s))}
+                  needed
                 />
                 <NativeDateInput
                   label="To"
@@ -340,27 +341,14 @@ export function ExportSheet({
               </>
             )}
           </View>
-          {fromMs == null ? (
-            <Txt
-              style={[
-                typography.caption,
-                { color: t.muted, marginTop: spacing.xs },
-              ]}
-            >
-              Pick a start date to export. End date defaults to today.
-            </Txt>
-          ) : null}
-
-          <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
-            Tags (optional)
-          </Txt>
+          <View style={{ height: spacing.md }} />
           <MultiSelect
-            label="Filter by tags"
+            label="Tags"
             values={selectedTags as unknown as string[]}
-            options={(tags ?? []).map((tag) => ({
-              label: tag.name,
-              value: tag._id,
-            }))}
+            options={(() => {
+              const labels = tagFilterLabels(tags ?? []);
+              return (tags ?? []).map((tag, i) => ({ label: labels[i], value: tag._id }));
+            })()}
             onSelect={(values) =>
               setSelectedTags(values as Id<"attendanceTags">[])
             }

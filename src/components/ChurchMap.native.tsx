@@ -3,9 +3,18 @@ import { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { Id } from "../../convex/_generated/dataModel";
-import { churchAcronym } from "../../shared/churches";
-import { radius, spacing, typography, useAppTheme } from "../theme";
-import type { Church } from "./ChurchPicker";
+import { radius, useAppTheme } from "../theme";
+import {
+  PIN_NAME_MAX_WIDTH,
+  pinAccessibilityLabel,
+  pinRing,
+  pinLabel,
+  pinSize,
+  pinZIndex,
+  type ChurchPin,
+} from "./churchPins";
+
+export type { ChurchPin } from "./churchPins";
 
 type GoogleMapsBuild = { ios?: boolean; android?: boolean };
 
@@ -18,7 +27,6 @@ type Coordinate = { latitude: number; longitude: number };
 
 const SYDNEY = { latitude: -33.8, longitude: 151.05, latitudeDelta: 0.4, longitudeDelta: 0.4 };
 const MIN_DELTA = 0.03;
-const LABEL_MAX_WIDTH = 120;
 const LATITUDE_ROOM = 1.5;
 const LONGITUDE_ROOM = 1.6;
 const LABEL_LIFT = 0.08;
@@ -41,20 +49,23 @@ const regionFor = (placedKey: string) => {
 };
 
 export function ChurchMap({
-  churches,
+  pins,
   selectedId,
   onSelect,
 }: {
-  churches: readonly Church[];
+  pins: readonly ChurchPin[];
   selectedId: Id<"churches"> | null;
   onSelect: (churchId: Id<"churches">) => void;
 }) {
   const t = useAppTheme();
   const map = useRef<MapView>(null);
-  const placed = churches.flatMap((church) =>
-    church.location ? [{ church, coordinate: { latitude: church.location.lat, longitude: church.location.lng } }] : []
+  const placed = pins.flatMap((pin) =>
+    pin.church.location
+      ? [{ pin, coordinate: { latitude: pin.church.location.lat, longitude: pin.church.location.lng } }]
+      : []
   );
   const placedKey = JSON.stringify(placed.map(({ coordinate }) => coordinate));
+  const most = Math.max(0, ...pins.map((pin) => pin.people));
 
   const [initialRegion] = useState(() => regionFor(placedKey));
   const shownKey = useRef(placedKey);
@@ -66,62 +77,83 @@ export function ChurchMap({
   }, [placedKey]);
 
   return (
-    <MapView
-      ref={map}
-      provider={usesGoogle ? PROVIDER_GOOGLE : undefined}
-      style={styles.map}
-      initialRegion={initialRegion}
-      showsPointsOfInterests={false}
-      toolbarEnabled={false}
-    >
-      {placed.map(({ church, coordinate }) => {
-        const on = church._id === selectedId;
-        return (
-          <Marker
-            key={`${church._id}:${on ? "on" : "off"}`}
-            coordinate={coordinate}
-            anchor={{ x: 0.5, y: 1 }}
-            zIndex={on ? 2 : 1}
-            accessibilityLabel={`${church.name}. Show who goes there`}
-            onPress={() => onSelect(church._id)}
-          >
-            <View style={styles.pin}>
-              <View
-                style={[styles.label, { backgroundColor: on ? t.primary : t.card, borderColor: t.primary }]}
-              >
-                <Text
-                  style={[typography.caption, styles.labelText, { color: on ? t.onPrimary : t.text }]}
-                  numberOfLines={1}
+    // MapView ignores its own borderRadius on iOS, so a wrapper clips the corners.
+    <View style={[styles.frame, t.surfaceEdge]}>
+      <MapView
+        ref={map}
+        provider={usesGoogle ? PROVIDER_GOOGLE : undefined}
+        mapType={usesGoogle ? "standard" : "mutedStandard"}
+        style={styles.map}
+        initialRegion={initialRegion}
+        showsPointsOfInterests={false}
+        toolbarEnabled={false}
+      >
+        {placed.map(({ pin, coordinate }) => {
+          const on = pin.church._id === selectedId;
+          const ring = pinRing(pin, t.primary);
+          const size = pinSize(pin.people, most);
+          return (
+            <Marker
+              key={`${pin.church._id}:${on ? "on" : "off"}:${size.fontSize}:${ring}`}
+              coordinate={coordinate}
+              anchor={{ x: 0.5, y: 1 }}
+              zIndex={pinZIndex(pin, on)}
+              accessibilityLabel={pinAccessibilityLabel(pin)}
+              onPress={() => onSelect(pin.church._id)}
+            >
+              <View style={styles.pin}>
+                <View
+                  style={[
+                    styles.bubble,
+                    {
+                      height: size.height,
+                      paddingHorizontal: size.paddingHorizontal,
+                      backgroundColor: on ? t.primary : t.card,
+                      borderColor: on ? t.primary : ring,
+                    },
+                  ]}
                 >
-                  {churchAcronym(church.name)}
-                </Text>
+                  <Text
+                    style={[styles.labelText, { fontSize: size.fontSize, color: on ? t.onPrimary : t.text }]}
+                    numberOfLines={1}
+                  >
+                    {pinLabel(pin, on)}
+                  </Text>
+                </View>
+                <View style={[styles.stem, { borderTopColor: on ? t.primary : ring }]} />
               </View>
-              <View style={[styles.stem, { borderTopColor: t.primary }]} />
-            </View>
-          </Marker>
-        );
-      })}
-    </MapView>
+            </Marker>
+          );
+        })}
+      </MapView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  map: { height: 300, borderRadius: radius.md },
-  pin: { alignItems: "center" },
-  label: {
-    maxWidth: LABEL_MAX_WIDTH,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+  frame: { borderRadius: radius.lg, overflow: "hidden" },
+  map: { height: 300 },
+  pin: { alignItems: "center", padding: 4 },
+  bubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    maxWidth: PIN_NAME_MAX_WIDTH,
     borderRadius: radius.full,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    shadowColor: "#000",
+    shadowOpacity: 0.28,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 3,
   },
-  labelText: { fontWeight: "700" },
+  labelText: { fontWeight: "700", letterSpacing: 0.2, flexShrink: 1 },
   stem: {
     width: 0,
     height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 8,
+    marginTop: -1,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 6,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
   },

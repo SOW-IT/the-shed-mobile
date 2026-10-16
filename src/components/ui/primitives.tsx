@@ -96,7 +96,7 @@ export const Card = ({
 }) => {
   const t = useAppTheme();
   return (
-    <View style={[styles.card, t.shadowCard, { backgroundColor: t.card }, style]}>
+    <View style={[styles.card, t.surfaceEdge, { backgroundColor: t.card }, style]}>
       {children}
     </View>
   );
@@ -105,7 +105,7 @@ export const Card = ({
 export const SectionTitle = ({ children }: { children: ReactNode }) => {
   const t = useAppTheme();
   return (
-    <Text style={[typography.label, styles.sectionTitle, { color: t.muted }]}>
+    <Text accessibilityRole="header" style={[typography.section, styles.sectionTitle, { color: t.text }]}>
       {children}
     </Text>
   );

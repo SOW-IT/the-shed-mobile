@@ -49,4 +49,16 @@ jobs:
           echo "EAS_PLATFORM=$platform" >> "$GITHUB_ENV"
 
       - name: Build & submit to production
-        run: eas build --platform "${{ env.EAS_PLATFORM }}" --profile production --non-interactive --auto-submit
+        run: eas build --platform "${{ env.EAS_PLATFORM }}" --profile production --non-interactive --auto-submit --json > "$RUNNER_TEMP/eas-builds.json"
+
+      - name: Post to Data and IT in Google Chat
+        if: always()
+        env:
+          GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+          JOB_STATUS: ${{ job.status }}
+          PLATFORM_INPUT: ${{ inputs.platform || 'both' }}
+          ACTOR: ${{ github.triggering_actor }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+        run: bash .github/scripts/eas-production-chat.sh

@@ -2,7 +2,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearStartMs } from "../shared/flow";
-import { api, internal } from "./_generated/api";
+import { api } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");

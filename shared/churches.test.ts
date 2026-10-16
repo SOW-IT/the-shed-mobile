@@ -1,15 +1,22 @@
 import { describe, expect, test } from "vitest";
 import {
   churchAcronym,
+  churchCampuses,
+  churchFilterCounts,
   churchPagePath,
+  churchPeopleMatching,
   cleanInstagram,
   cleanWebsite,
   formatClock,
   formatServices,
   instagramUrl,
+  isChurchFilterActive,
   isServiceTime,
-  parseServiceTimes,
+  mainCampus,
+  NO_CAMPUS,
+  NO_CHURCH_FILTER,
   sortServices,
+  togglePicked,
   websiteLabel,
 } from "./churches";
 
@@ -79,21 +86,6 @@ describe("service times", () => {
       ])
     ).toBe("Sunday 9am, 11am and 6pm · Saturday 6:30pm");
   });
-
-  test("typed text is read back into days and times", () => {
-    expect(parseServiceTimes("Sunday 10am and 12pm")).toEqual([
-      { day: 0, time: "10:00" },
-      { day: 0, time: "12:00" },
-    ]);
-    expect(parseServiceTimes("Sunday 1:15pm")).toEqual([{ day: 0, time: "13:15" }]);
-    expect(parseServiceTimes("Sat 6.30pm, Sun 9am")).toEqual([
-      { day: 0, time: "09:00" },
-      { day: 6, time: "18:30" },
-    ]);
-    expect(parseServiceTimes("10am")).toEqual([{ day: 0, time: "10:00" }]);
-    expect(parseServiceTimes("Wednesday 12am")).toEqual([{ day: 3, time: "00:00" }]);
-    expect(parseServiceTimes("13pm, 0am, sometime")).toEqual([]);
-  });
 });
 
 describe("website and Instagram", () => {
@@ -118,5 +110,65 @@ describe("website and Instagram", () => {
     expect(cleanInstagram("instagram.com/harbourcity")).toBe("harbourcity");
     expect(cleanInstagram("@not a handle")).toBeNull();
     expect(instagramUrl("harbourcity")).toBe("https://www.instagram.com/harbourcity/");
+  });
+});
+
+describe("church filters", () => {
+  const people = [
+    { name: "Lia", group: "leader" as const, campus: "UNSW" },
+    { name: "Lou", group: "leader" as const, campus: "USYD" },
+    { name: "Sam", group: "staff" as const, campus: null },
+    { name: "Sue", group: "staff" as const, campus: "USYD" },
+    { name: "Max", group: "member" as const, campus: "UNSW" },
+    { name: "Mia", group: "member" as const, campus: null },
+  ];
+  const names = (filter: Parameters<typeof churchPeopleMatching>[1]) =>
+    churchPeopleMatching(people, filter).map((p) => p.name);
+
+  test("nothing picked shows everyone; picked groups show only them", () => {
+    expect(names(NO_CHURCH_FILTER)).toEqual(["Lia", "Lou", "Sam", "Sue", "Max", "Mia"]);
+    expect(names({ groups: ["leader"], campuses: [] })).toEqual(["Lia", "Lou"]);
+    expect(names({ groups: ["leader", "staff"], campuses: [] })).toEqual(["Lia", "Lou", "Sam", "Sue"]);
+    expect(names({ groups: ["leader", "staff", "member"], campuses: [] })).toEqual(names(NO_CHURCH_FILTER));
+  });
+
+  test("picked campuses show only their people; no campus is a choice of its own", () => {
+    expect(names({ groups: [], campuses: ["UNSW"] })).toEqual(["Lia", "Max"]);
+    expect(names({ groups: [], campuses: ["USYD", NO_CAMPUS] })).toEqual(["Lou", "Sam", "Sue", "Mia"]);
+    expect(names({ groups: ["staff"], campuses: ["UNSW"] })).toEqual([]);
+    expect(names({ groups: ["leader", "member"], campuses: ["UNSW"] })).toEqual(["Lia", "Max"]);
+  });
+
+  test("a filter is active once anything is picked", () => {
+    expect(isChurchFilterActive(NO_CHURCH_FILTER)).toBe(false);
+    expect(isChurchFilterActive({ groups: ["staff"], campuses: [] })).toBe(true);
+    expect(isChurchFilterActive({ groups: [], campuses: ["UNSW"] })).toBe(true);
+  });
+
+  test("a tap picks an option, and another unpicks it", () => {
+    expect(togglePicked([], "UNSW")).toEqual(["UNSW"]);
+    expect(togglePicked(["UNSW", "USYD"], "UNSW")).toEqual(["USYD"]);
+  });
+
+  test("campuses are listed once, by label, with no campus last", () => {
+    expect(churchCampuses(people, (c) => (c === "UNSW" ? "Z" : "A"))).toEqual(["USYD", "UNSW", NO_CAMPUS]);
+    expect(churchCampuses(people.filter((p) => p.campus), (c) => c)).toEqual(["UNSW", "USYD"]);
+    expect(churchCampuses([], (c) => c)).toEqual([]);
+  });
+
+  test("each option counts who it covers, given the other filter", () => {
+    const all = churchFilterCounts(people, NO_CHURCH_FILTER);
+    expect(Object.fromEntries(all.groups)).toEqual({ leader: 2, staff: 2, member: 2 });
+    expect(Object.fromEntries(all.campuses)).toEqual({ UNSW: 2, USYD: 2, [NO_CAMPUS]: 2 });
+    const some = churchFilterCounts(people, { groups: ["leader", "staff"], campuses: ["USYD"] });
+    expect(Object.fromEntries(some.groups)).toEqual({ leader: 1, staff: 1 });
+    expect(Object.fromEntries(some.campuses)).toEqual({ UNSW: 1, USYD: 2, [NO_CAMPUS]: 1 });
+  });
+
+  test("the main campus is the most common one, ties broken by name", () => {
+    expect(mainCampus(people)).toBe("UNSW");
+    expect(mainCampus([...people, { group: "member", campus: "USYD" }])).toBe("USYD");
+    expect(mainCampus([{ group: "staff", campus: null }])).toBeNull();
+    expect(mainCampus([])).toBeNull();
   });
 });

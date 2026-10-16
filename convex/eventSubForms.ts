@@ -114,7 +114,7 @@ export const saveRisk = mutation({
     const caller = await requireEventStaff(ctx);
     const { event, form } = await authorizeFill(ctx, caller, args.id, "risk");
     const risk: RiskData = normalizeRisk(args.risk);
-    const problem = args.submit ? riskProblem(risk) : riskDraftProblem(risk);
+    const problem = args.submit ? riskProblem(args.risk) : riskDraftProblem(risk);
     if (problem) throw new ConvexError(problem);
     await ctx.db.patch("eventSubForms", form._id, { risk, updatedAt: Date.now() });
     if (args.submit) await submitForm(ctx, caller, event, "risk");
@@ -128,7 +128,7 @@ export const saveFinance = mutation({
     const caller = await requireEventStaff(ctx);
     const { event, form } = await authorizeFill(ctx, caller, args.id, "finance");
     const finance: FinanceData = normalizeFinance(args.finance);
-    const problem = args.submit ? financeProblem(finance) : financeDraftProblem(finance);
+    const problem = args.submit ? financeProblem(args.finance) : financeDraftProblem(finance);
     if (problem) throw new ConvexError(problem);
     await ctx.db.patch("eventSubForms", form._id, { finance, updatedAt: Date.now() });
     if (args.submit) await submitForm(ctx, caller, event, "finance");

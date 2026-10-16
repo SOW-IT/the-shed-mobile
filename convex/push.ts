@@ -8,7 +8,7 @@ import {
   internalQuery,
   mutation,
 } from "./_generated/server";
-import { requireEmail } from "./model";
+import { optionalEmail, requireEmail } from "./model";
 
 export const register = mutation({
   args: { token: v.string() },
@@ -25,6 +25,20 @@ export const register = mutation({
       return null;
     }
     await ctx.db.insert("pushTokens", { email, token: args.token });
+    return null;
+  },
+});
+
+export const unregister = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const email = await optionalEmail(ctx);
+    if (!email) return null;
+    const existing = await ctx.db
+      .query("pushTokens")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .unique();
+    if (existing?.email === email) await ctx.db.delete("pushTokens", existing._id);
     return null;
   },
 });

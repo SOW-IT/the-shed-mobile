@@ -8,6 +8,7 @@ import {
   DECLINED,
   eventStaffYear,
   requestDisplayStatus,
+  STEP_FIELDS,
   STEP_LABELS,
   stepsForRequest,
   type ApprovalStatus,
@@ -30,6 +31,7 @@ import {
 } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
 import { timeAgo } from "@shared/datetime";
+import { sydneyDateTime } from "@/lib/sydneyTime";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { ReceiptRecipientList } from "./ReceiptRecipientList";
 
@@ -65,7 +67,7 @@ const History = ({ request }: { request: Doc<"requests"> }) => {
                 : ""}
             </Text>
             <Text style={[typography.caption, { color: t.muted }]}>
-              {new Date(event.at).toLocaleString()} · {event.actor}
+              {sydneyDateTime(event.at)} · {event.actor}
               {event.detail ? ` · ${event.detail}` : ""}
             </Text>
           </View>
@@ -75,16 +77,8 @@ const History = ({ request }: { request: Doc<"requests"> }) => {
   );
 };
 
-const stepStatus = (
-  request: Doc<"requests">,
-  step: ApprovalStep
-): ApprovalStatus | undefined =>
-  ({
-    hod: request.approvedByHOD,
-    budgetManager: request.approvedByBudgetManager,
-    director: request.approvedByDirector,
-    financeHead: request.approvedByFinanceHead,
-  })[step];
+const stepStatus = (request: Doc<"requests">, step: ApprovalStep): ApprovalStatus | undefined =>
+  request[STEP_FIELDS[step]];
 
 const StepInfoModal = ({
   requestId,
@@ -118,16 +112,26 @@ const StepInfoModal = ({
         <LoadingState />
       ) : (
         <>
-          <View style={{ gap: 2 }}>
-            {info.name ? (
-              <Txt style={{ fontWeight: "700" }}>{info.name}</Txt>
-            ) : null}
-            {info.email ? (
-              <Muted>{info.email}</Muted>
-            ) : (
-              <Muted>No one assigned to this step yet.</Muted>
-            )}
-          </View>
+          {info.autoApproved ? (
+            <View style={{ gap: 2 }}>
+              <Txt style={{ fontWeight: "700" }}>Auto-approved</Txt>
+              <Muted>
+                Approved automatically when {info.name ?? info.email ?? "the requester"} submitted
+                the request.
+              </Muted>
+            </View>
+          ) : (
+            <View style={{ gap: 2 }}>
+              {info.name ? (
+                <Txt style={{ fontWeight: "700" }}>{info.name}</Txt>
+              ) : null}
+              {info.email ? (
+                <Muted>{info.email}</Muted>
+              ) : (
+                <Muted>No one assigned to this step yet.</Muted>
+              )}
+            </View>
+          )}
           {info.isDelegated ? (
             <Muted>
               {info.name ?? "This person"} is covering for {officeholderLabel}
@@ -148,7 +152,7 @@ const StepInfoModal = ({
                   {EVENT_LABELS[event.action] ?? event.action}
                 </Text>
                 <Muted>
-                  {new Date(event.at).toLocaleString()}
+                  {sydneyDateTime(event.at)}
                   {event.detail ? ` · ${event.detail}` : ""}
                 </Muted>
               </View>
@@ -209,7 +213,9 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
           const labelColor = isApproved ? t.success : isDeclined ? t.danger : isActive ? t.warning : t.faint;
 
           const actor = actors?.[step];
-          const displayName = actor?.name ?? (actor?.email ? actor.email : null);
+          const displayName = actor?.autoApproved
+            ? "Auto-approved"
+            : actor?.name ?? (actor?.email ? actor.email : null);
 
           return (
             <React.Fragment key={step}>
@@ -277,7 +283,7 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                 ) : (
                   <>
                     {displayName ? (
-                      <Text numberOfLines={1} style={[styles.stepName, { color: t.muted }]}>
+                      <Text numberOfLines={2} style={[styles.stepName, { color: t.muted }]}>
                         {displayName}
                       </Text>
                     ) : null}
@@ -419,6 +425,15 @@ export const RequestCard = ({
         <View style={styles.topSide}>
           <Text style={[typography.amount, { color: t.text }]}>${formatAmount(request.amount)}</Text>
         </View>
+        {collapsible && !expanded && (unreadComments ?? 0) > 0 ? (
+          <View
+            accessibilityLabel={`${unreadComments} new ${unreadComments === 1 ? "comment" : "comments"}`}
+            style={[styles.unreadChip, { backgroundColor: t.primarySoft }]}
+          >
+            <Ionicons name="chatbubble-ellipses" size={12} color={t.primary} />
+            <Text style={[styles.statusPillText, { color: t.primary }]}>{unreadComments}</Text>
+          </View>
+        ) : null}
         <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
           <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
             {status}
@@ -428,7 +443,7 @@ export const RequestCard = ({
       <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
         {request.department}
         {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""}{" · "}
-        {new Date(request._creationTime).toLocaleDateString(undefined, {
+        {new Date(request._creationTime).toLocaleDateString("en-AU", {
           day: "numeric",
           month: "short",
         })}{" · "}
@@ -558,6 +573,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     maxWidth: "60%",
+  },
+  unreadChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: spacing.xs,
   },
   statusPillText: {
     fontSize: 11,

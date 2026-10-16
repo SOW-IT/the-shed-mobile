@@ -46,7 +46,7 @@ type When = "now" | "later";
 
 /** "Fri 9 Oct, 3:00 pm" in the viewer's time. */
 const whenText = (ms: number) =>
-  new Date(ms).toLocaleString(undefined, {
+  new Date(ms).toLocaleString("en-AU", {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -389,6 +389,37 @@ export default function AnnouncementsScreen() {
           ))
         )}
 
+        {history && history.notSent.length > 0 ? (
+          <>
+            <SectionTitle>Not sent</SectionTitle>
+            {history.notSent.map((a) => (
+              <Pressable
+                key={a.id}
+                onPress={() => router.push(`/announcements/${a.id}`)}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.sentRow,
+                  t.surfaceEdge,
+                  { backgroundColor: t.card },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <View style={[styles.sentIcon, { backgroundColor: t.warningSoft }]}>
+                  <Ionicons name="alert-circle-outline" size={18} color={t.warning} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt style={{ fontWeight: "700" }}>{a.title}</Txt>
+                  <Muted>
+                    Due {whenText(a.sendAt)} · {a.audience} · by {a.senderName}
+                  </Muted>
+                  <Text style={[typography.caption, { color: t.warning }]}>{a.notSentReason}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={t.faint} />
+              </Pressable>
+            ))}
+          </>
+        ) : null}
+
         <SectionTitle>Sent</SectionTitle>
         {history && history.sent.length === 0 ? <Muted>Nothing sent yet.</Muted> : null}
         {(history?.sent ?? []).map((a) => (
@@ -398,7 +429,7 @@ export default function AnnouncementsScreen() {
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.sentRow,
-              t.shadowCard,
+              t.surfaceEdge,
               { backgroundColor: t.card },
               pressed && { opacity: 0.7 },
             ]}

@@ -8,6 +8,7 @@ import {
 } from "../shared/rollcall";
 import { Doc } from "./_generated/dataModel";
 import { QueryCtx, query } from "./_generated/server";
+import { staffDisplayName } from "./attendanceMembers";
 import { optionalProfile } from "./model";
 import { isAssigned } from "./staffMembers";
 
@@ -93,7 +94,7 @@ async function resolveExportEvents(
     };
 
     const resolvedRows: ExportRow[] = attendanceRows.map((row): ExportRow => {
-      const member = row.memberId ? memberById.get(String(row.memberId)) : undefined;
+      const member = memberById.get(String(row.memberId));
       if (!member) {
         return {
           name: "Unknown",
@@ -106,7 +107,7 @@ async function resolveExportEvents(
       }
       const profile = profiles.get(String(member._id));
       return {
-        name: profile?.name ?? member.name,
+        name: profile ? staffDisplayName(profile, member.name) : member.name,
         email: profile?.email.toLowerCase() ?? member.email?.toLowerCase() ?? "",
         signInTime: row.signInTime,
         notes: row.notes,

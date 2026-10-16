@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   answerForRole,
   answersProblem,
+  answersProblemAt,
   formatAnswer,
   formatDateTime,
   formatDateTimeRange,
@@ -9,6 +10,7 @@ import {
   isValidUrl,
   normalizeAnswers,
   offeredOptions,
+  questionNumber,
   sydneyDateTimeAnswer,
   type FormField,
 } from "./forms";
@@ -114,5 +116,18 @@ describe("the field kinds event requests added", () => {
     expect(answerForRole(FIELDS, { name: "SAF" }, "title")).toBe("SAF");
     expect(answerForRole(FIELDS, {}, "start")).toBe("");
     expect(answerForRole(FIELDS, {}, "location")).toBe("");
+  });
+});
+
+describe("pointing at the question with the problem", () => {
+  test("names the first question at fault and its number on the form", () => {
+    const missingGoal = { audience: "internal", start: "2026-11-01T18:00" };
+    expect(answersProblemAt(FIELDS, missingGoal, TODAY)).toEqual({
+      key: "goal",
+      message: answersProblem(FIELDS, missingGoal, TODAY),
+    });
+    expect(questionNumber(FIELDS, missingGoal, "goal")).toBe(2);
+    expect(questionNumber(FIELDS, missingGoal, "nope")).toBeUndefined();
+    expect(answersProblemAt(FIELDS, good, TODAY)).toBeNull();
   });
 });

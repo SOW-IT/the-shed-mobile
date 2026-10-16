@@ -1,42 +1,8 @@
-import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
-import { SuggestedMerges } from "@/components/admin/SuggestedMerges";
-import {
-  Btn,
-  Card,
-  ConfirmDialog,
-  currencyText,
-  ErrorBanner,
-  errorMessage,
-  Field,
-  FloatingYearPicker,
-  formatAmount,
-  Grid,
-  IconButton,
-  InfoBanner,
-  LoadingState,
-  Muted,
-  ReadableColumn,
-  Row,
-  Screen,
-  SectionTitle,
-  Segmented,
-  Select,
-  Toast,
-  type ToastState,
-  Txt,
-} from "@/components/ui";
-import { useAdminMutations } from "@/hooks/useAdminMutations";
-import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
-import {
-  radius,
-  spacing,
-  typography,
-  useAppTheme,
-  WIDE_SCREEN_MIN_WIDTH,
-} from "@/theme";
-import { api } from "@convex/_generated/api";
 import { Ionicons } from "@expo/vector-icons";
-import { EVENT_DIRECTOR_APPROVAL_THRESHOLD } from "@shared/eventRequests";
+import { useMutation, useQuery } from "convex/react";
+import { useLocalSearchParams } from "expo-router";
+import { ReactNode, useEffect, useState } from "react";
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import {
   type Assignment,
   DIRECTOR,
@@ -47,25 +13,57 @@ import {
   isChaplainRole,
   isSystemRole,
   MEMBER,
+  ROLES,
   roleNeedsDepartment,
   roleNeedsUniversity,
-  ROLES,
   scopeKindFor,
   universityColour,
 } from "@shared/flow";
-import { canonicalEmailKey, uniqueStaffByEmail } from "@shared/rollcallImport";
-import { useMutation, useQuery } from "convex/react";
-import { useLocalSearchParams } from "expo-router";
-import { ReactNode, useEffect, useState } from "react";
 import {
-  Platform,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+  canonicalEmailKey,
+  uniqueStaffByEmail,
+} from "@shared/rollcallImport";
+import { EVENT_DIRECTOR_APPROVAL_THRESHOLD } from "@shared/eventRequests";
+import { api } from "@convex/_generated/api";
+import {
+  radius,
+  spacing,
+  typography,
+  useAppTheme,
+  WIDE_SCREEN_MIN_WIDTH,
+} from "@/theme";
+import {
+  Btn,
+  Card,
+  ConfirmDialog,
+  currencyText,
+  formatAmount,
+  ErrorBanner,
+  InfoBanner,
+  errorMessage,
+  Field,
+  FloatingYearPicker,
+  Grid,
+  IconButton,
+  LoadingState,
+  Muted,
+  ReadableColumn,
+  Row,
+  Screen,
+  SectionTitle,
+  Segmented,
+  Select,
+  type ToastState,
+  Toast,
+  Txt,
+} from "@/components/ui";
+import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { SuggestedMerges } from "@/components/admin/SuggestedMerges";
+import { useAdminMutations } from "@/hooks/useAdminMutations";
+import { sydneyDateTime } from "@/lib/sydneyTime";
+import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
 
-type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
+type DeleteConfirm = { name: string; message?: string; onConfirm: () => void };
 
 const ADMIN_CARD_WIDTH = 360;
 
@@ -107,7 +105,7 @@ const STRUCTURE_SUB_TABS = [
 ];
 
 const STAFF_EDITABLE_ROLES = ROLES.filter(
-  (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION && r !== MEMBER,
+  (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION && r !== MEMBER
 );
 
 type AssignmentDraft = { role: string; department: string; university: string };
@@ -117,13 +115,19 @@ const emptyDraft = (role = STAFF_EDITABLE_ROLES[0]): AssignmentDraft => ({
   university: "",
 });
 
+const dropsARoleWithoutReplacing = (savedRoles: string[], nextRoles: string[]): boolean =>
+  nextRoles.every((role) => savedRoles.includes(role)) &&
+  savedRoles.some((role) => !nextRoles.includes(role));
+
+const peopleText = (count: number) => `${count} ${count === 1 ? "person" : "people"}`;
+
 const sameAssignments = (a: AssignmentDraft[], b: AssignmentDraft[]): boolean =>
   a.length === b.length &&
   a.every(
     (x, i) =>
       x.role === b[i].role &&
       x.department === b[i].department &&
-      x.university === b[i].university,
+      x.university === b[i].university
   );
 
 const AssignmentEditor = ({
@@ -134,6 +138,7 @@ const AssignmentEditor = ({
   roles = STAFF_EDITABLE_ROLES,
   startIndex = 0,
   minCount = 1,
+  canRemove = () => true,
 }: {
   assignments: AssignmentDraft[];
   onChange: (a: AssignmentDraft[]) => void;
@@ -142,6 +147,7 @@ const AssignmentEditor = ({
   roles?: string[];
   startIndex?: number;
   minCount?: number;
+  canRemove?: (remaining: AssignmentDraft[]) => boolean;
 }) => {
   const t = useAppTheme();
   const totalCount = startIndex + assignments.length;
@@ -168,22 +174,17 @@ const AssignmentEditor = ({
               gap: 8,
             }}
           >
-            <View
-              style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}
-            >
+            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
               <View style={{ flex: 1 }}>
                 <Select
-                  label={
-                    totalCount > 1 ? `Assignment ${startIndex + i + 1}` : "Role"
-                  }
+                  label={totalCount > 1 ? `Assignment ${startIndex + i + 1}` : "Role"}
                   value={a.role}
                   options={rowRoles}
-                  onSelect={(role) =>
-                    update({ role, department: "", university: "" })
-                  }
+                  onSelect={(role) => update({ role, department: "", university: "" })}
                 />
               </View>
-              {assignments.length > minCount && (
+              {assignments.length > minCount &&
+                canRemove(assignments.filter((_, j) => j !== i)) && (
                 <View style={{ marginBottom: 6 }}>
                   <IconButton
                     name="trash-outline"
@@ -228,7 +229,7 @@ const AssignmentEditor = ({
         );
       })}
       <Btn
-        title="+ Add Assignment"
+        title="+ Add assignment"
         variant="ghost"
         onPress={() => onChange([...assignments, emptyDraft()])}
       />
@@ -251,6 +252,24 @@ const AssignmentEditor = ({
   );
 };
 
+const LockedNameRow = ({ label, name }: { label: string; name: string }) => {
+  const t = useAppTheme();
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      <View style={[styles.lockedBox, { backgroundColor: t.inputBackground }]}>
+        <Text style={[typography.body, { color: t.text, flex: 1 }]}>{name}</Text>
+        <Ionicons
+          name="lock-closed-outline"
+          size={18}
+          color={t.muted}
+          accessibilityLabel="Used by the app. Can't be renamed"
+        />
+      </View>
+    </View>
+  );
+};
+
 const LockedAssignmentRow = ({
   a,
   index,
@@ -263,31 +282,11 @@ const LockedAssignmentRow = ({
   const t = useAppTheme();
   const kind = scopeKindFor(a.role);
   const scopeLabel =
-    kind === "division"
-      ? "Division"
-      : kind === "university"
-        ? "University"
-        : kind === "department"
-          ? "Department"
-          : null;
+    kind === "division" ? "Division" : kind === "university" ? "University" : kind === "department" ? "Department" : null;
   const scopeValue =
-    kind === "division"
-      ? (a.division ?? null)
-      : kind === "university"
-        ? (a.university ?? null)
-        : kind === "department"
-          ? (a.department ?? null)
-          : null;
+    kind === "division" ? (a.division ?? null) : kind === "university" ? (a.university ?? null) : kind === "department" ? (a.department ?? null) : null;
   return (
-    <View
-      style={{
-        backgroundColor: t.ghost,
-        borderRadius: radius.md,
-        padding: 12,
-        gap: 8,
-        opacity: 0.6,
-      }}
-    >
+    <View style={{ backgroundColor: t.ghost, borderRadius: radius.md, padding: 12, gap: 8, opacity: 0.6 }}>
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
         <View style={{ flex: 1, gap: 6 }}>
           <Text style={[typography.label, { color: t.muted }]}>
@@ -305,24 +304,14 @@ const LockedAssignmentRow = ({
               alignItems: "center",
             }}
           >
-            <Text style={[typography.body, { color: t.text, flex: 1 }]}>
-              {a.role}
-            </Text>
+            <Text style={[typography.body, { color: t.text, flex: 1 }]}>{a.role}</Text>
           </View>
         </View>
-        <Ionicons
-          name="lock-closed-outline"
-          size={20}
-          color={t.muted}
-          style={{ marginBottom: 12 }}
-          accessibilityLabel="Locked – managed in Structure tab"
-        />
+        <Ionicons name="lock-closed-outline" size={20} color={t.muted} style={{ marginBottom: 12 }} accessibilityLabel="Locked – managed in Structure tab" />
       </View>
       {scopeLabel && scopeValue && (
         <View style={{ gap: 6 }}>
-          <Text style={[typography.label, { color: t.muted }]}>
-            {scopeLabel}
-          </Text>
+          <Text style={[typography.label, { color: t.muted }]}>{scopeLabel}</Text>
           <View
             style={{
               borderRadius: radius.md,
@@ -334,9 +323,7 @@ const LockedAssignmentRow = ({
               justifyContent: "center",
             }}
           >
-            <Text style={[typography.body, { color: t.text }]}>
-              {scopeValue}
-            </Text>
+            <Text style={[typography.body, { color: t.text }]}>{scopeValue}</Text>
           </View>
         </View>
       )}
@@ -353,9 +340,8 @@ export default function AdminScreen() {
   const years = useQuery(api.directory.availableYears, isAdmin ? {} : "skip");
   const currentYear = me?.year ?? new Date().getFullYear();
   const [year, setYear] = useState<number | null>(null);
-  const selectedYear = budgetManagerOnly ? currentYear : (year ?? currentYear);
-  const editable =
-    selectedYear === currentYear || selectedYear === currentYear + 1;
+  const selectedYear = budgetManagerOnly ? currentYear : year ?? currentYear;
+  const editable = selectedYear === currentYear || selectedYear === currentYear + 1;
   const [tab, setTab] = useState<AdminTab>("users");
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   useEffect(() => {
@@ -375,11 +361,11 @@ export default function AdminScreen() {
   const viewingCurrentYear = selectedYear === currentYear;
   const mergeSuggestions = useQuery(
     api.mergeSuggestions.list,
-    isAdmin && viewingCurrentYear ? {} : "skip",
+    isAdmin && viewingCurrentYear ? {} : "skip"
   );
   const mergeCount = (mergeSuggestions ?? []).reduce(
     (n, s) => n + s.candidates.length,
-    0,
+    0
   );
   const showMerges = isAdmin && viewingCurrentYear && mergeCount > 0;
   useEffect(() => {
@@ -393,33 +379,38 @@ export default function AdminScreen() {
     : tab === "merges" && !showMerges
       ? "users"
       : tab;
-  const [structureSubTab, setStructureSubTab] =
-    useState<StructureSubTab>("roles");
+  const [structureSubTab, setStructureSubTab] = useState<StructureSubTab>("roles");
 
   const structure = useQuery(
     api.directory.yearStructure,
-    hasAccess ? { year: selectedYear } : "skip",
+    hasAccess ? { year: selectedYear } : "skip"
   );
   const financeMembers = useQuery(
     api.admin.financeMembers,
-    hasAccess ? { year: selectedYear } : "skip",
+    hasAccess ? { year: selectedYear } : "skip"
   );
   const profiles = useQuery(
     api.admin.listStaffProfiles,
-    me?.isAdmin ? { year: selectedYear } : "skip",
+    me?.isAdmin ? { year: selectedYear } : "skip"
   );
   const unassigned = useQuery(
     api.admin.listUnassignedUsers,
-    me?.isAdmin && editable ? { year: selectedYear } : "skip",
+    me?.isAdmin && editable ? { year: selectedYear } : "skip"
   );
   const leavers = useQuery(
     api.admin.listLeavers,
-    me?.isAdmin && editable ? { year: selectedYear } : "skip",
+    me?.isAdmin && editable ? { year: selectedYear } : "skip"
   );
   const people = useQuery(
     api.admin.people,
-    hasAccess ? { year: selectedYear } : "skip",
+    hasAccess ? { year: selectedYear } : "skip"
   );
+  const lockedNames = useQuery(api.admin.lockedNames, hasAccess ? {} : "skip");
+  const lockedDepartments = new Set(lockedNames?.departments ?? []);
+  const lockedDivisions = new Set(lockedNames?.divisions ?? []);
+  const holdersLoaded = profiles != null;
+  const holdersOf = (holds: (a: Assignment) => boolean) =>
+    (profiles ?? []).filter((p) => (p.assignments ?? []).some(holds)).length;
   const personOptions = (people ?? []).map((person) => ({
     label: person.name ?? person.email,
     value: person.email,
@@ -433,15 +424,11 @@ export default function AdminScreen() {
   // Stays on even once everyone has signed in, so the list doesn't swap
   // under the admin; the summary line keeps its Show everyone button.
   const showingNotSignedIn = onlyNotSignedIn;
-  const {
-    director,
-    groupedProfiles,
-    campusByUniversity,
-    nonCampusOtherProfiles,
-  } = useGroupedProfiles(
-    structure,
-    showingNotSignedIn ? profiles?.filter((p) => !p.signedIn) : profiles,
-  );
+  const { director, groupedProfiles, campusByUniversity, nonCampusOtherProfiles } =
+    useGroupedProfiles(
+      structure,
+      showingNotSignedIn ? profiles?.filter((p) => !p.signedIn) : profiles
+    );
 
   const {
     setStaffProfile,
@@ -470,12 +457,12 @@ export default function AdminScreen() {
   } = useAdminMutations();
   const delegations = useQuery(
     api.admin.listDelegations,
-    hasAccess ? { year: selectedYear } : "skip",
+    hasAccess ? { year: selectedYear } : "skip"
   );
   const requestSync = useMutation(api.directorySync.requestSync);
   const syncState = useQuery(
     api.directorySync.list,
-    me?.isAdmin ? { year: selectedYear } : "skip",
+    me?.isAdmin ? { year: selectedYear } : "skip"
   );
   const [syncing, setSyncing] = useState(false);
   const [syncConfirm, setSyncConfirm] = useState(false);
@@ -500,76 +487,52 @@ export default function AdminScreen() {
   const [departmentName, setDepartmentName] = useState("");
   const [departmentDivision, setDepartmentDivision] = useState("");
   const [departmentHead, setDepartmentHead] = useState("");
-  const [budgetManagerEmail, setBudgetManagerEmail] = useState<string | null>(
-    null,
-  );
+  const [budgetManagerEmail, setBudgetManagerEmail] = useState<string | null>(null);
   const [praiseManagerEmail, setPraiseManagerEmail] = useState("");
   const budgetManagerValue =
     budgetManagerEmail ?? structure?.budgetManagerEmail ?? "";
   const [thresholdInput, setThresholdInput] = useState<string | null>(null);
   const configuredThreshold = structure?.directorApprovalThreshold ?? null;
   const thresholdValue =
-    thresholdInput ??
-    String(configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD);
+    thresholdInput ?? String(configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD);
   const thresholdNumber = Number(thresholdValue);
   const thresholdUnchanged =
-    thresholdNumber === configuredThreshold || thresholdValue.trim() === "";
-  const [eventThresholdInput, setEventThresholdInput] = useState<string | null>(
-    null,
-  );
-  const configuredEventThreshold =
-    structure?.eventDirectorApprovalThreshold ?? null;
+    thresholdNumber === (configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD) ||
+    thresholdValue.trim() === "";
+  const [eventThresholdInput, setEventThresholdInput] = useState<string | null>(null);
+  const configuredEventThreshold = structure?.eventDirectorApprovalThreshold ?? null;
   const eventThresholdValue =
     eventThresholdInput ??
     String(configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD);
   const eventThresholdNumber = Number(eventThresholdValue);
   const eventThresholdUnchanged =
-    eventThresholdNumber ===
-      (configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD) ||
+    eventThresholdNumber === (configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD) ||
     eventThresholdValue.trim() === "";
   const [delegationFrom, setDelegationFrom] = useState("");
   const [delegationTo, setDelegationTo] = useState("");
 
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
-  const [editingAssignments, setEditingAssignments] = useState<
-    AssignmentDraft[]
-  >([emptyDraft()]);
+  const [editingAssignments, setEditingAssignments] = useState<AssignmentDraft[]>([emptyDraft()]);
   const [savingEditUser, setSavingEditUser] = useState(false);
-  const [assigningUserEmail, setAssigningUserEmail] = useState<string | null>(
-    null,
-  );
-  const [assigningAssignments, setAssigningAssignments] = useState<
-    AssignmentDraft[]
-  >([emptyDraft()]);
+  const [assigningUserEmail, setAssigningUserEmail] = useState<string | null>(null);
+  const [assigningAssignments, setAssigningAssignments] = useState<AssignmentDraft[]>([emptyDraft()]);
   const [savingAssign, setSavingAssign] = useState(false);
-  const [editingDivisionKey, setEditingDivisionKey] = useState<string | null>(
-    null,
-  );
+  const [editingDivisionKey, setEditingDivisionKey] = useState<string | null>(null);
   const [editingDivisionFormName, setEditingDivisionFormName] = useState("");
   const [editingDivisionFormHead, setEditingDivisionFormHead] = useState("");
   const [savingEditDivision, setSavingEditDivision] = useState(false);
-  const [editingDepartmentKey, setEditingDepartmentKey] = useState<
-    string | null
-  >(null);
-  const [editingDepartmentFormName, setEditingDepartmentFormName] =
-    useState("");
-  const [editingDepartmentFormDivision, setEditingDepartmentFormDivision] =
-    useState("");
-  const [editingDepartmentFormHead, setEditingDepartmentFormHead] =
-    useState("");
+  const [editingDepartmentKey, setEditingDepartmentKey] = useState<string | null>(null);
+  const [editingDepartmentFormName, setEditingDepartmentFormName] = useState("");
+  const [editingDepartmentFormDivision, setEditingDepartmentFormDivision] = useState("");
+  const [editingDepartmentFormHead, setEditingDepartmentFormHead] = useState("");
   const [savingEditDepartment, setSavingEditDepartment] = useState(false);
-  const [editingUniversityKey, setEditingUniversityKey] = useState<
-    string | null
-  >(null);
-  const [editingUniversityFormName, setEditingUniversityFormName] =
-    useState("");
+  const [editingUniversityKey, setEditingUniversityKey] = useState<string | null>(null);
+  const [editingUniversityFormName, setEditingUniversityFormName] = useState("");
   const [savingEditUniversity, setSavingEditUniversity] = useState(false);
   const [editingRoleKey, setEditingRoleKey] = useState<string | null>(null);
   const [editingRoleFormName, setEditingRoleFormName] = useState("");
   const [savingEditRole, setSavingEditRole] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(
-    null,
-  );
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
   const [removeProfileTarget, setRemoveProfileTarget] = useState<
     NonNullable<typeof profiles>[number] | null
   >(null);
@@ -581,7 +544,7 @@ export default function AdminScreen() {
     const existing = (profiles ?? []).find((p) => p.email === email);
     const all = existing?.assignments ?? [];
     const nonHead = all.filter(
-      (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION,
+      (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION
     );
     let initial: AssignmentDraft[];
     if (nonHead.length > 0) {
@@ -605,11 +568,7 @@ export default function AdminScreen() {
   };
 
   if (me === undefined) {
-    return (
-      <Screen>
-        <LoadingState />
-      </Screen>
-    );
+    return <Screen><LoadingState /></Screen>;
   }
 
   if (!hasAccess) {
@@ -629,12 +588,12 @@ export default function AdminScreen() {
 
   const yearRoles = structure?.roles ?? [];
   const yearAssignableRoles = yearRoles.filter(
-    (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION && r !== MEMBER,
+    (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION && r !== MEMBER
   );
   const assignableRoles =
     yearAssignableRoles.length > 0 ? yearAssignableRoles : STAFF_EDITABLE_ROLES;
   const directorExists = (profiles ?? []).some((p) =>
-    (p.assignments ?? []).some((a) => a.role === DIRECTOR),
+    (p.assignments ?? []).some((a) => a.role === DIRECTOR)
   );
   const availableRoles = directorExists
     ? assignableRoles.filter((r) => r !== DIRECTOR)
@@ -647,10 +606,7 @@ export default function AdminScreen() {
 
   const leaverEmails = new Set((leavers ?? []).map((u) => u.email));
   const directoryOnlyUnassigned = (syncState?.users ?? []).filter(
-    (u) =>
-      !u.hasProfile &&
-      !unassignedEmails.has(u.email) &&
-      !leaverEmails.has(u.email),
+    (u) => !u.hasProfile && !unassignedEmails.has(u.email) && !leaverEmails.has(u.email)
   );
   const returningByEmail = new Map<
     string,
@@ -668,18 +624,15 @@ export default function AdminScreen() {
     }
   }
   const signedInNeverStaff = uniqueStaffByEmail(
-    (unassigned ?? []).filter((u) => u.previousYear == null),
+    (unassigned ?? []).filter((u) => u.previousYear == null)
   );
   const directoryNeverStaff = uniqueStaffByEmail(
-    directoryOnlyUnassigned.filter((u) => u.previousYear == null),
+    directoryOnlyUnassigned.filter((u) => u.previousYear == null)
   );
   const returningStaff = uniqueStaffByEmail([...returningByEmail.values()]);
 
   const saveAssign = (email: string) => {
-    if (
-      directorExists &&
-      assigningAssignments.some((a) => a.role === DIRECTOR)
-    ) {
+    if (directorExists && assigningAssignments.some((a) => a.role === DIRECTOR)) {
       setError("A Director is already assigned for this year.");
       return;
     }
@@ -693,7 +646,7 @@ export default function AdminScreen() {
           department: a.department || undefined,
           university: a.university || undefined,
         })),
-      }),
+      })
     )
       .then((ok) => {
         if (ok) {
@@ -732,12 +685,15 @@ export default function AdminScreen() {
                 variant="ghost"
                 onPress={() => setAssigningUserEmail(null)}
               />
-              <Btn title="Save" onPress={() => saveAssign(user.email)} />
+              <Btn
+                title="Save"
+                onPress={() => saveAssign(user.email)}
+              />
             </Row>
           </>
         ) : (
-          <Row>
-            <View style={{ flexGrow: 1 }}>
+          <View style={styles.cardRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
               {user.name ? <Muted>{user.email}</Muted> : null}
               {user.previousYear ? (
@@ -751,7 +707,7 @@ export default function AdminScreen() {
               accessibilityLabel="Leaving"
               onPress={() =>
                 void run(() =>
-                  markLeaving({ email: user.email, year: selectedYear }),
+                  markLeaving({ email: user.email, year: selectedYear })
                 )
               }
             />
@@ -761,7 +717,7 @@ export default function AdminScreen() {
               accessibilityLabel="Assign"
               onPress={() => startAssign(user.email)}
             />
-          </Row>
+          </View>
         )}
       </Card>
     );
@@ -769,8 +725,8 @@ export default function AdminScreen() {
 
   const renderLeaverCard = (user: { email: string; name?: string | null }) => (
     <Card key={user.email}>
-      <Row>
-        <View style={{ flexGrow: 1 }}>
+      <View style={styles.cardRow}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
           {user.name ? <Muted>{user.email}</Muted> : null}
         </View>
@@ -779,11 +735,11 @@ export default function AdminScreen() {
           variant="ghost"
           onPress={() =>
             void run(() =>
-              unmarkLeaving({ email: user.email, year: selectedYear }),
+              unmarkLeaving({ email: user.email, year: selectedYear })
             )
           }
         />
-      </Row>
+      </View>
     </Card>
   );
 
@@ -798,25 +754,24 @@ export default function AdminScreen() {
 
   const renderProfileCard = (
     profile: NonNullable<typeof profiles>[number],
-    accentColour?: string | null,
+    accentColour?: string | null
   ) => {
     const isEditingThis = editingUserEmail === profile.email;
     const lockedHeadAssignments = (profile.assignments ?? []).filter(
-      (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION,
+      (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION
     );
     const savedAssignments: AssignmentDraft[] = (profile.assignments ?? [])
-      .filter(
-        (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION,
-      )
+      .filter((a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION)
       .map((a) => ({
         role: a.role,
         department: a.department ?? "",
         university: a.university ?? "",
       }));
-    const assignmentsChanged = !sameAssignments(
-      editingAssignments,
-      savedAssignments,
-    );
+    const assignmentsChanged = !sameAssignments(editingAssignments, savedAssignments);
+    const savedRoles = [...new Set((profile.assignments ?? []).map((a) => a.role))];
+    const canRemoveAssignment = (remaining: AssignmentDraft[]) =>
+      lockedHeadAssignments.length > 0 ||
+      !dropsARoleWithoutReplacing(savedRoles, remaining.map((a) => a.role));
     return (
       <Card
         key={profile._id}
@@ -824,18 +779,14 @@ export default function AdminScreen() {
       >
         {isEditingThis ? (
           <>
-            <Txt style={{ fontWeight: "600" }}>
-              {profile.name ?? profile.email}
-            </Txt>
+            <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
             {profile.name ? <Muted>{profile.email}</Muted> : null}
             {lockedHeadAssignments.map((a, i) => (
               <LockedAssignmentRow
                 key={i}
                 a={a}
                 index={i}
-                totalCount={
-                  lockedHeadAssignments.length + editingAssignments.length
-                }
+                totalCount={lockedHeadAssignments.length + editingAssignments.length}
               />
             ))}
             <AssignmentEditor
@@ -846,6 +797,7 @@ export default function AdminScreen() {
               roles={availableRoles}
               startIndex={lockedHeadAssignments.length}
               minCount={lockedHeadAssignments.length > 0 ? 0 : 1}
+              canRemove={canRemoveAssignment}
             />
             <Row spread loading={savingEditUser}>
               <Btn
@@ -858,7 +810,7 @@ export default function AdminScreen() {
                 disabled={!assignmentsChanged}
                 onPress={() => {
                   const isCurrentDirector = (profile.assignments ?? []).some(
-                    (a) => a.role === DIRECTOR,
+                    (a) => a.role === DIRECTOR
                   );
                   if (
                     directorExists &&
@@ -881,7 +833,7 @@ export default function AdminScreen() {
                           university: a.university || undefined,
                         })),
                       ],
-                    }),
+                    })
                   )
                     .then((ok) => {
                       if (ok) {
@@ -904,15 +856,10 @@ export default function AdminScreen() {
                 {profile.signedIn ? null : (
                   <View
                     accessibilityLabel="Hasn't signed in yet"
-                    style={[
-                      styles.notSignedInPill,
-                      { backgroundColor: t.warningSoft },
-                    ]}
+                    style={[styles.notSignedInPill, { backgroundColor: t.warningSoft }]}
                   >
-                    <Text
-                      style={[styles.notSignedInText, { color: t.warning }]}
-                    >
-                      NOT SIGNED IN
+                    <Text style={[styles.notSignedInText, { color: t.warning }]}>
+                      Not signed in
                     </Text>
                   </View>
                 )}
@@ -949,6 +896,29 @@ export default function AdminScreen() {
     );
   };
 
+  const renderHolderCount = (count: number) =>
+    holdersLoaded ? (
+      <View style={styles.metaItem}>
+        <Ionicons name="people-outline" size={12} color={t.muted} />
+        <Muted>{peopleText(count)}</Muted>
+      </View>
+    ) : null;
+
+  const renderDeleteButton = (name: string, holders: number, onPress: () => void) => {
+    const blocked = !holdersLoaded || holders > 0;
+    return (
+      <IconButton
+        name="trash-outline"
+        color={blocked ? t.faint : t.danger}
+        disabled={blocked}
+        accessibilityLabel={
+          holders > 0 ? `Delete ${name}, unavailable while ${peopleText(holders)} hold it` : `Delete ${name}`
+        }
+        onPress={onPress}
+      />
+    );
+  };
+
   const onSelectYear = (y: number) => {
     setYear(y);
     setError(null);
@@ -979,18 +949,32 @@ export default function AdminScreen() {
         <>
           {(notSignedInCount > 0 || showingNotSignedIn) && (
             <View style={styles.signedInSummary}>
-              <Muted>
-                {notSignedInCount === 0
-                  ? `Everyone on staff in ${selectedYear} has signed in to The SHED.`
-                  : `${notSignedInCount} of ${(profiles ?? []).length} staff in ${selectedYear} ${
-                      notSignedInCount === 1 ? "hasn't" : "haven't"
-                    } signed in to The SHED yet.`}
-              </Muted>
-              <Btn
-                title={showingNotSignedIn ? "Show everyone" : "Show only them"}
-                variant="ghost"
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: showingNotSignedIn }}
+                accessibilityLabel={`Only staff who haven't signed in: ${notSignedInCount} of ${(profiles ?? []).length}`}
                 onPress={() => setOnlyNotSignedIn((on) => !on)}
-              />
+                style={({ pressed }) => [
+                  styles.filterChip,
+                  {
+                    borderColor: showingNotSignedIn ? t.primary : t.border,
+                    backgroundColor: showingNotSignedIn ? t.primary : "transparent",
+                  },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Ionicons
+                  name={showingNotSignedIn ? "checkmark" : "log-in-outline"}
+                  size={15}
+                  color={showingNotSignedIn ? t.onPrimary : t.muted}
+                />
+                <Txt style={[styles.filterChipText, { color: showingNotSignedIn ? t.onPrimary : t.text }]}>
+                  Not signed in
+                </Txt>
+                <Txt style={[styles.filterChipText, { color: showingNotSignedIn ? t.onPrimary : t.muted }]}>
+                  {notSignedInCount}
+                </Txt>
+              </Pressable>
             </View>
           )}
 
@@ -1008,8 +992,7 @@ export default function AdminScreen() {
           {!showingNotSignedIn && editable && signedInNeverStaff.length > 0 && (
             <>
               <SectionTitle>
-                Signed in, no assignment · {selectedYear} (
-                {signedInNeverStaff.length})
+                Signed in, no assignment · {selectedYear} ({signedInNeverStaff.length})
               </SectionTitle>
               <CardGrid maxVisible={VISIBLE_USERS}>
                 {signedInNeverStaff.map((user) => renderUnassignedCard(user))}
@@ -1017,21 +1000,16 @@ export default function AdminScreen() {
             </>
           )}
 
-          {!showingNotSignedIn &&
-            editable &&
-            directoryNeverStaff.length > 0 && (
-              <>
-                <SectionTitle>
-                  In directory, no assignment · {selectedYear} (
-                  {directoryNeverStaff.length})
-                </SectionTitle>
-                <CardGrid maxVisible={VISIBLE_USERS}>
-                  {directoryNeverStaff.map((user) =>
-                    renderUnassignedCard(user),
-                  )}
-                </CardGrid>
-              </>
-            )}
+          {!showingNotSignedIn && editable && directoryNeverStaff.length > 0 && (
+            <>
+              <SectionTitle>
+                In directory, no assignment · {selectedYear} ({directoryNeverStaff.length})
+              </SectionTitle>
+              <CardGrid maxVisible={VISIBLE_USERS}>
+                {directoryNeverStaff.map((user) => renderUnassignedCard(user))}
+              </CardGrid>
+            </>
+          )}
 
           {!showingNotSignedIn && editable && (leavers ?? []).length > 0 && (
             <>
@@ -1059,18 +1037,17 @@ export default function AdminScreen() {
             if (!hasAny) return null;
             return (
               <View key={group.division} style={{ gap: spacing.md }}>
-                <SectionTitle>
-                  {group.division} · {selectedYear}
-                </SectionTitle>
+                <SectionTitle>{group.division} · {selectedYear}</SectionTitle>
                 {group.head ? (
-                  <CardGrid>
-                    {renderProfileCard(group.head, t.primary)}
-                  </CardGrid>
+                  <CardGrid>{renderProfileCard(group.head, t.primary)}</CardGrid>
                 ) : null}
                 {group.departments.map((dept) => {
                   const deptAccent = dept.colour ?? t.primary;
                   return (
-                    <View key={dept.name} style={accentContainerStyle}>
+                    <View
+                      key={dept.name}
+                      style={accentContainerStyle}
+                    >
                       <Text
                         style={[
                           typography.label,
@@ -1080,11 +1057,9 @@ export default function AdminScreen() {
                         {dept.name}
                       </Text>
                       <CardGrid>
-                        {dept.head
-                          ? renderProfileCard(dept.head, deptAccent)
-                          : null}
+                        {dept.head ? renderProfileCard(dept.head, deptAccent) : null}
                         {dept.profiles.map((profile) =>
-                          renderProfileCard(profile, deptAccent),
+                          renderProfileCard(profile, deptAccent)
                         )}
                       </CardGrid>
                     </View>
@@ -1093,7 +1068,7 @@ export default function AdminScreen() {
                 {group.divisionOnlyProfiles.length > 0 && (
                   <CardGrid>
                     {group.divisionOnlyProfiles.map((profile) =>
-                      renderProfileCard(profile, t.primary),
+                      renderProfileCard(profile, t.primary)
                     )}
                   </CardGrid>
                 )}
@@ -1102,16 +1077,16 @@ export default function AdminScreen() {
           })}
 
           {campusByUniversity.map((group) => {
-            const campusAccent =
-              universityColour(group.university) ?? t.primary;
+            const campusAccent = universityColour(group.university) ?? t.primary;
             return (
-              <View key={group.university} style={accentContainerStyle}>
-                <SectionTitle>
-                  {group.university} · {selectedYear}
-                </SectionTitle>
+              <View
+                key={group.university}
+                style={accentContainerStyle}
+              >
+                <SectionTitle>{group.university} · {selectedYear}</SectionTitle>
                 <CardGrid>
                   {group.profiles.map((profile) =>
-                    renderProfileCard(profile, campusAccent),
+                    renderProfileCard(profile, campusAccent)
                   )}
                 </CardGrid>
               </View>
@@ -1122,9 +1097,7 @@ export default function AdminScreen() {
             <>
               <SectionTitle>Other · {selectedYear}</SectionTitle>
               <CardGrid>
-                {nonCampusOtherProfiles.map((profile) =>
-                  renderProfileCard(profile),
-                )}
+                {nonCampusOtherProfiles.map((profile) => renderProfileCard(profile))}
               </CardGrid>
             </>
           )}
@@ -1152,604 +1125,524 @@ export default function AdminScreen() {
 
           {structureSubTab === "roles" && (
             <>
-              <SectionTitle>Roles · {selectedYear}</SectionTitle>
-              <CardGrid>
-                {editable && (
-                  <Card>
+          <SectionTitle>Roles · {selectedYear}</SectionTitle>
+          <CardGrid>
+          {editable && (
+            <Card>
+              <Field
+                label="New role"
+                value={roleName}
+                onChangeText={setRoleName}
+              />
+              <Btn
+                title="Add role"
+                onPress={() =>
+                  void run(() =>
+                    upsertRole({ year: selectedYear, name: roleName })
+                  ).then((ok) => ok && setRoleName(""))
+                }
+              />
+            </Card>
+          )}
+          {(structure?.roles ?? []).length === 0 && (
+            <Card><Muted>No roles yet.</Muted></Card>
+          )}
+          {(structure?.roles ?? []).map((role) => {
+            const isEditingThis = editingRoleKey === role;
+            const roleHolders = holdersOf((a) => a.role === role);
+            return (
+              <Card key={role}>
+                {isEditingThis ? (
+                  <>
                     <Field
-                      label="New role"
-                      value={roleName}
-                      onChangeText={setRoleName}
+                      label="Role name (rename cascades to staff and scheduled announcements)"
+                      value={editingRoleFormName}
+                      onChangeText={setEditingRoleFormName}
                     />
-                    <Btn
-                      title="Add Role"
-                      onPress={() =>
-                        void run(() =>
-                          upsertRole({ year: selectedYear, name: roleName }),
-                        ).then((ok) => ok && setRoleName(""))
-                      }
-                    />
-                  </Card>
+                    <Row spread loading={savingEditRole}>
+                      <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingRoleKey(null)}
+                      />
+                      <Btn
+                        title="Save"
+                        disabled={
+                          !editingRoleFormName.trim() ||
+                          editingRoleFormName.trim() === role
+                        }
+                        onPress={() => {
+                          setSavingEditRole(true);
+                          void run(() =>
+                            updateRole({
+                              year: selectedYear,
+                              oldName: role,
+                              newName: editingRoleFormName,
+                            })
+                          )
+                            .then((ok) => {
+                              if (ok) setEditingRoleKey(null);
+                            })
+                            .finally(() => setSavingEditRole(false));
+                        }}
+                      />
+                    </Row>
+                  </>
+                ) : (
+                  <View style={styles.cardRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Txt style={{ fontWeight: "600" }}>{role}</Txt>
+                      {renderHolderCount(roleHolders)}
+                    </View>
+                    {editable && isSystemRole(role) && (
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={20}
+                        color={t.muted}
+                        accessibilityLabel="Managed by the app. Can't be renamed or deleted"
+                      />
+                    )}
+                    {editable && !isSystemRole(role) && (
+                      <>
+                        <IconButton
+                          name="create-outline"
+                          onPress={() => {
+                            setEditingRoleFormName(role);
+                            setEditingRoleKey(role);
+                          }}
+                        />
+                        {renderDeleteButton(role, roleHolders, () =>
+                          setDeleteConfirm({
+                            name: role,
+                            onConfirm: () => void run(() => removeRole({ year: selectedYear, name: role })),
+                          })
+                        )}
+                      </>
+                    )}
+                  </View>
                 )}
-                {(structure?.roles ?? []).length === 0 && (
-                  <Card>
-                    <Muted>No roles yet.</Muted>
-                  </Card>
-                )}
-                {(structure?.roles ?? []).map((role) => {
-                  const isEditingThis = editingRoleKey === role;
-                  return (
-                    <Card key={role}>
-                      {isEditingThis ? (
-                        <>
-                          <Field
-                            label="Role name (rename cascades to staff assignments)"
-                            value={editingRoleFormName}
-                            onChangeText={setEditingRoleFormName}
-                          />
-                          <Row spread loading={savingEditRole}>
-                            <Btn
-                              title="Cancel"
-                              variant="ghost"
-                              onPress={() => setEditingRoleKey(null)}
-                            />
-                            <Btn
-                              title="Save"
-                              disabled={
-                                !editingRoleFormName.trim() ||
-                                editingRoleFormName.trim() === role
-                              }
-                              onPress={() => {
-                                setSavingEditRole(true);
-                                void run(() =>
-                                  updateRole({
-                                    year: selectedYear,
-                                    oldName: role,
-                                    newName: editingRoleFormName,
-                                  }),
-                                )
-                                  .then((ok) => {
-                                    if (ok) setEditingRoleKey(null);
-                                  })
-                                  .finally(() => setSavingEditRole(false));
-                              }}
-                            />
-                          </Row>
-                        </>
-                      ) : (
-                        <Row>
-                          <View style={{ flexGrow: 1 }}>
-                            <Txt style={{ fontWeight: "600" }}>{role}</Txt>
-                          </View>
-                          {editable && isSystemRole(role) && (
-                            <Ionicons
-                              name="lock-closed-outline"
-                              size={20}
-                              color={t.muted}
-                              accessibilityLabel="Managed by the app. Can't be renamed or deleted"
-                            />
-                          )}
-                          {editable && !isSystemRole(role) && (
-                            <>
-                              <IconButton
-                                name="create-outline"
-                                onPress={() => {
-                                  setEditingRoleFormName(role);
-                                  setEditingRoleKey(role);
-                                }}
-                              />
-                              <IconButton
-                                name="trash-outline"
-                                color={t.danger}
-                                onPress={() =>
-                                  setDeleteConfirm({
-                                    name: role,
-                                    message: `This role can only be deleted if no one is assigned it this year.`,
-                                    onConfirm: () =>
-                                      void run(() =>
-                                        removeRole({
-                                          year: selectedYear,
-                                          name: role,
-                                        }),
-                                      ),
-                                  })
-                                }
-                              />
-                            </>
-                          )}
-                        </Row>
-                      )}
-                    </Card>
-                  );
-                })}
-              </CardGrid>
+              </Card>
+            );
+          })}
+          </CardGrid>
             </>
           )}
 
           {structureSubTab === "divisions" && (
             <>
-              <SectionTitle>Divisions · {selectedYear}</SectionTitle>
-              <CardGrid>
-                {editable && (
-                  <Card>
-                    <Field
-                      label="New division name"
-                      value={divisionName}
-                      onChangeText={setDivisionName}
-                    />
+          <SectionTitle>Divisions · {selectedYear}</SectionTitle>
+          <CardGrid>
+          {editable && (
+            <Card>
+              <Field
+                label="New division name"
+                value={divisionName}
+                onChangeText={setDivisionName}
+              />
+              <Select
+                label="Head of Division (a person can head several divisions)"
+                value={divisionHead}
+                options={[{ label: "— No head —", value: "" }, ...personOptions]}
+                onSelect={setDivisionHead}
+                placeholder="Choose a person…"
+              />
+              <Btn
+                title="Add division"
+                onPress={() =>
+                  void run(() =>
+                    upsertDivision({
+                      year: selectedYear,
+                      name: divisionName,
+                      headEmail: divisionHead || undefined,
+                    })
+                  ).then((ok) => {
+                    if (ok) {
+                      setDivisionName("");
+                      setDivisionHead("");
+                    }
+                  })
+                }
+              />
+            </Card>
+          )}
+          {(structure?.divisions ?? []).map((division) => {
+            const isEditingThis = editingDivisionKey === division.name;
+            const divisionLocked = lockedDivisions.has(division.name);
+            const divisionDepartments = new Set(
+              (structure?.departments ?? [])
+                .filter((d) => d.division === division.name)
+                .map((d) => d.name)
+            );
+            const divisionHolders = holdersOf(
+              (a) => a.division === division.name || divisionDepartments.has(a.department ?? "")
+            );
+            return (
+              <Card key={division.name}>
+                {isEditingThis ? (
+                  <>
+                    {divisionLocked ? (
+                      <LockedNameRow label="Division name" name={division.name} />
+                    ) : (
+                      <Field
+                        label="Division name (rename cascades to departments, staff and scheduled announcements)"
+                        value={editingDivisionFormName}
+                        onChangeText={setEditingDivisionFormName}
+                      />
+                    )}
                     <Select
-                      label="Head of Division (a person can head several divisions)"
-                      value={divisionHead}
-                      options={[
-                        { label: "— No head —", value: "" },
-                        ...personOptions,
-                      ]}
-                      onSelect={setDivisionHead}
+                      label="Head of Division"
+                      value={editingDivisionFormHead}
+                      options={[{ label: "— No head —", value: "" }, ...personOptions]}
+                      onSelect={setEditingDivisionFormHead}
                       placeholder="Choose a person…"
                     />
-                    <Btn
-                      title="Add Division"
-                      onPress={() =>
-                        void run(() =>
-                          upsertDivision({
-                            year: selectedYear,
-                            name: divisionName,
-                            headEmail: divisionHead || undefined,
-                          }),
-                        ).then((ok) => {
-                          if (ok) {
-                            setDivisionName("");
-                            setDivisionHead("");
-                          }
-                        })
-                      }
-                    />
-                  </Card>
-                )}
-                {(structure?.divisions ?? []).map((division) => {
-                  const isEditingThis = editingDivisionKey === division.name;
-                  return (
-                    <Card key={division.name}>
-                      {isEditingThis ? (
-                        <>
-                          <Field
-                            label="Division name (rename cascades to departments and staff)"
-                            value={editingDivisionFormName}
-                            onChangeText={setEditingDivisionFormName}
+                    <Row spread loading={savingEditDivision}>
+                      <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingDivisionKey(null)}
+                      />
+                      <Btn
+                        title="Save"
+                        disabled={
+                          !editingDivisionFormName.trim() ||
+                          (editingDivisionFormName.trim() === division.name &&
+                            editingDivisionFormHead === (division.headEmail ?? ""))
+                        }
+                        onPress={() => {
+                          setSavingEditDivision(true);
+                          void run(() =>
+                            updateDivision({
+                              year: selectedYear,
+                              oldName: division.name,
+                              newName: editingDivisionFormName,
+                              headEmail: editingDivisionFormHead || undefined,
+                            })
+                          )
+                            .then((ok) => {
+                              if (ok) setEditingDivisionKey(null);
+                            })
+                            .finally(() => setSavingEditDivision(false));
+                        }}
+                      />
+                    </Row>
+                  </>
+                ) : (
+                  <View style={styles.cardRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.nameRow}>
+                        <Txt style={{ fontWeight: "600" }}>{division.name}</Txt>
+                        {divisionLocked ? (
+                          <Ionicons
+                            name="lock-closed-outline"
+                            size={14}
+                            color={t.muted}
+                            accessibilityLabel="Used by the app. Can't be renamed"
                           />
-                          <Select
-                            label="Head of Division"
-                            value={editingDivisionFormHead}
-                            options={[
-                              { label: "— No head —", value: "" },
-                              ...personOptions,
-                            ]}
-                            onSelect={setEditingDivisionFormHead}
-                            placeholder="Choose a person…"
-                          />
-                          <Row spread loading={savingEditDivision}>
-                            <Btn
-                              title="Cancel"
-                              variant="ghost"
-                              onPress={() => setEditingDivisionKey(null)}
-                            />
-                            <Btn
-                              title="Save"
-                              disabled={
-                                !editingDivisionFormName.trim() ||
-                                (editingDivisionFormName.trim() ===
-                                  division.name &&
-                                  editingDivisionFormHead ===
-                                    (division.headEmail ?? ""))
-                              }
-                              onPress={() => {
-                                setSavingEditDivision(true);
-                                void run(() =>
-                                  updateDivision({
-                                    year: selectedYear,
-                                    oldName: division.name,
-                                    newName: editingDivisionFormName,
-                                    headEmail:
-                                      editingDivisionFormHead || undefined,
-                                  }),
-                                )
-                                  .then((ok) => {
-                                    if (ok) setEditingDivisionKey(null);
-                                  })
-                                  .finally(() => setSavingEditDivision(false));
-                              }}
-                            />
-                          </Row>
-                        </>
+                        ) : null}
+                      </View>
+                      {division.headEmail ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: 2 }}>
+                          <Ionicons name="person-outline" size={12} color={t.muted} />
+                          <Muted>{nameByEmail.get(division.headEmail) ?? division.headEmail}</Muted>
+                        </View>
                       ) : (
-                        <Row>
-                          <View style={{ flexGrow: 1 }}>
-                            <Txt style={{ fontWeight: "600" }}>
-                              {division.name}
-                            </Txt>
-                            {division.headEmail ? (
-                              <View
-                                style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  gap: spacing.xs,
-                                  marginTop: 2,
-                                }}
-                              >
-                                <Ionicons
-                                  name="person-outline"
-                                  size={12}
-                                  color={t.muted}
-                                />
-                                <Muted>
-                                  {nameByEmail.get(division.headEmail) ??
-                                    division.headEmail}
-                                </Muted>
-                              </View>
-                            ) : (
-                              <Muted>No head assigned</Muted>
-                            )}
-                          </View>
-                          {editable && (
-                            <>
-                              <IconButton
-                                name="create-outline"
-                                onPress={() => {
-                                  setEditingDivisionFormName(division.name);
-                                  setEditingDivisionFormHead(
-                                    division.headEmail ?? "",
-                                  );
-                                  setEditingDivisionKey(division.name);
-                                }}
-                              />
-                              <IconButton
-                                name="trash-outline"
-                                color={t.danger}
-                                onPress={() =>
-                                  setDeleteConfirm({
-                                    name: division.name,
-                                    message: `Its departments and all staff assignments in this division will also be removed.`,
-                                    onConfirm: () =>
-                                      void run(() =>
-                                        removeDivision({
-                                          year: selectedYear,
-                                          name: division.name,
-                                        }),
-                                      ),
-                                  })
-                                }
-                              />
-                            </>
-                          )}
-                        </Row>
+                        <Muted>No head assigned</Muted>
                       )}
-                    </Card>
-                  );
-                })}
-              </CardGrid>
+                      {renderHolderCount(divisionHolders)}
+                    </View>
+                    {editable && (
+                      <>
+                        <IconButton
+                          name="create-outline"
+                          onPress={() => {
+                            setEditingDivisionFormName(division.name);
+                            setEditingDivisionFormHead(division.headEmail ?? "");
+                            setEditingDivisionKey(division.name);
+                          }}
+                        />
+                        {renderDeleteButton(division.name, divisionHolders, () =>
+                          setDeleteConfirm({
+                            name: division.name,
+                            message:
+                              divisionDepartments.size > 0
+                                ? "Its departments are removed with it."
+                                : undefined,
+                            onConfirm: () => void run(() => removeDivision({ year: selectedYear, name: division.name })),
+                          })
+                        )}
+                      </>
+                    )}
+                  </View>
+                )}
+              </Card>
+            );
+          })}
+          </CardGrid>
             </>
           )}
 
           {structureSubTab === "universities" && (
             <>
-              <SectionTitle>Universities · {selectedYear}</SectionTitle>
-              <CardGrid>
-                {editable && (
-                  <Card>
+          <SectionTitle>Universities · {selectedYear}</SectionTitle>
+          <CardGrid>
+          {editable && (
+            <Card>
+              <Field
+                label="New university"
+                value={universityName}
+                onChangeText={setUniversityName}
+              />
+              <Btn
+                title="Add university"
+                onPress={() =>
+                  void run(() =>
+                    upsertUniversity({ year: selectedYear, name: universityName })
+                  ).then((ok) => ok && setUniversityName(""))
+                }
+              />
+            </Card>
+          )}
+          {(structure?.universities ?? []).length === 0 && (
+            <Card><Muted>No universities yet.</Muted></Card>
+          )}
+          {(structure?.universities ?? []).map((university) => {
+            const isEditingThis = editingUniversityKey === university;
+            const universityHolders = holdersOf((a) => a.university === university);
+            return (
+              <Card key={university}>
+                {isEditingThis ? (
+                  <>
                     <Field
-                      label="New university"
-                      value={universityName}
-                      onChangeText={setUniversityName}
+                      label="University name (rename cascades to staff and scheduled announcements)"
+                      value={editingUniversityFormName}
+                      onChangeText={setEditingUniversityFormName}
                     />
-                    <Btn
-                      title="Add University"
-                      onPress={() =>
-                        void run(() =>
-                          upsertUniversity({
-                            year: selectedYear,
-                            name: universityName,
-                          }),
-                        ).then((ok) => ok && setUniversityName(""))
-                      }
-                    />
-                  </Card>
+                    <Row spread loading={savingEditUniversity}>
+                      <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingUniversityKey(null)}
+                      />
+                      <Btn
+                        title="Save"
+                        disabled={
+                          !editingUniversityFormName.trim() ||
+                          editingUniversityFormName.trim() === university
+                        }
+                        onPress={() => {
+                          setSavingEditUniversity(true);
+                          void run(() =>
+                            updateUniversity({
+                              year: selectedYear,
+                              oldName: university,
+                              newName: editingUniversityFormName,
+                            })
+                          )
+                            .then((ok) => {
+                              if (ok) setEditingUniversityKey(null);
+                            })
+                            .finally(() => setSavingEditUniversity(false));
+                        }}
+                      />
+                    </Row>
+                  </>
+                ) : (
+                  <View style={styles.cardRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Txt style={{ fontWeight: "600" }}>{university}</Txt>
+                      {renderHolderCount(universityHolders)}
+                    </View>
+                    {editable && (
+                      <>
+                        <IconButton
+                          name="create-outline"
+                          onPress={() => {
+                            setEditingUniversityFormName(university);
+                            setEditingUniversityKey(university);
+                          }}
+                        />
+                        {renderDeleteButton(university, universityHolders, () =>
+                          setDeleteConfirm({
+                            name: university,
+                            onConfirm: () => void run(() => removeUniversity({ year: selectedYear, name: university })),
+                          })
+                        )}
+                      </>
+                    )}
+                  </View>
                 )}
-                {(structure?.universities ?? []).length === 0 && (
-                  <Card>
-                    <Muted>No universities yet.</Muted>
-                  </Card>
-                )}
-                {(structure?.universities ?? []).map((university) => {
-                  const isEditingThis = editingUniversityKey === university;
-                  return (
-                    <Card key={university}>
-                      {isEditingThis ? (
-                        <>
-                          <Field
-                            label="University name (rename cascades to staff)"
-                            value={editingUniversityFormName}
-                            onChangeText={setEditingUniversityFormName}
-                          />
-                          <Row spread loading={savingEditUniversity}>
-                            <Btn
-                              title="Cancel"
-                              variant="ghost"
-                              onPress={() => setEditingUniversityKey(null)}
-                            />
-                            <Btn
-                              title="Save"
-                              disabled={
-                                !editingUniversityFormName.trim() ||
-                                editingUniversityFormName.trim() === university
-                              }
-                              onPress={() => {
-                                setSavingEditUniversity(true);
-                                void run(() =>
-                                  updateUniversity({
-                                    year: selectedYear,
-                                    oldName: university,
-                                    newName: editingUniversityFormName,
-                                  }),
-                                )
-                                  .then((ok) => {
-                                    if (ok) setEditingUniversityKey(null);
-                                  })
-                                  .finally(() =>
-                                    setSavingEditUniversity(false),
-                                  );
-                              }}
-                            />
-                          </Row>
-                        </>
-                      ) : (
-                        <Row>
-                          <View style={{ flexGrow: 1 }}>
-                            <Txt style={{ fontWeight: "600" }}>
-                              {university}
-                            </Txt>
-                          </View>
-                          {editable && (
-                            <>
-                              <IconButton
-                                name="create-outline"
-                                onPress={() => {
-                                  setEditingUniversityFormName(university);
-                                  setEditingUniversityKey(university);
-                                }}
-                              />
-                              <IconButton
-                                name="trash-outline"
-                                color={t.danger}
-                                onPress={() =>
-                                  setDeleteConfirm({
-                                    name: university,
-                                    message: `All campus assignments for this university will also be removed.`,
-                                    onConfirm: () =>
-                                      void run(() =>
-                                        removeUniversity({
-                                          year: selectedYear,
-                                          name: university,
-                                        }),
-                                      ),
-                                  })
-                                }
-                              />
-                            </>
-                          )}
-                        </Row>
-                      )}
-                    </Card>
-                  );
-                })}
-              </CardGrid>
+              </Card>
+            );
+          })}
+          </CardGrid>
             </>
           )}
 
           {structureSubTab === "departments" && (
             <>
-              <SectionTitle>Departments · {selectedYear}</SectionTitle>
-              <CardGrid>
-                {editable && (
-                  <Card>
-                    <Field
-                      label="New department name"
-                      value={departmentName}
-                      onChangeText={setDepartmentName}
-                    />
+          <SectionTitle>Departments · {selectedYear}</SectionTitle>
+          <CardGrid>
+          {editable && (
+            <Card>
+              <Field
+                label="New department name"
+                value={departmentName}
+                onChangeText={setDepartmentName}
+              />
+              <Select
+                label="Division"
+                value={selectedDepartmentDivision}
+                options={divisionNames}
+                onSelect={setDepartmentDivision}
+                placeholder="Choose a division…"
+              />
+              <Select
+                label="Head of Department"
+                value={departmentHead}
+                options={[{ label: "— No head —", value: "" }, ...personOptions]}
+                onSelect={setDepartmentHead}
+                placeholder="Choose a person…"
+              />
+              <Btn
+                title="Add department"
+                disabled={!departmentName.trim() || !selectedDepartmentDivision}
+                onPress={() =>
+                  void run(() =>
+                    upsertDepartment({
+                      year: selectedYear,
+                      name: departmentName,
+                      division: selectedDepartmentDivision,
+                      headEmail: departmentHead || undefined,
+                    })
+                  ).then((ok) => {
+                    if (ok) {
+                      setDepartmentName("");
+                      setDepartmentHead("");
+                    }
+                  })
+                }
+              />
+            </Card>
+          )}
+          {(structure?.departments ?? []).map((department) => {
+            const isEditingThis = editingDepartmentKey === department.name;
+            const departmentLocked = lockedDepartments.has(department.name);
+            const departmentHolders = holdersOf((a) => a.department === department.name);
+            return (
+              <Card key={department.name}>
+                {isEditingThis ? (
+                  <>
+                    {departmentLocked ? (
+                      <LockedNameRow label="Department name" name={department.name} />
+                    ) : (
+                      <Field
+                        label="Department name (rename cascades to staff, all requests and scheduled announcements)"
+                        value={editingDepartmentFormName}
+                        onChangeText={setEditingDepartmentFormName}
+                      />
+                    )}
                     <Select
                       label="Division"
-                      value={selectedDepartmentDivision}
+                      value={editingDepartmentFormDivision}
                       options={divisionNames}
-                      onSelect={setDepartmentDivision}
+                      onSelect={setEditingDepartmentFormDivision}
                       placeholder="Choose a division…"
                     />
                     <Select
                       label="Head of Department"
-                      value={departmentHead}
-                      options={[
-                        { label: "— No head —", value: "" },
-                        ...personOptions,
-                      ]}
-                      onSelect={setDepartmentHead}
+                      value={editingDepartmentFormHead}
+                      options={[{ label: "— No head —", value: "" }, ...personOptions]}
+                      onSelect={setEditingDepartmentFormHead}
                       placeholder="Choose a person…"
                     />
-                    <Btn
-                      title="Add Department"
-                      disabled={
-                        !departmentName.trim() || !selectedDepartmentDivision
-                      }
-                      onPress={() =>
-                        void run(() =>
-                          upsertDepartment({
-                            year: selectedYear,
-                            name: departmentName,
-                            division: selectedDepartmentDivision,
-                            headEmail: departmentHead || undefined,
-                          }),
-                        ).then((ok) => ok && setDepartmentName(""))
-                      }
-                    />
-                  </Card>
-                )}
-                {(structure?.departments ?? []).map((department) => {
-                  const isEditingThis =
-                    editingDepartmentKey === department.name;
-                  return (
-                    <Card key={department.name}>
-                      {isEditingThis ? (
-                        <>
-                          <Field
-                            label="Department name (rename cascades to staff and requests)"
-                            value={editingDepartmentFormName}
-                            onChangeText={setEditingDepartmentFormName}
+                    <Row spread loading={savingEditDepartment}>
+                      <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingDepartmentKey(null)}
+                      />
+                      <Btn
+                        title="Save"
+                        disabled={
+                          !editingDepartmentFormName.trim() ||
+                          !editingDepartmentFormDivision ||
+                          (editingDepartmentFormName.trim() === department.name &&
+                            editingDepartmentFormDivision === department.division &&
+                            editingDepartmentFormHead === (department.headEmail ?? ""))
+                        }
+                        onPress={() => {
+                          setSavingEditDepartment(true);
+                          void run(() =>
+                            updateDepartment({
+                              year: selectedYear,
+                              oldName: department.name,
+                              newName: editingDepartmentFormName,
+                              division: editingDepartmentFormDivision,
+                              headEmail: editingDepartmentFormHead || undefined,
+                            })
+                          )
+                            .then((ok) => {
+                              if (ok) setEditingDepartmentKey(null);
+                            })
+                            .finally(() => setSavingEditDepartment(false));
+                        }}
+                      />
+                    </Row>
+                  </>
+                ) : (
+                  <View style={styles.cardRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.nameRow}>
+                        <Txt style={{ fontWeight: "600" }}>{department.name}</Txt>
+                        {departmentLocked ? (
+                          <Ionicons
+                            name="lock-closed-outline"
+                            size={14}
+                            color={t.muted}
+                            accessibilityLabel="Used by the app. Can't be renamed"
                           />
-                          <Select
-                            label="Division"
-                            value={editingDepartmentFormDivision}
-                            options={divisionNames}
-                            onSelect={setEditingDepartmentFormDivision}
-                            placeholder="Choose a division…"
-                          />
-                          <Select
-                            label="Head of Department"
-                            value={editingDepartmentFormHead}
-                            options={[
-                              { label: "— No head —", value: "" },
-                              ...personOptions,
-                            ]}
-                            onSelect={setEditingDepartmentFormHead}
-                            placeholder="Choose a person…"
-                          />
-                          <Row spread loading={savingEditDepartment}>
-                            <Btn
-                              title="Cancel"
-                              variant="ghost"
-                              onPress={() => setEditingDepartmentKey(null)}
-                            />
-                            <Btn
-                              title="Save"
-                              disabled={
-                                !editingDepartmentFormName.trim() ||
-                                !editingDepartmentFormDivision ||
-                                (editingDepartmentFormName.trim() ===
-                                  department.name &&
-                                  editingDepartmentFormDivision ===
-                                    department.division &&
-                                  editingDepartmentFormHead ===
-                                    (department.headEmail ?? ""))
-                              }
-                              onPress={() => {
-                                setSavingEditDepartment(true);
-                                void run(() =>
-                                  updateDepartment({
-                                    year: selectedYear,
-                                    oldName: department.name,
-                                    newName: editingDepartmentFormName,
-                                    division: editingDepartmentFormDivision,
-                                    headEmail:
-                                      editingDepartmentFormHead || undefined,
-                                  }),
-                                )
-                                  .then((ok) => {
-                                    if (ok) setEditingDepartmentKey(null);
-                                  })
-                                  .finally(() =>
-                                    setSavingEditDepartment(false),
-                                  );
-                              }}
-                            />
-                          </Row>
-                        </>
-                      ) : (
-                        <Row>
-                          <View style={{ flexGrow: 1 }}>
-                            <Txt style={{ fontWeight: "600" }}>
-                              {department.name}
-                            </Txt>
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                gap: spacing.sm,
-                                marginTop: 2,
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <View
-                                style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  gap: spacing.xs,
-                                }}
-                              >
-                                <Ionicons
-                                  name="git-branch-outline"
-                                  size={12}
-                                  color={t.muted}
-                                />
-                                <Muted>{department.division}</Muted>
-                              </View>
-                              {department.headEmail && (
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: spacing.xs,
-                                  }}
-                                >
-                                  <Ionicons
-                                    name="person-outline"
-                                    size={12}
-                                    color={t.muted}
-                                  />
-                                  <Muted>
-                                    {nameByEmail.get(department.headEmail) ??
-                                      department.headEmail}
-                                  </Muted>
-                                </View>
-                              )}
-                            </View>
+                        ) : null}
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 2, flexWrap: "wrap" }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                          <Ionicons name="git-branch-outline" size={12} color={t.muted} />
+                          <Muted>{department.division}</Muted>
+                        </View>
+                        {department.headEmail && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                            <Ionicons name="person-outline" size={12} color={t.muted} />
+                            <Muted>{nameByEmail.get(department.headEmail) ?? department.headEmail}</Muted>
                           </View>
-                          {editable && (
-                            <>
-                              <IconButton
-                                name="create-outline"
-                                onPress={() => {
-                                  setEditingDepartmentFormName(department.name);
-                                  setEditingDepartmentFormDivision(
-                                    department.division,
-                                  );
-                                  setEditingDepartmentFormHead(
-                                    department.headEmail ?? "",
-                                  );
-                                  setEditingDepartmentKey(department.name);
-                                }}
-                              />
-                              <IconButton
-                                name="trash-outline"
-                                color={t.danger}
-                                onPress={() =>
-                                  setDeleteConfirm({
-                                    name: department.name,
-                                    message: `All staff assignments to this department will also be removed.`,
-                                    onConfirm: () =>
-                                      void run(() =>
-                                        removeDepartment({
-                                          year: selectedYear,
-                                          name: department.name,
-                                        }),
-                                      ),
-                                  })
-                                }
-                              />
-                            </>
-                          )}
-                        </Row>
-                      )}
-                    </Card>
-                  );
-                })}
-              </CardGrid>
+                        )}
+                        {renderHolderCount(departmentHolders)}
+                      </View>
+                    </View>
+                    {editable && (
+                      <>
+                        <IconButton
+                          name="create-outline"
+                          onPress={() => {
+                            setEditingDepartmentFormName(department.name);
+                            setEditingDepartmentFormDivision(department.division);
+                            setEditingDepartmentFormHead(department.headEmail ?? "");
+                            setEditingDepartmentKey(department.name);
+                          }}
+                        />
+                        {renderDeleteButton(department.name, departmentHolders, () =>
+                          setDeleteConfirm({
+                            name: department.name,
+                            onConfirm: () => void run(() => removeDepartment({ year: selectedYear, name: department.name })),
+                          })
+                        )}
+                      </>
+                    )}
+                  </View>
+                )}
+              </Card>
+            );
+          })}
+          </CardGrid>
             </>
           )}
         </>
@@ -1758,241 +1651,221 @@ export default function AdminScreen() {
       {key === "other" && (
         <CardGrid>
           <View style={{ gap: spacing.md }}>
-            <SectionTitle>Budget Manager · {selectedYear}</SectionTitle>
-            <Card>
-              {editable ? (
-                <>
-                  <Select
-                    label="Budget Manager"
-                    value={budgetManagerValue}
-                    options={(financeMembers ?? []).map((person) => ({
-                      label: person.name ?? person.email,
-                      value: person.email,
-                    }))}
-                    onSelect={setBudgetManagerEmail}
-                    placeholder="Choose a Finance member…"
-                  />
-                  <Btn
-                    title="Set Budget Manager"
-                    disabled={
-                      !budgetManagerValue ||
-                      budgetManagerValue ===
-                        (structure?.budgetManagerEmail ?? "")
-                    }
-                    onPress={() =>
-                      void run(() =>
-                        setBudgetManager({
-                          year: selectedYear,
-                          email: budgetManagerValue,
-                        }),
-                      ).then((ok) => ok && setBudgetManagerEmail(null))
-                    }
-                  />
-                </>
-              ) : (
+          <SectionTitle>Budget Manager · {selectedYear}</SectionTitle>
+          <Card>
+            {editable ? (
+              <>
                 <Select
                   label="Budget Manager"
-                  value={structure?.budgetManagerEmail ?? ""}
+                  value={budgetManagerValue}
                   options={(financeMembers ?? []).map((person) => ({
                     label: person.name ?? person.email,
                     value: person.email,
                   }))}
-                  onSelect={() => {}}
-                  disabled
-                  placeholder="Not set"
+                  onSelect={setBudgetManagerEmail}
+                  placeholder="Choose a Finance member…"
                 />
-              )}
-            </Card>
-          </View>
-          <View style={{ gap: spacing.md }}>
-            <SectionTitle>Praise Managers · {selectedYear}</SectionTitle>
-
-            <Card>
-              <Muted>
-                Praise Managers can approve, decline, edit and delete music
-                requests. Multiple staff members can be assigned.
-              </Muted>
-
-              {isAdmin && editable && (
-                <>
-                  <Select
-                    label="Add Praise Manager"
-                    value={praiseManagerEmail}
-                    options={personOptions.filter(
-                      (person) =>
-                        !(structure?.praiseManagerEmails ?? []).some(
-                          (email) =>
-                            email.toLowerCase() === person.value.toLowerCase(),
-                        ),
-                    )}
-                    onSelect={setPraiseManagerEmail}
-                    placeholder="Choose a staff member…"
-                    searchable
-                  />
-
-                  <Btn
-                    title="Add Praise Manager"
-                    disabled={!praiseManagerEmail}
-                    onPress={() =>
-                      void run(() =>
-                        addPraiseManager({
-                          year: selectedYear,
-                          email: praiseManagerEmail,
-                        }),
-                      ).then((ok) => {
-                        if (ok) {
-                          setPraiseManagerEmail("");
-                          setToast({ text: "Praise Manager added" });
-                        }
+                <Btn
+                  title="Set Budget Manager"
+                  disabled={
+                    !budgetManagerValue ||
+                    budgetManagerValue === (structure?.budgetManagerEmail ?? "")
+                  }
+                  onPress={() =>
+                    void run(() =>
+                      setBudgetManager({
+                        year: selectedYear,
+                        email: budgetManagerValue,
                       })
-                    }
-                  />
-                </>
-              )}
-
-              {(structure?.praiseManagerEmails ?? []).length === 0 ? (
-                <Muted>No Praise Managers assigned.</Muted>
-              ) : (
-                (structure?.praiseManagerEmails ?? []).map((email) => (
-                  <Row key={email} spread>
-                    <View style={{ flex: 1 }}>
-                      <Txt style={{ fontWeight: "600" }}>
-                        {nameByEmail.get(email) ?? email}
-                      </Txt>
-                      <Muted>{email}</Muted>
-                    </View>
-
-                    {isAdmin && editable && (
-                      <IconButton
-                        name="trash-outline"
-                        color={t.danger}
-                        accessibilityLabel={`Remove ${email} as Praise Manager`}
-                        onPress={() =>
-                          setDeleteConfirm({
-                            name: "Remove Praise Manager",
-                            message: `Remove ${email} as a Praise Manager?`,
-                            onConfirm: () =>
-                              void run(() =>
-                                removePraiseManager({
-                                  year: selectedYear,
-                                  email,
-                                }),
-                              ).then((ok) => {
-                                if (ok) {
-                                  setToast({ text: "Praise Manager removed" });
-                                }
-                              }),
-                          })
-                        }
-                      />
-                    )}
-                  </Row>
-                ))
-              )}
-            </Card>
+                    ).then((ok) => ok && setBudgetManagerEmail(null))
+                  }
+                />
+              </>
+            ) : (
+              <Select
+                label="Budget Manager"
+                value={structure?.budgetManagerEmail ?? ""}
+                options={(financeMembers ?? []).map((person) => ({
+                  label: person.name ?? person.email,
+                  value: person.email,
+                }))}
+                onSelect={() => {}}
+                disabled
+                placeholder="Not set"
+              />
+            )}
+          </Card>
           </View>
 
           <View style={{ gap: spacing.md }}>
-            <SectionTitle>
-              Director Approval Threshold · {selectedYear}
-            </SectionTitle>
-            <Card>
-              <Muted>
-                Requests at or above this amount also need the Director&apos;s
-                approval.
-                {configuredThreshold == null
-                  ? ` Using the standard default of $${formatAmount(DIRECTOR_APPROVAL_THRESHOLD)}.`
-                  : ""}{" "}
-                Only affects requests submitted from now on.
-              </Muted>
-              {editable ? (
-                <>
-                  <Field
-                    label="Threshold ($)"
-                    value={thresholdValue}
-                    onChangeText={(text) =>
-                      setThresholdInput(currencyText(text))
-                    }
-                    keyboardType="decimal-pad"
-                  />
-                  <Btn
-                    title="Set Threshold"
-                    disabled={!(thresholdNumber > 0) || thresholdUnchanged}
-                    onPress={() =>
-                      void run(() =>
-                        setDirectorThreshold({
-                          year: selectedYear,
-                          amount: thresholdNumber,
-                        }),
-                      ).then((ok) => ok && setThresholdInput(null))
-                    }
-                  />
-                </>
-              ) : (
-                <Muted>
-                  Threshold: $
-                  {(
-                    configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD
-                  ).toLocaleString()}
-                </Muted>
-              )}
-            </Card>
+          <SectionTitle>Praise Managers · {selectedYear}</SectionTitle>
+          <Card>
+            <Muted>
+              Praise Managers can approve, decline, edit and delete music
+              requests. Multiple staff members can be assigned.
+            </Muted>
+            {isAdmin && editable && (
+              <>
+                <Select
+                  label="Add Praise Manager"
+                  value={praiseManagerEmail}
+                  options={personOptions.filter(
+                    (person) =>
+                      !(structure?.praiseManagerEmails ?? []).some(
+                        (email) => email.toLowerCase() === person.value.toLowerCase()
+                      )
+                  )}
+                  onSelect={setPraiseManagerEmail}
+                  placeholder="Choose a staff member…"
+                  searchable
+                />
+                <Btn
+                  title="Add Praise Manager"
+                  disabled={!praiseManagerEmail}
+                  onPress={() =>
+                    void run(() =>
+                      addPraiseManager({
+                        year: selectedYear,
+                        email: praiseManagerEmail,
+                      })
+                    ).then((ok) => {
+                      if (ok) {
+                        setPraiseManagerEmail("");
+                        setToast({ text: "Praise Manager added" });
+                      }
+                    })
+                  }
+                />
+              </>
+            )}
+            {(structure?.praiseManagerEmails ?? []).length === 0 ? (
+              <Muted>No Praise Managers assigned.</Muted>
+            ) : (
+              (structure?.praiseManagerEmails ?? []).map((email) => (
+                <Row key={email} spread>
+                  <View style={{ flex: 1 }}>
+                    <Txt style={{ fontWeight: "600" }}>{nameByEmail.get(email) ?? email}</Txt>
+                    <Muted>{email}</Muted>
+                  </View>
+                  {isAdmin && editable && (
+                    <IconButton
+                      name="trash-outline"
+                      color={t.danger}
+                      accessibilityLabel={`Remove ${email} as Praise Manager`}
+                      onPress={() =>
+                        setDeleteConfirm({
+                          name: "Remove Praise Manager",
+                          message: `Remove ${email} as a Praise Manager?`,
+                          onConfirm: () =>
+                            void run(() =>
+                              removePraiseManager({
+                                year: selectedYear,
+                                email,
+                              })
+                            ).then((ok) => {
+                              if (ok) {
+                                setToast({ text: "Praise Manager removed" });
+                              }
+                            }),
+                        })
+                      }
+                    />
+                  )}
+                </Row>
+              ))
+            )}
+          </Card>
           </View>
 
           <View style={{ gap: spacing.md }}>
-            <SectionTitle>
-              Event Director Approval Threshold · {selectedYear}
-            </SectionTitle>
-            <Card>
+          <SectionTitle>Director approval threshold · {selectedYear}</SectionTitle>
+          <Card>
+            <Muted>
+              Requests at or above this amount also need the Director&apos;s
+              approval.
+              {configuredThreshold == null
+                ? ` Using the standard default of $${formatAmount(DIRECTOR_APPROVAL_THRESHOLD)}.`
+                : ""}{" "}
+              Only affects requests submitted from now on.
+            </Muted>
+            {editable ? (
+              <>
+                <Field
+                  label="Threshold ($)"
+                  value={thresholdValue}
+                  onChangeText={(text) => setThresholdInput(currencyText(text))}
+                  keyboardType="decimal-pad"
+                />
+                <Btn
+                  title="Set threshold"
+                  disabled={!(thresholdNumber > 0) || thresholdUnchanged}
+                  onPress={() =>
+                    void run(() =>
+                      setDirectorThreshold({
+                        year: selectedYear,
+                        amount: thresholdNumber,
+                      })
+                    ).then((ok) => ok && setThresholdInput(null))
+                  }
+                />
+              </>
+            ) : (
               <Muted>
-                Event requests whose Finance form has total expenses over this
-                amount also need the Director&apos;s approval, before the
-                Finance Head&apos;s.
-                {configuredEventThreshold == null
-                  ? ` Using the standard default of $${formatAmount(EVENT_DIRECTOR_APPROVAL_THRESHOLD)}.`
-                  : ""}{" "}
-                Only affects Finance forms submitted from now on.
+                Threshold: $
+                {(
+                  configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD
+                ).toLocaleString()}
               </Muted>
-              {editable ? (
-                <>
-                  <Field
-                    label="Threshold ($)"
-                    value={eventThresholdValue}
-                    onChangeText={(text) =>
-                      setEventThresholdInput(currencyText(text))
-                    }
-                    keyboardType="decimal-pad"
-                  />
-                  <Btn
-                    title="Set Event Threshold"
-                    disabled={
-                      !(eventThresholdNumber > 0) || eventThresholdUnchanged
-                    }
-                    onPress={() =>
-                      void run(() =>
-                        setEventDirectorThreshold({
-                          year: selectedYear,
-                          amount: eventThresholdNumber,
-                        }),
-                      ).then((ok) => ok && setEventThresholdInput(null))
-                    }
-                  />
-                </>
-              ) : (
-                <Muted>
-                  Threshold: $
-                  {(
-                    configuredEventThreshold ??
-                    EVENT_DIRECTOR_APPROVAL_THRESHOLD
-                  ).toLocaleString()}
-                </Muted>
-              )}
-            </Card>
+            )}
+          </Card>
+          </View>
+
+          <View style={{ gap: spacing.md }}>
+          <SectionTitle>Event Director approval threshold · {selectedYear}</SectionTitle>
+          <Card>
+            <Muted>
+              Event requests whose Finance form has total expenses over this amount
+              also need the Director&apos;s approval, before the Finance Head&apos;s.
+              {configuredEventThreshold == null
+                ? ` Using the standard default of $${formatAmount(EVENT_DIRECTOR_APPROVAL_THRESHOLD)}.`
+                : ""}{" "}
+              Only affects Finance forms submitted from now on.
+            </Muted>
+            {editable ? (
+              <>
+                <Field
+                  label="Threshold ($)"
+                  value={eventThresholdValue}
+                  onChangeText={(text) => setEventThresholdInput(currencyText(text))}
+                  keyboardType="decimal-pad"
+                />
+                <Btn
+                  title="Set event threshold"
+                  disabled={!(eventThresholdNumber > 0) || eventThresholdUnchanged}
+                  onPress={() =>
+                    void run(() =>
+                      setEventDirectorThreshold({
+                        year: selectedYear,
+                        amount: eventThresholdNumber,
+                      })
+                    ).then((ok) => ok && setEventThresholdInput(null))
+                  }
+                />
+              </>
+            ) : (
+              <Muted>
+                Threshold: $
+                {(
+                  configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD
+                ).toLocaleString()}
+              </Muted>
+            )}
+          </Card>
           </View>
 
           {hasAccess && (
             <View style={{ gap: spacing.md }}>
-              <SectionTitle>Approver Delegation · {selectedYear}</SectionTitle>
+              <SectionTitle>Approver delegation · {selectedYear}</SectionTitle>
               <Card>
                 <Muted>
                   A delegate can approve, decline and pay everything their
@@ -2038,7 +1911,7 @@ export default function AdminScreen() {
                       placeholder="Choose the stand-in…"
                     />
                     <Btn
-                      title="Add Delegation"
+                      title="Add delegation"
                       disabled={
                         !delegationFrom ||
                         !delegationTo ||
@@ -2050,7 +1923,7 @@ export default function AdminScreen() {
                             year: selectedYear,
                             fromEmail: delegationFrom,
                             toEmail: delegationTo,
-                          }),
+                          })
                         ).then((ok) => {
                           if (ok) {
                             setDelegationFrom("");
@@ -2067,18 +1940,19 @@ export default function AdminScreen() {
 
           {isAdmin && (
             <View style={{ gap: spacing.md }}>
-              <SectionTitle>Directory Sync</SectionTitle>
+              <SectionTitle>Directory sync</SectionTitle>
               <Card>
                 {syncState?.syncedAt ? (
                   <Muted>
-                    Last synced: {new Date(syncState.syncedAt).toLocaleString()}{" "}
-                    · {syncState.status}
+                    Last synced:{" "}
+                    {sydneyDateTime(syncState.syncedAt)} ·{" "}
+                    {syncState.status}
                   </Muted>
                 ) : (
                   <Muted>Never synced.</Muted>
                 )}
                 <Btn
-                  title={syncing ? "Syncing…" : "Sync Directory Now"}
+                  title={syncing ? "Syncing…" : "Sync directory now"}
                   loading={syncing}
                   onPress={() => setSyncConfirm(true)}
                 />
@@ -2091,13 +1965,7 @@ export default function AdminScreen() {
   );
 
   const adminTabs: PagerTab[] = budgetManagerOnly
-    ? [
-        {
-          key: "other",
-          label: "Other",
-          render: () => renderTabContent("other"),
-        },
-      ]
+    ? [{ key: "other", label: "Other", render: () => renderTabContent("other") }]
     : [
         ...ADMIN_TABS.map((tabDef) => ({
           key: tabDef.key,
@@ -2148,7 +2016,7 @@ export default function AdminScreen() {
       <ConfirmDialog
         visible={removeProfileTarget !== null}
         title={`Delete "${removeProfileTarget?.name ?? removeProfileTarget?.email}"`}
-        message={`Their ${selectedYear} roles and assignments will be deleted and they'll move to "Not serving".`}
+        message={`Their ${selectedYear} roles and assignments will be deleted and they'll move to "Leaving".`}
         requireText={removeProfileTarget?.name ?? removeProfileTarget?.email}
         onConfirm={() => {
           if (removeProfileTarget) {
@@ -2156,7 +2024,7 @@ export default function AdminScreen() {
               removeStaffProfile({
                 email: removeProfileTarget.email,
                 year: selectedYear,
-              }),
+              })
             );
           }
         }}
@@ -2196,6 +2064,18 @@ export default function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
+  cardRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  filterChipText: { fontSize: 13.5, fontWeight: "600" },
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -2208,9 +2088,22 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   notSignedInText: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.4,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: 2,
+  },
+  lockedBox: {
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   signedInSummary: {
     flexDirection: "row",

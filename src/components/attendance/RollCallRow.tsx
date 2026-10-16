@@ -20,6 +20,7 @@ type RollCallRowProps = {
   roles: string[];
   tag?: { label: string; colour: string };
   disabled: boolean;
+  actionDisabled?: boolean;
   dimmed: boolean;
   entering: boolean;
   exiting: boolean;

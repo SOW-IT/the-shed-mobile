@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useFocusEffect, useRouter } from "expo-router";
 import { appVersion } from "@/hooks/useReportAppVersion";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -24,11 +24,19 @@ export default function NotificationsScreen() {
   const markRead = useMutation(api.notifications.markRead);
   const markAllRead = useMutation(api.notifications.markAllRead);
   const reopenCounter = useRef(0);
+  const [unreadThisVisit, setUnreadThisVisit] = useState<ReadonlySet<string> | null>(null);
   const goBack = router.canGoBack() ? () => router.back() : undefined;
+
+  useFocusEffect(useCallback(() => () => setUnreadThisVisit(null), []));
 
   useFocusEffect(
     useCallback(() => {
-      if (!notifications?.some((n) => !n.read)) return;
+      if (!notifications) return;
+      const unreadNow: string[] = notifications.filter((n) => !n.read).map((n) => n.id);
+      setUnreadThisVisit((seen) =>
+        seen && unreadNow.every((id) => seen.has(id)) ? seen : new Set([...(seen ?? []), ...unreadNow])
+      );
+      if (unreadNow.length === 0) return;
       void markAllRead({}).catch((err: unknown) => {
         console.warn("markAllRead failed", err);
       });
@@ -54,30 +62,31 @@ export default function NotificationsScreen() {
   }
 
   const list = notifications ?? [];
-  const unread = list.filter((n) => !n.read);
-  const read = list.filter((n) => n.read);
+  const shownUnread = (n: (typeof list)[number]) => !n.read || !!unreadThisVisit?.has(n.id);
+  const unread = list.filter(shownUnread);
+  const read = list.filter((n) => !shownUnread(n));
 
-  const renderRow = (n: (typeof list)[number], index: number) => (
+  const renderRow = (n: (typeof list)[number], index: number, isUnread: boolean) => (
     <FadeInView key={n.id} delay={stagger(index)}>
       <Pressable
         onPress={() => open(n.id, n.url)}
         accessibilityRole="button"
         style={({ pressed }) => [
           styles.row,
-          t.shadowCard,
-          { backgroundColor: n.read ? t.card : t.primarySoft },
+          t.surfaceEdge,
+          { backgroundColor: isUnread ? t.primarySoft : t.card },
           pressed && { opacity: 0.7 },
         ]}
       >
-        <View style={[styles.iconWrap, { backgroundColor: n.read ? t.ghost : t.card }]}>
+        <View style={[styles.iconWrap, { backgroundColor: isUnread ? t.card : t.ghost }]}>
           <Ionicons
             name={n.url?.startsWith("/announcements/") ? "megaphone" : "notifications"}
             size={18}
-            color={n.read ? t.faint : t.primary}
+            color={isUnread ? t.primary : t.faint}
           />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
-          <Txt style={{ fontWeight: n.read ? "600" : "800" }}>{n.title}</Txt>
+          <Txt style={{ fontWeight: isUnread ? "800" : "600" }}>{n.title}</Txt>
           {n.body ? (
             <Text numberOfLines={2} style={[typography.caption, { color: t.muted }]}>
               {n.body}
@@ -85,7 +94,7 @@ export default function NotificationsScreen() {
           ) : null}
           <Text style={[typography.caption, { color: t.faint }]}>{compactAgo(n.at)}</Text>
         </View>
-        {!n.read ? (
+        {isUnread ? (
           <View style={[styles.unreadDot, { backgroundColor: t.primary }]} />
         ) : null}
       </Pressable>
@@ -107,7 +116,7 @@ export default function NotificationsScreen() {
               <Text style={[typography.label, styles.sectionLabel, { color: t.muted }]}>
                 Unread
               </Text>
-              {unread.map((n, i) => renderRow(n, i))}
+              {unread.map((n, i) => renderRow(n, i, true))}
             </>
           ) : null}
           {read.length > 0 ? (
@@ -122,7 +131,7 @@ export default function NotificationsScreen() {
               >
                 Read
               </Text>
-              {read.map((n, i) => renderRow(n, unread.length + i))}
+              {read.map((n, i) => renderRow(n, unread.length + i, false))}
             </>
           ) : null}
         </>

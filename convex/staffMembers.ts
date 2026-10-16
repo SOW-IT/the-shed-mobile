@@ -227,19 +227,6 @@ export async function leaveStaff(
   return true;
 }
 
-export async function memberDisplayName(
-  ctx: Ctx,
-  member: Doc<"attendanceMembers">,
-  year: number
-): Promise<{ name: string; email: string | undefined }> {
-  const profile = await staffProfileOfMember(ctx, member._id, year);
-  if (!profile) return { name: member.name, email: undefined };
-  return {
-    name: personDisplayName(profile.name ?? member.name, profile.email),
-    email: profile.email.toLowerCase(),
-  };
-}
-
 export async function moveAttendance(
   ctx: MutationCtx,
   from: MemberId,

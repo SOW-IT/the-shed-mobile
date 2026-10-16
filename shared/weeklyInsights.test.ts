@@ -8,7 +8,6 @@ import {
   deriveTerms,
   followUps,
   type HeldWeekly,
-  markFromName,
   nextWeeklyDate,
   type TermFacts,
   termKey,
@@ -193,21 +192,6 @@ describe("week numbers and marks", () => {
     expect(suggestWeekly(named, wed(2026, 3, 11), "terms", 18).week).toBe(14);
   });
 
-  test("the term and week a leader wrote in the name", () => {
-    expect(markFromName("WEEKLIES T3W5", "terms")).toEqual({ slot: 3, week: 5 });
-    expect(markFromName("weeklies t2 w 3 + games night", "terms")).toEqual({ slot: 2, week: 3 });
-    expect(markFromName("UTS S2W11", "semesters")).toEqual({ slot: 2, week: 11 });
-    expect(markFromName("S2 WM #13 PPN", "semesters")).toEqual({ slot: 2, week: 13 });
-    expect(markFromName("WK #4 [BAM NIGHT]", "terms")).toEqual({ slot: null, week: 4 });
-    expect(markFromName("UTS S2W11", "terms")).toEqual({ slot: null, week: 11 });
-    expect(markFromName("WEEKLIES T3W5", "semesters")).toEqual({ slot: null, week: 5 });
-    expect(markFromName("T4W2", "terms")).toEqual({ slot: null, week: 2 });
-    expect(markFromName("S3W2", "semesters")).toEqual({ slot: null, week: 2 });
-    expect(markFromName("T1W0", "terms")).toEqual({ slot: 1, week: null });
-    expect(markFromName("Week 15 Party", "terms")).toEqual({ slot: null, week: null });
-    expect(markFromName("T1W14", "terms")).toEqual({ slot: 1, week: 14 });
-    expect(markFromName("MEGA WEEKLIES", "terms")).toEqual({ slot: null, week: null });
-  });
 
   test("the next weekly's date is a week on, and never in the past", () => {
     expect(nextWeeklyDate("2026-10-07", "2026-10-08")).toBe("2026-10-14");

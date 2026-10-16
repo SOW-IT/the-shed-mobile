@@ -18,6 +18,7 @@ import {
   requestDeclined,
   requestFullyApproved,
   staffYearStartMs,
+  STEP_FIELDS,
   STEP_LABELS,
   type ApprovalStatus,
 } from "../shared/flow";
@@ -56,13 +57,6 @@ type Ctx = QueryCtx | MutationCtx;
 const requestYear = (r: Pick<Doc<"requests">, "_creationTime">): number =>
   eventStaffYear(r._creationTime);
 
-const STEP_FIELDS = {
-  hod: "approvedByHOD",
-  budgetManager: "approvedByBudgetManager",
-  director: "approvedByDirector",
-  financeHead: "approvedByFinanceHead",
-} as const;
-
 type Step = keyof typeof STEP_FIELDS;
 
 const stepValidator = v.union(
@@ -76,8 +70,11 @@ const REQUEST_CLEANUP_BATCH_SIZE = 200;
 const LIVE_REQUESTS_PER_YEAR_LIMIT = 1000;
 const REQUEST_EVENTS_LIMIT = 200;
 
-const APPROVAL_ACTIONS = new Set(["approved", "declined", "auto-approved"]);
+const AUTO_APPROVED = "auto-approved";
+const APPROVAL_ACTIONS = new Set(["approved", "declined", AUTO_APPROVED]);
 const isApprovalAction = (action: string): boolean => APPROVAL_ACTIONS.has(action);
+const autoApproverOf = (event: Doc<"requestEvents"> | undefined): string | null =>
+  event?.action === AUTO_APPROVED ? event.actorEmail : null;
 
 /** Newest-first audit events for a request (bounded). */
 const recentRequestEvents = (ctx: Ctx, requestId: Id<"requests">) =>
@@ -443,7 +440,7 @@ export const submit = mutation({
     ];
     for (const [step, status] of autoApproved) {
       if (status === APPROVED) {
-        await logEvent(ctx, id, email, "auto-approved", step);
+        await logEvent(ctx, id, email, AUTO_APPROVED, step);
       }
     }
 
@@ -575,22 +572,34 @@ async function requestForCaller(
   return { ...request, receipt: receiptSummary(request) };
 }
 
+const MINE_PER_YEAR_LIMIT = 200;
+
+const requesterYearPage = (ctx: Ctx, email: string, y: number) =>
+  requesterRequestsInYear(ctx, email, y).order("desc").take(MINE_PER_YEAR_LIMIT);
+
+export const mineTabRequests = async (
+  ctx: Ctx,
+  email: string,
+  year: number
+): Promise<Doc<"requests">[]> => {
+  const current = await requesterYearPage(ctx, email, year);
+  const carriedOver = (await requesterYearPage(ctx, email, year - 1)).filter(
+    (r) => !requestCompleted(r)
+  );
+  return [...current, ...carriedOver];
+};
+
 export const myRequests = query({
   args: { year: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const { email, year } = caller;
-    const fetch = (y: number) =>
-      requesterRequestsInYear(ctx, email, y).order("desc").take(200);
-    if (args.year !== undefined && args.year !== year) {
-      return (await fetch(args.year)).sort((a, b) => b._creationTime - a._creationTime);
-    }
-    const current = await fetch(year);
-    const carriedOver = (await fetch(year - 1)).filter((r) => !requestCompleted(r));
-    return [...current, ...carriedOver].sort(
-      (a, b) => b._creationTime - a._creationTime
-    );
+    const rows =
+      args.year !== undefined && args.year !== year
+        ? await requesterYearPage(ctx, email, args.year)
+        : await mineTabRequests(ctx, email, year);
+    return rows.sort((a, b) => b._creationTime - a._creationTime);
   },
 });
 
@@ -620,72 +629,91 @@ export const requestYears = query({
   },
 });
 
+type ReviewQueues = {
+  hod: Doc<"requests">[];
+  budgetManager: Doc<"requests">[];
+  director: Doc<"requests">[];
+  financeHead: Doc<"requests">[];
+  readyToPay: Doc<"requests">[];
+};
+
+async function reviewQueues(
+  ctx: Ctx,
+  caller: CallerContext,
+  open: Doc<"requests">[]
+): Promise<ReviewQueues> {
+  const { email, year } = caller;
+  const approversFor = makeApproverResolver(ctx);
+  const callerRolesIn = memoAsync<number, string[]>(async (y) => {
+    const profileForYear = await getProfile(ctx, email, y);
+    return profileForYear ? rolesOf(profileForYear) : [];
+  });
+  const actAsIn = makeActAsResolver(ctx, email);
+
+  const hod: Doc<"requests">[] = [];
+  const budgetManager: Doc<"requests">[] = [];
+  const director: Doc<"requests">[] = [];
+  const financeHead: Doc<"requests">[] = [];
+  const readyToPay: Doc<"requests">[] = [];
+
+  for (const request of open) {
+    const reqYear = requestYear(request);
+    const requestYearApprovers = await approversFor(reqYear, request.department);
+    const thisYear =
+      reqYear === year
+        ? requestYearApprovers
+        : await approversFor(year, request.department);
+    const actAsRequestYear = await actAsIn(reqYear);
+    const actAsThisYear =
+      reqYear === year ? actAsRequestYear : await actAsIn(year);
+    const matches = (pick: (a: Approvers) => string | undefined) => {
+      const reqApprover = pick(requestYearApprovers);
+      const nowApprover = pick(thisYear);
+      return (
+        (reqApprover !== undefined && actAsRequestYear.has(reqApprover)) ||
+        (nowApprover !== undefined && actAsThisYear.has(nowApprover))
+      );
+    };
+
+    if (
+      request.receipt !== undefined &&
+      request.paid === false &&
+      matches((a) => a.financeHeadEmail)
+    ) {
+      readyToPay.push(request);
+    }
+
+    if (request.requesterEmail === email || requestCompleted(request)) continue;
+    const step = currentStep(request);
+    if (step === "hod" && matches((a) => a.hodEmail) && request.department !== FINANCE) {
+      hod.push(request);
+    } else if (step === "budgetManager" && matches((a) => a.budgetManagerEmail)) {
+      budgetManager.push(request);
+    } else if (
+      step === "director" &&
+      ((await callerRolesIn(reqYear)).includes(DIRECTOR) ||
+        (await callerRolesIn(year)).includes(DIRECTOR) ||
+        matches((a) => a.directorEmail))
+    ) {
+      director.push(request);
+    } else if (step === "financeHead" && matches((a) => a.financeHeadEmail)) {
+      financeHead.push(request);
+    }
+  }
+
+  return { hod, budgetManager, director, financeHead, readyToPay };
+}
+
 export const toReview = query({
   args: {},
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const { email, year } = caller;
-    const open = await openRequestsAcrossYears(ctx, year);
-    const approversFor = makeApproverResolver(ctx);
-    const callerRolesIn = memoAsync<number, string[]>(async (y) => {
-      const profileForYear = await getProfile(ctx, email, y);
-      return profileForYear ? rolesOf(profileForYear) : [];
-    });
-    const actAsIn = makeActAsResolver(ctx, email);
-
-    const hod: Doc<"requests">[] = [];
-    const budgetManager: Doc<"requests">[] = [];
-    const director: Doc<"requests">[] = [];
-    const financeHead: Doc<"requests">[] = [];
-    const readyToPay: Doc<"requests">[] = [];
-
-    for (const request of open) {
-      const reqYear = requestYear(request);
-      const requestYearApprovers = await approversFor(reqYear, request.department);
-      const thisYear =
-        reqYear === year
-          ? requestYearApprovers
-          : await approversFor(year, request.department);
-      const actAsRequestYear = await actAsIn(reqYear);
-      const actAsThisYear =
-        reqYear === year ? actAsRequestYear : await actAsIn(year);
-      const matches = (pick: (a: Approvers) => string | undefined) => {
-        const reqApprover = pick(requestYearApprovers);
-        const nowApprover = pick(thisYear);
-        return (
-          (reqApprover !== undefined && actAsRequestYear.has(reqApprover)) ||
-          (nowApprover !== undefined && actAsThisYear.has(nowApprover))
-        );
-      };
-
-      if (
-        request.receipt !== undefined &&
-        request.paid === false &&
-        matches((a) => a.financeHeadEmail)
-      ) {
-        readyToPay.push(request);
-      }
-
-      if (request.requesterEmail === email || requestCompleted(request)) continue;
-      const step = currentStep(request);
-      if (step === "hod" && matches((a) => a.hodEmail) && request.department !== FINANCE) {
-        hod.push(request);
-      } else if (step === "budgetManager" && matches((a) => a.budgetManagerEmail)) {
-        budgetManager.push(request);
-      } else if (
-        step === "director" &&
-        ((await callerRolesIn(reqYear)).includes(DIRECTOR) ||
-          (await callerRolesIn(year)).includes(DIRECTOR) ||
-          matches((a) => a.directorEmail))
-      ) {
-        director.push(request);
-      } else if (step === "financeHead" && matches((a) => a.financeHeadEmail)) {
-        financeHead.push(request);
-      }
-    }
-
-    return { hod, budgetManager, director, financeHead, readyToPay };
+    return await reviewQueues(
+      ctx,
+      caller,
+      await openRequestsAcrossYears(ctx, caller.year)
+    );
   },
 });
 
@@ -696,7 +724,11 @@ export const reviewed = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const seen = new Set<Id<"requests">>();
+    const open = await openRequestsAcrossYears(ctx, caller.year);
+    const queues = await reviewQueues(ctx, caller, open);
+    const seen = new Set<Id<"requests">>(
+      Object.values(queues).flatMap((rows) => rows.map((r) => r._id))
+    );
     const reviewedIds: Id<"requests">[] = [];
     for await (const event of ctx.db
       .query("requestEvents")
@@ -712,7 +744,7 @@ export const reviewed = query({
     const approversFor = makeApproverResolver(ctx);
     const actAsIn = makeActAsResolver(ctx, caller.email);
     const receiptWaitingIds: Id<"requests">[] = [];
-    for (const request of await openRequestsAcrossYears(ctx, caller.year)) {
+    for (const request of open) {
       if (receiptWaitingIds.length >= REVIEWED_LIMIT) break;
       if (seen.has(request._id)) continue;
       if (request.requesterEmail === caller.email) continue;
@@ -1120,7 +1152,7 @@ async function nudgeParticipantEmails(
 export const canNudge = query({
   args: { requestId: v.id("requests") },
   returns: v.union(
-    v.object({ onCooldown: v.boolean(), remainingMs: v.number() }),
+    v.object({ onCooldown: v.boolean(), remainingMs: v.number(), availableAt: v.number() }),
     v.null()
   ),
   handler: async (ctx, args) => {
@@ -1138,10 +1170,9 @@ export const canNudge = query({
       )
       .order("desc")
       .first();
-    const remainingMs = recent
-      ? Math.max(0, recent.sentAt + NUDGE_COOLDOWN_MS - Date.now())
-      : 0;
-    return { onCooldown: remainingMs > 0, remainingMs };
+    const availableAt = recent ? recent.sentAt + NUDGE_COOLDOWN_MS : 0;
+    const remainingMs = Math.max(0, availableAt - Date.now());
+    return { onCooldown: remainingMs > 0, remainingMs, availableAt };
   },
 });
 
@@ -1249,6 +1280,7 @@ export const stepInfo = query({
       officeholderEmail,
       latestActorEmail: latestAction?.actorEmail ?? null,
       pending: latestAction === undefined,
+      autoApprovedBy: autoApproverOf(latestAction),
     });
     return {
       ...display,
@@ -1280,6 +1312,7 @@ export const stepActors = query({
         officeholderEmail,
         latestActorEmail: stepEvent?.actorEmail ?? null,
         pending: stepEvent === undefined,
+        autoApprovedBy: autoApproverOf(stepEvent),
       });
       result[step] = {
         ...display,
@@ -1294,6 +1327,7 @@ type StepActorDisplay = {
   name: string | null;
   email: string | null;
   isDelegated: boolean;
+  autoApproved: boolean;
   officeholderEmail: string | null;
   officeholderName: string | null;
   otherDelegateNames: string[];
@@ -1306,12 +1340,25 @@ async function resolveStepDisplay(
     officeholderEmail: string | null;
     latestActorEmail: string | null;
     pending: boolean;
+    autoApprovedBy: string | null;
   }
 ): Promise<StepActorDisplay> {
-  const { reqYear, officeholderEmail, latestActorEmail, pending } = opts;
+  const { reqYear, officeholderEmail, latestActorEmail, pending, autoApprovedBy } = opts;
   const officeholderName = officeholderEmail
     ? await resolveName(ctx, officeholderEmail, reqYear)
     : null;
+
+  if (autoApprovedBy) {
+    return {
+      name: await resolveName(ctx, autoApprovedBy, reqYear),
+      email: autoApprovedBy,
+      isDelegated: false,
+      autoApproved: true,
+      officeholderEmail,
+      officeholderName,
+      otherDelegateNames: [],
+    };
+  }
 
   if (
     !pending &&
@@ -1324,6 +1371,7 @@ async function resolveStepDisplay(
       name,
       email: latestActorEmail,
       isDelegated: true,
+      autoApproved: false,
       officeholderEmail,
       officeholderName,
       otherDelegateNames: [],
@@ -1347,6 +1395,7 @@ async function resolveStepDisplay(
         name,
         email: primary,
         isDelegated: true,
+        autoApproved: false,
         officeholderEmail,
         officeholderName,
         otherDelegateNames,
@@ -1358,6 +1407,7 @@ async function resolveStepDisplay(
     name: officeholderName,
     email: officeholderEmail,
     isDelegated: false,
+    autoApproved: false,
     officeholderEmail,
     officeholderName,
     otherDelegateNames: [],

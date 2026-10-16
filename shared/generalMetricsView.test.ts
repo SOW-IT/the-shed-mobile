@@ -64,8 +64,9 @@ describe("buildGeneralView: all years", () => {
     const [headcount, retention, avgYears] = cardsBlocks(blocks);
     expect(headcount.cards).toEqual([
       { label: "Staff", value: "8", delta: { text: "+14%", direction: "up" } },
-      { label: "Student leaders", value: "5", delta: { text: "0%", direction: "flat" }, tone: "positive" },
+      { label: "Student leaders", value: "5", delta: { text: "0%", direction: "flat" } },
     ]);
+    expect(cardsBlocks(blocks).flatMap((b) => b.cards).every((c) => c.tone === undefined)).toBe(true);
     expect(retention.cards.map((c) => [c.label, c.value])).toEqual([
       ["Overall", "85%"],
       ["Staff", "95%"],
@@ -157,6 +158,7 @@ describe("buildGeneralView: one staff year", () => {
     const [headcount, retention, avgYears, weekly] = cardsBlocks(blocks);
     expect(headcount.layout).toBe("grid");
     expect(headcount.cards.map((c) => c.label)).toEqual(["Staff", "Student leaders", "USYD"]);
+    expect(cardsBlocks(blocks).flatMap((b) => b.cards).every((c) => c.tone === undefined)).toBe(true);
     expect(retention.cards.map((c) => c.label)).toEqual(["Overall", "Staff", "Student leaders"]);
     expect(avgYears.cards[0]).toMatchObject({ value: "1.5", delta: { text: "+0.5y", direction: "up" } });
     expect(blocks[6]).toEqual({ type: "label", text: "Weekly avg · Jan–Dec 2026" });

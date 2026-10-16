@@ -28,7 +28,8 @@ programmes (PPN meant both a campus weekly's theme and the monthly SOW night).
 - **The server fills in a missing mark** when an event arrives with the
   Weeklies tag and no mark: the term and week from the name where it has one
   (`markFromName`), otherwise the campus's next week (`suggestWeekly`). Week
-  is 1 to 14 and the term is in the date's year.
+  is 1 to 14 and the term is in the date's year. *Removed in 2.9.1, when 2.9.0
+  became the oldest supported app: every weekly now arrives with its mark.*
 - **The name is the week code** ("T3W5" at UNSW, "S2W5" elsewhere),
   pre-filled and editable. Labels are tags.
 - **Every tag is in one list, Weeklies or Other events** (`attendanceTags.list`,
@@ -37,7 +38,8 @@ programmes (PPN meant both a campus weekly's theme and the monthly SOW night).
 - **One migration** (`weeklyMigration:run`, dry run first) renamed every
   weekly to its code, moved name labels into Weeklies tags, gave joint and
   old-phone weeklies a mark from their owning campus, merged Event and Other
-  Events into Social, and added TWIG to the SOW monthly PPNs.
+  Events into Social, and added TWIG to the SOW monthly PPNs. *It ran on
+  production on 2026-10-15 and was removed in 2.9.1.*
 
 ## Consequences
 

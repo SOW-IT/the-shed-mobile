@@ -1,18 +1,19 @@
 import { describe, expect, test } from "vitest";
 import {
+  sameMetadata,
   commencementYearFromLevel,
   encodeYearMetadataValue,
   formatMetadataFieldValue,
   isCommencementYear,
   isLockedSelectOption,
   memberOwnMetadata,
+  metadataSubtitle,
   metadataFieldAllowsCustomOptions,
   orderedRoleFilterOptions,
   orderedSelectOptions,
   partitionSelectOptions,
   resolveCommencementYear,
   roleFilterMatches,
-  canonicalizeGenderOptionId,
   canonicalizeGenderValues,
   GENDER_VALUES,
   sanitizeGenderValues,
@@ -172,13 +173,6 @@ describe("gender and field helpers", () => {
     expect(isLockedSelectOption("id", "Other", ["id"])).toBe(true);
   });
 
-  test("canonicalizeGenderOptionId maps legacy Female id", () => {
-    expect(canonicalizeGenderOptionId("3", { "3": "Female" })).toBe("2");
-    expect(canonicalizeGenderOptionId("2", { "2": "Male" })).toBe("1");
-    expect(canonicalizeGenderOptionId("1", { "1": "Other" })).toBe("1");
-    expect(canonicalizeGenderOptionId("99", {})).toBe("99");
-  });
-
   test("metadataFieldAllowsCustomOptions", () => {
     expect(metadataFieldAllowsCustomOptions("Campus", true)).toBe(true);
     expect(metadataFieldAllowsCustomOptions("Notes", true)).toBe(false);
@@ -197,6 +191,8 @@ describe("gender and field helpers", () => {
       resolveCommencementYear("not-a-year", 2026, YEAR_OPTIONS)
     ).toBeNull();
     expect(formatMetadataFieldValue("Notes", "hello", 2026)).toBe("hello");
+    expect(formatMetadataFieldValue("Gender", "2", 2026, { 1: "Male", 2: "Female" })).toBe("Female");
+    expect(formatMetadataFieldValue("Gender", "3", 2026, { 1: "Male", 2: "Female" })).toBeNull();
   });
 
   test("partitionSelectOptions sort covers bi-in-order branch", () => {
@@ -275,5 +271,43 @@ describe("staffLockedMetadata", () => {
     expect(
       staffLockedMetadata(fields, { assignments: [] }, { campus: "usyd", role: "s", other: "x" })
     ).toEqual({ other: "x" });
+  });
+});
+
+describe("sameMetadata", () => {
+  test("ignores key order, blank values and a missing record", () => {
+    expect(sameMetadata({ a: "1", b: "2" }, { b: "2", a: "1" })).toBe(true);
+    expect(sameMetadata({ a: "1", c: "" }, { a: "1" })).toBe(true);
+    expect(sameMetadata(undefined, {})).toBe(true);
+    expect(sameMetadata({ a: "" }, undefined)).toBe(true);
+  });
+
+  test("spots a changed, added or removed value", () => {
+    expect(sameMetadata({ a: "1" }, { a: "2" })).toBe(false);
+    expect(sameMetadata({ a: "1" }, { a: "1", b: "2" })).toBe(false);
+    expect(sameMetadata({ a: "1" }, undefined)).toBe(false);
+  });
+});
+
+describe("metadataSubtitle", () => {
+  const fields = [
+    { _id: "role", key: "Role", values: { "2": "Member" } },
+    { _id: "year", key: "Year", values: YEAR_OPTIONS },
+    { _id: "arc", key: "Arc Member?", values: { "2": "Yes", "3": "No" } },
+    { _id: "ask", key: "Coming?", values: { "1": "Maybe" } },
+    { _id: "ig", key: "Instagram" },
+    { _id: "zid", key: "zID" },
+  ];
+
+  test("labels the year, names a yes answer, drops a no, and marks the Instagram handle", () => {
+    expect(
+      metadataSubtitle(
+        fields,
+        { role: "2", year: "2025", arc: "2", ask: "1", ig: "byexjj", zid: "z5689149" },
+        2026
+      )
+    ).toBe("Member · Year 2 · Arc Member · Coming? Maybe · @byexjj · z5689149");
+    expect(metadataSubtitle(fields, { arc: "3", ig: "@already" }, 2026)).toBe("@already");
+    expect(metadataSubtitle(fields, { year: "2030" }, 2026)).toBe("");
   });
 });

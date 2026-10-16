@@ -11,13 +11,11 @@ import { TOP_BAR_HEIGHT, useTopBarCollapse } from "@/components/useTopBarCollaps
 
 export const ChromeScreen = ({
   children,
-  footer,
   floating,
   fullWidth = false,
   scrollRef,
 }: {
   children?: ReactNode;
-  footer?: ReactNode;
   floating?: ReactNode;
   fullWidth?: boolean;
   scrollRef?: Ref<ScrollView>;
@@ -68,7 +66,6 @@ export const ChromeScreen = ({
         </View>
       )}
       <DrawerEdgeSwipe top={insets.top + TOP_BAR_HEIGHT} />
-      {footer}
       {floating}
     </View>
   );

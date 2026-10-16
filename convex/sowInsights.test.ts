@@ -54,6 +54,7 @@ async function setup() {
     const nina = await member("Nina None", { [campusField]: "c1" });
     const newbie = await member("Ned New");
     const pat = await member("Pat Placeholder");
+    const walkIn = await member("Wes Walkin");
     const profile = async (memberId: Id<"attendanceMembers">, email: string, year: number, role: string, university?: string) =>
       ctx.db.insert("staffProfiles", {
         email,
@@ -69,10 +70,10 @@ async function setup() {
     await profile(olly, "olly@sow.org.au", 2027, "Staff");
     await ctx.db.insert("staffProfiles", { email: "pat@sow.org.au", year: 2027, memberId: pat, name: "Pat Placeholder", assignments: [] });
 
-    const event = async (name: string, at: number, tagIds: Id<"attendanceTags">[], who: (Id<"attendanceMembers"> | null)[], subgroups = [SOW]) => {
+    const event = async (name: string, at: number, tagIds: Id<"attendanceTags">[], who: Id<"attendanceMembers">[], subgroups = [SOW]) => {
       const eventId = await ctx.db.insert("events", { name, dateStart: at, dateEnd: at + 3600_000, subgroups, tagIds });
       for (const memberId of who) {
-        await ctx.db.insert("attendance", { eventId, signInTime: at, ...(memberId ? { memberId } : {}) });
+        await ctx.db.insert("attendance", { eventId, memberId, signInTime: at });
       }
     };
     await event("OCT 2023 TWIG", mon(2023, 10, 9), [twig], [lee]);
@@ -80,7 +81,7 @@ async function setup() {
     await event("NOV 10th TWIG", mon(2025, 11, 10), [twig], [lee]);
     await event("TWIG 1 Dec", mon(2025, 12, 1), [twig], []);
     await event("TWIG Feb", mon(2026, 2, 2), [twig], [lee]);
-    await event("November PPN", mon(2025, 11, 17), [twig, ppn], [lee, nina, null]);
+    await event("November PPN", mon(2025, 11, 17), [twig, ppn], [lee, nina, walkIn]);
     await event("MARCH PPN", mon(2026, 3, 17), [twig, ppn], [lee]);
     await event("Intercampus PPN", mon(2026, 8, 1), [ppn], [lee, uma], [UNSW]);
     await event("BAM PPN weekly", mon(2026, 8, 5), [weeklyPpn], [lee], [UNSW]);
@@ -94,6 +95,9 @@ async function setup() {
     await event("TWIG NOV 9", mon(2026, 11, 9), [twig], [uma]);
     await event("TWIG NOV 16", mon(2026, 11, 16), [twig], []);
     await event("November PPN", mon(2026, 11, 17), [ppn, twig], [lee, uma, nina, newbie]);
+    await event("TWIG DEC 7", mon(2026, 12, 7), [twig], []);
+    await event("December PPN", mon(2026, 12, 15), [twig, ppn], []);
+    await event("TWIG OCT 2027", mon(2027, 10, 11), [twig], []);
   });
   return { t, admin: asUser(t, ADMIN) };
 }
@@ -115,13 +119,13 @@ describe("SOW TWIG and PPN Insights", () => {
     ]);
     const blocks = view.blocks;
     expect(pick(blocks, "caption")[0].text).toBe(
-      "Staff year 2027: 4 TWIGs so far, compared with 2026 up to 20 Nov. Only campus leaders are counted."
+      "Staff year 2027: 4 TWIGs so far, compared with staff year 2026, to 20 Nov 2025. Only campus leaders are counted."
     );
     const cards = pick(blocks, "cards")[0].cards;
     expect(cards.map((c) => [c.label, c.value, c.hint])).toEqual([
-      ["Average attendance", "1.5", "vs 1.5 in 2026 up to 20 Nov"],
-      ["People", "2", "vs 2 in 2026 up to 20 Nov"],
-      ["Regulars", "2", "vs 2 in 2026 up to 20 Nov"],
+      ["Average attendance", "1.5", "vs 1.5"],
+      ["People", "2", "vs 2"],
+      ["Regulars", "2", undefined],
     ]);
     const bars = pick(blocks, "multiBars")[0];
     expect(bars.points.map((p) => [p.label, p.segments.map((s) => s.value)])).toEqual([
@@ -135,8 +139,8 @@ describe("SOW TWIG and PPN Insights", () => {
       { label: "UNSW", value: 2 },
     ]);
     const followUp = pick(blocks, "followUpGroups")[0];
-    expect(followUp.groups.flatMap((g) => g.people.map((p) => [p.name, p.reason]))).toEqual([
-      ["Lee Leader", "Regular, but missed the last 2 TWIGs"],
+    expect(followUp.groups.flatMap((g) => g.people.map((p) => [p.name, p.reason, p.subgroup]))).toEqual([
+      ["Lee Leader", "Regular, but missed the last 2 TWIGs", UNSW],
     ]);
     const everyone = pick(blocks, "people")[0];
     expect(
@@ -150,6 +154,16 @@ describe("SOW TWIG and PPN Insights", () => {
       ["Pat Placeholder", "none", "1/4 · 25%", "No staff profile for 2027"],
       ["Uma Usyd", "leader", "4/4 · 100%", null],
     ]);
+    expect(
+      Object.fromEntries(everyone.rows.map((r) => [r.name, [r.subgroup ?? null, r.dimmed ?? false, r.badge?.label ?? null]]))
+    ).toEqual({
+      "Lee Leader": [UNSW, false, "Regular"],
+      "Nina None": [UTS, false, null],
+      "Olly Organiser": [null, true, null],
+      "Pat Placeholder": [null, false, null],
+      "Uma Usyd": [USYD, false, "Regular"],
+    });
+    expect(everyone.rows.every((r) => !r.secondary.startsWith("Regular"))).toBe(true);
     expect(pick(blocks, "eventList")[0].rows).toEqual([{ title: "TWIG NOV 16", subtitle: "16 Nov 2026" }]);
   });
 
@@ -200,6 +214,7 @@ describe("SOW TWIG and PPN Insights", () => {
       hint: "vs 3 in Nov 2025",
       lines: ["2 first-timers"],
     });
+    expect(pick(view.blocks, "eventList")).toEqual([]);
     expect(row.splits.map((s) => [s.title, s.parts.map((p) => [p.label, p.value])])).toEqual([
       ["By campus", [["UNSW", 1], ["USYD", 1], ["UTS", 1], ["No campus", 1]]],
       ["Who", [["Campus leaders", 2], ["Staff", 0], ["Others", 2]]],

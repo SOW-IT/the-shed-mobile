@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
@@ -17,8 +17,6 @@ const DAN = "dan@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
-
-afterEach(() => vi.unstubAllEnvs());
 
 async function setup() {
   const t = convexTest(schema, modules);
@@ -46,28 +44,6 @@ async function setup() {
   await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
   return t;
 }
-
-describe("serverInfo", () => {
-  test("returns the year, domain and structure for signed-in callers, null otherwise", async () => {
-    const t = await setup();
-    vi.stubEnv("AUTH_ALLOWED_DOMAIN", "sow.org.au");
-    expect(await t.query(api.directory.serverInfo, {})).toBeNull();
-
-    const info = (await asUser(t, RACHEL).query(api.directory.serverInfo, {}))!;
-    expect(info.staffYear).toBe(YEAR);
-    expect(info.nextStaffYear).toBe(YEAR + 1);
-    expect(info.allowedDomain).toBe("sow.org.au");
-    expect(info.divisions).toContain("Governance");
-    expect(info.departments.find((d) => d.name === "Finance")?.division).toBe("Governance");
-  });
-
-  test("falls back to the default domain when the env var is unset", async () => {
-    const t = await setup();
-    vi.stubEnv("AUTH_ALLOWED_DOMAIN", undefined);
-    const info = (await asUser(t, RACHEL).query(api.directory.serverInfo, {}))!;
-    expect(info.allowedDomain).toBe("sow.org.au");
-  });
-});
 
 describe("me", () => {
   test("null when unauthenticated", async () => {
@@ -167,6 +143,31 @@ describe("me", () => {
     expect((await asUser(t, RACHEL).query(api.directory.me, {}))!.isCampusLeader).toBe(
       false
     );
+  });
+
+  test("listsChurch is true only for an assigned profile in this staff year", async () => {
+    const t = await setup();
+    expect((await asUser(t, RACHEL).query(api.directory.me, {}))!.listsChurch).toBe(true);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", { email: "paused@sow.org.au", year: YEAR, assignments: [] });
+      await ctx.db.insert("staffProfiles", {
+        email: "last.year@sow.org.au",
+        year: YEAR - 1,
+        assignments: [{ role: "Staff", department: "Finance" }],
+      });
+    });
+    const paused = await asUser(t, "paused@sow.org.au").query(api.directory.me, {});
+    expect(paused!.profile).not.toBeNull();
+    expect((paused as { listsChurch: boolean }).listsChurch).toBe(false);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(Date.UTC(YEAR - 1, 9, 15)));
+    try {
+      const lastYear = await asUser(t, "last.year@sow.org.au").query(api.directory.me, {});
+      expect(lastYear!.profile).not.toBeNull();
+      expect((lastYear as { listsChurch: boolean }).listsChurch).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

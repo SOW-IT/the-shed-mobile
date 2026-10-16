@@ -91,7 +91,7 @@ export default function OrgChartScreen() {
       {chart.director ? (
         <FadeInView delay={40}>
           <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
-            <View style={[styles.directorCard, t.shadowCard, { backgroundColor: t.card }]}>
+            <View style={[styles.directorCard, t.surfaceEdge, { backgroundColor: t.card }]}>
               <Person person={chart.director} bold tag={chart.director.role ?? "Director"} size={46} />
             </View>
           </ReadableColumn>
@@ -110,7 +110,7 @@ export default function OrgChartScreen() {
               <View
                 style={[
                   styles.deptCard,
-                  t.shadowCard,
+                  t.surfaceEdge,
                   { backgroundColor: t.card, borderLeftColor: t.primary },
                 ]}
               >
@@ -132,7 +132,7 @@ export default function OrgChartScreen() {
 
             {division.head ? (
               <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
-                <View style={[styles.divisionHeadRow, t.shadowCard, { backgroundColor: t.card }]}>
+                <View style={[styles.divisionHeadRow, t.surfaceEdge, { backgroundColor: t.card }]}>
                   <Person person={division.head} bold tag="Head of Division" size={34} />
                 </View>
               </ReadableColumn>
@@ -147,7 +147,7 @@ export default function OrgChartScreen() {
                     key={dept.name}
                     style={[
                       styles.deptCard,
-                      t.shadowCard,
+                      t.surfaceEdge,
                       { backgroundColor: t.card, borderLeftColor: dept.colour ?? t.primary },
                     ]}
                   >
@@ -183,7 +183,7 @@ export default function OrgChartScreen() {
                     key={u.name}
                     style={[
                       styles.deptCard,
-                      t.shadowCard,
+                      t.surfaceEdge,
                       {
                         backgroundColor: t.card,
                         borderLeftColor: universityColour(u.name) ?? t.primary,

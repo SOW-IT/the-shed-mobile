@@ -17,11 +17,10 @@ import {
   formatServices,
   isServiceTime,
   MAX_SERVICES,
-  parseServiceTimes,
   type ServiceTime,
   sortServices,
 } from "../shared/churches";
-import { assignmentsOf, MEMBER } from "../shared/flow";
+import { assignmentsOf, MEMBER, roleNeedsUniversity } from "../shared/flow";
 import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import {
@@ -40,161 +39,8 @@ import { isAssigned, staffProfileOfMember } from "./staffMembers";
 // the list in their Profile.
 
 const MAX_CHURCHES = 500;
-const USERS_PAGE = 500;
 const MAX_STAFF = 3000;
 const MAX_ATTENDEES = 500;
-
-/** The churches the list starts with. `aliases` are other ways people typed
- *  the name before the list existed, so `setUp` links them too. */
-export const STARTER_CHURCHES: {
-  name: string;
-  address?: string;
-  services: ServiceTime[];
-  website?: string;
-  instagram?: string;
-  aliases?: string[];
-}[] = [
-  {
-    name: "Living Hope Presbyterian Church",
-    address: "234 Blues Point Rd, North Sydney NSW 2060",
-    services: [
-      { day: 0, time: "10:00" },
-      { day: 0, time: "12:00" },
-    ],
-    website: "https://lhpc.org.au/",
-    instagram: "livinghopepresbyterian",
-  },
-  {
-    name: "Harbour City Church",
-    address: "41b College Street, Gladesville NSW 2111",
-    services: [{ day: 0, time: "10:30" }],
-    website: "https://www.harbourcitychurch.com/",
-    instagram: "hcc_syd",
-  },
-  {
-    name: "Sydney Young Nak Church",
-    address: "7-9 Manson Street, Telopea NSW",
-    services: [{ day: 0, time: "13:15" }],
-    website: "https://youngnak.com.au/",
-  },
-  {
-    name: "Sydney Sae Soon Presbyterian Church (New Life)",
-    address: "219A North Rocks Road, North Rocks NSW",
-    services: [{ day: 0, time: "10:00" }],
-    website: "https://www.saesoon.org/",
-    aliases: [
-      "Sydney Saesoon Presbyterian Church",
-      "New Life Sydney (Saesoon Presbyterian Church)",
-      "Saesoon Presbyterian church, New Life",
-      "New Life",
-    ],
-  },
-  {
-    name: "St John's Anglican Cathedral Parramatta",
-    address: "195 Church St, Parramatta NSW 2150",
-    services: [
-      { day: 0, time: "08:00" },
-      { day: 0, time: "09:30" },
-      { day: 0, time: "11:00" },
-      { day: 0, time: "16:00" },
-      { day: 0, time: "17:30" },
-    ],
-    website: "https://stjohnscathedral.org.au/",
-    instagram: "stjohnsparra",
-    aliases: ["St John's Anglican Parramatta", "St John's Anglican Cathedral"],
-  },
-  {
-    name: "Sydney Dongsan Church",
-    address: "125 Great Western Hwy, Mays Hill NSW 2145",
-    services: [
-      { day: 0, time: "09:00" },
-      { day: 0, time: "11:00" },
-      { day: 0, time: "13:30" },
-    ],
-    website: "https://sydneydongsan.org/",
-    aliases: ["Dongsan Church"],
-  },
-  {
-    name: "The Movement Church",
-    address: "Hoyts Entertainment Quarter, 122 Lang Rd, Moore Park NSW 2021",
-    services: [
-      { day: 0, time: "09:30" },
-      { day: 0, time: "11:30" },
-    ],
-    website: "https://themovementchurch.co/",
-    instagram: "themovement.church",
-  },
-  {
-    name: "West Sydney Community Church",
-    address: "1/9 Kilto Crescent, Glendenning NSW 2761",
-    services: [{ day: 0, time: "10:30" }],
-    website: "https://wscc.live/",
-    instagram: "wscc.glendenning",
-  },
-  {
-    name: "Sydney Onnuri Church",
-    address: "18 Main Avenue, Lidcombe NSW 2141",
-    services: [
-      { day: 0, time: "09:00" },
-      { day: 0, time: "11:15" },
-      { day: 0, time: "13:30" },
-      { day: 0, time: "14:00" },
-    ],
-    website: "https://syd.onnuri.or.kr/",
-    instagram: "sydneyonnurichurch",
-  },
-  {
-    name: "St Barnabas Anglican Church Roseville",
-    address: "Corner of William St and Macquarie St, Roseville NSW 2069",
-    services: [
-      { day: 0, time: "09:00" },
-      { day: 0, time: "11:00" },
-    ],
-    website: "https://www.stbarneys.org.au/",
-  },
-  {
-    name: "Cornerstone Church Rhodes",
-    address: "The Connection, 30 Shoreline Drive, Rhodes NSW 2138",
-    services: [{ day: 0, time: "09:00" }],
-    website: "https://www.cornerstonechurch.com.au/rhodes",
-    aliases: ["Cornerstone Rhodes"],
-  },
-  {
-    name: "Cabramatta Anglican Church",
-    address: "42 Cumberland Street, Cabramatta NSW 2166",
-    services: [
-      { day: 0, time: "09:00" },
-      { day: 0, time: "11:00" },
-    ],
-    website: "https://cabra.church/",
-  },
-  {
-    name: "Macquarie Anglican Church",
-    address: "100 Balaclava Road, Eastwood NSW 2122",
-    services: [
-      { day: 0, time: "08:30" },
-      { day: 0, time: "10:30" },
-      { day: 0, time: "18:00" },
-    ],
-    website: "https://macquarieanglican.org/",
-    aliases: ["Macquarie Anglican"],
-  },
-  {
-    name: "Jesus Follower Church",
-    address: "Northmead High School, 28 Campbell Street, Northmead NSW 2152",
-    services: [
-      { day: 0, time: "11:00" },
-      { day: 0, time: "13:30" },
-    ],
-    website: "https://jesusfollower.org.au/",
-    aliases: ["Jesus Follower"],
-  },
-  {
-    name: "Saving Grace Christian Church",
-    address: "171-173 Power Street, Glendenning NSW 2761",
-    services: [],
-  },
-];
 
 const tidy = (text: string | undefined) => text?.trim().replace(/\s+/g, " ") || undefined;
 export const churchNameKey = (name: string) => tidy(name)?.toLowerCase() ?? "";
@@ -217,7 +63,7 @@ export const viewOf = (church: Doc<"churches">) => ({
   _id: church._id,
   name: church.name,
   address: church.address ?? null,
-  serviceTimes: formatServices(church.services ?? []) ?? church.serviceTimes ?? null,
+  serviceTimes: formatServices(church.services ?? []),
   services: church.services ?? [],
   website: church.website ?? null,
   instagram: church.instagram ?? null,
@@ -235,15 +81,6 @@ export const churchByName = (ctx: QueryCtx, name: string) =>
     .query("churches")
     .withIndex("by_nameKey", (q) => q.eq("nameKey", churchNameKey(name)))
     .first();
-
-const looseNameKey = (name: string) => churchNameKey(name).replace(/[‘’]/g, "'");
-
-async function churchByAlias(ctx: QueryCtx, alias: string) {
-  const exact = await churchByName(ctx, alias);
-  if (exact) return exact;
-  const curly = alias.replace(/'/g, "’");
-  return curly === alias ? null : await churchByName(ctx, curly);
-}
 
 /** Every church, A to Z. */
 export const list = query({
@@ -285,7 +122,6 @@ function cleanDetails({ name, address, services = [], website, instagram }: Deta
     nameKey: churchNameKey(name),
     address: tidy(address),
     services: sorted.length ? sorted : undefined,
-    serviceTimes: undefined,
     website: site,
     instagram: handle,
   };
@@ -335,75 +171,10 @@ export const update = mutation({
 });
 
 /**
- * Starts the list and links what people typed before it existed: adds the
- * starter churches if they're missing, then points everyone whose typed
- * church has the same name as one in the list at it, a page of users at a
- * time (pass the returned `next` back as `cursor` until it's null). Safe to
- * run again.
- *
- *   npx convex run --prod churches:setUp '{}'
- */
-export const setUp = internalMutation({
-  args: { cursor: v.optional(v.union(v.string(), v.null())) },
-  returns: v.object({
-    added: v.number(),
-    filled: v.number(),
-    linked: v.number(),
-    next: v.union(v.string(), v.null()),
-  }),
-  handler: async (ctx, { cursor }) => {
-    let added = 0;
-    let filled = 0;
-    let needsLocating = false;
-    const aliases = new Map<string, Id<"churches">>();
-    for (const { aliases: alsoKnownAs = [], ...church } of STARTER_CHURCHES) {
-      let existing = await churchByAlias(ctx, church.name);
-      for (const alias of alsoKnownAs) existing ??= await churchByAlias(ctx, alias);
-      let id = existing?._id;
-      if (!existing) {
-        id = await ctx.db.insert("churches", {
-          ...church,
-          services: church.services.length ? church.services : undefined,
-          nameKey: churchNameKey(church.name),
-          addedBy: "system",
-        });
-        added++;
-        needsLocating ||= Boolean(church.address);
-      } else {
-        const typedTimes = existing.serviceTimes ? parseServiceTimes(existing.serviceTimes) : [];
-        const services = existing.serviceTimes ? typedTimes : church.services;
-        const blanks = {
-          ...(!existing.address && church.address ? { address: church.address } : {}),
-          ...(!existing.services?.length && services.length ? { services, serviceTimes: undefined } : {}),
-          ...(!existing.website && church.website ? { website: church.website } : {}),
-          ...(!existing.instagram && church.instagram ? { instagram: church.instagram } : {}),
-        };
-        if (Object.keys(blanks).length) {
-          await ctx.db.patch("churches", existing._id, blanks);
-          filled++;
-          needsLocating ||= "address" in blanks;
-        }
-      }
-      for (const name of [church.name, ...alsoKnownAs]) aliases.set(looseNameKey(name), id!);
-    }
-    let linked = 0;
-    const page = await ctx.db.query("users").paginate({ numItems: USERS_PAGE, cursor: cursor ?? null });
-    for (const user of page.page) {
-      if (user.churchId || !user.localChurch) continue;
-      const churchId =
-        (await churchByName(ctx, user.localChurch))?._id ?? aliases.get(looseNameKey(user.localChurch));
-      if (!churchId) continue;
-      await ctx.db.patch("users", user._id, { churchId, localChurch: undefined });
-      linked++;
-    }
-    if (needsLocating) await scheduleLocating(ctx);
-    return { added, filled, linked, next: page.isDone ? null : page.continueCursor };
-  },
-});
-
-/**
  * The Churches page: every church with the staff (who picked it in their
- * Profile) and members (set on their attendance record) who go there.
+ * Profile) and members (set on their attendance record) who go there. Only
+ * staff and campus leaders see members; everyone else sees staff and campus
+ * leaders only.
  */
 const LEADER_ROLES = [
   "Director",
@@ -453,14 +224,20 @@ async function signedInUser(ctx: QueryCtx, email: string | undefined) {
   return null;
 }
 
+const personGroup = v.union(v.literal("leader"), v.literal("staff"), v.literal("member"));
+
 const personView = v.object({
   name: v.string(),
   role: v.string(),
+  group: personGroup,
   campus: v.union(v.string(), v.null()),
   email: v.union(v.string(), v.null()),
   memberId: v.union(v.id("attendanceMembers"), v.null()),
 });
 type Person = typeof personView.type;
+
+const groupOfProfile = (profile: Doc<"staffProfiles"> | null): typeof personGroup.type =>
+  !profile ? "member" : rolesOf(profile).some(roleNeedsUniversity) ? "leader" : "staff";
 
 const campusOfProfile = (profile: Doc<"staffProfiles">) =>
   assignmentsOf(profile).find((a) => a.university)?.university ?? null;
@@ -499,10 +276,12 @@ export const directory = query({
       for (const user of users) {
         if (!user.email) continue;
         const profile = await currentProfile(ctx, user.email);
+        if (!profile && !staffViewer) continue;
         const member = profile ? null : await findMemberByEmail(ctx, user.email);
         people.push({
           name: personDisplayName(user.name, user.email) || user.email,
           role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),
+          group: groupOfProfile(profile),
           campus: profile ? campusOfProfile(profile) : memberCampus(member),
           email: profile || staffViewer ? user.email : null,
           memberId: null,
@@ -510,10 +289,12 @@ export const directory = query({
       }
       for (const member of members) {
         const profile = await staffProfileOfMember(ctx, member._id, currentStaffYear());
+        if (!profile && !staffViewer) continue;
         if (profile && (await signedInUser(ctx, profile.email))?.churchId) continue;
         people.push({
           name: profile?.name ?? member.name,
           role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),
+          group: groupOfProfile(profile),
           campus: (profile && campusOfProfile(profile)) ?? memberCampus(member),
           email: profile?.email ?? null,
           memberId: staffViewer ? member._id : null,

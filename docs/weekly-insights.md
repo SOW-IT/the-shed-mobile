@@ -104,8 +104,7 @@ term and week the campus already has asks for confirmation. The event stores
 back to Other event takes both off, along with any weekly-only tags.
 
 A weekly is defined by that mark, not by the tag ([ADR 0010](adr/0010-weekly-is-its-mark.md)).
-An older app that sends the Weeklies tag without a mark gets one worked out
-from the name and date (`events.inferWeekly`). Tags belong to one list,
+Tags belong to one list,
 Weeklies (BAM, PPN, Games Night, ...) or Other events, and the form offers
 only the list for its kind.
 

@@ -32,6 +32,7 @@ import {
   stagger,
   Txt,
 } from "./ui";
+import { isSowStaffAddress } from "@shared/rollcallImport";
 
 const ProfileFrame = ({
   asTab,
@@ -223,6 +224,7 @@ export const ProfileView = ({
 
   const currentYear = staffYearForDate(new Date());
   const current = profile.serviceHistory.find((h) => h.year === currentYear);
+  const neverStaff = profile.serviceHistory.length === 0;
 
   const pickPhoto = async () => {
     setError(null);
@@ -329,12 +331,13 @@ export const ProfileView = ({
                 · {current.year}
               </Text>
             </View>
+          ) : neverStaff && !isSowStaffAddress(profile.email ?? undefined) ? (
+            <Muted>Personal account</Muted>
+          ) : neverStaff ? (
+            <Muted>No staff profile for {currentYear}</Muted>
           ) : (
             <Muted>No assignment for {currentYear}</Muted>
           )}
-          {!profile.isMe && !profile.church && profile.localChurch ? (
-            <Muted>Church: {profile.localChurch}</Muted>
-          ) : null}
           <ErrorBanner message={error} />
         </Card>
       </FadeInView>
@@ -342,10 +345,7 @@ export const ProfileView = ({
       {profile.isMe && (
         <FadeInView delay={stagger(1)}>
           <Card>
-            <ChurchPicker
-              church={profile.church}
-              typedChurch={profile.typedChurch}
-            />
+            <ChurchPicker church={profile.church} />
           </Card>
         </FadeInView>
       )}
@@ -384,57 +384,53 @@ export const ProfileView = ({
         </FadeInView>
       ) : null}
 
-      <SectionTitle>Service History</SectionTitle>
-      {profile.serviceHistory.length === 0 ? (
-        <Muted>No service history yet.</Muted>
-      ) : (
-        profile.serviceHistory.map((entry, index) => (
-          <FadeInView key={entry.year} delay={stagger(index + 2)}>
-            <Card style={styles.historyCard}>
+      {neverStaff ? null : <SectionTitle>Service history</SectionTitle>}
+      {neverStaff ? null : (
+        <FadeInView delay={stagger(2)}>
+          <Card style={styles.history}>
+            {profile.serviceHistory.map((entry, index) => (
               <View
+                key={entry.year}
                 style={[
-                  styles.yearBadge,
-                  { backgroundColor: t.inputBackground },
+                  styles.historyRow,
+                  index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.separator },
                 ]}
               >
-                <Text style={[styles.yearBadgeText, { color: t.text }]}>
-                  {entry.year}
-                </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                {entry.year === currentYear ? (
-                  <Txt style={{ fontWeight: "700" }}>current</Txt>
-                ) : null}
-                {(entry.assignments ?? []).length > 0 ? (
-                  <View style={styles.assignmentChips}>
-                    {entry.assignments.map((a, i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.assignmentChip,
-                          { backgroundColor: t.primarySoft },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.assignmentChipText,
-                            { color: t.dark ? t.text : t.primary },
-                          ]}
+                <View style={styles.yearCol}>
+                  <Text style={[styles.yearText, { color: t.text }]}>{entry.year}</Text>
+                  {entry.year === currentYear ? (
+                    <Text style={[typography.caption, { color: t.muted }]}>This year</Text>
+                  ) : null}
+                </View>
+                <View style={{ flex: 1 }}>
+                  {(entry.assignments ?? []).length > 0 ? (
+                    <View style={styles.assignmentChips}>
+                      {entry.assignments.map((a, i) => (
+                        <View
+                          key={i}
+                          style={[styles.assignmentChip, { backgroundColor: t.primarySoft }]}
                         >
-                          {formatAssignment(a)}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Txt style={{ fontWeight: "700" }}>
-                    {entry.roles.map(acronym).join(", ") || "—"}
-                  </Txt>
-                )}
+                          <Text
+                            style={[
+                              styles.assignmentChipText,
+                              { color: t.dark ? t.text : t.primary },
+                            ]}
+                          >
+                            {formatAssignment(a)}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Txt style={{ fontWeight: "700" }}>
+                      {entry.roles.map(acronym).join(", ") || "—"}
+                    </Txt>
+                  )}
+                </View>
               </View>
-            </Card>
-          </FadeInView>
-        ))
+            ))}
+          </Card>
+        </FadeInView>
       )}
       {profile.isMe && (
         <FadeInView delay={stagger(2)}>
@@ -500,15 +496,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  historyCard: {
+  history: { paddingVertical: spacing.xs, gap: 0 },
+  historyRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
+    paddingVertical: spacing.md,
   },
-  yearBadge: {
-    borderRadius: radius.md,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  yearBadgeText: { fontSize: 14, fontWeight: "800", letterSpacing: -0.3 },
+  yearCol: { width: 64 },
+  yearText: { ...typography.section },
 });

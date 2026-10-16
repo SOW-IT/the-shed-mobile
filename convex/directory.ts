@@ -26,32 +26,6 @@ import {
 } from "./model";
 import { photoUrl } from "./photo";
 
-export const serverInfo = query({
-  args: {},
-  handler: async (ctx) => {
-    if ((await optionalEmail(ctx)) === null) return null;
-    const year = currentStaffYear();
-    const departments = await ctx.db
-      .query("departments")
-      .withIndex("by_year_and_name", (q) => q.eq("year", year))
-      .take(200);
-    const divisions = await ctx.db
-      .query("divisions")
-      .withIndex("by_year_and_name", (q) => q.eq("year", year))
-      .take(200);
-    return {
-      staffYear: year,
-      nextStaffYear: nextStaffYear(),
-      allowedDomain: process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au",
-      divisions: divisions.map((d) => d.name),
-      departments: departments.map((d) => ({
-        name: d.name,
-        division: d.division,
-      })),
-    };
-  },
-});
-
 export const me = query({
   args: {},
   handler: async (ctx) => {
@@ -134,9 +108,8 @@ export const me = query({
         approvers.financeHeadEmail === email ||
         rolesOf(profile).includes(DIRECTOR) ||
         isDelegate,
-      isCampusLeader: assignmentsOf(profile).some((a) =>
-        roleNeedsUniversity(a.role),
-      ),
+      isCampusLeader: assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
+      listsChurch: profile.year === year && assignmentsOf(profile).length > 0,
     };
   },
 });

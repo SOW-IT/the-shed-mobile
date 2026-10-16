@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { Animated, Image, Text, View } from "react-native";
 import { USE_NATIVE_DRIVER, typography, useAppTheme } from "@/theme";
+import { Btn } from "./buttons";
 import { FadeInView, SowSpinner } from "./primitives";
 import { styles } from "./styles";
 
@@ -97,10 +98,12 @@ export const EmptyState = ({
   icon,
   title,
   message,
+  action,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   message?: string;
+  action?: { label: string; onPress: () => void };
 }) => {
   const t = useAppTheme();
   return (
@@ -117,6 +120,7 @@ export const EmptyState = ({
             {message}
           </Text>
         ) : null}
+        {action ? <Btn title={action.label} variant="tonal" onPress={action.onPress} /> : null}
       </View>
     </FadeInView>
   );

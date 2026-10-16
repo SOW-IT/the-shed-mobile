@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -17,6 +17,7 @@ import {
   SearchField,
   SowSpinner,
 } from "@/components/ui";
+import { FilterBar } from "@/components/attendance/FilterBar";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
@@ -61,7 +62,7 @@ const timeAgo = (ms: number): string => {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(ms).toLocaleDateString(undefined, {
+  return new Date(ms).toLocaleDateString("en-AU", {
     day: "numeric",
     month: "short",
   });
@@ -116,6 +117,7 @@ export function AuditTab({
 
   const activeFilterCount =
     entityTypes.length + actorEmails.length + eventIds.length;
+  const narrowed = activeFilterCount > 0 || debouncedSearch.trim() !== "";
 
   const entityOptions = useMemo(
     () => [
@@ -139,7 +141,7 @@ export function AuditTab({
 
   const eventOptions = useMemo(
     () => [
-      ...(options?.events ?? []).map((e) => ({ label: e.name, value: e.id })),
+      ...(options?.events ?? []).map((e) => ({ label: e.label, value: e.id })),
     ],
     [options]
   );
@@ -163,81 +165,38 @@ export function AuditTab({
       <View
         style={[styles.stickyControls, { backgroundColor: t.background }]}
       >
-      <View style={styles.filterSummary}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: filtersOpen }}
-          onPress={() => setFiltersOpen((open) => !open)}
-          style={({ pressed }) => [
-            styles.filterButton,
-            { backgroundColor: t.ghost },
-            pressed && { opacity: 0.72 },
-          ]}
-        >
-          <Ionicons name="filter-outline" size={16} color={t.ghostText} />
-          <Text style={[styles.filterButtonText, { color: t.ghostText }]}>
-            Filters
-          </Text>
-        </Pressable>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {activeFilterCount} active
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          disabled={activeFilterCount === 0}
-          onPress={() => {
-            setEntityTypes([]);
-            setActorEmails([]);
-            setEventIds([]);
-          }}
-          style={({ pressed }) => [
-            styles.clearFilters,
-            activeFilterCount === 0 && { opacity: 0.45 },
-            pressed && { opacity: 0.65 },
-          ]}
-        >
-          <Text
-            style={[
-              typography.caption,
-              styles.clearFiltersText,
-              { color: t.primary },
-            ]}
-          >
-            Clear All
-          </Text>
-        </Pressable>
-      </View>
-
-      {filtersOpen ? (
-        <View
-          style={[
-            styles.filterPanel,
-            { backgroundColor: t.card, borderColor: t.separator },
-          ]}
-        >
-          <MultiSelect
-            label="Action type"
-            values={entityTypes}
-            options={entityOptions}
-            placeholder="All actions"
-            onSelect={(values) => setEntityTypes(values as AuditEntityType[])}
-          />
-          <MultiSelect
-            label="Performed by"
-            values={actorEmails}
-            options={actorOptions}
-            placeholder="Anyone"
-            onSelect={setActorEmails}
-          />
-          <MultiSelect
-            label="Event"
-            values={eventIds}
-            options={eventOptions}
-            placeholder="All events"
-            onSelect={(values) => setEventIds(values as Id<"events">[])}
-          />
-        </View>
-      ) : null}
+      <FilterBar
+        count={activeFilterCount}
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((open) => !open)}
+        onClear={() => {
+          setEntityTypes([]);
+          setActorEmails([]);
+          setEventIds([]);
+        }}
+      >
+        <MultiSelect
+          label="Action type"
+          values={entityTypes}
+          options={entityOptions}
+          placeholder="All actions"
+          onSelect={(values) => setEntityTypes(values as AuditEntityType[])}
+        />
+        <MultiSelect
+          label="Performed by"
+          values={actorEmails}
+          options={actorOptions}
+          placeholder="Anyone"
+          onSelect={setActorEmails}
+        />
+        <MultiSelect
+          label="Event"
+          values={eventIds}
+          options={eventOptions}
+          placeholder="All events"
+          onSelect={(values) => setEventIds(values as Id<"events">[])}
+        />
+      </FilterBar>
 
       <SearchField
         value={search}
@@ -250,11 +209,17 @@ export function AuditTab({
       </View>
 
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>
-        <Text style={[typography.label, { color: t.muted }]}>ACTIVITY</Text>
+        <Text style={[typography.label, { color: t.muted }]}>Activity</Text>
       </View>
 
-      {page === undefined && accumulated.length === 0 ? (
+      {accumulated.length === 0 && (page === undefined || hasMore) ? (
         <LoadingState />
+      ) : accumulated.length === 0 && narrowed ? (
+        <EmptyState
+          icon="search-outline"
+          title="No matches"
+          message="Nothing in the audit trail matches this search or these filters."
+        />
       ) : accumulated.length === 0 ? (
         <EmptyState
           icon="document-text-outline"
@@ -308,33 +273,6 @@ export function AuditTab({
 
 const styles = StyleSheet.create({
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
-  filterSummary: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  filterButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    height: 36,
-  },
-  filterButtonText: { fontSize: 13, fontWeight: "700" },
-  clearFilters: {
-    marginLeft: "auto",
-    paddingHorizontal: 4,
-    paddingVertical: 6,
-  },
-  clearFiltersText: { fontWeight: "600" },
-  filterPanel: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.md,
-    marginBottom: spacing.sm,
-  },
   search: { marginTop: spacing.xs, marginBottom: spacing.sm },
   sectionHeader: {
     flexDirection: "row",

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
+import { linkUserProfiles } from "./userLink";
 
 const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
@@ -293,9 +294,9 @@ describe("userLink: re-keying a division head and budget manager on rename", () 
     );
 
     const userId = await t.run((ctx) => ctx.db.insert("users", { email: HENRY }));
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
     await t.run((ctx) => ctx.db.patch("users", userId, { email: "henry.new@sow.org.au" }));
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
 
     await t.run(async (ctx) => {
       const division = await ctx.db
@@ -327,9 +328,9 @@ describe("userLink: re-keying approver delegations on rename", () => {
     });
 
     const userId = await t.run((ctx) => ctx.db.insert("users", { email: HENRY }));
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
     await t.run((ctx) => ctx.db.patch("users", userId, { email: "henry.new@sow.org.au" }));
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
 
     const list = (await asUser(t, ADMIN).query(api.admin.listDelegations, { year: YEAR }))!;
     expect(
@@ -359,9 +360,9 @@ describe("userLink: re-keying approver delegations on rename", () => {
     });
 
     const userId = await t.run((ctx) => ctx.db.insert("users", { email: HENRY }));
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
     await t.run((ctx) => ctx.db.patch("users", userId, { email: NEW }));
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
 
     const list = (await asUser(t, ADMIN).query(api.admin.listDelegations, { year: YEAR }))!;
     expect(list.filter((d) => d.fromEmail === NEW && d.toEmail === BELLA)).toHaveLength(1);
@@ -562,7 +563,7 @@ describe("userLink edge cases", () => {
   test("a user row with no email links nothing", async () => {
     const t = await setup();
     const userId = await t.run((ctx) => ctx.db.insert("users", {}));
-    await expect(t.mutation(internal.userLink.link, { userId })).resolves.toBeNull();
+    await expect(t.run((ctx) => linkUserProfiles(ctx, userId))).resolves.toBeNull();
   });
 
   test("a brand-new user with no profiles on any domain binds nothing", async () => {
@@ -570,7 +571,7 @@ describe("userLink edge cases", () => {
     const userId = await t.run((ctx) =>
       ctx.db.insert("users", { email: "fresh.face@sow.org.au" })
     );
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
     const bound = await t.run((ctx) =>
       ctx.db
         .query("staffProfiles")
