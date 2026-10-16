@@ -72,6 +72,14 @@ export function SettingsTab({
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [deleteText, setDeleteText] = useState("");
   const [colourIndex, setColourIndex] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const toggleExpanded = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const [activeList, setActiveList] = useState<TagList>("weeklies");
 
   useEffect(() => {
@@ -160,9 +168,13 @@ export function SettingsTab({
         {shown.length === 0 ? (
           <Muted>{section.list === "weeklies" ? "No weekly tags yet." : "No event tags yet."}</Muted>
         ) : null}
-        {shown.map(({ tag, i }) => (
+        {shown.map(({ tag, i }) => {
+          const key = tag.id ?? `new-${i}`;
+          const open = !tag.id || expanded.has(key);
+          const name = tag.name.trim() || "New tag";
+          return (
           <Card
-            key={tag.id ?? `new-${i}`}
+            key={key}
             style={[
               styles.tagCard,
               {
@@ -171,10 +183,20 @@ export function SettingsTab({
             ]}
           >
             <View style={styles.cardHeader}>
-              <AttendanceTagPill
-                name={tag.name.trim() || "New tag"}
-                colour={tag.colour}
-              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={open ? `${name}, hide details` : `${name}, show details`}
+                accessibilityState={{ expanded: open, disabled: !tag.id }}
+                disabled={!tag.id}
+                onPress={() => toggleExpanded(key)}
+                hitSlop={8}
+                style={({ pressed }) => [styles.cardToggle, pressed && { opacity: 0.7 }]}
+              >
+                <AttendanceTagPill name={name} colour={tag.colour} />
+                {tag.id ? (
+                  <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={t.ghostText} />
+                ) : null}
+              </Pressable>
               {readOnly ? null : (
                 <IconButton
                   name={tag.id ? "trash-outline" : "close"}
@@ -194,88 +216,93 @@ export function SettingsTab({
               )}
             </View>
 
-            <Field
-              label="Name"
-              value={tag.name}
-              disabled={readOnly}
-              onChangeText={(name) =>
-                setTagDrafts((prev) => prev.map((x, j) => (j === i ? { ...x, name } : x)))
-              }
-            />
+            {open ? (
+              <>
+                <Field
+                  label="Name"
+                  value={tag.name}
+                  disabled={readOnly}
+                  onChangeText={(name) =>
+                    setTagDrafts((prev) => prev.map((x, j) => (j === i ? { ...x, name } : x)))
+                  }
+                />
 
-            <View style={{ gap: spacing.xs }}>
-              <Muted>Colour</Muted>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Choose colour, currently ${tag.colour ?? "blue"}`}
-                accessibilityState={{ disabled: readOnly }}
-                disabled={readOnly}
-                onPress={() => setColourIndex(i)}
-                style={({ pressed }) => [
-                  styles.colourPickerButton,
-                  { borderColor: t.border, backgroundColor: t.card },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <View style={styles.colourPickerValue}>
-                  <View
-                    style={[
-                      styles.colourDot,
-                      { backgroundColor: tagColourHex(tag.colour ?? "blue") },
+                <View style={{ gap: spacing.xs }}>
+                  <Muted>Colour</Muted>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Choose colour, currently ${tag.colour ?? "blue"}`}
+                    accessibilityState={{ disabled: readOnly }}
+                    disabled={readOnly}
+                    onPress={() => setColourIndex(i)}
+                    style={({ pressed }) => [
+                      styles.colourPickerButton,
+                      { borderColor: t.border, backgroundColor: t.card },
+                      pressed && { opacity: 0.7 },
                     ]}
-                  />
-                  <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>
-                    {tag.colour ?? "blue"}
-                  </Text>
+                  >
+                    <View style={styles.colourPickerValue}>
+                      <View
+                        style={[
+                          styles.colourDot,
+                          { backgroundColor: tagColourHex(tag.colour ?? "blue") },
+                        ]}
+                      />
+                      <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>
+                        {tag.colour ?? "blue"}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={readOnly ? "lock-closed-outline" : "chevron-down"}
+                      size={readOnly ? 16 : 18}
+                      color={readOnly ? t.faint : t.ghostText}
+                    />
+                  </Pressable>
                 </View>
-                <Ionicons
-                  name={readOnly ? "lock-closed-outline" : "chevron-down"}
-                  size={readOnly ? 16 : 18}
-                  color={readOnly ? t.faint : t.ghostText}
-                />
-              </Pressable>
-            </View>
 
-            {readOnly ? null : (
-              <View style={{ gap: spacing.xs }}>
-                <Muted>Used on</Muted>
-                <Segmented
-                  segments={LISTS.map((l) => ({ key: l.list, label: l.title }))}
-                  active={tag.list}
-                  onChange={(key) => {
-                    setTagDrafts((prev) =>
-                      prev.map((x, j) => (j === i ? withList(x, key as TagList) : x))
-                    );
-                    setActiveList(key as TagList);
-                  }}
-                />
-              </View>
-            )}
+                {readOnly ? null : (
+                  <View style={{ gap: spacing.xs }}>
+                    <Muted>Used on</Muted>
+                    <Segmented
+                      segments={LISTS.map((l) => ({ key: l.list, label: l.title }))}
+                      active={tag.list}
+                      onChange={(key) => {
+                        setTagDrafts((prev) =>
+                          prev.map((x, j) => (j === i ? withList(x, key as TagList) : x))
+                        );
+                        setActiveList(key as TagList);
+                      }}
+                    />
+                  </View>
+                )}
 
-            <View style={{ gap: spacing.xs }}>
-              <Muted>Applies to</Muted>
-              <SubgroupScopePicker
-                disabled={readOnly}
-                subgroups={scopeFor(tag.list)}
-                isSelected={(subgroup) =>
-                  tag.subgroups?.length ? tag.subgroups.includes(subgroup) : true
-                }
-                onToggle={(subgroup) =>
-                  setTagDrafts((prev) =>
-                    prev.map((x, j) => {
-                      if (j !== i) return x;
-                      const set = new Set(x.subgroups?.length ? x.subgroups : scopeFor(x.list));
-                      if (set.has(subgroup)) set.delete(subgroup);
-                      else set.add(subgroup);
-                      if (set.size === 0) return x;
-                      return { ...x, subgroups: [...set] };
-                    })
-                  )
-                }
-              />
-            </View>
+                <View style={{ gap: spacing.xs }}>
+                  <Muted>Applies to</Muted>
+                  <SubgroupScopePicker
+                    disabled={readOnly}
+                    subgroups={scopeFor(tag.list)}
+                    isSelected={(subgroup) =>
+                      tag.subgroups?.length ? tag.subgroups.includes(subgroup) : true
+                    }
+                    onToggle={(subgroup) =>
+                      setTagDrafts((prev) =>
+                        prev.map((x, j) => {
+                          if (j !== i) return x;
+                          const set = new Set(x.subgroups?.length ? x.subgroups : scopeFor(x.list));
+                          if (set.has(subgroup)) set.delete(subgroup);
+                          else set.add(subgroup);
+                          if (set.size === 0) return x;
+                          return { ...x, subgroups: [...set] };
+                        })
+                      )
+                    }
+                  />
+                </View>
+              </>
+            ) : null}
           </Card>
-        ))}
+          );
+        })}
         {readOnly ? null : (
           <Btn
             title={section.list === "weeklies" ? "Add weekly tag" : "Add event tag"}
@@ -385,6 +412,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
+  },
+  cardToggle: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 32,
   },
   colourPickerButton: {
     flexDirection: "row",

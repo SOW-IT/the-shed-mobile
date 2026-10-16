@@ -11,7 +11,6 @@ import {
   PressableStateCallbackType,
   StyleProp,
   StyleSheet,
-  Text,
   View,
   ViewStyle,
 } from "react-native";
@@ -41,40 +40,6 @@ const tabIcon =
     );
     return TabBarIcon;
   };
-
-const InsightsTabIcon = ({
-  color,
-  focused,
-}: {
-  color: ColorValue;
-  focused: boolean;
-}) => {
-  const t = useAppTheme();
-  return (
-    <TabPill focused={focused}>
-      <Ionicons
-        name={focused ? "stats-chart" : "stats-chart-outline"}
-        size={22}
-        color={color as string}
-      />
-      <View
-        style={{
-          position: "absolute",
-          top: -1,
-          right: -2,
-          backgroundColor: t.accent,
-          borderRadius: 4,
-          paddingHorizontal: 3,
-          paddingVertical: 0,
-        }}
-      >
-        <Text style={{ color: "#ffffff", fontSize: 6, fontWeight: "800", letterSpacing: 0.2 }}>
-          BETA
-        </Text>
-      </View>
-    </TabPill>
-  );
-};
 
 type TabBarButtonProps = {
   children?:
@@ -238,9 +203,7 @@ export default function TabsLayout() {
         name="insights"
         options={{
           title: "Insights",
-          tabBarIcon: ({ color, focused }) => (
-            <InsightsTabIcon color={color} focused={focused} />
-          ),
+          tabBarIcon: tabIcon("stats-chart-outline", "stats-chart"),
         }}
       />
       <Tabs.Screen

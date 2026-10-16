@@ -250,11 +250,6 @@ export const NavMenu = ({
               >
                 {label}
               </Text>
-              {key === "insights" && sidebar ? (
-                <View style={[styles.tag, { backgroundColor: t.accent }]}>
-                  <Text style={styles.tagText}>BETA</Text>
-                </View>
-              ) : null}
               {badge > 0 ? (
                 <View style={[styles.countBadge, { backgroundColor: t.warning }]}>
                   <Text style={styles.badgeText}>{badgeText(badge)}</Text>
@@ -352,8 +347,6 @@ const styles = StyleSheet.create({
   labelDrawer: { fontSize: 21, fontWeight: "700", letterSpacing: -0.4, flexShrink: 1 },
   labelSidebar: { fontSize: 17, fontWeight: "600", letterSpacing: -0.3, flexShrink: 1 },
   labelSelected: { fontWeight: "800" },
-  tag: { borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
-  tagText: { color: "#ffffff", fontSize: 9, fontWeight: "800", letterSpacing: 0.2 },
   countBadge: {
     minWidth: 22,
     height: 22,
