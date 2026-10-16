@@ -12,11 +12,13 @@ export function SubgroupScopePicker({
   isSelected,
   onToggle,
   allOption,
+  disabled = false,
 }: {
   subgroups: string[];
   isSelected: (subgroup: string) => boolean;
   onToggle: (subgroup: string) => void;
   allOption?: { selected: boolean; onSelect: () => void };
+  disabled?: boolean;
 }) {
   const t = useAppTheme();
   return (
@@ -25,7 +27,8 @@ export function SubgroupScopePicker({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="All groups"
-          accessibilityState={{ selected: allOption.selected }}
+          accessibilityState={{ selected: allOption.selected, disabled }}
+          disabled={disabled}
           onPress={allOption.onSelect}
           style={({ pressed }) => [styles.slot, pressed && { opacity: 0.7 }]}
         >
@@ -55,7 +58,8 @@ export function SubgroupScopePicker({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={subgroupLabel(sg)}
-              accessibilityState={{ selected }}
+              accessibilityState={{ selected, disabled }}
+              disabled={disabled}
               onPress={() => onToggle(sg)}
               style={({ pressed }) => [styles.slot, pressed && { opacity: 0.7 }]}
             >

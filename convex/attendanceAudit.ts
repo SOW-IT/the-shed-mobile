@@ -2,6 +2,7 @@ import { paginator } from "convex-helpers/server/pagination";
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { staffYearForDate, SYDNEY_TIME_ZONE } from "../shared/flow";
+import { eventFilterLabel } from "../shared/rollcall";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, query } from "./_generated/server";
 import { displayName, optionalProfile } from "./model";
@@ -199,7 +200,12 @@ export const filterOptions = query({
       await Promise.all(eventIds.map((id) => ctx.db.get(id)))
     )
       .filter((e): e is NonNullable<typeof e> => e !== null)
-      .map((e) => ({ id: e._id, name: e.name, dateStart: e.dateStart }))
+      .map((e) => ({
+        id: e._id,
+        name: e.name,
+        label: eventFilterLabel(e),
+        dateStart: e.dateStart,
+      }))
       .sort((a, b) => b.dateStart - a.dateStart);
 
     return { actors, events };

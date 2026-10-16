@@ -16,6 +16,8 @@ import {
 import {
   Btn,
   EmptyState,
+  ErrorBanner,
+  errorMessage,
   LoadingState,
   MultiSelect,
   SearchField,
@@ -59,6 +61,7 @@ export function MembersTab({
   const [sortAsc, setSortAsc] = useState(true);
   const [filters, setFilters] = useState<Record<string, string[]>>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
   useEffect(() => {
     void ensureDefaults({}).catch(() => {});
   }, [ensureDefaults]);
@@ -134,6 +137,9 @@ export function MembersTab({
       <View style={styles.filterSummary}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={
+            activeFilterCount > 0 ? `Filters, ${activeFilterCount} on` : "Filters"
+          }
           accessibilityState={{ expanded: filtersOpen }}
           onPress={() => setFiltersOpen((open) => !open)}
           style={({ pressed }) => [
@@ -146,24 +152,25 @@ export function MembersTab({
           <Text style={[styles.filterButtonText, { color: t.ghostText }]}>
             Filters
           </Text>
+          {activeFilterCount > 0 ? (
+            <View style={[styles.filterBadge, { backgroundColor: t.primary }]}>
+              <Text style={[styles.filterBadgeText, { color: t.background }]}>
+                {activeFilterCount}
+              </Text>
+            </View>
+          ) : null}
         </Pressable>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {activeFilterCount} active
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          disabled={activeFilterCount === 0}
-          onPress={() => setFilters({})}
-          style={({ pressed }) => [
-            styles.clearFilters,
-            activeFilterCount === 0 && { opacity: 0.45 },
-            pressed && { opacity: 0.65 },
-          ]}
-        >
-          <Text style={[typography.caption, styles.clearFiltersText, { color: t.primary }]}>
-            Clear All
-          </Text>
-        </Pressable>
+        {activeFilterCount > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setFilters({})}
+            style={({ pressed }) => [styles.clearFilters, pressed && { opacity: 0.65 }]}
+          >
+            <Text style={[typography.caption, styles.clearFiltersText, { color: t.primary }]}>
+              Clear all
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {filtersOpen ? (
@@ -226,13 +233,14 @@ export function MembersTab({
           loading={search !== debouncedSearch || refreshing}
           style={styles.search}
         />
+        <ErrorBanner message={openError} />
       </View>
 
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>
         <Text style={[typography.label, { color: t.muted }]}>Members</Text>
         <View style={[styles.totalPill, { backgroundColor: t.ghost }]}>
           <Text style={[styles.totalPillText, { color: t.ghostText }]}>
-            TOTAL: {total}
+            {`${total.toLocaleString("en-AU")} ${total === 1 ? "member" : "members"}`}
           </Text>
         </View>
       </View>
@@ -252,12 +260,15 @@ export function MembersTab({
               university={row.university}
               roles={row.roles}
               onPress={() => {
+                setOpenError(null);
                 if (row.memberId) {
                   onEditMember(row.memberId as Id<"attendanceMembers">);
                 } else if (row.email) {
                   void ensureForStaff({ staffEmail: row.email, staffYear: year })
                     .then(onEditMember)
-                    .catch((e) => console.error("ensureForStaff failed", e));
+                    .catch((e) =>
+                      setOpenError(`Couldn't open ${row.name}: ${errorMessage(e)}`)
+                    );
                 }
               }}
             />
@@ -289,6 +300,15 @@ const styles = StyleSheet.create({
     height: 36,
   },
   filterButtonText: { fontSize: 13, fontWeight: "700" },
+  filterBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterBadgeText: { fontSize: 11, fontWeight: "800" },
   clearFilters: {
     marginLeft: "auto",
     paddingHorizontal: 4,

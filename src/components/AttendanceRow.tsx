@@ -198,6 +198,19 @@ function AttendanceRowBase({
     flingPrimary();
   };
 
+  const primaryLabel = mode === "suggested" ? "Sign in" : "Sign out";
+  const canPrimary = !disabled && !actionDisabled;
+  const canEdit = !disabled && Boolean(onEdit);
+  const accessibilityActions = [
+    ...(canPrimary ? [{ name: "activate", label: primaryLabel }] : []),
+    ...(canEdit ? [{ name: "edit", label: "Edit member" }] : []),
+  ];
+  const onAccessibilityAction = (e: { nativeEvent: { actionName: string } }) => {
+    if (e.nativeEvent.actionName === "activate" && canPrimary) onPrimaryStripPress();
+    else if (e.nativeEvent.actionName === "edit" && canEdit) onEditStripPress();
+  };
+  const lockedSignOut = mode === "signedIn" && actionDisabled;
+
   const pan = Gesture.Pan()
     .enabled(!disabled)
     .activeOffsetX([-16, 16])
@@ -389,7 +402,7 @@ function AttendanceRowBase({
       {snapVisual === "primary" && !actionDisabled ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={mode === "suggested" ? "Sign in" : "Sign out"}
+          accessibilityLabel={primaryLabel}
           style={[styles.actionHit, styles.primaryHit, { width: SNAP_POSITION }]}
           onPress={onPrimaryStripPress}
         />
@@ -397,8 +410,14 @@ function AttendanceRowBase({
 
       <GestureDetector gesture={composed} touchAction={scrollLocked ? "none" : "pan-y"}>
         <Animated.View
+          accessible
           accessibilityRole="button"
-          accessibilityLabel={tag ? `${name}, ${tag.label}` : name}
+          accessibilityLabel={[name, tag?.label, lockedSignOut ? "sign-out locked" : null]
+            .filter(Boolean)
+            .join(", ")}
+          accessibilityState={{ disabled }}
+          accessibilityActions={accessibilityActions}
+          onAccessibilityAction={onAccessibilityAction}
           onLayout={(e) => {
             const w = e.nativeEvent.layout.width;
             if (w > 0 && w !== measuredWidth) setMeasuredWidth(w);
@@ -433,6 +452,9 @@ function AttendanceRowBase({
               </Text>
             ) : null}
           </View>
+          {lockedSignOut ? (
+            <Ionicons name="lock-closed" size={14} color={t.faint} accessible={false} />
+          ) : null}
           <View
             style={[
               styles.campusPill,

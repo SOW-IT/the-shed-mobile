@@ -10,12 +10,14 @@ import {
   formatMetadataFieldValue,
   orderedSelectOptions,
   ROLE_FIELD_KEY,
+  sameMetadata,
   STUDENT_YEAR_FIELD_KEY,
   yearOptionIdForStoredValue,
 } from "../../../shared/attendanceMemberMeta";
 import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import { isSowStaffAddress } from "../../../shared/rollcallImport";
 import { capitalizeMemberName } from "../../../shared/rollcall";
+import { typedMatches } from "../../../shared/typedConfirm";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
 import { ChurchSelect } from "@/components/ChurchPicker";
 import {
@@ -34,11 +36,6 @@ import {
   WarningBanner,
 } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
-
-const sameTypedName = (typed: string, name: string) =>
-  Boolean(name.trim()) &&
-  typed.trim().replace(/\s+/g, " ").toLowerCase() ===
-    name.trim().replace(/\s+/g, " ").toLowerCase();
 
 const eventDate = (ms: number) =>
   new Date(ms).toLocaleDateString("en-AU", {
@@ -167,6 +164,18 @@ export function EditMemberSheet({
     setMergeOpen(false);
   }, [visible, memberId, row, eventAttendance?.attendanceId, eventAttendance?.notes, prefillName]);
 
+  const sameText = (typed: string, saved: string | undefined) =>
+    typed.trim().toLowerCase() === (saved ?? "").trim().toLowerCase();
+  const notesChanged =
+    Boolean(eventAttendance) && notes.trim() !== (eventAttendance?.notes ?? "").trim();
+  const memberChanged =
+    !row ||
+    name.trim() !== row.name.trim() ||
+    !sameText(isStaffOverlay ? personalEmail : email, isStaffOverlay ? row.personalEmail : row.email) ||
+    !sameMetadata(metadata, row.metadata) ||
+    (!isStaffOverlay && churchId !== (row.churchId ?? null));
+  const dirty = !memberId || memberChanged || notesChanged;
+
   const handleSave = () => {
     if (hasDuplicate) {
       setConfirmOpen(true);
@@ -181,7 +190,7 @@ export function EditMemberSheet({
     setError(null);
     try {
       let createdId: Id<"attendanceMembers"> | null = null;
-      if (memberId) {
+      if (memberId && memberChanged) {
         await update({
           memberId,
           name,
@@ -192,10 +201,10 @@ export function EditMemberSheet({
           // Staff set their church in their own Profile.
           ...(isStaffOverlay ? {} : { churchId }),
         });
-      } else {
+      } else if (!memberId) {
         createdId = await create({ name, email: email || undefined, metadata, churchId: churchId ?? undefined });
       }
-      if (eventAttendance) {
+      if (eventAttendance && notesChanged) {
         await updateAttendance({
           attendanceId: eventAttendance.attendanceId,
           notes,
@@ -285,7 +294,7 @@ export function EditMemberSheet({
             title="Save"
             onPress={handleSave}
             loading={submitting}
-            disabled={!name.trim() || Boolean(staffEmailOwner) || sowAddress}
+            disabled={!dirty || !name.trim() || Boolean(staffEmailOwner) || sowAddress}
           />
         )
       }
@@ -360,17 +369,12 @@ export function EditMemberSheet({
             </View>
           ) : null}
           {isStaffOverlay ? (
-            <View style={{ gap: 4 }}>
-              <Field
-                label="Local church"
-                value={row?.profileChurch ?? "Not set"}
-                onChangeText={() => {}}
-                disabled
-              />
-              <Txt style={[typography.caption, { color: t.muted }]}>
-                Staff pick their church in their own Profile.
-              </Txt>
-            </View>
+            <Field
+              label="Local church"
+              value={row?.profileChurch ?? "Not set"}
+              onChangeText={() => {}}
+              disabled
+            />
           ) : (
             <ChurchSelect
               churchId={churchId}
@@ -468,7 +472,7 @@ export function EditMemberSheet({
                   loading={submitting}
                   disabled={
                     deleteImpact === undefined ||
-                    !sameTypedName(deleteText, name)
+                    !typedMatches(deleteText, name)
                   }
                   onPress={() => void onDelete()}
                 />
@@ -525,7 +529,7 @@ export function EditMemberSheet({
                         { color: t.muted, marginTop: spacing.sm },
                       ]}
                     >
-                      ATTENDANCE DELETED
+                      Attendance deleted
                     </Txt>
                     <View
                       style={[

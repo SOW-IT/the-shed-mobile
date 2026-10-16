@@ -116,6 +116,7 @@ export function AuditTab({
 
   const activeFilterCount =
     entityTypes.length + actorEmails.length + eventIds.length;
+  const narrowed = activeFilterCount > 0 || debouncedSearch.trim() !== "";
 
   const entityOptions = useMemo(
     () => [
@@ -139,7 +140,7 @@ export function AuditTab({
 
   const eventOptions = useMemo(
     () => [
-      ...(options?.events ?? []).map((e) => ({ label: e.name, value: e.id })),
+      ...(options?.events ?? []).map((e) => ({ label: e.label, value: e.id })),
     ],
     [options]
   );
@@ -166,6 +167,9 @@ export function AuditTab({
       <View style={styles.filterSummary}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={
+            activeFilterCount > 0 ? `Filters, ${activeFilterCount} on` : "Filters"
+          }
           accessibilityState={{ expanded: filtersOpen }}
           onPress={() => setFiltersOpen((open) => !open)}
           style={({ pressed }) => [
@@ -178,34 +182,38 @@ export function AuditTab({
           <Text style={[styles.filterButtonText, { color: t.ghostText }]}>
             Filters
           </Text>
+          {activeFilterCount > 0 ? (
+            <View style={[styles.filterBadge, { backgroundColor: t.primary }]}>
+              <Text style={[styles.filterBadgeText, { color: t.background }]}>
+                {activeFilterCount}
+              </Text>
+            </View>
+          ) : null}
         </Pressable>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {activeFilterCount} active
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          disabled={activeFilterCount === 0}
-          onPress={() => {
-            setEntityTypes([]);
-            setActorEmails([]);
-            setEventIds([]);
-          }}
-          style={({ pressed }) => [
-            styles.clearFilters,
-            activeFilterCount === 0 && { opacity: 0.45 },
-            pressed && { opacity: 0.65 },
-          ]}
-        >
-          <Text
-            style={[
-              typography.caption,
-              styles.clearFiltersText,
-              { color: t.primary },
+        {activeFilterCount > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setEntityTypes([]);
+              setActorEmails([]);
+              setEventIds([]);
+            }}
+            style={({ pressed }) => [
+              styles.clearFilters,
+              pressed && { opacity: 0.65 },
             ]}
           >
-            Clear All
-          </Text>
-        </Pressable>
+            <Text
+              style={[
+                typography.caption,
+                styles.clearFiltersText,
+                { color: t.primary },
+              ]}
+            >
+              Clear all
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {filtersOpen ? (
@@ -253,8 +261,14 @@ export function AuditTab({
         <Text style={[typography.label, { color: t.muted }]}>Activity</Text>
       </View>
 
-      {page === undefined && accumulated.length === 0 ? (
+      {accumulated.length === 0 && (page === undefined || hasMore) ? (
         <LoadingState />
+      ) : accumulated.length === 0 && narrowed ? (
+        <EmptyState
+          icon="search-outline"
+          title="No matches"
+          message="Nothing in the audit trail matches this search or these filters."
+        />
       ) : accumulated.length === 0 ? (
         <EmptyState
           icon="document-text-outline"
@@ -322,6 +336,15 @@ const styles = StyleSheet.create({
     height: 36,
   },
   filterButtonText: { fontSize: 13, fontWeight: "700" },
+  filterBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterBadgeText: { fontSize: 11, fontWeight: "800" },
   clearFilters: {
     marginLeft: "auto",
     paddingHorizontal: 4,

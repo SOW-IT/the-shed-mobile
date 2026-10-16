@@ -1,7 +1,7 @@
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "convex/react";
-import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
+import { roleNeedsUniversity, staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
@@ -27,6 +27,11 @@ export default function AttendanceScreen() {
     subgroups,
     me?.profile?.assignments
   );
+  const canManage =
+    Boolean(me?.isAdmin) ||
+    (me?.profile?.assignments ?? []).some(
+      (assignment) => assignment.university !== undefined && roleNeedsUniversity(assignment.role)
+    );
   const [createEventOpen, setCreateEventOpen] = useState(false);
   const [memberSheetOpen, setMemberSheetOpen] = useState(false);
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
@@ -96,6 +101,7 @@ export default function AttendanceScreen() {
         />
       ),
     });
+    if (!canManage) return items;
     items.push({
       tabKey: "settings",
       node: (
@@ -124,7 +130,13 @@ export default function AttendanceScreen() {
         <FooterAction
           title={metaSave.saving ? "Saving…" : "Save metadata"}
           disabled={!metaSave.dirty || metaSave.saving}
-          note={metaSave.dirty && !metaSave.saving ? "You have unsaved changes" : null}
+          note={
+            metaSave.error && !metaSave.saving
+              ? `Not saved: ${metaSave.error}`
+              : metaSave.dirty && !metaSave.saving
+                ? "You have unsaved changes"
+                : null
+          }
           onPress={() => setConfirmSaveMeta(true)}
           avoidKeyboard={false}
           cancel={{
@@ -135,7 +147,7 @@ export default function AttendanceScreen() {
       ),
     });
     return items;
-  }, [active, subgroup, subgroups, tagsSave, metaSave]);
+  }, [active, subgroup, subgroups, tagsSave, metaSave, canManage]);
 
   if (me === undefined || subgroups === undefined || metadata === undefined) {
     return <LoadingState />;
@@ -177,6 +189,7 @@ export default function AttendanceScreen() {
         <SettingsTab
           subgroups={subgroups}
           onSaveStateChange={setTagsSave}
+          readOnly={!canManage}
         />
       ),
     },
@@ -188,6 +201,7 @@ export default function AttendanceScreen() {
           subgroups={subgroups}
           defaultSubgroup={subgroup}
           onSaveStateChange={setMetaSave}
+          readOnly={!canManage}
         />
       ),
     },

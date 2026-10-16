@@ -26,6 +26,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
+import { typedMatches } from "../../../shared/typedConfirm";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
@@ -269,15 +270,27 @@ export function CreateEventSheet({
       : undefined;
 
   const list = weekly ? "weeklies" : "events";
+  const inScope = (tag: Doc<"attendanceTags">) =>
+    tagListOf(tag) === list &&
+    (!tag.subgroups?.length ||
+      tag.subgroups.some((tagSubgroup) =>
+        collaborators.some((collaborator) => subgroupMatches(tagSubgroup, collaborator))
+      ));
   const visibleTags = (tags ?? []).filter(
     (tag) =>
-      !isWeekliesTagName(tag.name) &&
-      tagListOf(tag) === list &&
-      (!tag.subgroups?.length ||
-        tag.subgroups.some((tagSubgroup) =>
-          collaborators.some((collaborator) => subgroupMatches(tagSubgroup, collaborator))
-        ))
+      !isWeekliesTagName(tag.name) && (inScope(tag) || selectedTags.includes(tag._id))
   );
+  const weekOptions = WEEK_OPTIONS.map((option) => {
+    const held =
+      pickedTerm &&
+      (suggestion?.taken ?? []).find(
+        (w) =>
+          w.year === pickedTerm.year &&
+          w.slot === pickedTerm.slot &&
+          w.week === Number(option.value)
+      );
+    return held ? { ...option, label: `${option.label} · ${held.name}` } : option;
+  });
 
   const changeKind = (next: Kind) => {
     if (next === kind) return;
@@ -380,7 +393,7 @@ export function CreateEventSheet({
       pickedTerm?.year === event.weekly.year &&
       pickedTerm?.slot === event.weekly.slot &&
       pickedWeek === event.weekly.week;
-    if (duplicate && !unchangedMark) {
+    if (duplicate && !isEditing && !unchangedMark) {
       setConfirmDuplicate(true);
       return;
     }
@@ -506,7 +519,7 @@ export function CreateEventSheet({
               <Select
                 label="Week"
                 value={pickedWeek ? String(pickedWeek) : ""}
-                options={WEEK_OPTIONS}
+                options={weekOptions}
                 placeholder={suggestion ? "Choose" : "Loading…"}
                 onSelect={(value) => setWeek(Number(value))}
               />
@@ -523,11 +536,6 @@ export function CreateEventSheet({
           }}
           placeholder={weekly ? code || "e.g. T3W5" : "e.g. Hot Pot Night"}
         />
-        {duplicate ? (
-          <Txt style={[typography.caption, { color: t.warning }]}>
-            {`${subgroupLabel(ownerGroup)} already has a weekly for ${code} ("${duplicate.name}").`}
-          </Txt>
-        ) : null}
 
         <View style={{ gap: spacing.sm }}>
           <DateInput
@@ -611,15 +619,17 @@ export function CreateEventSheet({
                   key={sg}
                   disabled={isOwner}
                   accessibilityRole="checkbox"
+                  accessibilityLabel={isOwner ? `${subgroupLabel(sg)}, owner` : subgroupLabel(sg)}
                   accessibilityState={{ checked: on, disabled: isOwner }}
                   onPress={() => toggleCollaborator(sg)}
                   style={({ pressed }) => [
                     styles.campusChip,
-                    { borderColor: on ? t.primary : t.border, opacity: isOwner ? 0.45 : pressed ? 0.7 : 1 },
+                    { borderColor: on ? t.primary : t.border, opacity: pressed && !isOwner ? 0.7 : 1 },
                   ]}
                 >
                   <CampusMark campus={sg} variant="circle" circleDiameter={22} />
                   <Txt>{subgroupLabel(sg)}</Txt>
+                  {isOwner ? <Ionicons name="lock-closed" size={12} color={t.muted} /> : null}
                 </Pressable>
               );
             })}
@@ -660,9 +670,7 @@ export function CreateEventSheet({
               variant="danger"
               loading={submitting}
               disabled={
-                deleteImpact === undefined ||
-                deleteText.trim().replace(/\s+/g, " ").toLowerCase() !==
-                  eventName.trim().replace(/\s+/g, " ").toLowerCase()
+                deleteImpact === undefined || !typedMatches(deleteText, eventName)
               }
               onPress={() => void onDelete()}
             />
@@ -698,7 +706,7 @@ export function CreateEventSheet({
               {deleteImpact && deleteImpact.total > 0 ? (
                 <>
                   <Txt style={[typography.label, { color: t.muted, marginTop: spacing.sm }]}>
-                    ATTENDANCE DELETED
+                    Attendance deleted
                   </Txt>
                   <View
                     style={[

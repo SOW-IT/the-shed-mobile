@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  sameMetadata,
   commencementYearFromLevel,
   encodeYearMetadataValue,
   formatMetadataFieldValue,
@@ -277,5 +278,20 @@ describe("staffLockedMetadata", () => {
     expect(
       staffLockedMetadata(fields, { assignments: [] }, { campus: "usyd", role: "s", other: "x" })
     ).toEqual({ other: "x" });
+  });
+});
+
+describe("sameMetadata", () => {
+  test("ignores key order, blank values and a missing record", () => {
+    expect(sameMetadata({ a: "1", b: "2" }, { b: "2", a: "1" })).toBe(true);
+    expect(sameMetadata({ a: "1", c: "" }, { a: "1" })).toBe(true);
+    expect(sameMetadata(undefined, {})).toBe(true);
+    expect(sameMetadata({ a: "" }, undefined)).toBe(true);
+  });
+
+  test("spots a changed, added or removed value", () => {
+    expect(sameMetadata({ a: "1" }, { a: "2" })).toBe(false);
+    expect(sameMetadata({ a: "1" }, { a: "1", b: "2" })).toBe(false);
+    expect(sameMetadata({ a: "1" }, undefined)).toBe(false);
   });
 });

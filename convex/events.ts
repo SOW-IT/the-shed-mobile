@@ -7,6 +7,7 @@ import {
   sydneyCalendarYear,
 } from "../shared/flow";
 import {
+  auditEventName,
   eventIncludesSubgroup,
   normalizeSubgroups,
   SOW_SUBGROUP,
@@ -24,7 +25,7 @@ import {
   query,
 } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
-import { memberDisplayName } from "./staffMembers";
+import { memberAuditName } from "./attendanceMembers";
 import { readSettings } from "./weeklyInsights";
 import {
   termSystemFor,
@@ -436,7 +437,7 @@ export const update = mutation({
         actorEmail: email,
         entityType: "event",
         action: "event.update",
-        summary: `Updated event "${eventFields.name}"`,
+        summary: `Updated event ${auditEventName(eventFields)}`,
         eventId,
         detail: `Changed: ${changes.join(", ")}`,
       });
@@ -461,7 +462,7 @@ const attendeesToList = async (
   const people = [];
   for (const row of listed) {
     const member = await ctx.db.get(row.memberId);
-    const name = member ? (await memberDisplayName(ctx, member, year)).name : "Deleted member";
+    const name = member ? (await memberAuditName(ctx, member, year)).name : "Deleted member";
     people.push({ attendanceId: row._id, name, signInTime: row.signInTime });
   }
   return people;
@@ -504,7 +505,7 @@ export const remove = mutation({
       actorEmail: email,
       entityType: "event",
       action: "event.delete",
-      summary: `Deleted event "${event.name}"`,
+      summary: `Deleted event ${auditEventName(event)}`,
       eventId,
       detail: rows.length
         ? [

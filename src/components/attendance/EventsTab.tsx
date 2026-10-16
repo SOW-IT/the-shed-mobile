@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useQuery } from "convex/react";
 import { MutableRefObject, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
@@ -35,6 +36,8 @@ const eventStatus = (startMs: number, endMs: number, now: number): EventStatus =
   if (now <= endMs) return "LIVE";
   return "ENDED";
 };
+
+const signedInLabel = (count: number) => `${count.toLocaleString("en-AU")} signed in`;
 
 const statusTone = (status: EventStatus, t: ReturnType<typeof useAppTheme>) => {
   if (status === "LIVE") {
@@ -80,7 +83,10 @@ export function EventsTab({
   });
 
   const [editingEventId, setEditingEventId] = useState<Id<"events"> | null>(null);
-  const editingEvent = accumulated.find((event) => event._id === editingEventId);
+  const editingEvent = useQuery(
+    api.events.get,
+    editingEventId ? { eventId: editingEventId } : "skip"
+  );
   const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
@@ -107,6 +113,7 @@ export function EventsTab({
                 <FadeInView key={sg} delay={stagger(i)}>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={subgroupLabel(sg)}
                     accessibilityState={{ selected: active }}
                     onPress={() => onSelectedSubgroupChange(sg)}
                     style={({ pressed }) => [
@@ -179,7 +186,7 @@ export function EventsTab({
                 status,
                 tagNames,
                 shownSubgroups.map((s) => subgroupLabel(s)).join(", "),
-                `attendance ${event.attendanceCount}`,
+                signedInLabel(event.attendanceCount),
               ]
                 .filter(Boolean)
                 .join(", ");
@@ -298,7 +305,7 @@ export function EventsTab({
                             { color: t.text },
                           ]}
                         >
-                          ATTENDANCE: {event.attendanceCount}
+                          {signedInLabel(event.attendanceCount)}
                         </Text>
                         {/* Holds Edit's space in the line; the real button sits
                             over it as a sibling of the row, because a button
@@ -343,7 +350,7 @@ export function EventsTab({
       )}
       {editingEvent && subgroup ? (
         <CreateEventSheet
-          visible={editingEvent !== undefined}
+          visible
           onClose={() => setEditingEventId(null)}
           subgroup={editingEvent.subgroups[0] ?? subgroup}
           subgroups={subgroups}

@@ -334,6 +334,17 @@ export const staffLockedMetadata = (
   return next;
 };
 
+export const sameMetadata = (
+  a: Record<string, string> | undefined,
+  b: Record<string, string> | undefined
+): boolean => {
+  const filled = (metadata: Record<string, string> | undefined) =>
+    Object.entries(metadata ?? {})
+      .filter(([, value]) => value !== "")
+      .sort(([x], [y]) => x.localeCompare(y));
+  return JSON.stringify(filled(a)) === JSON.stringify(filled(b));
+};
+
 export const memberOwnMetadata = (
   fields: readonly MetadataFieldLike[],
   submitted: Record<string, string> | undefined,

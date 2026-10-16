@@ -38,7 +38,6 @@ import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
 import { useContentWidth } from "@/components/nav/layout";
 import {
-  ConfirmDialog,
   EmptyState,
   errorMessage,
   FadeInView,
@@ -211,7 +210,6 @@ export default function EventAttendanceScreen() {
     notes?: string;
   } | null>(null);
   const [editUnlocked, setEditUnlocked] = useState(false);
-  const [confirmEnableEdit, setConfirmEnableEdit] = useState(false);
   const [unsignedLimit, setUnsignedLimit] = useState(UNSIGNED_PAGE_SIZE);
   const [signedInLimit, setSignedInLimit] = useState(ROSTER_PAGE_SIZE);
   const lastUnsignedEndHeight = useRef(-1);
@@ -851,7 +849,7 @@ export default function EventAttendanceScreen() {
         const isAnimating = isEntering || isExiting;
         const busy = isAnimating || leavingSignedIn.has(aKey);
         const isSuppressed = suppressFadeIn.has(aKey);
-        const locked = !canReverseSignIn(event, a.signInTime, clock) || !canEdit;
+        const signOutLocked = !canReverseSignIn(event, a.signInTime, clock);
         const rowKey = `${aKey || (a._id as string)}#${rowRetries.get(aKey) ?? 0}`;
         const row = (
           <RollCallRow
@@ -863,8 +861,9 @@ export default function EventAttendanceScreen() {
             university={a.university}
             roles={a.roles}
             tag={tagFor(aKey, a.memberId)}
-            disabled={locked || busy}
-            dimmed={locked}
+            disabled={!canEdit || busy}
+            actionDisabled={signOutLocked}
+            dimmed={!canEdit}
             entering={isEntering}
             exiting={isExiting}
             actionable={!busy}
@@ -962,15 +961,10 @@ export default function EventAttendanceScreen() {
         ) : pastEvent ? (
           <FooterAction
             title={editUnlocked ? "Disable editing" : "Enable editing"}
-            note={
-              editUnlocked
-                ? null
-                : "This event has ended. Tap Enable editing below to sign in a missed attendee or fix details. Sign-ins made during the event can only be undone within 10 minutes."
-            }
+            note={editUnlocked ? null : "This event has ended."}
             onPress={() => {
               hapticSelect();
-              if (editUnlocked) setEditUnlocked(false);
-              else setConfirmEnableEdit(true);
+              setEditUnlocked((unlocked) => !unlocked);
             }}
             bottomOffset={footerBottomOffset}
           />
@@ -1116,15 +1110,6 @@ export default function EventAttendanceScreen() {
         onClose={() => setExportOpen(false)}
         subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
         eventId={evId}
-      />
-      <ConfirmDialog
-        visible={confirmEnableEdit}
-        title="Enable editing?"
-        message="This event has ended."
-        confirmLabel="Enable editing"
-        destructive={false}
-        onConfirm={() => setEditUnlocked(true)}
-        onClose={() => setConfirmEnableEdit(false)}
       />
     </Screen>
   );

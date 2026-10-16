@@ -8,7 +8,7 @@ import {
   parseDateInputValue,
   toDateInputValue,
 } from "../../../shared/datetime";
-import { subgroupLabel } from "../../../shared/rollcall";
+import { subgroupLabel, tagFilterLabels } from "../../../shared/rollcall";
 import {
   ATTENDANCE_PCT_HEADER,
   buildAttendanceCsv,
@@ -346,10 +346,10 @@ export function ExportSheet({
           <MultiSelect
             label="Tags"
             values={selectedTags as unknown as string[]}
-            options={(tags ?? []).map((tag) => ({
-              label: tag.name,
-              value: tag._id,
-            }))}
+            options={(() => {
+              const labels = tagFilterLabels(tags ?? []);
+              return (tags ?? []).map((tag, i) => ({ label: labels[i], value: tag._id }));
+            })()}
             onSelect={(values) =>
               setSelectedTags(values as Id<"attendanceTags">[])
             }
