@@ -5,7 +5,7 @@ import { type LayoutChangeEvent, View } from "react-native";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
 import { staffYearForDate, sydneyCalendarYear } from "@shared/flow";
-import { subgroupLabel } from "@shared/rollcall";
+import { isOrgWideSubgroup, subgroupLabel } from "@shared/rollcall";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { InsightsBlocks } from "@/components/attendance/InsightsBlocks";
 import { EmptyState, LoadingState, Screen } from "@/components/ui";
@@ -17,12 +17,13 @@ import { EmptyState, LoadingState, Screen } from "@/components/ui";
  */
 export default function MemberInsightsScreen() {
   const { key, subgroup } = useLocalSearchParams<{ key: string; subgroup?: string }>();
+  const campus = subgroup && !isOrgWideSubgroup(subgroup) ? subgroup : undefined;
   const router = useRouter();
   const me = useQuery(api.directory.me);
   const metadata = useQuery(api.attendanceMetadata.list, {});
   const page = useQuery(
     api.weeklyInsights.member,
-    key ? { personKey: key, subgroup: subgroup ?? "" } : "skip"
+    key ? { personKey: key, subgroup: campus ?? "" } : "skip"
   );
   const [editing, setEditing] = useState<Id<"attendanceMembers"> | null>(null);
   const [width, setWidth] = useState(0);
@@ -39,7 +40,7 @@ export default function MemberInsightsScreen() {
   return (
     <Screen
       title={page.title}
-      subtitle={subgroup ? `Weeklies at ${subgroupLabel(subgroup)}` : undefined}
+      subtitle={campus ? `Weeklies at ${subgroupLabel(campus)}` : undefined}
       onBack={back}
       maxWidth={720}
     >

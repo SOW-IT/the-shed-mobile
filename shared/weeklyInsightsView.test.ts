@@ -19,6 +19,7 @@ import {
   peopleBlock,
   peopleRows,
   periodOptions,
+  periodPicker,
   pill,
   weekLabels,
   summaryCards,
@@ -63,9 +64,6 @@ const terms = build([
   ...T1_2025.map((at) => [at, ["Ana", "Di"]] as [number, string[]]),
   ...T1_2026.map((at, i) => [at, ["Ana", ...(i === 0 ? ["Ben", "Cy"] : [])]] as [number, string[]]),
 ]);
-
-/** A hint as read: its label is kept on one line with no-break characters. */
-const plain = (text?: string) => text?.replace(/\u00a0/g, " ").replace(/\u2060/g, "");
 
 const byType = <T extends WeeklyBlock["type"]>(blocks: WeeklyBlock[], type: T) =>
   blocks.filter((b): b is Extract<WeeklyBlock, { type: T }> => b.type === type);
@@ -129,9 +127,11 @@ describe("follow-ups", () => {
 describe("cards", () => {
   const s: PeriodSummary = { weeklies: 4, weeklyAvg: 10, people: 20, regulars: 5, newcomers: 4, newcomersStayed: 2, campusShare: 0.8 };
   test("compare with last year in % for counts and points for shares", () => {
-    const cards = summaryCards(s, { ...s, weeklyAvg: 8, people: 20, regulars: 10, newcomers: 0, campusShare: 0.85 }, "T1 2025");
+    const cards = summaryCards(s, { ...s, weeklyAvg: 8, people: 20, regulars: 10, newcomers: 0, campusShare: 0.85 });
     const byLabel = Object.fromEntries(cards.map((card) => [card.label, card]));
-    expect(byLabel["Weekly avg"]).toMatchObject({ value: "10", delta: { text: "+25%", direction: "up" }, hint: "vs 8 in T1\u00a02025" });
+    expect(byLabel["Weekly avg"]).toMatchObject({ value: "10", delta: { text: "+25%", direction: "up" }, hint: "vs 8" });
+    expect(byLabel.People.hint).toBe("vs 20");
+    expect(cards.every((card) => card.tone === undefined)).toBe(true);
     expect(byLabel.People.delta).toEqual({ text: "0%", direction: "flat" });
     expect(byLabel.Regulars.delta).toEqual({ text: "-50%", direction: "down" });
     expect(byLabel.Newcomers.delta).toBeUndefined();
@@ -140,8 +140,8 @@ describe("cards", () => {
   });
 
   test("the (i) follows the jointWeeklies setting", () => {
-    const off = summaryCards(s, null, null);
-    const on = summaryCards(s, null, null, undefined, true);
+    const off = summaryCards(s, null);
+    const on = summaryCards(s, null, undefined, true);
     expect(off[0].info!.body).toMatch(/Mega and combined weeklies with other campuses aren't counted/);
     expect(on[0].info!.body).toMatch(/Mega and combined ones with other campuses included/);
     expect(on[1].info!.body).toMatch(/Mega and combined ones included/);
@@ -149,14 +149,14 @@ describe("cards", () => {
 
   test("with nothing to compare, or nothing yet", () => {
     const empty: PeriodSummary = { weeklies: 0, weeklyAvg: null, people: 0, regulars: 0, newcomers: 0, newcomersStayed: 0, campusShare: null };
-    const cards = summaryCards(empty, null, null);
+    const cards = summaryCards(empty, null);
     expect(cards.map((card) => card.value)).toEqual(["–", "0", "0", "0", "–", "–"]);
     expect(cards.every((card) => card.delta === undefined && card.hint === undefined)).toBe(true);
-    const up = summaryCards({ ...s, campusShare: 0.9 }, { ...s, newcomersStayed: 1, weeklyAvg: null }, "x");
+    const up = summaryCards({ ...s, campusShare: 0.9 }, { ...s, newcomersStayed: 1, weeklyAvg: null });
     expect(up.find((card) => card.label === "Campus share")!.delta!.direction).toBe("up");
     expect(up.find((card) => card.label === "Newcomers who stayed")!.delta!.text).toBe("+25 pts");
     expect(up.find((card) => card.label === "Weekly avg")!.hint).toBeUndefined();
-    expect(summaryCards(s, s, "x").find((card) => card.label === "Campus share")!.delta!.direction).toBe("flat");
+    expect(summaryCards(s, s).find((card) => card.label === "Campus share")!.delta!.direction).toBe("flat");
   });
 });
 
@@ -171,11 +171,8 @@ describe("term view", () => {
       followUps: followUps(terms, result.rows, c),
     });
     expect(blocks[1]).toEqual({ type: "caption", text: "T1 2026: 4 weeklies so far, compared with T1 2025 up to week 4." });
-    // The cut is named wherever the term before's numbers appear.
     const cards = byType(blocks, "cards")[0].cards;
-    expect(plain(cards[0].hint)).toBe("vs 2 in T1 2025 up to W4");
-    // Only "vs 2 in" can wrap: the label holds together on a narrow card.
-    expect(cards[0].hint).toBe("vs 2 in T1\u00a02025\u00a0up\u00a0to\u00a0W4");
+    expect(cards[0].hint).toBe("vs 2");
     expect(cards[0].info!.body).toBe(
       "The average head count at this campus's own weeklies. Mega and combined weeklies with other campuses aren't counted, and neither is a weekly nobody signed in to. Compared with T1 2025 up to week 4, the same point in the term. T1 2025's own page has its whole term."
     );
@@ -213,9 +210,9 @@ describe("term view", () => {
     expect(byType(blocks, "people")[0].subtitle).toBe("Everyone who came in T1 2026 or the semester before.");
     expect(byType(blocks, "cards")[0].cards[0].info?.body).toContain("the same point in the semester");
     const alone = buildTermBlocks({ computedAt: 1, result: computeTerm(sems, 0, c), before: null, running: false, followUps: null });
-    expect(byType(alone, "caption")[0].text).toContain("There's no earlier semester to compare with.");
+    expect(byType(alone, "caption")[0].text).toBe("T1 2025: 3 weeklies.");
     const ana = computeTerm(sems, 1, c).rows.find((r) => r.key === "Ana")!;
-    const member = buildMemberBlocks({ name: "Ana", lines: [], details: [], history: [{ term: sems[1], row: ana }], followUp: null, events: [], year: 2026 });
+    const member = buildMemberBlocks({ name: "Ana", lines: [], details: [], history: [{ term: sems[1], row: ana }], followUp: null, events: [], year: 2026, current: true });
     expect(byType(member, "termHistory")[0].title).toBe("Weeklies by semester");
     expect(byType(member, "weekGrid")[0].subtitle).toBe("Weeklies attended this semester");
   });
@@ -230,7 +227,7 @@ describe("term view", () => {
     });
     expect(blocks[1]).toEqual({ type: "caption", text: "T1 2026: 4 weeklies, compared with T1 2025." });
     const cards = byType(blocks, "cards")[0].cards;
-    expect(plain(cards[0].hint)).toBe("vs 2 in T1 2025");
+    expect(cards[0].hint).toBe("vs 2");
     expect(cards[0].info!.body).toMatch(/signed in to\. Compared with T1 2025\.$/);
     expect(byType(blocks, "multiBars")[0].subtitle).toBe("Against T1 2025");
   });
@@ -238,7 +235,8 @@ describe("term view", () => {
   test("a finished term with no term before it", () => {
     const one = build([[wed(2026, 2, 18), ["Ana"]]]);
     const blocks = buildTermBlocks({ computedAt: 1, result: computeTerm(one, 0, c), before: null, running: false, followUps: null });
-    expect(blocks[1]).toEqual({ type: "caption", text: "T1 2026: 1 weekly. There's no earlier term to compare with." });
+    expect(blocks[1]).toEqual({ type: "caption", text: "T1 2026: 1 weekly." });
+    expect(byType(blocks, "cards")[0].cards.every((card) => card.hint === undefined || !card.hint.startsWith("vs"))).toBe(true);
     expect(byType(blocks, "followUpGroups")).toHaveLength(0);
     expect(byType(blocks, "multiBars").map((b) => b.title)).toEqual(["Who came each week"]);
     expect(byType(blocks, "people")[0].subtitle).toBe("Everyone who came in T1 2026.");
@@ -257,7 +255,7 @@ describe("year view", () => {
     });
     expect(blocks[1]).toEqual({ type: "caption", text: "2026: 4 weeklies in T1, compared with 2025 up to T1 week 2." });
     const cards = byType(blocks, "cards")[0].cards;
-    expect(plain(cards[0].hint)).toMatch(/^vs [\d.]+ in 2025 up to T1 W2$/);
+    expect(cards[0].hint).toMatch(/^vs [\d.]+$/);
     expect(cards[0].info!.body).toMatch(/Compared with 2025 up to T1 week 2, the same point in the year/);
     const [byTerm, byCat] = byType(blocks, "multiBars");
     expect(byTerm).toMatchObject({ subtitle: "Against 2025 up to T1 week 2", legend: [{ label: "2026" }, { label: "2025" }] });
@@ -278,7 +276,7 @@ describe("year view", () => {
     });
     expect((full[1] as { text: string }).text).toBe("2026: 4 weeklies in T1, compared with 2025.");
     const fullCards = byType(full, "cards")[0].cards;
-    expect(plain(fullCards[0].hint)).toMatch(/^vs [\d.]+ in 2025$/);
+    expect(fullCards[0].hint).toMatch(/^vs [\d.]+$/);
     expect(fullCards[0].info!.body).toMatch(/Compared with 2025\.$/);
     expect(byType(full, "multiBars")[0].points[0].segments[1].value).toBe(0);
     const first = buildYearBlocks({
@@ -289,7 +287,7 @@ describe("year view", () => {
       terms: [computeTerm(terms, 0, c)],
       lastYearTerms: [],
     });
-    expect((first[1] as { text: string }).text).toMatch(/no earlier year to compare with/);
+    expect((first[1] as { text: string }).text).toBe("2025: 3 weeklies in T1.");
     // Nothing to compare with: the (i) only explains the number.
     expect(byType(first, "cards")[0].cards[0].info!.body).toMatch(/signed in to\.$/);
     expect(byType(first, "multiBars")).toHaveLength(1);
@@ -364,7 +362,7 @@ describe("semester years", () => {
       terms: [computeTerm(sems, 0, c), computeTerm(sems, 1, c)],
       lastYearTerms: [],
     });
-    expect((blocks[1] as { text: string }).text).toBe("2026: 2 weeklies in Sem 1 and Sem 2. There's no earlier year to compare with.");
+    expect((blocks[1] as { text: string }).text).toBe("2026: 2 weeklies in Sem 1 and Sem 2.");
   });
 });
 
@@ -384,6 +382,11 @@ describe("term picker", () => {
     ]);
     expect(periodOptions([])).toEqual([]);
   });
+
+  test("the picker says term or semester, as the campus counts them", () => {
+    expect(periodPicker("terms")).toEqual({ pickerTitle: "Term or year", pickerLabel: "Term" });
+    expect(periodPicker("semesters")).toEqual({ pickerTitle: "Semester or year", pickerLabel: "Semester" });
+  });
 });
 
 describe("member page", () => {
@@ -402,6 +405,7 @@ describe("member page", () => {
         { name: "Camp", at: wed(2025, 7, 1), campuses: "SOW", weekly: false },
       ],
       year: 2026,
+      current: true,
     });
     expect(blocks.map((b) => b.type)).toEqual(["memberHeader", "keyValues", "termHistory", "weekGrid", "eventList"]);
     expect(blocks[0]).toMatchObject({
@@ -431,5 +435,6 @@ describe("member page", () => {
       year: 2026,
     });
     expect((withRow[0] as { reason: string }).reason).toBe("T1 2026: 4/4 · 100%\nLast came T1W4 (11 Mar)");
+    expect(byType(withRow, "weekGrid")[0]).toMatchObject({ title: "T1 2026", subtitle: "Weeklies attended" });
   });
 });

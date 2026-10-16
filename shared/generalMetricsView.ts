@@ -117,7 +117,6 @@ function rateCards(
     label: g.label,
     value: format(series[g.key][i] as number),
     delta: delta(series[g.key][i], i > 0 ? series[g.key][i - 1] : undefined),
-    tone: "positive",
   }));
 }
 
@@ -172,7 +171,6 @@ function allYearsView(
             trends.studentLeaders[last],
             last > 0 ? trends.studentLeaders[last - 1] : undefined
           ),
-          tone: "positive",
         },
       ],
     },
@@ -276,7 +274,6 @@ function yearView(
       label: "Student leaders",
       value: String(trends.studentLeaders[i]),
       delta: yoyDelta(trends.studentLeaders[i], at(trends.studentLeaders)),
-      tone: "positive",
     },
     ...trends.studentLeadersByCampus
       .filter((c) => c.counts[i] > 0 && !isNoiseCampus(c.campus))

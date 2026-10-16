@@ -176,7 +176,11 @@ export function computeTwig(input: {
     noRoll: noRollOf(input.events),
     summary: twigSummary(held, people, year, rules),
     last,
-    lastLabel: lastHeld.length ? (running ? `${year - 1} up to ${dayLabel(cut)}` : String(year - 1)) : null,
+    lastLabel: lastHeld.length
+      ? running
+        ? `staff year ${year - 1}, to ${dayLabel(cut)} ${sydneyYmd(new Date(cut)).year}`
+        : `staff year ${year - 1}`
+      : null,
     counts: held.map((e) => leadersAt(e, people, year).length),
     lastCounts: lastHeld.map((e) => leadersAt(e, people, year - 1).length),
     lastHeld,

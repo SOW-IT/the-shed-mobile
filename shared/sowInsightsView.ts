@@ -40,7 +40,7 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 const campusName = (campus: string | null) => (campus ? subgroupLabel(campus) : "No campus");
 
-const keep = (label: string) => label.replace(/ /g, " ");
+const campusPage = (campus: string | null) => (campus && !isOrgWideSubgroup(campus) ? campus : undefined);
 
 const noRollBlock = (events: SowEvent[], what: string): WeeklyBlock[] =>
   events.length
@@ -63,11 +63,11 @@ const lastCame = (lastAt: number) => `Last came ${fullDate(lastAt)}`;
 
 function twigCards(result: TwigResult): ViewCard[] {
   const { summary: s, last, lastLabel } = result;
-  const vs = (value: string) => (last && lastLabel ? `vs ${value} in ${keep(lastLabel)}` : undefined);
+  const vs = (value: string) => `vs ${value}`;
   const compare = last
     ? result.running
-      ? ` Compared with ${lastLabel}, the same point in last staff year.`
-      : ` Compared with staff year ${lastLabel}.`
+      ? ` Compared with ${lastLabel}: the same point in last staff year.`
+      : ` Compared with ${lastLabel}.`
     : "";
   return [
     {
@@ -115,8 +115,11 @@ function twigRows(result: TwigResult, people: SowPeople): PeopleRow[] {
       tags: [r.role, ...(r.regular ? ["regular"] : [])],
       category: rolePill(r),
       primary: `${r.attended}/${r.held} · ${pct(r.pct)}`,
-      secondary: r.regular ? `Regular. ${lastCame(r.lastAt)}` : lastCame(r.lastAt),
+      secondary: lastCame(r.lastAt),
       warning: r.role === "none" ? `No staff profile for ${result.year}` : undefined,
+      badge: r.regular ? { label: REGULAR_FILTER.label, colour: REGULAR_FILTER.colour } : undefined,
+      dimmed: r.role === "staff" ? true : undefined,
+      subgroup: campusPage(r.campus),
       pct: r.pct,
       last: r.lastAt,
     };
@@ -148,7 +151,7 @@ export function buildTwigBlocks(input: {
       text: result.last
         ? `Staff year ${year}: ${count}, compared with ${result.lastLabel}. Only campus leaders are counted.`
         : result.lastLabel
-          ? `Staff year ${year}: ${count}. No TWIG in ${result.lastLabel} had a roll, so there's nothing to compare with yet. Only campus leaders are counted.`
+          ? `Staff year ${year}: ${count}. No TWIG had a roll in ${result.lastLabel}, so there's nothing to compare with yet. Only campus leaders are counted.`
           : `Staff year ${year}: ${count}. There's no earlier staff year to compare with. Only campus leaders are counted.`,
     },
     { type: "cards", layout: "grid", cards: twigCards(result) },
@@ -190,6 +193,7 @@ export function buildTwigBlocks(input: {
       category: rolePill(r),
       reason: `Regular, but missed the last ${input.missesForFollowUp} TWIGs`,
       secondary: lastCame(r.lastAt),
+      subgroup: campusPage(r.campus),
     }));
     blocks.push({
       type: "followUpGroups",
@@ -210,7 +214,7 @@ export function buildTwigBlocks(input: {
   blocks.push({
     type: "people",
     title: "Everyone",
-    subtitle: `Everyone who came to a TWIG in staff year ${year}. Organisers aren't counted; anyone with no staff profile is flagged.`,
+    subtitle: `Everyone who came to a TWIG in staff year ${year}.`,
     sections: SOW_ROLE_ORDER.map((key) => ({ key, label: ROLE_META[key].section })),
     filters: [
       ...SOW_ROLE_ORDER.filter((key) => present.has(key)).map((key) => ({

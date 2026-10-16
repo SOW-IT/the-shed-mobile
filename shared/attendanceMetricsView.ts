@@ -136,7 +136,6 @@ export function summaryCards(data: SubgroupMetricsData): ViewCard[] {
     {
       label: "New people",
       value: `${s.newcomers}`,
-      tone: "positive",
       info: {
         title: "Newcomers",
         body: "People whose first event was in the last 30 days, or in this range if it's shorter.",

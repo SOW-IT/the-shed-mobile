@@ -50,6 +50,7 @@ import {
   buildYearBlocks,
   type MemberEvent,
   periodOptions,
+  periodPicker,
 } from "../shared/weeklyInsightsView";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
@@ -91,7 +92,7 @@ const INDEX_WEEKLIES_WEEKS = 60;
 const NEVER = Number.MAX_SAFE_INTEGER;
 // Bump when what a view shows changes, so every campus redoes its views on
 // the next build after a deploy.
-export const VIEW_VERSION = 5;
+export const VIEW_VERSION = 6;
 
 export async function readSettings(
   ctx: QueryCtx
@@ -527,6 +528,8 @@ const sameFacts = (a: TermFacts, b: FactsDoc | undefined): boolean => {
   );
 };
 
+const newYearAfter = (now: number) => Date.UTC(sydneyCalendarYear(new Date(now)), 11, 31, 13);
+
 const termYears = (facts: TermFacts[]) => [
   ...new Set(facts.map((f) => eventStaffYear(f.weeklies[f.weeklies.length - 1].at))),
 ];
@@ -759,9 +762,10 @@ async function buildSubgroup(
     latest >= 0
       ? facts[latest].weeklies[facts[latest].weeklies.length - 1].at + settings.termGapDays * DAY_MS
       : 0;
-  // The year's comparison moves with its weeklies, so the only date to wait
-  // for is the latest term stopping running.
-  const nextCompareAt = runningUntil > now ? runningUntil : NEVER;
+  const nextCompareAt = Math.min(
+    runningUntil > now ? runningUntil : NEVER,
+    latest >= 0 ? newYearAfter(now) : NEVER
+  );
   const recentFrom = now - INDEX_WEEKLIES_WEEKS * WEEK_MS;
   await ctx.runMutation(internal.weeklyInsights.saveIndex, {
     subgroup,
@@ -863,8 +867,9 @@ export async function campusWeeklies(
   settings: WeeklySettings,
   except?: Id<"events">
 ): Promise<HeldWeekly[]> {
-  const events = await ctx.db.query("events").withIndex("by_dateStart").take(MAX_EVENTS);
+  const events = await ctx.db.query("events").withIndex("by_dateStart").order("desc").take(MAX_EVENTS);
   return events
+    .reverse()
     .filter(
       (e) =>
         e._id !== except &&
@@ -943,21 +948,25 @@ export const view = query({
       periods: v.array(periodValidator),
       period: v.union(v.string(), v.null()),
       blocks: v.array(weeklyBlockValidator),
+      pickerTitle: v.string(),
+      pickerLabel: v.string(),
     })
   ),
   handler: async (ctx, { subgroup, period }) => {
     if (!(await optionalProfile(ctx))) return null;
     const canonical = canonicalSubgroup(subgroup);
+    const { settings } = await readSettings(ctx);
+    const picker = periodPicker(termSystemFor(canonical, settings));
     const index = await indexFor(ctx, canonical);
-    if (!index) return { periods: [], period: null, blocks: [NOT_READY] };
+    if (!index) return { periods: [], period: null, blocks: [NOT_READY], ...picker };
     const key =
       period && index.periods.some((p) => p.key === period) ? period : index.currentKey;
-    if (!key) return { periods: index.periods, period: null, blocks: [NO_WEEKLIES] };
+    if (!key) return { periods: index.periods, period: null, blocks: [NO_WEEKLIES], ...picker };
     const row = await ctx.db
       .query("weeklyInsightViews")
       .withIndex("by_subgroup_and_periodKey", (q) => q.eq("subgroup", canonical).eq("periodKey", key))
       .unique();
-    return { periods: index.periods, period: key, blocks: row?.blocks ?? [NOT_READY] };
+    return { periods: index.periods, period: key, blocks: row?.blocks ?? [NOT_READY], ...picker };
   },
 });
 
@@ -997,7 +1006,9 @@ export const member = query({
     const canonical = canonicalSubgroup(subgroup);
     const { settings } = await readSettings(ctx);
     const facts = await loadFacts(ctx, canonical);
-    const [person] = await resolvePeople(ctx, [key], termYears(facts));
+    const now = Date.now();
+    const staffYear = eventStaffYear(now);
+    const [person] = await resolvePeople(ctx, [key], [...new Set([...termYears(facts), staffYear])]);
     const c = { subgroup: canonical, settings, persons: new Map([[key, person]]) };
 
     const history: { term: TermFacts; row: ReturnType<typeof termRows>[number] }[] = [];
@@ -1034,8 +1045,12 @@ export const member = query({
       const raw = memberDoc?.metadata?.[field._id];
       if (raw) details.push({ label: field.key, value: field.values?.[raw] ?? raw });
     }
-    const now = Date.now();
-    const info = person.infoByYear[String(eventStaffYear(now))] ?? person.info;
+    const info = person.infoByYear[String(staffYear)] ?? person.info;
+    const latestTerm = facts[facts.length - 1];
+    const current =
+      !!latestTerm &&
+      history[0]?.term.key === latestTerm.key &&
+      now - latestTerm.weeklies[latestTerm.weeklies.length - 1].at < settings.termGapDays * DAY_MS;
     const lines = [
       info.campus ? subgroupLabel(info.campus) : "No campus set",
       ...(info.roles.length ? [info.roles.join(" · ")] : []),
@@ -1052,6 +1067,7 @@ export const member = query({
         followUp,
         events: await eventsAttended(ctx, key),
         year: sydneyCalendarYear(new Date(now)),
+        current,
       }),
     };
   },

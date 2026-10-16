@@ -58,7 +58,8 @@ describe("summaryCards", () => {
       hint: "vs 24",
     });
     expect(people).toMatchObject({ label: "People", value: "60" });
-    expect(newcomers).toMatchObject({ label: "New people", value: "5", tone: "positive" });
+    expect(newcomers).toMatchObject({ label: "New people", value: "5" });
+    expect(newcomers).not.toHaveProperty("tone");
   });
 
   it("falls back to the per-event average without weekly meetings", () => {

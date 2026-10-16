@@ -83,7 +83,7 @@ function LinePath({
   colour,
   opacity = 1,
 }: {
-  points: { x: number; y: number }[];
+  points: ({ x: number; y: number } | null)[];
   colour: string;
   opacity?: number;
 }) {
@@ -91,6 +91,7 @@ function LinePath({
     <>
       {points.slice(1).map((b, idx) => {
         const a = points[idx];
+        if (!a || !b) return null;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const len = Math.hypot(dx, dy);
@@ -112,21 +113,23 @@ function LinePath({
           />
         );
       })}
-      {points.map((p, i) => (
-        <View
-          key={`dot-${i}`}
-          style={{
-            position: "absolute",
-            left: p.x - LINE_DOT / 2,
-            top: p.y - LINE_DOT / 2,
-            width: LINE_DOT,
-            height: LINE_DOT,
-            borderRadius: LINE_DOT / 2,
-            backgroundColor: colour,
-            opacity,
-          }}
-        />
-      ))}
+      {points.map((p, i) =>
+        p ? (
+          <View
+            key={`dot-${i}`}
+            style={{
+              position: "absolute",
+              left: p.x - LINE_DOT / 2,
+              top: p.y - LINE_DOT / 2,
+              width: LINE_DOT,
+              height: LINE_DOT,
+              borderRadius: LINE_DOT / 2,
+              backgroundColor: colour,
+              opacity,
+            }}
+          />
+        ) : null
+      )}
     </>
   );
 }
@@ -140,7 +143,7 @@ function LineSeriesChart({
   selectedKey,
 }: {
   labels: string[];
-  series: { key: string; id?: string; colour: string; values: number[] }[];
+  series: { key: string; id?: string; label?: string; colour: string; values: (number | null)[] }[];
   max: number;
   fullscreen: boolean;
   tooltipLabelFor: (i: number) => string;
@@ -191,10 +194,9 @@ function LineSeriesChart({
                       ? 0.2
                       : 1
                   }
-                  points={s.values.map((v, i) => ({
-                    x: xAt(i),
-                    y: yAt(v, axisMax, chartHeight),
-                  }))}
+                  points={s.values.map((v, i) =>
+                    v === null ? null : { x: xAt(i), y: yAt(v, axisMax, chartHeight) }
+                  )}
                 />
               ))
             : null}
@@ -213,8 +215,13 @@ function LineSeriesChart({
             : labels.map((label, i) => {
                 const active =
                   fullscreen && (selectedIdx === i || hoveredIdx === i);
+                const shown = series.flatMap((s) => {
+                  const value = s.values[i];
+                  return value === null ? [] : [{ ...s, value }];
+                });
                 const anchorY = Math.min(
-                  ...series.map((s) => yAt(s.values[i], axisMax, chartHeight))
+                  chartHeight,
+                  ...shown.map((s) => yAt(s.value, axisMax, chartHeight))
                 );
                 return (
                   <Pressable
@@ -248,9 +255,9 @@ function LineSeriesChart({
                       >
                         <BarTooltip
                           year={tooltipLabelFor(i)}
-                          rows={series.map((s) => ({
-                            label: s.key,
-                            value: s.values[i],
+                          rows={shown.map((s) => ({
+                            label: s.label ?? s.key,
+                            value: s.value,
                             colour: multi ? s.colour : undefined,
                           }))}
                         />
@@ -402,7 +409,6 @@ export function MetricCard({
   value,
   delta,
   hint,
-  tone = "default",
   width,
   onPress,
   labelLines = 1,
@@ -411,14 +417,11 @@ export function MetricCard({
   value: string;
   delta?: { text: string; direction: "up" | "down" | "flat" } | null;
   hint?: string;
-  tone?: "default" | "positive" | "attention";
   width: number;
   onPress?: () => void;
   labelLines?: number;
 }) {
   const t = useAppTheme();
-  const accent =
-    tone === "positive" ? t.success : tone === "attention" ? t.warning : t.text;
   // The change sits in a soft pill beside the number, so the number reads
   // first and the comparison second.
   const [deltaColour, deltaBackground] = !delta
@@ -446,7 +449,7 @@ export function MetricCard({
         ) : null}
       </View>
       <View style={styles.metricValueRow}>
-        <Text style={[typography.amount, { color: accent }]} numberOfLines={1}>
+        <Text style={[typography.amount, { color: t.text }]} numberOfLines={1}>
           {value}
         </Text>
         {delta ? (
@@ -722,7 +725,7 @@ type TooltipRow = { label: string; value: number; colour?: string };
 function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
   const t = useAppTheme();
   if (!rows || rows.length === 0) return null;
-  const single = rows.length === 1;
+  const single = rows.length === 1 && !rows[0].label;
   return (
     <View style={[styles.tooltip, { backgroundColor: t.text }]}>
       <Text style={[styles.tooltipYear, { color: t.background }]}>{year}</Text>
@@ -1036,7 +1039,7 @@ export function StackedBarChart({
 type MultiStackPoint = {
   at: number;
   label: string;
-  segments: { key: string; value: number; colour: string }[];
+  segments: { key: string; value: number; colour: string; label?: string }[];
 };
 
 const SEG_GAP = 1.5;
@@ -1095,7 +1098,7 @@ export function MultiStackedBarChart({
   if (mode === "line") {
     // Points may carry different segment sets (a series can be missing for
     // some years), so collect every series and look values up by key.
-    const seriesByKey = new Map<string, { key: string; colour: string }>();
+    const seriesByKey = new Map<string, { key: string; colour: string; label?: string }>();
     for (const p of points) {
       for (const seg of p.segments) {
         if (!seriesByKey.has(seg.key)) seriesByKey.set(seg.key, seg);
@@ -1106,9 +1109,10 @@ export function MultiStackedBarChart({
         labels={points.map((p) => p.label)}
         series={[...seriesByKey.values()].map((seg) => ({
           key: seg.key,
+          label: seg.label,
           colour: seg.colour,
           values: points.map(
-            (p) => p.segments.find((s) => s.key === seg.key)?.value ?? 0
+            (p) => p.segments.find((s) => s.key === seg.key)?.value ?? null
           ),
         }))}
         max={axis.max}
@@ -1197,7 +1201,7 @@ export function MultiStackedBarChart({
                       <BarTooltip
                         year={labelFor(i)}
                         rows={visible.map((seg) => ({
-                          label: seg.key,
+                          label: seg.label ?? seg.key,
                           value: seg.value,
                           colour: seg.colour,
                         }))}

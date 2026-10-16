@@ -15,6 +15,9 @@ const peopleRow = v.object({
   primary: v.string(),
   secondary: v.string(),
   warning: v.optional(v.string()),
+  badge: v.optional(pill),
+  dimmed: v.optional(v.boolean()),
+  subgroup: v.optional(v.string()),
   pct: v.number(),
   last: v.number(),
 });
@@ -26,6 +29,7 @@ const followRow = v.object({
   category: pill,
   reason: v.string(),
   secondary: v.string(),
+  subgroup: v.optional(v.string()),
 });
 
 export const weeklyBlockValidator = v.union(

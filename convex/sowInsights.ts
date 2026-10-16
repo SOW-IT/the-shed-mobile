@@ -77,7 +77,11 @@ export const view = query({
     const now = Date.now();
     const tags = new Map((await ctx.db.query("attendanceTags").take(MAX_TAGS)).map((t) => [t._id, t]));
     const events = (
-      await ctx.db.query("events").withIndex("by_dateStart").order("desc").take(MAX_EVENTS)
+      await ctx.db
+        .query("events")
+        .withIndex("by_dateStart", (q) => q.lte("dateStart", now))
+        .order("desc")
+        .take(MAX_EVENTS)
     ).filter((e) => sowModeOf((e.tagIds ?? []).flatMap((id) => tags.get(id) ?? [])) === mode);
 
     const current = currentStaffYear();

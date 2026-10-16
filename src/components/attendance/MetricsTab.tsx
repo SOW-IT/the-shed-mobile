@@ -40,7 +40,7 @@ export function MetricsTab({
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   onOpenMember: (memberId: Id<"attendanceMembers">) => void;
-  onOpenPerson: (personKey: string) => void;
+  onOpenPerson: (personKey: string, subgroup?: string) => void;
   rangeWeeks: number;
   includeCollaborative: boolean;
   weeklyView: { period: string | null; blocks: WeeklyBlock[] } | null | undefined;

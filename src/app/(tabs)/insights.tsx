@@ -71,11 +71,13 @@ export default function InsightsScreen() {
     api.sowInsights.view,
     sowSelected && sowYearsTab && me?.profile ? { mode: sowYearsTab.key, staffYear: sowYear } : "skip"
   );
-  const openPerson = (personKey: string) =>
+  const openPerson = (personKey: string, rowSubgroup?: string) => {
+    const target = campusSelected ? campus : rowSubgroup;
     router.push({
       pathname: "/attendance/member/[key]",
-      params: { key: personKey, ...(campus ? { subgroup: campus } : {}) },
+      params: { key: personKey, ...(target ? { subgroup: target } : {}) },
     });
+  };
 
   useEffect(() => {
     if (tab === "attendance" || tab === "general") {
@@ -144,6 +146,8 @@ export default function InsightsScreen() {
             periods={weeklyView.periods}
             value={weeklyView.period}
             onChange={(key) => setPeriodByCampus((current) => ({ ...current, [campus!]: key }))}
+            sheetTitle={weeklyView.pickerTitle}
+            placeholder={weeklyView.pickerLabel}
           />
         ) : null
       ) : activeKey === "attendance" && isStaff && sowYearsTab ? (

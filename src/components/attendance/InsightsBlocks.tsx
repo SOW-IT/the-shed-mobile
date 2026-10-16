@@ -36,6 +36,10 @@ const timeAgo = (ms: number): string => {
 const CHART_TYPES = new Set(["bars", "breakdown", "stacked", "multiBars"]);
 const CHART_MIN_WIDTH = 440;
 
+const isCalendarYear = (at: number) => Number.isInteger(at) && at >= 1000 && at <= 9999;
+
+const tooltipTitle = (p: { at: number; label: string }) => (isCalendarYear(p.at) ? String(p.at) : p.label);
+
 // Draws the blocks an Insights `view` query returns. The server decides what
 // appears and in what order; this only knows how to draw each block type and
 // skips any it doesn't know, so an older app never breaks on a newer server.
@@ -50,7 +54,7 @@ export function InsightsBlocks({
   width: number;
   onOpenMember?: (memberId: Id<"attendanceMembers">) => void;
   /** Campus weeklies rows open the person's page by their key. */
-  onOpenPerson?: (personKey: string) => void;
+  onOpenPerson?: (personKey: string, subgroup?: string) => void;
   onEditMember?: (memberId: string) => void;
 }) {
   const t = useAppTheme();
@@ -99,8 +103,7 @@ export function InsightsBlocks({
             <BreakdownBars wideLabels rows={block.rows} />
           </ChartCard>
         );
-      case "stacked": {
-        const tooltip = (p: { at: number }) => String(p.at);
+      case "stacked":
         return (
           <ChartCard
             key={key}
@@ -109,21 +112,21 @@ export function InsightsBlocks({
             width={chartWidth}
             legendItems={legend(block.legend)}
             fullscreenContent={
-              <StackedBarChart points={block.points} labels={block.labels} tooltipLabel={tooltip} fullscreen />
+              <StackedBarChart points={block.points} labels={block.labels} tooltipLabel={tooltipTitle} fullscreen />
             }
           >
-            <StackedBarChart points={block.points} labels={block.labels} tooltipLabel={tooltip} />
+            <StackedBarChart points={block.points} labels={block.labels} tooltipLabel={tooltipTitle} />
           </ChartCard>
         );
-      }
       case "multiBars": {
+        const seriesLabel = new Map(block.legend.map((l) => [l.key, l.label]));
         const points = block.points.map((p) => ({
           ...p,
-          segments: p.segments.map((s) => ({ ...s, colour: paint(s.colour) })),
+          segments: p.segments.map((s) => ({ ...s, colour: paint(s.colour), label: seriesLabel.get(s.key) ?? s.key })),
         }));
         const props = {
           points,
-          tooltipLabel: (p: { at: number }) => String(p.at),
+          tooltipLabel: tooltipTitle,
           stacked: block.stacked,
           axisMax: block.axisMax,
           keepZeros: block.keepZeros,
@@ -188,7 +191,6 @@ export function InsightsBlocks({
                   value={card.value}
                   delta={card.delta}
                   hint={card.hint}
-                  tone={card.tone ?? "default"}
                   width={cardWidth}
                   labelLines={2}
                   onPress={card.info ? () => setInfo(card.info ?? null) : undefined}
