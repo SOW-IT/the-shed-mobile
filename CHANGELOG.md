@@ -6,6 +6,29 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.8] - 2026-10-17
+
+Insights and screens that show more and explain less.
+
+### Changed
+- **PPN is charts, not rows of text.** Cards for the average per PPN (against
+  the same months last staff year), people, first-timers and the campus
+  leaders' share; bars for each PPN against last year; bars of who came
+  (campus leaders, other staff, no staff profile); first PPN against came
+  before; and sign-ins by campus in campus colours.
+- **TWIG's Everyone list includes campus leaders who haven't come yet**, as
+  0/n with a "Not yet" filter, so the gaps are visible without counting.
+- **Tags collapse to their pill and delete button.** Tap a tag to see and edit
+  its name, colour, where it's used and which campuses it applies to. A new
+  tag opens straight away.
+- **Empty lists offer the next step.** No requests yet shows a "Make a
+  request" button and no events yet shows "Create an event", instead of a
+  sentence pointing at the button below.
+- **A new event request shows its four steps** (Event, Marketing, Risk,
+  Finance) instead of a paragraph describing them.
+- **Insights is no longer marked BETA** in the tab bar and side menu.
+- TWIG's campus bars use campus colours, like the rest of Insights.
+
 ## [2.9.7] - 2026-10-16
 
 Expo SDK 58 and the latest dependencies. Native code changed (React Native
