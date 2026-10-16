@@ -77,10 +77,8 @@ export async function buildDesignRequestPdf(input: DesignRequestPdfInput): Promi
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const w = new PdfWriter(doc);
 
-  const heading = (text: string) => {
-    w.rule();
-    w.text(text.toUpperCase(), { font: bold, size: 9, color: MUTED, gap: 6 }, 30);
-  };
+  const heading = (text: string) =>
+    w.heading(text.toUpperCase(), { font: bold, size: 9, color: MUTED, gap: 6 }, 30);
   const LINE = 11 * 1.35;
 
   w.text(name, { font: bold, size: 20, color: TEXT, gap: 4 });

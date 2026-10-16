@@ -258,20 +258,21 @@ export function ChurchesView() {
   const everyone = (directory ?? []).flatMap((entry) => entry.people);
   const groups = CHURCH_GROUPS.filter(({ key }) => key !== "member" || canEdit);
   const campuses = churchCampuses(everyone, subgroupLabel);
-  const counts = churchFilterCounts(everyone, filter);
-  const shown: Entry[] = (directory ?? [])
+  const matchesSearch = (entry: { church: { name: string }; people: readonly { name: string }[] }) =>
+    !q ||
+    entry.church.name.toLowerCase().includes(q) ||
+    entry.people.some((p) => p.name.toLowerCase().includes(q));
+  const searched = (directory ?? []).filter(matchesSearch);
+  const counts = churchFilterCounts(searched, filter, (entry, people) =>
+    matchesSearch({ church: entry.church, people })
+  );
+  const shown: Entry[] = searched
     .map((entry) => ({
       ...entry,
       people: churchPeopleMatching(entry.people, filter),
       everyone: entry.people.length,
     }))
-    .filter(
-      (entry) =>
-        (!filtering || entry.people.length > 0) &&
-        (!q ||
-          entry.church.name.toLowerCase().includes(q) ||
-          entry.people.some((p) => p.name.toLowerCase().includes(q)))
-    );
+    .filter((entry) => (!filtering || entry.people.length > 0) && matchesSearch(entry));
   const shownPeople = shown.reduce((sum, entry) => sum + entry.people.length, 0);
   const pins: ChurchPin[] = shown
     .filter((entry) => entry.church.location)

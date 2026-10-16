@@ -6,6 +6,25 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.6] - 2026-10-16
+
+A check of 2.9.1 to 2.9.5 on the simulator and web, with four small fixes.
+
+### Fixed
+- **PDF section rules stay with their heading.** A section's rule could be
+  drawn at the bottom of a page with its heading on the next; the two now move
+  together. Both PDF exports share the same heading.
+- **PDF footers keep accented letters.** "Zoë" in a request name printed as
+  "Zo?" in the page footer.
+- **Attendance dates read day first on every device.** Event rows, sign-in
+  times and the audit's short dates followed the device language ("Oct 16"
+  on a US-English phone); they now use the same day-first style as the rest
+  of the app. Event times on web lose their leading zero ("5:00 pm", like the
+  phone).
+- **Churches: chip counts follow the search box.** Searching for a church
+  left the Campus leaders, Staff and campus counts at their totals while the
+  line under them counted only the matches.
+
 ## [2.9.5] - 2026-10-16
 
 A pass through every screen as each kind of user (signed out, personal

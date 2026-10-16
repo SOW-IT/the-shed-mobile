@@ -127,12 +127,12 @@ export const endDateAfterStartChange = (
 
 export const formatEventDate = (dateStart: number): string => {
   const d = new Date(dateStart);
-  const date = d.toLocaleDateString(undefined, {
+  const date = d.toLocaleDateString("en-AU", {
     weekday: "short",
     day: "numeric",
     month: "short",
   });
-  const time = d.toLocaleTimeString(undefined, {
+  const time = d.toLocaleTimeString("en-AU", {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -148,7 +148,7 @@ export const formatEventRange = (startMs: number, endMs: number): string => {
     ).slice(-2)}`;
   const time = (dateValue: Date) =>
     dateValue
-      .toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+      .toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" })
       .toLowerCase();
   if (date(start) === date(end)) {
     return `${date(start)}, ${time(start)} - ${time(end)}`;
@@ -163,12 +163,12 @@ export const isMultiDayEvent = (startMs: number, endMs: number): boolean =>
 /** A sign-in's clock time, with the day in front for a multi-day event so
  *  Saturday's sign-ins read apart from Friday's. */
 export const formatSignInTime = (ms: number, withDay = false): string => {
-  const time = new Date(ms).toLocaleTimeString(undefined, {
+  const time = new Date(ms).toLocaleTimeString("en-AU", {
     hour: "numeric",
     minute: "2-digit",
   });
   if (!withDay) return time;
-  const day = new Date(ms).toLocaleDateString(undefined, {
+  const day = new Date(ms).toLocaleDateString("en-AU", {
     weekday: "short",
     day: "numeric",
     month: "short",
