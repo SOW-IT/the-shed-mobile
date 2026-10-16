@@ -56,14 +56,8 @@ const DeclineSheet = ({
   }, [target]);
 
   const handleDecline = async () => {
-    if (!target || submitting) return;
+    if (!target || submitting || reason.trim() === "") return;
     setError(null);
-    if (reason.trim() === "") {
-      setError(
-        "Please give a reason for declining. The requester will be notified with it."
-      );
-      return;
-    }
     setSubmitting(true);
     try {
       await decline({ requestId: target.request._id, step: target.step, reason });
