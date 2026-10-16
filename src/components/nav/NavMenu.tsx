@@ -278,7 +278,7 @@ export const NavMenu = ({
           </Pressable>
           <ConfirmDialog
             visible={confirmingSignOut}
-            title="Sign out of The Shed?"
+            title="Sign out of The SHED?"
             confirmLabel="Sign out"
             onConfirm={() => {
               onNavigate?.();
