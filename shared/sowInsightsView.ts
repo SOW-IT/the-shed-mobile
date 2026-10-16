@@ -131,7 +131,7 @@ function twigRows(result: TwigResult, people: SowPeople): PeopleRow[] {
       tags: [r.role, ...(r.regular ? ["regular"] : []), ...(r.attended === 0 ? ["notYet"] : [])],
       category: rolePill(r),
       primary: `${r.attended}/${r.held} · ${pct(r.pct)}`,
-      secondary: r.attended === 0 ? "Hasn't come to a TWIG yet" : lastCame(r.lastAt),
+      secondary: r.attended === 0 ? "Hasn't come to a TWIG this staff year" : lastCame(r.lastAt),
       warning: r.role === "none" ? `No staff profile for ${result.year}` : undefined,
       badge: r.regular ? { label: REGULAR_FILTER.label, colour: REGULAR_FILTER.colour } : undefined,
       dimmed: r.role === "staff" ? true : undefined,
@@ -235,7 +235,7 @@ export function buildTwigBlocks(input: {
   blocks.push({
     type: "people",
     title: "Everyone",
-    subtitle: `Everyone who came to a TWIG in staff year ${year}, and campus leaders who haven't yet.`,
+    subtitle: `Everyone who came to a TWIG in staff year ${year}, and campus leaders who haven't come this staff year.`,
     sections: SOW_ROLE_ORDER.map((key) => ({ key, label: ROLE_META[key].section })),
     filters: [
       ...SOW_ROLE_ORDER.filter((key) => present.has(key)).map((key) => ({
@@ -315,7 +315,7 @@ export function buildPpnBlocks(input: { result: PpnResult; earlierYear?: number 
         label: dayLabel(r.event.at),
         segments: [
           { key: "now", value: r.total, colour: THIS_COLOUR },
-          ...(anyMatched ? [{ key: "then", value: r.last?.total ?? 0, colour: LAST_COLOUR }] : []),
+          ...(r.last ? [{ key: "then", value: r.last.total, colour: LAST_COLOUR }] : []),
         ],
       })),
       stacked: false,

@@ -1128,15 +1128,16 @@ export function MultiStackedBarChart({
   const scale = (n: number) => (n / axis.max) * chartHeight;
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
-  if (mode === "line") {
-    // Points may carry different segment sets (a series can be missing for
-    // some years), so collect every series and look values up by key.
-    const seriesByKey = new Map<string, { key: string; colour: string; label?: string }>();
-    for (const p of points) {
-      for (const seg of p.segments) {
-        if (!seriesByKey.has(seg.key)) seriesByKey.set(seg.key, seg);
-      }
+  // Points may carry different segment sets (a series can be missing for
+  // some years), so collect every series and look values up by key.
+  const seriesByKey = new Map<string, { key: string; colour: string; label?: string }>();
+  for (const p of points) {
+    for (const seg of p.segments) {
+      if (!seriesByKey.has(seg.key)) seriesByKey.set(seg.key, seg);
     }
+  }
+  const seriesKeys = [...seriesByKey.keys()];
+  if (mode === "line") {
     return (
       <LineSeriesChart
         labels={points.map((p) => p.label)}
@@ -1206,12 +1207,8 @@ export function MultiStackedBarChart({
                 const selected =
                   fullscreen && (selectedIdx === i || hoveredIdx === i);
                 const innerWidth = barInner(fit.barWidth);
-                const groupGapCount = Math.max(0, visible.length - 1);
-                const groupGaps = groupGapCount * SEG_GAP;
-                const groupSegWidth =
-                  visible.length > 0
-                    ? Math.max(1, (innerWidth - groupGaps) / visible.length)
-                    : innerWidth;
+                const groupGaps = Math.max(0, seriesKeys.length - 1) * SEG_GAP;
+                const groupSegWidth = Math.max(1, (innerWidth - groupGaps) / Math.max(1, seriesKeys.length));
                 const isLast = i === points.length - 1;
                 return (
                   <Pressable
@@ -1290,22 +1287,25 @@ export function MultiStackedBarChart({
                           opacity: selected ? 0.7 : 1,
                         }}
                       >
-                        {visible.map((seg, si) => (
-                          <View
-                            key={seg.key}
-                            style={{
-                              width: groupSegWidth,
-                              height:
-                                seg.value <= 0
-                                  ? 0
-                                  : Math.max(BAR_MIN, scale(seg.value)),
-                              backgroundColor: seg.colour,
-                              marginLeft: si === 0 ? 0 : SEG_GAP,
-                              borderTopLeftRadius: radius.sm,
-                              borderTopRightRadius: radius.sm,
-                            }}
-                          />
-                        ))}
+                        {seriesKeys.map((key, si) => {
+                          const seg = visible.find((v) => v.key === key);
+                          return (
+                            <View
+                              key={key}
+                              style={{
+                                width: groupSegWidth,
+                                height:
+                                  !seg || seg.value <= 0
+                                    ? 0
+                                    : Math.max(BAR_MIN, scale(seg.value)),
+                                backgroundColor: seg?.colour ?? "transparent",
+                                marginLeft: si === 0 ? 0 : SEG_GAP,
+                                borderTopLeftRadius: radius.sm,
+                                borderTopRightRadius: radius.sm,
+                              }}
+                            />
+                          );
+                        })}
                       </View>
                     )}
                     <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />

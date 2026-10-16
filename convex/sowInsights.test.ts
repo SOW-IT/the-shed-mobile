@@ -158,7 +158,7 @@ describe("SOW TWIG and PPN Insights", () => {
       ["Zara Zero", "leader", "0/4 · 0%", null],
     ]);
     expect(everyone.rows.find((r) => r.name === "Zara Zero")).toMatchObject({
-      secondary: "Hasn't come to a TWIG yet",
+      secondary: "Hasn't come to a TWIG this staff year",
       tags: ["leader", "notYet"],
       subgroup: UTS,
     });

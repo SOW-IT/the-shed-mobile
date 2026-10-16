@@ -32,8 +32,9 @@ Insights and screens that show more and explain less.
   first-timers and the campus leaders' share; bars for each PPN against last
   year; bars of who came (campus leaders, other staff, no staff profile);
   first PPN against came before; and sign-ins by campus in campus colours.
-- **TWIG's Everyone list includes campus leaders who haven't come yet**, as
-  0/n with a "Not yet" filter, so the gaps are visible without counting.
+- **TWIG's Everyone list includes campus leaders who haven't come this staff
+  year**, as 0/n with a "Not yet" filter, so the gaps are visible without
+  counting.
 - **Tags collapse to their pill and delete button.** Tap a tag to see and edit
   its name, colour, where it's used and which campuses it applies to. A new
   tag opens straight away.
@@ -62,6 +63,8 @@ Insights and screens that show more and explain less.
   year up to the same date, like TWIG.
 - The student leaders by campus chart leaves out campuses with nobody in the
   years shown.
+- Side-by-side bars keep each series in its own place, so a PPN with no PPN
+  in the same month last year shows a gap rather than a zero.
 
 ## [2.9.7] - 2026-10-16
 

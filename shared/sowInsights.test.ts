@@ -151,7 +151,7 @@ describe("TWIG", () => {
       secondary: "Last came 12 Oct 2026",
     });
     expect(pick(blocks, "people")[0].subtitle).toBe(
-      "Everyone who came to a TWIG in staff year 2027, and campus leaders who haven't yet."
+      "Everyone who came to a TWIG in staff year 2027, and campus leaders who haven't come this staff year."
     );
     expect(pick(blocks, "followUpGroups")[0].groups[0].people.map((p) => [p.key, p.subgroup])).toEqual([
       ["a", UNSW],
@@ -225,7 +225,7 @@ describe("TWIG", () => {
     const block = pick(buildTwigBlocks({ result, people: roster, missesForFollowUp: 2 }), "people")[0];
     expect(block.rows.find((r) => r.key === "d")).toMatchObject({
       primary: "0/4 · 0%",
-      secondary: "Hasn't come to a TWIG yet",
+      secondary: "Hasn't come to a TWIG this staff year",
       tags: ["leader", "notYet"],
       section: "leader",
     });
@@ -342,7 +342,7 @@ describe("PPN", () => {
     const [byPpn, who] = pick(blocks, "multiBars");
     expect(byPpn.subtitle).toBe("Everyone at each PPN, against the same month in 2026");
     expect(byPpn.points.map((p) => [p.label, p.segments.map((x) => x.value)])).toEqual([
-      ["20 Oct", [2, 0]],
+      ["20 Oct", [2]],
       ["17 Nov", [2, 1]],
     ]);
     expect(who.legend.map((l) => l.key)).toEqual(["leader", "none"]);
