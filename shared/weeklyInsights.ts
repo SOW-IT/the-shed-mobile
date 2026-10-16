@@ -1,6 +1,7 @@
 import { DAY_MS } from "./attendanceMetrics";
 import { eventStaffYear, sydneyYmd } from "./flow";
 import { subgroupMatches } from "./rollcall";
+import { round1 } from "./numbers";
 
 // Insights → Attendance for one campus, built around its weekly meetings.
 // Everything here is pure: the nightly build feeds it the stored attendance
@@ -574,14 +575,11 @@ export type PeriodSummary = {
   campusShare: number | null;
 };
 
-const round1 = (n: number) => Math.round(n * 10) / 10;
-
 type SummaryRow = {
   key: string;
   category: WeeklyCategory;
   section: WeeklySection;
   attended: number;
-  pct: number;
   firstAt: number | null;
 };
 
@@ -589,8 +587,7 @@ function summarise(
   weeklies: { eventId: string; count: number }[],
   rows: SummaryRow[],
   attendancesBySection: Record<WeeklySection, number>,
-  isNewcomer: (row: SummaryRow) => boolean,
-  isRegular: (row: SummaryRow) => boolean = (row) => row.category === "regular"
+  isNewcomer: (row: SummaryRow) => boolean
 ): PeriodSummary {
   const total = weeklies.reduce((s, w) => s + w.count, 0);
   const present = rows.filter((r) => r.attended > 0);
@@ -601,7 +598,7 @@ function summarise(
     weeklies: weeklies.length,
     weeklyAvg: weeklies.length ? round1(total / weeklies.length) : null,
     people: present.length,
-    regulars: present.filter(isRegular).length,
+    regulars: present.filter((r) => r.category === "regular").length,
     newcomers: newcomers.length,
     newcomersStayed: newcomers.filter((r) => r.attended >= 2).length,
     campusShare: students
@@ -705,6 +702,17 @@ export function termBefore(
 
 export type YearRow = TermRow & { termKey: string };
 
+const STUDENT_CATEGORIES = new Set<WeeklyCategory>(["newcomer", "regular", "irregular"]);
+
+const yearCategory = (latest: WeeklyCategory, yearShare: number, regularShare: number): WeeklyCategory =>
+  !STUDENT_CATEGORIES.has(latest)
+    ? latest
+    : yearShare >= regularShare
+      ? "regular"
+      : latest === "newcomer"
+        ? "newcomer"
+        : "irregular";
+
 export type YearResult = {
   year: number;
   terms: WeeklyTerm[];
@@ -756,20 +764,18 @@ export function computeYear(
   for (const [key, row] of latest) {
     const attended = counts.get(key) ?? 0;
     if (attended === 0) continue;
-    rows.push({ ...row, attended, held, pct: held ? attended / held : 0 });
+    const pct = held ? attended / held : 0;
+    rows.push({ ...row, category: yearCategory(row.category, pct, c.settings.regularShare), attended, held, pct });
   }
   sortRows(rows);
   // The year's newcomers are everyone whose first-ever weekly was this year,
   // even if their latest term has them as Regular by now.
-  const student = new Set<WeeklyCategory>(["newcomer", "regular", "irregular"]);
   const newThisYear = (r: { key: string; category: WeeklyCategory }) =>
-    student.has(r.category) && (firstSeen.get(r.key) ?? -1) >= yearStart;
-  const regularThisYear = (r: { category: WeeklyCategory; pct: number }) =>
-    student.has(r.category) && r.pct >= c.settings.regularShare;
+    STUDENT_CATEGORIES.has(r.category) && (firstSeen.get(r.key) ?? -1) >= yearStart;
   return {
     year,
     terms: indexes.map((i) => cutTerms[i]),
     rows,
-    summary: summarise(weeklies, rows, bySection, newThisYear, regularThisYear),
+    summary: summarise(weeklies, rows, bySection, newThisYear),
   };
 }

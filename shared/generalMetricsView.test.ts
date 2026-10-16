@@ -53,7 +53,7 @@ const chart = (blocks: ViewBlock[], title: string) =>
 
 describe("buildGeneralView: all years", () => {
   it("groups each section's cards with its charts: people, retention, years served, weeklies", () => {
-    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: null, signedIn: true });
+    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: null, signedIn: true, lines: true });
     expect(types(blocks)).toEqual([
       "label", "heading", "cards", "multiBars", "multiBars",
       "heading", "cards", "multiBars",
@@ -100,7 +100,7 @@ describe("buildGeneralView: all years", () => {
   });
 
   it("draws staff and student leaders as side-by-side bars with overall as a line over them", () => {
-    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: null, signedIn: true });
+    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: null, signedIn: true, lines: true });
     const multi = (title: string) => {
       const c = chart(blocks, title);
       if (c?.type !== "multiBars") throw new Error(`no ${title}`);
@@ -130,8 +130,28 @@ describe("buildGeneralView: all years", () => {
     expect(multi("Student leaders by campus").line).toBeUndefined();
   });
 
+  it("gives app builds that don't ask for lines overall as a third bar, so their legend matches what they draw", () => {
+    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: null, signedIn: true });
+    for (const title of ["Staff & student leaders", "Retention", "Average years served", "Served 2+ years"]) {
+      const c = chart(blocks, title);
+      if (c?.type !== "multiBars") throw new Error(`no ${title}`);
+      expect(c.line).toBeUndefined();
+      expect(c.legend.map((l) => [l.key, l.shape])).toEqual([
+        ["Overall", undefined],
+        ["Staff", undefined],
+        ["SLs", undefined],
+      ]);
+    }
+    const people = chart(blocks, "Staff & student leaders");
+    expect(people?.type === "multiBars" && people.points[2].segments.map((seg) => [seg.key, seg.value])).toEqual([
+      ["Overall", 13],
+      ["Staff", 8],
+      ["SLs", 5],
+    ]);
+  });
+
   it("is the same for signed-out viewers, and ignores a picked year for them", () => {
-    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2026, signedIn: false });
+    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2026, signedIn: false, lines: true });
     expect(chart(blocks, "Staff & student leaders")).toBeDefined();
   });
 
@@ -148,6 +168,7 @@ describe("buildGeneralView: all years", () => {
       campusAttendance,
       scope: null,
       signedIn: false,
+      lines: true,
     });
     const byCampus = chart(blocks, "Student leaders by campus");
     expect(byCampus?.legend.map((l) => l.label)).toEqual(["USYD"]);
@@ -165,6 +186,7 @@ describe("buildGeneralView: all years", () => {
       campusAttendance: { years: [2025], campuses: [{ campus: "Macquarie University", averages: [0] }] },
       scope: null,
       signedIn: true,
+      lines: true,
     });
     expect(types(blocks)).toEqual(["label", "heading", "cards", "multiBars"]);
     expect(blocks[0]).toEqual({ type: "label", text: "2025" });
@@ -190,19 +212,19 @@ describe("buildGeneralView: all years", () => {
       const c = chart(b, "Staff & student leaders");
       return c?.type === "multiBars" ? c.points.length : 0;
     };
-    expect(points(buildGeneralView({ trends: t, campusAttendance: null, scope: null, signedIn: false }))).toBe(5);
-    expect(points(buildGeneralView({ trends: t, campusAttendance: null, scope: "all", signedIn: false }))).toBe(7);
+    expect(points(buildGeneralView({ trends: t, campusAttendance: null, scope: null, signedIn: false, lines: true }))).toBe(5);
+    expect(points(buildGeneralView({ trends: t, campusAttendance: null, scope: "all", signedIn: false, lines: true }))).toBe(7);
   });
 
   it("says there's no history yet without any staff year", () => {
-    const blocks = buildGeneralView({ trends: trends({ years: [] }), campusAttendance: null, scope: null, signedIn: true });
+    const blocks = buildGeneralView({ trends: trends({ years: [] }), campusAttendance: null, scope: null, signedIn: true, lines: true });
     expect(blocks).toEqual([expect.objectContaining({ type: "empty", title: "No staff history yet" })]);
   });
 });
 
 describe("buildGeneralView: one staff year", () => {
   it("shows that year's people, retention, years served and calendar-year weeklies, each under a heading", () => {
-    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2026, signedIn: true });
+    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2026, signedIn: true, lines: true });
     expect(types(blocks)).toEqual([
       "label", "heading", "cards", "label", "cards",
       "heading", "cards",
@@ -230,7 +252,7 @@ describe("buildGeneralView: one staff year", () => {
   });
 
   it("has no comparison in the first year", () => {
-    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2025, signedIn: true });
+    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2025, signedIn: true, lines: true });
     expect(blocks[0]).toEqual({ type: "label", text: "2025" });
     expect(cardsBlocks(blocks)[0].cards[0].delta).toBeUndefined();
     expect(cardsBlocks(blocks).at(-1)?.cards[0]).toMatchObject({ label: "USYD", value: "40", delta: undefined });
@@ -243,12 +265,13 @@ describe("buildGeneralView: one staff year", () => {
       campusAttendance: null,
       scope: 2027,
       signedIn: true,
+      lines: true,
     });
     expect(types(blocks)).toEqual(["label", "heading", "cards", "label", "cards"]);
   });
 
   it("falls back to all years for a year with no data", () => {
-    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2031, signedIn: true });
+    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2031, signedIn: true, lines: true });
     expect(chart(blocks, "Retention")).toBeDefined();
   });
 });

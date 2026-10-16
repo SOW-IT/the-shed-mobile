@@ -598,10 +598,12 @@ describe("view", () => {
     expect(all.blocks[1]).toMatchObject({ type: "heading", text: "People serving" });
     expect(all.blocks[2]).toMatchObject({ type: "cards" });
     expect(hasPeopleChart(all.blocks)).toBe(true);
-    expect(all.blocks.find((b) => b.type === "multiBars" && b.title === "Retention")).toMatchObject({
-      unit: "%",
-      line: { key: "Overall" },
-    });
+    const retention = (blocks: typeof all.blocks) =>
+      blocks.find((b) => b.type === "multiBars" && b.title === "Retention");
+    expect(retention(all.blocks)).toMatchObject({ unit: "%" });
+    expect(retention(all.blocks)).not.toHaveProperty("line");
+    const withLines = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: null, lines: true });
+    expect(retention(withLines.blocks)).toMatchObject({ unit: "%", line: { key: "Overall" } });
 
     const year = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: YEAR });
     expect(year.blocks[2]).toMatchObject({ type: "cards" });

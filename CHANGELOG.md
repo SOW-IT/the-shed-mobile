@@ -20,7 +20,9 @@ Insights and screens that show more and explain less.
 - **General draws staff and student leaders as side-by-side bars with overall
   as a line over them** on Staff & student leaders, Retention, Average years
   served and Served 2+ years. Retention and Served 2+ years have % on the
-  axis. General no longer offers a bars or lines switch.
+  axis. General no longer offers a bars or lines switch. App builds older
+  than 2.9.8 get Overall as a third bar instead, so their legend still
+  matches what they draw.
 - **Insights reads in sections.** Each set of cards sits with the chart that
   shows it, under a heading: People serving, Retention, Years served and
   Weeklies on General; Turnout and Who came on a campus and on PPN; Weeklies
@@ -54,10 +56,12 @@ Insights and screens that show more and explain less.
 - The tooltip on a chart's first or last bar stays on screen.
 - **General's weeklies average by campus** gave a weekly shared by several
   campuses its whole turnout at each of them. It now follows the joint
-  weeklies setting, like the campus page, and says it's by calendar year.
+  weeklies setting, like the campus page, is rebuilt as soon as that setting
+  changes rather than the next night, and says it's by calendar year.
 - **A campus year's Regulars** counted people their latest term called
-  Regular. It now counts people who came to at least half of the year's
-  weeklies, as its (i) says.
+  Regular. On a year page, students are now Regular for half or more of the
+  year's weeklies, as the card's (i) says, and the card, the Regular pill and
+  the Regular filter in Everyone always agree. Term pages are unchanged.
 - **SOW events' average per event** counted events nobody signed in to as
   zero.
 - **PPN's average** was compared with last year's PPN in the same month, and a

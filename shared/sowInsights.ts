@@ -1,6 +1,7 @@
 import { roleNeedsUniversity, staffYearStartMs, sydneyYmd } from "./flow";
 import { SOW_SUBGROUP, tagListOf, type TagList } from "./rollcall";
 import { dayLabel, type WeeklyPerson } from "./weeklyInsights";
+import { round1 } from "./numbers";
 
 type SowMode = "twig" | "ppn";
 
@@ -46,8 +47,6 @@ export const staffYearLabel = (year: number): string => `Staff year ${year}`;
 
 export const isRunning = (year: number, now: number): boolean =>
   now >= staffYearStartMs(year) && now < staffYearStartMs(year + 1);
-
-const round1 = (n: number) => Math.round(n * 10) / 10;
 
 const byTime = (events: SowEvent[]) => [...events].sort((a, b) => a.at - b.at);
 

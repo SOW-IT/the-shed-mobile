@@ -855,6 +855,7 @@ export const setSettings = internalMutation({
     if (id) await ctx.db.replace("weeklyInsightsSettings", id, { ...next, version: version + 1 });
     else await ctx.db.insert("weeklyInsightsSettings", { ...next, version: version + 1 });
     await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuildAll, {});
+    await ctx.scheduler.runAfter(0, internal.generalMetrics.recomputeCampusWeeklyAttendance, {});
     return next;
   },
 });

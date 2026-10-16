@@ -145,7 +145,8 @@ _Avoid_: semester (for UNSW), staff year (for this)
 **Regular** / **Irregular**:
 For one Term: a Regular came to half or more of its held Weeklies (counting
 last term's too until four have been held); an Irregular is anyone else
-listed. The half is a setting.
+listed. On a whole calendar Year page, a student is Regular for half or more
+of that year's held Weeklies. The half is a setting.
 _Avoid_: member (Member means anyone in the attendance pool), active,
 inactive
 

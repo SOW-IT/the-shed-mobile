@@ -4,6 +4,7 @@ import {
   isOrgWideSubgroup,
   subgroupMatches,
 } from "./rollcall";
+import { round1 } from "./numbers";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
@@ -172,8 +173,6 @@ const humanGap = (from: number, to: number): string => {
   if (days < 14) return `${days} days`;
   return `${Math.round(days / 7)} weeks`;
 };
-
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 const roundRatio = (n: number): number => Math.round(n * 1000) / 1000;
 

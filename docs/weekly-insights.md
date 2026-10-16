@@ -13,23 +13,23 @@ year**; the current term opens first. The picker has one row per year, newest
 first, with its terms side by side and the whole year last (T1, T2, T3,
 Year).
 
-- **Cards**: Weekly avg, People, Regulars, Newcomers, Newcomers who stayed
-  (came back for a second weekly), Campus share, each with its change in a
-  pill. A term is compared with **the term before** (T3 with T2, Sem 2 with
-  Sem 1, T1 with last year's T3); one still running is compared up to the
-  same week, and the comparison says so ("vs 97.3 in T2 2026 up to W4"),
-  since the term before's own page shows its whole term. A year is compared
-  with last year; the year in progress up to the same term and week ("vs
-  66.3 in 2025 up to T3 W4"), and so is its weekly avg by term chart. Each
-  card's (i) says what it's compared with, and Weekly avg and People say
-  whether Mega and combined weeklies are counted (not by default; see
-  `jointWeeklies` under Settings).
-- **Charts**, near the top: week by week against the term before (its bars
-  in grey), and who
-  came each week by category. The year view has one "who came each week"
-  chart per term. Each weekly is its own point: two in the same week (a special
-  night in a week the campus didn't number, say) show as "W7" and "W7·2",
-  in the charts and in a member's week grid.
+- **Turnout**: Weeklies average and People cards, then week by week against
+  the term before (its bars in grey); a year has its weeklies average by term
+  against last year instead.
+- **Who came**: Regulars, Newcomers, Newcomers who stayed (came back for a
+  second weekly) and Campus share cards, then who came each week by category
+  (one chart per term on a year page). Each weekly is its own point: two in
+  the same week (a special night in a week the campus didn't number, say)
+  show as "W7" and "W7·2", in the charts and in a member's week grid.
+- Every card has its change in a pill and last time's number ("vs 55.5"). A
+  term is compared with **the term before** (T3 with T2, Sem 2 with Sem 1, T1
+  with last year's T3); one still running is compared up to the same week,
+  and the caption says so ("compared with Sem 1 2026 up to week 10"), since
+  the term before's own page shows its whole term. A year is compared with
+  last year; the year in progress up to the same term and week, and so is its
+  by-term chart. Each card's (i) says what it's compared with, and Weeklies
+  average and People say whether Mega and combined weeklies are counted (not
+  by default; see `jointWeeklies` under Settings).
 - **Needs follow-up** (current term only): people who were coming (Regular,
   or a Leader, judged on the weeklies before) but missed the last 2 held
   weeklies; then newcomers who missed the last one, while their visit is
@@ -73,13 +73,19 @@ Year).
   this term, until they've come 4+ times at the Regular share) → Regular (half
   or more of the term's weeklies, counting last term too until 4 have been
   held) → Irregular.
+- **A year page** keeps Staff, Leader and Visitor from each person's latest
+  term, but sorts students by the whole year: half or more of the year's
+  weeklies is Regular, otherwise Newcomer if their latest term had them as
+  one, else Irregular. The Regulars card, the Regular pill and the Regular
+  filter all use this, so they always agree. A term page is unchanged.
 - Who's listed: anyone who came this term or last term.
 
 ## Settings
 
 One row in `weeklyInsightsSettings` (defaults in `DEFAULT_WEEKLY_SETTINGS`).
 Change any of them without a deploy; every campus is rebuilt from its stored
-facts straight away:
+facts straight away, and so are General's weeklies averages by campus (which
+follow `jointWeeklies` too):
 
 ```bash
 npx convex run weeklyInsights:setSettings '{"regularShare": 0.4}'

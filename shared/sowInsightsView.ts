@@ -18,6 +18,7 @@ import {
   type Pill,
   type WeeklyBlock,
 } from "./weeklyInsightsView";
+import { round1 } from "./numbers";
 
 const THIS_COLOUR = "primary";
 const LAST_COLOUR = "#9CA3AFA6";
@@ -50,8 +51,6 @@ const campusBars = (split: { campus: string | null; value: number }[]) =>
     value: c.value,
     colour: campusPage(c.campus) ? subgroupColour(c.campus as string) : undefined,
   }));
-
-const round1 = (n: number) => Math.round(n * 10) / 10;
 
 const noRollBlock = (events: SowEvent[], what: string): WeeklyBlock[] =>
   events.length

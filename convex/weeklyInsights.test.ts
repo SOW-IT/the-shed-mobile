@@ -759,6 +759,15 @@ describe("combined weeklies, marks and suggestions", () => {
     await rebuild(t);
     expect((await factDocs(t))[`${UNSW}|2026-T2`].weeklies).toHaveLength(7);
     await t.mutation(internal.weeklyInsights.setSettings, { jointWeeklies: true });
+    const scheduled = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).map((f) => f.name)
+    );
+    expect(scheduled).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("weeklyInsights:rebuildAll"),
+        expect.stringContaining("generalMetrics:recomputeCampusWeeklyAttendance"),
+      ])
+    );
     await rebuild(t);
     const t2 = (await factDocs(t))[`${UNSW}|2026-T2`];
     expect(t2.weeklies.map((w) => w.at)).toContain(wed(2026, 7, 15));

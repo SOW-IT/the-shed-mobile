@@ -412,7 +412,7 @@ describe("summaries and comparisons", () => {
     expect(yearCutOf(terms, 2030)).toBeNull();
   });
 
-  test("a year's regulars came to at least half of its weeklies, whatever their latest term says", () => {
+  test("a year's regulars came to at least half of its weeklies, on the card and in the list, whatever their latest term says", () => {
     const t1 = [wed(2026, 2, 18), wed(2026, 2, 25), wed(2026, 3, 4), wed(2026, 3, 11)];
     const t2 = [wed(2026, 6, 3), wed(2026, 6, 10), wed(2026, 6, 17), wed(2026, 6, 24)];
     const terms = build([
@@ -423,9 +423,11 @@ describe("summaries and comparisons", () => {
     const c = classify([person("early1"), person("early2"), person("late")]);
     const y = computeYear(terms, 2026, c)!;
     expect(y.terms).toHaveLength(2);
-    expect(y.rows.find((r) => r.key === "early1")).toMatchObject({ attended: 5, held: 8, category: "irregular" });
-    expect(y.rows.find((r) => r.key === "late")).toMatchObject({ attended: 3, held: 8 });
+    expect(computeTerm(terms, 1, c).rows.find((r) => r.key === "early1")!.category).toBe("irregular");
+    expect(y.rows.find((r) => r.key === "early1")).toMatchObject({ attended: 5, held: 8, category: "regular" });
+    expect(y.rows.find((r) => r.key === "late")).toMatchObject({ attended: 3, held: 8, category: "newcomer" });
     expect(y.summary.regulars).toBe(2);
+    expect(y.summary.regulars).toBe(y.rows.filter((r) => r.category === "regular").length);
     expect(computeTerm(terms, 1, c).summary.regulars).toBe(computeTerm(terms, 1, c).rows.filter((r) => r.category === "regular").length);
   });
 });

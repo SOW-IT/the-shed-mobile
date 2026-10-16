@@ -286,12 +286,12 @@ type CampusWeeklyAttendance = {
 };
 
 export const view = query({
-  args: { scope: v.union(v.number(), v.literal("all"), v.null()) },
+  args: { scope: v.union(v.number(), v.literal("all"), v.null()), lines: v.optional(v.boolean()) },
   returns: v.object({
     years: v.array(v.number()),
     blocks: v.array(viewBlockValidator),
   }),
-  handler: async (ctx, { scope }) => {
+  handler: async (ctx, { scope, lines }) => {
     const [trends, campusAttendance, identity] = await Promise.all([
       computeStaffTrends(ctx),
       readCampusWeeklyAttendance(ctx),
@@ -299,7 +299,7 @@ export const view = query({
     ]);
     return {
       years: trends.years,
-      blocks: buildGeneralView({ trends, campusAttendance, scope, signedIn: identity !== null }),
+      blocks: buildGeneralView({ trends, campusAttendance, scope, signedIn: identity !== null, lines }),
     };
   },
 });
