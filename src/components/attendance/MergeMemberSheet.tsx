@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Keyboard, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { formatMetadataFieldValue } from "../../../shared/attendanceMemberMeta";
+import { formatMetadataFieldValue, metadataSubtitle } from "../../../shared/attendanceMemberMeta";
 import type { MergeResolutions, MergeSide } from "../../../shared/memberMerge";
 import { typedMatches } from "../../../shared/typedConfirm";
 import { MemberRow } from "@/components/attendance/MemberRow";
@@ -198,14 +198,6 @@ export function MergeMemberSheet({
     return formatMetadataFieldValue(field.key, value, year, field.values) || value;
   };
 
-  const summary = (side: MergeSide) =>
-    metadataFields
-      .map((f) =>
-        formatMetadataFieldValue(f.key, side.metadata[f._id] ?? "", year, f.values)
-      )
-      .filter(Boolean)
-      .join(" · ");
-
   const onMerge = async () => {
     if (!mergeArgs || !ready || previewStale || submitting) return;
     setSubmitting(true);
@@ -230,7 +222,7 @@ export function MergeMemberSheet({
     staff: boolean
   ) => {
     const colour = tone === "keep" ? t.success : t.danger;
-    const detail = summary(side);
+    const detail = metadataSubtitle(metadataFields, side.metadata, year);
     return (
       <View
         style={[

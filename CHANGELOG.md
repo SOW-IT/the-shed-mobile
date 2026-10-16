@@ -45,6 +45,15 @@ was broken and showing things instead of explaining them.
   read-only Tags and Metadata for people who can't change them, a "Not signed
   in" filter chip and side-by-side actions in Admin, an update pill in the top
   bar instead of a banner over the tabs.
+- **Exporting one event skips the layout question.** A grid of one event says
+  nothing a list doesn't, so single-event exports go straight to the list.
+- **Four-step requests show each approver's full name**, wrapping onto a second
+  line instead of cutting it off.
+- **The merge review card uses the member row wording** ("Year 6 · Arc
+  Member") instead of "6 · Yes".
+- **Less code to maintain.** Props and helpers nothing used are gone, and the
+  two PDF exports, the Members and Audit filter bars, and the screens' busy
+  handling each share one implementation. About 450 fewer lines.
 
 ### Fixed
 - **A merge showed twice in the Audit tab, with database ids.** It shows once,
@@ -67,6 +76,11 @@ was broken and showing things instead of explaining them.
   with no matches says so; typing a name to confirm ignores case.
 - **The dev-only test sign-in no longer renames a real account** to its email
   prefix.
+- **Downloads**: exported CSVs open in Excel with curly quotes and emoji
+  intact, and request times are Sydney time instead of UTC; an approved event
+  Finance form over $5,000 names the Director as well as the Finance Head, on
+  screen and in the PDF; PDF headings and question labels no longer sit alone
+  at the bottom of a page.
 
 ## [2.9.4] - 2026-10-16
 
