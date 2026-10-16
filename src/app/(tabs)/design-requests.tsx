@@ -27,6 +27,7 @@ import {
   YearPill,
 } from "@/components/ui";
 import { spacing, typography } from "@/theme";
+import { staffOnlyMessage } from "@shared/staffOnly";
 
 type Group = { title: string; statuses: DesignRequestStatus[] };
 
@@ -135,7 +136,7 @@ export default function DesignRequestsScreen() {
     {};
 
   const { tab } = useLocalSearchParams<{ tab?: string }>();
-  const [active, setActive] = useState("mine");
+  const [active, setActive] = useState<string | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
     if (typeof tab === "string") setActive(tab);
@@ -154,10 +155,7 @@ export default function DesignRequestsScreen() {
       <ChromeScreen>
         <Card>
           <Txt style={typography.section}>Design Requests</Txt>
-          <Muted>
-            Design requests are for SOW staff. No role or department is assigned to{" "}
-            {me.email} for {me.year} yet.
-          </Muted>
+          <Muted>{staffOnlyMessage("Design", me)}</Muted>
         </Card>
       </ChromeScreen>
     );
@@ -255,7 +253,9 @@ export default function DesignRequestsScreen() {
         ]
       : []),
   ];
-  const activeKey = tabs.some((t) => t.key === active) ? active : "mine";
+  const landing = waitingOnMe > 0 && (mine ?? []).length === 0 ? "queue" : "mine";
+  const wanted = active ?? landing;
+  const activeKey = tabs.some((t) => t.key === wanted) ? wanted : "mine";
   const noHead = viewer !== undefined && viewer !== null && !viewer.hasMarketingHead;
 
   return (

@@ -40,6 +40,7 @@ import {
   WarningBanner,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { SignInPrompt } from "@/components/SignInPrompt";
 
 type Reach = "everyone" | "groups";
 type When = "now" | "later";
@@ -130,7 +131,11 @@ export default function AnnouncementsScreen() {
   if (!isAdmin) {
     return (
       <Screen title="Announcements" onBack={back}>
-        <EmptyState icon="lock-closed-outline" title="Only admins can send announcements" />
+        {me === null ? (
+          <SignInPrompt what="page" />
+        ) : (
+          <EmptyState icon="lock-closed-outline" title="Only admins can send announcements" />
+        )}
       </Screen>
     );
   }

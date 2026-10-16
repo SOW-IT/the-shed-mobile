@@ -307,6 +307,11 @@ export const requestDeclined = (r: ApprovalState): boolean =>
   r.approvedByDirector === DECLINED ||
   r.approvedByFinanceHead === DECLINED;
 
+export const REVIEWED_LIMIT = 50;
+
+export const reviewedHeading = (count: number): string =>
+  count >= REVIEWED_LIMIT ? `Latest ${REVIEWED_LIMIT} reviewed` : `Reviewed (${count})`;
+
 export const requestFullyApproved = (r: ApprovalState): boolean =>
   r.approvedByHOD === APPROVED &&
   r.approvedByBudgetManager === APPROVED &&

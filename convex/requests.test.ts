@@ -71,6 +71,42 @@ async function setup() {
   return t;
 }
 
+describe("approvalPreview", () => {
+  test("shows the chain a request will take, adding the Director at the threshold", async () => {
+    const t = await setup();
+    const rachel = asUser(t, RACHEL);
+    const small = await rachel.query(api.requests.approvalPreview, { department: "Marketing", amount: 200 });
+    expect(small?.map((s) => [s.step, s.skipped])).toEqual([
+      ["hod", false],
+      ["budgetManager", false],
+      ["financeHead", false],
+    ]);
+    const big = await rachel.query(api.requests.approvalPreview, { department: "Marketing", amount: 5000 });
+    expect(big?.map((s) => s.step)).toEqual(["hod", "budgetManager", "director", "financeHead"]);
+    expect(big?.find((s) => s.step === "director")?.label).toBe("Director");
+  });
+
+  test("marks the steps the requester's own role skips, like submit does", async () => {
+    const t = await setup();
+    const preview = await asUser(t, BELLA).query(api.requests.approvalPreview, {
+      department: "Finance",
+      amount: 100,
+    });
+    expect(preview?.map((s) => [s.step, s.skipped])).toEqual([
+      ["hod", true],
+      ["budgetManager", true],
+      ["financeHead", false],
+    ]);
+  });
+
+  test("is nothing for an unknown department or a caller with no profile", async () => {
+    const t = await setup();
+    expect(await asUser(t, RACHEL).query(api.requests.approvalPreview, { department: "Nowhere", amount: 50 })).toBeNull();
+    expect(await asUser(t, RACHEL).query(api.requests.approvalPreview, { department: " ", amount: 50 })).toBeNull();
+    expect(await asUser(t, "stranger@sow.org.au").query(api.requests.approvalPreview, { department: "Marketing", amount: 50 })).toBeNull();
+  });
+});
+
 describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
   test("a staff request starts fully pending, with Director only at >= $5000", async () => {
     const t = await setup();

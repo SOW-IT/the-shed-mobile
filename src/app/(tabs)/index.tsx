@@ -143,7 +143,7 @@ export default function RequestsScreen() {
     () => setOpenedThreadLink(threadLinkKey),
     [threadLinkKey]
   );
-  const [active, setActive] = useState("mine");
+  const [active, setActive] = useState<string | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
     if (typeof tab === "string") setActive(tab);
@@ -154,7 +154,9 @@ export default function RequestsScreen() {
       void markReadForRequest({ requestId: focusId as Id<"requests"> }).catch(() => {});
     }
   }, [focusId, markReadForRequest]);
-  const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
+  const landing = reviewCount > 0 && mineCount === 0 ? "review" : "mine";
+  const wanted = active ?? landing;
+  const activeSegment = segments.some((s) => s.key === wanted) ? wanted : "mine";
 
   const currentYear = me?.year;
   const viewingYear = selectedYear ?? currentYear ?? new Date().getFullYear();

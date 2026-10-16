@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Fragment, useEffect, useState } from "react";
@@ -7,6 +7,8 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { answersProblemAt, normalizeAnswers, questionNumber, sydneyToday } from "@shared/forms";
 import { SUB_FORM_KINDS, SUB_FORM_LABELS } from "@shared/eventRequests";
+import { staffOnlyMessage } from "@shared/staffOnly";
+import { SignInPrompt } from "@/components/SignInPrompt";
 import {
   answersFromDraft,
   draftFromAnswers,
@@ -70,6 +72,7 @@ export default function EventRequestFormScreen() {
   const router = useRouter();
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   const editId = typeof edit === "string" && edit ? edit : null;
+  const { isLoading: authLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.directory.me);
   const staff = !!me?.profile && !me.isCampusLeader;
   const viewer = useQuery(api.eventRequests.viewer, staff ? {} : "skip");
@@ -103,6 +106,20 @@ export default function EventRequestFormScreen() {
       : router.replace(editId ? `/event-requests/${editId}` : "/event-requests");
   const title = existing ? `Edit ${existing.event.name}` : "New Event Request";
 
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <Screen title={title} onBack={goBack}>
+        <SignInPrompt what="page" />
+      </Screen>
+    );
+  }
+  if (me && !staff) {
+    return (
+      <Screen title={title} onBack={goBack}>
+        <EmptyState icon="calendar-outline" title="For SOW staff" message={staffOnlyMessage("Event", me)} />
+      </Screen>
+    );
+  }
   if (editId && (existing === null || (existing && !existing.can.edit))) {
     return (
       <Screen title="Event request" onBack={goBack}>
