@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -52,6 +52,7 @@ import {
   type ToastState,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { SignInPrompt } from "@/components/SignInPrompt";
 
 const ROSTER_PAGE_SIZE = 30;
 const UNSIGNED_PAGE_SIZE = 10;
@@ -139,6 +140,7 @@ function CountChip({
 export default function EventAttendanceScreen() {
   const t = useAppTheme();
   const router = useRouter();
+  const { isAuthenticated } = useConvexAuth();
   const insets = useSafeAreaInsets();
   const footerBottomOffset = insets.bottom + spacing.xl;
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
@@ -764,8 +766,15 @@ export default function EventAttendanceScreen() {
   }
   if (event === null) {
     return (
-      <Screen title="Event" onBack={() => router.back()}>
-        <EmptyState icon="lock-closed-outline" title="Event not found" />
+      <Screen
+        title="Event"
+        onBack={() => (router.canGoBack() ? router.back() : router.replace("/attendance"))}
+      >
+        {isAuthenticated ? (
+          <EmptyState icon="lock-closed-outline" title="Event not found" />
+        ) : (
+          <SignInPrompt what="event" />
+        )}
       </Screen>
     );
   }

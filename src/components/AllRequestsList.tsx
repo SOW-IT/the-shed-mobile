@@ -65,13 +65,21 @@ export const AllRequestsList = ({
       api.comments.unreadCountsForRequests,
       requests ? { requestIds: requests.map((r) => r._id) } : "skip"
     ) ?? {};
-  const [filter, setFilter] = useState<"ongoing" | "completed">(
-    year !== undefined ? "completed" : "ongoing"
-  );
+  const [pickedFilter, setFilter] = useState<"ongoing" | "completed" | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset tab on year change
-    setFilter(year !== undefined ? "completed" : "ongoing");
+    setFilter(null);
   }, [year]);
+  const focused = focusId ? requests?.find((request) => request._id === focusId) : undefined;
+  const filter =
+    pickedFilter ??
+    (focused
+      ? requestCompleted(focused)
+        ? "completed"
+        : "ongoing"
+      : year !== undefined
+        ? "completed"
+        : "ongoing");
 
   const isCompleted = filter === "completed";
   const filtered = sortRequests(
@@ -87,7 +95,8 @@ export const AllRequestsList = ({
     setVisible(PAGE_SIZE);
   }, [filter, year]);
 
-  const shown = filtered.slice(0, visible);
+  const focusIndex = focused ? filtered.findIndex((request) => request._id === focused._id) : -1;
+  const shown = filtered.slice(0, Math.max(visible, focusIndex + 1));
   const hasMore = filtered.length > shown.length;
 
   const pending = useRef(false);

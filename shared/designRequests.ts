@@ -28,6 +28,48 @@ export const DESIGN_STATUS_LABELS: Record<DesignRequestStatus, string> = {
   CANCELLED: "Cancelled",
 };
 
+export type DesignStepState = "done" | "declined" | "current" | "todo";
+
+export type DesignStep = {
+  key: "submitted" | "decided" | "completed";
+  label: string;
+  state: DesignStepState;
+  name: string | null;
+  at: number | null;
+};
+
+export const designStepTrack = (
+  request: {
+    status: DesignRequestStatus;
+    submittedAt: number;
+    decidedAt?: number;
+    completedAt?: number;
+  },
+  names: { requester: string; decidedBy: string | null; completedBy: string | null }
+): DesignStep[] => {
+  const { status } = request;
+  const declined = status === "DECLINED";
+  const decided = declined || status === "APPROVED" || status === "COMPLETED";
+  const completed = status === "COMPLETED";
+  return [
+    { key: "submitted", label: "Submitted", state: "done", name: names.requester, at: request.submittedAt },
+    {
+      key: "decided",
+      label: declined ? "Declined" : "Approved",
+      state: declined ? "declined" : decided ? "done" : status === "PENDING" ? "current" : "todo",
+      name: decided ? names.decidedBy : null,
+      at: decided ? (request.decidedAt ?? null) : null,
+    },
+    {
+      key: "completed",
+      label: "Complete",
+      state: completed ? "done" : status === "APPROVED" ? "current" : "todo",
+      name: completed ? names.completedBy : null,
+      at: completed ? (request.completedAt ?? null) : null,
+    },
+  ];
+};
+
 /** Still being worked through: shown in every year's list until it closes. */
 export const isOpenDesignStatus = (status: DesignRequestStatus): boolean =>
   status === "PENDING" || status === "APPROVED";

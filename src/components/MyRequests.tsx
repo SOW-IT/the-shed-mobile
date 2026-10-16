@@ -2,8 +2,8 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useRef, useState } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { Alert, Image, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
   DIRECTOR_APPROVAL_THRESHOLD,
   requestCompleted,
@@ -209,15 +209,65 @@ const NewRequestSheet = ({
           options={departments}
           onSelect={setDepartment}
         />
-        {Number(amount) >= directorThreshold ? (
-          <Muted>{`Requests of $${formatAmount(directorThreshold)} or more also require Director approval.`}</Muted>
-        ) : null}
+        <ApprovalPreview
+          department={department}
+          crossesDirectorThreshold={Number(amount) >= directorThreshold}
+          directorThreshold={directorThreshold}
+        />
         <ErrorBanner message={error} />
       </Sheet>
   );
 };
 
-type DraftFile = { storageId: Id<"_storage">; name: string };
+const ApprovalPreview = ({
+  department,
+  crossesDirectorThreshold,
+  directorThreshold,
+}: {
+  department: string;
+  crossesDirectorThreshold: boolean;
+  directorThreshold: number;
+}) => {
+  const t = useAppTheme();
+  const steps = useQuery(
+    api.requests.approvalPreview,
+    department.trim() ? { department, amount: crossesDirectorThreshold ? directorThreshold : 0 } : "skip"
+  );
+  if (!steps || steps.length === 0) return null;
+  const heading = steps.every((step) => step.skipped) ? "Approved straight away" : "Goes to";
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${heading}: ${steps.map((s) => (s.skipped ? `${s.label}, skipped` : s.label)).join(", then ")}`}
+      style={{ gap: spacing.xs }}
+    >
+      <Text style={[typography.label, { color: t.muted }]}>{heading}</Text>
+      <View style={styles.previewRow}>
+        {steps.map((step, i) => (
+          <Fragment key={step.step}>
+            {i > 0 ? <Ionicons name="chevron-forward" size={12} color={t.faint} /> : null}
+            <View
+              style={[
+                styles.previewStep,
+                { backgroundColor: step.skipped ? t.successSoft : t.ghost },
+                step.step === "director" && { borderWidth: 1, borderColor: t.warning },
+              ]}
+            >
+              <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>
+                {step.label}
+              </Text>
+              <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
+                {step.skipped ? "Skipped" : (step.name ?? "Not set")}
+              </Text>
+            </View>
+          </Fragment>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+type DraftFile = { storageId: Id<"_storage">; name: string; previewUri?: string };
 type DraftRecipient = {
   id: string;
   accountName: string;
@@ -427,7 +477,11 @@ const ReceiptSheet = ({
           }
           throw e;
         }
-        const uploaded: DraftFile = { storageId, name: asset.name };
+        const uploaded: DraftFile = {
+          storageId,
+          name: asset.name,
+          previewUri: asset.mimeType?.startsWith("image/") ? asset.uri : undefined,
+        };
         setRecipients((previous) =>
           previous.map((recipient, recipientIndex) =>
             recipientIndex === index
@@ -489,7 +543,7 @@ const ReceiptSheet = ({
           return {
             uri: asset.uri,
             name: asset.fileName?.trim() || `receipt-${assetIndex + 1}.${ext}`,
-            mimeType: asset.mimeType,
+            mimeType: asset.mimeType ?? `image/${ext === "jpg" ? "jpeg" : ext}`,
           };
         })
       );
@@ -523,7 +577,7 @@ const ReceiptSheet = ({
           accountNumber: recipient.accountNumber,
           amount: Number(recipient.amount),
           saveAccount: recipient.saveAccount,
-          attachments: recipient.files,
+          attachments: recipient.files.map(({ storageId, name }) => ({ storageId, name })),
         })),
       });
       setRecipients([emptyRecipient()]);
@@ -640,7 +694,14 @@ const ReceiptSheet = ({
           />
           {recipient.files.map((file, fileIndex) => (
             <Row key={`${file.storageId}-${fileIndex}`}>
-              <Muted>📎 {file.name}</Muted>
+              {file.previewUri ? (
+                <Image
+                  source={{ uri: file.previewUri }}
+                  accessibilityLabel={`Receipt ${file.name}`}
+                  style={styles.receiptThumb}
+                />
+              ) : null}
+              <Muted>{file.previewUri ? file.name : `📎 ${file.name}`}</Muted>
               <Btn
                 title="✕"
                 variant="ghost"
@@ -938,6 +999,14 @@ const nudgeButtonStyle = {
 };
 
 const styles = StyleSheet.create({
+  previewRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
+  receiptThumb: { width: 48, height: 48, borderRadius: radius.sm },
+  previewStep: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.md,
+    maxWidth: 150,
+  },
   guideStep: {
     flexDirection: "row",
     alignItems: "flex-start",

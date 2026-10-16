@@ -37,6 +37,7 @@ import {
   Card,
   ConfirmDialog,
   currencyText,
+  EmptyState,
   formatAmount,
   ErrorBanner,
   InfoBanner,
@@ -58,6 +59,7 @@ import {
   Txt,
 } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { SignInPrompt } from "@/components/SignInPrompt";
 import { SuggestedMerges } from "@/components/admin/SuggestedMerges";
 import { useAdminMutations } from "@/hooks/useAdminMutations";
 import { sydneyDateTime } from "@/lib/sydneyTime";
@@ -570,8 +572,12 @@ export default function AdminScreen() {
 
   if (!hasAccess) {
     return (
-      <Screen>
-        <Muted>Only admins can access this screen.</Muted>
+      <Screen title="Admin">
+        {me === null ? (
+          <SignInPrompt what="page" />
+        ) : (
+          <EmptyState icon="lock-closed-outline" title="Only admins can open Admin" />
+        )}
       </Screen>
     );
   }
