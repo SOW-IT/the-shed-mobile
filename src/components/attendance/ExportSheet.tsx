@@ -149,7 +149,7 @@ export function ExportSheet({
   const [format, setFormat] = useState<ExportFormat>("list");
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isMatrix = format === "matrix";
+  const isMatrix = !isEvent && format === "matrix";
 
   useEffect(() => {
     if (!visible) return;
@@ -274,28 +274,27 @@ export function ExportSheet({
         />
       }
     >
-      <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
-        Layout
-      </Txt>
-      <View style={{ gap: 6 }}>
-        <ToggleRow
-          radio
-          label="List by event"
-          subtitle="One section per event with each person's sign-in"
-          checked={!isMatrix}
-          onPress={() => setExportFormat("list")}
-        />
-        <ToggleRow
-          radio
-          label="Grid by person"
-          subtitle="People down the side, events across the top, with attendance %"
-          checked={isMatrix}
-          onPress={() => setExportFormat("matrix")}
-        />
-      </View>
-
       {!isEvent ? (
         <>
+          <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
+            Layout
+          </Txt>
+          <View style={{ gap: 6 }}>
+            <ToggleRow
+              radio
+              label="List by event"
+              subtitle="One section per event with each person's sign-in"
+              checked={!isMatrix}
+              onPress={() => setExportFormat("list")}
+            />
+            <ToggleRow
+              radio
+              label="Grid by person"
+              subtitle="People down the side, events across the top, with attendance %"
+              checked={isMatrix}
+              onPress={() => setExportFormat("matrix")}
+            />
+          </View>
           <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
             Time range
           </Txt>
