@@ -92,7 +92,7 @@ const INDEX_WEEKLIES_WEEKS = 60;
 const NEVER = Number.MAX_SAFE_INTEGER;
 // Bump when what a view shows changes, so every campus redoes its views on
 // the next build after a deploy.
-export const VIEW_VERSION = 6;
+export const VIEW_VERSION = 7;
 
 export async function readSettings(
   ctx: QueryCtx

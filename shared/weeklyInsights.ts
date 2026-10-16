@@ -581,6 +581,7 @@ type SummaryRow = {
   category: WeeklyCategory;
   section: WeeklySection;
   attended: number;
+  pct: number;
   firstAt: number | null;
 };
 
@@ -588,7 +589,8 @@ function summarise(
   weeklies: { eventId: string; count: number }[],
   rows: SummaryRow[],
   attendancesBySection: Record<WeeklySection, number>,
-  isNewcomer: (row: SummaryRow) => boolean
+  isNewcomer: (row: SummaryRow) => boolean,
+  isRegular: (row: SummaryRow) => boolean = (row) => row.category === "regular"
 ): PeriodSummary {
   const total = weeklies.reduce((s, w) => s + w.count, 0);
   const present = rows.filter((r) => r.attended > 0);
@@ -599,7 +601,7 @@ function summarise(
     weeklies: weeklies.length,
     weeklyAvg: weeklies.length ? round1(total / weeklies.length) : null,
     people: present.length,
-    regulars: present.filter((r) => r.category === "regular").length,
+    regulars: present.filter(isRegular).length,
     newcomers: newcomers.length,
     newcomersStayed: newcomers.filter((r) => r.attended >= 2).length,
     campusShare: students
@@ -762,10 +764,12 @@ export function computeYear(
   const student = new Set<WeeklyCategory>(["newcomer", "regular", "irregular"]);
   const newThisYear = (r: { key: string; category: WeeklyCategory }) =>
     student.has(r.category) && (firstSeen.get(r.key) ?? -1) >= yearStart;
+  const regularThisYear = (r: { category: WeeklyCategory; pct: number }) =>
+    student.has(r.category) && r.pct >= c.settings.regularShare;
   return {
     year,
     terms: indexes.map((i) => cutTerms[i]),
     rows,
-    summary: summarise(weeklies, rows, bySection, newThisYear),
+    summary: summarise(weeklies, rows, bySection, newThisYear, regularThisYear),
   };
 }

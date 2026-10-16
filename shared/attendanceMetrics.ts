@@ -248,8 +248,11 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       ? 0
       : round1(list.reduce((sum, e) => sum + countFor(e.id), 0) / list.length);
 
-  const avgAttendance = avg(periodEvents);
-  const avgAttendancePrev = prevEvents.length ? avg(prevEvents) : null;
+  const rollTaken = (e: MetricsEvent) => countFor(e.id) > 0;
+  const periodHeld = periodEvents.filter(rollTaken);
+  const prevHeld = prevEvents.filter(rollTaken);
+  const avgAttendance = avg(periodHeld);
+  const avgAttendancePrev = prevHeld.length ? avg(prevHeld) : null;
   const changePct =
     avgAttendancePrev && avgAttendancePrev > 0
       ? Math.round(((avgAttendance - avgAttendancePrev) / avgAttendancePrev) * 100)

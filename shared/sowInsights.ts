@@ -230,6 +230,7 @@ export type PpnResult = {
     byRole: Record<SowRole, number>;
     byCampus: Split;
   };
+  lastAverage: number | null;
 };
 
 const emptyRoles = (): Record<SowRole, number> => ({ leader: 0, staff: 0, none: 0 });
@@ -242,10 +243,18 @@ export function computePpn(input: {
   lastEvents: SowEvent[];
   earlier: SowEvent[];
   people: SowPeople;
+  now: number;
 }): PpnResult {
   const { year, people } = input;
   const held = heldOf(input.events);
   const lastHeld = heldOf(input.lastEvents);
+  const cut = isRunning(year, input.now)
+    ? staffYearStartMs(year - 1) + (input.now - staffYearStartMs(year))
+    : Infinity;
+  const lastSoFar = lastHeld.filter((e) => e.at <= cut);
+  const lastAverage = lastSoFar.length
+    ? round1(lastSoFar.reduce((sum, e) => sum + e.people.length, 0) / lastSoFar.length)
+    : null;
   const seen = new Set(heldOf(input.earlier).flatMap((e) => e.people));
   const everyone = new Set<string>();
   const totals = {
@@ -278,5 +287,5 @@ export function computePpn(input: {
     };
   });
   totals.people = everyone.size;
-  return { year, rows: rows.reverse(), noRoll: noRollOf(input.events), totals };
+  return { year, rows: rows.reverse(), noRoll: noRollOf(input.events), totals, lastAverage };
 }

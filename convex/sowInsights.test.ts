@@ -213,13 +213,18 @@ describe("SOW TWIG and PPN Insights", () => {
     const { admin } = await setup();
     const view = (await admin.query(api.sowInsights.view, { mode: "ppn" }))!;
     expect(view.years.map((y) => y.key)).toEqual(["2027", "2026"]);
-    expect(view.blocks.map((b) => b.type)).toEqual(["caption", "cards", "multiBars", "multiBars", "stacked", "breakdown"]);
+    expect(view.blocks.map((b) => b.type)).toEqual([
+      "caption", "heading", "cards", "multiBars", "heading", "cards", "multiBars", "stacked", "breakdown",
+    ]);
+    expect(pick(view.blocks, "heading").map((h) => h.text)).toEqual(["Turnout", "Who came"]);
     expect(pick(view.blocks, "caption")[0].text).toBe("Staff year 2027: 1 PPN.");
-    expect(pick(view.blocks, "cards")[0].cards.map((c) => [c.label, c.value, c.delta?.text ?? null, c.hint ?? null])).toEqual([
+    expect(
+      pick(view.blocks, "cards").flatMap((b) => b.cards).map((c) => [c.label, c.value, c.delta?.text ?? null, c.hint ?? null])
+    ).toEqual([
       ["Average per PPN", "4", "+33%", "vs 3"],
       ["People", "4", null, null],
-      ["First-timers", "2", null, null],
       ["Campus leaders", "50%", null, "2 of 4 sign-ins"],
+      ["First-timers", "2", null, null],
     ]);
     const [byPpn, who] = pick(view.blocks, "multiBars");
     expect(byPpn.points.map((p) => [p.label, p.segments.map((x) => x.value)])).toEqual([["17 Nov", [4, 3]]]);

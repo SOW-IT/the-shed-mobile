@@ -176,7 +176,7 @@ export default function InsightsScreen() {
           recentYears={GENERAL_RECENT_YEARS}
         />
       ) : null}
-      <ChartModeFab mode={chartMode} onChange={setChartMode} />
+      {activeKey === "general" ? null : <ChartModeFab mode={chartMode} onChange={setChartMode} />}
     </>
   );
 

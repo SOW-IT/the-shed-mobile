@@ -271,11 +271,13 @@ describe("PPN", () => {
       lastEvents: [event("l1", at(2025, 11, 17), ["a"])],
       earlier: [event("l1", at(2025, 11, 17), ["a"])],
       people,
+      now: NOW,
     });
     expect(result.rows.map((r) => [r.event.id, r.total, r.firstTimers, r.last?.total ?? null])).toEqual([
       ["p2", 2, 1, 1],
       ["p1", 2, 1, null],
     ]);
+    expect(result.lastAverage).toBe(1);
     expect(result.totals).toEqual({
       signIns: 4,
       people: 3,
@@ -289,6 +291,31 @@ describe("PPN", () => {
     });
   });
 
+  test("compares the average with last staff year's PPNs up to the same date, each counted once", () => {
+    const signIns = (n: number, tag: string) => Array.from({ length: n }, (_, i) => `${tag}${i}`);
+    const result = computePpn({
+      year: 2027,
+      events: [event("n1", at(2026, 11, 2), signIns(4, "x")), event("n2", at(2026, 11, 16), signIns(6, "y"))],
+      lastEvents: [
+        event("l1", at(2025, 11, 3), signIns(2, "x")),
+        event("l2", at(2025, 11, 17), signIns(8, "y")),
+        event("l3", at(2025, 12, 8), signIns(30, "z")),
+      ],
+      earlier: [],
+      people,
+      now: NOW,
+    });
+    expect(result.lastAverage).toBe(5);
+    expect(pick(buildPpnBlocks({ result }), "cards")[0].cards[0]).toMatchObject({
+      label: "Average per PPN",
+      value: "5",
+      delta: { direction: "flat" },
+      hint: "vs 5",
+    });
+    const pastYear = computePpn({ ...{ year: 2026, events: [], earlier: [], people, now: NOW }, lastEvents: [event("o", at(2025, 9, 1), ["a"])] });
+    expect(pastYear.lastAverage).toBe(1);
+  });
+
   test("the view is cards and charts, oldest PPN first", () => {
     const result = computePpn({
       year: 2027,
@@ -296,15 +323,21 @@ describe("PPN", () => {
       lastEvents: [event("l1", at(2025, 11, 17), ["a"])],
       earlier: [event("l1", at(2025, 11, 17), ["a"])],
       people,
+      now: NOW,
     });
     const blocks = buildPpnBlocks({ result });
-    expect(blocks.map((b) => b.type)).toEqual(["caption", "cards", "multiBars", "multiBars", "stacked", "breakdown", "eventList"]);
+    expect(blocks.map((b) => b.type)).toEqual([
+      "caption", "heading", "cards", "multiBars", "heading", "cards", "multiBars", "stacked", "breakdown", "eventList",
+    ]);
     expect(pick(blocks, "caption")[0].text).toBe("Staff year 2027: 2 PPNs.");
-    expect(pick(blocks, "cards")[0].cards.map((c) => [c.label, c.value, c.delta?.text ?? null, c.hint ?? null])).toEqual([
+    const [turnout, whoCame] = pick(blocks, "cards");
+    expect(turnout.cards.map((c) => [c.label, c.value, c.delta?.text ?? null, c.hint ?? null])).toEqual([
       ["Average per PPN", "2", "+100%", "vs 1"],
       ["People", "3", null, null],
-      ["First-timers", "2", null, null],
-      ["Campus leaders", "75%", null, "3 of 4 sign-ins"],
+    ]);
+    expect(whoCame.cards.map((c) => [c.label, c.value, c.hint ?? null])).toEqual([
+      ["Campus leaders", "75%", "3 of 4 sign-ins"],
+      ["First-timers", "2", null],
     ]);
     const [byPpn, who] = pick(blocks, "multiBars");
     expect(byPpn.subtitle).toBe("Everyone at each PPN, against the same month in 2026");
@@ -330,7 +363,7 @@ describe("PPN", () => {
 
   test("a year with nothing to compare has no last-year bars; SOW gets no campus colour; no PPN yet is an empty state", () => {
     const only = buildPpnBlocks({
-      result: computePpn({ year: 2027, events: [event("p1", at(2026, 10, 20), ["a", "s"])], lastEvents: [], earlier: [], people }),
+      result: computePpn({ year: 2027, events: [event("p1", at(2026, 10, 20), ["a", "s"])], lastEvents: [], earlier: [], people, now: NOW }),
     });
     const [byPpn, who] = pick(only, "multiBars");
     expect(byPpn.subtitle).toBe("Everyone at each PPN");
@@ -342,10 +375,10 @@ describe("PPN", () => {
       { label: "UNSW", value: 1, colour: expect.any(String) },
     ]);
     const none = buildPpnBlocks({
-      result: computePpn({ year: 2027, events: [event("p0", at(2026, 10, 20), [])], lastEvents: [], earlier: [], people }),
+      result: computePpn({ year: 2027, events: [event("p0", at(2026, 10, 20), [])], lastEvents: [], earlier: [], people, now: NOW }),
     });
     expect(none.map((b) => b.type)).toEqual(["empty", "eventList"]);
-    const nothing = buildPpnBlocks({ result: computePpn({ year: 2027, events: [], lastEvents: [], earlier: [], people }) });
+    const nothing = buildPpnBlocks({ result: computePpn({ year: 2027, events: [], lastEvents: [], earlier: [], people, now: NOW }) });
     expect(nothing.map((b) => b.type)).toEqual(["empty"]);
   });
 });

@@ -302,12 +302,12 @@ export function summaryCards(
   const lastStayed = last ? stayedShare(last) : null;
   return [
     {
-      label: "Weekly avg",
+      label: "Weeklies average",
       value: s.weeklyAvg === null ? "–" : String(s.weeklyAvg),
       delta: countDelta(s.weeklyAvg, last?.weeklyAvg ?? null),
       hint: last?.weeklyAvg != null ? vs(String(last.weeklyAvg)) : undefined,
       info: info(
-        "Weekly avg",
+        "Weeklies average",
         jointCounted
           ? "The average head count at this campus's weeklies, Mega and combined ones with other campuses included. A weekly nobody signed in to isn't counted."
           : "The average head count at this campus's own weeklies. Mega and combined weeklies with other campuses aren't counted, and neither is a weekly nobody signed in to."
@@ -423,6 +423,12 @@ export function buildTermBlocks(input: {
       ? `Compared with ${point}, the same point in the ${termWord(term.system)}. ${before.term.label}'s own page has its whole ${termWord(term.system)}.`
       : `Compared with ${point}.`
     : undefined;
+  const [average, people, ...mix] = summaryCards(
+    result.summary,
+    before?.summary ?? null,
+    compareNote,
+    input.jointCounted
+  );
   const blocks: WeeklyBlock[] = [
     { type: "updated", computedAt: input.computedAt },
     {
@@ -431,11 +437,8 @@ export function buildTermBlocks(input: {
         ? `${term.label}: ${count}, compared with ${point}.`
         : `${term.label}: ${count}.`,
     },
-    {
-      type: "cards",
-      layout: "grid",
-      cards: summaryCards(result.summary, before?.summary ?? null, compareNote, input.jointCounted),
-    },
+    { type: "heading", text: "Turnout" },
+    { type: "cards", layout: "grid", cards: [average, people] },
   ];
   // The week-by-week charts sit near the top, above the follow-up lists.
   // Points line up by label, so a second weekly in one week keeps its own bar.
@@ -473,7 +476,11 @@ export function buildTermBlocks(input: {
       keepZeros: true,
     });
   }
-  blocks.push(byCategoryChart(termPoints(result), "Who came each week", "Head count by category"));
+  blocks.push(
+    { type: "heading", text: "Who came" },
+    { type: "cards", layout: "grid", cards: mix },
+    byCategoryChart(termPoints(result), "Who came each week", "Head count by category")
+  );
   if (input.followUps) blocks.push(...followUpBlocks(input.followUps, term.year));
   blocks.push(
     peopleBlock(
@@ -511,6 +518,12 @@ export function buildYearBlocks(input: {
       ? `Compared with ${point}, the same point in the year. ${lastYear.year}'s own page has the whole year.`
       : `Compared with ${point}.`
     : undefined;
+  const [average, people, ...mix] = summaryCards(
+    result.summary,
+    lastYear?.summary ?? null,
+    compareNote,
+    input.jointCounted
+  );
   const blocks: WeeklyBlock[] = [
     { type: "updated", computedAt: input.computedAt },
     {
@@ -519,17 +532,14 @@ export function buildYearBlocks(input: {
         ? `${result.year}: ${count}, compared with ${point}.`
         : `${result.year}: ${count}.`,
     },
-    {
-      type: "cards",
-      layout: "grid",
-      cards: summaryCards(result.summary, lastYear?.summary ?? null, compareNote, input.jointCounted),
-    },
+    { type: "heading", text: "Turnout" },
+    { type: "cards", layout: "grid", cards: [average, people] },
   ];
   if (lastYear) {
     const slots = [...new Set([...input.terms, ...input.lastYearTerms].map((t) => t.term.slot))].sort();
     blocks.push({
       type: "multiBars",
-      title: `Weekly avg by ${termWord(input.terms[0]?.term.system ?? input.lastYearTerms[0].term.system)}`,
+      title: `Weeklies average by ${termWord(input.terms[0]?.term.system ?? input.lastYearTerms[0].term.system)}`,
       subtitle: `Against ${point}`,
       legend: [
         { key: "now", colour: THIS_COLOUR, label: String(result.year) },
@@ -551,6 +561,7 @@ export function buildYearBlocks(input: {
       keepZeros: true,
     });
   }
+  blocks.push({ type: "heading", text: "Who came" }, { type: "cards", layout: "grid", cards: mix });
   // One chart per term: a whole year of weeks is too crowded for one.
   for (const t of input.terms) {
     blocks.push(byCategoryChart(termPoints(t), `Who came each week in ${termName(t)}`, "Head count by category"));

@@ -66,7 +66,7 @@ const ChartModeContext = createContext<ChartMode>("bar");
 export const ChartModeProvider = ChartModeContext.Provider;
 const useChartMode = (): ChartMode => useContext(ChartModeContext);
 
-type LegendItem = { key: string; colour: string; label: string };
+type LegendItem = { key: string; colour: string; label: string; shape?: "line" };
 
 type ChartSelection = { selectedKey: string | null; toggle: (key: string) => void };
 const ChartSelectionContext = createContext<ChartSelection>({
@@ -254,6 +254,7 @@ function LineSeriesChart({
                         }}
                       >
                         <BarTooltip
+                          edge={edgeOf(i, count)}
                           year={tooltipLabelFor(i)}
                           rows={shown.map((s) => ({
                             label: s.label ?? s.key,
@@ -373,7 +374,17 @@ function BarLabel({ text }: { text: string }) {
 
 const Y_TICK_LINE_H = 11;
 
-function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; ticks?: number[] }) {
+function YAxis({
+  max,
+  chartHeight,
+  ticks,
+  unit = "",
+}: {
+  max: number;
+  chartHeight: number;
+  ticks?: number[];
+  unit?: string;
+}) {
   const t = useAppTheme();
   const values = ticks ?? [
     max,
@@ -397,7 +408,7 @@ function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; 
           ]}
           numberOfLines={1}
         >
-          {fmtTick(v)}
+          {`${fmtTick(v)}${unit}`}
         </Text>
       ))}
     </View>
@@ -518,7 +529,12 @@ function Legend({
           const dimmed = dimOthers && !isSelected;
           const dot = (
             <View style={[styles.legendItem, dimmed && { opacity: 0.35 }]}>
-              <View style={[styles.legendDot, { backgroundColor: item.colour }]} />
+              <View
+                style={[
+                  item.shape === "line" ? styles.legendLine : styles.legendDot,
+                  { backgroundColor: item.colour },
+                ]}
+              />
               <Text
                 style={[
                   typography.caption,
@@ -712,14 +728,25 @@ export function ChartCard({
   );
 }
 
-type TooltipRow = { label: string; value: number; colour?: string };
+type TooltipRow = { label: string; value: number | string; colour?: string; shape?: "line" };
 
-function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
+type TooltipEdge = "start" | "end" | undefined;
+
+const edgeOf = (i: number, count: number): TooltipEdge =>
+  count > 1 && i === 0 ? "start" : count > 1 && i === count - 1 ? "end" : undefined;
+
+const TOOLTIP_PLACEMENT = {
+  start: { left: 0 },
+  end: { right: 0 },
+  centre: { left: "50%", transform: [{ translateX: -75 }] },
+} as const;
+
+function BarTooltip({ year, rows, edge }: { year: string; rows: TooltipRow[]; edge?: TooltipEdge }) {
   const t = useAppTheme();
   if (!rows || rows.length === 0) return null;
   const single = rows.length === 1 && !rows[0].label;
   return (
-    <View style={[styles.tooltip, { backgroundColor: t.text }]}>
+    <View style={[styles.tooltip, TOOLTIP_PLACEMENT[edge ?? "centre"], { backgroundColor: t.text }]}>
       <Text style={[styles.tooltipYear, { color: t.background }]}>{year}</Text>
       {single ? (
         <Text style={[styles.tooltipValue, { color: t.background }]}>
@@ -728,7 +755,9 @@ function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
       ) : (
         rows.map((r) => (
           <View key={r.label} style={styles.tooltipRow}>
-            {r.colour ? (
+            {r.shape === "line" ? (
+              <View style={[styles.tooltipLine, { backgroundColor: t.background }]} />
+            ) : r.colour ? (
               <View
                 style={[styles.tooltipDot, { backgroundColor: r.colour }]}
               />
@@ -823,6 +852,7 @@ export function BarChart({
                   >
                     {selected ? (
                       <BarTooltip
+                        edge={edgeOf(i, points.length)}
                         year={labelFor(i)}
                         rows={[{ label: "", value: p.value }]}
                       />
@@ -974,6 +1004,7 @@ export function StackedBarChart({
                   >
                     {selected ? (
                       <BarTooltip
+                        edge={edgeOf(i, points.length)}
                         year={labelFor(i)}
                         rows={[
                           {
@@ -1031,6 +1062,14 @@ type MultiStackPoint = {
   segments: { key: string; value: number; colour: string; label?: string }[];
 };
 
+type OverlayLine = { key: string; label: string; colour: string; values: (number | null)[] };
+
+const slotCentres = (w: number, count: number, barWidth: number, gap: number): number[] => {
+  const free = Math.max(0, w - (count * barWidth + Math.max(0, count - 1) * gap));
+  const around = free / count;
+  return Array.from({ length: count }, (_, i) => around / 2 + i * (barWidth + gap + around) + barWidth / 2);
+};
+
 const SEG_GAP = 1.5;
 
 export function MultiStackedBarChart({
@@ -1040,6 +1079,8 @@ export function MultiStackedBarChart({
   stacked = true,
   axisMax,
   keepZeros = false,
+  line,
+  unit = "",
 }: {
   points: MultiStackPoint[];
   fullscreen?: boolean;
@@ -1047,6 +1088,8 @@ export function MultiStackedBarChart({
   stacked?: boolean;
   axisMax?: number;
   keepZeros?: boolean;
+  line?: OverlayLine;
+  unit?: string;
 }) {
   const t = useAppTheme();
   const mode = useChartMode();
@@ -1073,7 +1116,8 @@ export function MultiStackedBarChart({
     1,
     ...points.flatMap((p) => p.segments.map((seg) => seg.value)),
   );
-  const dataMax = stacked ? stackedDataMax : groupedDataMax;
+  const lineMax = Math.max(0, ...(line?.values ?? []).map((v) => v ?? 0));
+  const dataMax = Math.max(stacked ? stackedDataMax : groupedDataMax, lineMax);
   const axis =
     axisMax !== undefined
       ? {
@@ -1096,14 +1140,17 @@ export function MultiStackedBarChart({
     return (
       <LineSeriesChart
         labels={points.map((p) => p.label)}
-        series={[...seriesByKey.values()].map((seg) => ({
-          key: seg.key,
-          label: seg.label,
-          colour: seg.colour,
-          values: points.map(
-            (p) => p.segments.find((s) => s.key === seg.key)?.value ?? null
-          ),
-        }))}
+        series={[
+          ...(line ? [line] : []),
+          ...[...seriesByKey.values()].map((seg) => ({
+            key: seg.key,
+            label: seg.label,
+            colour: seg.colour,
+            values: points.map(
+              (p) => p.segments.find((s) => s.key === seg.key)?.value ?? null
+            ),
+          })),
+        ]}
         max={axis.max}
         fullscreen={fullscreen}
         tooltipLabelFor={labelFor}
@@ -1115,7 +1162,7 @@ export function MultiStackedBarChart({
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={axis.max} chartHeight={chartHeight} ticks={axis.ticks} />
+      <YAxis max={axis.max} chartHeight={chartHeight} ticks={axis.ticks} unit={unit} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <ChartGrid
           max={axis.max}
@@ -1129,6 +1176,7 @@ export function MultiStackedBarChart({
             {
               justifyContent: fit.justify,
               height: chartContainerH(chartHeight),
+              zIndex: selectedIdx !== null || hoveredIdx !== null ? 2 : 0,
             },
           ]}
         >
@@ -1188,12 +1236,18 @@ export function MultiStackedBarChart({
                   >
                     {selected ? (
                       <BarTooltip
+                        edge={edgeOf(i, points.length)}
                         year={labelFor(i)}
-                        rows={visible.map((seg) => ({
-                          label: seg.label ?? seg.key,
-                          value: seg.value,
-                          colour: seg.colour,
-                        }))}
+                        rows={[
+                          ...(line && line.values[i] !== null
+                            ? [{ label: line.label, value: `${line.values[i]}${unit}`, shape: "line" as const }]
+                            : []),
+                          ...visible.map((seg) => ({
+                            label: seg.label ?? seg.key,
+                            value: `${seg.value}${unit}`,
+                            colour: seg.colour,
+                          })),
+                        ]}
                       />
                     ) : fit.showValues && stacked ? (
                       <Text style={[styles.barValue, { color: t.muted }]}>
@@ -1259,6 +1313,27 @@ export function MultiStackedBarChart({
                 );
               })}
         </View>
+        {line && fit.w > 0 ? (
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: BAR_VALUE_H,
+              height: chartHeight,
+              zIndex: 1,
+            }}
+          >
+            <LinePath
+              colour={line.colour}
+              points={slotCentres(fit.w, points.length, fit.barWidth, fit.gap).map((x, i) => {
+                const v = line.values[i];
+                return v === null || v === undefined ? null : { x, y: yAt(v, axis.max, chartHeight) };
+              })}
+            />
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -1491,7 +1566,6 @@ const styles = StyleSheet.create({
   barSlot: {
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 4,
     paddingTop: BAR_VALUE_H,
     overflow: "visible",
     position: "relative",
@@ -1502,7 +1576,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     minWidth: 24,
   },
-  barValue: { fontSize: 11, fontWeight: "700" },
+  barValue: { fontSize: 11, fontWeight: "700", marginBottom: 4 },
   barLabel: { fontSize: 10, letterSpacing: -0.2 },
   // Shrinks to the card so a long legend wraps instead of running off it.
   legendBlock: { gap: 6, flexShrink: 1, minWidth: 0 },
@@ -1518,6 +1592,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendLine: { width: 14, height: LINE_STROKE, borderRadius: LINE_STROKE / 2 },
   breakdownRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1575,8 +1650,6 @@ const styles = StyleSheet.create({
   tooltip: {
     position: "absolute",
     bottom: "100%",
-    left: "50%",
-    transform: [{ translateX: -75 }],
     borderRadius: radius.md,
     paddingHorizontal: 9,
     paddingVertical: 6,
@@ -1609,6 +1682,7 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
+  tooltipLine: { width: 8, height: LINE_STROKE, borderRadius: LINE_STROKE / 2 },
   tooltipSegLabel: { fontSize: 10, flex: 1 },
   tooltipSegValue: { fontSize: 11, fontWeight: "700" },
 });

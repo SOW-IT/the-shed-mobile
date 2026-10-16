@@ -11,11 +11,27 @@ All notable changes to **The SHED** mobile app. This project follows
 Insights and screens that show more and explain less.
 
 ### Changed
-- **PPN is charts, not rows of text.** Cards for the average per PPN (against
-  the same months last staff year), people, first-timers and the campus
-  leaders' share; bars for each PPN against last year; bars of who came
-  (campus leaders, other staff, no staff profile); first PPN against came
-  before; and sign-ins by campus in campus colours.
+- **Average years served counts every year someone has served**, in any role,
+  up to and including the year picked, divided by everyone serving that year.
+  Before, a staff member's student leader years didn't count towards staff, so
+  the overall average came out higher than both groups. Served 2+ years and
+  retention follow the same rule: a student leader who joins staff is retained
+  and keeps their leader years.
+- **General draws staff and student leaders as side-by-side bars with overall
+  as a line over them** on Staff & student leaders, Retention, Average years
+  served and Served 2+ years. Retention and Served 2+ years have % on the
+  axis. General no longer offers a bars or lines switch.
+- **Insights reads in sections.** Each set of cards sits with the chart that
+  shows it, under a heading: People serving, Retention, Years served and
+  Weeklies on General; Turnout and Who came on a campus and on PPN; Weeklies
+  and SOW events on SOW. A picked year on General shows its groups of three in
+  a row instead of two and one.
+- **"Avg" is spelled out**: Weeklies average (by campus, by term), Average
+  years served, Average per event.
+- **PPN is charts, not rows of text.** Cards for the average per PPN, people,
+  first-timers and the campus leaders' share; bars for each PPN against last
+  year; bars of who came (campus leaders, other staff, no staff profile);
+  first PPN against came before; and sign-ins by campus in campus colours.
 - **TWIG's Everyone list includes campus leaders who haven't come yet**, as
   0/n with a "Not yet" filter, so the gaps are visible without counting.
 - **Tags collapse to their pill and delete button.** Tap a tag to see and edit
@@ -28,6 +44,24 @@ Insights and screens that show more and explain less.
   Finance) instead of a paragraph describing them.
 - **Insights is no longer marked BETA** in the tab bar and side menu.
 - TWIG's campus bars use campus colours, like the rest of Insights.
+
+### Fixed
+- **Every bar chart drew its bars 4px above the zero line**, so a 100% bar
+  rose past the 100% gridline. Bars now start on the line.
+- The tooltip on a chart's first or last bar stays on screen.
+- **General's weeklies average by campus** gave a weekly shared by several
+  campuses its whole turnout at each of them. It now follows the joint
+  weeklies setting, like the campus page, and says it's by calendar year.
+- **A campus year's Regulars** counted people their latest term called
+  Regular. It now counts people who came to at least half of the year's
+  weeklies, as its (i) says.
+- **SOW events' average per event** counted events nobody signed in to as
+  zero.
+- **PPN's average** was compared with last year's PPN in the same month, and a
+  month with two PPNs counted that one twice. It now compares with last staff
+  year up to the same date, like TWIG.
+- The student leaders by campus chart leaves out campuses with nobody in the
+  years shown.
 
 ## [2.9.7] - 2026-10-16
 

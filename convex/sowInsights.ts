@@ -130,6 +130,7 @@ export const view = query({
       lastEvents: lastYear,
       earlier: [...earlier, ...lastYear],
       people,
+      now,
     });
     return { years: yearOptions, year, blocks: buildPpnBlocks({ result, earlierYear }) };
   },

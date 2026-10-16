@@ -274,12 +274,13 @@ export function buildPpnBlocks(input: { result: PpnResult; earlierYear?: number 
     ];
   }
   const ppns = [...result.rows].reverse();
-  const matched = ppns.flatMap((r) => (r.last ? [r.last.total] : []));
   const avg = round1(totals.signIns / ppns.length);
-  const lastAvg = matched.length ? round1(matched.reduce((sum, n) => sum + n, 0) / matched.length) : null;
+  const lastAvg = result.lastAverage;
+  const anyMatched = ppns.some((r) => r.last);
   const roles = SOW_ROLE_ORDER.filter((role) => totals.byRole[role] > 0);
   return [
     { type: "caption", text: `Staff year ${year}: ${plural(ppns.length, "PPN")}.` },
+    { type: "heading", text: "Turnout" },
     {
       type: "cards",
       layout: "grid",
@@ -291,7 +292,7 @@ export function buildPpnBlocks(input: { result: PpnResult; earlierYear?: number 
           hint: lastAvg === null ? undefined : `vs ${lastAvg}`,
           info: {
             title: "Average per PPN",
-            body: "Everyone who signed in, per PPN, against PPNs in the same months last staff year.",
+            body: "Everyone who signed in, per PPN, against last staff year's PPNs up to the same date.",
           },
         },
         {
@@ -299,37 +300,44 @@ export function buildPpnBlocks(input: { result: PpnResult; earlierYear?: number 
           value: String(totals.people),
           info: { title: "People", body: "Different people at one or more PPNs this staff year." },
         },
-        {
-          label: "First-timers",
-          value: String(totals.firstTimers),
-          info: { title: "First-timers", body: "People at their first PPN ever." },
-        },
-        {
-          label: "Campus leaders",
-          value: pct(totals.byRole.leader / totals.signIns),
-          hint: `${totals.byRole.leader} of ${plural(totals.signIns, "sign-in")}`,
-          info: { title: "Campus leaders", body: "The share of sign-ins from campus leaders." },
-        },
       ],
     },
     {
       type: "multiBars",
       title: "PPN by PPN",
-      subtitle: matched.length ? `Everyone at each PPN, against the same month in ${year - 1}` : "Everyone at each PPN",
+      subtitle: anyMatched ? `Everyone at each PPN, against the same month in ${year - 1}` : "Everyone at each PPN",
       legend: [
         { key: "now", colour: THIS_COLOUR, label: String(year) },
-        ...(matched.length ? [{ key: "then", colour: LAST_COLOUR, label: String(year - 1) }] : []),
+        ...(anyMatched ? [{ key: "then", colour: LAST_COLOUR, label: String(year - 1) }] : []),
       ],
       points: ppns.map((r) => ({
         at: r.event.at,
         label: dayLabel(r.event.at),
         segments: [
           { key: "now", value: r.total, colour: THIS_COLOUR },
-          ...(matched.length ? [{ key: "then", value: r.last?.total ?? 0, colour: LAST_COLOUR }] : []),
+          ...(anyMatched ? [{ key: "then", value: r.last?.total ?? 0, colour: LAST_COLOUR }] : []),
         ],
       })),
       stacked: false,
       keepZeros: true,
+    },
+    { type: "heading", text: "Who came" },
+    {
+      type: "cards",
+      layout: "grid",
+      cards: [
+        {
+          label: "Campus leaders",
+          value: pct(totals.byRole.leader / totals.signIns),
+          hint: `${totals.byRole.leader} of ${plural(totals.signIns, "sign-in")}`,
+          info: { title: "Campus leaders", body: "The share of sign-ins from campus leaders." },
+        },
+        {
+          label: "First-timers",
+          value: String(totals.firstTimers),
+          info: { title: "First-timers", body: "People at their first PPN ever." },
+        },
+      ],
     },
     {
       type: "multiBars",
