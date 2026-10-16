@@ -741,7 +741,7 @@ function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
                 style={[styles.tooltipDot, { backgroundColor: r.colour }]}
               />
             ) : null}
-            <Text style={[styles.tooltipSegLabel, { color: t.background }]}>
+            <Text numberOfLines={1} style={[styles.tooltipSegLabel, { color: t.background }]}>
               {r.label}
             </Text>
             <Text style={[styles.tooltipSegValue, { color: t.background }]}>
@@ -1590,12 +1590,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: "100%",
     left: "50%",
-    transform: [{ translateX: -43 }],
+    transform: [{ translateX: -75 }],
     borderRadius: radius.md,
     paddingHorizontal: 9,
     paddingVertical: 6,
     alignItems: "flex-start",
-    minWidth: 86,
+    width: 150,
     marginBottom: 6,
     gap: 3,
     zIndex: 100,
