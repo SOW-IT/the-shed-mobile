@@ -7,6 +7,7 @@ import {
   isCommencementYear,
   isLockedSelectOption,
   memberOwnMetadata,
+  metadataSubtitle,
   metadataFieldAllowsCustomOptions,
   orderedRoleFilterOptions,
   orderedSelectOptions,
@@ -293,5 +294,28 @@ describe("sameMetadata", () => {
     expect(sameMetadata({ a: "1" }, { a: "2" })).toBe(false);
     expect(sameMetadata({ a: "1" }, { a: "1", b: "2" })).toBe(false);
     expect(sameMetadata({ a: "1" }, undefined)).toBe(false);
+  });
+});
+
+describe("metadataSubtitle", () => {
+  const fields = [
+    { _id: "role", key: "Role", values: { "2": "Member" } },
+    { _id: "year", key: "Year", values: YEAR_OPTIONS },
+    { _id: "arc", key: "Arc Member?", values: { "2": "Yes", "3": "No" } },
+    { _id: "ask", key: "Coming?", values: { "1": "Maybe" } },
+    { _id: "ig", key: "Instagram" },
+    { _id: "zid", key: "zID" },
+  ];
+
+  test("labels the year, names a yes answer, drops a no, and marks the Instagram handle", () => {
+    expect(
+      metadataSubtitle(
+        fields,
+        { role: "2", year: "2025", arc: "2", ask: "1", ig: "byexjj", zid: "z5689149" },
+        2026
+      )
+    ).toBe("Member · Year 2 · Arc Member · Coming? Maybe · @byexjj · z5689149");
+    expect(metadataSubtitle(fields, { arc: "3", ig: "@already" }, 2026)).toBe("@already");
+    expect(metadataSubtitle(fields, { year: "2030" }, 2026)).toBe("");
   });
 });

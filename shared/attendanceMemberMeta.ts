@@ -378,6 +378,17 @@ export const resolveUniversity = (
 };
 
 /** "Value · Value" summary of a member's metadata, in field order. */
+const subtitlePart = (fieldKey: string, value: string): string | null => {
+  if (fieldKey === STUDENT_YEAR_FIELD_KEY) return `Year ${value}`;
+  if (fieldKey.endsWith("?")) {
+    const answer = value.trim().toLowerCase();
+    if (answer === "no") return null;
+    return answer === "yes" ? fieldKey.slice(0, -1).trim() : `${fieldKey} ${value}`;
+  }
+  if (/instagram/i.test(fieldKey)) return value.startsWith("@") ? value : `@${value}`;
+  return value;
+};
+
 export const metadataSubtitle = (
   fields: readonly MetadataFieldLike[],
   metadata: Record<string, string> | undefined,
@@ -391,7 +402,8 @@ export const metadataSubtitle = (
     .map((f) => {
       const raw = metadata[f._id];
       if (!raw) return null;
-      return formatMetadataFieldValue(f.key, raw, viewingYear, f.values);
+      const value = formatMetadataFieldValue(f.key, raw, viewingYear, f.values);
+      return value ? subtitlePart(f.key, value) : null;
     })
     .filter(Boolean)
     .join(" · ");
