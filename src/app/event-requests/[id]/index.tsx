@@ -22,13 +22,13 @@ import {
   Card,
   EmptyState,
   ErrorBanner,
-  errorMessage,
   FadeInView,
   Field,
   LoadingState,
   Muted,
   ReadableColumn,
   Row,
+  runBusy,
   Screen,
   SectionTitle,
   Sheet,
@@ -170,19 +170,8 @@ export default function EventRequestScreen() {
   }
 
   const { event, can } = data;
-  const run = async (action: () => Promise<unknown>, after?: () => void) => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-      after?.();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const run = (action: () => Promise<unknown>, after?: () => void) =>
+    runBusy(busy, setBusy, setError, action, after);
 
   const downloadPdf = () =>
     run(async () => {

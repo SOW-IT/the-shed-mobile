@@ -5,7 +5,6 @@ import { Keyboard, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { formatMetadataFieldValue } from "../../../shared/attendanceMemberMeta";
-import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import type { MergeResolutions, MergeSide } from "../../../shared/memberMerge";
 import { typedMatches } from "../../../shared/typedConfirm";
 import { MemberRow } from "@/components/attendance/MemberRow";
@@ -25,6 +24,7 @@ import {
   WarningBanner,
 } from "@/components/ui";
 import { useHeldValue } from "@/hooks/useHeldValue";
+import { sydneyDay } from "@/lib/sydneyTime";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type Picked = {
@@ -42,10 +42,7 @@ type History = { events: number; lastAttended: number | null };
 const historyLine = (h: History) =>
   h.events === 0
     ? "Not signed in to any events"
-    : `${plural(h.events, "event")} · last ${new Date(h.lastAttended!).toLocaleDateString(
-        "en-AU",
-        { timeZone: SYDNEY_TIME_ZONE, day: "numeric", month: "short", year: "numeric" }
-      )}`;
+    : `${plural(h.events, "event")} · last ${sydneyDay(h.lastAttended!)}`;
 
 /**
  * Merge a duplicate into the member (or staff person) being edited. Only a

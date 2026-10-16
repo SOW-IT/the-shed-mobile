@@ -52,13 +52,13 @@ import {
   ConfirmDialog,
   EmptyState,
   ErrorBanner,
-  errorMessage,
   FadeInView,
   FooterAction,
   LoadingState,
   Muted,
   ReadableColumn,
   Row,
+  runBusy,
   Screen,
   Sheet,
   type ToastState,
@@ -184,19 +184,8 @@ export default function EventSubFormScreen() {
 
   const { event } = data;
   const label = SUB_FORM_LABELS[kind];
-  const run = async (action: () => Promise<unknown>, after?: () => void) => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-      after?.();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const run = (action: () => Promise<unknown>, after?: () => void) =>
+    runBusy(busy, setBusy, setError, action, after);
 
   /** Saves the form; with `submit`, checks it first and sends it for approval. */
   const save = (submit: boolean) => {

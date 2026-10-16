@@ -14,7 +14,6 @@ import {
   STUDENT_YEAR_FIELD_KEY,
   yearOptionIdForStoredValue,
 } from "../../../shared/attendanceMemberMeta";
-import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import { isSowStaffAddress } from "../../../shared/rollcallImport";
 import { capitalizeMemberName } from "../../../shared/rollcall";
 import { typedMatches } from "../../../shared/typedConfirm";
@@ -35,15 +34,8 @@ import {
   Txt,
   WarningBanner,
 } from "@/components/ui";
+import { sydneyDay } from "@/lib/sydneyTime";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
-
-const eventDate = (ms: number) =>
-  new Date(ms).toLocaleDateString("en-AU", {
-    timeZone: SYDNEY_TIME_ZONE,
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 
 export function EditMemberSheet({
   visible,
@@ -551,7 +543,7 @@ export function EditMemberSheet({
                             {e.name}
                           </Txt>
                           <Txt style={[typography.caption, { color: t.muted }]}>
-                            {eventDate(e.dateStart)}
+                            {sydneyDay(e.dateStart)}
                           </Txt>
                         </View>
                       ))}
