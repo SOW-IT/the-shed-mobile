@@ -1343,7 +1343,7 @@ export function FollowUpRow({
   const t = useAppTheme();
   const tone = t[REASON_TONE[person.reasonCode]] as string;
   const last = person.lastAttended
-    ? new Date(person.lastAttended).toLocaleDateString(undefined, {
+    ? new Date(person.lastAttended).toLocaleDateString("en-AU", {
         day: "numeric",
         month: "short",
       })

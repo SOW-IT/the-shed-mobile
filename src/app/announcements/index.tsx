@@ -46,7 +46,7 @@ type When = "now" | "later";
 
 /** "Fri 9 Oct, 3:00 pm" in the viewer's time. */
 const whenText = (ms: number) =>
-  new Date(ms).toLocaleString(undefined, {
+  new Date(ms).toLocaleString("en-AU", {
     weekday: "short",
     day: "numeric",
     month: "short",

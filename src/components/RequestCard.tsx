@@ -450,7 +450,7 @@ export const RequestCard = ({
       <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
         {request.department}
         {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""}{" · "}
-        {new Date(request._creationTime).toLocaleDateString(undefined, {
+        {new Date(request._creationTime).toLocaleDateString("en-AU", {
           day: "numeric",
           month: "short",
         })}{" · "}

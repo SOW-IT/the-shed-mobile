@@ -61,7 +61,7 @@ const timeAgo = (ms: number): string => {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(ms).toLocaleDateString(undefined, {
+  return new Date(ms).toLocaleDateString("en-AU", {
     day: "numeric",
     month: "short",
   });

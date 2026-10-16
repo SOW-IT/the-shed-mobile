@@ -12,7 +12,7 @@ const STATUS_LABELS = { scheduled: "Scheduled", sent: "Sent", cancelled: "Cancel
 const NOT_SENT_LABEL = "Not sent";
 
 const dateText = (ms: number) =>
-  new Date(ms).toLocaleString(undefined, {
+  new Date(ms).toLocaleString("en-AU", {
     weekday: "short",
     day: "numeric",
     month: "short",
