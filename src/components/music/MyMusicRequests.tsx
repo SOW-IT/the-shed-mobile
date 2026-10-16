@@ -3,7 +3,15 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 import { useSpotifyPlaylist } from "./useSpotifyPlaylist";
@@ -194,10 +202,20 @@ export const NewMusicRequestSheet = ({
         `${toAdd.length} song(s) added from ${result.name}.${result.limited ? " Only the first 50 playlist entries were fetched." : ""}${fresh.length > available ? " The submission limit is 50 songs." : ""} Existing requests will be skipped when submitted.`,
       );
     } catch (error) {
-      Alert.alert(
-        "Couldn't import playlist",
-        error instanceof Error ? error.message : "Please try again.",
-      );
+      const message = error instanceof Error ? error.message : String(error);
+
+      const accessDenied =
+        /403|denied access to playlist songs|forbidden/i.test(message);
+
+      const friendlyMessage = accessDenied
+        ? "You don't have permission to import this playlist. Please use a Spotify playlist that you own or collaborate on."
+        : "We couldn't import this playlist. Please check the Spotify link and try again.";
+
+      if (Platform.OS === "web") {
+        window.alert(friendlyMessage);
+      } else {
+        Alert.alert("Couldn't import playlist", friendlyMessage);
+      }
     } finally {
       setImportingPlaylist(false);
     }

@@ -87,7 +87,6 @@ export const saveConnection = internalMutation({
     encryptedAccessToken: v.string(),
     encryptedRefreshToken: v.string(),
     expiresAt: v.number(),
-    spotifyUserId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -102,7 +101,6 @@ export const saveConnection = internalMutation({
         encryptedAccessToken: args.encryptedAccessToken,
         encryptedRefreshToken: args.encryptedRefreshToken,
         expiresAt: args.expiresAt,
-        spotifyUserId: args.spotifyUserId,
         updatedAt: now,
       });
 
@@ -114,7 +112,6 @@ export const saveConnection = internalMutation({
       encryptedAccessToken: args.encryptedAccessToken,
       encryptedRefreshToken: args.encryptedRefreshToken,
       expiresAt: args.expiresAt,
-      spotifyUserId: args.spotifyUserId,
       connectedAt: now,
       updatedAt: now,
     });

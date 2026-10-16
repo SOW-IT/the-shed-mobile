@@ -699,7 +699,6 @@ export default defineSchema({
     encryptedAccessToken: v.string(),
     encryptedRefreshToken: v.string(),
     expiresAt: v.number(),
-    spotifyUserId: v.optional(v.string()),
     connectedAt: v.number(),
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),
