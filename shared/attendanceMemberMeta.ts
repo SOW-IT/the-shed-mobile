@@ -124,7 +124,7 @@ export const formatMetadataFieldValue = (
     if (commencement === null) return null;
     return studentYearLevelFromCommencement(commencement, viewingYear);
   }
-  if (fieldValues?.[stored]) return fieldValues[stored];
+  if (fieldValues) return fieldValues[stored] ?? null;
   return stored;
 };
 

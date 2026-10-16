@@ -308,6 +308,7 @@ export function ExportSheet({
                   min={toInputDate(MIN_DATE.getTime())}
                   max={toInputDate(toMs ?? nowMs)}
                   onChange={(s) => setFromMs(fromInputDate(s))}
+                  needed
                 />
                 <WebDateInput
                   label="To"
@@ -327,6 +328,7 @@ export function ExportSheet({
                   min={toInputDate(MIN_DATE.getTime())}
                   max={toInputDate(toMs ?? nowMs)}
                   onChange={(s) => setFromMs(fromInputDate(s))}
+                  needed
                 />
                 <NativeDateInput
                   label="To"
@@ -340,22 +342,9 @@ export function ExportSheet({
               </>
             )}
           </View>
-          {fromMs == null ? (
-            <Txt
-              style={[
-                typography.caption,
-                { color: t.muted, marginTop: spacing.xs },
-              ]}
-            >
-              Pick a start date to export. End date defaults to today.
-            </Txt>
-          ) : null}
-
-          <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
-            Tags (optional)
-          </Txt>
+          <View style={{ height: spacing.md }} />
           <MultiSelect
-            label="Filter by tags"
+            label="Tags"
             values={selectedTags as unknown as string[]}
             options={(tags ?? []).map((tag) => ({
               label: tag.name,

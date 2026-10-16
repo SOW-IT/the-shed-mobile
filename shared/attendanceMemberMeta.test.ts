@@ -197,6 +197,8 @@ describe("gender and field helpers", () => {
       resolveCommencementYear("not-a-year", 2026, YEAR_OPTIONS)
     ).toBeNull();
     expect(formatMetadataFieldValue("Notes", "hello", 2026)).toBe("hello");
+    expect(formatMetadataFieldValue("Gender", "2", 2026, { 1: "Male", 2: "Female" })).toBe("Female");
+    expect(formatMetadataFieldValue("Gender", "3", 2026, { 1: "Male", 2: "Female" })).toBeNull();
   });
 
   test("partitionSelectOptions sort covers bi-in-order branch", () => {
