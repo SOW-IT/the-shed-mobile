@@ -6,6 +6,51 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.9] - 2026-10-17
+
+Every screen walked again on latest main, as every kind of user (signed out,
+personal account, campus leader, staff, Marketing, heads of department, the
+Budget Manager, Finance Head, Director and an admin), on web and the iOS
+simulator. Fixes for what that turned up, and a few places that now show
+instead of tell.
+
+### Fixed
+- **Pages opened from a link while signed out no longer spin forever.**
+  Profile, New Design Request and New Event Request ask you to sign in, like
+  every other page; Announcements and Admin ask too instead of saying only
+  admins can use them; an event link says "Sign in to see this event", not
+  "Event not found".
+- **New Event Request no longer spins for campus leaders**, and neither page
+  spins for a personal account: they say who the requests are for, as the
+  list pages do. A personal (non-SOW) account is asked to use its SOW Google
+  account instead of being told it has no role "yet".
+- **Notifications and someone's profile could open with no back arrow** on a
+  fresh launch (Expo Router 58 reads the stack before it has pushed the
+  screen). Both now always have one.
+- **A request link opens where the request is.** Finance staff land on All,
+  on Ongoing or Completed as the request needs, with it expanded, instead of
+  an empty Mine; a request you can't see says so instead of saying it was
+  deleted.
+- **Admin is a proper locked page** for people who can't use it, not a line
+  of small text.
+- "Reviewed (50)" on Review was the 50-row limit shown as a count; it now
+  says "Latest 50 reviewed" when the list is cut off.
+- Two old attendance pages nothing linked to any more (a campus's event list
+  and a bare New event screen that made events with no date, weekly mark or
+  tags) are gone.
+
+### Changed
+- **New Request shows who it goes to as you type**: HOD, Budget Manager,
+  Director (from the threshold) and Finance Head, by name, with steps your
+  own role skips marked. It replaces the sentence about Director approval.
+- **Receipts you attach show a thumbnail** when they're images.
+- **A design request shows its progress** as a step track (Submitted,
+  Approved or Declined, Complete) with who and when, instead of lines of
+  text.
+- **Approvers open on the work waiting for them**: Review when a request
+  waits on you and nothing of your own needs doing, and the Marketing queue
+  for the Marketing Head.
+
 ## [2.9.8] - 2026-10-17
 
 Insights and screens that show more and explain less.
