@@ -11,6 +11,8 @@ import {
   ROLE_FIELD_KEY,
 } from "../../../shared/attendanceMemberMeta";
 import { subgroupColour, subgroupLabel } from "../../../shared/rollcall";
+import { typedMatches } from "../../../shared/typedConfirm";
+import { CampusMark } from "@/components/CampusMark";
 import { ReorderableList } from "@/components/ReorderableList";
 import { SubgroupScopePicker } from "@/components/attendance/SubgroupScopePicker";
 import {
@@ -76,7 +78,6 @@ const addSelectOption = (values: Record<string, string> | undefined) => {
 };
 
 const renderSelectOptionEditor = (
-  field: FieldDraft,
   index: number,
   valueId: string,
   label: string,
@@ -127,10 +128,12 @@ export function MetadataTab({
   subgroups,
   defaultSubgroup,
   onSaveStateChange,
+  readOnly = false,
 }: {
   subgroups: string[];
   defaultSubgroup?: string | null;
   onSaveStateChange?: (controls: SaveControls) => void;
+  readOnly?: boolean;
 }) {
   const t = useAppTheme();
   const metadata = useQuery(api.attendanceMetadata.list, {});
@@ -226,9 +229,10 @@ export function MetadataTab({
       saving,
       save: () => void saveMetaNow(),
       revert: revertMeta,
+      error,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metadataChanged, saving, metaDrafts, metaDeletes, savedFields]);
+  }, [metadataChanged, saving, metaDrafts, metaDeletes, savedFields, error]);
 
   if (metadata === undefined) return <LoadingState />;
 
@@ -237,10 +241,10 @@ export function MetadataTab({
       <ReorderableList
         items={metaDrafts}
         keyExtractor={(field) => rowKey(field)}
-        reorderEnabled={!saving}
+        reorderEnabled={!saving && !readOnly}
         onReorder={(next) => setMetaDrafts(reindexFields(next))}
         renderItem={(field, i, { dragHandle, dragging }) => {
-          const fieldLocked = LOCKED_FIELD_KEYS.has(field.key);
+          const fieldLocked = readOnly || LOCKED_FIELD_KEYS.has(field.key);
           const key = rowKey(field);
           const expanded = expandedKeys.has(key);
 
@@ -256,11 +260,13 @@ export function MetadataTab({
               ]}
             >
               <View style={styles.fieldHeader}>
-                {dragHandle}
+                {readOnly ? null : dragHandle}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ expanded }}
-                  accessibilityLabel={`${field.key || "New field"}, ${typeLabel(field.type)}`}
+                  accessibilityLabel={`${field.key || "New field"}, ${typeLabel(field.type)}, ${
+                    field.subgroup ? subgroupLabel(field.subgroup) : "all groups"
+                  }`}
                   onPress={() => toggleExpanded(key)}
                   style={({ pressed }) => [
                     styles.fieldHeaderMain,
@@ -271,12 +277,20 @@ export function MetadataTab({
                     <Text style={[typography.headline, { color: t.text }]}>
                       {field.key.trim() || "New field"}
                     </Text>
-                    <Muted>{typeLabel(field.type)}</Muted>
-                    <Muted>
-                      {field.subgroup
-                        ? `Specific to ${subgroupLabel(field.subgroup)}`
-                        : "Applies to all groups"}
-                    </Muted>
+                    <View style={styles.fieldMeta}>
+                      <Ionicons
+                        name={field.type === "select" ? "list-outline" : "text-outline"}
+                        size={16}
+                        color={t.muted}
+                      />
+                      {field.subgroup ? (
+                        <CampusMark campus={field.subgroup} circleDiameter={20} />
+                      ) : (
+                        <View style={[styles.allChip, { backgroundColor: t.ghost }]}>
+                          <Text style={[styles.allChipText, { color: t.ghostText }]}>All</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                   <Ionicons
                     name={expanded ? "chevron-up" : "chevron-down"}
@@ -330,7 +344,7 @@ export function MetadataTab({
                         : "Group: all groups"
                     }
                     variant="ghost"
-                    disabled={GLOBAL_ONLY_FIELD_KEYS.has(field.key)}
+                    disabled={readOnly || GLOBAL_ONLY_FIELD_KEYS.has(field.key)}
                     onPress={() => setScopeIndex(i)}
                   />
                   {field.type === "select"
@@ -350,14 +364,7 @@ export function MetadataTab({
                               </View>
                             ) : null}
                             {locked.map(({ id, label }) =>
-                              renderSelectOptionEditor(
-                                field,
-                                i,
-                                id,
-                                label,
-                                true,
-                                setMetaDrafts
-                              )
+                              renderSelectOptionEditor(i, id, label, true, setMetaDrafts)
                             )}
                             {showSections && custom.length > 0 ? (
                               <View style={{ marginTop: spacing.sm }}>
@@ -365,20 +372,14 @@ export function MetadataTab({
                               </View>
                             ) : null}
                             {custom.map(({ id, label }) =>
-                              renderSelectOptionEditor(
-                                field,
-                                i,
-                                id,
-                                label,
-                                false,
-                                setMetaDrafts
-                              )
+                              renderSelectOptionEditor(i, id, label, readOnly, setMetaDrafts)
                             )}
                           </>
                         );
                       })()
                     : null}
-                  {field.type === "select" &&
+                  {!readOnly &&
+                  field.type === "select" &&
                   metadataFieldAllowsCustomOptions(field.key, fieldLocked) ? (
                     <Btn
                       title="Add option"
@@ -392,7 +393,7 @@ export function MetadataTab({
                       }
                     />
                   ) : null}
-                  {field.draftKey ? (
+                  {readOnly ? null : field.draftKey ? (
                     <Btn
                       title="Remove field"
                       variant="ghost"
@@ -419,26 +420,28 @@ export function MetadataTab({
         }}
       />
 
-      <Btn
-        title="Add field"
-        variant="ghost"
-        onPress={() => {
-          const draftKey = `new-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          setMetaDrafts((prev) =>
-            reindexFields([
-              ...prev,
-              {
-                draftKey,
-                key: "",
-                type: "input",
-                order: prev.length,
-                subgroup: defaultSubgroup ?? undefined,
-              },
-            ])
-          );
-          setExpandedKeys((prev) => new Set(prev).add(draftKey));
-        }}
-      />
+      {readOnly ? null : (
+        <Btn
+          title="Add field"
+          variant="ghost"
+          onPress={() => {
+            const draftKey = `new-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            setMetaDrafts((prev) =>
+              reindexFields([
+                ...prev,
+                {
+                  draftKey,
+                  key: "",
+                  type: "input",
+                  order: prev.length,
+                  subgroup: defaultSubgroup ?? undefined,
+                },
+              ])
+            );
+            setExpandedKeys((prev) => new Set(prev).add(draftKey));
+          }}
+        />
+      )}
 
       {error ? (
         <Txt style={[typography.caption, { color: t.danger, marginTop: spacing.sm }]}>
@@ -482,7 +485,7 @@ export function MetadataTab({
             variant="danger"
             disabled={
               deleteIndex === null ||
-              deleteText.trim() !== metaDrafts[deleteIndex]?.key.trim()
+              !typedMatches(deleteText, metaDrafts[deleteIndex]?.key ?? "")
             }
             onPress={() => {
               if (deleteIndex === null) return;
@@ -524,4 +527,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
+  fieldMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: 2,
+  },
+  allChip: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  allChipText: { fontSize: 11, fontWeight: "700" },
 });

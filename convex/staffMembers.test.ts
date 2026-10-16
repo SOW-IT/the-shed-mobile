@@ -10,7 +10,6 @@ import {
   latestProfileOfMember,
   leaveStaff,
   linkOrCreateMember,
-  memberDisplayName,
   memberRoleOption,
   moveAttendance,
   profilesOfMember,
@@ -332,29 +331,6 @@ describe("leaveStaff", () => {
     );
     expect(ok).toBe(false);
     expect(await s.logs()).toHaveLength(0);
-  });
-});
-
-describe("memberDisplayName", () => {
-  test("uses the staff profile in that year, and the member row otherwise", async () => {
-    const s = setup();
-    const memberId = await s.member("Row Name");
-    await s.profile("Lee.Aver@sow.org.au", NOW, { memberId, name: "Lee Aver" });
-    await s.profile("lee.aver@sow.org.au", NOW - 1, { memberId });
-    const row = (await s.getMember(memberId))!;
-
-    expect(await s.t.run((ctx) => memberDisplayName(ctx, row, NOW))).toEqual({
-      name: "Lee Aver",
-      email: "lee.aver@sow.org.au",
-    });
-    expect(await s.t.run((ctx) => memberDisplayName(ctx, row, NOW - 1))).toEqual({
-      name: "Row Name",
-      email: "lee.aver@sow.org.au",
-    });
-    expect(await s.t.run((ctx) => memberDisplayName(ctx, row, NOW + 1))).toEqual({
-      name: "Row Name",
-      email: undefined,
-    });
   });
 });
 

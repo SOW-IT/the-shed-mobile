@@ -144,7 +144,9 @@ export const SearchField = ({
   );
 };
 
-type SelectOption = string | { label: string; value: string };
+type SelectOption =
+  | string
+  | { label: string; value: string; icon?: keyof typeof Ionicons.glyphMap };
 
 const normalizeOptions = (options: readonly SelectOption[]) =>
   options.map((option) =>
@@ -240,6 +242,7 @@ export const OptionRow = ({
   onPress,
   multi,
   badge,
+  icon,
 }: {
   label: string;
   selected: boolean;
@@ -247,6 +250,7 @@ export const OptionRow = ({
   multi?: boolean;
   /** A short tag after the label, e.g. "Recommended". */
   badge?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
 }) => {
   const t = useAppTheme();
   return (
@@ -262,6 +266,7 @@ export const OptionRow = ({
       accessibilityLabel={badge ? `${label}, ${badge.toLowerCase()}` : label}
     >
       <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        {icon ? <Ionicons name={icon} size={18} color={t.text} /> : null}
         <Text
           numberOfLines={1}
           style={[
@@ -384,12 +389,14 @@ const SelectFace = ({
   hasValue,
   onOpen,
   disabled,
+  icon,
 }: {
   label: string;
   display: string;
   hasValue: boolean;
   onOpen: () => void;
   disabled?: boolean;
+  icon?: keyof typeof Ionicons.glyphMap;
 }) => {
   const t = useAppTheme();
   return (
@@ -406,6 +413,7 @@ const SelectFace = ({
         ]}
         onPress={onOpen}
       >
+        {icon ? <Ionicons name={icon} size={18} color={t.text} /> : null}
         <Text
           numberOfLines={1}
           style={[typography.body, { color: hasValue ? t.text : t.faint, flex: 1 }]}
@@ -439,8 +447,8 @@ export const Select = ({
 }) => {
   const [open, setOpen] = useState(false);
   const normalized = normalizeOptions(options);
-  const selectedLabel =
-    normalized.find((option) => option.value === value)?.label ?? value;
+  const selected = normalized.find((option) => option.value === value);
+  const selectedLabel = selected?.label ?? value;
   return (
     <>
       <SelectFace
@@ -448,6 +456,7 @@ export const Select = ({
         display={selectedLabel || placeholder || "Select…"}
         hasValue={!!value}
         disabled={disabled}
+        icon={selected?.icon}
         onOpen={() => setOpen(true)}
       />
       <OptionSheet visible={open} title={label} onClose={() => setOpen(false)}>
@@ -455,6 +464,7 @@ export const Select = ({
           <OptionRow
             key={option.value || "(empty)"}
             label={option.label}
+            icon={option.icon}
             selected={option.value === value}
             onPress={() => {
               onSelect(option.value);
@@ -612,23 +622,13 @@ export const FloatingYearPicker = ({
   years,
   onSelect,
   formatLabel,
-  bottomOffset = 0,
 }: {
   year: number;
   years: number[];
   onSelect: (year: number) => void;
   formatLabel?: (year: number) => string;
-  bottomOffset?: number;
-}) => {
-  return (
-    <View
-      pointerEvents="box-none"
-      style={[
-        styles.floatingYearPicker,
-        bottomOffset ? { bottom: spacing.md + bottomOffset } : null,
-      ]}
-    >
-      <YearPill year={year} years={years} onSelect={onSelect} formatLabel={formatLabel} />
-    </View>
-  );
-};
+}) => (
+  <View pointerEvents="box-none" style={styles.floatingYearPicker}>
+    <YearPill year={year} years={years} onSelect={onSelect} formatLabel={formatLabel} />
+  </View>
+);

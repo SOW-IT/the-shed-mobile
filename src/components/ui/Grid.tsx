@@ -74,14 +74,12 @@ export const Grid = ({
   minColumnWidth = 300,
   fixedWidth,
   align = "center",
-  gap = spacing.md,
   maxVisible,
 }: {
   children: ReactNode;
   minColumnWidth?: number;
   fixedWidth?: number;
   align?: "center" | "start";
-  gap?: number;
   maxVisible?: number;
 }) => {
   const items = Children.toArray(children);
@@ -115,15 +113,13 @@ export const Grid = ({
 
   const perChild =
     fixedWidth != null
-      ?
-        { width: fixedWidth, maxWidth: "100%" as const }
-      :
-        { flexGrow: 1, flexShrink: 1, flexBasis: minColumnWidth };
+      ? { width: fixedWidth, maxWidth: "100%" as const }
+      : { flexGrow: 1, flexShrink: 1, flexBasis: minColumnWidth };
   const justifyContent =
     fixedWidth != null && align === "center" ? "center" : "flex-start";
   const grid = (
     <View
-      style={{ flexDirection: "row", flexWrap: "wrap", gap, justifyContent }}
+      style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.md, justifyContent }}
       onLayout={
         capIndex == null
           ? undefined
@@ -193,7 +189,7 @@ export const Grid = ({
     contentRight != null ? contentRight + SHADOW_BLEED_X * 2 : null;
 
   return (
-    <View style={{ gap }}>
+    <View style={{ gap: spacing.md }}>
       <View
         style={{
           marginHorizontal: -SHADOW_BLEED_X,

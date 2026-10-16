@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -35,9 +35,6 @@ const EXPANDED_VISIBLE_ROWS = 8;
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 const campusName = (campus: string) => (campus === NO_CAMPUS ? "No campus" : subgroupLabel(campus));
-
-/** Only staff and campus leaders are sent members' churches, so only they see this. */
-const MEMBERS_PRIVATE_NOTE = "Only staff and campus leaders can see members' churches.";
 
 /**
  * One option in the filter: picked (tinted, ticked) or not (outlined). A
@@ -241,8 +238,12 @@ export function ChurchesView() {
     if (linkedChurch) {
       setSelectedId(linkedChurch as Id<"churches">);
       setSearch("");
+      setFilter(NO_CHURCH_FILTER);
     }
   }
+  useEffect(() => {
+    if (followedLink) scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [followedLink]);
   const choose = (churchId: Id<"churches"> | null) => {
     setSelectedId(churchId);
     if (linkedChurch) router.setParams({ church: undefined });
@@ -355,12 +356,6 @@ export function ChurchesView() {
               </Pressable>
             ) : null}
           </View>
-          {canEdit ? (
-            <View style={styles.privateNote}>
-              <Ionicons name="lock-closed-outline" size={13} color={t.muted} />
-              <Text style={[typography.caption, { color: t.muted, flex: 1 }]}>{MEMBERS_PRIVATE_NOTE}</Text>
-            </View>
-          ) : null}
           {churchMapAvailable && pins.length > 0 ? (
             <FadeInView>
               <ChurchMap pins={pins} selectedId={selected?.church._id ?? null} onSelect={choose} />
@@ -426,7 +421,6 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13.5, fontWeight: "600", letterSpacing: -0.1 },
   chipCount: { fontSize: 12.5, fontWeight: "600", fontVariant: ["tabular-nums"] },
   dot: { width: 9, height: 9, borderRadius: 5 },
-  privateNote: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: -spacing.xs },
   summary: {
     flexDirection: "row",
     alignItems: "center",

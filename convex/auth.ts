@@ -45,7 +45,6 @@ const E2eLogin = ConvexCredentials<DataModel>({
       account: { id: email },
       profile: {
         email,
-        name: email.split("@")[0],
         emailVerificationTime: Date.now(),
       },
       shouldLinkViaEmail: true,

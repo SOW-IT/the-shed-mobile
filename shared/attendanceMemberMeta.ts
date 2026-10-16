@@ -124,7 +124,7 @@ export const formatMetadataFieldValue = (
     if (commencement === null) return null;
     return studentYearLevelFromCommencement(commencement, viewingYear);
   }
-  if (fieldValues?.[stored]) return fieldValues[stored];
+  if (fieldValues) return fieldValues[stored] ?? null;
   return stored;
 };
 
@@ -177,17 +177,6 @@ export const canonicalizeGenderValues = (
     else if (lower === "female") out["2"] = "Female";
   }
   return out;
-};
-
-export const canonicalizeGenderOptionId = (
-  stored: string,
-  fieldValues?: Record<string, string>
-): string => {
-  const label = fieldValues?.[stored]?.trim().toLowerCase();
-  if (label === "male") return "1";
-  if (label === "female") return "2";
-  if (stored === "1" || stored === "2") return stored;
-  return stored;
 };
 
 type MetadataSelectOption = { id: string; label: string };
@@ -334,6 +323,17 @@ export const staffLockedMetadata = (
   return next;
 };
 
+export const sameMetadata = (
+  a: Record<string, string> | undefined,
+  b: Record<string, string> | undefined
+): boolean => {
+  const filled = (metadata: Record<string, string> | undefined) =>
+    Object.entries(metadata ?? {})
+      .filter(([, value]) => value !== "")
+      .sort(([x], [y]) => x.localeCompare(y));
+  return JSON.stringify(filled(a)) === JSON.stringify(filled(b));
+};
+
 export const memberOwnMetadata = (
   fields: readonly MetadataFieldLike[],
   submitted: Record<string, string> | undefined,
@@ -367,6 +367,17 @@ export const resolveUniversity = (
 };
 
 /** "Value · Value" summary of a member's metadata, in field order. */
+const subtitlePart = (fieldKey: string, value: string): string | null => {
+  if (fieldKey === STUDENT_YEAR_FIELD_KEY) return `Year ${value}`;
+  if (fieldKey.endsWith("?")) {
+    const answer = value.trim().toLowerCase();
+    if (answer === "no") return null;
+    return answer === "yes" ? fieldKey.slice(0, -1).trim() : `${fieldKey} ${value}`;
+  }
+  if (/instagram/i.test(fieldKey)) return value.startsWith("@") ? value : `@${value}`;
+  return value;
+};
+
 export const metadataSubtitle = (
   fields: readonly MetadataFieldLike[],
   metadata: Record<string, string> | undefined,
@@ -380,7 +391,8 @@ export const metadataSubtitle = (
     .map((f) => {
       const raw = metadata[f._id];
       if (!raw) return null;
-      return formatMetadataFieldValue(f.key, raw, viewingYear, f.values);
+      const value = formatMetadataFieldValue(f.key, raw, viewingYear, f.values);
+      return value ? subtitlePart(f.key, value) : null;
     })
     .filter(Boolean)
     .join(" · ");

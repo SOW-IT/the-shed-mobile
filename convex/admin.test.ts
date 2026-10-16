@@ -675,14 +675,14 @@ describe("updateDepartment", () => {
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR,
-      name: "Marketing",
+      name: "Alumni",
       division: "Engagement",
       headEmail: "henry@sow.org.au",
     });
     await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Engagement" });
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR,
-      name: "Marketing",
+      name: "Alumni",
       division: "Engagement",
       headEmail: "henry@sow.org.au",
     });
@@ -690,7 +690,7 @@ describe("updateDepartment", () => {
       email: "rachel@sow.org.au",
       year: YEAR,
       roles: ["Staff"],
-      department: "Marketing",
+      department: "Alumni",
     });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
     await asUser(t, "rachel@sow.org.au").mutation(api.requests.submit, {
@@ -700,7 +700,7 @@ describe("updateDepartment", () => {
 
     await admin.mutation(api.admin.updateDepartment, {
       year: YEAR,
-      oldName: "Marketing",
+      oldName: "Alumni",
       newName: "Comms",
       division: "Engagement",
       headEmail: "henry@sow.org.au",
@@ -756,8 +756,8 @@ describe("updateDepartment", () => {
     await expect(
       admin.mutation(api.admin.updateDepartment, {
         year: YEAR,
-        oldName: "Marketing",
-        newName: "Alumni",
+        oldName: "Alumni",
+        newName: "Marketing",
         division: "Engagement",
       })
     ).rejects.toThrow(/already exists/);
@@ -2356,5 +2356,206 @@ describe("staff profiles and their attendance member", () => {
     await admin.mutation(api.admin.removeStaffProfile, { email: BELLA, year: NEXT });
     await admin.mutation(api.admin.removeStaffProfile, { email: NEWBIE, year: YEAR });
     expect(await logs(t, "member.leftStaff")).toHaveLength(0);
+  });
+});
+
+describe("names the app relies on", () => {
+  test("app-keyed departments and divisions can't be renamed; their heads and divisions still change", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const locked = await t.query(api.admin.lockedNames, {});
+    expect([...locked.departments].sort()).toEqual([
+      "Chaplaincy",
+      "Compliance",
+      "Data and IT",
+      "Events",
+      "Finance",
+      "Marketing",
+    ]);
+    expect([...locked.divisions].sort()).toEqual(["Governance", "Human Resources"]);
+
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    for (const name of locked.departments) {
+      const division = structure.departments.find((d) => d.name === name)!.division;
+      await expect(
+        admin.mutation(api.admin.updateDepartment, {
+          year: YEAR,
+          oldName: name,
+          newName: `${name} team`,
+          division,
+        })
+      ).rejects.toThrow(/can't be renamed/);
+    }
+    for (const name of locked.divisions) {
+      await expect(
+        admin.mutation(api.admin.updateDivision, { year: YEAR, oldName: name, newName: `${name} team` })
+      ).rejects.toThrow(/can't be renamed/);
+    }
+
+    await admin.mutation(api.admin.updateDepartment, {
+      year: YEAR,
+      oldName: "Data and IT",
+      newName: "Data and IT",
+      division: "Operations",
+      headEmail: "dita@sow.org.au",
+    });
+    await admin.mutation(api.admin.updateDivision, {
+      year: YEAR,
+      oldName: "Human Resources",
+      newName: "Human Resources",
+      headEmail: "hr.head@sow.org.au",
+    });
+    const after = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(after.departments.find((d) => d.name === "Data and IT")).toMatchObject({
+      division: "Operations",
+      headEmail: "dita@sow.org.au",
+    });
+    expect(after.divisions.find((d) => d.name === "Human Resources")?.headEmail).toBe(
+      "hr.head@sow.org.au"
+    );
+  });
+
+  test("a department rename carries over to that year's event and design requests", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const ids = await t.run(async (ctx) => {
+      const event = (department: string, year: number, answers: Record<string, string>) =>
+        ctx.db.insert("eventRequests", {
+          year,
+          number: 1,
+          requesterEmail: BELLA,
+          department,
+          submittedAt: Date.now(),
+          answers,
+          name: "Camp",
+          startsAt: "2026-01-12T13:00",
+          endsAt: "2026-01-12T15:00",
+          location: "Hall",
+          status: "IN_PROGRESS",
+        });
+      const design = (department: string, year: number) =>
+        ctx.db.insert("designRequests", {
+          year,
+          number: 1,
+          requesterEmail: BELLA,
+          submittedAt: Date.now(),
+          answers: { department, types: ["Poster"] },
+          department,
+          dueDate: "2026-01-12",
+          title: "Poster",
+          status: "PENDING",
+        });
+      return {
+        event: await event("Alumni", YEAR, { department: "Alumni", title: "Camp" }),
+        eventWithoutAnswer: await event("Alumni", YEAR, { title: "Camp" }),
+        lastYearEvent: await event("Alumni", YEAR - 1, { department: "Alumni" }),
+        otherEvent: await event("Missions", YEAR, { department: "Missions" }),
+        design: await design("Alumni", YEAR),
+        lastYearDesign: await design("Alumni", YEAR - 1),
+        otherDesign: await design("Missions", YEAR),
+      };
+    });
+
+    await admin.mutation(api.admin.updateDepartment, {
+      year: YEAR,
+      oldName: "Alumni",
+      newName: "Former Students",
+      division: "Engagement",
+    });
+
+    const rows = await t.run(async (ctx) => ({
+      event: await ctx.db.get("eventRequests", ids.event),
+      eventWithoutAnswer: await ctx.db.get("eventRequests", ids.eventWithoutAnswer),
+      lastYearEvent: await ctx.db.get("eventRequests", ids.lastYearEvent),
+      otherEvent: await ctx.db.get("eventRequests", ids.otherEvent),
+      design: await ctx.db.get("designRequests", ids.design),
+      lastYearDesign: await ctx.db.get("designRequests", ids.lastYearDesign),
+      otherDesign: await ctx.db.get("designRequests", ids.otherDesign),
+    }));
+    expect(rows.event).toMatchObject({
+      department: "Former Students",
+      answers: { department: "Former Students", title: "Camp" },
+    });
+    expect(rows.eventWithoutAnswer).toMatchObject({
+      department: "Former Students",
+      answers: { title: "Camp" },
+    });
+    expect(rows.lastYearEvent).toMatchObject({ department: "Alumni", answers: { department: "Alumni" } });
+    expect(rows.otherEvent?.department).toBe("Missions");
+    expect(rows.design).toMatchObject({
+      department: "Former Students",
+      answers: { department: "Former Students", types: ["Poster"] },
+    });
+    expect(rows.lastYearDesign?.department).toBe("Alumni");
+    expect(rows.otherDesign?.department).toBe("Missions");
+  });
+
+  test("renames carry over to this year's scheduled announcements, not sent or other years' ones", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Mentor" });
+    const audience = {
+      campuses: ["University of Sydney", "Macquarie University"],
+      divisions: ["Engagement"],
+      departments: ["Alumni", "Missions"],
+      roles: ["Mentor"],
+    };
+    const everyone = { campuses: [], divisions: [], departments: [], roles: [] };
+    const ids = await t.run(async (ctx) => {
+      const announcement = (
+        status: "scheduled" | "sent",
+        year: number | undefined,
+        to: typeof audience = audience
+      ) =>
+        ctx.db.insert("announcements", {
+          senderEmail: ADMIN,
+          ...(year === undefined ? {} : { year }),
+          title: "T",
+          message: "M",
+          audience: to,
+          sendEmail: false,
+          status,
+          sendAt: Date.now() + 60 * 60 * 1000,
+        });
+      return {
+        scheduled: await announcement("scheduled", YEAR),
+        withoutYear: await announcement("scheduled", undefined),
+        lastYear: await announcement("scheduled", YEAR - 1),
+        sent: await announcement("sent", YEAR),
+        everyone: await announcement("scheduled", YEAR, everyone),
+      };
+    });
+
+    await admin.mutation(api.admin.updateDepartment, {
+      year: YEAR,
+      oldName: "Alumni",
+      newName: "Former Students",
+      division: "Engagement",
+    });
+    await admin.mutation(api.admin.updateDivision, {
+      year: YEAR,
+      oldName: "Engagement",
+      newName: "Outreach",
+    });
+    await admin.mutation(api.admin.updateRole, { year: YEAR, oldName: "Mentor", newName: "Guide" });
+    await admin.mutation(api.admin.updateUniversity, {
+      year: YEAR,
+      oldName: "University of Sydney",
+      newName: "Sydney Uni",
+    });
+
+    const renamed = {
+      campuses: ["Sydney Uni", "Macquarie University"],
+      divisions: ["Outreach"],
+      departments: ["Former Students", "Missions"],
+      roles: ["Guide"],
+    };
+    const audienceOf = (id: (typeof ids)[keyof typeof ids]) =>
+      t.run(async (ctx) => (await ctx.db.get("announcements", id))?.audience);
+    expect(await audienceOf(ids.scheduled)).toEqual(renamed);
+    expect(await audienceOf(ids.withoutYear)).toEqual(renamed);
+    expect(await audienceOf(ids.lastYear)).toEqual(audience);
+    expect(await audienceOf(ids.sent)).toEqual(audience);
+    expect(await audienceOf(ids.everyone)).toEqual(everyone);
   });
 });

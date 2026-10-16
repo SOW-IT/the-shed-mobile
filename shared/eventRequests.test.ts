@@ -124,6 +124,25 @@ describe("risk", () => {
     expect(riskDraftProblem({ noRisks: false, risks: [] })).toBeNull();
   });
 
+  test("names a row by its place on the form, counting blank rows", () => {
+    const problem = (risks: RiskRow[]) => riskProblem({ noRisks: false, risks });
+    const blank = row({
+      description: "  ",
+      category: undefined,
+      consequence: undefined,
+      likelihood: undefined,
+      mitigation: " ",
+    });
+    expect(problem([blank, row({ category: undefined })])).toBe(
+      "Risk 2: pick what kind of risk it is."
+    );
+    expect(problem([row(), blank, row({ mitigation: undefined })])).toBe(
+      "Risk 3 is rated Moderate: say how you'll reduce it."
+    );
+    expect(problem([blank, blank])).toMatch(/Add at least one risk/);
+    expect(problem([blank, row()])).toBeNull();
+  });
+
   test("major risks", () => {
     const data = {
       noRisks: false,
@@ -190,5 +209,19 @@ describe("finance", () => {
     );
     const many = Array.from({ length: MAX_FINANCE_LINES + 1 }, () => ({ label: "x", amount: 1 }));
     expect(financeDraftProblem({ income: many, expenses: [] })).toMatch(/at most 60 lines/);
+  });
+
+  test("names a line by its place on the form, counting blank lines", () => {
+    const blank = { label: " ", amount: 0 };
+    expect(
+      financeProblem({ income: [blank, { label: "", amount: 30 }], expenses: [] })
+    ).toBe("Income line 2: say what it's for.");
+    expect(
+      financeProblem({
+        income: [],
+        expenses: [{ label: "Venue", amount: 10 }, blank, { label: "  ", amount: 5 }],
+      })
+    ).toBe("Expenses line 3: say what it's for.");
+    expect(financeProblem({ ...data, spreadsheetUrl: " https://sheet.example " })).toBeNull();
   });
 });

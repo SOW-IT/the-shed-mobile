@@ -11,20 +11,15 @@ function SelectorFab({
   icon = "options-outline",
   sheetTitle,
   children,
-  onClosed,
 }: {
   label: string;
   icon?: keyof typeof Ionicons.glyphMap;
   sheetTitle: string;
   children: (close: () => void) => ReactNode;
-  onClosed?: () => void;
 }) {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
-  const close = () => {
-    setOpen(false);
-    onClosed?.();
-  };
+  const close = () => setOpen(false);
   return (
     <>
       <Pressable
@@ -143,14 +138,16 @@ export function PeriodFab({
   value,
   onChange,
   sheetTitle = "Term or year",
+  placeholder = "Term",
 }: {
   periods: PickerPeriod[];
   value: string | null;
   onChange: (key: string) => void;
   sheetTitle?: string;
+  placeholder?: string;
 }) {
   const t = useAppTheme();
-  const label = periods.find((p) => p.key === value)?.label ?? "Term";
+  const label = periods.find((p) => p.key === value)?.label ?? placeholder;
   const grouped = periods.length > 0 && periods.every((p) => p.group && p.short && p.kind);
   const years = [...new Set(periods.map((p) => p.group!))];
   const columns = Math.max(0, ...periods.map((p) => p.slot ?? 0));

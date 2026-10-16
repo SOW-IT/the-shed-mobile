@@ -6,6 +6,82 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.5] - 2026-10-16
+
+A pass through every screen as each kind of user (signed out, personal
+account, no staff profile, campus leader, staff, approvers, admin), fixing what
+was broken and showing things instead of explaining them.
+
+### Changed
+- **Forms wait until they're complete.** New reimbursement, Submit Receipt,
+  Add Account and Mark as Paid are muted until every needed field is filled,
+  instead of failing with a message. Mark as Paid starts at the amount owed.
+- **New design and event requests point at the question that needs an
+  answer.** It's outlined in red with the problem under it, and the banner
+  names the question number shown on screen.
+- **Approving says who's next.** "Next: Brandon Teng, Finance Head." or "This
+  is the last approval. Tony Le is then asked for the receipt." An approver
+  looking at their own queue reads "Waiting for your approval."
+- **Actions that matter are words, not bare icons.** "Add receipt" and "Mark
+  paid" on request cards; event request cards mark each form with a status
+  icon (circle, clock, alert, tick, dash) instead of a coloured dot.
+- **Insights is easier to read.** Campus bars use each campus's colour; chart
+  tooltips name the period ("Sem 2 2026 · 104"); SOW TWIG only calls someone
+  Regular once 3 TWIGs have a roll; a new staff year with nothing yet offers a
+  button to the year before (TWIG, PPN, and the All tabs of design and event
+  requests).
+- **Member rows say what each value is**: "Year 2", "Arc Member" and
+  "@handle" instead of "2", "Yes" and "handle".
+- **Edit Home shows icons and campuses.** The icon pickers show each icon, and
+  a card's campus logo is picked from the campuses that have one instead of
+  typed.
+- **Dates read the same everywhere**, day first ("16 Oct 2026, 12:09 pm"),
+  whatever language the device is set to.
+- **Profile says what kind of account it is.** A personal (Apple) account says
+  "Personal account" and has no empty service history; a SOW account with no
+  staff profile says "No staff profile for 2027".
+- **Smaller tidy-ups across Attendance, Requests and Admin**: owner and taken
+  weeks shown in the event editor, lock icons on rows an ended event keeps,
+  read-only Tags and Metadata for people who can't change them, a "Not signed
+  in" filter chip and side-by-side actions in Admin, an update pill in the top
+  bar instead of a banner over the tabs.
+- **Exporting one event skips the layout question.** A grid of one event says
+  nothing a list doesn't, so single-event exports go straight to the list.
+- **Four-step requests show each approver's full name**, wrapping onto a second
+  line instead of cutting it off.
+- **The merge review card uses the member row wording** ("Year 6 · Arc
+  Member") instead of "6 · Yes".
+- **Less code to maintain.** Props and helpers nothing used are gone, and the
+  two PDF exports, the Members and Audit filter bars, and the screens' busy
+  handling each share one implementation. About 450 fewer lines.
+
+### Fixed
+- **A merge showed twice in the Audit tab, with database ids.** It shows once,
+  in words.
+- **Collapsed request cards hid their unread comments** even though the Review
+  tab counted them. They now show a comment count.
+- **A signed-out reimbursement link said the request was deleted.** It asks
+  you to sign in, like design and event request links.
+- **Western Sydney's campus mark read "USYD"** and a deleted dropdown option
+  showed as a bare number on member rows.
+- **Requests**: the requester hears about every comment on their request; an
+  auto-approved step says so; double-tapping Submit makes one request; a
+  read-only comment thread says why instead of offering a box; Risk and
+  Finance errors use the row numbers on screen.
+- **Admin and shell**: renaming a locked name is blocked and renames carry
+  through to requests and announcements; sign-out stops pushes to that device;
+  notifications keep an Unread section for the visit; the sign-out confirm
+  spells The SHED.
+- **Attendance**: lists stay live past the first page without a crash; search
+  with no matches says so; typing a name to confirm ignores case.
+- **The dev-only test sign-in no longer renames a real account** to its email
+  prefix.
+- **Downloads**: exported CSVs open in Excel with curly quotes and emoji
+  intact, and request times are Sydney time instead of UTC; an approved event
+  Finance form over $5,000 names the Director as well as the Finance Head, on
+  screen and in the PDF; PDF headings and question labels no longer sit alone
+  at the bottom of a page.
+
 ## [2.9.4] - 2026-10-16
 
 ### Added

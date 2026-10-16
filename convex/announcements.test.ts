@@ -367,6 +367,56 @@ describe("scheduling", () => {
     expect(await notificationsFor(t, "next@sow.org.au")).toEqual([]);
   });
 
+  test("one whose audience matches no one by its send time doesn't go out, and says why", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const { id } = await admin.mutation(
+      api.announcements.send,
+      draft({ audience: audience({ departments: ["Finance"] }), sendAt: PINNED_NOW + 2 * HOUR })
+    );
+    const { id: cancelledByHand } = await admin.mutation(
+      api.announcements.send,
+      draft({ title: "Another", sendAt: PINNED_NOW + 3 * HOUR })
+    );
+    await admin.mutation(api.announcements.cancel, { id: cancelledByHand });
+    await t.run(async (ctx) => {
+      for (const profile of await ctx.db.query("staffProfiles").collect()) {
+        if (profile.assignments?.some((a) => a.department === "Finance")) {
+          await ctx.db.patch("staffProfiles", profile._id, {
+            assignments: [{ role: "Staff", department: "Accounts" }],
+          });
+        }
+      }
+    });
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const after = await announcement(t, id);
+    expect(after).toMatchObject({ status: "cancelled", recipientCount: 0 });
+    expect(after?.cancelledBy).toBeUndefined();
+    expect(after?.sentAt).toBeUndefined();
+    expect(after?.jobId).toBeUndefined();
+    expect(await notificationsFor(t, FIN)).toEqual([]);
+
+    const list = await admin.query(api.announcements.list, {});
+    expect(list?.scheduled).toEqual([]);
+    expect(list?.sent).toEqual([]);
+    expect(list?.notSent).toEqual([
+      expect.objectContaining({
+        id,
+        status: "cancelled",
+        audience: "Finance",
+        notSentReason: expect.stringMatching(/No one matched who it was for/),
+      }),
+    ]);
+    expect((await admin.query(api.announcements.get, { id }))?.details).toMatchObject({
+      status: "cancelled",
+      notSentReason: expect.stringMatching(/renamed or removed/),
+    });
+    expect(
+      (await admin.query(api.announcements.get, { id: cancelledByHand }))?.details?.notSentReason
+    ).toBeNull();
+  });
+
   test("delivering a cancelled, sent or missing announcement does nothing", async () => {
     const t = await setup();
     const id = await t.run((ctx) =>

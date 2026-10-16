@@ -31,6 +31,7 @@ import {
   stagger,
   Txt,
 } from "./ui";
+import { isSowStaffAddress } from "@shared/rollcallImport";
 
 const ProfileFrame = ({
   asTab,
@@ -78,6 +79,7 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
 
   const currentYear = staffYearForDate(new Date());
   const current = profile.serviceHistory.find((h) => h.year === currentYear);
+  const neverStaff = profile.serviceHistory.length === 0;
 
   const pickPhoto = async () => {
     setError(null);
@@ -168,6 +170,10 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
                 · {current.year}
               </Text>
             </View>
+          ) : neverStaff && !isSowStaffAddress(profile.email ?? undefined) ? (
+            <Muted>Personal account</Muted>
+          ) : neverStaff ? (
+            <Muted>No staff profile for {currentYear}</Muted>
           ) : (
             <Muted>No assignment for {currentYear}</Muted>
           )}
@@ -205,10 +211,8 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
         </FadeInView>
       ) : null}
 
-      <SectionTitle>Service history</SectionTitle>
-      {profile.serviceHistory.length === 0 ? (
-        <Muted>No service history yet.</Muted>
-      ) : (
+      {neverStaff ? null : <SectionTitle>Service history</SectionTitle>}
+      {neverStaff ? null : (
         <FadeInView delay={stagger(2)}>
           <Card style={styles.history}>
             {profile.serviceHistory.map((entry, index) => (

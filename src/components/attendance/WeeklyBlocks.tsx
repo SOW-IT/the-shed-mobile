@@ -56,6 +56,8 @@ function PersonRow({
   name,
   photo,
   pill,
+  badge,
+  dimmed,
   lines,
   trailing,
   warning,
@@ -64,6 +66,8 @@ function PersonRow({
   name: string;
   photo?: string | null;
   pill: Pill;
+  badge?: Pill;
+  dimmed?: boolean;
   lines: string[];
   trailing?: string;
   warning?: string;
@@ -75,7 +79,12 @@ function PersonRow({
       accessibilityRole="button"
       accessibilityLabel={`Open ${name}`}
       onPress={onPress}
-      style={({ pressed }) => [styles.personRow, { borderTopColor: t.separator }, pressed && { opacity: 0.7 }]}
+      style={({ pressed }) => [
+        styles.personRow,
+        { borderTopColor: t.separator },
+        dimmed && styles.dimmed,
+        pressed && { opacity: 0.7 },
+      ]}
     >
       <Avatar photo={photo ?? null} name={name} size={40} />
       <View style={{ flex: 1, gap: 3 }}>
@@ -84,6 +93,7 @@ function PersonRow({
             {name}
           </Text>
           <CategoryPill pill={pill} />
+          {badge ? <CategoryPill pill={badge} /> : null}
         </View>
         {lines.map((line, i) => (
           <Text key={i} style={[typography.caption, { color: t.muted }]} numberOfLines={2}>
@@ -116,7 +126,7 @@ function SectionLabel({ title, count }: { title: string; count: number }) {
 
 const SORT_DIRECTION: Record<PeopleSortKey, 1 | -1> = { pct: -1, name: 1, last: -1 };
 
-function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: string) => void }) {
+function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: string, subgroup?: string) => void }) {
   const t = useAppTheme();
   const [search, setSearch] = useState("");
   const [chips, setChips] = useState<string[]>([]);
@@ -225,10 +235,12 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
                     name={r.name}
                     photo={r.photo}
                     pill={r.category}
+                    badge={r.badge}
+                    dimmed={r.dimmed}
                     lines={[r.secondary]}
                     trailing={r.primary}
                     warning={r.warning}
-                    onPress={() => onOpen?.(r.key)}
+                    onPress={() => onOpen?.(r.key, r.subgroup)}
                   />
                 ))}
               </View>
@@ -240,7 +252,13 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
   );
 }
 
-function FollowUpGroups({ block, onOpen }: { block: Block<"followUpGroups">; onOpen?: (key: string) => void }) {
+function FollowUpGroups({
+  block,
+  onOpen,
+}: {
+  block: Block<"followUpGroups">;
+  onOpen?: (key: string, subgroup?: string) => void;
+}) {
   const t = useAppTheme();
   const total = block.groups.reduce((n, g) => n + g.people.length, 0);
   return (
@@ -267,7 +285,7 @@ function FollowUpGroups({ block, onOpen }: { block: Block<"followUpGroups">; onO
                     photo={p.photo}
                     pill={p.category}
                     lines={[p.reason, p.secondary]}
-                    onPress={() => onOpen?.(p.key)}
+                    onPress={() => onOpen?.(p.key, p.subgroup)}
                   />
                 ))}
               </View>
@@ -335,7 +353,7 @@ export function renderWeeklyBlock(
   block: WeeklyBlock,
   key: string,
   ctx: {
-    onOpenPerson?: (personKey: string) => void;
+    onOpenPerson?: (personKey: string, subgroup?: string) => void;
     onEditMember?: (memberId: string) => void;
     onOpenLink?: (link: string) => void;
     colours: ReturnType<typeof useAppTheme>;
@@ -471,6 +489,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   dot: { width: 7, height: 7, borderRadius: 4 },
+  dimmed: { opacity: 0.55 },
   personRow: {
     flexDirection: "row",
     alignItems: "center",

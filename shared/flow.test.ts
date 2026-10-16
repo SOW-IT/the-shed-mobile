@@ -5,6 +5,7 @@ import {
   APPROVED,
   type ApprovalState,
   currentStep,
+  nextStepAfter,
   DECLINED,
   DISPLAY_ACRONYMS,
   formatAssignment,
@@ -295,6 +296,24 @@ describe("currentStep", () => {
     ).toBe("financeHead");
     expect(currentStep(approvedAll())).toBeNull();
     expect(currentStep(base({ approvedByHOD: DECLINED }))).toBeNull();
+  });
+});
+
+describe("nextStepAfter", () => {
+  test("names the step that waits once this one is approved", () => {
+    expect(nextStepAfter(base({ approvedByHOD: APPROVED }), "budgetManager")).toBe("financeHead");
+    expect(
+      nextStepAfter(
+        base({ approvedByHOD: APPROVED, approvedByDirector: PENDING }),
+        "budgetManager"
+      )
+    ).toBe("director");
+    expect(
+      nextStepAfter(
+        base({ approvedByHOD: APPROVED, approvedByBudgetManager: APPROVED }),
+        "financeHead"
+      )
+    ).toBeNull();
   });
 });
 

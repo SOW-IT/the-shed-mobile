@@ -313,6 +313,30 @@ export function ChurchVisibilityNote({ visibility }: { visibility: ChurchVisibil
   );
 }
 
+const VISIBILITY_TAGS: Record<ChurchVisibility, string> = {
+  "yours-public": "Visible to everyone",
+  "yours-leaders": "Staff and leaders only",
+  member: "Staff and leaders only",
+  "staff-record": "Visible to everyone",
+};
+
+function ChurchVisibilityTag({ visibility }: { visibility: ChurchVisibility }) {
+  const t = useAppTheme();
+  const open = visibility === "yours-public" || visibility === "staff-record";
+  return (
+    <View
+      accessible
+      accessibilityLabel={VISIBILITY_NOTES[visibility]}
+      style={[styles.tag, { backgroundColor: open ? t.warningSoft : t.inputBackground }]}
+    >
+      <Ionicons name={open ? "eye-outline" : "lock-closed-outline"} size={13} color={open ? t.warning : t.muted} />
+      <Text style={[typography.caption, { color: open ? t.warning : t.muted, fontWeight: "600" }]}>
+        {VISIBILITY_TAGS[visibility]}
+      </Text>
+    </View>
+  );
+}
+
 /**
  * A church dropdown over the shared list, with "Add a church" at the bottom
  * (which picks the new one). `onChange(null)` clears it. `visibility` says
@@ -337,7 +361,10 @@ export function ChurchSelect({
   const selected = churches?.find((c) => c._id === churchId) ?? null;
   return (
     <View style={{ gap: spacing.xs }}>
-      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      <View style={styles.labelRow}>
+        <Text style={[typography.label, { color: t.muted, flex: 1 }]}>{label}</Text>
+        <ChurchVisibilityTag visibility={visibility} />
+      </View>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${selected?.name ?? "not set"}. Change`}
@@ -353,8 +380,6 @@ export function ChurchSelect({
         </Text>
         <Ionicons name="chevron-down" size={18} color={t.muted} />
       </Pressable>
-
-      <ChurchVisibilityNote visibility={visibility} />
 
       <OptionSheet visible={listOpen} title={label} onClose={() => setListOpen(false)}>
         <View style={styles.sheetNote}>
@@ -443,6 +468,7 @@ export function ChurchPicker({ church }: { church: Church | null }) {
   const setChurch = useMutation(api.profile.setChurch);
   // Staff (campus leaders too) can edit churches, and theirs is on the Churches page for anyone.
   const canEdit = useCanEditChurches();
+  const listed = useQuery(api.directory.me)?.listsChurch === true;
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -460,7 +486,7 @@ export function ChurchPicker({ church }: { church: Church | null }) {
       <ChurchSelect
         churchId={church?._id ?? null}
         onChange={(id) => void choose(id)}
-        visibility={canEdit ? "yours-public" : "yours-leaders"}
+        visibility={listed ? "yours-public" : "yours-leaders"}
       />
       {church ? <ChurchDetails church={church} onEdit={canEdit ? () => setEditing(true) : undefined} /> : null}
       <ErrorBanner message={error} />
@@ -496,6 +522,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
   },
   sheetNote: { marginBottom: spacing.sm },
+  labelRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  tag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
   detailRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   link: { flex: 1, textDecorationLine: "underline" },
   editLink: { alignSelf: "flex-start", paddingTop: spacing.xs },

@@ -91,6 +91,7 @@ export const me = query({
         rolesOf(profile).includes(DIRECTOR) ||
         isDelegate,
       isCampusLeader: assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
+      listsChurch: profile.year === year && assignmentsOf(profile).length > 0,
     };
   },
 });

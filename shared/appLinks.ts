@@ -97,3 +97,21 @@ export const updateStatusFor = (version: string, policy: UpdatePolicy | null): U
   if (policy.recommended && compareVersions(version, policy.recommended) < 0) return "recommended";
   return "ok";
 };
+
+const SIGN_IN_RETURN_PARAMS = [
+  "code",
+  "state",
+  "scope",
+  "authuser",
+  "prompt",
+  "hd",
+  "error",
+  "error_description",
+] as const;
+
+export const searchWithoutSignInParams = (search: string): string => {
+  const params = new URLSearchParams(search);
+  for (const key of SIGN_IN_RETURN_PARAMS) params.delete(key);
+  const rest = params.toString();
+  return rest ? `?${rest}` : "";
+};

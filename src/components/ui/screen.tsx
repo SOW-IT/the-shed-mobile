@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { ReactNode, Ref, useCallback, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { USE_NATIVE_DRIVER, typography, useAppTheme } from "@/theme";
@@ -19,7 +19,6 @@ const NEAR_BOTTOM = 600;
 export const Screen = ({
   children,
   toast,
-  scrollRef,
   footer,
   title,
   subtitle,
@@ -32,7 +31,6 @@ export const Screen = ({
 }: {
   children?: ReactNode;
   toast?: ToastState;
-  scrollRef?: Ref<ScrollView>;
   footer?: ReactNode;
   title?: string;
   subtitle?: string;
@@ -67,7 +65,6 @@ export const Screen = ({
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
       <ScrollView
-        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={resolvedStickyIndices}
         automaticallyAdjustKeyboardInsets

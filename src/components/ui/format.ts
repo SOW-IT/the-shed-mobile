@@ -35,6 +35,26 @@ export const errorMessage = (e: unknown): string =>
       ? e.message
       : "Something went wrong";
 
+export const runBusy = async (
+  busy: boolean,
+  setBusy: (busy: boolean) => void,
+  setError: (error: string | null) => void,
+  action: () => Promise<unknown>,
+  after?: () => void
+) => {
+  if (busy) return;
+  setBusy(true);
+  setError(null);
+  try {
+    await action();
+    after?.();
+  } catch (e) {
+    setError(errorMessage(e));
+  } finally {
+    setBusy(false);
+  }
+};
+
 export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 export const MAX_RECEIPT_UPLOAD_BYTES = 5 * 1024 * 1024;
 

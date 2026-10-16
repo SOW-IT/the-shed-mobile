@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
 import {
+  auditEventName,
+  eventCampusLabel,
+  eventFilterLabel,
+  TAG_LIST_LABEL,
+  tagFilterLabels,
   canonicalSubgroup,
   compareAttendanceFrequency,
   contrastingText,
@@ -513,5 +518,45 @@ describe("undo grace", () => {
     const signIn = event.dateEnd + 1;
     expect(canReverseSignIn(event, signIn, signIn + 3 * SIGN_IN_UNDO_GRACE_MS)).toBe(true);
     expect(reversibleOnlyByGrace(event, signIn, signIn + 1)).toBe(false);
+  });
+});
+
+describe("tag filter labels", () => {
+  test("name the list only for tags whose name is in both lists", () => {
+    expect(
+      tagFilterLabels([
+        { name: "BAM", list: "weeklies" },
+        { name: "bam ", list: "events" },
+        { name: "Camp" },
+        { name: "PPN", list: "weeklies" },
+      ])
+    ).toEqual(["BAM (Weeklies)", "bam  (Other events)", "Camp", "PPN"]);
+    expect(TAG_LIST_LABEL).toEqual({ weeklies: "Weeklies", events: "Other events" });
+    expect(tagFilterLabels([])).toEqual([]);
+  });
+});
+
+describe("event campus labels", () => {
+  test("short campus labels, de-duplicated", () => {
+    expect(eventCampusLabel(["University of Sydney", "ALL", "SOW"])).toBe("USYD, SOW");
+    expect(eventCampusLabel([])).toBe("");
+  });
+
+  test("audit names quote the event and add its campus", () => {
+    expect(auditEventName({ name: "S2W5", subgroups: ["University of Sydney"] })).toBe(
+      '"S2W5" (USYD)'
+    );
+    expect(auditEventName({ name: "Camp", subgroups: [] })).toBe('"Camp"');
+    expect(auditEventName(null)).toBe('"an event"');
+  });
+
+  test("filter labels add the campus and the Sydney date", () => {
+    const lateUtc = Date.UTC(2026, 7, 11, 15, 30);
+    expect(
+      eventFilterLabel({ name: "S2W5", subgroups: ["University of Sydney"], dateStart: lateUtc })
+    ).toBe("S2W5 · USYD · 12 Aug 2026");
+    expect(eventFilterLabel({ name: "Camp", subgroups: [], dateStart: Date.UTC(2026, 0, 5) })).toBe(
+      "Camp · 5 Jan 2026"
+    );
   });
 });

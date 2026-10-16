@@ -8,6 +8,7 @@ import { TAG_COLOUR_NAMES, tagColourHex } from "../../../shared/attendanceTags";
 import { isOrgWideSubgroup, isWeekliesTagName, tagListOf, tagScope, type TagList } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import type { SaveControls } from "@/components/attendance/MetadataTab";
+import { typedMatches } from "../../../shared/typedConfirm";
 import { SubgroupScopePicker } from "@/components/attendance/SubgroupScopePicker";
 import {
   Btn,
@@ -53,9 +54,11 @@ const tagsEqual = (a: TagDraft[], b: TagDraft[]) =>
 export function SettingsTab({
   subgroups,
   onSaveStateChange,
+  readOnly = false,
 }: {
   subgroups: string[];
   onSaveStateChange?: (controls: SaveControls) => void;
+  readOnly?: boolean;
 }) {
   const t = useAppTheme();
   const allTags = useQuery(api.attendanceTags.list, {});
@@ -172,26 +175,29 @@ export function SettingsTab({
                 name={tag.name.trim() || "New tag"}
                 colour={tag.colour}
               />
-              <IconButton
-                name={tag.id ? "trash-outline" : "close"}
-                size={32}
-                color={tag.id ? t.danger : t.ghostText}
-                bg={tag.id ? t.dangerSoft : t.ghost}
-                accessibilityLabel={tag.id ? "Remove tag" : "Discard tag"}
-                onPress={() => {
-                  if (tag.id) {
-                    setDeleteIndex(i);
-                    setDeleteText("");
-                  } else {
-                    setTagDrafts((prev) => prev.filter((_, j) => j !== i));
-                  }
-                }}
-              />
+              {readOnly ? null : (
+                <IconButton
+                  name={tag.id ? "trash-outline" : "close"}
+                  size={32}
+                  color={tag.id ? t.danger : t.ghostText}
+                  bg={tag.id ? t.dangerSoft : t.ghost}
+                  accessibilityLabel={tag.id ? "Remove tag" : "Discard tag"}
+                  onPress={() => {
+                    if (tag.id) {
+                      setDeleteIndex(i);
+                      setDeleteText("");
+                    } else {
+                      setTagDrafts((prev) => prev.filter((_, j) => j !== i));
+                    }
+                  }}
+                />
+              )}
             </View>
 
             <Field
               label="Name"
               value={tag.name}
+              disabled={readOnly}
               onChangeText={(name) =>
                 setTagDrafts((prev) => prev.map((x, j) => (j === i ? { ...x, name } : x)))
               }
@@ -202,6 +208,8 @@ export function SettingsTab({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Choose colour, currently ${tag.colour ?? "blue"}`}
+                accessibilityState={{ disabled: readOnly }}
+                disabled={readOnly}
                 onPress={() => setColourIndex(i)}
                 style={({ pressed }) => [
                   styles.colourPickerButton,
@@ -220,27 +228,34 @@ export function SettingsTab({
                     {tag.colour ?? "blue"}
                   </Text>
                 </View>
-                <Ionicons name="chevron-down" size={18} color={t.ghostText} />
+                <Ionicons
+                  name={readOnly ? "lock-closed-outline" : "chevron-down"}
+                  size={readOnly ? 16 : 18}
+                  color={readOnly ? t.faint : t.ghostText}
+                />
               </Pressable>
             </View>
 
-            <View style={{ gap: spacing.xs }}>
-              <Muted>Used on</Muted>
-              <Segmented
-                segments={LISTS.map((l) => ({ key: l.list, label: l.title }))}
-                active={tag.list}
-                onChange={(key) => {
-                  setTagDrafts((prev) =>
-                    prev.map((x, j) => (j === i ? withList(x, key as TagList) : x))
-                  );
-                  setActiveList(key as TagList);
-                }}
-              />
-            </View>
+            {readOnly ? null : (
+              <View style={{ gap: spacing.xs }}>
+                <Muted>Used on</Muted>
+                <Segmented
+                  segments={LISTS.map((l) => ({ key: l.list, label: l.title }))}
+                  active={tag.list}
+                  onChange={(key) => {
+                    setTagDrafts((prev) =>
+                      prev.map((x, j) => (j === i ? withList(x, key as TagList) : x))
+                    );
+                    setActiveList(key as TagList);
+                  }}
+                />
+              </View>
+            )}
 
             <View style={{ gap: spacing.xs }}>
               <Muted>Applies to</Muted>
               <SubgroupScopePicker
+                disabled={readOnly}
                 subgroups={scopeFor(tag.list)}
                 isSelected={(subgroup) =>
                   tag.subgroups?.length ? tag.subgroups.includes(subgroup) : true
@@ -261,11 +276,13 @@ export function SettingsTab({
             </View>
           </Card>
         ))}
-        <Btn
-          title={section.list === "weeklies" ? "Add weekly tag" : "Add event tag"}
-          variant="ghost"
-          onPress={() => addTag(section.list)}
-        />
+        {readOnly ? null : (
+          <Btn
+            title={section.list === "weeklies" ? "Add weekly tag" : "Add event tag"}
+            variant="ghost"
+            onPress={() => addTag(section.list)}
+          />
+        )}
       </View>
 
       {error ? (
@@ -283,7 +300,7 @@ export function SettingsTab({
             variant="danger"
             disabled={
               deleteIndex === null ||
-              deleteText.trim() !== tagDrafts[deleteIndex]?.name.trim()
+              !typedMatches(deleteText, tagDrafts[deleteIndex]?.name ?? "")
             }
             onPress={() => {
               if (deleteIndex === null) return;

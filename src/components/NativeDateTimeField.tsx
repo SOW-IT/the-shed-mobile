@@ -31,6 +31,7 @@ const FieldButton = ({
   icon,
   onOpen,
   onClear,
+  needed,
 }: {
   label: string;
   display: string;
@@ -38,6 +39,7 @@ const FieldButton = ({
   icon: keyof typeof Ionicons.glyphMap;
   onOpen: () => void;
   onClear?: () => void;
+  needed?: boolean;
 }) => {
   const t = useAppTheme();
   return (
@@ -51,6 +53,8 @@ const FieldButton = ({
           height: 44,
           paddingHorizontal: 12,
           borderRadius: 10,
+          borderWidth: 1.5,
+          borderColor: needed && !hasValue ? t.primary : "transparent",
           backgroundColor: t.inputBackground,
         }}
       >
@@ -63,10 +67,10 @@ const FieldButton = ({
             pressed && { opacity: 0.7 },
           ]}
         >
-          <Ionicons name={icon} size={16} color={t.faint} />
+          <Ionicons name={icon} size={16} color={needed && !hasValue ? t.primary : t.faint} />
           <Txt
             numberOfLines={1}
-            style={[typography.body, { flex: 1, color: hasValue ? t.text : t.faint }]}
+            style={[typography.body, { flex: 1, color: hasValue ? t.text : needed ? t.primary : t.faint }]}
           >
             {display}
           </Txt>
@@ -95,6 +99,7 @@ export const NativeDateInput = ({
   placeholder = "Select date",
   onChange,
   onClear,
+  needed,
 }: {
   label: string;
   value: string;
@@ -103,6 +108,7 @@ export const NativeDateInput = ({
   placeholder?: string;
   onChange: (value: string) => void;
   onClear?: () => void;
+  needed?: boolean;
 }) => {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
@@ -119,6 +125,7 @@ export const NativeDateInput = ({
         display={current ? formatDateDisplay(current) : placeholder}
         onOpen={() => setOpen(true)}
         onClear={onClear ? () => onClear() : undefined}
+        needed={needed}
       />
       <Sheet
         visible={open}

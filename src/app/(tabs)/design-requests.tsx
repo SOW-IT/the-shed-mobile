@@ -58,7 +58,7 @@ const RequestList = ({
   groups: Group[];
   showRequester: boolean;
   unread: Record<string, number>;
-  empty: { title: string; message: string };
+  empty: { title: string; message: string; action?: { label: string; onPress: () => void } };
   header?: ReactNode;
 }) => {
   const router = useRouter();
@@ -69,7 +69,12 @@ const RequestList = ({
         {header}
         {rows === undefined ? <LoadingState /> : null}
         {rows !== undefined && (rows === null || rows.length === 0) ? (
-          <EmptyState icon="color-palette-outline" title={empty.title} message={empty.message} />
+          <EmptyState
+            icon="color-palette-outline"
+            title={empty.title}
+            message={empty.message}
+            action={empty.action}
+          />
         ) : null}
         {groups.map((group) => {
           const inGroup = (rows ?? []).filter((r) => group.statuses.includes(r.status));
@@ -116,6 +121,7 @@ export default function DesignRequestsScreen() {
     staff ? (mineYear === null ? {} : { year: mineYear }) : "skip"
   );
   const queue = useQuery(api.designRequests.queue, team ? {} : "skip");
+  const waitingOnMe = useQuery(api.designRequests.waitingOnMe, team ? {} : "skip") ?? 0;
   const shownArchiveYear = archiveYear ?? me?.year;
   const archive = useQuery(
     api.designRequests.archive,
@@ -159,12 +165,12 @@ export default function DesignRequestsScreen() {
 
   const unreadIn = (rows: DesignRequestListRow[] | null | undefined) =>
     (rows ?? []).reduce((sum, r) => sum + (unread[r._id] ?? 0), 0);
-  const waitingOnMe = (queue ?? []).filter((r) =>
-    viewer?.isMarketingHead ? r.status === "PENDING" : r.status === "APPROVED"
-  ).length;
   const badge = (count: number) => (count > 0 ? count : undefined);
 
   const mineYears = years?.mine ?? [];
+  const archiveYears = years?.all ?? [];
+  const earlierArchiveYear = archiveYears.find((y) => y < (shownArchiveYear ?? me.year));
+
   const tabs: PagerTab[] = [
     {
       key: "mine",
@@ -231,7 +237,17 @@ export default function DesignRequestsScreen() {
                 unread={unread}
                 empty={{
                   title: "Nothing here",
-                  message: `There were no design requests in ${shownArchiveYear}.`,
+                  message:
+                    shownArchiveYear === me.year
+                      ? `No design requests yet in ${me.year}.`
+                      : `There were no design requests in ${shownArchiveYear}.`,
+                  action:
+                    earlierArchiveYear === undefined
+                      ? undefined
+                      : {
+                          label: `See ${earlierArchiveYear}`,
+                          onPress: () => setArchiveYear(earlierArchiveYear),
+                        },
                 }}
               />
             ),
@@ -241,7 +257,6 @@ export default function DesignRequestsScreen() {
   ];
   const activeKey = tabs.some((t) => t.key === active) ? active : "mine";
   const noHead = viewer !== undefined && viewer !== null && !viewer.hasMarketingHead;
-  const archiveYears = years?.all ?? [];
 
   return (
     <PagerScreen

@@ -385,6 +385,26 @@ describe("attendance audit logging", () => {
     expect(multipleTypes.page).toHaveLength(2);
   });
 
+  test("a merge shows once, without database ids", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const keep = await staff.mutation(api.attendanceMembers.create, { name: "Alex Li" });
+    const remove = await staff.mutation(api.attendanceMembers.create, { name: "Alex Liy" });
+    await staff.mutation(api.attendanceMembers.merge, {
+      removeId: remove,
+      keep: { memberId: keep },
+      resolutions: {},
+    });
+
+    const { page } = await staff.query(api.attendanceAudit.list, {
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    const merges = page.filter((r) => r.action.startsWith("member.merge"));
+    expect(merges.map((r) => r.action)).toEqual(["member.merge"]);
+    expect(merges[0].detail).toContain('Removed member "Alex Liy"');
+    expect(merges[0].detail).not.toContain(remove);
+  });
+
   test("search matches the subject's email, not just summary and actor", async () => {
     const t = await setup();
     const { dateStart, dateEnd } = window();
@@ -643,7 +663,7 @@ describe("audit logging across attendance mutations", () => {
     const preview = await staff.query(api.events.deletePreview, { eventId });
     expect(preview?.total).toBe(3);
     expect(preview?.people.map((p) => p.name).sort()).toEqual(
-      ["Deleted member", OTHER, "Sam"].sort()
+      ["Deleted member", OTHER.split("@")[0], "Sam"].sort()
     );
     expect(await t.query(api.events.deletePreview, { eventId })).toBeNull();
     await staff.mutation(api.events.remove, { eventId });
@@ -1016,10 +1036,10 @@ describe("attendance audit names the person by member", () => {
       memberId: await linkedMember(t, OTHER),
     });
     await staff.mutation(api.attendance.updateRecord, { attendanceId: plainRow, notes: "hi" });
-    await staff.mutation(api.attendance.updateRecord, { attendanceId: staffRow, signInTime: dateStart });
+    await staff.mutation(api.attendance.updateRecord, { attendanceId: staffRow, signInTime: dateStart + 1_000 });
     const updates = (await allLogs(t)).filter((l) => l.action === "attendance.update");
     const plain = updates.find((l) => l.memberId === plainId)!;
-    expect(plain.summary).toBe(`Edited Pia Plain's record for "Night"`);
+    expect(plain.summary).toBe(`Edited Pia Plain's record for "Night" (USYD)`);
     expect(plain.subjectEmail).toBeUndefined();
     expect(plain.detail).toBe("Changed: notes");
     const other = updates.find((l) => l.memberId !== plainId)!;
@@ -1093,5 +1113,180 @@ describe("attendance audit names the person by member", () => {
     await expect(
       staff.mutation(api.attendance.updateRecord, { attendanceId, notes: "n" })
     ).rejects.toThrow("Attendance record not found.");
+  });
+});
+
+describe("audit entries say which campus and skip saves that change nothing", () => {
+  const UNSW = "University of New South Wales";
+
+  test("filterOptions tells same-named weeklies apart by campus and date", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.upsertUniversity, { year: YEAR, name: UNSW });
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    for (const subgroup of [USYD, UNSW]) {
+      await staff.mutation(api.events.create, {
+        name: "S2W5",
+        dateStart,
+        dateEnd,
+        subgroups: [subgroup],
+      });
+    }
+    const options = await staff.query(api.attendanceAudit.filterOptions, {});
+    const labels = options.events.map((e) => e.label).sort();
+    expect(labels).toHaveLength(2);
+    expect(new Set(labels).size).toBe(2);
+    expect(labels[0]).toMatch(/^S2W5 · UNSW · \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+    expect(labels[1]).toMatch(/^S2W5 · USYD · \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+    expect(options.events.every((e) => e.name === "S2W5")).toBe(true);
+  });
+
+  test("sign-in, sign-out, record edits and event changes name the campus", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "S2W5",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
+    const attendanceId = await staff.mutation(api.attendance.signIn, { eventId, memberId });
+    await staff.mutation(api.attendance.updateRecord, { attendanceId, notes: "late" });
+    await staff.mutation(api.attendance.signOut, { eventId, memberId });
+    await staff.mutation(api.events.update, {
+      eventId,
+      name: "S2W6",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD, "SOW"],
+    });
+    await staff.mutation(api.events.remove, { eventId });
+    const summaries = (await allLogs(t)).map((l) => l.summary);
+    expect(summaries).toEqual(
+      expect.arrayContaining([
+        'Sam signed in to "S2W5" (USYD)',
+        `Edited Sam's record for "S2W5" (USYD)`,
+        'Sam signed out of "S2W5" (USYD)',
+        'Updated event "S2W6" (USYD, SOW)',
+        'Deleted event "S2W6" (USYD, SOW)',
+      ])
+    );
+  });
+
+  test("a record edit that changes nothing writes nothing", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Night",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
+    const attendanceId = await staff.mutation(api.attendance.signIn, { eventId, memberId });
+    const row = await t.run((ctx) => ctx.db.get(attendanceId));
+    const edits = async () =>
+      (await allLogs(t)).filter((l) => l.action === "attendance.update");
+
+    await staff.mutation(api.attendance.updateRecord, { attendanceId, notes: "  " });
+    await staff.mutation(api.attendance.updateRecord, { attendanceId, signInTime: row!.signInTime });
+    await staff.mutation(api.attendance.updateRecord, { attendanceId });
+    expect(await edits()).toHaveLength(0);
+
+    await staff.mutation(api.attendance.updateRecord, { attendanceId, notes: "hi" });
+    await staff.mutation(api.attendance.updateRecord, {
+      attendanceId,
+      notes: " hi ",
+      signInTime: row!.signInTime,
+    });
+    const after = await edits();
+    expect(after).toHaveLength(1);
+    expect(after[0].detail).toBe("Changed: notes");
+    expect((await t.run((ctx) => ctx.db.get(attendanceId)))?.notes).toBe("hi");
+
+    await staff.mutation(api.attendance.updateRecord, {
+      attendanceId,
+      notes: "",
+      signInTime: row!.signInTime + 1_000,
+    });
+    const last = (await edits()).at(-1)!;
+    expect(last.detail).toBe("Changed: notes, sign-in time");
+    const edited = await t.run((ctx) => ctx.db.get(attendanceId));
+    expect(edited?.notes).toBeUndefined();
+    expect(edited?.signInTime).toBe(row!.signInTime + 1_000);
+  });
+
+  test("saving a member with no changes writes nothing, for members and staff", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const churchId = await t.run((ctx) =>
+      ctx.db.insert("churches", { name: "Hillside", nameKey: "hillside", addedBy: ADMIN })
+    );
+    const plain = await staff.mutation(api.attendanceMembers.create, {
+      name: "Pia Plain",
+      email: "pia@gmail.com",
+      metadata: { a: "1", b: "2" },
+      churchId,
+    });
+    const overlay = await staff.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: OTHER,
+      staffYear: YEAR,
+    });
+    await staff.mutation(api.attendanceMembers.update, {
+      memberId: overlay,
+      name: "Olive Other",
+      personalEmail: "olive@gmail.com",
+      metadata: { c: "3" },
+      staffYear: YEAR,
+    });
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query("attendanceAuditLog").collect()) {
+        await ctx.db.delete(row._id);
+      }
+    });
+    const before = await t.run((ctx) => Promise.all([ctx.db.get(plain), ctx.db.get(overlay)]));
+
+    await staff.mutation(api.attendanceMembers.update, {
+      memberId: plain,
+      name: " pia plain ",
+      email: "PIA@gmail.com",
+      metadata: { b: "2", a: "1", c: "" },
+      churchId,
+    });
+    await staff.mutation(api.attendanceMembers.update, {
+      memberId: plain,
+      name: "Pia Plain",
+      email: "pia@gmail.com",
+      metadata: { a: "1", b: "2" },
+    });
+    await staff.mutation(api.attendanceMembers.update, {
+      memberId: overlay,
+      name: "Olive Other",
+      personalEmail: " Olive@Gmail.com ",
+      metadata: { c: "3" },
+      staffYear: YEAR,
+    });
+    expect(await allLogs(t)).toEqual([]);
+    expect(await t.run((ctx) => Promise.all([ctx.db.get(plain), ctx.db.get(overlay)]))).toEqual(before);
+
+    await staff.mutation(api.attendanceMembers.update, {
+      memberId: plain,
+      name: "Pia Plain",
+      email: "pia@gmail.com",
+      metadata: { a: "1", b: "2" },
+      churchId: null,
+    });
+    await staff.mutation(api.attendanceMembers.update, {
+      memberId: overlay,
+      name: "Olive Other",
+      personalEmail: "olive@gmail.com",
+      metadata: { c: "4" },
+      staffYear: YEAR,
+    });
+    expect((await allLogs(t)).map((l) => l.action)).toEqual(["member.update", "member.update"]);
+    expect((await t.run((ctx) => ctx.db.get(plain)))?.churchId).toBeUndefined();
   });
 });

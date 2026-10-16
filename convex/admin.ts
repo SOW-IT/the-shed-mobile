@@ -1,5 +1,10 @@
 import { ConvexError, v } from "convex/values";
+import type { Audience } from "../shared/announcements";
+import { EVENTS, SUB_FORM_TEAMS } from "../shared/eventRequests";
 import {
+  ADMIN_DEPARTMENTS,
+  ADMIN_DIVISIONS,
+  ADMIN_HEADED_DIVISIONS,
   Assignment,
   assignmentFor,
   assignmentsOf,
@@ -31,6 +36,8 @@ import {
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
+import { DESIGN_REQUEST_FIELDS } from "./designRequestForm";
+import { EVENT_FIELDS } from "./eventRequestForm";
 import {
   currentStaffYear,
   DELEGATION_QUERY_LIMIT,
@@ -232,6 +239,100 @@ const renameScopeInProfiles = async (
     if (!current.some((a) => a[key] === oldName)) continue;
     await ctx.db.patch("staffProfiles", profile._id, {
       assignments: remapScope(current, key, oldName, newName),
+    });
+  }
+};
+
+const APP_KEYED_DEPARTMENTS: readonly string[] = [
+  ...new Set([
+    ...ADMIN_DEPARTMENTS,
+    FINANCE,
+    CHAPLAINCY_DEPARTMENT,
+    EVENTS,
+    ...Object.values(SUB_FORM_TEAMS),
+  ]),
+];
+
+const APP_KEYED_DIVISIONS: readonly string[] = [
+  ...new Set([...ADMIN_DIVISIONS, ...ADMIN_HEADED_DIVISIONS]),
+];
+
+const assertRenamable = (kind: "department" | "division", oldName: string, newName: string) => {
+  const keyed = kind === "department" ? APP_KEYED_DEPARTMENTS : APP_KEYED_DIVISIONS;
+  if (newName !== oldName && keyed.includes(oldName)) {
+    throw new ConvexError(
+      `The ${oldName} ${kind} can't be renamed: the app uses its name for admin rights, approvals or review teams.`
+    );
+  }
+};
+
+export const lockedNames = query({
+  args: {},
+  handler: async () => ({
+    departments: [...APP_KEYED_DEPARTMENTS],
+    divisions: [...APP_KEYED_DIVISIONS],
+  }),
+});
+
+const renameInScheduledAnnouncements = async (
+  ctx: MutationCtx,
+  year: number,
+  key: keyof Audience,
+  oldName: string,
+  newName: string
+) => {
+  for await (const announcement of ctx.db
+    .query("announcements")
+    .withIndex("by_status_and_sendAt", (q) => q.eq("status", "scheduled"))) {
+    if ((announcement.year ?? currentStaffYear()) !== year) continue;
+    const names = announcement.audience[key];
+    if (!names.includes(oldName)) continue;
+    await ctx.db.patch("announcements", announcement._id, {
+      audience: {
+        ...announcement.audience,
+        [key]: names.map((name) => (name === oldName ? newName : name)),
+      },
+    });
+  }
+};
+
+type FormAnswers = Doc<"eventRequests">["answers"];
+
+const departmentAnswerKey = (fields: readonly { key: string; role?: string }[]) =>
+  fields.find((field) => field.role === "department")?.key;
+
+const withRenamedDepartment = (
+  answers: FormAnswers,
+  key: string | undefined,
+  oldName: string,
+  newName: string
+): FormAnswers => (key && answers[key] === oldName ? { ...answers, [key]: newName } : answers);
+
+const renameDepartmentInFormRequests = async (
+  ctx: MutationCtx,
+  year: number,
+  oldName: string,
+  newName: string
+) => {
+  const eventKey = departmentAnswerKey(EVENT_FIELDS);
+  const events = await ctx.db
+    .query("eventRequests")
+    .withIndex("by_department_and_year", (q) => q.eq("department", oldName).eq("year", year))
+    .collect();
+  for (const event of events) {
+    await ctx.db.patch("eventRequests", event._id, {
+      department: newName,
+      answers: withRenamedDepartment(event.answers, eventKey, oldName, newName),
+    });
+  }
+  const designKey = departmentAnswerKey(DESIGN_REQUEST_FIELDS);
+  for await (const design of ctx.db
+    .query("designRequests")
+    .withIndex("by_year_and_number", (q) => q.eq("year", year))) {
+    if (design.department !== oldName) continue;
+    await ctx.db.patch("designRequests", design._id, {
+      department: newName,
+      answers: withRenamedDepartment(design.answers, designKey, oldName, newName),
     });
   }
 };
@@ -805,6 +906,7 @@ export const updateDivision = mutation({
     if (!existing) throw new ConvexError(`Division "${oldName}" not found.`);
 
     const oldHeadEmail = existing.headEmail;
+    assertRenamable("division", oldName, newName);
 
     if (newName !== oldName) {
       const conflict = await ctx.db
@@ -825,6 +927,7 @@ export const updateDivision = mutation({
         }
       }
       await renameScopeInProfiles(ctx, args.year, "division", oldName, newName);
+      await renameInScheduledAnnouncements(ctx, args.year, "divisions", oldName, newName);
     } else {
       await ctx.db.patch("divisions", existing._id, { headEmail });
     }
@@ -959,6 +1062,7 @@ export const updateUniversity = mutation({
 
       await ctx.db.patch("universities", existing._id, { name: newName });
       await renameScopeInProfiles(ctx, args.year, "university", oldName, newName);
+      await renameInScheduledAnnouncements(ctx, args.year, "campuses", oldName, newName);
     }
 
     return existing._id;
@@ -1037,6 +1141,7 @@ export const updateRole = mutation({
           current.map((a) => (a.role === oldName ? { ...a, role: newName } : a))
         );
       }
+      await renameInScheduledAnnouncements(ctx, args.year, "roles", oldName, newName);
     }
 
     return existing._id;
@@ -1214,6 +1319,7 @@ export const updateDepartment = mutation({
     if (!existing) throw new ConvexError(`Department "${oldName}" not found.`);
 
     const oldHeadEmail = existing.headEmail;
+    assertRenamable("department", oldName, newName);
 
     if (newName !== oldName) {
       const conflict = await getDepartment(ctx, args.year, newName);
@@ -1229,6 +1335,8 @@ export const updateDepartment = mutation({
       for await (const request of departmentRequestsInYear(ctx, args.year, oldName)) {
         await ctx.db.patch("requests", request._id, { department: newName });
       }
+      await renameDepartmentInFormRequests(ctx, args.year, oldName, newName);
+      await renameInScheduledAnnouncements(ctx, args.year, "departments", oldName, newName);
     } else {
       await ctx.db.patch("departments", existing._id, {
         division: args.division,

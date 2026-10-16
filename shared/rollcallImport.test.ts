@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  canonicalImportMemberName,
   previousStaffYearByEmailKey,
   previousStaffYearForEmail,
   staffEmailCandidates,
@@ -23,18 +22,6 @@ describe("staffEmailCandidates", () => {
     expect(staffEmailCandidates("jane@gmail.com")).toEqual(["jane@gmail.com"]);
     expect(staffEmailCandidates(undefined)).toEqual([]);
     expect(staffEmailCandidates("not-an-email")).toEqual([]);
-  });
-});
-
-describe("canonicalImportMemberName", () => {
-  it("normalises Daniel Kim Snr", () => {
-    expect(canonicalImportMemberName("Daniel Kim Snr")).toBe("Daniel Kim");
-    expect(canonicalImportMemberName("  daniel   kim   snr ")).toBe("Daniel Kim");
-  });
-
-  it("passes through an ordinary name unchanged", () => {
-    expect(canonicalImportMemberName("Normal Name")).toBe("Normal Name");
-    expect(canonicalImportMemberName("  Jane   Doe  ")).toBe("Jane Doe");
   });
 });
 

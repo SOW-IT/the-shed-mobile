@@ -40,7 +40,7 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 const campusName = (campus: string | null) => (campus ? subgroupLabel(campus) : "No campus");
 
-const keep = (label: string) => label.replace(/ /g, " ");
+const campusPage = (campus: string | null) => (campus && !isOrgWideSubgroup(campus) ? campus : undefined);
 
 const noRollBlock = (events: SowEvent[], what: string): WeeklyBlock[] =>
   events.length
@@ -61,13 +61,13 @@ const rolePill = (row: { role: SowRole; campus: string | null }): Pill =>
 
 const lastCame = (lastAt: number) => `Last came ${fullDate(lastAt)}`;
 
-function twigCards(result: TwigResult): ViewCard[] {
+function twigCards(result: TwigResult, missesForFollowUp: number): ViewCard[] {
   const { summary: s, last, lastLabel } = result;
-  const vs = (value: string) => (last && lastLabel ? `vs ${value} in ${keep(lastLabel)}` : undefined);
+  const vs = (value: string) => `vs ${value}`;
   const compare = last
     ? result.running
-      ? ` Compared with ${lastLabel}, the same point in last staff year.`
-      : ` Compared with staff year ${lastLabel}.`
+      ? ` Compared with ${lastLabel}: the same point in last staff year.`
+      : ` Compared with ${lastLabel}.`
     : "";
   return [
     {
@@ -92,12 +92,17 @@ function twigCards(result: TwigResult): ViewCard[] {
     },
     {
       label: "Regulars",
-      value: String(s.regulars),
+      value: s.regulars === null ? "–" : String(s.regulars),
       delta: countDelta(s.regulars, last?.regulars ?? null),
-      hint: last ? vs(String(last.regulars)) : undefined,
+      hint:
+        s.regulars === null
+          ? `After ${missesForFollowUp + 1} TWIGs`
+          : last?.regulars != null
+            ? vs(String(last.regulars))
+            : undefined,
       info: {
         title: "Regulars",
-        body: `Campus leaders who came to at least half of this staff year's TWIGs.${compare}`,
+        body: `Campus leaders who came to at least half of this staff year's TWIGs, counted once ${missesForFollowUp + 1} TWIGs have a roll.${compare}`,
       },
     },
   ];
@@ -115,18 +120,25 @@ function twigRows(result: TwigResult, people: SowPeople): PeopleRow[] {
       tags: [r.role, ...(r.regular ? ["regular"] : [])],
       category: rolePill(r),
       primary: `${r.attended}/${r.held} · ${pct(r.pct)}`,
-      secondary: r.regular ? `Regular. ${lastCame(r.lastAt)}` : lastCame(r.lastAt),
+      secondary: lastCame(r.lastAt),
       warning: r.role === "none" ? `No staff profile for ${result.year}` : undefined,
+      badge: r.regular ? { label: REGULAR_FILTER.label, colour: REGULAR_FILTER.colour } : undefined,
+      dimmed: r.role === "staff" ? true : undefined,
+      subgroup: campusPage(r.campus),
       pct: r.pct,
       last: r.lastAt,
     };
   });
 }
 
+const seeYear = (year: number | undefined) =>
+  year === undefined ? {} : { action: { label: `See ${year}`, period: String(year) } };
+
 export function buildTwigBlocks(input: {
   result: TwigResult;
   people: SowPeople;
   missesForFollowUp: number;
+  earlierYear?: number;
 }): WeeklyBlock[] {
   const { result, people } = input;
   const { held, year } = result;
@@ -137,6 +149,7 @@ export function buildTwigBlocks(input: {
         icon: "calendar-outline",
         title: "No TWIGs yet",
         message: `No TWIG in staff year ${year} has a roll yet. TWIGs are events tagged TWIG (and not PPN).`,
+        ...seeYear(input.earlierYear),
       },
       ...noRollBlock(result.noRoll, "TWIG"),
     ];
@@ -148,10 +161,10 @@ export function buildTwigBlocks(input: {
       text: result.last
         ? `Staff year ${year}: ${count}, compared with ${result.lastLabel}. Only campus leaders are counted.`
         : result.lastLabel
-          ? `Staff year ${year}: ${count}. No TWIG in ${result.lastLabel} had a roll, so there's nothing to compare with yet. Only campus leaders are counted.`
+          ? `Staff year ${year}: ${count}. No TWIG had a roll in ${result.lastLabel}, so there's nothing to compare with yet. Only campus leaders are counted.`
           : `Staff year ${year}: ${count}. There's no earlier staff year to compare with. Only campus leaders are counted.`,
     },
-    { type: "cards", layout: "grid", cards: twigCards(result) },
+    { type: "cards", layout: "grid", cards: twigCards(result, input.missesForFollowUp) },
   ];
   const length = Math.max(result.counts.length, result.lastCounts.length);
   blocks.push({
@@ -190,6 +203,7 @@ export function buildTwigBlocks(input: {
       category: rolePill(r),
       reason: `Regular, but missed the last ${input.missesForFollowUp} TWIGs`,
       secondary: lastCame(r.lastAt),
+      subgroup: campusPage(r.campus),
     }));
     blocks.push({
       type: "followUpGroups",
@@ -210,7 +224,7 @@ export function buildTwigBlocks(input: {
   blocks.push({
     type: "people",
     title: "Everyone",
-    subtitle: `Everyone who came to a TWIG in staff year ${year}. Organisers aren't counted; anyone with no staff profile is flagged.`,
+    subtitle: `Everyone who came to a TWIG in staff year ${year}.`,
     sections: SOW_ROLE_ORDER.map((key) => ({ key, label: ROLE_META[key].section })),
     filters: [
       ...SOW_ROLE_ORDER.filter((key) => present.has(key)).map((key) => ({
@@ -239,7 +253,7 @@ const monthYear = (at: number) => {
   return `${MONTH_NAMES[month - 1]} ${year}`;
 };
 
-export function buildPpnBlocks(input: { result: PpnResult }): WeeklyBlock[] {
+export function buildPpnBlocks(input: { result: PpnResult; earlierYear?: number }): WeeklyBlock[] {
   const { result } = input;
   const { year, totals } = result;
   if (result.rows.length === 0) {
@@ -249,6 +263,7 @@ export function buildPpnBlocks(input: { result: PpnResult }): WeeklyBlock[] {
         icon: "calendar-outline",
         title: "No PPNs yet",
         message: `No PPN in staff year ${year} has a roll yet. PPNs here are events tagged both TWIG and PPN.`,
+        ...seeYear(input.earlierYear),
       },
       ...noRollBlock(result.noRoll, "PPN"),
     ];

@@ -1,9 +1,3 @@
-export function canonicalImportMemberName(name: string): string {
-  const trimmed = name.trim().replace(/\s+/g, " ");
-  if (trimmed.toLowerCase() === "daniel kim snr") return "Daniel Kim";
-  return trimmed;
-}
-
 export const normalizedEmail = (email: string | undefined): string | undefined => {
   const lower = email?.trim().toLowerCase();
   return lower && lower.includes("@") ? lower : undefined;

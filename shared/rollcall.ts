@@ -5,7 +5,7 @@ import {
   parseDateTimeInputValues,
   toDateInputValue,
 } from "./datetime";
-import { acronym, UNIVERSITY_COLOURS, universityColour } from "./flow";
+import { acronym, sydneyYmd, UNIVERSITY_COLOURS, universityColour } from "./flow";
 import { canonicalEmailKey } from "./rollcallImport";
 
 export const SOW_SUBGROUP = "SOW";
@@ -48,6 +48,24 @@ export const isWeekliesTagName = (name: string): boolean => name === WEEKLIES_TA
 export type TagList = "weeklies" | "events";
 
 export const tagListOf = (tag: { list?: TagList }): TagList => tag.list ?? "events";
+
+export const TAG_LIST_LABEL: Record<TagList, string> = {
+  weeklies: "Weeklies",
+  events: "Other events",
+};
+
+export const tagFilterLabels = (tags: readonly { name: string; list?: TagList }[]): string[] => {
+  const listsByName = new Map<string, Set<TagList>>();
+  for (const tag of tags) {
+    const key = tag.name.trim().toLowerCase();
+    listsByName.set(key, (listsByName.get(key) ?? new Set()).add(tagListOf(tag)));
+  }
+  return tags.map((tag) =>
+    listsByName.get(tag.name.trim().toLowerCase())!.size > 1
+      ? `${tag.name} (${TAG_LIST_LABEL[tagListOf(tag)]})`
+      : tag.name
+  );
+};
 
 export const tagScope = (list: TagList, subgroups: string[] | undefined): string[] | undefined => {
   const scoped = normalizeSubgroups(subgroups ?? []).filter(
@@ -277,4 +295,28 @@ export const defaultAttendanceSubgroup = (
     if (university && subgroups.includes(university)) return university;
   }
   return subgroups[0];
+};
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export const eventCampusLabel = (subgroups: string[]): string =>
+  normalizeSubgroups(subgroups).map(subgroupLabel).join(", ");
+
+export const auditEventName = (
+  event: { name: string; subgroups: string[] } | null
+): string => {
+  if (!event) return `"an event"`;
+  const campus = eventCampusLabel(event.subgroups);
+  return campus ? `"${event.name}" (${campus})` : `"${event.name}"`;
+};
+
+export const eventFilterLabel = (event: {
+  name: string;
+  subgroups: string[];
+  dateStart: number;
+}): string => {
+  const { year, month, day } = sydneyYmd(new Date(event.dateStart));
+  return [event.name, eventCampusLabel(event.subgroups), `${day} ${MONTHS[month - 1]} ${year}`]
+    .filter(Boolean)
+    .join(" · ");
 };

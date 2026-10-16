@@ -12,8 +12,8 @@ import {
 import {
   actionOwnerEmail,
   involvedApproverEmails,
+  mineTabRequests,
   notify,
-  requesterRequestsInYear,
   requestUrl,
 } from "./requests";
 import { ALLOWED_REACTIONS, APPROVED, eventStaffYear } from "../shared/flow";
@@ -44,9 +44,8 @@ export const add = mutation({
           if (to !== email) recipients.add(to);
         }
       }
-    } else if (request.requesterEmail !== email) {
-      recipients.add(request.requesterEmail);
     }
+    if (request.requesterEmail !== email) recipients.add(request.requesterEmail);
     const approvers = await getApprovers(ctx, reqYear, request.department);
     for (const approver of involvedApproverEmails(request, approvers, [APPROVED])) {
       if (approver !== email) recipients.add(approver);
@@ -197,11 +196,8 @@ export const myUnreadTotal = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return 0;
     const { email, year } = caller;
-    const fetch = (y: number) => requesterRequestsInYear(ctx, email, y).collect();
-    const current = await fetch(year);
-    const prev = await fetch(year - 1);
     let total = 0;
-    for (const req of [...current, ...prev]) {
+    for (const req of await mineTabRequests(ctx, email, year)) {
       total += await unreadCountFor(ctx, req._id, email);
     }
     return total;

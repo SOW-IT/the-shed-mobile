@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { type Href, usePathname, useRouter } from "expo-router";
 import { useState } from "react";
@@ -12,6 +11,7 @@ import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
 import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
+import { useSignOut } from "@/hooks/usePushRegistration";
 import {
   activeNavKey,
   badgeText,
@@ -80,7 +80,7 @@ export const NavMenu = ({
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { isAuthenticated } = useConvexAuth();
-  const { signOut } = useAuthActions();
+  const signOut = useSignOut();
   const me = useQuery(api.directory.me);
   const viewer = navViewer(isAuthenticated, me);
   const reimbursementsBadge = useReimbursementsBadge();
@@ -278,7 +278,7 @@ export const NavMenu = ({
           </Pressable>
           <ConfirmDialog
             visible={confirmingSignOut}
-            title="Sign out of The Shed?"
+            title="Sign out of The SHED?"
             confirmLabel="Sign out"
             onConfirm={() => {
               onNavigate?.();

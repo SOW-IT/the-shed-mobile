@@ -35,12 +35,13 @@ export function MetricsTab({
   sowTab,
   onSowTabChange,
   sowTabView,
+  onSowYearChange,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   onOpenMember: (memberId: Id<"attendanceMembers">) => void;
-  onOpenPerson: (personKey: string) => void;
+  onOpenPerson: (personKey: string, subgroup?: string) => void;
   rangeWeeks: number;
   includeCollaborative: boolean;
   weeklyView: { period: string | null; blocks: WeeklyBlock[] } | null | undefined;
@@ -48,6 +49,7 @@ export function MetricsTab({
   sowTab?: SowTabChoice | null;
   onSowTabChange?: (key: string) => void;
   sowTabView?: { year: number; blocks: WeeklyBlock[] } | null;
+  onSowYearChange?: (year: number) => void;
 }) {
   const t = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -90,7 +92,7 @@ export function MetricsTab({
                   <View
                     style={[styles.campusRing, active && { borderColor: ringColour }]}
                   >
-                    <CampusMark campus={sg} variant="circle" circleDiameter={CAMPUS_MARK} />
+                    <CampusMark campus={sg} circleDiameter={CAMPUS_MARK} />
                   </View>
                 </Pressable>
               </FadeInView>
@@ -116,6 +118,7 @@ export function MetricsTab({
           width={containerWidth}
           onOpenMember={onOpenMember}
           onOpenPerson={onOpenPerson}
+          onPickPeriod={onSowYearChange ? (period) => onSowYearChange(Number(period)) : undefined}
         />
       ) : null}
       <View style={{ height: 96 }} />

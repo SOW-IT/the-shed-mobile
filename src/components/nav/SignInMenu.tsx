@@ -11,6 +11,15 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type SignInMenuAnchor = { top: number; left: number };
 
+export const alertSowAccountRequired = (appleAvailable: boolean) =>
+  Alert.alert(
+    "SOW account required",
+    appleAvailable
+      ? "Only SOW organisation accounts can sign in here. To browse as a guest, tap “Sign in with Apple” instead."
+      : "Only SOW organisation accounts can sign in here.",
+    [{ text: "OK" }]
+  );
+
 /**
  * The sign-in choices (SOW account, Apple) as a small menu
  * dropping from wherever `anchor` puts it. `children` renders the button that
@@ -58,13 +67,7 @@ export const SignInMenu = ({
           [{ text: "OK" }]
         );
       } else {
-        Alert.alert(
-          "SOW account required",
-          appleAvailable
-            ? "Only SOW organisation accounts can sign in here. To browse as a guest, tap “Sign in with Apple” instead."
-            : "Only SOW organisation accounts can sign in here.",
-          [{ text: "OK" }]
-        );
+        alertSowAccountRequired(appleAvailable);
       }
     } else if (outcome === "error") {
       Alert.alert(

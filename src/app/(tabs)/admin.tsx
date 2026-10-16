@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { ReactNode, useEffect, useState } from "react";
-import { Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import {
   type Assignment,
   DIRECTOR,
@@ -60,9 +60,10 @@ import {
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { SuggestedMerges } from "@/components/admin/SuggestedMerges";
 import { useAdminMutations } from "@/hooks/useAdminMutations";
+import { sydneyDateTime } from "@/lib/sydneyTime";
 import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
 
-type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
+type DeleteConfirm = { name: string; message?: string; onConfirm: () => void };
 
 const ADMIN_CARD_WIDTH = 360;
 
@@ -114,6 +115,12 @@ const emptyDraft = (role = STAFF_EDITABLE_ROLES[0]): AssignmentDraft => ({
   university: "",
 });
 
+const dropsARoleWithoutReplacing = (savedRoles: string[], nextRoles: string[]): boolean =>
+  nextRoles.every((role) => savedRoles.includes(role)) &&
+  savedRoles.some((role) => !nextRoles.includes(role));
+
+const peopleText = (count: number) => `${count} ${count === 1 ? "person" : "people"}`;
+
 const sameAssignments = (a: AssignmentDraft[], b: AssignmentDraft[]): boolean =>
   a.length === b.length &&
   a.every(
@@ -131,6 +138,7 @@ const AssignmentEditor = ({
   roles = STAFF_EDITABLE_ROLES,
   startIndex = 0,
   minCount = 1,
+  canRemove = () => true,
 }: {
   assignments: AssignmentDraft[];
   onChange: (a: AssignmentDraft[]) => void;
@@ -139,6 +147,7 @@ const AssignmentEditor = ({
   roles?: string[];
   startIndex?: number;
   minCount?: number;
+  canRemove?: (remaining: AssignmentDraft[]) => boolean;
 }) => {
   const t = useAppTheme();
   const totalCount = startIndex + assignments.length;
@@ -174,7 +183,8 @@ const AssignmentEditor = ({
                   onSelect={(role) => update({ role, department: "", university: "" })}
                 />
               </View>
-              {assignments.length > minCount && (
+              {assignments.length > minCount &&
+                canRemove(assignments.filter((_, j) => j !== i)) && (
                 <View style={{ marginBottom: 6 }}>
                   <IconButton
                     name="trash-outline"
@@ -219,7 +229,7 @@ const AssignmentEditor = ({
         );
       })}
       <Btn
-        title="+ Add Assignment"
+        title="+ Add assignment"
         variant="ghost"
         onPress={() => onChange([...assignments, emptyDraft()])}
       />
@@ -238,6 +248,24 @@ const AssignmentEditor = ({
         }}
         onClose={() => setRemoveIndex(null)}
       />
+    </View>
+  );
+};
+
+const LockedNameRow = ({ label, name }: { label: string; name: string }) => {
+  const t = useAppTheme();
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      <View style={[styles.lockedBox, { backgroundColor: t.inputBackground }]}>
+        <Text style={[typography.body, { color: t.text, flex: 1 }]}>{name}</Text>
+        <Ionicons
+          name="lock-closed-outline"
+          size={18}
+          color={t.muted}
+          accessibilityLabel="Used by the app. Can't be renamed"
+        />
+      </View>
     </View>
   );
 };
@@ -377,6 +405,12 @@ export default function AdminScreen() {
     api.admin.people,
     hasAccess ? { year: selectedYear } : "skip"
   );
+  const lockedNames = useQuery(api.admin.lockedNames, hasAccess ? {} : "skip");
+  const lockedDepartments = new Set(lockedNames?.departments ?? []);
+  const lockedDivisions = new Set(lockedNames?.divisions ?? []);
+  const holdersLoaded = profiles != null;
+  const holdersOf = (holds: (a: Assignment) => boolean) =>
+    (profiles ?? []).filter((p) => (p.assignments ?? []).some(holds)).length;
   const personOptions = (people ?? []).map((person) => ({
     label: person.name ?? person.email,
     value: person.email,
@@ -460,7 +494,8 @@ export default function AdminScreen() {
     thresholdInput ?? String(configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD);
   const thresholdNumber = Number(thresholdValue);
   const thresholdUnchanged =
-    thresholdNumber === configuredThreshold || thresholdValue.trim() === "";
+    thresholdNumber === (configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD) ||
+    thresholdValue.trim() === "";
   const [eventThresholdInput, setEventThresholdInput] = useState<string | null>(null);
   const configuredEventThreshold = structure?.eventDirectorApprovalThreshold ?? null;
   const eventThresholdValue =
@@ -654,8 +689,8 @@ export default function AdminScreen() {
             </Row>
           </>
         ) : (
-          <Row>
-            <View style={{ flexGrow: 1 }}>
+          <View style={styles.cardRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
               {user.name ? <Muted>{user.email}</Muted> : null}
               {user.previousYear ? (
@@ -679,7 +714,7 @@ export default function AdminScreen() {
               accessibilityLabel="Assign"
               onPress={() => startAssign(user.email)}
             />
-          </Row>
+          </View>
         )}
       </Card>
     );
@@ -687,8 +722,8 @@ export default function AdminScreen() {
 
   const renderLeaverCard = (user: { email: string; name?: string | null }) => (
     <Card key={user.email}>
-      <Row>
-        <View style={{ flexGrow: 1 }}>
+      <View style={styles.cardRow}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
           {user.name ? <Muted>{user.email}</Muted> : null}
         </View>
@@ -701,7 +736,7 @@ export default function AdminScreen() {
             )
           }
         />
-      </Row>
+      </View>
     </Card>
   );
 
@@ -730,6 +765,10 @@ export default function AdminScreen() {
         university: a.university ?? "",
       }));
     const assignmentsChanged = !sameAssignments(editingAssignments, savedAssignments);
+    const savedRoles = [...new Set((profile.assignments ?? []).map((a) => a.role))];
+    const canRemoveAssignment = (remaining: AssignmentDraft[]) =>
+      lockedHeadAssignments.length > 0 ||
+      !dropsARoleWithoutReplacing(savedRoles, remaining.map((a) => a.role));
     return (
       <Card
         key={profile._id}
@@ -755,6 +794,7 @@ export default function AdminScreen() {
               roles={availableRoles}
               startIndex={lockedHeadAssignments.length}
               minCount={lockedHeadAssignments.length > 0 ? 0 : 1}
+              canRemove={canRemoveAssignment}
             />
             <Row spread loading={savingEditUser}>
               <Btn
@@ -816,7 +856,7 @@ export default function AdminScreen() {
                     style={[styles.notSignedInPill, { backgroundColor: t.warningSoft }]}
                   >
                     <Text style={[styles.notSignedInText, { color: t.warning }]}>
-                      NOT SIGNED IN
+                      Not signed in
                     </Text>
                   </View>
                 )}
@@ -853,6 +893,29 @@ export default function AdminScreen() {
     );
   };
 
+  const renderHolderCount = (count: number) =>
+    holdersLoaded ? (
+      <View style={styles.metaItem}>
+        <Ionicons name="people-outline" size={12} color={t.muted} />
+        <Muted>{peopleText(count)}</Muted>
+      </View>
+    ) : null;
+
+  const renderDeleteButton = (name: string, holders: number, onPress: () => void) => {
+    const blocked = !holdersLoaded || holders > 0;
+    return (
+      <IconButton
+        name="trash-outline"
+        color={blocked ? t.faint : t.danger}
+        disabled={blocked}
+        accessibilityLabel={
+          holders > 0 ? `Delete ${name}, unavailable while ${peopleText(holders)} hold it` : `Delete ${name}`
+        }
+        onPress={onPress}
+      />
+    );
+  };
+
   const onSelectYear = (y: number) => {
     setYear(y);
     setError(null);
@@ -882,18 +945,32 @@ export default function AdminScreen() {
         <>
           {(notSignedInCount > 0 || showingNotSignedIn) && (
             <View style={styles.signedInSummary}>
-              <Muted>
-                {notSignedInCount === 0
-                  ? `Everyone on staff in ${selectedYear} has signed in to The SHED.`
-                  : `${notSignedInCount} of ${(profiles ?? []).length} staff in ${selectedYear} ${
-                      notSignedInCount === 1 ? "hasn't" : "haven't"
-                    } signed in to The SHED yet.`}
-              </Muted>
-              <Btn
-                title={showingNotSignedIn ? "Show everyone" : "Show only them"}
-                variant="ghost"
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: showingNotSignedIn }}
+                accessibilityLabel={`Only staff who haven't signed in: ${notSignedInCount} of ${(profiles ?? []).length}`}
                 onPress={() => setOnlyNotSignedIn((on) => !on)}
-              />
+                style={({ pressed }) => [
+                  styles.filterChip,
+                  {
+                    borderColor: showingNotSignedIn ? t.primary : t.border,
+                    backgroundColor: showingNotSignedIn ? t.primary : "transparent",
+                  },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Ionicons
+                  name={showingNotSignedIn ? "checkmark" : "log-in-outline"}
+                  size={15}
+                  color={showingNotSignedIn ? t.onPrimary : t.muted}
+                />
+                <Txt style={[styles.filterChipText, { color: showingNotSignedIn ? t.onPrimary : t.text }]}>
+                  Not signed in
+                </Txt>
+                <Txt style={[styles.filterChipText, { color: showingNotSignedIn ? t.onPrimary : t.muted }]}>
+                  {notSignedInCount}
+                </Txt>
+              </Pressable>
             </View>
           )}
 
@@ -1054,7 +1131,7 @@ export default function AdminScreen() {
                 onChangeText={setRoleName}
               />
               <Btn
-                title="Add Role"
+                title="Add role"
                 onPress={() =>
                   void run(() =>
                     upsertRole({ year: selectedYear, name: roleName })
@@ -1068,12 +1145,13 @@ export default function AdminScreen() {
           )}
           {(structure?.roles ?? []).map((role) => {
             const isEditingThis = editingRoleKey === role;
+            const roleHolders = holdersOf((a) => a.role === role);
             return (
               <Card key={role}>
                 {isEditingThis ? (
                   <>
                     <Field
-                      label="Role name (rename cascades to staff assignments)"
+                      label="Role name (rename cascades to staff and scheduled announcements)"
                       value={editingRoleFormName}
                       onChangeText={setEditingRoleFormName}
                     />
@@ -1107,9 +1185,10 @@ export default function AdminScreen() {
                     </Row>
                   </>
                 ) : (
-                  <Row>
-                    <View style={{ flexGrow: 1 }}>
+                  <View style={styles.cardRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
                       <Txt style={{ fontWeight: "600" }}>{role}</Txt>
+                      {renderHolderCount(roleHolders)}
                     </View>
                     {editable && isSystemRole(role) && (
                       <Ionicons
@@ -1128,20 +1207,15 @@ export default function AdminScreen() {
                             setEditingRoleKey(role);
                           }}
                         />
-                        <IconButton
-                          name="trash-outline"
-                          color={t.danger}
-                          onPress={() =>
-                            setDeleteConfirm({
-                              name: role,
-                              message: `This role can only be deleted if no one is assigned it this year.`,
-                              onConfirm: () => void run(() => removeRole({ year: selectedYear, name: role })),
-                            })
-                          }
-                        />
+                        {renderDeleteButton(role, roleHolders, () =>
+                          setDeleteConfirm({
+                            name: role,
+                            onConfirm: () => void run(() => removeRole({ year: selectedYear, name: role })),
+                          })
+                        )}
                       </>
                     )}
-                  </Row>
+                  </View>
                 )}
               </Card>
             );
@@ -1169,7 +1243,7 @@ export default function AdminScreen() {
                 placeholder="Choose a person…"
               />
               <Btn
-                title="Add Division"
+                title="Add division"
                 onPress={() =>
                   void run(() =>
                     upsertDivision({
@@ -1189,15 +1263,28 @@ export default function AdminScreen() {
           )}
           {(structure?.divisions ?? []).map((division) => {
             const isEditingThis = editingDivisionKey === division.name;
+            const divisionLocked = lockedDivisions.has(division.name);
+            const divisionDepartments = new Set(
+              (structure?.departments ?? [])
+                .filter((d) => d.division === division.name)
+                .map((d) => d.name)
+            );
+            const divisionHolders = holdersOf(
+              (a) => a.division === division.name || divisionDepartments.has(a.department ?? "")
+            );
             return (
               <Card key={division.name}>
                 {isEditingThis ? (
                   <>
-                    <Field
-                      label="Division name (rename cascades to departments and staff)"
-                      value={editingDivisionFormName}
-                      onChangeText={setEditingDivisionFormName}
-                    />
+                    {divisionLocked ? (
+                      <LockedNameRow label="Division name" name={division.name} />
+                    ) : (
+                      <Field
+                        label="Division name (rename cascades to departments, staff and scheduled announcements)"
+                        value={editingDivisionFormName}
+                        onChangeText={setEditingDivisionFormName}
+                      />
+                    )}
                     <Select
                       label="Head of Division"
                       value={editingDivisionFormHead}
@@ -1237,9 +1324,19 @@ export default function AdminScreen() {
                     </Row>
                   </>
                 ) : (
-                  <Row>
-                    <View style={{ flexGrow: 1 }}>
-                      <Txt style={{ fontWeight: "600" }}>{division.name}</Txt>
+                  <View style={styles.cardRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.nameRow}>
+                        <Txt style={{ fontWeight: "600" }}>{division.name}</Txt>
+                        {divisionLocked ? (
+                          <Ionicons
+                            name="lock-closed-outline"
+                            size={14}
+                            color={t.muted}
+                            accessibilityLabel="Used by the app. Can't be renamed"
+                          />
+                        ) : null}
+                      </View>
                       {division.headEmail ? (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: 2 }}>
                           <Ionicons name="person-outline" size={12} color={t.muted} />
@@ -1248,6 +1345,7 @@ export default function AdminScreen() {
                       ) : (
                         <Muted>No head assigned</Muted>
                       )}
+                      {renderHolderCount(divisionHolders)}
                     </View>
                     {editable && (
                       <>
@@ -1259,20 +1357,19 @@ export default function AdminScreen() {
                             setEditingDivisionKey(division.name);
                           }}
                         />
-                        <IconButton
-                          name="trash-outline"
-                          color={t.danger}
-                          onPress={() =>
-                            setDeleteConfirm({
-                              name: division.name,
-                              message: `Its departments are removed with it. Anyone still assigned to the division or its departments has to be reassigned first.`,
-                              onConfirm: () => void run(() => removeDivision({ year: selectedYear, name: division.name })),
-                            })
-                          }
-                        />
+                        {renderDeleteButton(division.name, divisionHolders, () =>
+                          setDeleteConfirm({
+                            name: division.name,
+                            message:
+                              divisionDepartments.size > 0
+                                ? "Its departments are removed with it."
+                                : undefined,
+                            onConfirm: () => void run(() => removeDivision({ year: selectedYear, name: division.name })),
+                          })
+                        )}
                       </>
                     )}
-                  </Row>
+                  </View>
                 )}
               </Card>
             );
@@ -1293,7 +1390,7 @@ export default function AdminScreen() {
                 onChangeText={setUniversityName}
               />
               <Btn
-                title="Add University"
+                title="Add university"
                 onPress={() =>
                   void run(() =>
                     upsertUniversity({ year: selectedYear, name: universityName })
@@ -1307,12 +1404,13 @@ export default function AdminScreen() {
           )}
           {(structure?.universities ?? []).map((university) => {
             const isEditingThis = editingUniversityKey === university;
+            const universityHolders = holdersOf((a) => a.university === university);
             return (
               <Card key={university}>
                 {isEditingThis ? (
                   <>
                     <Field
-                      label="University name (rename cascades to staff)"
+                      label="University name (rename cascades to staff and scheduled announcements)"
                       value={editingUniversityFormName}
                       onChangeText={setEditingUniversityFormName}
                     />
@@ -1346,9 +1444,10 @@ export default function AdminScreen() {
                     </Row>
                   </>
                 ) : (
-                  <Row>
-                    <View style={{ flexGrow: 1 }}>
+                  <View style={styles.cardRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
                       <Txt style={{ fontWeight: "600" }}>{university}</Txt>
+                      {renderHolderCount(universityHolders)}
                     </View>
                     {editable && (
                       <>
@@ -1359,20 +1458,15 @@ export default function AdminScreen() {
                             setEditingUniversityKey(university);
                           }}
                         />
-                        <IconButton
-                          name="trash-outline"
-                          color={t.danger}
-                          onPress={() =>
-                            setDeleteConfirm({
-                              name: university,
-                              message: `Anyone still assigned to this university has to be reassigned first.`,
-                              onConfirm: () => void run(() => removeUniversity({ year: selectedYear, name: university })),
-                            })
-                          }
-                        />
+                        {renderDeleteButton(university, universityHolders, () =>
+                          setDeleteConfirm({
+                            name: university,
+                            onConfirm: () => void run(() => removeUniversity({ year: selectedYear, name: university })),
+                          })
+                        )}
                       </>
                     )}
-                  </Row>
+                  </View>
                 )}
               </Card>
             );
@@ -1407,7 +1501,7 @@ export default function AdminScreen() {
                 placeholder="Choose a person…"
               />
               <Btn
-                title="Add Department"
+                title="Add department"
                 disabled={!departmentName.trim() || !selectedDepartmentDivision}
                 onPress={() =>
                   void run(() =>
@@ -1417,22 +1511,33 @@ export default function AdminScreen() {
                       division: selectedDepartmentDivision,
                       headEmail: departmentHead || undefined,
                     })
-                  ).then((ok) => ok && setDepartmentName(""))
+                  ).then((ok) => {
+                    if (ok) {
+                      setDepartmentName("");
+                      setDepartmentHead("");
+                    }
+                  })
                 }
               />
             </Card>
           )}
           {(structure?.departments ?? []).map((department) => {
             const isEditingThis = editingDepartmentKey === department.name;
+            const departmentLocked = lockedDepartments.has(department.name);
+            const departmentHolders = holdersOf((a) => a.department === department.name);
             return (
               <Card key={department.name}>
                 {isEditingThis ? (
                   <>
-                    <Field
-                      label="Department name (rename cascades to staff and requests)"
-                      value={editingDepartmentFormName}
-                      onChangeText={setEditingDepartmentFormName}
-                    />
+                    {departmentLocked ? (
+                      <LockedNameRow label="Department name" name={department.name} />
+                    ) : (
+                      <Field
+                        label="Department name (rename cascades to staff, all requests and scheduled announcements)"
+                        value={editingDepartmentFormName}
+                        onChangeText={setEditingDepartmentFormName}
+                      />
+                    )}
                     <Select
                       label="Division"
                       value={editingDepartmentFormDivision}
@@ -1482,9 +1587,19 @@ export default function AdminScreen() {
                     </Row>
                   </>
                 ) : (
-                  <Row>
-                    <View style={{ flexGrow: 1 }}>
-                      <Txt style={{ fontWeight: "600" }}>{department.name}</Txt>
+                  <View style={styles.cardRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.nameRow}>
+                        <Txt style={{ fontWeight: "600" }}>{department.name}</Txt>
+                        {departmentLocked ? (
+                          <Ionicons
+                            name="lock-closed-outline"
+                            size={14}
+                            color={t.muted}
+                            accessibilityLabel="Used by the app. Can't be renamed"
+                          />
+                        ) : null}
+                      </View>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 2, flexWrap: "wrap" }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
                           <Ionicons name="git-branch-outline" size={12} color={t.muted} />
@@ -1496,6 +1611,7 @@ export default function AdminScreen() {
                             <Muted>{nameByEmail.get(department.headEmail) ?? department.headEmail}</Muted>
                           </View>
                         )}
+                        {renderHolderCount(departmentHolders)}
                       </View>
                     </View>
                     {editable && (
@@ -1509,20 +1625,15 @@ export default function AdminScreen() {
                             setEditingDepartmentKey(department.name);
                           }}
                         />
-                        <IconButton
-                          name="trash-outline"
-                          color={t.danger}
-                          onPress={() =>
-                            setDeleteConfirm({
-                              name: department.name,
-                              message: `Anyone still assigned to this department has to be reassigned first.`,
-                              onConfirm: () => void run(() => removeDepartment({ year: selectedYear, name: department.name })),
-                            })
-                          }
-                        />
+                        {renderDeleteButton(department.name, departmentHolders, () =>
+                          setDeleteConfirm({
+                            name: department.name,
+                            onConfirm: () => void run(() => removeDepartment({ year: selectedYear, name: department.name })),
+                          })
+                        )}
                       </>
                     )}
-                  </Row>
+                  </View>
                 )}
               </Card>
             );
@@ -1583,7 +1694,7 @@ export default function AdminScreen() {
           </View>
 
           <View style={{ gap: spacing.md }}>
-          <SectionTitle>Director Approval Threshold · {selectedYear}</SectionTitle>
+          <SectionTitle>Director approval threshold · {selectedYear}</SectionTitle>
           <Card>
             <Muted>
               Requests at or above this amount also need the Director&apos;s
@@ -1602,7 +1713,7 @@ export default function AdminScreen() {
                   keyboardType="decimal-pad"
                 />
                 <Btn
-                  title="Set Threshold"
+                  title="Set threshold"
                   disabled={!(thresholdNumber > 0) || thresholdUnchanged}
                   onPress={() =>
                     void run(() =>
@@ -1626,7 +1737,7 @@ export default function AdminScreen() {
           </View>
 
           <View style={{ gap: spacing.md }}>
-          <SectionTitle>Event Director Approval Threshold · {selectedYear}</SectionTitle>
+          <SectionTitle>Event Director approval threshold · {selectedYear}</SectionTitle>
           <Card>
             <Muted>
               Event requests whose Finance form has total expenses over this amount
@@ -1645,7 +1756,7 @@ export default function AdminScreen() {
                   keyboardType="decimal-pad"
                 />
                 <Btn
-                  title="Set Event Threshold"
+                  title="Set event threshold"
                   disabled={!(eventThresholdNumber > 0) || eventThresholdUnchanged}
                   onPress={() =>
                     void run(() =>
@@ -1670,7 +1781,7 @@ export default function AdminScreen() {
 
           {hasAccess && (
             <View style={{ gap: spacing.md }}>
-              <SectionTitle>Approver Delegation · {selectedYear}</SectionTitle>
+              <SectionTitle>Approver delegation · {selectedYear}</SectionTitle>
               <Card>
                 <Muted>
                   A delegate can approve, decline and pay everything their
@@ -1716,7 +1827,7 @@ export default function AdminScreen() {
                       placeholder="Choose the stand-in…"
                     />
                     <Btn
-                      title="Add Delegation"
+                      title="Add delegation"
                       disabled={
                         !delegationFrom ||
                         !delegationTo ||
@@ -1745,19 +1856,19 @@ export default function AdminScreen() {
 
           {isAdmin && (
             <View style={{ gap: spacing.md }}>
-              <SectionTitle>Directory Sync</SectionTitle>
+              <SectionTitle>Directory sync</SectionTitle>
               <Card>
                 {syncState?.syncedAt ? (
                   <Muted>
                     Last synced:{" "}
-                    {new Date(syncState.syncedAt).toLocaleString()} ·{" "}
+                    {sydneyDateTime(syncState.syncedAt)} ·{" "}
                     {syncState.status}
                   </Muted>
                 ) : (
                   <Muted>Never synced.</Muted>
                 )}
                 <Btn
-                  title={syncing ? "Syncing…" : "Sync Directory Now"}
+                  title={syncing ? "Syncing…" : "Sync directory now"}
                   loading={syncing}
                   onPress={() => setSyncConfirm(true)}
                 />
@@ -1821,7 +1932,7 @@ export default function AdminScreen() {
       <ConfirmDialog
         visible={removeProfileTarget !== null}
         title={`Delete "${removeProfileTarget?.name ?? removeProfileTarget?.email}"`}
-        message={`Their ${selectedYear} roles and assignments will be deleted and they'll move to "Not serving".`}
+        message={`Their ${selectedYear} roles and assignments will be deleted and they'll move to "Leaving".`}
         requireText={removeProfileTarget?.name ?? removeProfileTarget?.email}
         onConfirm={() => {
           if (removeProfileTarget) {
@@ -1869,6 +1980,18 @@ export default function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
+  cardRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  filterChipText: { fontSize: 13.5, fontWeight: "600" },
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1881,9 +2004,22 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   notSignedInText: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.4,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: 2,
+  },
+  lockedBox: {
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   signedInSummary: {
     flexDirection: "row",

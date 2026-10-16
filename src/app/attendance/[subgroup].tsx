@@ -58,7 +58,6 @@ export default function SubgroupEventsScreen() {
           <EmptyState
             icon="search-outline"
             title="Looking for older events"
-            message="Scroll to keep scanning this subgroup's history."
           />
         ) : (
           events.map((event, i) => (

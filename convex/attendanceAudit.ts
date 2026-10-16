@@ -2,6 +2,7 @@ import { paginator } from "convex-helpers/server/pagination";
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { staffYearForDate, SYDNEY_TIME_ZONE } from "../shared/flow";
+import { eventFilterLabel } from "../shared/rollcall";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, query } from "./_generated/server";
 import { displayName, optionalProfile } from "./model";
@@ -14,6 +15,9 @@ export type AuditEntityType =
   | "tag"
   | "metadata"
   | "attendance";
+
+const MERGED_AWAY_ACTION = "member.mergedAway";
+const DOC_ID_IN_PARENS = / \([A-Za-z0-9]{20,}\)/g;
 
 const entityTypeValidator = v.union(
   v.literal("event"),
@@ -67,7 +71,6 @@ export const auditStamp = (ms: number): string => {
 
 const MAX_ROWS_SCANNED_PER_CALL = 2000;
 
-
 export const list = query({
   args: {
     search: v.optional(v.string()),
@@ -115,11 +118,13 @@ export const list = query({
     };
     const matchesResidual = (r: {
       actorEmail: string;
+      action: string;
       entityType: string;
       eventId?: Id<"events">;
       summary: string;
       subjectEmail?: string;
     }) =>
+      r.action !== MERGED_AWAY_ACTION &&
       (actorEmailSet.size === 0 || actorEmailSet.has(r.actorEmail)) &&
       (entityTypeSet.size === 0 || entityTypeSet.has(r.entityType as AuditEntityType)) &&
       (eventIdSet.size === 0 || (r.eventId != null && eventIdSet.has(r.eventId))) &&
@@ -165,7 +170,7 @@ export const list = query({
       action: row.action,
       summary: row.summary,
       eventId: row.eventId ?? null,
-      detail: row.detail ?? null,
+      detail: row.detail?.replace(DOC_ID_IN_PARENS, "") ?? null,
     }));
 
     return { page, isDone, continueCursor };
@@ -199,7 +204,12 @@ export const filterOptions = query({
       await Promise.all(eventIds.map((id) => ctx.db.get(id)))
     )
       .filter((e): e is NonNullable<typeof e> => e !== null)
-      .map((e) => ({ id: e._id, name: e.name, dateStart: e.dateStart }))
+      .map((e) => ({
+        id: e._id,
+        name: e.name,
+        label: eventFilterLabel(e),
+        dateStart: e.dateStart,
+      }))
       .sort((a, b) => b.dateStart - a.dateStart);
 
     return { actors, events };

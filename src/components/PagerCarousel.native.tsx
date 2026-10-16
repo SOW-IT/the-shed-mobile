@@ -1,20 +1,7 @@
-import { ReactNode, useEffect, useRef } from "react";
-import { Animated, Keyboard, StyleSheet, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Keyboard, StyleSheet, View } from "react-native";
 import PagerView from "react-native-pager-view";
-import type { PagerScrollState, PagerTab } from "@/components/PagerScreen";
-
-type Props = {
-  tabs: PagerTab[];
-  activeKey: string;
-  onActiveKeyChange: (key: string) => void;
-  renderPage: (tab: PagerTab) => ReactNode;
-  position?: Animated.Value;
-  onScrollStateChange?: (
-    state: PagerScrollState,
-    scrollPos: number,
-    settledIndex?: number
-  ) => void;
-};
+import type { PagerCarouselProps, PagerScrollState } from "@/components/PagerScreen";
 
 export const PagerCarousel = ({
   tabs,
@@ -23,7 +10,7 @@ export const PagerCarousel = ({
   renderPage,
   position: scrollPosition,
   onScrollStateChange,
-}: Props) => {
+}: PagerCarouselProps) => {
   const index = Math.max(
     tabs.findIndex((tab) => tab.key === activeKey),
     0

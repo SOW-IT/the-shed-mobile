@@ -43,7 +43,13 @@ export const AttendanceTagPill = ({
   );
   if (!onPress) return content;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={name}
+      accessibilityState={{ selected: Boolean(selected) }}
+      onPress={onPress}
+      style={({ pressed }) => pressed && { opacity: 0.7 }}
+    >
       {content}
     </Pressable>
   );

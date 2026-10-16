@@ -74,7 +74,7 @@ function splitByCampus(keys: string[], people: SowPeople, year: number): Split {
     );
 }
 
-export type TwigSummary = { held: number; avg: number | null; people: number; regulars: number };
+export type TwigSummary = { held: number; avg: number | null; people: number; regulars: number | null };
 
 export type TwigRow = {
   key: string;
@@ -121,7 +121,10 @@ function twigSummary(held: SowEvent[], people: SowPeople, year: number, rules: S
     held: held.length,
     avg: held.length ? round1(total / held.length) : null,
     people: times.size,
-    regulars: [...times.values()].filter((n) => n >= rules.regularShare * held.length).length,
+    regulars:
+      held.length > rules.followUpMisses
+        ? [...times.values()].filter((n) => n >= rules.regularShare * held.length).length
+        : null,
   };
 }
 
@@ -158,7 +161,10 @@ export function computeTwig(input: {
       held: held.length,
       pct: attended / held.length,
       lastAt,
-      regular: role === "leader" && attended >= rules.regularShare * held.length,
+      regular:
+        role === "leader" &&
+        held.length > rules.followUpMisses &&
+        attended >= rules.regularShare * held.length,
     };
   });
   const recent = held.slice(-rules.followUpMisses);
@@ -176,7 +182,11 @@ export function computeTwig(input: {
     noRoll: noRollOf(input.events),
     summary: twigSummary(held, people, year, rules),
     last,
-    lastLabel: lastHeld.length ? (running ? `${year - 1} up to ${dayLabel(cut)}` : String(year - 1)) : null,
+    lastLabel: lastHeld.length
+      ? running
+        ? `staff year ${year - 1}, to ${dayLabel(cut)} ${sydneyYmd(new Date(cut)).year}`
+        : `staff year ${year - 1}`
+      : null,
     counts: held.map((e) => leadersAt(e, people, year).length),
     lastCounts: lastHeld.map((e) => leadersAt(e, people, year - 1).length),
     lastHeld,

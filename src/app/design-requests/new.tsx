@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import {
-  designAnswersProblem,
+  designAnswersProblemAt,
   designRequestName,
   normalizeDesignAnswers,
+  questionNumber,
   sydneyToday,
 } from "@shared/designRequests";
 import {
@@ -48,6 +49,7 @@ export default function DesignRequestFormScreen() {
   const update = useMutation(api.designRequests.update);
   const [draft, setDraft] = useState<DesignRequestDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<{ key: string; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
   const defaultDepartment = me?.profile?.department ?? "";
@@ -101,9 +103,11 @@ export default function DesignRequestFormScreen() {
   const save = async () => {
     if (saving) return;
     const answers = normalizeDesignAnswers(fields, answersFromDraft(fields, draft));
-    const problem = designAnswersProblem(fields, answers, today, existing?.request.answers);
-    if (problem) {
-      setError(problem);
+    const found = designAnswersProblemAt(fields, answers, today, existing?.request.answers);
+    setProblem(found);
+    if (found) {
+      const number = questionNumber(fields, answers, found.key);
+      setError(number === undefined ? found.message : `Question ${number}: ${found.message}`);
       return;
     }
     setError(null);
@@ -164,9 +168,11 @@ export default function DesignRequestFormScreen() {
           onChange={(next) => {
             setDraft(next);
             if (error) setError(null);
+            if (problem) setProblem(null);
           }}
           departments={departments}
           minDate={minDate}
+          problem={problem}
         />
       </ReadableColumn>
     </Screen>

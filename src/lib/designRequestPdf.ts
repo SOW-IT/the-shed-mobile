@@ -1,11 +1,5 @@
 // The prebuilt bundle, not "pdf-lib": see pdfLibBundle.d.ts.
-import {
-  PDFDocument,
-  PDFFont,
-  PDFPage,
-  rgb,
-  StandardFonts,
-} from "pdf-lib/dist/pdf-lib.esm.min.js";
+import { PDFDocument, StandardFonts } from "pdf-lib/dist/pdf-lib.esm.min.js";
 import {
   DESIGN_STATUS_LABELS,
   designRequestName,
@@ -15,6 +9,7 @@ import {
   type DesignField,
   type DesignRequestStatus,
 } from "../../shared/designRequests";
+import { MUTED, PdfWriter, TEXT } from "./pdfWriter";
 import { sydneyDateTime } from "./sydneyTime";
 
 export type DesignRequestPdfInput = {
@@ -72,104 +67,6 @@ export const pdfStatusLines = (input: DesignRequestPdfInput): string[] => {
   return lines;
 };
 
-const PAGE = { width: 595.28, height: 841.89 }; // A4, in points
-const MARGIN = 50;
-const TEXT = rgb(0.06, 0.15, 0.14);
-const MUTED = rgb(0.36, 0.42, 0.38);
-const RULE = rgb(0.85, 0.88, 0.84);
-
-type Style = { font: PDFFont; size: number; color: typeof TEXT; gap?: number };
-
-/**
- * Lays text out top to bottom across as many pages as it needs. The PDF's
- * built-in fonts only cover Western European characters, so anything else
- * (emoji, other scripts) prints as "?" rather than failing the whole file.
- */
-class Writer {
-  pages: PDFPage[] = [];
-  private page!: PDFPage;
-  private y = 0;
-  private charsets = new Map<PDFFont, Set<number>>();
-
-  constructor(private doc: PDFDocument) {
-    this.newPage();
-  }
-
-  private newPage() {
-    this.page = this.doc.addPage([PAGE.width, PAGE.height]);
-    this.pages.push(this.page);
-    this.y = PAGE.height - MARGIN;
-  }
-
-  private clean(font: PDFFont, text: string) {
-    let supported = this.charsets.get(font);
-    if (!supported) {
-      supported = new Set(font.getCharacterSet());
-      this.charsets.set(font, supported);
-    }
-    return [...text.replace(/\r\n?/g, "\n").replace(/\t/g, "  ")]
-      .map((ch) => (ch === "\n" || supported.has(ch.codePointAt(0) as number) ? ch : "?"))
-      .join("");
-  }
-
-  /** `text` broken into lines that fit the page width. */
-  private wrap(text: string, font: PDFFont, size: number): string[] {
-    const width = PAGE.width - 2 * MARGIN;
-    const fits = (s: string) => font.widthOfTextAtSize(s, size) <= width;
-    const lines: string[] = [];
-    for (const paragraph of this.clean(font, text).split(/\r?\n/)) {
-      let line = "";
-      for (const word of paragraph.split(" ")) {
-        const candidate = line ? `${line} ${word}` : word;
-        if (fits(candidate)) {
-          line = candidate;
-          continue;
-        }
-        if (line) lines.push(line);
-        // A word longer than the line (a long link) is split by character.
-        line = "";
-        for (const ch of word) {
-          if (!fits(line + ch)) {
-            lines.push(line);
-            line = "";
-          }
-          line += ch;
-        }
-      }
-      lines.push(line);
-    }
-    return lines;
-  }
-
-  text(text: string, style: Style) {
-    const lineHeight = style.size * 1.35;
-    for (const line of this.wrap(text, style.font, style.size)) {
-      if (this.y - lineHeight < MARGIN) this.newPage();
-      this.y -= lineHeight;
-      this.page.drawText(line, {
-        x: MARGIN,
-        y: this.y,
-        size: style.size,
-        font: style.font,
-        color: style.color,
-      });
-    }
-    this.y -= style.gap ?? 0;
-  }
-
-  rule() {
-    if (this.y - 16 < MARGIN) this.newPage();
-    this.y -= 8;
-    this.page.drawLine({
-      start: { x: MARGIN, y: this.y },
-      end: { x: PAGE.width - MARGIN, y: this.y },
-      thickness: 0.75,
-      color: RULE,
-    });
-    this.y -= 8;
-  }
-}
-
 /** A printable copy of a design request: status, every answer, history and comments. */
 export async function buildDesignRequestPdf(input: DesignRequestPdfInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
@@ -178,12 +75,13 @@ export async function buildDesignRequestPdf(input: DesignRequestPdfInput): Promi
   doc.setCreator("THE SHED");
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const w = new Writer(doc);
+  const w = new PdfWriter(doc);
 
   const heading = (text: string) => {
     w.rule();
-    w.text(text.toUpperCase(), { font: bold, size: 9, color: MUTED, gap: 6 });
+    w.text(text.toUpperCase(), { font: bold, size: 9, color: MUTED, gap: 6 }, 30);
   };
+  const LINE = 11 * 1.35;
 
   w.text(name, { font: bold, size: 20, color: TEXT, gap: 4 });
   if (input.request.title) {
@@ -202,7 +100,7 @@ export async function buildDesignRequestPdf(input: DesignRequestPdfInput): Promi
   heading("Answers");
   for (const field of input.fields) {
     if (!isFieldShown(field, input.request.answers)) continue;
-    w.text(field.shortLabel, { font: bold, size: 9, color: MUTED, gap: 1 });
+    w.text(field.shortLabel, { font: bold, size: 9, color: MUTED, gap: 1 }, LINE);
     w.text(formatDesignAnswer(field, input.request.answers) ?? "-", {
       font: regular,
       size: 11,
@@ -227,25 +125,11 @@ export async function buildDesignRequestPdf(input: DesignRequestPdfInput): Promi
   if (input.comments.length > 0) {
     heading("Comments");
     for (const comment of input.comments) {
-      w.text(`${comment.authorName} - ${pdfTime(comment.at)}`, {
-        font: bold,
-        size: 9,
-        color: MUTED,
-        gap: 1,
-      });
+      w.text(`${comment.authorName} - ${pdfTime(comment.at)}`, { font: bold, size: 9, color: MUTED, gap: 1 }, LINE);
       w.text(comment.body, { font: regular, size: 11, color: TEXT, gap: 8 });
     }
   }
 
-  const footer = `THE SHED - ${name} - downloaded ${pdfTime(input.generatedAt)}`;
-  w.pages.forEach((page, i) => {
-    page.drawText(`${footer} - page ${i + 1} of ${w.pages.length}`, {
-      x: MARGIN,
-      y: MARGIN / 2,
-      size: 8,
-      font: regular,
-      color: MUTED,
-    });
-  });
+  w.footer(`THE SHED - ${name} - downloaded ${pdfTime(input.generatedAt)}`, regular);
   return await doc.save();
 }

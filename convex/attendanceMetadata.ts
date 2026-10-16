@@ -295,12 +295,11 @@ export const saveAll = mutation({
           ? [...GENDER_OPTION_IDS, "Male", "Female"]
           : key === STUDENT_YEAR_FIELD_KEY
             ? [...STUDENT_YEAR_LEVELS]
-            :
-              key === "Campus"
-          ? universityNames
-          : key === "Role"
-            ? orgRoles
-            : field.lockedValues;
+            : key === "Campus"
+              ? universityNames
+              : key === "Role"
+                ? orgRoles
+                : field.lockedValues;
 
       if (field.type === "select" && values) {
         for (const locked of lockedValues ?? []) {

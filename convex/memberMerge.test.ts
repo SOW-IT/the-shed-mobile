@@ -327,8 +327,14 @@ describe("merging a member into staff", () => {
     });
     const log = (await s.audit()).find((r) => r.action === "member.merge")!;
     expect(log).toMatchObject({ memberId: dup, subjectEmail: LEADER });
-    expect(log.summary).toBe(`Merged "Leader Nickname" into staff "${LEADER}"`);
-    expect(log.detail).toContain(`Removed member "${leaderName}" (${leaderRow})`);
+    expect(log.summary).toBe(`Merged "Leader Nickname" into staff "${LEADER.split("@")[0]}"`);
+    expect(log.detail).toContain(`Removed member "Leader Nickname" (${leaderRow})`);
+    const away = (await s.audit()).find((r) => r.action === "member.mergedAway")!;
+    expect(away).toMatchObject({
+      memberId: leaderRow,
+      summary: `"Leader Nickname" was merged into "${LEADER.split("@")[0]}"`,
+      detail: `Kept as ${dup}`,
+    });
   });
 
   test("keeps the staff person's row when it has as long a history and is older", async () => {

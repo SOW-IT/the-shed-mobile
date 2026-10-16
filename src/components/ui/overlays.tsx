@@ -6,12 +6,10 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleProp,
   StyleSheet,
   Text,
   TextInput,
   View,
-  ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { typedMatches } from "../../../shared/typedConfirm";
@@ -50,7 +48,6 @@ export const ConfirmDialog = ({
   cancelLabel = "Cancel",
   destructive = true,
   requireText,
-  confirmDisabled: confirmDisabledProp = false,
   onConfirm,
   onClose,
 }: {
@@ -61,7 +58,6 @@ export const ConfirmDialog = ({
   cancelLabel?: string;
   destructive?: boolean;
   requireText?: string;
-  confirmDisabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) => {
@@ -70,8 +66,7 @@ export const ConfirmDialog = ({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on close
     if (!visible) setInput("");
   }, [visible]);
-  const confirmDisabled =
-    confirmDisabledProp || (requireText !== undefined && !typedMatches(input, requireText));
+  const confirmDisabled = requireText !== undefined && !typedMatches(input, requireText);
   const close = () => {
     setInput("");
     onClose();
@@ -124,7 +119,6 @@ export const Sheet = ({
   scrollable = true,
   title,
   headerRight,
-  contentStyle,
   footer,
   stickToBottom = false,
   keyboardAnchor = "center",
@@ -135,7 +129,6 @@ export const Sheet = ({
   scrollable?: boolean;
   title?: string;
   headerRight?: ReactNode;
-  contentStyle?: StyleProp<ViewStyle>;
   footer?: ReactNode;
   stickToBottom?: boolean;
   keyboardAnchor?: "center" | "bottom";
@@ -249,7 +242,7 @@ export const Sheet = ({
       </View>
     ) : null;
 
-  const bodyStyle = [contentStyle ?? styles.sheetContent, !hasFooter && { paddingBottom: spacing.lg }];
+  const bodyStyle = [styles.sheetContent, !hasFooter && { paddingBottom: spacing.lg }];
 
   return (
     <FastModal visible={visible} onRequestClose={onClose}>

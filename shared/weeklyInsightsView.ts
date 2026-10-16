@@ -36,6 +36,9 @@ export type PeopleRow = {
   primary: string;
   secondary: string;
   warning?: string;
+  badge?: Pill;
+  dimmed?: boolean;
+  subgroup?: string;
   pct: number;
   last: number;
 };
@@ -47,6 +50,7 @@ export type FollowRow = {
   category: Pill;
   reason: string;
   secondary: string;
+  subgroup?: string;
 };
 
 export type WeeklyBlock =
@@ -149,6 +153,11 @@ export function periodOptions(terms: WeeklyTerm[]): WeeklyPeriod[] {
 const FOLLOW_UP_PREVIEW = 5;
 
 const termWord = (system: TermSystem) => (system === "terms" ? "term" : "semester");
+
+export const periodPicker = (system: TermSystem): { pickerTitle: string; pickerLabel: string } => {
+  const word = system === "terms" ? "Term" : "Semester";
+  return { pickerTitle: `${word} or year`, pickerLabel: word };
+};
 
 export const pill = (category: WeeklyCategory): Pill => ({
   label: CATEGORY_META[category].label,
@@ -277,22 +286,14 @@ const shareDelta = (now: number | null, then: number | null): ViewCard["delta"] 
 
 const stayedShare = (s: PeriodSummary) => (s.newcomers ? s.newcomersStayed / s.newcomers : null);
 
-/**
- * The summary cards. `lastLabel` names exactly what they're compared with
- * ("T2 2026 up to W4" while a term runs, "2025 up to T3 W4" for the year so
- * far), and `compareNote` says the same in every card's (i).
- */
 export function summaryCards(
   s: PeriodSummary,
   last: PeriodSummary | null,
-  lastLabel: string | null,
   compareNote?: string,
   /** The jointWeeklies setting: Mega and combined weeklies are counted too. */
   jointCounted = false
 ): ViewCard[] {
-  // The label stays on one line ("T2 2026 up to W4"); a narrow card wraps before it.
-  const keep = (label: string) => label.replace(/ /g, "\u00a0").replace(/–/g, "–\u2060");
-  const vs = (v: string) => (last && lastLabel ? `vs ${v} in ${keep(lastLabel)}` : undefined);
+  const vs = (v: string) => `vs ${v}`;
   const info = (title: string, body: string) => ({
     title,
     body: compareNote && last ? `${body} ${compareNote}` : body,
@@ -334,7 +335,6 @@ export function summaryCards(
     {
       label: "Newcomers",
       value: String(s.newcomers),
-      tone: "positive",
       delta: countDelta(s.newcomers, last?.newcomers ?? null),
       hint: last ? vs(String(last.newcomers)) : undefined,
       info: info("Newcomers", "People who came to their first weekly at this campus in this period."),
@@ -416,7 +416,6 @@ export function buildTermBlocks(input: {
   const lastWeek = term.weeklies[term.weeklies.length - 1].week;
   // While this term runs, the term before is cut to the same week; say so
   // wherever its numbers appear, so they don't look like its full-term ones.
-  const beforeLabel = before ? `${before.term.label}${running ? ` up to W${lastWeek}` : ""}` : null;
   const point = before ? `${before.term.label}${running ? ` up to week ${lastWeek}` : ""}` : null;
   const count = `${term.weeklies.length} weekl${term.weeklies.length === 1 ? "y" : "ies"}${running ? " so far" : ""}`;
   const compareNote = before
@@ -430,12 +429,12 @@ export function buildTermBlocks(input: {
       type: "caption",
       text: before
         ? `${term.label}: ${count}, compared with ${point}.`
-        : `${term.label}: ${count}. There's no earlier ${termWord(term.system)} to compare with.`,
+        : `${term.label}: ${count}.`,
     },
     {
       type: "cards",
       layout: "grid",
-      cards: summaryCards(result.summary, before?.summary ?? null, beforeLabel, compareNote, input.jointCounted),
+      cards: summaryCards(result.summary, before?.summary ?? null, compareNote, input.jointCounted),
     },
   ];
   // The week-by-week charts sit near the top, above the follow-up lists.
@@ -503,8 +502,6 @@ export function buildYearBlocks(input: {
 }): WeeklyBlock[] {
   const { result, lastYear } = input;
   const { cut } = input;
-  const shortCut = cut?.replace(" week ", " W");
-  const lastLabel = lastYear ? `${lastYear.year}${shortCut ? ` up to ${shortCut}` : ""}` : null;
   const point = lastYear ? `${lastYear.year}${cut ? ` up to ${cut}` : ""}` : null;
   const names = result.terms.map(withoutYear);
   const across = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
@@ -520,12 +517,12 @@ export function buildYearBlocks(input: {
       type: "caption",
       text: lastYear
         ? `${result.year}: ${count}, compared with ${point}.`
-        : `${result.year}: ${count}. There's no earlier year to compare with.`,
+        : `${result.year}: ${count}.`,
     },
     {
       type: "cards",
       layout: "grid",
-      cards: summaryCards(result.summary, lastYear?.summary ?? null, lastLabel, compareNote, input.jointCounted),
+      cards: summaryCards(result.summary, lastYear?.summary ?? null, compareNote, input.jointCounted),
     },
   ];
   if (lastYear) {
@@ -576,6 +573,7 @@ export function buildMemberBlocks(input: {
   followUp: WeeklyFollowUp | null;
   events: MemberEvent[];
   year: number;
+  current?: boolean;
 }): WeeklyBlock[] {
   const latest = input.history[0] ?? null;
   const blocks: WeeklyBlock[] = [
@@ -610,7 +608,7 @@ export function buildMemberBlocks(input: {
     blocks.push({
       type: "weekGrid",
       title: latest!.term.label,
-      subtitle: `Weeklies attended this ${termWord(latest!.term.system)}`,
+      subtitle: input.current ? `Weeklies attended this ${termWord(latest!.term.system)}` : "Weeklies attended",
       weeks: weekLabels(latest!.term.weeklies).map((label, i) => ({
         label,
         came: latest!.row.indexes.includes(i),
