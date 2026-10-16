@@ -15,7 +15,9 @@ import {
   type HomeLink,
   type HomeSocial,
 } from "../../shared/homeContent";
+import { DISPLAY_ACRONYMS } from "../../shared/flow";
 import { HomeBlocks } from "@/components/home/HomeBlocks";
+import { universityLogo } from "@/lib/universityLogos";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
   Btn,
@@ -43,6 +45,13 @@ const ICON_OPTIONS = HOME_ICONS.map((icon) => ({
   value: icon,
   icon,
 }));
+
+const CAMPUS_LOGO_OPTIONS = [
+  { label: "None", value: "" },
+  ...Object.keys(DISPLAY_ACRONYMS)
+    .filter((name) => universityLogo(name))
+    .map((name) => ({ label: name, value: name })),
+];
 
 const ADDABLE: HomeBlockType[] = ["heading", "text", "card", "links", "socials", "campuses", "hero", "contact"];
 
@@ -385,11 +394,11 @@ function CardFields({
         options={[{ label: "None", value: MARKER_NONE }, { label: "Dot", value: MARKER_DOT }, ...ICON_OPTIONS]}
         onSelect={setMarker}
       />
-      <Field
-        label="Campus logo beside the title (optional university name)"
+      <Select
+        label="Campus logo beside the title"
         value={block.campus ?? ""}
-        autoCapitalize="words"
-        onChangeText={(campus) => onChange({ ...block, campus })}
+        options={CAMPUS_LOGO_OPTIONS}
+        onSelect={(campus) => onChange({ ...block, campus: campus || undefined })}
       />
       <Segmented
         segments={[
