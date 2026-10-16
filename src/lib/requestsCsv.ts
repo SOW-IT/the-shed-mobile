@@ -1,4 +1,5 @@
 import { eventStaffYear, requestDisplayStatus } from "../../shared/flow";
+import { sydneyDateTimeAnswer } from "../../shared/forms";
 import { roundToCents } from "../../shared/money";
 import { Doc } from "../../convex/_generated/dataModel";
 import { buildCsv } from "./csv";
@@ -8,7 +9,7 @@ const money = (amount: number): string => roundToCents(amount).toFixed(2);
 
 const COLUMNS: { header: string; value: (r: Doc<"requests">) => string }[] = [
   { header: "Staff Year", value: (r) => String(eventStaffYear(r._creationTime)) },
-  { header: "Created", value: (r) => isoDate(r._creationTime) },
+  { header: "Created", value: (r) => sydneyStamp(r._creationTime) },
   { header: "Requester Email", value: (r) => r.requesterEmail },
   { header: "Department", value: (r) => r.department },
   { header: "Description", value: (r) => r.description },
@@ -28,11 +29,11 @@ const COLUMNS: { header: string; value: (r: Doc<"requests">) => string }[] = [
     header: "Paid Amount",
     value: (r) => (r.paidAmount != null ? money(r.paidAmount) : ""),
   },
-  { header: "Paid At", value: (r) => (r.paidTime ? isoDate(r.paidTime) : "") },
+  { header: "Paid At", value: (r) => (r.paidTime ? sydneyStamp(r.paidTime) : "") },
   { header: "Pay Comment", value: (r) => r.payComment ?? "" },
 ];
 
-const isoDate = (ms: number): string => new Date(ms).toISOString();
+const sydneyStamp = (ms: number): string => sydneyDateTimeAnswer(ms).replace("T", " ");
 
 export const buildRequestsCsv = (rows: Doc<"requests">[]): string =>
   buildCsv(

@@ -60,6 +60,10 @@ export const subFormStatusLine = (
   opts: { imported: boolean; canFill: boolean; canDecide?: boolean }
 ): string => {
   const on = (at: number | undefined) => (at ? ` on ${sydneyDateTime(at)}` : "");
+  const director =
+    kind === "finance" && form.directorApprovedByName
+      ? `Approved by the Director (${form.directorApprovedByName}). `
+      : "";
   switch (form.status) {
     case "DRAFT":
       if (!opts.canFill) return "Not submitted yet.";
@@ -68,16 +72,12 @@ export const subFormStatusLine = (
         : "Not filled in yet.";
     case "PENDING": {
       const who = form.approverName ? `${form.approverTitle} (${form.approverName})` : form.approverTitle;
-      const director =
-        kind === "finance" && form.directorApprovedByName
-          ? `Approved by the Director (${form.directorApprovedByName}). `
-          : "";
       return `${director}Waiting for ${opts.canDecide ? "your approval" : who}.`;
     }
     case "CHANGES_REQUESTED":
       return `${form.decidedByName ?? "The approver"} asked for changes: ${form.changesReason ?? ""}`.trim();
     case "APPROVED":
-      return `Approved${form.decidedByName ? ` by ${form.decidedByName}` : ""}${on(form.decidedAt)}.`;
+      return `${director}Approved${form.decidedByName ? ` by ${form.decidedByName}` : ""}${on(form.decidedAt)}.`;
     case "NOT_REQUIRED":
       if (kind === "finance") return "No money in or out, so Finance doesn't need to approve it.";
       if (form.risk?.noRisks) return "No notable risks, so Compliance doesn't need to approve it.";

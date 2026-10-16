@@ -41,12 +41,14 @@ export const downloadFile = async (
   }
 };
 
+const UTF8_BOM = "\uFEFF";
+
 export const downloadCsv = (
   filename: string,
   csv: string,
   dialogTitle = "Export"
 ): Promise<void> =>
-  downloadFile(filename, csv, {
+  downloadFile(filename, `${UTF8_BOM}${csv}`, {
     mimeType: "text/csv;charset=utf-8;",
     uti: "public.comma-separated-values-text",
     dialogTitle,

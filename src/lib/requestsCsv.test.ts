@@ -33,6 +33,15 @@ describe("buildRequestsCsv", () => {
     expect(cells[14]).toBe("10.10");
   });
 
+  test("writes times as Sydney wall-clock, so a late-evening request keeps its Sydney date", () => {
+    const [, row] = buildRequestsCsv([
+      request({ _creationTime: Date.UTC(2026, 7, 12, 13, 4), paid: true, paidTime: Date.UTC(2026, 0, 5, 2, 30) }),
+    ]).split("\r\n");
+    const cells = row.split(",");
+    expect(cells[1]).toBe("2026-08-12 23:04");
+    expect(cells[15]).toBe("2026-01-05 13:30");
+  });
+
   test("leaves optional money cells empty", () => {
     const [, row] = buildRequestsCsv([request()]).split("\r\n");
     const cells = row.split(",");
