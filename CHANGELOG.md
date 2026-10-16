@@ -6,6 +6,36 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.7] - 2026-10-16
+
+Expo SDK 58 and the latest dependencies. Native code changed (React Native
+0.88, the iOS scene life cycle), so phones need new store builds; older 2.9.x
+apps keep working against the same server.
+
+### Changed
+- **Expo SDK 58, React Native 0.88 and React 19.3**, with every Expo package
+  on its SDK 58 version, gesture-handler 3.3, Reanimated 4.7, worklets 0.13,
+  screens 4.30, safe-area-context 5.10, pager-view 9.0 and maps 1.29.
+- **Convex 1.47** with @convex-dev/auth 0.0.96, convex-helpers 0.1.128 and
+  convex-test 0.0.62; Vitest 5.0.5; eslint-config-expo 58; the GitHub
+  Actions setup-node step on v7.1.0. This covers every open Dependabot update.
+- **Held back on purpose**: TypeScript stays on 6.0 (typescript-eslint does
+  not support 7 yet, so linting fails), ESLint stays on 9 (eslint-plugin-react
+  does not support 10), and React 19.3.1 and pager-view 9.0.8 wait for the
+  SDK to adopt them.
+
+### Fixed
+- **Web pages would never have loaded the app on SDK 58.** The site's custom
+  HTML page now includes the scripts Expo Router 58 hands it, without which
+  every page stayed on the loading spinner.
+- **Reimbursements, Profile, Design and Event Requests, Admin and (for staff)
+  Churches would have redirected to Home.** Expo Router 58 makes a tab hidden
+  with `href: null` unreachable; these screens now hide only their tab button
+  and stay reachable from the side menu and links.
+- **CSV and PDF downloads on phones could have shared an empty file.**
+  Writing the file is asynchronous in SDK 58 and is now awaited before the
+  share sheet opens.
+
 ## [2.9.6] - 2026-10-16
 
 A check of 2.9.1 to 2.9.5 on the simulator and web, with four small fixes.
