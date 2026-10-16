@@ -32,6 +32,10 @@ apps keep working against the same server.
   Churches would have redirected to Home.** Expo Router 58 makes a tab hidden
   with `href: null` unreachable; these screens now hide only their tab button
   and stay reachable from the side menu and links.
+- **Android release builds would have crashed on launch.** SDK 58 turns on R8
+  code shrinking for release builds, and it stripped the class WorkManager's
+  database is created from by name. Release builds keep shrinking off, as on
+  SDK 57; the app is about 11 MB larger than with R8.
 - **CSV and PDF downloads on phones could have shared an empty file.**
   Writing the file is asynchronous in SDK 58 and is now awaited before the
   share sheet opens.

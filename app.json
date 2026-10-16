@@ -78,6 +78,15 @@
         {
           "photosPermission": "Allow THE SHED to access your photos for profile pictures and receipt uploads."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false
+          }
+        }
       ]
     ],
     "experiments": {
