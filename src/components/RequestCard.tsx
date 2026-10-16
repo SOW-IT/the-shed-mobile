@@ -30,6 +30,7 @@ import {
 } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
 import { timeAgo } from "@shared/datetime";
+import { sydneyDateTime } from "@/lib/sydneyTime";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { ReceiptRecipientList } from "./ReceiptRecipientList";
 
@@ -65,7 +66,7 @@ const History = ({ request }: { request: Doc<"requests"> }) => {
                 : ""}
             </Text>
             <Text style={[typography.caption, { color: t.muted }]}>
-              {new Date(event.at).toLocaleString()} · {event.actor}
+              {sydneyDateTime(event.at)} · {event.actor}
               {event.detail ? ` · ${event.detail}` : ""}
             </Text>
           </View>
@@ -158,7 +159,7 @@ const StepInfoModal = ({
                   {EVENT_LABELS[event.action] ?? event.action}
                 </Text>
                 <Muted>
-                  {new Date(event.at).toLocaleString()}
+                  {sydneyDateTime(event.at)}
                   {event.detail ? ` · ${event.detail}` : ""}
                 </Muted>
               </View>

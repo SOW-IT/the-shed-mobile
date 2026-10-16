@@ -16,6 +16,7 @@ import {
   type HomeSocial,
 } from "../../shared/homeContent";
 import { HomeBlocks } from "@/components/home/HomeBlocks";
+import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
   Btn,
   Card,
@@ -37,7 +38,11 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type Keyed = { id: number; block: HomeBlock };
 
-const ICON_OPTIONS = HOME_ICONS.map((icon) => ({ label: icon.replace(/-outline$/, "").replace(/^logo-/, ""), value: icon }));
+const ICON_OPTIONS = HOME_ICONS.map((icon) => ({
+  label: icon.replace(/-outline$/, "").replace(/^logo-/, "").replace(/-/g, " "),
+  value: icon,
+  icon,
+}));
 
 const ADDABLE: HomeBlockType[] = ["heading", "text", "card", "links", "socials", "campuses", "hero", "contact"];
 
@@ -164,7 +169,7 @@ function Editor({
       <View style={styles.page}>
         {edited ? (
           <Muted>
-            Last saved by {edited.by} on {new Date(edited.at).toLocaleString("en-AU")}.
+            Last saved by {edited.by} on {sydneyDateTime(edited.at)}.
           </Muted>
         ) : (
           <Muted>This tab is showing the built-in content.</Muted>

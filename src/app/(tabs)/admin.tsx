@@ -60,6 +60,7 @@ import {
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { SuggestedMerges } from "@/components/admin/SuggestedMerges";
 import { useAdminMutations } from "@/hooks/useAdminMutations";
+import { sydneyDateTime } from "@/lib/sydneyTime";
 import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
 
 type DeleteConfirm = { name: string; message?: string; onConfirm: () => void };
@@ -1860,7 +1861,7 @@ export default function AdminScreen() {
                 {syncState?.syncedAt ? (
                   <Muted>
                     Last synced:{" "}
-                    {new Date(syncState.syncedAt).toLocaleString()} ·{" "}
+                    {sydneyDateTime(syncState.syncedAt)} ·{" "}
                     {syncState.status}
                   </Muted>
                 ) : (
