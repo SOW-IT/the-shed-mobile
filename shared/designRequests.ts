@@ -44,6 +44,7 @@ export type DesignField = FormField;
 
 export {
   answersProblem as designAnswersProblem,
+  answersProblemAt as designAnswersProblemAt,
   changedAnswers as changedDesignAnswers,
   formatAnswer as formatDesignAnswer,
   formatDate as formatDueDate,
@@ -52,6 +53,7 @@ export {
   MAX_ANSWER_LENGTH,
   normalizeAnswers as normalizeDesignAnswers,
   otherKey,
+  questionNumber,
   sydneyToday,
 } from "./forms";
 
