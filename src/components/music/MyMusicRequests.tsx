@@ -67,7 +67,6 @@ export const NewMusicRequestSheet = ({
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
   const [manualExpanded, setManualExpanded] = useState(false);
-  // Check either the Spotify autofill field or the final song link.
   const duplicateLink = link.trim()
     ? spotifyTrackUrl(link)
     : spotifyTrackUrl(spotifyLink);
@@ -216,6 +215,10 @@ export const NewMusicRequestSheet = ({
     setSongs([]);
     setManualExpanded(!!prefill);
   }, [visible, prefill?._id]);
+  const clearSpotifyLink = () => {
+    setSpotifyLink("");
+    setSpotifyError(null);
+  };
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
     if (!cleanUrl) {
@@ -451,21 +454,47 @@ export const NewMusicRequestSheet = ({
         <Text style={[typography.caption, { color: t.warning }]}>
           Note: You can only import playlists that you own or collaborate on.
         </Text>
-        <Field
-          label="Spotify song or playlist URL"
-          value={spotifyLink}
-          onChangeText={(value) => {
-            setSpotifyLink(value);
-            setSpotifyError(null);
-            setTitle("");
-            setArtist("");
-            setLink("");
-            setAlbumArtUrl(null);
-            setIsrc(undefined);
-          }}
-          placeholder="https://open.spotify.com/track/... or playlist/..."
-          autoCapitalize="none"
-        />
+
+        <View style={{ position: "relative" }}>
+          <Field
+            label="Spotify song or playlist URL"
+            value={spotifyLink}
+            onChangeText={(value) => {
+              setSpotifyLink(value);
+              setSpotifyError(null);
+              setTitle("");
+              setArtist("");
+              setLink("");
+              setAlbumArtUrl(null);
+              setIsrc(undefined);
+            }}
+            placeholder="https://open.spotify.com/track/... or playlist/..."
+            autoCapitalize="none"
+          />
+
+          {spotifyLink.length > 0 && (
+            <Pressable
+              onPress={clearSpotifyLink}
+              accessibilityRole="button"
+              accessibilityLabel="Clear Spotify link"
+              hitSlop={8}
+              style={{
+                position: "absolute",
+                right: 12,
+                bottom: 10,
+                width: 28,
+                height: 28,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 14,
+                backgroundColor: t.card,
+              }}
+            >
+              <Ionicons name="close" size={18} color={t.muted} />
+            </Pressable>
+          )}
+        </View>
+
         <Btn
           title={
             spotifyLinkType === "playlist"
