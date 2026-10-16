@@ -31,6 +31,7 @@ import {
   stagger,
   Txt,
 } from "./ui";
+import { isSowStaffAddress } from "@shared/rollcallImport";
 
 const ProfileFrame = ({
   asTab,
@@ -169,8 +170,10 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
                 · {current.year}
               </Text>
             </View>
-          ) : neverStaff ? (
+          ) : neverStaff && !isSowStaffAddress(profile.email ?? undefined) ? (
             <Muted>Personal account</Muted>
+          ) : neverStaff ? (
+            <Muted>No staff profile for {currentYear}</Muted>
           ) : (
             <Muted>No assignment for {currentYear}</Muted>
           )}
