@@ -2,13 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { appLinkForScheme } from "../../shared/appLinks";
 import { Btn } from "@/components/ui";
-import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
 import { appVersion } from "@/hooks/useReportAppVersion";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -22,10 +20,32 @@ const appScheme = (): string | undefined => {
   return Array.isArray(scheme) ? scheme[0] : scheme;
 };
 
-export function AppUpdatePrompt() {
-  const t = useAppTheme();
-  const insets = useSafeAreaInsets();
-  const [dismissedFor, setDismissedFor] = useState<string | null | undefined>(undefined);
+let dismissedFor: string | null | undefined;
+let loadingDismissed = false;
+const dismissListeners = new Set<() => void>();
+
+const setDismissedFor = (value: string | null) => {
+  dismissedFor = value;
+  dismissListeners.forEach((listener) => listener());
+};
+
+const subscribeDismissed = (listener: () => void) => {
+  dismissListeners.add(listener);
+  if (dismissedFor === undefined && !loadingDismissed && nativePlatform()) {
+    loadingDismissed = true;
+    SecureStore.getItemAsync(DISMISSED_KEY).then(
+      (value) => setDismissedFor(value),
+      () => setDismissedFor(null)
+    );
+  }
+  return () => {
+    dismissListeners.delete(listener);
+  };
+};
+
+const getDismissed = () => dismissedFor;
+
+const useUpdateCheck = () => {
   const platform = nativePlatform();
   const version = appVersion();
   const link = appLinkForScheme(appScheme());
@@ -34,67 +54,58 @@ export function AppUpdatePrompt() {
     api.appInstalls.updateStatus,
     platform && version && storeUrl ? { platform, version } : "skip"
   );
-  useEffect(() => {
-    if (!platform) return;
-    SecureStore.getItemAsync(DISMISSED_KEY).then(
-      (value) => setDismissedFor(value),
-      () => setDismissedFor(null)
-    );
-  }, [platform]);
-  if (!check || !storeUrl || check.status === "ok") return null;
-  const openStore = () => void Linking.openURL(storeUrl).catch(() => {});
+  const dismissed = useSyncExternalStore(subscribeDismissed, getDismissed, getDismissed);
+  const openStore = () => {
+    if (storeUrl) void Linking.openURL(storeUrl).catch(() => {});
+  };
+  return { check: storeUrl ? check : undefined, version, dismissed, openStore };
+};
 
-  if (check.status === "required") {
-    return (
-      <View
-        style={[StyleSheet.absoluteFill, styles.blocker, { backgroundColor: t.background }]}
-        accessibilityViewIsModal
-      >
-        <Ionicons name="cloud-download-outline" size={56} color={t.primary} />
-        <Text style={[typography.title, { color: t.text, textAlign: "center" }]}>Update The SHED</Text>
-        <Text style={[typography.body, { color: t.muted, textAlign: "center" }]}>
-          {check.message ??
-            `This version (${version}) is no longer supported. Update to ${check.latest ?? "the latest version"} to keep using The SHED.`}
-        </Text>
-        <Btn title="Update" icon="arrow-down-circle-outline" onPress={openStore} />
-      </View>
-    );
-  }
+export function AppUpdatePrompt() {
+  const t = useAppTheme();
+  const { check, version, openStore } = useUpdateCheck();
+  if (check?.status !== "required") return null;
+  return (
+    <View
+      style={[StyleSheet.absoluteFill, styles.blocker, { backgroundColor: t.background }]}
+      accessibilityViewIsModal
+    >
+      <Ionicons name="cloud-download-outline" size={56} color={t.primary} />
+      <Text style={[typography.title, { color: t.text, textAlign: "center" }]}>Update The SHED</Text>
+      <Text style={[typography.body, { color: t.muted, textAlign: "center" }]}>
+        {check.message ??
+          `This version (${version}) is no longer supported. Update to ${check.latest ?? "the latest version"} to keep using The SHED.`}
+      </Text>
+      <Btn title="Update" icon="arrow-down-circle-outline" onPress={openStore} />
+    </View>
+  );
+}
 
+export function UpdatePill() {
+  const t = useAppTheme();
+  const { check, dismissed, openStore } = useUpdateCheck();
+  if (check?.status !== "recommended") return null;
   const recommended = check.latest ?? "";
-  if (dismissedFor === undefined || dismissedFor === recommended) return null;
+  if (dismissed === undefined || dismissed === recommended) return null;
   const dismiss = () => {
     setDismissedFor(recommended);
     void SecureStore.setItemAsync(DISMISSED_KEY, recommended).catch(() => {});
   };
   return (
-    <View
-      style={[
-        styles.banner,
-        { top: insets.top + TOP_BAR_HEIGHT + spacing.xs, backgroundColor: t.card },
-        t.shadowFloat,
-      ]}
-      accessibilityRole="alert"
-    >
-      <Ionicons name="sparkles-outline" size={20} color={t.primary} />
-      <Text style={[typography.caption, { color: t.text, flex: 1 }]}>
-        {check.message ?? `A new version of The SHED${check.latest ? ` (${check.latest})` : ""} is out.`}
-      </Text>
+    <View style={[styles.pill, { backgroundColor: t.primary }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Update The SHED"
+        accessibilityLabel={check.message ?? `Update The SHED to ${recommended}`}
         onPress={openStore}
-        style={({ pressed }) => [styles.update, { backgroundColor: t.primary }, pressed && { opacity: 0.7 }]}
+        style={({ pressed }) => [styles.pillMain, pressed && { opacity: 0.75 }]}
       >
-        <Text style={[typography.caption, { color: t.onPrimary, fontWeight: "800" }]}>Update</Text>
+        <Ionicons name="arrow-down-circle" size={16} color={t.onPrimary} />
+        <Text style={[typography.caption, { color: t.onPrimary, fontWeight: "800" }]}>
+          {recommended ? `Update ${recommended}` : "Update"}
+        </Text>
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Not now"
-        hitSlop={10}
-        onPress={dismiss}
-      >
-        <Ionicons name="close" size={20} color={t.muted} />
+      <Pressable accessibilityRole="button" accessibilityLabel="Not now" hitSlop={10} onPress={dismiss}>
+        <Ionicons name="close" size={16} color={t.onPrimary} />
       </Pressable>
     </View>
   );
@@ -108,17 +119,14 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.md,
   },
-  banner: {
-    position: "absolute",
-    left: spacing.md,
-    right: spacing.md,
-    zIndex: 999,
+  pill: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    padding: spacing.sm,
-    paddingLeft: spacing.md,
-    borderRadius: radius.md,
+    paddingLeft: 12,
+    paddingRight: 10,
+    paddingVertical: 7,
+    borderRadius: radius.full,
   },
-  update: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full },
+  pillMain: { flexDirection: "row", alignItems: "center", gap: 6 },
 });

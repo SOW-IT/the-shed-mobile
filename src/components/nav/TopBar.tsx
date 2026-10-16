@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
+import { UpdatePill } from "@/components/AppUpdatePrompt";
 import { Avatar, usePressScale } from "@/components/ui";
 import { useNavDrawer } from "@/components/nav/NavDrawer";
 import { SignInMenu } from "@/components/nav/SignInMenu";
@@ -42,6 +43,7 @@ export const TopBar = ({
     <View style={styles.topBar}>
       <View style={styles.center} pointerEvents="box-none">
         <TestEnvironmentChip />
+        <UpdatePill />
       </View>
       {isAuthenticated ? (
         <Animated.View style={{ transform: [{ scale: menu.scale }] }}>
