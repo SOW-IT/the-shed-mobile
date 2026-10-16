@@ -477,11 +477,18 @@ export const approve = mutation({
       reviewedByEmail: caller.email,
       reviewedTime: Date.now(),
     });
+
+    const reviewerName = await resolveName(
+      ctx,
+      caller.email,
+      currentStaffYear(),
+    );
+
     await notify(
       ctx,
       [request.requesterEmail],
       "Music request approved",
-      `"${request.title}" was approved by ${caller.email}`,
+      `"${request.title}" was approved by ${reviewerName}`,
       "/music?tab=my-requests",
     );
   },
@@ -503,6 +510,11 @@ export const decline = mutation({
       throw new ConvexError("This request has already been reviewed.");
     }
     const declineComment = args.reason?.trim() || undefined;
+    const reviewerName = await resolveName(
+      ctx,
+      caller.email,
+      currentStaffYear(),
+    );
     await ctx.db.patch(args.requestId, {
       status: "DECLINED",
       reviewedByEmail: caller.email,
@@ -515,7 +527,7 @@ export const decline = mutation({
       "Music request declined",
       declineComment
         ? `"${request.title}" was declined: ${declineComment}`
-        : `"${request.title}" was declined by ${caller.email}`,
+        : `"${request.title}" was declined by ${reviewerName}`,
       "/music?tab=my-requests",
     );
   },
