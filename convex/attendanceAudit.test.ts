@@ -385,6 +385,26 @@ describe("attendance audit logging", () => {
     expect(multipleTypes.page).toHaveLength(2);
   });
 
+  test("a merge shows once, without database ids", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const keep = await staff.mutation(api.attendanceMembers.create, { name: "Alex Li" });
+    const remove = await staff.mutation(api.attendanceMembers.create, { name: "Alex Liy" });
+    await staff.mutation(api.attendanceMembers.merge, {
+      removeId: remove,
+      keep: { memberId: keep },
+      resolutions: {},
+    });
+
+    const { page } = await staff.query(api.attendanceAudit.list, {
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    const merges = page.filter((r) => r.action.startsWith("member.merge"));
+    expect(merges.map((r) => r.action)).toEqual(["member.merge"]);
+    expect(merges[0].detail).toContain('Removed member "Alex Liy"');
+    expect(merges[0].detail).not.toContain(remove);
+  });
+
   test("search matches the subject's email, not just summary and actor", async () => {
     const t = await setup();
     const { dateStart, dateEnd } = window();

@@ -16,6 +16,9 @@ export type AuditEntityType =
   | "metadata"
   | "attendance";
 
+const MERGED_AWAY_ACTION = "member.mergedAway";
+const DOC_ID_IN_PARENS = / \([A-Za-z0-9]{20,}\)/g;
+
 const entityTypeValidator = v.union(
   v.literal("event"),
   v.literal("member"),
@@ -116,11 +119,13 @@ export const list = query({
     };
     const matchesResidual = (r: {
       actorEmail: string;
+      action: string;
       entityType: string;
       eventId?: Id<"events">;
       summary: string;
       subjectEmail?: string;
     }) =>
+      r.action !== MERGED_AWAY_ACTION &&
       (actorEmailSet.size === 0 || actorEmailSet.has(r.actorEmail)) &&
       (entityTypeSet.size === 0 || entityTypeSet.has(r.entityType as AuditEntityType)) &&
       (eventIdSet.size === 0 || (r.eventId != null && eventIdSet.has(r.eventId))) &&
@@ -166,7 +171,7 @@ export const list = query({
       action: row.action,
       summary: row.summary,
       eventId: row.eventId ?? null,
-      detail: row.detail ?? null,
+      detail: row.detail?.replace(DOC_ID_IN_PARENS, "") ?? null,
     }));
 
     return { page, isDone, continueCursor };
