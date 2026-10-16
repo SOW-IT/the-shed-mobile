@@ -1,22 +1,28 @@
-import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { ConvexReactClient, useConvexAuth } from "convex/react";
-import { requireOptionalNativeModule } from "expo";
-import { useFonts } from "expo-font";
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
-import * as SecureStore from "expo-secure-store";
-import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppSidebar } from "@/components/nav/AppSidebar";
 import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
+import { LoadingState } from "@/components/ui";
 import { FONT_SOURCES } from "@/fonts";
 import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
-import { LoadingState } from "@/components/ui";
 import { durations, useAppTheme } from "@/theme";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
+import { ConvexReactClient, useConvexAuth } from "convex/react";
+import { requireOptionalNativeModule } from "expo";
+import { useFonts } from "expo-font";
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider,
+  usePathname,
+} from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+import { Platform, StyleSheet, Text, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 const DevMenuPreferences = requireOptionalNativeModule("DevMenuPreferences");
 
@@ -61,6 +67,7 @@ const configErrorStyles = StyleSheet.create({
 });
 
 const AuthGate = () => {
+  const pathname = usePathname();
   const { isLoading } = useConvexAuth();
   const { busy, error, rejected, clearError, clearRejected } =
     useWebAuthCodeExchange();
@@ -73,10 +80,16 @@ const AuthGate = () => {
   useEffect(() => {
     if (!rejected || typeof window === "undefined") return;
     window.alert(
-      "SOW account required\n\nOnly SOW organisation accounts can sign in here."
+      "SOW account required\n\nOnly SOW organisation accounts can sign in here.",
     );
     clearRejected();
   }, [rejected, clearRejected]);
+  // Allow Spotify OAuth callbacks to render immediately.
+  // Spotify authorization is handled separately from SHED authentication.
+  if (pathname === "/spotify-callback") {
+    return <RootStack />;
+  }
+
   return isLoading || busy ? <LoadingState /> : <RootStack />;
 };
 
@@ -119,6 +132,14 @@ const RootStack = () => {
             <Stack.Screen name="announcements/[id]" />
             <Stack.Screen name="all" />
             <Stack.Screen name="e2e-auth" />
+            <Stack.Screen
+              name="spotify-callback"
+              options={{
+                headerShown: false,
+                animation: "none",
+                gestureEnabled: false,
+              }}
+            />
           </Stack>
         </View>
       </View>
@@ -134,7 +155,9 @@ const rootStackStyles = StyleSheet.create({
 
 export default function RootLayout() {
   useEffect(() => {
-    void DevMenuPreferences?.setPreferencesAsync({ showFloatingActionButton: false });
+    void DevMenuPreferences?.setPreferencesAsync({
+      showFloatingActionButton: false,
+    });
   }, []);
   // Bundled, so this takes a moment; if a face fails, carry on with the system font.
   const [fontsLoaded, fontError] = useFonts(FONT_SOURCES);

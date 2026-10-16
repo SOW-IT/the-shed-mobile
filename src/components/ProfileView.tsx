@@ -4,12 +4,20 @@ import {
   uploadLocalFileToUrl,
 } from "@/lib/uploadLocalFile";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import { isSowStaffAddress } from "@shared/rollcallImport";
 import { useMutation, useQuery } from "convex/react";
 import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ReactNode, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { api } from "../../convex/_generated/api";
 import { timeAgo } from "../../shared/datetime";
 import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
@@ -32,7 +40,6 @@ import {
   stagger,
   Txt,
 } from "./ui";
-import { isSowStaffAddress } from "@shared/rollcallImport";
 
 const ProfileFrame = ({
   asTab,
@@ -65,23 +72,38 @@ function SpotifyConnectionCard() {
     }
   };
 
-  const handleDisconnect = () => {
-    Alert.alert(
-      "Disconnect Spotify",
-      "You will need to reconnect to import playlists.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Disconnect",
-          style: "destructive",
-          onPress: () => {
-            void spotify.disconnect().catch((e: unknown) => {
-              Alert.alert("Spotify", errorMessage(e));
-            });
+  const handleDisconnect = async () => {
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm(
+        "Disconnect Spotify?\n\nYou will need to reconnect to import playlists.",
+      );
+
+      if (!confirmed) return;
+    } else {
+      Alert.alert(
+        "Disconnect Spotify",
+        "You will need to reconnect to import playlists.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Disconnect",
+            style: "destructive",
+            onPress: () => {
+              void spotify.disconnect().catch((e: unknown) => {
+                Alert.alert("Spotify", errorMessage(e));
+              });
+            },
           },
-        },
-      ],
-    );
+        ],
+      );
+      return;
+    }
+
+    try {
+      await spotify.disconnect();
+    } catch (e) {
+      window.alert(`Spotify disconnect failed: ${errorMessage(e)}`);
+    }
   };
 
   return (
@@ -393,13 +415,20 @@ export const ProfileView = ({
                 key={entry.year}
                 style={[
                   styles.historyRow,
-                  index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.separator },
+                  index > 0 && {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: t.separator,
+                  },
                 ]}
               >
                 <View style={styles.yearCol}>
-                  <Text style={[styles.yearText, { color: t.text }]}>{entry.year}</Text>
+                  <Text style={[styles.yearText, { color: t.text }]}>
+                    {entry.year}
+                  </Text>
                   {entry.year === currentYear ? (
-                    <Text style={[typography.caption, { color: t.muted }]}>This year</Text>
+                    <Text style={[typography.caption, { color: t.muted }]}>
+                      This year
+                    </Text>
                   ) : null}
                 </View>
                 <View style={{ flex: 1 }}>
@@ -408,7 +437,10 @@ export const ProfileView = ({
                       {entry.assignments.map((a, i) => (
                         <View
                           key={i}
-                          style={[styles.assignmentChip, { backgroundColor: t.primarySoft }]}
+                          style={[
+                            styles.assignmentChip,
+                            { backgroundColor: t.primarySoft },
+                          ]}
                         >
                           <Text
                             style={[

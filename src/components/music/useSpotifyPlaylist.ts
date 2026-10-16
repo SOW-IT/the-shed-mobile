@@ -34,13 +34,7 @@ export function useSpotifyPlaylist() {
     setConnecting(true);
 
     try {
-      if (Platform.OS === "web" && __DEV__) {
-        // The callback sends the result to this window.
-        // AuthSession manages the popup internally.
-        await promptAsync();
-      } else {
-        await promptAsync();
-      }
+      await promptAsync();
     } catch (error) {
       setConnecting(false);
       throw error;
@@ -55,7 +49,6 @@ export function useSpotifyPlaylist() {
 
   const [connecting, setConnecting] = useState(false);
   const processedCodes = useRef(new Set<string>());
-  const spotifyPopupRef = useRef<Window | null>(null);
   const finishConnection = useCallback(
     async (code: string, codeVerifier: string) => {
       if (processedCodes.current.has(code)) return;
@@ -88,7 +81,6 @@ export function useSpotifyPlaylist() {
     discovery,
   );
 
-  // Standard OAuth callback: native mobile and same-origin web.
   useEffect(() => {
     if (!response) return;
 
@@ -153,8 +145,19 @@ export function useSpotifyPlaylist() {
     };
   }, [request, finishConnection]);
 
+  // const disconnect = async () => {
+  //   await disconnectSpotify();
+  // };
   const disconnect = async () => {
-    await disconnectSpotify();
+    console.log("STEP 1: Disconnect function called");
+
+    try {
+      await disconnectSpotify();
+      console.log("STEP 2: Convex disconnect successful");
+    } catch (error) {
+      console.error("STEP 2: Convex disconnect failed", error);
+      throw error;
+    }
   };
 
   const importPlaylist = async (link: string) => {
