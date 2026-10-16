@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import { ReactNode, Ref } from "react";
-import { Animated, ScrollView, StyleSheet, View } from "react-native";
+import { Animated, type ScrollViewInstance, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { spacing, useAppTheme } from "@/theme";
@@ -18,7 +18,7 @@ export const ChromeScreen = ({
   children?: ReactNode;
   floating?: ReactNode;
   fullWidth?: boolean;
-  scrollRef?: Ref<ScrollView>;
+  scrollRef?: Ref<ScrollViewInstance>;
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);

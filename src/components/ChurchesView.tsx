@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import {
@@ -223,7 +223,7 @@ function ChurchCard({
 export function ChurchesView() {
   const t = useAppTheme();
   const router = useRouter();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const directory = useQuery(api.churches.directory);
   // Staff and campus leaders can edit churches, and they're who gets members.
   const canEdit = useCanEditChurches();

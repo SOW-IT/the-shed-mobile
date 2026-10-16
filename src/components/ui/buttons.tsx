@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Keyboard, Platform, Pressable, Text, View } from "react-native";
+import { Animated, Easing, Keyboard, Platform, Pressable, Text, View, type ViewInstance } from "react-native";
 import { USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";
 import { usePressScale } from "./format";
 import { useAnyModalOpen } from "./modalPresence";
@@ -50,7 +50,7 @@ export const FooterAction = ({
   const [lift] = useState(() => new Animated.Value(0));
   const modalOpen = useAnyModalOpen();
   const shouldAvoid = avoidKeyboard && !modalOpen;
-  const wrapRef = useRef<View>(null);
+  const wrapRef = useRef<ViewInstance>(null);
   const syncRef = useRef<() => void>(() => {});
   const reportFooterHeight = useContext(FooterHeightContext);
   useEffect(() => () => reportFooterHeight(0), [reportFooterHeight]);
