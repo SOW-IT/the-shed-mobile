@@ -263,7 +263,9 @@ export function ChurchesView() {
     entry.church.name.toLowerCase().includes(q) ||
     entry.people.some((p) => p.name.toLowerCase().includes(q));
   const searched = (directory ?? []).filter(matchesSearch);
-  const counts = churchFilterCounts(searched.flatMap((entry) => entry.people), filter);
+  const counts = churchFilterCounts(searched, filter, (entry, people) =>
+    matchesSearch({ church: entry.church, people })
+  );
   const shown: Entry[] = searched
     .map((entry) => ({
       ...entry,

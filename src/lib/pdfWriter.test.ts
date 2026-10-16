@@ -43,6 +43,27 @@ describe("PdfWriter", () => {
     expect(w.pages).toHaveLength(2);
   });
 
+  test("keepWithNext counts the heading's gap, so the next block still fits under it", async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.HelveticaBold);
+    const w = new Probe(doc);
+    w.dropTo(MARGIN + 16 + 9 * 1.35 + 20);
+    w.heading("HISTORY", { font, ...HEADING }, 20);
+    expect(w.pages).toHaveLength(2);
+  });
+
+  test("a label kept with its answer counts its gap too", async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.HelveticaBold);
+    const w = new Probe(doc);
+    w.dropTo(MARGIN + 9 * 1.35 + 12);
+    w.text("Answer", { font, ...HEADING }, 12);
+    expect(w.pages).toHaveLength(2);
+    w.dropTo(MARGIN + 9 * 1.35 + 12);
+    w.text("Answer", { font, ...HEADING });
+    expect(w.pages).toHaveLength(2);
+  });
+
   test("the footer keeps the letters the font can draw", async () => {
     const doc = await PDFDocument.create();
     const font = await doc.embedFont(StandardFonts.Helvetica);
