@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
@@ -143,6 +143,31 @@ describe("me", () => {
     expect((await asUser(t, RACHEL).query(api.directory.me, {}))!.isCampusLeader).toBe(
       false
     );
+  });
+
+  test("listsChurch is true only for an assigned profile in this staff year", async () => {
+    const t = await setup();
+    expect((await asUser(t, RACHEL).query(api.directory.me, {}))!.listsChurch).toBe(true);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", { email: "paused@sow.org.au", year: YEAR, assignments: [] });
+      await ctx.db.insert("staffProfiles", {
+        email: "last.year@sow.org.au",
+        year: YEAR - 1,
+        assignments: [{ role: "Staff", department: "Finance" }],
+      });
+    });
+    const paused = await asUser(t, "paused@sow.org.au").query(api.directory.me, {});
+    expect(paused!.profile).not.toBeNull();
+    expect((paused as { listsChurch: boolean }).listsChurch).toBe(false);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(Date.UTC(YEAR - 1, 9, 15)));
+    try {
+      const lastYear = await asUser(t, "last.year@sow.org.au").query(api.directory.me, {});
+      expect(lastYear!.profile).not.toBeNull();
+      expect((lastYear as { listsChurch: boolean }).listsChurch).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
