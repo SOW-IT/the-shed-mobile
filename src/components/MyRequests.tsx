@@ -755,8 +755,6 @@ export const MyRequests = ({
   prefill,
   onResubmit,
   onNewClose,
-  year,
-  readOnly = false,
   directorThreshold = DIRECTOR_APPROVAL_THRESHOLD,
   focusId,
   focusThread = false,
@@ -769,8 +767,6 @@ export const MyRequests = ({
   prefill: RequestPrefill | null;
   onResubmit: (prefill: RequestPrefill) => void;
   onNewClose: () => void;
-  year?: number;
-  readOnly?: boolean;
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
@@ -778,10 +774,7 @@ export const MyRequests = ({
   directorThreshold?: number;
 }) => {
   const t = useAppTheme();
-  const requests = useQuery(
-    api.requests.myRequests,
-    year !== undefined ? { year } : {}
-  );
+  const requests = useQuery(api.requests.myRequests, {});
   const cancel = useMutation(api.requests.cancel);
   const deleteDeclined = useMutation(api.requests.deleteDeclined);
   const sendNudge = useMutation(api.requests.nudge);
@@ -803,28 +796,13 @@ export const MyRequests = ({
     });
   };
 
-  const handleCancel = async (requestId: Id<"requests">) => {
+  const runOn = async (
+    action: (args: { requestId: Id<"requests"> }) => Promise<unknown>,
+    requestId: Id<"requests">
+  ) => {
     setError(null);
     try {
-      await cancel({ requestId });
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  };
-
-  const handleDeleteDeclined = async (requestId: Id<"requests">) => {
-    setError(null);
-    try {
-      await deleteDeclined({ requestId });
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  };
-
-  const handleNudge = async (requestId: Id<"requests">) => {
-    setError(null);
-    try {
-      await sendNudge({ requestId });
+      await action({ requestId });
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -838,12 +816,8 @@ export const MyRequests = ({
       ) : requests.length === 0 ? (
         <EmptyState
           icon="receipt-outline"
-          title={readOnly ? `No requests in ${year}` : "No requests yet"}
-          message={
-            readOnly
-              ? "You didn't submit any requests this staff year."
-              : "Tap “Make Request” below to submit your first one."
-          }
+          title="No requests yet"
+          message="Tap “Make Request” below to submit your first one."
         />
       ) : (
         <Grid minColumnWidth={380}>
@@ -856,10 +830,8 @@ export const MyRequests = ({
             return b._creationTime - a._creationTime;
           })
           .map((request, index) => {
-            const needsReceipt =
-              !readOnly && requestFullyApproved(request) && !request.receipt;
+            const needsReceipt = requestFullyApproved(request) && !request.receipt;
             const canNudgeRequest =
-              !readOnly &&
               !requestCompleted(request) &&
               !requestDeclined(request) &&
               !needsReceipt;
@@ -874,15 +846,13 @@ export const MyRequests = ({
                   deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
                   onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
                   onCancel={
-                    readOnly
-                      ? undefined
-                      : requestDeclined(request)
+                    requestDeclined(request)
                       ? () =>
                           setConfirm({
                             title: "Delete request?",
                             message: `Your declined $${formatAmount(request.amount)} request ("${request.description}") will be permanently deleted.`,
                             confirmLabel: "Delete",
-                            onConfirm: () => void handleDeleteDeclined(request._id),
+                            onConfirm: () => void runOn(deleteDeclined, request._id),
                           })
                       : !requestCompleted(request)
                       ? () =>
@@ -890,7 +860,7 @@ export const MyRequests = ({
                             title: "Cancel request?",
                             message: `Your $${formatAmount(request.amount)} request ("${request.description}") and its approvals will be permanently deleted.`,
                             confirmLabel: "Cancel Request",
-                            onConfirm: () => void handleCancel(request._id),
+                            onConfirm: () => void runOn(cancel, request._id),
                           })
                       : undefined
                   }
@@ -906,7 +876,7 @@ export const MyRequests = ({
                       onPress={() => setReceiptFor(request)}
                     />
                   )}
-                  {!readOnly && requestDeclined(request) && (
+                  {requestDeclined(request) && (
                     <IconButton
                       name="refresh"
                       bg={t.primarySoft}
@@ -924,7 +894,7 @@ export const MyRequests = ({
                           message: `Reminds whoever needs to action your $${formatAmount(r.amount)} request ("${r.description}"). Once per day.`,
                           confirmLabel: "Send Nudge",
                           destructive: false,
-                          onConfirm: () => void handleNudge(r._id),
+                          onConfirm: () => void runOn(sendNudge, r._id),
                         })
                       }
                     />

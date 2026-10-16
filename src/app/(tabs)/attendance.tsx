@@ -161,7 +161,6 @@ export default function AttendanceScreen() {
       label: "Events",
       render: () => (
         <EventsTab
-          year={year}
           subgroups={subgroups}
           selectedSubgroup={subgroup}
           onSelectedSubgroupChange={setSelectedSubgroup}

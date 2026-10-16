@@ -11,20 +11,15 @@ function SelectorFab({
   icon = "options-outline",
   sheetTitle,
   children,
-  onClosed,
 }: {
   label: string;
   icon?: keyof typeof Ionicons.glyphMap;
   sheetTitle: string;
   children: (close: () => void) => ReactNode;
-  onClosed?: () => void;
 }) {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
-  const close = () => {
-    setOpen(false);
-    onClosed?.();
-  };
+  const close = () => setOpen(false);
   return (
     <>
       <Pressable

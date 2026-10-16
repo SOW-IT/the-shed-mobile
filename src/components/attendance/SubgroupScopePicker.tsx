@@ -70,7 +70,7 @@ export function SubgroupScopePicker({
                   !selected && { opacity: FADED_OPACITY },
                 ]}
               >
-                <CampusMark campus={sg} variant="circle" circleDiameter={MARK} />
+                <CampusMark campus={sg} circleDiameter={MARK} />
               </View>
             </Pressable>
           </FadeInView>

@@ -92,7 +92,7 @@ export function MetricsTab({
                   <View
                     style={[styles.campusRing, active && { borderColor: ringColour }]}
                   >
-                    <CampusMark campus={sg} variant="circle" circleDiameter={CAMPUS_MARK} />
+                    <CampusMark campus={sg} circleDiameter={CAMPUS_MARK} />
                   </View>
                 </Pressable>
               </FadeInView>

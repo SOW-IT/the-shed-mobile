@@ -627,7 +627,7 @@ export function CreateEventSheet({
                     { borderColor: on ? t.primary : t.border, opacity: pressed && !isOwner ? 0.7 : 1 },
                   ]}
                 >
-                  <CampusMark campus={sg} variant="circle" circleDiameter={22} />
+                  <CampusMark campus={sg} circleDiameter={22} />
                   <Txt>{subgroupLabel(sg)}</Txt>
                   {isOwner ? <Ionicons name="lock-closed" size={12} color={t.muted} /> : null}
                 </Pressable>

@@ -187,7 +187,7 @@ const HomeCard = ({ block }: { block: Extract<HomeBlock, { type: "card" }> }) =>
     );
   }
   const marker = block.campus ? (
-    <CampusMark campus={block.campus} logoSource="university" variant="circle" circleDiameter={32} />
+    <CampusMark campus={block.campus} logoSource="university" circleDiameter={32} />
   ) : block.icon ? (
     <Ionicons name={iconOr(block.icon, "ellipse-outline")} size={18} color={t.accent} />
   ) : block.dot ? (
@@ -302,7 +302,6 @@ const Campuses = ({ campuses }: { campuses: HomeCampus[] }) => {
               <CampusMark
                 campus={campus.name}
                 logoSource="university"
-                variant="circle"
                 circleDiameter={40}
               />
               <View style={styles.connectHeaderText}>

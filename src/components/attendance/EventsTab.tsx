@@ -54,13 +54,11 @@ const statusTone = (status: EventStatus, t: ReturnType<typeof useAppTheme>) => {
  * an event opens it; Edit opens the edit sheet.
  */
 export function EventsTab({
-  year,
   subgroups,
   selectedSubgroup,
   onSelectedSubgroupChange,
   loadMoreRef,
 }: {
-  year: number;
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
@@ -129,7 +127,6 @@ export function EventsTab({
                     >
                       <CampusMark
                         campus={sg}
-                        variant="circle"
                         circleDiameter={CAMPUS_MARK}
                       />
                     </View>

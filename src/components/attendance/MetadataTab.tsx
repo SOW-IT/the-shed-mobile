@@ -78,7 +78,6 @@ const addSelectOption = (values: Record<string, string> | undefined) => {
 };
 
 const renderSelectOptionEditor = (
-  field: FieldDraft,
   index: number,
   valueId: string,
   label: string,
@@ -285,7 +284,7 @@ export function MetadataTab({
                         color={t.muted}
                       />
                       {field.subgroup ? (
-                        <CampusMark campus={field.subgroup} variant="circle" circleDiameter={20} />
+                        <CampusMark campus={field.subgroup} circleDiameter={20} />
                       ) : (
                         <View style={[styles.allChip, { backgroundColor: t.ghost }]}>
                           <Text style={[styles.allChipText, { color: t.ghostText }]}>All</Text>
@@ -365,14 +364,7 @@ export function MetadataTab({
                               </View>
                             ) : null}
                             {locked.map(({ id, label }) =>
-                              renderSelectOptionEditor(
-                                field,
-                                i,
-                                id,
-                                label,
-                                true,
-                                setMetaDrafts
-                              )
+                              renderSelectOptionEditor(i, id, label, true, setMetaDrafts)
                             )}
                             {showSections && custom.length > 0 ? (
                               <View style={{ marginTop: spacing.sm }}>
@@ -380,14 +372,7 @@ export function MetadataTab({
                               </View>
                             ) : null}
                             {custom.map(({ id, label }) =>
-                              renderSelectOptionEditor(
-                                field,
-                                i,
-                                id,
-                                label,
-                                readOnly,
-                                setMetaDrafts
-                              )
+                              renderSelectOptionEditor(i, id, label, readOnly, setMetaDrafts)
                             )}
                           </>
                         );

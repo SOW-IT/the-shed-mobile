@@ -498,13 +498,11 @@ export function MetricCard({
 
 function Legend({
   items,
-  note,
   interactive = false,
   selectedKey,
   onToggle,
 }: {
   items: LegendItem[];
-  note?: string;
   interactive?: boolean;
   selectedKey?: string | null;
   onToggle?: (key: string) => void;
@@ -547,9 +545,6 @@ function Legend({
           );
         })}
       </View>
-      {note ? (
-        <Text style={[typography.caption, { color: t.faint }]}>{note}</Text>
-      ) : null}
     </View>
   );
 }
@@ -639,7 +634,6 @@ export function ChartCard({
   title,
   subtitle,
   legendItems,
-  legendNote,
   children,
   width,
   fullscreenContent,
@@ -647,7 +641,6 @@ export function ChartCard({
   title: string;
   subtitle?: string;
   legendItems?: LegendItem[];
-  legendNote?: string;
   children: ReactNode;
   width: number;
   fullscreenContent?: ReactNode;
@@ -688,7 +681,7 @@ export function ChartCard({
             </View>
             {legendItems ? (
               <View style={styles.chartHeaderRight}>
-                <Legend items={legendItems} note={legendNote} />
+                <Legend items={legendItems} />
               </View>
             ) : null}
           </View>
@@ -704,7 +697,6 @@ export function ChartCard({
           legendItems ? (
             <Legend
               items={legendItems}
-              note={legendNote}
               interactive
               selectedKey={selectedKey}
               onToggle={toggle}
@@ -758,12 +750,10 @@ export function BarChart({
   points,
   colour,
   fullscreen = false,
-  tooltipLabel,
 }: {
   points: TrendPoint[];
   colour?: string;
   fullscreen?: boolean;
-  tooltipLabel?: (p: TrendPoint) => string;
 }) {
   const t = useAppTheme();
   const bar = colour ?? t.primary;
@@ -775,8 +765,7 @@ export function BarChart({
   if (points.length === 0) return <EmptyChart />;
   const dataMax = Math.max(1, ...points.map((p) => p.value));
   const { max: axisMax, ticks } = niceAxis(dataMax, chartHeight);
-  const labelFor = (i: number) =>
-    tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
+  const labelFor = (i: number) => points[i].label;
   if (mode === "line") {
     return (
       <LineSeriesChart
@@ -1560,9 +1549,6 @@ const styles = StyleSheet.create({
   emptyChart: {
     alignItems: "center",
     justifyContent: "center",
-  },
-  fullscreenSafe: {
-    flex: 1,
   },
   fullscreenHeader: {
     flexDirection: "row",

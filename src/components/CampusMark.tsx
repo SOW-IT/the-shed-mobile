@@ -1,30 +1,17 @@
 import { Image, StyleSheet, Text, View } from "react-native";
 import { subgroupColour, subgroupLabel, contrastingText } from "../../shared/rollcall";
 import { subgroupLogo, universityLogo } from "@/lib/universityLogos";
-import { radius, typography, useAppTheme } from "@/theme";
-
-const SIZES = {
-  sm: { logoHeight: 18, badgePadH: 8, badgePadV: 3, fontSize: 11 },
-  md: { logoHeight: 24, badgePadH: 10, badgePadV: 4, fontSize: 12 },
-  lg: { logoHeight: 32, badgePadH: 12, badgePadV: 5, fontSize: 13 },
-  xl: { logoHeight: 40, badgePadH: 14, badgePadV: 6, fontSize: 14 },
-} as const;
-
-type CampusMarkSize = keyof typeof SIZES;
+import { useAppTheme } from "@/theme";
 
 type CampusMarkProps = {
   campus: string;
-  size?: CampusMarkSize;
   logoSource?: "subgroup" | "university";
-  variant?: "default" | "circle";
   circleDiameter?: number;
 };
 
 export function CampusMark({
   campus,
-  size = "md",
   logoSource = "subgroup",
-  variant = "default",
   circleDiameter = 40,
 }: CampusMarkProps) {
   const t = useAppTheme();
@@ -34,31 +21,9 @@ export function CampusMark({
     logoSource === "university"
       ? universityLogo(campus)
       : subgroupLogo(campus, t.dark);
-  const dims = SIZES[size];
   const r = circleDiameter / 2;
 
-  if (variant === "circle") {
-    if (logo) {
-      return (
-        <View
-          style={[
-            styles.circle,
-            {
-              width: circleDiameter,
-              height: circleDiameter,
-              borderRadius: r,
-            },
-          ]}
-        >
-          <Image
-            source={logo}
-            style={{ width: circleDiameter - 6, height: circleDiameter - 6 }}
-            resizeMode="contain"
-          />
-        </View>
-      );
-    }
-    const fontSize = label.length > 4 ? 9 : label.length > 3 ? 10 : 11;
+  if (logo) {
     return (
       <View
         style={[
@@ -67,51 +32,37 @@ export function CampusMark({
             width: circleDiameter,
             height: circleDiameter,
             borderRadius: r,
-            backgroundColor: colour,
           },
         ]}
       >
-        <Text
-          style={[
-            styles.badgeText,
-            { color: contrastingText(colour), fontSize, textAlign: "center" },
-          ]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {label}
-        </Text>
+        <Image
+          source={logo}
+          style={{ width: circleDiameter - 6, height: circleDiameter - 6 }}
+          resizeMode="contain"
+        />
       </View>
     );
   }
-
-  if (logo) {
-    return (
-      <Image
-        source={logo}
-        style={{ height: dims.logoHeight, width: dims.logoHeight * 4, maxWidth: size === "xl" ? 168 : 140 }}
-        resizeMode="contain"
-      />
-    );
-  }
-
+  const fontSize = label.length > 4 ? 9 : label.length > 3 ? 10 : 11;
   return (
     <View
       style={[
-        styles.badge,
+        styles.circle,
         {
+          width: circleDiameter,
+          height: circleDiameter,
+          borderRadius: r,
           backgroundColor: colour,
-          paddingHorizontal: dims.badgePadH,
-          paddingVertical: dims.badgePadV,
         },
       ]}
     >
       <Text
         style={[
-          typography.caption,
           styles.badgeText,
-          { color: contrastingText(colour), fontSize: dims.fontSize },
+          { color: contrastingText(colour), fontSize, textAlign: "center" },
         ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
       >
         {label}
       </Text>
@@ -124,10 +75,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-  },
-  badge: {
-    borderRadius: radius.full,
-    alignSelf: "flex-start",
   },
   badgeText: {
     fontWeight: "600",

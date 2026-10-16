@@ -622,23 +622,13 @@ export const FloatingYearPicker = ({
   years,
   onSelect,
   formatLabel,
-  bottomOffset = 0,
 }: {
   year: number;
   years: number[];
   onSelect: (year: number) => void;
   formatLabel?: (year: number) => string;
-  bottomOffset?: number;
-}) => {
-  return (
-    <View
-      pointerEvents="box-none"
-      style={[
-        styles.floatingYearPicker,
-        bottomOffset ? { bottom: spacing.md + bottomOffset } : null,
-      ]}
-    >
-      <YearPill year={year} years={years} onSelect={onSelect} formatLabel={formatLabel} />
-    </View>
-  );
-};
+}) => (
+  <View pointerEvents="box-none" style={styles.floatingYearPicker}>
+    <YearPill year={year} years={years} onSelect={onSelect} formatLabel={formatLabel} />
+  </View>
+);
