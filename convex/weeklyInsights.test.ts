@@ -404,12 +404,12 @@ describe("nightly builds only redo what changed", () => {
     vi.setSystemTime(wed(2026, 12, 2));
     await rebuild(t);
     const yearView = async () => (await viewDocs(t))[`${UNSW}|2026`].blocks as Block[];
-    expect(block(await yearView(), "multiBars", "Weekly avg by term").subtitle).toBe("Against 2025 up to T2 week 10");
+    expect(block(await yearView(), "multiBars", "Weeklies average by term").subtitle).toBe("Against 2025 up to T2 week 10");
     expect((await indexDoc(t))!.nextCompareAt).toBe(Date.UTC(2026, 11, 31, 13));
     vi.setSystemTime(Date.UTC(2026, 11, 31, 16));
     await rebuild(t);
     const after = await yearView();
-    expect(block(after, "multiBars", "Weekly avg by term").subtitle).toBe("Against 2025");
+    expect(block(after, "multiBars", "Weeklies average by term").subtitle).toBe("Against 2025");
     expect((after[1] as { text: string }).text).toBe("2026: 12 weeklies in T1 and T2, compared with 2025.");
     expect((await indexDoc(t))!.nextCompareAt).toBe(Date.UTC(2027, 11, 31, 13));
   });
@@ -513,12 +513,14 @@ describe("year so far", () => {
     vi.setSystemTime(Date.UTC(2026, 5, 12, 2)); // Fri 12 Jun 2026: T2 has had 2 weeklies.
     await rebuild(t);
     const blocks = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2026" }))!.blocks as Block[];
-    const chart = block(blocks, "multiBars", "Weekly avg by term");
+    const chart = block(blocks, "multiBars", "Weeklies average by term");
     expect(chart.subtitle).toBe("Against 2025 up to T2 week 2");
     // T2 2026 has had 2 weeklies, so T2 2025 counts its first two weeks.
     expect(chart.points.find((p) => p.label === "T2")!.segments[1].value).toBe(2);
     expect((blocks[1] as { text: string }).text).toMatch(/, compared with 2025 up to T2 week 2\.$/);
-    expect(block(blocks, "cards").cards.map((c) => c.hint)).toEqual(["vs 2", "vs 2", "vs 0", "vs 2", undefined, "vs 100%"]);
+    expect(
+      blocks.flatMap((b) => (b.type === "cards" ? b.cards : [])).map((c) => c.hint)
+    ).toEqual(["vs 2", "vs 2", "vs 2", "vs 2", undefined, "vs 100%"]);
     // T2 2025's own page still shows the whole term.
     const t2 = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2025-T2" }))!.blocks as Block[];
     expect(block(t2, "cards").cards[0].value).toBe("2.3");
@@ -757,6 +759,15 @@ describe("combined weeklies, marks and suggestions", () => {
     await rebuild(t);
     expect((await factDocs(t))[`${UNSW}|2026-T2`].weeklies).toHaveLength(7);
     await t.mutation(internal.weeklyInsights.setSettings, { jointWeeklies: true });
+    const scheduled = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).map((f) => f.name)
+    );
+    expect(scheduled).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("weeklyInsights:rebuildAll"),
+        expect.stringContaining("generalMetrics:recomputeCampusWeeklyAttendance"),
+      ])
+    );
     await rebuild(t);
     const t2 = (await factDocs(t))[`${UNSW}|2026-T2`];
     expect(t2.weeklies.map((w) => w.at)).toContain(wed(2026, 7, 15));

@@ -52,7 +52,7 @@ describe("summaryCards", () => {
   it("leads with the weekly average and its change when weekly meetings exist", () => {
     const [headline, people, newcomers] = summaryCards(data());
     expect(headline).toMatchObject({
-      label: "Weekly avg",
+      label: "Weeklies average",
       value: "30",
       delta: { text: "+25%", direction: "up" },
       hint: "vs 24",
@@ -70,7 +70,7 @@ describe("summaryCards", () => {
       })
     );
     expect(headline).toMatchObject({
-      label: "Avg / event",
+      label: "Average per event",
       value: "20",
       delta: { text: "0%", direction: "flat" },
       hint: undefined,
@@ -156,12 +156,13 @@ describe("buildAttendanceView", () => {
       orgWide: true,
       campusWeekly: [{ campus: "University of Sydney", avgWeekly: 40 }],
     });
-    expect(blocks.map((b) => b.type)).toEqual(["updated", "breakdown", "label", "cards"]);
-    expect(blocks[1]).toMatchObject({
-      title: "Weekly avg by campus",
+    expect(blocks.map((b) => b.type)).toEqual(["updated", "heading", "breakdown", "heading", "cards"]);
+    expect(blocks[1]).toEqual({ type: "heading", text: "Weeklies" });
+    expect(blocks[2]).toMatchObject({
+      title: "Weeklies average by campus",
       rows: [{ label: "University of Sydney", value: 40 }],
     });
-    expect(blocks[2]).toEqual({ type: "label", text: "SOW events" });
+    expect(blocks[3]).toEqual({ type: "heading", text: "SOW events" });
   });
 
   it("keeps the SOW comparison even with no SOW events in range", () => {
@@ -170,7 +171,7 @@ describe("buildAttendanceView", () => {
       orgWide: true,
       campusWeekly: [{ campus: "UNSW", avgWeekly: 12 }],
     });
-    expect(blocks.map((b) => b.type)).toEqual(["updated", "breakdown"]);
+    expect(blocks.map((b) => b.type)).toEqual(["updated", "heading", "breakdown"]);
   });
 
   it("says there were no events when SOW has nothing to show", () => {

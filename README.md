@@ -207,7 +207,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   with filters, sorting and search; tapping someone opens their attendance
   page. For SOW, a Campuses / TWIG / PPN switcher: each campus's weekly
   average with past week / month / year ranges, then TWIG (campus leaders
-  only) and PPN (everyone, month by month) by staff year. Layout, charts,
+  only) and PPN (everyone, as cards and charts) by staff year. Layout, charts,
   wording and the SOW tabs come from the backend (`weeklyInsights.view`,
   `generalMetrics.view`, `attendanceMetrics.view`, `sowInsights.tabs`,
   `sowInsights.view`), so

@@ -126,12 +126,21 @@ export function InsightsBlocks({
           ...p,
           segments: p.segments.map((s) => ({ ...s, colour: paint(s.colour), label: seriesLabel.get(s.key) ?? s.key })),
         }));
+        const line = block.line
+          ? {
+              ...block.line,
+              colour: paint(block.line.colour),
+              label: seriesLabel.get(block.line.key) ?? block.line.key,
+            }
+          : undefined;
         const props = {
           points,
           tooltipLabel: tooltipTitle,
           stacked: block.stacked,
           axisMax: block.axisMax,
           keepZeros: block.keepZeros,
+          line,
+          unit: block.unit,
         };
         return (
           <ChartCard

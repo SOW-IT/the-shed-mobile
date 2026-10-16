@@ -755,6 +755,7 @@ export const MyRequests = ({
   prefill,
   onResubmit,
   onNewClose,
+  onMakeRequest,
   directorThreshold = DIRECTOR_APPROVAL_THRESHOLD,
   focusId,
   focusThread = false,
@@ -767,6 +768,7 @@ export const MyRequests = ({
   prefill: RequestPrefill | null;
   onResubmit: (prefill: RequestPrefill) => void;
   onNewClose: () => void;
+  onMakeRequest?: () => void;
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
@@ -817,7 +819,7 @@ export const MyRequests = ({
         <EmptyState
           icon="receipt-outline"
           title="No requests yet"
-          message="Tap “Make Request” below to submit your first one."
+          action={onMakeRequest ? { label: "Make a request", onPress: onMakeRequest } : undefined}
         />
       ) : (
         <Grid minColumnWidth={380}>

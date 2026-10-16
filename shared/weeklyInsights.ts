@@ -1,6 +1,7 @@
 import { DAY_MS } from "./attendanceMetrics";
 import { eventStaffYear, sydneyYmd } from "./flow";
 import { subgroupMatches } from "./rollcall";
+import { round1 } from "./numbers";
 
 // Insights → Attendance for one campus, built around its weekly meetings.
 // Everything here is pure: the nightly build feeds it the stored attendance
@@ -574,8 +575,6 @@ export type PeriodSummary = {
   campusShare: number | null;
 };
 
-const round1 = (n: number) => Math.round(n * 10) / 10;
-
 type SummaryRow = {
   key: string;
   category: WeeklyCategory;
@@ -703,6 +702,17 @@ export function termBefore(
 
 export type YearRow = TermRow & { termKey: string };
 
+const STUDENT_CATEGORIES = new Set<WeeklyCategory>(["newcomer", "regular", "irregular"]);
+
+const yearCategory = (latest: WeeklyCategory, yearShare: number, regularShare: number): WeeklyCategory =>
+  !STUDENT_CATEGORIES.has(latest)
+    ? latest
+    : yearShare >= regularShare
+      ? "regular"
+      : latest === "newcomer"
+        ? "newcomer"
+        : "irregular";
+
 export type YearResult = {
   year: number;
   terms: WeeklyTerm[];
@@ -754,14 +764,14 @@ export function computeYear(
   for (const [key, row] of latest) {
     const attended = counts.get(key) ?? 0;
     if (attended === 0) continue;
-    rows.push({ ...row, attended, held, pct: held ? attended / held : 0 });
+    const pct = held ? attended / held : 0;
+    rows.push({ ...row, category: yearCategory(row.category, pct, c.settings.regularShare), attended, held, pct });
   }
   sortRows(rows);
   // The year's newcomers are everyone whose first-ever weekly was this year,
   // even if their latest term has them as Regular by now.
-  const student = new Set<WeeklyCategory>(["newcomer", "regular", "irregular"]);
   const newThisYear = (r: { key: string; category: WeeklyCategory }) =>
-    student.has(r.category) && (firstSeen.get(r.key) ?? -1) >= yearStart;
+    STUDENT_CATEGORIES.has(r.category) && (firstSeen.get(r.key) ?? -1) >= yearStart;
   return {
     year,
     terms: indexes.map((i) => cutTerms[i]),

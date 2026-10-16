@@ -58,11 +58,13 @@ export function EventsTab({
   selectedSubgroup,
   onSelectedSubgroupChange,
   loadMoreRef,
+  onCreateEvent,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   loadMoreRef?: MutableRefObject<(() => void) | null>;
+  onCreateEvent?: () => void;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -163,7 +165,7 @@ export function EventsTab({
             <EmptyState
               icon="calendar-outline"
               title="No events yet"
-              message="Create an event to take attendance."
+              action={onCreateEvent ? { label: "Create an event", onPress: onCreateEvent } : undefined}
             />
           ) : (
             <View style={styles.eventsList}>

@@ -92,7 +92,7 @@ const INDEX_WEEKLIES_WEEKS = 60;
 const NEVER = Number.MAX_SAFE_INTEGER;
 // Bump when what a view shows changes, so every campus redoes its views on
 // the next build after a deploy.
-export const VIEW_VERSION = 6;
+export const VIEW_VERSION = 7;
 
 export async function readSettings(
   ctx: QueryCtx
@@ -855,6 +855,7 @@ export const setSettings = internalMutation({
     if (id) await ctx.db.replace("weeklyInsightsSettings", id, { ...next, version: version + 1 });
     else await ctx.db.insert("weeklyInsightsSettings", { ...next, version: version + 1 });
     await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuildAll, {});
+    await ctx.scheduler.runAfter(0, internal.generalMetrics.recomputeCampusWeeklyAttendance, {});
     return next;
   },
 });

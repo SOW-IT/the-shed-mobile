@@ -88,7 +88,12 @@ const viewCard = v.object({
   info: v.optional(v.object({ title: v.string(), body: v.string() })),
 });
 
-const legendItem = v.object({ key: v.string(), colour: v.string(), label: v.string() });
+const legendItem = v.object({
+  key: v.string(),
+  colour: v.string(),
+  label: v.string(),
+  shape: v.optional(v.literal("line")),
+});
 
 const segmentPoint = v.object({
   at: v.number(),
@@ -123,6 +128,10 @@ export const viewBlockValidator = v.union(
     stacked: v.boolean(),
     axisMax: v.optional(v.number()),
     keepZeros: v.optional(v.boolean()),
+    line: v.optional(
+      v.object({ key: v.string(), colour: v.string(), values: v.array(v.union(v.number(), v.null())) })
+    ),
+    unit: v.optional(v.string()),
   }),
   v.object({
     type: v.literal("bars"),

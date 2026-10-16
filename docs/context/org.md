@@ -46,6 +46,14 @@ A person with a `staffProfile` for a given staff year. Someone can be staff in
 a year.
 _Avoid_: employee, worker, team member
 
+**Years served**:
+For someone serving in a staff year (a `staffProfile` that year with a staff
+or student leader role), how many staff years they've served up to and
+including it, in any role; later years never count. Insights → General
+averages it over everyone serving that year, and splits staff from student
+leaders by their role in that year only.
+_Avoid_: tenure (for the per-role count it used to be), years as staff
+
 **Previously staff**:
 On Admin → Users, a person who has a `staffProfile` in an earlier year but not
 the year being edited, and who is in the Workspace directory or has signed in.

@@ -20,7 +20,7 @@ export type ViewColour = "primary" | "success" | "accent";
 // as a campus colour.
 export type ViewPaint = string;
 
-export type ViewLegendItem = { key: string; colour: ViewPaint; label: string };
+export type ViewLegendItem = { key: string; colour: ViewPaint; label: string; shape?: "line" };
 
 export type ViewSegmentPoint = {
   at: number;
@@ -60,6 +60,8 @@ export type ViewBlock =
       stacked: boolean;
       axisMax?: number;
       keepZeros?: boolean;
+      line?: { key: string; colour: ViewPaint; values: (number | null)[] };
+      unit?: string;
     }
   | { type: "bars"; title: string; colour: ViewColour; points: TrendPoint[] }
   | { type: "breakdown"; title: string; rows: { label: string; value: number; colour?: ViewPaint }[] }
@@ -113,24 +115,24 @@ export function summaryCards(data: SubgroupMetricsData): ViewCard[] {
   const headline: ViewCard =
     data.hasWeeklyMeetings && s.avgWeeklyAttendance !== null
       ? {
-          label: "Weekly avg",
+          label: "Weeklies average",
           value: `${s.avgWeeklyAttendance}`,
           delta: deltaFor(s.weeklyChangePct),
           hint:
             s.avgWeeklyAttendancePrev !== null ? `vs ${s.avgWeeklyAttendancePrev}` : undefined,
           info: {
-            title: "Weekly avg",
+            title: "Weeklies average",
             body: "Average turnout at weeklies, compared with the previous period of the same length.",
           },
         }
       : {
-          label: "Avg / event",
+          label: "Average per event",
           value: `${s.avgAttendance}`,
           delta: deltaFor(s.changePct),
           hint: s.avgAttendancePrev !== null ? `vs ${s.avgAttendancePrev}` : undefined,
           info: {
-            title: "Avg / event",
-            body: "Average turnout per event, compared with the previous period of the same length.",
+            title: "Average per event",
+            body: "Average turnout per event, compared with the previous period of the same length. Events nobody signed in to aren't counted.",
           },
         };
   return [
@@ -178,18 +180,21 @@ export function buildAttendanceView(input: {
   if (orgWide) {
     const blocks: ViewBlock[] = [updated];
     if (campusWeekly.length > 0) {
-      blocks.push({
-        type: "breakdown",
-        title: "Weekly avg by campus",
-        rows: campusWeekly.map((c) => ({
-          label: c.campus,
-          value: c.avgWeekly,
-          colour: subgroupColour(c.campus),
-        })),
-      });
+      blocks.push(
+        { type: "heading", text: "Weeklies" },
+        {
+          type: "breakdown",
+          title: "Weeklies average by campus",
+          rows: campusWeekly.map((c) => ({
+            label: c.campus,
+            value: c.avgWeekly,
+            colour: subgroupColour(c.campus),
+          })),
+        }
+      );
     }
     if (data.hasEnoughHistory) {
-      blocks.push({ type: "label", text: "SOW events" }, { type: "cards", cards: summaryCards(data) });
+      blocks.push({ type: "heading", text: "SOW events" }, { type: "cards", cards: summaryCards(data) });
     }
     return blocks.length > 1 ? blocks : [updated, NO_EVENTS];
   }

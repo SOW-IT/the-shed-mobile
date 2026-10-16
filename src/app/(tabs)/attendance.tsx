@@ -165,6 +165,7 @@ export default function AttendanceScreen() {
           selectedSubgroup={subgroup}
           onSelectedSubgroupChange={setSelectedSubgroup}
           loadMoreRef={eventsLoadMoreRef}
+          onCreateEvent={subgroup ? () => setCreateEventOpen(true) : undefined}
         />
       ),
     },

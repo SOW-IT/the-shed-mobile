@@ -736,9 +736,10 @@ describe("view", () => {
       rangeWeeks: 4,
       includeCollaborative: false,
     });
-    expect(view?.blocks[1]).toEqual({
+    expect(view?.blocks[1]).toEqual({ type: "heading", text: "Weeklies" });
+    expect(view?.blocks[2]).toEqual({
       type: "breakdown",
-      title: "Weekly avg by campus",
+      title: "Weeklies average by campus",
       rows: [{ label: USYD, value: 42, colour: subgroupColour(USYD) }],
     });
   });
