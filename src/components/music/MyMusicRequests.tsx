@@ -108,6 +108,10 @@ export const NewMusicRequestSheet = ({
     setIsrc(undefined);
     setSpotifyError(null);
   };
+  const clearAllSongs = () => {
+    setSongs([]);
+    clearSong();
+  };
   const addSong = () => {
     if (!title.trim() || !artist.trim() || !link.trim()) {
       Alert.alert("Incomplete song", "Enter a title, artist and link.");
@@ -652,11 +656,41 @@ export const NewMusicRequestSheet = ({
           />
         </View>
       )}
+
       {!prefill && (
         <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
-          <Text style={{ color: t.text, fontWeight: "800" }}>
-            Songs to submit ({songs.length})
-          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text style={{ color: t.text, fontWeight: "800" }}>
+              Songs to submit ({songs.length})
+            </Text>
+
+            {songs.length > 0 && (
+              <Pressable
+                onPress={() => setSongs([])}
+                disabled={submitting || importingPlaylist}
+                accessibilityRole="button"
+                accessibilityLabel="Clear all songs to submit"
+                style={{ paddingHorizontal: spacing.sm, paddingVertical: 6 }}
+              >
+                <Text
+                  style={{
+                    color: "#dc2626",
+                    fontSize: 13,
+                    fontWeight: "600",
+                  }}
+                >
+                  Clear All
+                </Text>
+              </Pressable>
+            )}
+          </View>
+
           {songs.map((song, index) => (
             <View
               key={`${song.link}-${index}`}
