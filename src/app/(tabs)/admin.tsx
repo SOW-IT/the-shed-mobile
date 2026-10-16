@@ -1730,7 +1730,7 @@ export default function AdminScreen() {
                 Threshold: $
                 {(
                   configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD
-                ).toLocaleString()}
+                ).toLocaleString("en-AU")}
               </Muted>
             )}
           </Card>
@@ -1773,7 +1773,7 @@ export default function AdminScreen() {
                 Threshold: $
                 {(
                   configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD
-                ).toLocaleString()}
+                ).toLocaleString("en-AU")}
               </Muted>
             )}
           </Card>

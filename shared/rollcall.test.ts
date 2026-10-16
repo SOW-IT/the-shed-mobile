@@ -359,13 +359,13 @@ describe("compareAttendanceFrequency", () => {
 describe("formatters", () => {
   test("formatEventDate joins a date and a time with a separator", () => {
     const label = formatEventDate(new Date(2026, 5, 24, 17, 0).getTime());
-    expect(label).toContain("·");
+    expect(label).toMatch(/^Wed,? 24 June? · 5:00\s?pm$/);
     expect(label).toMatch(/\d/);
   });
 
   test("formatSignInTime renders a clock time", () => {
     const label = formatSignInTime(new Date(2026, 5, 24, 17, 3).getTime());
-    expect(label).toMatch(/\d/);
+    expect(label).toMatch(/^5:03\s?pm$/);
   });
 
   test("formatSignInTime puts the day in front for a multi-day event", () => {
@@ -395,7 +395,7 @@ describe("formatters", () => {
       new Date(2026, 5, 24, 17, 0).getTime(),
       new Date(2026, 5, 24, 19, 0).getTime()
     );
-    expect(label).toMatch(/^24\.06\.26, /);
+    expect(label).toMatch(/^24\.06\.26, 5:00\s?pm - 7:00\s?pm$/);
     expect(label).toContain(" - ");
     expect(label).not.toContain("26.06.26");
     expect(label).toBe(label.toLowerCase());

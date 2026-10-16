@@ -6,6 +6,7 @@ export const WIDTH = PAGE.width - 2 * MARGIN;
 export const TEXT = rgb(0.06, 0.15, 0.14);
 export const MUTED = rgb(0.36, 0.42, 0.38);
 const RULE = rgb(0.8, 0.84, 0.82);
+const RULE_HEIGHT = 16;
 
 export type Style = { font: PDFFont; size: number; color: typeof TEXT; gap?: number };
 
@@ -77,8 +78,15 @@ export class PdfWriter {
     this.y -= points;
   }
 
+  heading(text: string, style: Style, keepWithNext = 0) {
+    const lineHeight = style.size * 1.35;
+    if (this.y - RULE_HEIGHT - lineHeight - keepWithNext < MARGIN) this.newPage();
+    this.rule();
+    this.text(text, style, keepWithNext);
+  }
+
   rule() {
-    if (this.y - 16 < MARGIN) this.newPage();
+    if (this.y - RULE_HEIGHT < MARGIN) this.newPage();
     this.y -= 8;
     this.page.drawLine({
       start: { x: MARGIN, y: this.y },
@@ -91,7 +99,7 @@ export class PdfWriter {
 
   footer(label: string, font: PDFFont) {
     this.pages.forEach((page, i) => {
-      page.drawText(`${label} - page ${i + 1} of ${this.pages.length}`.replace(/[^\x20-\x7E]/g, "?"), {
+      page.drawText(this.clean(font, `${label} - page ${i + 1} of ${this.pages.length}`).replace(/\n/g, " "), {
         x: MARGIN,
         y: MARGIN / 2,
         size: 8,
