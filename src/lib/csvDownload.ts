@@ -27,8 +27,8 @@ export const downloadFile = async (
   const file = new File(Paths.cache, filename);
   if (file.exists) file.delete();
   file.create();
-  await file.write(data);
   try {
+    await file.write(data);
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(file.uri, {
         mimeType: opts.mimeType,

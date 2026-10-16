@@ -36,9 +36,13 @@ apps keep working against the same server.
   code shrinking for release builds, and it stripped the class WorkManager's
   database is created from by name. Release builds keep shrinking off, as on
   SDK 57; the app is about 11 MB larger than with R8.
+- **Signed-in people without a staff profile would have opened on a setup
+  card instead of the Org Chart.** Expo Router 58 dropped the per-person
+  starting tab, so `/` now sends them to the Org Chart itself; links to a
+  request still open as before.
 - **CSV and PDF downloads on phones could have shared an empty file.**
   Writing the file is asynchronous in SDK 58 and is now awaited before the
-  share sheet opens.
+  share sheet opens, and a failed write still cleans up the temporary file.
 
 ## [2.9.6] - 2026-10-16
 
