@@ -57,7 +57,9 @@ export default defineSchema({
     // Lower-case, single-spaced name, so the same church isn't added twice.
     nameKey: v.string(),
     address: v.optional(v.string()),
-    services: v.optional(v.array(v.object({ day: v.number(), time: v.string() }))),
+    services: v.optional(
+      v.array(v.object({ day: v.number(), time: v.string() })),
+    ),
     website: v.optional(v.string()),
     instagram: v.optional(v.string()),
     addedBy: v.string(),
@@ -444,8 +446,7 @@ export default defineSchema({
     decidedAt: v.optional(v.number()),
     decidedBy: v.optional(v.string()),
     changesReason: v.optional(v.string()),
-  })
-    .index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
+  }).index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
 
   eventRequestEvents: defineTable({
     eventRequestId: v.id("eventRequests"),
@@ -497,8 +498,7 @@ export default defineSchema({
     // A campus weekly's term and week, set when it was created as a Weekly
     // (or by the backfill). Insights trusts these over dates and names.
     weekly: v.optional(weeklyMarkValidator),
-  })
-    .index("by_dateStart", ["dateStart"]),
+  }).index("by_dateStart", ["dateStart"]),
 
   attendanceAuditLog: defineTable({
     actorEmail: v.string(),
@@ -584,13 +584,12 @@ export default defineSchema({
     staffYear: v.number(),
     computedAt: v.number(),
     data: metricsDataValidator,
-  })
-    .index("by_subgroup_range_year", [
-      "subgroup",
-      "rangeWeeks",
-      "includeCollaborative",
-      "staffYear",
-    ]),
+  }).index("by_subgroup_range_year", [
+    "subgroup",
+    "rangeWeeks",
+    "includeCollaborative",
+    "staffYear",
+  ]),
 
   // One row: the Insights → General campus weekly-attendance chart, rebuilt by
   // the nightly Insights rebuild so opening the tab reads this instead of
@@ -693,4 +692,15 @@ export default defineSchema({
   })
     .index("by_requester", ["requesterEmail"])
     .index("by_status", ["status"]),
+
+  // A Spotify connection for a user, to view their requested playlists for the Praise List.
+  spotifyConnections: defineTable({
+    userId: v.id("users"),
+    encryptedAccessToken: v.string(),
+    encryptedRefreshToken: v.string(),
+    expiresAt: v.number(),
+    spotifyUserId: v.optional(v.string()),
+    connectedAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_userId", ["userId"]),
 });

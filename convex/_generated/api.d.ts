@@ -63,6 +63,8 @@ import type * as reminders from "../reminders.js";
 import type * as requests from "../requests.js";
 import type * as sowInsights from "../sowInsights.js";
 import type * as spotify from "../spotify.js";
+import type * as spotifyConnections from "../spotifyConnections.js";
+import type * as spotifyCrypto from "../spotifyCrypto.js";
 import type * as staffLeavers from "../staffLeavers.js";
 import type * as staffMembers from "../staffMembers.js";
 import type * as userLink from "../userLink.js";
@@ -131,6 +133,8 @@ declare const fullApi: ApiFromModules<{
   requests: typeof requests;
   sowInsights: typeof sowInsights;
   spotify: typeof spotify;
+  spotifyConnections: typeof spotifyConnections;
+  spotifyCrypto: typeof spotifyCrypto;
   staffLeavers: typeof staffLeavers;
   staffMembers: typeof staffMembers;
   userLink: typeof userLink;
