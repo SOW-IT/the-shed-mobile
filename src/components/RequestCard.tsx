@@ -8,6 +8,7 @@ import {
   DECLINED,
   eventStaffYear,
   requestDisplayStatus,
+  STEP_FIELDS,
   STEP_LABELS,
   stepsForRequest,
   type ApprovalStatus,
@@ -76,16 +77,8 @@ const History = ({ request }: { request: Doc<"requests"> }) => {
   );
 };
 
-const stepStatus = (
-  request: Doc<"requests">,
-  step: ApprovalStep
-): ApprovalStatus | undefined =>
-  ({
-    hod: request.approvedByHOD,
-    budgetManager: request.approvedByBudgetManager,
-    director: request.approvedByDirector,
-    financeHead: request.approvedByFinanceHead,
-  })[step];
+const stepStatus = (request: Doc<"requests">, step: ApprovalStep): ApprovalStatus | undefined =>
+  request[STEP_FIELDS[step]];
 
 const StepInfoModal = ({
   requestId,
@@ -290,7 +283,7 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                 ) : (
                   <>
                     {displayName ? (
-                      <Text numberOfLines={1} style={[styles.stepName, { color: t.muted }]}>
+                      <Text numberOfLines={2} style={[styles.stepName, { color: t.muted }]}>
                         {displayName}
                       </Text>
                     ) : null}
