@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -92,7 +92,7 @@ export function AuditTab({
   }, [search]);
 
   const scopeKey = JSON.stringify([debouncedSearch, entityTypes, actorEmails, eventIds]);
-  const listRef = useRef<ScrollView>(null);
+  const listRef = useRef<ScrollViewInstance>(null);
   const onListScrollEnd = useListTopOnChange(listRef, scopeKey);
   const topBarInset = usePagerTopBarInset();
   const {

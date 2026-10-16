@@ -1,5 +1,5 @@
 import { type RefObject, useCallback, useEffect, useRef } from "react";
-import type { NativeScrollEvent, NativeSyntheticEvent, ScrollView } from "react-native";
+import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from "react-native";
 import { usePagerTopBarInset } from "@/components/PagerScreen";
 
 /**
@@ -8,7 +8,7 @@ import { usePagerTopBarInset } from "@/components/PagerScreen";
  * end of the new, shorter results and looks empty. The top bar stays collapsed
  * if it already was. Returns the handler for the list's scroll-end events.
  */
-export function useListTopOnChange(listRef: RefObject<ScrollView | null>, scopeKey: string) {
+export function useListTopOnChange(listRef: RefObject<ScrollViewInstance | null>, scopeKey: string) {
   const offset = useRef(0);
   const first = useRef(true);
   const topBarInset = usePagerTopBarInset();

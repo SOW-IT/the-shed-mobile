@@ -36,7 +36,7 @@ const tabIcon =
   (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) => {
     const TabBarIcon = ({ color, focused }: { color: ColorValue; focused: boolean }) => (
       <TabPill focused={focused}>
-        <Ionicons name={focused ? filled : outline} size={22} color={color} />
+        <Ionicons name={focused ? filled : outline} size={22} color={color as string} />
       </TabPill>
     );
     return TabBarIcon;
@@ -55,7 +55,7 @@ const InsightsTabIcon = ({
       <Ionicons
         name={focused ? "stats-chart" : "stats-chart-outline"}
         size={22}
-        color={color}
+        color={color as string}
       />
       <View
         style={{
@@ -94,12 +94,16 @@ type TabBarButtonProps = {
 
 const inactivePressableState = { pressed: false, hovered: false, focused: false };
 
+const sideMenuOnly = { tabBarItemStyle: { display: "none" as const } };
+
 const AnimatedTabBarButton = ({
   children,
   style,
   onPress,
   onPressIn,
   onPressOut,
+  onLongPress,
+  disabled,
   ...rest
 }: TabBarButtonProps) => {
   const { scale, onPressIn: scaleIn, onPressOut: scaleOut } = usePressScale();
@@ -127,6 +131,8 @@ const AnimatedTabBarButton = ({
   return (
     <Pressable
       {...rest}
+      disabled={disabled ?? undefined}
+      onLongPress={onLongPress ?? undefined}
       style={[style, styles.tabButton]}
       onPress={handlePress}
       onPressIn={(e) => {
@@ -157,7 +163,6 @@ export default function TabsLayout() {
   useReportAppVersion();
   useReportSeen();
 
-  const isCampusLeader = me?.isCampusLeader ?? false;
   const isStaff = !!me?.profile;
 
   // Wide screens navigate from the sidebar; keep only the home-indicator gap.
@@ -169,15 +174,6 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      initialRouteName={
-        !isAuthenticated
-          ? "home"
-          : !isStaff
-            ? "org"
-            : isCampusLeader
-              ? "attendance"
-              : "index"
-      }
       backBehavior="history"
       tabBar={wide ? () => <View style={{ height: insets.bottom }} /> : undefined}
       screenListeners={{ tabPress: () => hapticSelect() }}
@@ -217,24 +213,24 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Reimbursements",
-          href: null,
+          ...sideMenuOnly,
         }}
       />
       {/* Design Requests, Event Requests and Profile also open from the side menu only. */}
       <Tabs.Screen
         name="design-requests"
-        options={{ title: "Design Requests", href: null }}
+        options={{ title: "Design Requests", ...sideMenuOnly }}
       />
       <Tabs.Screen
         name="event-requests"
-        options={{ title: "Event Requests", href: null }}
+        options={{ title: "Event Requests", ...sideMenuOnly }}
       />
-      <Tabs.Screen name="profile" options={{ title: "Profile", href: null }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile", ...sideMenuOnly }} />
       <Tabs.Screen
         name="attendance"
         options={{
           title: "Attendance",
-          ...(isStaff ? {} : { href: null }),
+          ...(isStaff ? {} : sideMenuOnly),
           tabBarIcon: tabIcon("checkbox-outline", "checkbox"),
         }}
       />
@@ -258,7 +254,7 @@ export default function TabsLayout() {
         name="churches"
         options={{
           title: "Churches",
-          ...(isStaff ? { href: null } : {}),
+          ...(isStaff ? sideMenuOnly : {}),
           tabBarIcon: tabIcon("business-outline", "business"),
         }}
       />
@@ -266,7 +262,7 @@ export default function TabsLayout() {
         name="admin"
         options={{
           title: "Admin",
-          href: null,
+          ...sideMenuOnly,
           tabBarIcon: tabIcon("settings-outline", "settings"),
         }}
       />

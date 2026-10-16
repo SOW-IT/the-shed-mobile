@@ -19,7 +19,7 @@ export type TopBarScrollProps = {
 export const useTopBarCollapse = () => {
   const [scrollY] = useState(() => new Animated.Value(0));
 
-  const collapseStyle = useMemo<Animated.WithAnimatedObject<ViewStyle>>(
+  const collapseStyle = useMemo<Animated.WithAnimatedValue<ViewStyle>>(
     () => ({
       transform: [
         {
@@ -34,7 +34,7 @@ export const useTopBarCollapse = () => {
     [scrollY]
   );
 
-  const barOpacityStyle = useMemo<Animated.WithAnimatedObject<ViewStyle>>(
+  const barOpacityStyle = useMemo<Animated.WithAnimatedValue<ViewStyle>>(
     () => ({
       opacity: scrollY.interpolate({
         inputRange: [0, TOP_BAR_HEIGHT],

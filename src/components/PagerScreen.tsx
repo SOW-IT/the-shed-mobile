@@ -15,7 +15,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
-  ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   View,
 } from "react-native";
@@ -302,7 +302,7 @@ export const PagerScreen = ({
     [makeScrollHandler]
   );
 
-  const pageScrollRefs = useRef<Record<string, ScrollView | null>>({});
+  const pageScrollRefs = useRef<Record<string, ScrollViewInstance | null>>({});
   const scrollByForTab = useRef<Record<string, (dy: number) => void>>({});
   const scrollByFor = (tabKey: string) => {
     if (!scrollByForTab.current[tabKey]) {
@@ -330,7 +330,7 @@ export const PagerScreen = ({
         </PagerFooterClearanceContext.Provider>
       ) : (
         <Animated.ScrollView
-          ref={(el: ScrollView | null) => {
+          ref={(el: ScrollViewInstance | null) => {
             pageScrollRefs.current[tab.key] = el;
           }}
           showsVerticalScrollIndicator={false}
