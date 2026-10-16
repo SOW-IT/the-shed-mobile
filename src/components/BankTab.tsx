@@ -243,6 +243,8 @@ export const BankTab = () => {
     bsbDraft === editingAccount.bsb &&
     numberDraft === editingAccount.accountNumber;
 
+  const draftIncomplete = nameDraft.trim() === "" || bsbDraft === "" || numberDraft === "";
+
   const accountForm = (isAdd: boolean) => (
     <Card style={styles.bankCard}>
       <Field
@@ -281,7 +283,7 @@ export const BankTab = () => {
         <Btn
           title={isAdd ? "Add Account" : "Save"}
           onPress={() => void save()}
-          disabled={saving || (!isAdd && editUnchanged)}
+          disabled={saving || draftIncomplete || (!isAdd && editUnchanged)}
         />
       </Row>
     </Card>
