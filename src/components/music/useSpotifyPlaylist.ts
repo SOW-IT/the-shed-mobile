@@ -145,9 +145,6 @@ export function useSpotifyPlaylist() {
     };
   }, [request, finishConnection]);
 
-  // const disconnect = async () => {
-  //   await disconnectSpotify();
-  // };
   const disconnect = async () => {
     console.log("STEP 1: Disconnect function called");
 
