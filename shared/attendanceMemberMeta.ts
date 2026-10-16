@@ -179,17 +179,6 @@ export const canonicalizeGenderValues = (
   return out;
 };
 
-export const canonicalizeGenderOptionId = (
-  stored: string,
-  fieldValues?: Record<string, string>
-): string => {
-  const label = fieldValues?.[stored]?.trim().toLowerCase();
-  if (label === "male") return "1";
-  if (label === "female") return "2";
-  if (stored === "1" || stored === "2") return stored;
-  return stored;
-};
-
 type MetadataSelectOption = { id: string; label: string };
 
 export const isLockedSelectOption = (

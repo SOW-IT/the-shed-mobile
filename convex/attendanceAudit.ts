@@ -71,7 +71,6 @@ export const auditStamp = (ms: number): string => {
 
 const MAX_ROWS_SCANNED_PER_CALL = 2000;
 
-
 export const list = query({
   args: {
     search: v.optional(v.string()),

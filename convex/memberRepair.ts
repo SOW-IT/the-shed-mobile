@@ -1,9 +1,8 @@
 import { ConvexError, v } from "convex/values";
 import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
-import { SYDNEY_TIME_ZONE } from "../shared/flow";
 import { capitalizeMemberName } from "../shared/rollcall";
 import { internalMutation } from "./_generated/server";
-import { logAttendanceAction, MAX_AUDIT_ATTENDANCE_LINES } from "./attendanceAudit";
+import { auditStamp, logAttendanceAction, MAX_AUDIT_ATTENDANCE_LINES } from "./attendanceAudit";
 import { latestStaffProfile } from "./attendanceMembers";
 import { knownMemberId } from "./staffMembers";
 
@@ -28,17 +27,6 @@ const restoreStatus = v.union(
   v.literal("member missing"),
   v.literal("needs one of memberId or email")
 );
-
-const stamp = (ms: number): string =>
-  new Intl.DateTimeFormat("en-AU", {
-    timeZone: SYDNEY_TIME_ZONE,
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date(ms));
 
 /**
  * Puts back attendance records that were deleted by mistake, e.g. with a
@@ -115,7 +103,7 @@ export const restoreAttendance = internalMutation({
         eventId: record.eventId,
         memberId,
         subjectEmail: email,
-        detail: `${record.reason}\nOriginal sign-in: ${stamp(record.signInTime)}`,
+        detail: `${record.reason}\nOriginal sign-in: ${auditStamp(record.signInTime)}`,
       });
     }
     return { dryRun, restored, results };

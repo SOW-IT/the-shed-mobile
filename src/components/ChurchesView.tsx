@@ -36,7 +36,6 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 
 const campusName = (campus: string) => (campus === NO_CAMPUS ? "No campus" : subgroupLabel(campus));
 
-
 /**
  * One option in the filter: picked (tinted, ticked) or not (outlined). A
  * campus shows its colour as a dot, then as the tick once picked.

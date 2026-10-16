@@ -938,7 +938,6 @@ const NO_WEEKLIES: ViewBlock = {
   message: "Create this campus's weeklies as Weekly events and they'll show here the next day.",
 };
 
-
 /** A campus's Insights view for a term or year (its current term by default). */
 export const view = query({
   args: { subgroup: v.string(), period: v.optional(v.string()) },

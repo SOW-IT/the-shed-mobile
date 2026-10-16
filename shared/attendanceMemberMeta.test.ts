@@ -14,7 +14,6 @@ import {
   partitionSelectOptions,
   resolveCommencementYear,
   roleFilterMatches,
-  canonicalizeGenderOptionId,
   canonicalizeGenderValues,
   GENDER_VALUES,
   sanitizeGenderValues,
@@ -172,13 +171,6 @@ describe("gender and field helpers", () => {
     expect(isLockedSelectOption("id", "Label", undefined)).toBe(false);
     expect(isLockedSelectOption("id", "Label", ["Label"])).toBe(true);
     expect(isLockedSelectOption("id", "Other", ["id"])).toBe(true);
-  });
-
-  test("canonicalizeGenderOptionId maps legacy Female id", () => {
-    expect(canonicalizeGenderOptionId("3", { "3": "Female" })).toBe("2");
-    expect(canonicalizeGenderOptionId("2", { "2": "Male" })).toBe("1");
-    expect(canonicalizeGenderOptionId("1", { "1": "Other" })).toBe("1");
-    expect(canonicalizeGenderOptionId("99", {})).toBe("99");
   });
 
   test("metadataFieldAllowsCustomOptions", () => {

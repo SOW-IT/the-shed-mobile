@@ -62,7 +62,6 @@ type ListBySubgroupCursor = {
 const encodeListBySubgroupCursor = (cursor: ListBySubgroupCursor) =>
   `event-subgroup:${JSON.stringify(cursor)}`;
 
-
 const decodeListBySubgroupCursor = (
   cursor: string | null | undefined
 ): ListBySubgroupCursor => {

@@ -146,6 +146,29 @@ export async function displayName(
   return (await resolveName(ctx, email, year)) ?? email;
 }
 
+export async function commentRows<
+  T extends { _id: string; authorEmail: string; body: string; postedAt: number },
+>(ctx: Ctx, comments: T[], year: number, callerEmail: string) {
+  const names = new Map<string, Promise<string>>();
+  return await Promise.all(
+    comments.map(async (comment) => {
+      let name = names.get(comment.authorEmail);
+      if (!name) {
+        name = displayName(ctx, comment.authorEmail, year);
+        names.set(comment.authorEmail, name);
+      }
+      return {
+        id: comment._id,
+        authorEmail: comment.authorEmail,
+        authorName: await name,
+        body: comment.body,
+        at: comment.postedAt,
+        isMine: comment.authorEmail === callerEmail,
+      };
+    })
+  );
+}
+
 export interface CallerContext {
   email: string;
   year: number;

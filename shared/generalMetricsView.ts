@@ -1,4 +1,4 @@
-import { GENERAL_RECENT_YEARS, type SplitPoint } from "./attendanceMetrics";
+import { GENERAL_RECENT_YEARS } from "./attendanceMetrics";
 import { subgroupColour } from "./rollcall";
 import {
   type ViewBlock,

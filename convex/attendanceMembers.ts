@@ -552,8 +552,6 @@ export const update = mutation({
   },
 });
 
-
-
 export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }): Promise<boolean> => {
