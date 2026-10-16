@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -17,6 +17,7 @@ import {
   SearchField,
   SowSpinner,
 } from "@/components/ui";
+import { FilterBar } from "@/components/attendance/FilterBar";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
@@ -164,88 +165,38 @@ export function AuditTab({
       <View
         style={[styles.stickyControls, { backgroundColor: t.background }]}
       >
-      <View style={styles.filterSummary}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            activeFilterCount > 0 ? `Filters, ${activeFilterCount} on` : "Filters"
-          }
-          accessibilityState={{ expanded: filtersOpen }}
-          onPress={() => setFiltersOpen((open) => !open)}
-          style={({ pressed }) => [
-            styles.filterButton,
-            { backgroundColor: t.ghost },
-            pressed && { opacity: 0.72 },
-          ]}
-        >
-          <Ionicons name="filter-outline" size={16} color={t.ghostText} />
-          <Text style={[styles.filterButtonText, { color: t.ghostText }]}>
-            Filters
-          </Text>
-          {activeFilterCount > 0 ? (
-            <View style={[styles.filterBadge, { backgroundColor: t.primary }]}>
-              <Text style={[styles.filterBadgeText, { color: t.background }]}>
-                {activeFilterCount}
-              </Text>
-            </View>
-          ) : null}
-        </Pressable>
-        {activeFilterCount > 0 ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              setEntityTypes([]);
-              setActorEmails([]);
-              setEventIds([]);
-            }}
-            style={({ pressed }) => [
-              styles.clearFilters,
-              pressed && { opacity: 0.65 },
-            ]}
-          >
-            <Text
-              style={[
-                typography.caption,
-                styles.clearFiltersText,
-                { color: t.primary },
-              ]}
-            >
-              Clear all
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
-
-      {filtersOpen ? (
-        <View
-          style={[
-            styles.filterPanel,
-            { backgroundColor: t.card, borderColor: t.separator },
-          ]}
-        >
-          <MultiSelect
-            label="Action type"
-            values={entityTypes}
-            options={entityOptions}
-            placeholder="All actions"
-            onSelect={(values) => setEntityTypes(values as AuditEntityType[])}
-          />
-          <MultiSelect
-            label="Performed by"
-            values={actorEmails}
-            options={actorOptions}
-            placeholder="Anyone"
-            onSelect={setActorEmails}
-          />
-          <MultiSelect
-            label="Event"
-            values={eventIds}
-            options={eventOptions}
-            placeholder="All events"
-            onSelect={(values) => setEventIds(values as Id<"events">[])}
-          />
-        </View>
-      ) : null}
+      <FilterBar
+        count={activeFilterCount}
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((open) => !open)}
+        onClear={() => {
+          setEntityTypes([]);
+          setActorEmails([]);
+          setEventIds([]);
+        }}
+      >
+        <MultiSelect
+          label="Action type"
+          values={entityTypes}
+          options={entityOptions}
+          placeholder="All actions"
+          onSelect={(values) => setEntityTypes(values as AuditEntityType[])}
+        />
+        <MultiSelect
+          label="Performed by"
+          values={actorEmails}
+          options={actorOptions}
+          placeholder="Anyone"
+          onSelect={setActorEmails}
+        />
+        <MultiSelect
+          label="Event"
+          values={eventIds}
+          options={eventOptions}
+          placeholder="All events"
+          onSelect={(values) => setEventIds(values as Id<"events">[])}
+        />
+      </FilterBar>
 
       <SearchField
         value={search}
@@ -322,42 +273,6 @@ export function AuditTab({
 
 const styles = StyleSheet.create({
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
-  filterSummary: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  filterButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    height: 36,
-  },
-  filterButtonText: { fontSize: 13, fontWeight: "700" },
-  filterBadge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterBadgeText: { fontSize: 11, fontWeight: "800" },
-  clearFilters: {
-    marginLeft: "auto",
-    paddingHorizontal: 4,
-    paddingVertical: 6,
-  },
-  clearFiltersText: { fontWeight: "600" },
-  filterPanel: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.md,
-    marginBottom: spacing.sm,
-  },
   search: { marginTop: spacing.xs, marginBottom: spacing.sm },
   sectionHeader: {
     flexDirection: "row",
