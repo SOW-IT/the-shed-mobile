@@ -181,6 +181,12 @@ describe("event request text", () => {
     expect(
       subFormStatusLine("finance", facts({ status: "PENDING", directorApprovedByName: "Dan" }), opts)
     ).toBe("Approved by the Director (Dan). Waiting for the Finance Head (Fiona).");
+    expect(
+      subFormStatusLine("finance", facts({ status: "PENDING", directorApprovedByName: "Dan" }), {
+        ...opts,
+        canDecide: true,
+      })
+    ).toBe("Approved by the Director (Dan). Waiting for your approval.");
     expect(subFormStatusLine("risk", facts({ status: "PENDING", approverName: null, approverTitle: "the Compliance Head" }), opts)).toBe(
       "Waiting for the Compliance Head."
     );

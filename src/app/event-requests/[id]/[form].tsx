@@ -275,6 +275,7 @@ export default function EventSubFormScreen() {
   const statusLine = subFormCardLine(kind, current, {
     imported: !!event.legacyKey,
     canFill,
+    canDecide: current.can.decide,
   });
 
   return (

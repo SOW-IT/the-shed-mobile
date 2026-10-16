@@ -57,7 +57,7 @@ export type FormStatusFacts = {
 export const subFormStatusLine = (
   kind: SubFormKind,
   form: FormStatusFacts,
-  opts: { imported: boolean; canFill: boolean }
+  opts: { imported: boolean; canFill: boolean; canDecide?: boolean }
 ): string => {
   const on = (at: number | undefined) => (at ? ` on ${sydneyDateTime(at)}` : "");
   switch (form.status) {
@@ -72,7 +72,7 @@ export const subFormStatusLine = (
         kind === "finance" && form.directorApprovedByName
           ? `Approved by the Director (${form.directorApprovedByName}). `
           : "";
-      return `${director}Waiting for ${who}.`;
+      return `${director}Waiting for ${opts.canDecide ? "your approval" : who}.`;
     }
     case "CHANGES_REQUESTED":
       return `${form.decidedByName ?? "The approver"} asked for changes: ${form.changesReason ?? ""}`.trim();
@@ -90,7 +90,7 @@ export const subFormStatusLine = (
 export const subFormCardLine = (
   kind: SubFormKind,
   form: FormStatusFacts,
-  opts: { imported: boolean; canFill: boolean }
+  opts: { imported: boolean; canFill: boolean; canDecide?: boolean }
 ): string | null => {
   if (form.status === "DRAFT") {
     return opts.canFill && form.updatedAt ? `Draft saved on ${sydneyDateTime(form.updatedAt)}.` : null;

@@ -53,7 +53,11 @@ const FormCard = ({
   const t = useAppTheme();
   const form = data.forms[kind];
   const action = form.can.decide ? "Review" : form.can.fill ? "Fill In" : "View";
-  const cardLine = subFormCardLine(kind, form, { imported: !!data.event.legacyKey, canFill: form.can.fill });
+  const cardLine = subFormCardLine(kind, form, {
+    imported: !!data.event.legacyKey,
+    canFill: form.can.fill,
+    canDecide: form.can.decide,
+  });
   return (
     <Pressable
       onPress={onOpen}
