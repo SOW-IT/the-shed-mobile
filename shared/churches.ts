@@ -123,12 +123,27 @@ export const churchCampuses = (people: readonly Filterable[], label: (campus: st
  * How many people each filter option covers: a group's count follows the
  * campus filter, and a campus's count follows the group filter.
  */
-export const churchFilterCounts = (people: readonly Filterable[], filter: ChurchFilter) => {
+export const churchFilterCounts = <E extends { people: readonly Filterable[] }>(
+  churches: readonly E[],
+  filter: ChurchFilter,
+  shows: (church: E, people: E["people"][number][]) => boolean = () => true
+) => {
   const groups = new Map<ChurchPersonGroup, number>();
   const campuses = new Map<string, number>();
-  for (const person of people) {
-    if (campusShown(person, filter)) groups.set(person.group, (groups.get(person.group) ?? 0) + 1);
-    if (groupShown(person, filter)) campuses.set(campusKey(person), (campuses.get(campusKey(person)) ?? 0) + 1);
+  const tally = <K>(counts: Map<K, number>, byOption: Map<K, E["people"][number][]>, church: E) => {
+    for (const [option, people] of byOption) {
+      if (shows(church, people)) counts.set(option, (counts.get(option) ?? 0) + people.length);
+    }
+  };
+  for (const church of churches) {
+    const byGroup = new Map<ChurchPersonGroup, E["people"][number][]>();
+    const byCampus = new Map<string, E["people"][number][]>();
+    for (const person of church.people) {
+      if (campusShown(person, filter)) byGroup.set(person.group, [...(byGroup.get(person.group) ?? []), person]);
+      if (groupShown(person, filter)) byCampus.set(campusKey(person), [...(byCampus.get(campusKey(person)) ?? []), person]);
+    }
+    tally(groups, byGroup, church);
+    tally(campuses, byCampus, church);
   }
   return { groups, campuses };
 };

@@ -157,12 +157,36 @@ describe("church filters", () => {
   });
 
   test("each option counts who it covers, given the other filter", () => {
-    const all = churchFilterCounts(people, NO_CHURCH_FILTER);
+    const all = churchFilterCounts([{ people }], NO_CHURCH_FILTER);
     expect(Object.fromEntries(all.groups)).toEqual({ leader: 2, staff: 2, member: 2 });
     expect(Object.fromEntries(all.campuses)).toEqual({ UNSW: 2, USYD: 2, [NO_CAMPUS]: 2 });
-    const some = churchFilterCounts(people, { groups: ["leader", "staff"], campuses: ["USYD"] });
+    const some = churchFilterCounts([{ people }], { groups: ["leader", "staff"], campuses: ["USYD"] });
     expect(Object.fromEntries(some.groups)).toEqual({ leader: 1, staff: 1 });
     expect(Object.fromEntries(some.campuses)).toEqual({ UNSW: 1, USYD: 2, [NO_CAMPUS]: 1 });
+  });
+
+  test("a church counts toward an option only when picking that option still shows it", () => {
+    const churches = [
+      {
+        name: "St Alice",
+        people: [
+          { name: "Sam", group: "staff" as const, campus: "UNSW" },
+          { name: "Max", group: "member" as const, campus: null },
+        ],
+      },
+      {
+        name: "Hillside",
+        people: [
+          { name: "Alice", group: "member" as const, campus: "USYD" },
+          { name: "Bob", group: "staff" as const, campus: "UNSW" },
+        ],
+      },
+    ];
+    const counts = churchFilterCounts(churches, NO_CHURCH_FILTER, (church, shown) =>
+      [church.name, ...shown.map((p) => p.name)].some((name) => name.toLowerCase().includes("alice"))
+    );
+    expect(Object.fromEntries(counts.groups)).toEqual({ staff: 1, member: 2 });
+    expect(Object.fromEntries(counts.campuses)).toEqual({ UNSW: 1, USYD: 1, [NO_CAMPUS]: 1 });
   });
 
   test("the main campus is the most common one, ties broken by name", () => {

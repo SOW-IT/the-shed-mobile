@@ -65,7 +65,8 @@ export class PdfWriter {
 
   text(text: string, style: Style, keepWithNext = 0) {
     const lineHeight = style.size * 1.35;
-    if (this.y - lineHeight - keepWithNext < MARGIN) this.newPage();
+    const reserved = keepWithNext > 0 ? keepWithNext + (style.gap ?? 0) : 0;
+    if (this.y - lineHeight - reserved < MARGIN) this.newPage();
     for (const line of this.wrap(text, style.font, style.size)) {
       if (this.y - lineHeight < MARGIN) this.newPage();
       this.y -= lineHeight;
@@ -80,7 +81,7 @@ export class PdfWriter {
 
   heading(text: string, style: Style, keepWithNext = 0) {
     const lineHeight = style.size * 1.35;
-    if (this.y - RULE_HEIGHT - lineHeight - keepWithNext < MARGIN) this.newPage();
+    if (this.y - RULE_HEIGHT - lineHeight - (style.gap ?? 0) - keepWithNext < MARGIN) this.newPage();
     this.rule();
     this.text(text, style, keepWithNext);
   }
