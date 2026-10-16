@@ -20,6 +20,14 @@ export type EventRequestListRow = Doc<"eventRequests"> & {
   waitingOnMe?: SubFormKind[];
 };
 
+const STEP_ICONS: Record<SubFormStatus, keyof typeof Ionicons.glyphMap> = {
+  DRAFT: "ellipse-outline",
+  PENDING: "time",
+  CHANGES_REQUESTED: "alert-circle",
+  APPROVED: "checkmark-circle",
+  NOT_REQUIRED: "remove-circle-outline",
+};
+
 /** Where each of the three forms is up to, as three small labelled dots. */
 const FormSteps = ({ forms }: { forms: EventRequestListRow["forms"] }) => {
   const t = useAppTheme();
@@ -32,8 +40,10 @@ const FormSteps = ({ forms }: { forms: EventRequestListRow["forms"] }) => {
           accessible
           accessibilityLabel={`${SUB_FORM_LABELS[kind]}: ${SUB_FORM_STATUS_LABELS[forms[kind].status]}`}
         >
-          <View
-            style={[styles.stepDot, { backgroundColor: toneColour(t, SUB_FORM_TONES[forms[kind].status]) }]}
+          <Ionicons
+            name={STEP_ICONS[forms[kind].status]}
+            size={14}
+            color={toneColour(t, SUB_FORM_TONES[forms[kind].status])}
           />
           <Text style={[typography.caption, { color: t.muted }]}>{SUB_FORM_LABELS[kind]}</Text>
         </View>
@@ -115,7 +125,6 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 2 },
   steps: { flexDirection: "row", gap: spacing.md, marginTop: 4, flexWrap: "wrap" },
   step: { flexDirection: "row", alignItems: "center", gap: 6 },
-  stepDot: { width: 8, height: 8, borderRadius: 4 },
   unread: {
     flexDirection: "row",
     alignItems: "center",
