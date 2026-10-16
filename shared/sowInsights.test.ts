@@ -150,7 +150,9 @@ describe("TWIG", () => {
       subgroup: UNSW,
       secondary: "Last came 12 Oct 2026",
     });
-    expect(pick(blocks, "people")[0].subtitle).toBe("Everyone who came to a TWIG in staff year 2027.");
+    expect(pick(blocks, "people")[0].subtitle).toBe(
+      "Everyone who came to a TWIG in staff year 2027, and campus leaders who haven't yet."
+    );
     expect(pick(blocks, "followUpGroups")[0].groups[0].people.map((p) => [p.key, p.subgroup])).toEqual([
       ["a", UNSW],
       ["c", UNSW],
@@ -205,6 +207,31 @@ describe("TWIG", () => {
     expect(pick(blocks, "multiBars")[0].points.map((p) => p.segments.map((x) => x.value))).toEqual([[1, 0]]);
   });
 
+  test("campus leaders who never came are listed as 0 of n; others on the roster are not", () => {
+    const roster: SowPeople = new Map([...people, ["d", person("d", { "2027": leader(USYD) })]]);
+    const result = computeTwig({
+      year: 2027,
+      events,
+      lastEvents: [],
+      people: roster,
+      now: NOW,
+      rules: RULES,
+      roster: ["a", "d", "s", "gone"],
+    });
+    expect(result.rows.filter((r) => r.key === "a")).toHaveLength(1);
+    expect(result.rows.map((r) => r.key)).not.toContain("gone");
+    expect(result.rows.find((r) => r.key === "d")).toMatchObject({ attended: 0, held: 4, pct: 0, regular: false });
+    expect(result.summary.people).toBe(3);
+    const block = pick(buildTwigBlocks({ result, people: roster, missesForFollowUp: 2 }), "people")[0];
+    expect(block.rows.find((r) => r.key === "d")).toMatchObject({
+      primary: "0/4 · 0%",
+      secondary: "Hasn't come to a TWIG yet",
+      tags: ["leader", "notYet"],
+      section: "leader",
+    });
+    expect(block.filters.map((f) => f.key)).toEqual(["leader", "staff", "none", "regular", "notYet"]);
+  });
+
   test("a row opens a campus page only for a real campus, not SOW", () => {
     const sowPeople: SowPeople = new Map([["o", person("o", { "2027": leader("SOW") })]]);
     const result = computeTwig({
@@ -237,7 +264,7 @@ describe("TWIG", () => {
 });
 
 describe("PPN", () => {
-  test("rows newest first, first-timers across years, and the same month last year", () => {
+  test("first-timers across years, the same month last year, and campus totals", () => {
     const result = computePpn({
       year: 2027,
       events: [event("p1", at(2026, 10, 20), ["a", "n"]), event("p2", at(2026, 11, 17), ["a", "b"]), event("p0", at(2026, 12, 1), [])],
@@ -249,30 +276,68 @@ describe("PPN", () => {
       ["p2", 2, 1, 1],
       ["p1", 2, 1, null],
     ]);
-    expect(result.totals).toEqual({ signIns: 4, people: 3, firstTimers: 2, byRole: { leader: 3, staff: 0, none: 1 } });
-    expect(result.rows[1].byCampus).toEqual([
-      { campus: UNSW, value: 1 },
-      { campus: null, value: 1 },
-    ]);
+    expect(result.totals).toEqual({
+      signIns: 4,
+      people: 3,
+      firstTimers: 2,
+      byRole: { leader: 3, staff: 0, none: 1 },
+      byCampus: [
+        { campus: UNSW, value: 2 },
+        { campus: USYD, value: 1 },
+        { campus: null, value: 1 },
+      ],
+    });
+  });
+
+  test("the view is cards and charts, oldest PPN first", () => {
+    const result = computePpn({
+      year: 2027,
+      events: [event("p1", at(2026, 10, 20), ["a", "n"]), event("p2", at(2026, 11, 17), ["a", "b"]), event("p0", at(2026, 12, 1), [])],
+      lastEvents: [event("l1", at(2025, 11, 17), ["a"])],
+      earlier: [event("l1", at(2025, 11, 17), ["a"])],
+      people,
+    });
     const blocks = buildPpnBlocks({ result });
-    expect(blocks.map((b) => b.type)).toEqual(["caption", "monthRows", "eventList"]);
-    const rows = pick(blocks, "monthRows")[0].rows;
-    expect(rows[0]).toMatchObject({ value: "2", delta: { text: "+100%", direction: "up" }, lines: ["1 first-timer"] });
-    expect(rows[1]).toMatchObject({ hint: "No PPN in Oct last staff year", delta: undefined });
-    expect(rows[1].splits[0].parts).toEqual([
-      { label: "UNSW", value: 1, colour: expect.any(String) },
+    expect(blocks.map((b) => b.type)).toEqual(["caption", "cards", "multiBars", "multiBars", "stacked", "breakdown", "eventList"]);
+    expect(pick(blocks, "caption")[0].text).toBe("Staff year 2027: 2 PPNs.");
+    expect(pick(blocks, "cards")[0].cards.map((c) => [c.label, c.value, c.delta?.text ?? null, c.hint ?? null])).toEqual([
+      ["Average per PPN", "2", "+100%", "vs 1"],
+      ["People", "3", null, null],
+      ["First-timers", "2", null, null],
+      ["Campus leaders", "75%", null, "3 of 4 sign-ins"],
+    ]);
+    const [byPpn, who] = pick(blocks, "multiBars");
+    expect(byPpn.subtitle).toBe("Everyone at each PPN, against the same month in 2026");
+    expect(byPpn.points.map((p) => [p.label, p.segments.map((x) => x.value)])).toEqual([
+      ["20 Oct", [2, 0]],
+      ["17 Nov", [2, 1]],
+    ]);
+    expect(who.legend.map((l) => l.key)).toEqual(["leader", "none"]);
+    expect(who.points.map((p) => p.segments.map((x) => x.value))).toEqual([
+      [1, 1],
+      [2, 0],
+    ]);
+    expect(pick(blocks, "stacked")[0].points.map((p) => [p.fresh, p.returning])).toEqual([
+      [1, 1],
+      [1, 1],
+    ]);
+    expect(pick(blocks, "breakdown")[0].rows).toEqual([
+      { label: "UNSW", value: 2, colour: expect.any(String) },
+      { label: "USYD", value: 1, colour: expect.any(String) },
       { label: "No campus", value: 1, colour: undefined },
     ]);
   });
 
-  test("a year of only leaders has no note about others; no PPN yet is an empty state", () => {
+  test("a year with nothing to compare has no last-year bars; SOW gets no campus colour; no PPN yet is an empty state", () => {
     const only = buildPpnBlocks({
       result: computePpn({ year: 2027, events: [event("p1", at(2026, 10, 20), ["a", "s"])], lastEvents: [], earlier: [], people }),
     });
-    expect(pick(only, "caption")[0].text).toBe(
-      "Staff year 2027: 1 PPN, 2 sign-ins from 2 people (1 from campus leaders, 1 from other staff, 0 from others)."
-    );
-    expect(pick(only, "monthRows")[0].rows[0].splits[0].parts).toEqual([
+    const [byPpn, who] = pick(only, "multiBars");
+    expect(byPpn.subtitle).toBe("Everyone at each PPN");
+    expect(byPpn.legend.map((l) => l.key)).toEqual(["now"]);
+    expect(who.legend.map((l) => l.label)).toEqual(["Campus leaders", "Other staff"]);
+    expect(pick(only, "cards")[0].cards[0]).toMatchObject({ value: "2", delta: undefined, hint: undefined });
+    expect(pick(only, "breakdown")[0].rows).toEqual([
       { label: "SOW", value: 1, colour: undefined },
       { label: "UNSW", value: 1, colour: expect.any(String) },
     ]);

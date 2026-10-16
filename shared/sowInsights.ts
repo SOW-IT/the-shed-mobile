@@ -135,6 +135,7 @@ export function computeTwig(input: {
   people: SowPeople;
   now: number;
   rules: SowRules;
+  roster?: string[];
 }): TwigResult {
   const { year, people, rules } = input;
   const held = heldOf(input.events);
@@ -167,6 +168,19 @@ export function computeTwig(input: {
         attended >= rules.regularShare * held.length,
     };
   });
+  for (const key of input.roster ?? []) {
+    if (seen.has(key) || roleIn(people.get(key), year) !== "leader") continue;
+    rows.push({
+      key,
+      role: "leader",
+      campus: campusIn(people.get(key), year),
+      attended: 0,
+      held: held.length,
+      pct: 0,
+      lastAt: 0,
+      regular: false,
+    });
+  }
   const recent = held.slice(-rules.followUpMisses);
   const followUp =
     running && held.length > rules.followUpMisses
@@ -209,7 +223,13 @@ export type PpnResult = {
   year: number;
   rows: PpnRow[];
   noRoll: SowEvent[];
-  totals: { signIns: number; people: number; firstTimers: number; byRole: Record<SowRole, number> };
+  totals: {
+    signIns: number;
+    people: number;
+    firstTimers: number;
+    byRole: Record<SowRole, number>;
+    byCampus: Split;
+  };
 };
 
 const emptyRoles = (): Record<SowRole, number> => ({ leader: 0, staff: 0, none: 0 });
@@ -228,7 +248,13 @@ export function computePpn(input: {
   const lastHeld = heldOf(input.lastEvents);
   const seen = new Set(heldOf(input.earlier).flatMap((e) => e.people));
   const everyone = new Set<string>();
-  const totals = { signIns: 0, people: 0, firstTimers: 0, byRole: emptyRoles() };
+  const totals = {
+    signIns: 0,
+    people: 0,
+    firstTimers: 0,
+    byRole: emptyRoles(),
+    byCampus: splitByCampus(held.flatMap((e) => e.people), people, year),
+  };
   const rows: PpnRow[] = held.map((event) => {
     const byRole = emptyRoles();
     let firstTimers = 0;
