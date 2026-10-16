@@ -45,6 +45,8 @@ Insights and screens that show more and explain less.
   Finance) instead of a paragraph describing them.
 - **Insights is no longer marked BETA** in the tab bar and side menu.
 - TWIG's campus bars use campus colours, like the rest of Insights.
+- Expo 58.0.12, Expo Router 58.0.21 and Expo UI 58.0.19 (SDK 58 patch
+  releases, which CI's SDK version check now expects).
 
 ### Fixed
 - **Every bar chart drew its bars 4px above the zero line**, so a 100% bar
