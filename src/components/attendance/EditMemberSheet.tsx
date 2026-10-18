@@ -14,9 +14,12 @@ import {
   STUDENT_YEAR_FIELD_KEY,
   yearOptionIdForStoredValue,
 } from "../../../shared/attendanceMemberMeta";
+import { MEMBER } from "../../../shared/flow";
+import { markedRoleIn, type MarkedRole } from "../../../shared/memberRole";
 import { isSowStaffAddress } from "../../../shared/rollcallImport";
 import { capitalizeMemberName } from "../../../shared/rollcall";
 import { typedMatches } from "../../../shared/typedConfirm";
+import { MemberRoleField } from "@/components/attendance/MemberRoleField";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
 import { ChurchSelect } from "@/components/ChurchPicker";
 import {
@@ -167,6 +170,20 @@ export function EditMemberSheet({
     !sameMetadata(metadata, row.metadata) ||
     (!isStaffOverlay && churchId !== (row.churchId ?? null));
   const dirty = !memberId || memberChanged || notesChanged;
+
+  // The Role sent is the label (Visitor, Alumni); the server saves it as its
+  // option. Picking what's already saved puts back exactly what was there,
+  // and Automatic leaves a Role saved before Roles were worked out alone.
+  const markRole = (roleFieldId: string, mark: MarkedRole | null) =>
+    setMetadata((prev) => {
+      const next = { ...prev };
+      const savedRaw = row?.metadata?.[roleFieldId];
+      const savedMark = markedRoleIn(metadataFields, row?.metadata);
+      if (savedRaw && mark === savedMark) next[roleFieldId] = savedRaw;
+      else if (mark) next[roleFieldId] = mark;
+      else delete next[roleFieldId];
+      return next;
+    });
 
   const handleSave = () => {
     if (hasDuplicate) {
@@ -378,6 +395,25 @@ export function EditMemberSheet({
             const lockedForStaff =
               (isStaffOverlay || isStaffNow) &&
               (field.key === CAMPUS_FIELD_KEY || field.key === ROLE_FIELD_KEY);
+            if (field.key === ROLE_FIELD_KEY) {
+              const pending = markedRoleIn(metadataFields, metadata);
+              const shown =
+                lockedForStaff && row
+                  ? row.role
+                  : pending
+                    ? { role: pending, source: "marked" as const }
+                    : (row?.role.automatic ?? { role: MEMBER, source: "none" as const });
+              return (
+                <MemberRoleField
+                  key={field._id}
+                  role={shown.role}
+                  source={shown.source}
+                  marked={pending}
+                  onMark={lockedForStaff ? undefined : (mark) => markRole(field._id, mark)}
+                  ruleSettings={row?.roleRuleSettings}
+                />
+              );
+            }
             return field.type === "select" ? (
               <Select
                 key={field._id}
@@ -437,13 +473,18 @@ export function EditMemberSheet({
             );
           })}
           {eventAttendance ? (
-            <Field
-              label="Notes"
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Notes for this event…"
-              multiline
-            />
+            <View style={{ gap: 4 }}>
+              <Field
+                label="Notes for this event"
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Only for this sign-in…"
+                multiline
+              />
+              <Txt style={[typography.caption, { color: t.muted }]}>
+                Saved with this sign-in, like its time, not on the member.
+              </Txt>
+            </View>
           ) : null}
           <ErrorBanner message={error} />
           <Sheet

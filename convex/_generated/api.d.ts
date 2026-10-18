@@ -49,6 +49,7 @@ import type * as homeContent from "../homeContent.js";
 import type * as homeData from "../homeData.js";
 import type * as http from "../http.js";
 import type * as memberRepair from "../memberRepair.js";
+import type * as memberRoles from "../memberRoles.js";
 import type * as mergeSuggestions from "../mergeSuggestions.js";
 import type * as metricsData from "../metricsData.js";
 import type * as model from "../model.js";
@@ -115,6 +116,7 @@ declare const fullApi: ApiFromModules<{
   homeData: typeof homeData;
   http: typeof http;
   memberRepair: typeof memberRepair;
+  memberRoles: typeof memberRoles;
   mergeSuggestions: typeof mergeSuggestions;
   metricsData: typeof metricsData;
   model: typeof model;

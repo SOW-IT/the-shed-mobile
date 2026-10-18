@@ -19,7 +19,7 @@ Staff is a layer over a Member, one year at a time. Each year's
 and someone is staff in a staff year when that year's profile has at least one
 assignment. In those years their name, Campus and Role come from the profile;
 in every other year they read as the plain Member underneath, with that row's
-own Campus and Role. A profile with no assignments doesn't make anyone staff.
+own Campus and a Role worked out for a Member (see Role). A profile with no assignments doesn't make anyone staff.
 While someone is staff this staff year, the edit sheet keeps their row's own
 Campus and Role as they are and offers no Delete, even when opened from an
 event in another year. When their profile has no name, the row's own name
@@ -48,9 +48,9 @@ Someone who was staff last staff year and isn't this year. Nothing moves when
 they leave: their member row and every sign-in stay as they are, and from the
 new year they read as that plain Member. At 01:30 Sydney on October 1 (and
 when an admin removes this year's profile) their row's empty Campus is filled
-from their last staff role and an empty Role becomes Member, and a
-`member.leftStaff` entry goes in the audit log. A Role a leader set, such as
-Alumni, is kept.
+from their last staff role, and a `member.leftStaff` entry goes in the audit
+log. Their Role is worked out like any Member's; an Alumni a leader set is
+kept.
 _Avoid_: alumni (leaving staff isn't graduating; leaders set the Alumni role
 when someone graduates), ex-staff
 
@@ -104,10 +104,32 @@ Signing Members in and out of an event. Once an event has ended, sign-ins made
 during it can only be reversed within 10 minutes of being made (the undo
 grace); post-event sign-ins can always be reversed.
 
+**Role**:
+What a person is, shown on the Members list, rosters and the edit sheet, and
+never typed in. Someone who is staff that year shows their staff profile's
+role. Anyone else shows a hand-set **Visitor** or **Alumni** if a leader set
+one, else their category in their Home campus's latest Term from last night's
+Insights build (Regular, Irregular, Newcomer or Visitor; another campus's if
+their own has none), else Member. Visitor and Alumni are the only Roles set by
+hand, for people the weeklies can't tell: a hand-set Visitor counts as a
+Visitor in Insights wherever they come, and Alumni as Staff, alumni & guests.
+Anything else saved in the Role field before 2.9.9 (Member, Newcomer, Guest,
+Student Leader…) no longer counts. The edit sheet shows Role locked, with an
+info button that lists these rules (`shared/memberRole.ts`).
+_Avoid_: status, type, Guest (no longer a Role)
+
+**Other Information** / **Notes for this event**:
+Other Information is a member field for anything about the person (it was the
+Notes field until 2.9.9). Notes about one event go on that sign-in, kept with
+it like its sign-in time, and export as the Event notes column. A member field
+called Notes is saved as Other Information.
+_Avoid_: notes (for the member field)
+
 **Locked option**:
 A metadata select option that is derived from Org and so cannot be deleted —
-the Campus field's Universities, the Role field's base roles. Admins may add
-options below the locked set but not remove the locked ones. See
+the Campus field's Universities, the Role field's base roles (with Visitor and
+Alumni). Admins may add options below the locked set but not remove the
+locked ones; the Role field takes no new options. See
 [ADR 0002](../adr/0002-campus-is-a-superset-of-university.md).
 
 **Snapshot**:

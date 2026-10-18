@@ -822,6 +822,7 @@ export const MyRequests = ({
   focusThread = false,
   focusReopenKey,
   onFocusThreadOpened,
+  year,
 }: {
   departments: string[];
   defaultDepartment: string;
@@ -835,9 +836,11 @@ export const MyRequests = ({
   focusReopenKey?: string;
   onFocusThreadOpened?: () => void;
   directorThreshold?: number;
+  /** A past staff year to look back on; leave out for this year's list. */
+  year?: number;
 }) => {
   const t = useAppTheme();
-  const requests = useQuery(api.requests.myRequests, {});
+  const requests = useQuery(api.requests.myRequests, year === undefined ? {} : { year });
   const cancel = useMutation(api.requests.cancel);
   const deleteDeclined = useMutation(api.requests.deleteDeclined);
   const sendNudge = useMutation(api.requests.nudge);
@@ -877,11 +880,15 @@ export const MyRequests = ({
       {requests == null ? (
         <LoadingState />
       ) : requests.length === 0 ? (
-        <EmptyState
-          icon="receipt-outline"
-          title="No requests yet"
-          action={onMakeRequest ? { label: "Make a request", onPress: onMakeRequest } : undefined}
-        />
+        year !== undefined ? (
+          <EmptyState icon="receipt-outline" title={`No requests in ${year}`} />
+        ) : (
+          <EmptyState
+            icon="receipt-outline"
+            title="No requests yet"
+            action={onMakeRequest ? { label: "Make a request", onPress: onMakeRequest } : undefined}
+          />
+        )
       ) : (
         <Grid minColumnWidth={380}>
           {[...requests]

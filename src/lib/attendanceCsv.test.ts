@@ -74,13 +74,13 @@ describe("buildAttendanceCsv", () => {
       "Collaboration,",
     ]);
     expect(lines[5]).toBe("");
-    expect(lines[6]).toBe("Sign In,Name,Email,Gender,Campus,Notes");
+    expect(lines[6]).toBe("Sign In,Name,Email,Gender,Campus,Event notes");
     expect(lines[7]).toBe(
       "04.03.2026 17:05,Ada Lovelace,ada@sow.org.au,Female,University of Sydney,early"
     );
   });
 
-  test("a metadata field named 'Notes' doesn't duplicate the sign-in Notes column", () => {
+  test("a member field still named 'Notes' doesn't duplicate the Event notes column", () => {
     const event = baseEvent({
       rows: [
         exportRow({
@@ -94,8 +94,8 @@ describe("buildAttendanceCsv", () => {
     });
     const lines = buildAttendanceCsv([event], ["Gender", "Notes"]).split("\r\n");
     const header = lines[6];
-    expect(header).toBe("Sign In,Name,Email,Gender,Notes");
-    expect(header.split(",").filter((c) => c === "Notes")).toHaveLength(1);
+    expect(header).toBe("Sign In,Name,Email,Gender,Event notes");
+    expect(header.split(",").filter((c) => c.endsWith("otes"))).toHaveLength(1);
     expect(lines[7]).toBe(
       "04.03.2026 17:05,Ada Lovelace,ada@sow.org.au,Female,sign-in note"
     );
@@ -115,7 +115,7 @@ describe("buildAttendanceCsv", () => {
     const lines = csv.split("\r\n");
     const header = lines.find((l) => l.startsWith("Sign In,"))!;
     const row = lines[lines.length - 1];
-    expect(header).toBe("Sign In,Name,Email,Gender,Notes");
+    expect(header).toBe("Sign In,Name,Email,Gender,Event notes");
     expect(row).not.toContain("University of Sydney");
     expect(row).toContain("Female");
   });
@@ -158,7 +158,7 @@ describe("buildAttendanceCsv", () => {
     const lines = buildAttendanceCsv([event], ["Gender", NOTES_HEADER]).split("\r\n");
     expect(lines).toHaveLength(7);
     expect(lines[0]).toBe("Event,Weekly Meeting");
-    expect(lines[6]).toBe("Sign In,Name,Email,Gender,Notes");
+    expect(lines[6]).toBe("Sign In,Name,Email,Gender,Event notes");
   });
 
   test("defangs formula-injection and escapes commas/quotes", () => {

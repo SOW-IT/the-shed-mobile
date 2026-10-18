@@ -141,12 +141,11 @@ describe("staffRollover", () => {
       detail: [
         `Not staff in ${YEAR}`,
         `Campus set to ${USYD}, from their last staff role`,
-        "Role set to Member",
       ].join("\n"),
     });
+    // Role is worked out, so nothing is saved for it.
     expect((await s.getMember(leaverRow))?.metadata).toEqual({
       [s.fields.campus]: "usyd",
-      [s.fields.role]: "3",
     });
     expect((await s.getMember(stayerRow))?.metadata).toBeUndefined();
 

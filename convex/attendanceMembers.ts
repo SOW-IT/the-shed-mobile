@@ -22,6 +22,7 @@ import {
   yearMetadataSortKey,
   yearOptionIdForStoredValue,
 } from "../shared/attendanceMemberMeta";
+import { markedRoleOf, memberRole, withMarkedRole } from "../shared/memberRole";
 import { capitalizeMemberName, personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, isSowStaffAddress, staffEmailCandidates } from "../shared/rollcallImport";
 import {
@@ -39,7 +40,9 @@ import {
   MAX_AUDIT_ATTENDANCE_LINES,
 } from "./attendanceAudit";
 import { Doc, Id } from "./_generated/dataModel";
+import { memberRoleResolver } from "./memberRoles";
 import { photoFor } from "./photo";
+import { readSettings } from "./weeklyInsights";
 import {
   assignedProfileForEmail,
   isAssigned,
@@ -64,6 +67,8 @@ export type MemberRow = {
   personalEmail?: string;
   memberId?: string;
   roles: string[];
+  /** A staff person's first org role, or a plain member's worked-out Role. */
+  role?: string;
   subtitle?: string;
   university?: string;
   metadata: Record<string, string>;
@@ -115,6 +120,7 @@ export const list = query({
     const metadataFields = await allMetadataFields(ctx);
     const yearField = metadataFields.find((f) => f.key === STUDENT_YEAR_FIELD_KEY);
     const roleField = metadataFields.find((f) => f.key === ROLE_FIELD_KEY);
+    const roleOf = await memberRoleResolver(ctx, metadataFields);
 
     const profiles = (
       await ctx.db
@@ -163,6 +169,7 @@ export const list = query({
         personalEmail: shadow?.email,
         memberId: shadow?._id,
         roles,
+        role: roles[0],
         subtitle: subtitle || undefined,
         university,
         metadata,
@@ -172,6 +179,11 @@ export const list = query({
 
     for (const m of pureExtras) {
       const university = resolveUniversity(metadataFields, m.metadata);
+      const { role } = roleOf(m);
+      const metaSubtitle = metadataSubtitle(metadataFields, m.metadata, viewingYear, [
+        CAMPUS_FIELD_KEY,
+        ROLE_FIELD_KEY,
+      ]);
       rows.push({
         key: `member:${m._id}`,
         kind: "member",
@@ -179,7 +191,8 @@ export const list = query({
         email: m.email,
         memberId: m._id,
         roles: [],
-        subtitle: metadataSubtitle(metadataFields, m.metadata, viewingYear, [CAMPUS_FIELD_KEY]),
+        role,
+        subtitle: [role, metaSubtitle].filter(Boolean).join(" · "),
         university,
         metadata: m.metadata ?? {},
       });
@@ -210,20 +223,16 @@ export const list = query({
         if (value === "unset") return optionId === "";
         return optionId === value;
       }
-      if (value === "unset") return !row.metadata[fieldId];
       if (roleField && fieldId === roleField._id) {
+        // Filtered by the Role each row shows, never what's saved on it.
         const filterLabel = roleField.values?.[value] ?? value;
-        const stored = row.metadata[fieldId];
-        const metadataRoleLabel = stored
-          ? formatMetadataFieldValue(
-              roleField.key,
-              stored,
-              viewingYear,
-              roleField.values
-            )
-          : null;
-        return roleFilterMatches(filterLabel, row.roles, metadataRoleLabel);
+        return roleFilterMatches(
+          filterLabel,
+          row.roles,
+          row.kind === "member" ? (row.role ?? null) : null
+        );
       }
+      if (value === "unset") return !row.metadata[fieldId];
       return row.metadata[fieldId] === value;
     };
 
@@ -243,6 +252,7 @@ export const list = query({
     const sortKey = args.sortKey ?? "name";
     const sortField = metadataFields.find((f) => f._id === sortKey);
     const metadataSortValue = (row: MemberRow): string => {
+      if (roleField && sortKey === roleField._id) return row.role ?? "";
       const raw = row.metadata[sortKey] ?? "";
       if (!raw || !sortField) return raw;
       return (
@@ -306,7 +316,17 @@ export const get = query({
     const isStaffNow =
       (profile !== null && profileYear === currentStaffYear()) ||
       (await staffProfileOfMember(ctx, row._id, currentStaffYear())) !== null;
+    const fields = await allMetadataFields(ctx);
+    const { settings } = await readSettings(ctx);
+    // The numbers the Role info button quotes.
+    const roleRuleSettings = {
+      regularShare: settings.regularShare,
+      carryOverWeeklies: settings.carryOverWeeklies,
+      newcomerPromoteWeeklies: settings.newcomerPromoteWeeklies,
+      visitorMinWeeklies: settings.visitorMinWeeklies,
+    };
     if (!profile) {
+      const roleOf = await memberRoleResolver(ctx, fields);
       return {
         ...row,
         isStaffOverlay: false,
@@ -314,9 +334,10 @@ export const get = query({
         nameLocked: false,
         personalEmail: undefined as string | undefined,
         profileChurch: null,
+        role: roleOf(row),
+        roleRuleSettings,
       };
     }
-    const fields = await allMetadataFields(ctx);
     // Staff pick their church in their own Profile; the sheet just shows it.
     const user = await ctx.db
       .query("users")
@@ -333,6 +354,11 @@ export const get = query({
       personalEmail: row.email,
       metadata: staffLockedMetadata(fields, profile, row.metadata),
       profileChurch: church?.name ?? null,
+      role: (() => {
+        const staff = memberRole({ staffRole: rolesOfLike(profile)[0] });
+        return { ...staff, marked: null, automatic: staff };
+      })(),
+      roleRuleSettings,
     };
   },
 });
@@ -444,7 +470,7 @@ export const create = mutation({
     const memberId = await ctx.db.insert("attendanceMembers", {
       name: trimmed,
       email: email?.trim().toLowerCase() || undefined,
-      metadata,
+      metadata: metadata && withMarkedRole(await allMetadataFields(ctx), metadata, undefined),
       churchId: (await checkedChurch(ctx, churchId)) ?? undefined,
     });
     await logAttendanceAction(ctx, {
@@ -523,9 +549,10 @@ export const update = mutation({
     if (ownEmail && (await isStaffAddress(ctx, ownEmail))) {
       throw new ConvexError(NOT_PERSONAL(ownEmail));
     }
+    const fields = await allMetadataFields(ctx);
     const nextMetadata = staffNow
-      ? memberOwnMetadata(await allMetadataFields(ctx), metadata, row.metadata)
-      : metadata;
+      ? memberOwnMetadata(fields, metadata, row.metadata)
+      : withMarkedRole(fields, metadata, row.metadata);
     const nextChurch =
       churchId === undefined ? row.churchId : ((await checkedChurch(ctx, churchId)) ?? undefined);
     if (
@@ -796,9 +823,9 @@ const mergeOptionsFor = (keep: MergeKeep, fields: MetadataField[]) => {
   const viewingYear = sydneyCalendarYear(new Date());
   const shown = (fieldId: string, value: string) => {
     const field = fields.find((f) => f._id === fieldId)!;
-    return (
-      formatMetadataFieldValue(field.key, value, viewingYear, field.values) ?? value
-    )
+    const label = formatMetadataFieldValue(field.key, value, viewingYear, field.values) ?? value;
+    // Only a hand-set Role still means anything, so two old ones don't clash.
+    return (field.key === ROLE_FIELD_KEY ? (markedRoleOf(label) ?? "") : label)
       .trim()
       .toLowerCase();
   };

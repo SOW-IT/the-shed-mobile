@@ -673,18 +673,85 @@ export const requestYears = query({
         .filter((y) => y >= EARLIEST_REQUEST_YEAR && y <= thisYear)
         .sort((a, b) => b - a);
     // One indexed probe per candidate year beats reading every request the
-    // caller has ever made just to list the years they appear in.
+    // caller has ever made or reviewed just to list the years they appear in.
     const mineYears: number[] = [];
+    const reviewedYears: number[] = [];
     for (let y = thisYear; y >= EARLIEST_REQUEST_YEAR; y--) {
       if (await requesterRequestsInYear(ctx, caller.email, y).first()) {
         mineYears.push(y);
       }
+      if (await reviewedSomeIn(ctx, caller.email, y)) reviewedYears.push(y);
     }
     const divisions = await ctx.db.query("divisions").take(1000);
     return {
       mine: yearsFrom(mineYears),
+      reviewed: yearsFrom(reviewedYears),
       all: yearsFrom(divisions.map((d) => d.year)),
+      // An approver from an earlier year still gets Review to look back on.
+      reviewedBefore: reviewedYears.length > 0,
     };
+  },
+});
+
+// Oldest first, so the request's own year is read before the year after
+// (where only carried-over requests count) uses up the cap.
+const REVIEWED_IN_YEAR_EVENTS = 5000;
+// Requests looked at per year when listing the years someone reviewed in.
+// The first approval in a year is nearly always one of that year's.
+const REVIEWED_YEAR_PROBE_REQUESTS = 50;
+
+/** The caller's approvals and declines that could be on requests from staff
+ *  year `year`: made that year or, for a carried-over request, the next. */
+const reviewEventsFor = (ctx: QueryCtx, email: string, year: number) =>
+  ctx.db
+    .query("requestEvents")
+    .withIndex("by_actor", (q) =>
+      q
+        .eq("actorEmail", email)
+        .gte("_creationTime", staffYearStartMs(year))
+        .lt("_creationTime", staffYearStartMs(year + 2))
+    );
+
+const reviewedRequestOf = (
+  request: Doc<"requests"> | null,
+  email: string,
+  year: number
+): request is Doc<"requests"> =>
+  request !== null && request.requesterEmail !== email && requestYear(request) === year;
+
+/** Whether `reviewedInYear` has anything for `year`, stopping at the first. */
+const reviewedSomeIn = async (ctx: QueryCtx, email: string, year: number): Promise<boolean> => {
+  const looked = new Set<Id<"requests">>();
+  for await (const event of reviewEventsFor(ctx, email, year)) {
+    if (!isApprovalAction(event.action) || looked.has(event.requestId)) continue;
+    if (looked.size >= REVIEWED_YEAR_PROBE_REQUESTS) return false;
+    looked.add(event.requestId);
+    if (reviewedRequestOf(await ctx.db.get("requests", event.requestId), email, year)) return true;
+  }
+  return false;
+};
+
+/**
+ * Other people's requests from staff year `year` that the caller approved or
+ * declined at any step, newest first. A request is reviewed in its own year
+ * or, when it was carried over, the year after.
+ */
+export const reviewedInYear = query({
+  args: { year: v.number() },
+  handler: async (ctx, { year }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const ids = new Set<Id<"requests">>();
+    let scanned = 0;
+    for await (const event of reviewEventsFor(ctx, caller.email, year)) {
+      if (++scanned > REVIEWED_IN_YEAR_EVENTS) break;
+      if (isApprovalAction(event.action)) ids.add(event.requestId);
+    }
+    const docs = await Promise.all([...ids].map((id) => ctx.db.get("requests", id)));
+    const rows = docs
+      .filter((r) => reviewedRequestOf(r, caller.email, year))
+      .sort((a, b) => b._creationTime - a._creationTime);
+    return await Promise.all(rows.map((request) => requestForCaller(ctx, caller, request)));
   },
 });
 

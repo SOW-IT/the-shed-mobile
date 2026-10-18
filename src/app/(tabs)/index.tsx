@@ -16,7 +16,7 @@ import { ExportRequestsCard } from "@/components/ExportRequestsCard";
 import { GuideSheet, MyRequests } from "@/components/MyRequests";
 import { type RequestPrefill } from "@/components/MyRequests";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
-import { ReviewList } from "@/components/ReviewList";
+import { ReviewedInYear, ReviewList } from "@/components/ReviewList";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import {
   Btn,
@@ -103,7 +103,7 @@ export default function RequestsScreen() {
       badge: mineCount > 0 ? mineCount : undefined,
       messageBadge: myUnreadComments > 0 ? myUnreadComments : undefined,
     },
-    ...(me?.isApprover
+    ...(me?.isApprover || requestYears?.reviewedBefore
       ? [
           {
             key: "review",
@@ -159,20 +159,27 @@ export default function RequestsScreen() {
   const activeSegment = segments.some((s) => s.key === wanted) ? wanted : "mine";
 
   const currentYear = me?.year;
-  const viewingYear = selectedYear ?? currentYear ?? new Date().getFullYear();
-  const isPastYear =
-    activeSegment === "all" &&
+  // One picked year across Mine, Review and All, each offering only years
+  // it has something for (your requests, ones you reviewed, every request);
+  // a tab without the picked year shows this year instead.
+  const yearsFor = (key: string): number[] =>
+    key === "mine"
+      ? (requestYears?.mine ?? [])
+      : key === "review"
+        ? (requestYears?.reviewed ?? [])
+        : key === "all"
+          ? (requestYears?.all ?? [])
+          : [];
+  const pastYearFor = (key: string): number | undefined =>
     currentYear != null &&
     selectedYear != null &&
-    selectedYear !== currentYear;
-  const queryYear = isPastYear ? (selectedYear as number) : undefined;
-  const pickerYears = requestYears?.all ?? [];
-
-  const isPreviousYear =
-    isPastYear && selectedYear === (currentYear as number) - 1;
-  const isOlderYear =
-    isPastYear && (selectedYear as number) < (currentYear as number) - 1;
-  const nextRolloverYear = currentYear as number;
+    selectedYear !== currentYear &&
+    yearsFor(key).includes(selectedYear)
+      ? selectedYear
+      : undefined;
+  const pickerYears = yearsFor(activeSegment);
+  const viewingYear =
+    pastYearFor(activeSegment) ?? currentYear ?? new Date().getFullYear();
 
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   const myAssignments = me?.profile?.assignments ?? [];
@@ -231,25 +238,25 @@ export default function RequestsScreen() {
     );
   }
 
+  const receiptFilesBanner = (pastYear: number | undefined) =>
+    pastYear === undefined ? null : (
+      <FadeInView delay={40}>
+        <WarningBanner
+          message={
+            pastYear === me.year - 1
+              ? `Receipt files for the ${pastYear} staff year will be deleted on 1 October ${me.year}, when the staff year rolls over. Download anything you need to keep.`
+              : `Receipt files for the ${pastYear} staff year have already been deleted and can no longer be opened. Only the file names remain for reference.`
+          }
+        />
+      </FadeInView>
+    );
+
   const renderAll = () => (
     <>
-      {isPreviousYear && (
-        <FadeInView delay={40}>
-          <WarningBanner
-            message={`Receipt files for the ${viewingYear} staff year will be deleted on 1 October ${nextRolloverYear}, when the staff year rolls over. Download anything you need to keep.`}
-          />
-        </FadeInView>
-      )}
-      {isOlderYear && (
-        <FadeInView delay={40}>
-          <WarningBanner
-            message={`Receipt files for the ${viewingYear} staff year have already been deleted and can no longer be opened. Only the file names remain for reference.`}
-          />
-        </FadeInView>
-      )}
+      {receiptFilesBanner(pastYearFor("all"))}
       <ExportRequestsCard currentYear={me.year} />
       <AllRequestsList
-        year={queryYear}
+        year={pastYearFor("all")}
         loadMoreRef={loadMoreRef}
         focusId={focusId}
         focusThread={focusThread}
@@ -261,17 +268,30 @@ export default function RequestsScreen() {
 
   const renderTab = (key: string) => {
     switch (key) {
-      case "review":
+      case "review": {
+        const pastYear = pastYearFor("review");
         return (
           <ReadableColumn>
-            <ReviewList
-              focusId={focusId}
-              focusThread={focusThread}
-              focusReopenKey={focusReopenKey}
-              onFocusThreadOpened={onFocusThreadOpened}
-            />
+            {receiptFilesBanner(pastYear)}
+            {pastYear !== undefined ? (
+              <ReviewedInYear
+                year={pastYear}
+                focusId={focusId}
+                focusThread={focusThread}
+                focusReopenKey={focusReopenKey}
+                onFocusThreadOpened={onFocusThreadOpened}
+              />
+            ) : (
+              <ReviewList
+                focusId={focusId}
+                focusThread={focusThread}
+                focusReopenKey={focusReopenKey}
+                onFocusThreadOpened={onFocusThreadOpened}
+              />
+            )}
           </ReadableColumn>
         );
+      }
       case "all":
         return renderAll();
       case "bank":
@@ -282,20 +302,24 @@ export default function RequestsScreen() {
         );
       default:
         return (
-          <MyRequests
-            departments={departmentNames}
-            defaultDepartment={defaultDepartment}
-            newOpen={newRequestOpen}
-            prefill={requestPrefill}
-            onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
-            onNewClose={() => setNewRequestOpen(false)}
-            onMakeRequest={showMakeRequest ? openNewRequest : undefined}
-            directorThreshold={directorThreshold}
-            focusId={focusId}
-            focusThread={focusThread}
-            focusReopenKey={focusReopenKey}
-            onFocusThreadOpened={onFocusThreadOpened}
-          />
+          <>
+            {receiptFilesBanner(pastYearFor("mine"))}
+            <MyRequests
+              year={pastYearFor("mine")}
+              departments={departmentNames}
+              defaultDepartment={defaultDepartment}
+              newOpen={newRequestOpen}
+              prefill={requestPrefill}
+              onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
+              onNewClose={() => setNewRequestOpen(false)}
+              onMakeRequest={showMakeRequest ? openNewRequest : undefined}
+              directorThreshold={directorThreshold}
+              focusId={focusId}
+              focusThread={focusThread}
+              focusReopenKey={focusReopenKey}
+              onFocusThreadOpened={onFocusThreadOpened}
+            />
+          </>
         );
     }
   };
@@ -325,8 +349,9 @@ export default function RequestsScreen() {
           ) : undefined
         }
         footerTabKey="mine"
+        floatingAboveFooter
         floating={
-          activeSegment === "all" && pickerYears.length > 1 ? (
+          pickerYears.length > 1 ? (
             <FloatingYearPicker
               year={viewingYear}
               years={pickerYears}

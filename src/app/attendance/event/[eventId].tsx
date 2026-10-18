@@ -100,11 +100,11 @@ const signedInSubtitle = (
   const info = [org, member.subtitle].filter(Boolean).join(" · ");
   const trimmed = member.notes?.trim();
   const notePreview = trimmed
-    ? trimmed.length > 36
-      ? `${trimmed.slice(0, 36)}…`
-      : trimmed
+    ? `Note: ${trimmed.length > 36 ? `${trimmed.slice(0, 36)}…` : trimmed}`
     : "";
-  return [formatSignInTime(member.signInTime, multiDay), info, notePreview]
+  // The note is about this sign-in, so it sits with its time, ahead of the
+  // person's own details.
+  return [formatSignInTime(member.signInTime, multiDay), notePreview, info]
     .filter(Boolean)
     .join(" · ");
 };

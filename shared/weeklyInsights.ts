@@ -65,11 +65,12 @@ export const DEFAULT_WEEKLY_SETTINGS: WeeklySettings = {
     "Outsource",
     "Alumni",
     "Guest",
-    // The Role option was called Visitor before it became Guest.
-    "Visitor",
   ],
   leaderRoles: ["Student Leader", "President", "Vice President", "Executive"],
 };
+
+/** The Role a leader sets by hand for a visitor (see shared/memberRole.ts). */
+export const MARKED_VISITOR = "Visitor";
 
 export type TermSystem = "terms" | "semesters";
 
@@ -395,7 +396,10 @@ export function termRows(terms: TermFacts[], index: number, c: Classify): TermRo
     const here = attendedIn(term, key);
     const attended = here.size;
     const otherCampus = !!info.campus && !subgroupMatches(info.campus, c.subgroup);
-    const staff = info.roles.some((r) => settings.staffRoles.includes(r));
+    // A leader can mark someone Visitor by hand (a friend, someone from a
+    // church), whatever their campus.
+    const markedVisitor = info.roles.includes(MARKED_VISITOR);
+    const staff = !markedVisitor && info.roles.some((r) => settings.staffRoles.includes(r));
     const leader = !otherCampus && info.roles.some((r) => settings.leaderRoles.includes(r));
     const first = firstAt.get(key)?.at ?? null;
     const windowAttended = countIn(regularWindow, key);
@@ -410,7 +414,7 @@ export function termRows(terms: TermFacts[], index: number, c: Classify): TermRo
       ? "staff"
       : leader
         ? "leader"
-        : otherCampus && attended < settings.visitorMinWeeklies
+        : markedVisitor || (otherCampus && attended < settings.visitorMinWeeklies)
           ? "visitor"
           : isNew
             ? "newcomer"

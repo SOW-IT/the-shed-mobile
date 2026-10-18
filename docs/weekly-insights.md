@@ -67,12 +67,16 @@ Year).
   last weekly that had one (or from the term's first). Semesters don't number
   the mid-semester break, which is why names come before dates.
 - **Categories**, first match wins, using roles and campus as of the term's
-  last weekly: Staff, alumni & guests (staff profile or those Role options) →
-  Leader (a university leader role at this campus) → Visitor (another campus,
-  fewer than 2 weeklies here this term) → Newcomer (first-ever weekly here was
+  last weekly: Visitor set by hand on the member → Staff, alumni & guests
+  (staff profile, or Alumni set by hand) → Leader (a university leader role
+  at this campus) → Visitor (another campus, fewer than 2 weeklies here this
+  term) → Newcomer (first-ever weekly here was
   this term, until they've come 4+ times at the Regular share) → Regular (half
   or more of the term's weeklies, counting last term too until 4 have been
-  held) → Irregular.
+  held) → Irregular. Only Visitor and Alumni are read from a member's Role
+  field: every other Role is worked out from these categories (see Role in
+  [context/attendance.md](context/attendance.md)), and the latest term's
+  category is what the Members list shows.
 - **A year page** keeps Staff, Leader and Visitor from each person's latest
   term, but sorts students by the whole year: half or more of the year's
   weeklies is Regular, otherwise Newcomer if their latest term had them as
