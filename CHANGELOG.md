@@ -40,6 +40,8 @@ Past years' requests for everyone, and a Role that works itself out.
   "Note: …", and exports call the column Event notes. A member field named
   Notes is saved as Other Information, and Role takes no new options in
   member fields.
+- Expo 58.0.14, Expo Router 58.0.23, Expo UI 58.0.20 and the other SDK 58
+  patch releases, which CI's SDK version check now expects.
 
 ### Fixed
 - The member Notes field never reached exports, because the export kept that
