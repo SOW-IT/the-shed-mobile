@@ -630,21 +630,28 @@ export const requestYears = query({
   },
 });
 
-const REVIEW_PROBE_EVENTS = 200;
+// Far more events than anyone makes; only a guard on the read.
+const REVIEW_PROBE_EVENTS = 5000;
 const MANUAL_REVIEW_ACTIONS = new Set(["approved", "declined"]);
 
 /** Whether someone has ever approved or declined a request themselves, so
- *  an approver from an earlier year still gets Review to look back on. */
-const hasReviewed = async (ctx: QueryCtx, email: string): Promise<boolean> =>
-  (
-    await ctx.db
-      .query("requestEvents")
-      .withIndex("by_actor", (q) => q.eq("actorEmail", email))
-      .order("desc")
-      .take(REVIEW_PROBE_EVENTS)
-  ).some((event) => MANUAL_REVIEW_ACTIONS.has(event.action));
+ *  an approver from an earlier year still gets Review to look back on. Stops
+ *  at the first one, however many receipts or nudges came after it. */
+const hasReviewed = async (ctx: QueryCtx, email: string): Promise<boolean> => {
+  let scanned = 0;
+  for await (const event of ctx.db
+    .query("requestEvents")
+    .withIndex("by_actor", (q) => q.eq("actorEmail", email))
+    .order("desc")) {
+    if (MANUAL_REVIEW_ACTIONS.has(event.action)) return true;
+    if (++scanned >= REVIEW_PROBE_EVENTS) return false;
+  }
+  return false;
+};
 
-const REVIEWED_IN_YEAR_EVENTS = 2000;
+// Oldest first, so the request's own year is read before the year after
+// (where only carried-over requests count) uses up the cap.
+const REVIEWED_IN_YEAR_EVENTS = 5000;
 
 /**
  * Other people's requests from staff year `year` that the caller approved or

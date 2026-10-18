@@ -538,6 +538,16 @@ describe("attendance metadata", () => {
         deleteIds: [],
       })
     ).rejects.toThrow(/Duplicate metadata field/i);
+    // Notes is saved as Other Information, so the two can't both exist.
+    await expect(
+      leader.mutation(api.attendanceMetadata.saveAll, {
+        fields: [
+          { key: "Notes", type: "input", order: 5 },
+          { key: "other information", type: "input", order: 6 },
+        ],
+        deleteIds: [],
+      })
+    ).rejects.toThrow(/Duplicate metadata field "other information"/i);
 
     await leader.mutation(api.attendanceMetadata.saveAll, {
       fields: updated

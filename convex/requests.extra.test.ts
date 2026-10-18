@@ -1312,6 +1312,15 @@ describe("browsing past years", () => {
 
     expect((await asUser(t, HENRY).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
     expect((await asUser(t, RACHEL).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(false);
+
+    // However many of their own events came after it.
+    const [request] = await t.run((ctx) => ctx.db.query("requests").collect());
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 250; i++) {
+        await ctx.db.insert("requestEvents", { requestId: request._id, actorEmail: HENRY, action: "nudged" });
+      }
+    });
+    expect((await asUser(t, HENRY).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
   });
 });
 

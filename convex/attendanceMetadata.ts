@@ -288,10 +288,11 @@ export const saveAll = mutation({
         // Notes is about the person.
         lk === LEGACY_NOTES_FIELD_KEY.toLowerCase() ? OTHER_INFO_FIELD_KEY :
         rawKey;
-      if (keys.has(lk)) {
+      // By the name it's saved under, so Notes and Other Information clash.
+      if (keys.has(key.toLowerCase())) {
         throw new ConvexError(`Duplicate metadata field "${key}".`);
       }
-      keys.add(lk);
+      keys.add(key.toLowerCase());
 
       const values =
         field.type === "select"
