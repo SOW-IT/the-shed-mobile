@@ -1359,8 +1359,21 @@ describe("guards + edge cases", () => {
     await leader.mutation(api.attendance.signIn, { eventId, memberId });
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
     const row = rows.find((r) => r.name === "Test Member");
-    expect(row?.subtitle).toContain("Male");
+    // Their worked-out Role leads: nothing in Insights yet, so Member.
+    expect(row?.subtitle).toBe("Member · Male");
     expect(row?.university).toBe(USYD);
+
+    await t.run((ctx) =>
+      ctx.db.insert("weeklyCategories", {
+        subgroup: USYD,
+        termKey: "2026-T2",
+        people: [{ key: `member:${memberId}`, category: "newcomer" }],
+      })
+    );
+    const after = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(after.find((r) => r.name === "Test Member")?.subtitle).toBe("Newcomer · Male");
+    const roster = await leader.query(api.attendance.roster, { year: YEAR });
+    expect(roster.find((r) => r.name === "Test Member")?.subtitle).toBe("Newcomer · Male");
   });
 
   test("roster enriches staff shadows and listByEvent handles edge rows", async () => {

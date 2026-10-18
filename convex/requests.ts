@@ -625,7 +625,58 @@ export const requestYears = query({
     return {
       mine: yearsFrom(mineYears),
       all: yearsFrom(divisions.map((d) => d.year)),
+      reviewedBefore: await hasReviewed(ctx, caller.email),
     };
+  },
+});
+
+const REVIEW_PROBE_EVENTS = 200;
+const MANUAL_REVIEW_ACTIONS = new Set(["approved", "declined"]);
+
+/** Whether someone has ever approved or declined a request themselves, so
+ *  an approver from an earlier year still gets Review to look back on. */
+const hasReviewed = async (ctx: QueryCtx, email: string): Promise<boolean> =>
+  (
+    await ctx.db
+      .query("requestEvents")
+      .withIndex("by_actor", (q) => q.eq("actorEmail", email))
+      .order("desc")
+      .take(REVIEW_PROBE_EVENTS)
+  ).some((event) => MANUAL_REVIEW_ACTIONS.has(event.action));
+
+const REVIEWED_IN_YEAR_EVENTS = 2000;
+
+/**
+ * Other people's requests from staff year `year` that the caller approved or
+ * declined at any step, newest first. A request is reviewed in its own year
+ * or, when it was carried over, the year after.
+ */
+export const reviewedInYear = query({
+  args: { year: v.number() },
+  handler: async (ctx, { year }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const ids = new Set<Id<"requests">>();
+    let scanned = 0;
+    for await (const event of ctx.db
+      .query("requestEvents")
+      .withIndex("by_actor", (q) =>
+        q
+          .eq("actorEmail", caller.email)
+          .gte("_creationTime", staffYearStartMs(year))
+          .lt("_creationTime", staffYearStartMs(year + 2))
+      )) {
+      if (++scanned > REVIEWED_IN_YEAR_EVENTS) break;
+      if (isApprovalAction(event.action)) ids.add(event.requestId);
+    }
+    const docs = await Promise.all([...ids].map((id) => ctx.db.get("requests", id)));
+    const rows = docs
+      .filter(
+        (r): r is Doc<"requests"> =>
+          r !== null && r.requesterEmail !== caller.email && requestYear(r) === year
+      )
+      .sort((a, b) => b._creationTime - a._creationTime);
+    return await Promise.all(rows.map((request) => requestForCaller(ctx, caller, request)));
   },
 });
 

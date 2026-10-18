@@ -19,6 +19,7 @@ import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 import { memberAuditName, staffDisplayName } from "./attendanceMembers";
+import { memberRoleResolver } from "./memberRoles";
 import { photoFor } from "./photo";
 import {
   assignedProfileForEmail,
@@ -42,6 +43,10 @@ export type RosterEntry = {
   subtitle?: string;
   photo?: string | null;
 };
+
+/** A plain member's worked-out Role, then the rest of their details. */
+const memberSubtitle = (role: string | undefined, details: string): string | undefined =>
+  [role, details].filter(Boolean).join(" · ") || undefined;
 
 export const roster = query({
   args: {
@@ -79,6 +84,7 @@ export const roster = query({
     const memberById = new Map(members.map((m) => [m._id, m]));
     const staffMemberIds = new Set(profiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
     const pureExtras = members.filter((m) => !staffMemberIds.has(m._id));
+    const roleOf = await memberRoleResolver(ctx, metadataFields);
 
     const staffRows: RosterEntry[] = await Promise.all(profiles.map(async (p) => {
       const shadow = p.memberId ? memberById.get(p.memberId) : undefined;
@@ -117,7 +123,7 @@ export const roster = query({
       roles: [],
       campuses: [],
       university: resolveUniversity(metadataFields, m.metadata),
-      subtitle: metadataSubtitle(metadataFields, m.metadata, memberYear, [CAMPUS_FIELD_KEY]) || undefined,
+      subtitle: memberSubtitle(roleOf(m).role, metadataSubtitle(metadataFields, m.metadata, memberYear, [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY])),
     }));
 
     const rows = [...staffRows, ...extraRows];
@@ -210,6 +216,7 @@ export const listByEvent = query({
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
+    const roleOf = await memberRoleResolver(ctx, metadataFields);
 
     const withNames = await Promise.all(
       rows.map(async (row) => {
@@ -253,7 +260,10 @@ export const listByEvent = query({
           roles: [],
           campuses: [],
           university: resolveUniversity(metadataFields, member?.metadata),
-          subtitle: metadataSubtitle(metadataFields, member?.metadata, calendarYear, [CAMPUS_FIELD_KEY]) || undefined,
+          subtitle: memberSubtitle(
+            member ? roleOf(member).role : undefined,
+            metadataSubtitle(metadataFields, member?.metadata, calendarYear, [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY])
+          ),
           photo: null,
         };
       })

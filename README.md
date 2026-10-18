@@ -142,8 +142,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget
   Manager alert when the paid amount differs from the requested amount.
 - **Reimbursements** (opened from the side menu, at `/`): Mine (submit /
-  cancel / receipt), Review (approve / decline / pay, shown to approvers),
-  All (Finance staff), Bank.
+  cancel / receipt), Review (approve / decline / pay, shown to approvers and
+  to anyone who has reviewed a request before), All (Finance staff), Bank.
+  The year picker looks back at past staff years: on Mine your own requests,
+  on Review the ones you approved or declined, on All every request.
 - **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
   Chart. On phones the top-left avatar, or a swipe from the left edge, opens
   a side menu with Profile, Reimbursements (staff other than campus leaders),
@@ -170,7 +172,13 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   or PPN) and **Other events**, plus the automatic **Weeklies** tag on every
   weekly (a weekly is defined by its term and week, which drive the
   weekly-meeting analytics), and configurable member metadata fields (Year,
-  Gender, Campus, Role, …).
+  Gender, Campus, Role, Other Information, …). **Role is worked out**, not
+  typed: a staff person's role from their profile, otherwise Regular,
+  Irregular, Newcomer or Visitor from last night's Insights build, else
+  Member. Leaders can still set Visitor or Alumni by hand. The edit sheet
+  shows it locked, with an info button that explains the rules
+  (`shared/memberRole.ts`). Notes about one event are kept on that sign-in
+  ("Notes for this event", exported as Event notes).
 - **Merge duplicates**: fold two records for one person into one, moving every
   attendance record across (shared events collapse to one record). Someone who
   is staff this year can't be merged away, and two people who were both staff
@@ -190,8 +198,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   current year get their record when they're assigned; next year's staff get
   theirs on October 1 unless they're already linked. Leaving staff moves
   nothing: from October 1 they read as the plain member underneath, with an
-  empty Campus filled from their last role and an empty Role set to Member
-  (Alumni is set by leaders when someone graduates). A member's own email
+  empty Campus filled from their last role (their Role is worked out; leaders
+  set Alumni when someone graduates). A member's own email
   can't be an SOW address or anyone's staff email.
   Member names are capitalised as they're typed.
 - **Audit log**: an immutable trail of every attendance-area action (event /

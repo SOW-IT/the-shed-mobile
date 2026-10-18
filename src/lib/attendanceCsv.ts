@@ -7,19 +7,17 @@ export type ExportEventForCsv = ExportEvent;
 
 const ATTENDEE_HEADERS = ["Sign In", "Name", "Email"] as const;
 
-export const NOTES_HEADER = "Notes";
+/** Each sign-in's own notes (per event, not per member). */
+export const NOTES_HEADER = "Event notes";
 export const ATTENDANCE_PCT_HEADER = "Attendance %";
 
-const isNotesExportFieldKey = (key: string): boolean =>
-  key.trim().toLowerCase() === NOTES_HEADER.toLowerCase();
-
-export const isReservedExportFieldKey = (key: string): boolean => {
+const isNotesExportFieldKey = (key: string): boolean => {
   const k = key.trim().toLowerCase();
-  return (
-    k === NOTES_HEADER.toLowerCase() ||
-    k === ATTENDANCE_PCT_HEADER.toLowerCase()
-  );
+  return k === NOTES_HEADER.toLowerCase() || k === "notes";
 };
+
+export const isReservedExportFieldKey = (key: string): boolean =>
+  isNotesExportFieldKey(key) || key.trim().toLowerCase() === ATTENDANCE_PCT_HEADER.toLowerCase();
 
 const formatDate = (ms: number): string => {
   const d = new Date(ms);

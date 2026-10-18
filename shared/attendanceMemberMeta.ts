@@ -2,7 +2,6 @@ import {
   assignmentsOf,
   MEMBER,
   type ProfileLike,
-  ROLES,
   rolesOfLike,
   STAFF_ROLE,
   STUDENT_LEADER,
@@ -20,18 +19,14 @@ export const GENDER_VALUES: Record<string, string> = {
 export const GENDER_OPTION_IDS = ["1", "2"] as const;
 export const CAMPUS_FIELD_KEY = "Campus";
 export const ROLE_FIELD_KEY = "Role";
+/** Free text about the person. Notes about one event go on that sign-in. */
+export const OTHER_INFO_FIELD_KEY = "Other Information";
+/** What the member field was called before notes moved onto each sign-in. */
+export const LEGACY_NOTES_FIELD_KEY = "Notes";
 
 export const STAFF_ROLE_FILTER_LABEL = STAFF_ROLE;
 export const STUDENT_LEADER_ROLE_FILTER_LABEL = STUDENT_LEADER;
 export const STUDENT_LEADER_ROLE_FILTER_ROLES = UNIVERSITY_ROLES;
-const ROLE_FILTER_LABELS = [
-  STAFF_ROLE_FILTER_LABEL,
-  STUDENT_LEADER_ROLE_FILTER_LABEL,
-] as const;
-const ROLE_FILTER_LABEL_SET = new Set<string>(ROLE_FILTER_LABELS);
-const STAFF_PROFILE_ROLE_FILTER_LABELS = new Set<string>(
-  ROLES.filter((role) => role !== MEMBER)
-);
 
 const YEAR_LEVEL_MAX = 15;
 
@@ -225,24 +220,6 @@ export const orderedSelectOptions = (
   return [...locked, ...custom];
 };
 
-export const orderedRoleFilterOptions = (
-  values: Record<string, string> | undefined,
-  lockedValues: string[] | undefined
-): MetadataSelectOption[] => {
-  const options = orderedSelectOptions(values, lockedValues);
-  const grouped = ROLE_FILTER_LABELS.map((label) => {
-    const existing = options.find((option) => option.label === label);
-    return existing ?? { id: label, label };
-  });
-  const extraAttendanceRoles = options.filter((option) => {
-    if (ROLE_FILTER_LABEL_SET.has(option.label)) return false;
-    if (option.label === MEMBER) return true;
-    if (STAFF_PROFILE_ROLE_FILTER_LABELS.has(option.label)) return false;
-    return !isLockedSelectOption(option.id, option.label, lockedValues);
-  });
-  return [...grouped, ...extraAttendanceRoles];
-};
-
 export const roleFilterMatches = (
   filterLabel: string,
   profileRoles: readonly string[],
@@ -271,13 +248,11 @@ export const roleFilterMatches = (
   return metadataRoleLabel === filterLabel;
 };
 
+/** Role takes no new options: it's worked out (shared/memberRole.ts). */
 export const metadataFieldAllowsCustomOptions = (
   fieldKey: string,
   fieldNameLocked: boolean
-): boolean =>
-  !fieldNameLocked ||
-  fieldKey === CAMPUS_FIELD_KEY ||
-  fieldKey === ROLE_FIELD_KEY;
+): boolean => !fieldNameLocked || fieldKey === CAMPUS_FIELD_KEY;
 
 /** The subset of an `attendanceMetadata` row these helpers need. */
 export type MetadataFieldLike = {

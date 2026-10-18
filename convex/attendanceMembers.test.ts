@@ -656,3 +656,124 @@ describe("attendanceMembers.remove", () => {
     expect(await t.run((ctx) => ctx.db.query("attendance").collect())).toEqual([]);
   });
 });
+
+describe("Role is worked out", () => {
+  const roleSetup = async () => {
+    const s = await setup();
+    const { roleId, campusId } = await s.t.run(async (ctx) => ({
+      campusId: await ctx.db.insert("attendanceMetadata", {
+        key: "Campus",
+        type: "select",
+        order: 0,
+        values: { c1: USYD },
+      }),
+      roleId: await ctx.db.insert("attendanceMetadata", {
+        key: "Role",
+        type: "select",
+        order: 1,
+        values: { r1: "Member", r2: "Alumni", r3: "Newcomer" },
+      }),
+    }));
+    const member = (name: string, metadata: Record<string, string>) =>
+      s.t.run((ctx) => ctx.db.insert("attendanceMembers", { name, metadata }));
+    return { ...s, roleId, campusId, member };
+  };
+
+  test("from last night's Insights, a hand-set Alumni first, else Member", async () => {
+    const { t, leader, roleId, campusId, member } = await roleSetup();
+    const regular = await member("Rey Gular", { [campusId]: "c1", [roleId]: "r3" });
+    const alumni = await member("Al Umni", { [campusId]: "c1", [roleId]: "r2" });
+    const quiet = await member("Quinn Iet", { [roleId]: "r1" });
+    await t.run((ctx) =>
+      ctx.db.insert("weeklyCategories", {
+        subgroup: USYD,
+        termKey: "2026-T2",
+        people: [
+          { key: `member:${regular}`, category: "regular" },
+          { key: `member:${alumni}`, category: "staff" },
+        ],
+      })
+    );
+
+    const { page } = await listAll(leader);
+    const row = (id: string) => page.find((r) => r.memberId === id)!;
+    expect(row(regular)).toMatchObject({ role: "Regular", subtitle: "Regular" });
+    expect(row(alumni)).toMatchObject({ role: "Alumni", subtitle: "Alumni" });
+    expect(row(quiet)).toMatchObject({ role: "Member", subtitle: "Member" });
+    expect(page.find((r) => r.email === LEADER)?.role).toBe("Student Leader");
+
+    const filtered = (label: string) =>
+      leader.query(api.attendanceMembers.list, {
+        year: YEAR,
+        filters: { [roleId]: label },
+        paginationOpts: { numItems: 100, cursor: null },
+      });
+    expect((await filtered("Regular")).page.map((r) => r.name)).toEqual(["Rey Gular"]);
+    expect((await filtered("Newcomer")).page).toEqual([]);
+    expect((await filtered("Member")).page.map((r) => r.name)).toEqual(["Quinn Iet"]);
+
+    const sorted = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      sortKey: roleId,
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+    expect(sorted.page.filter((r) => r.kind === "member").map((r) => r.role)).toEqual([
+      "Alumni",
+      "Member",
+      "Regular",
+    ]);
+
+    const got = await leader.query(api.attendanceMembers.get, { memberId: alumni });
+    expect(got?.role).toEqual({
+      role: "Alumni",
+      source: "marked",
+      marked: "Alumni",
+      automatic: { role: "Member", source: "none" },
+    });
+    expect(got?.roleRuleSettings).toMatchObject({ regularShare: 0.5, visitorMinWeeklies: 2 });
+    const staff = await leader.query(api.attendanceMembers.get, {
+      memberId: await linkedMemberOf(t, LEADER),
+    });
+    expect(staff?.role).toMatchObject({ role: "Student Leader", source: "staff", marked: null });
+  });
+
+  test("only Visitor or Alumni are saved by hand, and an old Role stays until it's changed", async () => {
+    const { t, leader, roleId, member } = await roleSetup();
+    const id = await member("Old Role", { [roleId]: "r3" });
+    const stored = async () => (await t.run((ctx) => ctx.db.get(id)))?.metadata ?? {};
+
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId: id,
+      name: "Old Role Renamed",
+      metadata: { [roleId]: "r3" },
+    });
+    expect(await stored()).toEqual({ [roleId]: "r3" });
+
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId: id,
+      name: "Old Role Renamed",
+      metadata: { [roleId]: "Visitor" },
+    });
+    expect(await stored()).toEqual({ [roleId]: "Visitor" });
+
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId: id,
+      name: "Old Role Renamed",
+      metadata: { [roleId]: "Alumni" },
+    });
+    expect(await stored()).toEqual({ [roleId]: "r2" });
+
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId: id,
+      name: "Old Role Renamed",
+      metadata: { [roleId]: "Newcomer" },
+    });
+    expect(await stored()).toEqual({});
+
+    const created = await leader.mutation(api.attendanceMembers.create, {
+      name: "Typed Leader",
+      metadata: { [roleId]: "Student Leader" },
+    });
+    expect((await t.run((ctx) => ctx.db.get(created)))?.metadata).toEqual({});
+  });
+});

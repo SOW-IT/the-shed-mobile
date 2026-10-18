@@ -47,6 +47,14 @@ At rollover, files from previous-previous and older are deleted. The Request
 and the file name stay; only the download dies.
 _Avoid_: invoice (the domain word is Receipt; the UI still says receipt/invoice)
 
+**Past years**:
+Any earlier staff year can be looked back on from the year picker: Mine shows
+the caller's own Requests from that year, Review the other people's Requests
+from that year the caller approved or declined (Review stays for anyone who
+has reviewed a Request, even if they approve nothing now), and All (Finance)
+every Request. A Request belongs to the year it was made in, even when it was
+reviewed in the next.
+
 **Deadlock prevention**:
 Refusing a submission up front when the year is missing an approver that
 Request would need, rather than letting it strand mid-chain. The error names

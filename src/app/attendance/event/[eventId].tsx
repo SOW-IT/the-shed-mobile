@@ -99,9 +99,7 @@ const signedInSubtitle = (
   const info = [org, member.subtitle].filter(Boolean).join(" · ");
   const trimmed = member.notes?.trim();
   const notePreview = trimmed
-    ? trimmed.length > 36
-      ? `${trimmed.slice(0, 36)}…`
-      : trimmed
+    ? `Note: ${trimmed.length > 36 ? `${trimmed.slice(0, 36)}…` : trimmed}`
     : "";
   return [formatSignInTime(member.signInTime, multiDay), info, notePreview]
     .filter(Boolean)

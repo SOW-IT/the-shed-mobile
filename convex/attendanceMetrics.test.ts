@@ -310,11 +310,13 @@ describe("attendanceMetrics", () => {
       subgroup: USYD,
     });
 
+    // Leaders come from staff profiles: Student Leader typed on a plain
+    // member isn't kept, so Tagged Leader counts with everyone else.
     const snap = await snapshotOf(t, USYD, 4);
     expect(snap!.data.leadersVsOthers).toEqual([
-      expect.objectContaining({ primary: 3, rest: 2 }),
+      expect.objectContaining({ primary: 2, rest: 3 }),
     ]);
-    expect(snap!.data.summary.leaderShare).toBe(0.6);
+    expect(snap!.data.summary.leaderShare).toBe(0.4);
     expect(snap!.data.campusMix).toEqual([
       expect.objectContaining({ primary: 2, rest: 1 }),
     ]);

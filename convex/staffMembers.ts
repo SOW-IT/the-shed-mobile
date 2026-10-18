@@ -1,16 +1,14 @@
 import {
   CAMPUS_FIELD_KEY,
   optionIdForLabel,
-  ROLE_FIELD_KEY,
 } from "../shared/attendanceMemberMeta";
-import { assignmentsOf, MEMBER, staffYearForDate } from "../shared/flow";
+import { assignmentsOf, staffYearForDate } from "../shared/flow";
 import { mergeNotes } from "../shared/memberMerge";
 import { capitalizeMemberName, personDisplayName } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
-import { mergeSelectValues } from "./attendanceMetadata";
 import { getProfile } from "./model";
 
 type Ctx = QueryCtx | MutationCtx;
@@ -174,21 +172,6 @@ export async function staffMemberForEmail(
   return { profile, memberId: await linkOrCreateMember(ctx, profile, actorEmail) };
 }
 
-export async function memberRoleOption(
-  ctx: MutationCtx,
-  dryRun = false
-): Promise<{ fieldId: Id<"attendanceMetadata">; optionId: string } | null> {
-  const field = (await ctx.db.query("attendanceMetadata").collect()).find(
-    (f) => f.key === ROLE_FIELD_KEY
-  );
-  if (!field) return null;
-  const values = mergeSelectValues(field.values ?? {}, [MEMBER]);
-  if (!dryRun && Object.keys(values).length !== Object.keys(field.values ?? {}).length) {
-    await ctx.db.patch("attendanceMetadata", field._id, { values });
-  }
-  return { fieldId: field._id, optionId: optionIdForLabel(values, MEMBER) };
-}
-
 export async function leaveStaff(
   ctx: MutationCtx,
   memberId: MemberId,
@@ -207,11 +190,6 @@ export async function leaveStaff(
   if (campusField && campus && !metadata[campusField._id]) {
     metadata[campusField._id] = optionIdForLabel(campusField.values, campus);
     filled.push(`Campus set to ${campus}, from their last staff role`);
-  }
-  const role = await memberRoleOption(ctx);
-  if (role && !metadata[role.fieldId]) {
-    metadata[role.fieldId] = role.optionId;
-    filled.push(`Role set to ${MEMBER}`);
   }
   const name = row.name;
   await ctx.db.patch("attendanceMembers", memberId, { metadata });

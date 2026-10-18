@@ -9,7 +9,6 @@ import {
   memberOwnMetadata,
   metadataSubtitle,
   metadataFieldAllowsCustomOptions,
-  orderedRoleFilterOptions,
   orderedSelectOptions,
   partitionSelectOptions,
   resolveCommencementYear,
@@ -105,29 +104,6 @@ describe("partitionSelectOptions", () => {
   });
 
   test("role filters are consolidated into Staff and Student Leader buckets", () => {
-    const values = {
-      "1": "Staff",
-      "2": "Student Leader",
-      "3": "President",
-      "4": "Vice President",
-      "5": "Executive",
-      "6": "Head of Department",
-      "7": "Member",
-      "8": "Newcomer",
-      "9": "Alumni",
-      "10": "Volunteer",
-    };
-    expect(
-      orderedRoleFilterOptions(values, [
-        "Staff",
-        "Student Leader",
-        "President",
-        "Vice President",
-        "Executive",
-        "Head of Department",
-        "Volunteer",
-      ]).map((o) => o.label)
-    ).toEqual(["Staff", "Student Leader", "Member", "Newcomer", "Alumni"]);
     expect(roleFilterMatches("Student Leader", ["President"], null)).toBe(true);
     expect(roleFilterMatches("Student Leader", ["Executive"], null)).toBe(true);
     expect(roleFilterMatches("Student Leader", ["Staff"], null)).toBe(false);
@@ -175,6 +151,7 @@ describe("gender and field helpers", () => {
 
   test("metadataFieldAllowsCustomOptions", () => {
     expect(metadataFieldAllowsCustomOptions("Campus", true)).toBe(true);
+    expect(metadataFieldAllowsCustomOptions("Role", true)).toBe(false);
     expect(metadataFieldAllowsCustomOptions("Notes", true)).toBe(false);
     expect(metadataFieldAllowsCustomOptions("Notes", false)).toBe(true);
   });
