@@ -14,8 +14,9 @@ Past years' requests for everyone, and a Role that works itself out.
 - **Staff can look back at past years' reimbursement requests.** The year
   picker Finance had on All is now on Mine and Review too. On Mine it shows
   your own requests from that year; on Review, the other people's requests
-  from that year you approved or declined. A request counts in the year it
-  was made, even when it was reviewed in the next. Review stays in the menu
+  from that year you approved or declined. Each only offers the years you
+  made or reviewed a request in. A request counts in the year it was made,
+  even when it was reviewed in the next. Review stays in the menu
   for anyone who has reviewed a request before, even if they approve nothing
   this year, so last year's Heads can still see what they signed off.
 

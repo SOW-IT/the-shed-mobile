@@ -157,14 +157,17 @@ export default function RequestsScreen() {
   const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
 
   const currentYear = me?.year;
-  // One picked year across Mine, Review and All; a tab that has no such
-  // year shows this year instead.
+  // One picked year across Mine, Review and All, each offering only years
+  // it has something for (your requests, ones you reviewed, every request);
+  // a tab without the picked year shows this year instead.
   const yearsFor = (key: string): number[] =>
     key === "mine"
       ? (requestYears?.mine ?? [])
-      : key === "review" || key === "all"
-        ? (requestYears?.all ?? [])
-        : [];
+      : key === "review"
+        ? (requestYears?.reviewed ?? [])
+        : key === "all"
+          ? (requestYears?.all ?? [])
+          : [];
   const pastYearFor = (key: string): number | undefined =>
     currentYear != null &&
     selectedYear != null &&

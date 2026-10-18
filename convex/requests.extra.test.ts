@@ -1275,6 +1275,41 @@ describe("browsing past years", () => {
     const reviewedBefore = (await henry.query(api.requests.reviewedInYear, { year: YEAR - 2 }))!;
     expect(reviewedBefore.map((r) => r.description)).toEqual(["carried over"]);
     expect(await asUser(t, BELLA).query(api.requests.reviewedInYear, { year: YEAR - 1 })).toEqual([]);
+
+    // The picker offers just those years (and this one).
+    expect((await henry.query(api.requests.requestYears, {}))!.reviewed).toEqual([YEAR, YEAR - 1, YEAR - 2]);
+    expect((await asUser(t, FIONA).query(api.requests.requestYears, {}))!.reviewed).toEqual([YEAR, YEAR - 1]);
+    expect((await asUser(t, BELLA).query(api.requests.requestYears, {}))!.reviewed).toEqual([YEAR]);
+  });
+
+  test("a year isn't offered for reviews of the next year's requests alone", async () => {
+    const t = await setupWithHistory([
+      {
+        email: HENRY,
+        year: YEAR - 1,
+        description: "own, auto-approved",
+        reviews: [{ actor: HENRY, action: "auto-approved", daysIn: 1 }],
+      },
+    ]);
+    // This year Henry reviews more than the probe looks at, all of them
+    // this year's requests, inside last year's two-year window.
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 51; i++) {
+        const requestId = await ctx.db.insert("requests", {
+          requesterEmail: RACHEL,
+          department: "Marketing",
+          description: `this year ${i}`,
+          amount: 10,
+          approvedByHOD: "APPROVED",
+          approvedByBudgetManager: "PENDING",
+          approvedByFinanceHead: "PENDING",
+        });
+        await ctx.db.insert("requestEvents", { requestId, actorEmail: HENRY, action: "approved", step: "hod" });
+      }
+    });
+    const years = (await asUser(t, HENRY).query(api.requests.requestYears, {}))!;
+    expect(years.reviewed).toEqual([YEAR]);
+    expect(years.reviewedBefore).toBe(true);
   });
 
   test("reviewedInYear keeps receipt details from approvers outside Finance", async () => {
@@ -1300,7 +1335,7 @@ describe("browsing past years", () => {
     expect(row.receipt).toEqual({ totalAmount: 100, recipients: [] });
   });
 
-  test("requestYears says whether the caller has ever approved or declined a request", async () => {
+  test("requestYears says whether the caller has ever reviewed someone else's request", async () => {
     const t = await setupWithHistory([
       {
         email: RACHEL,
@@ -1311,7 +1346,9 @@ describe("browsing past years", () => {
     ]);
 
     expect((await asUser(t, HENRY).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
-    expect((await asUser(t, RACHEL).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(false);
+    const rachel = (await asUser(t, RACHEL).query(api.requests.requestYears, {}))!;
+    expect(rachel.reviewedBefore).toBe(false);
+    expect(rachel.reviewed).toEqual([YEAR]);
 
     // However many of their own events came after it.
     const [request] = await t.run((ctx) => ctx.db.query("requests").collect());

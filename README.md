@@ -145,7 +145,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   cancel / receipt), Review (approve / decline / pay, shown to approvers and
   to anyone who has reviewed a request before), All (Finance staff), Bank.
   The year picker looks back at past staff years: on Mine your own requests,
-  on Review the ones you approved or declined, on All every request.
+  on Review the ones you approved or declined, on All every request. Mine and
+  Review only offer the years you made or reviewed a request in.
 - **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
   Chart. On phones the top-left avatar, or a swipe from the left edge, opens
   a side menu with Profile, Reimbursements (staff other than campus leaders),
