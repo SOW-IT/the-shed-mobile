@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { spacing, useAppTheme } from "@/theme";
-import { eventStaffYear, nextStepAfter, STEP_LABELS } from "../../shared/flow";
+import { eventStaffYear, nextStepAfter, reviewedHeading, STEP_LABELS } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
@@ -336,7 +336,7 @@ export const ReviewList = ({
           )}
           {reviewed && reviewed.length > 0 ? (
             <View style={{ gap: spacing.md }}>
-              <SectionTitle>Reviewed ({reviewed.length})</SectionTitle>
+              <SectionTitle>{reviewedHeading(reviewed.length)}</SectionTitle>
               {reviewed.map((request, index) => (
                 <FadeInView key={request._id} delay={stagger(index)}>
                   <RequestCard

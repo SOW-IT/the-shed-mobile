@@ -209,8 +209,8 @@ describe("activeNavKey", () => {
     expect(activeNavKey("/design-requests/new")).toBe("designRequests");
     expect(activeNavKey("/event-requests/abc123/risk")).toBe("eventRequests");
     expect(activeNavKey("/event-requests/new")).toBe("eventRequests");
-    expect(activeNavKey("/attendance/usyd")).toBe("attendance");
-    expect(activeNavKey("/attendance/event/new")).toBe("attendance");
+    expect(activeNavKey("/attendance/member/member:abc123")).toBe("attendance");
+    expect(activeNavKey("/attendance/event/abc123")).toBe("attendance");
     expect(activeNavKey("/edit-home")).toBe("home");
     expect(activeNavKey("/announcements/abc123")).toBe("announcements");
   });

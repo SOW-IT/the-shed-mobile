@@ -1,5 +1,7 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import {
+  REVIEWED_LIMIT,
+  reviewedHeading,
   acronym,
   ALLOWED_REACTIONS,
   APPROVED,
@@ -334,5 +336,12 @@ describe("reaction catalogue", () => {
   test("lists each emoji once, so the picker has no duplicate keys", () => {
     expect(new Set(REACTION_EMOJIS).size).toBe(REACTION_EMOJIS.length);
     expect(new Set(QUICK_REACTION_EMOJIS).size).toBe(QUICK_REACTION_EMOJIS.length);
+  });
+});
+
+describe("reviewedHeading", () => {
+  it("counts a short list and says when the list stops at the cap", () => {
+    expect(reviewedHeading(3)).toBe("Reviewed (3)");
+    expect(reviewedHeading(REVIEWED_LIMIT)).toBe(`Latest ${REVIEWED_LIMIT} reviewed`);
   });
 });

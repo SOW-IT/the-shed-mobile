@@ -17,6 +17,7 @@ import {
   requestCompleted,
   requestDeclined,
   requestFullyApproved,
+  REVIEWED_LIMIT,
   staffYearStartMs,
   STEP_FIELDS,
   STEP_LABELS,
@@ -314,6 +315,83 @@ const notifyNextActor = async (
 
 const MAX_REQUEST_AMOUNT = 1_000_000;
 
+async function startingApprovals(
+  ctx: QueryCtx | MutationCtx,
+  opts: {
+    email: string;
+    roles: string[];
+    year: number;
+    department: string;
+    division: string;
+    amount: number;
+  }
+) {
+  const { email, roles, year, department, amount } = opts;
+  const approvers = await getApprovers(ctx, year, department);
+  const yearSettings = await getYearSettings(ctx, year);
+  const needsDirector = amount >= directorThresholdOr(yearSettings?.directorApprovalThreshold);
+
+  let approvedByHOD: ApprovalStatus = PENDING;
+  let approvedByBudgetManager: ApprovalStatus = PENDING;
+  let approvedByDirector: ApprovalStatus | undefined = needsDirector ? PENDING : undefined;
+  let approvedByFinanceHead: ApprovalStatus = PENDING;
+
+  if (department === FINANCE) approvedByHOD = APPROVED;
+  const divisionDoc = await getDivision(ctx, year, opts.division);
+  if (
+    approvers.hodEmail === email ||
+    roles.includes(DIRECTOR) ||
+    divisionDoc?.headEmail === email
+  ) {
+    approvedByHOD = APPROVED;
+  }
+  if (approvers.budgetManagerEmail === email) approvedByBudgetManager = APPROVED;
+  if (needsDirector && (roles.includes(DIRECTOR) || approvers.directorEmail === email)) {
+    approvedByDirector = APPROVED;
+  }
+  if (approvers.financeHeadEmail === email) {
+    approvedByHOD = APPROVED;
+    approvedByBudgetManager = APPROVED;
+    approvedByFinanceHead = APPROVED;
+  }
+  return { approvers, approvedByHOD, approvedByBudgetManager, approvedByDirector, approvedByFinanceHead };
+}
+
+export const approvalPreview = query({
+  args: { department: v.string(), amount: v.number() },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const department = args.department.trim();
+    const departmentDoc = department ? await getDepartment(ctx, caller.year, department) : null;
+    if (!departmentDoc) return null;
+    const start = await startingApprovals(ctx, {
+      email: caller.email,
+      roles: rolesOf(caller.profile),
+      year: caller.year,
+      department,
+      division: departmentDoc.division,
+      amount: Number.isFinite(args.amount) && args.amount > 0 ? args.amount : 0,
+    });
+    const steps: [Step, ApprovalStatus | undefined, string | undefined][] = [
+      ["hod", start.approvedByHOD, start.approvers.hodEmail],
+      ["budgetManager", start.approvedByBudgetManager, start.approvers.budgetManagerEmail],
+      ["director", start.approvedByDirector, start.approvers.directorEmail],
+      ["financeHead", start.approvedByFinanceHead, start.approvers.financeHeadEmail],
+    ];
+    return await Promise.all(
+      steps
+        .filter(([, status]) => status !== undefined)
+        .map(async ([step, status, officeholder]) => ({
+          step,
+          label: STEP_LABELS[step],
+          name: officeholder ? await resolveName(ctx, officeholder, caller.year) : null,
+          skipped: status === APPROVED,
+        }))
+    );
+  },
+});
+
 export const submit = mutation({
   args: {
     description: v.string(),
@@ -365,39 +443,20 @@ export const submit = mutation({
       throw new ConvexError(`Department "${department}" doesn't exist in ${year}.`);
     }
 
-    const approvers = await getApprovers(ctx, year, department);
-    const yearSettings = await getYearSettings(ctx, year);
-    const needsDirector =
-      args.amount >= directorThresholdOr(yearSettings?.directorApprovalThreshold);
-
-    let approvedByHOD: ApprovalStatus = PENDING;
-    let approvedByBudgetManager: ApprovalStatus = PENDING;
-    let approvedByDirector: ApprovalStatus | undefined = needsDirector
-      ? PENDING
-      : undefined;
-    let approvedByFinanceHead: ApprovalStatus = PENDING;
-
-    if (department === FINANCE) approvedByHOD = APPROVED;
-    const divisionDoc = await getDivision(ctx, year, departmentDoc.division);
-    if (
-      approvers.hodEmail === email ||
-      roles.includes(DIRECTOR) ||
-      divisionDoc?.headEmail === email
-    ) {
-      approvedByHOD = APPROVED;
-    }
-    if (approvers.budgetManagerEmail === email) approvedByBudgetManager = APPROVED;
-    if (
-      needsDirector &&
-      (roles.includes(DIRECTOR) || approvers.directorEmail === email)
-    ) {
-      approvedByDirector = APPROVED;
-    }
-    if (approvers.financeHeadEmail === email) {
-      approvedByHOD = APPROVED;
-      approvedByBudgetManager = APPROVED;
-      approvedByFinanceHead = APPROVED;
-    }
+    const {
+      approvers,
+      approvedByHOD,
+      approvedByBudgetManager,
+      approvedByDirector,
+      approvedByFinanceHead,
+    } = await startingApprovals(ctx, {
+      email,
+      roles,
+      year,
+      department,
+      division: departmentDoc.division,
+      amount: args.amount,
+    });
 
     const missing: string[] = [];
     if (approvedByHOD === PENDING && !approvers.hodEmail) {
@@ -784,7 +843,6 @@ export const toReview = query({
   },
 });
 
-const REVIEWED_LIMIT = 50;
 
 export const reviewed = query({
   args: {},

@@ -24,6 +24,7 @@ import {
   YearPill,
 } from "@/components/ui";
 import { spacing, typography } from "@/theme";
+import { staffOnlyMessage } from "@shared/staffOnly";
 
 type Group = { title: string; statuses: EventRequestStatus[] };
 
@@ -139,11 +140,7 @@ export default function EventRequestsScreen() {
       <ChromeScreen>
         <Card>
           <Txt style={typography.section}>Event Requests</Txt>
-          <Muted>
-            {me.profile
-              ? "Event requests are for SOW staff, not campus leaders."
-              : `Event requests are for SOW staff. No role or department is assigned to ${me.email} for ${me.year} yet.`}
-          </Muted>
+          <Muted>{staffOnlyMessage("Event", me)}</Muted>
         </Card>
       </ChromeScreen>
     );

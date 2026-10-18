@@ -32,6 +32,7 @@ import {
   Txt,
 } from "./ui";
 import { isSowStaffAddress } from "@shared/rollcallImport";
+import { SignInPrompt } from "./SignInPrompt";
 
 const ProfileFrame = ({
   asTab,
@@ -67,12 +68,19 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
   const [uploading, setUploading] = useState(false);
 
   const router = useRouter();
-  const goBack = router.canGoBack() ? () => router.back() : undefined;
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/org"));
 
-  if (!profile) {
+  if (profile === undefined) {
     return (
       <ProfileFrame asTab={asTab} onBack={goBack}>
         <LoadingState />
+      </ProfileFrame>
+    );
+  }
+  if (profile === null) {
+    return (
+      <ProfileFrame asTab={asTab} onBack={goBack}>
+        <SignInPrompt what="page" />
       </ProfileFrame>
     );
   }

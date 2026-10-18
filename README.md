@@ -89,7 +89,9 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   and everyone on it can comment. Marketing staff get in-app/push
   notifications and the team's emails go to marketing@sow.org.au. Lists:
   Mine, the Marketing queue (open requests) and an All archive by staff
-  year. Any request can be downloaded as a PDF (built on the device with
+  year; the Marketing Head opens on the queue when something waits on them.
+  A request's page shows its progress as Submitted, Approved (or Declined)
+  and Complete, with who and when. Any request can be downloaded as a PDF (built on the device with
   pdf-lib). Old requests from the web app are copied in with
   `scripts/import-design-requests.mjs` (safe to re-run). Design requests
   aren't for events: those go through Event Requests.
@@ -146,7 +148,13 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   to anyone who has reviewed a request before), All (Finance staff), Bank.
   The year picker looks back at past staff years: on Mine your own requests,
   on Review the ones you approved or declined, on All every request. Mine and
-  Review only offer the years you made or reviewed a request in.
+  Review only offer the years you made or reviewed a request in. The New
+  Request sheet shows who the request will go to as you type
+  (`requests.approvalPreview`), including the Director from the threshold and
+  any step your own role skips; image receipts show a thumbnail before you
+  submit. An approver with requests waiting and nothing of their own to act on
+  opens on Review, and a request link opens the tab that holds it (Mine,
+  Review, or All for Finance staff).
 - **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
   Chart. On phones the top-left avatar, or a swipe from the left edge, opens
   a side menu with Profile, Reimbursements (staff other than campus leaders),
