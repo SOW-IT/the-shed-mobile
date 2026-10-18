@@ -6,6 +6,49 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.9] - 2026-10-18
+
+Past years' requests for everyone, and a Role that works itself out.
+
+### Added
+- **Staff can look back at past years' reimbursement requests.** The year
+  picker Finance had on All is now on Mine and Review too. On Mine it shows
+  your own requests from that year; on Review, the other people's requests
+  from that year you approved or declined. Each only offers the years you
+  made or reviewed a request in. A request counts in the year it was made,
+  even when it was reviewed in the next. Review stays in the menu
+  for anyone who has reviewed a request before, even if they approve nothing
+  this year, so last year's Heads can still see what they signed off.
+
+### Changed
+- **A member's Role is worked out, not typed.** Staff and leaders show their
+  staff profile's role. Everyone else is Regular, Irregular, Newcomer or
+  Visitor from last night's Insights build of their campus's weeklies, or
+  Member if they haven't come to one in the latest term or the one before.
+  The edit sheet shows Role locked, with an info button that lists the rules
+  and the campus's numbers. Leaders can still set **Visitor** (a friend, someone from
+  a church) or **Alumni** by hand, the two Insights can't tell. Alumni marks
+  are kept; anything else typed in before (Member, Newcomer, Guest, Student
+  Leader on someone without a staff profile) no longer counts. The Members
+  list, its Role filter and sort, and event rosters all use the worked-out
+  Role, and leaving staff no longer writes Member onto someone's record.
+- **Insights counts a hand-set Visitor as a visitor** wherever they come, and
+  no longer treats a member typed in as Guest or Student Leader as staff or a
+  leader. Every campus rebuilds its views once after this release.
+- **The member field Notes is now Other Information**, for anything about the
+  person. Notes about one event are kept on that sign-in, like its time: the
+  edit sheet calls them "Notes for this event", the sign-in list shows
+  "Note: …", and exports call the column Event notes. A member field named
+  Notes is saved as Other Information, and Role takes no new options in
+  member fields.
+- Expo 58.0.14, Expo Router 58.0.23, Expo UI 58.0.20 and the other SDK 58
+  patch releases, which CI's SDK version check now expects.
+
+### Fixed
+- The member Notes field never reached exports, because the export kept that
+  name for each sign-in's notes. As Other Information it exports like any
+  other field.
+
 ## [2.9.8] - 2026-10-17
 
 Insights and screens that show more and explain less.

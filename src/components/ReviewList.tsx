@@ -378,3 +378,51 @@ export const ReviewList = ({
     </>
   );
 };
+
+/** Review for a past staff year: the requests from that year the caller
+ *  approved or declined, to look back on. */
+export const ReviewedInYear = ({
+  year,
+  focusId,
+  focusThread = false,
+  focusReopenKey,
+  onFocusThreadOpened,
+}: {
+  year: number;
+  focusId?: string;
+  focusThread?: boolean;
+  focusReopenKey?: string;
+  onFocusThreadOpened?: () => void;
+}) => {
+  const reviewed = useQuery(api.requests.reviewedInYear, { year });
+  if (reviewed === undefined) return <LoadingState />;
+  if (reviewed === null || reviewed.length === 0) {
+    return (
+      <EmptyState
+        icon="checkmark-done-outline"
+        title={`Nothing reviewed in ${year}`}
+        message={`Requests from ${year} that you approved or declined show here.`}
+      />
+    );
+  }
+  return (
+    <View style={{ gap: spacing.md }}>
+      <SectionTitle>
+        Reviewed in {year} ({reviewed.length})
+      </SectionTitle>
+      {reviewed.map((request, index) => (
+        <FadeInView key={request._id} delay={stagger(index)}>
+          <RequestCard
+            request={request}
+            showRequester
+            collapsible
+            autoExpand={request._id === focusId}
+            autoOpenThread={request._id === focusId && focusThread}
+            deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
+            onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
+          />
+        </FadeInView>
+      ))}
+    </View>
+  );
+};

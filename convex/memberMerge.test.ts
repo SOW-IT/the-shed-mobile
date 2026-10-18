@@ -966,3 +966,31 @@ describe("choosing which metadata stays", () => {
     expect(row?.name).toBe("Leader Nickname");
   });
 });
+
+describe("merging and Role", () => {
+  test("two old Roles don't clash, but a hand-set one does", async () => {
+    const s = await setup();
+    const roleField = await s.t.run((ctx) =>
+      ctx.db.insert("attendanceMetadata", {
+        key: "Role",
+        type: "select",
+        order: 2,
+        values: { r1: "Member", r2: "Newcomer", r3: "Alumni" },
+      })
+    );
+    const keep = await s.member("Sam Lee", { [roleField]: "r1" });
+    const oldRole = await s.member("Sam Lee", { [roleField]: "r2" });
+    const alumni = await s.member("Sam Lee", { [roleField]: "r3" });
+
+    const preview = async (removeId: Id<"attendanceMembers">) => {
+      const p = await s.leader.query(api.attendanceMembers.mergePreview, {
+        removeId,
+        keep: { memberId: keep },
+      });
+      if (!p || "blocked" in p) throw new Error("expected a preview");
+      return p.conflicts.map((c) => c.field);
+    };
+    expect(await preview(oldRole)).toEqual([]);
+    expect(await preview(alumni)).toEqual([roleField]);
+  });
+});

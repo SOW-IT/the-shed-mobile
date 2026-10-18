@@ -62,7 +62,7 @@ async function setup() {
       key: "Role",
       type: "select",
       order: 1,
-      values: { r1: "Member", r2: "Visitor" },
+      values: { r1: "Member", r2: "Alumni", r3: "Visitor" },
     });
     const year = await ctx.db.insert("attendanceMetadata", {
       key: "Year",
@@ -198,6 +198,28 @@ describe("first build and the view", () => {
       ["Lee Leader", "Leader", "leader"],
       ["Gil Guest", "Staff, alumni & guests", "staff"],
     ]);
+  });
+
+  test("a hand-set Visitor is a visitor at their own campus; a saved Guest or Newcomer counts for nothing", async () => {
+    const { t, leader, ids } = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.patch("attendanceMembers", ids.ana, { metadata: { [ids.campus]: "c1", [ids.role]: "r3" } });
+      await ctx.db.patch("attendanceMetadata", ids.role, {
+        values: { r1: "Member", r2: "Alumni", r3: "Visitor", r4: "Guest", r5: "Newcomer" },
+      });
+      await ctx.db.patch("attendanceMembers", ids.guest, { metadata: { [ids.role]: "r4" } });
+      await ctx.db.patch("attendanceMembers", ids.newbie, { metadata: { [ids.campus]: "c1", [ids.role]: "r5" } });
+    });
+    await rebuild(t);
+    const now = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!;
+    const people = block(now.blocks as Block[], "people");
+    const row = (name: string) => people.rows.find((r) => r.name === name)!;
+    expect([row("Ana Doe").category.label, row("Ana Doe").section]).toEqual(["Visitor", "campus"]);
+    // Guest is no longer a Role: they're judged on their weeklies.
+    expect(row("Gil Guest").category.label).not.toBe("Staff, alumni & guests");
+    expect(row("Nia New").category.label).toBe("Newcomer");
+    const saved = (await t.run((ctx) => ctx.db.query("weeklyCategories").collect()))[0];
+    expect(saved.people).toContainEqual({ key: `member:${ids.ana}`, category: "visitor" });
   });
 
   test("other periods, unknown periods and access", async () => {
@@ -671,7 +693,7 @@ describe("member page", () => {
     const blocks = page.blocks as Block[];
     expect(blocks.map((b) => b.type)).toEqual(["memberHeader", "keyValues", "termHistory", "weekGrid", "eventList"]);
     expect(blocks[0]).toMatchObject({
-      lines: ["UNSW", "Member"],
+      lines: ["UNSW"],
       category: { label: "Regular" },
       reason: "T2 2026: 5/7 · 71%\nLast came T2W5 (1 Jul)\nCame to 5 of 5, then missed the last 2",
       memberId: ids.ana,
