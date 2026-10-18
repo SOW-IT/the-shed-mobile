@@ -115,6 +115,7 @@ export const PagerScreen = ({
   footerTabKey,
   footers,
   floating,
+  floatingAboveFooter = false,
   fullWidth = false,
 }: {
   tabs: PagerTab[];
@@ -125,6 +126,9 @@ export const PagerScreen = ({
   footerTabKey?: string;
   footers?: PagerTabFooter[];
   floating?: ReactNode;
+  /** Lift `floating` clear of the active tab's footer, for a control that
+   *  also shows on a tab with one (a year picker over "Make Request"). */
+  floatingAboveFooter?: boolean;
   fullWidth?: boolean;
 }) => {
   const t = useAppTheme();
@@ -413,7 +417,23 @@ export const PagerScreen = ({
         })}
         {/* eslint-enable react-hooks/refs */}
         <DrawerEdgeSwipe top={insets.top + TOP_BAR_HEIGHT} />
-        {floating}
+        {floatingAboveFooter && floating ? (
+          <View
+            pointerEvents="box-none"
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                bottom: footerTabKeys.has(activeKey)
+                  ? footerHeightForPage(activeKey) + spacing.sm
+                  : 0,
+              },
+            ]}
+          >
+            {floating}
+          </View>
+        ) : (
+          floating
+        )}
       </View>
     </PagerTopBarInsetContext.Provider>
   );

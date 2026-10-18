@@ -344,6 +344,7 @@ export default function RequestsScreen() {
           ) : undefined
         }
         footerTabKey="mine"
+        floatingAboveFooter
         floating={
           pickerYears.length > 1 ? (
             <FloatingYearPicker
