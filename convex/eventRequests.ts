@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { departmentsOf } from "../shared/flow";
@@ -151,30 +152,35 @@ export const waitingOnMe = query({
  * The caller's events and their department's, from `year`; for this staff
  * year, plus any still in progress from earlier years.
  */
+async function ownEventsInYear(ctx: QueryCtx, caller: CallerContext, year: number) {
+  const events: EventRequest[] = [
+    ...(await ctx.db
+      .query("eventRequests")
+      .withIndex("by_requester_and_year", (q) =>
+        q.eq("requesterEmail", caller.email).eq("year", year)
+      )
+      .take(LIST_LIMIT)),
+  ];
+  for (const department of departmentsOf(caller.profile)) {
+    events.push(
+      ...(await ctx.db
+        .query("eventRequests")
+        .withIndex("by_department_and_year", (q) =>
+          q.eq("department", department).eq("year", year)
+        )
+        .take(LIST_LIMIT))
+    );
+  }
+  return events;
+}
+
 export const mine = query({
   args: { year: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
     const year = args.year ?? caller.year;
-    const events: EventRequest[] = [
-      ...(await ctx.db
-        .query("eventRequests")
-        .withIndex("by_requester_and_year", (q) =>
-          q.eq("requesterEmail", caller.email).eq("year", year)
-        )
-        .take(LIST_LIMIT)),
-    ];
-    for (const department of departmentsOf(caller.profile)) {
-      events.push(
-        ...(await ctx.db
-          .query("eventRequests")
-          .withIndex("by_department_and_year", (q) =>
-            q.eq("department", department).eq("year", year)
-          )
-          .take(LIST_LIMIT))
-      );
-    }
+    const events = await ownEventsInYear(ctx, caller, year);
     if (year === caller.year) {
       events.push(
         ...(await ctx.db
@@ -196,6 +202,26 @@ export const mine = query({
       }
     }
     return await withRows(ctx, dedupe(events));
+  },
+});
+
+export const earlierMine = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalEventStaff(ctx);
+    if (!caller) return null;
+    let year = paginationOpts.cursor ? Number(paginationOpts.cursor) : caller.year - 1;
+    let events: EventRequest[] = [];
+    while (year >= EARLIEST_EVENT_REQUEST_YEAR && events.length === 0) {
+      events = dedupe(await ownEventsInYear(ctx, caller, year));
+      year--;
+    }
+    const isDone = year < EARLIEST_EVENT_REQUEST_YEAR;
+    return {
+      page: await withRows(ctx, events),
+      isDone,
+      continueCursor: isDone ? "" : String(year),
+    };
   },
 });
 
@@ -264,6 +290,20 @@ export const all = query({
       );
     }
     return await withRows(ctx, dedupe(events));
+  },
+});
+
+export const earlierAll = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalEventStaff(ctx);
+    if (!caller || !seesAll(await viewerScope(ctx, caller))) return null;
+    const result = await ctx.db
+      .query("eventRequests")
+      .withIndex("by_year_and_number", (q) => q.lt("year", caller.year))
+      .order("desc")
+      .paginate(paginationOpts);
+    return { ...result, page: await withRows(ctx, result.page) };
   },
 });
 

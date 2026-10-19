@@ -1,11 +1,12 @@
 import { useMutation, useQuery } from "convex/react";
-import { useEffect, useState } from "react";
+import { type MutableRefObject, useEffect, useState } from "react";
 import { View } from "react-native";
 import { spacing, useAppTheme } from "@/theme";
 import { eventStaffYear, nextStepAfter, reviewedHeading, STEP_LABELS } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
+import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
 import { ReceiptRecipientList } from "@/components/ReceiptRecipientList";
 import { LabelledField } from "@/components/events/LabelledField";
 import {
@@ -27,6 +28,9 @@ import {
 } from "@/components/ui";
 
 type Step = "hod" | "budgetManager" | "director" | "financeHead";
+
+const reviewedAtOf = (row: { reviewedAt: number }) => row.reviewedAt;
+const reviewedYearOf = (row: { reviewedAt: number }) => eventStaffYear(row.reviewedAt);
 
 const DeclineSheet = ({
   target,
@@ -181,15 +185,30 @@ export const ReviewList = ({
   focusThread = false,
   focusReopenKey,
   onFocusThreadOpened,
+  loadMoreRef,
 }: {
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
   onFocusThreadOpened?: () => void;
+  loadMoreRef?: MutableRefObject<(() => void) | null>;
 } = {}) => {
   const t = useAppTheme();
   const data = useQuery(api.requests.toReview, {});
   const reviewed = useQuery(api.requests.reviewed, {});
+  const earlier = useEarlierYears(api.requests.reviewedHistory, {
+    enabled: data != null && reviewed != null,
+    exclude: [
+      ...(data
+        ? [...data.hod, ...data.budgetManager, ...data.director, ...data.financeHead, ...data.readyToPay]
+        : []),
+      ...(reviewed ?? []),
+    ].map((r) => r._id),
+    yearOf: reviewedYearOf,
+    newestOf: reviewedAtOf,
+    loadMoreRef,
+    pageSize: 60,
+  });
   const approve = useMutation(api.requests.approve).withOptimisticUpdate(
     (localStore, { requestId, step }) => {
       const current = localStore.getQuery(api.requests.toReview, {});
@@ -356,6 +375,18 @@ export const ReviewList = ({
           ) : null}
         </>
       )}
+      <EarlierYears
+        groups={earlier.groups}
+        hasMore={earlier.hasMore}
+        loadingMore={earlier.loadingMore}
+        onLoadMore={earlier.loadMore}
+        heading={(year) => `Reviewed in ${year}`}
+        renderRows={(rows) =>
+          rows.map((request) => (
+            <RequestCard key={request._id} request={request} showRequester collapsible />
+          ))
+        }
+      />
       <ConfirmDialog
         visible={approveTarget !== null}
         title="Approve request?"
@@ -378,53 +409,5 @@ export const ReviewList = ({
       <DeclineSheet target={declineTarget} onClose={() => setDeclineTarget(null)} />
       <PaySheet request={payTarget} onClose={() => setPayTarget(null)} />
     </>
-  );
-};
-
-/** Review for a past staff year: the requests from that year the caller
- *  approved or declined, to look back on. */
-export const ReviewedInYear = ({
-  year,
-  focusId,
-  focusThread = false,
-  focusReopenKey,
-  onFocusThreadOpened,
-}: {
-  year: number;
-  focusId?: string;
-  focusThread?: boolean;
-  focusReopenKey?: string;
-  onFocusThreadOpened?: () => void;
-}) => {
-  const reviewed = useQuery(api.requests.reviewedInYear, { year });
-  if (reviewed === undefined) return <LoadingState />;
-  if (reviewed === null || reviewed.length === 0) {
-    return (
-      <EmptyState
-        icon="checkmark-done-outline"
-        title={`Nothing reviewed in ${year}`}
-        message={`Requests from ${year} that you approved or declined show here.`}
-      />
-    );
-  }
-  return (
-    <View style={{ gap: spacing.md }}>
-      <SectionTitle>
-        Reviewed in {year} ({reviewed.length})
-      </SectionTitle>
-      {reviewed.map((request, index) => (
-        <FadeInView key={request._id} delay={stagger(index)}>
-          <RequestCard
-            request={request}
-            showRequester
-            collapsible
-            autoExpand={request._id === focusId}
-            autoOpenThread={request._id === focusId && focusThread}
-            deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
-            onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
-          />
-        </FadeInView>
-      ))}
-    </View>
   );
 };

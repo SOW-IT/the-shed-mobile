@@ -1282,6 +1282,65 @@ describe("browsing past years", () => {
     expect((await asUser(t, BELLA).query(api.requests.requestYears, {}))!.reviewed).toEqual([YEAR]);
   });
 
+  test("earlier years page back from before this staff year, newest first", async () => {
+    const t = await setupWithHistory([
+      {
+        email: RACHEL,
+        year: YEAR - 2,
+        description: "two years ago",
+        reviews: [{ actor: HENRY, action: "approved", daysIn: 5 }],
+      },
+      {
+        email: RACHEL,
+        year: YEAR - 1,
+        description: "last year",
+        reviews: [
+          { actor: HENRY, action: "approved", daysIn: 3 },
+          { actor: HENRY, action: "declined", daysIn: 4 },
+        ],
+      },
+      {
+        email: HENRY,
+        year: YEAR - 1,
+        description: "henry's own",
+        reviews: [{ actor: HENRY, action: "auto-approved", daysIn: 0 }],
+      },
+    ]);
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "this year", amount: 50 });
+    const opts = (numItems: number, cursor: string | null = null) => ({
+      paginationOpts: { numItems, cursor },
+    });
+
+    const first = (await rachel.query(api.requests.earlierMine, opts(1)))!;
+    expect(first.page.map((r) => r.description)).toEqual(["last year"]);
+    expect(first.isDone).toBe(false);
+    const rest = (await rachel.query(api.requests.earlierMine, opts(10, first.continueCursor)))!;
+    expect(rest.page.map((r) => r.description)).toEqual(["two years ago"]);
+    expect(rest.isDone).toBe(true);
+
+    const all = (await asUser(t, BELLA).query(api.requests.earlierAll, opts(10)))!;
+    expect(all.page.map((r) => r.description)).toEqual(["henry's own", "last year", "two years ago"]);
+    expect(await rachel.query(api.requests.earlierAll, opts(10))).toBeNull();
+
+    const reviewed = (await asUser(t, HENRY).query(api.requests.reviewedHistory, opts(10)))!;
+    expect(reviewed.page.map((r) => r.description)).toEqual(["last year", "two years ago"]);
+    expect(reviewed.page[0].reviewedAt).toBeGreaterThan(reviewed.page[1].reviewedAt);
+
+    const [lastYear] = await t.run((ctx) =>
+      ctx.db
+        .query("requests")
+        .filter((q) => q.eq(q.field("description"), "last year"))
+        .collect()
+    );
+    await t.run((ctx) => ctx.db.delete("requests", lastYear._id));
+    const afterDelete = (await asUser(t, HENRY).query(api.requests.reviewedHistory, opts(10)))!;
+    expect(afterDelete.page.map((r) => r.description)).toEqual(["two years ago"]);
+
+    expect(await t.query(api.requests.earlierMine, opts(10))).toBeNull();
+    expect(await t.query(api.requests.reviewedHistory, opts(10))).toBeNull();
+  });
+
   test("a year isn't offered for reviews of the next year's requests alone", async () => {
     const t = await setupWithHistory([
       {

@@ -1,18 +1,18 @@
 import { useQuery } from "convex/react";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { EventRequestStatus } from "@shared/eventRequests";
 import { ChromeScreen } from "@/components/ChromeScreen";
+import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { EventRequestRow, type EventRequestListRow } from "@/components/events/EventRequestRow";
 import {
   Card,
   EmptyState,
   FadeInView,
-  FloatingYearPicker,
   FooterAction,
   LoadingState,
   Muted,
@@ -21,7 +21,6 @@ import {
   SectionTitle,
   stagger,
   Txt,
-  YearPill,
 } from "@/components/ui";
 import { spacing, typography } from "@/theme";
 import { staffOnlyMessage } from "@shared/staffOnly";
@@ -38,25 +37,27 @@ type Unread = Record<string, Partial<Record<string, number>>>;
 const unreadFor = (unread: Unread, id: string) =>
   Object.values(unread[id] ?? {}).reduce<number>((sum, n) => sum + (n ?? 0), 0);
 
+const yearOfEvent = (row: EventRequestListRow) => row.year;
+const startOfEvent = (row: EventRequestListRow) => Date.parse(row.startsAt) || row.submittedAt;
+
 const EventList = ({
   rows,
   groups = GROUPS,
   unread,
   empty,
-  header,
+  footer,
 }: {
   rows: EventRequestListRow[] | null | undefined;
   groups?: Group[];
   unread: Unread;
   empty: { title: string; message: string; action?: { label: string; onPress: () => void } };
-  header?: ReactNode;
+  footer?: ReactNode;
 }) => {
   const router = useRouter();
   let index = 0;
   return (
     <ReadableColumn>
       <View style={{ gap: spacing.sm }}>
-        {header}
         {rows === undefined ? <LoadingState /> : null}
         {rows !== undefined && (rows === null || rows.length === 0) ? (
           <EmptyState
@@ -86,8 +87,37 @@ const EventList = ({
             </View>
           );
         })}
+        {footer}
       </View>
     </ReadableColumn>
+  );
+};
+
+const EarlierEvents = ({
+  history,
+  unread,
+}: {
+  history: ReturnType<typeof useEarlierYears<EventRequestListRow>>;
+  unread: Unread;
+}) => {
+  const router = useRouter();
+  return (
+    <EarlierYears
+      groups={history.groups}
+      hasMore={history.hasMore}
+      loadingMore={history.loadingMore}
+      onLoadMore={history.loadMore}
+      renderRows={(rows) =>
+        rows.map((event) => (
+          <EventRequestRow
+            key={event._id}
+            event={event}
+            unread={unreadFor(unread, event._id)}
+            onPress={() => router.push(`/event-requests/${event._id}`)}
+          />
+        ))
+      }
+    />
   );
 };
 
@@ -101,21 +131,33 @@ export default function EventRequestsScreen() {
   const me = useQuery(api.directory.me);
   const staff = !!me?.profile && !me.isCampusLeader;
   const viewer = useQuery(api.eventRequests.viewer, staff ? {} : "skip");
-  const years = useQuery(api.eventRequests.years, staff ? {} : "skip");
-  const [mineYear, setMineYear] = useState<number | null>(null);
-  const [allYear, setAllYear] = useState<number | null>(null);
-  const mine = useQuery(
-    api.eventRequests.mine,
-    staff ? (mineYear === null ? {} : { year: mineYear }) : "skip"
-  );
+  const mine = useQuery(api.eventRequests.mine, staff ? {} : "skip");
   const review = useQuery(api.eventRequests.review, viewer?.reviews ? {} : "skip");
-  const shownAllYear = allYear ?? me?.year;
   const all = useQuery(
     api.eventRequests.all,
-    viewer?.seesAll && shownAllYear !== undefined ? { year: shownAllYear } : "skip"
+    viewer?.seesAll && me ? { year: me.year } : "skip"
   );
+  const mineLoadMoreRef = useRef<(() => void) | null>(null);
+  const allLoadMoreRef = useRef<(() => void) | null>(null);
+  const earlierMine = useEarlierYears(api.eventRequests.earlierMine, {
+    enabled: mine != null,
+    exclude: (mine ?? []).map((r) => r._id),
+    yearOf: yearOfEvent,
+    newestOf: startOfEvent,
+    loadMoreRef: mineLoadMoreRef,
+  });
+  const earlierAll = useEarlierYears(api.eventRequests.earlierAll, {
+    enabled: all != null,
+    exclude: (all ?? []).map((r) => r._id),
+    yearOf: yearOfEvent,
+    newestOf: startOfEvent,
+    loadMoreRef: allLoadMoreRef,
+  });
+  const earlierRows = [...earlierMine.groups, ...earlierAll.groups].flatMap((g) => g.rows);
   const ids = [
-    ...new Set([...(mine ?? []), ...(review ?? []), ...(all ?? [])].map((r) => r._id)),
+    ...new Set(
+      [...(mine ?? []), ...(review ?? []), ...(all ?? []), ...earlierRows].map((r) => r._id)
+    ),
   ] as Id<"eventRequests">[];
   const unread =
     useQuery(api.eventRequestComments.unreadCounts, ids.length > 0 ? { ids } : "skip") ?? {};
@@ -150,10 +192,6 @@ export default function EventRequestsScreen() {
     (rows ?? []).reduce((sum, r) => sum + unreadFor(unread, r._id), 0);
   const waitingOnMe = (review ?? []).reduce((n, r) => n + (r.waitingOnMe?.length ?? 0), 0);
   const badge = (count: number) => (count > 0 ? count : undefined);
-  const mineYears = years?.mine ?? [];
-
-  const allYears = years?.all ?? [];
-  const earlierAllYear = allYears.find((y) => y < (shownAllYear ?? me.year));
 
   const tabs: PagerTab[] = [
     {
@@ -164,23 +202,11 @@ export default function EventRequestsScreen() {
         <EventList
           rows={mine}
           unread={unread}
-          header={
-            mineYears.length > 1 ? (
-              <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-                <YearPill
-                  year={mineYear ?? me.year}
-                  years={mineYears}
-                  onSelect={(y) => setMineYear(y === me.year ? null : y)}
-                />
-              </View>
-            ) : null
-          }
+          footer={<EarlierEvents history={earlierMine} unread={unread} />}
           empty={{
             title: "No event requests",
             message:
-              mineYear === null
-                ? "Planning an event? Make an event request: it covers the event's marketing, risks and budget."
-                : `Your department made no event requests in ${mineYear}.`,
+              "Planning an event? Make an event request: it covers the event's marketing, risks and budget.",
           }}
         />
       ),
@@ -216,16 +242,10 @@ export default function EventRequestsScreen() {
               <EventList
                 rows={all}
                 unread={unread}
+                footer={<EarlierEvents history={earlierAll} unread={unread} />}
                 empty={{
                   title: "Nothing here",
-                  message:
-                    shownAllYear === me.year
-                      ? `No event requests yet in ${me.year}.`
-                      : `There were no event requests in ${shownAllYear}.`,
-                  action:
-                    earlierAllYear === undefined
-                      ? undefined
-                      : { label: `See ${earlierAllYear}`, onPress: () => setAllYear(earlierAllYear) },
+                  message: `No event requests yet in ${me.year}.`,
                 }}
               />
             ),
@@ -248,15 +268,10 @@ export default function EventRequestsScreen() {
         />
       }
       footerTabKey="mine"
-      floating={
-        activeKey === "all" && allYears.length > 1 ? (
-          <FloatingYearPicker
-            year={shownAllYear ?? me.year}
-            years={allYears}
-            onSelect={(y) => setAllYear(y === me.year ? null : y)}
-          />
-        ) : undefined
-      }
+      onEndReached={(key) => {
+        if (key === "mine") mineLoadMoreRef.current?.();
+        if (key === "all") allLoadMoreRef.current?.();
+      }}
     />
   );
 }

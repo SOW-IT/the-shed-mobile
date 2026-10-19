@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
@@ -395,6 +396,36 @@ export const archive = query({
       .order("desc")
       .take(LIST_LIMIT);
     return await withRequesterNames(ctx, rows);
+  },
+});
+
+export const earlierMine = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const result = await ctx.db
+      .query("designRequests")
+      .withIndex("by_requester_and_year", (q) =>
+        q.eq("requesterEmail", caller.email).lt("year", caller.year)
+      )
+      .order("desc")
+      .paginate(paginationOpts);
+    return { ...result, page: await withRequesterNames(ctx, result.page) };
+  },
+});
+
+export const earlierArchive = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller || !(await canSeeQueue(ctx, caller))) return null;
+    const result = await ctx.db
+      .query("designRequests")
+      .withIndex("by_year_and_number", (q) => q.lt("year", caller.year))
+      .order("desc")
+      .paginate(paginationOpts);
+    return { ...result, page: await withRequesterNames(ctx, result.page) };
   },
 });
 

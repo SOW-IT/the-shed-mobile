@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { formatAmount, sumAmounts, toCents } from "../shared/money";
 import {
@@ -752,6 +753,64 @@ export const reviewedInYear = query({
       .filter((r) => reviewedRequestOf(r, caller.email, year))
       .sort((a, b) => b._creationTime - a._creationTime);
     return await Promise.all(rows.map((request) => requestForCaller(ctx, caller, request)));
+  },
+});
+
+export const earlierMine = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    return await ctx.db
+      .query("requests")
+      .withIndex("by_requester", (q) =>
+        q
+          .eq("requesterEmail", caller.email)
+          .lt("_creationTime", staffYearStartMs(caller.year))
+      )
+      .order("desc")
+      .paginate(paginationOpts);
+  },
+});
+
+export const earlierAll = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller || !isMemberOfDepartment(caller.profile, FINANCE)) return null;
+    return await ctx.db
+      .query("requests")
+      .withIndex("by_creation_time", (q) =>
+        q.lt("_creationTime", staffYearStartMs(caller.year))
+      )
+      .order("desc")
+      .paginate(paginationOpts);
+  },
+});
+
+export const reviewedHistory = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const result = await ctx.db
+      .query("requestEvents")
+      .withIndex("by_actor", (q) => q.eq("actorEmail", caller.email))
+      .order("desc")
+      .paginate(paginationOpts);
+    const seen = new Set<Id<"requests">>();
+    const page: (Doc<"requests"> & { reviewedAt: number })[] = [];
+    for (const event of result.page) {
+      if (!isApprovalAction(event.action) || seen.has(event.requestId)) continue;
+      seen.add(event.requestId);
+      const request = await ctx.db.get("requests", event.requestId);
+      if (request === null || request.requesterEmail === caller.email) continue;
+      page.push({
+        ...(await requestForCaller(ctx, caller, request)),
+        reviewedAt: event._creationTime,
+      });
+    }
+    return { ...result, page };
   },
 });
 
