@@ -20,10 +20,11 @@ that looks back now carries on into earlier years as you scroll.
   when the list is too short to scroll.
 - **Review keeps everything you've reviewed.** Below the requests waiting on
   you and the ones you reviewed recently, Review lists every other request you
-  approved or declined, grouped by the staff year you reviewed it in.
-- **All (Reimbursements) puts earlier years under Completed**, after this
-  year's completed requests. Earlier years' receipt-file warnings now sit
-  under each year's heading.
+  approved or declined, under the staff year it was made in, most recently
+  reviewed first.
+- **All (Reimbursements) puts earlier years' completed requests under
+  Completed**, after this year's. Earlier years' receipt-file warnings sit
+  under each year's heading on Mine, Review and All.
 - **The year pickers are gone** from Reimbursements, Design Requests and Event
   Requests.
 

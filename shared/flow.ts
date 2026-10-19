@@ -338,6 +338,12 @@ export const requestDisplayStatus = (r: RequestLifecycle): RequestDisplayStatus 
   return "AWAITING PAYMENT";
 };
 
+export const requestStaffYear = (request: { _creationTime: number }): number =>
+  eventStaffYear(request._creationTime);
+
+export const requestCreatedAt = (request: { _creationTime: number }): number =>
+  request._creationTime;
+
 export const requestCompleted = (r: RequestLifecycle): boolean =>
   requestDeclined(r) || r.paid === true;
 

@@ -7,15 +7,17 @@ import { Alert, Image, Platform, Pressable, StyleSheet, Switch, Text, View } fro
 import {
   DIRECTOR_APPROVAL_THRESHOLD,
   requestCompleted,
+  requestCreatedAt,
   requestDeclined,
   requestFullyApproved,
+  requestStaffYear,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
 import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
-import { createdAtOf, ReceiptFilesNote, requestStaffYear } from "@/components/ReceiptFilesNote";
+import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import {
   getLocalFileSizeBytes,
@@ -846,7 +848,7 @@ export const MyRequests = ({
     enabled: requests != null,
     exclude: (requests ?? []).map((r) => r._id),
     yearOf: requestStaffYear,
-    newestOf: createdAtOf,
+    newestOf: requestCreatedAt,
     loadMoreRef,
   });
   const cancel = useMutation(api.requests.cancel);
@@ -890,7 +892,7 @@ export const MyRequests = ({
       ) : requests.length === 0 ? (
         <EmptyState
           icon="receipt-outline"
-          title="No requests yet"
+          title={earlier.groups.length > 0 ? "Nothing this year yet" : "No requests yet"}
           action={onMakeRequest ? { label: "Make a request", onPress: onMakeRequest } : undefined}
         />
       ) : (

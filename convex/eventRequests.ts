@@ -148,10 +148,6 @@ export const waitingOnMe = query({
   },
 });
 
-/**
- * The caller's events and their department's, from `year`; for this staff
- * year, plus any still in progress from earlier years.
- */
 async function ownEventsInYear(ctx: QueryCtx, caller: CallerContext, year: number) {
   const events: EventRequest[] = [
     ...(await ctx.db
@@ -174,6 +170,10 @@ async function ownEventsInYear(ctx: QueryCtx, caller: CallerContext, year: numbe
   return events;
 }
 
+/**
+ * The caller's events and their department's, from `year`; for this staff
+ * year, plus any still in progress from earlier years.
+ */
 export const mine = query({
   args: { year: v.optional(v.number()) },
   handler: async (ctx, args) => {

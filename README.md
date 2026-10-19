@@ -163,7 +163,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   to anyone who has reviewed a request before), All (Finance staff), Bank.
   Each tab runs back through earlier staff years as you scroll, newest first
   under a heading per year: on Mine your own requests, on Review everything
-  you approved or declined, on All (under Completed) every request. The New
+  you approved or declined, on All (under Completed) every completed request;
+  a request sits under the year it was made in. The New
   Request sheet shows who the request will go to as you type
   (`requests.approvalPreview`), including the Director from the threshold and
   any step your own role skips; image receipts show a thumbnail before you

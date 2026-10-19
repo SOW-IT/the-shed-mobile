@@ -23,6 +23,7 @@ export function useEarlierYears<Row extends { _id: string }>(
   {
     enabled,
     exclude,
+    keep,
     yearOf,
     newestOf,
     loadMoreRef,
@@ -30,6 +31,7 @@ export function useEarlierYears<Row extends { _id: string }>(
   }: {
     enabled: boolean;
     exclude: readonly string[];
+    keep?: (row: Row) => boolean;
     yearOf: (row: Row) => number;
     newestOf: (row: Row) => number;
     loadMoreRef?: MutableRefObject<(() => void) | null>;
@@ -41,7 +43,8 @@ export function useEarlierYears<Row extends { _id: string }>(
     scopeKey: enabled ? "earlier" : "off",
     args: (cursor) =>
       enabled ? { paginationOpts: { numItems: pageSize, cursor } } : "skip",
-    rowsOf: (result) => result.page.filter((row) => !excluded.has(row._id)),
+    rowsOf: (result) =>
+      result.page.filter((row) => !excluded.has(row._id) && (keep?.(row) ?? true)),
     keyOf: (row) => row._id,
     loadMoreRef,
   });
@@ -84,9 +87,7 @@ export function EarlierYears<Row>({
     <>
       {groups.map(({ year, rows }) => (
         <View key={year} style={{ gap: spacing.sm }}>
-          <SectionTitle>
-            {heading(year)} · {rows.length}
-          </SectionTitle>
+          <SectionTitle>{hasMore ? heading(year) : `${heading(year)} · ${rows.length}`}</SectionTitle>
           {note?.(year)}
           {renderRows(rows)}
         </View>

@@ -2,11 +2,18 @@ import { useMutation, useQuery } from "convex/react";
 import { type MutableRefObject, useEffect, useState } from "react";
 import { View } from "react-native";
 import { spacing, useAppTheme } from "@/theme";
-import { eventStaffYear, nextStepAfter, reviewedHeading, STEP_LABELS } from "../../shared/flow";
+import {
+  eventStaffYear,
+  nextStepAfter,
+  requestStaffYear,
+  reviewedHeading,
+  STEP_LABELS,
+} from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
 import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
+import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import { ReceiptRecipientList } from "@/components/ReceiptRecipientList";
 import { LabelledField } from "@/components/events/LabelledField";
 import {
@@ -30,7 +37,6 @@ import {
 type Step = "hod" | "budgetManager" | "director" | "financeHead";
 
 const reviewedAtOf = (row: { reviewedAt: number }) => row.reviewedAt;
-const reviewedYearOf = (row: { reviewedAt: number }) => eventStaffYear(row.reviewedAt);
 
 const DeclineSheet = ({
   target,
@@ -204,7 +210,7 @@ export const ReviewList = ({
         : []),
       ...(reviewed ?? []),
     ].map((r) => r._id),
-    yearOf: reviewedYearOf,
+    yearOf: requestStaffYear,
     newestOf: reviewedAtOf,
     loadMoreRef,
     pageSize: 60,
@@ -380,7 +386,7 @@ export const ReviewList = ({
         hasMore={earlier.hasMore}
         loadingMore={earlier.loadingMore}
         onLoadMore={earlier.loadMore}
-        heading={(year) => `Reviewed in ${year}`}
+        note={(year) => <ReceiptFilesNote year={year} />}
         renderRows={(rows) =>
           rows.map((request) => (
             <RequestCard key={request._id} request={request} showRequester collapsible />

@@ -50,11 +50,11 @@ _Avoid_: invoice (the domain word is Receipt; the UI still says receipt/invoice)
 **Past years**:
 Each list carries on past this staff year as you scroll, newest first, a
 heading per year: Mine the caller's own Requests, Review every other person's
-Request the caller approved or declined (grouped by the year it was reviewed
-in; Review stays for anyone who has reviewed a Request, even if they approve
-nothing now), and All (Finance, under Completed) every Request. On Mine and
-All a Request belongs to the year it was made in, even when it was reviewed
-in the next.
+Request the caller approved or declined (Review stays for anyone who has
+reviewed a Request, even if they approve nothing now), and All (Finance, under
+Completed) every completed Request. A Request belongs to the year it was made
+in, even when it was reviewed in the next; Review orders a year's Requests by
+when the caller reviewed them.
 
 **Deadlock prevention**:
 Refusing a submission up front when the year is missing an approver that

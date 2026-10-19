@@ -15,8 +15,3 @@ export const ReceiptFilesNote = ({ year }: { year: number }) => {
     />
   );
 };
-
-export const requestStaffYear = (request: { _creationTime: number }) =>
-  eventStaffYear(request._creationTime);
-
-export const createdAtOf = (request: { _creationTime: number }) => request._creationTime;
