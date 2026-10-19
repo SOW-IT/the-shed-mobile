@@ -204,7 +204,7 @@ export default function EventRequestsScreen() {
           unread={unread}
           footer={<EarlierEvents history={earlierMine} unread={unread} />}
           empty={{
-            title: "No event requests",
+            title: earlierMine.groups.length > 0 ? "Nothing this year yet" : "No event requests",
             message:
               "Planning an event? Make an event request: it covers the event's marketing, risks and budget.",
           }}

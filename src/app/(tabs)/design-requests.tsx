@@ -245,7 +245,7 @@ export default function DesignRequestsScreen() {
           unread={unread}
           footer={<EarlierRequests history={earlierMine} showRequester={false} unread={unread} />}
           empty={{
-            title: "No design requests",
+            title: earlierMine.groups.length > 0 ? "Nothing this year yet" : "No design requests",
             message:
               "Ask the Marketing team to design something for a project. For an event, make an Event Request instead.",
           }}
