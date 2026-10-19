@@ -62,6 +62,7 @@ export function usePagedQuery<Query extends PagedQueryRef, Row>(
   hasMore: boolean;
   loadMore: () => void;
   loadingFirstPage: boolean;
+  loadingMore: boolean;
   /** Rows shown are the previous scope's, held while the new one loads. */
   refreshing: boolean;
 } {
@@ -164,6 +165,7 @@ export function usePagedQuery<Query extends PagedQueryRef, Row>(
     hasMore,
     loadMore,
     loadingFirstPage: shown[0] === undefined && rows.length === 0,
+    loadingMore: pageCount > 1 && pages[pageCount - 1] === undefined,
     refreshing: holding,
   };
 }

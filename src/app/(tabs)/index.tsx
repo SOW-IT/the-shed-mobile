@@ -18,21 +18,19 @@ import { ExportRequestsCard } from "@/components/ExportRequestsCard";
 import { GuideSheet, MyRequests } from "@/components/MyRequests";
 import { type RequestPrefill } from "@/components/MyRequests";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
-import { ReviewedInYear, ReviewList } from "@/components/ReviewList";
+import { ReviewList } from "@/components/ReviewList";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import {
   Btn,
   Card,
   FadeInView,
   ReadableColumn,
-  FloatingYearPicker,
   FooterAction,
   LoadingState,
   Muted,
   Row,
   Screen,
   Txt,
-  WarningBanner,
 } from "@/components/ui";
 import { useSignOut } from "@/hooks/usePushRegistration";
 import { typography } from "@/theme";
@@ -45,7 +43,6 @@ export default function RequestsScreen() {
     me?.profile ? { year: me.year } : "skip"
   );
   const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const requestYears = useQuery(
     api.requests.requestYears,
     me?.profile ? {} : "skip"
@@ -172,29 +169,6 @@ export default function RequestsScreen() {
   const activeSegment =
     wanted !== null && segments.some((s) => s.key === wanted) ? wanted : "mine";
 
-  const currentYear = me?.year;
-  // One picked year across Mine, Review and All, each offering only years
-  // it has something for (your requests, ones you reviewed, every request);
-  // a tab without the picked year shows this year instead.
-  const yearsFor = (key: string): number[] =>
-    key === "mine"
-      ? (requestYears?.mine ?? [])
-      : key === "review"
-        ? (requestYears?.reviewed ?? [])
-        : key === "all"
-          ? (requestYears?.all ?? [])
-          : [];
-  const pastYearFor = (key: string): number | undefined =>
-    currentYear != null &&
-    selectedYear != null &&
-    selectedYear !== currentYear &&
-    yearsFor(key).includes(selectedYear)
-      ? selectedYear
-      : undefined;
-  const pickerYears = yearsFor(activeSegment);
-  const viewingYear =
-    pastYearFor(activeSegment) ?? currentYear ?? new Date().getFullYear();
-
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   const myAssignments = me?.profile?.assignments ?? [];
   const defaultDepartment =
@@ -216,6 +190,8 @@ export default function RequestsScreen() {
   const showMakeRequest = me?.profile != null;
 
   const loadMoreRef = useRef<(() => void) | null>(null);
+  const mineLoadMoreRef = useRef<(() => void) | null>(null);
+  const reviewLoadMoreRef = useRef<(() => void) | null>(null);
 
   if (me === undefined) return <Screen><LoadingState /></Screen>;
 
@@ -255,25 +231,10 @@ export default function RequestsScreen() {
 
   if (wanted === null) return <Screen><LoadingState /></Screen>;
 
-  const receiptFilesBanner = (pastYear: number | undefined) =>
-    pastYear === undefined ? null : (
-      <FadeInView delay={40}>
-        <WarningBanner
-          message={
-            pastYear === me.year - 1
-              ? `Receipt files for the ${pastYear} staff year will be deleted on 1 October ${me.year}, when the staff year rolls over. Download anything you need to keep.`
-              : `Receipt files for the ${pastYear} staff year have already been deleted and can no longer be opened. Only the file names remain for reference.`
-          }
-        />
-      </FadeInView>
-    );
-
   const renderAll = () => (
     <>
-      {receiptFilesBanner(pastYearFor("all"))}
       <ExportRequestsCard currentYear={me.year} />
       <AllRequestsList
-        year={pastYearFor("all")}
         loadMoreRef={loadMoreRef}
         focusId={focusId}
         focusThread={focusThread}
@@ -285,30 +246,18 @@ export default function RequestsScreen() {
 
   const renderTab = (key: string) => {
     switch (key) {
-      case "review": {
-        const pastYear = pastYearFor("review");
+      case "review":
         return (
           <ReadableColumn>
-            {receiptFilesBanner(pastYear)}
-            {pastYear !== undefined ? (
-              <ReviewedInYear
-                year={pastYear}
-                focusId={focusId}
-                focusThread={focusThread}
-                focusReopenKey={focusReopenKey}
-                onFocusThreadOpened={onFocusThreadOpened}
-              />
-            ) : (
-              <ReviewList
-                focusId={focusId}
-                focusThread={focusThread}
-                focusReopenKey={focusReopenKey}
-                onFocusThreadOpened={onFocusThreadOpened}
-              />
-            )}
+            <ReviewList
+              focusId={focusId}
+              focusThread={focusThread}
+              focusReopenKey={focusReopenKey}
+              onFocusThreadOpened={onFocusThreadOpened}
+              loadMoreRef={reviewLoadMoreRef}
+            />
           </ReadableColumn>
         );
-      }
       case "all":
         return renderAll();
       case "bank":
@@ -320,9 +269,8 @@ export default function RequestsScreen() {
       default:
         return (
           <>
-            {receiptFilesBanner(pastYearFor("mine"))}
             <MyRequests
-              year={pastYearFor("mine")}
+              loadMoreRef={mineLoadMoreRef}
               departments={departmentNames}
               defaultDepartment={defaultDepartment}
               newOpen={newRequestOpen}
@@ -355,6 +303,8 @@ export default function RequestsScreen() {
         fullWidth
         onEndReached={(key) => {
           if (key === "all") loadMoreRef.current?.();
+          if (key === "mine") mineLoadMoreRef.current?.();
+          if (key === "review") reviewLoadMoreRef.current?.();
         }}
         footer={
           showMakeRequest ? (
@@ -366,16 +316,6 @@ export default function RequestsScreen() {
           ) : undefined
         }
         footerTabKey="mine"
-        floatingAboveFooter
-        floating={
-          pickerYears.length > 1 ? (
-            <FloatingYearPicker
-              year={viewingYear}
-              years={pickerYears}
-              onSelect={(y) => setSelectedYear(y === currentYear ? null : y)}
-            />
-          ) : undefined
-        }
       />
       <GuideSheet
         visible={guideOpen}

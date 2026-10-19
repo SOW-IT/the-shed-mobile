@@ -750,6 +750,51 @@ describe("lists", () => {
     });
     expect(await asUser(t, LEE).query(api.eventRequests.years, {})).toBeNull();
   });
+
+  test("earlier years, newest first, a page at a time", async () => {
+    const t = await setup();
+    await create(t);
+    await t.run(async (ctx) => {
+      const event = (await ctx.db.query("eventRequests").collect())[0];
+      const forms = await ctx.db.query("eventSubForms").collect();
+      for (const over of [
+        { year: YEAR - 3 },
+        { year: YEAR - 1, requesterEmail: OLLIE, department: "Events" },
+      ]) {
+        const copy = await ctx.db.insert("eventRequests", {
+          ...omitSystem(event),
+          number: 1,
+          ...over,
+        });
+        for (const form of forms) {
+          await ctx.db.insert("eventSubForms", { ...omitSystem(form), eventRequestId: copy });
+        }
+      }
+    });
+    const page = (email: string, cursor: string | null) =>
+      asUser(t, email).query(api.eventRequests.earlierMine, {
+        paginationOpts: { numItems: 20, cursor },
+      });
+
+    const first = (await page(ELLA, null))!;
+    expect(first.page.map((r) => [r.year, r.requesterEmail])).toEqual([[YEAR - 1, OLLIE]]);
+    expect(first).toMatchObject({ isDone: false, continueCursor: String(YEAR - 2) });
+    const second = (await page(ELLA, first.continueCursor))!;
+    expect(second.page.map((r) => r.year)).toEqual([YEAR - 3]);
+    const last = (await page(ELLA, second.continueCursor))!;
+    expect(last).toMatchObject({ page: [], isDone: true, continueCursor: "" });
+
+    expect((await page(OLLIE, null))!.page.map((r) => r.year)).toEqual([YEAR - 1]);
+    expect(await page(LEE, null)).toBeNull();
+
+    const all = (email: string) =>
+      asUser(t, email).query(api.eventRequests.earlierAll, {
+        paginationOpts: { numItems: 20, cursor: null },
+      });
+    expect((await all(ELLA))!.page.map((r) => r.year)).toEqual([YEAR - 1, YEAR - 3]);
+    expect((await all(ELLA))!.page[0].forms.marketing).toBeDefined();
+    expect(await all(OLLIE)).toBeNull();
+  });
 });
 
 const omitSystem = <D extends { _id: unknown; _creationTime: unknown }>(doc: D) => {

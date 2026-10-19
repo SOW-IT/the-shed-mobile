@@ -295,8 +295,27 @@ describe("who sees what", () => {
       all: [YEAR, YEAR - 2],
     });
 
+    const firstPage = { paginationOpts: { numItems: 1, cursor: null } };
+    const earlier = await rachel.query(api.designRequests.earlierMine, firstPage);
+    expect(earlier!.page).toHaveLength(1);
+    expect(earlier!.isDone).toBe(false);
+    const rest = await rachel.query(api.designRequests.earlierMine, {
+      paginationOpts: { numItems: 10, cursor: earlier!.continueCursor },
+    });
+    expect([...earlier!.page, ...rest!.page].map((r) => r.number).sort()).toEqual([1, 2]);
+    expect(rest!.page.every((r) => r.year === YEAR - 2)).toBe(true);
+    expect(rest!.isDone).toBe(true);
+
+    expect(await rachel.query(api.designRequests.earlierArchive, firstPage)).toBeNull();
+    const earlierArchive = await asUser(t, MARY).query(api.designRequests.earlierArchive, {
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(earlierArchive!.page.map((r) => r.number)).toEqual([2, 1]);
+    expect(earlierArchive!.page[0]).toHaveProperty("requesterName");
+
     expect(await t.query(api.designRequests.mine, {})).toBeNull();
     expect(await t.query(api.designRequests.years, {})).toBeNull();
+    expect(await t.query(api.designRequests.earlierMine, firstPage)).toBeNull();
   });
 
   test("a request is visible to its requester, Marketing and admins only", async () => {

@@ -48,7 +48,8 @@ push notifications instead.
 **Marketing queue** and **archive**:
 The team's two views. The queue is every open request, from any year: what's
 waiting for approval and what's approved but not finished. The archive is
-every request from one staff year, for looking back.
+this staff year's requests, then earlier years' as you scroll, for looking
+back.
 
 **Status**:
 `Waiting for approval → Approved → Complete`, or closed early as `Declined`

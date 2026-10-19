@@ -1,11 +1,18 @@
 import { useQuery } from "convex/react";
 import { MutableRefObject, useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
-import { requestCompleted, requestDisplayStatus } from "../../shared/flow";
+import {
+  requestCompleted,
+  requestCreatedAt,
+  requestDisplayStatus,
+  requestStaffYear,
+} from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { spacing } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
+import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
+import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import {
   EmptyState,
   FadeInView,
@@ -42,24 +49,19 @@ const sortRequests = (
   });
 
 export const AllRequestsList = ({
-  year,
   loadMoreRef,
   focusId,
   focusThread = false,
   focusReopenKey,
   onFocusThreadOpened,
 }: {
-  year?: number;
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
   onFocusThreadOpened?: () => void;
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) => {
-  const requests = useQuery(
-    api.requests.allRequests,
-    year !== undefined ? { year } : {}
-  );
+  const requests = useQuery(api.requests.allRequests, {});
   const unread =
     useQuery(
       api.comments.unreadCountsForRequests,
@@ -67,9 +69,9 @@ export const AllRequestsList = ({
     ) ?? {};
   const [pickedFilter, setFilter] = useState<"ongoing" | "completed" | null>(null);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset tab on year change
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFilter(null);
-  }, [year, focusId]);
+  }, [focusId]);
   const focused = focusId ? requests?.find((request) => request._id === focusId) : undefined;
   const filter =
     pickedFilter ??
@@ -77,9 +79,7 @@ export const AllRequestsList = ({
       ? requestCompleted(focused)
         ? "completed"
         : "ongoing"
-      : year !== undefined
-        ? "completed"
-        : "ongoing");
+      : "ongoing");
 
   const isCompleted = filter === "completed";
   const filtered = sortRequests(
@@ -91,9 +91,9 @@ export const AllRequestsList = ({
 
   const [visible, setVisible] = useState(PAGE_SIZE);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging on filter/year change
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging on filter change
     setVisible(PAGE_SIZE);
-  }, [filter, year]);
+  }, [filter]);
 
   const focusIndex = focused ? filtered.findIndex((request) => request._id === focused._id) : -1;
   const shown = filtered.slice(0, Math.max(visible, focusIndex + 1));
@@ -108,13 +108,27 @@ export const AllRequestsList = ({
     pending.current = true;
     setVisible((n) => n + PAGE_SIZE);
   }, []);
+  const earlierLoadMoreRef = useRef<(() => void) | null>(null);
+  const showEarlier = isCompleted && requests != null && !hasMore;
+  const earlier = useEarlierYears(api.requests.earlierAll, {
+    enabled: showEarlier,
+    exclude: (requests ?? []).map((r) => r._id),
+    keep: requestCompleted,
+    yearOf: requestStaffYear,
+    newestOf: requestCreatedAt,
+    loadMoreRef: earlierLoadMoreRef,
+  });
   useEffect(() => {
     if (!loadMoreRef) return;
-    loadMoreRef.current = hasMore ? loadMore : null;
+    loadMoreRef.current = hasMore
+      ? loadMore
+      : showEarlier
+        ? () => earlierLoadMoreRef.current?.()
+        : null;
     return () => {
       loadMoreRef.current = null;
     };
-  }, [loadMoreRef, hasMore, loadMore]);
+  }, [loadMoreRef, hasMore, loadMore, showEarlier]);
 
   return (
     <>
@@ -170,6 +184,22 @@ export const AllRequestsList = ({
           <SowSpinner size={36} />
         </View>
       )}
+      {showEarlier ? (
+        <EarlierYears
+          groups={earlier.groups}
+          hasMore={earlier.hasMore}
+          loadingMore={earlier.loadingMore}
+          onLoadMore={earlier.loadMore}
+          note={(y) => <ReceiptFilesNote year={y} />}
+          renderRows={(rows) => (
+            <Grid minColumnWidth={380}>
+              {rows.map((request) => (
+                <RequestCard key={request._id} request={request} showRequester collapsible />
+              ))}
+            </Grid>
+          )}
+        />
+      ) : null}
     </>
   );
 };
