@@ -6,6 +6,27 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.13] - 2026-10-19
+
+Past years' requests no longer sit behind a year picker: every request list
+that looks back now carries on into earlier years as you scroll.
+
+### Changed
+- **Earlier years load as you scroll.** Reimbursements (Mine, Review and All),
+  Design Requests (Mine and All) and Event Requests (Mine and All) show this
+  year as before, then last year's requests, then the year before, newest
+  first, each year under its own heading. More load as you reach the bottom,
+  the way Attendance's Members list does, and a Show earlier button appears
+  when the list is too short to scroll.
+- **Review keeps everything you've reviewed.** Below the requests waiting on
+  you and the ones you reviewed recently, Review lists every other request you
+  approved or declined, grouped by the staff year you reviewed it in.
+- **All (Reimbursements) puts earlier years under Completed**, after this
+  year's completed requests. Earlier years' receipt-file warnings now sit
+  under each year's heading.
+- **The year pickers are gone** from Reimbursements, Design Requests and Event
+  Requests.
+
 ## [2.9.12] - 2026-10-19
 
 The app reads far less from the database and downloads photos once instead
