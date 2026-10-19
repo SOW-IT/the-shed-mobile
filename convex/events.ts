@@ -367,7 +367,7 @@ export const create = mutation({
       tagIds,
       weekly,
     });
-    const eventId = await ctx.db.insert("events", eventFields);
+    const eventId = await ctx.db.insert("events", { ...eventFields, attendanceCount: 0 });
     await logAttendanceAction(ctx, {
       actorEmail: email,
       entityType: "event",

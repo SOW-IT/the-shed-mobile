@@ -57,7 +57,7 @@ describe("event attendance counts", () => {
     const t = await setup();
     const eventId = await createEvent(t);
     const [ann, ben] = await addMembers(t, ["Ann", "Ben"]);
-    expect(await storedCount(t, eventId)).toBeNull();
+    expect(await storedCount(t, eventId)).toBe(0);
     expect(await listedCount(t, eventId)).toBe(0);
 
     const admin = asUser(t, ADMIN);
@@ -87,6 +87,7 @@ describe("event attendance counts", () => {
     const eventId = await createEvent(t);
     const [ann, ben] = await addMembers(t, ["Ann", "Ben"]);
     await t.run(async (ctx) => {
+      await ctx.db.patch(eventId, { attendanceCount: undefined });
       for (const memberId of [ann, ben]) {
         await ctx.db.insert("attendance", { eventId, memberId, signInTime: Date.now() });
       }

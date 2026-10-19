@@ -128,7 +128,7 @@ export default function TabsLayout() {
   usePushRegistration({ navigationReady: !waitingForRole, signedInAs: me?.email ?? null });
   useReportAppVersion();
   useReportSeen();
-  useBadgeSync(!!me?.profile);
+  useBadgeSync(me === undefined ? undefined : !!me?.profile);
 
   const isStaff = !!me?.profile;
 

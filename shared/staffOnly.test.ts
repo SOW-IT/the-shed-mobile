@@ -14,6 +14,12 @@ describe("staffOnlyMessage", () => {
     );
   });
 
+  it("names reimbursement requests for a personal account", () => {
+    expect(
+      staffOnlyMessage("Reimbursement", { email: "john@icloud.com", year: 2027, profile: null })
+    ).toBe("Reimbursement requests are for SOW staff. Sign in with your SOW Google account to make one.");
+  });
+
   it("asks a personal account to use a SOW account instead of promising a role", () => {
     expect(staffOnlyMessage("Event", { email: "john@icloud.com", year: 2027, profile: null })).toBe(
       "Event requests are for SOW staff. Sign in with your SOW Google account to make one."

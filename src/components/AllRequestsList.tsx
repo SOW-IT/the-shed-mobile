@@ -69,7 +69,7 @@ export const AllRequestsList = ({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset tab on year change
     setFilter(null);
-  }, [year]);
+  }, [year, focusId]);
   const focused = focusId ? requests?.find((request) => request._id === focusId) : undefined;
   const filter =
     pickedFilter ??

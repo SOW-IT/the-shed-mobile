@@ -6,6 +6,38 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.14] - 2026-10-19
+
+Fixes for regressions found reviewing 2.9.9 to 2.9.12: tabs that moved under
+you, reminders that missed someone, a badge that blinked, and photos that
+showed initials first.
+
+### Fixed
+- **Reimbursements and Design Requests open on the right tab and stay
+  there.** The tab you land on (Review, or the Marketing queue, when something
+  waits on you and nothing of yours needs action; Mine otherwise) is decided
+  once when the screen opens. Before, approving the last item in Review threw
+  you back to Mine, and a request arriving while you sat on Mine pulled you
+  over to Review.
+- **A linked request always shows.** Opening a request from a notification
+  while All was switched to Completed left the filter on Completed and hid an
+  ongoing request; the filter now follows the link.
+- **Personal accounts are asked to use their SOW account on Reimbursements
+  too.** A personal Google account arriving from a link was told "No role or
+  department is assigned ... yet"; it now gets the same message as Event and
+  Design Requests.
+- **A form sent back for changes chases whoever submitted it.** The reminder
+  went to the requester and the department Head only, so a department member
+  who filled in and submitted the form was told once and never reminded.
+- **One morning digest per person**, even when they are reached under both
+  staff address spellings (sow.org.au and sowaustralia.com).
+- **The app icon badge no longer blinks to zero on launch** before your
+  notifications have loaded (iOS).
+- **New events store their attendance count from the start**, so the event
+  list never has to count sign-ins for them.
+- **Photos show straight away on first launch.** A face downloading into the
+  app's cache showed initials until it landed; it now shows the web copy
+  meanwhile.
 ## [2.9.13] - 2026-10-19
 
 ### Changed
