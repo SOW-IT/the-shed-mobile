@@ -80,6 +80,30 @@ export const timeAgo = (ms: number, now: number = Date.now()): string => {
   return `${Math.floor(months / 12)}y ago`;
 };
 
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+export const daysSince = (since: number, now: number = Date.now()): number =>
+  Math.max(0, Math.floor((now - since) / DAY_MS));
+
+export const waitingLabel = (since: number, now: number = Date.now()): string => {
+  const days = daysSince(since, now);
+  if (days === 0) return "Waiting under a day";
+  return `Waiting ${days} ${days === 1 ? "day" : "days"}`;
+};
+
+export const formatDuration = (ms: number): string => {
+  if (ms < HOUR_MS) return "under an hour";
+  const hours = Math.round(ms / HOUR_MS);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  const days = ms / DAY_MS;
+  if (days < 10) {
+    const rounded = Math.round(days * 10) / 10;
+    return `${rounded} ${rounded === 1 ? "day" : "days"}`;
+  }
+  return `${Math.round(days)} days`;
+};
+
 export const compactAgo = (ms: number, now: number = Date.now()): string => {
   const mins = Math.floor((now - ms) / MINUTE_MS);
   if (mins < 1) return "now";

@@ -60,6 +60,7 @@ import {
 } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { StepTimingCard } from "@/components/admin/StepTimingCard";
 import { SuggestedMerges } from "@/components/admin/SuggestedMerges";
 import { useAdminMutations } from "@/hooks/useAdminMutations";
 import { sydneyDateTime } from "@/lib/sydneyTime";
@@ -1859,6 +1860,8 @@ export default function AdminScreen() {
               </Card>
             </View>
           )}
+
+          {hasAccess && <StepTimingCard year={selectedYear} />}
 
           {isAdmin && (
             <View style={{ gap: spacing.md }}>

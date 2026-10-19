@@ -64,7 +64,9 @@ import type * as requests from "../requests.js";
 import type * as sowInsights from "../sowInsights.js";
 import type * as staffLeavers from "../staffLeavers.js";
 import type * as staffMembers from "../staffMembers.js";
+import type * as stepTiming from "../stepTiming.js";
 import type * as userLink from "../userLink.js";
+import type * as waitingOnMe from "../waitingOnMe.js";
 import type * as weeklyInsights from "../weeklyInsights.js";
 import type * as weeklyInsightsData from "../weeklyInsightsData.js";
 
@@ -131,7 +133,9 @@ declare const fullApi: ApiFromModules<{
   sowInsights: typeof sowInsights;
   staffLeavers: typeof staffLeavers;
   staffMembers: typeof staffMembers;
+  stepTiming: typeof stepTiming;
   userLink: typeof userLink;
+  waitingOnMe: typeof waitingOnMe;
   weeklyInsights: typeof weeklyInsights;
   weeklyInsightsData: typeof weeklyInsightsData;
 }>;

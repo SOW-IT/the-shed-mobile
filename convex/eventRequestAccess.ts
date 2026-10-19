@@ -37,7 +37,7 @@ export type SubForms = Record<SubFormKind, SubForm>;
 // ── Who can use event requests ──────────────────────────────────────────────
 
 /** Campus leaders work from Attendance; event requests are for the staff above them. */
-const isCampusLeader = (caller: CallerContext) =>
+export const isCampusLeader = (caller: CallerContext) =>
   assignmentsOf(caller.profile).some((a) => roleNeedsUniversity(a.role));
 
 export async function optionalEventStaff(ctx: Ctx): Promise<CallerContext | null> {
@@ -181,6 +181,9 @@ export async function requireEvent(ctx: Ctx, id: Id<"eventRequests">) {
   if (!event) throw new ConvexError("Event request not found.");
   return event;
 }
+
+export const pendingSince = (form: Pick<SubForm, "submittedAt" | "directorApprovedAt">): number =>
+  Math.max(form.submittedAt ?? 0, form.directorApprovedAt ?? 0);
 
 export async function subFormsOf(ctx: Ctx, id: Id<"eventRequests">): Promise<SubForms> {
   const rows = await ctx.db

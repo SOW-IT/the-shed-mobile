@@ -1,14 +1,17 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { Doc } from "./_generated/dataModel";
 import {
   ActionCtx,
   internalAction,
   internalMutation,
   internalQuery,
   mutation,
+  QueryCtx,
 } from "./_generated/server";
 import { optionalEmail, requireEmail } from "./model";
+import { unreadCountOf } from "./notifications";
+
+export type PushTarget = { token: string; badge: number };
 
 export const register = mutation({
   args: { token: v.string() },
@@ -43,13 +46,19 @@ export const unregister = mutation({
   },
 });
 
+const targetsFor = async (ctx: QueryCtx, email: string): Promise<PushTarget[]> => {
+  const rows = await ctx.db
+    .query("pushTokens")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .take(20);
+  if (rows.length === 0) return [];
+  const badge = await unreadCountOf(ctx, email);
+  return rows.map((row) => ({ token: row.token, badge }));
+};
+
 export const tokensForEmail = internalQuery({
   args: { email: v.string() },
-  handler: async (ctx, args): Promise<Doc<"pushTokens">[]> =>
-    await ctx.db
-      .query("pushTokens")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .take(20),
+  handler: async (ctx, args): Promise<PushTarget[]> => await targetsFor(ctx, args.email),
 });
 
 export const removeToken = internalMutation({
@@ -74,12 +83,12 @@ const EXPO_BATCH = 100;
  */
 async function pushToTokens(
   ctx: ActionCtx,
-  tokens: string[],
+  targets: PushTarget[],
   message: { title: string; body: string; url?: string }
 ): Promise<void> {
   const receipts: { id: string; token: string }[] = [];
-  for (let start = 0; start < tokens.length; start += EXPO_BATCH) {
-    const batch = tokens.slice(start, start + EXPO_BATCH);
+  for (let start = 0; start < targets.length; start += EXPO_BATCH) {
+    const batch = targets.slice(start, start + EXPO_BATCH);
     let result: {
       data?: { status: string; id?: string; details?: { error?: string } }[];
     };
@@ -90,11 +99,12 @@ async function pushToTokens(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          batch.map((token) => ({
+          batch.map(({ token, badge }) => ({
             to: token,
             sound: "default",
             title: message.title,
             body: message.body,
+            badge,
             data: message.url ? { url: message.url } : {},
           }))
         ),
@@ -111,9 +121,9 @@ async function pushToTokens(
     for (let i = 0; i < (result.data ?? []).length; i++) {
       const ticket = result.data![i];
       if (ticket.status === "error" && ticket.details?.error === "DeviceNotRegistered") {
-        await ctx.runMutation(internal.push.removeToken, { token: batch[i] });
+        await ctx.runMutation(internal.push.removeToken, { token: batch[i].token });
       } else if (ticket.status === "ok" && ticket.id) {
-        receipts.push({ id: ticket.id, token: batch[i] });
+        receipts.push({ id: ticket.id, token: batch[i].token });
       }
     }
   }
@@ -132,31 +142,22 @@ export const send = internalAction({
     url: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const tokens: Doc<"pushTokens">[] = await ctx.runQuery(
-      internal.push.tokensForEmail,
-      { email: args.to }
-    );
-    await pushToTokens(
-      ctx,
-      tokens.map((t) => t.token),
-      args
-    );
+    const targets: PushTarget[] = await ctx.runQuery(internal.push.tokensForEmail, {
+      email: args.to,
+    });
+    await pushToTokens(ctx, targets, args);
     return null;
   },
 });
 
 export const tokensForEmails = internalQuery({
   args: { emails: v.array(v.string()) },
-  handler: async (ctx, args): Promise<string[]> => {
-    const tokens: string[] = [];
+  handler: async (ctx, args): Promise<PushTarget[]> => {
+    const targets: PushTarget[] = [];
     for (const email of args.emails) {
-      const rows = await ctx.db
-        .query("pushTokens")
-        .withIndex("by_email", (q) => q.eq("email", email))
-        .take(20);
-      tokens.push(...rows.map((row) => row.token));
+      targets.push(...(await targetsFor(ctx, email)));
     }
-    return tokens;
+    return targets;
   },
 });
 
@@ -169,10 +170,10 @@ export const sendMany = internalAction({
     url: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const tokens: string[] = await ctx.runQuery(internal.push.tokensForEmails, {
+    const targets: PushTarget[] = await ctx.runQuery(internal.push.tokensForEmails, {
       emails: args.to,
     });
-    await pushToTokens(ctx, tokens, { title: args.title, body: args.body, url: args.url });
+    await pushToTokens(ctx, targets, { title: args.title, body: args.body, url: args.url });
     return null;
   },
 });

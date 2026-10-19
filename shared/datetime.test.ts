@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   addDaysToDateInputValue,
   compactAgo,
+  daysSince,
+  formatDuration,
   pad2,
   parseDateInputValue,
   parseDateTimeInputValues,
@@ -9,7 +11,44 @@ import {
   toDateInputValue,
   timeAgo,
   toTimeInputValue,
+  waitingLabel,
 } from "./datetime";
+
+describe("daysSince / waitingLabel", () => {
+  const DAY = 86_400_000;
+  const now = new Date(2026, 9, 9, 12, 0).getTime();
+
+  it("counts whole days and never goes negative", () => {
+    expect(daysSince(now, now)).toBe(0);
+    expect(daysSince(now + DAY, now)).toBe(0);
+    expect(daysSince(now - DAY + 1, now)).toBe(0);
+    expect(daysSince(now - DAY, now)).toBe(1);
+    expect(daysSince(now - 6.9 * DAY, now)).toBe(6);
+  });
+
+  it("reads as how long something has waited", () => {
+    expect(waitingLabel(now - 3600_000, now)).toBe("Waiting under a day");
+    expect(waitingLabel(now - DAY, now)).toBe("Waiting 1 day");
+    expect(waitingLabel(now - 6 * DAY, now)).toBe("Waiting 6 days");
+  });
+});
+
+describe("formatDuration", () => {
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+
+  it("rounds to hours under a day, tenths of a day under ten days, then days", () => {
+    expect(formatDuration(0)).toBe("under an hour");
+    expect(formatDuration(HOUR - 1)).toBe("under an hour");
+    expect(formatDuration(HOUR)).toBe("1 hour");
+    expect(formatDuration(3.4 * HOUR)).toBe("3 hours");
+    expect(formatDuration(23.4 * HOUR)).toBe("23 hours");
+    expect(formatDuration(DAY)).toBe("1 day");
+    expect(formatDuration(1.46 * DAY)).toBe("1.5 days");
+    expect(formatDuration(9.94 * DAY)).toBe("9.9 days");
+    expect(formatDuration(12.6 * DAY)).toBe("13 days");
+  });
+});
 
 describe("pad2", () => {
   it("pads single digits and leaves wider values alone", () => {

@@ -535,7 +535,7 @@ export const requesterRequestsInYear = (ctx: Ctx, email: string, y: number) =>
         .lt("_creationTime", staffYearStartMs(y + 1))
     );
 
-const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
+export const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
   await ctx.db
     .query("requests")
     .withIndex("by_creation_time", (q) =>
@@ -755,15 +755,28 @@ export const reviewedInYear = query({
   },
 });
 
-type ReviewQueues = {
-  hod: Doc<"requests">[];
-  budgetManager: Doc<"requests">[];
-  director: Doc<"requests">[];
-  financeHead: Doc<"requests">[];
-  readyToPay: Doc<"requests">[];
+export const lastMovementAt = async (ctx: Ctx, request: Doc<"requests">): Promise<number> => {
+  const latest = await ctx.db
+    .query("requestEvents")
+    .withIndex("by_request", (q) => q.eq("requestId", request._id))
+    .order("desc")
+    .first();
+  return Math.max(request._creationTime, latest?._creationTime ?? 0);
 };
 
-async function reviewQueues(
+export type ReviewRow = Doc<"requests"> & { waitingSince: number };
+
+export type ReviewQueues = {
+  hod: ReviewRow[];
+  budgetManager: ReviewRow[];
+  director: ReviewRow[];
+  financeHead: ReviewRow[];
+  readyToPay: ReviewRow[];
+};
+
+const oldestFirst = (rows: ReviewRow[]) => rows.sort((a, b) => a.waitingSince - b.waitingSince);
+
+export async function reviewQueues(
   ctx: Ctx,
   caller: CallerContext,
   open: Doc<"requests">[]
@@ -776,11 +789,15 @@ async function reviewQueues(
   });
   const actAsIn = makeActAsResolver(ctx, email);
 
-  const hod: Doc<"requests">[] = [];
-  const budgetManager: Doc<"requests">[] = [];
-  const director: Doc<"requests">[] = [];
-  const financeHead: Doc<"requests">[] = [];
-  const readyToPay: Doc<"requests">[] = [];
+  const hod: ReviewRow[] = [];
+  const budgetManager: ReviewRow[] = [];
+  const director: ReviewRow[] = [];
+  const financeHead: ReviewRow[] = [];
+  const readyToPay: ReviewRow[] = [];
+  const waiting = async (request: Doc<"requests">): Promise<ReviewRow> => ({
+    ...request,
+    waitingSince: await lastMovementAt(ctx, request),
+  });
 
   for (const request of open) {
     const reqYear = requestYear(request);
@@ -806,28 +823,34 @@ async function reviewQueues(
       request.paid === false &&
       matches((a) => a.financeHeadEmail)
     ) {
-      readyToPay.push(request);
+      readyToPay.push(await waiting(request));
     }
 
     if (request.requesterEmail === email || requestCompleted(request)) continue;
     const step = currentStep(request);
     if (step === "hod" && matches((a) => a.hodEmail) && request.department !== FINANCE) {
-      hod.push(request);
+      hod.push(await waiting(request));
     } else if (step === "budgetManager" && matches((a) => a.budgetManagerEmail)) {
-      budgetManager.push(request);
+      budgetManager.push(await waiting(request));
     } else if (
       step === "director" &&
       ((await callerRolesIn(reqYear)).includes(DIRECTOR) ||
         (await callerRolesIn(year)).includes(DIRECTOR) ||
         matches((a) => a.directorEmail))
     ) {
-      director.push(request);
+      director.push(await waiting(request));
     } else if (step === "financeHead" && matches((a) => a.financeHeadEmail)) {
-      financeHead.push(request);
+      financeHead.push(await waiting(request));
     }
   }
 
-  return { hod, budgetManager, director, financeHead, readyToPay };
+  return {
+    hod: oldestFirst(hod),
+    budgetManager: oldestFirst(budgetManager),
+    director: oldestFirst(director),
+    financeHead: oldestFirst(financeHead),
+    readyToPay: oldestFirst(readyToPay),
+  };
 }
 
 export const toReview = query({

@@ -130,7 +130,7 @@ export async function headRecipients(ctx: Ctx, year: number): Promise<string[]> 
 }
 
 /** This year's Marketing staff, plus the Marketing Head. */
-async function marketingTeam(ctx: Ctx): Promise<string[]> {
+export async function marketingTeam(ctx: Ctx): Promise<string[]> {
   const year = currentStaffYear();
   const emails = new Set<string>();
   for await (const profile of ctx.db
@@ -302,19 +302,32 @@ export const viewer = query({
  * Marketing Head (and anyone covering), approved ones to finish for the rest
  * of the Marketing team. Drives the side menu badge.
  */
+export async function designWaitingOnMe(
+  ctx: Ctx,
+  caller: CallerContext
+): Promise<{ toApprove: number; toFinish: number }> {
+  const isHead = await actsAsMarketingHead(ctx, caller, caller.year);
+  if (!isHead && !isMarketingStaff(caller)) return { toApprove: 0, toFinish: 0 };
+  const countOf = async (status: DesignRequestStatus) =>
+    (
+      await ctx.db
+        .query("designRequests")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .take(LIST_LIMIT)
+    ).filter((r) => r.requesterEmail !== caller.email).length;
+  return {
+    toApprove: isHead ? await countOf("PENDING") : 0,
+    toFinish: await countOf("APPROVED"),
+  };
+}
+
 export const waitingOnMe = query({
   args: {},
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return 0;
-    const isHead = await actsAsMarketingHead(ctx, caller, caller.year);
-    if (!isHead && !isMarketingStaff(caller)) return 0;
-    const status: DesignRequestStatus = isHead ? "PENDING" : "APPROVED";
-    const rows = await ctx.db
-      .query("designRequests")
-      .withIndex("by_status", (q) => q.eq("status", status))
-      .take(LIST_LIMIT);
-    return rows.filter((r) => r.requesterEmail !== caller.email).length;
+    const { toApprove, toFinish } = await designWaitingOnMe(ctx, caller);
+    return toApprove + toFinish;
   },
 });
 
@@ -345,6 +358,9 @@ export const mine = query({
   },
 });
 
+export const designWaitingSince = (request: DesignRequest): number =>
+  request.status === "APPROVED" ? (request.decidedAt ?? request.submittedAt) : request.submittedAt;
+
 /** Requests still open, from any year: the Marketing team's (and admins') work list. */
 export const queue = query({
   args: {},
@@ -360,8 +376,10 @@ export const queue = query({
           .take(LIST_LIMIT))
       );
     }
-    rows.sort((a, b) => b.submittedAt - a.submittedAt);
-    return await withRequesterNames(ctx, rows);
+    const named = await withRequesterNames(ctx, rows);
+    return named
+      .map((r) => ({ ...r, waitingSince: designWaitingSince(r) }))
+      .sort((a, b) => a.waitingSince - b.waitingSince);
   },
 });
 

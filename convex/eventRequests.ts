@@ -32,6 +32,7 @@ import {
   eventUrl,
   logEvent,
   optionalEventStaff,
+  pendingSince,
   recipientsFor,
   requireEvent,
   requireEventStaff,
@@ -83,7 +84,7 @@ const dedupe = (events: EventRequest[]) => [...new Map(events.map((e) => [e._id,
  * caller. Walks the events still in progress, so forms left pending on
  * cancelled events never crowd out live ones.
  */
-async function reviewForms(ctx: Ctx, caller: CallerContext) {
+export async function reviewForms(ctx: Ctx, caller: CallerContext) {
   const scope = await viewerScope(ctx, caller);
   if (!SUB_FORM_KINDS.some((k) => scope.teams[k]) && !scope.director) return [];
   const scopes = new Map<number, Promise<ViewerScope>>();
@@ -206,14 +207,42 @@ export const review = query({
     if (!caller) return null;
     const forms = await reviewForms(ctx, caller);
     const rows = await withRows(ctx, dedupe(forms.map((f) => f.event)));
-    return rows.map((row) => ({
-      ...row,
-      waitingOnMe: forms
-        .filter((f) => f.mine && f.event._id === row._id)
-        .map((f) => f.form.kind),
-    }));
+    return rows
+      .map((row) => {
+        const own = forms.filter((f) => f.event._id === row._id);
+        const waitingSince = Math.min(...own.map((f) => pendingSince(f.form)));
+        return {
+          ...row,
+          waitingSince,
+          waitingOnMe: own.filter((f) => f.mine).map((f) => f.form.kind),
+        };
+      })
+      .sort((a, b) => a.waitingSince - b.waitingSince);
   },
 });
+
+export async function requesterSideOpenEvents(
+  ctx: Ctx,
+  caller: CallerContext
+): Promise<EventRequest[]> {
+  const events: EventRequest[] = await ctx.db
+    .query("eventRequests")
+    .withIndex("by_requester_and_status", (q) =>
+      q.eq("requesterEmail", caller.email).eq("status", "IN_PROGRESS")
+    )
+    .take(LIST_LIMIT);
+  for (const department of departmentsOf(caller.profile)) {
+    events.push(
+      ...(await ctx.db
+        .query("eventRequests")
+        .withIndex("by_department_and_status", (q) =>
+          q.eq("department", department).eq("status", "IN_PROGRESS")
+        )
+        .take(LIST_LIMIT))
+    );
+  }
+  return dedupe(events);
+}
 
 /** Every event from one staff year (and, for this year, any still in progress). */
 export const all = query({
