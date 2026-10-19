@@ -315,9 +315,11 @@ roles stays an explicit admin action.
 
 A person's photo is, in order: the one they uploaded in The SHED, their
 Workspace directory photo, the picture Google sent at their last sign-in,
-then their initials. An uploaded photo over 64 KB is shrunk on the server to a
-256 px JPEG a moment after upload (`avatars:shrinkAll` does older ones), and
-phones keep each photo in the app's cache folder after the first download.
+then their initials. The app resizes a picked photo to a 512 px JPEG before it
+uploads it. An uploaded photo over 64 KB is shrunk on the server to a 256 px
+JPEG a moment after upload (`avatars:shrinkAll` does older ones), skipping any
+too big to decode in an action's memory (about 10 MP), and phones keep each
+photo in the app's cache folder after the first download.
 The directory photo outranks the sign-in picture
 because Google sends a letter placeholder to anyone who had no photo when
 they signed in, and that placeholder only changes when they sign in again. A directory email that matches a previous staff year
