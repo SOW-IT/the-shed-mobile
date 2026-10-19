@@ -422,6 +422,8 @@ export const recomputeAll = internalMutation({
       internal.generalMetrics.recomputeCampusWeeklyAttendance,
       {}
     );
+    await ctx.scheduler.runAfter(0, internal.generalMetrics.recomputeStaffTrends, {});
+    await ctx.scheduler.runAfter(0, internal.rosterHistory.rebuild, {});
     return null;
   },
 });

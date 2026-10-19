@@ -1,7 +1,7 @@
 {
   "name": "theshed",
   "main": "expo-router/entry",
-  "version": "2.9.11",
+  "version": "2.9.12",
   "dependencies": {
     "@auth/core": "^0.41.3",
     "@convex-dev/auth": "^0.0.96",
@@ -33,7 +33,9 @@
     "expo-system-ui": "~58.0.6",
     "expo-web-browser": "~58.0.6",
     "jose": "^6.2.12",
+    "jpeg-js": "^0.4.4",
     "pdf-lib": "^1.17.1",
+    "pngjs": "^7.0.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
@@ -48,6 +50,7 @@
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "~19.3.0",
     "@vitest/coverage-v8": "^5.0.3",
     "convex-test": "^0.0.62",

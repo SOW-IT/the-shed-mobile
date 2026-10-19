@@ -9,6 +9,7 @@ import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
+import { recountEventAttendance } from "./attendanceCounts";
 import { getProfile } from "./model";
 
 type Ctx = QueryCtx | MutationCtx;
@@ -234,6 +235,7 @@ export async function moveAttendance(
       await ctx.db.patch("attendance", existing._id, merged);
       byEvent.set(record.eventId, { ...existing, ...merged });
       await ctx.db.delete("attendance", record._id);
+      await recountEventAttendance(ctx, record.eventId);
       combined++;
     } else {
       await ctx.db.patch("attendance", record._id, { memberId: into });

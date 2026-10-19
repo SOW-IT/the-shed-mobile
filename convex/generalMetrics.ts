@@ -1,7 +1,7 @@
 import { type Infer, v } from "convex/values";
 import { internalMutation, query, type QueryCtx } from "./_generated/server";
 import { currentStaffYear } from "./model";
-import { viewBlockValidator } from "./metricsData";
+import { staffTrendsValidator, viewBlockValidator } from "./metricsData";
 import { readSettings } from "./weeklyInsights";
 import { buildGeneralView } from "../shared/generalMetricsView";
 import { OUTSOURCE, staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
@@ -102,40 +102,6 @@ const emptyPersonSets = () => ({
   all: new Set<string>(),
   staff: new Set<string>(),
   studentLeaders: new Set<string>(),
-});
-
-const rateSeries = v.object({
-  overall: v.array(v.union(v.number(), v.null())),
-  staff: v.array(v.union(v.number(), v.null())),
-  studentLeaders: v.array(v.union(v.number(), v.null())),
-});
-
-const pctSeries = v.object({
-  overall: v.array(v.union(v.number(), v.null())),
-  staff: v.array(v.union(v.number(), v.null())),
-  studentLeaders: v.array(v.union(v.number(), v.null())),
-});
-
-const avgYearsSeries = v.object({
-  overall: v.array(v.union(v.number(), v.null())),
-  staff: v.array(v.union(v.number(), v.null())),
-  studentLeaders: v.array(v.union(v.number(), v.null())),
-});
-
-export const staffTrendsValidator = v.object({
-  computedAt: v.number(),
-  years: v.array(v.number()),
-  allStaff: v.array(v.number()),
-  staff: v.array(v.number()),
-  studentLeaders: v.array(v.number()),
-  campuses: v.array(v.string()),
-  studentLeadersByCampus: v.array(
-    v.object({ campus: v.string(), counts: v.array(v.number()) })
-  ),
-  turnover: rateSeries,
-  retention: rateSeries,
-  tenure2Plus: pctSeries,
-  avgTenureYears: avgYearsSeries,
 });
 
 export type StaffTrends = Infer<typeof staffTrendsValidator>;
@@ -293,7 +259,7 @@ export const view = query({
   }),
   handler: async (ctx, { scope, lines }) => {
     const [trends, campusAttendance, identity] = await Promise.all([
-      computeStaffTrends(ctx),
+      readStaffTrends(ctx),
       readCampusWeeklyAttendance(ctx),
       ctx.auth.getUserIdentity(),
     ]);
@@ -301,6 +267,28 @@ export const view = query({
       years: trends.years,
       blocks: buildGeneralView({ trends, campusAttendance, scope, signedIn: identity !== null, lines }),
     };
+  },
+});
+
+async function readStaffTrends(ctx: QueryCtx): Promise<StaffTrends> {
+  const snapshot = await ctx.db.query("staffTrendsSnapshots").first();
+  if (snapshot?.staffYear === currentStaffYear()) return snapshot.trends;
+  return computeStaffTrends(ctx);
+}
+
+export const recomputeStaffTrends = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const doc = { staffYear: currentStaffYear(), trends: await computeStaffTrends(ctx) };
+    const existing = await ctx.db.query("staffTrendsSnapshots").take(10);
+    if (existing.length === 0) {
+      await ctx.db.insert("staffTrendsSnapshots", doc);
+    } else {
+      await ctx.db.replace("staffTrendsSnapshots", existing[0]._id, doc);
+      for (const extra of existing.slice(1)) await ctx.db.delete("staffTrendsSnapshots", extra._id);
+    }
+    return null;
   },
 });
 

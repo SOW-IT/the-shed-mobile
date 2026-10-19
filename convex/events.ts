@@ -41,6 +41,7 @@ import {
 import { paginator } from "convex-helpers/server/pagination";
 import { asPaginatorCursor } from "./pagination";
 import schema from "./schema";
+import { eventAttendanceCount } from "./attendanceCounts";
 
 const weeklyMarkArg = v.object({
   year: v.number(),
@@ -89,17 +90,6 @@ const decodeListBySubgroupCursor = (
     return fresh;
   }
 };
-
-async function attendanceCount(
-  ctx: QueryCtx,
-  eventId: Doc<"events">["_id"]
-): Promise<number> {
-  const rows = await ctx.db
-    .query("attendance")
-    .withIndex("by_event", (q) => q.eq("eventId", eventId))
-    .collect();
-  return rows.length;
-}
 
 async function resolveTags(ctx: QueryCtx, tagIds?: Id<"attendanceTags">[]) {
   if (!tagIds?.length) return [];
@@ -264,7 +254,7 @@ export const listBySubgroup = query({
     const withCounts = await Promise.all(
       page.map(async (event) => ({
         ...(await annotate(ctx, event)),
-        attendanceCount: await attendanceCount(ctx, event._id),
+        attendanceCount: await eventAttendanceCount(ctx, event),
       }))
     );
     const hasMore = remainingBufferedIds.length > 0 || !isDone;

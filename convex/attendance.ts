@@ -18,9 +18,11 @@ import { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
+import { adjustEventAttendanceCount } from "./attendanceCounts";
 import { memberAuditName, staffDisplayName } from "./attendanceMembers";
 import { memberRoleResolver } from "./memberRoles";
 import { photoFor } from "./photo";
+import { frequencyScores, rosterHistory } from "./rosterHistory";
 import {
   assignedProfileForEmail,
   isAssigned,
@@ -28,8 +30,6 @@ import {
   staffMemberForEmail,
   staffProfileOfMember,
 } from "./staffMembers";
-
-const ROSTER_HISTORY_EVENT_LIMIT = 60;
 
 export type RosterEntry = {
   key: string;
@@ -129,54 +129,8 @@ export const roster = query({
     const rows = [...staffRows, ...extraRows];
     if (!event) return rows.sort((a, b) => a.name.localeCompare(b.name));
 
-    const eventTagIds = new Set((event.tagIds ?? []).map(String));
     const eventSubgroups = new Set(normalizeSubgroups(event.subgroups));
-    const historyEvents = await ctx.db
-      .query("events")
-      .withIndex("by_dateStart", (q) =>
-        q
-          .gte("dateStart", staffYearStartMs(year))
-          .lt("dateStart", staffYearStartMs(year + 1))
-      )
-      .order("desc")
-      .take(ROSTER_HISTORY_EVENT_LIMIT);
-    const scores = new Map<
-      string,
-      { tagMatches: number; subgroupMatches: number; total: number; latest: number }
-    >();
-    const otherHistory = historyEvents.filter((h) => h._id !== event._id);
-    const historyAttendances = await Promise.all(
-      otherHistory.map((h) =>
-        ctx.db
-          .query("attendance")
-          .withIndex("by_event", (q) => q.eq("eventId", h._id))
-          .collect()
-      )
-    );
-    otherHistory.forEach((historyEvent, i) => {
-      for (const row of historyAttendances[i]) {
-        const key = `member:${row.memberId}`;
-        const score = scores.get(key) ?? {
-          tagMatches: 0,
-          subgroupMatches: 0,
-          total: 0,
-          latest: 0,
-        };
-        score.total += 1;
-        if ((historyEvent.tagIds ?? []).some((tagId) => eventTagIds.has(String(tagId)))) {
-          score.tagMatches += 1;
-        }
-        if (
-          normalizeSubgroups(historyEvent.subgroups).some((historySubgroup) =>
-            eventSubgroups.has(historySubgroup)
-          )
-        ) {
-          score.subgroupMatches += 1;
-        }
-        score.latest = Math.max(score.latest, historyEvent.dateStart);
-        scores.set(key, score);
-      }
-    });
+    const scores = frequencyScores(await rosterHistory(ctx, year), event);
 
     const scoreOf = (entry: RosterEntry) =>
       scores.get(entry.memberId ? `member:${entry.memberId}` : entry.key);
@@ -317,6 +271,7 @@ export const signIn = mutation({
       memberId,
       signInTime: Date.now(),
     });
+    await adjustEventAttendanceCount(ctx, eventId, 1);
     const { name, email: subjectEmail } = await memberAuditName(ctx, member, year);
     await logAttendanceAction(ctx, {
       actorEmail,
@@ -421,6 +376,7 @@ export const signOut = mutation({
       );
     }
     await ctx.db.delete(existing._id);
+    await adjustEventAttendanceCount(ctx, eventId, -1);
     const member = await ctx.db.get(memberId);
     const who = member
       ? await memberAuditName(ctx, member, year)

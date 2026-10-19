@@ -39,6 +39,7 @@ import {
   logAttendanceAction,
   MAX_AUDIT_ATTENDANCE_LINES,
 } from "./attendanceAudit";
+import { recountEventAttendance } from "./attendanceCounts";
 import { Doc, Id } from "./_generated/dataModel";
 import { memberRoleResolver } from "./memberRoles";
 import { photoFor } from "./photo";
@@ -625,6 +626,9 @@ export const remove = mutation({
     const hidden = signed.length - shown.length;
 
     for (const s of signed) await ctx.db.delete(s._id);
+    for (const eventId of new Set(signed.map((s) => s.eventId))) {
+      await recountEventAttendance(ctx, eventId);
+    }
     for (const profile of await profilesOfMember(ctx, memberId)) {
       await ctx.db.patch("staffProfiles", profile._id, { memberId: undefined });
     }

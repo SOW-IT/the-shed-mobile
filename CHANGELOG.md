@@ -6,6 +6,38 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.12] - 2026-10-19
+
+The app reads far less from the database and downloads photos once instead
+of on every launch, to stay inside Convex's free plan (database reads were
+about five times the monthly allowance halfway through the month).
+
+### Changed
+- **Profile photos download once.** On phones each photo is saved in the
+  app's cache the first time it shows and loaded from there afterwards, so
+  opening the app or the org chart no longer fetches every face again.
+- **Uploaded profile photos are shrunk to 256 pixels.** A photo over 64 KB
+  is turned the right way up and saved as a small JPEG a moment after it is
+  uploaded. It looks the same in the app's small circles at a small fraction
+  of the size. Photos uploaded before this release are shrunk once after it
+  ships.
+- **Insights, General updates overnight.** Staff numbers, turnover and tenure
+  are worked out each night with the rest of Insights, so a profile change
+  shows there the next morning.
+- **Roll-call keeps last night's ordering.** Who comes first on an event's
+  roster (people who came to similar events, then the campus, then how often
+  they come) is worked out each night instead of every time the roster opens.
+  Sign-ins from earlier today count from tomorrow.
+- **Audit filters load when you open them**, with the people and events from
+  the latest activity at that moment, instead of following every sign-in
+  live.
+
+### Fixed
+- **The Events list no longer re-reads every sign-in on each tap.** Each
+  event keeps its signed-in count, updated when someone signs in or out, so
+  taking roll call stops making everyone's Events list recount the 20 events
+  on screen.
+
 ## [2.9.11] - 2026-10-19
 
 Reminders for every kind of request, in one morning message, and what is

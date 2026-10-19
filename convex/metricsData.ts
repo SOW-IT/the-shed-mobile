@@ -160,3 +160,37 @@ export const viewBlockValidator = v.union(
     action: v.optional(v.object({ label: v.string(), period: v.string() })),
   })
 );
+
+const rateSeries = v.object({
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
+});
+
+const pctSeries = v.object({
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
+});
+
+const avgYearsSeries = v.object({
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
+});
+
+export const staffTrendsValidator = v.object({
+  computedAt: v.number(),
+  years: v.array(v.number()),
+  allStaff: v.array(v.number()),
+  staff: v.array(v.number()),
+  studentLeaders: v.array(v.number()),
+  campuses: v.array(v.string()),
+  studentLeadersByCampus: v.array(
+    v.object({ campus: v.string(), counts: v.array(v.number()) })
+  ),
+  turnover: rateSeries,
+  retention: rateSeries,
+  tenure2Plus: pctSeries,
+  avgTenureYears: avgYearsSeries,
+});
