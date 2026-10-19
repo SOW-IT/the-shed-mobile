@@ -13,10 +13,8 @@ import { ChurchDetails, ChurchPicker } from "./ChurchPicker";
 import { DeleteAccountCard } from "./DeleteAccountCard";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
-import {
-  getLocalFileSizeBytes,
-  uploadLocalFileToUrl,
-} from "@/lib/uploadLocalFile";
+import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
+import { uploadLocalFileToUrl } from "@/lib/uploadLocalFile";
 import {
   Avatar,
   Card,
@@ -24,7 +22,6 @@ import {
   errorMessage,
   FadeInView,
   LoadingState,
-  MAX_UPLOAD_BYTES,
   Muted,
   Screen,
   SectionTitle,
@@ -97,21 +94,14 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
         mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 1,
       });
       if (result.canceled) return;
       setUploading(true);
-      const asset = result.assets[0];
-      const size = await getLocalFileSizeBytes(asset.uri);
-      if (size > MAX_UPLOAD_BYTES) {
-        const maxMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
-        throw new Error(`Image is too large. Please choose one ${maxMb}MB or less.`);
-      }
+      const picked = result.assets[0];
+      const photo = await shrinkPhotoForUpload(picked.uri, picked.mimeType);
       const uploadUrl = await generateAvatarUploadUrl();
-      const storageId = await uploadLocalFileToUrl(uploadUrl, {
-        uri: asset.uri,
-        mimeType: asset.mimeType,
-      });
+      const storageId = await uploadLocalFileToUrl(uploadUrl, photo);
       await setAvatar({ storageId });
     } catch (e) {
       setError(errorMessage(e));

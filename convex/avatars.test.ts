@@ -4,7 +4,14 @@ import { PNG } from "pngjs";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { AVATAR_MAX_EDGE, jpegOrientation, shrinkAvatarBytes, shrinkPixels } from "./avatars";
+import {
+  AVATAR_MAX_EDGE,
+  jpegFrame,
+  jpegOrientation,
+  pngSize,
+  shrinkAvatarBytes,
+  shrinkPixels,
+} from "./avatars";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -56,6 +63,32 @@ const withSegments = (jpeg: Uint8Array, ...segments: number[][]) =>
 
 const tiny = new Uint8Array(encodeJpeg(noise(2, 2), 5).data);
 
+const frameSegment = (width: number, height: number, factors = [0x22, 0x11, 0x11]) => {
+  const components = factors.flatMap((factor, i) => [i + 1, factor, 0]);
+  const length = 8 + components.length;
+  return [
+    0xff,
+    0xc0,
+    length >> 8,
+    length & 0xff,
+    8,
+    height >> 8,
+    height & 0xff,
+    width >> 8,
+    width & 0xff,
+    factors.length,
+    ...components,
+  ];
+};
+
+const pngHeader = (width: number, height: number) => {
+  const u32 = (n: number) => [n >>> 24, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+  const bytes = new Uint8Array(200_000);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+  bytes.set([...u32(width), ...u32(height)], 16);
+  return bytes;
+};
+
 describe("jpegOrientation", () => {
   test("reads the EXIF orientation in either byte order", () => {
     expect(jpegOrientation(withSegments(tiny, exifSegment(6, false)))).toBe(6);
@@ -65,6 +98,11 @@ describe("jpegOrientation", () => {
   test("skips other segments before the EXIF one", () => {
     const comment = [0xff, 0xfe, 0x00, 0x05, 0x68, 0x69, 0x21];
     expect(jpegOrientation(withSegments(tiny, comment, exifSegment(3, false)))).toBe(3);
+  });
+
+  test("steps over fill bytes before a marker", () => {
+    expect(jpegOrientation(withSegments(tiny, [0xff], exifSegment(6, false)))).toBe(6);
+    expect(jpegFrame(withSegments(tiny, [0xff, 0xff], frameSegment(640, 480)))?.width).toBe(640);
   });
 
   test("is upright without EXIF, with an out-of-range value, or with no orientation tag", () => {
@@ -81,6 +119,47 @@ describe("jpegOrientation", () => {
     expect(jpegOrientation(cut)).toBe(1);
     const noEntries = new Uint8Array([0xff, 0xd8, ...segment.slice(0, 18)]);
     expect(jpegOrientation(noEntries)).toBe(1);
+  });
+});
+
+describe("jpegFrame", () => {
+  test("counts every colour sample, so subsampled chroma costs less than full colour", () => {
+    expect(jpegFrame(withSegments(tiny, frameSegment(5712, 4284)))).toEqual({
+      width: 5712,
+      height: 4284,
+      samples: 5712 * 4284 * 1.5,
+    });
+    expect(jpegFrame(withSegments(tiny, frameSegment(100, 50, [0x11, 0x11, 0x11])))?.samples).toBe(
+      100 * 50 * 3
+    );
+    expect(jpegFrame(tiny)).toEqual({ width: 2, height: 2, samples: 12 });
+  });
+
+  test("skips the segments before the frame header", () => {
+    const comment = [0xff, 0xfe, 0x00, 0x05, 0x68, 0x69, 0x21];
+    expect(jpegFrame(withSegments(tiny, comment, frameSegment(640, 480)))?.width).toBe(640);
+  });
+
+  test("is unknown without a frame header, or with one cut short", () => {
+    expect(jpegFrame(new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02]))).toBeNull();
+    expect(jpegFrame(new Uint8Array([0xff, 0xd8, ...frameSegment(640, 480).slice(0, 12)]))).toBeNull();
+    expect(jpegFrame(new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x08, 8, 0, 1, 0, 1, 0]))).toBeNull();
+  });
+});
+
+describe("pngSize", () => {
+  test("reads the width and height from the IHDR chunk", () => {
+    expect(pngSize(pngHeader(4032, 3024))).toEqual({ width: 4032, height: 3024 });
+    expect(pngSize(pngHeader(0x80000001, 1)).width).toBe(0x80000001);
+  });
+
+  test("refuses a PNG with a second IHDR, which the decoder would size by, or none", () => {
+    const twice = pngHeader(100, 100);
+    twice.set([0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0x0f, 0xa0, 0, 0, 0x0b, 0xb8], 33);
+    expect(() => pngSize(twice)).toThrow("PNG has 2 IHDR chunks");
+    expect(() => shrinkAvatarBytes(twice)).toThrow("IHDR");
+    const signatureOnly = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(() => pngSize(signatureOnly)).toThrow("PNG has 0 IHDR chunks");
   });
 });
 
@@ -143,6 +222,27 @@ describe("shrinkAvatarBytes", () => {
     const shrunk = shrinkAvatarBytes(bytes)!;
     expect(shrunk.length).toBeLessThan(bytes.length);
     expect(shrunk[0]).toBe(0xff);
+  });
+
+  test("refuses photos too big to decode in an action's memory before decoding them", () => {
+    expect(() => shrinkAvatarBytes(withSegments(tiny, frameSegment(5712, 4284)))).toThrow(
+      "5712x4284 JPEG is too large to decode in an action"
+    );
+    expect(() =>
+      shrinkAvatarBytes(withSegments(tiny, frameSegment(3000, 2000, [0x11, 0x11, 0x11])))
+    ).toThrow("too large");
+    expect(() => shrinkAvatarBytes(pngHeader(4000, 3000))).toThrow(
+      "4000x3000 PNG is too large to decode in an action"
+    );
+  });
+
+  test("tries photos within the limit, and refuses a JPEG whose size can't be read", () => {
+    expect(() => shrinkAvatarBytes(withSegments(tiny, frameSegment(3600, 2900)))).not.toThrow(
+      "too large"
+    );
+    expect(() => shrinkAvatarBytes(new Uint8Array([0xff, 0xd8, 0xff, 0xda]))).toThrow(
+      "Couldn't find the JPEG's size"
+    );
   });
 
   test("leaves other formats and files that wouldn't get smaller", () => {
@@ -224,6 +324,20 @@ describe("avatar shrinking", () => {
       userId: other.userId,
       storageId: other.storageId,
     });
+  });
+
+  test("a photo too big to decode is left alone with a warning instead of running out of memory", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const huge = new Uint8Array(200_000);
+    huge.set(withSegments(tiny, frameSegment(5712, 4284)));
+    const { t, userId, storageId } = await userWithUpload(huge);
+    await t.run((ctx) => ctx.db.patch("users", userId, { avatarId: storageId }));
+    await t.action(internal.avatars.shrink, { userId, storageId });
+    expect((await avatarOf(t, userId)).avatarId).toBe(storageId);
+    expect(warn).toHaveBeenCalledWith(
+      `Couldn't shrink avatar ${storageId}`,
+      expect.objectContaining({ message: "5712x4284 JPEG is too large to decode in an action" })
+    );
   });
 
   test("shrinkAll queues only the avatars that are too big", async () => {
