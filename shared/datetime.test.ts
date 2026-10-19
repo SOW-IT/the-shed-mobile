@@ -27,7 +27,7 @@ describe("daysSince / waitingLabel", () => {
   });
 
   it("reads as how long something has waited", () => {
-    expect(waitingLabel(now - 3600_000, now)).toBe("Waiting since today");
+    expect(waitingLabel(now - 3600_000, now)).toBe("Waiting under a day");
     expect(waitingLabel(now - DAY, now)).toBe("Waiting 1 day");
     expect(waitingLabel(now - 6 * DAY, now)).toBe("Waiting 6 days");
   });

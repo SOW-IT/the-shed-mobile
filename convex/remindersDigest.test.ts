@@ -276,6 +276,40 @@ describe("event form reminders", () => {
     expect(await notificationsFor(t, CORA)).toEqual([]);
   });
 
+  test("an event with every form sent on reminds each reviewer once", async () => {
+    const t = await setup();
+    const id = await createEvent(t);
+    await submitRisk(t, id);
+    await asUser(t, RACHEL).mutation(api.eventSubForms.saveFinance, {
+      id,
+      finance: { income: [], expenses: [{ label: "Venue", amount: 300 }] },
+      submit: true,
+    });
+    await asUser(t, RACHEL).mutation(api.eventSubForms.saveMarketing, {
+      id,
+      answers: {
+        keyMessage: "Come",
+        visualStyle: "n/a",
+        printed: ["posters"],
+        printed_posters: "10",
+        multipleDrafts: false,
+        runByYou: true,
+        promoStart: at(10).slice(0, 10),
+        postInfo: "Register",
+      },
+      submit: true,
+    });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    for (const reviewer of [CORA, FIONA, HENRY]) {
+      expect((await notificationsFor(t, reviewer)).map((n) => n.body)).toEqual([
+        "1 event form is waiting on you.",
+      ]);
+    }
+    expect(await notificationsFor(t, RACHEL)).toEqual([]);
+  });
+
   test("a reviewer who submitted the form is not asked to approve it, and nobody is reminded once it is approved", async () => {
     const t = await setup();
     const id = await createEvent(t, CORA, { department: "Compliance" });

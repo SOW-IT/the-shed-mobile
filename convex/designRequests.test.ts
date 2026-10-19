@@ -233,7 +233,7 @@ describe("who sees what", () => {
     expect(await waiting(MARY)).toBe(1);
     expect(await waiting(RACHEL)).toBe(0);
     await asUser(t, HENRY).mutation(api.designRequests.approve, { id });
-    expect(await waiting(HENRY)).toBe(0);
+    expect(await waiting(HENRY)).toBe(1);
     expect(await waiting(MARY)).toBe(2);
     expect(await t.query(api.designRequests.waitingOnMe, {})).toBe(0);
   });

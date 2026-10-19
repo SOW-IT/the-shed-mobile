@@ -65,7 +65,7 @@ describe("wording", () => {
     expect(plural(1, "day")).toBe("1 day");
     expect(plural(2, "day")).toBe("2 days");
     expect(plural(1, "thing is", "things are")).toBe("1 thing is");
-    expect(forDays(0)).toBe("since today");
+    expect(forDays(0)).toBe("for under a day");
     expect(forDays(1)).toBe("for 1 day");
     expect(forDays(5)).toBe("for 5 days");
   });

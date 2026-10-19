@@ -137,6 +137,33 @@ describe("longest waiting first", () => {
     expect(queue[0].waitingSince).toBe(queue[0].submittedAt);
   });
 
+  test("a Finance form waits on the Finance Head from the Director's approval, not its submission", async () => {
+    const t = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "dan@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Director" }],
+      })
+    );
+    const id = await asUser(t, RACHEL).mutation(api.eventRequests.create, {
+      answers: eventAnswers("Gala"),
+    });
+    atDay(1);
+    await asUser(t, RACHEL).mutation(api.eventSubForms.saveFinance, {
+      id,
+      finance: { income: [], expenses: [{ label: "Venue", amount: 9000 }] },
+      submit: true,
+    });
+    atDay(3);
+    await asUser(t, "dan@sow.org.au").mutation(api.eventSubForms.approve, { id, form: "finance" });
+    atDay(4);
+    const [row] = (await asUser(t, FIONA).query(api.eventRequests.review, {}))!;
+    const form = (await asUser(t, FIONA).query(api.eventRequests.get, { id }))!.forms.finance;
+    expect(row.waitingSince).toBe(form.directorApprovedAt);
+    expect(row.waitingSince).toBeGreaterThan(form.submittedAt!);
+  });
+
   test("To review lists events by their longest waiting form", async () => {
     const t = await setup();
     const camp = await asUser(t, RACHEL).mutation(api.eventRequests.create, {

@@ -13,6 +13,7 @@ import {
   STEP_LABELS,
 } from "../shared/flow";
 import { formatAmount } from "../shared/money";
+import { staffEmailCandidates } from "../shared/rollcallImport";
 import {
   dueText,
   eventTimingText,
@@ -172,30 +173,31 @@ async function collectDesignRequests(
   }
 }
 
-const formMovementAt = async (
-  ctx: MutationCtx,
-  event: Doc<"eventRequests">,
-  form: Doc<"eventSubForms">
-) => {
-  let latest = 0;
+const latestTrailByForm = async (ctx: MutationCtx, event: Doc<"eventRequests">) => {
+  const latest = new Map<string, number>();
   for await (const row of ctx.db
     .query("eventRequestEvents")
     .withIndex("by_eventRequest", (q) => q.eq("eventRequestId", event._id))
     .order("desc")) {
-    if (row.form === form.kind) {
-      latest = row._creationTime;
-      break;
-    }
+    if (row.form && !latest.has(row.form)) latest.set(row.form, row._creationTime);
+    if (latest.size === SUB_FORM_KINDS.length) break;
   }
-  return Math.max(
+  return latest;
+};
+
+const formMovementAt = (
+  event: Doc<"eventRequests">,
+  form: Doc<"eventSubForms">,
+  trail: Map<string, number>
+) =>
+  Math.max(
     event._creationTime,
-    latest,
+    trail.get(form.kind) ?? 0,
     form.updatedAt ?? 0,
     form.submittedAt ?? 0,
     form.directorApprovedAt ?? 0,
     form.decidedAt ?? 0
   );
-};
 
 async function collectEventForms(ctx: MutationCtx, digest: Digest, now: number) {
   const today = sydneyToday(new Date(now));
@@ -205,6 +207,7 @@ async function collectEventForms(ctx: MutationCtx, digest: Digest, now: number) 
     .take(LIST_LIMIT);
   for (const event of events) {
     const forms = await subFormsOf(ctx, event._id);
+    const trail = await latestTrailByForm(ctx, event);
     const timing = eventTimingText(event.startsAt, today);
     for (const kind of SUB_FORM_KINDS) {
       const form = forms[kind];
@@ -226,7 +229,7 @@ async function collectEventForms(ctx: MutationCtx, digest: Digest, now: number) 
         continue;
       }
       if (recipients.length === 0) continue;
-      const { due, count, days } = reminderDue(form, await formMovementAt(ctx, event, form), now);
+      const { due, count, days } = reminderDue(form, formMovementAt(event, form, trail), now);
       if (!due) continue;
       const line = `${formName(kind)} for ${event.name} (${eventRequestRef(event)}): ${waitingOn} ${forDays(days)}${timing ? `; ${timing}` : ""}`;
       const url = eventUrl(event, { form: kind });
@@ -254,11 +257,15 @@ const countsByKind = (items: Item[]): Partial<Record<ReminderKind, number>> => {
 };
 
 const wantsReminderEmails = async (ctx: MutationCtx, email: string) => {
-  const user = await ctx.db
-    .query("users")
-    .withIndex("email", (q) => q.eq("email", email))
-    .first();
-  return user?.reminderEmails !== false;
+  const candidates = staffEmailCandidates(email);
+  for (const candidate of candidates.length > 0 ? candidates : [email]) {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", candidate))
+      .first();
+    if (user?.reminderEmails === false) return false;
+  }
+  return true;
 };
 
 async function sendDigest(ctx: MutationCtx, to: string, items: Item[]) {

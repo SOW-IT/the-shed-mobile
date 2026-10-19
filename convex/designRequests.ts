@@ -308,13 +308,17 @@ export async function designWaitingOnMe(
 ): Promise<{ toApprove: number; toFinish: number }> {
   const isHead = await actsAsMarketingHead(ctx, caller, caller.year);
   if (!isHead && !isMarketingStaff(caller)) return { toApprove: 0, toFinish: 0 };
-  const status: DesignRequestStatus = isHead ? "PENDING" : "APPROVED";
-  const rows = await ctx.db
-    .query("designRequests")
-    .withIndex("by_status", (q) => q.eq("status", status))
-    .take(LIST_LIMIT);
-  const count = rows.filter((r) => r.requesterEmail !== caller.email).length;
-  return isHead ? { toApprove: count, toFinish: 0 } : { toApprove: 0, toFinish: count };
+  const countOf = async (status: DesignRequestStatus) =>
+    (
+      await ctx.db
+        .query("designRequests")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .take(LIST_LIMIT)
+    ).filter((r) => r.requesterEmail !== caller.email).length;
+  return {
+    toApprove: isHead ? await countOf("PENDING") : 0,
+    toFinish: await countOf("APPROVED"),
+  };
 }
 
 export const waitingOnMe = query({

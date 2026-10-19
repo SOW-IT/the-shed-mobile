@@ -182,6 +182,9 @@ export async function requireEvent(ctx: Ctx, id: Id<"eventRequests">) {
   return event;
 }
 
+export const pendingSince = (form: Pick<SubForm, "submittedAt" | "directorApprovedAt">): number =>
+  Math.max(form.submittedAt ?? 0, form.directorApprovedAt ?? 0);
+
 export async function subFormsOf(ctx: Ctx, id: Id<"eventRequests">): Promise<SubForms> {
   const rows = await ctx.db
     .query("eventSubForms")

@@ -34,7 +34,8 @@ waiting on you on Home.
   design requests and event forms. It reads the audit trail, so past years
   count too.
 - **The app icon shows your unread notifications** and clears once you have
-  read them.
+  read them (on iOS; Android keeps it in step while the app is open, on
+  launchers that show badges).
 - **Reminder emails can be turned off on your Profile.** The notification and
   push still arrive.
 

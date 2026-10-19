@@ -32,7 +32,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   To review say how long each item has waited and list the longest waiting
   first. Admin, Other shows step timing (`convex/stepTiming.ts`): the typical
   and longest wait at each step and who actioned it most, from the audit
-  trail. Pushes carry the unread count as the app icon badge.
+  trail. Pushes carry the unread count as the app icon badge on iOS; Android
+  syncs the count while the app is open, on launchers that show badges.
 - **Per-year roles and departments** (`staffProfiles`, `departments`,
   `divisions`, keyed by year). The staff year rolls over on **October 1**.
   Admins prepare next year in advance; a 21:00 30 Sep prefill copies the

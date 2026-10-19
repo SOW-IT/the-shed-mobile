@@ -142,6 +142,11 @@ describe("waitingOnMe.summary", () => {
       submit: true,
     });
     expect(await summaryFor(t, MARY)).toEqual({ ...nothing, design: { toApprove: 0, toFinish: 1 } });
+    expect(await summaryFor(t, HENRY)).toEqual({
+      ...nothing,
+      reimbursements: { toReview: 1, toPay: 0, receipts: 0 },
+      design: { toApprove: 0, toFinish: 1 },
+    });
     expect(await summaryFor(t, CORA)).toEqual({ ...nothing, events: { toReview: 1, toFill: 0 } });
     expect(await summaryFor(t, RACHEL)).toEqual({ ...nothing, events: { toReview: 0, toFill: 2 } });
   });

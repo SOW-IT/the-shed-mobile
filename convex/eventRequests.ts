@@ -32,6 +32,7 @@ import {
   eventUrl,
   logEvent,
   optionalEventStaff,
+  pendingSince,
   recipientsFor,
   requireEvent,
   requireEventStaff,
@@ -209,9 +210,7 @@ export const review = query({
     return rows
       .map((row) => {
         const own = forms.filter((f) => f.event._id === row._id);
-        const waitingSince = Math.min(
-          ...own.map((f) => f.form.submittedAt ?? f.event.submittedAt)
-        );
+        const waitingSince = Math.min(...own.map((f) => pendingSince(f.form)));
         return {
           ...row,
           waitingSince,

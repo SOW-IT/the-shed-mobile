@@ -8,6 +8,7 @@ export const useBadgeSync = (isStaff: boolean) => {
   const unread = useQuery(api.notifications.unreadCount, isStaff ? {} : "skip");
   useEffect(() => {
     if (Platform.OS === "web") return;
+    if (isStaff && unread === undefined) return;
     void Notifications.setBadgeCountAsync(isStaff ? (unread ?? 0) : 0).catch(() => {});
   }, [isStaff, unread]);
 };

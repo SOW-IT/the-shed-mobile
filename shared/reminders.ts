@@ -34,7 +34,7 @@ export const plural = (n: number, noun: string, nouns = `${noun}s`): string =>
   `${n} ${n === 1 ? noun : nouns}`;
 
 export const forDays = (days: number): string =>
-  days === 0 ? "since today" : `for ${plural(days, "day")}`;
+  days === 0 ? "for under a day" : `for ${plural(days, "day")}`;
 
 export const daysBetweenYmd = (from: string, to: string): number | null => {
   if (!isValidDateString(from) || !isValidDateString(to)) return null;

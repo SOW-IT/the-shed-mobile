@@ -88,7 +88,7 @@ export const daysSince = (since: number, now: number = Date.now()): number =>
 
 export const waitingLabel = (since: number, now: number = Date.now()): string => {
   const days = daysSince(since, now);
-  if (days === 0) return "Waiting since today";
+  if (days === 0) return "Waiting under a day";
   return `Waiting ${days} ${days === 1 ? "day" : "days"}`;
 };
 
