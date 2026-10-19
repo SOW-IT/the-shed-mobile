@@ -20,6 +20,7 @@ import { useWideLayout } from "@/components/nav/layout";
 import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useReportAppVersion } from "@/hooks/useReportAppVersion";
+import { useBadgeSync } from "@/hooks/useBadgeSync";
 import { useReportSeen } from "@/hooks/useReportSeen";
 import { BOTTOM_TAB_HEIGHT, radius, useAppTheme } from "@/theme";
 
@@ -127,6 +128,7 @@ export default function TabsLayout() {
   usePushRegistration({ navigationReady: !waitingForRole, signedInAs: me?.email ?? null });
   useReportAppVersion();
   useReportSeen();
+  useBadgeSync(!!me?.profile);
 
   const isStaff = !!me?.profile;
 

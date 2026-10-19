@@ -2,10 +2,27 @@ import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Doc } from "../../../convex/_generated/dataModel";
 import { formatDueDate } from "@shared/designRequests";
+import { daysSince, waitingLabel } from "@shared/datetime";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { DesignStatusPill } from "./DesignStatusPill";
 
-export type DesignRequestListRow = Doc<"designRequests"> & { requesterName: string | null };
+export type DesignRequestListRow = Doc<"designRequests"> & {
+  requesterName: string | null;
+  waitingSince?: number;
+};
+
+const WAITING_LONG_DAYS = 7;
+
+export const WaitingLine = ({ since }: { since: number | undefined }) => {
+  const t = useAppTheme();
+  if (since === undefined) return null;
+  const long = daysSince(since) >= WAITING_LONG_DAYS;
+  return (
+    <Text style={[typography.caption, { color: long ? t.accent : t.muted, fontWeight: "700" }]}>
+      {waitingLabel(since)}
+    </Text>
+  );
+};
 
 /** One design request in a list: what's being designed, for when, and its status. */
 export const DesignRequestRow = ({
@@ -55,6 +72,7 @@ export const DesignRequestRow = ({
         <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
           {meta}
         </Text>
+        <WaitingLine since={request.waitingSince} />
         <View style={styles.footer}>
           <DesignStatusPill status={request.status} />
           {unread > 0 ? (

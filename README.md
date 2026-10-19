@@ -19,6 +19,20 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   submitter would review themselves are auto-approved (HOD's own request,
   Budget Manager's own, Director's own ≥ $5k, Finance Head's own; Finance
   department requests have no HOD step).
+- **Reminders**: a morning job (`convex/reminders.ts`) chases whatever has
+  not moved, a day after the last movement, then three days later, then
+  weekly: reimbursement requests (the next approver, the requester's receipt,
+  Finance's payment), design requests (the Marketing Head's approval, the
+  team's unfinished work) and event forms (the requester's side for forms not
+  submitted or sent back, the reviewer for forms waiting). Each person gets
+  one notification, push and email a morning listing everything waiting on
+  them; nobody with nothing waiting hears anything, and weekends are not
+  skipped. Reminder emails can be turned off on Profile. Home lists what is
+  waiting on you (`convex/waitingOnMe.ts`); Review, the Marketing queue and
+  To review say how long each item has waited and list the longest waiting
+  first. Admin, Other shows step timing (`convex/stepTiming.ts`): the typical
+  and longest wait at each step and who actioned it most, from the audit
+  trail. Pushes carry the unread count as the app icon badge.
 - **Per-year roles and departments** (`staffProfiles`, `departments`,
   `divisions`, keyed by year). The staff year rolls over on **October 1**.
   Admins prepare next year in advance; a 21:00 30 Sep prefill copies the

@@ -41,6 +41,7 @@ export default defineSchema({
     // The church they picked from the list (`churches`).
     churchId: v.optional(v.id("churches")),
     avatarId: v.optional(v.id("_storage")),
+    reminderEmails: v.optional(v.boolean()),
   })
     .index("email", ["email"])
     .index("by_churchId", ["churchId"]),
@@ -344,6 +345,8 @@ export default defineSchema({
     completedBy: v.optional(v.string()),
     completionNote: v.optional(v.string()),
     cancelledAt: v.optional(v.number()),
+    lastReminderAt: v.optional(v.number()),
+    reminderCount: v.optional(v.number()),
     legacyKey: v.optional(v.string()),
   })
     .index("by_year_and_number", ["year", "number"])
@@ -429,6 +432,8 @@ export default defineSchema({
     decidedAt: v.optional(v.number()),
     decidedBy: v.optional(v.string()),
     changesReason: v.optional(v.string()),
+    lastReminderAt: v.optional(v.number()),
+    reminderCount: v.optional(v.number()),
   })
     .index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
 

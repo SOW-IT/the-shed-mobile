@@ -30,10 +30,12 @@ import {
   Txt,
 } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
-import { timeAgo } from "@shared/datetime";
+import { daysSince, timeAgo, waitingLabel } from "@shared/datetime";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { ReceiptRecipientList } from "./ReceiptRecipientList";
+
+const WAITING_LONG_DAYS = 7;
 
 const EVENT_LABELS: Record<string, string> = {
   submitted: "Submitted",
@@ -339,6 +341,7 @@ export const RequestCard = ({
   autoOpenThread = false,
   deepLinkOpenKey,
   onAutoOpenThread,
+  waitingSince,
   children,
 }: {
   request: Doc<"requests">;
@@ -349,6 +352,7 @@ export const RequestCard = ({
   autoOpenThread?: boolean;
   deepLinkOpenKey?: string;
   onAutoOpenThread?: () => void;
+  waitingSince?: number;
   collapsible?: boolean;
   children?: ReactNode;
 }) => {
@@ -449,6 +453,20 @@ export const RequestCard = ({
         })}{" · "}
         {timeAgo(request._creationTime)}
       </Text>
+      {waitingSince !== undefined ? (
+        <Text
+          style={[
+            typography.caption,
+            {
+              color: daysSince(waitingSince) >= WAITING_LONG_DAYS ? t.accent : t.muted,
+              fontWeight: "700",
+              marginTop: -4,
+            },
+          ]}
+        >
+          {waitingLabel(waitingSince)}
+        </Text>
+      ) : null}
     </>
   );
 

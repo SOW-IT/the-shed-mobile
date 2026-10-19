@@ -90,6 +90,7 @@ export const get = query({
       email,
       // Either staff email spelling is the same person.
       isMe,
+      reminderEmails: isMe ? user?.reminderEmails !== false : null,
       googleSyncedAt: isMe && googleSyncTimes.length ? Math.max(...googleSyncTimes) : null,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: await photoUrl(ctx, user, dirUser),
@@ -114,6 +115,7 @@ async function ownProfileWithoutEmail(ctx: QueryCtx, user: Doc<"users">) {
   return {
     email: "",
     isMe: true,
+    reminderEmails: user.reminderEmails !== false,
     googleSyncedAt: null,
     name: user.name ?? null,
     photo: await photoUrl(ctx, user, null),
@@ -141,6 +143,16 @@ export const setChurch = mutation({
       throw new ConvexError("That church isn't in the list any more.");
     }
     await ctx.db.patch("users", user._id, { churchId: churchId ?? undefined });
+    return null;
+  },
+});
+
+export const setReminderEmails = mutation({
+  args: { enabled: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, { enabled }) => {
+    const user = await requireOwnUser(ctx);
+    await ctx.db.patch("users", user._id, { reminderEmails: enabled ? undefined : false });
     return null;
   },
 });

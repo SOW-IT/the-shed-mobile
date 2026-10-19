@@ -60,3 +60,20 @@ reviewed in the next.
 Refusing a submission up front when the year is missing an approver that
 Request would need, rather than letting it strand mid-chain. The error names
 the missing approver.
+
+**Reminder**:
+The morning message that chases a Request that has not moved: a day after
+its last movement, then three days later, then weekly. It goes to whoever
+the Request is waiting on. One person's reminders for the day, across every
+context, arrive as one notification, push and email (the **digest**);
+nobody with nothing waiting hears anything.
+_Avoid_: nag, escalation (nothing is escalated: the same person is reminded)
+
+**Waiting since**:
+When a Request reached the step it is at now, from its audit trail. Review
+shows it as "Waiting 6 days" and lists the longest waiting first.
+
+**Step timing**:
+How long each Step waited before it was actioned, over a staff year, with the
+typical (median) and longest wait and who actioned it most. On Admin for
+admins and the Finance Head.

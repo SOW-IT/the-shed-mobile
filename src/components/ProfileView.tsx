@@ -4,7 +4,7 @@ import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ReactNode, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { timeAgo } from "../../shared/datetime";
 import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
@@ -63,6 +63,7 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
   useMinuteTick();
   const generateAvatarUploadUrl = useMutation(api.profile.generateAvatarUploadUrl);
   const setAvatar = useMutation(api.profile.setAvatar);
+  const setReminderEmails = useMutation(api.profile.setReminderEmails);
 
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -197,6 +198,35 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
         </FadeInView>
       )}
 
+      {profile.isMe && profile.reminderEmails !== null && (
+        <FadeInView delay={stagger(2)}>
+          <Card>
+            <Text style={[typography.label, { color: t.muted }]}>Notifications</Text>
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Txt style={{ fontWeight: "600" }}>Email me daily reminders</Txt>
+                <Muted>
+                  One morning email listing what is waiting on you. Reminders still show in the
+                  app and as push notifications when this is off.
+                </Muted>
+              </View>
+              <Switch
+                accessibilityLabel="Email me daily reminders"
+                value={profile.reminderEmails}
+                onValueChange={(enabled) => {
+                  setError(null);
+                  void setReminderEmails({ enabled }).catch((e: unknown) =>
+                    setError(errorMessage(e))
+                  );
+                }}
+                trackColor={{ false: t.ghost, true: t.primarySoft }}
+                thumbColor={profile.reminderEmails ? t.primary : t.faint}
+              />
+            </View>
+          </Card>
+        </FadeInView>
+      )}
+
       {!profile.isMe && profile.church ? (
         <FadeInView delay={stagger(1)}>
           <Pressable
@@ -278,6 +308,7 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
 };
 
 const styles = StyleSheet.create({
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   syncChip: {
     flexDirection: "row",
     alignItems: "center",

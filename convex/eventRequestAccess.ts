@@ -37,7 +37,7 @@ export type SubForms = Record<SubFormKind, SubForm>;
 // ── Who can use event requests ──────────────────────────────────────────────
 
 /** Campus leaders work from Attendance; event requests are for the staff above them. */
-const isCampusLeader = (caller: CallerContext) =>
+export const isCampusLeader = (caller: CallerContext) =>
   assignmentsOf(caller.profile).some((a) => roleNeedsUniversity(a.role));
 
 export async function optionalEventStaff(ctx: Ctx): Promise<CallerContext | null> {

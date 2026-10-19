@@ -167,8 +167,29 @@ describe("push.sendMany (one push to many people)", () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)[0]).toMatchObject({
       to: "ExponentPushToken[a1]",
       title: "Notice",
+      badge: 0,
       data: { url: "/announcements/x" },
     });
+  });
+
+  test("each person's badge is their own unread count", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("pushTokens", { email: "a@sow.org.au", token: "ExponentPushToken[a]" });
+      await ctx.db.insert("pushTokens", { email: "b@sow.org.au", token: "ExponentPushToken[b]" });
+      await ctx.db.insert("notifications", { userEmail: "b@sow.org.au", title: "T", body: "B", read: false });
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [{ status: "ok" }, { status: "ok" }] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await t.action(internal.push.sendMany, { to: ["a@sow.org.au", "b@sow.org.au"], title: "T", body: "B" });
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(sent.map((m: { to: string; badge: number }) => [m.to, m.badge])).toEqual([
+      ["ExponentPushToken[a]", 0],
+      ["ExponentPushToken[b]", 1],
+    ]);
   });
 
   test("a batch that fails doesn't stop the next one or its receipt check", async () => {
@@ -281,6 +302,29 @@ describe("push.send (Expo push action)", () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body).toHaveLength(2);
     expect(body[0]).toMatchObject({ title: "Title", body: "Body", data: { url: "/review" } });
+  });
+
+  test("carries the recipient's unread count as the badge", async () => {
+    const t = convexTest(schema, modules);
+    await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
+    await t.run(async (ctx) => {
+      for (const read of [false, false, true]) {
+        await ctx.db.insert("notifications", {
+          userEmail: "a@sow.org.au",
+          title: "T",
+          body: "B",
+          read,
+        });
+      }
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [{ status: "ok" }] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await t.action(internal.push.send, { to: "a@sow.org.au", title: "T", body: "B" });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)[0].badge).toBe(2);
+    expect(await t.query(internal.notifications.unreadCountFor, { email: "a@sow.org.au" })).toBe(2);
   });
 
   test("omits data when no url is given", async () => {

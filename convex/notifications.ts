@@ -1,10 +1,23 @@
 import { ConvexError, v } from "convex/values";
 import { appCanOpen } from "../shared/appLinks";
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
 import { optionalEmail, optionalProfile, requireProfile } from "./model";
 
 const FEED_LIMIT = 50;
 const UNREAD_PROBE = 100;
+
+export const unreadCountOf = async (ctx: QueryCtx, email: string): Promise<number> =>
+  (
+    await ctx.db
+      .query("notifications")
+      .withIndex("by_user_and_read", (q) => q.eq("userEmail", email).eq("read", false))
+      .take(UNREAD_PROBE)
+  ).length;
+
+export const unreadCountFor = internalQuery({
+  args: { email: v.string() },
+  handler: async (ctx, args) => await unreadCountOf(ctx, args.email),
+});
 
 /**
  * The bell's feed. Apps from 2.3.1 send their version; an older app sends
@@ -37,13 +50,7 @@ export const unreadCount = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return 0;
-    const unread = await ctx.db
-      .query("notifications")
-      .withIndex("by_user_and_read", (q) =>
-        q.eq("userEmail", caller.email).eq("read", false)
-      )
-      .take(UNREAD_PROBE);
-    return unread.length;
+    return await unreadCountOf(ctx, caller.email);
   },
 });
 

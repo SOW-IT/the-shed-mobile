@@ -277,6 +277,7 @@ export const ReviewList = ({
                           request={request}
                           showRequester
                           actionRequired
+                          waitingSince={request.waitingSince}
                           autoExpand={request._id === focusId}
                           autoOpenThread={request._id === focusId && focusThread}
                           deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
@@ -313,6 +314,7 @@ export const ReviewList = ({
                         request={request}
                         showRequester
                         actionRequired
+                        waitingSince={request.waitingSince}
                         autoExpand={request._id === focusId}
                         autoOpenThread={request._id === focusId && focusThread}
                         deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
