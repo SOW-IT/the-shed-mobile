@@ -32,6 +32,22 @@ export async function recountEventAttendance(
   }
 }
 
+export async function adjustEventAttendanceCount(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  delta: number
+): Promise<void> {
+  const event = await ctx.db.get("events", eventId);
+  if (!event) return;
+  if (event.attendanceCount === undefined) {
+    await recountEventAttendance(ctx, eventId);
+    return;
+  }
+  await ctx.db.patch("events", eventId, {
+    attendanceCount: Math.max(0, event.attendanceCount + delta),
+  });
+}
+
 export const backfill = internalMutation({
   args: { cursor: v.optional(v.union(v.string(), v.null())) },
   returns: v.null(),

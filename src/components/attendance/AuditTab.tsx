@@ -12,6 +12,7 @@ import { Animated, type ScrollViewInstance, StyleSheet, Text, View } from "react
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
+  Btn,
   EmptyState,
   LoadingState,
   MultiSelect,
@@ -88,20 +89,26 @@ export function AuditTab({
   const convex = useConvex();
   const [options, setOptions] =
     useState<FunctionReturnType<typeof api.attendanceAudit.filterOptions>>();
+  const [optionsFailed, setOptionsFailed] = useState(false);
+  const [optionsAttempt, setOptionsAttempt] = useState(0);
 
   useEffect(() => {
     if (!filtersOpen) return;
     let live = true;
     convex.query(api.attendanceAudit.filterOptions, {}).then(
       (next) => {
-        if (live) setOptions(next);
+        if (!live) return;
+        setOptions(next);
+        setOptionsFailed(false);
       },
-      () => undefined
+      () => {
+        if (live) setOptionsFailed(true);
+      }
     );
     return () => {
       live = false;
     };
-  }, [convex, filtersOpen]);
+  }, [convex, filtersOpen, optionsAttempt]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search), 400);
@@ -199,6 +206,28 @@ export function AuditTab({
           placeholder="All actions"
           onSelect={(values) => setEntityTypes(values as AuditEntityType[])}
         />
+        {optionsFailed ? (
+          <View style={styles.optionsStatus}>
+            <Text style={[typography.caption, styles.optionsStatusText, { color: t.muted }]}>
+              Couldn&apos;t load the people and events to filter by.
+            </Text>
+            <Btn
+              title="Try again"
+              variant="ghost"
+              onPress={() => {
+                setOptionsFailed(false);
+                setOptionsAttempt((attempt) => attempt + 1);
+              }}
+            />
+          </View>
+        ) : options === undefined ? (
+          <View style={styles.optionsStatus}>
+            <SowSpinner size={18} />
+            <Text style={[typography.caption, styles.optionsStatusText, { color: t.muted }]}>
+              Loading the people and events to filter by…
+            </Text>
+          </View>
+        ) : null}
         <MultiSelect
           label="Performed by"
           values={actorEmails}
@@ -290,6 +319,8 @@ export function AuditTab({
 
 const styles = StyleSheet.create({
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
+  optionsStatus: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  optionsStatusText: { flexShrink: 1 },
   search: { marginTop: spacing.xs, marginBottom: spacing.sm },
   sectionHeader: {
     flexDirection: "row",

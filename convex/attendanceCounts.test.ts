@@ -109,6 +109,42 @@ describe("event attendance counts", () => {
     expect(await storedCount(t, eventId)).toBe(1);
   });
 
+  test("deleting a member lowers the count of every event they signed in to", async () => {
+    const t = await setup();
+    const first = await createEvent(t, "First");
+    const second = await createEvent(t, "Second", 60_000);
+    const [ann, ben] = await addMembers(t, ["Ann", "Ben"]);
+    const admin = asUser(t, ADMIN);
+    for (const eventId of [first, second]) {
+      await admin.mutation(api.attendance.signIn, { eventId, memberId: ann });
+    }
+    await admin.mutation(api.attendance.signIn, { eventId: first, memberId: ben });
+    expect(await admin.mutation(api.attendanceMembers.remove, { memberId: ann })).toBe(true);
+    expect(await storedCount(t, first)).toBe(1);
+    expect(await storedCount(t, second)).toBe(0);
+  });
+
+  test("a sign-out never takes a stored count below zero", async () => {
+    const t = await setup();
+    const eventId = await createEvent(t);
+    const [ann] = await addMembers(t, ["Ann"]);
+    await asUser(t, ADMIN).mutation(api.attendance.signIn, { eventId, memberId: ann });
+    await t.run((ctx) => ctx.db.patch(eventId, { attendanceCount: 0 }));
+    await asUser(t, ADMIN).mutation(api.attendance.signOut, { eventId, memberId: ann });
+    expect(await storedCount(t, eventId)).toBe(0);
+  });
+
+  test("adjusting the count of a deleted event does nothing", async () => {
+    const t = await setup();
+    const eventId = await createEvent(t);
+    await t.run(async (ctx) => {
+      const { adjustEventAttendanceCount } = await import("./attendanceCounts");
+      await ctx.db.delete(eventId);
+      await adjustEventAttendanceCount(ctx, eventId, 1);
+    });
+    expect(await t.run((ctx) => ctx.db.get(eventId))).toBeNull();
+  });
+
   test("the backfill stores every event's count, in batches", async () => {
     const t = await setup();
     const eventIds: Id<"events">[] = [];

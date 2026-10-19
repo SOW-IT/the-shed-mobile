@@ -18,7 +18,7 @@ import { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
-import { recountEventAttendance } from "./attendanceCounts";
+import { adjustEventAttendanceCount } from "./attendanceCounts";
 import { memberAuditName, staffDisplayName } from "./attendanceMembers";
 import { memberRoleResolver } from "./memberRoles";
 import { photoFor } from "./photo";
@@ -271,7 +271,7 @@ export const signIn = mutation({
       memberId,
       signInTime: Date.now(),
     });
-    await recountEventAttendance(ctx, eventId);
+    await adjustEventAttendanceCount(ctx, eventId, 1);
     const { name, email: subjectEmail } = await memberAuditName(ctx, member, year);
     await logAttendanceAction(ctx, {
       actorEmail,
@@ -376,7 +376,7 @@ export const signOut = mutation({
       );
     }
     await ctx.db.delete(existing._id);
-    await recountEventAttendance(ctx, eventId);
+    await adjustEventAttendanceCount(ctx, eventId, -1);
     const member = await ctx.db.get(memberId);
     const who = member
       ? await memberAuditName(ctx, member, year)

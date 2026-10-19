@@ -103,6 +103,17 @@ describe("roster history snapshot", () => {
     expect(await rosterNames(t, current, YEAR + 1)).toEqual(["Ann", "Ben", "Cat"]);
   });
 
+  test("a past year's snapshot is ignored, so its roster stays live", async () => {
+    const { t, current } = await setup();
+    await t.mutation(internal.rosterHistory.rebuild, { year: YEAR });
+    await t.run(async (ctx) => {
+      const snapshot = await ctx.db.query("rosterHistorySnapshots").first();
+      await ctx.db.patch(snapshot!._id, { year: YEAR - 1 });
+    });
+    expect(await rosterNames(t, current, YEAR - 1)).toEqual(["Ann", "Ben", "Cat"]);
+    expect(await rosterNames(t, current, YEAR)).toEqual(["Cat", "Ann", "Ben"]);
+  });
+
   test("the nightly metrics rebuild refreshes the snapshot", async () => {
     const { t } = await setup();
     await t.mutation(internal.attendanceMetrics.recomputeAll, {});

@@ -5,7 +5,6 @@ import { imageCacheKey, isCacheableImageUrl } from "@/lib/imageCacheKey";
 
 const CACHE_FOLDER = "images";
 
-const localUris = new Map<string, string>();
 const downloads = new Map<string, Promise<string | null>>();
 
 const cachedFile = (url: string) => new File(Paths.cache, CACHE_FOLDER, imageCacheKey(url));
@@ -14,13 +13,9 @@ const usesDeviceCache = (url: string | null): url is string =>
   Platform.OS !== "web" && !!url && isCacheableImageUrl(url);
 
 function storedUri(url: string): string | null {
-  const known = localUris.get(url);
-  if (known) return known;
   try {
     const file = cachedFile(url);
-    if (!file.exists) return null;
-    localUris.set(url, file.uri);
-    return file.uri;
+    return file.exists ? file.uri : null;
   } catch {
     return null;
   }
@@ -33,7 +28,6 @@ function download(url: string): Promise<string | null> {
     try {
       new Directory(Paths.cache, CACHE_FOLDER).create({ intermediates: true, idempotent: true });
       const file = await File.downloadFileAsync(url, cachedFile(url), { idempotent: true });
-      localUris.set(url, file.uri);
       return file.uri;
     } catch {
       return null;
@@ -47,7 +41,6 @@ function download(url: string): Promise<string | null> {
 
 export function forgetCachedImage(url: string | null): void {
   if (!usesDeviceCache(url)) return;
-  localUris.delete(url);
   try {
     const file = cachedFile(url);
     if (file.exists) file.delete();

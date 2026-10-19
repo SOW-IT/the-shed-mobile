@@ -49,10 +49,13 @@ async function liveHistory(ctx: QueryCtx, year: number): Promise<RosterHistory> 
 }
 
 export async function rosterHistory(ctx: QueryCtx, year: number): Promise<RosterHistory> {
-  const snapshot = await ctx.db
-    .query("rosterHistorySnapshots")
-    .withIndex("by_year", (q) => q.eq("year", year))
-    .first();
+  const snapshot =
+    year === currentStaffYear()
+      ? await ctx.db
+          .query("rosterHistorySnapshots")
+          .withIndex("by_year", (q) => q.eq("year", year))
+          .first()
+      : null;
   if (!snapshot) return await liveHistory(ctx, year);
   const attendees = snapshot.events.map((): Id<"attendanceMembers">[] => []);
   for (const member of snapshot.members) {
