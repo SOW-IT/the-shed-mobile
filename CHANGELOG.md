@@ -38,6 +38,23 @@ showed initials first.
 - **Photos show straight away on first launch.** A face downloading into the
   app's cache showed initials until it landed; it now shows the web copy
   meanwhile.
+## [2.9.13] - 2026-10-19
+
+### Changed
+- **Profile photos are made small on your device before they upload.** A
+  new photo is resized to 512 pixels on its longest side and saved as a
+  JPEG (or a PNG, when the picked file is one, so see-through areas stay
+  see-through) before it leaves the phone or browser, so it uploads in a
+  moment and any photo works, however big. The "Image is too large" message
+  is gone, and an animated GIF becomes its first frame. The web app has this
+  now; phones get it with the next store update.
+
+### Fixed
+- **A very large photo no longer stops the server from shrinking it.** Photos
+  from 24-megapixel phone cameras used up the server's memory and stayed full
+  size. The server now checks a photo's size before opening it and leaves
+  anything it can't fit (above about 10 megapixels) as it is, with a warning
+  in the logs.
 
 ## [2.9.12] - 2026-10-19
 
