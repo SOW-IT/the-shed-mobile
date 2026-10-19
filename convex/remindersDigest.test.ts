@@ -32,6 +32,7 @@ const EDDIE = "eddie@sow.org.au";
 const CORA = "cora@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 const BELLA = "bella@sow.org.au";
+const SAM = "sam@sow.org.au";
 
 type T = TestConvex<typeof schema>;
 
@@ -42,6 +43,7 @@ const PEOPLE: [string, { role: string; department?: string }[]][] = [
   [HENRY, [{ role: "Head of Department", department: "Marketing" }]],
   [MARY, [{ role: "Staff", department: "Marketing" }]],
   [RACHEL, [{ role: "Staff", department: "Events" }]],
+  [SAM, [{ role: "Staff", department: "Events" }]],
   [EDDIE, [{ role: "Head of Department", department: "Events" }]],
   [CORA, [{ role: "Head of Department", department: "Compliance" }]],
   [FIONA, [{ role: "Head of Department", department: "Finance" }]],
@@ -310,6 +312,32 @@ describe("event form reminders", () => {
     expect(await notificationsFor(t, RACHEL)).toEqual([]);
   });
 
+  test("a form sent back for changes chases the person who submitted it as well as the requester", async () => {
+    const t = await setup();
+    const id = await createEvent(t);
+    await submitRisk(t, id, SAM);
+    await asUser(t, CORA).mutation(api.eventSubForms.requestChanges, {
+      id,
+      form: "risk",
+      reason: "Add a wet weather plan",
+    });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    const [note] = await notificationsFor(t, SAM);
+    expect(note).toMatchObject({
+      body: "1 event form is waiting on you.",
+      url: `/event-requests/${id}/risk`,
+    });
+    const [email] = await emailsTo(t, SAM);
+    expect(email.body).toContain("Risk form for Winter Camp");
+    expect(email.body).toContain("changes were requested, not resubmitted for 1 day");
+    for (const side of [RACHEL, EDDIE]) {
+      const [theirs] = await emailsTo(t, side);
+      expect(theirs.body).toContain("changes were requested, not resubmitted for 1 day");
+    }
+  });
+
   test("a reviewer who submitted the form is not asked to approve it, and nobody is reminded once it is approved", async () => {
     const t = await setup();
     const id = await createEvent(t, CORA, { department: "Compliance" });
@@ -365,6 +393,27 @@ describe("the daily digest", () => {
     vi.setSystemTime(saturday);
     await run(t);
     expect(await notificationsFor(t, HENRY)).toHaveLength(1);
+  });
+
+  test("one person reached under both staff spellings gets a single digest", async () => {
+    const t = await setup();
+    const alias = "eddie@sowaustralia.com";
+    await t.run(async (ctx) => {
+      for (const department of await ctx.db.query("departments").collect()) {
+        if (department.name === "Events") {
+          await ctx.db.patch("departments", department._id, { headEmail: alias });
+        }
+      }
+    });
+    await createEvent(t, EDDIE);
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    const notes = [...(await notificationsFor(t, EDDIE)), ...(await notificationsFor(t, alias))];
+    expect(notes.map((n) => n.body)).toEqual(["3 event forms are waiting on you."]);
+    const mail = (await emails(t)).filter((e) => e.to === EDDIE || e.to === alias);
+    expect(mail).toHaveLength(1);
+    expect(mail[0].body).toContain("Risk form for Winter Camp");
   });
 
   test("reminder emails can be turned off; the notification and push still arrive", async () => {

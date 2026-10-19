@@ -7,7 +7,10 @@ export type StaffOnlyViewer = {
   isCampusLeader?: boolean;
 };
 
-export const staffOnlyMessage = (kind: "Event" | "Design", viewer: StaffOnlyViewer): string => {
+export const staffOnlyMessage = (
+  kind: "Event" | "Design" | "Reimbursement",
+  viewer: StaffOnlyViewer
+): string => {
   const lead = `${kind} requests are for SOW staff`;
   if (viewer.profile && viewer.isCampusLeader) return `${lead}, not campus leaders.`;
   if (!isSowStaffAddress(viewer.email)) {
