@@ -143,7 +143,10 @@ _Avoid_: aggregate, cache, rollup
 The crons that keep Insights fresh. SOW's Snapshots are recomputed every
 night; each campus's weeklies view redoes only what the attendance change
 log says changed since the night before (often nothing). A roll-call or event
-change is visible in Insights the next morning. The October 1 prefill job also
+change is visible in Insights the next morning. The same rebuild refreshes
+General's staff trends and each year's roster history (the order roll-call
+lists people in), so a profile change shows in General, and a sign-in counts
+towards roster order, the next morning. The October 1 prefill job also
 rebuilds the year that has just ended so the incoming year's Snapshots start
 honest.
 _Avoid_: dirty, dirty recompute (the old 15-minute mechanism, removed in 1.11)
