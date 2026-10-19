@@ -6,6 +6,43 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.11] - 2026-10-19
+
+Reminders for every kind of request, in one morning message, and what is
+waiting on you on Home.
+
+### Added
+- **Design requests and event forms get reminders too.** A design request
+  waiting on the Marketing Head, or approved and still to finish, and an event
+  form not submitted, waiting for approval or sent back for changes, are
+  chased the way reimbursement requests always were: after a day with no
+  movement, then three days later, then weekly. Design reminders say when the
+  design is needed by; event form reminders say how far off the event is. The
+  Marketing team hears about approved designs in the app, with one email to
+  the Marketing inbox.
+- **One message a morning, not one per request.** Everything waiting on you
+  (reimbursement requests, design requests, event forms) arrives as a single
+  notification, push and email that lists each item and opens the page in
+  question, or Home when more than one kind is waiting. Nobody with nothing
+  waiting hears anything. Weekends are not skipped.
+- **Home shows what is waiting on you**: requests to approve, receipts to
+  attach, payments to make, design requests to approve or finish, event forms
+  to review or fill in, each a tap away.
+- **Step timing on Admin, Other** (admins and the Finance Head): for the
+  chosen year, how long each step waited before someone actioned it, the
+  typical and longest wait, and who actioned it most, across reimbursements,
+  design requests and event forms. It reads the audit trail, so past years
+  count too.
+- **The app icon shows your unread notifications** and clears once you have
+  read them.
+- **Reminder emails can be turned off on your Profile.** The notification and
+  push still arrive.
+
+### Changed
+- **Review, the Marketing queue and To review show how long each item has
+  waited** ("Waiting 6 days", in orange from a week) and list the longest
+  waiting first.
+
 ## [2.9.10] - 2026-10-18
 
 Every screen walked again on latest main, as every kind of user (signed out,
