@@ -241,7 +241,7 @@ export const canReverseSignIn = (
   signInTime > event.dateEnd ||
   now - signInTime <= SIGN_IN_UNDO_GRACE_MS;
 
-type AttendanceFrequencyScore = {
+export type AttendanceFrequencyScore = {
   tagMatches: number;
   subgroupMatches: number;
   total: number;

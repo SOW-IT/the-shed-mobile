@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "convex/react";
+import { useConvex } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import {
   MutableRefObject,
   useEffect,
@@ -84,7 +85,23 @@ export function AuditTab({
   const [eventIds, setEventIds] = useState<Id<"events">[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const options = useQuery(api.attendanceAudit.filterOptions, {});
+  const convex = useConvex();
+  const [options, setOptions] =
+    useState<FunctionReturnType<typeof api.attendanceAudit.filterOptions>>();
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    let live = true;
+    convex.query(api.attendanceAudit.filterOptions, {}).then(
+      (next) => {
+        if (live) setOptions(next);
+      },
+      () => undefined
+    );
+    return () => {
+      live = false;
+    };
+  }, [convex, filtersOpen]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search), 400);

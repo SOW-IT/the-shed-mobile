@@ -2,7 +2,7 @@ import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { announcementStatusValidator, audienceValidator } from "./announcementData";
-import { metricsDataValidator } from "./metricsData";
+import { metricsDataValidator, staffTrendsValidator } from "./metricsData";
 import {
   personCategoryValidator,
   termFactsFields,
@@ -479,6 +479,7 @@ export default defineSchema({
     // A campus weekly's term and week, set when it was created as a Weekly
     // (or by the backfill). Insights trusts these over dates and names.
     weekly: v.optional(weeklyMarkValidator),
+    attendanceCount: v.optional(v.number()),
   })
     .index("by_dateStart", ["dateStart"]),
 
@@ -577,6 +578,30 @@ export default defineSchema({
   // One row: the Insights → General campus weekly-attendance chart, rebuilt by
   // the nightly Insights rebuild so opening the tab reads this instead of
   // every weekly meeting's attendance.
+  rosterHistorySnapshots: defineTable({
+    year: v.number(),
+    builtAt: v.number(),
+    events: v.array(
+      v.object({
+        eventId: v.id("events"),
+        dateStart: v.number(),
+        tagIds: v.array(v.string()),
+        subgroups: v.array(v.string()),
+      })
+    ),
+    members: v.array(
+      v.object({
+        memberId: v.id("attendanceMembers"),
+        events: v.array(v.number()),
+      })
+    ),
+  }).index("by_year", ["year"]),
+
+  staffTrendsSnapshots: defineTable({
+    staffYear: v.number(),
+    trends: staffTrendsValidator,
+  }),
+
   campusAttendanceSnapshots: defineTable({
     computedAt: v.number(),
     years: v.array(v.number()),
