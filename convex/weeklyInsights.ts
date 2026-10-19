@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import { DAY_MS, rangeStartFor, WEEK_MS } from "../shared/attendanceMetrics";
 import { churchPagePath } from "../shared/churches";
+import { markedRoleIn } from "../shared/memberRole";
 import { type ViewBlock } from "../shared/attendanceMetricsView";
 import {
   assignmentsOf,
@@ -92,7 +93,7 @@ const INDEX_WEEKLIES_WEEKS = 60;
 const NEVER = Number.MAX_SAFE_INTEGER;
 // Bump when what a view shows changes, so every campus redoes its views on
 // the next build after a deploy.
-export const VIEW_VERSION = 6;
+export const VIEW_VERSION = 8;
 
 export async function readSettings(
   ctx: QueryCtx
@@ -357,15 +358,16 @@ export async function resolvePeople(ctx: QueryCtx, keys: string[], years: number
   }
   const fields = await ctx.db.query("attendanceMetadata").take(200);
   const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
-  const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
   const fieldLabel = (field: Doc<"attendanceMetadata"> | undefined, member: Doc<"attendanceMembers"> | null) => {
     const raw = field ? member?.metadata?.[field._id] : undefined;
     return raw ? (field?.values?.[raw] ?? raw) : null;
   };
+  // Only a hand-set Alumni or Visitor counts: every other Role is what this
+  // build works out.
   const memberInfo = (member: Doc<"attendanceMembers"> | null) => {
     const campus = fieldLabel(campusField, member);
-    const role = fieldLabel(roleField, member);
-    return { campus: campus && campus !== "Other" ? campus : null, roles: role ? [role] : [] };
+    const marked = markedRoleIn(fields, member?.metadata);
+    return { campus: campus && campus !== "Other" ? campus : null, roles: marked ? [marked] : [] };
   };
 
   const people: WeeklyPerson[] = [];
@@ -855,6 +857,7 @@ export const setSettings = internalMutation({
     if (id) await ctx.db.replace("weeklyInsightsSettings", id, { ...next, version: version + 1 });
     else await ctx.db.insert("weeklyInsightsSettings", { ...next, version: version + 1 });
     await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuildAll, {});
+    await ctx.scheduler.runAfter(0, internal.generalMetrics.recomputeCampusWeeklyAttendance, {});
     return next;
   },
 });

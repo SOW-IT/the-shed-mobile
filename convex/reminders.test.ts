@@ -240,7 +240,7 @@ describe("stale reminder schedule", () => {
 
     const request = await t.run((ctx) => ctx.db.get("requests", id));
     expect(request?.reminderCount).toBe(1);
-    expect(await notificationTitles(t, FIONA)).toContain("Request reminder");
+    expect(await notificationTitles(t, FIONA)).toContain("Waiting on you");
   });
 
   test("nobody is nudged for payment when the year has no Finance Head", async () => {

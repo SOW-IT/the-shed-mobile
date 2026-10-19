@@ -1,6 +1,7 @@
 import { roleNeedsUniversity, staffYearStartMs, sydneyYmd } from "./flow";
 import { SOW_SUBGROUP, tagListOf, type TagList } from "./rollcall";
 import { dayLabel, type WeeklyPerson } from "./weeklyInsights";
+import { round1 } from "./numbers";
 
 type SowMode = "twig" | "ppn";
 
@@ -46,8 +47,6 @@ export const staffYearLabel = (year: number): string => `Staff year ${year}`;
 
 export const isRunning = (year: number, now: number): boolean =>
   now >= staffYearStartMs(year) && now < staffYearStartMs(year + 1);
-
-const round1 = (n: number) => Math.round(n * 10) / 10;
 
 const byTime = (events: SowEvent[]) => [...events].sort((a, b) => a.at - b.at);
 
@@ -135,6 +134,7 @@ export function computeTwig(input: {
   people: SowPeople;
   now: number;
   rules: SowRules;
+  roster?: string[];
 }): TwigResult {
   const { year, people, rules } = input;
   const held = heldOf(input.events);
@@ -167,6 +167,19 @@ export function computeTwig(input: {
         attended >= rules.regularShare * held.length,
     };
   });
+  for (const key of input.roster ?? []) {
+    if (seen.has(key) || roleIn(people.get(key), year) !== "leader") continue;
+    rows.push({
+      key,
+      role: "leader",
+      campus: campusIn(people.get(key), year),
+      attended: 0,
+      held: held.length,
+      pct: 0,
+      lastAt: 0,
+      regular: false,
+    });
+  }
   const recent = held.slice(-rules.followUpMisses);
   const followUp =
     running && held.length > rules.followUpMisses
@@ -209,7 +222,14 @@ export type PpnResult = {
   year: number;
   rows: PpnRow[];
   noRoll: SowEvent[];
-  totals: { signIns: number; people: number; firstTimers: number; byRole: Record<SowRole, number> };
+  totals: {
+    signIns: number;
+    people: number;
+    firstTimers: number;
+    byRole: Record<SowRole, number>;
+    byCampus: Split;
+  };
+  lastAverage: number | null;
 };
 
 const emptyRoles = (): Record<SowRole, number> => ({ leader: 0, staff: 0, none: 0 });
@@ -222,13 +242,27 @@ export function computePpn(input: {
   lastEvents: SowEvent[];
   earlier: SowEvent[];
   people: SowPeople;
+  now: number;
 }): PpnResult {
   const { year, people } = input;
   const held = heldOf(input.events);
   const lastHeld = heldOf(input.lastEvents);
+  const cut = isRunning(year, input.now)
+    ? staffYearStartMs(year - 1) + (input.now - staffYearStartMs(year))
+    : Infinity;
+  const lastSoFar = lastHeld.filter((e) => e.at <= cut);
+  const lastAverage = lastSoFar.length
+    ? round1(lastSoFar.reduce((sum, e) => sum + e.people.length, 0) / lastSoFar.length)
+    : null;
   const seen = new Set(heldOf(input.earlier).flatMap((e) => e.people));
   const everyone = new Set<string>();
-  const totals = { signIns: 0, people: 0, firstTimers: 0, byRole: emptyRoles() };
+  const totals = {
+    signIns: 0,
+    people: 0,
+    firstTimers: 0,
+    byRole: emptyRoles(),
+    byCampus: splitByCampus(held.flatMap((e) => e.people), people, year),
+  };
   const rows: PpnRow[] = held.map((event) => {
     const byRole = emptyRoles();
     let firstTimers = 0;
@@ -252,5 +286,5 @@ export function computePpn(input: {
     };
   });
   totals.people = everyone.size;
-  return { year, rows: rows.reverse(), noRoll: noRollOf(input.events), totals };
+  return { year, rows: rows.reverse(), noRoll: noRollOf(input.events), totals, lastAverage };
 }

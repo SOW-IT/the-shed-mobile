@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { Animated, Image, Text, View } from "react-native";
+import { forgetCachedImage, useCachedImageUri } from "@/hooks/useCachedImageUri";
 import { USE_NATIVE_DRIVER, typography, useAppTheme } from "@/theme";
 import { Btn } from "./buttons";
 import { FadeInView, SowSpinner } from "./primitives";
@@ -143,9 +144,20 @@ export const Avatar = ({
 }) => {
   const t = useAppTheme();
   const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
+  const shownPhoto = photo && photo !== brokenPhoto ? photo : null;
+  const source = useCachedImageUri(shownPhoto);
   const round = { width: size, height: size, borderRadius: size / 2 };
-  if (photo && photo !== brokenPhoto) {
-    return <Image source={{ uri: photo }} style={round} onError={() => setBrokenPhoto(photo)} />;
+  if (shownPhoto && source) {
+    return (
+      <Image
+        source={{ uri: source }}
+        style={round}
+        onError={() => {
+          forgetCachedImage(shownPhoto);
+          setBrokenPhoto(shownPhoto);
+        }}
+      />
+    );
   }
   const initials = (name ?? "?")
     .split(" ")

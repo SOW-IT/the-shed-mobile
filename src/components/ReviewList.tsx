@@ -1,11 +1,19 @@
 import { useMutation, useQuery } from "convex/react";
-import { useEffect, useState } from "react";
+import { type MutableRefObject, useEffect, useState } from "react";
 import { View } from "react-native";
 import { spacing, useAppTheme } from "@/theme";
-import { eventStaffYear, nextStepAfter, STEP_LABELS } from "../../shared/flow";
+import {
+  eventStaffYear,
+  nextStepAfter,
+  requestStaffYear,
+  reviewedHeading,
+  STEP_LABELS,
+} from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
+import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
+import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import { ReceiptRecipientList } from "@/components/ReceiptRecipientList";
 import { LabelledField } from "@/components/events/LabelledField";
 import {
@@ -27,6 +35,8 @@ import {
 } from "@/components/ui";
 
 type Step = "hod" | "budgetManager" | "director" | "financeHead";
+
+const reviewedAtOf = (row: { reviewedAt: number }) => row.reviewedAt;
 
 const DeclineSheet = ({
   target,
@@ -56,14 +66,8 @@ const DeclineSheet = ({
   }, [target]);
 
   const handleDecline = async () => {
-    if (!target || submitting) return;
+    if (!target || submitting || reason.trim() === "") return;
     setError(null);
-    if (reason.trim() === "") {
-      setError(
-        "Please give a reason for declining. The requester will be notified with it."
-      );
-      return;
-    }
     setSubmitting(true);
     try {
       await decline({ requestId: target.request._id, step: target.step, reason });
@@ -187,15 +191,30 @@ export const ReviewList = ({
   focusThread = false,
   focusReopenKey,
   onFocusThreadOpened,
+  loadMoreRef,
 }: {
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
   onFocusThreadOpened?: () => void;
+  loadMoreRef?: MutableRefObject<(() => void) | null>;
 } = {}) => {
   const t = useAppTheme();
   const data = useQuery(api.requests.toReview, {});
   const reviewed = useQuery(api.requests.reviewed, {});
+  const earlier = useEarlierYears(api.requests.reviewedHistory, {
+    enabled: data != null && reviewed != null,
+    exclude: [
+      ...(data
+        ? [...data.hod, ...data.budgetManager, ...data.director, ...data.financeHead, ...data.readyToPay]
+        : []),
+      ...(reviewed ?? []),
+    ].map((r) => r._id),
+    yearOf: requestStaffYear,
+    newestOf: reviewedAtOf,
+    loadMoreRef,
+    pageSize: 60,
+  });
   const approve = useMutation(api.requests.approve).withOptimisticUpdate(
     (localStore, { requestId, step }) => {
       const current = localStore.getQuery(api.requests.toReview, {});
@@ -283,6 +302,7 @@ export const ReviewList = ({
                           request={request}
                           showRequester
                           actionRequired
+                          waitingSince={request.waitingSince}
                           autoExpand={request._id === focusId}
                           autoOpenThread={request._id === focusId && focusThread}
                           deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
@@ -319,6 +339,7 @@ export const ReviewList = ({
                         request={request}
                         showRequester
                         actionRequired
+                        waitingSince={request.waitingSince}
                         autoExpand={request._id === focusId}
                         autoOpenThread={request._id === focusId && focusThread}
                         deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
@@ -342,7 +363,7 @@ export const ReviewList = ({
           )}
           {reviewed && reviewed.length > 0 ? (
             <View style={{ gap: spacing.md }}>
-              <SectionTitle>Reviewed ({reviewed.length})</SectionTitle>
+              <SectionTitle>{reviewedHeading(reviewed.length)}</SectionTitle>
               {reviewed.map((request, index) => (
                 <FadeInView key={request._id} delay={stagger(index)}>
                   <RequestCard
@@ -360,6 +381,18 @@ export const ReviewList = ({
           ) : null}
         </>
       )}
+      <EarlierYears
+        groups={earlier.groups}
+        hasMore={earlier.hasMore}
+        loadingMore={earlier.loadingMore}
+        onLoadMore={earlier.loadMore}
+        note={(year) => <ReceiptFilesNote year={year} />}
+        renderRows={(rows) =>
+          rows.map((request) => (
+            <RequestCard key={request._id} request={request} showRequester collapsible />
+          ))
+        }
+      />
       <ConfirmDialog
         visible={approveTarget !== null}
         title="Approve request?"

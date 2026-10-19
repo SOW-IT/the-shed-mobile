@@ -3,6 +3,7 @@ import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta
 import { capitalizeMemberName } from "../shared/rollcall";
 import { internalMutation } from "./_generated/server";
 import { auditStamp, logAttendanceAction, MAX_AUDIT_ATTENDANCE_LINES } from "./attendanceAudit";
+import { recountEventAttendance } from "./attendanceCounts";
 import { latestStaffProfile } from "./attendanceMembers";
 import { knownMemberId } from "./staffMembers";
 
@@ -95,6 +96,7 @@ export const restoreAttendance = internalMutation({
         signInTime: record.signInTime,
         notes: record.notes,
       });
+      await recountEventAttendance(ctx, record.eventId);
       await logAttendanceAction(ctx, {
         actorEmail: RESTORE_ACTOR,
         entityType: "attendance",

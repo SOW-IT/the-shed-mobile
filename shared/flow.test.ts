@@ -1,33 +1,37 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import {
   acronym,
   ALLOWED_REACTIONS,
   APPROVED,
-  type ApprovalState,
   currentStep,
-  nextStepAfter,
   DECLINED,
   DISPLAY_ACRONYMS,
+  eventStaffYear,
   formatAssignment,
+  incomingStaffYear,
+  nextStepAfter,
   PENDING,
   QUICK_REACTION_EMOJIS,
   REACTION_EMOJIS,
-  type RequestLifecycle,
   requestCompleted,
+  requestCreatedAt,
   requestDeclined,
   requestDisplayStatus,
   requestFullyApproved,
-  eventStaffYear,
+  requestStaffYear,
+  REVIEWED_LIMIT,
+  reviewedHeading,
   roleNeedsDepartment,
   roleNeedsUniversity,
   rolesNeedUniversity,
-  incomingStaffYear,
   staffYearForDate,
   staffYearStartMs,
-  withinPrefillWindow,
-  sydneyCalendarYear,
   stepsForRequest,
+  sydneyCalendarYear,
+  type ApprovalState,
+  type RequestLifecycle,
   universityColour,
+  withinPrefillWindow,
   withinRolloverAuthGrace,
 } from "./flow";
 
@@ -161,6 +165,15 @@ describe("eventStaffYear", () => {
     expect(eventStaffYear(Date.parse("2026-09-30T13:59:00Z"))).toBe(2026);
     expect(eventStaffYear(Date.parse("2026-09-30T14:00:00Z"))).toBe(2027);
     expect(eventStaffYear(Date.parse("2026-06-11T00:00:00Z"))).toBe(2026);
+  });
+});
+
+describe("requestStaffYear", () => {
+  it("files a request under the staff year it was made in, and orders by creation", () => {
+    const made = Date.parse("2026-09-30T13:59:00Z");
+    expect(requestStaffYear({ _creationTime: made })).toBe(2026);
+    expect(requestStaffYear({ _creationTime: made + 120_000 })).toBe(2027);
+    expect(requestCreatedAt({ _creationTime: made })).toBe(made);
   });
 });
 
@@ -334,5 +347,12 @@ describe("reaction catalogue", () => {
   test("lists each emoji once, so the picker has no duplicate keys", () => {
     expect(new Set(REACTION_EMOJIS).size).toBe(REACTION_EMOJIS.length);
     expect(new Set(QUICK_REACTION_EMOJIS).size).toBe(QUICK_REACTION_EMOJIS.length);
+  });
+});
+
+describe("reviewedHeading", () => {
+  it("counts a short list and says when the list stops at the cap", () => {
+    expect(reviewedHeading(3)).toBe("Reviewed (3)");
+    expect(reviewedHeading(REVIEWED_LIMIT)).toBe(`Latest ${REVIEWED_LIMIT} reviewed`);
   });
 });

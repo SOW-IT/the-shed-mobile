@@ -6,6 +6,301 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.15] - 2026-10-19
+
+Past years' requests no longer sit behind a year picker: every request list
+that looks back now carries on into earlier years as you scroll.
+
+### Changed
+- **Earlier years load as you scroll.** Reimbursements (Mine, Review and All),
+  Design Requests (Mine and All) and Event Requests (Mine and All) show this
+  year as before, then last year's requests, then the year before, newest
+  first, each year under its own heading. More load as you reach the bottom,
+  the way Attendance's Members list does, and a Show earlier button appears
+  when the list is too short to scroll.
+- **Review keeps everything you've reviewed.** Below the requests waiting on
+  you and the ones you reviewed recently, Review lists every other request you
+  approved or declined, under the staff year it was made in, most recently
+  reviewed first.
+- **All (Reimbursements) puts earlier years' completed requests under
+  Completed**, after this year's. Earlier years' receipt-file warnings sit
+  under each year's heading on Mine, Review and All.
+- **The year pickers are gone** from Reimbursements, Design Requests and Event
+  Requests.
+## [2.9.14] - 2026-10-19
+
+Fixes for regressions found reviewing 2.9.9 to 2.9.12: tabs that moved under
+you, reminders that missed someone, a badge that blinked, and photos that
+showed initials first.
+
+### Fixed
+- **Reimbursements and Design Requests open on the right tab and stay
+  there.** The tab you land on (Review, or the Marketing queue, when something
+  waits on you and nothing of yours needs action; Mine otherwise) is decided
+  once when the screen opens. Before, approving the last item in Review threw
+  you back to Mine, and a request arriving while you sat on Mine pulled you
+  over to Review.
+- **A linked request always shows.** Opening a request from a notification
+  while All was switched to Completed left the filter on Completed and hid an
+  ongoing request; the filter now follows the link.
+- **Personal accounts are asked to use their SOW account on Reimbursements
+  too.** A personal Google account arriving from a link was told "No role or
+  department is assigned ... yet"; it now gets the same message as Event and
+  Design Requests.
+- **A form sent back for changes chases whoever submitted it.** The reminder
+  went to the requester and the department Head only, so a department member
+  who filled in and submitted the form was told once and never reminded.
+- **One morning digest per person**, even when they are reached under both
+  staff address spellings (sow.org.au and sowaustralia.com).
+- **The app icon badge no longer blinks to zero on launch** before your
+  notifications have loaded (iOS).
+- **New events store their attendance count from the start**, so the event
+  list never has to count sign-ins for them.
+- **Photos show straight away on first launch.** A face downloading into the
+  app's cache showed initials until it landed; it now shows the web copy
+  meanwhile.
+## [2.9.13] - 2026-10-19
+
+### Changed
+- **Profile photos are made small on your device before they upload.** A
+  new photo is resized to 512 pixels on its longest side and saved as a
+  JPEG (or a PNG, when the picked file is one, so see-through areas stay
+  see-through) before it leaves the phone or browser, so it uploads in a
+  moment and any photo works, however big. The "Image is too large" message
+  is gone, and an animated GIF becomes its first frame. The web app has this
+  now; phones get it with the next store update.
+
+### Fixed
+- **A very large photo no longer stops the server from shrinking it.** Photos
+  from 24-megapixel phone cameras used up the server's memory and stayed full
+  size. The server now checks a photo's size before opening it and leaves
+  anything it can't fit (above about 10 megapixels) as it is, with a warning
+  in the logs.
+
+## [2.9.12] - 2026-10-19
+
+The app reads far less from the database and downloads photos once instead
+of on every launch, to stay inside Convex's free plan (database reads were
+about five times the monthly allowance halfway through the month).
+
+### Changed
+- **Profile photos download once.** On phones each photo is saved in the
+  app's cache the first time it shows and loaded from there afterwards, so
+  opening the app or the org chart no longer fetches every face again.
+- **Uploaded profile photos are shrunk to 256 pixels.** A photo over 64 KB
+  is turned the right way up and saved as a small JPEG a moment after it is
+  uploaded. It looks the same in the app's small circles at a small fraction
+  of the size. Photos uploaded before this release are shrunk once after it
+  ships.
+- **Insights, General updates overnight.** Staff numbers, turnover and tenure
+  are worked out each night with the rest of Insights, so a profile change
+  shows there the next morning.
+- **Roll-call keeps last night's ordering.** Who comes first on an event's
+  roster (people who came to similar events, then the campus, then how often
+  they come) is worked out each night instead of every time the roster opens.
+  Sign-ins from earlier today count from tomorrow.
+- **Audit filters load when you open them**, with the people and events from
+  the latest activity at that moment, instead of following every sign-in
+  live.
+
+### Fixed
+- **The Events list no longer re-reads every sign-in on each tap.** Each
+  event keeps its signed-in count, updated when someone signs in or out, so
+  taking roll call stops making everyone's Events list recount the 20 events
+  on screen.
+
+## [2.9.11] - 2026-10-19
+
+Reminders for every kind of request, in one morning message, and what is
+waiting on you on Home.
+
+### Added
+- **Design requests and event forms get reminders too.** A design request
+  waiting on the Marketing Head, or approved and still to finish, and an event
+  form not submitted, waiting for approval or sent back for changes, are
+  chased the way reimbursement requests always were: after a day with no
+  movement, then three days later, then weekly. Design reminders say when the
+  design is needed by; event form reminders say how far off the event is. The
+  Marketing team hears about approved designs in the app, with one email to
+  the Marketing inbox.
+- **One message a morning, not one per request.** Everything waiting on you
+  (reimbursement requests, design requests, event forms) arrives as a single
+  notification, push and email that lists each item and opens the page in
+  question, or Home when more than one kind is waiting. Nobody with nothing
+  waiting hears anything. Weekends are not skipped.
+- **Home shows what is waiting on you**: requests to approve, receipts to
+  attach, payments to make, design requests to approve or finish, event forms
+  to review or fill in, each a tap away.
+- **Step timing on Admin, Other** (admins and the Finance Head): for the
+  chosen year, how long each step waited before someone actioned it, the
+  typical and longest wait, and who actioned it most, across reimbursements,
+  design requests and event forms. It reads the audit trail, so past years
+  count too.
+- **The app icon shows your unread notifications** and clears once you have
+  read them (on iOS; Android keeps it in step while the app is open, on
+  launchers that show badges).
+- **Reminder emails can be turned off on your Profile.** The notification and
+  push still arrive.
+
+### Changed
+- **Review, the Marketing queue and To review show how long each item has
+  waited** ("Waiting 6 days", in orange from a week) and list the longest
+  waiting first.
+
+## [2.9.10] - 2026-10-18
+
+Every screen walked again on latest main, as every kind of user (signed out,
+personal account, campus leader, staff, Marketing, heads of department, the
+Budget Manager, Finance Head, Director and an admin), on web and the iOS
+simulator. Fixes for what that turned up, and a few places that now show
+instead of tell.
+
+### Fixed
+- **Pages opened from a link while signed out no longer spin forever.**
+  Profile, New Design Request and New Event Request ask you to sign in, like
+  every other page; Announcements and Admin ask too instead of saying only
+  admins can use them; an event link says "Sign in to see this event", not
+  "Event not found".
+- **New Event Request no longer spins for campus leaders**, and neither page
+  spins for a personal account: they say who the requests are for, as the
+  list pages do. A personal (non-SOW) account is asked to use its SOW Google
+  account instead of being told it has no role "yet".
+- **Notifications and someone's profile could open with no back arrow** on a
+  fresh launch (Expo Router 58 reads the stack before it has pushed the
+  screen). Both now always have one.
+- **A request link opens where the request is.** Finance staff land on All,
+  on Ongoing or Completed as the request needs, with it expanded, instead of
+  an empty Mine; a request you can't see says so instead of saying it was
+  deleted.
+- **Admin is a proper locked page** for people who can't use it, not a line
+  of small text.
+- "Reviewed (50)" on Review was the 50-row limit shown as a count; it now
+  says "Latest 50 reviewed" when the list is cut off.
+- Two old attendance pages nothing linked to any more (a campus's event list
+  and a bare New event screen that made events with no date, weekly mark or
+  tags) are gone.
+
+### Changed
+- **New Request shows who it goes to as you type**: HOD, Budget Manager,
+  Director (from the threshold) and Finance Head, by name, with steps your
+  own role skips marked. It replaces the sentence about Director approval.
+- **Receipts you attach show a thumbnail** when they're images.
+- **A design request shows its progress** as a step track (Submitted,
+  Approved or Declined, Complete) with who and when, instead of lines of
+  text.
+- **Approvers open on the work waiting for them**: Review when a request
+  waits on you and nothing of your own needs doing, and the Marketing queue
+  for the Marketing Head.
+
+## [2.9.9] - 2026-10-18
+
+Past years' requests for everyone, and a Role that works itself out.
+
+### Added
+- **Staff can look back at past years' reimbursement requests.** The year
+  picker Finance had on All is now on Mine and Review too. On Mine it shows
+  your own requests from that year; on Review, the other people's requests
+  from that year you approved or declined. Each only offers the years you
+  made or reviewed a request in. A request counts in the year it was made,
+  even when it was reviewed in the next. Review stays in the menu
+  for anyone who has reviewed a request before, even if they approve nothing
+  this year, so last year's Heads can still see what they signed off.
+
+### Changed
+- **A member's Role is worked out, not typed.** Staff and leaders show their
+  staff profile's role. Everyone else is Regular, Irregular, Newcomer or
+  Visitor from last night's Insights build of their campus's weeklies, or
+  Member if they haven't come to one in the latest term or the one before.
+  The edit sheet shows Role locked, with an info button that lists the rules
+  and the campus's numbers. Leaders can still set **Visitor** (a friend, someone from
+  a church) or **Alumni** by hand, the two Insights can't tell. Alumni marks
+  are kept; anything else typed in before (Member, Newcomer, Guest, Student
+  Leader on someone without a staff profile) no longer counts. The Members
+  list, its Role filter and sort, and event rosters all use the worked-out
+  Role, and leaving staff no longer writes Member onto someone's record.
+- **Insights counts a hand-set Visitor as a visitor** wherever they come, and
+  no longer treats a member typed in as Guest or Student Leader as staff or a
+  leader. Every campus rebuilds its views once after this release.
+- **The member field Notes is now Other Information**, for anything about the
+  person. Notes about one event are kept on that sign-in, like its time: the
+  edit sheet calls them "Notes for this event", the sign-in list shows
+  "Note: …", and exports call the column Event notes. A member field named
+  Notes is saved as Other Information, and Role takes no new options in
+  member fields.
+- Expo 58.0.14, Expo Router 58.0.23, Expo UI 58.0.20 and the other SDK 58
+  patch releases, which CI's SDK version check now expects.
+
+### Fixed
+- The member Notes field never reached exports, because the export kept that
+  name for each sign-in's notes. As Other Information it exports like any
+  other field.
+
+## [2.9.8] - 2026-10-17
+
+Insights and screens that show more and explain less.
+
+### Changed
+- **Average years served counts every year someone has served**, in any role,
+  up to and including the year picked, divided by everyone serving that year.
+  Before, a staff member's student leader years didn't count towards staff, so
+  the overall average came out higher than both groups. Served 2+ years and
+  retention follow the same rule: a student leader who joins staff is retained
+  and keeps their leader years.
+- **General draws staff and student leaders as side-by-side bars with overall
+  as a line over them** on Staff & student leaders, Retention, Average years
+  served and Served 2+ years. Retention and Served 2+ years have % on the
+  axis. General no longer offers a bars or lines switch. App builds older
+  than 2.9.8 get Overall as a third bar instead, so their legend still
+  matches what they draw.
+- **Insights reads in sections.** Each set of cards sits with the chart that
+  shows it, under a heading: People serving, Retention, Years served and
+  Weeklies on General; Turnout and Who came on a campus and on PPN; Weeklies
+  and SOW events on SOW. A picked year on General shows its groups of three in
+  a row instead of two and one.
+- **"Avg" is spelled out**: Weeklies average (by campus, by term), Average
+  years served, Average per event.
+- **PPN is charts, not rows of text.** Cards for the average per PPN, people,
+  first-timers and the campus leaders' share; bars for each PPN against last
+  year; bars of who came (campus leaders, other staff, no staff profile);
+  first PPN against came before; and sign-ins by campus in campus colours.
+- **TWIG's Everyone list includes campus leaders who haven't come this staff
+  year**, as 0/n with a "Not yet" filter, so the gaps are visible without
+  counting.
+- **Tags collapse to their pill and delete button.** Tap a tag to see and edit
+  its name, colour, where it's used and which campuses it applies to. A new
+  tag opens straight away.
+- **Empty lists offer the next step.** No requests yet shows a "Make a
+  request" button and no events yet shows "Create an event", instead of a
+  sentence pointing at the button below.
+- **A new event request shows its four steps** (Event, Marketing, Risk,
+  Finance) instead of a paragraph describing them.
+- **Insights is no longer marked BETA** in the tab bar and side menu.
+- TWIG's campus bars use campus colours, like the rest of Insights.
+- Expo 58.0.12, Expo Router 58.0.21 and Expo UI 58.0.19 (SDK 58 patch
+  releases, which CI's SDK version check now expects).
+
+### Fixed
+- **Every bar chart drew its bars 4px above the zero line**, so a 100% bar
+  rose past the 100% gridline. Bars now start on the line.
+- The tooltip on a chart's first or last bar stays on screen.
+- **General's weeklies average by campus** gave a weekly shared by several
+  campuses its whole turnout at each of them. It now follows the joint
+  weeklies setting, like the campus page, is rebuilt as soon as that setting
+  changes rather than the next night, and says it's by calendar year.
+- **A campus year's Regulars** counted people their latest term called
+  Regular. On a year page, students are now Regular for half or more of the
+  year's weeklies, as the card's (i) says, and the card, the Regular pill and
+  the Regular filter in Everyone always agree. Term pages are unchanged.
+- **SOW events' average per event** counted events nobody signed in to as
+  zero.
+- **PPN's average** was compared with last year's PPN in the same month, and a
+  month with two PPNs counted that one twice. It now compares with last staff
+  year up to the same date, like TWIG.
+- The student leaders by campus chart leaves out campuses with nobody in the
+  years shown.
+- Side-by-side bars keep each series in its own place, so a PPN with no PPN
+  in the same month last year shows a gap rather than a zero.
+
 ## [2.9.7] - 2026-10-16
 
 Expo SDK 58 and the latest dependencies. Native code changed (React Native

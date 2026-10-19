@@ -1,0 +1,167 @@
+import { type MetadataFieldLike, optionIdForLabel, ROLE_FIELD_KEY } from "./attendanceMemberMeta";
+import { MEMBER } from "./flow";
+import { subgroupMatches } from "./rollcall";
+import {
+  DEFAULT_WEEKLY_SETTINGS,
+  MARKED_VISITOR,
+  type WeeklyCategory,
+  type WeeklySettings,
+} from "./weeklyInsights";
+
+// A member's Role isn't typed in. Staff and leaders take theirs from their
+// staff profile; everyone else's comes from last night's Insights build of
+// their campus's weeklies. Alumni and Visitor are the only Roles set by hand,
+// for people Insights can't tell apart. See docs/context/attendance.md (Role).
+
+export const ALUMNI = "Alumni";
+export const VISITOR = MARKED_VISITOR;
+
+/** The Roles a leader can still set by hand, in the order they're offered. */
+export const MARKED_ROLES = [VISITOR, ALUMNI] as const;
+export type MarkedRole = (typeof MARKED_ROLES)[number];
+
+export const markedRoleOf = (label: string | null | undefined): MarkedRole | null =>
+  MARKED_ROLES.find((role) => role === label?.trim()) ?? null;
+
+/** The hand-set Role on a member's own row. Anything else saved there before
+ *  Roles were worked out (Member, Newcomer, Guest…) no longer counts. */
+export const markedRoleIn = (
+  fields: readonly MetadataFieldLike[],
+  metadata: Record<string, string> | undefined
+): MarkedRole | null => {
+  const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
+  const raw = roleField ? metadata?.[roleField._id] : undefined;
+  return raw ? markedRoleOf(roleField?.values?.[raw] ?? raw) : null;
+};
+
+/**
+ * A plain member's metadata as it's saved: Role can only be set to Alumni or
+ * Visitor (saved as that option, or as the label while the field has no such
+ * option yet) or cleared. A Role saved before is left alone until changed.
+ */
+export const withMarkedRole = (
+  fields: readonly MetadataFieldLike[],
+  submitted: Record<string, string> | undefined,
+  previous: Record<string, string> | undefined
+): Record<string, string> => {
+  const next = { ...(submitted ?? {}) };
+  const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
+  if (!roleField) return next;
+  const raw = next[roleField._id];
+  if (raw === previous?.[roleField._id]) return next;
+  const marked = raw ? markedRoleOf(roleField.values?.[raw] ?? raw) : null;
+  if (marked) next[roleField._id] = optionIdForLabel(roleField.values, marked);
+  else delete next[roleField._id];
+  return next;
+};
+
+const INSIGHTS_ROLES: Partial<Record<WeeklyCategory, string>> = {
+  regular: "Regular",
+  newcomer: "Newcomer",
+  irregular: "Irregular",
+  visitor: VISITOR,
+};
+
+// Someone at more than one campus's weeklies takes their home campus's
+// category, else the one where they come most.
+const CAMPUS_PREFERENCE: WeeklyCategory[] = ["regular", "newcomer", "irregular", "visitor"];
+
+/** A category from one campus's latest term. */
+export type CampusCategory = { subgroup: string; category: WeeklyCategory };
+
+export const insightsRoleOf = (
+  seen: readonly CampusCategory[],
+  homeCampus: string | undefined
+): string | null => {
+  const counted = seen.filter((s) => INSIGHTS_ROLES[s.category] !== undefined);
+  const home = homeCampus
+    ? counted.find((s) => subgroupMatches(homeCampus, s.subgroup))
+    : undefined;
+  const pick =
+    home ??
+    [...counted].sort(
+      (a, b) => CAMPUS_PREFERENCE.indexOf(a.category) - CAMPUS_PREFERENCE.indexOf(b.category)
+    )[0];
+  return pick ? (INSIGHTS_ROLES[pick.category] ?? null) : null;
+};
+
+/** Where a Role came from, for the edit sheet's note under it. */
+export type RoleSource = "staff" | "marked" | "insights" | "none";
+
+export const memberRole = ({
+  staffRole,
+  marked,
+  insights,
+}: {
+  staffRole?: string | null;
+  marked?: MarkedRole | null;
+  insights?: string | null;
+}): { role: string; source: RoleSource } =>
+  staffRole
+    ? { role: staffRole, source: "staff" }
+    : marked
+      ? { role: marked, source: "marked" }
+      : insights
+        ? { role: insights, source: "insights" }
+        : { role: MEMBER, source: "none" };
+
+export const ROLE_SOURCE_NOTES: Record<RoleSource, string> = {
+  staff: "From their staff profile",
+  marked: "Set by hand",
+  insights: "From last night's Insights",
+  none: "Not at a weekly in the latest term",
+};
+
+/** Every Role the Members list can be filtered by, in the order offered. */
+export const ROLE_FILTER_LABELS = [
+  "Staff",
+  "Student Leader",
+  "Regular",
+  "Newcomer",
+  "Irregular",
+  VISITOR,
+  ALUMNI,
+  MEMBER,
+] as const;
+
+export type RuleSettings = Pick<
+  WeeklySettings,
+  "regularShare" | "carryOverWeeklies" | "newcomerPromoteWeeklies" | "visitorMinWeeklies"
+>;
+
+const shareText = (share: number): string =>
+  share === 0.5 ? "half" : `${Math.round(share * 100)}%`;
+
+/** What the Role info button explains, in order, with the campus's numbers. */
+export const roleRules = (
+  settings: RuleSettings = DEFAULT_WEEKLY_SETTINGS
+): { role: string; rule: string }[] => [
+  {
+    role: "Staff and leaders",
+    rule: "Their role in their staff profile for the year, set in Admin.",
+  },
+  {
+    role: "Regular",
+    rule: `Came to ${shareText(settings.regularShare)} or more of their campus's weeklies in the latest term (last term's count too until ${settings.carryOverWeeklies} have been held).`,
+  },
+  {
+    role: "Newcomer",
+    rule: `Their first weekly at the campus was in the latest term. After ${settings.newcomerPromoteWeeklies} or more at the Regular rate, they're Regular.`,
+  },
+  {
+    role: "Irregular",
+    rule: "Came to a weekly in the latest term or the one before, but less often than a Regular.",
+  },
+  {
+    role: VISITOR,
+    rule: `From another campus and at fewer than ${settings.visitorMinWeeklies} of this campus's weeklies in the term. You can also set it by hand for anyone visiting.`,
+  },
+  {
+    role: ALUMNI,
+    rule: "Set by hand once someone has graduated. Insights leaves them out of the student numbers.",
+  },
+  {
+    role: MEMBER,
+    rule: "Hasn't been to a weekly in the latest term or the one before.",
+  },
+];

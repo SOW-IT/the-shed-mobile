@@ -129,7 +129,7 @@ describe("cards", () => {
   test("compare with last year in % for counts and points for shares", () => {
     const cards = summaryCards(s, { ...s, weeklyAvg: 8, people: 20, regulars: 10, newcomers: 0, campusShare: 0.85 });
     const byLabel = Object.fromEntries(cards.map((card) => [card.label, card]));
-    expect(byLabel["Weekly avg"]).toMatchObject({ value: "10", delta: { text: "+25%", direction: "up" }, hint: "vs 8" });
+    expect(byLabel["Weeklies average"]).toMatchObject({ value: "10", delta: { text: "+25%", direction: "up" }, hint: "vs 8" });
     expect(byLabel.People.hint).toBe("vs 20");
     expect(cards.every((card) => card.tone === undefined)).toBe(true);
     expect(byLabel.People.delta).toEqual({ text: "0%", direction: "flat" });
@@ -155,7 +155,7 @@ describe("cards", () => {
     const up = summaryCards({ ...s, campusShare: 0.9 }, { ...s, newcomersStayed: 1, weeklyAvg: null });
     expect(up.find((card) => card.label === "Campus share")!.delta!.direction).toBe("up");
     expect(up.find((card) => card.label === "Newcomers who stayed")!.delta!.text).toBe("+25 pts");
-    expect(up.find((card) => card.label === "Weekly avg")!.hint).toBeUndefined();
+    expect(up.find((card) => card.label === "Weeklies average")!.hint).toBeUndefined();
     expect(summaryCards(s, s).find((card) => card.label === "Campus share")!.delta!.direction).toBe("flat");
   });
 });
@@ -186,12 +186,20 @@ describe("term view", () => {
     expect(charts.map((b) => b.title)).toEqual(["Week by week", "Who came each week"]);
     // Charts first, then the follow-up lists, then everyone.
     expect(blocks.slice(2).map((b) => b.type)).toEqual([
+      "heading",
       "cards",
       "multiBars",
+      "heading",
+      "cards",
       "multiBars",
       "followUpGroups",
       "followUpGroups",
       "people",
+    ]);
+    expect(byType(blocks, "heading").map((h) => h.text)).toEqual(["Turnout", "Who came"]);
+    expect(byType(blocks, "cards").map((b) => b.cards.map((c) => c.label))).toEqual([
+      ["Weeklies average", "People"],
+      ["Regulars", "Newcomers", "Newcomers who stayed", "Campus share"],
     ]);
     expect(charts[0].points.map((p) => p.label)).toEqual(["W1", "W2", "W3", "W4"]);
     expect(charts[0].points[3].segments.map((sg) => sg.value)).toEqual([1, 0]);

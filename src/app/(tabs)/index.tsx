@@ -9,6 +9,8 @@ import {
   requestFullyApproved,
 } from "../../../shared/flow";
 import { threadDeepLinkKey } from "../../../shared/deepLinks";
+import { isSowStaffAddress } from "../../../shared/rollcallImport";
+import { staffOnlyMessage } from "@shared/staffOnly";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { BankTab } from "@/components/BankTab";
 import { ChromeScreen } from "@/components/ChromeScreen";
@@ -23,14 +25,12 @@ import {
   Card,
   FadeInView,
   ReadableColumn,
-  FloatingYearPicker,
   FooterAction,
   LoadingState,
   Muted,
   Row,
   Screen,
   Txt,
-  WarningBanner,
 } from "@/components/ui";
 import { useSignOut } from "@/hooks/usePushRegistration";
 import { typography } from "@/theme";
@@ -43,7 +43,6 @@ export default function RequestsScreen() {
     me?.profile ? { year: me.year } : "skip"
   );
   const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const requestYears = useQuery(
     api.requests.requestYears,
     me?.profile ? {} : "skip"
@@ -103,7 +102,7 @@ export default function RequestsScreen() {
       badge: mineCount > 0 ? mineCount : undefined,
       messageBadge: myUnreadComments > 0 ? myUnreadComments : undefined,
     },
-    ...(me?.isApprover
+    ...(me?.isApprover || requestYears?.reviewedBefore
       ? [
           {
             key: "review",
@@ -143,7 +142,7 @@ export default function RequestsScreen() {
     () => setOpenedThreadLink(threadLinkKey),
     [threadLinkKey]
   );
-  const [active, setActive] = useState("mine");
+  const [active, setActive] = useState<string | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
     if (typeof tab === "string") setActive(tab);
@@ -154,23 +153,21 @@ export default function RequestsScreen() {
       void markReadForRequest({ requestId: focusId as Id<"requests"> }).catch(() => {});
     }
   }, [focusId, markReadForRequest]);
-  const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
-
-  const currentYear = me?.year;
-  const viewingYear = selectedYear ?? currentYear ?? new Date().getFullYear();
-  const isPastYear =
-    activeSegment === "all" &&
-    currentYear != null &&
-    selectedYear != null &&
-    selectedYear !== currentYear;
-  const queryYear = isPastYear ? (selectedYear as number) : undefined;
-  const pickerYears = requestYears?.all ?? [];
-
-  const isPreviousYear =
-    isPastYear && selectedYear === (currentYear as number) - 1;
-  const isOlderYear =
-    isPastYear && (selectedYear as number) < (currentYear as number) - 1;
-  const nextRolloverYear = currentYear as number;
+  const landingKnown =
+    myRequests !== undefined && (!me?.isApprover || review !== undefined);
+  const landing = landingKnown
+    ? reviewCount > 0 && mineCount === 0
+      ? "review"
+      : "mine"
+    : null;
+  useEffect(() => {
+    if (active !== null || landing === null || typeof tab === "string") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActive(landing);
+  }, [active, landing, tab]);
+  const wanted = active ?? landing;
+  const activeSegment =
+    wanted !== null && segments.some((s) => s.key === wanted) ? wanted : "mine";
 
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   const myAssignments = me?.profile?.assignments ?? [];
@@ -193,6 +190,8 @@ export default function RequestsScreen() {
   const showMakeRequest = me?.profile != null;
 
   const loadMoreRef = useRef<(() => void) | null>(null);
+  const mineLoadMoreRef = useRef<(() => void) | null>(null);
+  const reviewLoadMoreRef = useRef<(() => void) | null>(null);
 
   if (me === undefined) return <Screen><LoadingState /></Screen>;
 
@@ -217,8 +216,9 @@ export default function RequestsScreen() {
               Welcome{me?.name ? `, ${me.name}` : ""}
             </Txt>
             <Muted>
-              No role or department is assigned to {me?.email} for {me?.year} yet.
-              Ask an admin (Data and IT or Human Resources) to set you up.
+              {isSowStaffAddress(me.email)
+                ? `No role or department is assigned to ${me.email} for ${me.year} yet. Ask an admin (Data and IT or Human Resources) to set you up.`
+                : staffOnlyMessage("Reimbursement", me)}
             </Muted>
             <Row>
               <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} />
@@ -229,25 +229,12 @@ export default function RequestsScreen() {
     );
   }
 
+  if (wanted === null) return <Screen><LoadingState /></Screen>;
+
   const renderAll = () => (
     <>
-      {isPreviousYear && (
-        <FadeInView delay={40}>
-          <WarningBanner
-            message={`Receipt files for the ${viewingYear} staff year will be deleted on 1 October ${nextRolloverYear}, when the staff year rolls over. Download anything you need to keep.`}
-          />
-        </FadeInView>
-      )}
-      {isOlderYear && (
-        <FadeInView delay={40}>
-          <WarningBanner
-            message={`Receipt files for the ${viewingYear} staff year have already been deleted and can no longer be opened. Only the file names remain for reference.`}
-          />
-        </FadeInView>
-      )}
       <ExportRequestsCard currentYear={me.year} />
       <AllRequestsList
-        year={queryYear}
         loadMoreRef={loadMoreRef}
         focusId={focusId}
         focusThread={focusThread}
@@ -267,6 +254,7 @@ export default function RequestsScreen() {
               focusThread={focusThread}
               focusReopenKey={focusReopenKey}
               onFocusThreadOpened={onFocusThreadOpened}
+              loadMoreRef={reviewLoadMoreRef}
             />
           </ReadableColumn>
         );
@@ -280,19 +268,23 @@ export default function RequestsScreen() {
         );
       default:
         return (
-          <MyRequests
-            departments={departmentNames}
-            defaultDepartment={defaultDepartment}
-            newOpen={newRequestOpen}
-            prefill={requestPrefill}
-            onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
-            onNewClose={() => setNewRequestOpen(false)}
-            directorThreshold={directorThreshold}
-            focusId={focusId}
-            focusThread={focusThread}
-            focusReopenKey={focusReopenKey}
-            onFocusThreadOpened={onFocusThreadOpened}
-          />
+          <>
+            <MyRequests
+              loadMoreRef={mineLoadMoreRef}
+              departments={departmentNames}
+              defaultDepartment={defaultDepartment}
+              newOpen={newRequestOpen}
+              prefill={requestPrefill}
+              onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
+              onNewClose={() => setNewRequestOpen(false)}
+              onMakeRequest={showMakeRequest ? openNewRequest : undefined}
+              directorThreshold={directorThreshold}
+              focusId={focusId}
+              focusThread={focusThread}
+              focusReopenKey={focusReopenKey}
+              onFocusThreadOpened={onFocusThreadOpened}
+            />
+          </>
         );
     }
   };
@@ -311,6 +303,8 @@ export default function RequestsScreen() {
         fullWidth
         onEndReached={(key) => {
           if (key === "all") loadMoreRef.current?.();
+          if (key === "mine") mineLoadMoreRef.current?.();
+          if (key === "review") reviewLoadMoreRef.current?.();
         }}
         footer={
           showMakeRequest ? (
@@ -322,15 +316,6 @@ export default function RequestsScreen() {
           ) : undefined
         }
         footerTabKey="mine"
-        floating={
-          activeSegment === "all" && pickerYears.length > 1 ? (
-            <FloatingYearPicker
-              year={viewingYear}
-              years={pickerYears}
-              onSelect={(y) => setSelectedYear(y === currentYear ? null : y)}
-            />
-          ) : undefined
-        }
       />
       <GuideSheet
         visible={guideOpen}

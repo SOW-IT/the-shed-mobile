@@ -10,7 +10,6 @@ import {
   latestProfileOfMember,
   leaveStaff,
   linkOrCreateMember,
-  memberRoleOption,
   moveAttendance,
   profilesOfMember,
   staffMemberForEmail,
@@ -223,47 +222,10 @@ describe("staffMemberForEmail", () => {
   });
 });
 
-describe("memberRoleOption", () => {
-  test("is null without a Role field", async () => {
-    const s = setup();
-    expect(await s.t.run((ctx) => memberRoleOption(ctx))).toBeNull();
-  });
-
-  test("adds the Member option when missing, unless it is a dry run", async () => {
-    const s = setup();
-    const fieldId = await s.roleField({ "1": "Staff" });
-
-    const dry = await s.t.run((ctx) => memberRoleOption(ctx, true));
-    expect(dry).toEqual({ fieldId, optionId: "2" });
-    expect((await s.t.run((ctx) => ctx.db.get(fieldId)))?.values).toEqual({ "1": "Staff" });
-
-    const real = await s.t.run((ctx) => memberRoleOption(ctx));
-    expect(real).toEqual({ fieldId, optionId: "2" });
-    expect((await s.t.run((ctx) => ctx.db.get(fieldId)))?.values).toEqual({
-      "1": "Staff",
-      "2": "Member",
-    });
-
-    expect(await s.t.run((ctx) => memberRoleOption(ctx))).toEqual({ fieldId, optionId: "2" });
-  });
-
-  test("works on a Role field with no values yet", async () => {
-    const s = setup();
-    const fieldId = await s.t.run((ctx) =>
-      ctx.db.insert("attendanceMetadata", { key: "Role", type: "select", order: 0 })
-    );
-    const option = await s.t.run((ctx) => memberRoleOption(ctx));
-    expect(option?.fieldId).toBe(fieldId);
-    expect((await s.t.run((ctx) => ctx.db.get(fieldId)))?.values).toEqual({
-      [option!.optionId]: "Member",
-    });
-  });
-});
-
 describe("leaveStaff", () => {
-  test("fills an empty Campus and Role, keeps the member's own name, and logs it", async () => {
+  test("fills an empty Campus (never Role, which is worked out), keeps the member's own name, and logs it", async () => {
     const s = setup();
-    const role = await s.roleField({ "1": "Staff", "3": "Member" });
+    await s.roleField({ "1": "Staff", "3": "Member" });
     const campus = await s.campusField();
     const memberId = await s.member("Lee-Ann Aver", { other: "kept" });
     const profileId = await s.profile("lee.aver@sow.org.au", NOW, { name: "Lee-ann aver", memberId });
@@ -274,7 +236,7 @@ describe("leaveStaff", () => {
     expect(ok).toBe(true);
     const row = await s.getMember(memberId);
     expect(row?.name).toBe("Lee-Ann Aver");
-    expect(row?.metadata).toEqual({ other: "kept", [campus]: "usyd", [role]: "3" });
+    expect(row?.metadata).toEqual({ other: "kept", [campus]: "usyd" });
     const [log] = await s.logs();
     expect(log).toMatchObject({
       actorEmail: ACTOR,
@@ -286,7 +248,6 @@ describe("leaveStaff", () => {
       detail: [
         `Not staff in ${NOW + 1}`,
         `Campus set to ${USYD}, from their last staff role`,
-        "Role set to Member",
       ].join("\n"),
     });
   });

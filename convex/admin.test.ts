@@ -2311,7 +2311,7 @@ describe("staff profiles and their attendance member", () => {
 
   test("removing a current-year profile turns them into a member", async () => {
     const t = await setup();
-    const roleField = await t.run((ctx) =>
+    await t.run((ctx) =>
       ctx.db.insert("attendanceMetadata", {
         key: "Role",
         type: "select",
@@ -2327,9 +2327,10 @@ describe("staff profiles and their attendance member", () => {
       actorEmail: ADMIN,
       memberId,
       subjectEmail: BELLA,
-      detail: `Not staff in ${YEAR}\nRole set to Member`,
+      detail: `Not staff in ${YEAR}`,
     });
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toEqual({ [roleField]: "2" });
+    // Their Role is worked out from here on, so nothing is saved for it.
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toEqual({});
   });
 
   test("removing a profile leaves the member alone while they are still staff, or in another year", async () => {

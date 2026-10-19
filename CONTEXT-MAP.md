@@ -35,6 +35,11 @@ hold code for all five — so each context's glossary lives under
 - **Org → Design Requests**: the Marketing Head approves and the Marketing
   department does the work, both read from that year's Org. Design Requests
   shares the notification feed with Reimbursements but no other table.
+- **Reimbursements, Design Requests and Event Requests → the daily digest**:
+  one morning job (`convex/reminders.ts`) reads each context's open work and
+  sends each person a single reminder, and Home's "Waiting on you"
+  (`convex/waitingOnMe.ts`) and Admin's step timing (`convex/stepTiming.ts`)
+  read all three the same way. They read; they own nothing.
 - **Org → Event Requests**: the Marketing, Compliance and Finance Heads, the
   Director and the event's lead department all come from Org, as do the
   event Director threshold (in `yearSettings`) and who can see every event.

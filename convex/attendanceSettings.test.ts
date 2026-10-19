@@ -439,6 +439,31 @@ describe("attendance metadata", () => {
     expect(Object.values(role?.values ?? {})).toContain("Volunteer");
   });
 
+  test("renameNotesField makes the old Notes member field Other Information, once", async () => {
+    const t = await setup();
+    const notesId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMetadata", { key: "Notes", type: "input", order: 5 })
+    );
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Noted Member", metadata: { [notesId]: "likes tea" } })
+    );
+
+    expect(await t.mutation(internal.attendanceMetadata.renameNotesField, {})).toBe("renamed");
+    expect((await t.run((ctx) => ctx.db.get(notesId)))?.key).toBe("Other Information");
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toEqual({ [notesId]: "likes tea" });
+    const log = await t.run((ctx) =>
+      ctx.db.query("attendanceAuditLog").filter((q) => q.eq(q.field("action"), "metadata.update")).first()
+    );
+    expect(log).toMatchObject({
+      actorEmail: "system:notes-rename",
+      summary: 'Renamed member field "Notes" to "Other Information"',
+    });
+    expect(await t.mutation(internal.attendanceMetadata.renameNotesField, {})).toBe("nothing to rename");
+
+    await t.run((ctx) => ctx.db.insert("attendanceMetadata", { key: "notes", type: "input", order: 6 }));
+    expect(await t.mutation(internal.attendanceMetadata.renameNotesField, {})).toBe("both exist");
+  });
+
   test("list is staff-only and strips Gender Other but keeps Female", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
@@ -477,7 +502,10 @@ describe("attendance metadata", () => {
       deleteIds: [],
     });
     const updated = await leader.query(api.attendanceMetadata.list, { });
-    expect(updated.find((f) => f.key === "Notes")).toBeTruthy();
+    // Notes about one event go on its sign-in, so a member field called
+    // Notes is saved as Other Information.
+    expect(updated.find((f) => f.key === "Notes")).toBeUndefined();
+    expect(updated.find((f) => f.key === "Other Information")).toBeTruthy();
     expect(updated.find((f) => f.key === "Campus")?.values?.["10"]).toBe("Online");
 
     const gender = fields.find((f) => f.key === "Gender")!;
@@ -510,10 +538,20 @@ describe("attendance metadata", () => {
         deleteIds: [],
       })
     ).rejects.toThrow(/Duplicate metadata field/i);
+    // Notes is saved as Other Information, so the two can't both exist.
+    await expect(
+      leader.mutation(api.attendanceMetadata.saveAll, {
+        fields: [
+          { key: "Notes", type: "input", order: 5 },
+          { key: "other information", type: "input", order: 6 },
+        ],
+        deleteIds: [],
+      })
+    ).rejects.toThrow(/Duplicate metadata field "other information"/i);
 
     await leader.mutation(api.attendanceMetadata.saveAll, {
       fields: updated
-        .filter((f) => f.key !== "Notes")
+        .filter((f) => f.key !== "Other Information")
         .map((f) => ({
           id: f._id,
           key: f.key,
@@ -522,11 +560,11 @@ describe("attendance metadata", () => {
           values: f.values,
           lockedValues: f.lockedValues,
         })),
-      deleteIds: [updated.find((f) => f.key === "Notes")!._id],
+      deleteIds: [updated.find((f) => f.key === "Other Information")!._id],
     });
     expect(
       (await leader.query(api.attendanceMetadata.list, { })).some(
-        (f) => f.key === "Notes"
+        (f) => f.key === "Other Information"
       )
     ).toBe(false);
 
@@ -582,7 +620,7 @@ describe("attendance metadata", () => {
           lockedValues: yearField.lockedValues,
         },
         {
-          key: "Notes",
+          key: "Comments",
           type: "input",
           order: 11,
         },
@@ -591,7 +629,7 @@ describe("attendance metadata", () => {
     });
     expect(
       (await leader.query(api.attendanceMetadata.list, { })).find(
-        (f) => f.key === "Notes"
+        (f) => f.key === "Comments"
       )?.type
     ).toBe("input");
 
@@ -1148,15 +1186,31 @@ describe("attendance members", () => {
     ).toBe(true);
     expect(byStudentLeaderRole.page.some((r) => r.email === STAFF)).toBe(false);
 
+    // Newcomer comes from Insights, never a Role saved by hand: that one
+    // isn't kept, so they're a Member until a build says otherwise.
     const byNewcomerRole = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
       filters: { [refreshedRole._id]: newcomerRoleId },
       paginationOpts: { numItems: 50, cursor: null },
     });
-    expect(byNewcomerRole.page.map((r) => r.name)).toContain(
-      "Newcomer Role Guest"
-    );
+    expect(byNewcomerRole.page.map((r) => r.name)).not.toContain("Newcomer Role Guest");
     expect(byNewcomerRole.page.some((r) => r.email === STAFF)).toBe(false);
+    const byMemberRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: "Member" },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byMemberRole.page.map((r) => r.name)).toEqual(
+      expect.arrayContaining(["Member Role Guest", "Newcomer Role Guest"])
+    );
+    expect(byMemberRole.page.some((r) => r.kind === "staff")).toBe(false);
+    const byAlumniRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: "Alumni" },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byAlumniRole.page.map((r) => r.name)).toEqual(["Alumni Role Guest"]);
+    expect(byAlumniRole.page[0].subtitle).toBe("Alumni");
 
     const unset = await leader.query(api.attendanceMembers.list, {
       year: YEAR,

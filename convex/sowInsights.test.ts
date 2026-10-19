@@ -55,6 +55,7 @@ async function setup() {
     const newbie = await member("Ned New");
     const pat = await member("Pat Placeholder");
     const walkIn = await member("Wes Walkin");
+    const zara = await member("Zara Zero");
     const profile = async (memberId: Id<"attendanceMembers">, email: string, year: number, role: string, university?: string) =>
       ctx.db.insert("staffProfiles", {
         email,
@@ -66,6 +67,7 @@ async function setup() {
     await profile(lee, "lee@sow.org.au", 2026, "Student Leader", UNSW);
     await profile(lee, "lee@sow.org.au", 2027, "Student Leader", UNSW);
     await profile(uma, "uma@sow.org.au", 2027, "President", USYD);
+    await profile(zara, "zara@sow.org.au", 2027, "Student Leader", UTS);
     await profile(olly, "olly@sow.org.au", 2026, "Executive", MQ);
     await profile(olly, "olly@sow.org.au", 2027, "Staff");
     await ctx.db.insert("staffProfiles", { email: "pat@sow.org.au", year: 2027, memberId: pat, name: "Pat Placeholder", assignments: [] });
@@ -135,8 +137,8 @@ describe("SOW TWIG and PPN Insights", () => {
       ["9 Nov", [1, 0]],
     ]);
     expect(pick(blocks, "breakdown")[0].rows).toEqual([
-      { label: "USYD", value: 4 },
-      { label: "UNSW", value: 2 },
+      { label: "USYD", value: 4, colour: expect.any(String) },
+      { label: "UNSW", value: 2, colour: expect.any(String) },
     ]);
     const followUp = pick(blocks, "followUpGroups")[0];
     expect(followUp.groups.flatMap((g) => g.people.map((p) => [p.name, p.reason, p.subgroup]))).toEqual([
@@ -153,7 +155,14 @@ describe("SOW TWIG and PPN Insights", () => {
       ["Olly Organiser", "staff", "1/4 · 25%", null],
       ["Pat Placeholder", "none", "1/4 · 25%", "No staff profile for 2027"],
       ["Uma Usyd", "leader", "4/4 · 100%", null],
+      ["Zara Zero", "leader", "0/4 · 0%", null],
     ]);
+    expect(everyone.rows.find((r) => r.name === "Zara Zero")).toMatchObject({
+      secondary: "Hasn't come to a TWIG this staff year",
+      tags: ["leader", "notYet"],
+      subgroup: UTS,
+    });
+    expect(everyone.filters.map((f) => f.key)).toEqual(["leader", "staff", "none", "regular", "notYet"]);
     expect(
       Object.fromEntries(everyone.rows.map((r) => [r.name, [r.subgroup ?? null, r.dimmed ?? false, r.badge?.label ?? null]]))
     ).toEqual({
@@ -162,6 +171,7 @@ describe("SOW TWIG and PPN Insights", () => {
       "Olly Organiser": [null, true, null],
       "Pat Placeholder": [null, false, null],
       "Uma Usyd": [USYD, false, "Regular"],
+      "Zara Zero": [UTS, false, null],
     });
     expect(everyone.rows.every((r) => !r.secondary.startsWith("Regular"))).toBe(true);
     expect(pick(blocks, "eventList")[0].rows).toEqual([{ title: "TWIG NOV 16", subtitle: "16 Nov 2026" }]);
@@ -176,8 +186,8 @@ describe("SOW TWIG and PPN Insights", () => {
     );
     expect(pick(view.blocks, "followUpGroups")).toEqual([]);
     expect(pick(view.blocks, "breakdown")[0].rows).toEqual([
-      { label: "UNSW", value: 3 },
-      { label: "MACQ", value: 1 },
+      { label: "UNSW", value: 3, colour: expect.any(String) },
+      { label: "MACQ", value: 1, colour: expect.any(String) },
     ]);
   });
 
@@ -199,32 +209,51 @@ describe("SOW TWIG and PPN Insights", () => {
     expect((await admin.query(api.sowInsights.view, { mode: "twig", staffYear: 1999 }))!.year).toBe(2027);
   });
 
-  test("PPN counts everyone, by month against last year, with first-timers", async () => {
+  test("PPN shows cards and charts: against last year, who came, first-timers and campuses", async () => {
     const { admin } = await setup();
     const view = (await admin.query(api.sowInsights.view, { mode: "ppn" }))!;
     expect(view.years.map((y) => y.key)).toEqual(["2027", "2026"]);
-    expect(pick(view.blocks, "caption")[0].text).toBe(
-      "Staff year 2027: 1 PPN, 4 sign-ins from 4 people (2 from campus leaders, 0 from other staff, 2 from others). Others have no staff profile for 2027; they're counted, not flagged."
-    );
-    const [row] = pick(view.blocks, "monthRows")[0].rows;
-    expect(row).toMatchObject({
-      title: "17 Nov 2026 · November PPN",
-      value: "4",
-      delta: { text: "+33%", direction: "up" },
-      hint: "vs 3 in Nov 2025",
-      lines: ["2 first-timers"],
-    });
-    expect(pick(view.blocks, "eventList")).toEqual([]);
-    expect(row.splits.map((s) => [s.title, s.parts.map((p) => [p.label, p.value])])).toEqual([
-      ["By campus", [["UNSW", 1], ["USYD", 1], ["UTS", 1], ["No campus", 1]]],
-      ["Who", [["Campus leaders", 2], ["Staff", 0], ["Others", 2]]],
+    expect(view.blocks.map((b) => b.type)).toEqual([
+      "caption", "heading", "cards", "multiBars", "heading", "cards", "multiBars", "stacked", "breakdown",
+    ]);
+    expect(pick(view.blocks, "heading").map((h) => h.text)).toEqual(["Turnout", "Who came"]);
+    expect(pick(view.blocks, "caption")[0].text).toBe("Staff year 2027: 1 PPN.");
+    expect(
+      pick(view.blocks, "cards").flatMap((b) => b.cards).map((c) => [c.label, c.value, c.delta?.text ?? null, c.hint ?? null])
+    ).toEqual([
+      ["Average per PPN", "4", "+33%", "vs 3"],
+      ["People", "4", null, null],
+      ["Campus leaders", "50%", null, "2 of 4 sign-ins"],
+      ["First-timers", "2", null, null],
+    ]);
+    const [byPpn, who] = pick(view.blocks, "multiBars");
+    expect(byPpn.points.map((p) => [p.label, p.segments.map((x) => x.value)])).toEqual([["17 Nov", [4, 3]]]);
+    expect(who.stacked).toBe(true);
+    expect(who.legend.map((l) => l.label)).toEqual(["Campus leaders", "No staff profile"]);
+    expect(who.points[0].segments.map((x) => [x.key, x.value])).toEqual([["leader", 2], ["none", 2]]);
+    expect(pick(view.blocks, "stacked")[0].points.map((p) => [p.fresh, p.returning])).toEqual([[2, 2]]);
+    expect(pick(view.blocks, "breakdown")[0].rows.map((r) => [r.label, r.value])).toEqual([
+      ["UNSW", 1],
+      ["USYD", 1],
+      ["UTS", 1],
+      ["No campus", 1],
     ]);
 
     const past = (await admin.query(api.sowInsights.view, { mode: "ppn", staffYear: 2026 }))!;
-    expect(pick(past.blocks, "monthRows")[0].rows.map((r) => [r.title, r.value, r.hint, r.lines])).toEqual([
-      ["17 Mar 2026 · MARCH PPN", "1", "No PPN in Mar last staff year", ["No first-timers"]],
-      ["17 Nov 2025 · November PPN", "3", "No PPN in Nov last staff year", ["3 first-timers"]],
+    expect(pick(past.blocks, "caption")[0].text).toBe("Staff year 2026: 2 PPNs.");
+    const [pastByPpn] = pick(past.blocks, "multiBars");
+    expect(pastByPpn.legend.map((l) => l.key)).toEqual(["now"]);
+    expect(pastByPpn.points.map((p) => [p.label, p.segments.map((x) => x.value)])).toEqual([
+      ["17 Nov", [3]],
+      ["17 Mar", [1]],
     ]);
+    expect(pick(past.blocks, "stacked")[0].points.map((p) => [p.fresh, p.returning])).toEqual([
+      [3, 0],
+      [0, 1],
+    ]);
+    const [pastAverage] = pick(past.blocks, "cards")[0].cards;
+    expect(pastAverage.value).toBe("2");
+    expect(pastAverage.hint).toBeUndefined();
   });
 
   test("a staff year with no roll taken yet says so", async () => {

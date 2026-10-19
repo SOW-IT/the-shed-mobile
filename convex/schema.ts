@@ -18,7 +18,7 @@ import {
   subFormStatusValidator,
 } from "./eventRequestData";
 import { homeBlockValidator } from "./homeData";
-import { metricsDataValidator } from "./metricsData";
+import { metricsDataValidator, staffTrendsValidator } from "./metricsData";
 import {
   personCategoryValidator,
   termFactsFields,
@@ -47,6 +47,7 @@ export default defineSchema({
     // The church they picked from the list (`churches`).
     churchId: v.optional(v.id("churches")),
     avatarId: v.optional(v.id("_storage")),
+    reminderEmails: v.optional(v.boolean()),
   })
     .index("email", ["email"])
     .index("by_churchId", ["churchId"]),
@@ -361,6 +362,8 @@ export default defineSchema({
     completedBy: v.optional(v.string()),
     completionNote: v.optional(v.string()),
     cancelledAt: v.optional(v.number()),
+    lastReminderAt: v.optional(v.number()),
+    reminderCount: v.optional(v.number()),
     legacyKey: v.optional(v.string()),
   })
     .index("by_year_and_number", ["year", "number"])
@@ -446,7 +449,10 @@ export default defineSchema({
     decidedAt: v.optional(v.number()),
     decidedBy: v.optional(v.string()),
     changesReason: v.optional(v.string()),
-  }).index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
+    lastReminderAt: v.optional(v.number()),
+    reminderCount: v.optional(v.number()),
+  })
+    .index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
 
   eventRequestEvents: defineTable({
     eventRequestId: v.id("eventRequests"),
@@ -498,7 +504,9 @@ export default defineSchema({
     // A campus weekly's term and week, set when it was created as a Weekly
     // (or by the backfill). Insights trusts these over dates and names.
     weekly: v.optional(weeklyMarkValidator),
-  }).index("by_dateStart", ["dateStart"]),
+    attendanceCount: v.optional(v.number()),
+  })
+    .index("by_dateStart", ["dateStart"]),
 
   attendanceAuditLog: defineTable({
     actorEmail: v.string(),
@@ -594,6 +602,30 @@ export default defineSchema({
   // One row: the Insights → General campus weekly-attendance chart, rebuilt by
   // the nightly Insights rebuild so opening the tab reads this instead of
   // every weekly meeting's attendance.
+  rosterHistorySnapshots: defineTable({
+    year: v.number(),
+    builtAt: v.number(),
+    events: v.array(
+      v.object({
+        eventId: v.id("events"),
+        dateStart: v.number(),
+        tagIds: v.array(v.string()),
+        subgroups: v.array(v.string()),
+      })
+    ),
+    members: v.array(
+      v.object({
+        memberId: v.id("attendanceMembers"),
+        events: v.array(v.number()),
+      })
+    ),
+  }).index("by_year", ["year"]),
+
+  staffTrendsSnapshots: defineTable({
+    staffYear: v.number(),
+    trends: staffTrendsValidator,
+  }),
+
   campusAttendanceSnapshots: defineTable({
     computedAt: v.number(),
     years: v.array(v.number()),

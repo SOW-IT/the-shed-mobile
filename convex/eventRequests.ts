@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { departmentsOf } from "../shared/flow";
@@ -32,6 +33,7 @@ import {
   eventUrl,
   logEvent,
   optionalEventStaff,
+  pendingSince,
   recipientsFor,
   requireEvent,
   requireEventStaff,
@@ -83,7 +85,7 @@ const dedupe = (events: EventRequest[]) => [...new Map(events.map((e) => [e._id,
  * caller. Walks the events still in progress, so forms left pending on
  * cancelled events never crowd out live ones.
  */
-async function reviewForms(ctx: Ctx, caller: CallerContext) {
+export async function reviewForms(ctx: Ctx, caller: CallerContext) {
   const scope = await viewerScope(ctx, caller);
   if (!SUB_FORM_KINDS.some((k) => scope.teams[k]) && !scope.director) return [];
   const scopes = new Map<number, Promise<ViewerScope>>();
@@ -146,6 +148,28 @@ export const waitingOnMe = query({
   },
 });
 
+async function ownEventsInYear(ctx: QueryCtx, caller: CallerContext, year: number) {
+  const events: EventRequest[] = [
+    ...(await ctx.db
+      .query("eventRequests")
+      .withIndex("by_requester_and_year", (q) =>
+        q.eq("requesterEmail", caller.email).eq("year", year)
+      )
+      .take(LIST_LIMIT)),
+  ];
+  for (const department of departmentsOf(caller.profile)) {
+    events.push(
+      ...(await ctx.db
+        .query("eventRequests")
+        .withIndex("by_department_and_year", (q) =>
+          q.eq("department", department).eq("year", year)
+        )
+        .take(LIST_LIMIT))
+    );
+  }
+  return events;
+}
+
 /**
  * The caller's events and their department's, from `year`; for this staff
  * year, plus any still in progress from earlier years.
@@ -156,24 +180,7 @@ export const mine = query({
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
     const year = args.year ?? caller.year;
-    const events: EventRequest[] = [
-      ...(await ctx.db
-        .query("eventRequests")
-        .withIndex("by_requester_and_year", (q) =>
-          q.eq("requesterEmail", caller.email).eq("year", year)
-        )
-        .take(LIST_LIMIT)),
-    ];
-    for (const department of departmentsOf(caller.profile)) {
-      events.push(
-        ...(await ctx.db
-          .query("eventRequests")
-          .withIndex("by_department_and_year", (q) =>
-            q.eq("department", department).eq("year", year)
-          )
-          .take(LIST_LIMIT))
-      );
-    }
+    const events = await ownEventsInYear(ctx, caller, year);
     if (year === caller.year) {
       events.push(
         ...(await ctx.db
@@ -198,6 +205,26 @@ export const mine = query({
   },
 });
 
+export const earlierMine = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalEventStaff(ctx);
+    if (!caller) return null;
+    let year = paginationOpts.cursor ? Number(paginationOpts.cursor) : caller.year - 1;
+    let events: EventRequest[] = [];
+    while (year >= EARLIEST_EVENT_REQUEST_YEAR && events.length === 0) {
+      events = dedupe(await ownEventsInYear(ctx, caller, year));
+      year--;
+    }
+    const isDone = year < EARLIEST_EVENT_REQUEST_YEAR;
+    return {
+      page: await withRows(ctx, events),
+      isDone,
+      continueCursor: isDone ? "" : String(year),
+    };
+  },
+});
+
 /** Forms waiting for approval that the caller reviews, marking the ones waiting on them. */
 export const review = query({
   args: {},
@@ -206,14 +233,42 @@ export const review = query({
     if (!caller) return null;
     const forms = await reviewForms(ctx, caller);
     const rows = await withRows(ctx, dedupe(forms.map((f) => f.event)));
-    return rows.map((row) => ({
-      ...row,
-      waitingOnMe: forms
-        .filter((f) => f.mine && f.event._id === row._id)
-        .map((f) => f.form.kind),
-    }));
+    return rows
+      .map((row) => {
+        const own = forms.filter((f) => f.event._id === row._id);
+        const waitingSince = Math.min(...own.map((f) => pendingSince(f.form)));
+        return {
+          ...row,
+          waitingSince,
+          waitingOnMe: own.filter((f) => f.mine).map((f) => f.form.kind),
+        };
+      })
+      .sort((a, b) => a.waitingSince - b.waitingSince);
   },
 });
+
+export async function requesterSideOpenEvents(
+  ctx: Ctx,
+  caller: CallerContext
+): Promise<EventRequest[]> {
+  const events: EventRequest[] = await ctx.db
+    .query("eventRequests")
+    .withIndex("by_requester_and_status", (q) =>
+      q.eq("requesterEmail", caller.email).eq("status", "IN_PROGRESS")
+    )
+    .take(LIST_LIMIT);
+  for (const department of departmentsOf(caller.profile)) {
+    events.push(
+      ...(await ctx.db
+        .query("eventRequests")
+        .withIndex("by_department_and_status", (q) =>
+          q.eq("department", department).eq("status", "IN_PROGRESS")
+        )
+        .take(LIST_LIMIT))
+    );
+  }
+  return dedupe(events);
+}
 
 /** Every event from one staff year (and, for this year, any still in progress). */
 export const all = query({
@@ -235,6 +290,20 @@ export const all = query({
       );
     }
     return await withRows(ctx, dedupe(events));
+  },
+});
+
+export const earlierAll = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalEventStaff(ctx);
+    if (!caller || !seesAll(await viewerScope(ctx, caller))) return null;
+    const result = await ctx.db
+      .query("eventRequests")
+      .withIndex("by_year_and_number", (q) => q.lt("year", caller.year))
+      .order("desc")
+      .paginate(paginationOpts);
+    return { ...result, page: await withRows(ctx, result.page) };
   },
 });
 

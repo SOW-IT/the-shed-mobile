@@ -4,6 +4,7 @@ import {
   isOrgWideSubgroup,
   subgroupMatches,
 } from "./rollcall";
+import { round1 } from "./numbers";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
@@ -173,8 +174,6 @@ const humanGap = (from: number, to: number): string => {
   return `${Math.round(days / 7)} weeks`;
 };
 
-const round1 = (n: number): number => Math.round(n * 10) / 10;
-
 const roundRatio = (n: number): number => Math.round(n * 1000) / 1000;
 
 export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData {
@@ -248,8 +247,11 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       ? 0
       : round1(list.reduce((sum, e) => sum + countFor(e.id), 0) / list.length);
 
-  const avgAttendance = avg(periodEvents);
-  const avgAttendancePrev = prevEvents.length ? avg(prevEvents) : null;
+  const rollTaken = (e: MetricsEvent) => countFor(e.id) > 0;
+  const periodHeld = periodEvents.filter(rollTaken);
+  const prevHeld = prevEvents.filter(rollTaken);
+  const avgAttendance = avg(periodHeld);
+  const avgAttendancePrev = prevHeld.length ? avg(prevHeld) : null;
   const changePct =
     avgAttendancePrev && avgAttendancePrev > 0
       ? Math.round(((avgAttendance - avgAttendancePrev) / avgAttendancePrev) * 100)

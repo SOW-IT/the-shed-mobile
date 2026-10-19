@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { formatAmount, sumAmounts, toCents } from "../shared/money";
 import {
@@ -17,6 +18,7 @@ import {
   requestCompleted,
   requestDeclined,
   requestFullyApproved,
+  REVIEWED_LIMIT,
   staffYearStartMs,
   STEP_FIELDS,
   STEP_LABELS,
@@ -314,6 +316,83 @@ const notifyNextActor = async (
 
 const MAX_REQUEST_AMOUNT = 1_000_000;
 
+async function startingApprovals(
+  ctx: QueryCtx | MutationCtx,
+  opts: {
+    email: string;
+    roles: string[];
+    year: number;
+    department: string;
+    division: string;
+    amount: number;
+  }
+) {
+  const { email, roles, year, department, amount } = opts;
+  const approvers = await getApprovers(ctx, year, department);
+  const yearSettings = await getYearSettings(ctx, year);
+  const needsDirector = amount >= directorThresholdOr(yearSettings?.directorApprovalThreshold);
+
+  let approvedByHOD: ApprovalStatus = PENDING;
+  let approvedByBudgetManager: ApprovalStatus = PENDING;
+  let approvedByDirector: ApprovalStatus | undefined = needsDirector ? PENDING : undefined;
+  let approvedByFinanceHead: ApprovalStatus = PENDING;
+
+  if (department === FINANCE) approvedByHOD = APPROVED;
+  const divisionDoc = await getDivision(ctx, year, opts.division);
+  if (
+    approvers.hodEmail === email ||
+    roles.includes(DIRECTOR) ||
+    divisionDoc?.headEmail === email
+  ) {
+    approvedByHOD = APPROVED;
+  }
+  if (approvers.budgetManagerEmail === email) approvedByBudgetManager = APPROVED;
+  if (needsDirector && (roles.includes(DIRECTOR) || approvers.directorEmail === email)) {
+    approvedByDirector = APPROVED;
+  }
+  if (approvers.financeHeadEmail === email) {
+    approvedByHOD = APPROVED;
+    approvedByBudgetManager = APPROVED;
+    approvedByFinanceHead = APPROVED;
+  }
+  return { approvers, approvedByHOD, approvedByBudgetManager, approvedByDirector, approvedByFinanceHead };
+}
+
+export const approvalPreview = query({
+  args: { department: v.string(), amount: v.number() },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const department = args.department.trim();
+    const departmentDoc = department ? await getDepartment(ctx, caller.year, department) : null;
+    if (!departmentDoc) return null;
+    const start = await startingApprovals(ctx, {
+      email: caller.email,
+      roles: rolesOf(caller.profile),
+      year: caller.year,
+      department,
+      division: departmentDoc.division,
+      amount: Number.isFinite(args.amount) && args.amount > 0 ? args.amount : 0,
+    });
+    const steps: [Step, ApprovalStatus | undefined, string | undefined][] = [
+      ["hod", start.approvedByHOD, start.approvers.hodEmail],
+      ["budgetManager", start.approvedByBudgetManager, start.approvers.budgetManagerEmail],
+      ["director", start.approvedByDirector, start.approvers.directorEmail],
+      ["financeHead", start.approvedByFinanceHead, start.approvers.financeHeadEmail],
+    ];
+    return await Promise.all(
+      steps
+        .filter(([, status]) => status !== undefined)
+        .map(async ([step, status, officeholder]) => ({
+          step,
+          label: STEP_LABELS[step],
+          name: officeholder ? await resolveName(ctx, officeholder, caller.year) : null,
+          skipped: status === APPROVED,
+        }))
+    );
+  },
+});
+
 export const submit = mutation({
   args: {
     description: v.string(),
@@ -365,39 +444,20 @@ export const submit = mutation({
       throw new ConvexError(`Department "${department}" doesn't exist in ${year}.`);
     }
 
-    const approvers = await getApprovers(ctx, year, department);
-    const yearSettings = await getYearSettings(ctx, year);
-    const needsDirector =
-      args.amount >= directorThresholdOr(yearSettings?.directorApprovalThreshold);
-
-    let approvedByHOD: ApprovalStatus = PENDING;
-    let approvedByBudgetManager: ApprovalStatus = PENDING;
-    let approvedByDirector: ApprovalStatus | undefined = needsDirector
-      ? PENDING
-      : undefined;
-    let approvedByFinanceHead: ApprovalStatus = PENDING;
-
-    if (department === FINANCE) approvedByHOD = APPROVED;
-    const divisionDoc = await getDivision(ctx, year, departmentDoc.division);
-    if (
-      approvers.hodEmail === email ||
-      roles.includes(DIRECTOR) ||
-      divisionDoc?.headEmail === email
-    ) {
-      approvedByHOD = APPROVED;
-    }
-    if (approvers.budgetManagerEmail === email) approvedByBudgetManager = APPROVED;
-    if (
-      needsDirector &&
-      (roles.includes(DIRECTOR) || approvers.directorEmail === email)
-    ) {
-      approvedByDirector = APPROVED;
-    }
-    if (approvers.financeHeadEmail === email) {
-      approvedByHOD = APPROVED;
-      approvedByBudgetManager = APPROVED;
-      approvedByFinanceHead = APPROVED;
-    }
+    const {
+      approvers,
+      approvedByHOD,
+      approvedByBudgetManager,
+      approvedByDirector,
+      approvedByFinanceHead,
+    } = await startingApprovals(ctx, {
+      email,
+      roles,
+      year,
+      department,
+      division: departmentDoc.division,
+      amount: args.amount,
+    });
 
     const missing: string[] = [];
     if (approvedByHOD === PENDING && !approvers.hodEmail) {
@@ -476,7 +536,7 @@ export const requesterRequestsInYear = (ctx: Ctx, email: string, y: number) =>
         .lt("_creationTime", staffYearStartMs(y + 1))
     );
 
-const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
+export const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
   await ctx.db
     .query("requests")
     .withIndex("by_creation_time", (q) =>
@@ -614,30 +674,168 @@ export const requestYears = query({
         .filter((y) => y >= EARLIEST_REQUEST_YEAR && y <= thisYear)
         .sort((a, b) => b - a);
     // One indexed probe per candidate year beats reading every request the
-    // caller has ever made just to list the years they appear in.
+    // caller has ever made or reviewed just to list the years they appear in.
     const mineYears: number[] = [];
+    const reviewedYears: number[] = [];
     for (let y = thisYear; y >= EARLIEST_REQUEST_YEAR; y--) {
       if (await requesterRequestsInYear(ctx, caller.email, y).first()) {
         mineYears.push(y);
       }
+      if (await reviewedSomeIn(ctx, caller.email, y)) reviewedYears.push(y);
     }
     const divisions = await ctx.db.query("divisions").take(1000);
     return {
       mine: yearsFrom(mineYears),
+      reviewed: yearsFrom(reviewedYears),
       all: yearsFrom(divisions.map((d) => d.year)),
+      // An approver from an earlier year still gets Review to look back on.
+      reviewedBefore: reviewedYears.length > 0,
     };
   },
 });
 
-type ReviewQueues = {
-  hod: Doc<"requests">[];
-  budgetManager: Doc<"requests">[];
-  director: Doc<"requests">[];
-  financeHead: Doc<"requests">[];
-  readyToPay: Doc<"requests">[];
+// Oldest first, so the request's own year is read before the year after
+// (where only carried-over requests count) uses up the cap.
+const REVIEWED_IN_YEAR_EVENTS = 5000;
+// Requests looked at per year when listing the years someone reviewed in.
+// The first approval in a year is nearly always one of that year's.
+const REVIEWED_YEAR_PROBE_REQUESTS = 50;
+
+/** The caller's approvals and declines that could be on requests from staff
+ *  year `year`: made that year or, for a carried-over request, the next. */
+const reviewEventsFor = (ctx: QueryCtx, email: string, year: number) =>
+  ctx.db
+    .query("requestEvents")
+    .withIndex("by_actor", (q) =>
+      q
+        .eq("actorEmail", email)
+        .gte("_creationTime", staffYearStartMs(year))
+        .lt("_creationTime", staffYearStartMs(year + 2))
+    );
+
+const reviewedRequestOf = (
+  request: Doc<"requests"> | null,
+  email: string,
+  year: number
+): request is Doc<"requests"> =>
+  request !== null && request.requesterEmail !== email && requestYear(request) === year;
+
+/** Whether `reviewedInYear` has anything for `year`, stopping at the first. */
+const reviewedSomeIn = async (ctx: QueryCtx, email: string, year: number): Promise<boolean> => {
+  const looked = new Set<Id<"requests">>();
+  for await (const event of reviewEventsFor(ctx, email, year)) {
+    if (!isApprovalAction(event.action) || looked.has(event.requestId)) continue;
+    if (looked.size >= REVIEWED_YEAR_PROBE_REQUESTS) return false;
+    looked.add(event.requestId);
+    if (reviewedRequestOf(await ctx.db.get("requests", event.requestId), email, year)) return true;
+  }
+  return false;
 };
 
-async function reviewQueues(
+/**
+ * Other people's requests from staff year `year` that the caller approved or
+ * declined at any step, newest first. A request is reviewed in its own year
+ * or, when it was carried over, the year after.
+ */
+export const reviewedInYear = query({
+  args: { year: v.number() },
+  handler: async (ctx, { year }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const ids = new Set<Id<"requests">>();
+    let scanned = 0;
+    for await (const event of reviewEventsFor(ctx, caller.email, year)) {
+      if (++scanned > REVIEWED_IN_YEAR_EVENTS) break;
+      if (isApprovalAction(event.action)) ids.add(event.requestId);
+    }
+    const docs = await Promise.all([...ids].map((id) => ctx.db.get("requests", id)));
+    const rows = docs
+      .filter((r) => reviewedRequestOf(r, caller.email, year))
+      .sort((a, b) => b._creationTime - a._creationTime);
+    return await Promise.all(rows.map((request) => requestForCaller(ctx, caller, request)));
+  },
+});
+
+export const earlierMine = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    return await ctx.db
+      .query("requests")
+      .withIndex("by_requester", (q) =>
+        q
+          .eq("requesterEmail", caller.email)
+          .lt("_creationTime", staffYearStartMs(caller.year))
+      )
+      .order("desc")
+      .paginate(paginationOpts);
+  },
+});
+
+export const earlierAll = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller || !isMemberOfDepartment(caller.profile, FINANCE)) return null;
+    return await ctx.db
+      .query("requests")
+      .withIndex("by_creation_time", (q) =>
+        q.lt("_creationTime", staffYearStartMs(caller.year))
+      )
+      .order("desc")
+      .paginate(paginationOpts);
+  },
+});
+
+export const reviewedHistory = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const result = await ctx.db
+      .query("requestEvents")
+      .withIndex("by_actor", (q) => q.eq("actorEmail", caller.email))
+      .order("desc")
+      .paginate(paginationOpts);
+    const seen = new Set<Id<"requests">>();
+    const page: (Doc<"requests"> & { reviewedAt: number })[] = [];
+    for (const event of result.page) {
+      if (!isApprovalAction(event.action) || seen.has(event.requestId)) continue;
+      seen.add(event.requestId);
+      const request = await ctx.db.get("requests", event.requestId);
+      if (request === null || request.requesterEmail === caller.email) continue;
+      page.push({
+        ...(await requestForCaller(ctx, caller, request)),
+        reviewedAt: event._creationTime,
+      });
+    }
+    return { ...result, page };
+  },
+});
+
+export const lastMovementAt = async (ctx: Ctx, request: Doc<"requests">): Promise<number> => {
+  const latest = await ctx.db
+    .query("requestEvents")
+    .withIndex("by_request", (q) => q.eq("requestId", request._id))
+    .order("desc")
+    .first();
+  return Math.max(request._creationTime, latest?._creationTime ?? 0);
+};
+
+export type ReviewRow = Doc<"requests"> & { waitingSince: number };
+
+export type ReviewQueues = {
+  hod: ReviewRow[];
+  budgetManager: ReviewRow[];
+  director: ReviewRow[];
+  financeHead: ReviewRow[];
+  readyToPay: ReviewRow[];
+};
+
+const oldestFirst = (rows: ReviewRow[]) => rows.sort((a, b) => a.waitingSince - b.waitingSince);
+
+export async function reviewQueues(
   ctx: Ctx,
   caller: CallerContext,
   open: Doc<"requests">[]
@@ -650,11 +848,15 @@ async function reviewQueues(
   });
   const actAsIn = makeActAsResolver(ctx, email);
 
-  const hod: Doc<"requests">[] = [];
-  const budgetManager: Doc<"requests">[] = [];
-  const director: Doc<"requests">[] = [];
-  const financeHead: Doc<"requests">[] = [];
-  const readyToPay: Doc<"requests">[] = [];
+  const hod: ReviewRow[] = [];
+  const budgetManager: ReviewRow[] = [];
+  const director: ReviewRow[] = [];
+  const financeHead: ReviewRow[] = [];
+  const readyToPay: ReviewRow[] = [];
+  const waiting = async (request: Doc<"requests">): Promise<ReviewRow> => ({
+    ...request,
+    waitingSince: await lastMovementAt(ctx, request),
+  });
 
   for (const request of open) {
     const reqYear = requestYear(request);
@@ -680,28 +882,34 @@ async function reviewQueues(
       request.paid === false &&
       matches((a) => a.financeHeadEmail)
     ) {
-      readyToPay.push(request);
+      readyToPay.push(await waiting(request));
     }
 
     if (request.requesterEmail === email || requestCompleted(request)) continue;
     const step = currentStep(request);
     if (step === "hod" && matches((a) => a.hodEmail) && request.department !== FINANCE) {
-      hod.push(request);
+      hod.push(await waiting(request));
     } else if (step === "budgetManager" && matches((a) => a.budgetManagerEmail)) {
-      budgetManager.push(request);
+      budgetManager.push(await waiting(request));
     } else if (
       step === "director" &&
       ((await callerRolesIn(reqYear)).includes(DIRECTOR) ||
         (await callerRolesIn(year)).includes(DIRECTOR) ||
         matches((a) => a.directorEmail))
     ) {
-      director.push(request);
+      director.push(await waiting(request));
     } else if (step === "financeHead" && matches((a) => a.financeHeadEmail)) {
-      financeHead.push(request);
+      financeHead.push(await waiting(request));
     }
   }
 
-  return { hod, budgetManager, director, financeHead, readyToPay };
+  return {
+    hod: oldestFirst(hod),
+    budgetManager: oldestFirst(budgetManager),
+    director: oldestFirst(director),
+    financeHead: oldestFirst(financeHead),
+    readyToPay: oldestFirst(readyToPay),
+  };
 }
 
 export const toReview = query({
@@ -717,7 +925,6 @@ export const toReview = query({
   },
 });
 
-const REVIEWED_LIMIT = 50;
 
 export const reviewed = query({
   args: {},

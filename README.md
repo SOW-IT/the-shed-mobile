@@ -19,6 +19,22 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   submitter would review themselves are auto-approved (HOD's own request,
   Budget Manager's own, Director's own ≥ $5k, Finance Head's own; Finance
   department requests have no HOD step).
+- **Reminders**: a morning job (`convex/reminders.ts`) chases whatever has
+  not moved, a day after the last movement, then three days later, then
+  weekly: reimbursement requests (the next approver, the requester's receipt,
+  Finance's payment), design requests (the Marketing Head's approval, the
+  team's unfinished work) and event forms (the requester's side for forms not
+  submitted, the requester's side and whoever submitted it for forms sent
+  back, the reviewer for forms waiting). Each person gets
+  one notification, push and email a morning listing everything waiting on
+  them; nobody with nothing waiting hears anything, and weekends are not
+  skipped. Reminder emails can be turned off on Profile. Home lists what is
+  waiting on you (`convex/waitingOnMe.ts`); Review, the Marketing queue and
+  To review say how long each item has waited and list the longest waiting
+  first. Admin, Other shows step timing (`convex/stepTiming.ts`): the typical
+  and longest wait at each step and who actioned it most, from the audit
+  trail. Pushes carry the unread count as the app icon badge on iOS; Android
+  syncs the count while the app is open, on launchers that show badges.
 - **Per-year roles and departments** (`staffProfiles`, `departments`,
   `divisions`, keyed by year). The staff year rolls over on **October 1**.
   Admins prepare next year in advance; a 21:00 30 Sep prefill copies the
@@ -88,8 +104,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   requests complete. Requesters can edit or cancel until a request closes,
   and everyone on it can comment. Marketing staff get in-app/push
   notifications and the team's emails go to marketing@sow.org.au. Lists:
-  Mine, the Marketing queue (open requests) and an All archive by staff
-  year. Any request can be downloaded as a PDF (built on the device with
+  Mine, the Marketing queue (open requests) and an All archive, each running
+  back through earlier staff years as you scroll; the Marketing Head opens on the queue when something waits on them.
+  A request's page shows its progress as Submitted, Approved (or Declined)
+  and Complete, with who and when. Any request can be downloaded as a PDF (built on the device with
   pdf-lib). Old requests from the web app are copied in with
   `scripts/import-design-requests.mjs` (safe to re-run). Design requests
   aren't for events: those go through Event Requests.
@@ -142,8 +160,18 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget
   Manager alert when the paid amount differs from the requested amount.
 - **Reimbursements** (opened from the side menu, at `/`): Mine (submit /
-  cancel / receipt), Review (approve / decline / pay, shown to approvers),
-  All (Finance staff), Bank.
+  cancel / receipt), Review (approve / decline / pay, shown to approvers and
+  to anyone who has reviewed a request before), All (Finance staff), Bank.
+  Each tab runs back through earlier staff years as you scroll, newest first
+  under a heading per year: on Mine your own requests, on Review everything
+  you approved or declined, on All (under Completed) every completed request;
+  a request sits under the year it was made in. The New
+  Request sheet shows who the request will go to as you type
+  (`requests.approvalPreview`), including the Director from the threshold and
+  any step your own role skips; image receipts show a thumbnail before you
+  submit. An approver with requests waiting and nothing of their own to act on
+  opens on Review, and a request link opens the tab that holds it (Mine,
+  Review, or All for Finance staff).
 - **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
   Chart. On phones the top-left avatar, or a swipe from the left edge, opens
   a side menu with Profile, Reimbursements (staff other than campus leaders),
@@ -170,7 +198,13 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   or PPN) and **Other events**, plus the automatic **Weeklies** tag on every
   weekly (a weekly is defined by its term and week, which drive the
   weekly-meeting analytics), and configurable member metadata fields (Year,
-  Gender, Campus, Role, …).
+  Gender, Campus, Role, Other Information, …). **Role is worked out**, not
+  typed: a staff person's role from their profile, otherwise Regular,
+  Irregular, Newcomer or Visitor from last night's Insights build, else
+  Member. Leaders can still set Visitor or Alumni by hand. The edit sheet
+  shows it locked, with an info button that explains the rules
+  (`shared/memberRole.ts`). Notes about one event are kept on that sign-in
+  ("Notes for this event", exported as Event notes).
 - **Merge duplicates**: fold two records for one person into one, moving every
   attendance record across (shared events collapse to one record). Someone who
   is staff this year can't be merged away, and two people who were both staff
@@ -190,8 +224,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   current year get their record when they're assigned; next year's staff get
   theirs on October 1 unless they're already linked. Leaving staff moves
   nothing: from October 1 they read as the plain member underneath, with an
-  empty Campus filled from their last role and an empty Role set to Member
-  (Alumni is set by leaders when someone graduates). A member's own email
+  empty Campus filled from their last role (their Role is worked out; leaders
+  set Alumni when someone graduates). A member's own email
   can't be an SOW address or anyone's staff email.
   Member names are capitalised as they're typed.
 - **Audit log**: an immutable trail of every attendance-area action (event /
@@ -207,7 +241,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   with filters, sorting and search; tapping someone opens their attendance
   page. For SOW, a Campuses / TWIG / PPN switcher: each campus's weekly
   average with past week / month / year ranges, then TWIG (campus leaders
-  only) and PPN (everyone, month by month) by staff year. Layout, charts,
+  only) and PPN (everyone, as cards and charts) by staff year. Layout, charts,
   wording and the SOW tabs come from the backend (`weeklyInsights.view`,
   `generalMetrics.view`, `attendanceMetrics.view`, `sowInsights.tabs`,
   `sowInsights.view`), so
@@ -283,7 +317,16 @@ roles stays an explicit admin action.
 
 A person's photo is, in order: the one they uploaded in The SHED, their
 Workspace directory photo, the picture Google sent at their last sign-in,
-then their initials. The directory photo outranks the sign-in picture
+then their initials. The app resizes a picked photo to 512 px before it
+uploads it (a JPEG, or a PNG when the picked file is one, so see-through
+areas stay see-through until the server puts them on white). An uploaded photo
+over 64 KB is shrunk on the server to a 256 px JPEG a moment after upload
+(`avatars:shrinkAll` does older ones), skipping any too big to decode in an
+action's memory: JPEGs over 16 million colour samples (about 10 MP for a
+typical phone photo, 5 MP for a full-colour one) and PNGs over 10 MP. Phones
+keep each photo in the app's cache folder after the first download,
+showing the web copy until it lands.
+The directory photo outranks the sign-in picture
 because Google sends a letter placeholder to anyone who had no photo when
 they signed in, and that placeholder only changes when they sign in again. A directory email that matches a previous staff year
 is listed under Previously staff rather than as a brand-new person.

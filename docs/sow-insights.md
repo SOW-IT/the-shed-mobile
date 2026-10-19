@@ -23,7 +23,9 @@ The app draws what the server sends and holds none of the content:
 - A mode the server no longer knows (an old tab still on screen) gets a "Not
   available" note, never an error.
 - What needs an app release: a brand-new block type. The app skips block
-  types it doesn't know. 2.9.0 added one, `monthRows`, for the PPN view.
+  types it doesn't know. 2.9.0 added `monthRows` for the PPN view; 2.9.8
+  replaced it with cards and charts, so nothing sends it any more and the
+  validator and renderer are gone (older apps still have the renderer).
 
 Apps older than 2.9.0 don't show the switcher; they keep the Campuses view.
 
@@ -59,7 +61,11 @@ counted; people with no staff profile are listed and flagged.
   `followUpMisses` (2) held TWIGs.
 - **Everyone**: searchable, grouped Campus leaders / Organisers (other staff)
   / No staff profile, each with their share of held TWIGs and when they last
-  came. Filters by group and Regular.
+  came. Every campus leader of the staff year is listed, including those who
+  haven't come this staff year (`0/n · 0%`, "Hasn't come to a TWIG this staff
+  year"): the server loads the year's campus leader profiles as a roster.
+  Filters by group, Regular and **Not yet** (those campus leaders). The cards
+  still count only people who came.
 - **No roll taken**.
 - A year with no TWIG (or PPN) roll yet shows an empty state with a button to
   the latest earlier staff year.
@@ -68,14 +74,20 @@ counted; people with no staff profile are listed and flagged.
 
 Everyone counts; people with no staff profile are noted, never flagged.
 
-- A caption with the year's PPNs, sign-ins and people, split campus leaders /
-  other staff / others.
-- **Month by month**, newest first: date and name, sign-ins, change against
-  the PPN in the same calendar month last staff year, first-timers (their
-  first PPN ever, across every year), split by campus and by campus leaders /
-  staff / others. In the campus split, other staff with no campus count under
-  SOW, and anyone else without a university role uses their member Campus
-  field, else "No campus".
+- A caption with the staff year's number of PPNs.
+- **Turnout**: Average per PPN (sign-ins per held PPN) and People cards. The
+  average is compared with last staff year's PPNs **up to the same date**
+  (each counted once; a past year with the whole year before), like TWIG.
+  Then **PPN by PPN**: everyone at each PPN, oldest first, against the PPN in
+  the same calendar month last staff year in grey. A PPN with none that month
+  leaves the grey bar's place empty rather than showing a zero.
+- **Who came**: Campus leaders (their share of sign-ins) and First-timers
+  (their first PPN ever, across every year) cards, then **Who came** (each
+  PPN stacked by campus leaders / other staff / no staff profile),
+  **First-timers** (first PPN against came before) and **Sign-ins by campus**
+  in campus colours. In the campus split, other staff with no campus count
+  under SOW, and anyone else without a university role uses their member
+  Campus field, else "No campus".
 - **No roll taken**.
 
 ## The query

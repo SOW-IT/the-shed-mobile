@@ -34,11 +34,16 @@ export default function RequestRedirectScreen() {
         <EmptyState
           icon="trash-bin-outline"
           title="Request not found"
-          message="This request no longer exists (it may have been cancelled)."
+          message="It may have been cancelled, or it isn't one you can see."
         />
       </Screen>
     );
   }
-  const tab = me?.email === request.requesterEmail ? "mine" : "review";
+  const tab =
+    me?.email === request.requesterEmail
+      ? "mine"
+      : !me?.isApprover && me?.isFinance
+        ? "all"
+        : "review";
   return <Redirect href={`/?tab=${tab}&focus=${request._id}`} />;
 }

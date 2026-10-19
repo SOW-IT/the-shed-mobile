@@ -6,13 +6,17 @@ import {
   GENDER_FIELD_KEY,
   GENDER_OPTION_IDS,
   GENDER_VALUES,
+  LEGACY_NOTES_FIELD_KEY,
+  OTHER_INFO_FIELD_KEY,
   ROLE_FIELD_KEY,
   STUDENT_YEAR_FIELD_KEY,
   STUDENT_YEAR_LEVELS,
   STUDENT_YEAR_VALUES,
 } from "../shared/attendanceMemberMeta";
+import { MARKED_ROLES } from "../shared/memberRole";
 import { canonicalSubgroup, subgroupMatches } from "../shared/rollcall";
 import {
+  internalMutation,
   mutation,
   type MutationCtx,
   query,
@@ -32,6 +36,12 @@ const LOCKED_FIELD_KEYS = new Set([
   CAMPUS_FIELD_KEY,
   ROLE_FIELD_KEY,
 ]);
+
+/** The Role field's built-in options: org roles, plus the two Roles set on
+ *  a member by hand (shared/memberRole.ts). */
+const roleOptions = (roleRows: { name: string }[]): string[] => [
+  ...new Set([...ROLES, ...roleRows.map((r) => r.name), ...MARKED_ROLES]),
+];
 
 const lockedValuePresent = (
   values: Record<string, string>,
@@ -85,7 +95,7 @@ export const list = query({
         .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
         .collect(),
     ]);
-    const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
+    const orgRoles = roleOptions(roleRows);
 
     return rows
       .filter(
@@ -159,7 +169,7 @@ export const ensureDefaults = mutation({
       .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
       .collect();
     const roleValues: Record<string, string> = {};
-    const lockedRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
+    const lockedRoles = roleOptions(roleRows);
     lockedRoles.forEach((name, i) => {
       roleValues[String(i + 1)] = name;
     });
@@ -246,7 +256,7 @@ export const saveAll = mutation({
       .query("roles")
       .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
       .collect();
-    const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
+    const orgRoles = roleOptions(roleRows);
 
     const normalizeSelectValues = (
       fieldKey: string,
@@ -274,11 +284,15 @@ export const saveAll = mutation({
         lk === ROLE_FIELD_KEY.toLowerCase() ? ROLE_FIELD_KEY :
         lk === GENDER_FIELD_KEY.toLowerCase() ? GENDER_FIELD_KEY :
         lk === STUDENT_YEAR_FIELD_KEY.toLowerCase() ? STUDENT_YEAR_FIELD_KEY :
+        // Notes about one event go on its sign-in, so a member field called
+        // Notes is about the person.
+        lk === LEGACY_NOTES_FIELD_KEY.toLowerCase() ? OTHER_INFO_FIELD_KEY :
         rawKey;
-      if (keys.has(lk)) {
+      // By the name it's saved under, so Notes and Other Information clash.
+      if (keys.has(key.toLowerCase())) {
         throw new ConvexError(`Duplicate metadata field "${key}".`);
       }
-      keys.add(lk);
+      keys.add(key.toLowerCase());
 
       const values =
         field.type === "select"
@@ -388,5 +402,32 @@ export const saveAll = mutation({
               .join(", ")}`,
       });
     }
+  },
+});
+
+/**
+ * One-off for 2.9.9: the member field "Notes" becomes "Other Information",
+ * now that notes about one event are kept on its sign-in. Values stay as
+ * they are. Safe to run again.
+ */
+export const renameNotesField = internalMutation({
+  args: {},
+  returns: v.union(v.literal("renamed"), v.literal("nothing to rename"), v.literal("both exist")),
+  handler: async (ctx) => {
+    const fields = await ctx.db.query("attendanceMetadata").take(200);
+    const named = (key: string) =>
+      fields.find((f) => f.key.trim().toLowerCase() === key.toLowerCase());
+    const notes = named(LEGACY_NOTES_FIELD_KEY);
+    if (!notes) return "nothing to rename";
+    if (named(OTHER_INFO_FIELD_KEY)) return "both exist";
+    await ctx.db.patch("attendanceMetadata", notes._id, { key: OTHER_INFO_FIELD_KEY });
+    await logAttendanceAction(ctx, {
+      actorEmail: "system:notes-rename",
+      entityType: "metadata",
+      action: "metadata.update",
+      summary: `Renamed member field "${notes.key}" to "${OTHER_INFO_FIELD_KEY}"`,
+      detail: "Notes about one event are kept on that sign-in.",
+    });
+    return "renamed";
   },
 });

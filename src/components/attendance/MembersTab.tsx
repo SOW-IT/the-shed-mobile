@@ -10,9 +10,9 @@ import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
   ROLE_FIELD_KEY,
-  orderedRoleFilterOptions,
   orderedSelectOptions,
 } from "../../../shared/attendanceMemberMeta";
+import { ROLE_FILTER_LABELS } from "../../../shared/memberRole";
 import {
   Btn,
   EmptyState,
@@ -161,13 +161,17 @@ export function MembersTab({
             key={field._id}
             label={`Filter: ${field.key}`}
             values={filters[field._id] ?? []}
-            options={[
-              { label: "Unselected", value: "unset" },
-              ...(field.key === ROLE_FIELD_KEY
-                ? orderedRoleFilterOptions(field.values, field.lockedValues)
-                : orderedSelectOptions(field.values, field.lockedValues)
-              ).map(({ id, label }) => ({ label, value: id })),
-            ]}
+            options={
+              // Everyone has a worked-out Role, so there's no Unselected.
+              field.key === ROLE_FIELD_KEY
+                ? ROLE_FILTER_LABELS.map((label) => ({ label, value: label }))
+                : [
+                    { label: "Unselected", value: "unset" },
+                    ...orderedSelectOptions(field.values, field.lockedValues).map(
+                      ({ id, label }) => ({ label, value: id })
+                    ),
+                  ]
+            }
             placeholder="All"
             onSelect={(values) =>
               setFilters((prev) => {

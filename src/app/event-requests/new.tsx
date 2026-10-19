@@ -1,10 +1,14 @@
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Fragment, useEffect, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { answersProblemAt, normalizeAnswers, questionNumber, sydneyToday } from "@shared/forms";
+import { SUB_FORM_KINDS, SUB_FORM_LABELS } from "@shared/eventRequests";
+import { staffOnlyMessage } from "@shared/staffOnly";
+import { SignInPrompt } from "@/components/SignInPrompt";
 import {
   answersFromDraft,
   draftFromAnswers,
@@ -16,13 +20,48 @@ import {
   EmptyState,
   errorMessage,
   FooterAction,
-  InfoBanner,
   LoadingState,
   ReadableColumn,
   Screen,
   WarningBanner,
 } from "@/components/ui";
-import { spacing } from "@/theme";
+import { radius, spacing, typography, useAppTheme } from "@/theme";
+
+const REQUEST_STEPS = ["Event", ...SUB_FORM_KINDS.map((kind) => SUB_FORM_LABELS[kind])];
+
+const RequestSteps = () => {
+  const t = useAppTheme();
+  return (
+    <View
+      style={styles.steps}
+      accessible
+      accessibilityLabel={`Step 1 of ${REQUEST_STEPS.length}: the event. Then ${REQUEST_STEPS.slice(1).join(", ")}.`}
+    >
+      {REQUEST_STEPS.map((label, i) => (
+        <Fragment key={label}>
+          {i > 0 ? <Ionicons name="chevron-forward" size={14} color={t.faint} /> : null}
+          <View
+            style={[
+              styles.step,
+              i === 0
+                ? { backgroundColor: t.primarySoft, borderColor: t.primary }
+                : { borderColor: t.border },
+            ]}
+          >
+            <Text
+              style={[
+                typography.caption,
+                { color: i === 0 ? (t.dark ? t.text : t.primary) : t.muted, fontWeight: i === 0 ? "700" : "500" },
+              ]}
+            >
+              {i + 1} {label}
+            </Text>
+          </View>
+        </Fragment>
+      ))}
+    </View>
+  );
+};
 
 const DAY = 86_400_000;
 /** Marketing needs time: events sooner than this get a gentle warning. */
@@ -33,6 +72,7 @@ export default function EventRequestFormScreen() {
   const router = useRouter();
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   const editId = typeof edit === "string" && edit ? edit : null;
+  const { isLoading: authLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.directory.me);
   const staff = !!me?.profile && !me.isCampusLeader;
   const viewer = useQuery(api.eventRequests.viewer, staff ? {} : "skip");
@@ -66,6 +106,20 @@ export default function EventRequestFormScreen() {
       : router.replace(editId ? `/event-requests/${editId}` : "/event-requests");
   const title = existing ? `Edit ${existing.event.name}` : "New Event Request";
 
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <Screen title={title} onBack={goBack}>
+        <SignInPrompt what="page" />
+      </Screen>
+    );
+  }
+  if (me && !staff) {
+    return (
+      <Screen title={title} onBack={goBack}>
+        <EmptyState icon="calendar-outline" title="For SOW staff" message={staffOnlyMessage("Event", me)} />
+      </Screen>
+    );
+  }
   if (editId && (existing === null || (existing && !existing.can.edit))) {
     return (
       <Screen title="Event request" onBack={goBack}>
@@ -138,9 +192,7 @@ export default function EventRequestFormScreen() {
     >
       <ReadableColumn>
         <View style={{ gap: spacing.md }}>
-          {existing ? null : (
-            <InfoBanner message="Start with the event itself. Next, fill in its Marketing, Risk and Finance forms; once all three are approved, it can go ahead." />
-          )}
+          {existing ? null : <RequestSteps />}
           <FormQuestions
             fields={fields}
             draft={draft}
@@ -165,3 +217,13 @@ export default function EventRequestFormScreen() {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  steps: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.xs },
+  step: {
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+});

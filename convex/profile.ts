@@ -1,7 +1,15 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
-import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { Doc } from "./_generated/dataModel";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  MutationCtx,
+  query,
+  QueryCtx,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
+import { Doc, Id } from "./_generated/dataModel";
 import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
 import {
   currentStaffYear,
@@ -15,7 +23,7 @@ import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
 import { viewOf } from "./churches";
 import { isAssigned } from "./staffMembers";
-import { photoUrl } from "./photo";
+import { AVATAR_SMALL_ENOUGH_BYTES, photoUrl } from "./photo";
 
 export const get = query({
   args: { email: v.optional(v.string()) },
@@ -90,6 +98,7 @@ export const get = query({
       email,
       // Either staff email spelling is the same person.
       isMe,
+      reminderEmails: isMe ? user?.reminderEmails !== false : null,
       googleSyncedAt: isMe && googleSyncTimes.length ? Math.max(...googleSyncTimes) : null,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: await photoUrl(ctx, user, dirUser),
@@ -114,6 +123,7 @@ async function ownProfileWithoutEmail(ctx: QueryCtx, user: Doc<"users">) {
   return {
     email: "",
     isMe: true,
+    reminderEmails: user.reminderEmails !== false,
     googleSyncedAt: null,
     name: user.name ?? null,
     photo: await photoUrl(ctx, user, null),
@@ -145,6 +155,16 @@ export const setChurch = mutation({
   },
 });
 
+export const setReminderEmails = mutation({
+  args: { enabled: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, { enabled }) => {
+    const user = await requireOwnUser(ctx);
+    await ctx.db.patch("users", user._id, { reminderEmails: enabled ? undefined : false });
+    return null;
+  },
+});
+
 export const generateAvatarUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
@@ -161,6 +181,44 @@ export const setAvatar = mutation({
       await ctx.storage.delete(user.avatarId);
     }
     await ctx.db.patch("users", user._id, { avatarId: args.storageId });
+    const file = await ctx.db.system.get(args.storageId);
+    if (file && file.size > AVATAR_SMALL_ENOUGH_BYTES) {
+      await ctx.scheduler.runAfter(0, internal.avatars.shrink, {
+        userId: user._id,
+        storageId: args.storageId,
+      });
+    }
     return null;
+  },
+});
+
+export const replaceAvatar = internalMutation({
+  args: { userId: v.id("users"), from: v.id("_storage"), to: v.id("_storage") },
+  returns: v.null(),
+  handler: async (ctx, { userId, from, to }) => {
+    const user = await ctx.db.get("users", userId);
+    if (user?.avatarId !== from) {
+      await ctx.storage.delete(to);
+      return null;
+    }
+    await ctx.db.patch("users", userId, { avatarId: to });
+    await ctx.storage.delete(from);
+    return null;
+  },
+});
+
+export const avatarsToShrink = internalQuery({
+  args: {},
+  returns: v.array(v.object({ userId: v.id("users"), storageId: v.id("_storage") })),
+  handler: async (ctx) => {
+    const found: { userId: Id<"users">; storageId: Id<"_storage"> }[] = [];
+    for await (const user of ctx.db.query("users")) {
+      if (!user.avatarId) continue;
+      const file = await ctx.db.system.get(user.avatarId);
+      if (file && file.size > AVATAR_SMALL_ENOUGH_BYTES) {
+        found.push({ userId: user._id, storageId: user.avatarId });
+      }
+    }
+    return found;
   },
 });
