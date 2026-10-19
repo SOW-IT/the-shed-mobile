@@ -13,7 +13,7 @@ import {
   STEP_LABELS,
 } from "../shared/flow";
 import { formatAmount } from "../shared/money";
-import { staffEmailCandidates } from "../shared/rollcallImport";
+import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import {
   dueText,
   eventTimingText,
@@ -57,12 +57,26 @@ type Item = {
   emailed: boolean;
 };
 
-type Digest = Map<string, Item[]>;
+type Digest = Map<string, { to: string; items: Item[] }>;
+
+const uniqueRecipients = (emails: (string | undefined)[]): string[] => {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const email of emails) {
+    if (!email) continue;
+    const key = canonicalEmailKey(email) ?? email;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(email);
+  }
+  return unique;
+};
 
 const add = (digest: Digest, to: string, item: Item) => {
-  const items = digest.get(to) ?? [];
-  items.push(item);
-  digest.set(to, items);
+  const key = canonicalEmailKey(to) ?? to;
+  const entry = digest.get(key) ?? { to, items: [] };
+  entry.items.push(item);
+  digest.set(key, entry);
 };
 
 const preferRequestYear = (
@@ -95,7 +109,9 @@ async function collectRequests(ctx: MutationCtx, digest: Digest, now: number) {
     let url = "/?tab=review";
     if (step !== null) {
       const next = nextApproverWithYear(request, requestYearApprovers, thisYearApprovers);
-      recipients = next ? await withDelegatesForYear(ctx, next.year, next.email) : [];
+      recipients = uniqueRecipients(
+        next ? await withDelegatesForYear(ctx, next.year, next.email) : []
+      );
       waitingOn = `waiting on your ${STEP_LABELS[step]} approval`;
     } else if (!request.receipt) {
       recipients = [request.requesterEmail];
@@ -110,7 +126,9 @@ async function collectRequests(ctx: MutationCtx, digest: Digest, now: number) {
         reqYear,
         year
       );
-      recipients = head ? await withDelegatesForYear(ctx, head.year, head.email) : [];
+      recipients = uniqueRecipients(
+        head ? await withDelegatesForYear(ctx, head.year, head.email) : []
+      );
       waitingOn = "waiting on payment";
     }
     if (recipients.length === 0) continue;
@@ -152,7 +170,9 @@ async function collectDesignRequests(
         status === "PENDING"
           ? await headRecipients(ctx, request.year)
           : await marketingTeam(ctx);
-      const recipients = team.filter((email) => email !== request.requesterEmail);
+      const recipients = uniqueRecipients(team).filter(
+        (email) => email !== request.requesterEmail
+      );
       if (recipients.length === 0) continue;
       const needed = dueText(request.dueDate, today);
       const what = `${designRequestName(request)}, ${request.title} for ${request.department}`;
@@ -216,12 +236,18 @@ async function collectEventForms(ctx: MutationCtx, digest: Digest, now: number) 
       let listUrl = "";
       if (form.status === "PENDING") {
         const approver = await stepApprover(ctx, event, kind, form.step);
-        recipients = (await recipientsFor(ctx, approver)).filter((e) => e !== form.submittedBy);
+        recipients = uniqueRecipients(await recipientsFor(ctx, approver)).filter(
+          (e) => e !== form.submittedBy
+        );
         waitingOn = "waiting on your approval";
         listUrl = "/event-requests?tab=review";
       } else if (form.status === "DRAFT" || form.status === "CHANGES_REQUESTED") {
         const head = await headOf(ctx, event, event.department);
-        recipients = [...new Set([event.requesterEmail, ...(await recipientsFor(ctx, head))])];
+        recipients = uniqueRecipients([
+          event.requesterEmail,
+          form.submittedBy,
+          ...(await recipientsFor(ctx, head)),
+        ]);
         waitingOn =
           form.status === "DRAFT" ? "not submitted yet" : "changes were requested, not resubmitted";
         listUrl = "/event-requests?tab=mine";
@@ -298,7 +324,7 @@ export const remindStale = internalMutation({
     await collectRequests(ctx, digest, now);
     await collectDesignRequests(ctx, digest, inbox, now);
     await collectEventForms(ctx, digest, now);
-    for (const [to, items] of digest) {
+    for (const { to, items } of digest.values()) {
       await sendDigest(ctx, to, items);
     }
     if (inbox.length > 0) {

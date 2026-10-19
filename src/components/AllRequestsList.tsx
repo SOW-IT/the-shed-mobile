@@ -68,6 +68,10 @@ export const AllRequestsList = ({
       requests ? { requestIds: requests.map((r) => r._id) } : "skip"
     ) ?? {};
   const [pickedFilter, setFilter] = useState<"ongoing" | "completed" | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFilter(null);
+  }, [focusId]);
   const focused = focusId ? requests?.find((request) => request._id === focusId) : undefined;
   const filter =
     pickedFilter ??

@@ -149,7 +149,8 @@ export default function DesignRequestsScreen() {
   const team = !!viewer?.canSeeQueue;
   const mine = useQuery(api.designRequests.mine, staff ? {} : "skip");
   const queue = useQuery(api.designRequests.queue, team ? {} : "skip");
-  const waitingOnMe = useQuery(api.designRequests.waitingOnMe, team ? {} : "skip") ?? 0;
+  const waitingOnMeRaw = useQuery(api.designRequests.waitingOnMe, team ? {} : "skip");
+  const waitingOnMe = waitingOnMeRaw ?? 0;
   const archive = useQuery(
     api.designRequests.archive,
     team && me ? { year: me.year } : "skip"
@@ -186,6 +187,19 @@ export default function DesignRequestsScreen() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
     if (typeof tab === "string") setActive(tab);
   }, [tab]);
+  const landingKnown =
+    mine !== undefined && viewer !== undefined && (!team || waitingOnMeRaw !== undefined);
+  const landing = landingKnown
+    ? waitingOnMe > 0 && (mine ?? []).length === 0
+      ? "queue"
+      : "mine"
+    : null;
+  useEffect(() => {
+    if (active !== null || landing === null || typeof tab === "string") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActive(landing);
+  }, [active, landing, tab]);
+  const wanted = active ?? landing;
 
   if (me === undefined) {
     return (
@@ -203,6 +217,13 @@ export default function DesignRequestsScreen() {
           <Muted>{staffOnlyMessage("Design", me)}</Muted>
         </Card>
       </ChromeScreen>
+    );
+  }
+  if (wanted === null) {
+    return (
+      <Screen>
+        <LoadingState />
+      </Screen>
     );
   }
 
@@ -272,8 +293,6 @@ export default function DesignRequestsScreen() {
         ]
       : []),
   ];
-  const landing = waitingOnMe > 0 && (mine ?? []).length === 0 ? "queue" : "mine";
-  const wanted = active ?? landing;
   const activeKey = tabs.some((t) => t.key === wanted) ? wanted : "mine";
   const noHead = viewer !== undefined && viewer !== null && !viewer.hasMarketingHead;
 

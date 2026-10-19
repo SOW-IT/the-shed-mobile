@@ -9,10 +9,16 @@ import { internalAction } from "./_generated/server";
 
 export const AVATAR_MAX_EDGE = 256;
 const AVATAR_JPEG_QUALITY = 82;
-const DECODE_MEMORY_MB = 400;
+const JPEG_DECODER_BACKSTOP_MB = 400;
+const MAX_JPEG_SAMPLES = 16_000_000;
+const MAX_PNG_PIXELS = 10_000_000;
 const EXIF_ORIENTATION_TAG = 0x0112;
+const START_OF_FRAME = new Set([
+  0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf,
+]);
 
 type Pixels = { width: number; height: number; data: Uint8Array };
+export type JpegFrame = { width: number; height: number; samples: number };
 
 const isJpeg = (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8;
 
@@ -45,19 +51,58 @@ function tiffOrientation(bytes: Uint8Array, tiff: number): number {
   return 1;
 }
 
-export function jpegOrientation(bytes: Uint8Array): number {
+function* jpegSegments(bytes: Uint8Array) {
   let offset = 2;
   while (offset + 4 <= bytes.length && bytes[offset] === 0xff) {
+    while (bytes[offset + 1] === 0xff && offset + 4 < bytes.length) offset++;
     const marker = bytes[offset + 1];
-    if (marker === 0xda) break;
+    if (marker === 0xda) return;
     const length = (bytes[offset + 2] << 8) | bytes[offset + 3];
-    if (marker === 0xe1 && isExifHeader(bytes, offset + 4)) {
-      return tiffOrientation(bytes, offset + 10);
-    }
+    yield { marker, start: offset + 4, end: Math.min(offset + 2 + length, bytes.length) };
     offset += 2 + length;
+  }
+}
+
+export function jpegOrientation(bytes: Uint8Array): number {
+  for (const { marker, start } of jpegSegments(bytes)) {
+    if (marker === 0xe1 && isExifHeader(bytes, start)) return tiffOrientation(bytes, start + 6);
   }
   return 1;
 }
+
+export function jpegFrame(bytes: Uint8Array): JpegFrame | null {
+  for (const { marker, start, end } of jpegSegments(bytes)) {
+    if (!START_OF_FRAME.has(marker)) continue;
+    const componentCount = bytes[start + 5];
+    if (!componentCount || start + 6 + componentCount * 3 > end) return null;
+    const height = (bytes[start + 1] << 8) | bytes[start + 2];
+    const width = (bytes[start + 3] << 8) | bytes[start + 4];
+    const factors = Array.from({ length: componentCount }, (_, i) => bytes[start + 7 + i * 3]);
+    const maxH = Math.max(1, ...factors.map((factor) => factor >> 4));
+    const maxV = Math.max(1, ...factors.map((factor) => factor & 0x0f));
+    const sampleShare =
+      factors.reduce((sum, factor) => sum + (factor >> 4) * (factor & 0x0f), 0) / (maxH * maxV);
+    return { width, height, samples: Math.round(width * height * sampleShare) };
+  }
+  return null;
+}
+
+const PNG_IHDR = "IHDR";
+const PNG_IDAT = "IDAT";
+
+export const pngSize = (bytes: Uint8Array) => {
+  const u32 = (at: number) =>
+    bytes[at] * 0x1000000 + ((bytes[at + 1] << 16) | (bytes[at + 2] << 8) | bytes[at + 3]);
+  const chunkType = (at: number) => String.fromCharCode(...bytes.subarray(at, at + 4));
+  let headers = 0;
+  for (let offset = 8; offset + 8 <= bytes.length; offset += 12 + u32(offset)) {
+    const type = chunkType(offset + 4);
+    if (type === PNG_IHDR) headers++;
+    if (type === PNG_IDAT) break;
+  }
+  if (headers !== 1) throw new Error(`PNG has ${headers} IHDR chunks`);
+  return { width: u32(16), height: u32(20) };
+};
 
 function sourceIndex(
   orientation: number,
@@ -126,19 +171,25 @@ export function shrinkPixels(source: Pixels, orientation: number, maxEdge: numbe
 
 function decode(bytes: Uint8Array): { pixels: Pixels; orientation: number } | null {
   if (isJpeg(bytes)) {
+    const frame = jpegFrame(bytes);
+    if (!frame) throw new Error("Couldn't find the JPEG's size");
+    if (frame.samples > MAX_JPEG_SAMPLES) {
+      throw new Error(`${frame.width}x${frame.height} JPEG is too large to decode in an action`);
+    }
     const pixels = decodeJpeg(bytes, {
       useTArray: true,
       formatAsRGBA: true,
-      maxMemoryUsageInMB: DECODE_MEMORY_MB,
+      maxMemoryUsageInMB: JPEG_DECODER_BACKSTOP_MB,
     });
     return { pixels, orientation: jpegOrientation(bytes) };
   }
   if (isPng(bytes)) {
-    const png = PNG.sync.read(Buffer.from(bytes));
-    return {
-      pixels: { width: png.width, height: png.height, data: new Uint8Array(png.data) },
-      orientation: 1,
-    };
+    const { width, height } = pngSize(bytes);
+    if (width * height > MAX_PNG_PIXELS) {
+      throw new Error(`${width}x${height} PNG is too large to decode in an action`);
+    }
+    const png = PNG.sync.read(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+    return { pixels: { width: png.width, height: png.height, data: png.data }, orientation: 1 };
   }
   return null;
 }

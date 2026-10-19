@@ -9,6 +9,8 @@ import {
   requestFullyApproved,
 } from "../../../shared/flow";
 import { threadDeepLinkKey } from "../../../shared/deepLinks";
+import { isSowStaffAddress } from "../../../shared/rollcallImport";
+import { staffOnlyMessage } from "@shared/staffOnly";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { BankTab } from "@/components/BankTab";
 import { ChromeScreen } from "@/components/ChromeScreen";
@@ -151,9 +153,21 @@ export default function RequestsScreen() {
       void markReadForRequest({ requestId: focusId as Id<"requests"> }).catch(() => {});
     }
   }, [focusId, markReadForRequest]);
-  const landing = reviewCount > 0 && mineCount === 0 ? "review" : "mine";
+  const landingKnown =
+    myRequests !== undefined && (!me?.isApprover || review !== undefined);
+  const landing = landingKnown
+    ? reviewCount > 0 && mineCount === 0
+      ? "review"
+      : "mine"
+    : null;
+  useEffect(() => {
+    if (active !== null || landing === null || typeof tab === "string") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActive(landing);
+  }, [active, landing, tab]);
   const wanted = active ?? landing;
-  const activeSegment = segments.some((s) => s.key === wanted) ? wanted : "mine";
+  const activeSegment =
+    wanted !== null && segments.some((s) => s.key === wanted) ? wanted : "mine";
 
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   const myAssignments = me?.profile?.assignments ?? [];
@@ -202,8 +216,9 @@ export default function RequestsScreen() {
               Welcome{me?.name ? `, ${me.name}` : ""}
             </Txt>
             <Muted>
-              No role or department is assigned to {me?.email} for {me?.year} yet.
-              Ask an admin (Data and IT or Human Resources) to set you up.
+              {isSowStaffAddress(me.email)
+                ? `No role or department is assigned to ${me.email} for ${me.year} yet. Ask an admin (Data and IT or Human Resources) to set you up.`
+                : staffOnlyMessage("Reimbursement", me)}
             </Muted>
             <Row>
               <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} />
@@ -213,6 +228,8 @@ export default function RequestsScreen() {
       </ChromeScreen>
     );
   }
+
+  if (wanted === null) return <Screen><LoadingState /></Screen>;
 
   const renderAll = () => (
     <>

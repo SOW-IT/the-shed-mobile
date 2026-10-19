@@ -24,7 +24,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   weekly: reimbursement requests (the next approver, the requester's receipt,
   Finance's payment), design requests (the Marketing Head's approval, the
   team's unfinished work) and event forms (the requester's side for forms not
-  submitted or sent back, the reviewer for forms waiting). Each person gets
+  submitted, the requester's side and whoever submitted it for forms sent
+  back, the reviewer for forms waiting). Each person gets
   one notification, push and email a morning listing everything waiting on
   them; nobody with nothing waiting hears anything, and weekends are not
   skipped. Reminder emails can be turned off on Profile. Home lists what is
@@ -316,9 +317,15 @@ roles stays an explicit admin action.
 
 A person's photo is, in order: the one they uploaded in The SHED, their
 Workspace directory photo, the picture Google sent at their last sign-in,
-then their initials. An uploaded photo over 64 KB is shrunk on the server to a
-256 px JPEG a moment after upload (`avatars:shrinkAll` does older ones), and
-phones keep each photo in the app's cache folder after the first download.
+then their initials. The app resizes a picked photo to 512 px before it
+uploads it (a JPEG, or a PNG when the picked file is one, so see-through
+areas stay see-through until the server puts them on white). An uploaded photo
+over 64 KB is shrunk on the server to a 256 px JPEG a moment after upload
+(`avatars:shrinkAll` does older ones), skipping any too big to decode in an
+action's memory: JPEGs over 16 million colour samples (about 10 MP for a
+typical phone photo, 5 MP for a full-colour one) and PNGs over 10 MP. Phones
+keep each photo in the app's cache folder after the first download,
+showing the web copy until it lands.
 The directory photo outranks the sign-in picture
 because Google sends a letter placeholder to anyone who had no photo when
 they signed in, and that placeholder only changes when they sign in again. A directory email that matches a previous staff year
