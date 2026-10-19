@@ -94,11 +94,12 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
         mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 1,
       });
       if (result.canceled) return;
       setUploading(true);
-      const photo = await shrinkPhotoForUpload(result.assets[0].uri);
+      const picked = result.assets[0];
+      const photo = await shrinkPhotoForUpload(picked.uri, picked.mimeType);
       const uploadUrl = await generateAvatarUploadUrl();
       const storageId = await uploadLocalFileToUrl(uploadUrl, photo);
       await setAvatar({ storageId });

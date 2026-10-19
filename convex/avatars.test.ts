@@ -100,6 +100,11 @@ describe("jpegOrientation", () => {
     expect(jpegOrientation(withSegments(tiny, comment, exifSegment(3, false)))).toBe(3);
   });
 
+  test("steps over fill bytes before a marker", () => {
+    expect(jpegOrientation(withSegments(tiny, [0xff], exifSegment(6, false)))).toBe(6);
+    expect(jpegFrame(withSegments(tiny, [0xff, 0xff], frameSegment(640, 480)))?.width).toBe(640);
+  });
+
   test("is upright without EXIF, with an out-of-range value, or with no orientation tag", () => {
     expect(jpegOrientation(tiny)).toBe(1);
     expect(jpegOrientation(withSegments(tiny, exifSegment(9, false)))).toBe(1);
@@ -146,6 +151,15 @@ describe("pngSize", () => {
   test("reads the width and height from the IHDR chunk", () => {
     expect(pngSize(pngHeader(4032, 3024))).toEqual({ width: 4032, height: 3024 });
     expect(pngSize(pngHeader(0x80000001, 1)).width).toBe(0x80000001);
+  });
+
+  test("refuses a PNG with a second IHDR, which the decoder would size by, or none", () => {
+    const twice = pngHeader(100, 100);
+    twice.set([0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0x0f, 0xa0, 0, 0, 0x0b, 0xb8], 33);
+    expect(() => pngSize(twice)).toThrow("PNG has 2 IHDR chunks");
+    expect(() => shrinkAvatarBytes(twice)).toThrow("IHDR");
+    const signatureOnly = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(() => pngSize(signatureOnly)).toThrow("PNG has 0 IHDR chunks");
   });
 });
 

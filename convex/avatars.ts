@@ -9,7 +9,7 @@ import { internalAction } from "./_generated/server";
 
 export const AVATAR_MAX_EDGE = 256;
 const AVATAR_JPEG_QUALITY = 82;
-const DECODE_MEMORY_MB = 400;
+const JPEG_DECODER_BACKSTOP_MB = 400;
 const MAX_JPEG_SAMPLES = 16_000_000;
 const MAX_PNG_PIXELS = 10_000_000;
 const EXIF_ORIENTATION_TAG = 0x0112;
@@ -54,6 +54,7 @@ function tiffOrientation(bytes: Uint8Array, tiff: number): number {
 function* jpegSegments(bytes: Uint8Array) {
   let offset = 2;
   while (offset + 4 <= bytes.length && bytes[offset] === 0xff) {
+    while (bytes[offset + 1] === 0xff && offset + 4 < bytes.length) offset++;
     const marker = bytes[offset + 1];
     if (marker === 0xda) return;
     const length = (bytes[offset + 2] << 8) | bytes[offset + 3];
@@ -86,9 +87,20 @@ export function jpegFrame(bytes: Uint8Array): JpegFrame | null {
   return null;
 }
 
+const PNG_IHDR = "IHDR";
+const PNG_IDAT = "IDAT";
+
 export const pngSize = (bytes: Uint8Array) => {
   const u32 = (at: number) =>
     bytes[at] * 0x1000000 + ((bytes[at + 1] << 16) | (bytes[at + 2] << 8) | bytes[at + 3]);
+  const chunkType = (at: number) => String.fromCharCode(...bytes.subarray(at, at + 4));
+  let headers = 0;
+  for (let offset = 8; offset + 8 <= bytes.length; offset += 12 + u32(offset)) {
+    const type = chunkType(offset + 4);
+    if (type === PNG_IHDR) headers++;
+    if (type === PNG_IDAT) break;
+  }
+  if (headers !== 1) throw new Error(`PNG has ${headers} IHDR chunks`);
   return { width: u32(16), height: u32(20) };
 };
 
@@ -167,7 +179,7 @@ function decode(bytes: Uint8Array): { pixels: Pixels; orientation: number } | nu
     const pixels = decodeJpeg(bytes, {
       useTArray: true,
       formatAsRGBA: true,
-      maxMemoryUsageInMB: DECODE_MEMORY_MB,
+      maxMemoryUsageInMB: JPEG_DECODER_BACKSTOP_MB,
     });
     return { pixels, orientation: jpegOrientation(bytes) };
   }

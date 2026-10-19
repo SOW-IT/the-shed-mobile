@@ -11,9 +11,11 @@ All notable changes to **The SHED** mobile app. This project follows
 ### Changed
 - **Profile photos are made small on your device before they upload.** A
   new photo is resized to 512 pixels on its longest side and saved as a
-  JPEG before it leaves the phone or browser, so it uploads in a moment and
-  any photo works, however big. The "Image is too large" message is gone.
-  The web app has this now; phones get it with the next store update.
+  JPEG (or a PNG, when the picked file is one, so see-through areas stay
+  see-through) before it leaves the phone or browser, so it uploads in a
+  moment and any photo works, however big. The "Image is too large" message
+  is gone, and an animated GIF becomes its first frame. The web app has this
+  now; phones get it with the next store update.
 
 ### Fixed
 - **A very large photo no longer stops the server from shrinking it.** Photos
