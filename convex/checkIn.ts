@@ -1,12 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { CAMPUS_FIELD_KEY, resolveUniversity } from "../shared/attendanceMemberMeta";
-import {
-  capitalizeMemberName,
-  isOrgWideSubgroup,
-  SIGN_IN_UNDO_GRACE_MS,
-  subgroupLabel,
-} from "../shared/rollcall";
+import { checkInOpen, checkInPhase, checkInWindow } from "../shared/checkInWindow";
+import { capitalizeMemberName, isOrgWideSubgroup, subgroupLabel } from "../shared/rollcall";
 import { Doc, Id } from "./_generated/dataModel";
+export { checkInOpen, checkInPhase, checkInWindow };
 import { mutation, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { signInMember } from "./attendance";
 import { logAttendanceAction } from "./attendanceAudit";
@@ -14,35 +11,12 @@ import { withMarkedRole } from "../shared/memberRole";
 import { allMetadataFields } from "./attendanceMembers";
 import { optionalProfile, requireProfile } from "./model";
 
-const OPENS_BEFORE_MS = 2 * 60 * 60 * 1000;
-const CLOSES_AFTER_MS = SIGN_IN_UNDO_GRACE_MS;
 const NAME_MIN = 2;
 const NAME_MAX = 80;
 const PENDING_LIMIT = 300;
 const MATCH_PROBE = 5;
 
 type Ctx = QueryCtx | MutationCtx;
-
-export const checkInWindow = (event: Pick<Doc<"events">, "dateStart" | "dateEnd">) => ({
-  opensAt: event.dateStart - OPENS_BEFORE_MS,
-  closesAt: event.dateEnd + CLOSES_AFTER_MS,
-});
-
-export const checkInOpen = (
-  event: Pick<Doc<"events">, "dateStart" | "dateEnd">,
-  now = Date.now()
-): boolean => {
-  const { opensAt, closesAt } = checkInWindow(event);
-  return now >= opensAt && now <= closesAt;
-};
-
-export const checkInPhase = (
-  event: Pick<Doc<"events">, "dateStart" | "dateEnd">,
-  now = Date.now()
-): "before" | "open" | "after" => {
-  const { opensAt, closesAt } = checkInWindow(event);
-  return now < opensAt ? "before" : now > closesAt ? "after" : "open";
-};
 
 const eventForToken = async (ctx: Ctx, token: string) => {
   const trimmed = token.trim();
@@ -133,14 +107,17 @@ export const submit = mutation({
       .query("attendanceMembers")
       .withIndex("by_name", (q) => q.eq("name", name))
       .take(MATCH_PROBE);
-    const memberId = candidates.length === 1 ? candidates[0]._id : undefined;
+    const fields = await ctx.db.query("attendanceMetadata").take(200);
+    const only = candidates.length === 1 ? candidates[0] : undefined;
+    const onlyCampus = only ? resolveUniversity(fields, only.metadata) : undefined;
+    const memberId = only && (!campus || !onlyCampus || onlyCampus === campus) ? only._id : undefined;
     await ctx.db.insert("checkInRequests", {
       eventId: event._id,
       clientKey,
       name,
       campus,
       memberId,
-      ...(candidates.length > 1 ? { sameNameCount: candidates.length } : {}),
+      ...(!memberId && candidates.length > 0 ? { sameNameCount: candidates.length } : {}),
       status: "pending",
       requestedAt: Date.now(),
     });
@@ -223,7 +200,7 @@ export const pending = query({
               .unique()) !== null
           : false;
         const choices =
-          !member && (row.sameNameCount ?? 0) > 1
+          !member && (row.sameNameCount ?? 0) > 0
             ? (
                 await ctx.db
                   .query("attendanceMembers")
@@ -261,14 +238,18 @@ const pendingRequest = async (ctx: MutationCtx, requestId: Id<"checkInRequests">
 };
 
 export const confirm = mutation({
-  args: { requestId: v.id("checkInRequests"), memberId: v.optional(v.id("attendanceMembers")) },
+  args: {
+    requestId: v.id("checkInRequests"),
+    memberId: v.optional(v.id("attendanceMembers")),
+    asNew: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     const { email } = await requireProfile(ctx);
     const { request, event } = await pendingRequest(ctx, args.requestId);
-    if (!args.memberId && !request.memberId && (request.sameNameCount ?? 0) > 1) {
-      throw new ConvexError(`More than one member is called ${request.name}. Pick which one.`);
+    if (!args.asNew && !args.memberId && !request.memberId && (request.sameNameCount ?? 0) > 0) {
+      throw new ConvexError(`A member is already called ${request.name}. Pick them, or add a new member.`);
     }
-    let memberId = args.memberId ?? request.memberId;
+    let memberId = args.asNew ? undefined : (args.memberId ?? request.memberId);
     if (memberId && !(await ctx.db.get("attendanceMembers", memberId))) memberId = undefined;
     if (!memberId) {
       const metadata = await campusMetadata(ctx, request.campus);

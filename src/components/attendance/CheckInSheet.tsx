@@ -4,18 +4,26 @@ import { useState } from "react";
 import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { appLinkFor } from "../../../shared/appLinks";
+import Constants from "expo-constants";
+import { appLinkForScheme } from "../../../shared/appLinks";
 import { subgroupLabel } from "../../../shared/rollcall";
 import { compactAgo } from "@shared/datetime";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { Btn, ErrorBanner, errorMessage, Muted, Sheet } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { QrCode } from "./QrCode";
+import { phaseBetween } from "../../../shared/checkInWindow";
+import { useMinuteTick } from "@/hooks/useMinuteTick";
+
+const appScheme = (): string | undefined => {
+  const scheme = Constants.expoConfig?.scheme;
+  return Array.isArray(scheme) ? scheme[0] : scheme;
+};
 
 const webOrigin = (): string =>
   Platform.OS === "web" && typeof window !== "undefined"
     ? window.location.origin
-    : appLinkFor(process.env.EXPO_PUBLIC_APP_VARIANT).web;
+    : appLinkForScheme(appScheme()).web;
 
 export const checkInUrl = (token: string) => `${webOrigin()}/checkin/${token}`;
 
@@ -33,6 +41,7 @@ export function CheckInSheet({
   onClose: () => void;
 }) {
   const t = useAppTheme();
+  useMinuteTick();
   const status = useQuery(api.checkIn.status, visible ? { eventId } : "skip");
   const pending = useCheckInPending(eventId);
   const enable = useMutation(api.checkIn.enable);
@@ -56,6 +65,7 @@ export function CheckInSheet({
   };
 
   const url = status?.token ? checkInUrl(status.token) : null;
+  const phase = status ? phaseBetween(status) : null;
   const share = () => {
     if (!url) return;
     if (Platform.OS === "web") {
@@ -98,10 +108,10 @@ export function CheckInSheet({
             <Text selectable style={[typography.caption, styles.url, { color: t.muted }]}>
               {url}
             </Text>
-            <Text style={[typography.caption, { color: status.phase === "open" ? t.success : t.warning, textAlign: "center" }]}>
-              {status.phase === "open"
+            <Text style={[typography.caption, { color: phase === "open" ? t.success : t.warning, textAlign: "center" }]}>
+              {phase === "open"
                 ? `Open until ${sydneyDateTime(status.closesAt)}`
-                : status.phase === "before"
+                : phase === "before"
                   ? `Opens ${sydneyDateTime(status.opensAt)}`
                   : "Closed. The event has ended."}
             </Text>
@@ -141,10 +151,12 @@ export function CheckInSheet({
                       ? `Already signed in as ${row.match.name}`
                       : `Matches ${row.match.name}${row.match.campus ? ` (${subgroupLabel(row.match.campus)})` : ""}`
                     : row.choices.length > 1
-                      ? `${row.choices.length} members are called ${row.name}. Pick the right one.`
-                      : "No exact match. Confirming adds them as a new member."}
+                      ? `${row.choices.length} members are called ${row.name}. Pick one, or add a new member.`
+                      : row.choices.length === 1
+                        ? `A member called ${row.name} is on another campus. Pick them, or add a new member.`
+                        : "No exact match. Confirming adds them as a new member."}
                 </Text>
-                {row.choices.length > 1 ? (
+                {row.choices.length > 0 ? (
                   <View style={styles.choices}>
                     {row.choices.map((choice, index) => (
                       <Pressable
@@ -166,11 +178,24 @@ export function CheckInSheet({
                         </Text>
                       </Pressable>
                     ))}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add ${row.name} as a new member`}
+                      disabled={busy !== null}
+                      onPress={() => void act(row.id, () => confirm({ requestId: row.id, asNew: true }))}
+                      style={({ pressed }) => [
+                        styles.choice,
+                        { borderColor: t.border },
+                        (pressed || busy === row.id) && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>New member</Text>
+                    </Pressable>
                   </View>
                 ) : null}
               </View>
               <View style={styles.actions}>
-                {row.choices.length > 1 ? null : (
+                {row.choices.length > 0 ? null : (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Confirm ${row.name}`}

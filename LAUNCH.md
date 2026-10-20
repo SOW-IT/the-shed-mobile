@@ -21,7 +21,12 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       over-the-air updates.** Builds before 2.9.19 have no `expo-updates` and
       no channel, so `eas-update.yml` publishes to nobody until people install
       it. Check the first publish lands with `eas update:list` and a phone on
-      the new build.
+      the new build. Run `eas fingerprint:compare` between the store build and
+      the first publish: Android builds read `GOOGLE_SERVICES_JSON`, an EAS
+      secret that `eas update` can't see, so Android may never match and would
+      then simply keep its store bundle until the update job gets the same
+      file. Each publish sets `EXPO_PUBLIC_CONVEX_URL` itself, since `eas
+      update` ignores the build profiles' `env`.
 - [ ] **Add the `CONVEX_ACCESS_TOKEN` repository secret** (a team member's
       token from `npx convex login`) so `convex-usage.yml` can read usage. On
       2026-10-20 database bandwidth was 5.49 GB against a 1 GB plan (prod 4.56,

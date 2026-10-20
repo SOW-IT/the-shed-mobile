@@ -66,10 +66,17 @@ jobs:
 
       - name: Publish to the production channel
         if: steps.current.outputs.publish == 'true'
-        run: eas update --channel production --environment production --auto --non-interactive
+        env:
+          EXPO_PUBLIC_CONVEX_URL: https://giant-bloodhound-191.ap-southeast-2.convex.cloud
+        run: |
+          test -n "$EXPO_PUBLIC_CONVEX_URL"
+          eas update --channel production --environment production --auto --non-interactive
 
       - name: Publish to the staging channel
         if: steps.current.outputs.publish == 'true'
         env:
           APP_VARIANT: staging
-        run: eas update --channel staging --environment preview --auto --non-interactive
+          EXPO_PUBLIC_CONVEX_URL: https://successful-lynx-56.ap-southeast-2.convex.cloud
+        run: |
+          test -n "$EXPO_PUBLIC_CONVEX_URL"
+          eas update --channel staging --environment preview --auto --non-interactive

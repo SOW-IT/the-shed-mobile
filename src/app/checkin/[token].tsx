@@ -5,6 +5,8 @@ import { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { capitalizeMemberName, formatEventRange } from "../../../shared/rollcall";
+import { phaseBetween } from "../../../shared/checkInWindow";
+import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { Btn, Card, EmptyState, ErrorBanner, errorMessage, Field, LoadingState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -32,6 +34,7 @@ const deviceKey = (): string => {
 
 export default function CheckInScreen() {
   const t = useAppTheme();
+  useMinuteTick();
   const { token } = useLocalSearchParams<{ token: string }>();
   const page = useQuery(api.checkIn.page, token ? { token } : "skip");
   const submit = useMutation(api.checkIn.submit);
@@ -55,6 +58,7 @@ export default function CheckInScreen() {
     );
   }
 
+  const phase = phaseBetween(page);
   const campusChoice = page.campuses.length === 1 ? page.campuses[0].value : campus;
   const needsCampus = page.campuses.length > 1 && !campusChoice;
   const send = async () => {
@@ -97,10 +101,10 @@ export default function CheckInScreen() {
             </Muted>
             <Btn title="Check in someone else" variant="ghost" onPress={() => { setDone(null); setName(""); }} />
           </Card>
-        ) : !page.open ? (
+        ) : phase !== "open" ? (
           <Card>
             <Muted>
-              {page.phase === "before"
+              {phase === "before"
                 ? "Check-in hasn't opened yet. It opens two hours before the event."
                 : "Check-in for this event has closed. Ask a leader to sign you in."}
             </Muted>

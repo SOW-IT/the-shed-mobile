@@ -83,9 +83,9 @@ const run = async () => {
       .map(([table, n]) => `${table}: ${n}${previous?.counts?.[table] !== undefined ? ` (was ${previous.counts[table]})` : ""}`),
   ].join("\n");
   console.log(summary);
-  saveState({ checkedAt: new Date().toISOString(), counts });
 
   if (problems.length === 0) {
+    saveState({ checkedAt: new Date().toISOString(), counts });
     console.log("Warehouse checks passed.");
     return;
   }

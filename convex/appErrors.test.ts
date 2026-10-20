@@ -148,6 +148,27 @@ describe("reporting app errors", () => {
     expect(bare).toMatchObject({ stack: null, route: null, version: null });
   });
 
+  test("errors not seen for 30 days are purged nightly, in batches", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 501; i++) {
+        await ctx.db.insert("appErrors", {
+          fingerprint: `old${i}`,
+          message: `old ${i}`,
+          platform: "ios",
+          count: 1,
+          firstAt: NOW - 40 * 24 * 60 * 60 * 1000,
+          lastAt: NOW - 31 * 24 * 60 * 60 * 1000,
+        });
+      }
+    });
+    await t.mutation(api.appErrors.report, crash({ message: "fresh" }));
+    expect(await t.mutation(internal.appErrors.purgeOld, {})).toBe(500);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const left = await t.run((ctx) => ctx.db.query("appErrors").collect());
+    expect(left.map((r) => r.message)).toEqual(["fresh"]);
+  });
+
   test("only admins read the list; old errors drop off after seven days; clearing removes a row", async () => {
     const t = await setup();
     const { fingerprint } = await t.mutation(api.appErrors.report, crash({ message: "old" }));

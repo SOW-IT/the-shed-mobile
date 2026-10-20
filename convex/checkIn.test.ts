@@ -179,7 +179,7 @@ describe("checking in from the public page", () => {
       ])
     );
     await expect(asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id })).rejects.toThrow(
-      /Pick which one/
+      /Pick them, or add a new member/
     );
     await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id, memberId: second });
     expect(await signedInIds(t, eventId)).toEqual([second]);
@@ -340,6 +340,44 @@ describe("a leader handling the waiting list", () => {
     const [b] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: second.eventId }))!;
     const other = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: b.id });
     expect((await t.run((ctx) => ctx.db.get(other.memberId)))?.metadata).toBeUndefined();
+  });
+
+  test("a single same-named member on another campus is offered, not assumed, and can be passed over", async () => {
+    const t = await setup();
+    const { eventId, token } = await enabled(t, [USYD, UNSW]);
+    const fieldId = await campusFieldId(t);
+    const otherCampus = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Kim Lee", metadata: { [fieldId]: "1" } })
+    );
+    await t.mutation(api.checkIn.submit, { token, name: "Kim Lee", campus: USYD, clientKey: "k" });
+    const [row] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    expect(row.match).toBeNull();
+    expect(row.choices).toEqual([{ memberId: otherCampus, campus: UNSW }]);
+    await expect(asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id })).rejects.toThrow(
+      /add a new member/
+    );
+    const { memberId } = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id, asNew: true });
+    expect(memberId).not.toBe(otherCampus);
+    expect(await signedInIds(t, eventId)).toEqual([memberId]);
+
+    await t.mutation(api.checkIn.submit, { token, name: "Kim Lee", campus: UNSW, clientKey: "k2" });
+    const rows = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    expect(rows[0].choices.length).toBeGreaterThan(0);
+  });
+
+  test("a same-named member on the same campus, or one with no campus, is matched straight away", async () => {
+    const t = await setup();
+    const { eventId, token } = await enabled(t, [USYD, UNSW]);
+    const fieldId = await campusFieldId(t);
+    const same = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Jo Tan", metadata: { [fieldId]: "3" } })
+    );
+    const noCampus = await t.run((ctx) => ctx.db.insert("attendanceMembers", { name: "Ray Ng" }));
+    await t.mutation(api.checkIn.submit, { token, name: "Jo Tan", campus: USYD, clientKey: "a" });
+    await t.mutation(api.checkIn.submit, { token, name: "Ray Ng", campus: UNSW, clientKey: "b" });
+    const rows = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    expect(rows.find((r) => r.name === "Jo Tan")?.match?.memberId).toBe(same);
+    expect(rows.find((r) => r.name === "Ray Ng")?.match?.memberId).toBe(noCampus);
   });
 
   test("a request whose event is gone, or that is gone itself, can't be confirmed", async () => {

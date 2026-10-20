@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query, type QueryCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { internalMutation, mutation, query, type QueryCtx } from "./_generated/server";
 import { isAdminProfile, optionalEmail, optionalProfile, requireAdmin } from "./model";
 
 const MESSAGE_LIMIT = 500;
@@ -137,5 +138,24 @@ export const dismiss = mutation({
     if (!row) throw new ConvexError("That error has already been cleared.");
     await ctx.db.delete("appErrors", args.id);
     return null;
+  },
+});
+
+const KEEP_DAYS = 30;
+const PURGE_BATCH = 500;
+
+export const purgeOld = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - KEEP_DAYS * DAY_MS;
+    const old = await ctx.db
+      .query("appErrors")
+      .withIndex("by_lastAt", (q) => q.lt("lastAt", cutoff))
+      .take(PURGE_BATCH);
+    for (const row of old) await ctx.db.delete("appErrors", row._id);
+    if (old.length === PURGE_BATCH) {
+      await ctx.scheduler.runAfter(0, internal.appErrors.purgeOld, {});
+    }
+    return old.length;
   },
 });
