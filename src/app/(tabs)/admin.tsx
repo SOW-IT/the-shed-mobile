@@ -367,17 +367,21 @@ export default function AdminScreen() {
     api.mergeSuggestions.list,
     isAdmin && viewingCurrentYear ? {} : "skip"
   );
-  const mergeCount = (mergeSuggestions ?? []).reduce(
-    (n, s) => n + s.candidates.length,
-    0
+  const memberPairs = useQuery(
+    api.memberPairSuggestions.list,
+    isAdmin && viewingCurrentYear ? {} : "skip"
   );
+  const mergeCount =
+    (mergeSuggestions ?? []).reduce((n, s) => n + s.candidates.length, 0) +
+    (memberPairs ?? []).length;
+  const mergesLoaded = mergeSuggestions !== undefined && memberPairs !== undefined;
   const showMerges = isAdmin && viewingCurrentYear && mergeCount > 0;
   useEffect(() => {
-    if (tab === "merges" && mergeSuggestions && !showMerges) {
+    if (tab === "merges" && mergesLoaded && !showMerges) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- leave the tab once it empties
       setTab("users");
     }
-  }, [tab, mergeSuggestions, showMerges]);
+  }, [tab, mergesLoaded, showMerges]);
   const activeTab: AdminTab = budgetManagerOnly
     ? "other"
     : tab === "merges" && !showMerges
@@ -1108,9 +1112,10 @@ export default function AdminScreen() {
         </>
       )}
 
-      {key === "merges" && mergeSuggestions && (
+      {key === "merges" && mergeSuggestions && memberPairs && (
         <SuggestedMerges
           suggestions={mergeSuggestions}
+          memberPairs={memberPairs}
           staffYear={currentYear}
           run={run}
           onMerged={(summary) => setToast({ text: summary })}

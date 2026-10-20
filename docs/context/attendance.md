@@ -99,6 +99,17 @@ campus. Admin → Merges lists them while there are any; Merge opens the usual
 merge review, and "Not the same" stops that pair being suggested. Linking next
 year's staff here before October 1 keeps their history on one row.
 
+**Suggested member pair**:
+Two plain Members who may be one person entered twice: a similar name (the
+Suggested merge rules, or one letter different on a name of two or more
+words), the same Home campus or both without one, never both signed in to the
+same event, and neither staff this staff year or last. Found by the Nightly
+rebuild and listed on Admin → Merges under "Members who may be the same
+person"; Merge opens the usual member merge review and "Not the same" stops
+that pair being suggested for good. A pair whose names or campuses no longer
+match drops off the list at once; two people at the same event are two people.
+_Avoid_: duplicate (an admin confirms each one)
+
 **Roll-call**:
 Signing Members in and out of an event. Once an event has ended, sign-ins made
 during it can only be reversed within 10 minutes of being made (the undo
