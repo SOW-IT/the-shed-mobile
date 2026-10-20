@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.24] - 2026-10-21
+
+### Fixed
+- **Android production builds work again.** Since 2.9.19 the Android store
+  build stopped in the "Configure expo-updates" step with a runtime version
+  mismatch: the build server counted the Firebase settings file and its own
+  generated native folder in the app's fingerprint, and GitHub's runner,
+  which can't see either, did not. A fingerprint config now leaves them out,
+  so both sides agree and over-the-air updates reach Android too. iOS is
+  unaffected.
+- **Notifications asks you to sign in when you're signed out.** Opening it
+  signed out showed a spinner that never stopped (since 2.9.18). It now shows
+  the usual sign-in prompt, and comes straight back after you sign in.
+
 ## [2.9.23] - 2026-10-20
 
 ### Fixed
