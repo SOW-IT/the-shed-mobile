@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, RefObject, useCallback, useEffect, useRef, useState } from "react";
 import {
   Keyboard,

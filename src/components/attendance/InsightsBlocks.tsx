@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Id } from "../../../convex/_generated/dataModel";
 import { type FollowUpPerson } from "../../../shared/attendanceMetrics";
 import {
