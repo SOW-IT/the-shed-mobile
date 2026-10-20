@@ -37,6 +37,8 @@ const routes = [
   "/edit-home",
   "/attendance",
   ...(seed ? [`/attendance/event/${seed.eventId}`, `/attendance/member/member%3A${seed.memberId}`] : []),
+  ...(seed?.checkInToken ? [`/checkin/${seed.checkInToken}`] : []),
+  "/checkin/not-a-real-link",
   "/insights?tab=general",
   "/insights?tab=attendance",
   "/admin",

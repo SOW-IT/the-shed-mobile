@@ -230,3 +230,13 @@ The Newcomer or Visitor label beside a name on an event's sign-in screen
 while the event is on, taken from last night's Insights build, so a leader
 can welcome them. Only those two categories are shown there.
 _Avoid_: badge (that's the campus pill)
+
+**Self check-in**:
+A leader turns it on per event; the event then carries a `checkIn` token and
+shows a QR code for `/checkin/<token>`. A person types a name and picks one of
+the event's campuses, and that becomes a **check-in request**
+(`checkInRequests`), never a sign-in by itself. A leader confirms it (it is
+matched to the one Member with exactly that name, otherwise a new Member is
+made on that campus) or dismisses it. Open from two hours before the event to
+ten minutes after it ends.
+_Avoid_: self sign-in, kiosk

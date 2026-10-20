@@ -4,7 +4,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
-import { formatEventRange } from "../../../shared/rollcall";
+import { capitalizeMemberName, formatEventRange } from "../../../shared/rollcall";
 import { Btn, Card, EmptyState, ErrorBanner, errorMessage, Field, LoadingState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -67,7 +67,7 @@ export default function CheckInScreen() {
         clientKey,
         ...(campusChoice ? { campus: campusChoice } : {}),
       });
-      setDone({ name: name.trim(), status: result.status });
+      setDone({ name: capitalizeMemberName(name.trim().replace(/\s+/g, " ")), status: result.status });
     } catch (e) {
       setError(errorMessage(e));
     } finally {

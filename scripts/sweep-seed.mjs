@@ -44,7 +44,8 @@ const eventId = run(
 const memberId = run("attendanceMembers:create", { name: "Sweep Member", metadata: { Campus: UNSW } }, SWEEP_PEOPLE.leader);
 run("attendance:signIn", { eventId, memberId }, SWEEP_PEOPLE.leader);
 run("requests:submit", { description: "Sweep reimbursement", amount: 42 }, SWEEP_PEOPLE.staff);
+const checkInToken = run("checkIn:enable", { eventId }, SWEEP_PEOPLE.leader);
 
-const seeded = { year, eventId, memberId, people: SWEEP_PEOPLE };
+const seeded = { year, eventId, memberId, checkInToken, people: SWEEP_PEOPLE };
 writeFileSync("sweep-seed.json", JSON.stringify(seeded, null, 2));
 console.log(JSON.stringify(seeded));

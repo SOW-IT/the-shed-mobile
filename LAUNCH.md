@@ -17,6 +17,21 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
+- [ ] **Ship one store build of 2.9.19 or later before relying on
+      over-the-air updates.** Builds before 2.9.19 have no `expo-updates` and
+      no channel, so `eas-update.yml` publishes to nobody until people install
+      it. Check the first publish lands with `eas update:list` and a phone on
+      the new build.
+- [ ] **Add the `CONVEX_ACCESS_TOKEN` repository secret** (a team member's
+      token from `npx convex login`) so `convex-usage.yml` can read usage. On
+      2026-10-20 database bandwidth was 5.49 GB against a 1 GB plan (prod 4.56,
+      dev 0.93), so the first run will warn; set `CONVEX_PLAN_DB_BANDWIDTH_GB`
+      if the plan changes.
+- [ ] **Let the backup account replace the storage manifest.** The nightly
+      file copy overwrites `storage/manifest.json`, which needs
+      `storage.objects.delete` on the backup bucket for
+      `GCP_BACKUP_SERVICE_ACCOUNT` (file objects themselves are never
+      overwritten). The first night downloads every existing file once.
 - [ ] **Ask phones to update to 2.9.1 once it's live in both stores** (2.9.0 is
       the first version with the update prompt, so it only reaches people on
       2.9.0 and later): `npx convex run --prod appInstalls:setUpdatePolicy

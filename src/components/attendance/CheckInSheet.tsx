@@ -5,6 +5,7 @@ import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { appLinkFor } from "../../../shared/appLinks";
+import { subgroupLabel } from "../../../shared/rollcall";
 import { compactAgo } from "@shared/datetime";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { Btn, ErrorBanner, errorMessage, Muted, Sheet } from "@/components/ui";
@@ -132,13 +133,13 @@ export function CheckInSheet({
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>{row.name}</Text>
                 <Text style={[typography.caption, { color: t.muted }]}>
-                  {[row.campus, compactAgo(row.requestedAt)].filter(Boolean).join(" · ")}
+                  {[row.campus ? subgroupLabel(row.campus) : null, compactAgo(row.requestedAt)].filter(Boolean).join(" · ")}
                 </Text>
                 <Text style={[typography.caption, { color: row.match ? t.success : t.accent }]}>
                   {row.match
                     ? row.match.alreadySignedIn
                       ? `Already signed in as ${row.match.name}`
-                      : `Matches ${row.match.name}${row.match.campus ? ` (${row.match.campus})` : ""}`
+                      : `Matches ${row.match.name}${row.match.campus ? ` (${subgroupLabel(row.match.campus)})` : ""}`
                     : "No exact match. Confirming adds them as a new member."}
                 </Text>
               </View>
