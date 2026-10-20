@@ -48,7 +48,7 @@ export const appLinkForScheme = (scheme: string | undefined): AppLink =>
  */
 export type NewerPage = { prefix: string; since: string };
 
-export const NEWER_PAGES: readonly NewerPage[] = [{ prefix: "/checkin/", since: "2.9.19" }];
+export const NEWER_PAGES: readonly NewerPage[] = [{ prefix: "/checkin", since: "2.9.19" }];
 
 /** The marker on a link whose recipient's app can open it. */
 export const APP_LINK_MARKER = "#app";
