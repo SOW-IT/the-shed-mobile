@@ -414,8 +414,11 @@ describe("in-app notifications", () => {
     const feed = await asUser(t, HENRY).query(api.notifications.list, {});
     await asUser(t, HENRY).mutation(api.notifications.markRead, { id: feed![0].id });
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
-    await asUser(t, HENRY).mutation(api.notifications.markAllRead, {});
+    const marked = await asUser(t, HENRY).mutation(api.notifications.markAllRead, {});
+    expect(marked).toHaveLength(1);
+    expect(marked).not.toContain(feed![0].id);
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(0);
+    expect(await asUser(t, HENRY).mutation(api.notifications.markAllRead, {})).toEqual([]);
   });
 
   test("a notification can only be marked read by its owner", async () => {
@@ -439,6 +442,18 @@ describe("in-app notifications", () => {
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(0);
     await asUser(t, RACHEL).mutation(api.notifications.markReadForRequest, { requestId: req._id });
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(0);
+  });
+
+  test("marking all read hands back at most 500 ids, and marks every one", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 520; i++) {
+        await ctx.db.insert("notifications", { userEmail: HENRY, title: `n${i}`, body: "", read: false });
+      }
+    });
+    const marked = await asUser(t, HENRY).mutation(api.notifications.markAllRead, {});
+    expect(marked).toHaveLength(500);
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(0);
   });
 
   test("the feed pages newest first, and is null while signed out", async () => {

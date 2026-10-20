@@ -67,9 +67,14 @@ export default function NotificationsScreen() {
         seen && unreadNow.every((id) => seen.has(id)) ? seen : new Set([...(seen ?? []), ...unreadNow])
       );
       if (unreadNow.length === 0) return;
-      void markAllRead({}).catch((err: unknown) => {
-        console.warn("markAllRead failed", err);
-      });
+      void markAllRead({})
+        .then((marked) => {
+          if (!marked || marked.length === 0) return;
+          setUnreadThisVisit((seen) => new Set([...(seen ?? []), ...marked]));
+        })
+        .catch((err: unknown) => {
+          console.warn("markAllRead failed", err);
+        });
     }, [loadingFirstPage, unreadKey, markAllRead])
   );
 
@@ -163,13 +168,13 @@ export default function NotificationsScreen() {
               {read.map((n, i) => renderRow(n, unread.length + i, false))}
             </>
           ) : null}
-          {hasMore ? (
+          {loadingMore ? (
             <View style={styles.more}>
-              {loadingMore ? (
-                <SowSpinner size={36} />
-              ) : (
-                <Btn title="Show earlier" variant="ghost" onPress={loadMore} />
-              )}
+              <SowSpinner size={36} />
+            </View>
+          ) : hasMore ? (
+            <View style={styles.more}>
+              <Btn title="Show earlier" variant="ghost" onPress={loadMore} />
             </View>
           ) : rows.length >= PAGE_SIZE ? (
             <Text style={[typography.caption, styles.end, { color: t.faint }]}>

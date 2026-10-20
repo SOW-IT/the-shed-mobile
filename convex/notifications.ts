@@ -1,7 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { appCanOpen } from "../shared/appLinks";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
 import { optionalEmail, optionalProfile, requireProfile } from "./model";
 
@@ -180,10 +180,13 @@ export const markReadForAnnouncement = mutation({
   },
 });
 
+const MARKED_IDS_RETURNED = 500;
+
 export const markAllRead = mutation({
   args: {},
   handler: async (ctx) => {
     const { email } = await requireProfile(ctx);
+    const marked: Id<"notifications">[] = [];
     for (;;) {
       const unread = await ctx.db
         .query("notifications")
@@ -194,8 +197,9 @@ export const markAllRead = mutation({
       if (unread.length === 0) break;
       for (const notification of unread) {
         await ctx.db.patch("notifications", notification._id, { read: true });
+        if (marked.length < MARKED_IDS_RETURNED) marked.push(notification._id);
       }
     }
-    return null;
+    return marked;
   },
 });
