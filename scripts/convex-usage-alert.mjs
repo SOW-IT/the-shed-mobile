@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import { databaseBandwidthByDeployment } from "./lib/usageRows.mjs";
 
 const GB = 1024 ** 3;
 const PLAN_DATABASE_BANDWIDTH_GB = Number(process.env.CONVEX_PLAN_DB_BANDWIDTH_GB || 1);
@@ -10,8 +11,6 @@ const TEAM_ID = process.env.CONVEX_TEAM_ID || "519695";
 const PROJECT_ID = process.env.CONVEX_PROJECT_ID || "2236890";
 const FUNCTION_USAGE_QUERY_ID =
   process.env.CONVEX_FUNCTION_USAGE_QUERY_ID || "76c86baa-418e-4d7f-ac21-46f397030595";
-const DATABASE_BANDWIDTH_COLUMN = 5;
-const DEPLOYMENT_COLUMN = 12;
 
 const token = process.env.CONVEX_ACCESS_TOKEN;
 if (!token) {
@@ -48,21 +47,6 @@ const fetchFunctionUsage = async (from, to) => {
   return rows;
 };
 
-const databaseBandwidthByDeployment = (rows) => {
-  const totals = new Map();
-  rows.forEach((row, index) => {
-    const deployment = row[DEPLOYMENT_COLUMN];
-    const raw = row[DATABASE_BANDWIDTH_COLUMN];
-    const bytes = typeof raw === "number" || typeof raw === "string" ? Number(raw) : Number.NaN;
-    if (typeof deployment !== "string" || !deployment || !Number.isFinite(bytes) || bytes < 0) {
-      throw new Error(
-        `Usage row ${index} has no usable deployment or bandwidth (${JSON.stringify(row).slice(0, 200)}); the dashboard API may have changed.`
-      );
-    }
-    totals.set(deployment, (totals.get(deployment) ?? 0) + bytes);
-  });
-  return totals;
-};
 
 const FILE_LIST_LIMIT = 8000;
 
