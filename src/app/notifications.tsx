@@ -1,7 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { useFocusEffect, useRouter } from "expo-router";
 import { appVersion } from "@/hooks/useReportAppVersion";
+import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { useCallback, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
@@ -9,18 +10,43 @@ import { Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { compactAgo } from "@shared/datetime";
 import {
+  Btn,
   EmptyState,
   FadeInView,
   LoadingState,
   Screen,
+  SowSpinner,
   stagger,
   Txt,
 } from "@/components/ui";
 
+const PAGE_SIZE = 30;
+
+type FeedRow = {
+  id: Id<"notifications">;
+  title: string;
+  body: string;
+  url: string | null;
+  read: boolean;
+  at: number;
+};
+
 export default function NotificationsScreen() {
   const t = useAppTheme();
   const router = useRouter();
-  const notifications = useQuery(api.notifications.list, { appVersion: appVersion() });
+  const version = appVersion();
+  const { rows, hasMore, loadMore, loadingFirstPage, loadingMore } = usePagedQuery(
+    api.notifications.feed,
+    {
+      scopeKey: "feed",
+      args: (cursor) => ({
+        paginationOpts: { numItems: PAGE_SIZE, cursor },
+        ...(version ? { appVersion: version } : {}),
+      }),
+      rowsOf: (page) => page.page as FeedRow[],
+      keyOf: (row) => row.id,
+    }
+  );
   const markRead = useMutation(api.notifications.markRead);
   const markAllRead = useMutation(api.notifications.markAllRead);
   const reopenCounter = useRef(0);
@@ -29,18 +55,27 @@ export default function NotificationsScreen() {
 
   useFocusEffect(useCallback(() => () => setUnreadThisVisit(null), []));
 
+  const unreadKey = rows
+    .filter((n) => !n.read)
+    .map((n) => n.id)
+    .join("|");
   useFocusEffect(
     useCallback(() => {
-      if (!notifications) return;
-      const unreadNow: string[] = notifications.filter((n) => !n.read).map((n) => n.id);
+      if (loadingFirstPage) return;
+      const unreadNow = unreadKey ? unreadKey.split("|") : [];
       setUnreadThisVisit((seen) =>
         seen && unreadNow.every((id) => seen.has(id)) ? seen : new Set([...(seen ?? []), ...unreadNow])
       );
       if (unreadNow.length === 0) return;
-      void markAllRead({}).catch((err: unknown) => {
-        console.warn("markAllRead failed", err);
-      });
-    }, [notifications, markAllRead])
+      void markAllRead({})
+        .then((marked) => {
+          if (!marked || marked.length === 0) return;
+          setUnreadThisVisit((seen) => new Set([...(seen ?? []), ...marked]));
+        })
+        .catch((err: unknown) => {
+          console.warn("markAllRead failed", err);
+        });
+    }, [loadingFirstPage, unreadKey, markAllRead])
   );
 
   const open = (id: Id<"notifications">, url: string | null) => {
@@ -53,7 +88,7 @@ export default function NotificationsScreen() {
     }
   };
 
-  if (notifications === undefined) {
+  if (loadingFirstPage) {
     return (
       <Screen title="Notifications" onBack={goBack}>
         <LoadingState />
@@ -61,13 +96,12 @@ export default function NotificationsScreen() {
     );
   }
 
-  const list = notifications ?? [];
-  const shownUnread = (n: (typeof list)[number]) => !n.read || !!unreadThisVisit?.has(n.id);
-  const unread = list.filter(shownUnread);
-  const read = list.filter((n) => !shownUnread(n));
+  const shownUnread = (n: FeedRow) => !n.read || !!unreadThisVisit?.has(n.id);
+  const unread = rows.filter(shownUnread);
+  const read = rows.filter((n) => !shownUnread(n));
 
-  const renderRow = (n: (typeof list)[number], index: number, isUnread: boolean) => (
-    <FadeInView key={n.id} delay={stagger(index)}>
+  const renderRow = (n: FeedRow, index: number, isUnread: boolean) => (
+    <FadeInView key={n.id} delay={stagger(Math.min(index, 12))}>
       <Pressable
         onPress={() => open(n.id, n.url)}
         accessibilityRole="button"
@@ -102,8 +136,8 @@ export default function NotificationsScreen() {
   );
 
   return (
-    <Screen title="Notifications" onBack={goBack}>
-      {list.length === 0 ? (
+    <Screen title="Notifications" onBack={goBack} onEndReached={hasMore ? loadMore : undefined}>
+      {rows.length === 0 ? (
         <EmptyState
           icon="notifications-outline"
           title="No notifications"
@@ -134,6 +168,19 @@ export default function NotificationsScreen() {
               {read.map((n, i) => renderRow(n, unread.length + i, false))}
             </>
           ) : null}
+          {loadingMore ? (
+            <View style={styles.more}>
+              <SowSpinner size={36} />
+            </View>
+          ) : hasMore ? (
+            <View style={styles.more}>
+              <Btn title="Show earlier" variant="ghost" onPress={loadMore} />
+            </View>
+          ) : rows.length >= PAGE_SIZE ? (
+            <Text style={[typography.caption, styles.end, { color: t.faint }]}>
+              {"That's everything."}
+            </Text>
+          ) : null}
         </>
       )}
     </Screen>
@@ -158,4 +205,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   unreadDot: { width: 9, height: 9, borderRadius: 5 },
+  more: { alignItems: "center", paddingVertical: spacing.md },
+  end: { textAlign: "center", paddingVertical: spacing.md },
 });

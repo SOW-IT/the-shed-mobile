@@ -191,6 +191,15 @@ describe("sending now", () => {
       ]);
     }
     expect(await notificationsFor(t, LEADER)).toEqual([]);
+    expect((await asUser(t, ADMIN).query(api.announcements.get, { id: result.id }))?.details?.seen).toEqual({
+      total: 3,
+      count: 0,
+      notSeen: [
+        { email: ADMIN, name: "Ada Admin" },
+        { email: FIN, name: "Fiona" },
+        { email: IT_HEAD, name: "Ian" },
+      ],
+    });
 
     const pushes = fetchMock.mock.calls.filter(([u]) => String(u).includes("push/send"));
     expect(pushes).toHaveLength(1);
@@ -301,6 +310,7 @@ describe("scheduling", () => {
       pending: 0,
     });
     expect(await notificationsFor(t, FIN)).toEqual([]);
+    expect((await admin.query(api.announcements.get, { id }))?.details?.seen).toBeNull();
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const after = await admin.query(api.announcements.list, {});
@@ -574,7 +584,21 @@ describe("the announcement page", () => {
       details: null,
     });
     expect(await asUser(t, HR).query(api.announcements.get, { id })).toMatchObject({
-      details: { status: "sent", audience: "Finance", sendEmail: false, people: 1, withApp: 1, emailed: 0 },
+      details: {
+        status: "sent",
+        audience: "Finance",
+        sendEmail: false,
+        people: 1,
+        withApp: 1,
+        emailed: 0,
+        seen: { total: 1, count: 0, notSeen: [{ email: FIN, name: "Fiona" }] },
+      },
+    });
+    await asUser(t, FIN).mutation(api.notifications.markReadForAnnouncement, { announcementId: id });
+    expect((await asUser(t, HR).query(api.announcements.get, { id }))?.details?.seen).toEqual({
+      total: 1,
+      count: 1,
+      notSeen: [],
     });
     expect(await asUser(t, LEADER).query(api.announcements.get, { id })).toBeNull();
     expect(await t.query(api.announcements.get, { id })).toBeNull();
