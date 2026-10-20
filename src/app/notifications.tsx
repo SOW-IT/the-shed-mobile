@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useConvexAuth, useMutation } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useFocusEffect, useRouter } from "expo-router";
 import { appVersion } from "@/hooks/useReportAppVersion";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
@@ -37,12 +37,14 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const version = appVersion();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const me = useQuery(api.directory.me, isAuthenticated ? {} : "skip");
+  const account = isAuthenticated && me ? me.email || "guest" : null;
   const { rows, hasMore, loadMore, loadingFirstPage, loadingMore } = usePagedQuery(
     api.notifications.feed,
     {
-      scopeKey: isAuthenticated ? "feed" : "signed-out",
+      scopeKey: account ? `feed:${account}` : "signed-out",
       args: (cursor) =>
-        isAuthenticated
+        account
           ? {
               paginationOpts: { numItems: PAGE_SIZE, cursor },
               ...(version ? { appVersion: version } : {}),
