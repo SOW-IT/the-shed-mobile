@@ -623,6 +623,26 @@ async function canViewReceiptDetails(
   );
 }
 
+const CHAIN_STATUSES = [PENDING, APPROVED, DECLINED];
+
+export async function canSeeRequest(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  request: Doc<"requests">
+): Promise<boolean> {
+  if (request.requesterEmail === caller.email) return true;
+  if (isMemberOfDepartment(caller.profile, FINANCE)) return true;
+  for (const year of new Set([requestYear(request), caller.year])) {
+    const approvers = await getApprovers(ctx, year, request.department);
+    const chain = involvedApproverEmails(request, approvers, CHAIN_STATUSES);
+    if (chain.length === 0) continue;
+    const actAs = await actAsEmails(ctx, year, caller.email);
+    if (chain.some((email) => actAs.has(email))) return true;
+  }
+  const events = await recentRequestEvents(ctx, request._id);
+  return events.some((event) => event.actorEmail === caller.email);
+}
+
 async function requestForCaller(
   ctx: QueryCtx,
   caller: CallerContext,
@@ -1438,16 +1458,18 @@ export const get = query({
     const requestId = ctx.db.normalizeId("requests", args.requestId);
     if (!requestId) return null;
     const request = await ctx.db.get("requests", requestId);
-    return request ? await requestForCaller(ctx, caller, request) : null;
+    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
+    return await requestForCaller(ctx, caller, request);
   },
 });
 
 export const auditTrail = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
-    if (!(await optionalProfile(ctx))) return null;
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request) return null;
+    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
     const events = await ctx.db
       .query("requestEvents")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
@@ -1478,9 +1500,10 @@ export const auditTrail = query({
 export const stepInfo = query({
   args: { requestId: v.id("requests"), step: stepValidator },
   handler: async (ctx, args) => {
-    if (!(await optionalProfile(ctx))) return null;
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request) return null;
+    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
     const reqYear = requestYear(request);
     const approvers = await getApprovers(ctx, reqYear, request.department);
     const officeholderEmail = approverEmailFor(args.step, approvers) ?? null;
@@ -1512,9 +1535,10 @@ export const stepInfo = query({
 export const stepActors = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
-    if (!(await optionalProfile(ctx))) return null;
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request) return null;
+    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
     const reqYear = requestYear(request);
     const approvers = await getApprovers(ctx, reqYear, request.department);
     const allEvents = await recentRequestEvents(ctx, args.requestId);

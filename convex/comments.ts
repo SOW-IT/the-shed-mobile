@@ -11,6 +11,7 @@ import {
 } from "./model";
 import {
   actionOwnerEmail,
+  canSeeRequest,
   involvedApproverEmails,
   mineTabRequests,
   notify,
@@ -22,12 +23,15 @@ import { formatAmount } from "../shared/money";
 export const add = mutation({
   args: { requestId: v.id("requests"), body: v.string() },
   handler: async (ctx, args) => {
-    const { email } = await requireProfile(ctx);
+    const caller = await requireProfile(ctx);
+    const { email } = caller;
     const body = args.body.trim();
     if (!body) throw new ConvexError("Write a comment first.");
     if (body.length > 2000) throw new ConvexError("That comment is too long.");
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request) throw new ConvexError("Request not found.");
+    if (!request || !(await canSeeRequest(ctx, caller, request))) {
+      throw new ConvexError("Request not found.");
+    }
 
     const commentId = await ctx.db.insert("requestComments", {
       requestId: args.requestId,
@@ -80,7 +84,7 @@ export const list = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request) return null;
+    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
 
     const comments = (
       await ctx.db
@@ -158,7 +162,7 @@ export const unreadCount = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request) return null;
+    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
     return await unreadCountFor(ctx, args.requestId, caller.email);
   },
 });
