@@ -1081,7 +1081,7 @@ describe("audit trail and reminders", () => {
       await ctx.db.patch("staffProfiles", bella!._id, { name: "Bella Budget" });
     });
 
-    const trail = (await asUser(t, RACHEL).query(api.requests.auditTrail, {
+    const trail = (await asUser(t, HENRY).query(api.requests.auditTrail, {
       requestId: request._id,
     }))!;
     expect(trail.map((e) => [e.action, e.step, e.actor])).toEqual([
@@ -1107,6 +1107,78 @@ describe("audit trail and reminders", () => {
     expect(declinedTrail.at(-1)).toMatchObject({
       action: "declined", step: "hod", actor: HENRY, detail: "Too dear",
     });
+  });
+
+  test("only people on a request can read it, its trail, its steps and its comments", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: DAN,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: "olly@sow.org.au",
+      roles: ["Staff"],
+      department: "Events",
+    });
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "posters", amount: 120 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    await asUser(t, HENRY).mutation(api.comments.add, { requestId: request._id, body: "Which printer?" });
+
+    const reads = async (email: string) => {
+      const as = asUser(t, email);
+      return {
+        get: (await as.query(api.requests.get, { requestId: request._id })) !== null,
+        trail: (await as.query(api.requests.auditTrail, { requestId: request._id })) !== null,
+        step: (await as.query(api.requests.stepInfo, { requestId: request._id, step: "hod" })) !== null,
+        actors: (await as.query(api.requests.stepActors, { requestId: request._id })) !== null,
+        comments: (await as.query(api.comments.list, { requestId: request._id })) !== null,
+        unread: (await as.query(api.comments.unreadCount, { requestId: request._id })) !== null,
+      };
+    };
+    const all = { get: true, trail: true, step: true, actors: true, comments: true, unread: true };
+    const none = { get: false, trail: false, step: false, actors: false, comments: false, unread: false };
+
+    expect(await reads(RACHEL)).toEqual(all);
+    expect(await reads(HENRY)).toEqual(all);
+    expect(await reads(BELLA)).toEqual(all);
+    expect(await reads(FIONA)).toEqual(all);
+    expect(await reads("olly@sow.org.au")).toEqual(none);
+    expect(await reads(DAN)).toEqual(none);
+    await expect(
+      asUser(t, "olly@sow.org.au").mutation(api.comments.add, { requestId: request._id, body: "hi" })
+    ).rejects.toThrow(/not found/);
+
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+    await asUser(t, ADMIN).mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Marketing",
+      division: "Engagement",
+      headEmail: DAN,
+    });
+    expect(await reads(HENRY)).toEqual(all);
+    expect(await reads(DAN)).toEqual(all);
+    expect(await t.query(api.requests.get, { requestId: request._id })).toBeNull();
+  });
+
+  test("someone covering for an approver can read the request", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "banner", amount: 80 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    const OLLY = "olly@sow.org.au";
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: OLLY,
+      roles: ["Staff"],
+      department: "Events",
+    });
+    expect(await asUser(t, OLLY).query(api.requests.auditTrail, { requestId: request._id })).toBeNull();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("approverDelegations", { year: YEAR, fromEmail: HENRY, toEmail: OLLY });
+    });
+    expect(await asUser(t, OLLY).query(api.requests.auditTrail, { requestId: request._id })).not.toBeNull();
   });
 
   test("reviewed lists what an approver actioned, newest first, deduped per request", async () => {

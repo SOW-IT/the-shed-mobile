@@ -178,6 +178,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   timeline: every step from submitted to paid with who did it and when, the
   gaps between steps, what it is waiting on now and how many reminders have
   gone out for that wait, and how long submitted-to-paid took.
+  A request, its timeline and its comments are visible only to the
+  requester, Finance staff, the approvers on its chain and their delegates
+  (in the request's staff year or the current one), and anyone who has
+  already acted on it (`canSeeRequest` in `convex/requests.ts`).
 - **Notifications** (the bell): everything sent to you, unread first, loading
   older ones as you scroll (`notifications.feed`, 30 a page). Opening the
   screen marks everything read.
