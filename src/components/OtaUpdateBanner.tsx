@@ -1,20 +1,34 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import * as Updates from "expo-updates";
+import { requireOptionalNativeModule } from "expo";
 import { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
+type UpdatesModule = typeof import("expo-updates");
+
+const loadUpdates = (): UpdatesModule | null => {
+  if (Platform.OS === "web" || !requireOptionalNativeModule("ExpoUpdates")) return null;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require("expo-updates") as UpdatesModule;
+};
+
+const updatesModule = loadUpdates();
+
 export function OtaUpdateBanner() {
+  return updatesModule?.isEnabled ? <PendingUpdateBanner updates={updatesModule} /> : null;
+}
+
+function PendingUpdateBanner({ updates }: { updates: UpdatesModule }) {
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { isUpdatePending } = Updates.useUpdates();
+  const { isUpdatePending } = updates.useUpdates();
   const [dismissed, setDismissed] = useState(false);
   const [restarting, setRestarting] = useState(false);
-  if (Platform.OS === "web" || !Updates.isEnabled || !isUpdatePending || dismissed) return null;
+  if (!isUpdatePending || dismissed) return null;
   const restart = () => {
     setRestarting(true);
-    void Updates.reloadAsync().catch(() => setRestarting(false));
+    void updates.reloadAsync().catch(() => setRestarting(false));
   };
   return (
     <View

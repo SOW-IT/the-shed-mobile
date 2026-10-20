@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.23] - 2026-10-20
+
+### Fixed
+- **Development builds from before 2.9.19 open again.** The update banner
+  loaded the over-the-air update library at startup, and on a build without
+  its native part the whole app stopped with "Cannot find native module
+  'ExpoUpdates'". The banner now checks for it first and simply doesn't show
+  when it's missing. Store builds of 2.9.19 and later already have it, so
+  nothing changes for them.
+
 ## [2.9.22] - 2026-10-20
 
 ### Fixed
