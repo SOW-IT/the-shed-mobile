@@ -61,3 +61,32 @@ intact if staging never finishes.
 
 The three bounded contexts do not gain a fourth. BigQuery is a copy, not a
 source of truth, and the app does not read it.
+
+## File storage, added 20 October 2026
+
+File storage stayed out of the zip, which left every receipt, event
+attachment and avatar in exactly one place. The same nightly workflow now
+copies files too, after the zip: `scripts/backup-storage-files.mjs` pages
+through Convex's `_storage` table with the internal query
+`storageBackup:listFiles`, downloads only the files whose SHA-256 is not yet
+in `gs://<bucket>/storage/manifest.json`, and writes each one to
+`gs://<bucket>/storage/files/<sha256>` with its content type. A file is
+downloaded once, on the first night it exists; Convex egress is metered, and a
+full copy every night was not acceptable. Two storage ids with the same bytes
+share one object.
+
+The annual receipt purge (`cleanup.purgeOldReceiptFiles`, 30 September) stays.
+GCS is the long-term archive: when the app deletes a receipt, the copy in GCS
+is kept, and the manifest moves that storage id into its `deleted` map with
+the date it was last seen in Convex. Nothing is ever deleted from GCS by this
+job. A receipt the app no longer holds is found by storage id in
+`manifest.json` (`files`, then `deleted`), which names the object.
+
+The file step runs with `continue-on-error`, so a failure there is visible on
+the run but does not undo the database backup. It retries every missing file
+the next night. Besides the write it already has, the backup service account
+needs `storage.objects.get` on the bucket (the BigQuery job already needs it)
+and permission to overwrite `storage/manifest.json` each night, which in GCS
+means `storage.objects.delete` as well. File objects are written with
+`--no-clobber`, so they never need it. If the bucket has a retention policy
+or object versioning, the manifest overwrite is the thing to check first.
