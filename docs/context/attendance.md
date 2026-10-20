@@ -99,6 +99,17 @@ campus. Admin → Merges lists them while there are any; Merge opens the usual
 merge review, and "Not the same" stops that pair being suggested. Linking next
 year's staff here before October 1 keeps their history on one row.
 
+**Suggested member pair**:
+Two plain Members who may be one person entered twice: a similar name (the
+Suggested merge rules, or one letter different on a name of two or more
+words), the same Home campus or both without one, never both signed in to the
+same event, and neither staff this staff year or last. Found by the Nightly
+rebuild and listed on Admin → Merges under "Members who may be the same
+person"; Merge opens the usual member merge review and "Not the same" stops
+that pair being suggested for good. A pair whose names or campuses no longer
+match drops off the list at once; two people at the same event are two people.
+_Avoid_: duplicate (an admin confirms each one)
+
 **Roll-call**:
 Signing Members in and out of an event. Once an event has ended, sign-ins made
 during it can only be reversed within 10 minutes of being made (the undo
@@ -219,3 +230,13 @@ The Newcomer or Visitor label beside a name on an event's sign-in screen
 while the event is on, taken from last night's Insights build, so a leader
 can welcome them. Only those two categories are shown there.
 _Avoid_: badge (that's the campus pill)
+
+**Self check-in**:
+A leader turns it on per event; the event then carries a `checkIn` token and
+shows a QR code for `/checkin/<token>`. A person types a name and picks one of
+the event's campuses, and that becomes a **check-in request**
+(`checkInRequests`), never a sign-in by itself. A leader confirms it (it is
+matched to the one Member with exactly that name, otherwise a new Member is
+made on that campus) or dismisses it. Open from two hours before the event to
+ten minutes after it ends.
+_Avoid_: self sign-in, kiosk

@@ -63,8 +63,10 @@ describe("the app's own links and web-only pages", () => {
     expect(appCanOpen("/event-requests/abc", "2.10.0", pages)).toBe(true);
   });
 
-  test("every supported app opens every page", () => {
-    expect(NEWER_PAGES).toEqual([]);
+  test("every supported app opens every page except self check-in, which stays in the browser", () => {
+    expect(NEWER_PAGES).toEqual([{ prefix: "/checkin", since: "2.9.19" }]);
+    expect(versionNeededFor("/checkin/abc")).toBe("2.9.19");
+    expect(appCanOpen("/checkin/abc", "2.9.18")).toBe(false);
     expect(versionNeededFor("/event-requests/abc")).toBeNull();
     expect(versionNeededFor("/churches?church=abc")).toBeNull();
     expect(appCanOpen("/announcements/abc", null)).toBe(true);
