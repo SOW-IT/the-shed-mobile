@@ -99,6 +99,25 @@ jobs:
           UPLOADED: ${{ steps.upload.outputs.uploaded }}
         run: echo "Uploaded $UPLOADED"
 
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          project_id: ${{ vars.GCP_PROJECT || 'theshedsow' }}
+
+      - name: Copy new storage files to GCS (failure here does not undo the database backup)
+        id: storage_files
+        continue-on-error: true
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          GCS_BACKUP_BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
+        run: node scripts/backup-storage-files.mjs --bucket "$GCS_BACKUP_BUCKET"
+
+      - name: Flag the storage file copy failure
+        if: steps.storage_files.outcome == 'failure'
+        run: echo "::error title=Storage file backup failed::The database export and upload succeeded, but copying Convex storage files to gs://${GCS_BACKUP_BUCKET}/storage failed. See the step above; the next nightly run retries every file not yet in the manifest."
+        env:
+          GCS_BACKUP_BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
+
   bigquery:
     needs: backup
     runs-on: ubuntu-latest
