@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import * as Linking from "expo-linking";
 import { Alert, Pressable, StyleSheet, Text, View, Image } from "react-native";

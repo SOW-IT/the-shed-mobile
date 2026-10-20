@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvex } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import {

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { ReactNode, useLayoutEffect, useState } from "react";
 import { Animated, Easing, Pressable, StyleSheet, View } from "react-native";

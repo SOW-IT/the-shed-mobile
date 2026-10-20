@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.17] - 2026-10-20
+
+### Changed
+- **A smaller app on both platforms.** The app shipped 21 icon fonts (4 MB)
+  and used one of them. It now ships only that one, and the nudge button's
+  pointing hand is drawn from the same set. Downloads and updates are a few
+  megabytes smaller; nothing else changes.
+
 ## [2.9.16] - 2026-10-20
 
 ### Changed
