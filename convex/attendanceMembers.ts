@@ -750,7 +750,7 @@ const staffProfileForEmail = async (
   return await latestStaffProfile(ctx, email);
 };
 
-const staffYearsOf = async (ctx: Ctx, memberId: Id<"attendanceMembers"> | undefined) =>
+export const staffYearsOf = async (ctx: Ctx, memberId: Id<"attendanceMembers"> | undefined) =>
   memberId
     ? new Set((await profilesOfMember(ctx, memberId)).filter(isAssigned).map((p) => p.year))
     : new Set<number>();

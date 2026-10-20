@@ -1,5 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { campusCompatible, nameMatch, nameWords } from "./mergeSuggestions";
+import {
+  campusCompatible,
+  duplicatePairs,
+  memberNameMatch,
+  nameMatch,
+  nameWords,
+  oneEditApart,
+  sameCampus,
+} from "./mergeSuggestions";
 
 const match = (a: string, b: string) => nameMatch(nameWords(a), nameWords(b));
 
@@ -51,5 +59,64 @@ describe("campusCompatible", () => {
     );
     expect(campusCompatible([], "Macquarie University")).toBe(true);
     expect(campusCompatible([USYD], undefined)).toBe(true);
+  });
+});
+
+describe("member pairs", () => {
+  const pairMatch = (a: string, b: string) => memberNameMatch(nameWords(a), nameWords(b));
+  const USYD = "University of Sydney";
+
+  test("oneEditApart: exactly one letter added, dropped or changed", () => {
+    expect(oneEditApart("hana doe", "hanna doe")).toBe(true);
+    expect(oneEditApart("hanna doe", "hana doe")).toBe(true);
+    expect(oneEditApart("hana doe", "hane doe")).toBe(true);
+    expect(oneEditApart("hana doe", "hana doe")).toBe(false);
+    expect(oneEditApart("hana doe", "hanz dor")).toBe(false);
+    expect(oneEditApart("hana doe", "hannah doe")).toBe(false);
+  });
+
+  test("memberNameMatch: the staff rules first, then a one-letter slip on a full name", () => {
+    expect(pairMatch("Hana Doe", "hana  doe")).toBe("same");
+    expect(pairMatch("Alex Morgan", "Alexander Morgan")).toBe("short");
+    expect(pairMatch("Hana Doe", "Hana Roe Doe")).toBe("middle");
+    expect(pairMatch("Hana Doe", "Hanna Doe")).toBe("typo");
+    expect(pairMatch("Hana Doe", "Hana Doer")).toBe("typo");
+    expect(pairMatch("Ann", "Anne")).toBeNull();
+    expect(pairMatch("Theo Quill", "Theo Varga")).toBeNull();
+  });
+
+  test("sameCampus: both the same, or both without one", () => {
+    expect(sameCampus(USYD, " university of sydney ")).toBe(true);
+    expect(sameCampus(undefined, undefined)).toBe(true);
+    expect(sameCampus("", undefined)).toBe(true);
+    expect(sameCampus(USYD, undefined)).toBe(false);
+    expect(sameCampus(USYD, "University of New South Wales")).toBe(false);
+  });
+
+  test("duplicatePairs: compares people sharing a first or last name, once, smaller id first", () => {
+    const person = (id: string, name: string, campus?: string) => ({
+      id,
+      words: nameWords(name),
+      campus,
+    });
+    const pairs = duplicatePairs([
+      person("m3", "Hana Doe", USYD),
+      person("m1", "hana doe", USYD),
+      person("m2", "Doe Hana", USYD),
+      person("m4", "Hana Doe", "University of New South Wales"),
+      person("m5", "Hana Doe"),
+      person("m6", "Hanna Lee"),
+      person("m7", "Hanne Lee"),
+      person("m8", ""),
+    ]).map((p) => [p.a.id, p.b.id, p.match]);
+    expect(pairs).toHaveLength(4);
+    expect(pairs).toEqual(
+      expect.arrayContaining([
+        ["m1", "m2", "order"],
+        ["m1", "m3", "same"],
+        ["m2", "m3", "order"],
+        ["m6", "m7", "typo"],
+      ])
+    );
   });
 });

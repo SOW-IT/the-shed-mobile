@@ -543,6 +543,17 @@ export default defineSchema({
     dismissedAt: v.number(),
   }).index("by_staff_and_member", ["staffEmail", "memberId"]),
 
+  memberPairSuggestions: defineTable({
+    memberA: v.id("attendanceMembers"),
+    memberB: v.id("attendanceMembers"),
+    status: v.union(v.literal("open"), v.literal("dismissed")),
+    builtAt: v.number(),
+    dismissedBy: v.optional(v.string()),
+    dismissedAt: v.optional(v.number()),
+  })
+    .index("by_members", ["memberA", "memberB"])
+    .index("by_status_and_builtAt", ["status", "builtAt"]),
+
   attendance: defineTable({
     eventId: v.id("events"),
     memberId: v.id("attendanceMembers"),
