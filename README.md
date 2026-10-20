@@ -438,10 +438,10 @@ build finishes).
 There are two app variants (defined in `app.config.js` + `eas.json`) that
 install side-by-side, so testers can keep production while testing staging:
 
-| Profile      | App name           | Bundle id / package          | Convex backend                  |
-| ------------ | ------------------ | ---------------------------- | ------------------------------- |
-| `staging`    | The SHED Staging   | `au.org.sow.theshed.staging` | dev (`successful-lynx-56`)      |
-| `production` | The SHED           | `au.org.sow.theshed`         | prod (`giant-bloodhound-191`)   |
+| Profile      | App name           | Icon                        | Bundle id / package          | Convex backend                  |
+| ------------ | ------------------ | --------------------------- | ---------------------------- | ------------------------------- |
+| `staging`    | The SHED Staging   | dark (cream logo on green)  | `au.org.sow.theshed.staging` | dev (`successful-lynx-56`)      |
+| `production` | The SHED           | light (green logo on cream) | `au.org.sow.theshed`         | prod (`giant-bloodhound-191`)   |
 
 **Ship staging first, then production:**
 

@@ -6,6 +6,13 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.19] - 2026-10-20
+
+### Changed
+- **The staging app has a dark icon.** The SHED Staging now shows a cream
+  logo on dark green, the reverse of the store app, so the two are easy to tell
+  apart when both are installed. The store app's icon is unchanged.
+
 ## [2.9.17] - 2026-10-20
 
 ### Changed
