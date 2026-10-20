@@ -28,4 +28,6 @@ crons.cron("church map locations", "0 17 * * *", internal.churches.locateAll, {}
 // campus's weeklies Insights, redoing only what changed since the night before.
 crons.cron("weekly insights nightly build", "30 16 * * *", internal.weeklyInsights.rebuildAll, {});
 
+crons.cron("purge old app errors", "45 17 * * *", internal.appErrors.purgeOld, {});
+
 export default crons;

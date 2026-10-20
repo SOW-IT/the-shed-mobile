@@ -34,6 +34,7 @@ import {
 import { RollCallRow, type RollCallHandlers } from "@/components/attendance/RollCallRow";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
+import { CheckInSheet, useCheckInPending } from "@/components/attendance/CheckInSheet";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
@@ -154,6 +155,8 @@ export default function EventAttendanceScreen() {
     event ? { year: eventStaffYear(event.dateStart), subgroup: eventSubgroup, eventId: evId } : "skip"
   );
   const signIn = useMutation(api.attendance.signIn);
+  const checkInPending = useCheckInPending(evId);
+  const [checkInOpen, setCheckInOpen] = useState(false);
   const signOut = useMutation(api.attendance.signOut);
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
   const metadataFields = useQuery(
@@ -936,6 +939,35 @@ export default function EventAttendanceScreen() {
           </Pressable>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={
+              checkInPending && checkInPending.length > 0
+                ? `Self check-in, ${checkInPending.length} waiting`
+                : "Self check-in"
+            }
+            onPress={() => setCheckInOpen(true)}
+            style={({ pressed }) => [
+              styles.editEventButton,
+              styles.checkInButton,
+              {
+                borderColor: t.primary,
+                backgroundColor: checkInPending && checkInPending.length > 0 ? t.primary : "transparent",
+              },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons
+              name="qr-code-outline"
+              size={14}
+              color={checkInPending && checkInPending.length > 0 ? t.onPrimary : t.primary}
+            />
+            {checkInPending && checkInPending.length > 0 ? (
+              <Text style={[typography.caption, styles.editEventText, { color: t.onPrimary }]}>
+                {checkInPending.length}
+              </Text>
+            ) : null}
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Export event attendance"
             onPress={() => setExportOpen(true)}
             style={({ pressed }) => [
@@ -1107,6 +1139,7 @@ export default function EventAttendanceScreen() {
           onCreated={onMemberCreated}
         />
       ) : null}
+      <CheckInSheet eventId={evId} visible={checkInOpen} onClose={() => setCheckInOpen(false)} />
       <CreateEventSheet
         visible={eventEditOpen}
         onClose={() => setEventEditOpen(false)}
@@ -1147,6 +1180,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   editEventText: { fontWeight: "700" },
+  checkInButton: { flexDirection: "row", alignItems: "center", gap: 4 },
   countPill: {
     flexDirection: "row",
     alignItems: "center",

@@ -2,9 +2,17 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["4FH642K7X2.au.org.sow.theshed.staging"],
+        "appIDs": [
+          "4FH642K7X2.au.org.sow.theshed.staging"
+        ],
         "components": [
-          { "/": "/*" }
+          {
+            "/": "/checkin/*",
+            "exclude": true
+          },
+          {
+            "/": "/*"
+          }
         ]
       }
     ]

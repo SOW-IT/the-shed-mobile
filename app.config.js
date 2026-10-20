@@ -51,6 +51,7 @@ module.exports = ({ config: base }) => {
     ...config,
     name: "The SHED Staging",
     scheme: "theshedmobilestaging",
+    icon: "./assets/images/icon-staging.png",
     ios: {
       ...config.ios,
       bundleIdentifier: "au.org.sow.theshed.staging",
@@ -59,6 +60,12 @@ module.exports = ({ config: base }) => {
     android: {
       ...config.android,
       package: "au.org.sow.theshed.staging",
+      adaptiveIcon: {
+        ...config.android?.adaptiveIcon,
+        backgroundColor: "#0F2523",
+        foregroundImage: "./assets/images/android-icon-foreground-staging.png",
+        backgroundImage: "./assets/images/android-icon-background-staging.png",
+      },
       intentFilters: [
         {
           action: "VIEW",

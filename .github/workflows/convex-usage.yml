@@ -1,0 +1,57 @@
+# Reads this billing period's Convex usage every Monday and posts to the Data
+# and IT space in Google Chat when any meter passes 70% of the free plan, so
+# a limit is seen coming rather than found when it trips.
+#
+# Required repository secret:
+#   CONVEX_ACCESS_TOKEN  - a Convex account access token (the one `npx convex login`
+#                          writes to ~/.convex/config.json) for a team member
+# Optional repository secrets:
+#   CONVEX_DEPLOY_KEY        - lets the job also measure production file storage
+#   GOOGLE_CHAT_WEBHOOK_URL  - where warnings are posted; without it they only appear in the log
+# Optional repository variables (defaults in scripts/convex-usage-alert.mjs):
+#   CONVEX_TEAM_ID, CONVEX_PROJECT_ID, CONVEX_PLAN_DB_BANDWIDTH_GB,
+#   CONVEX_PLAN_FILE_STORAGE_GB, CONVEX_USAGE_WARN_RATIO, CONVEX_BILLING_DAY
+name: Convex usage check
+
+on:
+  schedule:
+    - cron: "0 22 * * 0" # Monday 08:00 AEST / 09:00 AEDT
+  workflow_dispatch:
+    inputs:
+      always_post:
+        description: "Post to Google Chat even when nothing is near a limit"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  usage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Read usage and warn
+        env:
+          CONVEX_ACCESS_TOKEN: ${{ secrets.CONVEX_ACCESS_TOKEN }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+          CONVEX_USAGE_ALWAYS_POST: ${{ inputs.always_post && 'true' || 'false' }}
+          CONVEX_TEAM_ID: ${{ vars.CONVEX_TEAM_ID }}
+          CONVEX_PROJECT_ID: ${{ vars.CONVEX_PROJECT_ID }}
+          CONVEX_PLAN_DB_BANDWIDTH_GB: ${{ vars.CONVEX_PLAN_DB_BANDWIDTH_GB }}
+          CONVEX_PLAN_FILE_STORAGE_GB: ${{ vars.CONVEX_PLAN_FILE_STORAGE_GB }}
+          CONVEX_USAGE_WARN_RATIO: ${{ vars.CONVEX_USAGE_WARN_RATIO }}
+          CONVEX_BILLING_DAY: ${{ vars.CONVEX_BILLING_DAY }}
+        run: node scripts/convex-usage-alert.mjs

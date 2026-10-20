@@ -36,3 +36,44 @@ jobs:
         run: npx tsc --noEmit
       - name: Backend tests (with coverage thresholds)
         run: npm run test:coverage
+
+  web-sweep:
+    name: Web sweep (every screen, signed out and as three roles)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "1"
+      SWEEP_E2E_SECRET: sweep-only-secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Start a local Convex backend and seed it
+        run: bash scripts/sweep-backend.sh
+      - name: Start the web app
+        run: |
+          nohup npx expo start --web --port 8082 > metro.log 2>&1 &
+          for _ in $(seq 1 90); do
+            if curl -sf http://localhost:8082/ >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:8082/ >/dev/null
+      - name: Sweep every screen
+        run: node scripts/sweep.mjs --base http://localhost:8082 --out sweep
+      - name: Keep the screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: web-sweep
+          path: |
+            sweep/
+            metro.log
+            convex-dev.log
+          retention-days: 7
