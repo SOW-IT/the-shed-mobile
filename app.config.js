@@ -51,7 +51,6 @@ module.exports = ({ config: base }) => {
     ...config,
     name: "The SHED Staging",
     scheme: "theshedmobilestaging",
-    // Dark icon so staging and the store app can be told apart on a home screen.
     icon: "./assets/images/icon-staging.png",
     ios: {
       ...config.ios,
