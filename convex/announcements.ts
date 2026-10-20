@@ -350,7 +350,8 @@ export const get = query({
         .first();
       if (!received) return null;
     }
-    const view = await row(ctx, announcement, new Map(), yearOf(announcement));
+    const year = yearOf(announcement);
+    const view = await row(ctx, announcement, new Map(), year);
     return {
       id: view.id,
       title: view.title,
@@ -366,11 +367,34 @@ export const get = query({
             withApp: view.withApp,
             emailed: view.emailed,
             notSentReason: view.notSentReason,
+            seen: await seenBy(ctx, announcement, year),
           }
         : null,
     };
   },
 });
+
+async function seenBy(ctx: Ctx, announcement: Doc<"announcements">, year: number) {
+  if (announcement.status !== "sent" || announcement.recipientCount === undefined) return null;
+  const unread = await ctx.db
+    .query("notifications")
+    .withIndex("by_announcement_and_read", (q) =>
+      q.eq("announcementId", announcement._id).eq("read", false)
+    )
+    .take(MAX_PROFILES);
+  const notSeen = await Promise.all(
+    unread.map(async (n) => ({
+      email: n.userEmail,
+      name: await displayName(ctx, n.userEmail, year),
+    }))
+  );
+  notSeen.sort((a, b) => a.name.localeCompare(b.name));
+  return {
+    total: announcement.recipientCount,
+    count: Math.max(0, announcement.recipientCount - notSeen.length),
+    notSeen,
+  };
+}
 
 /**
  * Sends a scheduled announcement: a notification in each recipient's bell, a

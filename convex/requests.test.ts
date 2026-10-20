@@ -441,6 +441,35 @@ describe("in-app notifications", () => {
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(0);
   });
 
+  test("the feed pages newest first, and is null while signed out", async () => {
+    const t = await setup();
+    for (const description of ["a", "b", "c"]) {
+      await asUser(t, RACHEL).mutation(api.requests.submit, { description, amount: 100 });
+    }
+    const firstPage = (await asUser(t, HENRY).query(api.notifications.feed, {
+      paginationOpts: { numItems: 2, cursor: null },
+    }))!;
+    expect(firstPage.page).toHaveLength(2);
+    expect(firstPage.isDone).toBe(false);
+    expect(firstPage.page[0].at).toBeGreaterThanOrEqual(firstPage.page[1].at);
+    expect(firstPage.page[0]).toMatchObject({ read: false, url: "/?tab=review" });
+    const secondPage = (await asUser(t, HENRY).query(api.notifications.feed, {
+      paginationOpts: { numItems: 2, cursor: firstPage.continueCursor },
+    }))!;
+    expect(secondPage.page).toHaveLength(1);
+    expect(secondPage.isDone).toBe(true);
+    const ids = [...firstPage.page, ...secondPage.page].map((n) => n.id);
+    expect(new Set(ids).size).toBe(3);
+    expect(
+      await t.query(api.notifications.feed, { paginationOpts: { numItems: 2, cursor: null } })
+    ).toBeNull();
+    const oldApp = (await asUser(t, HENRY).query(api.notifications.feed, {
+      paginationOpts: { numItems: 1, cursor: null },
+      appVersion: "1.0.0",
+    }))!;
+    expect(oldApp.page[0].url).toBe("/?tab=review");
+  });
+
   test("opening one request leaves other requests' notifications unread", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "a", amount: 100 });
@@ -1029,6 +1058,13 @@ describe("audit trail and reminders", () => {
       ],
     });
     await asUser(t, FIONA).mutation(api.requests.pay, { requestId: request._id, paidAmount: 90 });
+    await t.run(async (ctx) => {
+      const bella = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", BELLA).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", bella!._id, { name: "Bella Budget" });
+    });
 
     const trail = (await asUser(t, RACHEL).query(api.requests.auditTrail, {
       requestId: request._id,
@@ -1043,6 +1079,7 @@ describe("audit trail and reminders", () => {
     ]);
     expect(trail.every((e) => typeof e.at === "number")).toBe(true);
     expect(trail[5].detail).toBe("$90");
+    expect(trail.map((e) => e.actorName)).toEqual([HENRY, HENRY, "Bella Budget", FIONA, HENRY, FIONA]);
 
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "y", amount: 50 });
     const [declined] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;

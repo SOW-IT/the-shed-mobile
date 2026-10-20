@@ -292,6 +292,7 @@ export default defineSchema({
     ])
     .index("by_user_and_eventRequest_and_read", ["userEmail", "eventRequestId", "read"])
     .index("by_user_and_announcement_and_read", ["userEmail", "announcementId", "read"])
+    .index("by_announcement_and_read", ["announcementId", "read"])
     .index("by_request", ["requestId"]),
 
   // A message an admin sends to everyone, or to chosen campuses, divisions,
