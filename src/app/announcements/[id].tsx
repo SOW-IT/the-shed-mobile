@@ -1,8 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "@convex/_generated/api";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { Card, EmptyState, LoadingState, Muted, Screen, SectionTitle } from "@/components/ui";
@@ -29,6 +29,7 @@ export default function AnnouncementScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const announcement = useQuery(api.announcements.get, id ? { id } : "skip");
   const markRead = useMutation(api.notifications.markReadForAnnouncement);
+  const [showNotSeen, setShowNotSeen] = useState(false);
   const back = () => (router.canGoBack() ? router.back() : router.replace("/home"));
 
   const loadedId = announcement?.id;
@@ -97,6 +98,70 @@ export default function AnnouncementScreen() {
                 <Muted>{details.sendEmail ? "Push and email" : "Push only"}</Muted>
               )}
             </Card>
+            {details.seen ? (
+              <>
+                <SectionTitle>Seen</SectionTitle>
+                <Card>
+                  <Text style={[typography.headline, { color: t.text }]}>
+                    Seen by {details.seen.count} of {details.seen.total}
+                  </Text>
+                  <View style={[styles.bar, { backgroundColor: t.separator }]}>
+                    <View
+                      style={[
+                        styles.barFill,
+                        {
+                          backgroundColor: t.success,
+                          width: `${
+                            details.seen.total > 0
+                              ? Math.round((100 * details.seen.count) / details.seen.total)
+                              : 0
+                          }%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Muted>
+                    Someone has seen it once they open it, or open their notifications after it
+                    arrived.
+                  </Muted>
+                  {details.seen.notSeen.length > 0 ? (
+                    <>
+                      <Pressable
+                        onPress={() => setShowNotSeen((v) => !v)}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          showNotSeen ? "Hide who hasn't seen it" : "Show who hasn't seen it"
+                        }
+                        style={({ pressed }) => [styles.notSeenToggle, pressed && { opacity: 0.6 }]}
+                      >
+                        <Text style={[typography.label, { color: t.primary }]}>
+                          Not seen yet · {details.seen.notSeen.length}
+                        </Text>
+                        <Ionicons
+                          name={showNotSeen ? "chevron-up" : "chevron-down"}
+                          size={16}
+                          color={t.primary}
+                        />
+                      </Pressable>
+                      {showNotSeen
+                        ? details.seen.notSeen.map((person) => (
+                            <View key={person.email} style={styles.person}>
+                              <Text style={[typography.body, { color: t.text }]}>{person.name}</Text>
+                              {person.name !== person.email ? (
+                                <Text style={[typography.caption, { color: t.muted }]}>
+                                  {person.email}
+                                </Text>
+                              ) : null}
+                            </View>
+                          ))
+                        : null}
+                    </>
+                  ) : (
+                    <Text style={[typography.label, { color: t.success }]}>Everyone has seen it.</Text>
+                  )}
+                </Card>
+              </>
+            ) : null}
           </>
         ) : null}
       </View>
@@ -121,4 +186,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  bar: { height: 6, borderRadius: 3, overflow: "hidden" },
+  barFill: { height: 6, borderRadius: 3 },
+  notSeenToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: spacing.xs,
+  },
+  person: { gap: 1, paddingVertical: 2 },
 });

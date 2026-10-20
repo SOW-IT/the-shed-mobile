@@ -6,6 +6,26 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.18] - 2026-10-20
+
+### Added
+- **A request's timeline.** The clock button on a reimbursement now opens a
+  timeline instead of a bare audit list: each step from submitted to paid with
+  the person's name and the Sydney time, the gap between steps ("3 days
+  later"), what the request is waiting on now and for how long, how many
+  reminders have gone out for that wait, and how long submitted-to-paid took
+  once it is paid.
+- **Who has seen an announcement.** An announcement's page shows admins
+  "Seen by 42 of 84" with a bar, and lists who hasn't seen it yet. Someone
+  counts as having seen it once they open it, or open their notifications
+  after it arrived.
+
+### Changed
+- **Notifications load as you scroll.** The bell showed your newest 50 and
+  stopped; anything older was gone for good. It now loads 30 at a time as you
+  reach the bottom, with a Show earlier button when the list is too short to
+  scroll, so every notification you were ever sent is reachable.
+
 ## [2.9.17] - 2026-10-20
 
 ### Changed

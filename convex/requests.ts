@@ -1452,13 +1452,26 @@ export const auditTrail = query({
       .query("requestEvents")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
       .take(200);
-    return events.map((event) => ({
-      at: event._creationTime,
-      action: event.action,
-      step: event.step ?? null,
-      actor: event.actorEmail,
-      detail: event.detail ?? null,
-    }));
+    const reqYear = requestYear(request);
+    const names = new Map<string, Promise<string>>();
+    const nameOf = (email: string) => {
+      let name = names.get(email);
+      if (!name) {
+        name = displayName(ctx, email, reqYear);
+        names.set(email, name);
+      }
+      return name;
+    };
+    return await Promise.all(
+      events.map(async (event) => ({
+        at: event._creationTime,
+        action: event.action,
+        step: event.step ?? null,
+        actor: event.actorEmail,
+        actorName: await nameOf(event.actorEmail),
+        detail: event.detail ?? null,
+      }))
+    );
   },
 });
 
