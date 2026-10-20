@@ -1,8 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMutation } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useFocusEffect, useRouter } from "expo-router";
 import { appVersion } from "@/hooks/useReportAppVersion";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
+import { SignInPrompt } from "@/components/SignInPrompt";
 import { useCallback, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
@@ -35,14 +36,20 @@ export default function NotificationsScreen() {
   const t = useAppTheme();
   const router = useRouter();
   const version = appVersion();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const me = useQuery(api.directory.me, isAuthenticated ? {} : "skip");
+  const account = isAuthenticated && me ? me.email || "guest" : null;
   const { rows, hasMore, loadMore, loadingFirstPage, loadingMore } = usePagedQuery(
     api.notifications.feed,
     {
-      scopeKey: "feed",
-      args: (cursor) => ({
-        paginationOpts: { numItems: PAGE_SIZE, cursor },
-        ...(version ? { appVersion: version } : {}),
-      }),
+      scopeKey: account ? `feed:${account}` : "signed-out",
+      args: (cursor) =>
+        account
+          ? {
+              paginationOpts: { numItems: PAGE_SIZE, cursor },
+              ...(version ? { appVersion: version } : {}),
+            }
+          : "skip",
       rowsOf: (page) => page.page as FeedRow[],
       keyOf: (row) => row.id,
     }
@@ -87,6 +94,14 @@ export default function NotificationsScreen() {
       router.push(`${url}${separator}reopen=${reopen}` as never);
     }
   };
+
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <Screen title="Notifications" onBack={goBack}>
+        <SignInPrompt what="page" />
+      </Screen>
+    );
+  }
 
   if (loadingFirstPage) {
     return (
