@@ -77,3 +77,10 @@ shows it as "Waiting 6 days" and lists the longest waiting first.
 How long each Step waited before it was actioned, over a staff year, with the
 typical (median) and longest wait and who actioned it most. On Admin for
 admins and the Finance Head.
+
+**On the request**:
+The people who may see a Request, its trail and its comments: the requester,
+Finance staff, whoever holds or covers an approver Step on its chain (in the
+Request's staff year or the current one), and anyone who has already actioned
+it. Anyone else is told the Request isn't one they can see.
+_Avoid_: participant (a nudge has its own, narrower set)

@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.21] - 2026-10-20
+
+### Fixed
+- **A reimbursement is only visible to the people on it.** Anyone with a
+  staff profile who had a request's link could open it, with its history,
+  decline reason, amount paid and comment thread. Now only the requester,
+  Finance staff, the approvers on its chain (and whoever covers for them),
+  and anyone who has already acted on it can see it. Everyone else gets
+  "Request not found". Receipt files keep their existing, narrower rule.
+
 ## [2.9.18] - 2026-10-20
 
 ### Added
