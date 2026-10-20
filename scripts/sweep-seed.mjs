@@ -6,6 +6,7 @@ export const SWEEP_PEOPLE = {
   admin: "sweep.admin@sow.org.au",
   staff: "sweep.staff@sow.org.au",
   leader: "sweep.leader@sow.org.au",
+  finance: "sweep.finance@sow.org.au",
 };
 
 const UNSW = "University of New South Wales";
@@ -32,6 +33,9 @@ run("admin:seed", { adminEmail: admin });
 const year = staffYearNow();
 run("admin:upsertDepartment", { year, name: "Marketing", division: "Engagement", headEmail: SWEEP_PEOPLE.staff }, admin);
 run("admin:setStaffProfile", { year, email: SWEEP_PEOPLE.staff, roles: ["Head of Department"], department: "Marketing" }, admin);
+run("admin:upsertDepartment", { year, name: "Finance", division: "Governance", headEmail: SWEEP_PEOPLE.finance }, admin);
+run("admin:setStaffProfile", { year, email: SWEEP_PEOPLE.finance, roles: ["Head of Department"], department: "Finance" }, admin);
+run("admin:setBudgetManager", { year, email: SWEEP_PEOPLE.finance }, admin);
 run("admin:upsertUniversity", { year, name: UNSW }, admin);
 run("admin:setStaffProfile", { year, email: SWEEP_PEOPLE.leader, roles: ["Student Leader"], university: UNSW }, admin);
 
