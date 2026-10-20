@@ -24,10 +24,11 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       the new build. iOS 2.9.23 is the first such build; Android's first is
       2.9.24, because 2.9.23's Android production build failed on a
       fingerprint mismatch (see 2.9.24 in CHANGELOG.md). `fingerprint.config.js`
-      now ignores the builder-only Firebase file and native folders, which
-      should make the GitHub runner's fingerprint match the EAS builder's (it
-      does in a local simulation); confirm with the first 2.9.24 Android
-      production build passing "Configure expo-updates". Each
+      now ignores the builder-only Firebase file and native folders, so the
+      GitHub runner's fingerprint matches the EAS builder's: the 2.9.24
+      Android production build (EAS build `25f738fc`, from `13475e1` on
+      2026-10-21) passed "Configure expo-updates" and was submitted to
+      Google Play (submission `46f8f1d6`). Each
       publish sets `EXPO_PUBLIC_CONVEX_URL` itself, since `eas update`
       ignores the build profiles' `env`.
 - [ ] **Add the `CONVEX_ACCESS_TOKEN` repository secret** (a team member's
