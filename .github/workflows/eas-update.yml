@@ -1,0 +1,56 @@
+# Publishes the JavaScript bundle to phones over the air after every merge to
+# main, for the production and staging channels. Only builds whose native
+# fingerprint matches the one computed here receive it; a merge that changes
+# native code (a new native module, an Expo SDK bump, app.json plugin
+# changes) produces a new fingerprint that no store build has yet, so that
+# update reaches nobody until the next EAS build ships. Runs after Convex
+# Deploy so the backend is never behind the bundle it serves.
+name: EAS Update
+
+on:
+  workflow_run:
+    workflows: ["Convex Deploy"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eas-update
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: main
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Set up EAS
+        uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385 # v9
+        with:
+          eas-version: latest
+          token: ${{ env.EXPO_TOKEN }}
+
+      - name: Publish to the production channel
+        run: eas update --channel production --environment production --auto --non-interactive
+
+      - name: Publish to the staging channel
+        env:
+          APP_VARIANT: staging
+        run: eas update --channel staging --environment preview --auto --non-interactive

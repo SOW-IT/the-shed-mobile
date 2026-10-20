@@ -73,3 +73,10 @@ convex/devE2E.test.ts
 
 # Local Netlify folder
 .netlify
+
+sweep/
+sweep-seed.json
+convex-dev.log
+convex-dev.pid
+metro.log
+warehouse-checks-latest.json

@@ -76,7 +76,7 @@ export type MemberRow = {
   photo?: string | null;
 };
 
-const allMetadataFields = async (
+export const allMetadataFields = async (
   ctx: Parameters<typeof getProfile>[0]
 ): Promise<MetadataField[]> =>
   (await ctx.db.query("attendanceMetadata").collect()).sort(

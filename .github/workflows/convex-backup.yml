@@ -143,3 +143,14 @@ jobs:
             --dataset "$BQ_DATASET" \
             --warehouse "$BQ_WAREHOUSE_DATASET" \
             --location "$BQ_LOCATION"
+
+      - name: Check the warehouse against yesterday
+        env:
+          GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+        run: |
+          node scripts/warehouse-checks.mjs \
+            --project "$GCP_PROJECT" \
+            --dataset "$BQ_DATASET" \
+            --warehouse "$BQ_WAREHOUSE_DATASET" \
+            --location "$BQ_LOCATION" \
+            --bucket "$GCS_BACKUP_BUCKET"
