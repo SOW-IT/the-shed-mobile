@@ -95,6 +95,13 @@ const results = [];
 
 const settle = (ms) => page.waitForTimeout(ms);
 
+const WARM_UP_TIMEOUT_MS = 180_000;
+await page.goto(`${BASE}/home`, { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS }).catch(() => {});
+await page
+  .waitForFunction(() => document.body.innerText.trim().length > 0, null, { timeout: WARM_UP_TIMEOUT_MS })
+  .catch(() => {});
+await waitUntilSettled();
+
 for (const [role, email] of roles) {
   await page.goto(`${BASE}/e2e-auth?signout=1`, { waitUntil: "domcontentloaded" });
   await settle(2500);

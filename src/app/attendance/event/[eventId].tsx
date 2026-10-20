@@ -1185,7 +1185,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
-  headerActionsUnder: { flexShrink: 0 },
+  headerActionsUnder: { flexWrap: "wrap", flexShrink: 1, maxWidth: "100%" },
   metaUnderTitle: {
     flexDirection: "row",
     alignItems: "center",
