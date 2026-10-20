@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.16] - 2026-10-20
+
+### Changed
+- **Android release builds are shrunk and obfuscated again.** R8 code
+  optimisation was turned off in 2.9.7 because a release build crashed on
+  launch (it had stripped a class the WorkManager database loads by name).
+  It is back on with keep rules for those classes, so the app is smaller and
+  the next store build should clear Google Play's code optimisation warning.
+  No change to how the app looks or works.
+
 ## [2.9.15] - 2026-10-19
 
 Past years' requests no longer sit behind a year picker: every request list
