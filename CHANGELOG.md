@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.22] - 2026-10-20
+
+### Fixed
+- **Event names no longer break mid-word on phones.** On an event's
+  attendance page the date and the Edit, check-in, export and count buttons
+  sat beside the title, leaving it a narrow column, so a name like "Missions
+  Commissioning Night" split into six pieces. On screens narrower than about
+  600 points they now sit on their own row under the title, which gets the
+  full width. iPad and desktop keep the layout they had.
+
 ## [2.9.21] - 2026-10-20
 
 ### Fixed
