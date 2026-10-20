@@ -2,7 +2,7 @@
   "expo": {
     "name": "The SHED",
     "slug": "the-shed-mobile",
-    "version": "2.9.18",
+    "version": "2.9.19",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "theshedmobile",
@@ -100,6 +100,14 @@
       "eas": {
         "projectId": "ee729ed9-3432-4e98-a8d3-dbc089a3d4ec"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ee729ed9-3432-4e98-a8d3-dbc089a3d4ec",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
     }
   }
 }

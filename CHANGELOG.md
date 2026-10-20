@@ -6,6 +6,34 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.19] - 2026-10-20
+
+### Added
+- **Self check-in at events.** The QR button on an event shows a code people
+  scan to check themselves in: they type their full name and pick their
+  campus, and never see the member list. Each check-in waits on the event for
+  a leader to confirm it, matched to the member with exactly that name or
+  added as a new member, then counts like any other sign-in. The code works
+  from two hours before the event until ten minutes after it ends.
+- **Members who may be the same person.** Admin, Merges now also lists pairs
+  of members with a similar name on the same campus who have never been at
+  the same event, with Merge and Not the same. The list is rebuilt every night.
+- **Updates without the App Store.** From this version, fixes that don't
+  touch native code reach phones a few minutes after they ship. A banner says
+  when one is ready and offers a restart.
+- **App errors on Admin.** When a screen crashes or something fails without
+  being caught, the app reports it. Admins see each error once, with how often
+  it happened, where and on which version, under Admin, Other.
+- **Receipts and photos are backed up.** The nightly backup now also copies
+  every uploaded file to Google Cloud Storage, once each, and keeps them after
+  the app deletes old receipts on 30 September.
+
+### Changed
+- **Checks that run without anyone watching.** Every pull request opens every
+  screen in a browser as four kinds of user and fails on a crash. The nightly
+  warehouse load checks itself against the night before, and a weekly job
+  warns in Google Chat before a Convex usage limit is reached.
+
 ## [2.9.18] - 2026-10-20
 
 ### Added

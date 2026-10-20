@@ -14,8 +14,8 @@ import {
   ROLE_FIELD_KEY,
 } from "../shared/attendanceMemberMeta";
 import { auditEventName, canReverseSignIn, reversibleOnlyByGrace, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personKey, subgroupMatches } from "../shared/rollcall";
-import { Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
+import { mutation, type MutationCtx, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 import { adjustEventAttendanceCount } from "./attendanceCounts";
@@ -257,34 +257,45 @@ export const signIn = mutation({
     } else {
       memberId = memberArg!;
     }
-    const member = await ctx.db.get(memberId);
-    if (!member) throw new ConvexError("Member not found.");
-    const existing = await ctx.db
-      .query("attendance")
-      .withIndex("by_event_and_member", (q) =>
-        q.eq("eventId", eventId).eq("memberId", memberId)
-      )
-      .unique();
-    if (existing) return existing._id;
-    const id = await ctx.db.insert("attendance", {
-      eventId,
-      memberId,
-      signInTime: Date.now(),
-    });
-    await adjustEventAttendanceCount(ctx, eventId, 1);
-    const { name, email: subjectEmail } = await memberAuditName(ctx, member, year);
-    await logAttendanceAction(ctx, {
-      actorEmail,
-      entityType: "attendance",
-      action: "attendance.signIn",
-      summary: `${name} signed in to ${auditEventName(event)}`,
-      eventId,
-      memberId,
-      subjectEmail,
-    });
-    return id;
+    return await signInMember(ctx, event, memberId, actorEmail);
   },
 });
+
+export async function signInMember(
+  ctx: MutationCtx,
+  event: Doc<"events">,
+  memberId: Id<"attendanceMembers">,
+  actorEmail: string
+): Promise<Id<"attendance">> {
+  const eventId = event._id;
+  const year = eventStaffYear(event.dateStart);
+  const member = await ctx.db.get(memberId);
+  if (!member) throw new ConvexError("Member not found.");
+  const existing = await ctx.db
+    .query("attendance")
+    .withIndex("by_event_and_member", (q) =>
+      q.eq("eventId", eventId).eq("memberId", memberId)
+    )
+    .unique();
+  if (existing) return existing._id;
+  const id = await ctx.db.insert("attendance", {
+    eventId,
+    memberId,
+    signInTime: Date.now(),
+  });
+  await adjustEventAttendanceCount(ctx, eventId, 1);
+  const { name, email: subjectEmail } = await memberAuditName(ctx, member, year);
+  await logAttendanceAction(ctx, {
+    actorEmail,
+    entityType: "attendance",
+    action: "attendance.signIn",
+    summary: `${name} signed in to ${auditEventName(event)}`,
+    eventId,
+    memberId,
+    subjectEmail,
+  });
+  return id;
+}
 
 export const updateRecord = mutation({
   args: {
