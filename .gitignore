@@ -80,3 +80,4 @@ convex-dev.log
 convex-dev.pid
 metro.log
 warehouse-checks-latest.json
+.env.local.before-sweep

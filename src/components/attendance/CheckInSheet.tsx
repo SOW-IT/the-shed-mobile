@@ -140,23 +140,51 @@ export function CheckInSheet({
                     ? row.match.alreadySignedIn
                       ? `Already signed in as ${row.match.name}`
                       : `Matches ${row.match.name}${row.match.campus ? ` (${subgroupLabel(row.match.campus)})` : ""}`
-                    : "No exact match. Confirming adds them as a new member."}
+                    : row.choices.length > 1
+                      ? `${row.choices.length} members are called ${row.name}. Pick the right one.`
+                      : "No exact match. Confirming adds them as a new member."}
                 </Text>
+                {row.choices.length > 1 ? (
+                  <View style={styles.choices}>
+                    {row.choices.map((choice, index) => (
+                      <Pressable
+                        key={choice.memberId}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Sign in ${row.name}, ${choice.campus ? subgroupLabel(choice.campus) : "no campus"}`}
+                        disabled={busy !== null}
+                        onPress={() =>
+                          void act(row.id, () => confirm({ requestId: row.id, memberId: choice.memberId }))
+                        }
+                        style={({ pressed }) => [
+                          styles.choice,
+                          { borderColor: t.primary },
+                          (pressed || busy === row.id) && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
+                          {choice.campus ? subgroupLabel(choice.campus) : `No campus ${index + 1}`}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
               </View>
               <View style={styles.actions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Confirm ${row.name}`}
-                  disabled={busy !== null}
-                  onPress={() => void act(row.id, () => confirm({ requestId: row.id }))}
-                  style={({ pressed }) => [
-                    styles.round,
-                    { backgroundColor: t.success },
-                    (pressed || busy === row.id) && { opacity: 0.6 },
-                  ]}
-                >
-                  <Ionicons name="checkmark" size={18} color={t.dark ? t.background : "#ffffff"} />
-                </Pressable>
+                {row.choices.length > 1 ? null : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Confirm ${row.name}`}
+                    disabled={busy !== null}
+                    onPress={() => void act(row.id, () => confirm({ requestId: row.id }))}
+                    style={({ pressed }) => [
+                      styles.round,
+                      { backgroundColor: t.success },
+                      (pressed || busy === row.id) && { opacity: 0.6 },
+                    ]}
+                  >
+                    <Ionicons name="checkmark" size={18} color={t.dark ? t.background : "#ffffff"} />
+                  </Pressable>
+                )}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Dismiss ${row.name}`}
@@ -191,5 +219,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   actions: { flexDirection: "row", gap: spacing.sm },
+  choices: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.xs },
+  choice: { borderWidth: 1.5, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
   round: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
 });

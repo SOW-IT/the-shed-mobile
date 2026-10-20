@@ -50,26 +50,37 @@ const fetchFunctionUsage = async (from, to) => {
 
 const databaseBandwidthByDeployment = (rows) => {
   const totals = new Map();
-  for (const row of rows) {
-    const deployment = String(row[DEPLOYMENT_COLUMN] ?? "unknown");
-    const bytes = Number(row[DATABASE_BANDWIDTH_COLUMN]) || 0;
+  rows.forEach((row, index) => {
+    const deployment = row[DEPLOYMENT_COLUMN];
+    const raw = row[DATABASE_BANDWIDTH_COLUMN];
+    const bytes = typeof raw === "number" || typeof raw === "string" ? Number(raw) : Number.NaN;
+    if (typeof deployment !== "string" || !deployment || !Number.isFinite(bytes) || bytes < 0) {
+      throw new Error(
+        `Usage row ${index} has no usable deployment or bandwidth (${JSON.stringify(row).slice(0, 200)}); the dashboard API may have changed.`
+      );
+    }
     totals.set(deployment, (totals.get(deployment) ?? 0) + bytes);
-  }
+  });
   return totals;
 };
 
-const productionFileStorageBytes = () => {
+const FILE_LIST_LIMIT = 8000;
+
+const productionFileStorage = () => {
   if (!process.env.CONVEX_DEPLOY_KEY) return null;
-  const out = execFileSync("npx", ["convex", "data", "_storage", "--prod", "--limit", "8000", "--format", "jsonl"], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let total = 0;
+  const out = execFileSync(
+    "npx",
+    ["convex", "data", "_storage", "--prod", "--limit", String(FILE_LIST_LIMIT), "--format", "jsonl"],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+  );
+  let bytes = 0;
+  let files = 0;
   for (const line of out.split("\n")) {
     if (!line.trim()) continue;
-    total += Number(JSON.parse(line).size) || 0;
+    bytes += Number(JSON.parse(line).size) || 0;
+    files++;
   }
-  return total;
+  return { bytes, files, truncated: files >= FILE_LIST_LIMIT };
 };
 
 const gb = (bytes) => (bytes / GB).toFixed(2);
@@ -80,7 +91,7 @@ const run = async () => {
   const rows = await fetchFunctionUsage(isoDate(start), isoDate(now));
   const bandwidth = databaseBandwidthByDeployment(rows);
   const bandwidthTotal = [...bandwidth.values()].reduce((a, b) => a + b, 0);
-  const storage = productionFileStorageBytes();
+  const storage = productionFileStorage();
   const daysIn = Math.max(1, Math.round((now - start) / 86_400_000));
   const daysTotal = Math.round((end - start) / 86_400_000);
   const projectedBandwidth = (bandwidthTotal / daysIn) * daysTotal;
@@ -91,13 +102,15 @@ const run = async () => {
       ` (${[...bandwidth.entries()].map(([d, b]) => `${d} ${gb(b)}`).join(", ")}),` +
       ` on track for ${gb(projectedBandwidth)} GB.`,
     storage === null
-      ? "File storage: not measured (no CONVEX_DEPLOY_KEY)."
-      : `File storage (production): ${gb(storage)} GB of ${PLAN_FILE_STORAGE_GB} GB.`,
+      ? "Production files: not measured (no CONVEX_DEPLOY_KEY)."
+      : `Production files: ${storage.truncated ? "at least " : ""}${gb(storage.bytes)} GB in ${storage.files} file(s). The plan's ${PLAN_FILE_STORAGE_GB} GB file storage is team-wide and also counts dev and backups, so treat this as a lower bound.`,
   ];
   const warnings = [];
   if (bandwidthTotal >= WARN_AT * PLAN_DATABASE_BANDWIDTH_GB * GB) warnings.push("database bandwidth used");
   if (projectedBandwidth >= PLAN_DATABASE_BANDWIDTH_GB * GB) warnings.push("database bandwidth projected over the plan");
-  if (storage !== null && storage >= WARN_AT * PLAN_FILE_STORAGE_GB * GB) warnings.push("file storage");
+  if (storage !== null && storage.bytes >= WARN_AT * PLAN_FILE_STORAGE_GB * GB) {
+    warnings.push("production files alone near the team file storage allowance");
+  }
 
   const text = lines.join("\n");
   console.log(text);

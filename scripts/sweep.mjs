@@ -10,7 +10,6 @@ const arg = (name, fallback) => {
 const BASE = arg("base", "http://localhost:8082").replace(/\/+$/, "");
 const OUT = arg("out", "sweep");
 const SECRET = process.env.SWEEP_E2E_SECRET || "sweep-only-secret";
-const SETTLE_MS = Number(arg("settle", "3000"));
 const seed = existsSync("sweep-seed.json") ? JSON.parse(readFileSync("sweep-seed.json", "utf8")) : null;
 
 const roles = [
@@ -18,7 +17,14 @@ const roles = [
   ["leader", process.env.SWEEP_LEADER ?? seed?.people.leader ?? null],
   ["staff", process.env.SWEEP_STAFF ?? seed?.people.staff ?? null],
   ["admin", process.env.SWEEP_ADMIN ?? seed?.people.admin ?? null],
-].filter(([, email], i) => i === 0 || email);
+];
+const missingRoles = roles.filter(([role, email]) => role !== "out" && !email).map(([role]) => role);
+if (missingRoles.length > 0) {
+  console.error(
+    `No identity for ${missingRoles.join(", ")}. Run scripts/sweep-seed.mjs first or set SWEEP_LEADER, SWEEP_STAFF and SWEEP_ADMIN.`
+  );
+  process.exit(2);
+}
 
 const routes = [
   "/",
@@ -46,6 +52,40 @@ const routes = [
 ];
 
 const BROKEN = /something went wrong|unmatched route|this screen doesn't exist|configuration error/i;
+const SIGNED_OUT = /sign in with your sow account/i;
+const EXPECTED_MISSING = new Set(["/no-such-page", "/checkin/not-a-real-link"]);
+const HARMLESS_CONSOLE = [/expo-notifications/i, /useNativeDriver/i, /Failed to load resource.*favicon/i];
+const READY_TIMEOUT_MS = 15_000;
+const STABLE_FOR_MS = 1_000;
+
+const hasSession = () =>
+  page.evaluate(() =>
+    Object.keys(window.localStorage).some(
+      (key) => key.startsWith("__convexAuthJWT_") && (window.localStorage.getItem(key) ?? "").length > 20
+    )
+  );
+
+const waitUntilSettled = async () => {
+  const started = Date.now();
+  let last = "";
+  let stableSince = Date.now();
+  while (Date.now() - started < READY_TIMEOUT_MS) {
+    const text = await page
+      .evaluate(() => document.body.innerText.replace(/\s+/g, " "))
+      .catch(() => "");
+    const loading = await page
+      .evaluate(() => Boolean(document.querySelector('[aria-busy="true"], [role="progressbar"]')))
+      .catch(() => false);
+    if (text !== last || loading || text.trim().length === 0) {
+      last = text;
+      stableSince = Date.now();
+    } else if (Date.now() - stableSince >= STABLE_FOR_MS) {
+      return true;
+    }
+    await page.waitForTimeout(200);
+  }
+  return false;
+};
 
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();
@@ -62,9 +102,8 @@ for (const [role, email] of roles) {
     await page.goto(`${BASE}/e2e-auth?email=${encodeURIComponent(email)}&secret=${encodeURIComponent(SECRET)}`, {
       waitUntil: "domcontentloaded",
     });
-    await settle(3500);
-    const signedIn = !/sign in with your sow account/i.test(await page.evaluate(() => document.body.innerText));
-    if (!signedIn) {
+    await waitUntilSettled();
+    if (!(await hasSession())) {
       results.push({ role, route: "(sign-in)", bad: true, errors: ["e2e sign-in did not take"], consoleErrors: [], text: "" });
       continue;
     }
@@ -80,15 +119,21 @@ for (const [role, email] of roles) {
     page.on("console", onConsole);
     try {
       await page.goto(BASE + route, { waitUntil: "domcontentloaded" });
-      await settle(SETTLE_MS);
+      if (!(await waitUntilSettled())) errors.push(`still changing after ${READY_TIMEOUT_MS / 1000}s`);
     } catch (error) {
       errors.push(`navigation: ${String(error).slice(0, 200)}`);
     }
     const text = await page
       .evaluate(() => document.body.innerText.replace(/\s+/g, " ").slice(0, 300))
       .catch(() => "");
-    const expectedMissing = route === "/no-such-page";
-    const bad = (BROKEN.test(text) && !expectedMissing) || errors.length > 0;
+    const expectedMissing = EXPECTED_MISSING.has(route);
+    const unexpectedConsole = expectedMissing
+      ? []
+      : consoleErrors.filter((message) => !HARMLESS_CONSOLE.some((pattern) => pattern.test(message)));
+    const lostSession = email !== null && (SIGNED_OUT.test(text) || !(await hasSession()));
+    if (lostSession) errors.push("landed signed out");
+    const bad =
+      (BROKEN.test(text) && !expectedMissing) || errors.length > 0 || unexpectedConsole.length > 0;
     const slug = route.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "root";
     await page.screenshot({ path: `${OUT}/${role}-${slug}.png` }).catch(() => {});
     page.off("pageerror", onError);

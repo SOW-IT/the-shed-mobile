@@ -64,6 +64,7 @@ export const backupStorageFiles = async ({
   upload,
   today,
   warn = () => {},
+  onPage = async () => {},
 }) => {
   const next = { version: MANIFEST_VERSION, updatedAt: today, files: {}, deleted: { ...manifest.deleted } };
   const shas = knownShas(manifest);
@@ -124,6 +125,11 @@ export const backupStorageFiles = async ({
         warn(`Could not back up ${file.storageId}: ${error.message}`);
       }
     }
+    await onPage({
+      ...next,
+      files: { ...manifest.files, ...next.files },
+      deleted: { ...next.deleted },
+    });
     if (page.isDone) break;
     cursor = page.continueCursor;
   }

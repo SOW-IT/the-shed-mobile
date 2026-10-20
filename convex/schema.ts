@@ -494,6 +494,7 @@ export default defineSchema({
     name: v.string(),
     campus: v.optional(v.string()),
     memberId: v.optional(v.id("attendanceMembers")),
+    sameNameCount: v.optional(v.number()),
     status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("dismissed")),
     requestedAt: v.number(),
     decidedAt: v.optional(v.number()),
@@ -567,6 +568,8 @@ export default defineSchema({
     memberB: v.id("attendanceMembers"),
     status: v.union(v.literal("open"), v.literal("dismissed")),
     builtAt: v.number(),
+    statsA: v.optional(v.object({ signIns: v.number(), lastSignIn: v.union(v.number(), v.null()) })),
+    statsB: v.optional(v.object({ signIns: v.number(), lastSignIn: v.union(v.number(), v.null()) })),
     dismissedBy: v.optional(v.string()),
     dismissedAt: v.optional(v.number()),
   })

@@ -67,12 +67,25 @@ type GlobalWithErrorUtils = typeof globalThis & {
     getGlobalHandler: () => ((error: unknown, isFatal?: boolean) => void) | undefined;
     setGlobalHandler: (handler: (error: unknown, isFatal?: boolean) => void) => void;
   };
+  HermesInternal?: {
+    enablePromiseRejectionTracker?: (options: {
+      allRejections: boolean;
+      onUnhandled: (id: number, error: unknown) => void;
+    }) => void;
+  };
 };
 
 const installGlobalHandlers = () => {
   if (installed) return;
   installed = true;
-  const errorUtils = (globalThis as GlobalWithErrorUtils).ErrorUtils;
+  const runtime = globalThis as GlobalWithErrorUtils;
+  if (Platform.OS !== "web" && !__DEV__) {
+    runtime.HermesInternal?.enablePromiseRejectionTracker?.({
+      allRejections: true,
+      onUnhandled: (_id, error) => reportError(error),
+    });
+  }
+  const errorUtils = runtime.ErrorUtils;
   if (errorUtils) {
     const previous = errorUtils.getGlobalHandler();
     errorUtils.setGlobalHandler((error, isFatal) => {

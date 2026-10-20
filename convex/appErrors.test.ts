@@ -98,6 +98,43 @@ describe("reporting app errors", () => {
     expect(fingerprintOf({ ...base, route: "/org" })).not.toBe(fingerprintOf(base));
   });
 
+  test("one crash on two events' pages is one error; a long platform or version is cut short", async () => {
+    const t = await setup();
+    await t.mutation(api.appErrors.report, crash({ route: "/attendance/event/ns7c10ak3hmq5jxg86yxng36r98g85vj" }));
+    vi.setSystemTime(NOW + 60_000);
+    await t.mutation(api.appErrors.report, crash({ route: "/attendance/event/ns73qvxfgcvyzzvdw9nm0sqcm98gnhnn" }));
+    let errors = (await asUser(t, ADMIN).query(api.appErrors.recent, {}))!.errors;
+    expect(errors).toHaveLength(1);
+    expect(errors[0].count).toBe(2);
+
+    await t.mutation(api.appErrors.report, crash({ message: "other", platform: "p".repeat(500), version: "9".repeat(500) }));
+    await t.mutation(api.appErrors.report, crash({ message: "blank platform", platform: "   ", version: "  " }));
+    errors = (await asUser(t, ADMIN).query(api.appErrors.recent, {}))!.errors;
+    const other = errors.find((e) => e.message === "other")!;
+    expect(other.platform).toHaveLength(16);
+    expect(other.version).toHaveLength(32);
+    expect(errors.find((e) => e.message === "blank platform")).toMatchObject({ platform: "unknown", version: null });
+  });
+
+  test("past 200 errors in an hour, new kinds of error are dropped; known ones still count", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 200; i++) {
+        await ctx.db.insert("appErrors", {
+          fingerprint: `f${i}`,
+          message: `flood ${i}`,
+          platform: "web",
+          count: 1,
+          firstAt: NOW,
+          lastAt: NOW,
+        });
+      }
+    });
+    expect(await t.mutation(api.appErrors.report, crash({ message: "brand new" }))).toMatchObject({ repeated: true });
+    const rows = await t.run((ctx) => ctx.db.query("appErrors").collect());
+    expect(rows.some((r) => r.message === "brand new")).toBe(false);
+  });
+
   test("long messages and stacks are trimmed, and an empty message is refused", async () => {
     const t = await setup();
     await t.mutation(api.appErrors.report, crash({ message: "x".repeat(900), stack: "y".repeat(9000), route: "/r".repeat(300) }));

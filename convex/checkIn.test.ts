@@ -155,21 +155,35 @@ describe("checking in from the public page", () => {
     expect(pending[0]).toMatchObject({
       name: "Ann Lee",
       campus: USYD,
+      choices: [],
       match: { memberId: annId, name: "Ann Lee", campus: USYD, alreadySignedIn: false },
     });
     expect(await signedInIds(t, eventId)).toEqual([]);
   });
 
-  test("two members with the same name are left for the leader to pick", async () => {
+  test("two members with the same name are offered to the leader, who has to pick one", async () => {
     const t = await setup();
     const { eventId, token } = await enabled(t);
-    await t.run(async (ctx) => {
-      await ctx.db.insert("attendanceMembers", { name: "Sam Park" });
-      await ctx.db.insert("attendanceMembers", { name: "Sam Park" });
-    });
+    const fieldId = await campusFieldId(t);
+    const [first, second] = await t.run(async (ctx) => [
+      await ctx.db.insert("attendanceMembers", { name: "Sam Park", metadata: { [fieldId]: "3" } }),
+      await ctx.db.insert("attendanceMembers", { name: "Sam Park" }),
+    ]);
     await t.mutation(api.checkIn.submit, { token, name: "Sam Park", clientKey: "k" });
     const [row] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
     expect(row.match).toBeNull();
+    expect(row.choices).toEqual(
+      expect.arrayContaining([
+        { memberId: first, campus: USYD },
+        { memberId: second, campus: null },
+      ])
+    );
+    await expect(asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id })).rejects.toThrow(
+      /Pick which one/
+    );
+    await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id, memberId: second });
+    expect(await signedInIds(t, eventId)).toEqual([second]);
+    expect((await t.run((ctx) => ctx.db.query("attendanceMembers").collect())).filter((m) => m.name === "Sam Park")).toHaveLength(2);
   });
 
   test("names must be real, campuses must belong to the event, and a page needs its key", async () => {

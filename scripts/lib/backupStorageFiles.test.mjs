@@ -271,6 +271,66 @@ describe("backupStorageFiles", () => {
     expect(summary).toMatchObject({ total: 3, new: 3 });
   });
 
+  test("saves a checkpoint after every page that keeps earlier files and moves nothing to deleted", async () => {
+    const gcs = fakeGcs({ a: "a", b: "b", c: "c" });
+    const before = (await backupStorageFiles({
+      manifest: emptyManifest(),
+      listPage: singlePage([convexFile("old", "old-bytes")]),
+      download: fakeGcs({ old: "old-bytes" }).download,
+      upload: gcs.upload,
+      today: "2026-10-19",
+    })).manifest;
+    const pages = {
+      null: { files: [convexFile("a", "a"), convexFile("b", "b")], continueCursor: "p2", isDone: false },
+      p2: { files: [convexFile("c", "c")], continueCursor: "end", isDone: true },
+    };
+    const checkpoints = [];
+    const { manifest } = await backupStorageFiles({
+      manifest: before,
+      listPage: async (cursor) => pages[String(cursor)],
+      download: gcs.download,
+      upload: gcs.upload,
+      today: "2026-10-20",
+      onPage: async (checkpoint) => checkpoints.push(structuredClone(checkpoint)),
+    });
+    expect(checkpoints).toHaveLength(2);
+    expect(Object.keys(checkpoints[0].files).sort()).toEqual(["a", "b", "old"]);
+    expect(checkpoints[0].deleted).toEqual({});
+    expect(Object.keys(checkpoints[1].files).sort()).toEqual(["a", "b", "c", "old"]);
+    expect(Object.keys(manifest.files).sort()).toEqual(["a", "b", "c"]);
+    expect(Object.keys(manifest.deleted)).toEqual(["old"]);
+  });
+
+  test("an interrupted run keeps what its checkpoint saved", async () => {
+    const gcs = fakeGcs({ a: "a", c: "c" });
+    let saved = emptyManifest();
+    await expect(
+      backupStorageFiles({
+        manifest: emptyManifest(),
+        listPage: async (cursor) => {
+          if (cursor === null) return { files: [convexFile("a", "a")], continueCursor: "p2", isDone: false };
+          throw new Error("Convex went away");
+        },
+        download: gcs.download,
+        upload: gcs.upload,
+        today: "2026-10-20",
+        onPage: async (checkpoint) => {
+          saved = checkpoint;
+        },
+      })
+    ).rejects.toThrow(/went away/);
+    expect(Object.keys(saved.files)).toEqual(["a"]);
+    gcs.downloads.length = 0;
+    await backupStorageFiles({
+      manifest: saved,
+      listPage: singlePage([convexFile("a", "a"), convexFile("c", "c")]),
+      download: gcs.download,
+      upload: gcs.upload,
+      today: "2026-10-21",
+    });
+    expect(gcs.downloads).toEqual(["c"]);
+  });
+
   test("a failed download, a hash mismatch, a missing url and a bad digest are counted, warned and retried next run", async () => {
     const gcs = fakeGcs({ ok: "fine", tampered: "other bytes" });
     const warnings = [];

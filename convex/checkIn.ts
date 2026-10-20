@@ -140,6 +140,7 @@ export const submit = mutation({
       name,
       campus,
       memberId,
+      ...(candidates.length > 1 ? { sameNameCount: candidates.length } : {}),
       status: "pending",
       requestedAt: Date.now(),
     });
@@ -221,11 +222,21 @@ export const pending = query({
               .withIndex("by_event_and_member", (q) => q.eq("eventId", args.eventId).eq("memberId", member._id))
               .unique()) !== null
           : false;
+        const choices =
+          !member && (row.sameNameCount ?? 0) > 1
+            ? (
+                await ctx.db
+                  .query("attendanceMembers")
+                  .withIndex("by_name", (q) => q.eq("name", row.name))
+                  .take(MATCH_PROBE)
+              ).map((m) => ({ memberId: m._id, campus: resolveUniversity(fields, m.metadata) ?? null }))
+            : [];
         return {
           id: row._id,
           name: row.name,
           campus: row.campus ?? null,
           requestedAt: row.requestedAt,
+          choices,
           match: member
             ? {
                 memberId: member._id,
@@ -254,6 +265,9 @@ export const confirm = mutation({
   handler: async (ctx, args) => {
     const { email } = await requireProfile(ctx);
     const { request, event } = await pendingRequest(ctx, args.requestId);
+    if (!args.memberId && !request.memberId && (request.sameNameCount ?? 0) > 1) {
+      throw new ConvexError(`More than one member is called ${request.name}. Pick which one.`);
+    }
     let memberId = args.memberId ?? request.memberId;
     if (memberId && !(await ctx.db.get("attendanceMembers", memberId))) memberId = undefined;
     if (!memberId) {

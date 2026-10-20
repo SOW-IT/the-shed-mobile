@@ -126,14 +126,14 @@ export const rebuild = internalAction({
   },
 });
 
-const neverAtOneEvent = async (
-  ctx: Ctx,
-  memberA: MemberId,
-  memberB: MemberId
-): Promise<boolean> => {
-  const eventsOfA = new Set((await signInsOf(ctx, memberA)).map((r) => r.eventId));
-  return !(await signInsOf(ctx, memberB)).some((r) => eventsOfA.has(r.eventId));
-};
+type SignInStats = { signIns: number; lastSignIn: number | null };
+
+const statsOf = (records: Doc<"attendance">[]): SignInStats => ({
+  signIns: records.length,
+  lastSignIn: records.length ? Math.max(...records.map((r) => r.signInTime)) : null,
+});
+
+const NO_STATS: SignInStats = { signIns: 0, lastSignIn: null };
 
 const staffRecently = async (ctx: Ctx, memberId: MemberId, year: number): Promise<boolean> => {
   const years = await staffYearsOf(ctx, memberId);
@@ -156,13 +156,17 @@ export const writePairs = internalMutation({
       if ((await staffRecently(ctx, memberA, year)) || (await staffRecently(ctx, memberB, year))) {
         continue;
       }
-      if (!(await neverAtOneEvent(ctx, memberA, memberB))) continue;
+      const signInsA = await signInsOf(ctx, memberA);
+      const signInsB = await signInsOf(ctx, memberB);
+      const eventsOfA = new Set(signInsA.map((r) => r.eventId));
+      if (signInsB.some((r) => eventsOfA.has(r.eventId))) continue;
       const existing = await pairRow(ctx, memberA, memberB);
       if (existing?.status === "dismissed") continue;
+      const stats = { statsA: statsOf(signInsA), statsB: statsOf(signInsB) };
       if (existing) {
-        await ctx.db.patch(existing._id, { builtAt });
+        await ctx.db.patch(existing._id, { builtAt, ...stats });
       } else {
-        await ctx.db.insert("memberPairSuggestions", { memberA, memberB, status: "open", builtAt });
+        await ctx.db.insert("memberPairSuggestions", { memberA, memberB, status: "open", builtAt, ...stats });
       }
     }
     return null;
@@ -193,23 +197,19 @@ export const prune = internalMutation({
   },
 });
 
-const sideOf = async (
-  ctx: Ctx,
+const sideOf = (
   row: Doc<"attendanceMembers">,
   campus: string | undefined,
-  roleField: MetadataField | undefined
-): Promise<MemberPairSide> => {
-  const records = await signInsOf(ctx, row._id);
-  return {
-    memberId: row._id,
-    name: row.name,
-    email: row.email,
-    campus,
-    role: roleLabel(roleField, row.metadata),
-    signIns: records.length,
-    lastSignIn: records.length ? Math.max(...records.map((r) => r.signInTime)) : null,
-  };
-};
+  roleField: MetadataField | undefined,
+  stats: SignInStats | undefined
+): MemberPairSide => ({
+  memberId: row._id,
+  name: row.name,
+  email: row.email,
+  campus,
+  role: roleLabel(roleField, row.metadata),
+  ...(stats ?? NO_STATS),
+});
 
 export const list = query({
   args: {},
@@ -234,8 +234,8 @@ export const list = query({
       suggestions.push({
         id: row._id,
         match,
-        a: await sideOf(ctx, a, campusA, roleField),
-        b: await sideOf(ctx, b, campusB, roleField),
+        a: sideOf(a, campusA, roleField, row.statsA),
+        b: sideOf(b, campusB, roleField, row.statsB),
       });
     }
     return suggestions.sort(

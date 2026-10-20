@@ -3,6 +3,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 export CONVEX_AGENT_MODE=anonymous
+if [ -f .env.local ] && [ "${CI:-}" != "1" ] && [ "${CI:-}" != "true" ]; then
+  cp .env.local .env.local.before-sweep
+  echo "Saved your .env.local as .env.local.before-sweep; restore it with: mv .env.local.before-sweep .env.local"
+fi
 rm -f .env.local
 
 npx convex dev --once

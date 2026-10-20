@@ -5,6 +5,10 @@ import { isAdminProfile, optionalEmail, optionalProfile, requireAdmin } from "./
 const MESSAGE_LIMIT = 500;
 const STACK_LIMIT = 4000;
 const ROUTE_LIMIT = 200;
+const PLATFORM_LIMIT = 16;
+const VERSION_LIMIT = 32;
+const NEW_ERRORS_PER_HOUR = 200;
+const HOUR_MS = 60 * 60 * 1000;
 const REPEAT_WINDOW_MS = 5000;
 const RECENT_DAYS = 7;
 const RECENT_LIMIT = 50;
@@ -37,9 +41,12 @@ export const fingerprintOf = (input: {
   route?: string;
 }): string =>
   hash(
-    [stripVolatile(input.message.trim()), input.platform, input.version ?? "", input.route ?? ""].join(
-      "\n"
-    )
+    [
+      stripVolatile(input.message.trim()),
+      input.platform,
+      input.version ?? "",
+      stripVolatile(input.route ?? ""),
+    ].join("\n")
   );
 
 export const report = mutation({
@@ -53,9 +60,12 @@ export const report = mutation({
   handler: async (ctx, args) => {
     const message = trimTo(args.message.trim(), MESSAGE_LIMIT) ?? "";
     if (!message) throw new ConvexError("An error needs a message.");
+    const platform = trimTo(args.platform.trim(), PLATFORM_LIMIT) || "unknown";
+    const version = trimTo(args.version?.trim(), VERSION_LIMIT) || undefined;
+    const route = trimTo(args.route, ROUTE_LIMIT);
     const email = (await optionalEmail(ctx)) ?? undefined;
     const now = Date.now();
-    const fingerprint = fingerprintOf({ ...args, message });
+    const fingerprint = fingerprintOf({ message, platform, version, route });
     const existing = await ctx.db
       .query("appErrors")
       .withIndex("by_fingerprint", (q) => q.eq("fingerprint", fingerprint))
@@ -70,13 +80,18 @@ export const report = mutation({
       });
       return { fingerprint, repeated: false };
     }
+    const busyHour = await ctx.db
+      .query("appErrors")
+      .withIndex("by_lastAt", (q) => q.gte("lastAt", now - HOUR_MS))
+      .take(NEW_ERRORS_PER_HOUR);
+    if (busyHour.length >= NEW_ERRORS_PER_HOUR) return { fingerprint, repeated: true };
     await ctx.db.insert("appErrors", {
       fingerprint,
       message,
       stack: trimTo(args.stack, STACK_LIMIT),
-      route: trimTo(args.route, ROUTE_LIMIT),
-      platform: args.platform,
-      version: args.version,
+      route,
+      platform,
+      version,
       lastEmail: email,
       count: 1,
       firstAt: now,

@@ -85,7 +85,8 @@ const parseArgs = (argv) => {
 };
 
 const DOWNLOAD_ATTEMPTS = 3;
-const MISSING_OBJECT = /matched no objects|No URLs matched|not found|404/i;
+const MISSING_OBJECT = /(?:URLs? )?matched no objects/i;
+const DOWNLOAD_TIMEOUT_MS = 120_000;
 
 const run = makeRunner(spawnSync);
 
@@ -120,7 +121,7 @@ const makeListPage = ({ convexBin, deployment, pageSize }) => (cursor) => {
 };
 
 const downloadOnce = async (url, dest) => {
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
   if (!response.ok || !response.body) {
     const error = new Error(`HTTP ${response.status} fetching the file from Convex`);
     error.permanent = response.status >= 400 && response.status < 500;
@@ -192,6 +193,7 @@ const main = async () => {
       upload: makeUpload(args.bucket),
       today: args.today,
       warn: (message) => process.stderr.write(`${message}\n`),
+      onPage: async (checkpoint) => writeManifest(checkpoint, manifestRemote, manifestLocal),
     });
     writeManifest(result.manifest, manifestRemote, manifestLocal);
     process.stdout.write(`${summaryLine(result.summary)}\n`);
