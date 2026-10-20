@@ -138,6 +138,9 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   one. Rate limits per
   sender: 3 an hour, 10 a day, 10 waiting, and the same words twice within 10
   minutes is refused. Tapping it opens `/announcements/[id]` (app 2.4.0 on).
+  Once it has gone out, admins see on that page how many of its recipients
+  have seen it (opened it, or opened their notifications since it arrived)
+  and can list who hasn't.
 - **Editable Home tab**: Home, Resources, Connect and Partner are typed
   blocks served by `homeContent.view` (one `homeTabs` row per edited tab,
   else the built-in content in `shared/homeContent.ts`). Admins, anyone in
@@ -171,7 +174,13 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   any step your own role skips; image receipts show a thumbnail before you
   submit. An approver with requests waiting and nothing of their own to act on
   opens on Review, and a request link opens the tab that holds it (Mine,
-  Review, or All for Finance staff).
+  Review, or All for Finance staff). Each request's clock button opens its
+  timeline: every step from submitted to paid with who did it and when, the
+  gaps between steps, what it is waiting on now and how many reminders have
+  gone out for that wait, and how long submitted-to-paid took.
+- **Notifications** (the bell): everything sent to you, unread first, loading
+  older ones as you scroll (`notifications.feed`, 30 a page). Opening the
+  screen marks everything read.
 - **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
   Chart. On phones the top-left avatar, or a swipe from the left edge, opens
   a side menu with Profile, Reimbursements (staff other than campus leaders),
