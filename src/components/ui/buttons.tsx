@@ -283,6 +283,9 @@ export const Btn = ({
           }).start()
         }
         disabled={disabled || loading}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }}
         style={[
           styles.btn,
           { backgroundColor: background },

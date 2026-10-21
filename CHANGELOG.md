@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.27] - 2026-10-21
+
+### Fixed
+- **Buttons are announced as buttons.** The app's standard button never told
+  screen readers what it was: on the web it was a plain box with no button
+  role, and VoiceOver and TalkBack read only its text. It now has the button
+  role, its title as its name (without the icon), and says when it is
+  disabled or busy.
+
 ## [2.9.26] - 2026-10-21
 
 ### Fixed
