@@ -102,14 +102,18 @@ const viewerFor = async (ctx: QueryCtx, event: Doc<"events">) => {
 const stillSignedIn = async (ctx: Ctx, request: Doc<"checkInRequests">) =>
   !!request.memberId && (await attendanceOf(ctx, request.eventId, request.memberId)) !== null;
 
-const memberKnownToDevice = async (ctx: Ctx, clientKey: string, name: string) => {
-  const earlier = await ctx.db
+const trustedRequests = (ctx: Ctx, clientKey: string, limit: number) =>
+  ctx.db
     .query("checkInRequests")
-    .withIndex("by_clientKey_and_status", (q) => q.eq("clientKey", clientKey).eq("status", "confirmed"))
+    .withIndex("by_clientKey_and_status_and_forSomeoneElse", (q) =>
+      q.eq("clientKey", clientKey).eq("status", "confirmed").eq("forSomeoneElse", undefined)
+    )
     .order("desc")
-    .take(DEVICE_PROBE);
-  for (const request of earlier) {
-    if (request.forSomeoneElse || !(await stillSignedIn(ctx, request))) continue;
+    .take(limit);
+
+const memberKnownToDevice = async (ctx: Ctx, clientKey: string, name: string) => {
+  for (const request of await trustedRequests(ctx, clientKey, DEVICE_PROBE)) {
+    if (!(await stillSignedIn(ctx, request))) continue;
     const member = await ctx.db.get("attendanceMembers", request.memberId!);
     if (member && (request.name === name || capitalizeMemberName(member.name) === name)) return member._id;
   }
@@ -178,14 +182,19 @@ export const submit = mutation({
     if (yearLevel && !isCheckInYearLevel(yearLevel)) throw new ConvexError("Pick your year from the list.");
 
     const forSomeoneElse = args.forSomeoneElse === true;
+    let turnedAwayHere = false;
     for (const earlier of await deviceRequests(ctx, event._id, clientKey, name)) {
       if (earlier.status === "pending") return { status: "pending" as const, automatic: false };
-      if (earlier.status !== "confirmed") continue;
-      if (await stillSignedIn(ctx, earlier)) return { status: "confirmed" as const, automatic: false };
-      await ctx.db.patch("checkInRequests", earlier._id, { status: "dismissed", decidedAt: Date.now() });
+      if (earlier.status === "confirmed" && (await stillSignedIn(ctx, earlier))) {
+        return { status: "confirmed" as const, automatic: false };
+      }
+      if (earlier.status === "confirmed") {
+        await ctx.db.patch("checkInRequests", earlier._id, { status: "dismissed", decidedAt: Date.now() });
+      }
+      turnedAwayHere = true;
     }
 
-    const known = forSomeoneElse ? null : await memberKnownToDevice(ctx, clientKey, name);
+    const known = forSomeoneElse || turnedAwayHere ? null : await memberKnownToDevice(ctx, clientKey, name);
     if (known) {
       const now = Date.now();
       const already = await attendanceOf(ctx, event._id, known);
@@ -276,12 +285,8 @@ export const undoMine = mutation({
     if (current?._id !== automatic.attendanceId) return false;
     await signOutMember(ctx, event._id, event, memberId, SELF_CHECK_IN_ACTOR);
     await ctx.db.patch("checkInRequests", automatic._id, { status: "dismissed", decidedAt: Date.now() });
-    const trusted = await ctx.db
-      .query("checkInRequests")
-      .withIndex("by_clientKey_and_status", (q) => q.eq("clientKey", clientKey).eq("status", "confirmed"))
-      .take(PENDING_LIMIT);
-    for (const request of trusted) {
-      if (request.memberId === memberId && !request.forSomeoneElse) {
+    for (const request of await trustedRequests(ctx, clientKey, PENDING_LIMIT)) {
+      if (request.memberId === memberId) {
         await ctx.db.patch("checkInRequests", request._id, { forSomeoneElse: true });
       }
     }

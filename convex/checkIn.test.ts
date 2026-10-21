@@ -821,3 +821,53 @@ describe("deleting an event", () => {
     expect(left.map((r) => r.name)).toEqual(["Cy Ho"]);
   });
 });
+
+describe("a leader's say over a known phone", () => {
+  test("a sign-in a leader removed isn't put back by the phone at that event", async () => {
+    const t = await setup();
+    const first = await enabled(t);
+    await t.mutation(api.checkIn.submit, { token: first.token, name: "Ann Lee", clientKey: "phone" });
+    const memberId = await confirmFirst(t, first.eventId, "Ann Lee");
+    const second = await enabled(t);
+    expect(await t.mutation(api.checkIn.submit, { token: second.token, name: "Ann Lee", clientKey: "phone" })).toEqual({
+      status: "confirmed",
+      automatic: true,
+    });
+    await asUser(t, ADMIN).mutation(api.attendance.signOut, { eventId: second.eventId, memberId });
+    expect(await t.mutation(api.checkIn.submit, { token: second.token, name: "Ann Lee", clientKey: "phone" })).toEqual({
+      status: "pending",
+      automatic: false,
+    });
+    expect(await t.mutation(api.checkIn.submit, { token: second.token, name: "Ann Lee", clientKey: "phone" })).toEqual({
+      status: "pending",
+      automatic: false,
+    });
+    expect(await signedInIds(t, second.eventId)).toEqual([]);
+    const third = await enabled(t);
+    expect(await t.mutation(api.checkIn.submit, { token: third.token, name: "Ann Lee", clientKey: "phone" })).toEqual({
+      status: "confirmed",
+      automatic: true,
+    });
+  });
+
+  test("a phone that checked in many other people still knows its owner", async () => {
+    const t = await setup();
+    const first = await enabled(t);
+    await t.mutation(api.checkIn.submit, { token: first.token, name: "Ann Lee", clientKey: "phone" });
+    await confirmFirst(t, first.eventId, "Ann Lee");
+    const second = await enabled(t);
+    for (let i = 0; i < 25; i++) {
+      await t.mutation(api.checkIn.submit, {
+        token: second.token,
+        name: `Guest Number${i}`,
+        clientKey: "phone",
+        forSomeoneElse: true,
+      });
+    }
+    for (const row of (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: second.eventId }))!) {
+      await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id });
+    }
+    const third = await enabled(t);
+    expect(await t.query(api.checkIn.returning, { token: third.token, clientKey: "phone", name: "Ann Lee" })).toBe(true);
+  });
+});

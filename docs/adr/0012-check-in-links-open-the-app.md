@@ -35,9 +35,10 @@ in the last 30 days ran 2.9.19 or later.
   web" adds `#noapp` and so reaches Safari. That is one extra tap until they
   update; raising `appUpdatePolicy.recommended` after the store build nudges
   them.
-- Android already behaved like this, because its intent filter covers the
-  whole host. Android can't exclude a fragment, so on an old Android app
-  "Open on the web" can land back in the app.
+- Android's intent filter covers the whole host, but production never served
+  `assetlinks.json` either (see below), so verified app links start working
+  on Android with this release too. Android can't exclude a fragment, so on
+  an old Android app "Open on the web" can land back in the app.
 - iOS caches association files through Apple's CDN, so a change reaches
   phones within about a day of the web deploy, not straight away.
 - Until 2.9.25 the production web never served the files at all: Vercel's

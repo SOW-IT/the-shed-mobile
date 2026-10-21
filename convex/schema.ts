@@ -505,7 +505,7 @@ export default defineSchema({
   })
     .index("by_event_and_status", ["eventId", "status"])
     .index("by_event_and_clientKey_and_name", ["eventId", "clientKey", "name"])
-    .index("by_clientKey_and_status", ["clientKey", "status"]),
+    .index("by_clientKey_and_status_and_forSomeoneElse", ["clientKey", "status", "forSomeoneElse"]),
 
   attendanceAuditLog: defineTable({
     actorEmail: v.string(),
