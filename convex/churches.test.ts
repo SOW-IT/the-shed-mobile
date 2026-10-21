@@ -403,6 +403,17 @@ describe("the map", () => {
     expect((await sam.query(api.churches.directory, {}))[1].church.location).toEqual({ lat: -33.83, lng: 151.13 });
   });
 
+  test("the nightly run looks nothing up where nightly jobs are paused", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(found(-33.8, 151.0));
+    vi.stubGlobal("fetch", fetchMock);
+    const { t } = await setup();
+    vi.stubEnv("NIGHTLY_JOBS_PAUSED", "true");
+    await t.run((ctx) => ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", address: "1 Main St", addedBy: "sam@sow.org.au" }));
+    expect(await t.action(internal.churches.locateAll, { nightly: true })).toEqual({ located: 0, notFound: 0, failed: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await t.action(internal.churches.locateAll, {})).toEqual({ located: 1, notFound: 0, failed: 0 });
+  });
+
   test("a new address is looked up again; one Google can't find is tried again weeks later", async () => {
     const fetchMock = vi
       .fn()

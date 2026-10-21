@@ -25,6 +25,8 @@ export const currentStaffYear = () => staffYearForDate(new Date());
 export const nextStaffYear = () => currentStaffYear() + 1;
 export const incomingStaffYear = () => incomingStaffYearForDate(new Date());
 
+export const nightlyJobsPaused = (): boolean => process.env.NIGHTLY_JOBS_PAUSED === "true";
+
 export const allowedDomain = () =>
   process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
 

@@ -1442,4 +1442,16 @@ describe("attendanceMembers.byName", () => {
       await leader.query(api.attendanceMembers.byName, { name: "nobody" })
     ).toEqual([]);
   });
+
+  test("a different-case lookup returns only whole-name matches, not names that merely share words", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await t.run(async (ctx) => {
+      for (const name of ["Jane Doe", "jane doe", "Jane Doering", "Janet Doe", "Doe Jane"]) {
+        await ctx.db.insert("attendanceMembers", { name });
+      }
+    });
+    const matches = await leader.query(api.attendanceMembers.byName, { name: "JANE DOE" });
+    expect(matches.map((m) => m.name).sort()).toEqual(["Jane Doe", "jane doe"]);
+  });
 });

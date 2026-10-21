@@ -527,6 +527,47 @@ describe("attendance audit logging", () => {
     expect(options.events[0].id).toBe(laterEvent);
   });
 
+  test("filterOptions reads only the newest audit rows, and still offers events that have started", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const quietEvent = await t.run((ctx) =>
+      ctx.db.insert("events", {
+        name: "Quiet Event",
+        dateStart: Date.now() - 86_400_000,
+        dateEnd: Date.now() - 82_800_000,
+        subgroups: [USYD],
+      })
+    );
+    const busyEvent = await staff.mutation(api.events.create, {
+      name: "Busy Event",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("attendanceAuditLog", {
+        actorEmail: "long-ago@sow.org.au",
+        entityType: "event",
+        action: "event.update",
+        summary: "An old edit",
+      });
+      for (let i = 0; i < 200; i++) {
+        await ctx.db.insert("attendanceAuditLog", {
+          actorEmail: STAFF,
+          entityType: "attendance",
+          action: "attendance.signIn",
+          summary: `Sign-in ${i}`,
+          eventId: busyEvent,
+        });
+      }
+    });
+
+    const options = await staff.query(api.attendanceAudit.filterOptions, {});
+    expect(options.actors.map((a) => a.email)).toEqual([STAFF]);
+    expect(options.events.map((e) => e.id).sort()).toEqual([busyEvent, quietEvent].sort());
+  });
+
   test("filterOptions is gated to signed-in staff", async () => {
     const t = await setup();
     const anon = await t.query(api.attendanceAudit.filterOptions, {});

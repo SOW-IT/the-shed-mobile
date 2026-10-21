@@ -446,6 +446,15 @@ describe("campus weekly attendance in General", () => {
     ]);
   });
 
+  test("takes each weekly's stored count instead of counting its sign-ins", async () => {
+    const t = await withStaffHistory();
+    const eventId = await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2026, count: 2 });
+    await t.run((ctx) => ctx.db.insert("eventAttendanceCounts", { eventId, count: 12 }));
+
+    const res = await campusWeekly(t);
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [0, 12] }]);
+  });
+
   test("ignores events that aren't weeklies, whatever their tags", async () => {
     const t = await withStaffHistory();
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 12 });
