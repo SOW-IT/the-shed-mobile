@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -278,14 +278,24 @@ export function CheckInSheet({
 
   const matched = (pending ?? []).filter((row) => row.match);
   const unmatched = (pending ?? []).filter((row) => !row.match);
+  const suggestions = useMemo(
+    () =>
+      new Map(
+        (pending ?? [])
+          .filter((row) => !row.match)
+          .map((row) => [
+            row.id,
+            members
+              ? suggestMembers(row.name, row.campus, members)
+              : row.choices.map((choice) => ({ memberId: choice.memberId, name: row.name, university: choice.campus })),
+          ])
+      ),
+    [pending, members]
+  );
   const signIn = (row: PendingRow, memberId?: Id<"attendanceMembers">) =>
     void act(row.id, () => confirm({ requestId: row.id, ...(memberId ? { memberId } : {}) }));
   const addAsNew = (row: PendingRow) => void act(row.id, () => confirm({ requestId: row.id, asNew: true }));
   const dismissRow = (row: PendingRow) => void act(`x${row.id}`, () => dismiss({ requestId: row.id }));
-  const suggestionsFor = (row: PendingRow): MemberChoice[] =>
-    members
-      ? suggestMembers(row.name, row.campus, members)
-      : row.choices.map((choice) => ({ memberId: choice.memberId, name: row.name, university: choice.campus }));
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Self check-in">
@@ -412,20 +422,20 @@ export function CheckInSheet({
           <View style={{ gap: spacing.sm }}>
             <Text style={[typography.headline, { color: t.text }]}>Needs a member · {unmatched.length}</Text>
             {unmatched.map((row) => {
-              const suggestions = suggestionsFor(row);
+              const rowSuggestions: MemberChoice[] = suggestions.get(row.id) ?? [];
               return (
                 <View key={row.id} style={[styles.request, { backgroundColor: t.inputBackground }]}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>{row.name}</Text>
                     <Text style={[typography.caption, { color: t.muted }]}>{requestDetails(row)}</Text>
                     <Text style={[typography.caption, { color: t.accent }]}>
-                      {suggestions.length > 0
+                      {rowSuggestions.length > 0
                         ? "Is it one of these? Tap to sign them in, or add a new member."
                         : "Not on the member list. Find them, or add a new member."}
                     </Text>
-                    {suggestions.length > 0 ? (
+                    {rowSuggestions.length > 0 ? (
                       <View style={styles.pills}>
-                        {suggestions.map((member) => (
+                        {rowSuggestions.map((member) => (
                           <Pill
                             key={member.memberId}
                             tone="primary"

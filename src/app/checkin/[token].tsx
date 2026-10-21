@@ -149,10 +149,17 @@ export default function CheckInScreen() {
       });
       const name = cleanName(values.name);
       if (remember) {
+        const rememberedYear = remembered?.commencementYear ?? null;
+        const sameLevel =
+          rememberedYear !== null && values.level === levelForCommencement(rememberedYear, page.calendarYear);
         const details: CheckInDetails = {
           name,
           campus: campus ?? null,
-          commencementYear: values.level ? commencementForLevel(values.level, page.calendarYear) : null,
+          commencementYear: values.level
+            ? sameLevel
+              ? rememberedYear
+              : commencementForLevel(values.level, page.calendarYear)
+            : null,
         };
         void saveCheckInDetails(details);
         setDevice({ clientKey: device.clientKey, details });
