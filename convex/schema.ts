@@ -493,6 +493,7 @@ export default defineSchema({
     clientKey: v.string(),
     name: v.string(),
     campus: v.optional(v.string()),
+    yearLevel: v.optional(v.string()),
     memberId: v.optional(v.id("attendanceMembers")),
     sameNameCount: v.optional(v.number()),
     status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("dismissed")),
@@ -501,7 +502,8 @@ export default defineSchema({
     decidedBy: v.optional(v.string()),
   })
     .index("by_event_and_status", ["eventId", "status"])
-    .index("by_event_and_clientKey", ["eventId", "clientKey"]),
+    .index("by_event_and_clientKey", ["eventId", "clientKey"])
+    .index("by_clientKey_and_status", ["clientKey", "status"]),
 
   attendanceAuditLog: defineTable({
     actorEmail: v.string(),

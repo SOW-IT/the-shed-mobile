@@ -265,7 +265,8 @@ export async function signInMember(
   ctx: MutationCtx,
   event: Doc<"events">,
   memberId: Id<"attendanceMembers">,
-  actorEmail: string
+  actorEmail: string,
+  signInTime: number = Date.now()
 ): Promise<Id<"attendance">> {
   const eventId = event._id;
   const year = eventStaffYear(event.dateStart);
@@ -281,7 +282,7 @@ export async function signInMember(
   const id = await ctx.db.insert("attendance", {
     eventId,
     memberId,
-    signInTime: Date.now(),
+    signInTime,
   });
   await adjustEventAttendanceCount(ctx, eventId, 1);
   const { name, email: subjectEmail } = await memberAuditName(ctx, member, year);
@@ -374,33 +375,45 @@ export const signOut = mutation({
       memberId = profile ? await knownMemberId(ctx, profile) : null;
     }
     if (!memberId) return;
-    const existing = await ctx.db
-      .query("attendance")
-      .withIndex("by_event_and_member", (q) =>
-        q.eq("eventId", eventId).eq("memberId", memberId)
-      )
-      .unique();
-    if (!existing) return;
-    if (event && !canReverseSignIn(event, existing.signInTime)) {
-      throw new ConvexError(
-        "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
-      );
-    }
-    await ctx.db.delete(existing._id);
-    await adjustEventAttendanceCount(ctx, eventId, -1);
-    const member = await ctx.db.get(memberId);
-    const who = member
-      ? await memberAuditName(ctx, member, year)
-      : { name: "A member", email: undefined };
-    await logAttendanceAction(ctx, {
-      actorEmail,
-      entityType: "attendance",
-      action: "attendance.signOut",
-      summary: `${who.name} signed out of ${auditEventName(event)}`,
-      eventId,
-      memberId,
-      subjectEmail: who.email,
-      detail: undoDetail(event, existing.signInTime),
-    });
+    await signOutMember(ctx, eventId, event, memberId, actorEmail);
   },
 });
+
+export async function signOutMember(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  event: Doc<"events"> | null,
+  memberId: Id<"attendanceMembers">,
+  actorEmail: string
+): Promise<boolean> {
+  const year = event ? eventStaffYear(event.dateStart) : staffYearForDate(new Date());
+  const existing = await ctx.db
+    .query("attendance")
+    .withIndex("by_event_and_member", (q) =>
+      q.eq("eventId", eventId).eq("memberId", memberId)
+    )
+    .unique();
+  if (!existing) return false;
+  if (event && !canReverseSignIn(event, existing.signInTime)) {
+    throw new ConvexError(
+      "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
+    );
+  }
+  await ctx.db.delete(existing._id);
+  await adjustEventAttendanceCount(ctx, eventId, -1);
+  const member = await ctx.db.get(memberId);
+  const who = member
+    ? await memberAuditName(ctx, member, year)
+    : { name: "A member", email: undefined };
+  await logAttendanceAction(ctx, {
+    actorEmail,
+    entityType: "attendance",
+    action: "attendance.signOut",
+    summary: `${who.name} signed out of ${auditEventName(event)}`,
+    eventId,
+    memberId,
+    subjectEmail: who.email,
+    detail: undoDetail(event, existing.signInTime),
+  });
+  return true;
+}

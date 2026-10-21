@@ -220,13 +220,35 @@ describe("checking in from the public page", () => {
     ).rejects.toThrow(/closed/);
   });
 
-  test("an org-wide event offers no campus and stores none", async () => {
+  test("an org-wide event offers every university this year, and a campus is optional", async () => {
     const t = await setup();
     const { eventId, token } = await enabled(t, ["SOW"]);
-    expect((await t.query(api.checkIn.page, { token }))?.campuses).toEqual([]);
+    const offered = (await t.query(api.checkIn.page, { token }))!.campuses.map((c) => c.value);
+    expect(offered).toEqual(expect.arrayContaining([USYD, UNSW]));
     await t.mutation(api.checkIn.submit, { token, name: "Ann Lee", clientKey: "k" });
-    const [row] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
-    expect(row.campus).toBeNull();
+    await t.mutation(api.checkIn.submit, { token, name: "Ben Ng", campus: UNSW, clientKey: "k" });
+    await expect(
+      t.mutation(api.checkIn.submit, { token, name: "Cy Ho", campus: "Nowhere University", clientKey: "k" })
+    ).rejects.toThrow(/campus/);
+    const rows = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    expect(rows.find((r) => r.name === "Ann Lee")?.campus).toBeNull();
+    expect(rows.find((r) => r.name === "Ben Ng")?.campus).toBe(UNSW);
+  });
+
+  test("a year at uni is optional, must be one on the list, and reaches the leader", async () => {
+    const t = await setup();
+    const { eventId, token } = await enabled(t, [USYD, UNSW]);
+    expect((await t.query(api.checkIn.page, { token }))?.calendarYear).toBe(
+      Number(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Sydney", year: "numeric" }).format(PINNED_NOW))
+    );
+    await t.mutation(api.checkIn.submit, { token, name: "Ann Lee", yearLevel: "2", clientKey: "a" });
+    await t.mutation(api.checkIn.submit, { token, name: "Ben Ng", yearLevel: " ", clientKey: "b" });
+    await expect(
+      t.mutation(api.checkIn.submit, { token, name: "Cy Ho", yearLevel: "7", clientKey: "c" })
+    ).rejects.toThrow(/year/);
+    const rows = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    expect(rows.find((r) => r.name === "Ann Lee")?.yearLevel).toBe("2");
+    expect(rows.find((r) => r.name === "Ben Ng")?.yearLevel).toBeNull();
   });
 
   test("a flood of check-ins stops at 300 waiting", async () => {
@@ -390,5 +412,285 @@ describe("a leader handling the waiting list", () => {
     await expect(asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: first.id })).rejects.toThrow(/already/);
     await t.run((ctx) => ctx.db.delete(eventId));
     await expect(asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: second.id })).rejects.toThrow(/not found/);
+  });
+});
+
+const yearFieldId = (t: T) =>
+  t.run((ctx) => ctx.db.insert("attendanceMetadata", { key: "Year", type: "select", order: 0, values: { "1": "1", "2": "2" } }));
+
+const signInTimes = (t: T, eventId: Id<"events">) =>
+  t.run(async (ctx) =>
+    Object.fromEntries(
+      (await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()).map(
+        (r) => [r.memberId, r.signInTime]
+      )
+    )
+  );
+
+describe("sign-in times and new members' details", () => {
+  test("a confirmed check-in keeps the time the person checked in, not when a leader confirmed it", async () => {
+    const t = await setup();
+    const { eventId, token } = await enabled(t);
+    const annId = await t.run((ctx) => ctx.db.insert("attendanceMembers", { name: "Ann Lee" }));
+    await t.mutation(api.checkIn.submit, { token, name: "Ann Lee", clientKey: "a" });
+    vi.setSystemTime(PINNED_NOW + 60_000);
+    await t.mutation(api.checkIn.submit, { token, name: "New Person", clientKey: "b" });
+    vi.setSystemTime(PINNED_NOW + 25 * 60_000);
+    const rows = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: rows[0].id });
+    const { memberId } = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: rows[1].id });
+    const times = await signInTimes(t, eventId);
+    expect(times[annId]).toBe(rows[0].requestedAt);
+    expect(times[memberId]).toBe(rows[1].requestedAt);
+    expect(rows[1].requestedAt - rows[0].requestedAt).toBeGreaterThanOrEqual(60_000);
+  });
+
+  test("a new member gets the campus and year they gave; 6+ counts back five years", async () => {
+    const t = await setup();
+    const yearId = await yearFieldId(t);
+    const { eventId, token } = await enabled(t);
+    const calendarYear = (await t.query(api.checkIn.page, { token }))!.calendarYear;
+    await t.mutation(api.checkIn.submit, { token, name: "Ann Lee", yearLevel: "2", clientKey: "a" });
+    await t.mutation(api.checkIn.submit, { token, name: "Ben Ng", yearLevel: "6+", clientKey: "b" });
+    const rows = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    const ann = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: rows[0].id });
+    const ben = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: rows[1].id });
+    const fieldId = await campusFieldId(t);
+    expect((await t.run((ctx) => ctx.db.get(ann.memberId)))?.metadata).toEqual({
+      [fieldId]: "3",
+      [yearId]: String(calendarYear - 1),
+    });
+    expect((await t.run((ctx) => ctx.db.get(ben.memberId)))?.metadata?.[yearId]).toBe(String(calendarYear - 5));
+  });
+
+  test("a year with no Year field to hold it, or a stored level that isn't on the list, is left off", async () => {
+    const t = await setup(false);
+    const { eventId, token } = await enabled(t, ["SOW"]);
+    await t.mutation(api.checkIn.submit, { token, name: "Ann Lee", yearLevel: "3", clientKey: "a" });
+    const [row] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    const made = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id });
+    expect((await t.run((ctx) => ctx.db.get(made.memberId)))?.metadata).toBeUndefined();
+
+    const withYear = await setup(false);
+    await yearFieldId(withYear);
+    const second = await enabled(withYear, ["SOW"]);
+    const requestId = await withYear.run((ctx) =>
+      ctx.db.insert("checkInRequests", {
+        eventId: second.eventId,
+        clientKey: "k",
+        name: "Old Request",
+        yearLevel: "9",
+        status: "pending",
+        requestedAt: PINNED_NOW,
+      })
+    );
+    const old = await asUser(withYear, ADMIN).mutation(api.checkIn.confirm, { requestId });
+    expect((await withYear.run((ctx) => ctx.db.get(old.memberId)))?.metadata).toBeUndefined();
+  });
+});
+
+describe("confirming every match at once", () => {
+  test("signs in each matched person at their own time and leaves the rest waiting", async () => {
+    const t = await setup();
+    const { eventId, token } = await enabled(t);
+    const [annId, benId] = await t.run(async (ctx) => [
+      await ctx.db.insert("attendanceMembers", { name: "Ann Lee" }),
+      await ctx.db.insert("attendanceMembers", { name: "Ben Ng" }),
+    ]);
+    await t.mutation(api.checkIn.submit, { token, name: "Ann Lee", clientKey: "a" });
+    vi.setSystemTime(PINNED_NOW + 60_000);
+    await t.mutation(api.checkIn.submit, { token, name: "Ben Ng", clientKey: "b" });
+    await t.mutation(api.checkIn.submit, { token, name: "New Person", clientKey: "c" });
+    vi.setSystemTime(PINNED_NOW + 30 * 60_000);
+    const rows = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    const ids = rows.map((r) => r.id);
+    expect(
+      await asUser(t, ADMIN).mutation(api.checkIn.confirmMatched, { requestIds: [...ids, ids[0]] })
+    ).toEqual({ confirmed: 2 });
+    const times = await signInTimes(t, eventId);
+    expect(times[annId]).toBe(rows[0].requestedAt);
+    expect(times[benId]).toBe(rows[1].requestedAt);
+    const left = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    expect(left.map((r) => r.name)).toEqual(["New Person"]);
+    expect(await asUser(t, ADMIN).mutation(api.checkIn.confirmMatched, { requestIds: ids })).toEqual({ confirmed: 0 });
+  });
+
+  test("skips a match whose member or event has gone, and needs a leader and a sensible batch", async () => {
+    const t = await setup();
+    const first = await enabled(t);
+    const second = await enabled(t);
+    const [annId] = await t.run(async (ctx) => [
+      await ctx.db.insert("attendanceMembers", { name: "Ann Lee" }),
+      await ctx.db.insert("attendanceMembers", { name: "Ben Ng" }),
+    ]);
+    await t.mutation(api.checkIn.submit, { token: first.token, name: "Ann Lee", clientKey: "a" });
+    await t.mutation(api.checkIn.submit, { token: second.token, name: "Ben Ng", clientKey: "b" });
+    const [ann] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: first.eventId }))!;
+    const [ben] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: second.eventId }))!;
+    await t.run(async (ctx) => {
+      await ctx.db.delete(annId);
+      await ctx.db.delete(second.eventId);
+    });
+    await expect(t.mutation(api.checkIn.confirmMatched, { requestIds: [ann.id] })).rejects.toThrow();
+    expect(
+      await asUser(t, ADMIN).mutation(api.checkIn.confirmMatched, { requestIds: [ann.id, ben.id] })
+    ).toEqual({ confirmed: 0 });
+    await expect(
+      asUser(t, ADMIN).mutation(api.checkIn.confirmMatched, { requestIds: Array(301).fill(ann.id) })
+    ).rejects.toThrow(/fewer/);
+  });
+});
+
+describe("a leader opening the link", () => {
+  test("signed out, the page has no viewer; a signed-in non-leader is shown the form with their name", async () => {
+    const t = await setup();
+    const { token } = await enabled(t);
+    expect((await t.query(api.checkIn.page, { token }))?.viewer).toBeNull();
+    const userId = await t.run((ctx) => ctx.db.insert("users", { email: "ann@gmail.com", name: "ann lee" }));
+    const visitor = t.withIdentity({ subject: `${userId}|s`, issuer: "test" });
+    expect((await visitor.query(api.checkIn.page, { token }))?.viewer).toEqual({
+      leader: false,
+      eventId: null,
+      name: "Ann Lee",
+      signedIn: false,
+    });
+    expect((await asUser(t, "nobody@gmail.com").query(api.checkIn.page, { token }))?.viewer).toEqual({
+      leader: false,
+      eventId: null,
+      name: null,
+      signedIn: false,
+    });
+    await expect(visitor.mutation(api.checkIn.signInLeader, { token })).rejects.toThrow(/Only leaders/);
+    await expect(t.mutation(api.checkIn.signInLeader, { token })).rejects.toThrow(/signed in/);
+    expect(await visitor.mutation(api.checkIn.signOutLeader, { token })).toBe(false);
+  });
+
+  test("signs a leader straight in, once, and lets them undo it", async () => {
+    const t = await setup();
+    const { eventId, token } = await enabled(t);
+    expect((await asUser(t, ADMIN).query(api.checkIn.page, { token }))?.viewer).toMatchObject({
+      leader: true,
+      eventId,
+      signedIn: false,
+    });
+    const first = await asUser(t, ADMIN).mutation(api.checkIn.signInLeader, { token });
+    expect(first).toMatchObject({ alreadySignedIn: false, name: expect.any(String) });
+    expect(await asUser(t, ADMIN).mutation(api.checkIn.signInLeader, { token })).toMatchObject({
+      alreadySignedIn: true,
+    });
+    expect(await signedInIds(t, eventId)).toHaveLength(1);
+    expect((await asUser(t, ADMIN).query(api.checkIn.page, { token }))?.viewer).toMatchObject({
+      leader: true,
+      signedIn: true,
+      name: first.name,
+    });
+    expect(await asUser(t, ADMIN).mutation(api.checkIn.signOutLeader, { token })).toBe(true);
+    expect(await asUser(t, ADMIN).mutation(api.checkIn.signOutLeader, { token })).toBe(false);
+    expect(await signedInIds(t, eventId)).toEqual([]);
+    const audit = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
+    expect(audit.map((a) => a.action)).toEqual(expect.arrayContaining(["attendance.signIn", "attendance.signOut"]));
+  });
+
+  test("a leader whose profile has no member row yet gets one; a closed or bad link refuses", async () => {
+    const t = await setup();
+    const early = await enabled(t, [USYD], 3 * HOUR);
+    await expect(asUser(t, ADMIN).mutation(api.checkIn.signInLeader, { token: early.token })).rejects.toThrow(/closed/);
+    await expect(asUser(t, ADMIN).mutation(api.checkIn.signInLeader, { token: "nope" })).rejects.toThrow(/isn't valid/);
+    await expect(asUser(t, ADMIN).mutation(api.checkIn.signOutLeader, { token: "nope" })).rejects.toThrow(/isn't valid/);
+    expect((await asUser(t, ADMIN).query(api.checkIn.page, { token: early.token }))?.viewer).toMatchObject({
+      leader: true,
+      signedIn: false,
+    });
+  });
+});
+
+describe("someone a leader has already matched, checking in again from the same phone", () => {
+  test("is signed straight in at a later event, under their own name only", async () => {
+    const t = await setup();
+    const first = await enabled(t);
+    await t.mutation(api.checkIn.submit, { token: first.token, name: "New Person", clientKey: "phone" });
+    expect(await t.query(api.checkIn.mine, { token: first.token, clientKey: "phone" })).toEqual([
+      { name: "New Person", status: "pending" },
+    ]);
+    const [row] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: first.eventId }))!;
+    const { memberId } = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id });
+    expect(await t.query(api.checkIn.mine, { token: first.token, clientKey: "phone" })).toEqual([
+      { name: "New Person", status: "confirmed" },
+    ]);
+
+    vi.setSystemTime(PINNED_NOW + 7 * 24 * HOUR);
+    const second = await enabled(t);
+    expect(
+      await t.mutation(api.checkIn.submit, { token: second.token, name: "new person", clientKey: "phone" })
+    ).toEqual({ status: "confirmed" });
+    expect(await signedInIds(t, second.eventId)).toEqual([memberId]);
+    expect((await signInTimes(t, second.eventId))[memberId]).toBeGreaterThanOrEqual(PINNED_NOW + 7 * 24 * HOUR);
+    expect(await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: second.eventId })).toEqual([]);
+    expect(
+      await t.mutation(api.checkIn.submit, { token: second.token, name: "New Person", clientKey: "phone" })
+    ).toEqual({ status: "confirmed" });
+
+    await t.mutation(api.checkIn.submit, { token: second.token, name: "Their Friend", clientKey: "phone" });
+    await t.mutation(api.checkIn.submit, { token: second.token, name: "New Person", clientKey: "other-phone" });
+    const waiting = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: second.eventId }))!;
+    expect(waiting.map((r) => r.name).sort()).toEqual(["New Person", "Their Friend"]);
+    const audit = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
+    expect(audit.some((a) => a.actorEmail === "system:self-check-in" && a.action === "attendance.signIn")).toBe(true);
+  });
+
+  test("follows a member renamed since, and falls back to waiting once that member is gone", async () => {
+    const t = await setup();
+    const first = await enabled(t);
+    await t.mutation(api.checkIn.submit, { token: first.token, name: "Jon Smith", clientKey: "phone" });
+    const [row] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: first.eventId }))!;
+    const { memberId } = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id });
+    await t.run((ctx) => ctx.db.patch(memberId, { name: "John Smith" }));
+
+    const second = await enabled(t);
+    expect(
+      await t.mutation(api.checkIn.submit, { token: second.token, name: "John Smith", clientKey: "phone" })
+    ).toEqual({ status: "confirmed" });
+
+    await t.run((ctx) => ctx.db.delete(memberId));
+    const third = await enabled(t);
+    expect(
+      await t.mutation(api.checkIn.submit, { token: third.token, name: "Jon Smith", clientKey: "phone" })
+    ).toEqual({ status: "pending" });
+    expect(await t.query(api.checkIn.mine, { token: "nope", clientKey: "phone" })).toEqual([]);
+    expect(await t.query(api.checkIn.mine, { token: third.token, clientKey: " " })).toEqual([]);
+  });
+});
+
+describe("opening the link again on a phone that has checked in before", () => {
+  test("knows the phone and name, signs them in, and lets that phone undo only its own automatic sign-in", async () => {
+    const t = await setup();
+    const first = await enabled(t);
+    await t.mutation(api.checkIn.submit, { token: first.token, name: "Ann Lee", clientKey: "phone" });
+    const second = await enabled(t);
+    expect(await t.query(api.checkIn.returning, { token: second.token, clientKey: "phone", name: "Ann Lee" })).toBe(false);
+    const [row] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: first.eventId }))!;
+    const { memberId } = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id });
+    expect(await t.query(api.checkIn.returning, { token: second.token, clientKey: "phone", name: " ann  lee" })).toBe(true);
+    expect(await t.query(api.checkIn.returning, { token: second.token, clientKey: "phone", name: "Ben Ng" })).toBe(false);
+    expect(await t.query(api.checkIn.returning, { token: second.token, clientKey: "laptop", name: "Ann Lee" })).toBe(false);
+    expect(await t.query(api.checkIn.returning, { token: "nope", clientKey: "phone", name: "Ann Lee" })).toBe(false);
+    expect(await t.query(api.checkIn.returning, { token: second.token, clientKey: "phone", name: "A" })).toBe(false);
+
+    expect(await t.mutation(api.checkIn.undoMine, { token: first.token, clientKey: "phone", name: "Ann Lee" })).toBe(false);
+    await t.mutation(api.checkIn.submit, { token: second.token, name: "Ann Lee", clientKey: "phone" });
+    expect(await signedInIds(t, second.eventId)).toEqual([memberId]);
+    expect(await t.mutation(api.checkIn.undoMine, { token: second.token, clientKey: "laptop", name: "Ann Lee" })).toBe(false);
+    expect(await t.mutation(api.checkIn.undoMine, { token: second.token, clientKey: "phone", name: "Ann Lee" })).toBe(true);
+    expect(await signedInIds(t, second.eventId)).toEqual([]);
+    expect(await t.query(api.checkIn.mine, { token: second.token, clientKey: "phone" })).toEqual([
+      { name: "Ann Lee", status: "dismissed" },
+    ]);
+    expect(await t.mutation(api.checkIn.undoMine, { token: second.token, clientKey: "phone", name: "Ann Lee" })).toBe(false);
+    await expect(t.mutation(api.checkIn.undoMine, { token: "nope", clientKey: "phone", name: "Ann Lee" })).rejects.toThrow(
+      /isn't valid/
+    );
+    expect(await t.mutation(api.checkIn.submit, { token: second.token, name: "Ann Lee", clientKey: "phone" })).toEqual({
+      status: "confirmed",
+    });
   });
 });
