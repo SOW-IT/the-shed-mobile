@@ -111,19 +111,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       **Unlisted App Distribution** is the lighter option for a staff app.
       Android likewise needs the store listing, content rating and Data safety
       form to leave the internal track.
-- [ ] **Confirm Google verifies the Android app links.** 2.9.28 adds Google
-      Play's app-signing keys (Play Console, Test and release, App integrity,
-      App signing, "App signing key certificate"): **The SHED** `BC:05:F0:8B:…:0E:62`
-      in `web/.well-known/assetlinks.json` and **The SHED Staging**
-      `1B:05:5E:47:…:94:C8` in `web-dev/.well-known/assetlinks.json`. After it
-      deploys, check
-      `https://digitalassetlinks.googleapis.com/v1/assetlinks:check?source.web.site=https://theshed.sow.org.au&relation=delegate_permission/common.handle_all_urls&target.android_app.package_name=au.org.sow.theshed&target.android_app.certificate.sha256_fingerprint=<the key>`
-      says `"linked": true` (and the same for the dev web and the staging key),
-      then move this to "Already done" with that evidence. Android verifies
-      when the app is installed or updated, so Play installs pick it up with
-      their next update. On Android 14 and older, an old app's "Open on the
-      web" and a web sign-in on a phone with the app can then land in the app,
-      because those versions can't skip `#noapp` or `?code=` links.
 
 ---
 
@@ -224,3 +211,14 @@ returns the file for `4FH642K7X2.au.org.sow.theshed.staging`.
 > keystores the builds are signed with (`eas credentials`, the default build
 > credentials). If Play's key ever changes (a key upgrade in Play Console),
 > update it there too, or Android App Links stop verifying for Play installs.
+
+**Android App Links verified**: 2.9.28 (`828786a`) added Google Play's
+app-signing keys. Google's `assetlinks:check` returned `"linked": true` on
+2026-10-21 07:50 UTC for all four keys: The SHED on `theshed.sow.org.au`
+(Play `BC:05:F0:8B:…:0E:62` and EAS `35:E8:D8:3F:…:E6:43`) and The SHED
+Staging on `the-shed-web-dev.vercel.app` (Play `1B:05:5E:47:…:94:C8` and EAS
+`B5:96:8D:48:…:80:B9`). Android verifies when the app is installed or updated,
+so Play installs open links in the app after their next update. On Android 14
+and older, an old app's "Open on the web" and a web sign-in on a phone with the
+app can land in the app, because those versions ignore the `#noapp` and
+`?code=` rules.
