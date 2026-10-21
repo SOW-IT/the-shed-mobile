@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.25] - 2026-10-21
+
+### Fixed
+- **A shared check-in link opens the check-in page on iPhone.** Share link
+  on an event's self check-in handed iOS the link twice, so Copy, Messages
+  and the rest gave "link link", and opening it showed "Page not found". It
+  now shares the link once. The QR code was never affected, and Android
+  already shared it once.
+
 ## [2.9.24] - 2026-10-21
 
 ### Fixed
