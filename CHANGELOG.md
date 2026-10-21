@@ -6,14 +6,6 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-### Fixed
-- **The nightly warehouse check reads BigQuery's answer again.** Its first
-  run on 20 October failed because `bq query` printed a `WARNING:` line before
-  the JSON rows, so the check never compared the warehouse with the night
-  before (the backup and the BigQuery load had both finished). It now skips
-  anything bq prints before the rows, and if the output still isn't JSON the
-  error shows what bq printed.
-
 ## [2.9.27] - 2026-10-21
 
 ### Fixed

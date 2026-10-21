@@ -42,9 +42,10 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       check overwrites `convex/production/checks/latest.json`. Both need
       `storage.objects.delete` on the backup bucket for
       `GCP_BACKUP_SERVICE_ACCOUNT` (file objects and the database zips are
-      never overwritten). Without it the first write of each file works and
-      every later one fails: on 2026-10-20 the manifest was created at
-      19:21:53Z and replacing it four minutes later failed with
+      never overwritten). Without it, new file objects and zips still upload
+      and each JSON file can be created once, but replacing it fails: on
+      2026-10-20 the manifest was created at 19:21:53Z and replacing it four
+      minutes later failed with
       `GcsApiError('')`, so the file copy stops after its first page each
       night, and the warehouse check will fail from its second night. The
       first night with the grant downloads every file not yet in the
