@@ -1,7 +1,13 @@
 # Convex database reads, 2026-10-21
 
 Where production's database reads go, why, and what to change to cut them.
-Measured on main at `dea7b1e` (2.9.26). No code has been changed yet.
+Measured on main at `dea7b1e` (2.9.26).
+
+**Status:** fixes 1 to 6 ship in 2.9.28. Fix 5 uses a search index on
+`attendanceMembers.name` rather than a `nameKey` field: a new field would add
+about 25 bytes to every member row, and `roster` and the Members list read
+all 1,415 rows on every run, which would have cancelled most of the saving.
+Fixes 7 to 14 are not done.
 
 ## Summary
 
@@ -293,7 +299,7 @@ Ranked quick wins first. Savings are estimates for a month like the last one
 | 2 | Gate the nightly crons on an env var and set it on dev | the six nightly handlers; `npx convex env set` on dev; Natalie merges main | Convex deploy (dev redeploy by hand) | | -0.27 GB | S |
 | 3 | `recomputeCampusWeeklyAttendance`: use the stored count instead of collecting rows | `convex/generalMetrics.ts:360` | Convex deploy | -3 MB | -0.17 GB (prod and dev) | XS |
 | 4 | `filterOptions`: newest 200 audit rows instead of 1,000 | `convex/attendanceAudit.ts:188` | Convex deploy | -5 MB | -0.1 GB | XS |
-| 5 | `byName`: add a lower-case `nameKey` index so a miss is an index probe, not a table scan | schema, member writes, backfill | Convex deploy | -7 MB | -0.1 GB | S |
+| 5 | `byName`: look a miss up through an index instead of scanning the table (shipped as a search index on `name`, see Status) | schema | Convex deploy | -7 MB | -0.1 GB | S |
 | 6 | Role lookups on the roll call read only the event campus's `weeklyCategories` row (23 KB, not 82 KB) | `memberRoles.ts`, `attendance.ts` | Convex deploy | -25 MB | -0.2 GB | S |
 | 7 | Phones: mount a sub-tab only once it has been shown (and pass `"skip"` on Members/Admin pages until then) | `PagerCarousel.native.tsx` | OTA (2.9.19+) or store build | -40 MB | -0.8 to 1.2 GB | S |
 | 8 | Back up weekly (or every few days) instead of daily | `convex-backup.yml` cron | GitHub | -8 MB | -0.24 GB | XS |

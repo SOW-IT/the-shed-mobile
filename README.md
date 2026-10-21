@@ -518,6 +518,10 @@ Prod env vars are managed with `npx convex env set --prod ...` (JWT keys,
 SITE_URL/APP_URL, Resend are set; Google OAuth + directory-sync vars need
 `--prod` copies when configured). Re-seed prod with the real admin email via
 `npx convex run --prod admin:seed '{"adminEmail":"you@sow.org.au"}'`.
+`NIGHTLY_JOBS_PAUSED=true` (for the shared dev deployment) makes the nightly
+Insights, attendance metrics and church map crons do nothing; run them by hand
+with `npx convex run attendanceMetrics:recomputeAll` or
+`npx convex run weeklyInsights:rebuildAll` when you need fresh numbers.
 
 The same app runs in the browser via react-native-web, hosted at
 **<https://theshed.sow.org.au>** (Vercel project `the-shed-web`, served on the

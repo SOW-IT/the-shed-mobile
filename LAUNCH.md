@@ -17,6 +17,19 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
+- [ ] **After 2.9.28 is live, move the event head counts once:**
+      `npx convex run --prod attendanceCounts:backfill`. It recounts every
+      event into `eventAttendanceCounts` and clears the old
+      `events.attendanceCount` field (about 3.5 MB of reads, once). Until it
+      runs, lists fall back to the old field and an event's first sign-in
+      recounts it, so nothing shows a wrong count in the meantime. A later
+      release can drop the field from the schema once no event has it.
+- [ ] **Redeploy dev with 2.9.28 so its nightly jobs pause.**
+      `NIGHTLY_JOBS_PAUSED=true` was set on `successful-lynx-56` on
+      2026-10-21 (`npx convex env get NIGHTLY_JOBS_PAUSED` prints `true`;
+      prod has no such variable). Dev runs `feat/music-form` merged with main,
+      so it takes effect once that branch has 2.9.28 and is redeployed. On a
+      quiet day those jobs are 8 to 10 MB of dev's reads.
 - [ ] **Ship one store build of 2.9.19 or later before relying on
       over-the-air updates.** Builds before 2.9.19 have no `expo-updates` and
       no channel, so `eas-update.yml` publishes to nobody until people install
