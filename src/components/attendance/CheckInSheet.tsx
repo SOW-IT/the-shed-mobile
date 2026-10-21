@@ -203,10 +203,10 @@ function MemberPicker({
                 </Text>
                 <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
                   {[
+                    current ? "Matched now" : null,
+                    signedIn.has(member.memberId) ? "Already signed in" : null,
                     member.university ? subgroupLabel(member.university) : "No campus",
                     member.subtitle,
-                    signedIn.has(member.memberId) ? "Already signed in" : null,
-                    current ? "Matched now" : null,
                   ]
                     .filter(Boolean)
                     .join(" · ")}

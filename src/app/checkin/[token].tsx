@@ -210,6 +210,7 @@ export default function CheckInScreen() {
 
   const values = form ?? (forSomeoneElse ? BLANK : rememberedValues());
   const prefilled = !forSomeoneElse && form === null && !!remembered;
+  const update = (patch: Partial<FormValues>) => setForm((prev) => ({ ...(prev ?? values), ...patch }));
   const startFresh = () => {
     void forgetCheckInDetails();
     setDevice({ clientKey: device.clientKey, details: null });
@@ -260,9 +261,9 @@ export default function CheckInScreen() {
         <>
           <View style={styles.doneRow}>
             <Ionicons
-              name={status === "dismissed" ? "alert-circle" : "checkmark-circle"}
+              name={status === "dismissed" ? "alert-circle" : status === "confirmed" ? "checkmark-circle" : "time"}
               size={28}
-              color={status === "dismissed" ? t.warning : t.success}
+              color={status === "dismissed" ? t.warning : status === "confirmed" ? t.success : t.primary}
             />
             <Text style={[typography.headline, { color: t.text, flex: 1 }]}>
               {status === "confirmed"
@@ -330,7 +331,7 @@ export default function CheckInScreen() {
               <Field
                 label="Full name"
                 value={values.name}
-                onChangeText={(name) => setForm({ ...values, name })}
+                onChangeText={(name) => update({ name })}
                 autoCapitalize="words"
                 maxLength={80}
                 testID="checkin-name"
@@ -347,14 +348,14 @@ export default function CheckInScreen() {
                   label="University (optional)"
                   options={page.campuses}
                   value={values.campus}
-                  onChange={(campus) => setForm({ ...values, campus })}
+                  onChange={(campus) => update({ campus })}
                 />
               ) : null}
               <Chips
                 label="Year at uni (optional)"
                 options={YEAR_OPTIONS}
                 value={values.level}
-                onChange={(level) => setForm({ ...values, level })}
+                onChange={(level) => update({ level })}
               />
               <Btn
                 title="Check in"

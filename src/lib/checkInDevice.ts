@@ -1,3 +1,4 @@
+import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { type CheckInDetails, parseCheckInDetails } from "../../shared/checkInMatch";
@@ -34,9 +35,7 @@ const remove = async (key: string): Promise<void> => {
 };
 
 const randomKey = () =>
-  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-    ? crypto.randomUUID()
-    : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Crypto.randomUUID();
 
 export const loadDeviceKey = async (): Promise<string> => {
   const saved = await read(KEY_STORAGE);
