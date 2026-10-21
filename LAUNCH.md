@@ -17,19 +17,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
-- [ ] **After 2.9.29 is live, move the event head counts once:**
-      `npx convex run --prod attendanceCounts:backfill`. It recounts every
-      event into `eventAttendanceCounts` and clears the old
-      `events.attendanceCount` field (about 3.5 MB of reads, once). Until it
-      runs, lists fall back to the old field and an event's first sign-in
-      recounts it, so nothing shows a wrong count in the meantime. A later
-      release can drop the field from the schema once no event has it.
-- [ ] **Redeploy dev with 2.9.29 so its nightly jobs pause.**
-      `NIGHTLY_JOBS_PAUSED=true` was set on `successful-lynx-56` on
-      2026-10-21 (`npx convex env get NIGHTLY_JOBS_PAUSED` prints `true`;
-      prod has no such variable). Dev runs `feat/music-form` merged with main,
-      so it takes effect once that branch has 2.9.29 and is redeployed. On a
-      quiet day those jobs are 8 to 10 MB of dev's reads.
 - [ ] **Ship one store build of 2.9.19 or later before relying on
       over-the-air updates.** Builds before 2.9.19 have no `expo-updates` and
       no channel, so `eas-update.yml` publishes to nobody until people install
@@ -131,6 +118,24 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 Recorded so nobody re-does them. Each was confirmed against the live
 deployments, not assumed.
+
+**2.9.29 event head counts moved on production**: `attendanceCounts:backfill`
+ran on prod on 2026-10-21 at 11:23 UTC and recounted every event into
+`eventAttendanceCounts`; its own check matched each event's count to its
+sign-ins. *Evidence (2026-10-21 13:52 UTC, read-only):* 282 events, 282 count
+rows, no event with more than one row, no event still carrying the old
+`events.attendanceCount` field, and the counts add up to 13,413 sign-ins. A
+later release can drop that field from the schema.
+
+**Dev runs 2.9.29, with nightly jobs paused**: `feat/music-form` merged with
+main at `7c150af` (main `cbf04c0`, no conflicts) and deployed to
+`successful-lynx-56` on 2026-10-21 at 13:50 UTC, then
+`attendanceCounts:backfill` ran on dev. *Evidence (export at 13:51 UTC):* 273
+events, 273 count rows, every count equal to that event's sign-ins (12,941 in
+all), none left with the old field. `NIGHTLY_JOBS_PAUSED` prints `true`, so the
+nightly jobs now skip on dev, including the roll call's order and Admin's
+member-pair suggestions (see README). The dev web passed a signed-out smoke
+(13 routes) and the QR check-in end-to-end against this backend.
 
 **2.8.0 weekly migration ran on production**: every past weekly renamed to
 its code ("T3W5", "S1W5") with a term and week, name labels moved into

@@ -519,8 +519,11 @@ SITE_URL/APP_URL, Resend are set; Google OAuth + directory-sync vars need
 `--prod` copies when configured). Re-seed prod with the real admin email via
 `npx convex run --prod admin:seed '{"adminEmail":"you@sow.org.au"}'`.
 `NIGHTLY_JOBS_PAUSED=true` (for the shared dev deployment) makes the nightly
-Insights, attendance metrics and church map crons do nothing; run them by hand
-with `npx convex run attendanceMetrics:recomputeAll` or
+Insights, attendance metrics and church map crons do nothing. The paused
+attendance-metrics run also skips what it schedules: the campus weekly chart,
+staff trends, the roll call's member order (roster history) and Admin's
+member-pair suggestions. Run them by hand with
+`npx convex run attendanceMetrics:recomputeAll` or
 `npx convex run weeklyInsights:rebuildAll` when you need fresh numbers.
 
 The same app runs in the browser via react-native-web, hosted at
