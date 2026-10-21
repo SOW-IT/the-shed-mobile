@@ -110,6 +110,18 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       **Unlisted App Distribution** is the lighter option for a staff app.
       Android likewise needs the store listing, content rating and Data safety
       form to leave the internal track.
+- [ ] **Add Google Play's app-signing keys to the app-link files.** Play
+      re-signs every install with its own key, so Android only opens
+      `theshed.sow.org.au` links in the app once that key is listed. In Play
+      Console, for **The SHED** (`au.org.sow.theshed`) and **The SHED Staging**
+      (`au.org.sow.theshed.staging`), open Test and release, App integrity,
+      App signing, and copy the "App signing key certificate" SHA-256 into
+      `sha256_cert_fingerprints` in `web/.well-known/assetlinks.json` and
+      `web-dev/.well-known/assetlinks.json` respectively. Then check
+      `https://digitalassetlinks.googleapis.com/v1/assetlinks:check?source.web.site=https://theshed.sow.org.au&relation=delegate_permission/common.handle_all_urls&target.android_app.package_name=au.org.sow.theshed&target.android_app.certificate.sha256_fingerprint=<that key>`
+      says `"linked": true`. On Android 14 and older, an old app's "Open on
+      the web" and a web sign-in on a phone with the app can then land in the
+      app, because those versions can't skip `#noapp` or `?code=` links.
 
 ---
 
@@ -194,7 +206,8 @@ pointed at it.
 links verified through Apple's CDN on 2026-10-21). Production serving is
 under "Still outstanding".
 
-> ⚠️ If **Google Play App Signing** is enabled, Play re-signs with its own key.
-> Add the Play Console's app-signing SHA-256 to the `sha256_cert_fingerprints`
-> array in `assetlinks.json` (it takes several) or Android App Links will not
-> verify for Play installs.
+> ⚠️ **Google Play App Signing** re-signs Play installs with Play's own key.
+> `assetlinks.json` lists the EAS keystore the builds are signed with
+> (`eas credentials`, the default build credentials); Play's app-signing
+> SHA-256 has to be added beside it (see "Still outstanding") or Android App
+> Links will not verify for Play installs.
