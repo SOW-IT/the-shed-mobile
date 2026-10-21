@@ -8,6 +8,36 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [2.9.25] - 2026-10-21
 
+### Added
+- **Leaders are signed in as soon as they open a check-in link in the app.**
+  Scanning an event's code with The SHED installed now opens the app instead
+  of the browser, and a signed-in leader is signed in to the event straight
+  away, with Undo and a button to the roll call. People without the app still
+  get the web page.
+- **Phones remember who checked in.** The check-in page fills in your name,
+  university and year from last time, in the browser and in the app, and
+  works your year out again next year. "Start fresh" clears it, and checking
+  in someone else doesn't overwrite it.
+- **Returning people skip the wait.** Once a leader has matched someone's
+  first check-in to a member, the same phone signs them straight in at later
+  events, with an Undo in case someone else was using it. The open page also
+  changes to "You're signed in" as soon as a leader confirms.
+- **Year at uni on the check-in page.** Optional, like university, and a new
+  member made from a check-in gets both.
+
+### Changed
+- **The waiting list on self check-in is split in two.** Matched people come
+  first with a one-tap tick and "Sign in all", and "Someone else" in case the
+  match is the wrong person with the same name. Below them, people who need a
+  member show members with the same or a similar name to tap, plus Find
+  member and New member.
+- **Check-ins keep the time people checked in.** A sign-in confirmed later
+  now records when they scanned, not when a leader got to it.
+- **Turning off self check-in asks first**, because the code and link stop
+  working and turning it on again makes a new code.
+- **University is optional on every event**, and an event for the whole
+  organisation offers every university instead of none.
+
 ### Fixed
 - **A shared check-in link opens the check-in page on iPhone.** Share link
   on an event's self check-in handed iOS the link twice, so Copy, Messages
