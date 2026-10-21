@@ -488,6 +488,11 @@ export const remove = mutation({
     // was lost and when they signed in.
     const people = await attendeesToList(ctx, event, rows);
     for (const row of rows) await ctx.db.delete(row._id);
+    const checkIns = await ctx.db
+      .query("checkInRequests")
+      .withIndex("by_event_and_status", (q) => q.eq("eventId", eventId))
+      .collect();
+    for (const request of checkIns) await ctx.db.delete(request._id);
     await ctx.db.delete(eventId);
     const hidden = rows.length - people.length;
     await logAttendanceAction(ctx, {

@@ -39,6 +39,8 @@ All notable changes to **The SHED** mobile app. This project follows
   organisation offers every university instead of none.
 
 ### Fixed
+- **Deleting an event deletes its self check-ins too**, instead of leaving
+  them behind with nothing to point at.
 - **A shared check-in link opens the check-in page on iPhone.** Share link
   on an event's self check-in handed iOS the link twice, so Copy, Messages
   and the rest gave "link link", and opening it showed "Page not found". It

@@ -694,3 +694,19 @@ describe("opening the link again on a phone that has checked in before", () => {
     });
   });
 });
+
+describe("deleting an event", () => {
+  test("removes its check-in requests along with its attendance", async () => {
+    const t = await setup();
+    const { eventId, token } = await enabled(t);
+    const other = await enabled(t);
+    await t.mutation(api.checkIn.submit, { token, name: "Ann Lee", clientKey: "a" });
+    await t.mutation(api.checkIn.submit, { token, name: "Ben Ng", clientKey: "b" });
+    await t.mutation(api.checkIn.submit, { token: other.token, name: "Cy Ho", clientKey: "c" });
+    const [row] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
+    await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id });
+    await asUser(t, ADMIN).mutation(api.events.remove, { eventId });
+    const left = await t.run((ctx) => ctx.db.query("checkInRequests").collect());
+    expect(left.map((r) => r.name)).toEqual(["Cy Ho"]);
+  });
+});
