@@ -102,18 +102,19 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       **Unlisted App Distribution** is the lighter option for a staff app.
       Android likewise needs the store listing, content rating and Data safety
       form to leave the internal track.
-- [ ] **Add Google Play's app-signing keys to the app-link files.** Play
-      re-signs every install with its own key, so Android only opens
-      `theshed.sow.org.au` links in the app once that key is listed. In Play
-      Console, for **The SHED** (`au.org.sow.theshed`) and **The SHED Staging**
-      (`au.org.sow.theshed.staging`), open Test and release, App integrity,
-      App signing, and copy the "App signing key certificate" SHA-256 into
-      `sha256_cert_fingerprints` in `web/.well-known/assetlinks.json` and
-      `web-dev/.well-known/assetlinks.json` respectively. Then check
-      `https://digitalassetlinks.googleapis.com/v1/assetlinks:check?source.web.site=https://theshed.sow.org.au&relation=delegate_permission/common.handle_all_urls&target.android_app.package_name=au.org.sow.theshed&target.android_app.certificate.sha256_fingerprint=<that key>`
-      says `"linked": true`. On Android 14 and older, an old app's "Open on
-      the web" and a web sign-in on a phone with the app can then land in the
-      app, because those versions can't skip `#noapp` or `?code=` links.
+- [ ] **Confirm Google verifies the Android app links.** 2.9.28 adds Google
+      Play's app-signing keys (Play Console, Test and release, App integrity,
+      App signing, "App signing key certificate"): **The SHED** `BC:05:F0:8B:…:0E:62`
+      in `web/.well-known/assetlinks.json` and **The SHED Staging**
+      `1B:05:5E:47:…:94:C8` in `web-dev/.well-known/assetlinks.json`. After it
+      deploys, check
+      `https://digitalassetlinks.googleapis.com/v1/assetlinks:check?source.web.site=https://theshed.sow.org.au&relation=delegate_permission/common.handle_all_urls&target.android_app.package_name=au.org.sow.theshed&target.android_app.certificate.sha256_fingerprint=<the key>`
+      says `"linked": true` (and the same for the dev web and the staging key),
+      then move this to "Already done" with that evidence. Android verifies
+      when the app is installed or updated, so Play installs pick it up with
+      their next update. On Android 14 and older, an old app's "Open on the
+      web" and a web sign-in on a phone with the app can then land in the app,
+      because those versions can't skip `#noapp` or `?code=` links.
 
 ---
 
@@ -210,7 +211,7 @@ pair: checked 2026-10-21 04:26 UTC, after the 2.9.26 dev deploy (`aaf3c82`),
 returns the file for `4FH642K7X2.au.org.sow.theshed.staging`.
 
 > ⚠️ **Google Play App Signing** re-signs Play installs with Play's own key.
-> `assetlinks.json` lists the EAS keystore the builds are signed with
-> (`eas credentials`, the default build credentials); Play's app-signing
-> SHA-256 has to be added beside it (see "Still outstanding") or Android App
-> Links will not verify for Play installs.
+> Each `assetlinks.json` lists Play's app-signing key first, then the EAS
+> keystores the builds are signed with (`eas credentials`, the default build
+> credentials). If Play's key ever changes (a key upgrade in Play Console),
+> update it there too, or Android App Links stop verifying for Play installs.

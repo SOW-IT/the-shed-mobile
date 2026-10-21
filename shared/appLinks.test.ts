@@ -118,9 +118,9 @@ const webOnly = [
 ];
 
 describe.each([
-  ["web", "au.org.sow.theshed"],
-  ["web-dev", "au.org.sow.theshed.staging"],
-])("association files served by %s", (folder, appId) => {
+  ["web", "au.org.sow.theshed", "BC:05:F0:8B:5E:67:29:0C:62:83:C7:30:7D:F9:90:E1:83:3A:9D:CB:B7:AE:BA:3B:9A:64:86:BA:3C:80:0E:62"],
+  ["web-dev", "au.org.sow.theshed.staging", "1B:05:5E:47:99:77:2A:F9:C9:B4:82:AC:52:20:23:FC:DE:E4:5B:65:53:10:08:E3:12:CE:D7:80:B3:43:94:C8"],
+])("association files served by %s", (folder, appId, playSigningKey) => {
   test("iOS hands every page to the app except no-app links and web sign-in returns", () => {
     const [details] = associationFile(folder, "apple-app-site-association").applinks.details;
     expect(details.appIDs).toEqual([`4FH642K7X2.${appId}`]);
@@ -130,7 +130,7 @@ describe.each([
   test("Android trusts real signing keys and skips the same links from Android 15", () => {
     const [statement] = associationFile(folder, "assetlinks.json");
     expect(statement.target.package_name).toBe(appId);
-    expect(statement.target.sha256_cert_fingerprints.length).toBeGreaterThan(0);
+    expect(statement.target.sha256_cert_fingerprints).toContain(playSigningKey);
     for (const fingerprint of statement.target.sha256_cert_fingerprints) {
       expect(fingerprint).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
     }
