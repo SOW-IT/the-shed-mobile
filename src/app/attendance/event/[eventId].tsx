@@ -879,7 +879,7 @@ export default function EventAttendanceScreen() {
         const isAnimating = isEntering || isExiting;
         const busy = isAnimating || leavingSignedIn.has(aKey);
         const isSuppressed = suppressFadeIn.has(aKey);
-        const signOutLocked = !canReverseSignIn(event, a.signInTime, clock);
+        const signOutLocked = !canReverseSignIn(event, a.addedAt ?? a.signInTime, clock);
         const rowKey = `${aKey || (a._id as string)}#${rowRetries.get(aKey) ?? 0}`;
         const row = (
           <RollCallRow

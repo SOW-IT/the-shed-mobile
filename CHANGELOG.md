@@ -20,8 +20,9 @@ All notable changes to **The SHED** mobile app. This project follows
   in someone else doesn't overwrite it.
 - **Returning people skip the wait.** Once a leader has matched someone's
   first check-in to a member, the same phone signs them straight in at later
-  events, with an Undo in case someone else was using it. The open page also
-  changes to "You're signed in" as soon as a leader confirms.
+  events, with an Undo in case someone else was using it, which also stops
+  that phone doing it again. The open page also changes to "You're signed
+  in" as soon as a leader confirms.
 - **Year at uni on the check-in page.** Optional, like university, and a new
   member made from a check-in gets both.
 
@@ -32,7 +33,9 @@ All notable changes to **The SHED** mobile app. This project follows
   member show members with the same or a similar name to tap, plus Find
   member and New member.
 - **Check-ins keep the time people checked in.** A sign-in confirmed later
-  now records when they scanned, not when a leader got to it.
+  now records when they scanned, not when a leader got to it. Whether a
+  sign-in can still be removed after an event goes by when it was added, so
+  one confirmed late can still be undone straight away.
 - **Turning off self check-in asks first**, because the code and link stop
   working and turning it on again makes a new code.
 - **University is optional on every event**, and an event for the whole

@@ -24,6 +24,7 @@ type Done = {
   name: string;
   via: "leader" | "phone" | "form";
   status: "pending" | "confirmed";
+  automatic?: boolean;
   alreadySignedIn?: boolean;
   undone?: boolean;
 };
@@ -90,28 +91,35 @@ function Chips<T extends string>({
 const YEAR_OPTIONS = CHECK_IN_YEAR_LEVELS.map((level) => ({ value: level, label: level }));
 
 export default function CheckInScreen() {
+  const { token } = useLocalSearchParams<{ token: string }>();
+  return <CheckInBody key={token ?? ""} token={token} />;
+}
+
+function CheckInBody({ token }: { token: string | undefined }) {
   const t = useAppTheme();
   const router = useRouter();
   useMinuteTick();
-  const { token } = useLocalSearchParams<{ token: string }>();
   const page = useQuery(api.checkIn.page, token ? { token } : "skip");
   const [device, setDevice] = useCheckInDevice();
   const remembered = device?.details ?? null;
+  const [done, setDone] = useState<Done | null>(null);
+  const [autoSettled, setAutoSettled] = useState(false);
+  const [forSomeoneElse, setForSomeoneElse] = useState(false);
   const returning = useQuery(
     api.checkIn.returning,
-    token && device && remembered ? { token, clientKey: device.clientKey, name: remembered.name } : "skip"
+    token && device && remembered && !done && !autoSettled && !forSomeoneElse
+      ? { token, clientKey: device.clientKey, name: remembered.name }
+      : "skip"
   );
-  const [done, setDone] = useState<Done | null>(null);
-  const mine = useQuery(
+  const liveStatus = useQuery(
     api.checkIn.mine,
-    token && device && done && done.via !== "leader" ? { token, clientKey: device.clientKey } : "skip"
+    token && device && done && done.via !== "leader" ? { token, clientKey: device.clientKey, name: done.name } : "skip"
   );
   const submit = useMutation(api.checkIn.submit);
   const signInLeader = useMutation(api.checkIn.signInLeader);
   const signOutLeader = useMutation(api.checkIn.signOutLeader);
   const undoMine = useMutation(api.checkIn.undoMine);
   const [form, setForm] = useState<FormValues | null>(null);
-  const [forSomeoneElse, setForSomeoneElse] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const autoTried = useRef(false);
@@ -119,7 +127,7 @@ export default function CheckInScreen() {
   const phase = page ? phaseBetween(page) : null;
   const leader = page?.viewer?.leader ? page.viewer : null;
   const autoMode: "leader" | "phone" | null =
-    !page || !device || phase !== "open" || done || forSomeoneElse || error
+    !page || !device || phase !== "open" || done || forSomeoneElse || autoSettled
       ? null
       : leader
         ? "leader"
@@ -134,11 +142,12 @@ export default function CheckInScreen() {
     } catch (e) {
       setError(errorMessage(e));
     }
+    setAutoSettled(true);
   };
 
   const submitDetails = async (values: FormValues, via: "phone" | "form", remember: boolean) => {
     if (!token || !device || !page) return;
-    const campus = page.campuses.length === 1 ? page.campuses[0].value : values.campus;
+    const campus = page.universities.length === 1 ? page.universities[0].value : values.campus;
     try {
       const result = await submit({
         token,
@@ -146,6 +155,7 @@ export default function CheckInScreen() {
         clientKey: device.clientKey,
         ...(campus ? { campus } : {}),
         ...(values.level ? { yearLevel: values.level } : {}),
+        ...(remember ? {} : { forSomeoneElse: true }),
       });
       const name = cleanName(values.name);
       if (remember) {
@@ -164,10 +174,17 @@ export default function CheckInScreen() {
         void saveCheckInDetails(details);
         setDevice({ clientKey: device.clientKey, details });
       }
-      setDone({ name, via, status: result.status });
+      setDone({
+        name,
+        via,
+        status: result.status,
+        automatic: result.automatic,
+        alreadySignedIn: result.status === "confirmed" && !result.automatic,
+      });
     } catch (e) {
       setError(errorMessage(e));
     }
+    setAutoSettled(true);
   };
 
   const withSpinner = async (run: () => Promise<void>) => {
@@ -183,7 +200,7 @@ export default function CheckInScreen() {
   const rememberedValues = (): FormValues => {
     if (!page) return BLANK;
     const campus =
-      remembered?.campus && page.campuses.some((c) => c.value === remembered.campus) ? remembered.campus : null;
+      remembered?.campus && page.universities.some((c) => c.value === remembered.campus) ? remembered.campus : null;
     const level =
       remembered?.commencementYear != null
         ? levelForCommencement(remembered.commencementYear, page.calendarYear)
@@ -229,17 +246,34 @@ export default function CheckInScreen() {
     setError(null);
     setForm(BLANK);
   };
-  const latest = done && mine ? [...mine].reverse().find((row) => row.name === done.name) : undefined;
-  const status = done?.via === "leader" ? "confirmed" : (latest?.status ?? done?.status);
+  const checkInAsMe = () => {
+    setForSomeoneElse(false);
+    setDone(null);
+    setError(null);
+    setForm(BLANK);
+  };
+  const status = done?.via === "leader" ? "confirmed" : (liveStatus ?? done?.status);
+  const canUndo =
+    status === "confirmed" && !!done && (done.via === "leader" ? !done.alreadySignedIn : !!done.automatic);
 
   const undo = async () => {
     if (!done || !token) return;
     setSending(true);
     setError(null);
     try {
-      if (done.via === "leader") await signOutLeader({ token });
-      else await undoMine({ token, clientKey: device.clientKey, name: done.name });
-      setDone({ ...done, undone: true });
+      const undone =
+        done.via === "leader"
+          ? await signOutLeader({ token })
+          : await undoMine({ token, clientKey: device.clientKey, name: done.name });
+      if (!undone) {
+        setError("That sign-in can't be undone here. Please see a leader.");
+      } else {
+        if (done.via !== "leader") {
+          void forgetCheckInDetails();
+          setDevice({ clientKey: device.clientKey, details: null });
+        }
+        setDone({ ...done, undone: true });
+      }
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -251,17 +285,19 @@ export default function CheckInScreen() {
     <Card>
       {done.undone ? (
         <>
-          <Text style={[typography.headline, { color: t.text }]}>You&apos;re not signed in.</Text>
-          <Muted>Your sign-in was undone.</Muted>
+          <Text style={[typography.headline, { color: t.text }]}>
+            {done.via === "leader" ? "You're not signed in." : `${done.name} isn't signed in.`}
+          </Text>
+          <Muted>
+            {done.via === "leader"
+              ? "Your sign-in was undone."
+              : "The sign-in was undone, and this phone won't sign them in by itself again."}
+          </Muted>
           <Btn
-            title={done.via === "leader" ? "Sign me in again" : `Check in as ${done.name}`}
+            title={done.via === "leader" ? "Sign me in again" : "Check in with my name"}
             icon="log-in-outline"
             loading={sending}
-            onPress={() =>
-              void (done.via === "leader"
-                ? signInAsLeader()
-                : sendDetails({ ...rememberedValues(), name: done.name }, "form", false))
-            }
+            onPress={() => (done.via === "leader" ? void signInAsLeader() : checkInAsMe())}
           />
         </>
       ) : (
@@ -286,7 +322,7 @@ export default function CheckInScreen() {
             {status === "confirmed"
               ? done.via === "leader"
                 ? "Signed in as a leader. Enjoy the night."
-                : done.via === "phone"
+                : done.automatic
                   ? "This phone remembered you, so you're in. Enjoy the night."
                   : "Enjoy the night."
               : status === "dismissed"
@@ -301,7 +337,7 @@ export default function CheckInScreen() {
               onPress={() => router.push(`/attendance/event/${page.viewer!.eventId}`)}
             />
           ) : null}
-          {status === "confirmed" && (done.via === "leader" || done.via === "phone") && !done.alreadySignedIn ? (
+          {canUndo ? (
             <Btn
               title={done.via === "leader" ? "Undo" : `Not ${done.name}? Undo`}
               variant="ghost"
@@ -350,10 +386,10 @@ export default function CheckInScreen() {
                   </Text>
                 </Pressable>
               ) : null}
-              {page.campuses.length > 1 ? (
+              {page.universities.length > 1 ? (
                 <Chips
                   label="University (optional)"
-                  options={page.campuses}
+                  options={page.universities}
                   value={values.campus}
                   onChange={(campus) => update({ campus })}
                 />

@@ -309,7 +309,7 @@ export function CheckInSheet({
               People scan a code and type their name, and can add their university and year. Nobody
               can see the member list from the page. A first check-in waits here for you to match it
               to a member; after that, the same phone signs them straight in. Leaders who open the
-              link in the app are signed in at once.
+              link while signed in are signed in at once.
             </Muted>
             <Muted>
               The code works from two hours before the event until ten minutes after it ends.

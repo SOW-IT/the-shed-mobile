@@ -99,6 +99,9 @@ const viewerFor = async (ctx: QueryCtx, event: Doc<"events">) => {
   };
 };
 
+const stillSignedIn = async (ctx: Ctx, request: Doc<"checkInRequests">) =>
+  !!request.memberId && (await attendanceOf(ctx, request.eventId, request.memberId)) !== null;
+
 const memberKnownToDevice = async (ctx: Ctx, clientKey: string, name: string) => {
   const earlier = await ctx.db
     .query("checkInRequests")
@@ -106,11 +109,21 @@ const memberKnownToDevice = async (ctx: Ctx, clientKey: string, name: string) =>
     .order("desc")
     .take(DEVICE_PROBE);
   for (const request of earlier) {
-    const member = request.memberId ? await ctx.db.get("attendanceMembers", request.memberId) : null;
+    if (request.forSomeoneElse || !(await stillSignedIn(ctx, request))) continue;
+    const member = await ctx.db.get("attendanceMembers", request.memberId!);
     if (member && (request.name === name || capitalizeMemberName(member.name) === name)) return member._id;
   }
   return null;
 };
+
+const deviceRequests = (ctx: Ctx, eventId: Id<"events">, clientKey: string, name: string) =>
+  ctx.db
+    .query("checkInRequests")
+    .withIndex("by_event_and_clientKey_and_name", (q) =>
+      q.eq("eventId", eventId).eq("clientKey", clientKey).eq("name", name)
+    )
+    .order("desc")
+    .take(DEVICE_PROBE);
 
 const typedName = (raw: string) => capitalizeMemberName(raw.trim().replace(/\s+/g, " "));
 
@@ -130,7 +143,8 @@ export const page = query({
       dateStart: event.dateStart,
       dateEnd: event.dateEnd,
       calendarYear: calendarYearOf(event),
-      campuses: (await campusChoices(ctx, event)).map((value) => ({ value, label: subgroupLabel(value) })),
+      campuses: campusesOf(event).map((value) => ({ value, label: subgroupLabel(value) })),
+      universities: (await campusChoices(ctx, event)).map((value) => ({ value, label: subgroupLabel(value) })),
       open: checkInOpen(event),
       phase: checkInPhase(event),
       opensAt,
@@ -146,6 +160,7 @@ export const submit = mutation({
     name: v.string(),
     campus: v.optional(v.string()),
     yearLevel: v.optional(v.string()),
+    forSomeoneElse: v.optional(v.boolean()),
     clientKey: v.string(),
   },
   handler: async (ctx, args) => {
@@ -162,17 +177,19 @@ export const submit = mutation({
     const yearLevel = args.yearLevel?.trim() || undefined;
     if (yearLevel && !isCheckInYearLevel(yearLevel)) throw new ConvexError("Pick your year from the list.");
 
-    const fromDevice = await ctx.db
-      .query("checkInRequests")
-      .withIndex("by_event_and_clientKey", (q) => q.eq("eventId", event._id).eq("clientKey", clientKey))
-      .take(10);
-    const same = fromDevice.find((r) => r.name === name && r.status !== "dismissed");
-    if (same) return { status: same.status === "confirmed" ? ("confirmed" as const) : ("pending" as const) };
+    const forSomeoneElse = args.forSomeoneElse === true;
+    for (const earlier of await deviceRequests(ctx, event._id, clientKey, name)) {
+      if (earlier.status === "pending") return { status: "pending" as const, automatic: false };
+      if (earlier.status !== "confirmed") continue;
+      if (await stillSignedIn(ctx, earlier)) return { status: "confirmed" as const, automatic: false };
+      await ctx.db.patch("checkInRequests", earlier._id, { status: "dismissed", decidedAt: Date.now() });
+    }
 
-    const known = await memberKnownToDevice(ctx, clientKey, name);
+    const known = forSomeoneElse ? null : await memberKnownToDevice(ctx, clientKey, name);
     if (known) {
       const now = Date.now();
-      await signInMember(ctx, event, known, SELF_CHECK_IN_ACTOR, now);
+      const already = await attendanceOf(ctx, event._id, known);
+      const attendanceId = already?._id ?? (await signInMember(ctx, event, known, SELF_CHECK_IN_ACTOR, now));
       await ctx.db.insert("checkInRequests", {
         eventId: event._id,
         clientKey,
@@ -180,12 +197,13 @@ export const submit = mutation({
         campus,
         ...(yearLevel ? { yearLevel } : {}),
         memberId: known,
+        ...(already ? {} : { attendanceId }),
         status: "confirmed",
         requestedAt: now,
         decidedAt: now,
         decidedBy: SELF_CHECK_IN_ACTOR,
       });
-      return { status: "confirmed" as const };
+      return { status: "confirmed" as const, automatic: !already };
     }
 
     const pending = await ctx.db
@@ -210,26 +228,26 @@ export const submit = mutation({
       name,
       campus,
       ...(yearLevel ? { yearLevel } : {}),
+      ...(forSomeoneElse ? { forSomeoneElse } : {}),
       memberId,
       ...(!memberId && candidates.length > 0 ? { sameNameCount: candidates.length } : {}),
       status: "pending",
       requestedAt: Date.now(),
     });
-    return { status: "pending" as const };
+    return { status: "pending" as const, automatic: false };
   },
 });
 
 export const mine = query({
-  args: { token: v.string(), clientKey: v.string() },
+  args: { token: v.string(), clientKey: v.string(), name: v.string() },
   handler: async (ctx, args) => {
     const event = await eventForToken(ctx, args.token);
     const clientKey = deviceKey(args.clientKey);
-    if (!event || !clientKey) return [];
-    const rows = await ctx.db
-      .query("checkInRequests")
-      .withIndex("by_event_and_clientKey", (q) => q.eq("eventId", event._id).eq("clientKey", clientKey))
-      .take(10);
-    return rows.map((row) => ({ name: row.name, status: row.status }));
+    if (!event || !clientKey) return null;
+    const [latest] = await deviceRequests(ctx, event._id, clientKey, typedName(args.name));
+    if (!latest) return null;
+    if (latest.status === "confirmed" && !(await stillSignedIn(ctx, latest))) return "dismissed" as const;
+    return latest.status;
   },
 });
 
@@ -250,17 +268,23 @@ export const undoMine = mutation({
     const event = await eventForToken(ctx, args.token);
     if (!event) throw new ConvexError("This check-in link isn't valid any more.");
     const clientKey = deviceKey(args.clientKey);
-    const name = typedName(args.name);
-    const rows = await ctx.db
-      .query("checkInRequests")
-      .withIndex("by_event_and_clientKey", (q) => q.eq("eventId", event._id).eq("clientKey", clientKey))
-      .take(10);
-    const automatic = rows.find(
-      (r) => r.name === name && r.status === "confirmed" && r.decidedBy === SELF_CHECK_IN_ACTOR && r.memberId
-    );
-    if (!automatic?.memberId) return false;
-    await signOutMember(ctx, event._id, event, automatic.memberId, SELF_CHECK_IN_ACTOR);
+    const requests = await deviceRequests(ctx, event._id, clientKey, typedName(args.name));
+    const automatic = requests.find((r) => r.status === "confirmed" && r.decidedBy === SELF_CHECK_IN_ACTOR);
+    const memberId = automatic?.memberId;
+    if (!automatic || !memberId || !automatic.attendanceId) return false;
+    const current = await attendanceOf(ctx, event._id, memberId);
+    if (current?._id !== automatic.attendanceId) return false;
+    await signOutMember(ctx, event._id, event, memberId, SELF_CHECK_IN_ACTOR);
     await ctx.db.patch("checkInRequests", automatic._id, { status: "dismissed", decidedAt: Date.now() });
+    const trusted = await ctx.db
+      .query("checkInRequests")
+      .withIndex("by_clientKey_and_status", (q) => q.eq("clientKey", clientKey).eq("status", "confirmed"))
+      .take(PENDING_LIMIT);
+    for (const request of trusted) {
+      if (request.memberId === memberId && !request.forSomeoneElse) {
+        await ctx.db.patch("checkInRequests", request._id, { forSomeoneElse: true });
+      }
+    }
     return true;
   },
 });
@@ -411,6 +435,7 @@ const signInRequest = async (
   await ctx.db.patch("checkInRequests", request._id, {
     status: "confirmed",
     memberId,
+    attendanceId,
     decidedAt: Date.now(),
     decidedBy: email,
   });

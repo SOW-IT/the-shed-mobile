@@ -245,6 +245,8 @@ _Avoid_: self sign-in, kiosk
 A phone (its `clientKey`) with a confirmed check-in request under a name.
 When it checks in again under that name at another event, it is signed in
 straight away as that request's Member, with no leader (actor
-`system:self-check-in`). A leader opening the link while signed in to the
-app is signed in the same way, as their staff Member.
+`system:self-check-in`). A check-in made for someone else, one undone from
+the phone, or one whose sign-in a leader has since removed doesn't count. A
+leader opening the link while signed in is signed in the same way, as their
+staff Member.
 _Avoid_: trusted device, remembered member

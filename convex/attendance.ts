@@ -266,8 +266,9 @@ export async function signInMember(
   event: Doc<"events">,
   memberId: Id<"attendanceMembers">,
   actorEmail: string,
-  signInTime: number = Date.now()
+  signInTime?: number
 ): Promise<Id<"attendance">> {
+  const now = Date.now();
   const eventId = event._id;
   const year = eventStaffYear(event.dateStart);
   const member = await ctx.db.get(memberId);
@@ -282,7 +283,8 @@ export async function signInMember(
   const id = await ctx.db.insert("attendance", {
     eventId,
     memberId,
-    signInTime,
+    signInTime: signInTime ?? now,
+    ...(signInTime !== undefined && signInTime !== now ? { addedAt: now } : {}),
   });
   await adjustEventAttendanceCount(ctx, eventId, 1);
   const { name, email: subjectEmail } = await memberAuditName(ctx, member, year);
@@ -350,9 +352,9 @@ export const updateRecord = mutation({
 /** Audit note for a sign-in undone only because of the 10-minute grace. */
 const undoDetail = (
   event: { dateEnd: number } | null,
-  signInTime: number
+  addedAt: number
 ): string | undefined =>
-  event && reversibleOnlyByGrace(event, signInTime)
+  event && reversibleOnlyByGrace(event, addedAt)
     ? "Undone within 10 minutes of signing in, after the event ended"
     : undefined;
 
@@ -394,7 +396,8 @@ export async function signOutMember(
     )
     .unique();
   if (!existing) return false;
-  if (event && !canReverseSignIn(event, existing.signInTime)) {
+  const addedAt = existing.addedAt ?? existing.signInTime;
+  if (event && !canReverseSignIn(event, addedAt)) {
     throw new ConvexError(
       "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
     );
@@ -413,7 +416,7 @@ export async function signOutMember(
     eventId,
     memberId,
     subjectEmail: who.email,
-    detail: undoDetail(event, existing.signInTime),
+    detail: undoDetail(event, addedAt),
   });
   return true;
 }
