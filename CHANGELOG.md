@@ -42,6 +42,9 @@ All notable changes to **The SHED** mobile app. This project follows
   organisation offers every university instead of none.
 
 ### Fixed
+- **Links open the app on iPhone and Android.** The production website never
+  published the files that tell phones the app may open its links, so every
+  link (emails included) opened in the browser first. They're published now.
 - **Deleting an event deletes its self check-ins too**, instead of leaving
   them behind with nothing to point at.
 - **A shared check-in link opens the check-in page on iPhone.** Share link

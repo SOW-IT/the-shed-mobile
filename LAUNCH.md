@@ -181,9 +181,14 @@ from a URL.
 **Custom domain** — `theshed.sow.org.au` resolves and serves, with `SITE_URL`
 pointed at it.
 
-**Universal links** — real `apple-app-site-association` (Team ID above) and
-`assetlinks.json` are committed and served, with `web/vercel.json` giving the
-AASA file an `application/json` content type.
+**Universal links**: real `apple-app-site-association` (Team ID above) and
+`assetlinks.json` are committed. Production serves them from 2.9.25, when the
+root `vercel.json` build started copying `web/.well-known` into `dist` and
+setting the AASA content type; before that only the dev web did, and
+`theshed.sow.org.au/.well-known/apple-app-site-association` returned the app's
+HTML (checked 2026-10-21). After the first production deploy, confirm
+`https://app-site-association.cdn-apple.com/a/v1/theshed.sow.org.au` returns
+the file.
 
 > ⚠️ If **Google Play App Signing** is enabled, Play re-signs with its own key.
 > Add the Play Console's app-signing SHA-256 to the `sha256_cert_fingerprints`

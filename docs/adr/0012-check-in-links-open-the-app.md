@@ -40,3 +40,11 @@ in the last 30 days ran 2.9.19 or later.
   "Open on the web" can land back in the app.
 - iOS caches association files through Apple's CDN, so a change reaches
   phones within about a day of the web deploy, not straight away.
+- Until 2.9.25 the production web never served the files at all: Vercel's
+  git build ran only `expo export`, so `/.well-known/apple-app-site-association`
+  returned the app's HTML and Apple's CDN had "Not Found" (checked
+  2026-10-21). Production phones opened every link in the browser and leaned
+  on the `+html.tsx` scheme bounce; only staging had universal links. The
+  root `vercel.json` now copies both files into the build, so from this
+  release every `theshed.sow.org.au` link opens the installed app, not just
+  check-in.

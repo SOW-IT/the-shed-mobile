@@ -566,8 +566,9 @@ in app.json via `associatedDomains` and `intentFilters`):
 2. After `eas credentials` creates the Android keystore: copy
    `assetlinks.json.example` to `assetlinks.json` and paste the SHA-256
    signing fingerprint (shown by `eas credentials`).
-3. `npm run deploy:web`. The `.well-known/` files ship with the site, and
-   the OS starts routing those links into the app on the next install.
+3. Merge to `main`. Vercel's build (root `vercel.json`) copies the two
+   `.well-known/` files into the site, and the OS starts routing those links
+   into the app once Apple's CDN and Android pick them up.
 
 Until then the links simply open the web app, which is the right fallback
 anyway.
