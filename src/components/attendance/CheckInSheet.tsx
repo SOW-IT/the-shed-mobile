@@ -75,7 +75,9 @@ export function CheckInSheet({
       );
       return;
     }
-    void Share.share({ message: url, url }).catch(() => {});
+    // iOS shares a message and a url as two items, so Copy and Messages gave
+    // the link twice (a page that doesn't exist). Android only reads message.
+    void Share.share(Platform.OS === "ios" ? { url } : { message: url }).catch(() => {});
   };
 
   return (
