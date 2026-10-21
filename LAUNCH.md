@@ -202,7 +202,12 @@ and Apple's CDN had "Not Found"; the root `vercel.json` now copies both into
 `assetlinks.json` both return 200 `application/json`, and
 `https://app-site-association.cdn-apple.com/a/v1/theshed.sow.org.au` returns
 the file for `4FH642K7X2.au.org.sow.theshed`. The dev web serves the staging
-pair the same way.
+pair: checked 2026-10-21 04:26 UTC, after the 2.9.26 dev deploy (`aaf3c82`),
+`the-shed-web-dev.vercel.app/.well-known/apple-app-site-association` and
+`assetlinks.json` both return 200 `application/json` (for
+`au.org.sow.theshed.staging`), and
+`https://app-site-association.cdn-apple.com/a/v1/the-shed-web-dev.vercel.app`
+returns the file for `4FH642K7X2.au.org.sow.theshed.staging`.
 
 > ⚠️ **Google Play App Signing** re-signs Play installs with Play's own key.
 > `assetlinks.json` lists the EAS keystore the builds are signed with
