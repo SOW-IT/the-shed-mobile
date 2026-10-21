@@ -20,7 +20,7 @@ import { optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 import { adjustEventAttendanceCount } from "./attendanceCounts";
 import { memberAuditName, staffDisplayName } from "./attendanceMembers";
-import { memberRoleResolver } from "./memberRoles";
+import { eventCampuses, memberRoleResolver } from "./memberRoles";
 import { photoFor } from "./photo";
 import { frequencyScores, rosterHistory } from "./rosterHistory";
 import {
@@ -84,7 +84,11 @@ export const roster = query({
     const memberById = new Map(members.map((m) => [m._id, m]));
     const staffMemberIds = new Set(profiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
     const pureExtras = members.filter((m) => !staffMemberIds.has(m._id));
-    const roleOf = await memberRoleResolver(ctx, metadataFields);
+    const roleOf = await memberRoleResolver(
+      ctx,
+      metadataFields,
+      event ? eventCampuses(event.subgroups) : undefined
+    );
 
     const staffRows: RosterEntry[] = await Promise.all(profiles.map(async (p) => {
       const shadow = p.memberId ? memberById.get(p.memberId) : undefined;
@@ -170,7 +174,7 @@ export const listByEvent = query({
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
-    const roleOf = await memberRoleResolver(ctx, metadataFields);
+    const roleOf = await memberRoleResolver(ctx, metadataFields, eventCampuses(event.subgroups));
 
     const withNames = await Promise.all(
       rows.map(async (row) => {

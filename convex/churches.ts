@@ -27,6 +27,7 @@ import {
   currentStaffYear,
   findMemberByEmail,
   getProfile,
+  nightlyJobsPaused,
   optionalEmail,
   optionalProfile,
   requireProfile,
@@ -351,10 +352,11 @@ async function geocode(address: string, key: string): Promise<Located | null> {
 }
 
 export const locateAll = internalAction({
-  args: {},
+  args: { nightly: v.optional(v.boolean()) },
   returns: v.object({ located: v.number(), notFound: v.number(), failed: v.number() }),
-  handler: async (ctx) => {
+  handler: async (ctx, { nightly }) => {
     const tally = { located: 0, notFound: 0, failed: 0 };
+    if (nightly && nightlyJobsPaused()) return tally;
     const key = mapsKey();
     if (!key) return tally;
     const todo: { churchId: Id<"churches">; address: string }[] = await ctx.runQuery(

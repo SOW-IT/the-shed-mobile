@@ -231,6 +231,30 @@ describe("attendanceMetrics", () => {
     expect(jobs.every((j) => j.ranges === undefined)).toBe(true);
   });
 
+  test("a nightly run does nothing where nightly jobs are paused, and a manual run still rebuilds", async () => {
+    const { t } = await setup();
+    vi.stubEnv("NIGHTLY_JOBS_PAUSED", "true");
+    try {
+      const scheduled = () =>
+        t.run(async (ctx) => (await ctx.db.system.query("_scheduled_functions").collect()).length);
+      await t.mutation(internal.attendanceMetrics.recomputeAll, { nightly: true });
+      expect(await scheduled()).toBe(0);
+      await t.mutation(internal.attendanceMetrics.recomputeAll, {});
+      expect(await scheduled()).toBeGreaterThan(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  test("a nightly run still rebuilds where nightly jobs aren't paused", async () => {
+    const { t } = await setup();
+    await t.mutation(internal.attendanceMetrics.recomputeAll, { nightly: true });
+    const scheduled = await t.run(
+      async (ctx) => (await ctx.db.system.query("_scheduled_functions").collect()).length
+    );
+    expect(scheduled).toBeGreaterThan(0);
+  });
+
   test("recomputeAll also rebuilds the General tab's campus chart once", async () => {
     const { t } = await setup();
     await t.mutation(internal.attendanceMetrics.recomputeAll, {});

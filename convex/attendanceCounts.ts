@@ -13,11 +13,46 @@ async function countRows(ctx: QueryCtx, eventId: Id<"events">): Promise<number> 
   return rows.length;
 }
 
+const storedCountOf = (ctx: QueryCtx, eventId: Id<"events">) =>
+  ctx.db
+    .query("eventAttendanceCounts")
+    .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
+    .unique();
+
 export async function eventAttendanceCount(
   ctx: QueryCtx,
   event: Doc<"events">
 ): Promise<number> {
-  return event.attendanceCount ?? (await countRows(ctx, event._id));
+  const stored = await storedCountOf(ctx, event._id);
+  return stored?.count ?? event.attendanceCount ?? (await countRows(ctx, event._id));
+}
+
+async function storeCount(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  count: number
+): Promise<void> {
+  const stored = await storedCountOf(ctx, eventId);
+  if (!stored) {
+    await ctx.db.insert("eventAttendanceCounts", { eventId, count });
+  } else if (stored.count !== count) {
+    await ctx.db.patch("eventAttendanceCounts", stored._id, { count });
+  }
+}
+
+export async function startEventAttendanceCount(
+  ctx: MutationCtx,
+  eventId: Id<"events">
+): Promise<void> {
+  await storeCount(ctx, eventId, 0);
+}
+
+export async function deleteEventAttendanceCount(
+  ctx: MutationCtx,
+  eventId: Id<"events">
+): Promise<void> {
+  const stored = await storedCountOf(ctx, eventId);
+  if (stored) await ctx.db.delete("eventAttendanceCounts", stored._id);
 }
 
 export async function recountEventAttendance(
@@ -26,9 +61,9 @@ export async function recountEventAttendance(
 ): Promise<void> {
   const event = await ctx.db.get("events", eventId);
   if (!event) return;
-  const count = await countRows(ctx, eventId);
-  if (event.attendanceCount !== count) {
-    await ctx.db.patch("events", eventId, { attendanceCount: count });
+  await storeCount(ctx, eventId, await countRows(ctx, eventId));
+  if (event.attendanceCount !== undefined) {
+    await ctx.db.patch("events", eventId, { attendanceCount: undefined });
   }
 }
 
@@ -37,14 +72,13 @@ export async function adjustEventAttendanceCount(
   eventId: Id<"events">,
   delta: number
 ): Promise<void> {
-  const event = await ctx.db.get("events", eventId);
-  if (!event) return;
-  if (event.attendanceCount === undefined) {
+  const stored = await storedCountOf(ctx, eventId);
+  if (!stored) {
     await recountEventAttendance(ctx, eventId);
     return;
   }
-  await ctx.db.patch("events", eventId, {
-    attendanceCount: Math.max(0, event.attendanceCount + delta),
+  await ctx.db.patch("eventAttendanceCounts", stored._id, {
+    count: Math.max(0, stored.count + delta),
   });
 }
 

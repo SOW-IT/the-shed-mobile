@@ -511,6 +511,20 @@ describe("settings", () => {
     expect((await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!.period).toBe("2026-S2");
   });
 
+  test("rebuildAll's nightly run does nothing where nightly jobs are paused", async () => {
+    const { t } = await setup();
+    vi.stubEnv("NIGHTLY_JOBS_PAUSED", "true");
+    try {
+      await t.mutation(internal.weeklyInsights.rebuildAll, { nightly: true });
+      const jobs = await t.run(
+        async (ctx) => (await ctx.db.system.query("_scheduled_functions").collect()).length
+      );
+      expect(jobs).toBe(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   test("rebuildAll schedules every campus this staff year, never SOW", async () => {
     const { t } = await setup();
     await t.run((ctx) => ctx.db.insert("universities", { name: "SOW", year: 2026 }));

@@ -364,6 +364,8 @@ export const get = query({
   },
 });
 
+const NAME_MATCH_LIMIT = 50;
+
 export const byName = query({
   args: { name: v.string() },
   handler: async (ctx, { name }) => {
@@ -375,14 +377,17 @@ export const byName = query({
     const exact = await ctx.db
       .query("attendanceMembers")
       .withIndex("by_name", (q) => q.eq("name", trimmed))
-      .take(50);
+      .take(NAME_MATCH_LIMIT);
     const normalized = trimmed.toLowerCase();
     const members =
       exact.length > 0
         ? exact
-        : (await ctx.db.query("attendanceMembers").collect()).filter(
-            (m) => m.name.trim().toLowerCase() === normalized
-          );
+        : (
+            await ctx.db
+              .query("attendanceMembers")
+              .withSearchIndex("search_name", (q) => q.search("name", trimmed))
+              .take(NAME_MATCH_LIMIT)
+          ).filter((m) => m.name.trim().toLowerCase() === normalized);
     return members
       .map((m) => ({
         _id: m._id,
