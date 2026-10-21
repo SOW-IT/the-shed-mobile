@@ -565,7 +565,9 @@ in app.json via `associatedDomains` and `intentFilters`):
    `YOUR_APPLE_TEAM_ID` with the real Team ID.
 2. After `eas credentials` creates the Android keystore: copy
    `assetlinks.json.example` to `assetlinks.json` and paste the SHA-256
-   signing fingerprint (shown by `eas credentials`).
+   fingerprint of the default build credentials (shown by `eas credentials`),
+   plus Play Console's app-signing key (App integrity, App signing), since
+   Play re-signs every install from the store.
 3. Merge to `main`. Vercel's build (root `vercel.json`) copies the two
    `.well-known/` files into the site, and the OS starts routing those links
    into the app once Apple's CDN and Android pick them up.

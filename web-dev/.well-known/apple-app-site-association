@@ -11,6 +11,12 @@
             "exclude": true
           },
           {
+            "?": {
+              "code": "?*"
+            },
+            "exclude": true
+          },
+          {
             "/": "/*"
           }
         ]

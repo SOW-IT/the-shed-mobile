@@ -6,6 +6,25 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.26] - 2026-10-21
+
+### Fixed
+- **Android app links name the key the app is really signed with.**
+  `assetlinks.json` listed a keystore EAS made in June but never built with,
+  so Android never trusted the site and every link opened Chrome. It now lists
+  the keystore EAS signs with (the staging file lists the staging app's own).
+  Phones that install from Google Play also need Play's app-signing key added
+  (see LAUNCH.md).
+- **Signing in on the website from a phone with the app installed stays in
+  the browser.** Since 2.9.25 every `theshed.sow.org.au` link opens the app,
+  including the address Google sends you back to after signing in on the web,
+  so the app opened and the web page never got the sign-in. The web sign-in
+  now comes back with `#noapp`, and both association files leave any link
+  carrying a sign-in `code` in the browser.
+- **Android 15 and later keep `#noapp` links in the browser too**, through
+  the same rules in `assetlinks.json`. Older Android can't skip a link by its
+  `#` or `?` part.
+
 ## [2.9.25] - 2026-10-21
 
 ### Added

@@ -53,6 +53,8 @@ export const NEWER_PAGES: readonly NewerPage[] = [{ prefix: "/checkin", since: "
 /** The marker on a link whose recipient's app can open it. */
 export const APP_LINK_MARKER = "#app";
 
+export const WEB_ONLY_MARKER = "#noapp";
+
 const parts = (version: string) => version.split(".").map((n) => Number.parseInt(n, 10) || 0);
 
 /** Negative, zero or positive as version `a` is older than, the same as or newer than `b`. */

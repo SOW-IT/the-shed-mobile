@@ -3,7 +3,7 @@ import Constants from "expo-constants";
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { Linking, Platform, View } from "react-native";
 import { api } from "@convex/_generated/api";
-import { appLinkForScheme } from "@shared/appLinks";
+import { appLinkForScheme, WEB_ONLY_MARKER } from "@shared/appLinks";
 import { Btn, EmptyState, LoadingState, ReadableColumn, Screen } from "@/components/ui";
 import { appVersion } from "@/hooks/useReportAppVersion";
 import { spacing } from "@/theme";
@@ -34,7 +34,7 @@ export default function NotFoundScreen() {
         : (Array.isArray(v) ? v : [v]).map((x) => [k, String(x)])
     )
   ).toString();
-  const webUrl = `${link.web}${pathname}${query ? `?${query}` : ""}#noapp`;
+  const webUrl = `${link.web}${pathname}${query ? `?${query}` : ""}${WEB_ONLY_MARKER}`;
   const goHome = () => router.replace("/home");
 
   if (platform && version && check === undefined) {
