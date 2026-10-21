@@ -20,13 +20,13 @@ crons.cron(
   {}
 );
 
-crons.cron("attendance metrics daily rebuild", "0 16 * * *", internal.attendanceMetrics.recomputeAll, {});
+crons.cron("attendance metrics daily rebuild", "0 16 * * *", internal.attendanceMetrics.recomputeAll, { nightly: true });
 
-crons.cron("church map locations", "0 17 * * *", internal.churches.locateAll, {});
+crons.cron("church map locations", "0 17 * * *", internal.churches.locateAll, { nightly: true });
 
 // 16:30 UTC (02:30 Sydney in winter, 03:30 in daylight saving): each
 // campus's weeklies Insights, redoing only what changed since the night before.
-crons.cron("weekly insights nightly build", "30 16 * * *", internal.weeklyInsights.rebuildAll, {});
+crons.cron("weekly insights nightly build", "30 16 * * *", internal.weeklyInsights.rebuildAll, { nightly: true });
 
 crons.cron("purge old app errors", "45 17 * * *", internal.appErrors.purgeOld, {});
 

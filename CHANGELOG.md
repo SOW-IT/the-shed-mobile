@@ -6,6 +6,73 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.29] - 2026-10-21
+
+### Changed
+- **Signing someone in no longer makes every phone on that roll call fetch
+  the whole sign-in list again.** Each event's head count used to live on the
+  event itself, and the roll call's list of everyone (about half a megabyte
+  from the database) reads the event, so every sign-in reloaded it on every
+  phone showing that event. The count now lives beside the event, so a
+  sign-in updates the count and the signed-in list and nothing else. This
+  was about half of production's database reads (see
+  `docs/convex-reads-2026-10-21.md`).
+- **A campus's roll call works out people's Roles from that campus's
+  weeklies.** Someone who comes to weeklies at two campuses shows the Role
+  from the campus whose roll call you're on (from both, at a joint event).
+  The Members list and org-wide events still weigh every campus. Reading one
+  campus's categories instead of all of them makes each refresh of the
+  signed-in list about half the size.
+- **The audit log's filters read less.** "Performed by" lists whoever made
+  the latest 200 entries (it was 1,000), and "Event" lists the last 40 events
+  that have started plus any event those entries mention.
+- **Checking a new member's name against existing ones reads only the
+  matching names.** When no one has exactly that name, the different-case
+  check searches names instead of reading every member.
+- **Insights' campus weeklies chart counts each weekly from its stored head
+  count** instead of reading every sign-in of every weekly each night.
+- **The nightly Insights, attendance metrics and church map runs can be
+  paused on a deployment** by setting `NIGHTLY_JOBS_PAUSED=true` (meant for
+  the shared dev deployment). Running them by hand still works.
+
+## [2.9.28] - 2026-10-21
+
+### Fixed
+- **Android opens The SHED for theshed.sow.org.au links from Google Play
+  installs.** Google Play re-signs every app it installs with its own key,
+  and `assetlinks.json` only listed the keys EAS builds with, so Android never
+  trusted the site for store installs. Both files now list Play's app-signing
+  key too (The SHED on the production web, The SHED Staging on the dev web).
+  Phones pick it up the next time the app installs or updates.
+
+## [2.9.27] - 2026-10-21
+
+### Fixed
+- **Buttons are announced as buttons.** The app's standard button never told
+  screen readers what it was: on the web it was a plain box with no button
+  role, and VoiceOver and TalkBack read only its text. It now has the button
+  role, its title as its name (without the icon), and says when it is
+  disabled or busy.
+
+## [2.9.26] - 2026-10-21
+
+### Fixed
+- **Android app links name the key the app is really signed with.**
+  `assetlinks.json` listed a keystore EAS made in June but never built with,
+  so Android never trusted the site and every link opened Chrome. It now lists
+  the keystore EAS signs with (the staging file lists the staging app's own).
+  Phones that install from Google Play also need Play's app-signing key added
+  (see LAUNCH.md).
+- **Signing in on the website from a phone with the app installed stays in
+  the browser.** Since 2.9.25 every `theshed.sow.org.au` link opens the app,
+  including the address Google sends you back to after signing in on the web,
+  so the app opened and the web page never got the sign-in. The web sign-in
+  now comes back with `#noapp`, and both association files leave any link
+  carrying a sign-in `code` in the browser.
+- **Android 15 and later keep `#noapp` links in the browser too**, through
+  the same rules in `assetlinks.json`. Older Android can't skip a link by its
+  `#` or `?` part.
+
 ## [2.9.25] - 2026-10-21
 
 ### Added

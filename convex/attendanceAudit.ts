@@ -70,6 +70,8 @@ export const auditStamp = (ms: number): string => {
 };
 
 const MAX_ROWS_SCANNED_PER_CALL = 2000;
+const FILTER_AUDIT_ROWS = 200;
+const FILTER_RECENT_EVENTS = 40;
 
 export const list = query({
   args: {
@@ -185,7 +187,7 @@ export const filterOptions = query({
     const recent = await ctx.db
       .query("attendanceAuditLog")
       .order("desc")
-      .take(1000);
+      .take(FILTER_AUDIT_ROWS);
 
     const year = staffYearForDate(new Date());
     const actorEmails = [...new Set(recent.map((r) => r.actorEmail))];
@@ -197,12 +199,17 @@ export const filterOptions = query({
     );
     actors.sort((a, b) => a.name.localeCompare(b.name));
 
-    const eventIds = [
+    const started = await ctx.db
+      .query("events")
+      .withIndex("by_dateStart", (q) => q.lte("dateStart", Date.now()))
+      .order("desc")
+      .take(FILTER_RECENT_EVENTS);
+    const startedIds = new Set(started.map((e) => e._id));
+    const loggedIds = [
       ...new Set(recent.flatMap((r) => (r.eventId ? [r.eventId] : []))),
-    ];
-    const events = (
-      await Promise.all(eventIds.map((id) => ctx.db.get(id)))
-    )
+    ].filter((id) => !startedIds.has(id));
+    const logged = await Promise.all(loggedIds.map((id) => ctx.db.get(id)));
+    const events = [...started, ...logged]
       .filter((e): e is NonNullable<typeof e> => e !== null)
       .map((e) => ({
         id: e._id,

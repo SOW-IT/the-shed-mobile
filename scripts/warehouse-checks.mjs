@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { jsonPayload } from "./lib/convexExportToBigQuery.mjs";
 import { REPORT_VIEWS } from "./lib/convexWarehouseReports.mjs";
 
 const arg = (name, fallback) => {
@@ -27,10 +28,14 @@ const sh = (cmd, args, allowFail = false) => {
   }
 };
 
-const bqJson = (sql) =>
-  JSON.parse(
-    sh("bq", ["--project_id", project, "--location", location, "query", "--use_legacy_sql=false", "--format=json", "--max_rows=10000", sql])
-  );
+const bqJson = (sql) => {
+  const output = sh("bq", ["--project_id", project, "--location", location, "query", "--use_legacy_sql=false", "--format=json", "--max_rows=10000", sql]);
+  try {
+    return JSON.parse(jsonPayload(output) || "[]");
+  } catch (error) {
+    throw new Error(`bq query printed something that is not JSON (${error.message}):\n${output}`);
+  }
+};
 
 const rowCounts = () => {
   const rows = bqJson(`SELECT table_id, row_count FROM \`${project}.${dataset}.__TABLES__\``);

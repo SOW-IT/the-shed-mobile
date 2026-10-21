@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
   APP_LINKS,
@@ -11,6 +12,7 @@ import {
   searchWithoutSignInParams,
   updateStatusFor,
   versionNeededFor,
+  WEB_ONLY_MARKER,
 } from "./appLinks";
 
 describe("appLinks", () => {
@@ -104,5 +106,51 @@ describe("links surviving a web sign-in", () => {
     expect(searchWithoutSignInParams("?code=123&state=x&scope=email&authuser=0&prompt=none&hd=sow.org.au")).toBe("");
     expect(searchWithoutSignInParams("?error=access_denied&error_description=no&id=7")).toBe("?id=7");
     expect(searchWithoutSignInParams("")).toBe("");
+  });
+});
+
+const associationFile = (folder: string, name: string) =>
+  JSON.parse(readFileSync(new URL(`../${folder}/.well-known/${name}`, import.meta.url), "utf8"));
+
+const webOnly = [
+  { "#": WEB_ONLY_MARKER.slice(1), exclude: true },
+  { "?": { code: "?*" }, exclude: true },
+];
+
+describe.each([
+  [
+    "web",
+    "au.org.sow.theshed",
+    [
+      "BC:05:F0:8B:5E:67:29:0C:62:83:C7:30:7D:F9:90:E1:83:3A:9D:CB:B7:AE:BA:3B:9A:64:86:BA:3C:80:0E:62",
+      "35:E8:D8:3F:E5:31:7B:39:B8:A7:B9:1D:38:11:83:AD:41:A7:CA:6C:4C:DA:06:22:A9:8B:98:BE:38:86:E6:43",
+      "6A:BC:70:E5:BD:A2:D5:2C:11:5F:1B:93:45:7E:89:A0:83:49:06:40:C7:84:EA:81:25:B8:81:A0:99:EC:99:94",
+    ],
+  ],
+  [
+    "web-dev",
+    "au.org.sow.theshed.staging",
+    [
+      "1B:05:5E:47:99:77:2A:F9:C9:B4:82:AC:52:20:23:FC:DE:E4:5B:65:53:10:08:E3:12:CE:D7:80:B3:43:94:C8",
+      "B5:96:8D:48:C6:BE:BA:1F:3C:DF:3A:8D:26:F2:A5:CA:98:3E:22:BD:28:5F:62:D9:5A:A8:63:97:AF:54:80:B9",
+    ],
+  ],
+])("association files served by %s", (folder, appId, playThenEasSigningKeys) => {
+  test("iOS hands every page to the app except no-app links and web sign-in returns", () => {
+    const [details] = associationFile(folder, "apple-app-site-association").applinks.details;
+    expect(details.appIDs).toEqual([`4FH642K7X2.${appId}`]);
+    expect(details.components).toEqual([...webOnly, { "/": "/*" }]);
+  });
+
+  test("Android trusts real signing keys and skips the same links from Android 15", () => {
+    const [statement] = associationFile(folder, "assetlinks.json");
+    expect(statement.target.package_name).toBe(appId);
+    expect(statement.target.sha256_cert_fingerprints).toEqual(playThenEasSigningKeys);
+    for (const fingerprint of statement.target.sha256_cert_fingerprints) {
+      expect(fingerprint).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+    }
+    expect(
+      statement.relation_extensions["delegate_permission/common.handle_all_urls"].dynamic_app_link_components
+    ).toEqual([...webOnly, { "/": "*" }]);
   });
 });

@@ -17,14 +17,19 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
-- [ ] **Confirm production serves the app-link files.** Until 2.9.25 the
-      production build never copied `web/.well-known`, so
-      `theshed.sow.org.au/.well-known/apple-app-site-association` returned the
-      app's HTML and Apple's CDN had "Not Found" (checked 2026-10-21). The root
-      `vercel.json` now copies both files into `dist`. After the first
-      production deploy of 2.9.25, check that the file is served as JSON there
-      and that `https://app-site-association.cdn-apple.com/a/v1/theshed.sow.org.au`
-      returns it, then move this to "Already done" with that evidence.
+- [ ] **After 2.9.29 is live, move the event head counts once:**
+      `npx convex run --prod attendanceCounts:backfill`. It recounts every
+      event into `eventAttendanceCounts` and clears the old
+      `events.attendanceCount` field (about 3.5 MB of reads, once). Until it
+      runs, lists fall back to the old field and an event's first sign-in
+      recounts it, so nothing shows a wrong count in the meantime. A later
+      release can drop the field from the schema once no event has it.
+- [ ] **Redeploy dev with 2.9.29 so its nightly jobs pause.**
+      `NIGHTLY_JOBS_PAUSED=true` was set on `successful-lynx-56` on
+      2026-10-21 (`npx convex env get NIGHTLY_JOBS_PAUSED` prints `true`;
+      prod has no such variable). Dev runs `feat/music-form` merged with main,
+      so it takes effect once that branch has 2.9.29 and is redeployed. On a
+      quiet day those jobs are 8 to 10 MB of dev's reads.
 - [ ] **Ship one store build of 2.9.19 or later before relying on
       over-the-air updates.** Builds before 2.9.19 have no `expo-updates` and
       no channel, so `eas-update.yml` publishes to nobody until people install
@@ -44,11 +49,20 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       2026-10-20 database bandwidth was 5.49 GB against a 1 GB plan (prod 4.56,
       dev 0.93), so the first run will warn; set `CONVEX_PLAN_DB_BANDWIDTH_GB`
       if the plan changes.
-- [ ] **Let the backup account replace the storage manifest.** The nightly
-      file copy overwrites `storage/manifest.json`, which needs
+- [ ] **Let the backup account replace the storage manifest and the
+      warehouse check's state.** The nightly file copy overwrites
+      `storage/manifest.json` after every page of files, and the warehouse
+      check overwrites `convex/production/checks/latest.json`. Both need
       `storage.objects.delete` on the backup bucket for
-      `GCP_BACKUP_SERVICE_ACCOUNT` (file objects themselves are never
-      overwritten). The first night downloads every existing file once.
+      `GCP_BACKUP_SERVICE_ACCOUNT` (file objects and the database zips are
+      never overwritten). Without it, new file objects and zips still upload
+      and each JSON file can be created once, but replacing it fails: on
+      2026-10-20 the manifest was created at 19:21:53Z and replacing it four
+      minutes later failed with
+      `GcsApiError('')`, so the file copy stops after its first page each
+      night, and the warehouse check will fail from its second night. The
+      first night with the grant downloads every file not yet in the
+      manifest once.
 - [ ] **Ask phones to update to 2.9.1 once it's live in both stores** (2.9.0 is
       the first version with the update prompt, so it only reaches people on
       2.9.0 and later): `npx convex run --prod appInstalls:setUpdatePolicy
@@ -190,11 +204,36 @@ from a URL.
 pointed at it.
 
 **Universal links**: real `apple-app-site-association` (Team ID above) and
-`assetlinks.json` are committed, and the dev web serves them (staging app
-links verified through Apple's CDN on 2026-10-21). Production serving is
-under "Still outstanding".
+`assetlinks.json` are committed and served. Until 2.9.25 the production build
+never copied `web/.well-known`, so production returned the app's HTML for them
+and Apple's CDN had "Not Found"; the root `vercel.json` now copies both into
+`dist`. Evidence, 2026-10-21 02:44 UTC after the 2.9.25 deploy (`382a82e`):
+`theshed.sow.org.au/.well-known/apple-app-site-association` and
+`assetlinks.json` both return 200 `application/json`, and
+`https://app-site-association.cdn-apple.com/a/v1/theshed.sow.org.au` returns
+the file for `4FH642K7X2.au.org.sow.theshed`. The dev web serves the staging
+pair: checked 2026-10-21 04:26 UTC, after the 2.9.26 dev deploy (`aaf3c82`),
+`the-shed-web-dev.vercel.app/.well-known/apple-app-site-association` and
+`assetlinks.json` both return 200 `application/json` (for
+`au.org.sow.theshed.staging`), and
+`https://app-site-association.cdn-apple.com/a/v1/the-shed-web-dev.vercel.app`
+returns the file for `4FH642K7X2.au.org.sow.theshed.staging`.
 
-> ⚠️ If **Google Play App Signing** is enabled, Play re-signs with its own key.
-> Add the Play Console's app-signing SHA-256 to the `sha256_cert_fingerprints`
-> array in `assetlinks.json` (it takes several) or Android App Links will not
-> verify for Play installs.
+> ⚠️ **Google Play App Signing** re-signs Play installs with Play's own key.
+> Each `assetlinks.json` lists Play's app-signing key first, then the EAS
+> keystores the builds are signed with (`eas credentials`, the default build
+> credentials). If Play's key ever changes (a key upgrade in Play Console),
+> update it there too, or Android App Links stop verifying for Play installs.
+
+**Android App Links verified**: 2.9.28 (`828786a`) added Google Play's
+app-signing keys. Google's `assetlinks:check` returned `"linked": true` for
+every key the two files list (the same lists `shared/appLinks.test.ts` pins):
+The SHED on `theshed.sow.org.au` (Play `BC:05:F0:8B:…:0E:62`, EAS default
+`35:E8:D8:3F:…:E6:43`, both checked 07:50 UTC, and the older EAS key
+`6A:BC:70:E5:…:99:94`, checked 11:29 UTC, all 2026-10-21) and The SHED Staging
+on `the-shed-web-dev.vercel.app` (Play `1B:05:5E:47:…:94:C8` and EAS
+`B5:96:8D:48:…:80:B9`, 07:50 UTC). Android verifies when the app is installed or updated,
+so Play installs open links in the app after their next update. On Android 14
+and older, an old app's "Open on the web" and a web sign-in on a phone with the
+app can land in the app, because those versions ignore the `#noapp` and
+`?code=` rules.

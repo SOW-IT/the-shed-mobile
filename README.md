@@ -518,6 +518,10 @@ Prod env vars are managed with `npx convex env set --prod ...` (JWT keys,
 SITE_URL/APP_URL, Resend are set; Google OAuth + directory-sync vars need
 `--prod` copies when configured). Re-seed prod with the real admin email via
 `npx convex run --prod admin:seed '{"adminEmail":"you@sow.org.au"}'`.
+`NIGHTLY_JOBS_PAUSED=true` (for the shared dev deployment) makes the nightly
+Insights, attendance metrics and church map crons do nothing; run them by hand
+with `npx convex run attendanceMetrics:recomputeAll` or
+`npx convex run weeklyInsights:rebuildAll` when you need fresh numbers.
 
 The same app runs in the browser via react-native-web, hosted at
 **<https://theshed.sow.org.au>** (Vercel project `the-shed-web`, served on the
@@ -565,7 +569,9 @@ in app.json via `associatedDomains` and `intentFilters`):
    `YOUR_APPLE_TEAM_ID` with the real Team ID.
 2. After `eas credentials` creates the Android keystore: copy
    `assetlinks.json.example` to `assetlinks.json` and paste the SHA-256
-   signing fingerprint (shown by `eas credentials`).
+   fingerprint of the default build credentials (shown by `eas credentials`),
+   plus Play Console's app-signing key (App integrity, App signing), since
+   Play re-signs every install from the store.
 3. Merge to `main`. Vercel's build (root `vercel.json`) copies the two
    `.well-known/` files into the site, and the OS starts routing those links
    into the app once Apple's CDN and Android pick them up.

@@ -505,6 +505,11 @@ export default defineSchema({
     .index("by_dateStart", ["dateStart"])
     .index("by_checkIn_token", ["checkIn.token"]),
 
+  eventAttendanceCounts: defineTable({
+    eventId: v.id("events"),
+    count: v.number(),
+  }).index("by_eventId", ["eventId"]),
+
   checkInRequests: defineTable({
     eventId: v.id("events"),
     clientKey: v.string(),
@@ -573,7 +578,8 @@ export default defineSchema({
   })
     .index("by_email", ["email"])
     .index("by_name", ["name"])
-    .index("by_churchId", ["churchId"]),
+    .index("by_churchId", ["churchId"])
+    .searchIndex("search_name", { searchField: "name" }),
 
   // An admin said this member isn't this staff person, so Admin → Merges
   // stops suggesting the pair. `staffEmail` is the canonical email key.

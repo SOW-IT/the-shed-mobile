@@ -8,7 +8,7 @@ import {
 } from "expo-web-browser";
 import { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
-import { searchWithoutSignInParams } from "../../shared/appLinks";
+import { searchWithoutSignInParams, WEB_ONLY_MARKER } from "../../shared/appLinks";
 
 maybeCompleteAuthSession();
 
@@ -112,7 +112,7 @@ export const useGoogleSignIn = () => {
         window.sessionStorage.setItem(PENDING_PROVIDER_KEY, PROVIDER);
         // Back to this page afterwards, so an emailed link still lands where it pointed.
         await signIn(PROVIDER, {
-          redirectTo: `${window.location.origin}${pageWithoutSignInParams()}`,
+          redirectTo: `${window.location.origin}${pageWithoutSignInParams()}${WEB_ONLY_MARKER}`,
         });
         return "cancelled";
       }

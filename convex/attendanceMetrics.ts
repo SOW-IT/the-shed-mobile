@@ -37,7 +37,7 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
-import { currentStaffYear, optionalProfile } from "./model";
+import { currentStaffYear, nightlyJobsPaused, optionalProfile } from "./model";
 import { metricsDataValidator, viewBlockValidator } from "./metricsData";
 import { readCampusWeeklyAverages } from "./weeklyInsights";
 import { photoFor } from "./photo";
@@ -399,9 +399,10 @@ function metricsYears(): number[] {
 }
 
 export const recomputeAll = internalMutation({
-  args: { staffYear: v.optional(v.number()) },
+  args: { staffYear: v.optional(v.number()), nightly: v.optional(v.boolean()) },
   returns: v.null(),
   handler: async (ctx, args) => {
+    if (args.nightly && nightlyJobsPaused()) return null;
     // Only the org-wide SOW view uses these Snapshots now; each campus's view
     // is built from its weekly meetings by weeklyInsights.rebuildAll.
     const years = args.staffYear ? [args.staffYear] : metricsYears();
