@@ -1,6 +1,6 @@
 import { Avatar } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { campusPill } from "@/components/attendance/campusPill";

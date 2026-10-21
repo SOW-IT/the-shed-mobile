@@ -1,10 +1,35 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { appCanOpen } from "../shared/appLinks";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
 import { optionalEmail, optionalProfile, requireProfile } from "./model";
 
 const FEED_LIMIT = 50;
 const UNREAD_PROBE = 100;
+
+const feedRow = (n: Doc<"notifications">, appVersion: string | undefined) => ({
+  id: n._id,
+  title: n.title,
+  body: n.body,
+  url: n.url && appCanOpen(n.url, appVersion) ? n.url : null,
+  read: n.read,
+  at: n._creationTime,
+});
+
+export const feed = query({
+  args: { paginationOpts: paginationOptsValidator, appVersion: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const result = await ctx.db
+      .query("notifications")
+      .withIndex("by_user", (q) => q.eq("userEmail", caller.email))
+      .order("desc")
+      .paginate(args.paginationOpts);
+    return { ...result, page: result.page.map((n) => feedRow(n, args.appVersion)) };
+  },
+});
 
 export const unreadCountOf = async (ctx: QueryCtx, email: string): Promise<number> =>
   (
@@ -34,14 +59,7 @@ export const list = query({
       .withIndex("by_user", (q) => q.eq("userEmail", caller.email))
       .order("desc")
       .take(FEED_LIMIT);
-    return rows.map((n) => ({
-      id: n._id,
-      title: n.title,
-      body: n.body,
-      url: n.url && appCanOpen(n.url, args.appVersion) ? n.url : null,
-      read: n.read,
-      at: n._creationTime,
-    }));
+    return rows.map((n) => feedRow(n, args.appVersion));
   },
 });
 
@@ -162,10 +180,13 @@ export const markReadForAnnouncement = mutation({
   },
 });
 
+const MARKED_IDS_RETURNED = 500;
+
 export const markAllRead = mutation({
   args: {},
   handler: async (ctx) => {
     const { email } = await requireProfile(ctx);
+    const marked: Id<"notifications">[] = [];
     for (;;) {
       const unread = await ctx.db
         .query("notifications")
@@ -176,8 +197,9 @@ export const markAllRead = mutation({
       if (unread.length === 0) break;
       for (const notification of unread) {
         await ctx.db.patch("notifications", notification._id, { read: true });
+        if (marked.length < MARKED_IDS_RETURNED) marked.push(notification._id);
       }
     }
-    return null;
+    return marked;
   },
 });

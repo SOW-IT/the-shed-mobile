@@ -1,7 +1,7 @@
 {
   "name": "theshed",
   "main": "expo-router/entry",
-  "version": "2.9.15",
+  "version": "2.9.25",
   "dependencies": {
     "@auth/core": "^0.41.3",
     "@convex-dev/auth": "^0.0.96",
@@ -32,11 +32,13 @@
     "expo-splash-screen": "~58.0.10",
     "expo-status-bar": "~58.0.3",
     "expo-system-ui": "~58.0.6",
+    "expo-updates": "~58.0.17",
     "expo-web-browser": "~58.0.6",
     "jose": "^6.2.12",
     "jpeg-js": "^0.4.4",
     "pdf-lib": "^1.17.1",
     "pngjs": "^7.0.0",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
@@ -57,6 +59,7 @@
     "convex-test": "^0.0.62",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~58.0.4",
+    "playwright": "^1.58.2",
     "typescript": "~6.0.3",
     "vitest": "^5.0.3"
   },

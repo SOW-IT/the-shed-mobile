@@ -12,7 +12,7 @@ import {
   subgroupLabel,
   subgroupMatches,
 } from "../../../shared/rollcall";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { CampusMark } from "@/components/CampusMark";

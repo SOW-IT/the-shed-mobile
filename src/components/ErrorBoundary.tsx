@@ -1,6 +1,7 @@
-import { Component, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { reportError } from "@/lib/errorReporting";
 import { useAppTheme } from "../theme";
 
 export class ErrorBoundary extends Component<
@@ -11,6 +12,10 @@ export class ErrorBoundary extends Component<
 
   static getDerivedStateFromError(error: Error) {
     return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    reportError(error, info.componentStack);
   }
 
   render() {

@@ -1,5 +1,7 @@
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorReporter } from "@/components/ErrorReporter";
+import { OtaUpdateBanner } from "@/components/OtaUpdateBanner";
 import { AppSidebar } from "@/components/nav/AppSidebar";
 import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
@@ -129,6 +131,7 @@ const RootStack = () => {
             <Stack.Screen name="announcements/index" />
             <Stack.Screen name="announcements/[id]" />
             <Stack.Screen name="all" />
+            <Stack.Screen name="checkin/[token]" />
             <Stack.Screen name="e2e-auth" />
             <Stack.Screen
               name="spotify-callback"
@@ -180,7 +183,9 @@ export default function RootLayout() {
                 shouldHandleCode={Platform.OS !== "web"}
               >
                 <AuthGate />
+                <ErrorReporter />
                 <AppUpdatePrompt />
+                <OtaUpdateBanner />
               </ConvexAuthProvider>
             ) : (
               <ConfigurationErrorScreen />

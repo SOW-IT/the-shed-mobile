@@ -424,6 +424,7 @@ export const recomputeAll = internalMutation({
     );
     await ctx.scheduler.runAfter(0, internal.generalMetrics.recomputeStaffTrends, {});
     await ctx.scheduler.runAfter(0, internal.rosterHistory.rebuild, {});
+    await ctx.scheduler.runAfter(0, internal.memberPairSuggestions.rebuild, {});
     return null;
   },
 });

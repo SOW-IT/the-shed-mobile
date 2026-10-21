@@ -299,16 +299,9 @@ export default defineSchema({
       "designRequestId",
       "read",
     ])
-    .index("by_user_and_eventRequest_and_read", [
-      "userEmail",
-      "eventRequestId",
-      "read",
-    ])
-    .index("by_user_and_announcement_and_read", [
-      "userEmail",
-      "announcementId",
-      "read",
-    ])
+    .index("by_user_and_eventRequest_and_read", ["userEmail", "eventRequestId", "read"])
+    .index("by_user_and_announcement_and_read", ["userEmail", "announcementId", "read"])
+    .index("by_announcement_and_read", ["announcementId", "read"])
     .index("by_request", ["requestId"]),
 
   // A message an admin sends to everyone, or to chosen campuses, divisions,
@@ -505,8 +498,31 @@ export default defineSchema({
     // (or by the backfill). Insights trusts these over dates and names.
     weekly: v.optional(weeklyMarkValidator),
     attendanceCount: v.optional(v.number()),
+    checkIn: v.optional(
+      v.object({ token: v.string(), enabledAt: v.number(), enabledBy: v.string() })
+    ),
   })
-    .index("by_dateStart", ["dateStart"]),
+    .index("by_dateStart", ["dateStart"])
+    .index("by_checkIn_token", ["checkIn.token"]),
+
+  checkInRequests: defineTable({
+    eventId: v.id("events"),
+    clientKey: v.string(),
+    name: v.string(),
+    campus: v.optional(v.string()),
+    yearLevel: v.optional(v.string()),
+    forSomeoneElse: v.optional(v.boolean()),
+    memberId: v.optional(v.id("attendanceMembers")),
+    attendanceId: v.optional(v.id("attendance")),
+    sameNameCount: v.optional(v.number()),
+    status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("dismissed")),
+    requestedAt: v.number(),
+    decidedAt: v.optional(v.number()),
+    decidedBy: v.optional(v.string()),
+  })
+    .index("by_event_and_status", ["eventId", "status"])
+    .index("by_event_and_clientKey_and_name", ["eventId", "clientKey", "name"])
+    .index("by_clientKey_and_status_and_forSomeoneElse", ["clientKey", "status", "forSomeoneElse"]),
 
   attendanceAuditLog: defineTable({
     actorEmail: v.string(),
@@ -568,10 +584,24 @@ export default defineSchema({
     dismissedAt: v.number(),
   }).index("by_staff_and_member", ["staffEmail", "memberId"]),
 
+  memberPairSuggestions: defineTable({
+    memberA: v.id("attendanceMembers"),
+    memberB: v.id("attendanceMembers"),
+    status: v.union(v.literal("open"), v.literal("dismissed")),
+    builtAt: v.number(),
+    statsA: v.optional(v.object({ signIns: v.number(), lastSignIn: v.union(v.number(), v.null()) })),
+    statsB: v.optional(v.object({ signIns: v.number(), lastSignIn: v.union(v.number(), v.null()) })),
+    dismissedBy: v.optional(v.string()),
+    dismissedAt: v.optional(v.number()),
+  })
+    .index("by_members", ["memberA", "memberB"])
+    .index("by_status_and_builtAt", ["status", "builtAt"]),
+
   attendance: defineTable({
     eventId: v.id("events"),
     memberId: v.id("attendanceMembers"),
     signInTime: v.number(),
+    addedAt: v.optional(v.number()),
     notes: v.optional(v.string()),
   })
     .index("by_event", ["eventId"])
@@ -584,6 +614,21 @@ export default defineSchema({
   })
     .index("by_email_and_time", ["fromEmail", "submittedAt"])
     .index("by_time", ["submittedAt"]),
+
+  appErrors: defineTable({
+    fingerprint: v.string(),
+    message: v.string(),
+    stack: v.optional(v.string()),
+    route: v.optional(v.string()),
+    platform: v.string(),
+    version: v.optional(v.string()),
+    lastEmail: v.optional(v.string()),
+    count: v.number(),
+    firstAt: v.number(),
+    lastAt: v.number(),
+  })
+    .index("by_fingerprint", ["fingerprint"])
+    .index("by_lastAt", ["lastAt"]),
 
   attendanceMetricsSnapshots: defineTable({
     subgroup: v.string(),

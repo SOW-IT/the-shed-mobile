@@ -6,7 +6,8 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
     },
     "preview": {
       "autoIncrement": true,
@@ -16,7 +17,8 @@
       },
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "preview"
     },
     "staging": {
       "environment": "preview",
@@ -24,13 +26,15 @@
       "env": {
         "APP_VARIANT": "staging",
         "EXPO_PUBLIC_CONVEX_URL": "https://successful-lynx-56.ap-southeast-2.convex.cloud"
-      }
+      },
+      "channel": "staging"
     },
     "production": {
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_CONVEX_URL": "https://giant-bloodhound-191.ap-southeast-2.convex.cloud"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {

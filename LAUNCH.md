@@ -17,6 +17,38 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
+- [ ] **Confirm production serves the app-link files.** Until 2.9.25 the
+      production build never copied `web/.well-known`, so
+      `theshed.sow.org.au/.well-known/apple-app-site-association` returned the
+      app's HTML and Apple's CDN had "Not Found" (checked 2026-10-21). The root
+      `vercel.json` now copies both files into `dist`. After the first
+      production deploy of 2.9.25, check that the file is served as JSON there
+      and that `https://app-site-association.cdn-apple.com/a/v1/theshed.sow.org.au`
+      returns it, then move this to "Already done" with that evidence.
+- [ ] **Ship one store build of 2.9.19 or later before relying on
+      over-the-air updates.** Builds before 2.9.19 have no `expo-updates` and
+      no channel, so `eas-update.yml` publishes to nobody until people install
+      it. Check the first publish lands with `eas update:list` and a phone on
+      the new build. iOS 2.9.23 is the first such build; Android's first is
+      2.9.24, because 2.9.23's Android production build failed on a
+      fingerprint mismatch (see 2.9.24 in CHANGELOG.md). `fingerprint.config.js`
+      now ignores the builder-only Firebase file and native folders, so the
+      GitHub runner's fingerprint matches the EAS builder's: the 2.9.24
+      Android production build (EAS build `25f738fc`, from `13475e1` on
+      2026-10-21) passed "Configure expo-updates" and was submitted to
+      Google Play (submission `46f8f1d6`). Each
+      publish sets `EXPO_PUBLIC_CONVEX_URL` itself, since `eas update`
+      ignores the build profiles' `env`.
+- [ ] **Add the `CONVEX_ACCESS_TOKEN` repository secret** (a team member's
+      token from `npx convex login`) so `convex-usage.yml` can read usage. On
+      2026-10-20 database bandwidth was 5.49 GB against a 1 GB plan (prod 4.56,
+      dev 0.93), so the first run will warn; set `CONVEX_PLAN_DB_BANDWIDTH_GB`
+      if the plan changes.
+- [ ] **Let the backup account replace the storage manifest.** The nightly
+      file copy overwrites `storage/manifest.json`, which needs
+      `storage.objects.delete` on the backup bucket for
+      `GCP_BACKUP_SERVICE_ACCOUNT` (file objects themselves are never
+      overwritten). The first night downloads every existing file once.
 - [ ] **Ask phones to update to 2.9.1 once it's live in both stores** (2.9.0 is
       the first version with the update prompt, so it only reaches people on
       2.9.0 and later): `npx convex run --prod appInstalls:setUpdatePolicy
@@ -157,9 +189,10 @@ from a URL.
 **Custom domain** — `theshed.sow.org.au` resolves and serves, with `SITE_URL`
 pointed at it.
 
-**Universal links** — real `apple-app-site-association` (Team ID above) and
-`assetlinks.json` are committed and served, with `web/vercel.json` giving the
-AASA file an `application/json` content type.
+**Universal links**: real `apple-app-site-association` (Team ID above) and
+`assetlinks.json` are committed, and the dev web serves them (staging app
+links verified through Apple's CDN on 2026-10-21). Production serving is
+under "Still outstanding".
 
 > ⚠️ If **Google Play App Signing** is enabled, Play re-signs with its own key.
 > Add the Play Console's app-signing SHA-256 to the `sha256_cert_fingerprints`

@@ -1,6 +1,6 @@
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Fragment, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";

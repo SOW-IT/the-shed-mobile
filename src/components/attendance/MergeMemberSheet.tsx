@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Keyboard, StyleSheet, Text, View } from "react-native";
@@ -60,6 +60,7 @@ export function MergeMemberSheet({
   staffYear,
   removeViewedByDefault = false,
   initialStaff,
+  initialMember,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -74,6 +75,7 @@ export function MergeMemberSheet({
   removeViewedByDefault?: boolean;
   /** Opened from the Email field: go straight to merging into this staff person. */
   initialStaff?: { email: string; name: string } | null;
+  initialMember?: { memberId: Id<"attendanceMembers">; name: string; email?: string } | null;
 }) {
   const t = useAppTheme();
   const merge = useMutation(api.attendanceMembers.merge);
@@ -118,6 +120,18 @@ export function MergeMemberSheet({
       email: initialStaff.email,
     });
   }, [visible, initialStaff]);
+
+  useEffect(() => {
+    if (!visible || !initialMember) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- preselect when opened for a member pair
+    setPicked({
+      key: `member:${initialMember.memberId}`,
+      name: initialMember.name,
+      isStaff: false,
+      email: initialMember.email,
+      memberId: initialMember.memberId,
+    });
+  }, [visible, initialMember]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 300);

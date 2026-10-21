@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -34,6 +34,7 @@ import {
 import { RollCallRow, type RollCallHandlers } from "@/components/attendance/RollCallRow";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
+import { CheckInSheet, useCheckInPending } from "@/components/attendance/CheckInSheet";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
@@ -61,6 +62,7 @@ const UNSIGNED_VISIBLE_ROWS = 3;
 const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * UNSIGNED_VISIBLE_ROWS;
 
 const TWO_COLUMN_MIN_WIDTH = 700;
+const META_BESIDE_TITLE_MIN_WIDTH = 600;
 
 const NEWLY_ADDED_CLEAR_MS = ATTENDANCE_ROW_ENTER_MS + 40;
 
@@ -154,6 +156,8 @@ export default function EventAttendanceScreen() {
     event ? { year: eventStaffYear(event.dateStart), subgroup: eventSubgroup, eventId: evId } : "skip"
   );
   const signIn = useMutation(api.attendance.signIn);
+  const checkInPending = useCheckInPending(evId);
+  const [checkInOpen, setCheckInOpen] = useState(false);
   const signOut = useMutation(api.attendance.signOut);
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
   const metadataFields = useQuery(
@@ -237,7 +241,9 @@ export default function EventAttendanceScreen() {
   const canEdit = !pastEvent || editUnlocked;
   const { height: windowHeight } = useWindowDimensions();
   // Measured beside the wide-screen sidebar, not across the whole window.
-  const twoColumn = useContentWidth() >= TWO_COLUMN_MIN_WIDTH;
+  const contentWidth = useContentWidth();
+  const twoColumn = contentWidth >= TWO_COLUMN_MIN_WIDTH;
+  const metaUnderTitle = contentWidth < META_BESIDE_TITLE_MIN_WIDTH;
 
   const closeEdit = () => {
     setEditOpen(false);
@@ -246,6 +252,20 @@ export default function EventAttendanceScreen() {
 
   const signedInKeys = useMemo(
     () => new Set((attendance ?? []).map((a) => personKey(a)).filter(Boolean)),
+    [attendance]
+  );
+
+  const checkInMembers = useMemo(
+    () =>
+      roster?.flatMap((entry) =>
+        entry.memberId
+          ? [{ memberId: entry.memberId, name: entry.name, university: entry.university ?? null, subtitle: entry.subtitle }]
+          : []
+      ),
+    [roster]
+  );
+  const signedInMemberIds = useMemo(
+    () => new Set<string>((attendance ?? []).map((a) => a.memberId)),
     [attendance]
   );
 
@@ -859,7 +879,7 @@ export default function EventAttendanceScreen() {
         const isAnimating = isEntering || isExiting;
         const busy = isAnimating || leavingSignedIn.has(aKey);
         const isSuppressed = suppressFadeIn.has(aKey);
-        const signOutLocked = !canReverseSignIn(event, a.signInTime, clock);
+        const signOutLocked = !canReverseSignIn(event, a.addedAt ?? a.signInTime, clock);
         const rowKey = `${aKey || (a._id as string)}#${rowRetries.get(aKey) ?? 0}`;
         const row = (
           <RollCallRow
@@ -901,6 +921,91 @@ export default function EventAttendanceScreen() {
     <Muted>Everyone in the pool is signed in 🎉</Muted>
   );
 
+  const eventActions = (
+    <View style={[styles.headerActions, metaUnderTitle && styles.headerActionsUnder]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Edit event"
+      accessibilityState={{ disabled: !canEdit }}
+      disabled={!canEdit}
+      onPress={() => {
+        if (!canEdit) return;
+        setEventEditOpen(true);
+      }}
+      style={({ pressed }) => [
+        styles.editEventButton,
+        { borderColor: t.primary, opacity: canEdit ? 1 : 0.4 },
+        pressed && canEdit && { opacity: 0.7 },
+      ]}
+    >
+      <Text style={[typography.caption, styles.editEventText, { color: t.primary }]}>
+        Edit
+      </Text>
+    </Pressable>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        checkInPending && checkInPending.length > 0
+          ? `Self check-in, ${checkInPending.length} waiting`
+          : "Self check-in"
+      }
+      onPress={() => setCheckInOpen(true)}
+      style={({ pressed }) => [
+        styles.editEventButton,
+        styles.checkInButton,
+        {
+          borderColor: t.primary,
+          backgroundColor: checkInPending && checkInPending.length > 0 ? t.primary : "transparent",
+        },
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <Ionicons
+        name="qr-code-outline"
+        size={14}
+        color={checkInPending && checkInPending.length > 0 ? t.onPrimary : t.primary}
+      />
+      {checkInPending && checkInPending.length > 0 ? (
+        <Text style={[typography.caption, styles.editEventText, { color: t.onPrimary }]}>
+          {checkInPending.length}
+        </Text>
+      ) : null}
+    </Pressable>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Export event attendance"
+      onPress={() => setExportOpen(true)}
+      style={({ pressed }) => [
+        styles.editEventButton,
+        { borderColor: t.primary },
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <Ionicons name="download-outline" size={14} color={t.primary} />
+    </Pressable>
+    <CountChip
+      count={optimisticSignedInCount}
+      accessibilityLabel={`${optimisticSignedInCount} signed in`}
+    />
+    </View>
+  );
+  const eventDate = (
+    <Text style={[typography.caption, { color: t.muted }]}>
+      {formatEventRange(event.dateStart, event.dateEnd)}
+    </Text>
+  );
+  const eventMeta = metaUnderTitle ? (
+    <View style={styles.metaUnderTitle}>
+      {eventDate}
+      {eventActions}
+    </View>
+  ) : (
+    <View style={styles.headerMeta}>
+      {eventActions}
+      {eventDate}
+    </View>
+  );
+
   return (
     <Screen
       title={event.name}
@@ -912,50 +1017,7 @@ export default function EventAttendanceScreen() {
       onEndReached={
         !twoColumn && hasMoreSignedIn ? loadMoreSignedIn : undefined
       }
-      headerRight={
-        <View style={styles.headerMeta}>
-          <View style={styles.headerActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Edit event"
-            accessibilityState={{ disabled: !canEdit }}
-            disabled={!canEdit}
-            onPress={() => {
-              if (!canEdit) return;
-              setEventEditOpen(true);
-            }}
-            style={({ pressed }) => [
-              styles.editEventButton,
-              { borderColor: t.primary, opacity: canEdit ? 1 : 0.4 },
-              pressed && canEdit && { opacity: 0.7 },
-            ]}
-          >
-            <Text style={[typography.caption, styles.editEventText, { color: t.primary }]}>
-              Edit
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Export event attendance"
-            onPress={() => setExportOpen(true)}
-            style={({ pressed }) => [
-              styles.editEventButton,
-              { borderColor: t.primary },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="download-outline" size={14} color={t.primary} />
-          </Pressable>
-          <CountChip
-            count={optimisticSignedInCount}
-            accessibilityLabel={`${optimisticSignedInCount} signed in`}
-          />
-          </View>
-          <Text style={[typography.caption, { color: t.muted }]}>
-            {formatEventRange(event.dateStart, event.dateEnd)}
-          </Text>
-        </View>
-      }
+      headerRight={metaUnderTitle ? undefined : eventMeta}
       onFooterHeightChange={setFooterHeight}
       footer={
         isSearching && canEdit ? (
@@ -982,6 +1044,7 @@ export default function EventAttendanceScreen() {
       }
     >
       <View collapsable={false}>
+      {metaUnderTitle ? eventMeta : null}
       <View style={styles.badgeRow}>
         <View style={styles.badgeGroup}>
           {event.subgroups.map((s) => {
@@ -1107,6 +1170,13 @@ export default function EventAttendanceScreen() {
           onCreated={onMemberCreated}
         />
       ) : null}
+      <CheckInSheet
+        eventId={evId}
+        visible={checkInOpen}
+        onClose={() => setCheckInOpen(false)}
+        members={checkInMembers}
+        signedInMemberIds={signedInMemberIds}
+      />
       <CreateEventSheet
         visible={eventEditOpen}
         onClose={() => setEventEditOpen(false)}
@@ -1135,6 +1205,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
+  headerActionsUnder: { flexWrap: "wrap", flexShrink: 1, maxWidth: "100%" },
+  metaUnderTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
+  },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1147,6 +1227,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   editEventText: { fontWeight: "700" },
+  checkInButton: { flexDirection: "row", alignItems: "center", gap: 4 },
   countPill: {
     flexDirection: "row",
     alignItems: "center",

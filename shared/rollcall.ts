@@ -225,21 +225,21 @@ export const SIGN_IN_UNDO_GRACE_MS = 10 * 60 * 1000;
  *  undo grace — i.e. the event has ended and it was made during the event. */
 export const reversibleOnlyByGrace = (
   event: { dateEnd: number },
-  signInTime: number,
+  addedAt: number,
   now = Date.now()
 ): boolean =>
   eventHasEnded(event.dateEnd, now) &&
-  signInTime <= event.dateEnd &&
-  now - signInTime <= SIGN_IN_UNDO_GRACE_MS;
+  addedAt <= event.dateEnd &&
+  now - addedAt <= SIGN_IN_UNDO_GRACE_MS;
 
 export const canReverseSignIn = (
   event: { dateEnd: number },
-  signInTime: number,
+  addedAt: number,
   now = Date.now()
 ): boolean =>
   !eventHasEnded(event.dateEnd, now) ||
-  signInTime > event.dateEnd ||
-  now - signInTime <= SIGN_IN_UNDO_GRACE_MS;
+  addedAt > event.dateEnd ||
+  now - addedAt <= SIGN_IN_UNDO_GRACE_MS;
 
 export type AttendanceFrequencyScore = {
   tagMatches: number;

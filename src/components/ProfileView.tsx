@@ -1,7 +1,8 @@
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
 import { uploadLocalFileToUrl } from "@/lib/uploadLocalFile";
-import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { isSowStaffAddress } from "@shared/rollcallImport";
 import { useMutation, useQuery } from "convex/react";
 import Constants from "expo-constants";

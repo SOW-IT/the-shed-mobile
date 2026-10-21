@@ -17,7 +17,7 @@ import {
   sidebarItems,
 } from "@/lib/navMenu";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { type Href, usePathname, useRouter } from "expo-router";
 import { useState } from "react";

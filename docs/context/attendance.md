@@ -99,6 +99,17 @@ campus. Admin → Merges lists them while there are any; Merge opens the usual
 merge review, and "Not the same" stops that pair being suggested. Linking next
 year's staff here before October 1 keeps their history on one row.
 
+**Suggested member pair**:
+Two plain Members who may be one person entered twice: a similar name (the
+Suggested merge rules, or one letter different on a name of two or more
+words), the same Home campus or both without one, never both signed in to the
+same event, and neither staff this staff year or last. Found by the Nightly
+rebuild and listed on Admin → Merges under "Members who may be the same
+person"; Merge opens the usual member merge review and "Not the same" stops
+that pair being suggested for good. A pair whose names or campuses no longer
+match drops off the list at once; two people at the same event are two people.
+_Avoid_: duplicate (an admin confirms each one)
+
 **Roll-call**:
 Signing Members in and out of an event. Once an event has ended, sign-ins made
 during it can only be reversed within 10 minutes of being made (the undo
@@ -219,3 +230,23 @@ The Newcomer or Visitor label beside a name on an event's sign-in screen
 while the event is on, taken from last night's Insights build, so a leader
 can welcome them. Only those two categories are shown there.
 _Avoid_: badge (that's the campus pill)
+
+**Self check-in**:
+A leader turns it on per event; the event then carries a `checkIn` token and
+shows a QR code for `/checkin/<token>`. A person types a name and may pick a
+university and a year, and that becomes a **check-in request**
+(`checkInRequests`). A leader confirms it (matched to a Member, or a new
+Member made with that university and year) or dismisses it; the sign-in
+keeps the request's time. Open from two hours before the event to ten
+minutes after it ends.
+_Avoid_: self sign-in, kiosk
+
+**Known phone**:
+A phone (its `clientKey`) with a confirmed check-in request under a name.
+When it checks in again under that name at another event, it is signed in
+straight away as that request's Member, with no leader (actor
+`system:self-check-in`). A check-in made for someone else, one undone from
+the phone, or one whose sign-in a leader has since removed doesn't count. A
+leader opening the link while signed in is signed in the same way, as their
+staff Member.
+_Avoid_: trusted device, remembered member

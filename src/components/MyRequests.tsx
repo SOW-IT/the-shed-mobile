@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -801,8 +801,8 @@ const NudgeButton = ({
         pressed && enabled ? { opacity: 0.7 } : undefined,
       ]}
     >
-      <MaterialCommunityIcons
-        name="hand-pointing-up"
+      <Ionicons
+        name="hand-right-outline"
         size={22}
         color={enabled ? t.primary : t.faint}
       />

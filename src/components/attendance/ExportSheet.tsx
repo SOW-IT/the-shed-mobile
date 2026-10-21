@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvex, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, View } from "react-native";

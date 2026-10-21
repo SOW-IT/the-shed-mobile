@@ -6,6 +6,170 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.25] - 2026-10-21
+
+### Added
+- **Leaders are signed in as soon as they open a check-in link in the app.**
+  Scanning an event's code with The SHED installed now opens the app instead
+  of the browser, and a signed-in leader is signed in to the event straight
+  away, with Undo and a button to the roll call. People without the app still
+  get the web page.
+- **Phones remember who checked in.** The check-in page fills in your name,
+  university and year from last time, in the browser and in the app, and
+  works your year out again next year. "Start fresh" clears it, and checking
+  in someone else doesn't overwrite it.
+- **Returning people skip the wait.** Once a leader has matched someone's
+  first check-in to a member, the same phone signs them straight in at later
+  events, with an Undo in case someone else was using it, which also stops
+  that phone doing it again. The open page also changes to "You're signed
+  in" as soon as a leader confirms.
+- **Year at uni on the check-in page.** Optional, like university, and a new
+  member made from a check-in gets both.
+
+### Changed
+- **The waiting list on self check-in is split in two.** Matched people come
+  first with a one-tap tick and "Sign in all", and "Someone else" in case the
+  match is the wrong person with the same name. Below them, people who need a
+  member show members with the same or a similar name to tap, plus Find
+  member and New member.
+- **Check-ins keep the time people checked in.** A sign-in confirmed later
+  now records when they scanned, not when a leader got to it. Whether a
+  sign-in can still be removed after an event goes by when it was added, so
+  one confirmed late can still be undone straight away.
+- **Turning off self check-in asks first**, because the code and link stop
+  working and turning it on again makes a new code.
+- **University is optional on every event**, and an event for the whole
+  organisation offers every university instead of none.
+
+### Fixed
+- **Links open the app on iPhone and Android.** The production website never
+  published the files that tell phones the app may open its links, so every
+  link (emails included) opened in the browser first. They're published now.
+- **Deleting an event deletes its self check-ins too**, instead of leaving
+  them behind with nothing to point at.
+- **A shared check-in link opens the check-in page on iPhone.** Share link
+  on an event's self check-in handed iOS the link twice, so Copy, Messages
+  and the rest gave "link link", and opening it showed "Page not found". It
+  now shares the link once. The QR code was never affected, and Android
+  already shared it once.
+
+## [2.9.24] - 2026-10-21
+
+### Fixed
+- **Android production builds work again.** Since 2.9.19 the Android store
+  build stopped in the "Configure expo-updates" step with a runtime version
+  mismatch: the build server counted the Firebase settings file and its own
+  generated native folder in the app's fingerprint, and GitHub's runner,
+  which can't see either, did not. A fingerprint config now leaves them out,
+  so both sides agree and over-the-air updates reach Android too. iOS is
+  unaffected.
+- **Notifications asks you to sign in when you're signed out.** Opening it
+  signed out showed a spinner that never stopped (since 2.9.18). It now shows
+  the usual sign-in prompt, and comes straight back after you sign in.
+
+## [2.9.23] - 2026-10-20
+
+### Fixed
+- **Development builds from before 2.9.19 open again.** The update banner
+  loaded the over-the-air update library at startup, and on a build without
+  its native part the whole app stopped with "Cannot find native module
+  'ExpoUpdates'". The banner now checks for it first and simply doesn't show
+  when it's missing. Store builds of 2.9.19 and later already have it, so
+  nothing changes for them.
+
+## [2.9.22] - 2026-10-20
+
+### Fixed
+- **Event names no longer break mid-word on phones.** On an event's
+  attendance page the date and the Edit, check-in, export and count buttons
+  sat beside the title, leaving it a narrow column, so a name like "Missions
+  Commissioning Night" split into six pieces. On screens narrower than about
+  600 points they now sit on their own row under the title, which gets the
+  full width. iPad and desktop keep the layout they had.
+
+## [2.9.21] - 2026-10-20
+
+### Fixed
+- **A reimbursement is only visible to the people on it.** Anyone with a
+  staff profile who had a request's link could open it, with its history,
+  decline reason, amount paid and comment thread. Now only the requester,
+  Finance staff, the approvers on its chain (and whoever covers for them),
+  and anyone who has already acted on it can see it. Everyone else gets
+  "Request not found". Receipt files keep their existing, narrower rule.
+
+## [2.9.20] - 2026-10-20
+
+### Changed
+- **The staging app has a dark icon.** The SHED Staging now shows a cream
+  logo on dark green, the reverse of the store app, so the two are easy to tell
+  apart when both are installed. The store app's icon is unchanged.
+
+## [2.9.19] - 2026-10-20
+
+### Added
+- **Self check-in at events.** The QR button on an event shows a code people
+  scan to check themselves in: they type their full name and pick their
+  campus, and never see the member list. Each check-in waits on the event for
+  a leader to confirm it, matched to the member with exactly that name or
+  added as a new member, then counts like any other sign-in. The code works
+  from two hours before the event until ten minutes after it ends.
+- **Members who may be the same person.** Admin, Merges now also lists pairs
+  of members with a similar name on the same campus who have never been at
+  the same event, with Merge and Not the same. The list is rebuilt every night.
+- **Updates without the App Store.** From this version, fixes that don't
+  touch native code reach phones a few minutes after they ship. A banner says
+  when one is ready and offers a restart.
+- **App errors on Admin.** When a screen crashes or something fails without
+  being caught, the app reports it. Admins see each error once, with how often
+  it happened, where and on which version, under Admin, Other.
+- **Receipts and photos are backed up.** The nightly backup now also copies
+  every uploaded file to Google Cloud Storage, once each, and keeps them after
+  the app deletes old receipts on 30 September.
+
+### Changed
+- **Checks that run without anyone watching.** Every pull request opens every
+  screen in a browser as four kinds of user and fails on a crash. The nightly
+  warehouse load checks itself against the night before, and a weekly job
+  warns in Google Chat before a Convex usage limit is reached.
+
+## [2.9.18] - 2026-10-20
+
+### Added
+- **A request's timeline.** The clock button on a reimbursement now opens a
+  timeline instead of a bare audit list: each step from submitted to paid with
+  the person's name and the Sydney time, the gap between steps ("3 days
+  later"), what the request is waiting on now and for how long, how many
+  reminders have gone out for that wait, and how long submitted-to-paid took
+  once it is paid.
+- **Who has seen an announcement.** An announcement's page shows admins
+  "Seen by 42 of 84" with a bar, and lists who hasn't seen it yet. Someone
+  counts as having seen it once they open it, or open their notifications
+  after it arrived.
+
+### Changed
+- **Notifications load as you scroll.** The bell showed your newest 50 and
+  stopped; anything older was gone for good. It now loads 30 at a time as you
+  reach the bottom, with a Show earlier button when the list is too short to
+  scroll, so every notification you were ever sent is reachable.
+
+## [2.9.17] - 2026-10-20
+
+### Changed
+- **A smaller app on both platforms.** The app shipped 21 icon fonts (4 MB)
+  and used one of them. It now ships only that one, and the nudge button's
+  pointing hand is drawn from the same set. Downloads and updates are a few
+  megabytes smaller; nothing else changes.
+
+## [2.9.16] - 2026-10-20
+
+### Changed
+- **Android release builds are shrunk and obfuscated again.** R8 code
+  optimisation was turned off in 2.9.7 because a release build crashed on
+  launch (it had stripped a class the WorkManager database loads by name).
+  It is back on with keep rules for those classes, so the app is smaller and
+  the next store build should clear Google Play's code optimisation warning.
+  No change to how the app looks or works.
+
 ## [2.9.15] - 2026-10-19
 
 Past years' requests no longer sit behind a year picker: every request list

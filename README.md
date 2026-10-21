@@ -138,6 +138,9 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   one. Rate limits per
   sender: 3 an hour, 10 a day, 10 waiting, and the same words twice within 10
   minutes is refused. Tapping it opens `/announcements/[id]` (app 2.4.0 on).
+  Once it has gone out, admins see on that page how many of its recipients
+  have seen it (opened it, or opened their notifications since it arrived)
+  and can list who hasn't.
 - **Editable Home tab**: Home, Resources, Connect and Partner are typed
   blocks served by `homeContent.view` (one `homeTabs` row per edited tab,
   else the built-in content in `shared/homeContent.ts`). Admins, anyone in
@@ -171,7 +174,17 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   any step your own role skips; image receipts show a thumbnail before you
   submit. An approver with requests waiting and nothing of their own to act on
   opens on Review, and a request link opens the tab that holds it (Mine,
-  Review, or All for Finance staff).
+  Review, or All for Finance staff). Each request's clock button opens its
+  timeline: every step from submitted to paid with who did it and when, the
+  gaps between steps, what it is waiting on now and how many reminders have
+  gone out for that wait, and how long submitted-to-paid took.
+  A request, its timeline and its comments are visible only to the
+  requester, Finance staff, the approvers on its chain and their delegates
+  (in the request's staff year or the current one), and anyone who has
+  already acted on it (`canSeeRequest` in `convex/requests.ts`).
+- **Notifications** (the bell): everything sent to you, unread first, loading
+  older ones as you scroll (`notifications.feed`, 30 a page). Opening the
+  screen marks everything read.
 - **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
   Chart. On phones the top-left avatar, or a swipe from the left edge, opens
   a side menu with Profile, Reimbursements (staff other than campus leaders),
@@ -251,6 +264,26 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   [docs/weekly-insights.md](docs/weekly-insights.md),
   [docs/sow-insights.md](docs/sow-insights.md) and
   [docs/attendance-metrics.md](docs/attendance-metrics.md).
+- **Self check-in**: on an event, the QR button turns on a check-in page
+  (`/checkin/<token>`, `convex/checkIn.ts`) and shows its code. People scan
+  it and type their full name, and can add their university and year; the
+  page never shows the member list, and the phone remembers the details
+  (`src/lib/checkInDevice.ts`). A first check-in waits on the event until a
+  leader matches it: matched people come first with "Sign in all", the rest
+  show same and similar names (`shared/checkInMatch.ts`), Find member and New
+  member. After that, the same phone signs that person straight in. A leader
+  who opens the link in the app is signed in at once. Sign-ins keep the time
+  people checked in. The page works from two hours before the event until ten
+  minutes after it ends, and turning it off (after a confirm) kills the link.
+  The app takes check-in links (ADR 0012); the web never bounces them.
+- **Over-the-air updates**: phone builds from 2.9.19 carry `expo-updates`
+  with a fingerprint runtime, so a JavaScript-only change reaches them after
+  a merge without a store build. A banner offers a restart once an update has
+  downloaded.
+- **App errors**: a screen that crashes, or an unhandled error, is reported
+  (`convex/appErrors.ts`) with the route, platform, version and who hit it,
+  grouped by fingerprint. Admins see the last seven days on Admin, Other and
+  clear them there.
 - **Update prompt**: phones ask for the store version when it's older than the
   server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
   banner that can be dismissed; below `minimum`, a full screen with only the
@@ -361,14 +394,16 @@ npx convex run churches:locateAll '{}'
 
 ## CI/CD
 
-Six workflows, in `.github/workflows/`:
+Eight workflows, in `.github/workflows/`:
 
 | Workflow | File | Trigger |
 | --- | --- | --- |
-| Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds). Also runs `expo install --check`, so an Expo package that drifts off the SDK matrix fails here rather than in an iOS release build |
+| Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds). Also runs `expo install --check`, so an Expo package that drifts off the SDK matrix fails here rather than in an iOS release build. A second job, **Web sweep**, starts a throwaway local Convex backend, seeds it (`scripts/sweep-backend.sh`, `scripts/sweep-seed.mjs`), serves the web app and opens every screen signed out and as a leader, a Head and an admin (`scripts/sweep.mjs`, Playwright). It fails on a crash screen or a page error and keeps the screenshots as a run artifact |
 | Convex Deploy | `convex-deploy.yml` | merges to `main` → deploys the **prod** backend. `workflow_dispatch` deploys prod **only when run from `main`**. From any other ref it deploys a *preview* named after the branch (`--preview-name`), not prod |
 | Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
-| Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT). Database-only export, file storage excluded. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped |
+| Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT). Database export as a zip, then Convex file storage (receipts, event attachments, avatars) copied incrementally to `storage/files/<sha256>` in the same bucket: each file is downloaded once, on the first night it exists, and `storage/manifest.json` records what is there and which files Convex has since deleted. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped. The BigQuery job then checks the warehouse against the night before (`scripts/warehouse-checks.mjs`): a core table missing or empty, a table that shrank by more than a fifth, or a report view missing posts to Google Chat and fails the step |
+| EAS Update | `eas-update.yml` | after each successful Convex Deploy of `main` (and by hand) → publishes the JavaScript bundle over the air to the `production` and `staging` channels. Only builds whose native fingerprint matches receive it, so a change to native code waits for the next store build |
+| Convex usage check | `convex-usage.yml` | Mondays 22:00 UTC (and by hand) → reads this billing period's usage and posts to Google Chat when database bandwidth or file storage passes 70% of the plan, or bandwidth is on track to exceed it (`scripts/convex-usage-alert.mjs`) |
 | EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app |
 | EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app, then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
 
@@ -438,10 +473,10 @@ build finishes).
 There are two app variants (defined in `app.config.js` + `eas.json`) that
 install side-by-side, so testers can keep production while testing staging:
 
-| Profile      | App name           | Bundle id / package          | Convex backend                  |
-| ------------ | ------------------ | ---------------------------- | ------------------------------- |
-| `staging`    | The SHED Staging   | `au.org.sow.theshed.staging` | dev (`successful-lynx-56`)      |
-| `production` | The SHED           | `au.org.sow.theshed`         | prod (`giant-bloodhound-191`)   |
+| Profile      | App name           | Icon                        | Bundle id / package          | Convex backend                  |
+| ------------ | ------------------ | --------------------------- | ---------------------------- | ------------------------------- |
+| `staging`    | The SHED Staging   | dark (cream logo on green)  | `au.org.sow.theshed.staging` | dev (`successful-lynx-56`)      |
+| `production` | The SHED           | light (green logo on cream) | `au.org.sow.theshed`         | prod (`giant-bloodhound-191`)   |
 
 **Ship staging first, then production:**
 
@@ -531,8 +566,9 @@ in app.json via `associatedDomains` and `intentFilters`):
 2. After `eas credentials` creates the Android keystore: copy
    `assetlinks.json.example` to `assetlinks.json` and paste the SHA-256
    signing fingerprint (shown by `eas credentials`).
-3. `npm run deploy:web`. The `.well-known/` files ship with the site, and
-   the OS starts routing those links into the app on the next install.
+3. Merge to `main`. Vercel's build (root `vercel.json`) copies the two
+   `.well-known/` files into the site, and the OS starts routing those links
+   into the app once Apple's CDN and Android pick them up.
 
 Until then the links simply open the web app, which is the right fallback
 anyway.

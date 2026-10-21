@@ -20,7 +20,7 @@ import {
 } from "@/components/ui";
 import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";

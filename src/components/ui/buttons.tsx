@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Keyboard, Platform, Pressable, Text, View, type ViewInstance } from "react-native";
 import { USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";

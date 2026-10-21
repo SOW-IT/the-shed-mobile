@@ -1,5 +1,5 @@
 import { DateTimePicker } from "@expo/ui/community/datetime-picker";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import { Btn, Sheet, Txt } from "@/components/ui";
