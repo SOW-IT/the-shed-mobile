@@ -1,6 +1,7 @@
 import { type Infer, v } from "convex/values";
 import { internalMutation, query, type QueryCtx } from "./_generated/server";
 import { currentStaffYear } from "./model";
+import { eventAttendanceCount } from "./attendanceCounts";
 import { staffTrendsValidator, viewBlockValidator } from "./metricsData";
 import { readSettings } from "./weeklyInsights";
 import { buildGeneralView } from "../shared/generalMetricsView";
@@ -348,7 +349,7 @@ async function computeCampusWeeklyAttendance(
 
   const meetings = weeklyMeetings
     .map((e) => ({
-      id: e._id,
+      event: e,
       year: calendarYear(e.dateStart),
       campuses: normalizeSubgroups(e.subgroups).filter(
         (s) => !isOrgWideSubgroup(s)
@@ -357,13 +358,7 @@ async function computeCampusWeeklyAttendance(
     .filter((m) => m.campuses.length > 0);
 
   const turnouts = await Promise.all(
-    meetings.map((m) =>
-      ctx.db
-        .query("attendance")
-        .withIndex("by_event", (q) => q.eq("eventId", m.id))
-        .collect()
-        .then((rows) => rows.length)
-    )
+    meetings.map((m) => eventAttendanceCount(ctx, m.event))
   );
 
   type Bucket = { total: number; meetings: number };

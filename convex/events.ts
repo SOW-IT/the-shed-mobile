@@ -41,7 +41,11 @@ import {
 import { paginator } from "convex-helpers/server/pagination";
 import { asPaginatorCursor } from "./pagination";
 import schema from "./schema";
-import { eventAttendanceCount } from "./attendanceCounts";
+import {
+  deleteEventAttendanceCount,
+  eventAttendanceCount,
+  startEventAttendanceCount,
+} from "./attendanceCounts";
 
 const weeklyMarkArg = v.object({
   year: v.number(),
@@ -367,7 +371,8 @@ export const create = mutation({
       tagIds,
       weekly,
     });
-    const eventId = await ctx.db.insert("events", { ...eventFields, attendanceCount: 0 });
+    const eventId = await ctx.db.insert("events", eventFields);
+    await startEventAttendanceCount(ctx, eventId);
     await logAttendanceAction(ctx, {
       actorEmail: email,
       entityType: "event",
@@ -493,6 +498,7 @@ export const remove = mutation({
       .withIndex("by_event_and_status", (q) => q.eq("eventId", eventId))
       .collect();
     for (const request of checkIns) await ctx.db.delete(request._id);
+    await deleteEventAttendanceCount(ctx, eventId);
     await ctx.db.delete(eventId);
     const hidden = rows.length - people.length;
     await logAttendanceAction(ctx, {

@@ -63,7 +63,7 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
-import { currentStaffYear, optionalProfile } from "./model";
+import { currentStaffYear, nightlyJobsPaused, optionalProfile } from "./model";
 import { photoFor } from "./photo";
 import { isAssigned, latestProfileOfMember } from "./staffMembers";
 import {
@@ -809,9 +809,10 @@ export const rebuild = internalAction({
 
 /** The nightly build: every campus with a university row this staff year. */
 export const rebuildAll = internalMutation({
-  args: { force: v.optional(v.boolean()) },
+  args: { force: v.optional(v.boolean()), nightly: v.optional(v.boolean()) },
   returns: v.null(),
-  handler: async (ctx, { force }) => {
+  handler: async (ctx, { force, nightly }) => {
+    if (nightly && nightlyJobsPaused()) return null;
     const universities = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear()))

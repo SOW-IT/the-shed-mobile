@@ -6,6 +6,35 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.29] - 2026-10-21
+
+### Changed
+- **Signing someone in no longer makes every phone on that roll call fetch
+  the whole sign-in list again.** Each event's head count used to live on the
+  event itself, and the roll call's list of everyone (about half a megabyte
+  from the database) reads the event, so every sign-in reloaded it on every
+  phone showing that event. The count now lives beside the event, so a
+  sign-in updates the count and the signed-in list and nothing else. This
+  was about half of production's database reads (see
+  `docs/convex-reads-2026-10-21.md`).
+- **A campus's roll call works out people's Roles from that campus's
+  weeklies.** Someone who comes to weeklies at two campuses shows the Role
+  from the campus whose roll call you're on (from both, at a joint event).
+  The Members list and org-wide events still weigh every campus. Reading one
+  campus's categories instead of all of them makes each refresh of the
+  signed-in list about half the size.
+- **The audit log's filters read less.** "Performed by" lists whoever made
+  the latest 200 entries (it was 1,000), and "Event" lists the last 40 events
+  that have started plus any event those entries mention.
+- **Checking a new member's name against existing ones reads only the
+  matching names.** When no one has exactly that name, the different-case
+  check searches names instead of reading every member.
+- **Insights' campus weeklies chart counts each weekly from its stored head
+  count** instead of reading every sign-in of every weekly each night.
+- **The nightly Insights, attendance metrics and church map runs can be
+  paused on a deployment** by setting `NIGHTLY_JOBS_PAUSED=true` (meant for
+  the shared dev deployment). Running them by hand still works.
+
 ## [2.9.28] - 2026-10-21
 
 ### Fixed
