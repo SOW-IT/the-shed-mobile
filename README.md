@@ -266,13 +266,16 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   [docs/attendance-metrics.md](docs/attendance-metrics.md).
 - **Self check-in**: on an event, the QR button turns on a check-in page
   (`/checkin/<token>`, `convex/checkIn.ts`) and shows its code. People scan
-  it, type their full name and pick their campus; the page never shows the
-  member list. Each check-in waits on the event until a leader confirms it:
-  matched to the one member with exactly that name, or added as a new member
-  on that campus, then signed in as usual. The page works from two hours
-  before the event until ten minutes after it ends, and turning it off kills
-  the link. Phones keep the page in the browser (it is excluded from
-  universal links and gated in `NEWER_PAGES`).
+  it and type their full name, and can add their university and year; the
+  page never shows the member list, and the phone remembers the details
+  (`src/lib/checkInDevice.ts`). A first check-in waits on the event until a
+  leader matches it: matched people come first with "Sign in all", the rest
+  show same and similar names (`shared/checkInMatch.ts`), Find member and New
+  member. After that, the same phone signs that person straight in. A leader
+  who opens the link in the app is signed in at once. Sign-ins keep the time
+  people checked in. The page works from two hours before the event until ten
+  minutes after it ends, and turning it off (after a confirm) kills the link.
+  The app takes check-in links (ADR 0012); the web never bounces them.
 - **Over-the-air updates**: phone builds from 2.9.19 carry `expo-updates`
   with a fingerprint runtime, so a JavaScript-only change reaches them after
   a merge without a store build. A banner offers a restart once an update has
@@ -563,8 +566,9 @@ in app.json via `associatedDomains` and `intentFilters`):
 2. After `eas credentials` creates the Android keystore: copy
    `assetlinks.json.example` to `assetlinks.json` and paste the SHA-256
    signing fingerprint (shown by `eas credentials`).
-3. `npm run deploy:web`. The `.well-known/` files ship with the site, and
-   the OS starts routing those links into the app on the next install.
+3. Merge to `main`. Vercel's build (root `vercel.json`) copies the two
+   `.well-known/` files into the site, and the OS starts routing those links
+   into the app once Apple's CDN and Android pick them up.
 
 Until then the links simply open the web app, which is the right fallback
 anyway.

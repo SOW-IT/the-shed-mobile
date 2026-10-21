@@ -255,6 +255,20 @@ export default function EventAttendanceScreen() {
     [attendance]
   );
 
+  const checkInMembers = useMemo(
+    () =>
+      roster?.flatMap((entry) =>
+        entry.memberId
+          ? [{ memberId: entry.memberId, name: entry.name, university: entry.university ?? null, subtitle: entry.subtitle }]
+          : []
+      ),
+    [roster]
+  );
+  const signedInMemberIds = useMemo(
+    () => new Set<string>((attendance ?? []).map((a) => a.memberId)),
+    [attendance]
+  );
+
   const attendanceByKey = useMemo(() => {
     const map = new Map<string, NonNullable<typeof attendance>[number]>();
     for (const row of attendance ?? []) {
@@ -865,7 +879,7 @@ export default function EventAttendanceScreen() {
         const isAnimating = isEntering || isExiting;
         const busy = isAnimating || leavingSignedIn.has(aKey);
         const isSuppressed = suppressFadeIn.has(aKey);
-        const signOutLocked = !canReverseSignIn(event, a.signInTime, clock);
+        const signOutLocked = !canReverseSignIn(event, a.addedAt ?? a.signInTime, clock);
         const rowKey = `${aKey || (a._id as string)}#${rowRetries.get(aKey) ?? 0}`;
         const row = (
           <RollCallRow
@@ -1156,7 +1170,13 @@ export default function EventAttendanceScreen() {
           onCreated={onMemberCreated}
         />
       ) : null}
-      <CheckInSheet eventId={evId} visible={checkInOpen} onClose={() => setCheckInOpen(false)} />
+      <CheckInSheet
+        eventId={evId}
+        visible={checkInOpen}
+        onClose={() => setCheckInOpen(false)}
+        members={checkInMembers}
+        signedInMemberIds={signedInMemberIds}
+      />
       <CreateEventSheet
         visible={eventEditOpen}
         onClose={() => setEventEditOpen(false)}

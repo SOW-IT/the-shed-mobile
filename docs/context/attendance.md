@@ -233,10 +233,20 @@ _Avoid_: badge (that's the campus pill)
 
 **Self check-in**:
 A leader turns it on per event; the event then carries a `checkIn` token and
-shows a QR code for `/checkin/<token>`. A person types a name and picks one of
-the event's campuses, and that becomes a **check-in request**
-(`checkInRequests`), never a sign-in by itself. A leader confirms it (it is
-matched to the one Member with exactly that name, otherwise a new Member is
-made on that campus) or dismisses it. Open from two hours before the event to
-ten minutes after it ends.
+shows a QR code for `/checkin/<token>`. A person types a name and may pick a
+university and a year, and that becomes a **check-in request**
+(`checkInRequests`). A leader confirms it (matched to a Member, or a new
+Member made with that university and year) or dismisses it; the sign-in
+keeps the request's time. Open from two hours before the event to ten
+minutes after it ends.
 _Avoid_: self sign-in, kiosk
+
+**Known phone**:
+A phone (its `clientKey`) with a confirmed check-in request under a name.
+When it checks in again under that name at another event, it is signed in
+straight away as that request's Member, with no leader (actor
+`system:self-check-in`). A check-in made for someone else, one undone from
+the phone, or one whose sign-in a leader has since removed doesn't count. A
+leader opening the link while signed in is signed in the same way, as their
+staff Member.
+_Avoid_: trusted device, remembered member

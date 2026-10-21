@@ -25,3 +25,8 @@ export const sydneyDateTime = (ms: number) =>
     // Newer Intl puts a narrow no-break space before "pm", which the PDF's
     // built-in fonts can't draw.
     .replace(/[  ]/g, " ");
+
+export const sydneyTime = (ms: number) =>
+  new Date(ms)
+    .toLocaleTimeString("en-AU", { timeZone: SYDNEY_TIME_ZONE, hour: "numeric", minute: "2-digit" })
+    .replace(/[\u202f\u00a0]/g, " ");
