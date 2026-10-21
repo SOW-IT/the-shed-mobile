@@ -3,7 +3,7 @@
 Where production's database reads go, why, and what to change to cut them.
 Measured on main at `dea7b1e` (2.9.26).
 
-**Status:** fixes 1 to 6 ship in 2.9.28. Fix 5 uses a search index on
+**Status:** fixes 1 to 6 ship in 2.9.29. Fix 5 uses a search index on
 `attendanceMembers.name` rather than a `nameKey` field: a new field would add
 about 25 bytes to every member row, and `roster` and the Members list read
 all 1,415 rows on every run, which would have cancelled most of the saving.

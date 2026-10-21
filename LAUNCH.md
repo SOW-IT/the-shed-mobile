@@ -17,18 +17,18 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
-- [ ] **After 2.9.28 is live, move the event head counts once:**
+- [ ] **After 2.9.29 is live, move the event head counts once:**
       `npx convex run --prod attendanceCounts:backfill`. It recounts every
       event into `eventAttendanceCounts` and clears the old
       `events.attendanceCount` field (about 3.5 MB of reads, once). Until it
       runs, lists fall back to the old field and an event's first sign-in
       recounts it, so nothing shows a wrong count in the meantime. A later
       release can drop the field from the schema once no event has it.
-- [ ] **Redeploy dev with 2.9.28 so its nightly jobs pause.**
+- [ ] **Redeploy dev with 2.9.29 so its nightly jobs pause.**
       `NIGHTLY_JOBS_PAUSED=true` was set on `successful-lynx-56` on
       2026-10-21 (`npx convex env get NIGHTLY_JOBS_PAUSED` prints `true`;
       prod has no such variable). Dev runs `feat/music-form` merged with main,
-      so it takes effect once that branch has 2.9.28 and is redeployed. On a
+      so it takes effect once that branch has 2.9.29 and is redeployed. On a
       quiet day those jobs are 8 to 10 MB of dev's reads.
 - [ ] **Ship one store build of 2.9.19 or later before relying on
       over-the-air updates.** Builds before 2.9.19 have no `expo-updates` and
@@ -49,11 +49,20 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       2026-10-20 database bandwidth was 5.49 GB against a 1 GB plan (prod 4.56,
       dev 0.93), so the first run will warn; set `CONVEX_PLAN_DB_BANDWIDTH_GB`
       if the plan changes.
-- [ ] **Let the backup account replace the storage manifest.** The nightly
-      file copy overwrites `storage/manifest.json`, which needs
+- [ ] **Let the backup account replace the storage manifest and the
+      warehouse check's state.** The nightly file copy overwrites
+      `storage/manifest.json` after every page of files, and the warehouse
+      check overwrites `convex/production/checks/latest.json`. Both need
       `storage.objects.delete` on the backup bucket for
-      `GCP_BACKUP_SERVICE_ACCOUNT` (file objects themselves are never
-      overwritten). The first night downloads every existing file once.
+      `GCP_BACKUP_SERVICE_ACCOUNT` (file objects and the database zips are
+      never overwritten). Without it, new file objects and zips still upload
+      and each JSON file can be created once, but replacing it fails: on
+      2026-10-20 the manifest was created at 19:21:53Z and replacing it four
+      minutes later failed with
+      `GcsApiError('')`, so the file copy stops after its first page each
+      night, and the warehouse check will fail from its second night. The
+      first night with the grant downloads every file not yet in the
+      manifest once.
 - [ ] **Ask phones to update to 2.9.1 once it's live in both stores** (2.9.0 is
       the first version with the update prompt, so it only reaches people on
       2.9.0 and later): `npx convex run --prod appInstalls:setUpdatePolicy
@@ -115,18 +124,19 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       **Unlisted App Distribution** is the lighter option for a staff app.
       Android likewise needs the store listing, content rating and Data safety
       form to leave the internal track.
-- [ ] **Add Google Play's app-signing keys to the app-link files.** Play
-      re-signs every install with its own key, so Android only opens
-      `theshed.sow.org.au` links in the app once that key is listed. In Play
-      Console, for **The SHED** (`au.org.sow.theshed`) and **The SHED Staging**
-      (`au.org.sow.theshed.staging`), open Test and release, App integrity,
-      App signing, and copy the "App signing key certificate" SHA-256 into
-      `sha256_cert_fingerprints` in `web/.well-known/assetlinks.json` and
-      `web-dev/.well-known/assetlinks.json` respectively. Then check
-      `https://digitalassetlinks.googleapis.com/v1/assetlinks:check?source.web.site=https://theshed.sow.org.au&relation=delegate_permission/common.handle_all_urls&target.android_app.package_name=au.org.sow.theshed&target.android_app.certificate.sha256_fingerprint=<that key>`
-      says `"linked": true`. On Android 14 and older, an old app's "Open on
-      the web" and a web sign-in on a phone with the app can then land in the
-      app, because those versions can't skip `#noapp` or `?code=` links.
+- [ ] **Confirm Google verifies the Android app links.** 2.9.28 adds Google
+      Play's app-signing keys (Play Console, Test and release, App integrity,
+      App signing, "App signing key certificate"): **The SHED** `BC:05:F0:8B:…:0E:62`
+      in `web/.well-known/assetlinks.json` and **The SHED Staging**
+      `1B:05:5E:47:…:94:C8` in `web-dev/.well-known/assetlinks.json`. After it
+      deploys, check
+      `https://digitalassetlinks.googleapis.com/v1/assetlinks:check?source.web.site=https://theshed.sow.org.au&relation=delegate_permission/common.handle_all_urls&target.android_app.package_name=au.org.sow.theshed&target.android_app.certificate.sha256_fingerprint=<the key>`
+      says `"linked": true` (and the same for the dev web and the staging key),
+      then move this to "Already done" with that evidence. Android verifies
+      when the app is installed or updated, so Play installs pick it up with
+      their next update. On Android 14 and older, an old app's "Open on the
+      web" and a web sign-in on a phone with the app can then land in the app,
+      because those versions can't skip `#noapp` or `?code=` links.
 
 ---
 
@@ -223,7 +233,7 @@ pair: checked 2026-10-21 04:26 UTC, after the 2.9.26 dev deploy (`aaf3c82`),
 returns the file for `4FH642K7X2.au.org.sow.theshed.staging`.
 
 > ⚠️ **Google Play App Signing** re-signs Play installs with Play's own key.
-> `assetlinks.json` lists the EAS keystore the builds are signed with
-> (`eas credentials`, the default build credentials); Play's app-signing
-> SHA-256 has to be added beside it (see "Still outstanding") or Android App
-> Links will not verify for Play installs.
+> Each `assetlinks.json` lists Play's app-signing key first, then the EAS
+> keystores the builds are signed with (`eas credentials`, the default build
+> credentials). If Play's key ever changes (a key upgrade in Play Console),
+> update it there too, or Android App Links stop verifying for Play installs.

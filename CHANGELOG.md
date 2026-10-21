@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.9.28] - 2026-10-21
+## [2.9.29] - 2026-10-21
 
 ### Changed
 - **Signing someone in no longer makes every phone on that roll call fetch
@@ -34,6 +34,16 @@ All notable changes to **The SHED** mobile app. This project follows
 - **The nightly Insights, attendance metrics and church map runs can be
   paused on a deployment** by setting `NIGHTLY_JOBS_PAUSED=true` (meant for
   the shared dev deployment). Running them by hand still works.
+
+## [2.9.28] - 2026-10-21
+
+### Fixed
+- **Android opens The SHED for theshed.sow.org.au links from Google Play
+  installs.** Google Play re-signs every app it installs with its own key,
+  and `assetlinks.json` only listed the keys EAS builds with, so Android never
+  trusted the site for store installs. Both files now list Play's app-signing
+  key too (The SHED on the production web, The SHED Staging on the dev web).
+  Phones pick it up the next time the app installs or updates.
 
 ## [2.9.27] - 2026-10-21
 
