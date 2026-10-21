@@ -36,9 +36,14 @@ in the last 30 days ran 2.9.19 or later.
   update; raising `appUpdatePolicy.recommended` after the store build nudges
   them.
 - Android's intent filter covers the whole host, but production never served
-  `assetlinks.json` either (see below), so verified app links start working
-  on Android with this release too. Android can't exclude a fragment, so on
-  an old Android app "Open on the web" can land back in the app.
+  `assetlinks.json` either (see below), and until 2.9.26 the file named a
+  keystore no build was signed with, so Android never verified the links.
+  Play installs also need Play's app-signing key in the file. From Android 15
+  `assetlinks.json` can skip `#noapp` links; on older Android an old app's
+  "Open on the web" can land back in the app.
+- Claiming every path also claims the address Google returns to after a web
+  sign-in. From 2.9.26 the web sign-in returns with `#noapp`, and both files
+  skip links carrying a sign-in `code`, so it finishes in the browser.
 - iOS caches association files through Apple's CDN, so a change reaches
   phones within about a day of the web deploy, not straight away.
 - Until 2.9.25 the production web never served the files at all: Vercel's

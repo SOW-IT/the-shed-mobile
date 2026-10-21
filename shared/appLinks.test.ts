@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
   APP_LINKS,
@@ -11,6 +12,7 @@ import {
   searchWithoutSignInParams,
   updateStatusFor,
   versionNeededFor,
+  WEB_ONLY_MARKER,
 } from "./appLinks";
 
 describe("appLinks", () => {
@@ -104,5 +106,36 @@ describe("links surviving a web sign-in", () => {
     expect(searchWithoutSignInParams("?code=123&state=x&scope=email&authuser=0&prompt=none&hd=sow.org.au")).toBe("");
     expect(searchWithoutSignInParams("?error=access_denied&error_description=no&id=7")).toBe("?id=7");
     expect(searchWithoutSignInParams("")).toBe("");
+  });
+});
+
+const associationFile = (folder: string, name: string) =>
+  JSON.parse(readFileSync(new URL(`../${folder}/.well-known/${name}`, import.meta.url), "utf8"));
+
+const webOnly = [
+  { "#": WEB_ONLY_MARKER.slice(1), exclude: true },
+  { "?": { code: "?*" }, exclude: true },
+];
+
+describe.each([
+  ["web", "au.org.sow.theshed"],
+  ["web-dev", "au.org.sow.theshed.staging"],
+])("association files served by %s", (folder, appId) => {
+  test("iOS hands every page to the app except no-app links and web sign-in returns", () => {
+    const [details] = associationFile(folder, "apple-app-site-association").applinks.details;
+    expect(details.appIDs).toEqual([`4FH642K7X2.${appId}`]);
+    expect(details.components).toEqual([...webOnly, { "/": "/*" }]);
+  });
+
+  test("Android trusts real signing keys and skips the same links from Android 15", () => {
+    const [statement] = associationFile(folder, "assetlinks.json");
+    expect(statement.target.package_name).toBe(appId);
+    expect(statement.target.sha256_cert_fingerprints.length).toBeGreaterThan(0);
+    for (const fingerprint of statement.target.sha256_cert_fingerprints) {
+      expect(fingerprint).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+    }
+    expect(
+      statement.relation_extensions["delegate_permission/common.handle_all_urls"].dynamic_app_link_components
+    ).toEqual([...webOnly, { "/": "*" }]);
   });
 });

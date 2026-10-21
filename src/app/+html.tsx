@@ -1,5 +1,5 @@
 import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
-import { APP_LINK_MARKER, appLinkFor, NEWER_PAGES } from "../../shared/appLinks";
+import { APP_LINK_MARKER, appLinkFor, NEWER_PAGES, WEB_ONLY_MARKER } from "../../shared/appLinks";
 
 // Rendered at build time: the dev web build sets EXPO_PUBLIC_APP_VARIANT=staging
 // so phones are handed to The SHED Staging rather than the production app.
@@ -25,7 +25,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
                 var isIOS = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(ua) && "ontouchend" in document);
                 var isAndroid = /Android/.test(ua);
                 if (!isIOS && !isAndroid) return;
-                if (location.hash === "#noapp") return;
+                if (location.hash === ${JSON.stringify(WEB_ONLY_MARKER)}) return;
                 try {
                   if (sessionStorage.getItem("shedAppBounce")) return;
                   sessionStorage.setItem("shedAppBounce", "1");
