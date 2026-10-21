@@ -118,6 +118,8 @@ export const isLoadDataset = (dataset, name) =>
 
 export const jsonPayload = (text) => {
   if (!text) return "";
+  const lineStart = text.search(/^[ \t]*[[{]/m);
+  if (lineStart >= 0) return text.slice(lineStart).trim();
   const arrayStart = text.indexOf("[");
   const objectStart = text.indexOf("{");
   const starts = [arrayStart, objectStart].filter((index) => index >= 0);

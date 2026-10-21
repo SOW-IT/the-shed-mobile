@@ -241,6 +241,14 @@ describe("snapshot publish plan", () => {
       parseBqTableIds('WARNING: "`format` is json"\n[{"tableId":"attendance"}]')
     ).toEqual(["attendance"]);
   });
+
+  test("skips warning lines that contain brackets themselves", () => {
+    const warned =
+      'WARNING: `--max_rows` [10000] is above the {page} size.\nWARNING: second line\n[{"table_id":"users","row_count":"57"}]\n';
+    expect(JSON.parse(jsonPayload(warned))).toEqual([{ table_id: "users", row_count: "57" }]);
+    expect(jsonPayload('  [{"a":1}]\n')).toBe('[{"a":1}]');
+    expect(jsonPayload("[]")).toBe("[]");
+  });
 });
 
 const ok = (stdout = "") => ({ status: 0, stdout, stderr: "", error: null });

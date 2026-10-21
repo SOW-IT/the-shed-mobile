@@ -36,11 +36,19 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       2026-10-20 database bandwidth was 5.49 GB against a 1 GB plan (prod 4.56,
       dev 0.93), so the first run will warn; set `CONVEX_PLAN_DB_BANDWIDTH_GB`
       if the plan changes.
-- [ ] **Let the backup account replace the storage manifest.** The nightly
-      file copy overwrites `storage/manifest.json`, which needs
+- [ ] **Let the backup account replace the storage manifest and the
+      warehouse check's state.** The nightly file copy overwrites
+      `storage/manifest.json` after every page of files, and the warehouse
+      check overwrites `convex/production/checks/latest.json`. Both need
       `storage.objects.delete` on the backup bucket for
-      `GCP_BACKUP_SERVICE_ACCOUNT` (file objects themselves are never
-      overwritten). The first night downloads every existing file once.
+      `GCP_BACKUP_SERVICE_ACCOUNT` (file objects and the database zips are
+      never overwritten). Without it the first write of each file works and
+      every later one fails: on 2026-10-20 the manifest was created at
+      19:21:53Z and replacing it four minutes later failed with
+      `GcsApiError('')`, so the file copy stops after its first page each
+      night, and the warehouse check will fail from its second night. The
+      first night with the grant downloads every file not yet in the
+      manifest once.
 - [ ] **Ask phones to update to 2.9.1 once it's live in both stores** (2.9.0 is
       the first version with the update prompt, so it only reaches people on
       2.9.0 and later): `npx convex run --prod appInstalls:setUpdatePolicy
