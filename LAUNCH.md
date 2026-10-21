@@ -226,11 +226,13 @@ returns the file for `4FH642K7X2.au.org.sow.theshed.staging`.
 > update it there too, or Android App Links stop verifying for Play installs.
 
 **Android App Links verified**: 2.9.28 (`828786a`) added Google Play's
-app-signing keys. Google's `assetlinks:check` returned `"linked": true` on
-2026-10-21 07:50 UTC for all four keys: The SHED on `theshed.sow.org.au`
-(Play `BC:05:F0:8B:…:0E:62` and EAS `35:E8:D8:3F:…:E6:43`) and The SHED
-Staging on `the-shed-web-dev.vercel.app` (Play `1B:05:5E:47:…:94:C8` and EAS
-`B5:96:8D:48:…:80:B9`). Android verifies when the app is installed or updated,
+app-signing keys. Google's `assetlinks:check` returned `"linked": true` for
+every key the two files list (the same lists `shared/appLinks.test.ts` pins):
+The SHED on `theshed.sow.org.au` (Play `BC:05:F0:8B:…:0E:62`, EAS default
+`35:E8:D8:3F:…:E6:43`, both checked 07:50 UTC, and the older EAS key
+`6A:BC:70:E5:…:99:94`, checked 11:29 UTC, all 2026-10-21) and The SHED Staging
+on `the-shed-web-dev.vercel.app` (Play `1B:05:5E:47:…:94:C8` and EAS
+`B5:96:8D:48:…:80:B9`, 07:50 UTC). Android verifies when the app is installed or updated,
 so Play installs open links in the app after their next update. On Android 14
 and older, an old app's "Open on the web" and a web sign-in on a phone with the
 app can land in the app, because those versions ignore the `#noapp` and
