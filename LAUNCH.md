@@ -17,6 +17,14 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
+- [ ] **Confirm production serves the app-link files.** Until 2.9.25 the
+      production build never copied `web/.well-known`, so
+      `theshed.sow.org.au/.well-known/apple-app-site-association` returned the
+      app's HTML and Apple's CDN had "Not Found" (checked 2026-10-21). The root
+      `vercel.json` now copies both files into `dist`. After the first
+      production deploy of 2.9.25, check that the file is served as JSON there
+      and that `https://app-site-association.cdn-apple.com/a/v1/theshed.sow.org.au`
+      returns it, then move this to "Already done" with that evidence.
 - [ ] **Ship one store build of 2.9.19 or later before relying on
       over-the-air updates.** Builds before 2.9.19 have no `expo-updates` and
       no channel, so `eas-update.yml` publishes to nobody until people install
@@ -182,13 +190,9 @@ from a URL.
 pointed at it.
 
 **Universal links**: real `apple-app-site-association` (Team ID above) and
-`assetlinks.json` are committed. Production serves them from 2.9.25, when the
-root `vercel.json` build started copying `web/.well-known` into `dist` and
-setting the AASA content type; before that only the dev web did, and
-`theshed.sow.org.au/.well-known/apple-app-site-association` returned the app's
-HTML (checked 2026-10-21). After the first production deploy, confirm
-`https://app-site-association.cdn-apple.com/a/v1/theshed.sow.org.au` returns
-the file.
+`assetlinks.json` are committed, and the dev web serves them (staging app
+links verified through Apple's CDN on 2026-10-21). Production serving is
+under "Still outstanding".
 
 > ⚠️ If **Google Play App Signing** is enabled, Play re-signs with its own key.
 > Add the Play Console's app-signing SHA-256 to the `sha256_cert_fingerprints`
