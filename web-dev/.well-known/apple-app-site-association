@@ -7,7 +7,7 @@
         ],
         "components": [
           {
-            "/": "/checkin/*",
+            "#": "noapp",
             "exclude": true
           },
           {

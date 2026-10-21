@@ -1,54 +1,204 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
-import { useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { capitalizeMemberName, formatEventRange } from "../../../shared/rollcall";
 import { phaseBetween } from "../../../shared/checkInWindow";
+import {
+  CHECK_IN_YEAR_LEVELS,
+  type CheckInDetails,
+  type CheckInYearLevel,
+  commencementForLevel,
+  levelForCommencement,
+} from "../../../shared/checkInMatch";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
+import { forgetCheckInDetails, loadCheckInDetails, loadDeviceKey, saveCheckInDetails } from "@/lib/checkInDevice";
 import { Btn, Card, EmptyState, ErrorBanner, errorMessage, Field, LoadingState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-const KEY_STORAGE = "checkInClientKey";
+type Device = { clientKey: string; details: CheckInDetails | null };
 
-const randomKey = () =>
-  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-    ? crypto.randomUUID()
-    : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-
-const deviceKey = (): string => {
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    try {
-      const saved = window.localStorage.getItem(KEY_STORAGE);
-      if (saved) return saved;
-      const fresh = randomKey();
-      window.localStorage.setItem(KEY_STORAGE, fresh);
-      return fresh;
-    } catch {
-      return randomKey();
-    }
-  }
-  return randomKey();
+type Done = {
+  name: string;
+  via: "leader" | "phone" | "form";
+  status: "pending" | "confirmed";
+  alreadySignedIn?: boolean;
+  undone?: boolean;
 };
+
+type FormValues = { name: string; campus: string | null; level: CheckInYearLevel | null };
+
+const BLANK: FormValues = { name: "", campus: null, level: null };
+
+const cleanName = (raw: string) => capitalizeMemberName(raw.trim().replace(/\s+/g, " "));
+
+const useCheckInDevice = () => {
+  const [device, setDevice] = useState<Device | null>(null);
+  useEffect(() => {
+    let live = true;
+    void Promise.all([loadDeviceKey(), loadCheckInDetails()]).then(([clientKey, details]) => {
+      if (live) setDevice({ clientKey, details });
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return [device, setDevice] as const;
+};
+
+function Chips<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly { value: T; label: string }[];
+  value: T | null;
+  onChange: (value: T | null) => void;
+}) {
+  const t = useAppTheme();
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      <View style={styles.chips}>
+        {options.map((option) => {
+          const picked = value === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: picked }}
+              accessibilityLabel={option.label}
+              onPress={() => onChange(picked ? null : option.value)}
+              style={[
+                styles.chip,
+                { borderColor: picked ? t.primary : t.border, backgroundColor: picked ? t.primarySoft : t.card },
+              ]}
+            >
+              <Text style={[typography.label, { color: picked ? t.primary : t.text }]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const YEAR_OPTIONS = CHECK_IN_YEAR_LEVELS.map((level) => ({ value: level, label: level }));
 
 export default function CheckInScreen() {
   const t = useAppTheme();
+  const router = useRouter();
   useMinuteTick();
   const { token } = useLocalSearchParams<{ token: string }>();
   const page = useQuery(api.checkIn.page, token ? { token } : "skip");
+  const [device, setDevice] = useCheckInDevice();
+  const remembered = device?.details ?? null;
+  const returning = useQuery(
+    api.checkIn.returning,
+    token && device && remembered ? { token, clientKey: device.clientKey, name: remembered.name } : "skip"
+  );
+  const [done, setDone] = useState<Done | null>(null);
+  const mine = useQuery(
+    api.checkIn.mine,
+    token && device && done && done.via !== "leader" ? { token, clientKey: device.clientKey } : "skip"
+  );
   const submit = useMutation(api.checkIn.submit);
-  const [clientKey] = useState(deviceKey);
-  const [name, setName] = useState("");
-  const [campus, setCampus] = useState<string | null>(null);
+  const signInLeader = useMutation(api.checkIn.signInLeader);
+  const signOutLeader = useMutation(api.checkIn.signOutLeader);
+  const undoMine = useMutation(api.checkIn.undoMine);
+  const [form, setForm] = useState<FormValues | null>(null);
+  const [forSomeoneElse, setForSomeoneElse] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ name: string; status: "pending" | "confirmed" } | null>(null);
+  const autoTried = useRef(false);
 
-  if (page === undefined) return <LoadingState />;
+  const phase = page ? phaseBetween(page) : null;
+  const leader = page?.viewer?.leader ? page.viewer : null;
+  const autoMode: "leader" | "phone" | null =
+    !page || !device || phase !== "open" || done || forSomeoneElse || error
+      ? null
+      : leader
+        ? "leader"
+        : remembered && returning !== false
+          ? "phone"
+          : null;
+
+  const leaderSignIn = async () => {
+    try {
+      const result = await signInLeader({ token: token! });
+      setDone({ name: result.name, via: "leader", status: "confirmed", alreadySignedIn: result.alreadySignedIn });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  const submitDetails = async (values: FormValues, via: "phone" | "form", remember: boolean) => {
+    if (!token || !device || !page) return;
+    const campus = page.campuses.length === 1 ? page.campuses[0].value : values.campus;
+    try {
+      const result = await submit({
+        token,
+        name: values.name,
+        clientKey: device.clientKey,
+        ...(campus ? { campus } : {}),
+        ...(values.level ? { yearLevel: values.level } : {}),
+      });
+      const name = cleanName(values.name);
+      if (remember) {
+        const details: CheckInDetails = {
+          name,
+          campus: campus ?? null,
+          commencementYear: values.level ? commencementForLevel(values.level, page.calendarYear) : null,
+        };
+        void saveCheckInDetails(details);
+        setDevice({ clientKey: device.clientKey, details });
+      }
+      setDone({ name, via, status: result.status });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  const withSpinner = async (run: () => Promise<void>) => {
+    setSending(true);
+    setError(null);
+    await run();
+    setSending(false);
+  };
+  const signInAsLeader = () => withSpinner(leaderSignIn);
+  const sendDetails = (values: FormValues, via: "phone" | "form", remember: boolean) =>
+    withSpinner(() => submitDetails(values, via, remember));
+
+  const rememberedValues = (): FormValues => {
+    if (!page) return BLANK;
+    const campus =
+      remembered?.campus && page.campuses.some((c) => c.value === remembered.campus) ? remembered.campus : null;
+    const level =
+      remembered?.commencementYear != null
+        ? levelForCommencement(remembered.commencementYear, page.calendarYear)
+        : null;
+    return { name: remembered?.name ?? page.viewer?.name ?? "", campus, level };
+  };
+
+  useEffect(() => {
+    if (!autoMode || autoTried.current) return;
+    if (autoMode === "phone" && returning !== true) return;
+    autoTried.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (autoMode === "leader") void leaderSignIn();
+    else void submitDetails(rememberedValues(), "phone", true);
+  });
+
+  if (page === undefined || !device || autoMode) return <LoadingState />;
+  const onBack =
+    Platform.OS === "web" ? undefined : () => (router.canGoBack() ? router.back() : router.replace("/home"));
   if (page === null) {
     return (
-      <Screen title="Check in" maxWidth={520}>
+      <Screen title="Check in" maxWidth={520} onBack={onBack}>
         <EmptyState
           icon="qr-code-outline"
           title="This check-in link isn't valid"
@@ -58,20 +208,30 @@ export default function CheckInScreen() {
     );
   }
 
-  const phase = phaseBetween(page);
-  const campusChoice = page.campuses.length === 1 ? page.campuses[0].value : campus;
-  const needsCampus = page.campuses.length > 1 && !campusChoice;
-  const send = async () => {
+  const values = form ?? (forSomeoneElse ? BLANK : rememberedValues());
+  const prefilled = !forSomeoneElse && form === null && !!remembered;
+  const startFresh = () => {
+    void forgetCheckInDetails();
+    setDevice({ clientKey: device.clientKey, details: null });
+    setForm(BLANK);
+  };
+  const someoneElse = () => {
+    setForSomeoneElse(true);
+    setDone(null);
+    setError(null);
+    setForm(BLANK);
+  };
+  const latest = done && mine ? [...mine].reverse().find((row) => row.name === done.name) : undefined;
+  const status = done?.via === "leader" ? "confirmed" : (latest?.status ?? done?.status);
+
+  const undo = async () => {
+    if (!done || !token) return;
     setSending(true);
     setError(null);
     try {
-      const result = await submit({
-        token: token!,
-        name,
-        clientKey,
-        ...(campusChoice ? { campus: campusChoice } : {}),
-      });
-      setDone({ name: capitalizeMemberName(name.trim().replace(/\s+/g, " ")), status: result.status });
+      if (done.via === "leader") await signOutLeader({ token });
+      else await undoMine({ token, clientKey: device.clientKey, name: done.name });
+      setDone({ ...done, undone: true });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -79,81 +239,137 @@ export default function CheckInScreen() {
     }
   };
 
+  const doneCard = done ? (
+    <Card>
+      {done.undone ? (
+        <>
+          <Text style={[typography.headline, { color: t.text }]}>You&apos;re not signed in.</Text>
+          <Muted>Your sign-in was undone.</Muted>
+          <Btn
+            title={done.via === "leader" ? "Sign me in again" : `Check in as ${done.name}`}
+            icon="log-in-outline"
+            loading={sending}
+            onPress={() =>
+              void (done.via === "leader"
+                ? signInAsLeader()
+                : sendDetails({ ...rememberedValues(), name: done.name }, "form", false))
+            }
+          />
+        </>
+      ) : (
+        <>
+          <View style={styles.doneRow}>
+            <Ionicons
+              name={status === "dismissed" ? "alert-circle" : "checkmark-circle"}
+              size={28}
+              color={status === "dismissed" ? t.warning : t.success}
+            />
+            <Text style={[typography.headline, { color: t.text, flex: 1 }]}>
+              {status === "confirmed"
+                ? done.alreadySignedIn
+                  ? `You're already signed in, ${done.name}.`
+                  : `You're signed in, ${done.name}.`
+                : status === "dismissed"
+                  ? "A leader couldn't confirm this."
+                  : `Thanks, ${done.name}.`}
+            </Text>
+          </View>
+          <Muted>
+            {status === "confirmed"
+              ? done.via === "leader"
+                ? "Signed in as a leader. Enjoy the night."
+                : done.via === "phone"
+                  ? "This phone remembered you, so you're in. Enjoy the night."
+                  : "Enjoy the night."
+              : status === "dismissed"
+                ? "Please see a leader to be signed in."
+                : "A leader will confirm your check-in shortly. You can close this page."}
+          </Muted>
+          {done.via === "leader" && page.viewer?.eventId && Platform.OS !== "web" ? (
+            <Btn
+              title="Open roll call"
+              icon="people-outline"
+              variant="tonal"
+              onPress={() => router.push(`/attendance/event/${page.viewer!.eventId}`)}
+            />
+          ) : null}
+          {status === "confirmed" && (done.via === "leader" || done.via === "phone") && !done.alreadySignedIn ? (
+            <Btn
+              title={done.via === "leader" ? "Undo" : `Not ${done.name}? Undo`}
+              variant="ghost"
+              loading={sending}
+              onPress={() => void undo()}
+            />
+          ) : null}
+        </>
+      )}
+      <Btn title="Check in someone else" variant="ghost" onPress={someoneElse} />
+    </Card>
+  ) : null;
+
   return (
-    <Screen title="Check in" maxWidth={520}>
+    <Screen title="Check in" maxWidth={520} onBack={onBack}>
       <View style={{ gap: spacing.md }}>
         <Card>
           <Text style={[typography.title, { color: t.text }]}>{page.name}</Text>
           <Muted>{formatEventRange(page.dateStart, page.dateEnd)}</Muted>
         </Card>
-        {done ? (
-          <Card>
-            <View style={styles.doneRow}>
-              <Ionicons name="checkmark-circle" size={28} color={t.success} />
-              <Text style={[typography.headline, { color: t.text, flex: 1 }]}>
-                {done.status === "confirmed" ? `You're signed in, ${done.name}.` : `Thanks, ${done.name}.`}
-              </Text>
-            </View>
-            <Muted>
-              {done.status === "confirmed"
-                ? "A leader has already confirmed you. Enjoy the night."
-                : "A leader will confirm your check-in shortly. You can close this page."}
-            </Muted>
-            <Btn title="Check in someone else" variant="ghost" onPress={() => { setDone(null); setName(""); }} />
-          </Card>
-        ) : phase !== "open" ? (
-          <Card>
-            <Muted>
-              {phase === "before"
-                ? "Check-in hasn't opened yet. It opens two hours before the event."
-                : "Check-in for this event has closed. Ask a leader to sign you in."}
-            </Muted>
-          </Card>
-        ) : (
-          <Card>
-            <Field
-              label="Your full name"
-              value={name}
-              onChangeText={setName}
-              autoCapitalize="words"
-              maxLength={80}
-              testID="checkin-name"
-            />
-            {page.campuses.length > 1 ? (
-              <View style={{ gap: spacing.xs }}>
-                <Text style={[typography.label, { color: t.muted }]}>Your campus</Text>
-                <View style={styles.chips}>
-                  {page.campuses.map((c) => {
-                    const picked = campusChoice === c.value;
-                    return (
-                      <Pressable
-                        key={c.value}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: picked }}
-                        onPress={() => setCampus(c.value)}
-                        style={[
-                          styles.chip,
-                          { borderColor: picked ? t.primary : t.border, backgroundColor: picked ? t.primarySoft : t.card },
-                        ]}
-                      >
-                        <Text style={[typography.label, { color: picked ? t.primary : t.text }]}>{c.label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            ) : null}
-            <ErrorBanner message={error} />
-            <Btn
-              title="Check in"
-              icon="log-in-outline"
-              loading={sending}
-              disabled={name.trim().length < 2 || needsCampus}
-              onPress={() => void send()}
-            />
-            <Muted>Only your name and campus are sent. A leader confirms it on their phone.</Muted>
-          </Card>
-        )}
+        <ErrorBanner message={error} />
+        {doneCard ??
+          (phase !== "open" ? (
+            <Card>
+              <Muted>
+                {phase === "before"
+                  ? "Check-in hasn't opened yet. It opens two hours before the event."
+                  : "Check-in for this event has closed. Ask a leader to sign you in."}
+              </Muted>
+            </Card>
+          ) : (
+            <Card>
+              {forSomeoneElse ? <Muted>Checking in someone else. This phone won&apos;t remember them.</Muted> : null}
+              <Field
+                label="Full name"
+                value={values.name}
+                onChangeText={(name) => setForm({ ...values, name })}
+                autoCapitalize="words"
+                maxLength={80}
+                testID="checkin-name"
+              />
+              {prefilled ? (
+                <Pressable accessibilityRole="button" onPress={startFresh} hitSlop={8}>
+                  <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
+                    Not {remembered!.name}? Start fresh
+                  </Text>
+                </Pressable>
+              ) : null}
+              {page.campuses.length > 1 ? (
+                <Chips
+                  label="University (optional)"
+                  options={page.campuses}
+                  value={values.campus}
+                  onChange={(campus) => setForm({ ...values, campus })}
+                />
+              ) : null}
+              <Chips
+                label="Year at uni (optional)"
+                options={YEAR_OPTIONS}
+                value={values.level}
+                onChange={(level) => setForm({ ...values, level })}
+              />
+              <Btn
+                title="Check in"
+                icon="log-in-outline"
+                loading={sending}
+                disabled={values.name.trim().length < 2}
+                onPress={() => void sendDetails(values, "form", !forSomeoneElse)}
+              />
+              <Muted>
+                {forSomeoneElse
+                  ? "Only their name, university and year are sent. A leader confirms it on their phone."
+                  : "Only your name, university and year are sent, and this phone remembers them for next time. A leader confirms your first check-in."}
+              </Muted>
+            </Card>
+          ))}
       </View>
     </Screen>
   );

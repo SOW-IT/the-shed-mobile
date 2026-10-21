@@ -255,6 +255,20 @@ export default function EventAttendanceScreen() {
     [attendance]
   );
 
+  const checkInMembers = useMemo(
+    () =>
+      roster?.flatMap((entry) =>
+        entry.memberId
+          ? [{ memberId: entry.memberId, name: entry.name, university: entry.university ?? null, subtitle: entry.subtitle }]
+          : []
+      ),
+    [roster]
+  );
+  const signedInMemberIds = useMemo(
+    () => new Set<string>((attendance ?? []).map((a) => a.memberId)),
+    [attendance]
+  );
+
   const attendanceByKey = useMemo(() => {
     const map = new Map<string, NonNullable<typeof attendance>[number]>();
     for (const row of attendance ?? []) {
@@ -1156,7 +1170,13 @@ export default function EventAttendanceScreen() {
           onCreated={onMemberCreated}
         />
       ) : null}
-      <CheckInSheet eventId={evId} visible={checkInOpen} onClose={() => setCheckInOpen(false)} />
+      <CheckInSheet
+        eventId={evId}
+        visible={checkInOpen}
+        onClose={() => setCheckInOpen(false)}
+        members={checkInMembers}
+        signedInMemberIds={signedInMemberIds}
+      />
       <CreateEventSheet
         visible={eventEditOpen}
         onClose={() => setEventEditOpen(false)}
