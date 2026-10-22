@@ -366,15 +366,17 @@ is listed under Previously staff rather than as a brand-new person.
 
 ### Church map (optional)
 
-The Churches page draws a map of every church with an address. Without keys
-it is hidden on the web and Android, and iPhone falls back to Apple Maps.
-Create keys in the Google Cloud console, each restricted to its one API:
+The Churches page draws a map of every church with an address. iPhone always
+uses Apple Maps, which needs no key: since 2.10.0 the app leaves the Google
+Maps SDK for iOS out to keep the download small
+([ADR 0013](docs/adr/0013-apple-maps-on-iphone.md)). On the web and Android
+the map is Google Maps and is hidden without a key. Create keys in the Google
+Cloud console, each restricted to its one API:
 
 | Key | Where it goes | API | Restrict to |
 | --- | --- | --- | --- |
 | `GOOGLE_MAPS_API_KEY` | `npx convex env set` | Geocoding API | (server key) |
 | `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Vercel env (web build) | Maps JavaScript API | the web origins |
-| `GOOGLE_MAPS_IOS_API_KEY` | EAS env (app build) | Maps SDK for iOS | `au.org.sow.theshed` |
 | `GOOGLE_MAPS_ANDROID_API_KEY` | EAS env (app build) | Maps SDK for Android | package + SHA-1 |
 
 Dev and prod have separate keys: the DEVELOPMENT - The SHED project

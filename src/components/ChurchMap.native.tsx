@@ -16,10 +16,10 @@ import {
 
 export type { ChurchPin } from "./churchPins";
 
-type GoogleMapsBuild = { ios?: boolean; android?: boolean };
+type GoogleMapsBuild = { android?: boolean };
 
 const googleMapsBuild = (Constants.expoConfig?.extra?.googleMaps ?? {}) as GoogleMapsBuild;
-const usesGoogle = Platform.OS === "android" ? googleMapsBuild.android === true : googleMapsBuild.ios === true;
+const usesGoogle = Platform.OS === "android" && googleMapsBuild.android === true;
 
 export const churchMapAvailable = Platform.OS === "ios" || usesGoogle;
 
@@ -93,40 +93,77 @@ export function ChurchMap({
           const ring = pinRing(pin, t.primary);
           const size = pinSize(pin.people, most);
           return (
-            <Marker
-              key={`${pin.church._id}:${on ? "on" : "off"}:${size.fontSize}:${ring}`}
+            <ChurchMarker
+              key={`${pin.church._id}:${on ? "on" : "off"}:${size.fontSize}:${ring}:${t.dark ? "dark" : "light"}`}
+              pin={pin}
               coordinate={coordinate}
-              anchor={{ x: 0.5, y: 1 }}
-              zIndex={pinZIndex(pin, on)}
-              accessibilityLabel={pinAccessibilityLabel(pin)}
-              onPress={() => onSelect(pin.church._id)}
-            >
-              <View style={styles.pin}>
-                <View
-                  style={[
-                    styles.bubble,
-                    {
-                      height: size.height,
-                      paddingHorizontal: size.paddingHorizontal,
-                      backgroundColor: on ? t.primary : t.card,
-                      borderColor: on ? t.primary : ring,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.labelText, { fontSize: size.fontSize, color: on ? t.onPrimary : t.text }]}
-                    numberOfLines={1}
-                  >
-                    {pinLabel(pin, on)}
-                  </Text>
-                </View>
-                <View style={[styles.stem, { borderTopColor: on ? t.primary : ring }]} />
-              </View>
-            </Marker>
+              on={on}
+              ring={ring}
+              size={size}
+              onSelect={onSelect}
+            />
           );
         })}
       </MapView>
     </View>
+  );
+}
+
+const PIN_DRAW_MS = 500;
+
+function ChurchMarker({
+  pin,
+  coordinate,
+  on,
+  ring,
+  size,
+  onSelect,
+}: {
+  pin: ChurchPin;
+  coordinate: Coordinate;
+  on: boolean;
+  ring: string;
+  size: ReturnType<typeof pinSize>;
+  onSelect: (churchId: Id<"churches">) => void;
+}) {
+  const t = useAppTheme();
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setDrawn(true), PIN_DRAW_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <Marker
+      coordinate={coordinate}
+      anchor={{ x: 0.5, y: 1 }}
+      zIndex={pinZIndex(pin, on)}
+      tracksViewChanges={!drawn}
+      accessibilityLabel={pinAccessibilityLabel(pin)}
+      onPress={() => onSelect(pin.church._id)}
+    >
+      <View style={styles.pin}>
+        <View
+          style={[
+            styles.bubble,
+            {
+              height: size.height,
+              paddingHorizontal: size.paddingHorizontal,
+              backgroundColor: on ? t.primary : t.card,
+              borderColor: on ? t.primary : ring,
+            },
+          ]}
+        >
+          <Text
+            style={[styles.labelText, { fontSize: size.fontSize, color: on ? t.onPrimary : t.text }]}
+            numberOfLines={1}
+          >
+            {pinLabel(pin, on)}
+          </Text>
+        </View>
+        <View style={[styles.stem, { borderTopColor: on ? t.primary : ring }]} />
+      </View>
+    </Marker>
   );
 }
 

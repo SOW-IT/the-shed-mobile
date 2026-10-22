@@ -36,6 +36,20 @@ All notable changes to **The SHED** mobile app. This project follows
   `expo-router` 58.0.25 and eight more), which CI's dependency check now
   asks for. They change the app's runtime fingerprint, so 2.10.0 reaches
   phones as a store update rather than over the air.
+- **The church map on iPhone is Apple Maps, and the iPhone app is about 10 MB
+  smaller to download** (an estimated 36 MB to 26 MB; 13 MB less once
+  installed). Google's map library for iOS was about two thirds of the
+  app's own code, and Apple encrypts app code before compressing the
+  download, so it barely shrank. The pins, names and tap-to-open work as
+  before on Apple's muted map, which needs no key. Android and the web keep
+  Google Maps (`docs/adr/0013-apple-maps-on-iphone.md`).
+- **Church pins on Google Maps stop redrawing on every frame.** Google Maps
+  turned each custom pin back into an image on every frame while the map
+  moved, the likely cause of the map's lag on iPhone up to 2.9.29 (Apple
+  Maps pins are plain views, so 2.10.0's iPhone map doesn't do it). A pin
+  now draws for its first half second and again only when it changes
+  (picked, resized, recoloured or the theme flips). On Android this applies
+  to builds with a Maps key; production has none yet, so it shows no map.
 
 ## [2.9.29] - 2026-10-21
 
