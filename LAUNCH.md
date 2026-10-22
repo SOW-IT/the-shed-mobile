@@ -121,7 +121,7 @@ one external mentor created (Sarah Kim, who has no 2023 profile). One 2023
 mentee was skipped: their old account no longer exists, so they can't be
 identified.
 
-**Typed BigQuery warehouse views**: the nightly backup builds dataset
+**Typed BigQuery warehouse views**: the weekly backup builds dataset
 `convex_warehouse`. *Evidence (backup run 39660287748, 2026-10-21 19:17 UTC):*
 its log creates the typed table views and all ten `insights_*` views plus
 `staff_assignments`, `attendance_signins`, `requests_status` and

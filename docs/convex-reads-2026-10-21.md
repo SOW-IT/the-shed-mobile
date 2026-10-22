@@ -7,7 +7,7 @@ Measured on main at `dea7b1e` (2.9.26).
 `attendanceMembers.name` rather than a `nameKey` field: a new field would add
 about 25 bytes to every member row, and `roster` and the Members list read
 all 1,415 rows on every run, which would have cancelled most of the saving.
-Fixes 7 to 14 are not done.
+Fix 8 shipped on 2026-10-23: the backup runs weekly (Sundays 15:17 UTC). Fixes 7 and 9 to 14 are not done.
 
 ## Summary
 

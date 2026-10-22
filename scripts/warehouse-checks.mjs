@@ -71,7 +71,7 @@ const run = async () => {
     for (const [table, before] of Object.entries(previous.counts)) {
       const after = counts[table];
       if (after === undefined) {
-        problems.push(`table ${table} was in yesterday's snapshot and is gone`);
+        problems.push(`table ${table} was in the last run's snapshot and is gone`);
       } else if (before > 0 && after < before * (1 - DROP_RATIO)) {
         problems.push(`table ${table} fell from ${before} to ${after} rows`);
       }

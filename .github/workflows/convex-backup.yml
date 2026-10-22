@@ -2,7 +2,9 @@ name: Backup Convex to GCS
 
 on:
   schedule:
-    - cron: "17 15 * * *"
+    # Weekly: each export reads the whole prod database (about 9.5 MB of the
+    # plan's 1 GB/month of database bandwidth), so daily runs cost ~0.29 GB.
+    - cron: "17 15 * * 0"
   workflow_dispatch:
 
 permissions:
@@ -88,7 +90,7 @@ jobs:
 
       - name: Flag the storage file copy failure
         if: steps.storage_files.outcome == 'failure'
-        run: echo "::error title=Storage file backup failed::The database export and upload succeeded, but copying Convex storage files to gs://${GCS_BACKUP_BUCKET}/storage failed. See the step above; the next nightly run retries every file not yet in the manifest."
+        run: echo "::error title=Storage file backup failed::The database export and upload succeeded, but copying Convex storage files to gs://${GCS_BACKUP_BUCKET}/storage failed. See the step above; the next run retries every file not yet in the manifest."
         env:
           GCS_BACKUP_BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
 
@@ -137,7 +139,7 @@ jobs:
             --warehouse "$BQ_WAREHOUSE_DATASET" \
             --location "$BQ_LOCATION"
 
-      - name: Check the warehouse against yesterday
+      - name: Check the warehouse against the last run
         env:
           GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
         run: |

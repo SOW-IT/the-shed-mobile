@@ -67,7 +67,7 @@ page exists in every supported app, and a release that adds a linked page
 raises the update policy's `minimum` (ADR 0007, superseded in 2.10.0). The
 web never hands `/checkin` to the app ([ADR 0012](./docs/adr/0012-check-in-links-open-the-app.md)).
 
-A nightly BigQuery copy of production Convex sits outside all five contexts.
+A weekly BigQuery copy of production Convex sits outside all five contexts.
 It is a snapshot for SQL, not a source of truth, and the app does not read it.
 JSON tables live in `convex_production`; typed views and Looker/Sheets report
 views live in `convex_warehouse`. See [ADR 0004](./docs/adr/0004-convex-to-bigquery-snapshot.md),
