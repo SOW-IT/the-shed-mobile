@@ -48,7 +48,7 @@ All notable changes to **The SHED** mobile app. This project follows
   moved, the likely cause of the map's lag on iPhone up to 2.9.29 (Apple
   Maps pins are plain views, so 2.10.0's iPhone map doesn't do it). A pin
   now draws for its first half second and again only when it changes
-  (picked, resized, recoloured or the theme flips). On Android this applies
+  (picked, renamed, resized, recoloured or the theme flips). On Android this applies
   to builds with a Maps key; production has none yet, so it shows no map.
 
 ## [2.9.29] - 2026-10-21

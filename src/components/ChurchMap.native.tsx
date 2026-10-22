@@ -95,7 +95,7 @@ export function ChurchMap({
           const label = pinLabel(pin, on);
           return (
             <ChurchMarker
-              key={`${pin.church._id}:${on ? "on" : "off"}:${label}:${size.fontSize}:${ring}:${t.dark ? "dark" : "light"}`}
+              key={`${pin.church._id}:${on ? "on" : "off"}:${label}:${size.fontSize}:${size.height}:${size.paddingHorizontal}:${ring}:${t.dark ? "dark" : "light"}`}
               pin={pin}
               coordinate={coordinate}
               on={on}

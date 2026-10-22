@@ -56,18 +56,21 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       1. Wait until 2.9.25 or later is live on the App Store and Google Play,
          with Play's rollout at 100%. The update screen sends people to those
          listings, and anyone outside a staged rollout can't update yet.
-      2. Just before merging, set `minimum` to 2.9.25 so older apps show the
-         update screen instead of calling functions this release removes:
-         `npx convex run --prod appInstalls:setUpdatePolicy '{"platform":
-         "ios", "minimum": "2.9.25"}'`, the same for `android`. Then merge.
-         The Convex deploy goes out with the merge, so setting the minimum
-         first leaves no gap where old apps call missing functions; until
-         the merge the server still serves them, so they only see the update
-         screen a few minutes early.
-      3. Once the iPhone Apple Maps change (ADR 0013) is on main too, run EAS
-         Production and EAS Staging. 2.10.0 has a new runtime fingerprint (the
-         Expo patch updates and the dropped Google Maps SDK), so it reaches
-         phones as a store update, not over the air.
+      2. Just before merging, set `minimum` to 2.9.25 so apps from 2.9.0 to
+         2.9.24 show the update screen instead of calling functions this
+         release removes: `npx convex run --prod
+         appInstalls:setUpdatePolicy '{"platform": "ios", "minimum":
+         "2.9.25"}'`, the same for `android`. Then merge. The Convex deploy
+         goes out with the merge, so setting the minimum first leaves no gap
+         where old apps call missing functions; until the merge the server
+         still serves them, so they only see the update screen a few minutes
+         early. Apps older than 2.9.0 have no update screen, so `minimum`
+         can't stop them, but 2.9.1 already dropped the server code they
+         need. On 2026-10-22 production had one such install (iOS 2.5.8),
+         last seen 2026-10-14, before 2.9.1 shipped.
+      3. Run EAS Production and EAS Staging. 2.10.0 has a new runtime
+         fingerprint (the Expo patch updates and the dropped Google Maps SDK),
+         so it reaches phones as a store update, not over the air.
       4. Once 2.10.0 is live in both stores, set `recommended` to 2.10.0:
          `npx convex run --prod appInstalls:setUpdatePolicy '{"platform":
          "ios", "recommended": "2.10.0"}'`, the same for `android`.
