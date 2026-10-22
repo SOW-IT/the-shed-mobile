@@ -222,6 +222,10 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   signs in once for the whole event.
   Post-event sign-ins can be reversed; sign-ins made during an event can't,
   except within 10 minutes of being made.
+  "Not signed in" lists the people most likely to come first: a score from
+  the last 180 days of sign-ins (weight halving every 45 days, most for the
+  same campus's weeklies) plus a campus bonus, stored per event in
+  `rollCallOrders` (ADR 0014).
 - **Tags & metadata**: event tags in two lists, **Weeklies** (labels like BAM
   or PPN) and **Other events**, plus the automatic **Weeklies** tag on every
   weekly (a weekly is defined by its term and week, which drive the

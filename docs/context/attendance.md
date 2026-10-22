@@ -156,13 +156,24 @@ The crons that keep Insights fresh. SOW's and every campus's Snapshots are
 recomputed every night; each campus's weeklies view redoes only what the attendance change
 log says changed since the night before (often nothing). A roll-call or event
 change is visible in Insights the next morning. The same rebuild refreshes
-General's staff trends and the current staff year's roster history (the
-order roll-call lists people in), so a profile change shows in General, and a
-sign-in counts towards roster order, the next morning. Other years' rosters
-are ordered from their attendance directly. The October 1 prefill job also
+General's staff trends and the roster history (the last 210 days of
+sign-ins), then ranks the week's events into their Roll call order, so a
+profile change shows in General, and a sign-in counts towards roll call
+order, the next morning. The October 1 prefill job also
 rebuilds the year that has just ended so the incoming year's Snapshots start
 honest.
 _Avoid_: dirty, dirty recompute (the old 15-minute mechanism, removed in 1.11)
+
+**Roll call order**:
+The order "Not signed in" lists people in: most likely to come first. A
+person's score adds up their sign-ins from the 180 days before the event,
+each worth less the older it is (half every 45 days) and more when it was the
+same campus's weekly, a shared group or a shared tag, plus a bonus when their
+campus is one of the event's. Stored per event (`rollCallOrders`, top 150),
+ranked when the event is saved within a week of starting and nightly for the
+week ahead; nobody beyond the stored 150, and any event without an order,
+falls back to campus then name. See ADR 0014.
+_Avoid_: frequency score, roster order
 
 **Weekly** (held weekly):
 A campus's weekly meeting: an event with a Term and week (its `weekly` mark,

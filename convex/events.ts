@@ -46,6 +46,7 @@ import {
   eventAttendanceCount,
   startEventAttendanceCount,
 } from "./attendanceCounts";
+import { deleteRollCallOrder, rankingInputsChanged, scheduleRank } from "./rollCallOrder";
 
 const weeklyMarkArg = v.object({
   year: v.number(),
@@ -384,6 +385,7 @@ export const create = mutation({
       eventId,
       actorEmail: email,
     });
+    await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
     return eventId;
   },
 });
@@ -415,6 +417,9 @@ export const update = mutation({
       weekly: weekly === undefined ? existing.weekly : weekly,
     });
     await ctx.db.patch(eventId, eventFields);
+    if (rankingInputsChanged(existing, { ...existing, ...eventFields })) {
+      await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
+    }
     const changes: string[] = [];
     if (existing.name !== eventFields.name) changes.push("name");
     if (existing.dateStart !== eventFields.dateStart) changes.push("start date");
@@ -491,6 +496,7 @@ export const remove = mutation({
       .collect();
     for (const request of checkIns) await ctx.db.delete(request._id);
     await deleteEventAttendanceCount(ctx, eventId);
+    await deleteRollCallOrder(ctx, eventId);
     await ctx.db.delete(eventId);
     const hidden = rows.length - people.length;
     await logAttendanceAction(ctx, {

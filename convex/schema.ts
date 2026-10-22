@@ -619,21 +619,36 @@ export default defineSchema({
   rosterHistorySnapshots: defineTable({
     year: v.number(),
     builtAt: v.number(),
+    fullAt: v.optional(v.number()),
     events: v.array(
       v.object({
         eventId: v.id("events"),
         dateStart: v.number(),
         tagIds: v.array(v.string()),
         subgroups: v.array(v.string()),
+        weekly: v.optional(v.boolean()),
+        count: v.optional(v.number()),
       })
     ),
-    members: v.array(
-      v.object({
-        memberId: v.id("attendanceMembers"),
-        events: v.array(v.number()),
-      })
+    members: v.optional(
+      v.array(
+        v.object({
+          memberId: v.id("attendanceMembers"),
+          events: v.array(v.number()),
+        })
+      )
     ),
+    memberIds: v.optional(v.array(v.id("attendanceMembers"))),
+    memberEvents: v.optional(v.array(v.string())),
   }).index("by_year", ["year"]),
+
+  rollCallOrders: defineTable({
+    eventId: v.id("events"),
+    inputKey: v.string(),
+    builtAt: v.number(),
+    memberIds: v.array(v.id("attendanceMembers")),
+    scores: v.array(v.number()),
+  }).index("by_eventId", ["eventId"]),
 
   staffTrendsSnapshots: defineTable({
     staffYear: v.number(),
