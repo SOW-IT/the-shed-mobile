@@ -601,12 +601,16 @@ export default defineSchema({
         count: v.optional(v.number()),
       })
     ),
-    members: v.array(
-      v.object({
-        memberId: v.id("attendanceMembers"),
-        events: v.array(v.number()),
-      })
+    members: v.optional(
+      v.array(
+        v.object({
+          memberId: v.id("attendanceMembers"),
+          events: v.array(v.number()),
+        })
+      )
     ),
+    memberIds: v.optional(v.array(v.id("attendanceMembers"))),
+    memberEvents: v.optional(v.array(v.string())),
   }).index("by_year", ["year"]),
 
   rollCallOrders: defineTable({

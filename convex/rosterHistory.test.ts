@@ -2,7 +2,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -60,6 +60,17 @@ async function setup() {
   return { t, ...ids };
 }
 
+
+type Snapshot = Doc<"rosterHistorySnapshots">;
+const eventsOf = (snapshot: Snapshot, memberId: Id<"attendanceMembers">) => {
+  const i = snapshot.memberIds!.indexOf(memberId);
+  return i < 0 ? [] : snapshot.memberEvents![i].split(".").map((index) => parseInt(index, 36));
+};
+const attendeesAt = (snapshot: Snapshot, eventId: Id<"events">) => {
+  const index = snapshot.events.findIndex((e) => e.eventId === eventId);
+  return snapshot.memberIds!.filter((memberId) => eventsOf(snapshot, memberId).includes(index));
+};
+
 const rosterNames = async (t: TestConvex<typeof schema>, eventId: Id<"events">, year = YEAR) =>
   (await asUser(t, ADMIN).query(api.attendance.roster, { year, eventId }))
     .map((row) => row.name)
@@ -98,7 +109,8 @@ describe("roster history snapshot", () => {
     const snapshots = await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").collect());
     expect(snapshots).toHaveLength(1);
     expect(snapshots[0].year).toBe(YEAR);
-    expect(snapshots[0].members).toHaveLength(3);
+    expect(snapshots[0].memberIds).toHaveLength(3);
+    expect(snapshots[0].members).toBeUndefined();
   });
 
   test("keeps sign-ins from before the staff year started", async () => {
@@ -115,7 +127,7 @@ describe("roster history snapshot", () => {
     await t.mutation(internal.rosterHistory.rebuild, {});
     const snapshot = await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first());
     expect(snapshot!.events.map((e) => e.dateStart)).toContain(staffYearStartMs(YEAR) - 10 * DAY);
-    expect(snapshot!.members.find((m) => m.memberId === ann)!.events).toHaveLength(3);
+    expect(eventsOf(snapshot!, ann)).toHaveLength(3);
   });
 
   test("the nightly metrics rebuild refreshes the snapshot, then ranks this week's events", async () => {
@@ -124,7 +136,7 @@ describe("roster history snapshot", () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const snapshot = await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first());
     expect(snapshot?.year).toBe(YEAR);
-    expect(snapshot?.members.length).toBe(3);
+    expect(snapshot?.memberIds?.length).toBe(3);
     const order = await t.run((ctx) =>
       ctx.db
         .query("rollCallOrders")
@@ -147,8 +159,7 @@ describe("roster history snapshot", () => {
       });
     const taggedAttendees = async () => {
       const snapshot = await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first());
-      const index = snapshot!.events.findIndex((e) => e.eventId === tagged);
-      return snapshot!.members.filter((m) => m.events.includes(index)).map((m) => m.memberId);
+      return attendeesAt(snapshot!, tagged);
     };
     await setCount(1);
     await t.mutation(internal.rosterHistory.rebuild, {});
@@ -162,7 +173,7 @@ describe("roster history snapshot", () => {
     expect(await taggedAttendees()).toContain(ann);
   });
 
-  test("a full rebuild re-reads everything once a week", async () => {
+  test("a full rebuild re-reads everything every two weeks", async () => {
     const { t, tagged, ann } = await setup();
     await t.run((ctx) => ctx.db.insert("eventAttendanceCounts", { eventId: tagged, count: 1 }));
     await t.mutation(internal.rosterHistory.rebuild, {});
@@ -174,12 +185,11 @@ describe("roster history snapshot", () => {
     let snapshot = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
     expect(snapshot.fullAt).toBe(firstFull);
 
-    vi.setSystemTime(PINNED_NOW + 8 * DAY);
+    vi.setSystemTime(PINNED_NOW + 15 * DAY);
     await t.mutation(internal.rosterHistory.rebuild, {});
     snapshot = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
     expect(snapshot.fullAt).toBeGreaterThan(firstFull!);
-    const index = snapshot.events.findIndex((e) => e.eventId === tagged);
-    expect(snapshot.members.find((m) => m.memberId === ann)!.events).toContain(index);
+    expect(attendeesAt(snapshot, tagged)).toContain(ann);
   });
 
   test("a quiet night writes nothing", async () => {
@@ -193,7 +203,7 @@ describe("roster history snapshot", () => {
     expect(second.builtAt).toBe(first.builtAt);
   });
 
-  test("older events come from the snapshot until the weekly full rebuild", async () => {
+  test("older events come from the snapshot until the next full rebuild", async () => {
     const { t, ann } = await setup();
     const old = await t.run(async (ctx) => {
       const eventId = await ctx.db.insert("events", {
@@ -216,8 +226,7 @@ describe("roster history snapshot", () => {
     });
     const attendeesOfOld = async () => {
       const snapshot = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
-      const index = snapshot.events.findIndex((e) => e.eventId === old);
-      return snapshot.members.filter((m) => m.events.includes(index)).map((m) => m.memberId);
+      return attendeesAt(snapshot, old);
     };
     await t.mutation(internal.rosterHistory.rebuild, {});
     expect(await attendeesOfOld()).toEqual([]);
@@ -238,5 +247,25 @@ describe("roster history snapshot", () => {
     await t.mutation(internal.rosterHistory.rebuild, {});
     const snapshot = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
     expect(snapshot.events.map((e) => e.eventId)).not.toContain(ancient);
+  });
+
+  test("reads a snapshot saved in the old shape, then rewrites it packed", async () => {
+    const { t, current, tagged, cat } = await setup();
+    await t.run(async (ctx) => {
+      const event = (await ctx.db.get(tagged))!;
+      await ctx.db.insert("rosterHistorySnapshots", {
+        year: YEAR,
+        builtAt: PINNED_NOW,
+        fullAt: PINNED_NOW,
+        events: [{ eventId: tagged, dateStart: event.dateStart, tagIds: (event.tagIds ?? []).map(String), subgroups: event.subgroups }],
+        members: [{ memberId: cat, events: [0] }],
+      });
+    });
+    expect(await t.mutation(internal.rollCallOrder.rank, { eventId: current })).toBe("saved");
+    expect((await rosterNames(t, current))[0]).toBe("Cat");
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    const snapshot = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
+    expect(snapshot.members).toBeUndefined();
+    expect(attendeesAt(snapshot, tagged)).toEqual([cat]);
   });
 });
