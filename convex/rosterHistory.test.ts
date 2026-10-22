@@ -66,13 +66,12 @@ const rosterNames = async (t: TestConvex<typeof schema>, eventId: Id<"events">, 
     .filter((name) => ["Ann", "Ben", "Cat"].includes(name));
 
 describe("roster history snapshot", () => {
-  test("orders the roster the same way as reading every event's attendance", async () => {
+  test("sorts by name until the nightly snapshot ranks the event", async () => {
     const { t, current } = await setup();
-    const live = await rosterNames(t, current);
-    expect(live).toEqual(["Cat", "Ann", "Ben"]);
+    expect(await rosterNames(t, current)).toEqual(["Ann", "Ben", "Cat"]);
 
     await t.mutation(internal.rosterHistory.rebuild, {});
-    expect(await rosterNames(t, current)).toEqual(live);
+    expect(await rosterNames(t, current)).toEqual(["Cat", "Ann", "Ben"]);
   });
 
   test("uses last night's snapshot instead of today's sign-ins", async () => {
@@ -132,6 +131,54 @@ describe("roster history snapshot", () => {
         .withIndex("by_eventId", (q) => q.eq("eventId", current))
         .unique()
     );
-    expect(order?.members.length).toBeGreaterThan(0);
+    expect(order?.memberIds.length).toBeGreaterThan(0);
+  });
+
+  test("a nightly rebuild only re-reads events whose sign-in count changed", async () => {
+    const { t, tagged, ann } = await setup();
+    const setCount = (count: number) =>
+      t.run(async (ctx) => {
+        const row = await ctx.db
+          .query("eventAttendanceCounts")
+          .withIndex("by_eventId", (q) => q.eq("eventId", tagged))
+          .first();
+        if (row) await ctx.db.patch(row._id, { count });
+        else await ctx.db.insert("eventAttendanceCounts", { eventId: tagged, count });
+      });
+    const taggedAttendees = async () => {
+      const snapshot = await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first());
+      const index = snapshot!.events.findIndex((e) => e.eventId === tagged);
+      return snapshot!.members.filter((m) => m.events.includes(index)).map((m) => m.memberId);
+    };
+    await setCount(1);
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    await t.run((ctx) => ctx.db.insert("attendance", { eventId: tagged, memberId: ann, signInTime: 2 }));
+
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    expect(await taggedAttendees()).not.toContain(ann);
+
+    await setCount(2);
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    expect(await taggedAttendees()).toContain(ann);
+  });
+
+  test("a full rebuild re-reads everything once a week", async () => {
+    const { t, tagged, ann } = await setup();
+    await t.run((ctx) => ctx.db.insert("eventAttendanceCounts", { eventId: tagged, count: 1 }));
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    const firstFull = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!.fullAt;
+    await t.run((ctx) => ctx.db.insert("attendance", { eventId: tagged, memberId: ann, signInTime: 2 }));
+
+    vi.setSystemTime(PINNED_NOW + DAY);
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    let snapshot = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
+    expect(snapshot.fullAt).toBe(firstFull);
+
+    vi.setSystemTime(PINNED_NOW + 8 * DAY);
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    snapshot = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
+    expect(snapshot.fullAt).toBeGreaterThan(firstFull!);
+    const index = snapshot.events.findIndex((e) => e.eventId === tagged);
+    expect(snapshot.members.find((m) => m.memberId === ann)!.events).toContain(index);
   });
 });

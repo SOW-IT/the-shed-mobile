@@ -91,7 +91,8 @@ describe("roll call order", () => {
     const eventId = await createEvent(admin);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const order = await orderOf(t, eventId);
-    expect(order!.members.map((m) => m.memberId)).toEqual([ann, ben]);
+    expect(order!.memberIds).toEqual([ann, ben]);
+    expect(order!.scores[0]).toBeGreaterThan(order!.scores[1]);
     expect(await rosterNames(t, eventId)).toEqual(["Ann", "Ben", "Cat"]);
   });
 
@@ -104,7 +105,7 @@ describe("roll call order", () => {
         .query("rollCallOrders")
         .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
         .unique();
-      await ctx.db.patch(order!._id, { members: [{ memberId: cat, score: 99 }] });
+      await ctx.db.patch(order!._id, { memberIds: [cat], scores: [99] });
     });
     expect(await rosterNames(t, eventId)).toEqual(["Cat", "Ann", "Ben"]);
   });
@@ -181,34 +182,33 @@ describe("roll call order", () => {
     await past(1, [cat, ben]);
     expect(await t.mutation(internal.rollCallOrder.rank, { eventId })).toBe("unchanged");
     await t.mutation(internal.rosterHistory.rebuild, {});
-    expect(await t.mutation(internal.rollCallOrder.rank, { eventId })).toBe("saved");
     expect(await rosterNames(t, eventId)).toEqual(["Ben", "Ann", "Cat"]);
+    expect(await t.mutation(internal.rollCallOrder.rank, { eventId })).toBe("unchanged");
   });
 
-  test("a past event is ranked from what happened before it", async () => {
-    const { t, ann, ben } = await setup();
-    const old = await t.run(async (ctx) => {
-      const before = await ctx.db.insert("events", {
-        name: "Before",
-        dateStart: PINNED_NOW - 70 * DAY,
-        dateEnd: PINNED_NOW - 70 * DAY + HOUR,
-        subgroups: [USYD],
-      });
-      await ctx.db.insert("attendance", { eventId: before, memberId: ben, signInTime: 1 });
-      return await ctx.db.insert("events", {
-        name: "Old night",
-        dateStart: PINNED_NOW - 60 * DAY,
-        dateEnd: PINNED_NOW - 60 * DAY + HOUR,
-        subgroups: [USYD],
-      });
-    });
-    expect(await t.mutation(internal.rollCallOrder.rank, { eventId: old })).toBe("saved");
-    const order = await orderOf(t, old);
-    expect(order!.members.map((m) => m.memberId)).toEqual([ben]);
-    expect(order!.members.map((m) => m.memberId)).not.toContain(ann);
+  test("a recent past event is ranked from what happened before it", async () => {
+    const { t, past, ann, ben } = await setup();
+    await past(8, [ben]);
+    const recent = await past(5, []);
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    expect(await t.mutation(internal.rollCallOrder.rank, { eventId: recent })).toBe("saved");
+    expect((await orderOf(t, recent))!.memberIds).toEqual([ben, ann]);
   });
 
-  test("the nightly run ranks events on now or in the next week", async () => {
+  test("an event over 30 days old isn't ranked", async () => {
+    const { t, past } = await setup();
+    const old = await past(60, []);
+    expect(await t.mutation(internal.rollCallOrder.rank, { eventId: old })).toBeNull();
+    expect(await orderOf(t, old)).toBeNull();
+  });
+
+  test("an event over a week away is left for the nightly run", async () => {
+    const { t, admin } = await setup();
+    await createEvent(admin, { daysAhead: 10 });
+    expect(await pendingRanks(t)).toBe(0);
+  });
+
+  test("the nightly snapshot ranks events on now or in the next week", async () => {
     const { t } = await setup();
     const at = async (daysFromNow: number, lengthDays = 0.1) =>
       await t.run((ctx) =>
@@ -223,8 +223,7 @@ describe("roll call order", () => {
     const soon = await at(3);
     const later = await at(10);
     const over = await at(-1);
-    await t.mutation(internal.rollCallOrder.rankUpcoming, {});
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.mutation(internal.rosterHistory.rebuild, {});
     expect(await orderOf(t, camp)).not.toBeNull();
     expect(await orderOf(t, soon)).not.toBeNull();
     expect(await orderOf(t, later)).toBeNull();
@@ -239,7 +238,7 @@ describe("roll call order", () => {
     expect(await t.run((ctx) => ctx.db.query("rollCallOrders").collect())).toEqual([]);
   });
 
-  test("waits for the first nightly snapshot rather than reading every event live", async () => {
+  test("without a snapshot nothing is ranked, and the roll call sorts by campus then name", async () => {
     const { t, admin } = await setup();
     await t.run(async (ctx) => {
       for (const snapshot of await ctx.db.query("rosterHistorySnapshots").collect()) {

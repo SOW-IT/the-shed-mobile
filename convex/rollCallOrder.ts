@@ -11,9 +11,9 @@ import { internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
 import { historyBefore, type RosterHistory } from "./rosterHistory";
 
 const DAY_MS = 86_400_000;
-const MAX_RANKED_MEMBERS = 5000;
-const UPCOMING_DAYS = 7;
-const LONGEST_EVENT_DAYS = 14;
+const MAX_RANKED_MEMBERS = 300;
+const UPCOMING_MS = 7 * DAY_MS;
+const LONGEST_EVENT_MS = 14 * DAY_MS;
 
 export const likelihoodTarget = (event: Doc<"events">): LikelihoodEvent => ({
   eventId: event._id,
@@ -40,6 +40,11 @@ export const rankingInputsChanged = (before: Doc<"events">, after: Doc<"events">
   );
 };
 
+export async function scheduleRank(ctx: MutationCtx, event: Pick<Doc<"events">, "_id" | "dateStart">) {
+  if (event.dateStart >= Date.now() + UPCOMING_MS) return;
+  await ctx.scheduler.runAfter(0, internal.rollCallOrder.rank, { eventId: event._id });
+}
+
 type RankResult = "unchanged" | "same order" | "saved";
 
 async function rankEvent(
@@ -51,17 +56,17 @@ async function rankEvent(
   const inputKey = likelihoodInputKey(target, history);
   const existing = await storedOrder(ctx, event._id);
   if (existing?.inputKey === inputKey) return "unchanged";
-  const members = rankedLikelihood(likelihoodScores(target, history))
-    .slice(0, MAX_RANKED_MEMBERS)
-    .map(({ memberId, score }) => ({ memberId: memberId as Id<"attendanceMembers">, score }));
+  const ranked = rankedLikelihood(likelihoodScores(target, history)).slice(0, MAX_RANKED_MEMBERS);
+  const memberIds = ranked.map((entry) => entry.memberId as Id<"attendanceMembers">);
+  const scores = ranked.map((entry) => entry.score);
   if (
     existing &&
-    existing.members.length === members.length &&
-    existing.members.every((m, i) => m.memberId === members[i].memberId && m.score === members[i].score)
+    existing.memberIds.length === memberIds.length &&
+    existing.memberIds.every((id, i) => id === memberIds[i] && existing.scores[i] === scores[i])
   ) {
     return "same order";
   }
-  const doc = { eventId: event._id, inputKey, builtAt: Date.now(), members };
+  const doc = { eventId: event._id, inputKey, builtAt: Date.now(), memberIds, scores };
   if (existing) await ctx.db.replace("rollCallOrders", existing._id, doc);
   else await ctx.db.insert("rollCallOrders", doc);
   return "saved";
@@ -79,24 +84,15 @@ export const rank = internalMutation({
   },
 });
 
-export const rankUpcoming = internalMutation({
-  args: {},
-  returns: v.number(),
-  handler: async (ctx) => {
-    const now = Date.now();
-    const events = await ctx.db
-      .query("events")
-      .withIndex("by_dateStart", (q) =>
-        q.gte("dateStart", now - LONGEST_EVENT_DAYS * DAY_MS).lt("dateStart", now + UPCOMING_DAYS * DAY_MS)
-      )
-      .take(200);
-    const due = events.filter((event) => event.dateEnd >= now);
-    for (const event of due) {
-      await ctx.scheduler.runAfter(0, internal.rollCallOrder.rank, { eventId: event._id });
-    }
-    return due.length;
-  },
-});
+export async function rankUpcomingEvents(ctx: MutationCtx, history: RosterHistory, now: number) {
+  const events = await ctx.db
+    .query("events")
+    .withIndex("by_dateStart", (q) => q.gte("dateStart", now - LONGEST_EVENT_MS).lt("dateStart", now + UPCOMING_MS))
+    .take(200);
+  for (const event of events) {
+    if (event.dateEnd >= now) await rankEvent(ctx, event, history);
+  }
+}
 
 export async function deleteRollCallOrder(ctx: MutationCtx, eventId: Id<"events">) {
   const existing = await storedOrder(ctx, eventId);

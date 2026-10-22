@@ -46,7 +46,7 @@ import {
   eventAttendanceCount,
   startEventAttendanceCount,
 } from "./attendanceCounts";
-import { deleteRollCallOrder, rankingInputsChanged } from "./rollCallOrder";
+import { deleteRollCallOrder, rankingInputsChanged, scheduleRank } from "./rollCallOrder";
 
 const weeklyMarkArg = v.object({
   year: v.number(),
@@ -385,7 +385,7 @@ export const create = mutation({
       eventId,
       actorEmail: email,
     });
-    await ctx.scheduler.runAfter(0, internal.rollCallOrder.rank, { eventId });
+    await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
     return eventId;
   },
 });
@@ -418,7 +418,7 @@ export const update = mutation({
     });
     await ctx.db.patch(eventId, eventFields);
     if (rankingInputsChanged(existing, { ...existing, ...eventFields })) {
-      await ctx.scheduler.runAfter(0, internal.rollCallOrder.rank, { eventId });
+      await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
     }
     const changes: string[] = [];
     if (existing.name !== eventFields.name) changes.push("name");

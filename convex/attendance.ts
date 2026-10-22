@@ -22,9 +22,8 @@ import { adjustEventAttendanceCount } from "./attendanceCounts";
 import { memberAuditName, staffDisplayName } from "./attendanceMembers";
 import { eventCampuses, memberRoleResolver } from "./memberRoles";
 import { photoFor } from "./photo";
-import { compareLikelihood, LIKELIHOOD, likelihoodScores } from "../shared/rollCallLikelihood";
-import { likelihoodTarget, storedOrder } from "./rollCallOrder";
-import { cachedHistory } from "./rosterHistory";
+import { compareLikelihood, LIKELIHOOD } from "../shared/rollCallLikelihood";
+import { storedOrder } from "./rollCallOrder";
 import {
   assignedProfileForEmail,
   isAssigned,
@@ -136,9 +135,9 @@ export const roster = query({
 
     const eventSubgroups = new Set(normalizeSubgroups(event.subgroups));
     const order = await storedOrder(ctx, event._id);
-    const scores: Map<string, number> = order
-      ? new Map(order.members.map((m) => [m.memberId, m.score]))
-      : likelihoodScores(likelihoodTarget(event), await cachedHistory(ctx, event.dateStart));
+    const scores = new Map<string, number>(
+      (order?.memberIds ?? []).map((memberId, i) => [memberId, order!.scores[i] ?? 0])
+    );
     const likelihood = new Map(
       rows.map((entry) => [
         entry.key,
