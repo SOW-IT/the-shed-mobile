@@ -49,11 +49,16 @@ no key.
 
 - The iPhone map is Apple's muted map while Android and the web show
   Google's. The pins, labels, selection and zoom-to-fit are the same code.
+- Apple Maps centres a custom pin on its coordinate and ignores `anchor`, so
+  each pin also sets `centerOffset` to lift its tip onto the church. Google
+  Maps keeps using `anchor`.
 - Builds up to 2.9.29 still draw Google Maps with the production iOS key, so
   keep that key in Google Cloud until the minimum app version passes them.
   The `GOOGLE_MAPS_IOS_API_KEY` entry in EAS can go any time.
 - It is a native change, so it reaches phones with the 2.10.0 store build,
   not over the air (2.10.0 needs a store build anyway).
 - To bring Google Maps back on iPhone, pass the iOS key again in
-  `app.config.js` and report it in `extra.googleMaps`; the component still
-  takes `PROVIDER_GOOGLE` for Android.
+  `app.config.js`, report it in `extra.googleMaps`, and let `usesGoogle` in
+  `ChurchMap.native.tsx` read that iOS flag again (it is Android-only now).
+  The component still takes `PROVIDER_GOOGLE`, and the pins carry both
+  `anchor` and `centerOffset`.

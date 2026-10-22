@@ -92,12 +92,14 @@ export function ChurchMap({
           const on = pin.church._id === selectedId;
           const ring = pinRing(pin, t.primary);
           const size = pinSize(pin.people, most);
+          const label = pinLabel(pin, on);
           return (
             <ChurchMarker
-              key={`${pin.church._id}:${on ? "on" : "off"}:${size.fontSize}:${ring}:${t.dark ? "dark" : "light"}`}
+              key={`${pin.church._id}:${on ? "on" : "off"}:${label}:${size.fontSize}:${ring}:${t.dark ? "dark" : "light"}`}
               pin={pin}
               coordinate={coordinate}
               on={on}
+              label={label}
               ring={ring}
               size={size}
               onSelect={onSelect}
@@ -110,11 +112,17 @@ export function ChurchMap({
 }
 
 const PIN_DRAW_MS = 500;
+const PIN_PADDING = 4;
+const STEM_HEIGHT = 6;
+const STEM_OVERLAP = 1;
+
+const pinHeight = (bubbleHeight: number) => PIN_PADDING * 2 + bubbleHeight + STEM_HEIGHT - STEM_OVERLAP;
 
 function ChurchMarker({
   pin,
   coordinate,
   on,
+  label,
   ring,
   size,
   onSelect,
@@ -122,6 +130,7 @@ function ChurchMarker({
   pin: ChurchPin;
   coordinate: Coordinate;
   on: boolean;
+  label: string;
   ring: string;
   size: ReturnType<typeof pinSize>;
   onSelect: (churchId: Id<"churches">) => void;
@@ -137,6 +146,7 @@ function ChurchMarker({
     <Marker
       coordinate={coordinate}
       anchor={{ x: 0.5, y: 1 }}
+      centerOffset={{ x: 0, y: -pinHeight(size.height) / 2 }}
       zIndex={pinZIndex(pin, on)}
       tracksViewChanges={!drawn}
       accessibilityLabel={pinAccessibilityLabel(pin)}
@@ -158,7 +168,7 @@ function ChurchMarker({
             style={[styles.labelText, { fontSize: size.fontSize, color: on ? t.onPrimary : t.text }]}
             numberOfLines={1}
           >
-            {pinLabel(pin, on)}
+            {label}
           </Text>
         </View>
         <View style={[styles.stem, { borderTopColor: on ? t.primary : ring }]} />
@@ -170,7 +180,7 @@ function ChurchMarker({
 const styles = StyleSheet.create({
   frame: { borderRadius: radius.lg, overflow: "hidden" },
   map: { height: 300 },
-  pin: { alignItems: "center", padding: 4 },
+  pin: { alignItems: "center", padding: PIN_PADDING },
   bubble: {
     flexDirection: "row",
     alignItems: "center",
@@ -187,10 +197,10 @@ const styles = StyleSheet.create({
   stem: {
     width: 0,
     height: 0,
-    marginTop: -1,
+    marginTop: -STEM_OVERLAP,
     borderLeftWidth: 5,
     borderRightWidth: 5,
-    borderTopWidth: 6,
+    borderTopWidth: STEM_HEIGHT,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
   },
