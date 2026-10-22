@@ -1,4 +1,3 @@
-# §1.1 Home tab — four swipeable pages: Home, Resources, Connect, Partner.
 appId: ${APP_ID}
 tags:
   - public
@@ -8,23 +7,19 @@ tags:
 - tapOn:
     text: ".*Home, tab.*"
 
-# Home page: mission & values
 - assertVisible: "Student Outreach to the World"
 - assertVisible: "Our values"
 
-# Swipe to Resources
 - swipe:
     direction: LEFT
 - assertVisible: "Resources"
 
-# Swipe to Connect (campuses / Weekly Meeting explainer)
 - swipe:
     direction: LEFT
 - assertVisible: "Connect"
 - assertVisible:
     text: ".*Weekly Meeting.*"
 
-# Swipe to Partner (Pray / Give / Volunteer + contact form)
 - swipe:
     direction: LEFT
 - assertVisible: "Partner"

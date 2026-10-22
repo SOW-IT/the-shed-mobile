@@ -1,4 +1,3 @@
-# Signs in and opens the Attendance tab. Param: EMAIL, PASSWORD.
 appId: ${APP_ID}
 ---
 - runFlow: ./launch-fresh.yaml

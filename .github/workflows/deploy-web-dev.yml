@@ -1,10 +1,3 @@
-# Builds the web app against the DEV Convex deployment and publishes it to the
-# separate Vercel project `the-shed-web-dev` (https://the-shed-web-dev.vercel.app).
-# Auto-deploys on merges to main; can also be run on demand from the Actions tab.
-#
-# Required repo secrets:
-#   VERCEL_TOKEN          - a Vercel access token with deploy rights to the team
-#   VERCEL_PROJECT_ID_DEV - the project id of `the-shed-web-dev`
 name: Deploy web (dev)
 
 on:
@@ -23,8 +16,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # Skip (rather than fail) until the secrets are configured, so initial
-      # setup or an accidental secret removal doesn't redden every merge to main.
       - name: Check deploy secrets
         id: secrets
         env:

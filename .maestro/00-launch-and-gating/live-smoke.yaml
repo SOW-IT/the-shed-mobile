@@ -1,17 +1,3 @@
-# Device-verified smoke (ran green against the dev-client build on iPhone 17e,
-# iOS 26.5, Convex dev backend, signed in as an approver profile).
-#
-# Demonstrates the selector conventions that the real iOS accessibility tree
-# requires (see README "Device-verified selector notes"):
-#   • bottom tabs expose "<Name>, tab, N of N"  → match with a regex
-#   • the top-left avatar is "Open menu" (", N to action" with a count)
-#   • the test-env chip exposes its a11y label "Test environment. What is this?"
-#   • the Review segment carries its badge: "Review, 2"
-#   • the bell is "Notifications, N unread"
-#
-# Signs in as Finance so this flow is self-contained (launch-fresh alone
-# leaves a signed-out session, so "Mine" never appears; plain staff also has no
-# Review/All segments).
 appId: ${APP_ID}
 tags:
   - finance
@@ -23,7 +9,6 @@ tags:
       EMAIL: ${FINANCE_EMAIL}
       PASSWORD: ${FINANCE_PASSWORD}
 
-# Reimbursements (opened from the side menu by sign-in-staff-to-requests).
 - assertVisible:
     text: "Mine.*"
 - assertVisible:
@@ -34,20 +19,17 @@ tags:
     text: "Bank.*"
 - assertVisible: "+ Make Request"
 
-# Top chrome a11y labels.
 - assertVisible:
     text: ".*Notifications.*"
 - assertVisible:
     text: "Open menu.*"
 
-# Bottom-tab navigation by regex (labels are "<Name>, tab, N of N").
 - tapOn:
     text: ".*Attendance, tab.*"
 - assertVisible: "Events"
 - assertVisible: "Members"
 - tapOn:
     text: ".*Org Chart, tab.*"
-# Reimbursements is no longer a tab — it opens from the side menu.
 - assertNotVisible:
     text: ".*(Requests|Reimbursements), tab.*"
 - runFlow: ../common/open-reimbursements.yaml

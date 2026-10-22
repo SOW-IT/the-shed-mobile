@@ -1,9 +1,5 @@
 version: 2
 updates:
-  # Keep GitHub Actions current. Actions are pinned to commit SHAs in the
-  # workflows for supply-chain integrity; Dependabot bumps those SHAs (and the
-  # trailing "# vN" comment) when new releases ship, so pinning doesn't mean
-  # going stale.
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -13,25 +9,10 @@ updates:
     schedule:
       interval: weekly
     ignore:
-      # React and React DOM are pinned by the Expo SDK, which expects exactly
-      # 19.2.3 on SDK 57. Bumping react-dom alone breaks `npm ci` outright,
-      # because react-dom@19.2.8 peers on react ^19.2.8; bumping both together
-      # installs cleanly but puts the project out of step with the SDK, which
-      # `npx expo install --check` then reports. Either way it is the SDK
-      # upgrade that should move them, via `npx expo install --fix`.
       - dependency-name: react
       - dependency-name: react-dom
-      # Expo SDK 57 pins these native packages. Bumping them independently
-      # fails npm ci / Vercel (`react-native-reanimated@4.5.3` peers on
-      # react-native 0.83-0.86; gesture-handler 3.x is ahead of the SDK).
       - dependency-name: react-native
       - dependency-name: react-native-gesture-handler
-      # eslint 10 cannot be used yet: eslint-config-expo pulls in
-      # eslint-plugin-react, whose latest release (7.37.5) peers on eslint
-      # ^9.7 and calls an API v10 removed, so `expo lint` dies with
-      # "contextOrFilename.getFilename is not a function" before linting a
-      # single file. Minor and patch bumps still come through. versions
-      # blocks eslint 10 security updates too; update-types alone does not.
       - dependency-name: eslint
         versions:
           - "10.x"

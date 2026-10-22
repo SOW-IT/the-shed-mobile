@@ -1,10 +1,3 @@
-# §5.6 Merge duplicate members — pick which metadata stays.
-#
-# Builds two duplicates through the UI, merges one into the other choosing a
-# mix of values (the duplicate's Gender, the kept person's Dietary and name),
-# checks the kept member afterwards, then deletes it so the flow leaves no data
-# behind. Needs the Gender and Dietary Requirements select fields and the Notes
-# input field (the dev backend's defaults).
 appId: ${APP_ID}
 tags:
   - staff
@@ -16,7 +9,6 @@ tags:
       PASSWORD: ${STAFF_PASSWORD}
 - tapOn: "Members"
 
-# ── Kept member: Gender Male, Dietary Vegetarian ────────────────────────────
 - tapOn: "+ Create member"
 - tapOn: "Full name"
 - inputText: "[E2E] Merge Keep"
@@ -37,7 +29,6 @@ tags:
     notVisible: "New member"
     timeout: 10000
 
-# ── Duplicate: Gender Female, Dietary Gluten Free, a note ───────────────────
 - tapOn: "+ Create member"
 - tapOn: "Full name"
 - inputText: "[E2E] Merge Dup"
@@ -66,11 +57,10 @@ tags:
     notVisible: "New member"
     timeout: 10000
 
-# ── Merge the duplicate into the kept member ─────────────────────────────────
 - tapOn:
     text: ".*Search members.*"
 - inputText: "Merge Keep"
-- pressKey: Enter   # a tap with the keyboard up only dismisses it
+- pressKey: Enter
 - tapOn: ".*\\[E2E\\] Merge Keep.*"
 - tapOn: "Merge duplicate"
 - inputText: "Merge Dup"
@@ -78,7 +68,6 @@ tags:
 - assertVisible: "KEEPING"
 - assertVisible: "CHOOSE WHAT TO KEEP"
 
-# Gender: take the duplicate's value. Dietary and Name: leave the kept values.
 - scrollUntilVisible:
     element: "Female,.*"
     direction: DOWN
@@ -92,7 +81,6 @@ tags:
     element:
       id: "merge-confirm-name"
     direction: DOWN
-    # Centre it: at the bottom edge it sits under the sheet's footer buttons.
     centerElement: true
 - tapOn:
     id: "merge-confirm-name"
@@ -100,7 +88,6 @@ tags:
 - tapOn: ".*, Merge"
 - assertVisible: "Merged \\[E2E\\] Merge Dup into \\[E2E\\] Merge Keep"
 
-# ── The kept member has the chosen values; the duplicate is gone ─────────────
 - tapOn:
     text: "Clear member search"
     optional: true
@@ -110,9 +97,7 @@ tags:
 - tapOn:
     text: ".*Search members.*"
 - inputText: "[E2E] Merge"
-- pressKey: Enter   # a tap with the keyboard up only dismisses it
-# The search matches both names, so the kept row showing and the duplicate not
-# showing means the duplicate is really gone.
+- pressKey: Enter
 - assertVisible: ".*\\[E2E\\] Merge Keep.*"
 - assertNotVisible: ".*\\[E2E\\] Merge Dup.*"
 - tapOn: ".*\\[E2E\\] Merge Keep.*"
@@ -124,7 +109,6 @@ tags:
     element: "merge-e2e-note"
     direction: DOWN
 
-# ── Clean up ────────────────────────────────────────────────────────────────
 - tapOn: "Delete member"
 - tapOn:
     id: "delete-confirm-name"

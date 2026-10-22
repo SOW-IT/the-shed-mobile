@@ -1,21 +1,8 @@
-# Reads this billing period's Convex usage every Monday and posts to the Data
-# and IT space in Google Chat when any meter passes 70% of the free plan, so
-# a limit is seen coming rather than found when it trips.
-#
-# Required repository secret:
-#   CONVEX_ACCESS_TOKEN  - a Convex account access token (the one `npx convex login`
-#                          writes to ~/.convex/config.json) for a team member
-# Optional repository secrets:
-#   CONVEX_DEPLOY_KEY        - lets the job also measure production file storage
-#   GOOGLE_CHAT_WEBHOOK_URL  - where warnings are posted; without it they only appear in the log
-# Optional repository variables (defaults in scripts/convex-usage-alert.mjs):
-#   CONVEX_TEAM_ID, CONVEX_PROJECT_ID, CONVEX_PLAN_DB_BANDWIDTH_GB,
-#   CONVEX_PLAN_FILE_STORAGE_GB, CONVEX_USAGE_WARN_RATIO, CONVEX_BILLING_DAY
 name: Convex usage check
 
 on:
   schedule:
-    - cron: "0 22 * * 0" # Monday 08:00 AEST / 09:00 AEDT
+    - cron: "0 22 * * 0"
   workflow_dispatch:
     inputs:
       always_post:

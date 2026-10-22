@@ -1,4 +1,3 @@
-# §3.9 Comments — open thread, post a comment, composer stays above keyboard.
 appId: ${APP_ID}
 tags:
   - staff
@@ -9,19 +8,17 @@ tags:
       EMAIL: ${STAFF_EMAIL}
       PASSWORD: ${STAFF_PASSWORD}
 
-# Open the comment thread on the first request (chat-bubble icon).
 - tapOn:
     text: "Comments"
 - assertVisible:
     text: "Send comment"
 
-# Composer stays pinned above the keyboard while typing.
 - tapOn:
     text: ".*(Add a comment|Message|Write).*"
     optional: true
 - inputText: "E2E comment"
 - assertVisible:
-    text: "Send comment"    # still visible with keyboard up
+    text: "Send comment"
 - tapOn:
     text: "Send comment"
 - extendedWaitUntil:
@@ -29,8 +26,6 @@ tags:
       text: ".*E2E comment.*"
     timeout: 15000
 
-# Emoji reactions — best-effort only: "Add a reaction" sits on the newly-sent
-# comment's row, which may be scrolled below the fold behind the keyboard.
 - tapOn:
     text: "Add a reaction"
     optional: true

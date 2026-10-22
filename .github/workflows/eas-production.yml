@@ -1,5 +1,3 @@
-# Build and submit to production — manual trigger only.
-# Run from the Actions tab when you're ready to ship.
 name: EAS Production
 
 on:

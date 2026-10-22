@@ -1,4 +1,3 @@
-# §5.5 / §5.6 Members tab — search, filter panel, TOTAL count, edit member.
 appId: ${APP_ID}
 tags:
   - staff
@@ -10,13 +9,9 @@ tags:
       PASSWORD: ${STAFF_PASSWORD}
 - tapOn: "Members"
 
-# TOTAL reflects all members.
 - assertVisible:
     text: ".*TOTAL:.*"
 
-# Search (400ms debounce) + clear. With the keyboard up, the first tap on the
-# clear "x" is absorbed by the keyboard-dismiss/re-layout and never reaches
-# its onPress — tap it twice; the second actually clears the field.
 - tapOn:
     text: ".*Search.*"
 - inputText: "zzzznomatch"
@@ -25,11 +20,8 @@ tags:
     text: "Clear member search"
 - tapOn:
     text: "Clear member search"
-    optional: true    # already cleared if the first tap wasn't swallowed
+    optional: true
 
-# Filter panel opens (Sort by, Asc/Desc, Clear All). It's a long list of
-# dropdowns (Role/Year/Gender/Arc Member/Campus/…) that pushes every member
-# row far below the fold, so collapse it again before scrolling to a row.
 - tapOn:
     text: ".*(Filter|Sort).*"
     optional: true
@@ -40,9 +32,6 @@ tags:
     text: ".*(Filter|Sort).*"
     optional: true
 
-# Open Edit Member on a known seeded row. `index: 0, text: ".*"` isn't
-# reliable here — the first text-matching element in the hierarchy is a
-# filter/header control, not a member row.
 - scrollUntilVisible:
     element:
       text: ".*E2E.*Member.*"

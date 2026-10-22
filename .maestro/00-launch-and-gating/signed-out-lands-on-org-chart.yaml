@@ -1,7 +1,3 @@
-# §0 App launch & tab gating — signed out
-# - Cold launch while signed out lands on the public Org Chart
-# - Signed-out tab bar shows exactly Home, Insights, Org Chart (no Attendance)
-# - No notifications bell and no side menu when signed out — "Sign in" sits top-left
 appId: ${APP_ID}
 tags:
   - public
@@ -9,27 +5,22 @@ tags:
 ---
 - runFlow: ../common/ensure-signed-out.yaml
 
-# Lands on Org Chart (bottom-tab labels are exposed as "<Name>, tab, N of N").
 - assertVisible:
     text: ".*Org Chart, tab.*"
 
-# Signed-out tabs present
 - assertVisible:
     text: ".*Home, tab.*"
 - assertVisible:
     text: ".*Insights, tab.*"
 
-# Staff-only tabs absent
 - assertNotVisible:
     text: ".*Requests, tab.*"
 - assertNotVisible:
     text: ".*Attendance, tab.*"
 
-# No bell when signed out (§10.1)
 - assertNotVisible:
     text: ".*Notifications.*"
 
-# No avatar / side menu when signed out; the top-left control is Sign in.
 - assertNotVisible:
     text: "Open menu.*"
 - assertVisible: "Sign in"
