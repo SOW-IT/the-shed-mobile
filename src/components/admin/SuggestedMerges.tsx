@@ -13,7 +13,6 @@ import {
   ConfirmDialog,
   Grid,
   Muted,
-  ReadableColumn,
   Row,
   SectionTitle,
   Txt,
@@ -60,11 +59,6 @@ const notSameMessage = (target: NotSameTarget): string =>
       } won't be suggested for staff ${target.staffName} again. Their attendance stays as it is.`
     : `"${target.pair.a.name}" and "${target.pair.b.name}" won't be suggested as the same person again. Their attendance stays as it is.`;
 
-/**
- * Admin → Merges: staff who look like someone still in attendance as a
- * member. Merge opens the usual member → staff merge review; "Not the same"
- * stops the pair being suggested. The tab only shows while there are any.
- */
 export function SuggestedMerges({
   suggestions,
   memberPairs,
@@ -81,7 +75,6 @@ export function SuggestedMerges({
   const t = useAppTheme();
   const dismiss = useMutation(api.mergeSuggestions.dismiss);
   const dismissPair = useMutation(api.memberPairSuggestions.dismiss);
-  // Kept after the sheet closes so it can animate out with its content.
   const [mergeTarget, setMergeTarget] = useState<MergeTarget | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [notSame, setNotSame] = useState<NotSameTarget | null>(null);
@@ -101,13 +94,6 @@ export function SuggestedMerges({
       {suggestions.length > 0 ? (
         <>
           <SectionTitle>Staff who look like a member</SectionTitle>
-          <ReadableColumn>
-            <Muted>
-              These staff look like people already signed in as members. Merging moves the
-              member&apos;s sign-ins onto the staff person, so attendance and Insights count
-              them once. Nothing changes until you merge.
-            </Muted>
-          </ReadableColumn>
           <Grid fixedWidth={360} align="start">
             {suggestions.map((s) => (
               <Card key={s.staffEmail}>
@@ -170,14 +156,6 @@ export function SuggestedMerges({
       {memberPairs.length > 0 ? (
         <>
           <SectionTitle>Members who may be the same person</SectionTitle>
-          <ReadableColumn>
-            <Muted>
-              These members have a similar name on the same campus and have never been signed
-              in to the same event, so one of them may have been added twice. Merging keeps the
-              one with more history and moves the other&apos;s sign-ins onto them. Nothing
-              changes until you merge.
-            </Muted>
-          </ReadableColumn>
           <Grid fixedWidth={360} align="start">
             {memberPairs.map((p) => (
               <Card key={p.id}>

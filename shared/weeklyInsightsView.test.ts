@@ -83,7 +83,6 @@ describe("people list", () => {
     const block = peopleBlock("Everyone", rows, "sub");
     expect(block).toMatchObject({ type: "people", subtitle: "sub" });
     if (block.type !== "people") throw new Error();
-    // Only the categories present get a filter chip, plus "No campus set".
     expect(block.filters.map((f) => f.key)).toEqual(["newcomer", "regular", "visitor", "staff", "noCampus"]);
     expect(peopleBlock("x", []).type === "people" && (peopleBlock("x", []) as { filters: unknown[] }).filters).toEqual([]);
   });
@@ -184,7 +183,6 @@ describe("term view", () => {
     expect(byType(blocks, "followUpGroups")).toHaveLength(2);
     const charts = byType(blocks, "multiBars");
     expect(charts.map((b) => b.title)).toEqual(["Week by week", "Who came each week"]);
-    // Charts first, then the follow-up lists, then everyone.
     expect(blocks.slice(2).map((b) => b.type)).toEqual([
       "heading",
       "cards",
@@ -296,14 +294,12 @@ describe("year view", () => {
       lastYearTerms: [],
     });
     expect((first[1] as { text: string }).text).toBe("2025: 3 weeklies in T1.");
-    // Nothing to compare with: the (i) only explains the number.
     expect(byType(first, "cards")[0].cards[0].info!.body).toMatch(/signed in to\.$/);
     expect(byType(first, "multiBars")).toHaveLength(1);
   });
 });
 
 describe("two weeklies in one week", () => {
-  // A special night marked week 2, then the campus's own "week 2" a week later.
   const held = [wed(2026, 3, 4), wed(2026, 3, 11), wed(2026, 3, 18)].map((at, i) => ({
     eventId: `d${i}`,
     at,
@@ -332,7 +328,6 @@ describe("two weeklies in one week", () => {
     expect(byCat.points.map((p) => p.label)).toEqual(["W1", "W2", "W2·2"]);
     const ana = result.rows.find((r) => r.key === "Ana")!;
     const member = buildMemberBlocks({ name: "Ana", lines: [], details: [], history: [{ term: dup[0], row: ana }], followUp: null, events: [], year: 2026 });
-    // Ana came to the first week-2 weekly only.
     expect(byType(member, "weekGrid")[0].weeks).toEqual([
       { label: "W1", came: true },
       { label: "W2", came: true },

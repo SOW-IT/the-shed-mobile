@@ -9,7 +9,7 @@ export const reminderDelayMs = (count: number): number => {
   return 7 * DAY_MS;
 };
 
-export type ReminderTrail = { lastReminderAt?: number; reminderCount?: number };
+type ReminderTrail = { lastReminderAt?: number; reminderCount?: number };
 
 export const reminderDue = (
   trail: ReminderTrail,
@@ -69,7 +69,7 @@ export const eventTimingText = (startsAt: string, today: string): string => {
 
 export type ReminderKind = "reimbursement" | "design" | "event";
 
-export const KIND_NOUNS: Record<ReminderKind, [string, string]> = {
+const KIND_NOUNS: Record<ReminderKind, [string, string]> = {
   reimbursement: ["reimbursement request", "reimbursement requests"],
   design: ["design request", "design requests"],
   event: ["event form", "event forms"],

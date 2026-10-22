@@ -288,11 +288,6 @@ function CheckInBody({ token }: { token: string | undefined }) {
           <Text style={[typography.headline, { color: t.text }]}>
             {done.via === "leader" ? "You're not signed in." : `${done.name} isn't signed in.`}
           </Text>
-          <Muted>
-            {done.via === "leader"
-              ? "Your sign-in was undone."
-              : "The sign-in was undone, and this phone won't sign them in by itself again."}
-          </Muted>
           <Btn
             title={done.via === "leader" ? "Sign me in again" : "Check in with my name"}
             icon="log-in-outline"
@@ -318,17 +313,11 @@ function CheckInBody({ token }: { token: string | undefined }) {
                   : `Thanks, ${done.name}.`}
             </Text>
           </View>
-          <Muted>
-            {status === "confirmed"
-              ? done.via === "leader"
-                ? "Signed in as a leader. Enjoy the night."
-                : done.automatic
-                  ? "This phone remembered you, so you're in. Enjoy the night."
-                  : "Enjoy the night."
-              : status === "dismissed"
-                ? "Please see a leader to be signed in."
-                : "A leader will confirm your check-in shortly. You can close this page."}
-          </Muted>
+          {status === "confirmed" ? null : (
+            <Muted>
+              {status === "dismissed" ? "Please see a leader to be signed in." : "A leader will confirm it shortly."}
+            </Muted>
+          )}
           {done.via === "leader" && page.viewer?.eventId && Platform.OS !== "web" ? (
             <Btn
               title="Open roll call"
@@ -364,13 +353,13 @@ function CheckInBody({ token }: { token: string | undefined }) {
             <Card>
               <Muted>
                 {phase === "before"
-                  ? "Check-in hasn't opened yet. It opens two hours before the event."
-                  : "Check-in for this event has closed. Ask a leader to sign you in."}
+                  ? "Check-in opens two hours before the event."
+                  : "Check-in has closed. Ask a leader to sign you in."}
               </Muted>
             </Card>
           ) : (
             <Card>
-              {forSomeoneElse ? <Muted>Checking in someone else. This phone won&apos;t remember them.</Muted> : null}
+              {forSomeoneElse ? <Muted>Checking in someone else</Muted> : null}
               <Field
                 label="Full name"
                 value={values.name}
@@ -407,11 +396,6 @@ function CheckInBody({ token }: { token: string | undefined }) {
                 disabled={values.name.trim().length < 2}
                 onPress={() => void sendDetails(values, "form", !forSomeoneElse)}
               />
-              <Muted>
-                {forSomeoneElse
-                  ? "Only their name, university and year are sent. A leader confirms it on their phone."
-                  : "Only your name, university and year are sent, and this phone remembers them for next time. A leader confirms your first check-in."}
-              </Muted>
             </Card>
           ))}
       </View>

@@ -1,11 +1,10 @@
-# Signs out via the side menu → Sign out, confirming the dialog (checklist §2, §8).
 appId: ${APP_ID}
 ---
 - runFlow: ./open-menu.yaml
 - tapOn: "Sign out"
 - assertVisible:
-    text: ".*(Sign out|Are you sure).*" # confirmation dialog
+    text: ".*(Sign out|Are you sure).*"
 - tapOn:
     text: "Sign out"
-    index: 1 # the confirm button inside the dialog
+    index: 1
 - assertVisible: "Org Chart"

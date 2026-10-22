@@ -24,7 +24,6 @@ import { useBadgeSync } from "@/hooks/useBadgeSync";
 import { useReportSeen } from "@/hooks/useReportSeen";
 import { BOTTOM_TAB_HEIGHT, radius, useAppTheme } from "@/theme";
 
-/** The current tab's icon sits on a soft pill. */
 const TabPill = ({ focused, children }: { focused: boolean; children: React.ReactNode }) => {
   const t = useAppTheme();
   return (
@@ -132,7 +131,6 @@ export default function TabsLayout() {
 
   const isStaff = !!me?.profile;
 
-  // Wide screens navigate from the sidebar; keep only the home-indicator gap.
   const wide = useWideLayout();
 
   if (waitingForRole) {
@@ -174,8 +172,6 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon("home-outline", "home"),
         }}
       />
-      {/* Reimbursements opens from the side menu, not the tab bar. It stays a
-          tab at "/" so notification links like "/?tab=review" keep working. */}
       <Tabs.Screen
         name="index"
         options={{
@@ -183,7 +179,6 @@ export default function TabsLayout() {
           ...sideMenuOnly,
         }}
       />
-      {/* Design Requests, Event Requests and Profile also open from the side menu only. */}
       <Tabs.Screen
         name="design-requests"
         options={{ title: "Design Requests", ...sideMenuOnly }}

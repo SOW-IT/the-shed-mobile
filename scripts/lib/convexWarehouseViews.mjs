@@ -9,8 +9,7 @@ const b = (name) => ({ name, type: "BOOL" });
 const t = (name) => ({ name, type: "TIMESTAMP" });
 const j = (name) => ({ name, type: "JSON" });
 
-/** Scalar and nested fields to expose as typed columns. Nested objects stay JSON. */
-export const WAREHOUSE_TABLES = {
+const WAREHOUSE_TABLES = {
   users: [
     s("name"),
     s("image"),

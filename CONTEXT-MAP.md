@@ -57,9 +57,10 @@ hold code for all five — so each context's glossary lives under
   rebuild when it rolls over on October 1, but none controls it. See
   [ADR 0003](./docs/adr/0003-october-1-staff-year-rollover.md).
 
-Links between the web and the phone app sit outside the contexts too: pages
-added after people may have installed the app open in it only for those whose
-app reported a new enough version. See [ADR 0007](./docs/adr/0007-links-to-pages-older-apps-lack.md).
+Links between the web and the phone app sit outside the contexts too: every
+page exists in every supported app, and a release that adds a linked page
+raises the update policy's `minimum` (ADR 0007, superseded in 2.10.0). The
+web never hands `/checkin` to the app ([ADR 0012](./docs/adr/0012-check-in-links-open-the-app.md)).
 
 A nightly BigQuery copy of production Convex sits outside all five contexts.
 It is a snapshot for SQL, not a source of truth, and the app does not read it.

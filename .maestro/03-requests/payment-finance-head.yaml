@@ -1,5 +1,3 @@
-# §3.7 Payment (Finance Head) — Ready to Pay → Mark as paid → PAID.
-# Needs the Finance-Head account and a request in AWAITING PAYMENT.
 appId: ${APP_ID}
 tags:
   - finance
@@ -9,14 +7,9 @@ tags:
     env:
       EMAIL: ${FINANCE_EMAIL}
       PASSWORD: ${FINANCE_PASSWORD}
-# "Ready to Pay" is part of the Review tab (the approver's queue), not All.
-# Segment carries an unread-count badge (e.g. "Review, 8, 15"); match by prefix.
 - tapOn:
     text: "Review.*"
 
-# Shared-dev Review mixes live data with E2E fixtures. Ready-to-Pay sits
-# below every pending-approval card. Nested pager scrollUntilVisible does
-# not move this list — swipe it, then settle on the pay icon.
 - repeat:
     times: 10
     commands:
@@ -34,25 +27,19 @@ tags:
           duration: 180
 - assertVisible: "Mark as paid"
 
-# The card's icon trigger is labelled "Mark as paid" (lowercase p); the
-# PaySheet's confirm button is a distinct "Mark as Paid" (capital P) — no
-# index needed, the two never collide.
 - tapOn:
     text: "Mark as paid"
 - assertVisible:
     text: ".*Pay Reimbursement.*"
 
-# Paid ≤ 0 blocked.
 - tapOn:
     text: ".*amount.*"
     optional: true
 - inputText: "0"
 - tapOn:
     text: "Mark as Paid"
-# The PaySheet rejects a non-positive amount before calling the server.
 - assertVisible: "Enter the amount that was paid."
 
-# Positive amount → PAID.
 - tapOn:
     text: ".*amount.*"
 - eraseText

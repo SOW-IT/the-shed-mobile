@@ -22,7 +22,6 @@ import {
   QueryCtx,
 } from "./_generated/server";
 import { audienceValidator } from "./announcementData";
-import { emailLinkFor } from "./appInstalls";
 import {
   currentStaffYear,
   displayName,
@@ -35,12 +34,9 @@ import { appUrl } from "./requests";
 
 type Ctx = QueryCtx | MutationCtx;
 
-/** More staff profiles than a year has ever had; the most one announcement reaches. */
 const MAX_PROFILES = 2000;
-/** People per push request (Expo's batch size) and per email request (Resend's). */
 const PUSH_BATCH = 100;
 const EMAIL_BATCH = 100;
-/** Gap between email batches, to stay under Resend's requests per second. */
 const EMAIL_BATCH_GAP_MS = 1000;
 
 const cleanList = (values: string[]) => [
@@ -54,7 +50,6 @@ const cleanAudience = (audience: Audience): Audience => ({
   roles: cleanList(audience.roles),
 });
 
-/** Everyone in `year` the audience reaches, by email, A–Z. */
 async function audienceEmails(ctx: Ctx, audience: Audience, year: number): Promise<string[]> {
   const departments = await ctx.db
     .query("departments")
@@ -82,14 +77,7 @@ async function hasApp(ctx: Ctx, email: string): Promise<boolean> {
   return token !== null;
 }
 
-/**
- * What the rate limits look at for one sender: what they sent or scheduled in
- * the last day that wasn't cancelled (a cancelled one reached no one), and how
- * many are still waiting to go out.
- */
 async function senderActivity(ctx: Ctx, email: string, now: number) {
-  // By status, so cancelled ones (which anyone can make plenty of) can't crowd
-  // the rest out of the bound.
   const madeToday = (status: "scheduled" | "sent") =>
     ctx.db
       .query("announcements")
@@ -114,21 +102,15 @@ async function senderActivity(ctx: Ctx, email: string, now: number) {
   };
 }
 
-/**
- * The staff year an announcement was written for: the one its sender saw when
- * choosing the audience, even if it goes out after the 1 October rollover.
- */
 const yearOf = (announcement: Doc<"announcements">) =>
   announcement.year ?? currentStaffYear();
 
-/** The caller when they're an admin (which takes in the HR division), else null. */
 async function optionalAdmin(ctx: Ctx) {
   const caller = await optionalProfile(ctx);
   if (!caller || !(await isAdminProfile(ctx, caller.profile))) return null;
   return caller;
 }
 
-/** What the audience picker offers: this year's campuses, divisions, departments and roles. */
 export const options = query({
   args: {},
   handler: async (ctx) => {
@@ -160,7 +142,6 @@ export const options = query({
   },
 });
 
-/** How many people the audience reaches right now, and how many of them have the app. */
 export const audienceSize = query({
   args: { audience: audienceValidator },
   handler: async (ctx, args) => {
@@ -175,11 +156,6 @@ export const audienceSize = query({
   },
 });
 
-/**
- * Sends an announcement now, or schedules it for `sendAt`. Admins only, and
- * rate-limited (shared/announcements.ts) so a slip of the finger or a stuck
- * button can't flood everyone's phones.
- */
 export const send = mutation({
   args: {
     title: v.string(),
@@ -230,7 +206,6 @@ export const send = mutation({
   },
 });
 
-/** Stops a scheduled announcement before it goes out. Any admin can. */
 export const cancel = mutation({
   args: { id: v.id("announcements") },
   handler: async (ctx, args) => {
@@ -287,11 +262,6 @@ async function row(
   };
 }
 
-/**
- * For admins: what's waiting to go out (soonest first), what went out lately,
- * and the caller's own recent sends, so the page can say a send would be
- * refused (shared/announcements.ts) before trying it.
- */
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -327,10 +297,6 @@ export const list = query({
   },
 });
 
-/**
- * One announcement, for the page a notification opens. Its recipients see the
- * message; admins also see who it went to and how far it reached.
- */
 export const get = query({
   args: { id: v.string() },
   handler: async (ctx, args) => {
@@ -396,12 +362,6 @@ async function seenBy(ctx: Ctx, announcement: Doc<"announcements">, year: number
   };
 }
 
-/**
- * Sends a scheduled announcement: a notification in each recipient's bell, a
- * push to everyone with the app and, if asked for, an email. The audience is
- * worked out now, so someone added to a department before a scheduled send
- * gets it. Does nothing if it was cancelled (or already sent).
- */
 export const deliver = internalMutation({
   args: { id: v.id("announcements") },
   handler: async (ctx, args) => {
@@ -446,7 +406,7 @@ export const deliver = internalMutation({
       for (let i = 0; i < recipients.length; i += EMAIL_BATCH) {
         const messages = [];
         for (const to of recipients.slice(i, i + EMAIL_BATCH)) {
-          const link = appUrl(await emailLinkFor(ctx, to, url));
+          const link = appUrl(url);
           messages.push({ to, ...announcementEmail({ title, message, senderName, link }) });
         }
         await ctx.scheduler.runAfter(

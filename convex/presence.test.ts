@@ -54,8 +54,6 @@ describe("markSeen", () => {
 
 describe("Last online on a profile", () => {
   test("is the latest of the app's reports and sign-in activity, either email spelling", async () => {
-    // Signed in as the old @sowaustralia.com address, months ago. (Documents
-    // are stamped in order, so the clock only moves forward from here.)
     vi.setSystemTime(NOW - 90 * 24 * 60 * MIN);
     const { t, admin } = await setup();
     const userId = await t.run((ctx) =>
@@ -70,13 +68,11 @@ describe("Last online on a profile", () => {
       vi.setSystemTime(NOW);
     };
     const profile = () => admin.query(api.profile.get, { email: HANA });
-    // Documents made in the same millisecond are stamped a fraction apart.
     const atMs = (ms: number) => expect.closeTo(ms, 0);
     vi.setSystemTime(NOW);
 
     expect((await profile())?.lastOnlineAt).toEqual(atMs(NOW - 90 * 24 * 60 * MIN));
 
-    // The session refreshed while the app was open.
     await at(NOW - 3 * 60 * MIN, () =>
       t.run((ctx) =>
         ctx.db.insert("authRefreshTokens", { sessionId, expirationTime: NOW + 60 * MIN })
@@ -84,7 +80,6 @@ describe("Last online on a profile", () => {
     );
     expect((await profile())?.lastOnlineAt).toEqual(atMs(NOW - 3 * 60 * MIN));
 
-    // The phone app checked in more recently.
     await at(NOW - 60 * MIN, () =>
       t.run((ctx) =>
         ctx.db.insert("appInstalls", {
@@ -97,7 +92,6 @@ describe("Last online on a profile", () => {
     );
     expect((await profile())?.lastOnlineAt).toBe(NOW - 60 * MIN);
 
-    // And the app has said it's open since.
     await at(NOW - 2 * MIN, () =>
       asUser(t, "hana.doe@sowaustralia.com").mutation(api.presence.markSeen, {})
     );

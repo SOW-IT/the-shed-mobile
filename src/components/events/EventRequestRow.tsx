@@ -30,7 +30,6 @@ const STEP_ICONS: Record<SubFormStatus, keyof typeof Ionicons.glyphMap> = {
   NOT_REQUIRED: "remove-circle-outline",
 };
 
-/** Where each of the three forms is up to, as three small labelled dots. */
 const FormSteps = ({ forms }: { forms: EventRequestListRow["forms"] }) => {
   const t = useAppTheme();
   return (
@@ -54,7 +53,6 @@ const FormSteps = ({ forms }: { forms: EventRequestListRow["forms"] }) => {
   );
 };
 
-/** One event request in a list: what, when, where, whose, and where its forms are up to. */
 export const EventRequestRow = ({
   event,
   unread,

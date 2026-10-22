@@ -86,13 +86,13 @@ event (All). Mine and All run back through earlier staff years as you
 scroll. Campus leaders don't use event requests.
 
 **Legacy event**:
-An event form imported from the old web app's Firestore, keyed by its old
-year and id so the import can be re-run. Its Marketing and Finance forms come
-across (the old five budget tables become labelled lines); its Registration
-form doesn't. The old app had no Risk form for most events, so a finished one
-comes in with Risk not required, and one still to happen needs its Risk form
-filled in now. One that never finished and has already happened comes in
-cancelled. Once anyone acts on it in THE SHED, a re-run leaves it alone.
+An event form imported once from the old web app's Firestore (2.3.0; the
+importer was removed in 2.9.1). It keeps its old year and id as `legacyKey`.
+Its Marketing and Finance forms came across (the old five budget tables
+became labelled lines); its Registration form didn't. The old app had no Risk form for most events, so a finished one
+came in with Risk not required, and one still to happen needed its Risk form
+filled in. One that never finished and had already happened came in
+cancelled.
 
 **Reminder**:
 Chases a form on an event still in progress that has not moved, on the same

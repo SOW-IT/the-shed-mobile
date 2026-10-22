@@ -10,11 +10,6 @@ import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { InsightsBlocks } from "@/components/attendance/InsightsBlocks";
 import { EmptyState, LoadingState, Screen } from "@/components/ui";
 
-/**
- * One person's attendance: their category and weeklies at the campus they
- * were opened from, their details, and every event they've signed in to. The
- * server lays the page out (`weeklyInsights.member`).
- */
 export default function MemberInsightsScreen() {
   const { key, subgroup } = useLocalSearchParams<{ key: string; subgroup?: string }>();
   const campus = subgroup && !isOrgWideSubgroup(subgroup) ? subgroup : undefined;

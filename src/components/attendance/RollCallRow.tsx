@@ -1,8 +1,6 @@
 import { memo } from "react";
 import { AttendanceRow, type AttendanceRowMode } from "@/components/AttendanceRow";
 
-/** What a roll-call row does, by row key. One stable object for the whole
- *  list, so a sign-in elsewhere doesn't re-render every row. */
 export type RollCallHandlers = {
   actionStart: (mode: AttendanceRowMode, key: string) => void;
   action: (mode: AttendanceRowMode, key: string) => void;
@@ -24,7 +22,6 @@ type RollCallRowProps = {
   dimmed: boolean;
   entering: boolean;
   exiting: boolean;
-  /** Swiping (or tapping) the action is allowed. */
   actionable: boolean;
   editable: boolean;
   handlers: RollCallHandlers;
@@ -55,9 +52,6 @@ function RollCallRowBase({
 const sameRoles = (a: string[], b: string[]) =>
   a.length === b.length && a.every((role, i) => role === b[i]);
 
-/** Query results come back as new objects every time, so roles and the tag
- *  are compared by value; everything else is a primitive or the stable
- *  handlers. */
 export const RollCallRow = memo(
   RollCallRowBase,
   (prev, next) =>

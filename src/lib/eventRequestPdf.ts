@@ -1,4 +1,3 @@
-// The prebuilt bundle, not "pdf-lib": see pdfLibBundle.d.ts.
 import { PDFDocument, PDFFont, rgb, StandardFonts } from "pdf-lib/dist/pdf-lib.esm.min.js";
 import {
   formatAnswer,
@@ -54,14 +53,12 @@ export type EventRequestPdfInput = {
   eventFields: readonly FormField[];
   marketingFields: readonly FormField[];
   history: { at: number; label: string; actorName: string; detail: string | null }[];
-  /** When the PDF was made, for its footer. */
   generatedAt: number;
 };
 
 export const eventRequestPdfFilename = (e: { year: number; number: number; name: string }) =>
   `event-request-${e.year}-${e.number}-${e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.pdf`;
 
-// The Governance Review Form's blues.
 const BAND = rgb(0.06, 0.27, 0.36);
 const HEADER = rgb(0.13, 0.36, 0.6);
 const SHADE = rgb(0.86, 0.91, 0.96);
@@ -78,7 +75,6 @@ class EventWriter extends PdfWriter {
     super(doc);
   }
 
-  /** A full-width dark band with white text, like the form's section headers. */
   band(title: string) {
     const height = 20;
     if (this.y - height - 40 < MARGIN) this.newPage();
@@ -93,11 +89,6 @@ class EventWriter extends PdfWriter {
     });
   }
 
-  /**
-   * Rows of cells with borders; `widths` are fractions of the page width. A
-   * row that fits on a page is kept together; one taller than a page (a long
-   * risk description) carries on over the next page.
-   */
   table(widths: number[], rows: Cell[][], size = 9) {
     const pad = 4;
     const lineHeight = size * 1.3;
@@ -147,11 +138,6 @@ const head = (text: string): Cell => ({ text, bold: true, fill: HEADER, color: W
 const value = (text: string): Cell => ({ text, fill: SHADE });
 const plain = (text: string): Cell => ({ text });
 
-/**
- * A printable copy of an event request: the event and its Marketing form,
- * then Risk and Finance laid out like SOW's Governance Review Form, then its
- * history.
- */
 export async function buildEventRequestPdf(input: EventRequestPdfInput): Promise<Uint8Array> {
   const { event, forms } = input.data;
   const doc = await PDFDocument.create();
@@ -164,7 +150,6 @@ export async function buildEventRequestPdf(input: EventRequestPdfInput): Promise
   const statusOf = (kind: SubFormKind) =>
     `${SUB_FORM_LABELS[kind]} form: ${subFormStatusLine(kind, forms[kind], { imported: !!event.legacyKey, canFill: false })}`;
 
-  // ── The event ──
   w.text(event.name, { font: bold, size: 20, color: TEXT, gap: 2 });
   w.text(`Event request ${eventRequestRef(event)}`, { font: regular, size: 11, color: MUTED, gap: 6 });
   w.text(`Status: ${EVENT_STATUS_LABELS[event.status]}`, { font: bold, size: 11, color: TEXT, gap: 3 });
@@ -191,7 +176,6 @@ export async function buildEventRequestPdf(input: EventRequestPdfInput): Promise
   w.text(statusOf("marketing"), { font: regular, size: 10, color: MUTED, gap: 6 });
   answers(input.marketingFields, forms.marketing.answers ?? {});
 
-  // ── Governance Review Form: Risk and Finance ──
   w.newPage();
   const risk = forms.risk.risk ?? { noRisks: false, risks: [] };
   const finance = forms.finance.finance ?? { income: [], expenses: [] };

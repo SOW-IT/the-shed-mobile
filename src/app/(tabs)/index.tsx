@@ -131,10 +131,7 @@ export default function RequestsScreen() {
     reopen?: string;
   }>();
   const focusReopenKey = typeof reopen === "string" ? reopen : undefined;
-  // A repeated query key arrives as an array; only a single id can be focused.
   const focusId = typeof focus === "string" && focus ? focus : undefined;
-  // A thread link opens its thread once. After that, a card re-mounted for the
-  // same link (e.g. approving moves it to Reviewed) must not open it again.
   const threadLinkKey = threadDeepLinkKey(focusId, thread, focusReopenKey);
   const [openedThreadLink, setOpenedThreadLink] = useState<string | null>(null);
   const focusThread = threadLinkKey !== null && threadLinkKey !== openedThreadLink;

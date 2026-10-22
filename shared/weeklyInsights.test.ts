@@ -30,11 +30,9 @@ import {
 const UNSW = "University of New South Wales";
 const USYD = "University of Sydney";
 
-// 5pm on a Wednesday in Sydney is 7am UTC (6am in daylight time, same day).
 const wed = (y: number, m: number, d: number) => Date.UTC(y, m - 1, d, 7);
 
 let n = 0;
-/** Terms from [date, people] pairs. */
 function build(entries: [number, string[]][], system: "terms" | "semesters" = "terms"): TermFacts[] {
   const held: (HeldWeekly & { keys: string[] })[] = entries.map(([at, keys]) => ({
     eventId: `e${n++}`,
@@ -78,7 +76,6 @@ describe("terms", () => {
     const terms = build([...T1_2026, ...T2_2026].map((at) => [at, ["a"]]));
     expect(terms.map((t) => t.label)).toEqual(["T1 2026", "T2 2026"]);
     expect(terms.map((t) => t.key)).toEqual(["2026-T1", "2026-T2"]);
-    // A 3-week gap (no W6/W7) stays inside T1; flexi week shows as a missing W6.
     expect(terms[0].weeklies.map((w) => w.week)).toEqual([1, 2, 3, 4, 5, 8, 9, 10]);
     expect(terms[1].weeklies.map((w) => w.week)).toEqual([1, 2, 3, 4, 5, 8, 9, 10]);
   });
@@ -109,7 +106,6 @@ describe("week numbers and marks", () => {
     expect(["TWIG 1", "Mega Weeklies 2025", "Week 40", undefined].map((n) => weekFromName(n))).toEqual([null, null, null, null]);
     const held = [
       ["S1W1", wed(2026, 2, 25)], ["S1W2", wed(2026, 3, 4)],
-      // Two-week break, then week 3; an unnamed weekly after it; and before a named one.
       ["S1W3", wed(2026, 3, 25)], ["USYD PPN", wed(2026, 4, 1)],
     ].map(([name, at], i) => ({ eventId: `x${i}`, at: at as number, count: 1, name: name as string }));
     const [sem] = deriveTerms(held, "semesters", 18);
@@ -119,7 +115,6 @@ describe("week numbers and marks", () => {
       "semesters",
       18
     )[0];
-    // Before the first named weekly, weeks count from the term's start.
     expect(lead.weeklies.map((w) => w.week)).toEqual([1, 5]);
   });
 
@@ -137,7 +132,6 @@ describe("week numbers and marks", () => {
     const terms = deriveTerms(
       [
         { eventId: "a", at: wed(2026, 2, 18), count: 1, name: "Weeklies T1W1" },
-        // Created as T1 week 11 despite being in June.
         { eventId: "b", at: wed(2026, 6, 3), count: 1, name: "Catch-up", mark: { year: 2026, slot: 1, week: 11 } },
         { eventId: "c", at: wed(2026, 6, 10), count: 1, name: "Weeklies T2W2" },
       ],
@@ -152,9 +146,7 @@ describe("week numbers and marks", () => {
 
   test("suggestions for a new weekly, its name and the terms to pick from", () => {
     const held = T1_2026.slice(0, 5).map((at, i) => ({ eventId: `t${i}`, at, count: 1, name: `Weeklies T1W${i + 1}` }));
-    // Flexi week skipped: the 8 Apr weekly is week 8 of T1.
     expect(suggestWeekly(held, wed(2026, 4, 8), "terms", 18)).toEqual({ year: 2026, slot: 1, week: 8, key: "2026-T1", label: "T1 2026" });
-    // After a long break: a new term starting at week 1.
     expect(suggestWeekly(held, wed(2026, 6, 3), "terms", 18)).toMatchObject({ key: "2026-T2", week: 1 });
     expect(weeklyName("terms", 3, 5)).toBe("T3W5");
     expect(weeklyName("semesters", 2, 9)).toBe("S2W9");
@@ -250,7 +242,6 @@ describe("categories", () => {
     expect(byKey.noCampus).toMatchObject({ section: "campus", noCampus: true });
     expect(byKey.was).toMatchObject({ attended: 0, held: 6, pct: 0, weeks: [] });
     expect(byKey.reg).toMatchObject({ attended: 6, pct: 1, weeks: [1, 2, 3, 4, 5, 8] });
-    // Irregulars and newcomers first; leaders and staff last.
     expect(rows.map((r) => r.category)).toEqual([
       "irregular", "irregular", "newcomer", "regular", "regular",
       "regular", "visitor", "visitor", "leader", "staff",
@@ -260,7 +251,6 @@ describe("categories", () => {
   test("a newcomer who keeps coming becomes Regular after 4 weeklies", () => {
     const terms = build(T1_2026.map((at, i) => [at, i < 5 ? ["n"] : []]).filter(([, k]) => (k as string[]).length) as [number, string[]][]);
     const c = classify([person("n")]);
-    // 5 of 5 held weeklies, but held only counts weeklies someone came to.
     expect(termRows(terms, 0, c)[0].category).toBe("regular");
     expect(termRows(terms, 0, classify([person("n")], { newcomerPromoteWeeklies: 6 }))[0].category).toBe("newcomer");
   });
@@ -270,7 +260,6 @@ describe("categories", () => {
     const now = T2_2026.slice(0, 2).map((at) => [at, ["x"]] as [number, string[]]);
     const terms = build([...prev, ...now]);
     const rows = termRows(terms, 1, classify([person("loyal"), person("x")]));
-    // loyal came to 8 of the last 10 (none this term) → still Regular.
     expect(rows.find((r) => r.key === "loyal")!.category).toBe("regular");
     const later = build([...prev, ...T2_2026.slice(0, 4).map((at) => [at, ["x"]] as [number, string[]])]);
     expect(termRows(later, 1, classify([person("loyal"), person("x")])).find((r) => r.key === "loyal")!.category).toBe("irregular");
@@ -379,12 +368,9 @@ describe("summaries and comparisons", () => {
     expect(termBefore(terms, 1, false, c)!.term.weeklies).toHaveLength(4);
     expect(termBefore(terms, 0, false, c)).toBeNull();
     expect(truncateTerm(terms[0], 0)).toBeNull();
-    // Cut to a point in another year: earlier terms whole, the same term up to
-    // the same week, later terms left out.
     expect(cutToPoint(terms[0], { slot: 2, week: 1, name: "T2" })).toBe(terms[0]);
     expect(cutToPoint(terms[0], { slot: 1, week: 2, name: "T1" })!.weeklies).toHaveLength(2);
     expect(cutToPoint(terms[0], { slot: 0, week: 9, name: "T0" })).toBeNull();
-    // The term before only had weeks after this one's first: nothing to cut to.
     const named = deriveTerms(
       [
         { eventId: "x", at: wed(2026, 3, 4), count: 1, name: "Weeklies T1W5" },
@@ -404,7 +390,6 @@ describe("summaries and comparisons", () => {
     expect(y.rows.find((r) => r.key === "a")).toMatchObject({ attended: 3, held: 3, termKey: "2026-T1" });
     expect(y.summary.newcomers).toBe(2);
     expect(computeYear(terms, 2024, c)).toBeNull();
-    // This year has got to T1 week 3: last year up to the same point.
     const point = yearCutOf(terms, 2026)!;
     expect(point).toEqual({ slot: 1, week: 3, name: "T1" });
     expect(computeYear(terms, 2025, c, point)!.summary.weeklies).toBe(3);

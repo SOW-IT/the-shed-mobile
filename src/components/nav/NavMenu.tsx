@@ -41,7 +41,6 @@ const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
   admin: { outline: "settings-outline", filled: "settings" },
 };
 
-/** Links that switch the bottom-tab screen rather than open a screen on top. */
 const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "home",
   "reimbursements",
@@ -57,13 +56,6 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
 
 type NavMenuVariant = "drawer" | "sidebar";
 
-/**
- * The side menu's contents, shared by the phone drawer and the wide-screen
- * sidebar: who you are, the links you can use, and Sign out. `onNavigate` runs
- * before any link is followed (the drawer closes itself with it). It scrolls
- * when it's taller than the screen (a short window, large text), so the
- * caller passes the safe-area gaps to keep clear of at either end.
- */
 export const NavMenu = ({
   variant,
   onNavigate,
@@ -98,8 +90,6 @@ export const NavMenu = ({
   const go = (key: NavKey) => {
     onNavigate?.();
     const href = NAV_HREFS[key] as Href;
-    // A tab can't be pushed over a screen that's already on top of the tabs
-    // (a request, a person…): drop back to the tabs first, then switch.
     if (TAB_KEYS.has(key) && router.canDismiss()) router.dismissAll();
     router.navigate(href);
   };
@@ -164,7 +154,6 @@ export const NavMenu = ({
       </Pressable>
     </View>
   ) : (
-    // Drops just below the "Sign in" label (sidebar padding + avatar + label).
     <SignInMenu
       anchor={{ top: insets.top + spacing.lg + avatarSize + 40, left: spacing.lg }}
     >
@@ -204,7 +193,6 @@ export const NavMenu = ({
     >
       {header}
       {sidebar ? (
-        // Wide screens have no top bar, so the dev chip lives here instead.
         <View style={styles.chip}>
           <TestEnvironmentChip />
         </View>

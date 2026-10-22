@@ -1,5 +1,3 @@
-# §3.0 Signed-in user WITHOUT a profile sees the welcome card (not a blank
-# screen) + a Sign out button.
 appId: ${APP_ID}
 tags:
   - staff

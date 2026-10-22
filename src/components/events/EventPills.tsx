@@ -47,7 +47,6 @@ const RATING_TONES: Record<RiskRating, Tone> = {
   Extreme: "problem",
 };
 
-/** The colour a status dot uses, for compact step markers (waiting is always amber). */
 export const toneColour = (t: AppTheme, tone: Tone) =>
   tone === "waiting" ? t.warning : toneColours(t, tone).fg;
 
@@ -72,7 +71,6 @@ export const SubFormStatusPill = ({ status }: { status: SubFormStatus }) => (
   <Pill label={SUB_FORM_STATUS_LABELS[status]} tone={SUB_FORM_TONES[status]} />
 );
 
-/** "14 · High": a risk's score and rating from the matrix. */
 export const RiskRatingPill = ({ score, rating }: { score?: number; rating: RiskRating }) => (
   <Pill label={score === undefined ? rating : `${score} · ${rating}`} tone={RATING_TONES[rating]} />
 );

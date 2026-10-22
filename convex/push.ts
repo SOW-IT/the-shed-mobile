@@ -73,14 +73,8 @@ export const removeToken = internalMutation({
   },
 });
 
-/** Expo takes at most this many messages in one request. */
 const EXPO_BATCH = 100;
 
-/**
- * Sends one notification to every device token, in Expo-sized batches.
- * Devices Expo says are gone are forgotten; the rest get their receipts
- * checked later, which catches devices that unregister after delivery.
- */
 async function pushToTokens(
   ctx: ActionCtx,
   targets: PushTarget[],
@@ -92,8 +86,6 @@ async function pushToTokens(
     let result: {
       data?: { status: string; id?: string; details?: { error?: string } }[];
     };
-    // One failed batch mustn't stop the rest, or the receipt check for the
-    // batches already sent.
     try {
       const response = await fetch("https://exp.host/--/api/v2/push/send", {
         method: "POST",
@@ -161,7 +153,6 @@ export const tokensForEmails = internalQuery({
   },
 });
 
-/** The same notification to many people (an announcement). */
 export const sendMany = internalAction({
   args: {
     to: v.array(v.string()),

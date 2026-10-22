@@ -2,10 +2,6 @@ import { Paths, File } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 
-/**
- * Saves a file the app made: a download in the browser, the share sheet on a
- * phone (Save to Files, AirDrop, Mail…).
- */
 export const downloadFile = async (
   filename: string,
   data: string | Uint8Array,

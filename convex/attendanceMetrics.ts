@@ -279,8 +279,6 @@ async function resolvePersons(
         name: member?.name ?? "Unknown",
         photo: null,
         breakdown: buildBreakdown("Member", undefined),
-        // Leaders are leaders through their staff profile, never a Role
-        // saved on a member.
         isStudentLeader: false,
         campuses: campus ? [campus] : undefined,
       });
@@ -403,8 +401,6 @@ export const recomputeAll = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     if (args.nightly && nightlyJobsPaused()) return null;
-    // Only the org-wide SOW view uses these Snapshots now; each campus's view
-    // is built from its weekly meetings by weeklyInsights.rebuildAll.
     const years = args.staffYear ? [args.staffYear] : metricsYears();
     for (const year of years) {
       const universities = await ctx.db

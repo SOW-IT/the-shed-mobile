@@ -1,18 +1,16 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import { appCanOpen } from "../shared/appLinks";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
 import { optionalEmail, optionalProfile, requireProfile } from "./model";
 
-const FEED_LIMIT = 50;
 const UNREAD_PROBE = 100;
 
-const feedRow = (n: Doc<"notifications">, appVersion: string | undefined) => ({
+const feedRow = (n: Doc<"notifications">) => ({
   id: n._id,
   title: n.title,
   body: n.body,
-  url: n.url && appCanOpen(n.url, appVersion) ? n.url : null,
+  url: n.url ?? null,
   read: n.read,
   at: n._creationTime,
 });
@@ -27,7 +25,7 @@ export const feed = query({
       .withIndex("by_user", (q) => q.eq("userEmail", caller.email))
       .order("desc")
       .paginate(args.paginationOpts);
-    return { ...result, page: result.page.map((n) => feedRow(n, args.appVersion)) };
+    return { ...result, page: result.page.map(feedRow) };
   },
 });
 
@@ -38,30 +36,6 @@ export const unreadCountOf = async (ctx: QueryCtx, email: string): Promise<numbe
       .withIndex("by_user_and_read", (q) => q.eq("userEmail", email).eq("read", false))
       .take(UNREAD_PROBE)
   ).length;
-
-export const unreadCountFor = internalQuery({
-  args: { email: v.string() },
-  handler: async (ctx, args) => await unreadCountOf(ctx, args.email),
-});
-
-/**
- * The bell's feed. Apps from 2.3.1 send their version; an older app sends
- * none, and gets no link for pages it can't open (it would show "Unmatched
- * Route"), so tapping one just marks it read.
- */
-export const list = query({
-  args: { appVersion: v.optional(v.string()) },
-  handler: async (ctx, args) => {
-    const caller = await optionalProfile(ctx);
-    if (!caller) return null;
-    const rows = await ctx.db
-      .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userEmail", caller.email))
-      .order("desc")
-      .take(FEED_LIMIT);
-    return rows.map((n) => feedRow(n, args.appVersion));
-  },
-});
 
 export const unreadCount = query({
   args: {},

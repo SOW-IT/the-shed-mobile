@@ -17,19 +17,10 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
-- [ ] **Ship one store build of 2.9.19 or later before relying on
-      over-the-air updates.** Builds before 2.9.19 have no `expo-updates` and
-      no channel, so `eas-update.yml` publishes to nobody until people install
-      it. Check the first publish lands with `eas update:list` and a phone on
-      the new build. iOS 2.9.23 is the first such build; Android's first is
-      2.9.24, because 2.9.23's Android production build failed on a
-      fingerprint mismatch (see 2.9.24 in CHANGELOG.md). `fingerprint.config.js`
-      now ignores the builder-only Firebase file and native folders, so the
-      GitHub runner's fingerprint matches the EAS builder's: the 2.9.24
-      Android production build (EAS build `25f738fc`, from `13475e1` on
-      2026-10-21) passed "Configure expo-updates" and was submitted to
-      Google Play (submission `46f8f1d6`). Each
-      publish sets `EXPO_PUBLIC_CONVEX_URL` itself, since `eas update`
+- [ ] **Confirm an over-the-air update reaches a phone.** iOS 2.9.23 and
+      Android 2.9.24 are the first store builds with `expo-updates`. Check a
+      publish lands with `eas update:list` and a phone on one of those builds.
+      Each publish sets `EXPO_PUBLIC_CONVEX_URL` itself, since `eas update`
       ignores the build profiles' `env`.
 - [ ] **Add the `CONVEX_ACCESS_TOKEN` repository secret** (a team member's
       token from `npx convex login`) so `convex-usage.yml` can read usage. On
@@ -50,41 +41,53 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       night, and the warehouse check will fail from its second night. The
       first night with the grant downloads every file not yet in the
       manifest once.
-- [ ] **Ask phones to update to 2.9.1 once it's live in both stores** (2.9.0 is
-      the first version with the update prompt, so it only reaches people on
-      2.9.0 and later): `npx convex run --prod appInstalls:setUpdatePolicy
-      '{"platform": "ios", "minimum": "2.9.0", "recommended": "2.9.1"}'`, the
-      same for `android`. `minimum` 2.9.0 shows nobody the blocking screen
-      (everyone who can see it is on 2.9.0 or later); `recommended` 2.9.1 is the
-      dismissable banner. Raise `minimum` past 2.9.0 only after the nudge has
-      had a week or two, and only to a version both stores are serving.
-      **People on 2.8.0 and older never see it, and from 2.9.1 the server no
-      longer answers some of their calls** (old Insights screens, the typed
-      church field, weeklies without a term and week), so send them an
-      announcement asking them to update before merging 2.9.1.
+- [ ] **Release 2.10.0 in this order.** It removes server code that apps
+      older than 2.9.25 still call, and on 2026-10-22 54 of the 58 phones
+      seen that week were older than 2.9.25.
+      1. Wait until 2.9.25 or later is live on the App Store and Google Play,
+         with Play's rollout at 100%. The update screen sends people to those
+         listings, and anyone outside a staged rollout can't update yet.
+      2. Just before merging, set `minimum` to 2.9.25 so apps from 2.9.0 to
+         2.9.24 show the update screen instead of calling functions this
+         release removes: `npx convex run --prod
+         appInstalls:setUpdatePolicy '{"platform": "ios", "minimum":
+         "2.9.25"}'`, the same for `android`. Then merge. The Convex deploy
+         goes out with the merge, so setting the minimum first leaves no gap
+         where old apps call missing functions; until the merge the server
+         still serves them, so they only see the update screen a few minutes
+         early. Apps older than 2.9.0 have no update screen, so `minimum`
+         can't stop them, but 2.9.1 already dropped the server code they
+         need. On 2026-10-22 production had one such install (iOS 2.5.8),
+         last seen 2026-10-14, before 2.9.1 shipped.
+      3. Run EAS Production and EAS Staging. 2.10.0 has a new runtime
+         fingerprint (the Expo patch updates and the dropped Google Maps SDK),
+         so it reaches phones as a store update, not over the air.
+      4. Once 2.10.0 is live in both stores, set `recommended` to 2.10.0:
+         `npx convex run --prod appInstalls:setUpdatePolicy '{"platform":
+         "ios", "recommended": "2.10.0"}'`, the same for `android`.
+      5. Merge main into `feat/music-form` and redeploy dev, as after every
+         release.
+      6. Delete `GOOGLE_MAPS_IOS_API_KEY` from the EAS environments whenever
+         convenient; builds ignore it from 2.10.0. Keep the iOS key itself in
+         Google Cloud until the minimum app version reaches 2.10.0, because
+         2.9.25 to 2.9.29 still draw Google Maps with it.
 
-- [ ] **Add the Google Chat webhook secret** so EAS Production posts its
-      result to the Data and IT space: `gh secret set GOOGLE_CHAT_WEBHOOK_URL
-      --repo SOW-IT/the-shed-mobile` and paste the space's incoming webhook URL
-      when asked. Without it the step skips. Pull requests go to the same space
-      through the **GitHub for Google Chat** app: add it to the space, then
-      `/github_subscribe SOW-IT/the-shed-mobile`.
+- [ ] **Send pull requests to the Data and IT space** (if wanted) through the
+      **GitHub for Google Chat** app: add it to the space, then
+      `/github_subscribe SOW-IT/the-shed-mobile`. EAS Production's own Chat
+      post already works.
 
-- [ ] **Reply to App Review (2.5.8, guideline 5.1.1(v))** with a physical-device
-      recording: sign in with Apple, Profile, Delete account, type the name,
-      the Apple prompt, "Account deleted". Put the same recording in the App
-      Review Notes for later submissions.
-
-- [ ] **Copy the old web app's design requests into production** once 2.2.0's
-      backend is deployed: `gcloud auth login` (an account with access to
-      `theshedsow`), then `node scripts/import-design-requests.mjs --dry-run`
+- [ ] **Copy the old web app's design requests into production**, unless it
+      has been done (imported rows have a `legacyKey`): `gcloud auth login`
+      (an account with access to `theshedsow`), then `node scripts/import-design-requests.mjs --dry-run`
       and `node scripts/import-design-requests.mjs --prod`. It can be re-run
       after anyone submits more on the old site; requests already acted on in
       THE SHED are left alone.
 
-- [ ] **Privacy policy URL** — required by both stores. Adapt SOW's existing
-      policy to cover: Google sign-in (name/email), profile photos, receipt
-      files including bank account details, and push tokens.
+- [ ] **Privacy policy**: the App Store listing links SOW's general policy
+      (`Privacy Policy (Final)_20240428.pdf`). Adapt it to cover Google
+      sign-in (name/email), profile photos, receipt files including bank
+      account details, and push tokens.
 - [ ] **Confirm FCM IAM** — that `expo-dev@theshedsow.iam.gserviceaccount.com`
       holds **Firebase Cloud Messaging API Admin** on project `theshedsow`
       (Google Cloud → IAM). Push delivery depends on it.
@@ -97,20 +100,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 - [ ] **Staging Firebase app** — no Firebase Android app exists for
       `au.org.sow.theshed.staging`, so staging builds omit `googleServicesFile`
       and staging push does not work. Production and preview are unaffected.
-- [ ] **Typed BigQuery warehouse views** — after 1.11.7/1.11.8 merges, the next
-      successful `bigquery` job should create dataset `convex_warehouse`. Each
-      Looker/Sheets view is published only if every table it needs was in that
-      zip (`insights_*` need `attendanceMetricsSnapshots`, `attendance_signins`
-      needs attendance + events + members). Confirm with
-      `bq ls theshedsow:convex_warehouse`. If that dataset was pre-created, the
-      backup SA needs `roles/bigquery.dataEditor` on it (same as
-      `convex_production`).
-- [ ] **Public store listings** (only if you want them) — iOS is currently
-      distributed through TestFlight. Going public needs screenshots,
-      description, App Privacy labels and a demo account in the review notes;
-      **Unlisted App Distribution** is the lighter option for a staff app.
-      Android likewise needs the store listing, content rating and Data safety
-      form to leave the internal track.
 
 ---
 
@@ -119,13 +108,22 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 Recorded so nobody re-does them. Each was confirmed against the live
 deployments, not assumed.
 
+**Typed BigQuery warehouse views**: the nightly backup builds dataset
+`convex_warehouse`. *Evidence (backup run 39660287748, 2026-10-21 19:17 UTC):*
+its log creates the typed table views and all ten `insights_*` views plus
+`staff_assignments`, `attendance_signins`, `requests_status` and
+`request_recipients`.
+
+**Google Chat post after EAS Production**: `GOOGLE_CHAT_WEBHOOK_URL` has been
+a repository secret since 2026-10-15.
+
 **2.9.29 event head counts moved on production**: `attendanceCounts:backfill`
 ran on prod on 2026-10-21 at 11:23 UTC and recounted every event into
 `eventAttendanceCounts`; its own check matched each event's count to its
 sign-ins. *Evidence (2026-10-21 13:52 UTC, read-only):* 282 events, 282 count
 rows, no event with more than one row, no event still carrying the old
-`events.attendanceCount` field, and the counts add up to 13,413 sign-ins. A
-later release can drop that field from the schema.
+`events.attendanceCount` field, and the counts add up to 13,413 sign-ins.
+2.10.0 drops that field from the schema.
 
 **Dev runs 2.9.29, with nightly jobs paused**: `feat/music-form` merged with
 main at `7c150af` (main `cbf04c0`, no conflicts) and deployed to

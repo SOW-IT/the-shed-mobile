@@ -37,11 +37,6 @@ export const send = internalAction({
   },
 });
 
-/**
- * Many emails in one Resend request (at most 100, Resend's batch size), for an
- * announcement. Callers space batches a second apart to stay under Resend's
- * request rate.
- */
 export const sendBatch = internalAction({
   args: {
     messages: v.array(v.object({ to: v.string(), subject: v.string(), body: v.string() })),

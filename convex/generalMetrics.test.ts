@@ -16,8 +16,6 @@ import {
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -609,10 +607,9 @@ describe("view", () => {
     expect(hasPeopleChart(all.blocks)).toBe(true);
     const retention = (blocks: typeof all.blocks) =>
       blocks.find((b) => b.type === "multiBars" && b.title === "Retention");
-    expect(retention(all.blocks)).toMatchObject({ unit: "%" });
-    expect(retention(all.blocks)).not.toHaveProperty("line");
+    expect(retention(all.blocks)).toMatchObject({ unit: "%", line: { key: "Overall" } });
     const withLines = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: null, lines: true });
-    expect(retention(withLines.blocks)).toMatchObject({ unit: "%", line: { key: "Overall" } });
+    expect(retention(withLines.blocks)).toEqual(retention(all.blocks));
 
     const year = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: YEAR });
     expect(year.blocks[2]).toMatchObject({ type: "cards" });

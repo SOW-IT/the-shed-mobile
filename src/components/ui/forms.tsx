@@ -21,7 +21,6 @@ export const Field = ({
   testID,
   accessibilityLabel,
 }: {
-  /** Shown above the box; leave out when a question heading already names it. */
   label?: string;
   value: string;
   onChangeText: (text: string) => void;
@@ -32,7 +31,6 @@ export const Field = ({
   multiline?: boolean;
   disabled?: boolean;
   maxLength?: number;
-  /** Stable handle for end-to-end tests. */
   testID?: string;
   accessibilityLabel?: string;
 }) => {
@@ -86,10 +84,6 @@ export const Field = ({
   );
 };
 
-/**
- * The search box above a list. Shows the spinner while results for the typed
- * text are on their way, and a clear button once there's text.
- */
 export const SearchField = ({
   value,
   onChangeText,
@@ -248,7 +242,6 @@ export const OptionRow = ({
   selected: boolean;
   onPress: () => void;
   multi?: boolean;
-  /** A short tag after the label, e.g. "Recommended". */
   badge?: string;
   icon?: keyof typeof Ionicons.glyphMap;
 }) => {
@@ -307,7 +300,6 @@ export const OptionRow = ({
   );
 };
 
-/** A tick box with its label beside it; the whole row toggles. */
 export const Checkbox = ({
   checked,
   onToggle,
@@ -339,7 +331,7 @@ export const Checkbox = ({
   );
 };
 
-export const YearPill = ({
+const YearPill = ({
   year,
   years,
   onSelect,

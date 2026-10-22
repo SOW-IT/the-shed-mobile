@@ -136,11 +136,6 @@ const EarlierRequests = ({
   );
 };
 
-/**
- * Design Requests: your own (Mine); for the Marketing team and admins, the
- * open requests to approve or finish (Marketing) and every request by staff
- * year (All), like Reimbursements' All tab.
- */
 export default function DesignRequestsScreen() {
   const router = useRouter();
   const me = useQuery(api.directory.me);

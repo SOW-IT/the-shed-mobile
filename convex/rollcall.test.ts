@@ -8,8 +8,6 @@ import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -139,7 +137,6 @@ describe("legacy import matching", () => {
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await admin.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // Imported rows can carry an old SOW address; the app won't take one.
     const memberId = await t.run((ctx) =>
       ctx.db.insert("attendanceMembers", { name: "Ghost Person", email: "ghost.person@sowaustralia.com" })
     );
@@ -746,7 +743,6 @@ describe("events + roll-call", () => {
     const now = Date.now();
     const staffMemberId = await memberOf(t, STAFF);
     const { eventId, memberId } = await t.run(async (ctx) => {
-      // Ended 2 minutes ago; the guest was signed in by mistake 5 minutes ago.
       const eventId = await ctx.db.insert("events", {
         name: "Just ended",
         dateStart: now - 3600_000,
@@ -759,7 +755,6 @@ describe("events + roll-call", () => {
       return { eventId, memberId };
     });
     await leader.mutation(api.attendance.signOut, { eventId, memberId });
-    // 11 minutes ago is outside the grace.
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
     ).rejects.toThrow(/can't be undone/i);
@@ -1360,7 +1355,6 @@ describe("guards + edge cases", () => {
     await leader.mutation(api.attendance.signIn, { eventId, memberId });
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
     const row = rows.find((r) => r.name === "Test Member");
-    // Their worked-out Role leads: nothing in Insights yet, so Member.
     expect(row?.subtitle).toBe("Member · Male");
     expect(row?.university).toBe(USYD);
 

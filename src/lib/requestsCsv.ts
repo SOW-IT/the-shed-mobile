@@ -4,7 +4,6 @@ import { roundToCents } from "../../shared/money";
 import { Doc } from "../../convex/_generated/dataModel";
 import { buildCsv } from "./csv";
 
-/** Dollars with two decimals, so float drift never lands in a spreadsheet. */
 const money = (amount: number): string => roundToCents(amount).toFixed(2);
 
 const COLUMNS: { header: string; value: (r: Doc<"requests">) => string }[] = [

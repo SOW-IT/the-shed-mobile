@@ -24,7 +24,6 @@ export const WaitingLine = ({ since }: { since: number | undefined }) => {
   );
 };
 
-/** One design request in a list: what's being designed, for when, and its status. */
 export const DesignRequestRow = ({
   request,
   showRequester,

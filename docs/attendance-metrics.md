@@ -2,7 +2,8 @@
 
 > From 2.5.0 a **campus**'s view is built from its weekly meetings instead:
 > see [weekly-insights.md](weekly-insights.md). What follows now describes the
-> org-wide **SOW** view, whose Snapshots are the only ones still built.
+> org-wide **SOW** view, the only Snapshots the app reads (campus Snapshots
+> are still built each night, for BigQuery).
 
 A leader-facing dashboard that turns raw sign-in data into trends and gentle
 follow-up prompts for a sub-group and time range.
@@ -42,9 +43,8 @@ follow-up prompts for a sub-group and time range.
 - **General's charts** for those four series are staff and student leader bars
   side by side with Overall as a line over them (the `multiBars` block's
   `line`), with `%` on the Retention and Served 2+ years axes (`unit`).
-  General has no bars/lines switch: it always draws bars. The app sends
-  `lines: true`; builds older than 2.9.8 don't, and get Overall as a third bar
-  instead, so their legend matches what they can draw.
+  General has no bars/lines switch: it always draws bars. The app still sends
+  `lines: true`, which the server ignores since 2.10.0.
 - **Weeklies average by campus** is bucketed by Sydney calendar year (the
   chart says so) and follows the weekly Insights' `jointWeeklies` setting:
   off, a weekly shared by several campuses counts for none of them, like the
@@ -154,9 +154,8 @@ them from the snapshot.
 
 ## Language
 
-Follow-up copy is deliberately pastoral and non-judgemental ("Follow-up
-suggested", "A gentle prompt … No judgement implied"). These are people, not
-scores.
+Follow-up copy is deliberately pastoral and non-judgemental. These are people,
+not scores.
 
 ## Notes / future extensions
 

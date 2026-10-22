@@ -121,11 +121,6 @@ const EarlierEvents = ({
   );
 };
 
-/**
- * Event Requests: your department's events (Mine); for Marketing, Compliance,
- * Finance and the Director, the forms waiting for review (To review); and for
- * them, Events and admins, every event by staff year (All).
- */
 export default function EventRequestsScreen() {
   const router = useRouter();
   const me = useQuery(api.directory.me);

@@ -147,8 +147,6 @@ const MONTHS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-// Chart labels and month buckets are calendar facts, so they follow the org's
-// day (Sydney) like the rest of the app, not the UTC day of the server.
 export const shortDate = (ms: number): string => {
   const { day, month } = sydneyYmd(new Date(ms));
   return `${day} ${MONTHS[month - 1]}`;
@@ -257,8 +255,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       ? Math.round(((avgAttendance - avgAttendancePrev) / avgAttendancePrev) * 100)
       : null;
 
-  // A weekly meeting nobody signed in to didn't happen (a cancelled or holiday
-  // week), so it doesn't count towards the weekly average or its trend.
   const heldWeekly = (e: MetricsEvent) => e.isWeeklyMeeting && countFor(e.id) > 0;
   const periodWeeklies = periodEvents.filter(heldWeekly);
   const prevWeeklies = prevEvents.filter(heldWeekly);

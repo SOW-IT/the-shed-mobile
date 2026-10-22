@@ -1,6 +1,5 @@
 import { acronym, type Assignment, formatAssignment } from "../../shared/flow";
 
-/** Every place the side menu (phone drawer or wide sidebar) can link to. */
 export type NavKey =
   | "home"
   | "reimbursements"
@@ -42,15 +41,11 @@ export const NAV_LABELS: Record<NavKey, string> = {
   admin: "Admin",
 };
 
-/** What the menu needs to know about whoever is looking at it. */
 type NavViewer = {
   signedIn: boolean;
-  /** Has a staff profile for the current year. */
   isStaff: boolean;
   isCampusLeader: boolean;
-  /** Admins, plus the Finance Head (who only gets Admin's "Other" tab). */
   canAdmin: boolean;
-  /** Admins (the HR division among them) can send announcements. */
   canAnnounce: boolean;
 };
 
@@ -75,39 +70,22 @@ export const navViewer = (signedIn: boolean, me: MeForNav): NavViewer => {
   };
 };
 
-/** Staff get Reimbursements, except campus leaders (they work from Attendance). */
 export const showsReimbursements = (viewer: NavViewer) =>
   viewer.isStaff && !viewer.isCampusLeader;
 
-/** Design Requests go to the same people as Reimbursements. */
-export const showsDesignRequests = showsReimbursements;
-
-/** So do Event Requests: staff above campus leaders. */
-export const showsEventRequests = showsReimbursements;
-
-/**
- * The phone drawer's links. The bottom tabs already cover Home, Attendance,
- * Insights and Org Chart, so it only holds what isn't down there. Signed-out
- * people have no drawer.
- */
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = ["profile"];
   if (viewer.isStaff) items.push("churches");
-  if (showsReimbursements(viewer)) items.push("reimbursements");
-  if (showsEventRequests(viewer)) items.push("eventRequests");
-  if (showsDesignRequests(viewer)) items.push("designRequests");
+  if (showsReimbursements(viewer)) items.push("reimbursements", "eventRequests", "designRequests");
   if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
   return items;
 };
 
-/** The wide-screen sidebar's links: the bottom tabs and the drawer's links in one list. */
 export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
-  if (showsReimbursements(viewer)) items.push("reimbursements");
-  if (showsEventRequests(viewer)) items.push("eventRequests");
-  if (showsDesignRequests(viewer)) items.push("designRequests");
+  if (showsReimbursements(viewer)) items.push("reimbursements", "eventRequests", "designRequests");
   if (viewer.isStaff) items.push("attendance");
   items.push("insights", "org", "churches");
   if (viewer.signedIn) items.push("profile");
@@ -116,7 +94,6 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   return items;
 };
 
-/** Which menu link a route belongs to, so it can be highlighted. */
 export const activeNavKey = (pathname: string): NavKey | null => {
   if (pathname === "/" || pathname === "/review" || pathname === "/all") {
     return "reimbursements";
@@ -143,11 +120,6 @@ export const activeNavKey = (pathname: string): NavKey | null => {
   return null;
 };
 
-/**
- * The menu header's line under your name: this year's assignments as the
- * Profile page shows them (without the year), else your roles. Null when
- * there's nothing to show, e.g. for guests.
- */
 export const roleLine = (
   profile: { roles: readonly string[]; assignments?: readonly Assignment[] } | null | undefined
 ): string | null => {
@@ -160,5 +132,4 @@ export const roleLine = (
   return text || null;
 };
 
-/** A count badge's text, capped like the other badges in the app. */
 export const badgeText = (count: number) => (count > 99 ? "99+" : String(count));

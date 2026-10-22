@@ -258,7 +258,7 @@ export const view = query({
     years: v.array(v.number()),
     blocks: v.array(viewBlockValidator),
   }),
-  handler: async (ctx, { scope, lines }) => {
+  handler: async (ctx, { scope }) => {
     const [trends, campusAttendance, identity] = await Promise.all([
       readStaffTrends(ctx),
       readCampusWeeklyAttendance(ctx),
@@ -266,7 +266,7 @@ export const view = query({
     ]);
     return {
       years: trends.years,
-      blocks: buildGeneralView({ trends, campusAttendance, scope, signedIn: identity !== null, lines }),
+      blocks: buildGeneralView({ trends, campusAttendance, scope, signedIn: identity !== null }),
     };
   },
 });
@@ -316,8 +316,6 @@ export const recomputeCampusWeeklyAttendance = internalMutation({
   },
 });
 
-// Bucketed by Sydney calendar year (Jan–Dec), not staff year: weekly meetings
-// follow the uni calendar.
 async function computeCampusWeeklyAttendance(
   ctx: QueryCtx
 ): Promise<CampusWeeklyAttendance> {
@@ -333,8 +331,6 @@ async function computeCampusWeeklyAttendance(
     .withIndex("by_dateStart", (q) =>
       q.gte("dateStart", staffYearStartMs(CAMPUS_ATTENDANCE_START_YEAR))
     )
-    // Newest first: if the scan cap is ever hit it drops the oldest year,
-    // not the one currently being led.
     .order("desc")
     .take(MAX_EVENTS_SCAN);
 
@@ -367,7 +363,6 @@ async function computeCampusWeeklyAttendance(
   const key = (campus: string, year: number) => `${campus}|${year}`;
 
   meetings.forEach((m, i) => {
-    // Nobody signed in: the meeting didn't happen, so it isn't averaged in.
     if (turnouts[i] === 0) return;
     for (const campus of m.campuses) {
       campusSet.add(campus);

@@ -3,18 +3,12 @@ import { formatAmount, toCents } from "./money";
 import { isValidUrl, MAX_ANSWER_LENGTH } from "./forms";
 import { MARKETING } from "./designRequests";
 
-// ── Who's involved ──────────────────────────────────────────────────────────
-
-/** Reviews every event's Risk form; its head approves them. */
 const COMPLIANCE = "Compliance";
 
-/** Runs SOW's events: can read every event request. */
 export const EVENTS = "Events";
 
-/** The first staff year THE SHED took event requests (imported from the old web app). */
 export const EARLIEST_EVENT_REQUEST_YEAR = 2023;
 
-/** Events with total expenses over this also need the Director, unless Admin sets another amount. */
 export const EVENT_DIRECTOR_APPROVAL_THRESHOLD = 5000;
 
 export const eventDirectorThresholdOr = (configured: number | null | undefined): number =>
@@ -29,14 +23,12 @@ export const SUB_FORM_LABELS: Record<SubFormKind, string> = {
   finance: "Finance",
 };
 
-/** The department that reviews each form; its head approves it. */
 export const SUB_FORM_TEAMS: Record<SubFormKind, string> = {
   marketing: MARKETING,
   risk: COMPLIANCE,
   finance: FINANCE,
 };
 
-/** Each team's shared inbox, which gets the emails about its form. */
 export const SUB_FORM_INBOXES: Record<SubFormKind, string> = {
   marketing: "marketing@sow.org.au",
   risk: "compliance@sow.org.au",
@@ -45,8 +37,6 @@ export const SUB_FORM_INBOXES: Record<SubFormKind, string> = {
 
 export const isSubFormKind = (value: string): value is SubFormKind =>
   (SUB_FORM_KINDS as readonly string[]).includes(value);
-
-// ── Statuses ────────────────────────────────────────────────────────────────
 
 export type EventRequestStatus = "IN_PROGRESS" | "APPROVED" | "CANCELLED";
 
@@ -71,39 +61,30 @@ export const SUB_FORM_STATUS_LABELS: Record<SubFormStatus, string> = {
   NOT_REQUIRED: "Not required",
 };
 
-/** Finance's approval runs Director (only for big budgets) then Finance Head. */
 export type FinanceStep = "director" | "financeHead";
 
-/** Counts towards the event going ahead. */
 export const isSubFormDone = (status: SubFormStatus): boolean =>
   status === "APPROVED" || status === "NOT_REQUIRED";
 
-/** The requester's side can still change it. */
 export const isSubFormEditable = (status: SubFormStatus): boolean =>
   status === "DRAFT" || status === "CHANGES_REQUESTED";
 
-/** What the event is once its forms are in these states (unless it's cancelled). */
 export const eventStatusFor = (statuses: readonly SubFormStatus[]): EventRequestStatus =>
   statuses.length === SUB_FORM_KINDS.length && statuses.every(isSubFormDone)
     ? "APPROVED"
     : "IN_PROGRESS";
-
-// ── Event size ──────────────────────────────────────────────────────────────
 
 export type EventSize = "small" | "medium" | "large";
 
 export const REGISTRATION_GOAL_HINT =
   "Small: less than 50, Medium: 50–100, Large: more than 100";
 
-/** The event's size from its registration goal, or null with no goal. */
 export const eventSize = (registrationGoal: number | undefined): EventSize | null => {
   if (registrationGoal === undefined || !(registrationGoal > 0)) return null;
   if (registrationGoal < 50) return "small";
   if (registrationGoal <= 100) return "medium";
   return "large";
 };
-
-// ── Risk (SOW's Risk Management Standard, 2026) ─────────────────────────────
 
 export const RISK_STANDARD_VIEW_URL =
   "https://docs.google.com/document/d/1IEoNLT6124RLYPqFg-mSHUl5qtR-pHiL/edit?usp=drivesdk&rtpof=true&sd=true";
@@ -139,7 +120,6 @@ export const RISK_CATEGORY_DESCRIPTIONS: Record<RiskCategory, string> = {
 export type RiskLevel = 1 | 2 | 3 | 4 | 5;
 export const RISK_LEVELS: readonly RiskLevel[] = [1, 2, 3, 4, 5];
 
-/** The worst consequence that could reasonably happen, by category and level. */
 export const CONSEQUENCE_GUIDE: Record<RiskCategory, Record<RiskLevel, string>> = {
   safety: {
     1: "No injuries, or none needing first aid. Localised damage to property, easily repaired.",
@@ -208,7 +188,6 @@ export const LIKELIHOOD_GUIDE: Record<
 };
 
 export type RiskRating = "Low" | "Moderate" | "High" | "Very High" | "Extreme";
-/** The Standard's matrix: [likelihood][consequence] → score and rating. */
 const MATRIX: Record<RiskLevel, readonly [number, RiskRating][]> = {
   5: [[7, "Moderate"], [13, "Moderate"], [19, "High"], [23, "Very High"], [25, "Extreme"]],
   4: [[6, "Low"], [10, "Moderate"], [15, "High"], [21, "Very High"], [24, "Extreme"]],
@@ -220,7 +199,6 @@ const MATRIX: Record<RiskLevel, readonly [number, RiskRating][]> = {
 export const isRiskLevel = (value: unknown): value is RiskLevel =>
   typeof value === "number" && (RISK_LEVELS as readonly number[]).includes(value);
 
-/** A risk's score (1–25) and rating, from how likely it is and how bad it would be. */
 export const riskScore = (
   likelihood: RiskLevel,
   consequence: RiskLevel
@@ -235,7 +213,6 @@ export interface RiskRow {
   consequence?: number;
   likelihood?: number;
   mitigation?: string;
-  /** Imported from the old app's risk form, which rated risks differently. */
   legacyRating?: string;
 }
 
@@ -249,7 +226,6 @@ export const MAX_RISK_ROWS = 40;
 
 const clean = (text: string | undefined) => text?.trim() || undefined;
 
-/** A row's score and rating, once it has both levels. */
 export const rowScore = (row: RiskRow) =>
   isRiskLevel(row.likelihood) && isRiskLevel(row.consequence)
     ? riskScore(row.likelihood, row.consequence)
@@ -276,7 +252,6 @@ const numberedRows = <T>(
     .map((row, index) => ({ row: normalize(row), number: index + 1 }))
     .filter(({ row }) => isFilled(row));
 
-/** The form as it's stored: text trimmed, blank rows dropped, and no rows when there are no risks. */
 export const normalizeRisk = (data: RiskData): RiskData => {
   const risks = data.noRisks
     ? []
@@ -290,7 +265,6 @@ export const normalizeRisk = (data: RiskData): RiskData => {
 
 const tooLong = (text: string | undefined) => (text?.length ?? 0) > MAX_ANSWER_LENGTH;
 
-/** What stops a draft being saved: only things that are never allowed. */
 export const riskDraftProblem = (data: RiskData): string | null => {
   if (data.risks.length > MAX_RISK_ROWS) {
     return `A risk form can list at most ${MAX_RISK_ROWS} risks.`;
@@ -303,7 +277,6 @@ export const riskDraftProblem = (data: RiskData): string | null => {
   return null;
 };
 
-/** What stops the form being submitted, as a message to fix, or null. */
 export const riskProblem = (data: RiskData): string | null => {
   const draft = riskDraftProblem(normalizeRisk(data));
   if (draft) return draft;
@@ -326,11 +299,8 @@ export const riskProblem = (data: RiskData): string | null => {
   return null;
 };
 
-/** The kinds of risk the form covers ("Major risk(s) considered"), in the Standard's order. */
 export const majorRisks = (data: RiskData): RiskCategory[] =>
   RISK_CATEGORIES.filter((c) => data.risks.some((r) => r.category === c));
-
-// ── Finance ─────────────────────────────────────────────────────────────────
 
 export interface FinanceLine {
   label: string;
@@ -356,14 +326,12 @@ const isFilledLine = (line: FinanceLine) => !!line.label || line.amount !== 0;
 const normalizeLines = (lines: readonly FinanceLine[]): FinanceLine[] =>
   numberedRows(lines, normalizeLine, isFilledLine).map(({ row }) => row);
 
-/** The form as it's stored: labels trimmed, amounts in cents, empty lines dropped. */
 export const normalizeFinance = (data: FinanceData): FinanceData => ({
   income: normalizeLines(data.income),
   expenses: normalizeLines(data.expenses),
   ...(clean(data.spreadsheetUrl) ? { spreadsheetUrl: clean(data.spreadsheetUrl) } : {}),
 });
 
-/** Total income, total expenses and what's left over, rounded to cents. */
 export const financeTotals = (data: FinanceData) => {
   const sum = (lines: readonly FinanceLine[]) =>
     lines.reduce((cents, line) => cents + toCents(line.amount), 0);
@@ -372,17 +340,14 @@ export const financeTotals = (data: FinanceData) => {
   return { income: income / 100, expenses: expenses / 100, net: (income - expenses) / 100 };
 };
 
-/** No money in or out: Finance doesn't need to approve it. */
 export const financeNotRequired = (data: FinanceData): boolean => {
   const { income, expenses } = financeTotals(data);
   return income === 0 && expenses === 0;
 };
 
-/** Big budgets also go to the Director: expenses over the threshold. */
 export const financeNeedsDirector = (data: FinanceData, threshold: number): boolean =>
   financeTotals(data).expenses > threshold;
 
-/** What stops a draft being saved: only things that are never allowed. */
 export const financeDraftProblem = (data: FinanceData): string | null => {
   const lines = [...data.income, ...data.expenses];
   if (lines.length > MAX_FINANCE_LINES) {
@@ -399,7 +364,6 @@ export const financeDraftProblem = (data: FinanceData): string | null => {
   return null;
 };
 
-/** What stops the form being submitted, as a message to fix, or null. */
 export const financeProblem = (data: FinanceData): string | null => {
   const normalized = normalizeFinance(data);
   const draft = financeDraftProblem(normalized);
@@ -418,11 +382,7 @@ export const financeProblem = (data: FinanceData): string | null => {
   return null;
 };
 
-// ── Names ───────────────────────────────────────────────────────────────────
-
-/** How an event request is named in emails and notifications. */
 export const eventRequestName = (r: { name: string }): string => `Event request: ${r.name}`;
 
-/** "#3 · 2027": an event request's number within its staff year. */
 export const eventRequestRef = (r: { number: number; year: number }): string =>
   `#${r.number} · ${r.year}`;

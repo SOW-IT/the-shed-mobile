@@ -1,19 +1,11 @@
-# §1.2 Public Org Chart & profiles.
-# - Someone signed out can browse the chart and open a person profile / service history
-# - Signed-out person view hides the Local church field (private)
 appId: ${APP_ID}
 tags:
   - public
 ---
 - runFlow: ../common/ensure-signed-out.yaml
-# Bottom tabs carry a "<Name>, tab, N of N" accessibilityLabel that masks the
-# bare "Org Chart" text (README's bottom-tab convention). The signed-out
-# landing is Home, so actually open Org Chart before looking for people.
 - tapOn:
     text: ".*Org Chart, tab.*"
 
-# Open the first person card in the chart (Director card sits at the top). The
-# card carries testID="org-person" (see src/app/(tabs)/org.tsx).
 - tapOn:
     id: "org-person"
     index: 0
@@ -30,8 +22,6 @@ tags:
           id: "org-person"
           index: 0
 
-# On a person profile the service history is shown; Local church is hidden when
-# signed out.
 - assertVisible:
     text: ".*(Service History|Service history).*"
     optional: true

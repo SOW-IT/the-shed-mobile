@@ -105,7 +105,7 @@ describe("event request PDF", () => {
 
   test("a risk longer than a page carries on over the next page", async () => {
     const base = input();
-    const long = "Crowd crush near the stage. ".repeat(140); // ~4000 characters
+    const long = "Crowd crush near the stage. ".repeat(140);
     const bytes = await buildEventRequestPdf({
       ...base,
       data: {

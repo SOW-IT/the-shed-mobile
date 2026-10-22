@@ -2,12 +2,6 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { requestFullyApproved } from "../../shared/flow";
 
-/**
- * The orange count on Reimbursements (and the phone's menu avatar): your
- * approved requests still waiting on a receipt, requests waiting on your
- * review, and unread comments on both. Zero for anyone who can't see
- * Reimbursements (guests and campus leaders).
- */
 export const useReimbursementsBadge = (): number => {
   const me = useQuery(api.directory.me);
   const shown = !!me?.profile && !me.isCampusLeader;

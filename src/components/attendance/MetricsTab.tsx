@@ -20,8 +20,6 @@ const CAMPUS_MARK = 40;
 
 type SowTabChoice = { key: string; label: string; picker: "range" | "years" };
 
-// The layout comes from the server (see InsightsBlocks): `weeklyInsights.view`
-// for a campus, passed in as `weeklyView`, and `attendanceMetrics.view` for SOW.
 export function MetricsTab({
   subgroups,
   selectedSubgroup,

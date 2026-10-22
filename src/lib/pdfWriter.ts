@@ -8,7 +8,7 @@ export const MUTED = rgb(0.36, 0.42, 0.38);
 const RULE = rgb(0.8, 0.84, 0.82);
 const RULE_HEIGHT = 16;
 
-export type Style = { font: PDFFont; size: number; color: typeof TEXT; gap?: number };
+type Style = { font: PDFFont; size: number; color: typeof TEXT; gap?: number };
 
 export class PdfWriter {
   pages: PDFPage[] = [];

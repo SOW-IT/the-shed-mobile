@@ -175,7 +175,6 @@ describe("October rollover → Attendance Insights", () => {
     );
     expect(campuses.sort()).toEqual([USYD, UNSW, newCampus].sort());
 
-    // Snapshots can still be built for any group on demand, and use 2027.
     for (const subgroup of [USYD, newCampus]) {
       await leader.action(internal.attendanceMetrics.recomputeSubgroup, { subgroup });
     }

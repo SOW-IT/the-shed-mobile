@@ -1,6 +1,6 @@
 import { isSowStaffAddress } from "./rollcallImport";
 
-export type StaffOnlyViewer = {
+type StaffOnlyViewer = {
   email: string;
   year: number;
   profile: unknown;

@@ -110,7 +110,6 @@ describe("the field kinds event requests added", () => {
     expect(isValidDateTimeString("2026-02-03T10:00T1")).toBe(false);
     expect(isValidUrl("http://a.b")).toBe(true);
     expect(isValidUrl("ftp://a.b")).toBe(false);
-    // 12 Jan 2026 02:00 UTC is 1 pm in Sydney (daylight saving).
     expect(sydneyDateTimeAnswer(Date.UTC(2026, 0, 12, 2, 0))).toBe("2026-01-12T13:00");
     expect(answerForRole(FIELDS, good, "start")).toBe("2026-11-01T18:00");
     expect(answerForRole(FIELDS, { name: "SAF" }, "title")).toBe("SAF");

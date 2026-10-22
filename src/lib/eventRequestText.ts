@@ -6,7 +6,6 @@ import {
 } from "../../shared/eventRequests";
 import { sydneyDateTime } from "./sydneyTime";
 
-/** One line of an event's history, as the page and its PDF show it. */
 export const eventHistoryLabel = (action: string, form: SubFormKind | null): string => {
   const name = form ? `${SUB_FORM_LABELS[form]} form` : "Form";
   switch (action) {
@@ -53,7 +52,6 @@ export type FormStatusFacts = {
   risk?: { noRisks: boolean };
 };
 
-/** Where a form is up to, in a sentence, for its card on the event page. */
 export const subFormStatusLine = (
   kind: SubFormKind,
   form: FormStatusFacts,

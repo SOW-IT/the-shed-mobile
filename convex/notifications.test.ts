@@ -161,7 +161,6 @@ describe("push.sendMany (one push to many people)", () => {
       body: "Body",
       url: "/announcements/x",
     });
-    // b has 20 devices at most on record; a's two plus b's 20 fit in one request.
     const sizes = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).length);
     expect(sizes).toEqual([22]);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)[0]).toMatchObject({
@@ -324,7 +323,6 @@ describe("push.send (Expo push action)", () => {
     vi.stubGlobal("fetch", fetchMock);
     await t.action(internal.push.send, { to: "a@sow.org.au", title: "T", body: "B" });
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)[0].badge).toBe(2);
-    expect(await t.query(internal.notifications.unreadCountFor, { email: "a@sow.org.au" })).toBe(2);
   });
 
   test("omits data when no url is given", async () => {

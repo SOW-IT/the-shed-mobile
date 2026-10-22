@@ -91,7 +91,6 @@ describe("homeContent", () => {
     expect(edited.edited?.by).toBe("Rachel");
     expect(edited.revision).toBe(1);
 
-    // A second save based on the latest copy replaces the row in place.
     await asUser(t, ADMIN).mutation(api.homeContent.save, {
       tab: "partner",
       blocks: [{ type: "text", text: "Hi" }],
@@ -131,12 +130,10 @@ describe("homeContent", () => {
   test("reset puts a tab back to the built-in content and keeps counting revisions", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Resetting a tab nobody has edited is a no-op.
     await admin.mutation(api.homeContent.reset, { tab: "connect", baseRevision: 0 });
     expect(await t.run((ctx) => ctx.db.query("homeTabs").collect())).toHaveLength(0);
 
     await admin.mutation(api.homeContent.save, { tab: "connect", blocks, baseRevision: 0 });
-    // A restore from a copy opened before that save is refused.
     await expect(
       asUser(t, MARKETER).mutation(api.homeContent.reset, { tab: "connect", baseRevision: 0 })
     ).rejects.toThrow(/Someone else saved this tab/);
@@ -147,7 +144,6 @@ describe("homeContent", () => {
     expect(connect.edited).toBeNull();
     expect(connect.revision).toBe(2);
 
-    // A copy opened before the restore (or before the first save) is out of date.
     for (const baseRevision of [0, 1]) {
       await expect(
         asUser(t, MARKETER).mutation(api.homeContent.save, { tab: "connect", blocks, baseRevision })

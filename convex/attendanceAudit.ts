@@ -43,13 +43,9 @@ export async function logAttendanceAction(
   await ctx.db.insert("attendanceAuditLog", entry);
 }
 
-/** Deleting is permanent, so audit entries list what went with it — up to
- *  this many lines, with an exact count above them. */
 export const MAX_AUDIT_ATTENDANCE_LINES = 100;
 
-/** A sign-in time as it reads in the audit log, in Sydney time. */
 export const auditStamp = (ms: number): string => {
-  // A corrupt time must never stop a delete from being logged.
   if (!Number.isFinite(ms) || Number.isNaN(new Date(ms).getTime())) {
     return "unknown time";
   }
@@ -64,7 +60,6 @@ export const auditStamp = (ms: number): string => {
       hour12: true,
     }).format(new Date(ms));
   } catch {
-    // Runtimes without full ICU still get something sortable and unambiguous.
     return new Date(ms).toISOString();
   }
 };
@@ -158,7 +153,6 @@ export const list = query({
     const year = staffYearForDate(new Date());
     const nameByActor: Record<string, string> = {};
     for (const email of new Set(rows.map((r) => r.actorEmail))) {
-      // One-off admin commands log as "system:<job>" rather than a person.
       nameByActor[email] = email.startsWith("system:")
         ? `System (${email.slice("system:".length).replace(/-/g, " ")})`
         : await displayName(ctx, email, year);

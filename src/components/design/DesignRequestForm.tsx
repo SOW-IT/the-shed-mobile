@@ -1,5 +1,3 @@
-// The design request form is the shared server-driven form renderer; these are
-// its design-request names.
 export {
   answersFromDraft,
   draftFromAnswers,

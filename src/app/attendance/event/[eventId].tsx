@@ -66,8 +66,6 @@ const META_BESIDE_TITLE_MIN_WIDTH = 600;
 
 const NEWLY_ADDED_CLEAR_MS = ATTENDANCE_ROW_ENTER_MS + 40;
 
-// A little longer than a leaving row's animation, so its space has closed
-// before the row is dropped from the list.
 const LEAVE_SETTLE_MS = 80;
 
 const withoutKey = <T extends Set<string> | Map<string, unknown>>(
@@ -104,14 +102,11 @@ const signedInSubtitle = (
   const notePreview = trimmed
     ? `Note: ${trimmed.length > 36 ? `${trimmed.slice(0, 36)}…` : trimmed}`
     : "";
-  // The note is about this sign-in, so it sits with its time, ahead of the
-  // person's own details.
   return [formatSignInTime(member.signInTime, multiDay), notePreview, info]
     .filter(Boolean)
     .join(" · ");
 };
 
-/** The people-icon count pill beside the Not signed in and Signed in headers. */
 function CountChip({
   count,
   accessibilityLabel,
@@ -135,10 +130,6 @@ function CountChip({
   );
 }
 
-/**
- * One event's roll call: Not signed in and Signed in lists, with a footer to
- * create a member while searching or to enable editing once the event ends.
- */
 export default function EventAttendanceScreen() {
   const t = useAppTheme();
   const router = useRouter();
@@ -165,7 +156,6 @@ export default function EventAttendanceScreen() {
     event ? { subgroup: eventSubgroup } : "skip"
   );
   const subgroups = useQuery(api.events.subgroups);
-  // Newcomer and Visitor tags from last night's Insights build.
   const signInTags = useQuery(api.weeklyInsights.signInTags, event ? { eventId: evId } : "skip");
   const tagsByKey = useMemo(
     () => new Map((signInTags ?? []).map((tag) => [tag.key, { label: tag.label, colour: tag.colour }])),
@@ -185,14 +175,10 @@ export default function EventAttendanceScreen() {
     Map<string, NonNullable<typeof attendance>[number]>
   >(new Map());
 
-  // Rows swiped away stay in their list until their space has closed, so a
-  // quick server reply can't pull them out mid-animation.
   const [leavingUnsigned, setLeavingUnsigned] = useState<Set<string>>(new Set());
   const [leavingSignedIn, setLeavingSignedIn] = useState<
     Map<string, NonNullable<typeof attendance>[number]>
   >(new Map());
-  // Bumped when a sign-in or sign-out fails, so the swiped-away row comes back
-  // as a fresh row instead of staying collapsed.
   const [rowRetries, setRowRetries] = useState<Map<string, number>>(new Map());
   const retryRow = (key: string) =>
     setRowRetries((prev) => new Map(prev).set(key, (prev.get(key) ?? 0) + 1));
@@ -227,20 +213,16 @@ export default function EventAttendanceScreen() {
     setEditUnlocked(false);
   }, [event?._id]);
 
-  // A ticking clock, so the screen notices the event ending while it's open
-  // and turns Sign out off once a sign-in's 10-minute undo grace runs out.
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setClock(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
   const pastEvent = event != null && eventHasEnded(event.dateEnd, clock);
-  // Tags describe people as of now, so a finished event doesn't show them.
   const tagFor = (key: string, memberId?: string | null) =>
     pastEvent ? undefined : (tagsByKey.get(key) ?? (memberId ? tagsByKey.get(`member:${memberId}`) : undefined));
   const canEdit = !pastEvent || editUnlocked;
   const { height: windowHeight } = useWindowDimensions();
-  // Measured beside the wide-screen sidebar, not across the whole window.
   const contentWidth = useContentWidth();
   const twoColumn = contentWidth >= TWO_COLUMN_MIN_WIDTH;
   const metaUnderTitle = contentWidth < META_BESIDE_TITLE_MIN_WIDTH;
@@ -278,8 +260,6 @@ export default function EventAttendanceScreen() {
     return map;
   }, [attendance]);
 
-  // One pending cleanup per row transition: a retry replaces the timer of the
-  // attempt before it, and a failure cancels it.
   const transitionTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   useEffect(() => {
     const timers = transitionTimers.current;
@@ -303,8 +283,6 @@ export default function EventAttendanceScreen() {
     transitionTimers.current.delete(id);
   };
 
-  // A change made on another device: once its row has left one list, the
-  // other list shows the real row in place, without fading it in again.
   const settleRemoteSignedIn = (key: string) => {
     cancelTransition(`remoteIn:${key}`);
     setRemoteSignedIn((s) => withoutKey(s, key));
@@ -363,8 +341,6 @@ export default function EventAttendanceScreen() {
       setOptimisticSignedOut((o) => { const n = new Set(o); for (const k of confirmedSignedOut) n.delete(k); return n.size < o.size ? n : o; });
       setSuppressUnsignedFadeIn((s) => { const n = new Set(s); for (const k of confirmedSignedOut) n.add(k); return n; });
     }
-    // The leaving row may be off the visible page (or filtered out by a
-    // search) and never report that it has finished, so these also expire.
     if (genuinelyRemoteSignedIn.length > 0) {
       setRemoteSignedIn((r) => { const n = new Set(r); for (const k of genuinelyRemoteSignedIn) n.add(k); return n; });
       for (const k of genuinelyRemoteSignedIn) {
@@ -396,8 +372,6 @@ export default function EventAttendanceScreen() {
   const hasFooter = (isSearching && canEdit) || pastEvent;
   const measureColumns = useCallback(() => {
     columnsRef.current?.measureInWindow((_x, y) => {
-      // Clear the footer (button plus any note) once it has been measured;
-      // footerHeight drops back to 0 when the footer goes away.
       const gap = footerClearance(
         footerHeight,
         insets.bottom + (hasFooter ? FOOTER_MIN_CLEARANCE : spacing.md)
@@ -427,8 +401,6 @@ export default function EventAttendanceScreen() {
   const signedInList = useMemo(() => {
     const enteringKeys = new Set([...optimisticSignedIn.keys(), ...remoteSignedIn]);
     const real = (attendance ?? []).filter((a) => !enteringKeys.has(personKey(a)));
-    // Rows on their way out keep their place (newest sign-in first, like the
-    // query) until their space has closed.
     const realKeys = new Set(real.map((a) => personKey(a)));
     const leaving = new Map<string, NonNullable<typeof attendance>[number]>();
     for (const [key, row] of [...leavingSignedIn, ...remoteSignedOut]) {
@@ -470,8 +442,6 @@ export default function EventAttendanceScreen() {
 
   const unsignedList = useMemo(() => {
     const enteringKeys = new Set([...optimisticSignedOut, ...remoteSignedOut.keys()]);
-    // Someone just signed in (here or elsewhere) stays in place until their
-    // row has finished leaving.
     const real = (roster ?? []).filter(
       (m) =>
         !enteringKeys.has(m.key) &&
@@ -732,8 +702,6 @@ export default function EventAttendanceScreen() {
     else if (a.email) void openEdit({ staffEmail: a.email, attendance: attendanceCtx });
   };
 
-  // Rows call back by key through one stable object, so a sign-in only
-  // re-renders the rows it changes (see RollCallRow).
   const rollCallImpl: RollCallHandlers = {
     actionStart: (mode, key) => {
       if (mode === "suggested") {
@@ -851,7 +819,6 @@ export default function EventAttendanceScreen() {
             handlers={rollCallHandlers}
           />
         );
-        // Not signed in sits above (or left of) Signed in, so it fades in first.
         return isAnimating || isSuppressed ? (
           <View key={rowKey}>{row}</View>
         ) : (
@@ -866,7 +833,6 @@ export default function EventAttendanceScreen() {
     </>
   );
 
-  // Signed in follows the rows visible in the Not signed in box.
   const signedInStaggerOffset = Math.min(visibleUnsigned.length, UNSIGNED_VISIBLE_ROWS);
   const multiDay = isMultiDayEvent(event.dateStart, event.dateEnd);
 
@@ -1254,8 +1220,6 @@ const styles = StyleSheet.create({
   badgeGroupRight: {
     justifyContent: "flex-end",
   },
-  // Tags keep their natural width (up to half the row) so subgroup pills wrap
-  // first instead of squeezing a short tag name onto two lines.
   tagGroup: {
     flexShrink: 0,
     maxWidth: "50%",

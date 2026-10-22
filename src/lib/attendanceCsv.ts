@@ -7,7 +7,6 @@ export type ExportEventForCsv = ExportEvent;
 
 const ATTENDEE_HEADERS = ["Sign In", "Name", "Email"] as const;
 
-/** Each sign-in's own notes (per event, not per member). */
 export const NOTES_HEADER = "Event notes";
 export const ATTENDANCE_PCT_HEADER = "Attendance %";
 

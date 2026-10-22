@@ -1,13 +1,10 @@
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
-import { capitalizeMemberName } from "../shared/rollcall";
 import { internalMutation } from "./_generated/server";
-import { auditStamp, logAttendanceAction, MAX_AUDIT_ATTENDANCE_LINES } from "./attendanceAudit";
+import { auditStamp, logAttendanceAction } from "./attendanceAudit";
 import { recountEventAttendance } from "./attendanceCounts";
 import { latestStaffProfile } from "./attendanceMembers";
 import { knownMemberId } from "./staffMembers";
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 const RESTORE_ACTOR = "system:attendance-restore";
 
@@ -17,7 +14,6 @@ const restoreRecord = v.object({
   email: v.optional(v.string()),
   signInTime: v.number(),
   notes: v.optional(v.string()),
-  /** Why this record is coming back, e.g. which audit entry it came from. */
   reason: v.string(),
 });
 
@@ -29,18 +25,6 @@ const restoreStatus = v.union(
   v.literal("needs one of memberId or email")
 );
 
-/**
- * Puts back attendance records that were deleted by mistake, e.g. with a
- * member who was deleted instead of merged. Each record names its event, the
- * person (a member id, or a staff email), and the original sign-in time taken
- * from the audit log or a backup.
- *
- * Dry run by default. Idempotent: a person already signed in to that event is
- * left alone, so it is safe to run twice. Every restored record is written to
- * the attendance audit log with its reason.
- *
- *   npx convex run --prod memberRepair:restoreAttendance "$(cat plan.json)"
- */
 export const restoreAttendance = internalMutation({
   args: { records: v.array(restoreRecord), dryRun: v.optional(v.boolean()) },
   returns: v.object({
@@ -109,74 +93,6 @@ export const restoreAttendance = internalMutation({
       });
     }
     return { dryRun, restored, results };
-  },
-});
-
-const NAME_ACTOR = "system:member-name-capitalize";
-
-/**
- * One-off backfill for names saved before members were capitalised on edit:
- * the first letter of each word becomes a capital ("jane doe" → "Jane Doe"),
- * the same rule the app now applies on every save. Letters that are already
- * capitals are left alone, so "McDonald" and "JANE DOE" stay as they are.
- *
- * Dry run by default. Processes `limit` members per call; pass the returned
- * `next` as `cursor` until it comes back null. Idempotent. Each batch that
- * renames anyone writes one audit entry listing the changes.
- *
- *   npx convex run --prod memberRepair:capitalizeMemberNames '{}'
- *   npx convex run --prod memberRepair:capitalizeMemberNames '{"dryRun":false}'
- */
-export const capitalizeMemberNames = internalMutation({
-  args: {
-    dryRun: v.optional(v.boolean()),
-    cursor: v.optional(v.string()),
-    limit: v.optional(v.number()),
-  },
-  returns: v.object({
-    dryRun: v.boolean(),
-    scanned: v.number(),
-    renamed: v.number(),
-    next: v.union(v.string(), v.null()),
-    changes: v.array(
-      v.object({ memberId: v.id("attendanceMembers"), from: v.string(), to: v.string() })
-    ),
-  }),
-  handler: async (ctx, { dryRun = true, cursor, limit = 500 }) => {
-    if (!Number.isInteger(limit) || limit < 1) {
-      throw new ConvexError("limit must be a positive whole number.");
-    }
-    const page = await ctx.db
-      .query("attendanceMembers")
-      .paginate({ numItems: limit, cursor: cursor ?? null });
-    const changes = [];
-    for (const row of page.page) {
-      const to = capitalizeMemberName(row.name.trim());
-      if (!to || to === row.name) continue;
-      changes.push({ memberId: row._id, from: row.name, to });
-      if (!dryRun) await ctx.db.patch(row._id, { name: to });
-    }
-    if (!dryRun && changes.length > 0) {
-      const listed = changes.slice(0, MAX_AUDIT_ATTENDANCE_LINES);
-      const more = changes.length - listed.length;
-      await logAttendanceAction(ctx, {
-        actorEmail: NAME_ACTOR,
-        entityType: "member",
-        action: "member.update",
-        summary: `Capitalised ${plural(changes.length, "member name")}`,
-        detail: [
-          ...listed.map((c) => `"${c.from}" → "${c.to}"`),
-          ...(more > 0 ? [`and ${more} more`] : []),
-        ].join("\n"),
-      });
-    }
-    return {
-      dryRun,
-      scanned: page.page.length,
-      renamed: changes.length,
-      next: page.isDone ? null : page.continueCursor,
-      changes,
-    };
   },
 });
 

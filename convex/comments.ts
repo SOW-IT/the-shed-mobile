@@ -145,8 +145,6 @@ async function unreadCountFor(
     )
     .unique();
   const lastReadAt = read?.lastReadAt ?? 0;
-  // `by_request` implicitly ends with `_creationTime`, so only the comments
-  // newer than the read marker are read at all.
   const unread = await ctx.db
     .query("requestComments")
     .withIndex("by_request", (q) =>

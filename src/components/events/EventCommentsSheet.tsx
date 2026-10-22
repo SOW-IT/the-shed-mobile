@@ -6,7 +6,6 @@ import { SUB_FORM_TEAMS, type SubFormKind } from "@shared/eventRequests";
 import { CommentThreadSheet } from "@/components/CommentThreadSheet";
 import { useRetained, useThreadActive } from "@/components/CommentsSheet";
 
-/** One of an event's form threads: the requester's side and the team that reviews it. */
 export const EventCommentsSheet = ({
   id,
   form,
@@ -16,7 +15,6 @@ export const EventCommentsSheet = ({
 }: {
   id: Id<"eventRequests">;
   form: SubFormKind;
-  /** Anyone who can see the event can read; only those in the thread can post. */
   canPost: boolean;
   visible: boolean;
   onClose: () => void;

@@ -1,8 +1,6 @@
 import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
-import { APP_LINK_MARKER, appLinkFor, NEWER_PAGES, WEB_ONLY_MARKER } from "../../shared/appLinks";
+import { appLinkFor, WEB_ONLY_MARKER } from "../../shared/appLinks";
 
-// Rendered at build time: the dev web build sets EXPO_PUBLIC_APP_VARIANT=staging
-// so phones are handed to The SHED Staging rather than the production app.
 const APP_LINK = appLinkFor(process.env.EXPO_PUBLIC_APP_VARIANT);
 
 export default function Root({ children }: { children: React.ReactNode }) {
@@ -30,20 +28,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
                   if (sessionStorage.getItem("shedAppBounce")) return;
                   sessionStorage.setItem("shedAppBounce", "1");
                 } catch (e) {}
-                // Pages newer than some installed apps stay here unless the link
-                // says this person's app can open them (an older app shows
-                // "Unmatched Route"). The flag above is still set, so a sign-in
-                // on this page isn't handed to the app either.
-                var newer = ${JSON.stringify(NEWER_PAGES.map((p) => p.prefix))};
-                if (location.hash !== ${JSON.stringify(APP_LINK_MARKER)}) {
-                  for (var i = 0; i < newer.length; i++) {
-                    var p = newer[i];
-                    if (location.pathname === p || location.pathname.indexOf(p + "/") === 0) return;
-                  }
-                }
-                // A Google sign-in code arriving on a fresh page is usually the
-                // app's sign-in sheet landing here: it goes to this deployment's
-                // app, and the page holds off using it (a code works once).
+                if (location.pathname === "/checkin" || location.pathname.indexOf("/checkin/") === 0) return;
                 var handback = /[?&]code=/.test(location.search);
                 if (handback) window.__shedCodeToApp = true;
 
@@ -54,7 +39,6 @@ export default function Root({ children }: { children: React.ReactNode }) {
 
                   var fallback = setTimeout(function () {
                     if (handback) {
-                      // No app took it: let the web page sign in with it.
                       window.__shedCodeToApp = false;
                       window.dispatchEvent(new Event("shed-code-fallback"));
                       return;
@@ -64,8 +48,6 @@ export default function Root({ children }: { children: React.ReactNode }) {
                   }, handback ? 2500 : 2000);
                   var cancel = function () { clearTimeout(fallback); };
                   if (handback) {
-                    // Hidden mid-handback means an app came forward with the
-                    // code: stop waiting, and don't let the page spend it too.
                     var taken = function () {
                       if (!window.__shedCodeToApp) return;
                       cancel();
@@ -90,8 +72,6 @@ export default function Root({ children }: { children: React.ReactNode }) {
                   window.location = appUrl;
                 }
 
-                // After load: leaving mid-load would abort the page, leaving
-                // nothing to sign in with if no app takes the code.
                 if (document.readyState === "complete") bounce();
                 else window.addEventListener("load", bounce);
               })();

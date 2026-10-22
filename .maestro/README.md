@@ -172,19 +172,8 @@ and does full-string regex — hence the `.*…*` patterns for labels with badge
 
 Google OAuth runs inside `ASWebAuthenticationSession`. Google actively blocks
 scripted sign-in and injects 2FA/consent steps, so driving the web form
-(`common/sign-in-google.yaml`) is **best-effort and flaky**. For a reliable
-signed-in suite, add one of these to the **staging build only**:
-
-- **Auth bypass via launch arg / env** — read a pre-minted session token when a
-  `E2E_AUTH_TOKEN` (or similar) launch argument is present, and skip OAuth.
-  Then replace the body of `common/sign-in-google.yaml` with a single
-  `launchApp` + `arguments:` block or a `${SCHEME}://auth?token=…` deep link.
-- **Pre-authenticated build** — ship a build whose session is already persisted
-  for each role; then sign-in subflows become no-ops and flows start from
-  `launch-keep-state.yaml`.
-
-Until a bypass exists, run the `public` tag in CI and the signed-in tags
-locally/manually.
+(`common/sign-in-google.yaml`) is **best-effort and flaky**. Signed-in flows
+use the bypass below instead.
 
 ### The auth bypass (implemented)
 

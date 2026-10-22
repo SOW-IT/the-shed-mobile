@@ -1,6 +1,3 @@
-# §5.10 Export — group export (date range + tag/metadata filters) and event
-# export. The CSV download itself lands in the OS share sheet / Files (not
-# assertable in Maestro); this flow drives the Export sheet UI.
 appId: ${APP_ID}
 tags:
   - staff
@@ -16,11 +13,6 @@ tags:
 - assertVisible:
     text: ".*(Export|Date range|Metadata).*"
 
-# Notes and every metadata column (including Year/Gender/Campus/Role) are
-# toggleable; identity columns stay locked. CSV inclusion is covered by
-# src/lib/attendanceCsv.test.ts. Here we just confirm the sheet opens and
-# metadata checkboxes render. Only the locked "Sign In" checkbox is above
-# the fold — Name/Email/Notes are further down.
 - scrollUntilVisible:
     element:
       text: ".*Notes.*"

@@ -7,10 +7,6 @@ import {
   type ViewSegmentPoint,
 } from "./attendanceMetricsView";
 
-// Insights → General, laid out on the server like the Attendance tab (see
-// attendanceMetricsView.ts). The app draws the blocks; wording, order and which
-// charts appear ship with a Convex deploy.
-
 type Series = {
   overall: (number | null)[];
   staff: (number | null)[];
@@ -100,9 +96,6 @@ const comparisonLabel = (years: number[], i: number): ViewBlock => ({
   text: i > 0 ? `${years[i]} vs ${years[i - 1]}` : String(years[i]),
 });
 
-// The per-group cards for one staff year: retention and average years served,
-// split into overall, staff and student leaders. Deltas compare with the year
-// before; the comparison itself is labelled once, not on every card.
 function rateCards(
   series: Series,
   i: number,
@@ -121,18 +114,12 @@ function groupChart(
   years: number[],
   start: number,
   series: Series,
-  opts: { lines: boolean; axisMax?: number; unit?: string }
+  opts: { axisMax?: number; unit?: string } = {}
 ): ViewBlock | null {
-  const groups = opts.lines
-    ? [
-        { item: STAFF, values: series.staff },
-        { item: LEADERS, values: series.studentLeaders },
-      ]
-    : [
-        { item: OVERALL, values: series.overall },
-        { item: STAFF, values: series.staff },
-        { item: LEADERS, values: series.studentLeaders },
-      ];
+  const groups = [
+    { item: STAFF, values: series.staff },
+    { item: LEADERS, values: series.studentLeaders },
+  ];
   const points = years
     .map((y, i) => ({
       at: y,
@@ -142,18 +129,16 @@ function groupChart(
         .map(({ item, values }) => ({ key: item.key, value: values[start + i], colour: item.colour }))
         .filter((seg): seg is { key: string; value: number; colour: string } => seg.value !== null),
     }))
-    .filter((p) => p.segments.length > 0 || (opts.lines && p.overall !== null));
+    .filter((p) => p.segments.length > 0 || p.overall !== null);
   if (points.length === 0) return null;
   return {
     type: "multiBars",
     title,
-    legend: opts.lines ? [{ ...OVERALL, shape: "line" }, STAFF, LEADERS] : [OVERALL, STAFF, LEADERS],
+    legend: [{ ...OVERALL, shape: "line" }, STAFF, LEADERS],
     points: points.map(({ at, label, segments }) => ({ at, label, segments })),
     stacked: false,
     keepZeros: true,
-    ...(opts.lines
-      ? { line: { key: OVERALL.key, colour: OVERALL.colour, values: points.map((p) => p.overall) } }
-      : {}),
+    line: { key: OVERALL.key, colour: OVERALL.colour, values: points.map((p) => p.overall) },
     ...(opts.axisMax !== undefined ? { axisMax: opts.axisMax } : {}),
     ...(opts.unit ? { unit: opts.unit } : {}),
   };
@@ -162,8 +147,7 @@ function groupChart(
 function allYearsView(
   trends: StaffTrendsData,
   campusAttendance: CampusAttendanceData | null,
-  scope: GeneralScope,
-  lines: boolean
+  scope: GeneralScope
 ): ViewBlock[] {
   const trendYearCount = scope === "all" ? Number.POSITIVE_INFINITY : GENERAL_RECENT_YEARS;
   const start =
@@ -189,7 +173,7 @@ function allYearsView(
   const campusSeries = trends.studentLeadersByCampus.filter(
     (c) => !isNoiseCampus(c.campus) && years.some((_, i) => c.counts[idx(i)] > 0)
   );
-  const people = groupChart("Staff & student leaders", years, start, headcount, { lines });
+  const people = groupChart("Staff & student leaders", years, start, headcount);
   if (people) blocks.push(people);
   if (campusSeries.length > 0) {
     blocks.push({
@@ -214,7 +198,7 @@ function allYearsView(
   }
 
   const retentionCards = rateCards(trends.retention, last, fmtPct, ppDelta);
-  const retentionChart = groupChart("Retention", years, start, trends.retention, { lines, axisMax: 100, unit: "%" });
+  const retentionChart = groupChart("Retention", years, start, trends.retention, { axisMax: 100, unit: "%" });
   if (retentionCards.length > 0 || retentionChart) {
     blocks.push({ type: "heading", text: "Retention" });
     if (retentionCards.length > 0) blocks.push({ type: "cards", cards: retentionCards });
@@ -223,8 +207,8 @@ function allYearsView(
 
   const avgYearsCards = rateCards(trends.avgTenureYears, last, fmtAvg, yearsDelta);
   const yearsCharts = [
-    groupChart("Average years served", years, start, trends.avgTenureYears, { lines }),
-    groupChart("Served 2+ years", years, start, trends.tenure2Plus, { lines, axisMax: 100, unit: "%" }),
+    groupChart("Average years served", years, start, trends.avgTenureYears),
+    groupChart("Served 2+ years", years, start, trends.tenure2Plus, { axisMax: 100, unit: "%" }),
   ].filter((c): c is ViewBlock => c !== null);
   if (avgYearsCards.length > 0 || yearsCharts.length > 0) {
     blocks.push({ type: "heading", text: "Years served" });
@@ -325,7 +309,6 @@ function yearView(
       blocks.push({ type: "label", text: "Served 2+ years" }, { type: "cards", cards: twoPlus });
     }
   }
-  // Weekly meetings run on the calendar year, so this is calendar `year`.
   const caIndex = campusAttendance ? campusAttendance.years.indexOf(year) : -1;
   const attendance: ViewCard[] =
     campusAttendance && caIndex >= 0
@@ -352,9 +335,8 @@ export function buildGeneralView(input: {
   campusAttendance: CampusAttendanceData | null;
   scope: GeneralScope;
   signedIn: boolean;
-  lines?: boolean;
 }): ViewBlock[] {
-  const { trends, campusAttendance, scope, signedIn, lines = false } = input;
+  const { trends, campusAttendance, scope, signedIn } = input;
   if (trends.years.length === 0) {
     return [
       {
@@ -369,5 +351,5 @@ export function buildGeneralView(input: {
   if (signedIn && typeof scope === "number" && yearIndex >= 0) {
     return yearView(trends, campusAttendance, scope, yearIndex);
   }
-  return allYearsView(trends, campusAttendance, scope, lines);
+  return allYearsView(trends, campusAttendance, scope);
 }

@@ -8,8 +8,6 @@ import type { MutationCtx } from "./_generated/server";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -69,7 +67,6 @@ async function setup() {
   return { t, leader };
 }
 
-// A campus's weeklies index row, as weeklyInsights.rebuild writes it.
 const weeklyIndex = (
   ctx: MutationCtx,
   subgroup: string,
@@ -114,7 +111,6 @@ describe("attendanceMetrics", () => {
     for (const year of [2026, 2027]) {
       expect(scheduled).toContainEqual({ subgroup: SOW_SUBGROUP, staffYear: year });
     }
-    // Campuses are built from their weeklies by weeklyInsights.rebuildAll.
     expect(scheduled.some((j) => j.subgroup === USYD)).toBe(true);
   });
 
@@ -334,8 +330,6 @@ describe("attendanceMetrics", () => {
       subgroup: USYD,
     });
 
-    // Leaders come from staff profiles: Student Leader typed on a plain
-    // member isn't kept, so Tagged Leader counts with everyone else.
     const snap = await snapshotOf(t, USYD, 4);
     expect(snap!.data.leadersVsOthers).toEqual([
       expect.objectContaining({ primary: 2, rest: 3 }),
@@ -671,7 +665,6 @@ describe("campus weekly averages in the SOW view", () => {
       await weeklyIndex(ctx, USYD, [
         { at: now - 2 * DAY, count: 10, joint: false },
         { at: now - 9 * DAY, count: 15, joint: false },
-        // Joint, and outside the 4-week range respectively.
         { at: now - 16 * DAY, count: 100, joint: true },
         { at: now - 60 * DAY, count: 99, joint: false },
       ]);

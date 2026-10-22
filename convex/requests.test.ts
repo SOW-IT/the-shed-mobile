@@ -13,8 +13,7 @@ import { linkUserProfiles } from "./userLink";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
+const FIRST_PAGE = { paginationOpts: { numItems: 50, cursor: null } };
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -387,8 +386,8 @@ describe("approver delegation (out-of-office cover)", () => {
 
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(1);
-    const henryFeed = await asUser(t, HENRY).query(api.notifications.list, {});
-    const rachelFeed = await asUser(t, RACHEL).query(api.notifications.list, {});
+    const henryFeed = await asUser(t, HENRY).query(api.notifications.feed, FIRST_PAGE).then((r) => r?.page);
+    const rachelFeed = await asUser(t, RACHEL).query(api.notifications.feed, FIRST_PAGE).then((r) => r?.page);
     expect(henryFeed![0].title).toMatch(/approval/i);
     expect(rachelFeed![0].title).toMatch(/approval/i);
   });
@@ -400,7 +399,7 @@ describe("in-app notifications", () => {
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(0);
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
-    const feed = await asUser(t, HENRY).query(api.notifications.list, {});
+    const feed = await asUser(t, HENRY).query(api.notifications.feed, FIRST_PAGE).then((r) => r?.page);
     expect(feed).toHaveLength(1);
     expect(feed![0].read).toBe(false);
     expect(feed![0].title).toMatch(/approval/i);
@@ -411,7 +410,7 @@ describe("in-app notifications", () => {
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "a", amount: 100 });
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "b", amount: 200 });
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(2);
-    const feed = await asUser(t, HENRY).query(api.notifications.list, {});
+    const feed = await asUser(t, HENRY).query(api.notifications.feed, FIRST_PAGE).then((r) => r?.page);
     await asUser(t, HENRY).mutation(api.notifications.markRead, { id: feed![0].id });
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
     const marked = await asUser(t, HENRY).mutation(api.notifications.markAllRead, {});
@@ -424,7 +423,7 @@ describe("in-app notifications", () => {
   test("a notification can only be marked read by its owner", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
-    const feed = await asUser(t, HENRY).query(api.notifications.list, {});
+    const feed = await asUser(t, HENRY).query(api.notifications.feed, FIRST_PAGE).then((r) => r?.page);
     await expect(
       asUser(t, RACHEL).mutation(api.notifications.markRead, { id: feed![0].id })
     ).rejects.toThrow();

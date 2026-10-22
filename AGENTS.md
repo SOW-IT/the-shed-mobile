@@ -21,7 +21,8 @@ Convex agent skills for common tasks can be installed by running
 Expo (RN) + Convex; the same TS serves iOS/Android/web. Node 22, npm only.
 Commands are in `README.md` / `package.json`. Checks need no backend
 (`convex-test` is in-memory): `npm run lint`, `npm run typecheck`,
-`npm run test:coverage` — CI runs the same three with coverage thresholds.
+`npm run test:coverage`. CI runs the same three with coverage thresholds, plus
+`EXPO_OFFLINE=1 npx expo install --check` and the web sweep.
 
 Submitting a reimbursement request needs a Head for its department, a Finance
 Head, and a Budget Manager (Admin → "Other"; picker lists Finance members only).
