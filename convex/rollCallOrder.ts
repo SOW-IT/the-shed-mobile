@@ -14,6 +14,7 @@ const DAY_MS = 86_400_000;
 const MAX_RANKED_MEMBERS = 150;
 const UPCOMING_MS = 7 * DAY_MS;
 const LONGEST_EVENT_MS = 14 * DAY_MS;
+const MAX_UPCOMING_EVENTS = 200;
 
 export const likelihoodTarget = (event: Doc<"events">): LikelihoodEvent => ({
   eventId: event._id,
@@ -85,12 +86,13 @@ export const rank = internalMutation({
 });
 
 export async function rankUpcomingEvents(ctx: MutationCtx, history: RosterHistory, now: number) {
-  const events = await ctx.db
+  let ranked = 0;
+  for await (const event of ctx.db
     .query("events")
-    .withIndex("by_dateStart", (q) => q.gte("dateStart", now - LONGEST_EVENT_MS).lt("dateStart", now + UPCOMING_MS))
-    .take(200);
-  for (const event of events) {
-    if (event.dateEnd >= now) await rankEvent(ctx, event, history);
+    .withIndex("by_dateStart", (q) => q.gte("dateStart", now - LONGEST_EVENT_MS).lt("dateStart", now + UPCOMING_MS))) {
+    if (event.dateEnd < now) continue;
+    await rankEvent(ctx, event, history);
+    if (++ranked >= MAX_UPCOMING_EVENTS) break;
   }
 }
 

@@ -230,6 +230,28 @@ describe("roll call order", () => {
     expect(await orderOf(t, over)).toBeNull();
   });
 
+  test("events that have ended don't use up the nightly run's cap", async () => {
+    const { t } = await setup();
+    const soon = await t.run(async (ctx) => {
+      for (let i = 0; i < 205; i++) {
+        await ctx.db.insert("events", {
+          name: `Ended ${i}`,
+          dateStart: PINNED_NOW - 2 * DAY + i * 1000,
+          dateEnd: PINNED_NOW - DAY,
+          subgroups: [USYD],
+        });
+      }
+      return await ctx.db.insert("events", {
+        name: "Soon",
+        dateStart: PINNED_NOW + 3 * DAY,
+        dateEnd: PINNED_NOW + 3 * DAY + HOUR,
+        subgroups: [USYD],
+      });
+    });
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    expect(await orderOf(t, soon)).not.toBeNull();
+  });
+
   test("deleting an event deletes its order", async () => {
     const { t, admin } = await setup();
     const eventId = await createEvent(admin);
