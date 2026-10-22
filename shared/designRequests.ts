@@ -8,8 +8,6 @@ export const MARKETING = "Marketing";
 
 export const MARKETING_TEAM_EMAIL = "marketing@sow.org.au";
 
-export const EARLIEST_DESIGN_REQUEST_YEAR = 2022;
-
 export type DesignRequestStatus =
   | "PENDING"
   | "APPROVED"
@@ -25,9 +23,9 @@ export const DESIGN_STATUS_LABELS: Record<DesignRequestStatus, string> = {
   CANCELLED: "Cancelled",
 };
 
-export type DesignStepState = "done" | "declined" | "current" | "todo";
+type DesignStepState = "done" | "declined" | "current" | "todo";
 
-export type DesignStep = {
+type DesignStep = {
   key: "submitted" | "decided" | "completed";
   label: string;
   state: DesignStepState;

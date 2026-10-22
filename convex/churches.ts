@@ -21,6 +21,7 @@ import {
   sortServices,
 } from "../shared/churches";
 import { assignmentsOf, MEMBER, roleNeedsUniversity } from "../shared/flow";
+import { ALUMNI } from "../shared/memberRole";
 import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import {
@@ -178,8 +179,6 @@ const LEADER_ROLES = [
   "Student Leader",
   "Outsource",
 ];
-
-export const ALUMNI = "Alumni";
 
 export const roleRank = (role: string) => {
   if (role === MEMBER) return LEADER_ROLES.length + 1;

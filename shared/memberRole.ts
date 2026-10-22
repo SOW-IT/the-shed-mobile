@@ -9,7 +9,7 @@ import {
 } from "./weeklyInsights";
 
 export const ALUMNI = "Alumni";
-export const VISITOR = MARKED_VISITOR;
+const VISITOR = MARKED_VISITOR;
 
 export const MARKED_ROLES = [VISITOR, ALUMNI] as const;
 export type MarkedRole = (typeof MARKED_ROLES)[number];

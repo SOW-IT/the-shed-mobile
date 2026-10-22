@@ -270,7 +270,7 @@ export function ChurchForm({
   );
 }
 
-export type ChurchVisibility = "yours-public" | "yours-leaders" | "member" | "staff-record";
+type ChurchVisibility = "yours-public" | "yours-leaders" | "member" | "staff-record";
 
 const VISIBILITY_NOTES: Record<ChurchVisibility, string> = {
   "yours-public": "Anyone using The SHED can see your church, with your name, on the Churches page.",
@@ -279,7 +279,7 @@ const VISIBILITY_NOTES: Record<ChurchVisibility, string> = {
   "staff-record": "They're on staff this year, so their church shows with their name on the Churches page for anyone using The SHED.",
 };
 
-export function ChurchVisibilityNote({ visibility }: { visibility: ChurchVisibility }) {
+function ChurchVisibilityNote({ visibility }: { visibility: ChurchVisibility }) {
   const t = useAppTheme();
   const open = visibility === "yours-public" || visibility === "staff-record";
   return (

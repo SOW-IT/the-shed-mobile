@@ -25,13 +25,13 @@ const webOrigin = (): string =>
     ? window.location.origin
     : appLinkForScheme(appScheme()).web;
 
-export const checkInUrl = (token: string) => `${webOrigin()}/checkin/${token}`;
+const checkInUrl = (token: string) => `${webOrigin()}/checkin/${token}`;
 
 export function useCheckInPending(eventId: Id<"events">) {
   return useQuery(api.checkIn.pending, { eventId });
 }
 
-export type CheckInMember = MemberChoice & { subtitle?: string };
+type CheckInMember = MemberChoice & { subtitle?: string };
 
 type PendingRow = NonNullable<ReturnType<typeof useCheckInPending>>[number];
 

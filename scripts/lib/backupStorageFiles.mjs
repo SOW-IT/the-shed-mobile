@@ -1,7 +1,7 @@
-export const MANIFEST_VERSION = 1;
+const MANIFEST_VERSION = 1;
 export const DEFAULT_PREFIX = "storage";
 export const DEFAULT_PAGE_SIZE = 100;
-export const FALLBACK_CONTENT_TYPE = "application/octet-stream";
+const FALLBACK_CONTENT_TYPE = "application/octet-stream";
 
 export const emptyManifest = () => ({
   version: MANIFEST_VERSION,

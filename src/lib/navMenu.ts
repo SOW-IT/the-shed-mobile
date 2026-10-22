@@ -73,17 +73,11 @@ export const navViewer = (signedIn: boolean, me: MeForNav): NavViewer => {
 export const showsReimbursements = (viewer: NavViewer) =>
   viewer.isStaff && !viewer.isCampusLeader;
 
-export const showsDesignRequests = showsReimbursements;
-
-export const showsEventRequests = showsReimbursements;
-
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = ["profile"];
   if (viewer.isStaff) items.push("churches");
-  if (showsReimbursements(viewer)) items.push("reimbursements");
-  if (showsEventRequests(viewer)) items.push("eventRequests");
-  if (showsDesignRequests(viewer)) items.push("designRequests");
+  if (showsReimbursements(viewer)) items.push("reimbursements", "eventRequests", "designRequests");
   if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
   return items;
@@ -91,9 +85,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
 
 export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
-  if (showsReimbursements(viewer)) items.push("reimbursements");
-  if (showsEventRequests(viewer)) items.push("eventRequests");
-  if (showsDesignRequests(viewer)) items.push("designRequests");
+  if (showsReimbursements(viewer)) items.push("reimbursements", "eventRequests", "designRequests");
   if (viewer.isStaff) items.push("attendance");
   items.push("insights", "org", "churches");
   if (viewer.signedIn) items.push("profile");

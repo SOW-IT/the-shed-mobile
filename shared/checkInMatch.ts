@@ -21,7 +21,7 @@ export const levelForCommencement = (
 export const commencementForLevel = (level: CheckInYearLevel, calendarYear: number): number =>
   commencementYearFromLevel(level, calendarYear)!;
 
-export type CheckInNameMatch = NameMatch | "first" | "last";
+type CheckInNameMatch = NameMatch | "first" | "last";
 
 const MATCH_ORDER: readonly CheckInNameMatch[] = [...NAME_MATCHES, "first", "last"];
 
@@ -35,9 +35,9 @@ export const checkInNameMatch = (typed: string[], member: string[]): CheckInName
 
 export type MemberChoice = { memberId: string; name: string; university?: string | null };
 
-export type MemberSuggestion<T extends MemberChoice> = T & { match: CheckInNameMatch };
+type MemberSuggestion<T extends MemberChoice> = T & { match: CheckInNameMatch };
 
-export const SUGGESTION_LIMIT = 4;
+const SUGGESTION_LIMIT = 4;
 
 export function suggestMembers<T extends MemberChoice>(
   name: string,
@@ -63,7 +63,7 @@ export function suggestMembers<T extends MemberChoice>(
     .slice(0, limit);
 }
 
-export const SEARCH_LIMIT = 30;
+const SEARCH_LIMIT = 30;
 
 export function searchMembers<T extends MemberChoice>(
   query: string,

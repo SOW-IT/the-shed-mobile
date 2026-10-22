@@ -66,8 +66,8 @@ export const sameCampus = (a: string | undefined, b: string | undefined): boolea
   return x === y;
 };
 
-export type DuplicateCandidate = { id: string; words: string[]; campus?: string };
-export type DuplicatePair<T extends DuplicateCandidate> = { a: T; b: T; match: NameMatch };
+type DuplicateCandidate = { id: string; words: string[]; campus?: string };
+type DuplicatePair<T extends DuplicateCandidate> = { a: T; b: T; match: NameMatch };
 
 export function duplicatePairs<T extends DuplicateCandidate>(people: readonly T[]): DuplicatePair<T>[] {
   const buckets = new Map<string, T[]>();

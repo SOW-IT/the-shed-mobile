@@ -2,7 +2,7 @@ import { SIGN_IN_UNDO_GRACE_MS } from "./rollcall";
 
 const OPENS_BEFORE_MS = 2 * 60 * 60 * 1000;
 
-export type CheckInPhase = "before" | "open" | "after";
+type CheckInPhase = "before" | "open" | "after";
 
 export const checkInWindow = (event: { dateStart: number; dateEnd: number }) => ({
   opensAt: event.dateStart - OPENS_BEFORE_MS,

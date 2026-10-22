@@ -178,17 +178,6 @@ export const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: radius.md,
   },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    alignSelf: "flex-start",
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  chipDot: { width: 6, height: 6, borderRadius: 3 },
-  chipText: { fontSize: 11.5, fontWeight: "700", letterSpacing: 0.2 },
   error: {
     flexDirection: "row",
     alignItems: "center",

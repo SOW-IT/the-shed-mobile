@@ -84,7 +84,7 @@ const hexToRgba = (hex: string, alpha: number): string => {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 };
 
-export const shadowStyle = (
+const shadowStyle = (
   color: string,
   opacity: number,
   radius: number,

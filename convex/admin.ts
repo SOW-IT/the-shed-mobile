@@ -27,7 +27,7 @@ import {
   STAFF_ROLE,
   STAFF_SIDE_ROLES,
 } from "../shared/flow";
-import { displayNameFromEmail, normalizeSubgroups, personDisplayName, SOW_SUBGROUP } from "../shared/rollcall";
+import { personDisplayName } from "../shared/rollcall";
 import {
   previousStaffYearByEmailKey,
   previousStaffYearForEmail,
@@ -330,24 +330,6 @@ const renameDepartmentInFormRequests = async (
       answers: withRenamedDepartment(design.answers, designKey, oldName, newName),
     });
   }
-};
-
-const stripAssignmentsInProfiles = async (
-  ctx: MutationCtx,
-  year: number,
-  remove: (assignment: Assignment) => boolean
-): Promise<number> => {
-  let touched = 0;
-  for await (const profile of ctx.db
-    .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", year))) {
-    const current = assignmentsOf(profile);
-    const kept = current.filter((a) => !remove(a));
-    if (kept.length === current.length) continue;
-    await patchFromAssignments(ctx, profile, kept);
-    touched++;
-  }
-  return touched;
 };
 
 const assertNobodyHolds = async (
@@ -979,45 +961,6 @@ export const upsertUniversity = mutation({
   },
 });
 
-export const ensureUniversity = internalMutation({
-  args: { year: v.number(), name: v.string() },
-  handler: async (ctx, args) => {
-    const name = args.name.trim();
-    if (!name) throw new ConvexError("University name is required.");
-    const existing = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
-      .first();
-    if (existing) {
-      return { id: existing._id, created: false as const, year: args.year, name };
-    }
-    const id = await ctx.db.insert("universities", { year: args.year, name });
-    return { id, created: true as const, year: args.year, name };
-  },
-});
-
-export const removeUniversityRow = internalMutation({
-  args: { year: v.number(), name: v.string() },
-  handler: async (ctx, args) => {
-    const name = args.name.trim();
-    if (!name) throw new ConvexError("University name is required.");
-    const university = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
-      .first();
-    if (!university) {
-      return { removed: false as const, year: args.year, name, profilesTouched: 0 };
-    }
-    const profilesTouched = await stripAssignmentsInProfiles(
-      ctx,
-      args.year,
-      (a) => a.university === name
-    );
-    await ctx.db.delete("universities", university._id);
-    return { removed: true as const, year: args.year, name, profilesTouched };
-  },
-});
-
 export const updateUniversity = mutation({
   args: { year: v.number(), oldName: v.string(), newName: v.string() },
   handler: async (ctx, args) => {
@@ -1448,47 +1391,6 @@ export const setEventDirectorThreshold = mutation({
       year: args.year,
       eventDirectorApprovalThreshold: args.amount,
     });
-  },
-});
-
-export const fillTagScopesWithAllGroups = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const tags = await ctx.db.query("attendanceTags").collect();
-    const universities = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear()))
-      .take(1000);
-    const allGroups = normalizeSubgroups([
-      SOW_SUBGROUP,
-      ...universities.map((u) => u.name),
-    ]);
-    let filled = 0;
-    if (allGroups.length > 0) {
-      for (const tag of tags) {
-        if (tag.subgroups?.length) continue;
-        await ctx.db.patch(tag._id, { subgroups: allGroups });
-        filled++;
-      }
-    }
-    return { filled, total: tags.length };
-  },
-});
-
-export const nameStaffProfilesFromEmail = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const profiles = await ctx.db.query("staffProfiles").collect();
-    let updated = 0;
-    for (const p of profiles) {
-      const name = p.name?.trim();
-      if (name && name.toLowerCase() !== p.email.toLowerCase()) continue;
-      const derived = displayNameFromEmail(p.email);
-      if (!derived) continue;
-      await ctx.db.patch(p._id, { name: derived });
-      updated++;
-    }
-    return { updated, total: profiles.length };
   },
 });
 

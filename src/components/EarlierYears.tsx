@@ -16,7 +16,7 @@ type EarlierQuery<Row> = FunctionReference<
   EarlierPage<Row> | null
 >;
 
-export type YearGroup<Row> = { year: number; rows: Row[] };
+type YearGroup<Row> = { year: number; rows: Row[] };
 
 export function useEarlierYears<Row extends { _id: string }>(
   query: EarlierQuery<Row>,

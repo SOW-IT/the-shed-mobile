@@ -1,5 +1,5 @@
-export const DATABASE_BANDWIDTH_COLUMN = 5;
-export const DEPLOYMENT_COLUMN = 12;
+const DATABASE_BANDWIDTH_COLUMN = 5;
+const DEPLOYMENT_COLUMN = 12;
 
 const bytesOf = (raw) => {
   if (typeof raw === "number") return raw;

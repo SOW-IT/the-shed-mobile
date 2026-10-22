@@ -1,13 +1,10 @@
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
-import { capitalizeMemberName } from "../shared/rollcall";
 import { internalMutation } from "./_generated/server";
-import { auditStamp, logAttendanceAction, MAX_AUDIT_ATTENDANCE_LINES } from "./attendanceAudit";
+import { auditStamp, logAttendanceAction } from "./attendanceAudit";
 import { recountEventAttendance } from "./attendanceCounts";
 import { latestStaffProfile } from "./attendanceMembers";
 import { knownMemberId } from "./staffMembers";
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 const RESTORE_ACTOR = "system:attendance-restore";
 
@@ -96,61 +93,6 @@ export const restoreAttendance = internalMutation({
       });
     }
     return { dryRun, restored, results };
-  },
-});
-
-const NAME_ACTOR = "system:member-name-capitalize";
-
-export const capitalizeMemberNames = internalMutation({
-  args: {
-    dryRun: v.optional(v.boolean()),
-    cursor: v.optional(v.string()),
-    limit: v.optional(v.number()),
-  },
-  returns: v.object({
-    dryRun: v.boolean(),
-    scanned: v.number(),
-    renamed: v.number(),
-    next: v.union(v.string(), v.null()),
-    changes: v.array(
-      v.object({ memberId: v.id("attendanceMembers"), from: v.string(), to: v.string() })
-    ),
-  }),
-  handler: async (ctx, { dryRun = true, cursor, limit = 500 }) => {
-    if (!Number.isInteger(limit) || limit < 1) {
-      throw new ConvexError("limit must be a positive whole number.");
-    }
-    const page = await ctx.db
-      .query("attendanceMembers")
-      .paginate({ numItems: limit, cursor: cursor ?? null });
-    const changes = [];
-    for (const row of page.page) {
-      const to = capitalizeMemberName(row.name.trim());
-      if (!to || to === row.name) continue;
-      changes.push({ memberId: row._id, from: row.name, to });
-      if (!dryRun) await ctx.db.patch(row._id, { name: to });
-    }
-    if (!dryRun && changes.length > 0) {
-      const listed = changes.slice(0, MAX_AUDIT_ATTENDANCE_LINES);
-      const more = changes.length - listed.length;
-      await logAttendanceAction(ctx, {
-        actorEmail: NAME_ACTOR,
-        entityType: "member",
-        action: "member.update",
-        summary: `Capitalised ${plural(changes.length, "member name")}`,
-        detail: [
-          ...listed.map((c) => `"${c.from}" → "${c.to}"`),
-          ...(more > 0 ? [`and ${more} more`] : []),
-        ].join("\n"),
-      });
-    }
-    return {
-      dryRun,
-      scanned: page.page.length,
-      renamed: changes.length,
-      next: page.isDone ? null : page.continueCursor,
-      changes,
-    };
   },
 });
 

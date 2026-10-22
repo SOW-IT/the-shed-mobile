@@ -1,7 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
 import { optionalEmail, optionalProfile, requireProfile } from "./model";
 
 const UNREAD_PROBE = 100;
@@ -36,11 +36,6 @@ export const unreadCountOf = async (ctx: QueryCtx, email: string): Promise<numbe
       .withIndex("by_user_and_read", (q) => q.eq("userEmail", email).eq("read", false))
       .take(UNREAD_PROBE)
   ).length;
-
-export const unreadCountFor = internalQuery({
-  args: { email: v.string() },
-  handler: async (ctx, args) => await unreadCountOf(ctx, args.email),
-});
 
 export const unreadCount = query({
   args: {},

@@ -331,7 +331,7 @@ export const Checkbox = ({
   );
 };
 
-export const YearPill = ({
+const YearPill = ({
   year,
   years,
   onSelect,

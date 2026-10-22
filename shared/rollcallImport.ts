@@ -1,4 +1,4 @@
-export const normalizedEmail = (email: string | undefined): string | undefined => {
+const normalizedEmail = (email: string | undefined): string | undefined => {
   const lower = email?.trim().toLowerCase();
   return lower && lower.includes("@") ? lower : undefined;
 };
