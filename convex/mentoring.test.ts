@@ -538,6 +538,20 @@ describe("importLegacy", () => {
     expect(after.pairs[0]).toMatchObject({ mentor: { email: SID }, imported: false });
   });
 
+  test("a pairing changed in the app is kept without creating an external mentor", async () => {
+    const { t, admin } = await setup();
+    await admin.mutation(api.mentoring.setMentor, {
+      year: YEAR,
+      menteeEmail: CARA,
+      mentor: { kind: "leader", email: SID },
+    });
+    const result = await t.mutation(internal.mentoringImport.importLegacy, {
+      pairs: [pair(YEAR, { uid: "c", email: CARA }, { uid: "gone", name: "Old Mentor" })],
+    });
+    expect(result).toMatchObject({ kept: 1, inserted: 0, externalsCreated: 0 });
+    expect(await admin.query(api.mentoring.externalMentors, {})).toEqual([]);
+  });
+
   test("reuses an external mentor with the same email and names nameless ones", async () => {
     const { t, admin } = await setup();
     const paul = await admin.mutation(api.mentoring.saveExternalMentor, {

@@ -49,11 +49,10 @@ type Picking =
 
 const PairingCard = ({ pair, onPress }: { pair: Pairing; onPress: () => void }) => {
   const t = useAppTheme();
-  const tags = [
+  const menteeTags = pair.mentee.warning ? [{ text: pair.mentee.warning, tone: "warning" as const }] : [];
+  const mentorTags = [
     ...(pair.mentor.kind === "external" ? [{ text: "External", tone: "neutral" as const }] : []),
-    ...[pair.mentee.warning, pair.mentor.warning]
-      .filter((w): w is string => w !== null)
-      .map((text) => ({ text, tone: "warning" as const })),
+    ...(pair.mentor.warning ? [{ text: pair.mentor.warning, tone: "warning" as const }] : []),
   ];
   return (
     <Pressable
@@ -63,7 +62,12 @@ const PairingCard = ({ pair, onPress }: { pair: Pairing; onPress: () => void }) 
       style={({ pressed }) => pressed && { opacity: 0.7 }}
     >
       <Card style={styles.pairCard}>
-        <PersonLine name={pair.mentee.name} line={pair.mentee.line} photo={pair.mentee.photo} />
+        <PersonLine
+          name={pair.mentee.name}
+          line={pair.mentee.line}
+          photo={pair.mentee.photo}
+          tags={menteeTags}
+        />
         <View style={styles.mentorRow}>
           <Ionicons name="return-down-forward" size={18} color={t.faint} style={styles.mentorIcon} />
           <View style={{ flex: 1 }}>
@@ -71,7 +75,7 @@ const PairingCard = ({ pair, onPress }: { pair: Pairing; onPress: () => void }) 
               name={pair.mentor.name}
               line={pair.mentor.line}
               photo={pair.mentor.photo}
-              tags={tags}
+              tags={mentorTags}
             />
           </View>
         </View>

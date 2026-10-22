@@ -82,6 +82,16 @@ export const importLegacy = internalMutation({
         });
         continue;
       }
+      const existing = await ctx.db
+        .query("mentorships")
+        .withIndex("by_menteeEmail_and_year", (q) =>
+          q.eq("menteeEmail", mentee.email).eq("year", pair.year)
+        )
+        .unique();
+      if (existing && existing.legacyKey === undefined) {
+        counts.kept++;
+        continue;
+      }
       const mentor = mentorProfile
         ? { mentorEmail: mentorProfile.email, externalMentorId: undefined }
         : {
@@ -100,15 +110,7 @@ export const importLegacy = internalMutation({
         updatedAt: Date.now(),
         legacyKey,
       };
-      const existing = await ctx.db
-        .query("mentorships")
-        .withIndex("by_menteeEmail_and_year", (q) =>
-          q.eq("menteeEmail", mentee.email).eq("year", pair.year)
-        )
-        .unique();
-      if (existing && existing.legacyKey === undefined) {
-        counts.kept++;
-      } else if (existing) {
+      if (existing) {
         await ctx.db.patch("mentorships", existing._id, fields);
         counts.updated++;
       } else {

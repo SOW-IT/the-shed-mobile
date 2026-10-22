@@ -71,6 +71,20 @@ async function personCard(ctx: QueryCtx, email: string, year: number) {
   };
 }
 
+const memo = <T>(load: (key: string) => Promise<T>) => {
+  const cache = new Map<string, Promise<T>>();
+  return (key: string): Promise<T> => {
+    let hit = cache.get(key);
+    if (!hit) {
+      hit = load(key);
+      cache.set(key, hit);
+    }
+    return hit;
+  };
+};
+
+type CardFor = (email: string) => ReturnType<typeof personCard>;
+
 const menteeWarning = (profile: Doc<"staffProfiles"> | null): string | null => {
   if (!profile) return "No longer a leader";
   return isCampusLeaderProfile(profile) ? null : "No longer a Campus leader";
@@ -81,7 +95,12 @@ const leaderMentorWarning = (profile: Doc<"staffProfiles"> | null): string | nul
   return isCampusLeaderProfile(profile) ? "Mentor is now a Campus leader" : null;
 };
 
-async function mentorOf(ctx: QueryCtx, row: Doc<"mentorships">, warn: boolean) {
+async function mentorOf(
+  ctx: QueryCtx,
+  row: Doc<"mentorships">,
+  warn: boolean,
+  cardFor: CardFor
+) {
   if (row.externalMentorId) {
     const external = await ctx.db.get("externalMentors", row.externalMentorId);
     return {
@@ -95,7 +114,7 @@ async function mentorOf(ctx: QueryCtx, row: Doc<"mentorships">, warn: boolean) {
     };
   }
   const email = row.mentorEmail ?? "";
-  const card = await personCard(ctx, email, row.year);
+  const card = await cardFor(email);
   return {
     kind: "leader" as const,
     id: null,
@@ -117,9 +136,13 @@ export const pairings = query({
       .query("mentorships")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(MENTORING_LIMIT);
+    const cardFor = memo((email) => personCard(ctx, email, args.year));
+    const editorName = memo(async (email) =>
+      personName(ctx, email, await findProfileForYear(ctx, email, currentStaffYear()))
+    );
     const pairs = await Promise.all(
       rows.map(async (row) => {
-        const mentee = await personCard(ctx, row.menteeEmail, row.year);
+        const mentee = await cardFor(row.menteeEmail);
         return {
           id: row._id,
           mentee: {
@@ -129,17 +152,10 @@ export const pairings = query({
             line: mentee.profile ? campusLeaderLine(mentee.profile) : null,
             warning: editable ? menteeWarning(mentee.profile) : null,
           },
-          mentor: await mentorOf(ctx, row, editable),
+          mentor: await mentorOf(ctx, row, editable, cardFor),
           imported: row.legacyKey !== undefined,
           updatedAt: row.updatedAt,
-          updatedBy:
-            row.legacyKey !== undefined
-              ? null
-              : await personName(
-                  ctx,
-                  row.updatedBy,
-                  await findProfileForYear(ctx, row.updatedBy, currentStaffYear())
-                ),
+          updatedBy: row.legacyKey !== undefined ? null : await editorName(row.updatedBy),
         };
       })
     );
