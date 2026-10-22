@@ -596,6 +596,7 @@ export default defineSchema({
         dateStart: v.number(),
         tagIds: v.array(v.string()),
         subgroups: v.array(v.string()),
+        weekly: v.optional(v.boolean()),
       })
     ),
     members: v.array(
@@ -605,6 +606,18 @@ export default defineSchema({
       })
     ),
   }).index("by_year", ["year"]),
+
+  rollCallOrders: defineTable({
+    eventId: v.id("events"),
+    inputKey: v.string(),
+    builtAt: v.number(),
+    members: v.array(
+      v.object({
+        memberId: v.id("attendanceMembers"),
+        score: v.number(),
+      })
+    ),
+  }).index("by_eventId", ["eventId"]),
 
   staffTrendsSnapshots: defineTable({
     staffYear: v.number(),

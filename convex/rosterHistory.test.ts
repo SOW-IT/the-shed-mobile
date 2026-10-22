@@ -77,18 +77,18 @@ describe("roster history snapshot", () => {
 
   test("uses last night's snapshot instead of today's sign-ins", async () => {
     const { t, current, tagged, ben } = await setup();
-    await t.mutation(internal.rosterHistory.rebuild, { year: YEAR });
+    await t.mutation(internal.rosterHistory.rebuild, {});
     await t.run((ctx) =>
       ctx.db.insert("attendance", { eventId: tagged, memberId: ben, signInTime: 2 })
     );
     expect(await rosterNames(t, current)).toEqual(["Cat", "Ann", "Ben"]);
 
-    await t.mutation(internal.rosterHistory.rebuild, { year: YEAR });
+    await t.mutation(internal.rosterHistory.rebuild, {});
     expect(await rosterNames(t, current)).toEqual(["Ben", "Cat", "Ann"]);
   });
 
-  test("a rebuild keeps one snapshot per year, and another year is read live", async () => {
-    const { t, current } = await setup();
+  test("a rebuild leaves one snapshot, whatever year the old ones were for", async () => {
+    const { t } = await setup();
     await t.run(async (ctx) => {
       const empty = { builtAt: 0, events: [], members: [] };
       await ctx.db.insert("rosterHistorySnapshots", { year: YEAR, ...empty });
@@ -97,29 +97,41 @@ describe("roster history snapshot", () => {
     });
     await t.mutation(internal.rosterHistory.rebuild, {});
     const snapshots = await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").collect());
-    expect(snapshots.filter((s) => s.year === YEAR)).toHaveLength(1);
-    expect(snapshots.find((s) => s.year === YEAR)!.events).toHaveLength(4);
-
-    expect(await rosterNames(t, current, YEAR + 1)).toEqual(["Ann", "Ben", "Cat"]);
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0].year).toBe(YEAR);
+    expect(snapshots[0].members).toHaveLength(3);
   });
 
-  test("a past year's snapshot is ignored, so its roster stays live", async () => {
-    const { t, current } = await setup();
-    await t.mutation(internal.rosterHistory.rebuild, { year: YEAR });
+  test("keeps sign-ins from before the staff year started", async () => {
+    const { t, ann } = await setup();
     await t.run(async (ctx) => {
-      const snapshot = await ctx.db.query("rosterHistorySnapshots").first();
-      await ctx.db.patch(snapshot!._id, { year: YEAR - 1 });
+      const lastYear = await ctx.db.insert("events", {
+        name: "Last year's night",
+        dateStart: staffYearStartMs(YEAR) - 10 * DAY,
+        dateEnd: staffYearStartMs(YEAR) - 10 * DAY + 3_600_000,
+        subgroups: [USYD],
+      });
+      await ctx.db.insert("attendance", { eventId: lastYear, memberId: ann, signInTime: 1 });
     });
-    expect(await rosterNames(t, current, YEAR - 1)).toEqual(["Ann", "Ben", "Cat"]);
-    expect(await rosterNames(t, current, YEAR)).toEqual(["Cat", "Ann", "Ben"]);
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    const snapshot = await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first());
+    expect(snapshot!.events.map((e) => e.dateStart)).toContain(staffYearStartMs(YEAR) - 10 * DAY);
+    expect(snapshot!.members.find((m) => m.memberId === ann)!.events).toHaveLength(3);
   });
 
-  test("the nightly metrics rebuild refreshes the snapshot", async () => {
-    const { t } = await setup();
+  test("the nightly metrics rebuild refreshes the snapshot, then ranks this week's events", async () => {
+    const { t, current } = await setup();
     await t.mutation(internal.attendanceMetrics.recomputeAll, {});
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const snapshot = await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first());
     expect(snapshot?.year).toBe(YEAR);
     expect(snapshot?.members.length).toBe(3);
+    const order = await t.run((ctx) =>
+      ctx.db
+        .query("rollCallOrders")
+        .withIndex("by_eventId", (q) => q.eq("eventId", current))
+        .unique()
+    );
+    expect(order?.members.length).toBeGreaterThan(0);
   });
 });
