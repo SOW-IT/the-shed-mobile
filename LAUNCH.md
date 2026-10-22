@@ -64,14 +64,19 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
          first leaves no gap where old apps call missing functions; until
          the merge the server still serves them, so they only see the update
          screen a few minutes early.
-      3. Run EAS Production and EAS Staging. 2.10.0 has a new runtime
-         fingerprint (the Expo patch updates), so it reaches phones as a store
-         update, not over the air.
+      3. Once the iPhone Apple Maps change (ADR 0013) is on main too, run EAS
+         Production and EAS Staging. 2.10.0 has a new runtime fingerprint (the
+         Expo patch updates and the dropped Google Maps SDK), so it reaches
+         phones as a store update, not over the air.
       4. Once 2.10.0 is live in both stores, set `recommended` to 2.10.0:
          `npx convex run --prod appInstalls:setUpdatePolicy '{"platform":
          "ios", "recommended": "2.10.0"}'`, the same for `android`.
       5. Merge main into `feat/music-form` and redeploy dev, as after every
          release.
+      6. Delete `GOOGLE_MAPS_IOS_API_KEY` from the EAS environments whenever
+         convenient; builds ignore it from 2.10.0. Keep the iOS key itself in
+         Google Cloud until the minimum app version reaches 2.10.0, because
+         2.9.25 to 2.9.29 still draw Google Maps with it.
 
 - [ ] **Add the Google Chat webhook secret** so EAS Production posts its
       result to the Data and IT space: `gh secret set GOOGLE_CHAT_WEBHOOK_URL
