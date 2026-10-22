@@ -6,6 +6,27 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.3] - 2026-10-23
+
+### Added
+- **Each year keeps its own role titles.** A year's role list can say what an
+  app role was called that year, and the org chart, profile history, Admin's
+  Users list, mentoring and the side menu show that year's title. 2019 and
+  2020 called Head of Department "Department Overseer", and they will again
+  once the history fix below runs. A rename in a later year never changes
+  earlier ones.
+- **A command-line tool for correcting past years**
+  (`history:setRoleTitle`, `history:setPastAssignments`), since Admin only
+  edits this year and next. It refuses both of those years.
+
+### Changed
+- **Long role titles wrap onto a second line on the org chart** instead of
+  being cut off.
+
+### Removed
+- **The one-off mentoring import from the old app.** It ran against
+  production on 2026-10-23 (24 pairings copied in).
+
 ## [2.10.2] - 2026-10-23
 
 ### Changed
