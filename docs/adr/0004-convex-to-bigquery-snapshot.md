@@ -90,3 +90,12 @@ and permission to overwrite `storage/manifest.json` each night, which in GCS
 means `storage.objects.delete` as well. File objects are written with
 `--no-clobber`, so they never need it. If the bucket has a retention policy
 or object versioning, the manifest overwrite is the thing to check first.
+
+## Update, 2026-10-23: weekly
+
+The backup, and with it this snapshot, now runs weekly (Sundays 15:17 UTC,
+Monday early morning in Sydney) instead of daily. Each export reads the whole
+production database, about 9.5 MB of database bandwidth a run, so a daily
+backup cost about 0.29 GB of the Free plan's 1 GB a month. BigQuery is up to
+a week behind Convex, and the newest zip can be up to a week old. Run
+`convex-backup.yml` by hand when a fresher copy is needed.
