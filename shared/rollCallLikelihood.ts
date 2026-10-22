@@ -3,7 +3,7 @@ import { normalizeSubgroups } from "./rollcall";
 const DAY_MS = 86_400_000;
 
 export const LIKELIHOOD = {
-  windowDays: 365,
+  windowDays: 180,
   halfLifeDays: 45,
   anyEvent: 0.1,
   sharedTag: 0.5,

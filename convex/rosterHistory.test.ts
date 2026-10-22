@@ -181,4 +181,62 @@ describe("roster history snapshot", () => {
     const index = snapshot.events.findIndex((e) => e.eventId === tagged);
     expect(snapshot.members.find((m) => m.memberId === ann)!.events).toContain(index);
   });
+
+  test("a quiet night writes nothing", async () => {
+    const { t } = await setup();
+    vi.setSystemTime(PINNED_NOW + 2 * 3_600_000);
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    const first = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
+    vi.setSystemTime(PINNED_NOW + DAY);
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    const second = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
+    expect(second.builtAt).toBe(first.builtAt);
+  });
+
+  test("older events come from the snapshot until the weekly full rebuild", async () => {
+    const { t, ann } = await setup();
+    const old = await t.run(async (ctx) => {
+      const eventId = await ctx.db.insert("events", {
+        name: "Three weeks ago",
+        dateStart: PINNED_NOW - 21 * DAY,
+        dateEnd: PINNED_NOW - 21 * DAY + 3_600_000,
+        subgroups: [USYD],
+      });
+      await ctx.db.insert("eventAttendanceCounts", { eventId, count: 0 });
+      return eventId;
+    });
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    await t.run(async (ctx) => {
+      await ctx.db.insert("attendance", { eventId: old, memberId: ann, signInTime: 1 });
+      const row = await ctx.db
+        .query("eventAttendanceCounts")
+        .withIndex("by_eventId", (q) => q.eq("eventId", old))
+        .first();
+      await ctx.db.patch(row!._id, { count: 1 });
+    });
+    const attendeesOfOld = async () => {
+      const snapshot = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
+      const index = snapshot.events.findIndex((e) => e.eventId === old);
+      return snapshot.members.filter((m) => m.events.includes(index)).map((m) => m.memberId);
+    };
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    expect(await attendeesOfOld()).toEqual([]);
+    await t.mutation(internal.rosterHistory.rebuild, { full: true });
+    expect(await attendeesOfOld()).toEqual([ann]);
+  });
+
+  test("events older than the window drop out", async () => {
+    const { t } = await setup();
+    const ancient = await t.run((ctx) =>
+      ctx.db.insert("events", {
+        name: "Ancient",
+        dateStart: PINNED_NOW - 300 * DAY,
+        dateEnd: PINNED_NOW - 300 * DAY + 3_600_000,
+        subgroups: [USYD],
+      })
+    );
+    await t.mutation(internal.rosterHistory.rebuild, {});
+    const snapshot = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
+    expect(snapshot.events.map((e) => e.eventId)).not.toContain(ancient);
+  });
 });
