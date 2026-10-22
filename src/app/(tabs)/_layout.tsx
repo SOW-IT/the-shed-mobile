@@ -218,6 +218,7 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon("business-outline", "business"),
         }}
       />
+      <Tabs.Screen name="mentoring" options={{ title: "Mentoring", ...sideMenuOnly }} />
       <Tabs.Screen
         name="admin"
         options={{

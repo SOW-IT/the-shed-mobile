@@ -1,0 +1,22 @@
+appId: ${APP_ID}
+tags:
+  - admin
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${ADMIN_EMAIL}
+      PASSWORD: ${ADMIN_PASSWORD}
+- runFlow: ../common/open-mentoring.yaml
+
+- assertVisible: "Pairings"
+- assertVisible: "External mentors"
+- assertVisible: "\\+ Add pairing"
+
+- tapOn: "\\+ Add pairing"
+- assertVisible: "Choose a Campus leader.*"
+- tapOn: "Close"
+
+- tapOn: "External mentors"
+- assertVisible: "\\+ Add external mentor"

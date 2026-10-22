@@ -1,6 +1,11 @@
 appId: ${APP_ID}
 ---
 - runFlow: ./open-menu.yaml
+- runFlow:
+    when:
+      notVisible: "Reimbursements.*"
+    commands:
+      - tapOn: "Requests.*"
 - tapOn:
     text: "Reimbursements.*"
 - assertVisible: "Mine.*"

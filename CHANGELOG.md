@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.10.1] - 2026-10-23
+## [2.10.2] - 2026-10-23
 
 ### Changed
 - **The roll call puts the people most likely to come at the top of "Not
@@ -28,6 +28,43 @@ All notable changes to **The SHED** mobile app. This project follows
   snapshot; on dev, a past event's roll call dropped from 1.26 MB to 402 KB
   a load. The nightly rebuild reads about 60 KB on a quiet night and writes
   nothing, with a full re-read every two weeks.
+
+## [2.10.1] - 2026-10-23
+
+### Added
+- **Mentoring, in the side menu.** Admins (the Human Resources division
+  among them) pair each Campus leader with a mentor for the staff year: a
+  leader who isn't a Campus leader, or an external mentor such as a pastor.
+  Pairings has a list per year with search, and "+ Add pairing" picks the
+  Campus leader (anyone already paired is greyed out with their mentor's
+  name), then the mentor. Tap a pairing to change the mentor or remove it.
+  Only this year and next can change; earlier years are read-only, and
+  pairings never carry over. A pairing whose mentee is no longer a Campus
+  leader, or whose leader mentor has left or become a Campus leader, is
+  flagged.
+- **External mentors.** A reusable list with name, email, phone and notes,
+  on its own tab or added straight from the mentor picker. Saving blocks a
+  second mentor with the same email, warns about a matching name, and warns
+  when the email belongs to a leader (pick them under Leaders instead).
+  Someone named in any pairing can't be deleted.
+- **Mentors see their mentees.** A leader mentoring someone this year gets
+  Mentoring in their side menu, listing just their own mentees with role,
+  campus and email. Admins who mentor get it as a "My mentees" tab.
+- **Pairings from the old app.** `scripts/import-mentoring.mjs` copies the
+  old SHED app's mentees into Mentoring, matching people by their old id or
+  email. A mentor with no profile that year becomes an external mentor, a
+  mentee with no profile is listed and skipped, and re-running never
+  overwrites a pairing changed here. It runs once against production and is
+  then removed in a later release.
+
+### Changed
+- **Requests fold into one group in the side menu.** Reimbursements, Event
+  Requests and Design Requests sit under a collapsible Requests item, so the
+  menu stays short. It starts closed, opens by itself on any of those pages,
+  shows their combined count while closed, and remembers being open or
+  closed on the device.
+- **A changed email carries its mentoring with it**, like approver
+  delegations do, when someone signs in under a new address.
 
 ## [2.10.0] - 2026-10-22
 
