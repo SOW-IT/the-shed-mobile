@@ -85,5 +85,22 @@
     "uuid": "^11.1.1",
     "react-native-worklets": "0.13.0"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "install": {
+      "exclude": [
+        "@expo/ui",
+        "expo",
+        "expo-auth-session",
+        "expo-constants",
+        "expo-linking",
+        "expo-notifications",
+        "expo-router",
+        "expo-sharing",
+        "expo-splash-screen",
+        "expo-status-bar",
+        "expo-updates"
+      ]
+    }
+  }
 }
