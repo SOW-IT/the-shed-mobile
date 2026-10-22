@@ -104,6 +104,7 @@ export default defineSchema({
   roles: defineTable({
     year: v.number(),
     name: v.string(),
+    standsFor: v.optional(v.string()),
   }).index("by_year_and_name", ["year", "name"]),
 
   appInstalls: defineTable({

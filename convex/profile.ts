@@ -17,6 +17,7 @@ import {
   optionalEmail,
   optionalProfile,
   optionalUser,
+  roleTitlesForYear,
   rolesOf,
 } from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
@@ -88,6 +89,10 @@ export const get = query({
     const directorySyncedAt =
       directorySync?.lastSuccessAt ??
       (directorySync?.detail?.startsWith("synced") ? directorySync.at : null);
+    const titlesByYear = new Map<number, Awaited<ReturnType<typeof roleTitlesForYear>>>();
+    for (const h of serviceHistory) {
+      if (!titlesByYear.has(h.year)) titlesByYear.set(h.year, await roleTitlesForYear(ctx, h.year));
+    }
     const googleSignInAt = isOrgEmail(email) ? (user?.emailVerificationTime ?? null) : null;
     const googleSyncTimes = [googleSignInAt, directorySyncedAt].filter(
       (at): at is number => at !== null
@@ -109,6 +114,7 @@ export const get = query({
         department: departmentsOf(h)[0] ?? null,
         division: divisionsOf(h)[0] ?? null,
         university: assignmentsOf(h).find((a) => a.university)?.university ?? null,
+        roleTitles: titlesByYear.get(h.year) ?? {},
       })),
     };
   },

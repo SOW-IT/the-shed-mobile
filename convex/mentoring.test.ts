@@ -404,6 +404,16 @@ describe("external mentors", () => {
     ).toBe(first);
   });
 
+  test("are listed by name, here and in the mentor picker", async () => {
+    const { admin } = await setup();
+    await admin.mutation(api.mentoring.saveExternalMentor, { name: "Zoe Zhang" });
+    await admin.mutation(api.mentoring.saveExternalMentor, { name: "Ann Abbott" });
+    const list = (await admin.query(api.mentoring.externalMentors, {}))!;
+    expect(list.map((e) => e.name)).toEqual(["Ann Abbott", "Zoe Zhang"]);
+    const picker = (await admin.query(api.mentoring.candidates, { year: YEAR }))!;
+    expect(picker.externals.map((e) => e.name)).toEqual(["Ann Abbott", "Zoe Zhang"]);
+  });
+
   test("can't be edited once deleted", async () => {
     const { t, admin } = await setup();
     const id = await admin.mutation(api.mentoring.saveExternalMentor, { name: "Gone" });
@@ -484,93 +494,6 @@ describe("myMentees", () => {
     });
     const again = (await asUser(t, SAM).query(api.mentoring.myMentees, {}))!;
     expect(again.mentees[0].name).toBe("Cara Directory");
-  });
-});
-
-describe("importLegacy", () => {
-  type Legacy = { uid: string; email?: string; name?: string };
-  const pair = (year: number, mentee: Legacy, mentor: Legacy) => ({ year, mentee, mentor });
-
-  test("matches people by their old id or email and keeps unmatched mentors as external", async () => {
-    const { t, admin } = await setup();
-    await t.run(async (ctx) => {
-      await ctx.db.patch("staffProfiles", (await profileIn(ctx, CARA))!._id, { importId: "uid-cara" });
-    });
-    const first = await t.mutation(internal.mentoringImport.importLegacy, {
-      pairs: [
-        pair(YEAR, { uid: "uid-cara" }, { uid: "uid-sam", email: "sam@sowaustralia.com" }),
-        pair(YEAR, { uid: "uid-colin", email: COLIN }, { uid: "uid-pp", name: "Pastor Paul" }),
-        pair(YEAR, { uid: "uid-ghost", email: "ghost@sow.org.au" }, { uid: "uid-sam" }),
-        pair(YEAR, { uid: "uid-nobody" }, { uid: "uid-sam" }),
-        pair(YEAR, { uid: "uid-sid", email: SID }, { uid: "uid-sid2", email: SID }),
-      ],
-    });
-    expect(first).toEqual({
-      inserted: 2,
-      updated: 0,
-      kept: 0,
-      externalsCreated: 1,
-      skipped: [
-        { year: YEAR, uid: "uid-ghost", email: "ghost@sow.org.au", reason: `mentee has no ${YEAR} profile` },
-        { year: YEAR, uid: "uid-nobody", email: null, reason: `mentee has no ${YEAR} profile` },
-        { year: YEAR, uid: "uid-sid", email: SID, reason: "mentee is their own mentor" },
-      ],
-    });
-    const list = (await admin.query(api.mentoring.pairings, { year: YEAR }))!;
-    expect(list.pairs.map((p) => [p.mentee.email, p.mentor.kind, p.mentor.name, p.imported])).toEqual([
-      [CARA, "leader", "Sam Smith", true],
-      [COLIN, "external", "Pastor Paul", true],
-    ]);
-
-    await admin.mutation(api.mentoring.setMentor, {
-      year: YEAR,
-      menteeEmail: CARA,
-      mentor: { kind: "leader", email: SID },
-    });
-    const second = await t.mutation(internal.mentoringImport.importLegacy, {
-      pairs: [
-        pair(YEAR, { uid: "uid-cara" }, { uid: "uid-sam", email: SAM }),
-        pair(YEAR, { uid: "uid-colin", email: COLIN }, { uid: "uid-pp", name: "Pastor Paul" }),
-      ],
-    });
-    expect(second).toMatchObject({ inserted: 0, updated: 1, kept: 1, externalsCreated: 0 });
-    const after = (await admin.query(api.mentoring.pairings, { year: YEAR }))!;
-    expect(after.pairs[0]).toMatchObject({ mentor: { email: SID }, imported: false });
-  });
-
-  test("a pairing changed in the app is kept without creating an external mentor", async () => {
-    const { t, admin } = await setup();
-    await admin.mutation(api.mentoring.setMentor, {
-      year: YEAR,
-      menteeEmail: CARA,
-      mentor: { kind: "leader", email: SID },
-    });
-    const result = await t.mutation(internal.mentoringImport.importLegacy, {
-      pairs: [pair(YEAR, { uid: "c", email: CARA }, { uid: "gone", name: "Old Mentor" })],
-    });
-    expect(result).toMatchObject({ kept: 1, inserted: 0, externalsCreated: 0 });
-    expect(await admin.query(api.mentoring.externalMentors, {})).toEqual([]);
-  });
-
-  test("reuses an external mentor with the same email and names nameless ones", async () => {
-    const { t, admin } = await setup();
-    const paul = await admin.mutation(api.mentoring.saveExternalMentor, {
-      name: "Pastor Paul",
-      email: "paul@church.org",
-    });
-    const result = await t.mutation(internal.mentoringImport.importLegacy, {
-      pairs: [
-        pair(YEAR, { uid: "c", email: CARA }, { uid: "p", email: "paul@church.org" }),
-        pair(YEAR, { uid: "o", email: COLIN }, { uid: "unknown-uid" }),
-      ],
-    });
-    expect(result.externalsCreated).toBe(1);
-    const externals = (await admin.query(api.mentoring.externalMentors, {}))!;
-    expect(externals.map((e) => [e.name, e.email, e.pairingCount])).toEqual([
-      ["Pastor Paul", "paul@church.org", 1],
-      ["Unknown mentor (old app)", null, 1],
-    ]);
-    expect(externals[0].id).toBe(paul);
   });
 });
 

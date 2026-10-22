@@ -130,6 +130,17 @@ division, the head of the Governance division (not its other staff), and the
 Director. Only admins assign roles and manage
 structure, and nobody can change their own role.
 
+**Role title**:
+What a role was called in a given year. A year's role list can name an app
+role differently ("Department Overseer" stood for Head of Department in 2019
+and 2020), and everything showing that year uses the year's own title while
+the role keeps working as the app's. Copying a year into the next carries its
+titles forward, so a later rename never changes earlier years. Past years are
+corrected with the internal `history:setRoleTitle` and
+`history:setPastAssignments` (command line only; they refuse this year and
+next). See [ADR 0015](../adr/0015-past-years-keep-their-role-titles.md).
+_Avoid_: alias, display name
+
 **Home editor**:
 Not a role — a derived permission. Admins, anyone in the Marketing
 department, and the head of the Engagement division (not its other staff,
@@ -186,7 +197,6 @@ optionally email, phone and notes) so they can be picked again in later
 years. One can't be deleted while any pairing, in any year, names them.
 
 **Imported pairing**:
-A pairing copied from the old SHED app's `mentees/{year}` documents by
-`scripts/import-mentoring.mjs`. Its mentee is matched by old user id or email;
-a mentor with no profile that year becomes an external mentor. Re-importing
-never overwrites a pairing changed in this app.
+A pairing copied once, in 2.10.1, from the old SHED app's `mentees/{year}`
+documents. Its mentee was matched by old user id or email; a mentor with no
+profile that year became an external mentor.

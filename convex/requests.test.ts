@@ -828,6 +828,7 @@ describe("admin and per-year rules", () => {
         department: "Marketing",
         division: null,
         university: null,
+        roleTitles: {},
       },
       {
         year: YEAR - 1,
@@ -836,6 +837,7 @@ describe("admin and per-year rules", () => {
         department: "Events",
         division: null,
         university: null,
+        roleTitles: {},
       },
     ]);
 

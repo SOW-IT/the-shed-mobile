@@ -228,7 +228,7 @@ export const NavMenu = ({
   const sidebar = variant === "sidebar";
   const items = sidebar ? sidebarItems(viewer) : drawerItems(viewer);
   const active = activeNavKey(pathname);
-  const role = roleLine(me?.profile);
+  const role = roleLine(me?.profile, me?.roleTitles);
   const badgeFor = (key: NavKey) =>
     key === "reimbursements"
       ? reimbursementsBadge

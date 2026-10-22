@@ -9,6 +9,7 @@ import {
   FINANCE,
   roleNeedsUniversity,
   rolesOfLike,
+  type RoleTitles,
   incomingStaffYear as incomingStaffYearForDate,
   staffYearForDate,
   withinRolloverAuthGrace,
@@ -327,6 +328,20 @@ export async function resolveStaffIdentity(
   const userId = profiles.find((p) => p.userId !== undefined)?.userId ?? user?._id;
 
   return { importId, name, userId };
+}
+
+export const roleTitlesFrom = (rows: readonly Doc<"roles">[]): RoleTitles =>
+  Object.fromEntries(rows.flatMap((r) => (r.standsFor ? [[r.standsFor, r.name]] : [])));
+
+export const assignableRoleRows = (rows: readonly Doc<"roles">[]): Doc<"roles">[] =>
+  rows.filter((r) => r.standsFor === undefined);
+
+export async function roleTitlesForYear(ctx: Ctx, year: number): Promise<RoleTitles> {
+  const rows = await ctx.db
+    .query("roles")
+    .withIndex("by_year_and_name", (q) => q.eq("year", year))
+    .take(500);
+  return roleTitlesFrom(rows);
 }
 
 export async function getDepartment(

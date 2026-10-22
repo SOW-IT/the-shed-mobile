@@ -871,7 +871,7 @@ export default function AdminScreen() {
               {(profile.assignments ?? []).length > 0 ? (
                 <View style={{ marginTop: 2 }}>
                   {(profile.assignments ?? []).map((a, i) => (
-                    <Muted key={i}>{formatAssignment(a)}</Muted>
+                    <Muted key={i}>{formatAssignment(a, structure?.roleTitles)}</Muted>
                   ))}
                 </View>
               ) : (

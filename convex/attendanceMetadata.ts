@@ -36,8 +36,12 @@ const LOCKED_FIELD_KEYS = new Set([
   ROLE_FIELD_KEY,
 ]);
 
-const roleOptions = (roleRows: { name: string }[]): string[] => [
-  ...new Set([...ROLES, ...roleRows.map((r) => r.name), ...MARKED_ROLES]),
+const roleOptions = (roleRows: { name: string; standsFor?: string }[]): string[] => [
+  ...new Set([
+    ...ROLES,
+    ...roleRows.filter((r) => r.standsFor === undefined).map((r) => r.name),
+    ...MARKED_ROLES,
+  ]),
 ];
 
 const lockedValuePresent = (

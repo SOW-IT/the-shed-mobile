@@ -84,13 +84,11 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       after anyone submits more on the old site; requests already acted on in
       THE SHED are left alone.
 
-- [ ] **Copy the old app's mentoring pairings into production** once 2.10.1
-      is live: `gcloud auth login` (an account with access to `theshedsow`),
-      then `node scripts/import-mentoring.mjs --dry-run` and
-      `node scripts/import-mentoring.mjs --prod`. Check the skipped mentees it
-      lists. Re-running is safe; pairings changed in THE SHED are kept. Then
-      remove `scripts/import-mentoring.mjs` and `convex/mentoringImport.ts` in
-      the next ordinary PR.
+- [ ] **Give 2019 and 2020 back their "Department Overseer" title** once
+      2.10.3 is live, and Juno Yu his 2019 Campus Chaplain role:
+      `npx convex run --prod history:setRoleTitle '{"year":2019,"title":"Department Overseer","standsFor":"Head of Department"}'`,
+      the same with `"year":2020`, then
+      `npx convex run --prod history:setPastAssignments '{"year":2019,"email":"juno.yu@sowaustralia.com","assignments":[{"role":"Campus Chaplain","department":"Chaplaincy"},{"role":"Head of Department","department":"Events"}]}'`.
 
 - [ ] **Privacy policy**: the App Store listing links SOW's general policy
       (`Privacy Policy (Final)_20240428.pdf`). Adapt it to cover Google
@@ -115,6 +113,13 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 Recorded so nobody re-does them. Each was confirmed against the live
 deployments, not assumed.
+
+**Old app's mentoring pairings copied in**: 2.10.1's one-off import ran
+against production on 2026-10-23 and was removed in 2.10.3. *Evidence:* the
+old app had pairings for 2023 (9), 2024 (8) and 2025 (8); 24 were inserted and
+one external mentor created (Sarah Kim, who has no 2023 profile). One 2023
+mentee was skipped: their old account no longer exists, so they can't be
+identified.
 
 **Typed BigQuery warehouse views**: the nightly backup builds dataset
 `convex_warehouse`. *Evidence (backup run 39660287748, 2026-10-21 19:17 UTC):*

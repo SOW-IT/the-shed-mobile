@@ -8,6 +8,7 @@ import {
   HEAD_OF_DIVISION,
   isMemberOfDepartment,
   roleNeedsUniversity,
+  roleTitle,
 } from "../shared/flow";
 import { query } from "./_generated/server";
 import { photoUrl } from "./photo";
@@ -22,6 +23,9 @@ import {
   optionalEmail,
   optionalProfile,
   optionalUser,
+  roleTitlesForYear,
+  roleTitlesFrom,
+  assignableRoleRows,
   rolesOf,
 } from "./model";
 
@@ -97,6 +101,7 @@ export const me = query({
         rolesOf(profile).includes(DIRECTOR) ||
         isDelegate,
       isCampusLeader: assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
+      roleTitles: await roleTitlesForYear(ctx, year),
       isMentor: mentorship !== null,
       listsChurch: profile.year === year && assignmentsOf(profile).length > 0,
     };
@@ -180,6 +185,8 @@ export const orgChart = query({
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", year))
       .take(1000);
+    const titles = await roleTitlesForYear(ctx, year);
+    const titled = (role: string) => roleTitle(role, titles);
 
     const directoryUsers = await ctx.db.query("directoryUsers").take(4000);
     const directoryByEmail = new Map(
@@ -242,7 +249,7 @@ export const orgChart = query({
       .sort((a, b) =>
         (nameByEmail[a.email] ?? a.email).localeCompare(nameByEmail[b.email] ?? b.email)
       )
-      .map((p) => person(p.email, rolesFor(p).join(", ")));
+      .map((p) => person(p.email, rolesFor(p).map(titled).join(", ")));
 
     const generalExists = divisions.some((d) => d.name === FALLBACK_DIVISION);
     const staffUnderGeneral = generalExists && departments.length === 0;
@@ -251,8 +258,9 @@ export const orgChart = query({
       year,
       availableYears,
       nextYear: canSeeNextYear ? nextYear : null,
+      roleTitles: titles,
       director: directorProfile
-        ? person(directorProfile.email, directorRole)
+        ? person(directorProfile.email, titled(directorRole))
         : null,
       staff: staffUnderGeneral ? [] : staffPeople,
       divisions: divisions.map((division) => {
@@ -281,14 +289,14 @@ export const orgChart = query({
                   p.email,
                   assignmentsFor(p)
                     .filter((a) => a.department === department.name)
-                    .map((a) => a.role)
+                    .map((a) => titled(a.role))
                     .join(", ")
                 )
               ),
           }));
         return {
           name: division.name,
-          head: divisionHead ? person(divisionHead, HEAD_OF_DIVISION) : null,
+          head: divisionHead ? person(divisionHead, titled(HEAD_OF_DIVISION)) : null,
           departments:
             staffUnderGeneral && division.name === FALLBACK_DIVISION
               ? [{ name: "Staff", colour: null, head: null, members: staffPeople }]
@@ -314,7 +322,7 @@ export const orgChart = query({
                   (a) =>
                     a.university === university.name && roleNeedsUniversity(a.role)
                 )
-                .map((a) => a.role)
+                .map((a) => titled(a.role))
                 .join(", ")
             )
           ),
@@ -359,7 +367,8 @@ export const yearStructure = query({
         colour: d.colour ?? null,
       })),
       universities: universities.map((u) => u.name),
-      roles: roles.map((r) => r.name),
+      roles: assignableRoleRows(roles).map((r) => r.name),
+      roleTitles: roleTitlesFrom(roles),
       budgetManagerEmail: settings?.budgetManagerEmail ?? null,
       directorApprovalThreshold: settings?.directorApprovalThreshold ?? null,
       eventDirectorApprovalThreshold: settings?.eventDirectorApprovalThreshold ?? null,

@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 import { ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { timeAgo } from "../../shared/datetime";
-import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
+import { formatAssignment, roleLabel, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { ChromeScreen } from "./ChromeScreen";
 import { ChurchDetails, ChurchPicker } from "./ChurchPicker";
@@ -158,8 +158,10 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
                 ]}
               >
                 {(current.assignments ?? []).length > 0
-                  ? current.assignments.map(formatAssignment).join("  ·  ")
-                  : current.roles.map(acronym).join(", ")}{" "}
+                  ? current.assignments
+                      .map((a) => formatAssignment(a, current.roleTitles))
+                      .join("  ·  ")
+                  : current.roles.map((r) => roleLabel(r, current.roleTitles)).join(", ")}{" "}
                 · {current.year}
               </Text>
             </View>
@@ -262,14 +264,14 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
                               { color: t.dark ? t.text : t.primary },
                             ]}
                           >
-                            {formatAssignment(a)}
+                            {formatAssignment(a, entry.roleTitles)}
                           </Text>
                         </View>
                       ))}
                     </View>
                   ) : (
                     <Txt style={{ fontWeight: "700" }}>
-                      {entry.roles.map(acronym).join(", ") || "—"}
+                      {entry.roles.map((r) => roleLabel(r, entry.roleTitles)).join(", ") || "—"}
                     </Txt>
                   )}
                 </View>

@@ -173,7 +173,14 @@ export const dedupeAssignments = (assignments: Assignment[]): Assignment[] => {
   return out;
 };
 
-export const formatAssignment = (a: Assignment): string => {
+export type RoleTitles = Readonly<Record<string, string>>;
+
+export const roleTitle = (role: string, titles?: RoleTitles): string => titles?.[role] ?? role;
+
+export const roleLabel = (role: string, titles?: RoleTitles): string =>
+  titles?.[role] ?? acronym(role);
+
+export const formatAssignment = (a: Assignment, titles?: RoleTitles): string => {
   const department =
     isChaplainRole(a.role) && a.department === CHAPLAINCY_DEPARTMENT
       ? undefined
@@ -182,7 +189,8 @@ export const formatAssignment = (a: Assignment): string => {
     .filter((s): s is string => !!s)
     .map(acronym)
     .join(" · ");
-  return scope ? `${acronym(a.role)} → ${scope}` : acronym(a.role);
+  const label = roleLabel(a.role, titles);
+  return scope ? `${label} → ${scope}` : label;
 };
 
 export const DIRECTOR_APPROVAL_THRESHOLD = 5000;

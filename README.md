@@ -43,7 +43,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   approved/paid by the approvers of the request's own year. Receipt files
   are kept for the current and previous staff years.
   Roles: Staff, Head of Department, **Head of Division** (belongs directly to
-  a division rather than a department; no HOD above them), Director.
+  a division rather than a department; no HOD above them), Director. Each
+  year keeps its own **role titles**: 2019 and 2020 show Head of Department
+  as "Department Overseer", and a future rename leaves earlier years as they
+  were (`history:setRoleTitle`, ADR 0015).
 - **Deadlock prevention**: submitting is rejected with a clear message while
   the year is missing an approver the request would need (department head,
   Budget Manager, Director for ≥ $5k, Finance head), and removing the Budget
@@ -149,9 +152,7 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   phone, notes). Pairings are per staff year, don't carry over, and only the
   current and next year can change; the list flags a mentee or leader mentor
   who no longer qualifies. A leader mentor sees just their own current-year
-  mentees. Pairings from the old app are copied in with
-  `scripts/import-mentoring.mjs` (safe to re-run; never overwrites a pairing
-  changed here).
+  mentees. Pairings from the old app were copied in once, in 2.10.1.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on

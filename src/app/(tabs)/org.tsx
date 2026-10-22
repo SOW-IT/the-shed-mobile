@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
-import { universityColour } from "../../../shared/flow";
+import { HEAD_OF_DEPARTMENT, universityColour } from "../../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import {
@@ -49,7 +49,7 @@ const Person = ({
       <Txt style={[styles.personName, bold && styles.personNameBold]} numberOfLines={1}>
         {person.name ?? person.email}
       </Txt>
-      <Text style={[typography.caption, styles.personTag, { color: t.faint }]} numberOfLines={1}>
+      <Text style={[typography.caption, styles.personTag, { color: t.faint }]} numberOfLines={2}>
         {tag ?? person.role ?? ""}
       </Text>
     </Pressable>
@@ -133,7 +133,12 @@ export default function OrgChartScreen() {
             {division.head ? (
               <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
                 <View style={[styles.divisionHeadRow, t.surfaceEdge, { backgroundColor: t.card }]}>
-                  <Person person={division.head} bold tag="Head of Division" size={34} />
+                  <Person
+                    person={division.head}
+                    bold
+                    tag={division.head.role ?? "Head of Division"}
+                    size={34}
+                  />
                 </View>
               </ReadableColumn>
             ) : null}
@@ -153,7 +158,11 @@ export default function OrgChartScreen() {
                   >
                     <Text style={[typography.label, { color: t.faint }]}>{dept.name}</Text>
                     {dept.head ? (
-                      <Person person={dept.head} bold tag="Head of Dept" />
+                      <Person
+                        person={dept.head}
+                        bold
+                        tag={chart.roleTitles[HEAD_OF_DEPARTMENT] ?? "Head of Dept"}
+                      />
                     ) : null}
                     {dept.members.map((member) => (
                       <Person key={member.email} person={member} />

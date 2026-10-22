@@ -1,4 +1,4 @@
-import { acronym, type Assignment, formatAssignment } from "../../shared/flow";
+import { type Assignment, formatAssignment, roleLabel, type RoleTitles } from "../../shared/flow";
 
 export type NavKey =
   | "home"
@@ -152,14 +152,15 @@ export const activeNavKey = (pathname: string): NavKey | null => {
 };
 
 export const roleLine = (
-  profile: { roles: readonly string[]; assignments?: readonly Assignment[] } | null | undefined
+  profile: { roles: readonly string[]; assignments?: readonly Assignment[] } | null | undefined,
+  titles?: RoleTitles
 ): string | null => {
   if (!profile) return null;
   const assignments = profile.assignments ?? [];
   const text =
     assignments.length > 0
-      ? assignments.map(formatAssignment).join("  ·  ")
-      : profile.roles.map(acronym).join(", ");
+      ? assignments.map((a) => formatAssignment(a, titles)).join("  ·  ")
+      : profile.roles.map((r) => roleLabel(r, titles)).join(", ");
   return text || null;
 };
 
