@@ -238,7 +238,7 @@ describe("who sees what", () => {
     expect(await t.query(api.designRequests.waitingOnMe, {})).toBe(0);
   });
 
-  test("lists, the queue and the year picker", async () => {
+  test("lists, the queue and earlier years", async () => {
     const t = await setup();
     await t.mutation(internal.designRequestImport.importLegacy, {
       requests: [
@@ -268,9 +268,6 @@ describe("who sees what", () => {
     expect(current![0]._id).toBe(mine);
     expect(current!.every((r) => r.requesterEmail === RACHEL)).toBe(true);
 
-    const past = await rachel.query(api.designRequests.mine, { year: YEAR - 2 });
-    expect(past!.map((r) => r.number).sort()).toEqual([1, 2]);
-
     // The Marketing queue is every open request, from any year.
     expect(await rachel.query(api.designRequests.queue, {})).toBeNull();
     const queue = await asUser(t, ADMIN).query(api.designRequests.queue, {});
@@ -285,15 +282,6 @@ describe("who sees what", () => {
       year: YEAR - 2,
     });
     expect(archive!.map((r) => r.number)).toEqual([2, 1]);
-
-    expect(await rachel.query(api.designRequests.years, {})).toEqual({
-      mine: [YEAR, YEAR - 2],
-      all: [YEAR],
-    });
-    expect(await asUser(t, MARY).query(api.designRequests.years, {})).toEqual({
-      mine: [YEAR],
-      all: [YEAR, YEAR - 2],
-    });
 
     const firstPage = { paginationOpts: { numItems: 1, cursor: null } };
     const earlier = await rachel.query(api.designRequests.earlierMine, firstPage);
@@ -314,7 +302,6 @@ describe("who sees what", () => {
     expect(earlierArchive!.page[0]).toHaveProperty("requesterName");
 
     expect(await t.query(api.designRequests.mine, {})).toBeNull();
-    expect(await t.query(api.designRequests.years, {})).toBeNull();
     expect(await t.query(api.designRequests.earlierMine, firstPage)).toBeNull();
   });
 

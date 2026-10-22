@@ -258,7 +258,7 @@ export const view = query({
     years: v.array(v.number()),
     blocks: v.array(viewBlockValidator),
   }),
-  handler: async (ctx, { scope, lines }) => {
+  handler: async (ctx, { scope }) => {
     const [trends, campusAttendance, identity] = await Promise.all([
       readStaffTrends(ctx),
       readCampusWeeklyAttendance(ctx),
@@ -266,7 +266,7 @@ export const view = query({
     ]);
     return {
       years: trends.years,
-      blocks: buildGeneralView({ trends, campusAttendance, scope, signedIn: identity !== null, lines }),
+      blocks: buildGeneralView({ trends, campusAttendance, scope, signedIn: identity !== null }),
     };
   },
 });

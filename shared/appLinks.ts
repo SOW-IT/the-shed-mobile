@@ -40,19 +40,6 @@ export const appLinkFor = (value: string | undefined): AppLink =>
 export const appLinkForScheme = (scheme: string | undefined): AppLink =>
   Object.values(APP_LINKS).find((link) => link.scheme === scheme) ?? APP_LINKS.production;
 
-/**
- * Pages added after people may have installed the app, with the first app
- * version that has them. An older app can't open them ("Unmatched Route"), so
- * on a phone the web keeps these pages to itself unless the link says the
- * person's app is new enough (`#app`, see `appCanOpen`).
- */
-export type NewerPage = { prefix: string; since: string };
-
-export const NEWER_PAGES: readonly NewerPage[] = [{ prefix: "/checkin", since: "2.9.19" }];
-
-/** The marker on a link whose recipient's app can open it. */
-export const APP_LINK_MARKER = "#app";
-
 export const WEB_ONLY_MARKER = "#noapp";
 
 const parts = (version: string) => version.split(".").map((n) => Number.parseInt(n, 10) || 0);
@@ -68,26 +55,6 @@ export const compareVersions = (a: string, b: string): number => {
 };
 
 export const isAppVersion = (value: string): boolean => /^\d+\.\d+\.\d+$/.test(value);
-
-/** The app version a page needs, or null when every version has it. */
-export const versionNeededFor = (path: string, pages: readonly NewerPage[] = NEWER_PAGES): string | null => {
-  const pathname = path.split(/[?#]/)[0];
-  const page = pages.find(
-    (p) => pathname === p.prefix || pathname.startsWith(`${p.prefix}/`)
-  );
-  return page?.since ?? null;
-};
-
-/** Whether an app of `version` (null: unknown or an old app) can open `path`. */
-export const appCanOpen = (
-  path: string,
-  version: string | null | undefined,
-  pages: readonly NewerPage[] = NEWER_PAGES
-): boolean => {
-  const needed = versionNeededFor(path, pages);
-  if (!needed) return true;
-  return !!version && compareVersions(version, needed) >= 0;
-};
 
 type UpdateStatus = "ok" | "recommended" | "required";
 

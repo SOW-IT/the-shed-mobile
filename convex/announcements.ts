@@ -22,7 +22,6 @@ import {
   QueryCtx,
 } from "./_generated/server";
 import { audienceValidator } from "./announcementData";
-import { emailLinkFor } from "./appInstalls";
 import {
   currentStaffYear,
   displayName,
@@ -446,7 +445,7 @@ export const deliver = internalMutation({
       for (let i = 0; i < recipients.length; i += EMAIL_BATCH) {
         const messages = [];
         for (const to of recipients.slice(i, i + EMAIL_BATCH)) {
-          const link = appUrl(await emailLinkFor(ctx, to, url));
+          const link = appUrl(url);
           messages.push({ to, ...announcementEmail({ title, message, senderName, link }) });
         }
         await ctx.scheduler.runAfter(

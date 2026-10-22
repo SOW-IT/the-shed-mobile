@@ -93,7 +93,7 @@ describe("turning check-in on and off", () => {
 
     expect(await t.query(api.checkIn.page, { token })).toMatchObject({
       name: "Weekly",
-      campuses: [{ value: USYD, label: "USYD" }],
+      universities: [{ value: USYD, label: "USYD" }],
       open: true,
     });
 
@@ -189,7 +189,7 @@ describe("checking in from the public page", () => {
   test("names must be real, campuses must belong to the event, and a page needs its key", async () => {
     const t = await setup();
     const { token } = await enabled(t, [USYD, UNSW]);
-    expect((await t.query(api.checkIn.page, { token }))?.campuses.map((c) => c.value)).toEqual([USYD, UNSW]);
+    expect((await t.query(api.checkIn.page, { token }))?.universities.map((c) => c.value)).toEqual([USYD, UNSW]);
     await expect(t.mutation(api.checkIn.submit, { token, name: "A", clientKey: "k" })).rejects.toThrow(/full name/);
     await expect(
       t.mutation(api.checkIn.submit, { token, name: "x".repeat(81), clientKey: "k" })
@@ -796,12 +796,11 @@ describe("a sign-in confirmed late", () => {
   });
 });
 
-describe("older app builds", () => {
-  test("see no campus choice on an org-wide event, while this version offers every university", async () => {
+describe("org-wide events", () => {
+  test("offer every university", async () => {
     const t = await setup();
     const { token } = await enabled(t, ["SOW"]);
     const page = (await t.query(api.checkIn.page, { token }))!;
-    expect(page.campuses).toEqual([]);
     expect(page.universities.map((c) => c.value)).toEqual(expect.arrayContaining([USYD, UNSW]));
   });
 });

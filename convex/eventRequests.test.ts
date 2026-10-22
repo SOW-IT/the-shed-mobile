@@ -707,7 +707,6 @@ describe("lists", () => {
       requesterName: null,
       forms: { marketing: { status: "PENDING" }, risk: { status: "DRAFT" } },
     });
-    expect(await asUser(t, ELLA).query(api.eventRequests.mine, { year: YEAR - 1 })).toEqual([]);
 
     const forMike = (await asUser(t, MIKE).query(api.eventRequests.review, {}))!;
     expect(forMike.map((r) => [r._id, r.waitingOnMe])).toEqual([[id, ["marketing"]]]);
@@ -724,31 +723,6 @@ describe("lists", () => {
     // Cancelled events drop out of review.
     await asUser(t, OLLIE).mutation(api.eventRequests.cancel, { id: other });
     expect(await asUser(t, CORA).query(api.eventRequests.review, {})).toEqual([]);
-  });
-
-  test("years with events", async () => {
-    const t = await setup();
-    await create(t);
-    await t.run(async (ctx) => {
-      const event = (await ctx.db.query("eventRequests").collect())[0];
-      await ctx.db.insert("eventRequests", { ...omitSystem(event), year: YEAR - 2, number: 1 });
-      await ctx.db.insert("eventRequests", {
-        ...omitSystem(event),
-        year: YEAR - 1,
-        number: 1,
-        requesterEmail: OLLIE,
-        department: "Events",
-      });
-    });
-    expect(await asUser(t, ELLA).query(api.eventRequests.years, {})).toEqual({
-      mine: [YEAR, YEAR - 1, YEAR - 2],
-      all: [YEAR, YEAR - 1, YEAR - 2],
-    });
-    expect(await asUser(t, OLLIE).query(api.eventRequests.years, {})).toEqual({
-      mine: [YEAR, YEAR - 1],
-      all: [YEAR],
-    });
-    expect(await asUser(t, LEE).query(api.eventRequests.years, {})).toBeNull();
   });
 
   test("earlier years, newest first, a page at a time", async () => {

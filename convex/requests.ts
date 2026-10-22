@@ -25,7 +25,6 @@ import {
   type ApprovalStatus,
 } from "../shared/flow";
 import { internal } from "./_generated/api";
-import { emailLinkFor } from "./appInstalls";
 import { Doc, Id } from "./_generated/dataModel";
 import { rememberBankAccount } from "./bankAccounts";
 import {
@@ -161,7 +160,7 @@ export const notify = async (
   } = opts;
   if (!to) return;
   if (email) {
-    const link = url ? await emailLinkFor(ctx, to, url) : url;
+    const link = url;
     await ctx.scheduler.runAfter(0, internal.emails.send, {
       to,
       subject,
@@ -670,15 +669,11 @@ export const mineTabRequests = async (
 };
 
 export const myRequests = query({
-  args: { year: v.optional(v.number()) },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const { email, year } = caller;
-    const rows =
-      args.year !== undefined && args.year !== year
-        ? await requesterYearPage(ctx, email, args.year)
-        : await mineTabRequests(ctx, email, year);
+    const rows = await mineTabRequests(ctx, caller.email, caller.year);
     return rows.sort((a, b) => b._creationTime - a._creationTime);
   },
 });
@@ -688,35 +683,13 @@ export const requestYears = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const thisYear = currentStaffYear();
-    const yearsFrom = (years: number[]) =>
-      [...new Set([thisYear, ...years])]
-        .filter((y) => y >= EARLIEST_REQUEST_YEAR && y <= thisYear)
-        .sort((a, b) => b - a);
-    // One indexed probe per candidate year beats reading every request the
-    // caller has ever made or reviewed just to list the years they appear in.
-    const mineYears: number[] = [];
-    const reviewedYears: number[] = [];
-    for (let y = thisYear; y >= EARLIEST_REQUEST_YEAR; y--) {
-      if (await requesterRequestsInYear(ctx, caller.email, y).first()) {
-        mineYears.push(y);
-      }
-      if (await reviewedSomeIn(ctx, caller.email, y)) reviewedYears.push(y);
+    for (let y = currentStaffYear(); y >= EARLIEST_REQUEST_YEAR; y--) {
+      if (await reviewedSomeIn(ctx, caller.email, y)) return { reviewedBefore: true };
     }
-    const divisions = await ctx.db.query("divisions").take(1000);
-    return {
-      mine: yearsFrom(mineYears),
-      reviewed: yearsFrom(reviewedYears),
-      all: yearsFrom(divisions.map((d) => d.year)),
-      // An approver from an earlier year still gets Review to look back on.
-      reviewedBefore: reviewedYears.length > 0,
-    };
+    return { reviewedBefore: false };
   },
 });
 
-// Oldest first, so the request's own year is read before the year after
-// (where only carried-over requests count) uses up the cap.
-const REVIEWED_IN_YEAR_EVENTS = 5000;
 // Requests looked at per year when listing the years someone reviewed in.
 // The first approval in a year is nearly always one of that year's.
 const REVIEWED_YEAR_PROBE_REQUESTS = 50;
@@ -751,30 +724,6 @@ const reviewedSomeIn = async (ctx: QueryCtx, email: string, year: number): Promi
   }
   return false;
 };
-
-/**
- * Other people's requests from staff year `year` that the caller approved or
- * declined at any step, newest first. A request is reviewed in its own year
- * or, when it was carried over, the year after.
- */
-export const reviewedInYear = query({
-  args: { year: v.number() },
-  handler: async (ctx, { year }) => {
-    const caller = await optionalProfile(ctx);
-    if (!caller) return null;
-    const ids = new Set<Id<"requests">>();
-    let scanned = 0;
-    for await (const event of reviewEventsFor(ctx, caller.email, year)) {
-      if (++scanned > REVIEWED_IN_YEAR_EVENTS) break;
-      if (isApprovalAction(event.action)) ids.add(event.requestId);
-    }
-    const docs = await Promise.all([...ids].map((id) => ctx.db.get("requests", id)));
-    const rows = docs
-      .filter((r) => reviewedRequestOf(r, caller.email, year))
-      .sort((a, b) => b._creationTime - a._creationTime);
-    return await Promise.all(rows.map((request) => requestForCaller(ctx, caller, request)));
-  },
-});
 
 export const earlierMine = query({
   args: { paginationOpts: paginationOptsValidator },
@@ -1001,15 +950,12 @@ export const reviewed = query({
 });
 
 export const allRequests = query({
-  args: { year: v.optional(v.number()) },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     if (!isMemberOfDepartment(caller.profile, FINANCE)) {
       throw new ConvexError("Only Finance staff can view all requests.");
-    }
-    if (args.year !== undefined && args.year !== caller.year) {
-      return await yearRequests(ctx, args.year);
     }
     return await openRequestsAcrossYears(ctx, caller.year);
   },

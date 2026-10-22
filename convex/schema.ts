@@ -480,7 +480,6 @@ export default defineSchema({
     // A campus weekly's term and week, set when it was created as a Weekly
     // (or by the backfill). Insights trusts these over dates and names.
     weekly: v.optional(weeklyMarkValidator),
-    attendanceCount: v.optional(v.number()),
     checkIn: v.optional(
       v.object({ token: v.string(), enabledAt: v.number(), enabledBy: v.string() })
     ),

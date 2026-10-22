@@ -6,6 +6,37 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-10-22
+
+### Removed
+- **Server code kept only for app builds older than 2.9.25.** 2.9.25 becomes
+  the minimum app version (see LAUNCH.md for the release order), so these
+  go:
+  - the old bell list (`notifications.list`; the paged feed replaced it in
+    2.9.18);
+  - `requests.reviewedInYear`, `designRequests.years` and
+    `eventRequests.years`, and the unused `year` argument on Mine,
+    Finance's All requests and the event and design Mine lists (2.9.15
+    replaced the year pickers). `requests.requestYears` now returns only
+    `reviewedBefore`, the one field the app reads;
+  - the Insights charts that drew Overall as a third bar for apps that
+    didn't ask for lines (2.9.8); `lines` is still accepted;
+  - check-in's `campuses` field (2.9.25 reads `universities`);
+  - the "newer pages" links (`NEWER_PAGES`, the `#app` marker, tailored
+    email links and the bell's link filter), which only ever covered
+    `/checkin`. The web still keeps `/checkin` to itself.
+- **`events.attendanceCount` leaves the schema.** Head counts have lived in
+  `eventAttendanceCounts` since 2.9.29, and no event on prod or dev still
+  has the old field. `attendanceCounts:backfill` stays as a recount.
+- **The 2.9.9 one-off `renameNotesField`.** Prod already had "Other
+  Information"; dev was renamed before this release.
+
+### Changed
+- **Expo SDK 58 patch updates** (`expo` 58.0.17, `expo-updates` 58.0.18,
+  `expo-router` 58.0.25 and eight more), which CI's dependency check now
+  asks for. They change the app's runtime fingerprint, so 2.10.0 reaches
+  phones as a store update rather than over the air.
+
 ## [2.9.29] - 2026-10-21
 
 ### Changed

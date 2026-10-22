@@ -439,31 +439,6 @@ describe("attendance metadata", () => {
     expect(Object.values(role?.values ?? {})).toContain("Volunteer");
   });
 
-  test("renameNotesField makes the old Notes member field Other Information, once", async () => {
-    const t = await setup();
-    const notesId = await t.run((ctx) =>
-      ctx.db.insert("attendanceMetadata", { key: "Notes", type: "input", order: 5 })
-    );
-    const memberId = await t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Noted Member", metadata: { [notesId]: "likes tea" } })
-    );
-
-    expect(await t.mutation(internal.attendanceMetadata.renameNotesField, {})).toBe("renamed");
-    expect((await t.run((ctx) => ctx.db.get(notesId)))?.key).toBe("Other Information");
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toEqual({ [notesId]: "likes tea" });
-    const log = await t.run((ctx) =>
-      ctx.db.query("attendanceAuditLog").filter((q) => q.eq(q.field("action"), "metadata.update")).first()
-    );
-    expect(log).toMatchObject({
-      actorEmail: "system:notes-rename",
-      summary: 'Renamed member field "Notes" to "Other Information"',
-    });
-    expect(await t.mutation(internal.attendanceMetadata.renameNotesField, {})).toBe("nothing to rename");
-
-    await t.run((ctx) => ctx.db.insert("attendanceMetadata", { key: "notes", type: "input", order: 6 }));
-    expect(await t.mutation(internal.attendanceMetadata.renameNotesField, {})).toBe("both exist");
-  });
-
   test("list is staff-only and strips Gender Other but keeps Female", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);

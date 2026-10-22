@@ -16,7 +16,6 @@ import {
 import { MARKED_ROLES } from "../shared/memberRole";
 import { canonicalSubgroup, subgroupMatches } from "../shared/rollcall";
 import {
-  internalMutation,
   mutation,
   type MutationCtx,
   query,
@@ -402,32 +401,5 @@ export const saveAll = mutation({
               .join(", ")}`,
       });
     }
-  },
-});
-
-/**
- * One-off for 2.9.9: the member field "Notes" becomes "Other Information",
- * now that notes about one event are kept on its sign-in. Values stay as
- * they are. Safe to run again.
- */
-export const renameNotesField = internalMutation({
-  args: {},
-  returns: v.union(v.literal("renamed"), v.literal("nothing to rename"), v.literal("both exist")),
-  handler: async (ctx) => {
-    const fields = await ctx.db.query("attendanceMetadata").take(200);
-    const named = (key: string) =>
-      fields.find((f) => f.key.trim().toLowerCase() === key.toLowerCase());
-    const notes = named(LEGACY_NOTES_FIELD_KEY);
-    if (!notes) return "nothing to rename";
-    if (named(OTHER_INFO_FIELD_KEY)) return "both exist";
-    await ctx.db.patch("attendanceMetadata", notes._id, { key: OTHER_INFO_FIELD_KEY });
-    await logAttendanceAction(ctx, {
-      actorEmail: "system:notes-rename",
-      entityType: "metadata",
-      action: "metadata.update",
-      summary: `Renamed member field "${notes.key}" to "${OTHER_INFO_FIELD_KEY}"`,
-      detail: "Notes about one event are kept on that sign-in.",
-    });
-    return "renamed";
   },
 });

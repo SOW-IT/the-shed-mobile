@@ -24,7 +24,7 @@ export async function eventAttendanceCount(
   event: Doc<"events">
 ): Promise<number> {
   const stored = await storedCountOf(ctx, event._id);
-  return stored?.count ?? event.attendanceCount ?? (await countRows(ctx, event._id));
+  return stored?.count ?? (await countRows(ctx, event._id));
 }
 
 async function storeCount(
@@ -62,9 +62,6 @@ export async function recountEventAttendance(
   const event = await ctx.db.get("events", eventId);
   if (!event) return;
   await storeCount(ctx, eventId, await countRows(ctx, eventId));
-  if (event.attendanceCount !== undefined) {
-    await ctx.db.patch("events", eventId, { attendanceCount: undefined });
-  }
 }
 
 export async function adjustEventAttendanceCount(

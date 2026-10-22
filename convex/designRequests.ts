@@ -9,7 +9,6 @@ import {
   designAnswersProblem,
   designRequestFiling,
   designRequestName,
-  EARLIEST_DESIGN_REQUEST_YEAR,
   formatDesignAnswer,
   isOpenDesignStatus,
   MARKETING,
@@ -245,15 +244,12 @@ const OPEN_STATUSES: DesignRequestStatus[] = ["PENDING", "APPROVED"];
  */
 async function yearWithOpen(
   year: number,
-  currentYear: number,
   byYear: (year: number) => Promise<DesignRequest[]>,
   byStatus: (status: DesignRequestStatus) => Promise<DesignRequest[]>
 ): Promise<DesignRequest[]> {
   const rows = new Map((await byYear(year)).map((r) => [r._id, r]));
-  if (year === currentYear) {
-    for (const status of OPEN_STATUSES) {
-      for (const r of await byStatus(status)) rows.set(r._id, r);
-    }
+  for (const status of OPEN_STATUSES) {
+    for (const r of await byStatus(status)) rows.set(r._id, r);
   }
   return [...rows.values()].sort((a, b) => b.submittedAt - a.submittedAt);
 }
@@ -333,12 +329,11 @@ export const waitingOnMe = query({
 });
 
 export const mine = query({
-  args: { year: v.optional(v.number()) },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const rows = await yearWithOpen(
-      args.year ?? caller.year,
       caller.year,
       (year) =>
         ctx.db
@@ -426,35 +421,6 @@ export const earlierArchive = query({
       .order("desc")
       .paginate(paginationOpts);
     return { ...result, page: await withRequesterNames(ctx, result.page) };
-  },
-});
-
-/** The staff years the year picker offers: ones with requests, and this one. */
-export const years = query({
-  args: {},
-  handler: async (ctx) => {
-    const caller = await optionalProfile(ctx);
-    if (!caller) return null;
-    const team = await canSeeQueue(ctx, caller);
-    const mine = [caller.year];
-    const all = [caller.year];
-    for (let y = caller.year - 1; y >= EARLIEST_DESIGN_REQUEST_YEAR; y--) {
-      const own = await ctx.db
-        .query("designRequests")
-        .withIndex("by_requester_and_year", (q) =>
-          q.eq("requesterEmail", caller.email).eq("year", y)
-        )
-        .first();
-      if (own) mine.push(y);
-      const any = team
-        ? await ctx.db
-            .query("designRequests")
-            .withIndex("by_year_and_number", (q) => q.eq("year", y))
-            .first()
-        : null;
-      if (any) all.push(y);
-    }
-    return { mine, all };
   },
 });
 

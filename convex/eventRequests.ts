@@ -175,31 +175,28 @@ async function ownEventsInYear(ctx: QueryCtx, caller: CallerContext, year: numbe
  * year, plus any still in progress from earlier years.
  */
 export const mine = query({
-  args: { year: v.optional(v.number()) },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
-    const year = args.year ?? caller.year;
-    const events = await ownEventsInYear(ctx, caller, year);
-    if (year === caller.year) {
+    const events = await ownEventsInYear(ctx, caller, caller.year);
+    events.push(
+      ...(await ctx.db
+        .query("eventRequests")
+        .withIndex("by_requester_and_status", (q) =>
+          q.eq("requesterEmail", caller.email).eq("status", "IN_PROGRESS")
+        )
+        .take(LIST_LIMIT))
+    );
+    for (const department of departmentsOf(caller.profile)) {
       events.push(
         ...(await ctx.db
           .query("eventRequests")
-          .withIndex("by_requester_and_status", (q) =>
-            q.eq("requesterEmail", caller.email).eq("status", "IN_PROGRESS")
+          .withIndex("by_department_and_status", (q) =>
+            q.eq("department", department).eq("status", "IN_PROGRESS")
           )
           .take(LIST_LIMIT))
       );
-      for (const department of departmentsOf(caller.profile)) {
-        events.push(
-          ...(await ctx.db
-            .query("eventRequests")
-            .withIndex("by_department_and_status", (q) =>
-              q.eq("department", department).eq("status", "IN_PROGRESS")
-            )
-            .take(LIST_LIMIT))
-        );
-      }
     }
     return await withRows(ctx, dedupe(events));
   },
@@ -304,43 +301,6 @@ export const earlierAll = query({
       .order("desc")
       .paginate(paginationOpts);
     return { ...result, page: await withRows(ctx, result.page) };
-  },
-});
-
-/** The staff years the year pickers offer: ones with events, and this one. */
-export const years = query({
-  args: {},
-  handler: async (ctx) => {
-    const caller = await optionalEventStaff(ctx);
-    if (!caller) return null;
-    const everyone = seesAll(await viewerScope(ctx, caller));
-    const mine = [caller.year];
-    const all = [caller.year];
-    for (let y = caller.year - 1; y >= EARLIEST_EVENT_REQUEST_YEAR; y--) {
-      let own = await ctx.db
-        .query("eventRequests")
-        .withIndex("by_requester_and_year", (q) =>
-          q.eq("requesterEmail", caller.email).eq("year", y)
-        )
-        .first();
-      for (const department of departmentsOf(caller.profile)) {
-        own ??= await ctx.db
-          .query("eventRequests")
-          .withIndex("by_department_and_year", (q) =>
-            q.eq("department", department).eq("year", y)
-          )
-          .first();
-      }
-      if (own) mine.push(y);
-      const any = everyone
-        ? await ctx.db
-            .query("eventRequests")
-            .withIndex("by_year_and_number", (q) => q.eq("year", y))
-            .first()
-        : null;
-      if (any) all.push(y);
-    }
-    return { mine, all };
   },
 });
 

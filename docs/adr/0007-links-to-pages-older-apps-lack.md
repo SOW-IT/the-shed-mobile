@@ -43,3 +43,17 @@ and they can't say which app version handles which path anyway.
 - 2.9.1 emptied the list: every entry (design requests 2.2.0 to churches
   2.5.5) was older than 2.9.0, the oldest supported app. The mechanism stays
   for the next new page.
+
+## Superseded in 2.10.0
+
+2.10.0 makes 2.9.25 the minimum app version, and every page exists in every
+app from 2.9.25, so the list was down to `/checkin` alone. `NEWER_PAGES`,
+`versionNeededFor`, `appCanOpen`, the `#app` marker, `emailLinkFor` and the
+bell's link filter are gone: emails and the bell link straight to the page.
+Apps still report their version (`appInstalls`), which is how we see who
+needs to update.
+
+When a release adds a page that emails or notifications link to, raise the
+update policy's `minimum` to that release once it is in both stores. Until
+then an older app shows its not-found screen, with "Open on the web" and the
+store, which is the fallback this record described.

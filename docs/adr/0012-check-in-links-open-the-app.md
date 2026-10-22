@@ -12,7 +12,8 @@ From 2.9.25:
   `components` entry that excludes that fragment).
 - **In the app, a signed-in leader is signed in as soon as the page opens**
   (`checkIn.signInLeader`), with an Undo. Anyone else gets the form.
-- **The web still never bounces `/checkin` to the app** (`NEWER_PAGES` stays):
+- **The web still never bounces `/checkin` to the app** (since 2.10.0 a fixed
+  `/checkin` check in `src/app/+html.tsx`, as `NEWER_PAGES` is gone):
   a phone with the app installed is sent there by the camera or the tapped
   link, not by the page.
 

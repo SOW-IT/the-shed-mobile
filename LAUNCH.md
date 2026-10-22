@@ -50,18 +50,24 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       night, and the warehouse check will fail from its second night. The
       first night with the grant downloads every file not yet in the
       manifest once.
-- [ ] **Ask phones to update to 2.9.1 once it's live in both stores** (2.9.0 is
-      the first version with the update prompt, so it only reaches people on
-      2.9.0 and later): `npx convex run --prod appInstalls:setUpdatePolicy
-      '{"platform": "ios", "minimum": "2.9.0", "recommended": "2.9.1"}'`, the
-      same for `android`. `minimum` 2.9.0 shows nobody the blocking screen
-      (everyone who can see it is on 2.9.0 or later); `recommended` 2.9.1 is the
-      dismissable banner. Raise `minimum` past 2.9.0 only after the nudge has
-      had a week or two, and only to a version both stores are serving.
-      **People on 2.8.0 and older never see it, and from 2.9.1 the server no
-      longer answers some of their calls** (old Insights screens, the typed
-      church field, weeklies without a term and week), so send them an
-      announcement asking them to update before merging 2.9.1.
+- [ ] **Release 2.10.0 in this order.** It removes server code that apps
+      older than 2.9.25 still call, and on 2026-10-22 54 of the 58 phones
+      seen that week were older than 2.9.25.
+      1. Before merging, check 2.9.25 or later is live on the App Store and
+         Google Play, since the update screen sends people to those listings.
+      2. Straight after merging (the Convex deploy goes out with the merge),
+         set `minimum` to 2.9.25 so older apps show the update screen instead
+         of calling functions that are gone: `npx convex run --prod
+         appInstalls:setUpdatePolicy '{"platform": "ios", "minimum": "2.9.25"}'`,
+         the same for `android`.
+      3. Run EAS Production and EAS Staging. 2.10.0 has a new runtime
+         fingerprint (the Expo patch updates), so it reaches phones as a store
+         update, not over the air.
+      4. Once 2.10.0 is live in both stores, set `recommended` to 2.10.0:
+         `npx convex run --prod appInstalls:setUpdatePolicy '{"platform":
+         "ios", "recommended": "2.10.0"}'`, the same for `android`.
+      5. Merge main into `feat/music-form` and redeploy dev, as after every
+         release.
 
 - [ ] **Add the Google Chat webhook secret** so EAS Production posts its
       result to the Data and IT space: `gh secret set GOOGLE_CHAT_WEBHOOK_URL
@@ -124,8 +130,8 @@ ran on prod on 2026-10-21 at 11:23 UTC and recounted every event into
 `eventAttendanceCounts`; its own check matched each event's count to its
 sign-ins. *Evidence (2026-10-21 13:52 UTC, read-only):* 282 events, 282 count
 rows, no event with more than one row, no event still carrying the old
-`events.attendanceCount` field, and the counts add up to 13,413 sign-ins. A
-later release can drop that field from the schema.
+`events.attendanceCount` field, and the counts add up to 13,413 sign-ins.
+2.10.0 drops that field from the schema.
 
 **Dev runs 2.9.29, with nightly jobs paused**: `feat/music-form` merged with
 main at `7c150af` (main `cbf04c0`, no conflicts) and deployed to
