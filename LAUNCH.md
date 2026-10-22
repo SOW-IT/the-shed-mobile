@@ -53,13 +53,17 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 - [ ] **Release 2.10.0 in this order.** It removes server code that apps
       older than 2.9.25 still call, and on 2026-10-22 54 of the 58 phones
       seen that week were older than 2.9.25.
-      1. Before merging, check 2.9.25 or later is live on the App Store and
-         Google Play, since the update screen sends people to those listings.
-      2. Straight after merging (the Convex deploy goes out with the merge),
-         set `minimum` to 2.9.25 so older apps show the update screen instead
-         of calling functions that are gone: `npx convex run --prod
-         appInstalls:setUpdatePolicy '{"platform": "ios", "minimum": "2.9.25"}'`,
-         the same for `android`.
+      1. Wait until 2.9.25 or later is live on the App Store and Google Play,
+         with Play's rollout at 100%. The update screen sends people to those
+         listings, and anyone outside a staged rollout can't update yet.
+      2. Just before merging, set `minimum` to 2.9.25 so older apps show the
+         update screen instead of calling functions this release removes:
+         `npx convex run --prod appInstalls:setUpdatePolicy '{"platform":
+         "ios", "minimum": "2.9.25"}'`, the same for `android`. Then merge.
+         The Convex deploy goes out with the merge, so setting the minimum
+         first leaves no gap where old apps call missing functions; until
+         the merge the server still serves them, so they only see the update
+         screen a few minutes early.
       3. Once the iPhone Apple Maps change (ADR 0013) is on main too, run EAS
          Production and EAS Staging. 2.10.0 has a new runtime fingerprint (the
          Expo patch updates and the dropped Google Maps SDK), so it reaches
