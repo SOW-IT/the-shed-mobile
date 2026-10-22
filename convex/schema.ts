@@ -38,7 +38,6 @@ export default defineSchema({
     phone: v.optional(v.string()),
     phoneVerificationTime: v.optional(v.number()),
     isAnonymous: v.optional(v.boolean()),
-    // The church they picked from the list (`churches`).
     churchId: v.optional(v.id("churches")),
     avatarId: v.optional(v.id("_storage")),
     reminderEmails: v.optional(v.boolean()),
@@ -46,10 +45,8 @@ export default defineSchema({
     .index("email", ["email"])
     .index("by_churchId", ["churchId"]),
 
-  // Local churches staff go to, which any staff member can add or fill in.
   churches: defineTable({
     name: v.string(),
-    // Lower-case, single-spaced name, so the same church isn't added twice.
     nameKey: v.string(),
     address: v.optional(v.string()),
     services: v.optional(v.array(v.object({ day: v.number(), time: v.string() }))),
@@ -109,9 +106,6 @@ export default defineSchema({
     name: v.string(),
   }).index("by_year_and_name", ["year", "name"]),
 
-  // The app version each person last opened on each kind of phone, reported
-  // by the app (2.3.1 on). Links to pages an older app can't open stay on the
-  // web for people without a new enough app (shared/appLinks.ts).
   appInstalls: defineTable({
     email: v.string(),
     platform: v.union(v.literal("ios"), v.literal("android")),
@@ -126,8 +120,6 @@ export default defineSchema({
     message: v.optional(v.string()),
   }).index("by_platform", ["platform"]),
 
-  // When someone last had The SHED open, on the web or in the app. Written
-  // at most every few minutes; see presence.ts.
   lastSeen: defineTable({
     email: v.string(),
     at: v.number(),
@@ -159,8 +151,6 @@ export default defineSchema({
     budgetManagerEmail: v.optional(v.string()),
     directorEmail: v.optional(v.string()),
     directorApprovalThreshold: v.optional(v.number()),
-    // Event requests with expenses over this also need the Director (see
-    // shared/eventRequests.ts); separate from the reimbursement threshold.
     eventDirectorApprovalThreshold: v.optional(v.number()),
     rolloverCopiedFrom: v.optional(v.number()),
     rolloverCompletedAt: v.optional(v.number()),
@@ -295,12 +285,6 @@ export default defineSchema({
     .index("by_announcement_and_read", ["announcementId", "read"])
     .index("by_request", ["requestId"]),
 
-  // A message an admin sends to everyone, or to chosen campuses, divisions,
-  // departments and roles (shared/announcements.ts) of staff `year`, the one
-  // the sender saw (missing on the first few dev rows). It goes out at `sendAt`
-  // (straight away, or a time they picked) as a push, a notification in the
-  // bell and, if `sendEmail`, an email. `jobId` is the scheduled send, so
-  // cancelling a scheduled one stops it. The counts are filled in when it goes.
   announcements: defineTable({
     senderEmail: v.string(),
     year: v.optional(v.number()),
@@ -321,13 +305,6 @@ export default defineSchema({
     .index("by_sender_and_status", ["senderEmail", "status"])
     .index("by_status_and_sendAt", ["status", "sendAt"]),
 
-  // A design request to the Marketing team. `year` is the staff year it was
-  // submitted in and `number` counts up within that year (#1, #2…); both are
-  // stored rather than derived because imported requests from the old web app
-  // keep their original year, number and submission time. `answers` follow the
-  // server-defined form (convex/designRequestForm.ts); `department`, `dueDate`
-  // and `title` are copied out of them so lists and emails don't need the form.
-  // `legacyKey` ("<year>/<firestore id>") makes the import safe to re-run.
   designRequests: defineTable({
     year: v.number(),
     number: v.number(),
@@ -367,7 +344,6 @@ export default defineSchema({
     designRequestId: v.id("designRequests"),
     authorEmail: v.string(),
     body: v.string(),
-    // When the comment was written; differs from _creationTime for imports.
     postedAt: v.number(),
     legacyKey: v.optional(v.string()),
   })
@@ -380,13 +356,6 @@ export default defineSchema({
     lastReadAt: v.number(),
   }).index("by_designRequest_and_user", ["designRequestId", "userEmail"]),
 
-  // An event request: the event itself (answers to the server-defined form in
-  // convex/eventRequestForm.ts), filed under its lead `department`. It goes
-  // ahead (APPROVED) once its Marketing, Risk and Finance forms
-  // (eventSubForms) are each approved or not required. `name`, `startsAt`,
-  // `endsAt` and `location` are copied out of the answers for lists and emails;
-  // the dates are Sydney wall-clock "2026-01-12T13:00". `legacyKey`
-  // ("<year>/<firestore id>") makes the import from the old web app re-runnable.
   eventRequests: defineTable({
     year: v.number(),
     number: v.number(),
@@ -413,10 +382,6 @@ export default defineSchema({
     .index("by_department_and_status", ["department", "status"])
     .index("by_status", ["status"]),
 
-  // One of an event's three forms. Marketing keeps `answers` (the form in
-  // convex/eventRequestForm.ts), Risk keeps `risk` and Finance keeps
-  // `finance`. A pending Finance form waits on `step`: the Director (big
-  // budgets only) then the Finance Head.
   eventSubForms: defineTable({
     eventRequestId: v.id("eventRequests"),
     kind: subFormKindValidator,
@@ -446,8 +411,6 @@ export default defineSchema({
     detail: v.optional(v.string()),
   }).index("by_eventRequest", ["eventRequestId"]),
 
-  // Each form has its own thread, between the requester's side and the team
-  // that reviews it.
   eventRequestComments: defineTable({
     eventRequestId: v.id("eventRequests"),
     form: subFormKindValidator,
@@ -477,8 +440,6 @@ export default defineSchema({
     dateEnd: v.number(),
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
-    // A campus weekly's term and week, set when it was created as a Weekly
-    // (or by the backfill). Insights trusts these over dates and names.
     weekly: v.optional(weeklyMarkValidator),
     checkIn: v.optional(
       v.object({ token: v.string(), enabledAt: v.number(), enabledBy: v.string() })
@@ -529,8 +490,6 @@ export default defineSchema({
   })
     .index("by_event", ["eventId"])
     .index("by_actor", ["actorEmail"])
-    // Finds the staff email a former leader or staff member had, from the
-    // "member.leftStaff" entry their conversion wrote.
     .index("by_member_and_action", ["memberId", "action"]),
 
   attendanceTags: defineTable({
@@ -551,11 +510,8 @@ export default defineSchema({
 
   attendanceMembers: defineTable({
     name: v.string(),
-    // A plain member's own email. On a staff person's row it is their staff
-    // email, which links the row to their staff profile.
     email: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
-    // A plain member's local church (staff set theirs in their Profile).
     churchId: v.optional(v.id("churches")),
   })
     .index("by_email", ["email"])
@@ -563,8 +519,6 @@ export default defineSchema({
     .index("by_churchId", ["churchId"])
     .searchIndex("search_name", { searchField: "name" }),
 
-  // An admin said this member isn't this staff person, so Admin → Merges
-  // stops suggesting the pair. `staffEmail` is the canonical email key.
   mergeSuggestionDismissals: defineTable({
     staffEmail: v.string(),
     memberId: v.id("attendanceMembers"),
@@ -633,9 +587,6 @@ export default defineSchema({
       "staffYear",
     ]),
 
-  // One row: the Insights → General campus weekly-attendance chart, rebuilt by
-  // the nightly Insights rebuild so opening the tab reads this instead of
-  // every weekly meeting's attendance.
   rosterHistorySnapshots: defineTable({
     year: v.number(),
     builtAt: v.number(),
@@ -668,23 +619,16 @@ export default defineSchema({
     ),
   }),
 
-  // Insights → Attendance for each campus, built around its weekly meetings
-  // (convex/weeklyInsights.ts). One settings row; the numbers can be changed
-  // at any time and take effect at the next build.
   weeklyInsightsSettings: defineTable({
     ...weeklySettingsFields,
     version: v.number(),
   }),
 
-  // Who came to which weekly, one row per campus and term. A finished term's
-  // row is only rewritten when one of its weeklies changes.
   weeklyTermFacts: defineTable(termFactsFields).index("by_subgroup_and_termKey", [
     "subgroup",
     "termKey",
   ]),
 
-  // The finished blocks for one campus and one term ("2026-T1") or year
-  // ("2026"), so opening Insights reads one row.
   weeklyInsightViews: defineTable({
     subgroup: v.string(),
     periodKey: v.string(),
@@ -692,9 +636,6 @@ export default defineSchema({
     blocks: v.array(weeklyBlockValidator),
   }).index("by_subgroup_and_periodKey", ["subgroup", "periodKey"]),
 
-  // One row per campus: the periods it has, where the last build got to in
-  // the attendance change log, and its recent weeklies' head counts (which the
-  // SOW view's campus comparison reads).
   weeklyInsightIndex: defineTable({
     subgroup: v.string(),
     computedAt: v.number(),
@@ -711,27 +652,18 @@ export default defineSchema({
     currentKey: v.union(v.string(), v.null()),
     weeklies: v.array(v.object({ at: v.number(), count: v.number(), joint: v.boolean() })),
     settingsVersion: v.number(),
-    // Missing on rows written before views had a version: redone next build.
     viewVersion: v.optional(v.number()),
     auditSeen: v.number(),
     eventsSeen: v.number(),
-    // When the latest term stops running, so its views are redone then even
-    // if no attendance has changed.
     nextCompareAt: v.number(),
   }).index("by_subgroup", ["subgroup"]),
 
-  // One row per campus: everyone in its latest term and their category, so
-  // the sign-in screen can tag newcomers and visitors from the nightly build.
   weeklyCategories: defineTable({
     subgroup: v.string(),
     termKey: v.string(),
     people: v.array(personCategoryValidator),
   }).index("by_subgroup", ["subgroup"]),
 
-  // One row per edited Home sub-tab (home, resources, connect, partner). A tab
-  // with no row, or null blocks (restored), shows the default content in
-  // shared/homeContent.ts. `revision` goes up on every save or restore, so a
-  // save from an out-of-date copy is refused.
   homeTabs: defineTable({
     key: v.string(),
     blocks: v.union(v.array(homeBlockValidator), v.null()),

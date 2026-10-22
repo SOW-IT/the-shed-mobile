@@ -49,7 +49,6 @@ describe("restoreAttendance", () => {
       const member = await ctx.db.insert("attendanceMembers", { name: "Jeremy Lim" });
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
       await ctx.db.delete(gone);
-      // Already signed in to e2: must be left alone.
       await ctx.db.insert("attendance", { eventId: e2, memberId: member, signInTime: 2_050 });
       const leader = await ctx.db.insert("attendanceMembers", { name: "Lee Leader" });
       const profile = (await ctx.db.query("staffProfiles").collect()).find((p) => p.email === LEADER)!;

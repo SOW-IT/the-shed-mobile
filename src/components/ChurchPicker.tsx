@@ -29,8 +29,6 @@ export type Church = {
 
 export const useCanEditChurches = () => Boolean(useQuery(api.directory.me)?.profile);
 
-/** Opens a church's address in the phone's maps app (Apple Maps on iOS,
- *  Google Maps elsewhere and on the web). */
 const openInMaps = (address: string) => {
   const query = encodeURIComponent(address);
   void Linking.openURL(
@@ -40,7 +38,6 @@ const openInMaps = (address: string) => {
   );
 };
 
-/** Where a church meets (tap for the map) and when. `bare` drops the tinted box, for a card of its own. */
 export function ChurchDetails({ church, onEdit, bare }: { church: Church; onEdit?: () => void; bare?: boolean }) {
   const t = useAppTheme();
   return (
@@ -173,7 +170,6 @@ function ServiceTimesField({
   );
 }
 
-/** Add a church to the list, or fix one that's there. */
 export function ChurchForm({
   visible,
   church,
@@ -197,7 +193,6 @@ export function ChurchForm({
   const [saving, setSaving] = useState(false);
   const [openedFor, setOpenedFor] = useState<string | null>(null);
 
-  // Fill the form each time it opens.
   const openKey = visible ? (church?._id ?? "new") : null;
   if (openKey !== openedFor) {
     setOpenedFor(openKey);
@@ -275,10 +270,6 @@ export function ChurchForm({
   );
 }
 
-/**
- * Who sees a church once it's set: a staff member's own church is on the
- * Churches page for anyone; a member's only for staff and campus leaders.
- */
 export type ChurchVisibility = "yours-public" | "yours-leaders" | "member" | "staff-record";
 
 const VISIBILITY_NOTES: Record<ChurchVisibility, string> = {
@@ -288,7 +279,6 @@ const VISIBILITY_NOTES: Record<ChurchVisibility, string> = {
   "staff-record": "They're on staff this year, so their church shows with their name on the Churches page for anyone using The SHED.",
 };
 
-/** Says who will see the church, shown under the picker and while picking. */
 export function ChurchVisibilityNote({ visibility }: { visibility: ChurchVisibility }) {
   const t = useAppTheme();
   const open = visibility === "yours-public" || visibility === "staff-record";
@@ -337,11 +327,6 @@ function ChurchVisibilityTag({ visibility }: { visibility: ChurchVisibility }) {
   );
 }
 
-/**
- * A church dropdown over the shared list, with "Add a church" at the bottom
- * (which picks the new one). `onChange(null)` clears it. `visibility` says
- * who will see it, under the field and at the top of the list.
- */
 export function ChurchSelect({
   label = "Local church",
   churchId,
@@ -422,7 +407,6 @@ export function ChurchSelect({
             accessibilityRole="button"
             onPress={() => {
               setListOpen(false);
-              // iOS can't show the form while the list is still fading out.
               setTimeout(() => setAdding(true), durations.overlayOut + 80);
             }}
             style={({ pressed }) => [
@@ -463,10 +447,8 @@ export function ChurchSelect({
   );
 }
 
-/** Your local church in your Profile: picked from the list, with its details. */
 export function ChurchPicker({ church }: { church: Church | null }) {
   const setChurch = useMutation(api.profile.setChurch);
-  // Staff (campus leaders too) can edit churches, and theirs is on the Churches page for anyone.
   const canEdit = useCanEditChurches();
   const listed = useQuery(api.directory.me)?.listsChurch === true;
   const [editing, setEditing] = useState(false);

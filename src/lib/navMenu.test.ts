@@ -36,7 +36,6 @@ describe("navViewer", () => {
       canAdmin: false,
       canAnnounce: false,
     });
-    // Even if a stale `me` is still around while signing out.
     expect(
       navViewer(false, { profile: staffProfile, isCampusLeader: true, isAdmin: true })
     ).toEqual(signedOut);

@@ -6,8 +6,6 @@ import { ChartModeProvider } from "@/components/attendance/MetricsCharts";
 import { LoadingState } from "@/components/ui";
 import { spacing } from "@/theme";
 
-// The layout comes from `generalMetrics.view` (see InsightsBlocks); the Insights
-// screen runs that query so the scope picker can share its year list.
 export function GeneralMetricsTab({ view }: { view: { blocks: ViewBlock[] } | undefined }) {
   const { width: windowWidth } = useWindowDimensions();
   const [containerWidth, setContainerWidth] = useState(windowWidth);

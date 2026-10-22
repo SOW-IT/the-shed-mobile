@@ -16,8 +16,6 @@ import {
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });

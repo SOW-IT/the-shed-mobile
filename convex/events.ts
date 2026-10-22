@@ -396,7 +396,6 @@ export const update = mutation({
     dateEnd: v.number(),
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
-    // Leave out to keep the event's term and week; null makes it not a Weekly.
     weekly: v.optional(v.union(v.null(), weeklyMarkArg)),
   },
   returns: v.null(),
@@ -440,9 +439,6 @@ export const update = mutation({
   },
 });
 
-/** Who is signed in to an event, newest first, named, for the delete sheet
- *  and the audit entry. Only the listed rows are named, so reads stay bounded
- *  by the line cap however big the event. */
 const attendeesToList = async (
   ctx: QueryCtx | MutationCtx,
   event: Doc<"events">,
@@ -462,8 +458,6 @@ const attendeesToList = async (
   return people;
 };
 
-/** What deleting an event takes with it, so the confirm sheet names every
- *  person whose attendance goes. */
 export const deletePreview = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
@@ -489,8 +483,6 @@ export const remove = mutation({
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
-    // Named before the rows go, so the audit entry can say whose attendance
-    // was lost and when they signed in.
     const people = await attendeesToList(ctx, event, rows);
     for (const row of rows) await ctx.db.delete(row._id);
     const checkIns = await ctx.db

@@ -10,8 +10,6 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 const DAY = 86_400_000;
-// Pinned mid staff year so dates a few weeks either side of "now" never
-// straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -26,18 +24,18 @@ const at = (days: number, hour = 18) =>
   sydneyDateTimeAnswer(PINNED_NOW + days * DAY).slice(0, 11) + `${String(hour).padStart(2, "0")}:00`;
 
 const ADMIN = "admin@sow.org.au";
-const EVA = "eva@sow.org.au"; // Events staff, the usual requester
-const ELLA = "ella@sow.org.au"; // Events staff
-const EDDIE = "eddie@sow.org.au"; // Events Head
-const MIKE = "mike@sow.org.au"; // Marketing Head
-const MARY = "mary@sow.org.au"; // Marketing staff
-const CORA = "cora@sow.org.au"; // Compliance Head
-const CARL = "carl@sow.org.au"; // Compliance staff
-const FIONA = "fiona@sow.org.au"; // Finance Head
-const FRED = "fred@sow.org.au"; // Finance staff
-const DAN = "dan@sow.org.au"; // Director
-const OLLIE = "ollie@sow.org.au"; // Missions staff: no part in Events' events
-const LEE = "lee@sow.org.au"; // a campus leader
+const EVA = "eva@sow.org.au";
+const ELLA = "ella@sow.org.au";
+const EDDIE = "eddie@sow.org.au";
+const MIKE = "mike@sow.org.au";
+const MARY = "mary@sow.org.au";
+const CORA = "cora@sow.org.au";
+const CARL = "carl@sow.org.au";
+const FIONA = "fiona@sow.org.au";
+const FRED = "fred@sow.org.au";
+const DAN = "dan@sow.org.au";
+const OLLIE = "ollie@sow.org.au";
+const LEE = "lee@sow.org.au";
 
 type T = TestConvex<typeof schema>;
 
@@ -153,7 +151,6 @@ const notificationsFor = (t: T, email: string) =>
       .collect()
   );
 
-/** Every email queued so far, whether or not it has run yet. */
 const emails = (t: T) =>
   t.run(async (ctx) =>
     (await ctx.db.system.query("_scheduled_functions").collect())
@@ -545,7 +542,6 @@ describe("the Finance form", () => {
     expect(await emailsTo(t, FIONA)).toEqual(["Finance form for [TEST] SAF27 needs your approval"]);
     expect(await emailsTo(t, SUB_FORM_INBOXES.finance)).toHaveLength(2);
 
-    // Changes at any step start the chain again.
     await asUser(t, FIONA).mutation(api.eventSubForms.requestChanges, {
       id,
       form: "finance",
@@ -720,7 +716,6 @@ describe("lists", () => {
     expect(all.map((r) => r._id).sort()).toEqual([id, other].sort());
     expect(await asUser(t, ELLA).query(api.eventRequests.all, { year: YEAR - 1 })).toEqual([]);
 
-    // Cancelled events drop out of review.
     await asUser(t, OLLIE).mutation(api.eventRequests.cancel, { id: other });
     expect(await asUser(t, CORA).query(api.eventRequests.review, {})).toEqual([]);
   });

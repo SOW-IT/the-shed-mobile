@@ -5,7 +5,6 @@ import { optionalEmail } from "./model";
 
 type Ctx = QueryCtx | MutationCtx;
 
-/** The app tells us which version it is, so links can match what it can open. */
 export const report = mutation({
   args: { platform: v.union(v.literal("ios"), v.literal("android")), version: v.string() },
   handler: async (ctx, args) => {

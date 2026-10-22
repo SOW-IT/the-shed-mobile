@@ -7,10 +7,6 @@ import {
   type ViewSegmentPoint,
 } from "./attendanceMetricsView";
 
-// Insights → General, laid out on the server like the Attendance tab (see
-// attendanceMetricsView.ts). The app draws the blocks; wording, order and which
-// charts appear ship with a Convex deploy.
-
 type Series = {
   overall: (number | null)[];
   staff: (number | null)[];
@@ -100,9 +96,6 @@ const comparisonLabel = (years: number[], i: number): ViewBlock => ({
   text: i > 0 ? `${years[i]} vs ${years[i - 1]}` : String(years[i]),
 });
 
-// The per-group cards for one staff year: retention and average years served,
-// split into overall, staff and student leaders. Deltas compare with the year
-// before; the comparison itself is labelled once, not on every card.
 function rateCards(
   series: Series,
   i: number,
@@ -316,7 +309,6 @@ function yearView(
       blocks.push({ type: "label", text: "Served 2+ years" }, { type: "cards", cards: twoPlus });
     }
   }
-  // Weekly meetings run on the calendar year, so this is calendar `year`.
   const caIndex = campusAttendance ? campusAttendance.years.indexOf(year) : -1;
   const attendance: ViewCard[] =
     campusAttendance && caIndex >= 0

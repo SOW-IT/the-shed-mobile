@@ -29,7 +29,6 @@ export const riskCategoryValidator = v.union(
   v.literal("finance")
 );
 
-/** One risk on the Risk form; levels 1–5 come from SOW's Risk Management Standard. */
 export const riskRowValidator = v.object({
   description: v.string(),
   category: v.optional(riskCategoryValidator),

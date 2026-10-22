@@ -161,7 +161,6 @@ describe("push.sendMany (one push to many people)", () => {
       body: "Body",
       url: "/announcements/x",
     });
-    // b has 20 devices at most on record; a's two plus b's 20 fit in one request.
     const sizes = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).length);
     expect(sizes).toEqual([22]);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)[0]).toMatchObject({

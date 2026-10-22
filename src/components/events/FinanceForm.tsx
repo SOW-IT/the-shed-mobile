@@ -11,7 +11,6 @@ import { spacing, typography, useAppTheme } from "@/theme";
 
 type LineDraft = { key: string; label: string; amount: string };
 
-/** The Finance form while it's being filled in: amounts stay as typed text. */
 export type FinanceDraft = { income: LineDraft[]; expenses: LineDraft[]; spreadsheetUrl: string };
 
 let nextKey = 0;
@@ -103,7 +102,6 @@ const Lines = ({
   );
 };
 
-/** The Finance form: a simple rundown of income and expenses, totalled. */
 export const FinanceFormEditor = ({
   draft,
   onChange,
@@ -185,7 +183,6 @@ const Summary = ({ income, expenses }: { income: number; expenses: number }) => 
   );
 };
 
-/** A submitted Finance form, read-only. */
 export const FinanceView = ({ data }: { data: FinanceData }) => {
   const t = useAppTheme();
   const totals = financeTotals(data);

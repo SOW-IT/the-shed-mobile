@@ -11,8 +11,6 @@ crons.cron("staff year prefill", "0 11 30 9 *", internal.admin.prefillNextStaffY
 
 crons.cron("purge old receipt files", "0 15 30 9 *", internal.cleanup.purgeOldReceiptFiles, {});
 
-// 01:30 Sydney on 1 Oct, after the flip: last year's staff who aren't staff
-// this year go back to being plain members.
 crons.cron(
   "staff rollover members",
   "30 15 30 9 *",
@@ -24,8 +22,6 @@ crons.cron("attendance metrics daily rebuild", "0 16 * * *", internal.attendance
 
 crons.cron("church map locations", "0 17 * * *", internal.churches.locateAll, { nightly: true });
 
-// 16:30 UTC (02:30 Sydney in winter, 03:30 in daylight saving): each
-// campus's weeklies Insights, redoing only what changed since the night before.
 crons.cron("weekly insights nightly build", "30 16 * * *", internal.weeklyInsights.rebuildAll, { nightly: true });
 
 crons.cron("purge old app errors", "45 17 * * *", internal.appErrors.purgeOld, {});

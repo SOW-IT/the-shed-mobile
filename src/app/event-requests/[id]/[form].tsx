@@ -128,7 +128,6 @@ export default function EventSubFormScreen() {
     if (eventId) void markNotificationsRead({ eventRequestId: eventId }).catch(() => {});
   }, [eventId, markNotificationsRead]);
 
-  // A thread link (a comment notification) opens the comments once.
   const threadLink = thread === "1" && eventId ? `${eventId}|${reopenToken ?? ""}` : null;
   useEffect(() => {
     if (threadLink && threadLink !== openedThreadLink) {
@@ -138,7 +137,6 @@ export default function EventSubFormScreen() {
     }
   }, [threadLink, openedThreadLink]);
 
-  // The editable copy starts from what's saved, once, when the form can be filled in.
   const current = kind && data ? data.forms[kind] : null;
   const canFill = !!current?.can.fill;
   useEffect(() => {
@@ -187,7 +185,6 @@ export default function EventSubFormScreen() {
   const run = (action: () => Promise<unknown>, after?: () => void) =>
     runBusy(busy, setBusy, setError, action, after);
 
-  /** Saves the form; with `submit`, checks it first and sends it for approval. */
   const save = (submit: boolean) => {
     if (kind === "marketing" && drafts.marketing) {
       const answers = normalizeAnswers(forms.marketing, answersFromDraft(forms.marketing, drafts.marketing));

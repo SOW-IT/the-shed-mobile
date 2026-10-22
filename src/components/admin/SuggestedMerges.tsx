@@ -59,11 +59,6 @@ const notSameMessage = (target: NotSameTarget): string =>
       } won't be suggested for staff ${target.staffName} again. Their attendance stays as it is.`
     : `"${target.pair.a.name}" and "${target.pair.b.name}" won't be suggested as the same person again. Their attendance stays as it is.`;
 
-/**
- * Admin → Merges: staff who look like someone still in attendance as a
- * member. Merge opens the usual member → staff merge review; "Not the same"
- * stops the pair being suggested. The tab only shows while there are any.
- */
 export function SuggestedMerges({
   suggestions,
   memberPairs,
@@ -80,7 +75,6 @@ export function SuggestedMerges({
   const t = useAppTheme();
   const dismiss = useMutation(api.mergeSuggestions.dismiss);
   const dismissPair = useMutation(api.memberPairSuggestions.dismiss);
-  // Kept after the sheet closes so it can animate out with its content.
   const [mergeTarget, setMergeTarget] = useState<MergeTarget | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [notSame, setNotSame] = useState<NotSameTarget | null>(null);

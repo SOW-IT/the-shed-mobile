@@ -15,8 +15,6 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 const DAY = 86_400_000;
-// Pinned mid staff year so dates a few weeks either side of "now" never
-// straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -30,11 +28,11 @@ const YEAR = staffYearForDate(new Date(PINNED_NOW));
 const DUE = sydneyToday(new Date(PINNED_NOW + 14 * DAY));
 
 const ADMIN = "admin@sow.org.au";
-const HENRY = "henry@sow.org.au"; // Marketing Head
-const MARY = "mary@sow.org.au"; // Marketing staff
-const DELIA = "delia@sow.org.au"; // covers for Henry
-const RACHEL = "rachel@sow.org.au"; // Events staff
-const PAUL = "paul@sow.org.au"; // Finance staff
+const HENRY = "henry@sow.org.au";
+const MARY = "mary@sow.org.au";
+const DELIA = "delia@sow.org.au";
+const RACHEL = "rachel@sow.org.au";
+const PAUL = "paul@sow.org.au";
 
 type T = TestConvex<typeof schema>;
 
@@ -178,7 +176,6 @@ describe("submitting", () => {
     expect((await notificationsFor(t, MARY)).map((n) => n.title)).toContain(
       "New design request"
     );
-    // The requester is emailed, not notified in-app about their own action.
     expect(await notificationsFor(t, RACHEL)).toEqual([]);
     const to = (await emailedTo(t)).map((e) => e.to);
     expect(to).toEqual(expect.arrayContaining([RACHEL, HENRY, DELIA, MARKETING_TEAM_EMAIL]));
@@ -246,8 +243,6 @@ describe("who sees what", () => {
         legacy({ id: "2", completed: true, completedTime: Date.UTC(YEAR - 3, 11, 2) }),
       ],
     });
-    // A request still open from an earlier year, as one is when the staff
-    // year rolls over before it's finished.
     await t.run(async (ctx) => {
       const row = await ctx.db
         .query("designRequests")
@@ -262,13 +257,11 @@ describe("who sees what", () => {
     await submit(t, MARY);
     const rachel = asUser(t, RACHEL);
 
-    // This year: this year's requests plus anything still open from before.
     const current = await rachel.query(api.designRequests.mine, {});
     expect(current!.map((r) => r.number)).toEqual([1, 1]);
     expect(current![0]._id).toBe(mine);
     expect(current!.every((r) => r.requesterEmail === RACHEL)).toBe(true);
 
-    // The Marketing queue is every open request, from any year.
     expect(await rachel.query(api.designRequests.queue, {})).toBeNull();
     const queue = await asUser(t, ADMIN).query(api.designRequests.queue, {});
     expect(queue!.map((r) => `${r.year}#${r.number}`).sort()).toEqual(
@@ -276,7 +269,6 @@ describe("who sees what", () => {
     );
     expect(queue![0].requesterName).toBeNull();
 
-    // The archive is one staff year, everything in it.
     expect(await rachel.query(api.designRequests.archive, { year: YEAR - 2 })).toBeNull();
     const archive = await asUser(t, MARY).query(api.designRequests.archive, {
       year: YEAR - 2,
@@ -471,7 +463,6 @@ describe("editing and cancelling", () => {
       id,
       answers: answers({ keyMessage: "Another", items: ["poster"] }),
     });
-    // Approved, so the Marketing Head is told as part of the team only.
     for (const email of [HENRY, MARY]) {
       const notes = await notificationsFor(t, email);
       expect(notes.map((n) => n.body)).toEqual(["The requester changed: Key message."]);
@@ -524,7 +515,6 @@ describe("editing and cancelling", () => {
     await asUser(t, HENRY).mutation(api.designRequests.approve, { id: approved });
     await clearOutbox(t);
     await asUser(t, RACHEL).mutation(api.designRequests.cancel, { id: approved });
-    // Once approved, the Marketing Head hears about it as part of the team.
     for (const email of [HENRY, MARY]) {
       expect((await notificationsFor(t, email)).map((n) => n.title)).toEqual([
         "Design request cancelled",
@@ -620,8 +610,6 @@ describe("importing from the old web app", () => {
         .withIndex("by_email_and_year", (q) => q.eq("email", MARY).eq("year", YEAR))
         .unique();
       await ctx.db.patch("staffProfiles", profile!._id, { importId: "uid-mary" });
-      // Henry's id was kept on an old-year profile under the old domain; his
-      // requests should still land on the address he signs in with now.
       await ctx.db.insert("staffProfiles", {
         email: "henry@sowaustralia.com",
         year: YEAR - 3,
@@ -679,14 +667,12 @@ describe("importing from the old web app", () => {
       requesterEmail: RACHEL,
       department: "Events",
       title: "Other: Banner",
-      // Approved but never finished, in an earlier staff year: closed on import.
       status: "COMPLETED",
       completionNote: CLOSED_ON_IMPORT_NOTE,
       legacyKey: `${YEAR - 2}/1`,
     });
     expect(byNumber[1].completedAt).toBeUndefined();
     expect(byNumber[4]).toMatchObject({ status: "COMPLETED", completionNote: CLOSED_ON_IMPORT_NOTE });
-    // This year's open requests come in as they were.
     expect(byNumber[6]).toMatchObject({ year: YEAR, status: "APPROVED", decidedAt: 1 });
     expect(byNumber[6].completionNote).toBeUndefined();
     expect(byNumber[1].answers).toEqual({
@@ -726,14 +712,12 @@ describe("importing from the old web app", () => {
     });
     const [comment] = await t.run((ctx) => ctx.db.query("designRequestComments").collect());
     expect(comment).toMatchObject({ authorEmail: MARY, body: "On it" });
-    // Imported comments never show as unread.
     expect(
       await asUser(t, RACHEL).query(api.designRequestComments.unreadCounts, {
         ids: [byNumber[1]._id],
       })
     ).toEqual({});
 
-    // Acting on one in THE SHED protects it from being overwritten.
     await asUser(t, RACHEL).mutation(api.designRequests.cancel, { id: byNumber[6]._id });
     const again = await t.mutation(internal.designRequestImport.importLegacy, {
       requests: batch,

@@ -77,9 +77,6 @@ export function EditMemberSheet({
   const isStaffOverlay = Boolean(row?.isStaffOverlay);
   const isStaffNow = Boolean(row?.isStaffNow);
   const nameLocked = isStaffOverlay && Boolean(row?.nameLocked);
-  // Deleting throws attendance away, so only admins (Data and IT, HR, the
-  // Governance head, the Director) get the button; everyone else merges
-  // duplicates instead.
   const me = useQuery(api.directory.me, visible ? {} : "skip");
   const canDelete = Boolean(me?.isAdmin);
 
@@ -99,7 +96,6 @@ export function EditMemberSheet({
   const [mergeStaff, setMergeStaff] = useState<{ email: string; name: string } | null>(
     null
   );
-  // Lives outside the sheet so it can confirm a merge or delete after closing.
   const [toast, setToast] = useState<ToastState>(null);
   const deleteImpact = useQuery(
     api.attendanceMembers.deletePreview,
@@ -112,9 +108,6 @@ export function EditMemberSheet({
   );
   const hasDuplicate = !memberId && (duplicates?.length ?? 0) > 0;
 
-  // A plain member given a staff email would only be relabelled, leaving their
-  // attendance split from the staff person's. Point to Merge instead. A staff
-  // person's own email field is checked the same way: it's for a personal one.
   const typedEmail = (isStaffOverlay ? personalEmail : email).trim().toLowerCase();
   const savedEmail = (isStaffOverlay ? row?.personalEmail : row?.email) ?? "";
   const emailChanged =
@@ -124,8 +117,6 @@ export function EditMemberSheet({
     visible && emailChanged ? { email: typedEmail, staffYear } : "skip"
   );
   const staffEmailOwner = emailChanged ? (staffForEmail ?? null) : null;
-  // Any other SOW address is still a staff one, never a personal email, even
-  // one already saved (an import can bring one in).
   const sowAddress = !staffEmailOwner && isSowStaffAddress(typedEmail);
 
   const metadataSummary = (meta: Record<string, string>) =>
@@ -171,9 +162,6 @@ export function EditMemberSheet({
     (!isStaffOverlay && churchId !== (row.churchId ?? null));
   const dirty = !memberId || memberChanged || notesChanged;
 
-  // The Role sent is the label (Visitor, Alumni); the server saves it as its
-  // option. Picking what's already saved puts back exactly what was there,
-  // and Automatic leaves a Role saved before Roles were worked out alone.
   const markRole = (roleFieldId: string, mark: MarkedRole | null) =>
     setMetadata((prev) => {
       const next = { ...prev };
@@ -207,7 +195,6 @@ export function EditMemberSheet({
           personalEmail: isStaffOverlay ? personalEmail : undefined,
           metadata,
           staffYear,
-          // Staff set their church in their own Profile.
           ...(isStaffOverlay ? {} : { churchId }),
         });
       } else if (!memberId) {
@@ -249,7 +236,6 @@ export function EditMemberSheet({
   };
 
   const loading = Boolean(memberId && row === undefined);
-  // Deleted or merged away by someone else while this sheet was open.
   const gone = Boolean(memberId) && row === null;
 
   const sheet = (
@@ -517,8 +503,6 @@ export function EditMemberSheet({
                     setDeleteOpen(false);
                     setMergeFromDelete(true);
                     setMergeStaff(null);
-                    // iOS can't present a modal while another is still
-                    // dismissing, so wait for the delete sheet to fade out.
                     setTimeout(() => setMergeOpen(true), durations.overlayOut + 80);
                   }}
                 />

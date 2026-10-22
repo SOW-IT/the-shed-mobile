@@ -1,13 +1,3 @@
-/**
- * Merging two attendance people into one. Ported from the roll-call web app's
- * `merge.ts` (time-to-rollcall #14/#16): the person being merged away hands
- * over their attendance and any details the kept person is missing, and where
- * both have a value that differs the leader picks which one survives.
- *
- * Only a plain member can be merged away. A staff person is always the one
- * kept, and two staff can never be merged — their identity is their org email.
- */
-
 export type MergeSide = {
   name: string;
   email?: string;
@@ -17,26 +7,18 @@ export type MergeSide = {
 type MergeFieldLike = { _id: string; key: string };
 
 export type MergeConflict = {
-  /** "name", "email", or a metadata field id. */
   field: string;
   label: string;
   keepValue: string;
   removeValue: string;
-  /** Set for metadata conflicts so the UI can format the stored value. */
   metadataFieldId?: string;
 };
 
-/** Which side's value wins, keyed by `MergeConflict.field`. Missing = keep. */
 export type MergeResolutions = Record<string, "keep" | "remove">;
 
 type MergeOptions = {
-  /** A staff person's name and email come from their profile. */
   identityLocked?: boolean;
-  /** Metadata fields that can't change (a staff person's campus and role). */
   lockedFieldIds?: readonly string[];
-  /** Whether two stored values mean the same thing — e.g. the Year field,
-   *  where a legacy option id and a commencement year can both read "Year 2".
-   *  Defaults to exact equality. */
   sameValue?: (fieldId: string, a: string, b: string) => boolean;
 };
 
@@ -49,11 +31,6 @@ const sameName = (a: string, b: string): boolean =>
 const sameEmail = (a: string, b: string): boolean =>
   a.trim().toLowerCase() === b.trim().toLowerCase();
 
-/**
- * Fields where both people have a value and the values differ. Locked fields
- * (a staff person's name, email, campus and role come from their profile)
- * never conflict because the kept value can't change.
- */
 export function detectMergeConflicts(
   keep: MergeSide,
   remove: MergeSide,
@@ -100,10 +77,6 @@ export function detectMergeConflicts(
   return conflicts;
 }
 
-/**
- * The kept person's details after the merge: conflicts follow `resolutions`,
- * and anything the kept person is missing is filled in from the other side.
- */
 export function buildMergedFields(
   keep: MergeSide,
   remove: MergeSide,
@@ -149,8 +122,6 @@ export function buildMergedFields(
   };
 }
 
-/** Labels of the details the kept person takes from the one removed, for the
- *  audit log: conflicts resolved the other way, and blanks that were filled. */
 export function fieldsTakenFromRemoved(
   keep: MergeSide,
   merged: MergeSide,
@@ -167,7 +138,6 @@ export function fieldsTakenFromRemoved(
   return taken;
 }
 
-/** Combines two attendance notes without repeating one already contained. */
 export const mergeNotes = (
   existing: string | undefined,
   incoming: string | undefined

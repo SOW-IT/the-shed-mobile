@@ -127,7 +127,6 @@ describe("merging a member into another member", () => {
     expect(preview.keep.kind).toBe("member");
     expect(preview.attendance).toEqual({ total: 2, shared: 1, moved: 1 });
     expect(preview.conflicts.map((c) => c.field)).toEqual(["name", s.yearField]);
-    // Each side's own history, so the leader can see which record was used more.
     expect(preview.keep.history).toEqual({ events: 2, lastAttended: 3_100 });
     expect(preview.remove.history).toEqual({ events: 2, lastAttended: 2_100 });
 
@@ -685,7 +684,6 @@ describe("deletePreview", () => {
     expect(await asUser(s.t, ADMIN).mutation(api.attendanceMembers.remove, { memberId: m })).toBe(true);
     const log = (await s.audit()).find((r) => r.action === "member.delete");
     expect(log?.memberId).toBe(m);
-    // Deleting again (someone else got there first) reports nothing was removed.
     expect(await asUser(s.t, ADMIN).mutation(api.attendanceMembers.remove, { memberId: m })).toBe(false);
   });
 });
@@ -701,7 +699,6 @@ describe("a staff email on a member points to Merge", () => {
         email: LEADER.toUpperCase(),
       })
     ).rejects.toThrow(/staff email\. Use Merge instead/);
-    // Other emails, and staff rows keeping their own email, still save.
     await s.leader.mutation(api.attendanceMembers.update, {
       memberId: m,
       name: "Leader Nickname",
@@ -722,7 +719,6 @@ describe("a staff email on a member points to Merge", () => {
     await expect(
       s.leader.mutation(api.attendanceMembers.create, { name: "Leader", email: LEADER })
     ).rejects.toThrow(/staff email\. They're already in the list as staff/);
-    // Staff in an old year only are still staff: their attendance uses that email.
     await s.t.run((ctx) =>
       ctx.db.insert("staffProfiles", {
         email: "former@sow.org.au",
@@ -737,7 +733,6 @@ describe("a staff email on a member points to Merge", () => {
         email: "FORMER@sowaustralia.com",
       })
     ).rejects.toThrow(/Former Staff's staff email/);
-    // Any other email, even one another member has, is fine.
     await s.member("Someone", {}, "shared@gmail.com");
     await s.leader.mutation(api.attendanceMembers.create, {
       name: "Someone Else",
@@ -813,7 +808,6 @@ describe("choosing which metadata stays", () => {
 
   async function withFields() {
     const s = await setup();
-    // setup()'s plain "Year" input would clash with the real Year select below.
     await s.t.run((ctx) => ctx.db.patch(s.yearField, { key: "Notes" }));
     const f = await s.t.run(async (ctx) => ({
       studentYear: await ctx.db.insert("attendanceMetadata", {
@@ -839,7 +833,6 @@ describe("choosing which metadata stays", () => {
 
   test("values stored differently but shown the same aren't offered as a choice", async () => {
     const s = await withFields();
-    // "y2" is a legacy option id; NOW-1 is the commencement year. Both read "2".
     const keep = await s.member("Jeremy Lim", { [s.f.studentYear]: "y2", [s.f.gender]: "m" });
     const dup = await s.member("Jeremy Lim", {
       [s.f.studentYear]: String(NOW - 1),
@@ -854,7 +847,6 @@ describe("choosing which metadata stays", () => {
     await s.leader.mutation(api.attendanceMembers.merge, {
       removeId: dup,
       keep: { memberId: keep },
-      // Even a stray "remove" can't swap an equivalent value.
       resolutions: { [s.f.studentYear]: "remove", [s.f.gender]: "remove" },
     });
     expect((await s.t.run((ctx) => ctx.db.get(keep)))?.metadata).toEqual({
@@ -909,7 +901,6 @@ describe("choosing which metadata stays", () => {
         [s.f.studentYear]: "remove",
         [s.f.gender]: "keep",
         [s.f.diet]: "remove",
-        // campus left out: defaults to the kept person's value
       },
     });
 
@@ -921,7 +912,6 @@ describe("choosing which metadata stays", () => {
         [s.f.gender]: "m",
         [s.f.diet]: "vegan",
         [s.campusField]: "usyd",
-        // A blank on the kept side is filled without asking.
         [s.yearField]: "note from dup",
       },
     });
@@ -950,7 +940,6 @@ describe("choosing which metadata stays", () => {
       keep: { memberId: shadow },
     });
     if (!preview || "blocked" in preview) throw new Error("expected a preview");
-    // Name, email and campus come from the staff profile, so aren't offered.
     expect(preview.conflicts.map((c) => c.label)).toEqual(["Gender", "Dietary"]);
 
     await s.leader.mutation(api.attendanceMembers.merge, {

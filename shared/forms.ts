@@ -2,11 +2,6 @@ import { formatAmount, toCents } from "./money";
 import { pad2 } from "./datetime";
 import { SYDNEY_TIME_ZONE, sydneyYmd } from "./flow";
 
-// A small engine for forms whose questions are defined on the server and sent
-// to the app, which renders whatever it's given: design requests, event
-// requests and their Marketing form. Everything here works from a list of
-// field definitions, so the app and the server check answers the same way.
-
 export const MAX_ANSWER_LENGTH = 4000;
 
 export type FormAnswer = string | number | boolean | string[];
@@ -28,60 +23,39 @@ export type FormFieldKind =
 export interface FormFieldOption {
   value: string;
   label: string;
-  /** Event sizes this choice is recommended for (see shared/eventRequests.ts). */
   recommended?: readonly string[];
-  /**
-   * No longer offered: the form hides it unless it's already ticked, so old
-   * answers still read properly and can be kept when they're edited.
-   */
   retired?: boolean;
 }
 
 export interface FormField {
-  /** Where the answer is stored. Never reuse a key for a different question. */
   key: string;
   kind: FormFieldKind;
-  /** The question as the form asks it. */
   label: string;
-  /** A short name for the answer, used on the request page, in emails and in change lists. */
   shortLabel: string;
   hint?: string;
   placeholder?: string;
   required: boolean;
-  /** A heading shown above this question (and the ones after it). */
   section?: string;
-  /** Checkboxes and choices: the options. */
   options?: FormFieldOption[];
-  /** Checkboxes: the choice that asks for a written answer, stored under `<key>Other`. */
   otherOption?: string;
-  /** Only asked when a checkbox question has this choice ticked. */
   showWhen?: { field: string; includes: string };
-  /** Dates and date-times: nothing before today (Sydney). */
   notInPast?: boolean;
-  /** Date-times: can't be earlier than this other question's answer. */
   notBefore?: string;
-  /** Date-times: can't be later than this other question's answer. */
   notAfter?: string;
-  /** Money and numbers: the largest amount accepted. */
   max?: number;
-  /** Text: the longest answer accepted; defaults to MAX_ANSWER_LENGTH. */
   maxLength?: number;
-  /** What a record is filed under (its department, title, dates…), copied out of the answers. */
   role?: "department" | "dueDate" | "title" | "start" | "end" | "location";
-  /** Included in the summary emailed with every notification. */
   inSummary?: boolean;
 }
 
 export const otherKey = (field: Pick<FormField, "key">) => `${field.key}Other`;
 
-/** Whether a question is asked, given the answers so far. */
 export const isFieldShown = (field: FormField, answers: FormAnswers): boolean => {
   if (!field.showWhen) return true;
   const ticked = answers[field.showWhen.field];
   return Array.isArray(ticked) && ticked.includes(field.showWhen.includes);
 };
 
-/** The options the form offers: retired ones only when they're already chosen. */
 export const offeredOptions = (
   field: FormField,
   chosen: readonly string[]
@@ -91,12 +65,6 @@ export const offeredOptions = (
 const trimmed = (value: FormAnswer | undefined) =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
 
-/**
- * The answers as they're stored: only questions the form asks (and that are
- * showing), text trimmed, empty answers dropped, ticked choices de-duplicated
- * in the order the form lists them, amounts rounded to cents and counts to
- * whole numbers.
- */
 export const normalizeAnswers = (
   fields: readonly FormField[],
   answers: FormAnswers
@@ -149,13 +117,11 @@ export const normalizeAnswers = (
   return out;
 };
 
-/** Today's date in Sydney as YYYY-MM-DD, the earliest due date allowed. */
 export const sydneyToday = (now: Date = new Date()): string => {
   const { year, month, day } = sydneyYmd(now);
   return `${year}-${pad2(month)}-${pad2(day)}`;
 };
 
-/** A moment as a Sydney wall-clock date-time answer, "2026-01-12T13:00". */
 export const sydneyDateTimeAnswer = (ms: number): string => {
   const parts = new Intl.DateTimeFormat("en-AU", {
     timeZone: SYDNEY_TIME_ZONE,
@@ -185,7 +151,6 @@ export const isValidDateString = (value: string): boolean => {
   );
 };
 
-/** "2026-01-12T13:00": a Sydney wall-clock date and time. */
 export const isValidDateTimeString = (value: string): boolean => {
   const [date, time, ...rest] = value.split("T");
   return (
@@ -223,7 +188,6 @@ const missing = (field: FormField): string => {
   }
 };
 
-/** The problem with one date-time answer, or null. */
 const dateTimeProblem = (
   fields: readonly FormField[],
   field: FormField,
@@ -343,12 +307,6 @@ export const questionNumber = (
   return index === -1 ? undefined : index + 1;
 };
 
-/**
- * What's wrong with a set of normalised answers, as a message for whoever's
- * filling them in, or null when they can be submitted. A date that can't be
- * in the past may still keep the value it had in `previous`, so an older
- * record can be edited without moving its dates.
- */
 export const answersProblem = (
   fields: readonly FormField[],
   answers: FormAnswers,
@@ -358,31 +316,24 @@ export const answersProblem = (
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "20 Oct 2026" for a YYYY-MM-DD date. */
 export const formatDate = (value: string): string => {
   if (!isValidDateString(value)) return value;
   const [year, month, day] = value.split("-").map(Number);
   return `${day} ${MONTHS[month - 1]} ${year}`;
 };
 
-/** "1:00 pm" for an HH:mm time. */
 const formatTime = (time: string): string => {
   const [hour, minute] = time.split(":").map(Number);
   const suffix = hour < 12 ? "am" : "pm";
   return `${hour % 12 === 0 ? 12 : hour % 12}:${pad2(minute)} ${suffix}`;
 };
 
-/** "12 Jan 2026, 1:00 pm" for a "2026-01-12T13:00" date-time. */
 export const formatDateTime = (value: string): string => {
   if (!isValidDateTimeString(value)) return value;
   const [date, time] = value.split("T");
   return `${formatDate(date)}, ${formatTime(time)}`;
 };
 
-/**
- * "12–16 Jan 2026" style range for two date-times, with times when it's a
- * single day: "17 Oct 2026, 11:00 am – 5:00 pm".
- */
 export const formatDateTimeRange = (start: string, end: string | undefined): string => {
   if (!end || !isValidDateTimeString(start) || !isValidDateTimeString(end)) {
     return formatDateTime(start);
@@ -395,7 +346,6 @@ export const formatDateTimeRange = (start: string, end: string | undefined): str
   return `${formatDateTime(start)} – ${formatDateTime(end)}`;
 };
 
-/** An answer as it reads on the page and in emails, or null if unanswered. */
 export const formatAnswer = (field: FormField, answers: FormAnswers): string | null => {
   const value = answers[field.key];
   if (value === undefined) return null;
@@ -428,7 +378,6 @@ export const formatAnswer = (field: FormField, answers: FormAnswers): string | n
   }
 };
 
-/** The short names of the questions whose answers differ. */
 export const changedAnswers = (
   fields: readonly FormField[],
   before: FormAnswers,
@@ -438,7 +387,6 @@ export const changedAnswers = (
     .filter((field) => formatAnswer(field, before) !== formatAnswer(field, after))
     .map((field) => field.shortLabel);
 
-/** The answer to the question with `role`, as text ("" when there's none). */
 export const answerForRole = (
   fields: readonly FormField[],
   answers: FormAnswers,

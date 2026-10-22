@@ -29,8 +29,6 @@ const categoryRows = async (ctx: QueryCtx, campuses: readonly string[] | undefin
       )
     : await ctx.db.query("weeklyCategories").take(MAX_CAMPUSES);
 
-/** Each person's category in every campus's latest term, from last night's
- *  Insights build, keyed as the sign-in screen keys them (`member:…`). */
 export async function categoriesByPerson(
   ctx: QueryCtx,
   campuses?: readonly string[]
@@ -47,9 +45,6 @@ export async function categoriesByPerson(
   return byPerson;
 }
 
-/** Works out a plain member's Role (shared/memberRole.ts), reading last
- *  night's categories once for a whole list. `automatic` is the Role they'd
- *  have without a hand-set one. */
 export async function memberRoleResolver(
   ctx: QueryCtx,
   fields: readonly MetadataFieldLike[],

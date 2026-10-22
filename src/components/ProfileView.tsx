@@ -48,15 +48,9 @@ const ProfileFrame = ({
     </Screen>
   );
 
-/**
- * A person's profile. Your own (`asTab`) is a root screen from the side menu,
- * with the top bar; anyone else's opens on top of the screen you came from,
- * with a back button.
- */
 export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: boolean }) => {
   const t = useAppTheme();
   const profile = useQuery(api.profile.get, email ? { email } : {});
-  // Keeps "Last online 5m ago" current while the profile is open.
   useMinuteTick();
   const generateAvatarUploadUrl = useMutation(api.profile.generateAvatarUploadUrl);
   const setAvatar = useMutation(api.profile.setAvatar);

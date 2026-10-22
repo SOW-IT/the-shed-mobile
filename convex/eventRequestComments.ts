@@ -35,7 +35,6 @@ const commentsFor = (
       q.eq("eventRequestId", id).eq("form", form).gt("postedAt", after)
     );
 
-/** A form's thread. Anyone who can see the event can read it. */
 export const list = query({
   args: { id: v.id("eventRequests"), form: subFormKindValidator },
   handler: async (ctx, args) => {
@@ -48,11 +47,6 @@ export const list = query({
   },
 });
 
-/**
- * Posts to a form's thread and tells the others in it: the requester and
- * whoever submitted the form (by email too), whoever approves it now (by email
- * too), and the rest of the reviewing team in-app.
- */
 export const add = mutation({
   args: { id: v.id("eventRequests"), form: subFormKindValidator, body: v.string() },
   handler: async (ctx, args) => {
@@ -91,7 +85,6 @@ export const add = mutation({
     );
     await tell(ctx, event, emailed, note);
     const team = await teamOf(ctx, SUB_FORM_TEAMS[args.form]);
-    // The Director is in a Finance thread once the budget has needed them.
     const director =
       args.form === "finance" && form.directorApprovedBy
         ? await recipientsFor(ctx, await directorOf(ctx, event))
@@ -107,10 +100,6 @@ export const add = mutation({
   },
 });
 
-/**
- * Unread comments per event, per form, for the caller: ones written since
- * they last opened that thread, by someone else.
- */
 export const unreadCounts = query({
   args: { ids: v.array(v.id("eventRequests")) },
   handler: async (ctx, args) => {

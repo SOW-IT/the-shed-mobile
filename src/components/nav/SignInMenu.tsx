@@ -20,11 +20,6 @@ export const alertSowAccountRequired = (appleAvailable: boolean) =>
     [{ text: "OK" }]
   );
 
-/**
- * The sign-in choices (SOW account, Apple) as a small menu
- * dropping from wherever `anchor` puts it. `children` renders the button that
- * opens it.
- */
 export const SignInMenu = ({
   anchor,
   children,

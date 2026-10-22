@@ -44,7 +44,6 @@ export type RosterEntry = {
   photo?: string | null;
 };
 
-/** A plain member's worked-out Role, then the rest of their details. */
 const memberSubtitle = (role: string | undefined, details: string): string | undefined =>
   [role, details].filter(Boolean).join(" · ") || undefined;
 
@@ -353,7 +352,6 @@ export const updateRecord = mutation({
   },
 });
 
-/** Audit note for a sign-in undone only because of the 10-minute grace. */
 const undoDetail = (
   event: { dateEnd: number } | null,
   addedAt: number

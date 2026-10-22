@@ -37,12 +37,6 @@ const purgeRequestReceiptFiles = async (
 
 const PURGE_BATCH_SIZE = 100;
 
-/**
- * Annual cron: delete receipt files for requests created before the previous
- * staff year. Walks the requests table one page per transaction and
- * reschedules itself, so the job finishes however many requests exist rather
- * than failing once a single transaction would be too large.
- */
 export const purgeOldReceiptFiles = internalMutation({
   args: {
     beforeMs: v.optional(v.number()),

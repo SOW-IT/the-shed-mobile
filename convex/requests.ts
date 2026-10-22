@@ -77,7 +77,6 @@ const isApprovalAction = (action: string): boolean => APPROVAL_ACTIONS.has(actio
 const autoApproverOf = (event: Doc<"requestEvents"> | undefined): string | null =>
   event?.action === AUTO_APPROVED ? event.actorEmail : null;
 
-/** Newest-first audit events for a request (bounded). */
 const recentRequestEvents = (ctx: Ctx, requestId: Id<"requests">) =>
   ctx.db
     .query("requestEvents")
@@ -85,7 +84,6 @@ const recentRequestEvents = (ctx: Ctx, requestId: Id<"requests">) =>
     .order("desc")
     .take(REQUEST_EVENTS_LIMIT);
 
-/** The officeholder email for an approval step. */
 export const approverEmailFor = (
   step: Step,
   approvers: Approvers
@@ -520,11 +518,6 @@ export const submit = mutation({
   },
 });
 
-/**
- * A requester's requests created in staff year `y`. Every index implicitly
- * ends with `_creationTime`, so the year window is an index range rather than
- * a post-filter over all of their requests.
- */
 export const requesterRequestsInYear = (ctx: Ctx, email: string, y: number) =>
   ctx.db
     .query("requests")
@@ -569,10 +562,7 @@ const memoAsync = <K, V>(load: (key: K) => Promise<V>) => {
   };
 };
 
-/** `getApprovers` memoised per (year, department) for the life of one handler. */
 export const makeApproverResolver = (ctx: Ctx) => {
-  // Department names are free text, so the cache key is a JSON tuple rather
-  // than a delimited string that a ":" in the name could split.
   const cache = new Map<string, Promise<Approvers>>();
   return (year: number, department: string): Promise<Approvers> => {
     const key = JSON.stringify([year, department]);
@@ -585,7 +575,6 @@ export const makeApproverResolver = (ctx: Ctx) => {
   };
 };
 
-/** `actAsEmails` for one caller memoised per year. */
 const makeActAsResolver = (ctx: Ctx, email: string) =>
   memoAsync<number, Set<string>>((year) => actAsEmails(ctx, year, email));
 
@@ -690,12 +679,8 @@ export const requestYears = query({
   },
 });
 
-// Requests looked at per year when listing the years someone reviewed in.
-// The first approval in a year is nearly always one of that year's.
 const REVIEWED_YEAR_PROBE_REQUESTS = 50;
 
-/** The caller's approvals and declines that could be on requests from staff
- *  year `year`: made that year or, for a carried-over request, the next. */
 const reviewEventsFor = (ctx: QueryCtx, email: string, year: number) =>
   ctx.db
     .query("requestEvents")
@@ -713,7 +698,6 @@ const reviewedRequestOf = (
 ): request is Doc<"requests"> =>
   request !== null && request.requesterEmail !== email && requestYear(request) === year;
 
-/** Whether `reviewedInYear` has anything for `year`, stopping at the first. */
 const reviewedSomeIn = async (ctx: QueryCtx, email: string, year: number): Promise<boolean> => {
   const looked = new Set<Id<"requests">>();
   for await (const event of reviewEventsFor(ctx, email, year)) {
@@ -1152,13 +1136,6 @@ export const decline = mutation({
   },
 });
 
-/**
- * Deletes one batch of everything hanging off a request that no longer
- * exists: audit events, nudges, comment reactions, comments, read markers and
- * in-app notifications. Reschedules itself while any table still had a full
- * batch, so an arbitrarily long thread is removed without one oversized
- * transaction. Returns whether another pass was scheduled.
- */
 export const purgeDeletedRequestData = internalMutation({
   args: { requestId: v.id("requests") },
   returns: v.boolean(),
@@ -1184,8 +1161,6 @@ export const purgeDeletedRequestData = internalMutation({
       .query("requestComments")
       .withIndex("by_request", (q) => q.eq("requestId", requestId))
       .take(batch);
-    // One reaction budget for the whole pass, so many comments with many
-    // reactions each cannot multiply into one oversized transaction.
     let reactionBudget = batch;
     for (const comment of comments) {
       const reactions = await ctx.db
@@ -1197,8 +1172,6 @@ export const purgeDeletedRequestData = internalMutation({
       }
       reactionBudget -= reactions.length;
       if (reactionBudget === 0) {
-        // The budget ran out on this comment; it may still have reactions,
-        // so leave it for the next pass where they stay reachable through it.
         full = true;
         break;
       }
@@ -1231,11 +1204,6 @@ export const purgeDeletedRequestData = internalMutation({
   },
 });
 
-/**
- * Removes a request the requester has withdrawn. Receipt files are deleted
- * from storage immediately (nothing else references them once the request row
- * is gone); every dependent row is purged by a scheduled, batched follow-up.
- */
 const deleteRequestWithDependents = async (
   ctx: MutationCtx,
   request: Doc<"requests">
@@ -1453,7 +1421,6 @@ export const stepInfo = query({
     const reqYear = requestYear(request);
     const approvers = await getApprovers(ctx, reqYear, request.department);
     const officeholderEmail = approverEmailFor(args.step, approvers) ?? null;
-    // Newest first, so the bound keeps the latest activity, not the oldest.
     const stepEvents = (await recentRequestEvents(ctx, args.requestId)).filter(
       (e) => e.step === args.step
     );
@@ -1864,7 +1831,6 @@ export const pay = mutation({
       url: requestUrl(request.requesterEmail, request),
       requestId: request._id,
     });
-    // Compare in cents so a payment matching to the cent never reads as a change.
     if (toCents(args.paidAmount) !== toCents(request.amount)) {
       const yearApprovers = await getApprovers(ctx, reqYear!, request.department);
       await notify(ctx, {

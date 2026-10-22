@@ -8,16 +8,8 @@ import {
 } from "./attendanceMetrics";
 import { subgroupColour } from "./rollcall";
 
-// The Insights → Attendance tab is laid out here, on the server, and the app
-// only knows how to draw each block type. Changing what the tab shows, its
-// wording or its order ships with a Convex deploy instead of an app release.
-// The app skips block types it doesn't know, so a new type needs an app
-// release only to become visible.
-
 export type ViewColour = "primary" | "success" | "accent";
 
-// A theme token (`text`, `primary`, `accent`, `success`) or a hex colour such
-// as a campus colour.
 export type ViewPaint = string;
 
 export type ViewLegendItem = { key: string; colour: ViewPaint; label: string; shape?: "line" };
@@ -92,7 +84,6 @@ export const ATTENDANCE_RANGE_OPTIONS = RANGE_WEEKS.map((weeks) => ({
   isDefault: weeks === DEFAULT_RANGE_WEEKS,
 }));
 
-// The picked range if the server still offers it, else the server's default.
 export const resolveRangeWeeks = (
   picked: number,
   options: { weeks: number; isDefault?: boolean }[] | undefined

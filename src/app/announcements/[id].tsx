@@ -21,7 +21,6 @@ const dateText = (ms: number) =>
     minute: "2-digit",
   });
 
-/** An announcement, as a recipient sees it after tapping the push or the bell. */
 export default function AnnouncementScreen() {
   const t = useAppTheme();
   const router = useRouter();

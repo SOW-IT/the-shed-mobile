@@ -41,15 +41,9 @@ type DesignRequest = Doc<"designRequests">;
 const LIST_LIMIT = 300;
 const EVENTS_LIMIT = 200;
 
-// ── Who can do what ─────────────────────────────────────────────────────────
-
 const marketingHeadEmail = async (ctx: Ctx, year: number) =>
   (await getDepartment(ctx, year, MARKETING))?.headEmail;
 
-/**
- * Whether the caller acts as the Marketing Head for a request from `year`:
- * that year's head, this year's head, or someone either has delegated to.
- */
 async function actsAsMarketingHead(
   ctx: Ctx,
   caller: CallerContext,
@@ -97,14 +91,11 @@ async function requireRequest(ctx: Ctx, id: Id<"designRequests">) {
   return request;
 }
 
-// ── Notifications ───────────────────────────────────────────────────────────
-
 export const designRequestUrl = (
   request: Pick<DesignRequest, "_id">,
   opts?: { thread?: boolean }
 ) => `/design-requests/${request._id}${opts?.thread ? "?thread=1" : ""}`;
 
-/** The request in a few lines: its name, requester and the summary questions. */
 export async function requestSummary(ctx: Ctx, request: DesignRequest) {
   const requester = await displayName(ctx, request.requesterEmail, request.year);
   const answers = DESIGN_REQUEST_FIELDS.filter((field) => field.inSummary).flatMap(
@@ -120,7 +111,6 @@ export async function requestSummary(ctx: Ctx, request: DesignRequest) {
   ].join("\n");
 }
 
-/** The Marketing Head (and anyone covering for them) who decides `year`'s requests. */
 export async function headRecipients(ctx: Ctx, year: number): Promise<string[]> {
   for (const y of [year, currentStaffYear()]) {
     const head = await marketingHeadEmail(ctx, y);
@@ -129,7 +119,6 @@ export async function headRecipients(ctx: Ctx, year: number): Promise<string[]> 
   return [];
 }
 
-/** This year's Marketing staff, plus the Marketing Head. */
 export async function marketingTeam(ctx: Ctx): Promise<string[]> {
   const year = currentStaffYear();
   const emails = new Set<string>();
@@ -143,11 +132,6 @@ export async function marketingTeam(ctx: Ctx): Promise<string[]> {
   return [...emails];
 }
 
-/**
- * Tells the Marketing team: an in-app and push notification for each team
- * member (not the actor, the requester, or anyone in `skip`, who are told
- * separately), and one email to the team's shared inbox.
- */
 export async function tellTeam(
   ctx: MutationCtx,
   request: DesignRequest,
@@ -182,7 +166,6 @@ export async function tellTeam(
   });
 }
 
-/** Email, in-app and push notification to the requester. */
 export async function tellRequester(
   ctx: MutationCtx,
   request: DesignRequest,
@@ -234,14 +217,8 @@ const logEvent = async (
   });
 };
 
-// ── Lists ───────────────────────────────────────────────────────────────────
-
 const OPEN_STATUSES: DesignRequestStatus[] = ["PENDING", "APPROVED"];
 
-/**
- * `year`'s requests, plus, when that's the current staff year, requests from
- * any year that are still open, newest first.
- */
 async function yearWithOpen(
   year: number,
   byYear: (year: number) => Promise<DesignRequest[]>,
@@ -277,7 +254,6 @@ async function canSeeQueue(ctx: Ctx, caller: CallerContext) {
   );
 }
 
-/** What the signed-in person can do with design requests. */
 export const viewer = query({
   args: {},
   handler: async (ctx) => {
@@ -294,11 +270,6 @@ export const viewer = query({
   },
 });
 
-/**
- * How many design requests are waiting on the caller: ones to approve for the
- * Marketing Head (and anyone covering), approved ones to finish for the rest
- * of the Marketing team. Drives the side menu badge.
- */
 export async function designWaitingOnMe(
   ctx: Ctx,
   caller: CallerContext
@@ -357,7 +328,6 @@ export const mine = query({
 export const designWaitingSince = (request: DesignRequest): number =>
   request.status === "APPROVED" ? (request.decidedAt ?? request.submittedAt) : request.submittedAt;
 
-/** Requests still open, from any year: the Marketing team's (and admins') work list. */
 export const queue = query({
   args: {},
   handler: async (ctx) => {
@@ -379,7 +349,6 @@ export const queue = query({
   },
 });
 
-/** Every request from one staff year, for the Marketing team and admins to look back on. */
 export const archive = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
@@ -475,9 +444,6 @@ export const timeline = query({
   },
 });
 
-// ── Changes ─────────────────────────────────────────────────────────────────
-
-/** The stored answers for `raw`, checked against the form; throws with what to fix. */
 function checkedAnswers(raw: DesignAnswers, previous?: DesignAnswers) {
   const answers = normalizeDesignAnswers(DESIGN_REQUEST_FIELDS, raw);
   const problem = designAnswersProblem(
@@ -562,7 +528,6 @@ export const update = mutation({
     if (!isOpenDesignStatus(request.status)) {
       throw new ConvexError("This design request is closed, so it can't be edited.");
     }
-    // A due date that isn't being changed may already be in the past.
     const filed = checkedAnswers(args.answers, request.answers);
     const changed = changedDesignAnswers(
       DESIGN_REQUEST_FIELDS,

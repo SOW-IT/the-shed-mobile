@@ -6,8 +6,6 @@ import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -477,8 +475,6 @@ describe("attendance metadata", () => {
       deleteIds: [],
     });
     const updated = await leader.query(api.attendanceMetadata.list, { });
-    // Notes about one event go on its sign-in, so a member field called
-    // Notes is saved as Other Information.
     expect(updated.find((f) => f.key === "Notes")).toBeUndefined();
     expect(updated.find((f) => f.key === "Other Information")).toBeTruthy();
     expect(updated.find((f) => f.key === "Campus")?.values?.["10"]).toBe("Online");
@@ -513,7 +509,6 @@ describe("attendance metadata", () => {
         deleteIds: [],
       })
     ).rejects.toThrow(/Duplicate metadata field/i);
-    // Notes is saved as Other Information, so the two can't both exist.
     await expect(
       leader.mutation(api.attendanceMetadata.saveAll, {
         fields: [
@@ -919,7 +914,6 @@ describe("attendance members", () => {
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    // An imported row with an SOW address (the app won't take one).
     const memberId = await t.run((ctx) =>
       ctx.db.insert("attendanceMembers", { name: "Outside Person", email: OUTSIDER })
     );
@@ -1161,8 +1155,6 @@ describe("attendance members", () => {
     ).toBe(true);
     expect(byStudentLeaderRole.page.some((r) => r.email === STAFF)).toBe(false);
 
-    // Newcomer comes from Insights, never a Role saved by hand: that one
-    // isn't kept, so they're a Member until a build says otherwise.
     const byNewcomerRole = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
       filters: { [refreshedRole._id]: newcomerRoleId },

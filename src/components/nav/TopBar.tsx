@@ -16,10 +16,6 @@ import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import { badgeText } from "@/lib/navMenu";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-/**
- * The phone's top bar on tab screens: your avatar on the left opens the side
- * menu (signed out, it's the Sign in button), the bell sits on the right.
- */
 export const TopBar = ({
   photo,
   name,
@@ -120,7 +116,6 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingVertical: spacing.sm,
   },
-  // Centred on the whole bar, whatever sits on either side.
   center: {
     position: "absolute",
     top: 0,

@@ -36,8 +36,6 @@ const LOCKED_FIELD_KEYS = new Set([
   ROLE_FIELD_KEY,
 ]);
 
-/** The Role field's built-in options: org roles, plus the two Roles set on
- *  a member by hand (shared/memberRole.ts). */
 const roleOptions = (roleRows: { name: string }[]): string[] => [
   ...new Set([...ROLES, ...roleRows.map((r) => r.name), ...MARKED_ROLES]),
 ];
@@ -283,11 +281,8 @@ export const saveAll = mutation({
         lk === ROLE_FIELD_KEY.toLowerCase() ? ROLE_FIELD_KEY :
         lk === GENDER_FIELD_KEY.toLowerCase() ? GENDER_FIELD_KEY :
         lk === STUDENT_YEAR_FIELD_KEY.toLowerCase() ? STUDENT_YEAR_FIELD_KEY :
-        // Notes about one event go on its sign-in, so a member field called
-        // Notes is about the person.
         lk === LEGACY_NOTES_FIELD_KEY.toLowerCase() ? OTHER_INFO_FIELD_KEY :
         rawKey;
-      // By the name it's saved under, so Notes and Other Information clash.
       if (keys.has(key.toLowerCase())) {
         throw new ConvexError(`Duplicate metadata field "${key}".`);
       }

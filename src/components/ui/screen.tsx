@@ -12,10 +12,6 @@ import { styles } from "./styles";
 
 const NEAR_BOTTOM = 600;
 
-/**
- * A scrolling stack screen with an optional back/title header and footer. The
- * content pads its bottom to clear the footer once it has been measured.
- */
 export const Screen = ({
   children,
   toast,
@@ -39,7 +35,6 @@ export const Screen = ({
   onEndReached?: () => void;
   stickyHeaderIndices?: number[];
   maxWidth?: number;
-  /** How far the footer reaches up from the bottom of the screen, once measured. */
   onFooterHeightChange?: (height: number) => void;
 }) => {
   const t = useAppTheme();

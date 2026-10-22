@@ -1,8 +1,6 @@
 import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
 import { appLinkFor, WEB_ONLY_MARKER } from "../../shared/appLinks";
 
-// Rendered at build time: the dev web build sets EXPO_PUBLIC_APP_VARIANT=staging
-// so phones are handed to The SHED Staging rather than the production app.
 const APP_LINK = appLinkFor(process.env.EXPO_PUBLIC_APP_VARIANT);
 
 export default function Root({ children }: { children: React.ReactNode }) {
@@ -31,9 +29,6 @@ export default function Root({ children }: { children: React.ReactNode }) {
                   sessionStorage.setItem("shedAppBounce", "1");
                 } catch (e) {}
                 if (location.pathname === "/checkin" || location.pathname.indexOf("/checkin/") === 0) return;
-                // A Google sign-in code arriving on a fresh page is usually the
-                // app's sign-in sheet landing here: it goes to this deployment's
-                // app, and the page holds off using it (a code works once).
                 var handback = /[?&]code=/.test(location.search);
                 if (handback) window.__shedCodeToApp = true;
 
@@ -44,7 +39,6 @@ export default function Root({ children }: { children: React.ReactNode }) {
 
                   var fallback = setTimeout(function () {
                     if (handback) {
-                      // No app took it: let the web page sign in with it.
                       window.__shedCodeToApp = false;
                       window.dispatchEvent(new Event("shed-code-fallback"));
                       return;
@@ -54,8 +48,6 @@ export default function Root({ children }: { children: React.ReactNode }) {
                   }, handback ? 2500 : 2000);
                   var cancel = function () { clearTimeout(fallback); };
                   if (handback) {
-                    // Hidden mid-handback means an app came forward with the
-                    // code: stop waiting, and don't let the page spend it too.
                     var taken = function () {
                       if (!window.__shedCodeToApp) return;
                       cancel();
@@ -80,8 +72,6 @@ export default function Root({ children }: { children: React.ReactNode }) {
                   window.location = appUrl;
                 }
 
-                // After load: leaving mid-load would abort the page, leaving
-                // nothing to sign in with if no app takes the code.
                 if (document.readyState === "complete") bounce();
                 else window.addEventListener("load", bounce);
               })();

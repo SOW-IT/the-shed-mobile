@@ -17,7 +17,6 @@ const restoreRecord = v.object({
   email: v.optional(v.string()),
   signInTime: v.number(),
   notes: v.optional(v.string()),
-  /** Why this record is coming back, e.g. which audit entry it came from. */
   reason: v.string(),
 });
 
@@ -29,18 +28,6 @@ const restoreStatus = v.union(
   v.literal("needs one of memberId or email")
 );
 
-/**
- * Puts back attendance records that were deleted by mistake, e.g. with a
- * member who was deleted instead of merged. Each record names its event, the
- * person (a member id, or a staff email), and the original sign-in time taken
- * from the audit log or a backup.
- *
- * Dry run by default. Idempotent: a person already signed in to that event is
- * left alone, so it is safe to run twice. Every restored record is written to
- * the attendance audit log with its reason.
- *
- *   npx convex run --prod memberRepair:restoreAttendance "$(cat plan.json)"
- */
 export const restoreAttendance = internalMutation({
   args: { records: v.array(restoreRecord), dryRun: v.optional(v.boolean()) },
   returns: v.object({
@@ -114,19 +101,6 @@ export const restoreAttendance = internalMutation({
 
 const NAME_ACTOR = "system:member-name-capitalize";
 
-/**
- * One-off backfill for names saved before members were capitalised on edit:
- * the first letter of each word becomes a capital ("jane doe" → "Jane Doe"),
- * the same rule the app now applies on every save. Letters that are already
- * capitals are left alone, so "McDonald" and "JANE DOE" stay as they are.
- *
- * Dry run by default. Processes `limit` members per call; pass the returned
- * `next` as `cursor` until it comes back null. Idempotent. Each batch that
- * renames anyone writes one audit entry listing the changes.
- *
- *   npx convex run --prod memberRepair:capitalizeMemberNames '{}'
- *   npx convex run --prod memberRepair:capitalizeMemberNames '{"dryRun":false}'
- */
 export const capitalizeMemberNames = internalMutation({
   args: {
     dryRun: v.optional(v.boolean()),

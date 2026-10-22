@@ -220,11 +220,6 @@ const remapScope = (
 ): Assignment[] =>
   assignments.map((a) => (a[key] === oldName ? { ...a, [key]: newName } : a));
 
-/**
- * Renames a department / division / university inside every profile of
- * `year` that references it. Streams the year's profiles rather than reading
- * a capped page, so no profile is silently left pointing at the old name.
- */
 const renameScopeInProfiles = async (
   ctx: MutationCtx,
   year: number,
@@ -337,10 +332,6 @@ const renameDepartmentInFormRequests = async (
   }
 };
 
-/**
- * Drops every assignment matching `remove` from the profiles of `year`.
- * Returns how many profiles changed.
- */
 const stripAssignmentsInProfiles = async (
   ctx: MutationCtx,
   year: number,
@@ -377,7 +368,6 @@ const assertNobodyHolds = async (
   throw new ConvexError(`${label} is still assigned to ${named} in ${year}. Reassign them first.`);
 };
 
-/** Requests raised against `department` during staff year `year`. */
 const departmentRequestsInYear = (
   ctx: MutationCtx,
   year: number,
@@ -426,7 +416,6 @@ const clearBudgetManager = async (ctx: MutationCtx, year: number) => {
   }
 };
 
-/** Google directory display names keyed by email, for filling in unnamed rows. */
 const directoryNamesByEmail = async (
   ctx: QueryCtx
 ): Promise<Map<string, string | null>> => {
@@ -466,7 +455,6 @@ const assertSingleDirector = async (
   }
 };
 
-/** Roles may only shrink for people whose headship is managed via Structure. */
 const assertNotPureRoleReduction = (
   existing: Doc<"staffProfiles"> | null,
   submittedRoles: string[]
@@ -483,11 +471,6 @@ const assertNotPureRoleReduction = (
   }
 };
 
-/**
- * Head roles are owned by the Structure section, so a profile edit keeps the
- * existing head assignments and drops any submitted membership of a
- * department the person already heads.
- */
 const mergeWithPreservedHeads = (
   existing: Doc<"staffProfiles"> | null,
   submitted: Assignment[]
@@ -529,7 +512,6 @@ const assertChaplaincyExists = async (ctx: MutationCtx, year: number) => {
   }
 };
 
-/** Shared tail of both `setStaffProfile` shapes once assignments are built. */
 const saveStaffProfile = async (
   ctx: MutationCtx,
   existing: Doc<"staffProfiles"> | null,
@@ -746,8 +728,6 @@ export const listStaffProfiles = query({
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
     const directoryNameByEmail = await directoryNamesByEmail(ctx);
-    // Looked up per person (both email spellings) rather than by scanning
-    // every account, so it stays exact however many accounts there are.
     const rows = [];
     for (const profile of profiles) {
       rows.push({
@@ -1372,11 +1352,6 @@ export const removeDepartment = mutation({
   },
 });
 
-/**
- * Whether the signed-in caller may edit Finance settings for `year`: an admin
- * (using the same rollover-grace rules as `requireAdmin`) or that year's
- * Finance Head. Returns the caller's email, or null when they may not.
- */
 const financeSettingsAccess = async (
   ctx: QueryCtx,
   year: number
@@ -1450,7 +1425,6 @@ export const setDirectorThreshold = mutation({
   },
 });
 
-/** The Director's threshold for event requests: separate from reimbursements'. */
 export const setEventDirectorThreshold = mutation({
   args: { year: v.number(), amount: v.number() },
   handler: async (ctx, args) => {

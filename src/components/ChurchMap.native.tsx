@@ -77,7 +77,6 @@ export function ChurchMap({
   }, [placedKey]);
 
   return (
-    // MapView ignores its own borderRadius on iOS, so a wrapper clips the corners.
     <View style={[styles.frame, t.surfaceEdge]}>
       <MapView
         ref={map}

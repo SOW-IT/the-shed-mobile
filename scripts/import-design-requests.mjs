@@ -1,24 +1,9 @@
-// Copies design requests (and their comments) from the old THE SHED web app's
-// Firestore into Convex, through the internal designRequestImport:importLegacy
-// mutation. Safe to re-run: requests are matched on their old year and id, and
-// any that have been acted on in the new app are left alone.
-//
-//   node scripts/import-design-requests.mjs --dry-run          # read + summarise only
-//   node scripts/import-design-requests.mjs                    # dev deployment (.env.local)
-//   node scripts/import-design-requests.mjs --prod             # production
-//   node scripts/import-design-requests.mjs --years=2026,2027  # only some staff years
-//
-// Reading Firestore needs a Google token for the theshedsow project: run
-// `gcloud auth login` first, or set FIRESTORE_ACCESS_TOKEN.
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 const PROJECT_ID = process.env.FIRESTORE_PROJECT_ID ?? "theshedsow";
 const EARLIEST_YEAR = 2022;
 const BATCH_SIZE = 20;
-// Each batch is passed to `convex run` as one command-line argument, which the
-// OS caps (128 KiB per argument on Linux), so a batch also flushes early when
-// its JSON would pass this many UTF-8 bytes.
 const MAX_BATCH_BYTES = 100_000;
 
 const args = process.argv.slice(2);
@@ -26,7 +11,6 @@ const dryRun = args.includes("--dry-run");
 const prod = args.includes("--prod");
 const yearsArg = args.find((arg) => arg.startsWith("--years="))?.split("=")[1];
 
-/** The staff year rolls over on 1 October (Sydney); close enough for picking years. */
 const currentStaffYear = () => {
   const now = new Date();
   return now.getUTCMonth() >= 9 ? now.getUTCFullYear() + 1 : now.getUTCFullYear();
@@ -64,7 +48,6 @@ async function firestore(url) {
   return await response.json();
 }
 
-/** Every document directly in a collection, following pages. */
 async function listDocuments(collectionPath) {
   const docs = [];
   let pageToken;
@@ -79,7 +62,6 @@ async function listDocuments(collectionPath) {
   return docs;
 }
 
-/** A Firestore REST value as plain JSON; timestamps become epoch ms. */
 function plain(value) {
   if (value === undefined || value === null) return undefined;
   if ("stringValue" in value) return value.stringValue;
@@ -103,7 +85,6 @@ const docId = (doc) => doc.name.split("/").at(-1);
 const fieldsOf = (doc) => plain({ mapValue: { fields: doc.fields ?? {} } });
 
 const emailCache = new Map();
-/** The email on the old user doc for `uid`, looked up in that year and its neighbours. */
 async function userEmail(uid, year) {
   const key = `${uid}`;
   if (emailCache.has(key)) return emailCache.get(key);
@@ -116,7 +97,6 @@ async function userEmail(uid, year) {
       break;
     }
   }
-  // Admins could provision people by email, in which case the id is the email.
   if (!email && uid.includes("@")) email = uid;
   emailCache.set(key, email);
   return email;
@@ -236,7 +216,6 @@ if (dryRun) {
     batch = [];
   };
   for (const request of all) {
-    // A request that can't fit even on its own is reported, not sent.
     if (bytes([request]) > MAX_BATCH_BYTES) {
       tooLarge.push(`${request.year}/${request.id}`);
       continue;

@@ -17,10 +17,6 @@ const subscribe = (listener: () => void) => {
   };
 };
 
-/**
- * Re-renders the caller once a minute so "3m ago" style text stays fresh.
- * All subscribers share one interval rather than each card running its own.
- */
 export const useMinuteTick = () => {
   const [, setTick] = useState(0);
   useEffect(() => subscribe(() => setTick((n) => n + 1)), []);

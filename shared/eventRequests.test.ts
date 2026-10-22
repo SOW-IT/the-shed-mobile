@@ -64,7 +64,6 @@ describe("risk", () => {
     expect(riskScore(3, 4)).toEqual({ score: 20, rating: "High" });
     expect(riskScore(4, 4)).toEqual({ score: 21, rating: "Very High" });
     expect(riskScore(1, 5)).toEqual({ score: 17, rating: "High" });
-    // Every cell has a distinct score.
     const scores = RISK_LEVELS.flatMap((l) => RISK_LEVELS.map((c) => riskScore(l, c).score));
     expect(new Set(scores).size).toBe(25);
     expect(rowScore({ description: "x", likelihood: 2 })).toBeNull();

@@ -4,13 +4,10 @@ import {
   type FormField,
 } from "./forms";
 
-/** The department that receives design requests; its head approves them. */
 export const MARKETING = "Marketing";
 
-/** The Marketing team's shared inbox: it gets the team's design request emails. */
 export const MARKETING_TEAM_EMAIL = "marketing@sow.org.au";
 
-/** The first staff year THE SHED took design requests (imported from the old web app). */
 export const EARLIEST_DESIGN_REQUEST_YEAR = 2022;
 
 export type DesignRequestStatus =
@@ -70,16 +67,8 @@ export const designStepTrack = (
   ];
 };
 
-/** Still being worked through: shown in every year's list until it closes. */
 export const isOpenDesignStatus = (status: DesignRequestStatus): boolean =>
   status === "PENDING" || status === "APPROVED";
-
-// ── The form ────────────────────────────────────────────────────────────────
-//
-// The questions themselves are defined on the server (convex/designRequestForm.ts)
-// and sent to the app, which renders whatever it's given. The engine that
-// checks and formats answers is shared with event requests (shared/forms.ts);
-// these are its design-request names.
 
 export type DesignAnswers = FormAnswers;
 export type DesignField = FormField;
@@ -99,7 +88,6 @@ export {
   sydneyToday,
 } from "./forms";
 
-/** What a request is filed under, taken from the questions that have those roles. */
 export const designRequestFiling = (
   fields: readonly FormField[],
   answers: FormAnswers
@@ -109,6 +97,5 @@ export const designRequestFiling = (
   title: answerForRole(fields, answers, "title"),
 });
 
-/** How a request is named in lists, emails and notifications. */
 export const designRequestName = (r: { year: number; number: number }): string =>
   `Design request #${r.number} (${r.year})`;

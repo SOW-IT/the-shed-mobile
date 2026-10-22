@@ -3,15 +3,6 @@ import type { FormField, FormFieldOption } from "../shared/forms";
 import { REGISTRATION_GOAL_HINT, type EventSize } from "../shared/eventRequests";
 import { optionalProfile } from "./model";
 
-/**
- * The event request forms, as the app shows them. The app renders whatever
- * this sends, so rewording a question, a hint or a choice is a backend
- * deploy, not an app release. Answers are stored by `key`: reword freely, but
- * give a question that asks something new a new key, and keep the keys with
- * a `role` (what an event is filed and listed under).
- */
-
-/** The event itself: the old web app's "Make an Event Request" form. */
 export const EVENT_FIELDS: FormField[] = [
   {
     key: "name",
@@ -190,7 +181,6 @@ const PRINT_HINT = "What text to include, and how many copies to print.";
 const VIDEO_HINT =
   "Ideas you'd like us to consider, and important info to include in the video (e.g. event dates).";
 
-/** A details question for one ticked choice, asked only when it's ticked. */
 const detailsFor = (
   field: string,
   option: FormFieldOption,
@@ -221,11 +211,6 @@ const digitalDetails = DIGITAL.filter(
     : detailsFor("digital", option, VIDEO_HINT)
 );
 
-/**
- * The event's Marketing form: the old web app's, plus what design requests
- * have added since (Reels, long form video, the key Bible passage and
- * multiple drafts). Design requests are for everything that isn't an event.
- */
 export const MARKETING_FIELDS: FormField[] = [
   {
     key: "keyMessage",
@@ -324,7 +309,6 @@ export const MARKETING_FIELDS: FormField[] = [
   },
 ];
 
-/** The event and Marketing questions, for the app to render. */
 export const fields = query({
   args: {},
   handler: async (ctx) => {

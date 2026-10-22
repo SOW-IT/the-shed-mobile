@@ -34,7 +34,6 @@ import {
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
-/** New design request, or with `?edit=<id>`, the requester editing theirs. */
 export default function DesignRequestFormScreen() {
   const t = useAppTheme();
   const router = useRouter();
@@ -105,7 +104,6 @@ export default function DesignRequestFormScreen() {
     );
   }
 
-  // An edit keeps whatever due date it already had, even one now in the past.
   const today = sydneyToday();
   const existingDue = existing?.request.dueDate;
   const minDate = existingDue && existingDue < today ? existingDue : today;
@@ -154,8 +152,6 @@ export default function DesignRequestFormScreen() {
           disabled={saving}
           note={error}
           onPress={() => void save()}
-          // A form of text fields: the button stays put under the keyboard so
-          // it never covers the field being typed in.
           avoidKeyboard={false}
         />
       }

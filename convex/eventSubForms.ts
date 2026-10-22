@@ -56,9 +56,6 @@ import {
 } from "./eventRequestAccess";
 import { displayName, getYearSettings, type CallerContext } from "./model";
 
-// ── Filling in ──────────────────────────────────────────────────────────────
-
-/** The event and form, if the caller's side can change the form now; throws why not. */
 async function authorizeFill(
   ctx: MutationCtx,
   caller: CallerContext,
@@ -136,8 +133,6 @@ export const saveFinance = mutation({
   },
 });
 
-// ── Moving a form through approval ──────────────────────────────────────────
-
 const CLEARED = {
   step: undefined,
   decidedAt: undefined,
@@ -163,7 +158,6 @@ const message = async (
   url: eventUrl(event, { form: kind }),
 });
 
-/** The Marketing team hears about Marketing forms in-app; the inbox gets the email. */
 async function tellMarketingTeam(
   ctx: MutationCtx,
   event: EventRequest,
@@ -174,7 +168,6 @@ async function tellMarketingTeam(
   await tell(ctx, event, team, note, { email: false });
 }
 
-/** Sends a form to whoever approves its current step. */
 async function askApprover(
   ctx: MutationCtx,
   event: EventRequest,
@@ -198,11 +191,6 @@ async function askApprover(
   if (kind === "marketing") await tellMarketingTeam(ctx, event, note, [...approvers, actor]);
 }
 
-/**
- * Approves a form's current step: the Director's passes it on to the Finance
- * Head; any other finishes it. A step whose approver submitted the form is
- * approved straight away (`auto`).
- */
 async function approveStep(
   ctx: MutationCtx,
   actor: string,
@@ -310,7 +298,6 @@ async function submitForm(
     step = financeNeedsDirector(form.finance!, threshold) ? "director" : "financeHead";
   }
   const approver = await stepApprover(ctx, event, kind, step);
-  // A big budget goes on to the Finance Head after the Director, so both are needed.
   const lastApprover =
     kind === "finance" ? await stepApprover(ctx, event, kind, "financeHead") : approver;
   if (!approver || !lastApprover) {
@@ -342,7 +329,6 @@ async function submitForm(
   );
 }
 
-/** The event and form, if the caller approves the form's current step; throws why not. */
 async function authorizeDecision(
   ctx: MutationCtx,
   caller: CallerContext,

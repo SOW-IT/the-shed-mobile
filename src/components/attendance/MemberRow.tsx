@@ -3,10 +3,6 @@ import { campusPill } from "@/components/attendance/campusPill";
 import { Avatar } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-/**
- * A person in the Members list, or anywhere else members are picked from, so
- * every list shows the same avatar, campus colour and pill.
- */
 export function MemberRow({
   name,
   subtitle,
@@ -22,14 +18,12 @@ export function MemberRow({
   photo?: string | null;
   university?: string;
   roles: readonly string[];
-  /** A small label beside the name, e.g. STAFF. */
   tag?: string;
   accessibilityLabel?: string;
   onPress: () => void;
 }) {
   const t = useAppTheme();
   const pill = campusPill(university, roles, t);
-  // Staff without a campus already say STAFF in the pill.
   const showTag = Boolean(tag) && tag !== pill.label;
   return (
     <Pressable

@@ -447,8 +447,6 @@ function ItemList<T>({
   render: (item: T, set: (item: T) => void) => ReactNode;
 }) {
   const t = useAppTheme();
-  // Stable keys that follow each item as it moves, so a row's text fields
-  // never show (or keep focus on) another item's data.
   const [ids, setIds] = useState(() => items.map((_, i) => i));
   const [nextId, setNextId] = useState(items.length);
   const set = (index: number, item: T) => onChange(items.map((it, i) => (i === index ? item : it)));

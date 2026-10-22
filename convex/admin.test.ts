@@ -2329,7 +2329,6 @@ describe("staff profiles and their attendance member", () => {
       subjectEmail: BELLA,
       detail: `Not staff in ${YEAR}`,
     });
-    // Their Role is worked out from here on, so nothing is saved for it.
     expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toEqual({});
   });
 

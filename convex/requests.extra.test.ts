@@ -1043,7 +1043,6 @@ describe("cleanup.purgeOldReceiptFiles paging", () => {
         beforeMs: Date.now() + 1,
         batch: 1,
       });
-      // First page purged one request; the rest arrives via the reschedule.
       const purgedAfterFirstPage = (
         await Promise.all(files.map((f) => t.run((ctx) => ctx.storage.getUrl(f))))
       ).filter((url) => url === null).length;
@@ -1101,7 +1100,6 @@ describe("pay", () => {
         .first()
     );
     expect(paidNote?.title).toBe("Reimbursement paid");
-    // Paid exactly the requested amount: no "amount differs" nudge to the Budget Manager.
     const bellaNotes = await t.run((ctx) =>
       ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", BELLA)).collect()
     );
@@ -1135,8 +1133,6 @@ describe("browsing past years", () => {
 
   type Review = { actor: string; action: string; daysIn: number };
 
-  // convex-test keeps _creationTime rising, so past reviews go in before the
-  // org is set up "now", each in time order after its request.
   async function setupWithHistory(
     seeds: { email: string; year: number; description: string; reviews?: Review[] }[]
   ) {
@@ -1227,7 +1223,6 @@ describe("browsing past years", () => {
         description: "henry's own",
         reviews: [{ actor: HENRY, action: "auto-approved", daysIn: 0 }],
       },
-      // Reviewed in the year after, so it belongs to the year it was made.
       {
         email: RACHEL,
         year: YEAR - 2,
@@ -1309,8 +1304,6 @@ describe("browsing past years", () => {
         reviews: [{ actor: HENRY, action: "auto-approved", daysIn: 1 }],
       },
     ]);
-    // This year Henry reviews more than the probe looks at, all of them
-    // this year's requests, inside last year's two-year window.
     await t.run(async (ctx) => {
       for (let i = 0; i < 51; i++) {
         const requestId = await ctx.db.insert("requests", {
@@ -1343,7 +1336,6 @@ describe("browsing past years", () => {
     const rachel = (await asUser(t, RACHEL).query(api.requests.requestYears, {}))!;
     expect(rachel.reviewedBefore).toBe(false);
 
-    // However many of their own events came after it.
     const [request] = await t.run((ctx) => ctx.db.query("requests").collect());
     await t.run(async (ctx) => {
       for (let i = 0; i < 250; i++) {

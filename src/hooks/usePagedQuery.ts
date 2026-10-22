@@ -33,27 +33,14 @@ const chainedCursors = (
 const sameList = <T,>(a: readonly T[], b: readonly T[]) =>
   a.length === b.length && a.every((item, i) => item === b[i]);
 
-/**
- * Cursor-paginated Convex query whose pages accumulate into one list.
- *
- * The app's list queries use app-specific cursors, so Convex's own
- * `usePaginatedQuery` does not fit; this hook owns the cursor and the
- * accumulated rows instead. Changing `scopeKey` (search, filters, the selected
- * sub-group…) restarts from the first page synchronously, so a stale cursor is
- * never sent with the new arguments.
- */
 export function usePagedQuery<Query extends PagedQueryRef, Row>(
   query: Query,
   opts: {
-    /** Arguments for the page at `cursor` (`null` = first page), or "skip". */
     args: (cursor: string | null) => Query["_args"] | "skip";
-    /** Identity of the list being paged; a change resets to page one. */
     scopeKey: string;
     rowsOf: (result: NonNullable<Query["_returnType"]>) => readonly Row[];
     keyOf: (row: Row) => string;
-    /** Lets a parent pager trigger `loadMore` when its scroll reaches the end. */
     loadMoreRef?: MutableRefObject<(() => void) | null>;
-    /** Keep the previous scope's rows on screen while the new one loads. */
     keepRowsWhileLoading?: boolean;
   }
 ): {
@@ -63,7 +50,6 @@ export function usePagedQuery<Query extends PagedQueryRef, Row>(
   loadMore: () => void;
   loadingFirstPage: boolean;
   loadingMore: boolean;
-  /** Rows shown are the previous scope's, held while the new one loads. */
   refreshing: boolean;
 } {
   const { scopeKey, loadMoreRef, rowsOf, keyOf } = opts;

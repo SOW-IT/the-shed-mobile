@@ -72,10 +72,6 @@ type PagerTabFooter = {
   node: ReactNode;
 };
 
-/**
- * How far down to slide a tab's footer for a pager position: 0 on its own tab,
- * `hiddenOffset` (fully off-screen) a page or more away, in between mid-swipe.
- */
 const footerYForPosition = (
   pos: number,
   homeIndex: number,
@@ -87,25 +83,12 @@ const footerYForPosition = (
   return Math.min(dist, 1) * hiddenOffset;
 };
 
-/**
- * Bottom padding for a self-scrolling tab's own ScrollView, so its last
- * content clears that tab's footer (button plus any note) once measured.
- */
 const PagerFooterClearanceContext = createContext(FOOTER_MIN_CLEARANCE);
 export const usePagerFooterClearance = () => useContext(PagerFooterClearanceContext);
 
-/**
- * How much of a page's top the top bar covers until it collapses: its height
- * on phones, nothing on wide screens (they have the sidebar instead).
- * Self-scrolling tabs pad their lists' tops by it.
- */
 const PagerTopBarInsetContext = createContext(TOP_BAR_HEIGHT);
 export const usePagerTopBarInset = () => useContext(PagerTopBarInsetContext);
 
-/**
- * A tab screen whose sub-tabs swipe sideways under a collapsing top bar. Each
- * tab can have its own bottom FooterAction; pages pad to clear it.
- */
 export const PagerScreen = ({
   tabs,
   activeKey,
@@ -126,8 +109,6 @@ export const PagerScreen = ({
   footerTabKey?: string;
   footers?: PagerTabFooter[];
   floating?: ReactNode;
-  /** Lift `floating` clear of the active tab's footer, for a control that
-   *  also shows on a tab with one (a year picker over "Make Request"). */
   floatingAboveFooter?: boolean;
   fullWidth?: boolean;
 }) => {
@@ -175,8 +156,6 @@ export const PagerScreen = ({
     [tabs]
   );
 
-  // Measured height of each tab's footer (button plus any note), so its page
-  // pads just enough for the last content to scroll clear of it.
   const [footerHeights, setFooterHeights] = useState<Record<string, number>>({});
   const footerHeightSetters = useRef<Record<string, (height: number) => void>>({});
   const footerHeightSetterFor = (tabKey: string) => {
@@ -190,8 +169,6 @@ export const PagerScreen = ({
   };
   const footerHeightForPage = (tabKey: string) =>
     footerHeights[footerPinned ? footerItems[0]?.tabKey ?? tabKey : tabKey] ?? 0;
-  // Slide a tab's footer far enough down to hide it completely when another
-  // tab is showing, however tall it has grown.
   const footerHiddenOffset = Math.max(
     FOOTER_HIDDEN_OFFSET,
     ...Object.values(footerHeights).map((height) => height + spacing.sm)

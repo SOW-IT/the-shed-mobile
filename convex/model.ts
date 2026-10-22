@@ -115,11 +115,6 @@ export async function findMemberByEmail(
   return null;
 }
 
-/**
- * Best-known display name for `email` in `year`: the staff profile's name,
- * else the Google directory name, else null. Legacy-domain spellings of the
- * same address are tried too.
- */
 export async function resolveName(
   ctx: Ctx,
   email: string,
@@ -285,7 +280,6 @@ export async function resolveStaffIdentity(
   const profiles = await staffProfilesForEmail(ctx, email);
   const candidates = staffEmailCandidates(email);
 
-  // One account lookup serves both the import key and the user link below.
   let user: Doc<"users"> | null = null;
   for (const candidate of candidates) {
     user = await ctx.db

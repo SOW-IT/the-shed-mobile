@@ -433,8 +433,6 @@ export function MetricCard({
   labelLines?: number;
 }) {
   const t = useAppTheme();
-  // The change sits in a soft pill beside the number, so the number reads
-  // first and the comparison second.
   const [deltaColour, deltaBackground] = !delta
     ? [t.muted, t.ghost]
     : delta.direction === "up"
@@ -1128,8 +1126,6 @@ export function MultiStackedBarChart({
   const scale = (n: number) => (n / axis.max) * chartHeight;
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
-  // Points may carry different segment sets (a series can be missing for
-  // some years), so collect every series and look values up by key.
   const seriesByKey = new Map<string, { key: string; colour: string; label?: string }>();
   for (const p of points) {
     for (const seg of p.segments) {
@@ -1511,8 +1507,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   deltaText: { fontSize: 12, fontWeight: "700" },
-  // Room for a second line, so a comparison like "vs 22 in T2 2026 up to W4"
-  // wraps instead of being cut off on a phone.
   hintSlot: { minHeight: 15, justifyContent: "center" },
   chartCard: {
     padding: spacing.md,
@@ -1578,7 +1572,6 @@ const styles = StyleSheet.create({
   },
   barValue: { fontSize: 11, fontWeight: "700", marginBottom: 4 },
   barLabel: { fontSize: 10, letterSpacing: -0.2 },
-  // Shrinks to the card so a long legend wraps instead of running off it.
   legendBlock: { gap: 6, flexShrink: 1, minWidth: 0 },
   legendRow: {
     flexDirection: "row",

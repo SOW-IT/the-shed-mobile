@@ -18,9 +18,6 @@ import {
   type YearResult,
 } from "./weeklyInsights";
 
-// The campus Insights view, laid out on the server like the rest of Insights
-// (see attendanceMetricsView.ts): the app only knows how to draw each block.
-
 export type Pill = { label: string; colour: string };
 
 export type PeopleSortKey = "pct" | "name" | "last";
@@ -30,7 +27,6 @@ export type PeopleRow = {
   name: string;
   photo?: string | null;
   section: string;
-  /** Filter chips this row matches. */
   tags: string[];
   category: Pill;
   primary: string;
@@ -101,9 +97,6 @@ export type WeeklyBlock =
       emptyText: string;
     };
 
-/** A choice in the term picker. `group` (the year), `short` and `slot` let
- *  the picker lay each year out as one row of terms; older apps just list
- *  the labels. */
 type WeeklyPeriod = {
   key: string;
   label: string;
@@ -113,8 +106,6 @@ type WeeklyPeriod = {
   slot?: number;
 };
 
-/** The term picker, newest first: each year's terms, then that whole year
- *  ("2026 T3, 2026 T2, 2026 T1, 2026, 2025 T3, …"). */
 export function periodOptions(terms: WeeklyTerm[]): WeeklyPeriod[] {
   const years = [...new Set(terms.map((t) => t.year))].sort((a, b) => b - a);
   return years.flatMap((year): WeeklyPeriod[] => [
@@ -149,13 +140,11 @@ export const pill = (category: WeeklyCategory): Pill => ({
 
 const pctText = (n: number) => `${Math.round(n * 100)}%`;
 
-/** "3 Jun", or "3 Jun 2025" when it isn't `year`. */
 export const dateText = (ms: number, year: number): string => {
   const y = sydneyYmd(new Date(ms)).year;
   return y === year ? dayLabel(ms) : `${dayLabel(ms)} ${y}`;
 };
 
-/** "Last came T2W5 (3 Jun)": the weekly's term and week, then its date. */
 const lastCame = (row: { lastAt: number | null; lastWeekly?: string | null }, year: number) => {
   if (!row.lastAt) return "Hasn't come yet";
   const date = dateText(row.lastAt, year);
@@ -273,7 +262,6 @@ export function summaryCards(
   s: PeriodSummary,
   last: PeriodSummary | null,
   compareNote?: string,
-  /** The jointWeeklies setting: Mega and combined weeklies are counted too. */
   jointCounted = false
 ): ViewCard[] {
   const vs = (v: string) => `vs ${v}`;
@@ -343,17 +331,10 @@ export function summaryCards(
 }
 
 const THIS_COLOUR = "primary";
-// The comparison stays in the background: a see-through grey. Sent as hex
-// rather than a token so older app builds draw it the same way.
 const LAST_COLOUR = "#9CA3AFA6";
 
 type CategoryPoint = { at: number; label: string; counts: TermResult["byCategory"][number]["counts"] };
 
-/**
- * "W1", "W2", …, one per weekly. A second weekly with the same week number
- * (say a special night in a week the campus didn't count) is "W7·2", so it's
- * never merged with the first.
- */
 export function weekLabels(weeklies: { week: number }[]): string[] {
   const seen = new Map<number, number>();
   return weeklies.map(({ week }) => {
@@ -387,18 +368,14 @@ function byCategoryChart(points: CategoryPoint[], title: string, subtitle?: stri
 export function buildTermBlocks(input: {
   computedAt: number;
   result: TermResult;
-  /** The term before, to compare with. */
   before: TermResult | null;
   running: boolean;
   followUps: WeeklyFollowUp[] | null;
-  /** The jointWeeklies setting, for the cards' (i). */
   jointCounted?: boolean;
 }): WeeklyBlock[] {
   const { result, before, running } = input;
   const { term } = result;
   const lastWeek = term.weeklies[term.weeklies.length - 1].week;
-  // While this term runs, the term before is cut to the same week; say so
-  // wherever its numbers appear, so they don't look like its full-term ones.
   const point = before ? `${before.term.label}${running ? ` up to week ${lastWeek}` : ""}` : null;
   const count = `${term.weeklies.length} weekl${term.weeklies.length === 1 ? "y" : "ies"}${running ? " so far" : ""}`;
   const compareNote = before
@@ -423,8 +400,6 @@ export function buildTermBlocks(input: {
     { type: "heading", text: "Turnout" },
     { type: "cards", layout: "grid", cards: [average, people] },
   ];
-  // The week-by-week charts sit near the top, above the follow-up lists.
-  // Points line up by label, so a second weekly in one week keeps its own bar.
   type WeekPoint = { at: number; week: number; n: number; now: number; then: number };
   const weeks = new Map<string, WeekPoint>();
   const add = (weeklies: TermResult["term"]["weeklies"], side: "now" | "then") =>
@@ -475,7 +450,6 @@ export function buildTermBlocks(input: {
   return blocks;
 }
 
-/** "T1" or "Sem 1": a term's label without its year. */
 const withoutYear = (t: { label: string }) => t.label.split(" ").slice(0, -1).join(" ");
 const termName = (t: TermResult) => withoutYear(t.term);
 
@@ -483,11 +457,9 @@ export function buildYearBlocks(input: {
   computedAt: number;
   result: YearResult;
   lastYear: YearResult | null;
-  /** How far the year in progress has got ("T3 week 4"), or null for a past year. */
   cut: string | null;
   terms: TermResult[];
   lastYearTerms: TermResult[];
-  /** The jointWeeklies setting, for the cards' (i). */
   jointCounted?: boolean;
 }): WeeklyBlock[] {
   const { result, lastYear } = input;
@@ -545,7 +517,6 @@ export function buildYearBlocks(input: {
     });
   }
   blocks.push({ type: "heading", text: "Who came" }, { type: "cards", layout: "grid", cards: mix });
-  // One chart per term: a whole year of weeks is too crowded for one.
   for (const t of input.terms) {
     blocks.push(byCategoryChart(termPoints(t), `Who came each week in ${termName(t)}`, "Head count by category"));
   }
@@ -555,8 +526,6 @@ export function buildYearBlocks(input: {
 
 export type MemberEvent = { name: string; at: number; campuses: string; weekly: boolean };
 
-/** The member page: who they are, their category and history at one campus,
- *  and every event they've signed in to. */
 export function buildMemberBlocks(input: {
   name: string;
   photo?: string | null;

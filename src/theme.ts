@@ -23,8 +23,6 @@ export const spacing = {
   xxxl: 36,
 } as const;
 
-// One radius per level: surfaces (lg), controls and nested blocks (md),
-// small marks (sm), and full only for chips, pills and avatars.
 export const radius = {
   sm: 8,
   md: 12,
@@ -33,11 +31,6 @@ export const radius = {
   full: 999,
 } as const;
 
-/**
- * Familjen Grotesk, loaded in the root layout, carries titles, headings and
- * big numbers; everything else is the system font. Each weight is its own
- * family, so display styles never set fontWeight (iOS would swap the face).
- */
 export const fonts = {
   display: "FamiljenGrotesk-Bold",
   displaySemi: "FamiljenGrotesk-SemiBold",
@@ -82,7 +75,6 @@ export interface AppTheme {
   chip: Record<"PAID" | "DECLINED" | "default", { bg: string; fg: string }>;
   errorBackground: string;
   errorText: string;
-  /** The hairline edge of a resting surface (cards, list blocks). Surfaces are flat; only floating things get a shadow. */
   surfaceEdge: ViewStyle;
   shadowFloat: ViewStyle;
 }

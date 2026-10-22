@@ -359,9 +359,6 @@ export default function AdminScreen() {
       setTab(tabParam);
     }
   }, [tabParam]);
-  // This staff year's staff who look like someone still in attendance as a
-  // member. The Merges tab only shows on this year and while there are any,
-  // so it goes once the year is reconciled.
   const viewingCurrentYear = selectedYear === currentYear;
   const mergeSuggestions = useQuery(
     api.mergeSuggestions.list,
@@ -426,11 +423,8 @@ export default function AdminScreen() {
   const nameByEmail = new Map((people ?? []).map((p) => [p.email, p.name]));
   const unassignedEmails = new Set((unassigned ?? []).map((u) => u.email));
 
-  // Staff who have never signed in to The SHED, and a filter to see just them.
   const [onlyNotSignedIn, setOnlyNotSignedIn] = useState(false);
   const notSignedInCount = (profiles ?? []).filter((p) => !p.signedIn).length;
-  // Stays on even once everyone has signed in, so the list doesn't swap
-  // under the admin; the summary line keeps its Show everyone button.
   const showingNotSignedIn = onlyNotSignedIn;
   const { director, groupedProfiles, campusByUniversity, nonCampusOtherProfiles } =
     useGroupedProfiles(

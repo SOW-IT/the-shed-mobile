@@ -1,4 +1,3 @@
-// The prebuilt bundle, not "pdf-lib": see pdfLibBundle.d.ts.
 import { PDFDocument, StandardFonts } from "pdf-lib/dist/pdf-lib.esm.min.js";
 import {
   DESIGN_STATUS_LABELS,
@@ -34,17 +33,14 @@ export type DesignRequestPdfInput = {
   fields: readonly DesignField[];
   history: { at: number; label: string; actorName: string; detail: string | null }[];
   comments: { at: number; authorName: string; body: string }[];
-  /** When the PDF was made, for its footer. */
   generatedAt: number;
 };
 
 export const designRequestPdfFilename = (r: { year: number; number: number }) =>
   `design-request-${r.year}-${r.number}.pdf`;
 
-/** "6 Oct 2026, 8:49 pm", always in Sydney time so every copy reads the same. */
 export const pdfTime = sydneyDateTime;
 
-/** What happened to the request, one line each, as the request page shows it. */
 export const pdfStatusLines = (input: DesignRequestPdfInput): string[] => {
   const { request } = input;
   const by = (name: string | null) => (name ? ` by ${name}` : "");
@@ -67,7 +63,6 @@ export const pdfStatusLines = (input: DesignRequestPdfInput): string[] => {
   return lines;
 };
 
-/** A printable copy of a design request: status, every answer, history and comments. */
 export async function buildDesignRequestPdf(input: DesignRequestPdfInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const name = designRequestName(input.request);

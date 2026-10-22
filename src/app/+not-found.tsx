@@ -8,12 +8,6 @@ import { Btn, EmptyState, LoadingState, ReadableColumn, Screen } from "@/compone
 import { appVersion } from "@/hooks/useReportAppVersion";
 import { spacing } from "@/theme";
 
-/**
- * A link this version of the app has no page for. In the app that's usually
- * a page added in a newer version, so it offers the web (which always has the
- * latest pages) and the store. "#noapp" stops the web handing the page
- * straight back to this app.
- */
 export default function NotFoundScreen() {
   const router = useRouter();
   const pathname = usePathname();
@@ -26,7 +20,6 @@ export default function NotFoundScreen() {
     api.appInstalls.updateStatus,
     platform && version ? { platform, version } : "skip"
   );
-  // The router adds the unmatched path itself as "not-found"; it isn't part of the link.
   const query = new URLSearchParams(
     Object.entries(params).flatMap(([k, v]) =>
       v === undefined || k === "not-found"

@@ -76,8 +76,6 @@ export const get = query({
     const isMe =
       callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail);
     const seesPrivate = isMe || (await optionalProfile(ctx)) !== null;
-    // A member's church (no staff profile this year) is only for staff and
-    // campus leaders, as on the Churches page.
     const onStaff = serviceHistory.some((h) => h.year === currentStaffYear() && isAssigned(h));
     const church =
       user?.churchId && (onStaff || seesPrivate) ? await ctx.db.get("churches", user.churchId) : null;
@@ -96,14 +94,12 @@ export const get = query({
     );
     return {
       email,
-      // Either staff email spelling is the same person.
       isMe,
       reminderEmails: isMe ? user?.reminderEmails !== false : null,
       googleSyncedAt: isMe && googleSyncTimes.length ? Math.max(...googleSyncTimes) : null,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: await photoUrl(ctx, user, dirUser),
       church: church ? viewOf(church) : null,
-      // Only for signed-in staff.
       lastOnlineAt: seesPrivate ? await lastOnlineAt(ctx, email) : null,
       hasSignedIn: seesPrivate ? await hasSignedIn(ctx, email) : null,
       serviceHistory: serviceHistory.map((h) => ({
@@ -141,7 +137,6 @@ async function requireOwnUser(ctx: MutationCtx): Promise<Doc<"users">> {
   return user;
 }
 
-/** Picks your church from the list, or clears it (null). */
 export const setChurch = mutation({
   args: { churchId: v.union(v.id("churches"), v.null()) },
   returns: v.null(),

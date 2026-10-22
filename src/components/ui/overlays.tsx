@@ -23,11 +23,6 @@ import { FastModal, Muted, Row, Txt } from "./primitives";
 import { RevealFocusedInputContext } from "./revealFocus";
 import { styles } from "./styles";
 
-/**
- * Dismiss the keyboard and resolve once it's gone. Closing a sheet while its
- * keyboard is still up leaves the screen's footer button lifted, because the
- * hide event lands while the sheet still counts as open.
- */
 export const dismissKeyboard = (): Promise<void> => {
   if (!Keyboard.isVisible()) return Promise.resolve();
   return new Promise((resolve) => {
@@ -154,9 +149,6 @@ export const Sheet = ({
   const innerRef = useRef<ViewInstance>(null);
   const scrollY = useRef(0);
   const viewportHeight = useRef(0);
-  // iOS only scrolls far enough to show the caret, which leaves the bottom of
-  // the field (or all of a field near the end) under the sheet's edge once the
-  // keyboard shrinks it. Bring the whole focused field into view instead.
   const revealFocusedInput = useCallback(() => {
     const input = TextInput.State.currentlyFocusedInput();
     const inner = innerRef.current;
@@ -164,7 +156,6 @@ export const Sheet = ({
     input.measureLayout(
       inner,
       (_x, y, _width, height) => {
-        // Room above for the field's label.
         const top = Math.max(y - spacing.xxl, 0);
         const bottom = y + height + spacing.md;
         const viewTop = scrollY.current;
@@ -178,7 +169,6 @@ export const Sheet = ({
           scrollRef.current?.scrollTo({ y: top, animated: true });
         }
       },
-      // The focused field is in another sheet.
       () => {}
     );
   }, [stickToBottom]);
@@ -187,7 +177,6 @@ export const Sheet = ({
     const sub = Keyboard.addListener("keyboardDidShow", revealFocusedInput);
     return () => sub.remove();
   }, [visible, scrollable, revealFocusedInput]);
-  // On focus, wait for iOS's own caret scroll to land and report its offset.
   const revealAfterFocus = useCallback(() => {
     if (Platform.OS === "web" || !Keyboard.isVisible()) return;
     setTimeout(revealFocusedInput, 120);
@@ -213,8 +202,6 @@ export const Sheet = ({
   const retainedChildren = shownChildren.current;
   const retainedFooter = shownFooter.current;
   const anchorBottom = shownAnchorBottom.current;
-  // With the keyboard up, the sheet may use all the room above it (below the
-  // status bar) rather than 70% of it, so forms keep a usable amount showing.
   const tall = shownKeyboardOpen.current;
   const hasFooter = retainedFooter != null;
 
@@ -265,7 +252,6 @@ export const Sheet = ({
             {scrollable ? (
               <ScrollView
                 ref={scrollRef}
-                // Typed as never-null, but it is null until the sheet mounts.
                 innerViewRef={innerRef as RefObject<ViewInstance>}
                 style={styles.sheetScroll}
                 contentContainerStyle={bodyStyle}
@@ -277,7 +263,6 @@ export const Sheet = ({
                 }}
                 onLayout={(e) => {
                   viewportHeight.current = e.nativeEvent.layout.height;
-                  // The sheet just resized for the keyboard.
                   if (Keyboard.isVisible()) revealFocusedInput();
                 }}
                 onContentSizeChange={

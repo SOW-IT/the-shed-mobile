@@ -1,10 +1,5 @@
 import { departmentsOf, type ProfileLike } from "./flow";
 
-// The Home tab, laid out on the server like Insights (see
-// attendanceMetricsView.ts). Each sub-tab is a list of typed blocks the app
-// draws; admins and Marketing staff edit them in the app, and a tab nobody has
-// edited shows the defaults below.
-
 const MARKETING_DEPARTMENT = "Marketing";
 const ENGAGEMENT_DIVISION = "Engagement";
 
@@ -36,10 +31,8 @@ export type HomeSocial = { label: string; icon: string; url: string };
 export type HomeCampus = {
   name: string;
   short: string;
-  /** Paragraphs, separated by a blank line. */
   about: string;
   meetingLabel: string;
-  /** Lines shown under the meeting label, e.g. day/time then location. */
   meeting: string;
   programs: string[];
   instagram: string;
@@ -77,7 +70,6 @@ export const HOME_BLOCK_LABELS: Record<HomeBlockType, string> = {
   contact: "Contact form",
 };
 
-/** Icons the editor offers; the app falls back to a neutral icon for others. */
 export const HOME_ICONS = [
   "heart-outline",
   "gift-outline",
@@ -365,7 +357,6 @@ export const DEFAULT_HOME_BLOCKS: Record<HomeTabKey, HomeBlock[]> = {
   ],
 };
 
-/** A fresh block of a type, for the editor's "Add section". */
 export const emptyHomeBlock = (type: HomeBlockType): HomeBlock => {
   switch (type) {
     case "hero":
@@ -391,10 +382,6 @@ export const emptyHomeBlock = (type: HomeBlockType): HomeBlock => {
   }
 };
 
-/**
- * Admins, anyone in the Marketing department and the head of the Engagement
- * division may edit the Home tab. Other Engagement staff (e.g. Alumni) may not.
- */
 export const canEditHomeProfile = (
   profile: ProfileLike,
   isAdmin: boolean,
@@ -409,7 +396,6 @@ export const MAX_HOME_ITEMS = 40;
 const MAX_TEXT = 4000;
 const SAFE_URL = /^(https?:\/\/|mailto:|tel:)\S+$/i;
 
-/** A link people can tap: web, email or phone. Bare domains get https://. */
 export const normalizeHomeUrl = (raw: string): string | null => {
   const url = raw.trim();
   if (!url) return null;
@@ -457,10 +443,6 @@ const optional = (text: string | undefined): string | undefined => {
   return out ? out : undefined;
 };
 
-/**
- * Trims every field, checks links and drops empty rows, so whatever the editor
- * sends is safe to draw. Throws HomeContentError with a message for the editor.
- */
 export const sanitizeHomeBlocks = (blocks: HomeBlock[]): HomeBlock[] => {
   if (blocks.length > MAX_HOME_BLOCKS) {
     throw new HomeContentError(`A tab can have at most ${MAX_HOME_BLOCKS} sections.`);
@@ -542,7 +524,6 @@ export const sanitizeHomeBlocks = (blocks: HomeBlock[]): HomeBlock[] => {
   });
 };
 
-/** Splits text on blank lines into paragraphs. */
 export const paragraphs = (text: string): string[] =>
   text
     .split(/\n\s*\n/)
