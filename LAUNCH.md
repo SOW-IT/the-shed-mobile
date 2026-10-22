@@ -190,8 +190,9 @@ theshedsow:convex_production` and those row counts on 2026-09-01.*
 objects. The nightly file copy overwrites `storage/manifest.json` and the
 warehouse check overwrites `convex/production/checks/latest.json`, which needs
 `storage.objects.delete`. `roles/storage.objectCreator` doesn't include it,
-so from 2026-10-21 both replacements failed with `GcsApiError('')`: the file
-copy stopped after its first page each night, and the warehouse check failed.
+so replacing them failed with `GcsApiError('')`: the manifest from
+2026-10-21, so the file copy stopped after its first page each night, and the
+check state from 2026-10-22, which failed the warehouse check.
 The SA now also has `roles/storage.objectUser` on the bucket, under the IAM
 condition `replace-backup-state`, which matches only those two object names.
 It still can't delete or overwrite the database zips or the copied files.
