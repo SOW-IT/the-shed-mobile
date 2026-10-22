@@ -47,6 +47,7 @@ const routes = [
   "/checkin/not-a-real-link",
   "/insights?tab=general",
   "/insights?tab=attendance",
+  "/mentoring",
   "/admin",
   "/no-such-page",
 ];

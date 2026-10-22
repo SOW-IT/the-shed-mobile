@@ -55,6 +55,8 @@ import type * as http from "../http.js";
 import type * as memberPairSuggestions from "../memberPairSuggestions.js";
 import type * as memberRepair from "../memberRepair.js";
 import type * as memberRoles from "../memberRoles.js";
+import type * as mentoring from "../mentoring.js";
+import type * as mentoringImport from "../mentoringImport.js";
 import type * as mergeSuggestions from "../mergeSuggestions.js";
 import type * as metricsData from "../metricsData.js";
 import type * as model from "../model.js";
@@ -131,6 +133,8 @@ declare const fullApi: ApiFromModules<{
   memberPairSuggestions: typeof memberPairSuggestions;
   memberRepair: typeof memberRepair;
   memberRoles: typeof memberRoles;
+  mentoring: typeof mentoring;
+  mentoringImport: typeof mentoringImport;
   mergeSuggestions: typeof mergeSuggestions;
   metricsData: typeof metricsData;
   model: typeof model;

@@ -166,6 +166,35 @@ export default defineSchema({
     .index("by_year_and_from", ["year", "fromEmail"])
     .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
 
+  mentorships: defineTable({
+    year: v.number(),
+    menteeEmail: v.string(),
+    mentorEmail: v.optional(v.string()),
+    externalMentorId: v.optional(v.id("externalMentors")),
+    updatedBy: v.string(),
+    updatedAt: v.number(),
+    legacyKey: v.optional(v.string()),
+  })
+    .index("by_year", ["year"])
+    .index("by_menteeEmail_and_year", ["menteeEmail", "year"])
+    .index("by_mentorEmail_and_year", ["mentorEmail", "year"])
+    .index("by_externalMentorId", ["externalMentorId"])
+    .index("by_legacyKey", ["legacyKey"]),
+
+  externalMentors: defineTable({
+    name: v.string(),
+    nameKey: v.string(),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    updatedBy: v.string(),
+    updatedAt: v.number(),
+    legacyKey: v.optional(v.string()),
+  })
+    .index("by_nameKey", ["nameKey"])
+    .index("by_email", ["email"])
+    .index("by_legacyKey", ["legacyKey"]),
+
   leavers: defineTable({
     year: v.number(),
     email: v.string(),

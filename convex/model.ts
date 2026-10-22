@@ -25,6 +25,14 @@ export const currentStaffYear = () => staffYearForDate(new Date());
 export const nextStaffYear = () => currentStaffYear() + 1;
 export const incomingStaffYear = () => incomingStaffYearForDate(new Date());
 
+export const assertManagedYear = (year: number) => {
+  if (year !== currentStaffYear() && year !== nextStaffYear()) {
+    throw new ConvexError(
+      `You can only manage ${currentStaffYear()} and ${nextStaffYear()}.`
+    );
+  }
+};
+
 export const nightlyJobsPaused = (): boolean => process.env.NIGHTLY_JOBS_PAUSED === "true";
 
 export const allowedDomain = () =>

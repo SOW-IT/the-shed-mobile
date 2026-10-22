@@ -3,8 +3,10 @@ import {
   activeNavKey,
   badgeText,
   drawerItems,
+  NAV_GROUP_LABELS,
   NAV_HREFS,
   NAV_LABELS,
+  navEntries,
   navViewer,
   roleLine,
   showsReimbursements,
@@ -19,6 +21,7 @@ const staff = navViewer(true, { profile: staffProfile });
 const campusLeader = navViewer(true, { profile: staffProfile, isCampusLeader: true });
 const admin = navViewer(true, { profile: staffProfile, isAdmin: true });
 const financeHead = navViewer(true, { profile: staffProfile, isFinanceHead: true });
+const mentor = navViewer(true, { profile: staffProfile, isMentor: true });
 const campusLeaderAdmin = navViewer(true, {
   profile: staffProfile,
   isCampusLeader: true,
@@ -33,6 +36,7 @@ describe("navViewer", () => {
       isCampusLeader: false,
       canAdmin: false,
       canAnnounce: false,
+      canMentoring: false,
     });
     expect(
       navViewer(false, { profile: staffProfile, isCampusLeader: true, isAdmin: true })
@@ -46,6 +50,7 @@ describe("navViewer", () => {
       isCampusLeader: false,
       canAdmin: false,
       canAnnounce: false,
+      canMentoring: false,
     });
   });
 
@@ -65,6 +70,14 @@ describe("navViewer", () => {
     expect(financeHead.canAnnounce).toBe(false);
     expect(staff.canAnnounce).toBe(false);
     expect(navViewer(true, { profile: null, isAdmin: true }).canAnnounce).toBe(false);
+  });
+
+  test("admins and this year's mentors open Mentoring; staff and guests don't", () => {
+    expect(admin.canMentoring).toBe(true);
+    expect(mentor.canMentoring).toBe(true);
+    expect(staff.canMentoring).toBe(false);
+    expect(financeHead.canMentoring).toBe(false);
+    expect(navViewer(true, { profile: null, isMentor: true }).canMentoring).toBe(false);
   });
 
   test("the campus-leader flag only counts for staff", () => {
@@ -112,15 +125,33 @@ describe("drawerItems", () => {
       "reimbursements",
       "eventRequests",
       "designRequests",
+      "mentoring",
       "announcements",
       "admin",
     ]);
     expect(drawerItems(financeHead)).toEqual(withAdmin);
   });
 
+  test("mentors get Mentoring without Announcements or Admin", () => {
+    expect(drawerItems(mentor)).toEqual([
+      "profile",
+      "churches",
+      "reimbursements",
+      "eventRequests",
+      "designRequests",
+      "mentoring",
+    ]);
+  });
+
   test("campus leaders don't get Reimbursements, Event or Design Requests, but keep Admin", () => {
     expect(drawerItems(campusLeader)).toEqual(["profile", "churches"]);
-    expect(drawerItems(campusLeaderAdmin)).toEqual(["profile", "churches", "announcements", "admin"]);
+    expect(drawerItems(campusLeaderAdmin)).toEqual([
+      "profile",
+      "churches",
+      "mentoring",
+      "announcements",
+      "admin",
+    ]);
   });
 });
 
@@ -158,6 +189,7 @@ describe("sidebarItems", () => {
       "org",
       "churches",
       "profile",
+      "mentoring",
       "announcements",
       "admin",
     ]);
@@ -171,6 +203,40 @@ describe("sidebarItems", () => {
       "org",
       "churches",
       "profile",
+    ]);
+  });
+});
+
+describe("navEntries", () => {
+  test("folds the three request pages into one Requests group where the first sat", () => {
+    expect(navEntries(drawerItems(admin))).toEqual([
+      { kind: "item", key: "profile" },
+      { kind: "item", key: "churches" },
+      {
+        kind: "group",
+        key: "requests",
+        items: ["reimbursements", "eventRequests", "designRequests"],
+      },
+      { kind: "item", key: "mentoring" },
+      { kind: "item", key: "announcements" },
+      { kind: "item", key: "admin" },
+    ]);
+    expect(navEntries(sidebarItems(staff)).slice(0, 3)).toEqual([
+      { kind: "item", key: "home" },
+      {
+        kind: "group",
+        key: "requests",
+        items: ["reimbursements", "eventRequests", "designRequests"],
+      },
+      { kind: "item", key: "attendance" },
+    ]);
+    expect(NAV_GROUP_LABELS.requests).toBe("Requests");
+  });
+
+  test("no group when there are no request pages", () => {
+    expect(navEntries(drawerItems(campusLeader))).toEqual([
+      { kind: "item", key: "profile" },
+      { kind: "item", key: "churches" },
     ]);
   });
 });
