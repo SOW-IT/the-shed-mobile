@@ -201,21 +201,9 @@ function SpotifyConnectionCard() {
   );
 }
 
-/**
- * A person's profile. Your own (`asTab`) is a root screen from the side menu,
- * with the top bar; anyone else's opens on top of the screen you came from,
- * with a back button.
- */
-export const ProfileView = ({
-  email,
-  asTab = false,
-}: {
-  email?: string;
-  asTab?: boolean;
-}) => {
+export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: boolean }) => {
   const t = useAppTheme();
   const profile = useQuery(api.profile.get, email ? { email } : {});
-  // Keeps "Last online 5m ago" current while the profile is open.
   useMinuteTick();
   const generateAvatarUploadUrl = useMutation(
     api.profile.generateAvatarUploadUrl,
@@ -370,10 +358,7 @@ export const ProfileView = ({
             <View style={styles.toggleRow}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Txt style={{ fontWeight: "600" }}>Email me daily reminders</Txt>
-                <Muted>
-                  One morning email listing what is waiting on you. Reminders still show in the
-                  app and as push notifications when this is off.
-                </Muted>
+                <Muted>One morning email listing what&apos;s waiting on you.</Muted>
               </View>
               <Switch
                 accessibilityLabel="Email me daily reminders"

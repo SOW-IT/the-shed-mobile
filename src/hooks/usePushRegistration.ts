@@ -24,12 +24,6 @@ let thisPhoneToken: string | null = null;
 
 const UNREGISTER_WAIT_MS = 3000;
 
-/**
- * Gets this phone's push token and saves it for the signed-in person. Only
- * the first try after signing in may show the permission prompt; later tries
- * just check, so a "no" isn't asked again every time the app opens.
- * Resolves to whether the phone is now registered.
- */
 async function registerThisPhone(
   register: (args: { token: string }) => Promise<null>,
   askPermission: boolean
@@ -85,7 +79,6 @@ export const useSignOut = () => {
 
 export const usePushRegistration = (opts?: {
   navigationReady?: boolean;
-  /** The signed-in person's email (null when signed out). */
   signedInAs?: string | null;
 }) => {
   const register = useMutation(api.push.register);
@@ -112,11 +105,6 @@ export const usePushRegistration = (opts?: {
     return () => subscription.remove();
   }, [router, navigationReady]);
 
-  // Saving the token needs someone signed in, so this runs once someone is:
-  // their first sign-in, a saved sign-in loading on launch, or signing in as
-  // someone else (the phone then moves to them). Until it has worked (say
-  // notifications were off), it tries again whenever the app comes back to
-  // the front.
   useEffect(() => {
     if (!signedInAs || Platform.OS === "web" || !Device.isDevice) return;
     let registered = false;

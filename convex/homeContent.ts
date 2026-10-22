@@ -52,10 +52,6 @@ const parseTab = (tab: string): HomeTabKey => {
   return tab;
 };
 
-/**
- * Home's sub-tabs and their blocks. A tab nobody has edited shows the default
- * content; editors also see who last changed each tab.
- */
 export const view = query({
   args: {},
   returns: v.object({ canEdit: v.boolean(), tabs: v.array(tabViewValidator) }),
@@ -81,10 +77,6 @@ export const view = query({
   },
 });
 
-/**
- * Replaces one tab's blocks. `baseRevision` is the revision the editor's copy
- * came from, so two people editing at once can't silently overwrite each other.
- */
 export const save = mutation({
   args: {
     tab: v.string(),
@@ -106,11 +98,6 @@ export const save = mutation({
   },
 });
 
-/**
- * Puts a tab back to the default content. The row stays (with null blocks) so
- * its revision keeps counting up and older copies stay out of date. Like a
- * save, it's refused if the tab changed since the editor opened it.
- */
 export const reset = mutation({
   args: { tab: v.string(), baseRevision: v.number() },
   returns: v.null(),
@@ -121,10 +108,6 @@ export const reset = mutation({
   },
 });
 
-/**
- * Writes a tab's blocks (null = built-in content) if nobody has changed it
- * since `baseRevision`. Restoring a tab that was never edited writes nothing.
- */
 async function writeTab(
   ctx: MutationCtx,
   key: HomeTabKey,

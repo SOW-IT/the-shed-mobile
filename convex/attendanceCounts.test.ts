@@ -118,29 +118,18 @@ describe("event attendance counts", () => {
     expect(await t.run((ctx) => ctx.db.get(eventId))).toEqual(before);
     await admin.mutation(api.attendance.signOut, { eventId, memberId: ann });
     expect(await t.run((ctx) => ctx.db.get(eventId))).toEqual(before);
-    expect(before?.attendanceCount).toBeUndefined();
   });
 
-  test("an event counted before the count moved shows its old count", async () => {
-    const t = await setup();
-    const eventId = await createEvent(t);
-    await dropStoredCount(t, eventId);
-    await t.run((ctx) => ctx.db.patch(eventId, { attendanceCount: 7 }));
-    expect(await listedCount(t, eventId)).toBe(7);
-  });
-
-  test("a sign-in to an event counted before the count moved recounts it", async () => {
+  test("a sign-in to an event with no stored count recounts it", async () => {
     const t = await setup();
     const eventId = await createEvent(t);
     const [ann, ben] = await addMembers(t, ["Ann", "Ben"]);
     await dropStoredCount(t, eventId);
-    await t.run(async (ctx) => {
-      await ctx.db.patch(eventId, { attendanceCount: 1 });
-      await ctx.db.insert("attendance", { eventId, memberId: ann, signInTime: Date.now() });
-    });
+    await t.run((ctx) =>
+      ctx.db.insert("attendance", { eventId, memberId: ann, signInTime: Date.now() })
+    );
     await asUser(t, ADMIN).mutation(api.attendance.signIn, { eventId, memberId: ben });
     expect(await storedCount(t, eventId)).toBe(2);
-    expect((await t.run((ctx) => ctx.db.get(eventId)))?.attendanceCount).toBeUndefined();
   });
 
   test("deleting an event deletes its count", async () => {
@@ -234,18 +223,14 @@ describe("event attendance counts", () => {
     expect(counts.slice(1, 29).every((count) => count === 0)).toBe(true);
   });
 
-  test("the backfill moves an old count off the event and counts it again", async () => {
+  test("the backfill recounts an event whose stored count went missing", async () => {
     const t = await setup();
     const eventId = await createEvent(t);
     const [ann] = await addMembers(t, ["Ann"]);
     await dropStoredCount(t, eventId);
-    await t.run(async (ctx) => {
-      await ctx.db.patch(eventId, { attendanceCount: 4 });
-      await ctx.db.insert("attendance", { eventId, memberId: ann, signInTime: 1 });
-    });
+    await t.run((ctx) => ctx.db.insert("attendance", { eventId, memberId: ann, signInTime: 1 }));
     await t.mutation(internal.attendanceCounts.backfill, {});
     expect(await storedCount(t, eventId)).toBe(1);
-    expect((await t.run((ctx) => ctx.db.get(eventId)))?.attendanceCount).toBeUndefined();
   });
 
   test("the backfill leaves a correct count alone and ignores a deleted event", async () => {

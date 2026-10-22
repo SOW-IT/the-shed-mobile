@@ -16,7 +16,6 @@ const REDIRECT_GRACE_MS = 2500;
 
 export type SignInOutcome = "signed-in" | "cancelled" | "rejected" | "error";
 
-// The SOW (sow.org.au) Google provider in convex/auth.ts.
 const PROVIDER = "google";
 
 const PENDING_PROVIDER_KEY = "pendingGoogleAuthProvider";
@@ -70,10 +69,6 @@ export const useWebAuthCodeExchange = () => {
         .catch((e: unknown) => setError(errorText(e)))
         .finally(() => setBusy(false));
     };
-    // The page is handing this code to the app that started the sign-in (see
-    // +html.tsx); a code only works once, so wait: use it if no app took it,
-    // or drop it if one did. The flag is cleared before either event fires, so
-    // a listener added after that just sees it cleared.
     if ((window as { __shedCodeToApp?: boolean }).__shedCodeToApp) {
       const dropped = () => {
         window.history.replaceState({}, "", pageWithoutSignInParams());
@@ -110,7 +105,6 @@ export const useGoogleSignIn = () => {
     try {
       if (Platform.OS === "web") {
         window.sessionStorage.setItem(PENDING_PROVIDER_KEY, PROVIDER);
-        // Back to this page afterwards, so an emailed link still lands where it pointed.
         await signIn(PROVIDER, {
           redirectTo: `${window.location.origin}${pageWithoutSignInParams()}${WEB_ONLY_MARKER}`,
         });

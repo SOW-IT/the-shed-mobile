@@ -10,7 +10,6 @@ import { WaitingOnYou } from "@/components/home/WaitingOnYou";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-// Until the server answers, show the built-in content rather than a spinner.
 const FALLBACK_TABS = HOME_TABS.map(({ key, label }) => ({
   key,
   label,

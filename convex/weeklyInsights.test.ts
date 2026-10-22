@@ -10,7 +10,6 @@ import { readCampusWeeklyAverages } from "./weeklyInsights";
 
 const modules = import.meta.glob("./**/*.ts");
 
-// Thursday 30 Jul 2026, midday in Sydney: T2 2026 has had 7 weeklies.
 const NOW = Date.UTC(2026, 6, 30, 2);
 const DAY = 86_400_000;
 beforeEach(() => {
@@ -111,11 +110,9 @@ async function setup() {
       if (i === 5) await signIn(e, newbie);
       if (i === 6) await signIn(e, guest);
     }
-    // A Mega Weeklies shared with another campus: never counted by default.
     const mega = await event("Mega weeklies", wed(2026, 7, 15), [UNSW, USYD], { year: 2026, slot: 2, week: 7 });
     await signIn(mega, ana);
     await signIn(mega, cy);
-    // Not held (nobody came), not yet held, and not a weekly at all.
     await event("Weeklies", wed(2026, 7, 15), [UNSW], { year: 2026, slot: 2, week: 7 });
     const future = await event("Weeklies", wed(2026, 8, 5), [UNSW], { year: 2026, slot: 2, week: 10 });
     await signIn(future, ana);
@@ -163,7 +160,6 @@ describe("first build and the view", () => {
     await rebuild(t);
     expect(Object.keys(await factDocs(t)).sort()).toEqual([`${UNSW}|2025-T2`, `${UNSW}|2026-T1`, `${UNSW}|2026-T2`]);
     const index = (await indexDoc(t))!;
-    // Each year's terms, newest first, then that whole year.
     expect(index.periods.map((p) => p.label)).toEqual([
       "2026 T2",
       "2026 T1",
@@ -172,8 +168,6 @@ describe("first build and the view", () => {
       "2025",
     ]);
     expect(index.currentKey).toBe("2026-T2");
-    // Recent held weeklies for the SOW comparison; the shared Mega weeklies
-    // (15 Jul) isn't one of them.
     expect(index.weeklies.at(-1)).toMatchObject({ at: T2_2026[6], count: 2, joint: false });
     expect(index.weeklies.find((w) => w.at === wed(2026, 7, 15))).toMatchObject({ count: 2, joint: true });
     expect(index.weeklies.some((w) => w.at === wed(2026, 8, 5))).toBe(false);
@@ -190,7 +184,6 @@ describe("first build and the view", () => {
     });
     expect(names(block(blocks, "followUpGroups", "Visitors"))).toEqual({});
     const people = block(blocks, "people");
-    // Ana came to 5 of 7, so she's Regular even though she missed the last 2.
     expect(people.rows.map((r) => [r.name, r.category.label, r.section])).toEqual([
       ["Nia New", "Newcomer", "campus"],
       ["Ana Doe", "Regular", "campus"],
@@ -215,7 +208,6 @@ describe("first build and the view", () => {
     const people = block(now.blocks as Block[], "people");
     const row = (name: string) => people.rows.find((r) => r.name === name)!;
     expect([row("Ana Doe").category.label, row("Ana Doe").section]).toEqual(["Visitor", "campus"]);
-    // Guest is no longer a Role: they're judged on their weeklies.
     expect(row("Gil Guest").category.label).not.toBe("Staff, alumni & guests");
     expect(row("Nia New").category.label).toBe("Newcomer");
     const saved = (await t.run((ctx) => ctx.db.query("weeklyCategories").collect()))[0];
@@ -260,7 +252,6 @@ describe("first build and the view", () => {
     await rebuild(t, MQ);
     const mq = (await leader.query(api.weeklyInsights.view, { subgroup: MQ }))!;
     expect(mq).toMatchObject({ period: null, blocks: [{ type: "empty", title: "No weekly meetings yet" }] });
-    // A period whose view row is missing reads as not ready.
     await rebuild(t);
     await t.run(async (ctx) => {
       const row = (await ctx.db.query("weeklyInsightViews").collect()).find((v) => v.periodKey === "2026-T2")!;
@@ -278,7 +269,6 @@ describe("nightly builds only redo what changed", () => {
     const views = await viewDocs(t);
     const index = (await indexDoc(t))!;
     vi.setSystemTime(NOW + DAY);
-    // Someone else's campus changed.
     const usydEvent = await t.run(async (ctx) => {
       const e = await ctx.db.insert("events", { name: "USYD", dateStart: NOW, dateEnd: NOW, subgroups: [USYD] });
       await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "event", action: "update", summary: "x", eventId: e });
@@ -292,7 +282,6 @@ describe("nightly builds only redo what changed", () => {
     expect(after.auditSeen).toBeGreaterThan(index.auditSeen);
     expect(after.eventsSeen).toBeGreaterThan(index.eventsSeen);
     expect(usydEvent).toBeTruthy();
-    // And a night with nothing at all changes nothing.
     await rebuild(t);
     expect((await indexDoc(t))!.auditSeen).toBe(after.auditSeen);
     void ids;
@@ -363,7 +352,6 @@ describe("nightly builds only redo what changed", () => {
       }
       await ctx.db.delete(gone);
       await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "event", action: "delete", summary: "x", eventId: gone });
-      // Imported: no change-log row, just a new event.
       const imported = await ctx.db.insert("events", {
         name: "Weeklies (imported)",
         dateStart: wed(2025, 6, 25),
@@ -383,7 +371,6 @@ describe("nightly builds only redo what changed", () => {
     const { t } = await setup();
     await rebuild(t);
     const views = await viewDocs(t);
-    // The current term stops running 18 days after its last weekly.
     expect((await indexDoc(t))!.nextCompareAt).toBe(T2_2026[6] + 18 * DAY);
     await t.run(async (ctx) => {
       const index = (await ctx.db.query("weeklyInsightIndex").collect())[0];
@@ -400,7 +387,6 @@ describe("nightly builds only redo what changed", () => {
   test("once the term stops running it loses \"so far\" and its follow-ups", async () => {
     const { t, leader } = await setup();
     await rebuild(t);
-    // The setup's 5 Aug weekly has happened by then; the term ends after it.
     vi.setSystemTime(wed(2026, 8, 5) + 19 * DAY);
     await rebuild(t);
     const now = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!;
@@ -506,7 +492,6 @@ describe("settings", () => {
     await rebuild(t);
     const index = (await indexDoc(t))!;
     expect(index.settingsVersion).toBe(3);
-    // UNSW now runs semesters.
     expect(index.periods[0].label).toBe("2026 Sem 2");
     expect((await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!.period).toBe("2026-S2");
   });
@@ -544,20 +529,17 @@ describe("settings", () => {
 describe("year so far", () => {
   test("compared with last year up to the same term and week, chart included", async () => {
     const { t, leader, ids } = await setup();
-    // T2 2025's third weekly (18 Jun) gets a third person: 2, 2, 3.
     await t.run((ctx) => ctx.db.insert("attendance", { eventId: ids.weeklies[2], memberId: ids.cy, signInTime: 0 }));
-    vi.setSystemTime(Date.UTC(2026, 5, 12, 2)); // Fri 12 Jun 2026: T2 has had 2 weeklies.
+    vi.setSystemTime(Date.UTC(2026, 5, 12, 2));
     await rebuild(t);
     const blocks = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2026" }))!.blocks as Block[];
     const chart = block(blocks, "multiBars", "Weeklies average by term");
     expect(chart.subtitle).toBe("Against 2025 up to T2 week 2");
-    // T2 2026 has had 2 weeklies, so T2 2025 counts its first two weeks.
     expect(chart.points.find((p) => p.label === "T2")!.segments[1].value).toBe(2);
     expect((blocks[1] as { text: string }).text).toMatch(/, compared with 2025 up to T2 week 2\.$/);
     expect(
       blocks.flatMap((b) => (b.type === "cards" ? b.cards : [])).map((c) => c.hint)
     ).toEqual(["vs 2", "vs 2", "vs 2", "vs 2", undefined, "vs 100%"]);
-    // T2 2025's own page still shows the whole term.
     const t2 = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2025-T2" }))!.blocks as Block[];
     expect(block(t2, "cards").cards[0].value).toBe("2.3");
   });
@@ -643,8 +625,6 @@ describe("sign-in tags", () => {
     await t.run((ctx) => ctx.db.delete(ids.social));
     expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.social })).toEqual([]);
 
-    // The latest term loses all its weeklies: the term before becomes the
-    // latest, and its categories replace the old ones.
     vi.setSystemTime(NOW + DAY);
     await t.run(async (ctx) => {
       for (const eventId of ids.weeklies.slice(T2_2025.length + T1_2026.length)) {
@@ -664,7 +644,6 @@ describe("sign-in tags", () => {
       { key: `member:${ids.cy}`, label: "Visitor", colour: "#3B82F6" },
     ]);
 
-    // A campus left with no weeklies drops its tags.
     const { _id, _creationTime, ...index } = (await indexDoc(t))!;
     await t.mutation(internal.weeklyInsights.saveIndex, {
       ...index,
@@ -827,8 +806,7 @@ describe("combined weeklies, marks and suggestions", () => {
     const next = (await leader.query(api.weeklyInsights.suggestWeekly, { subgroup: UNSW, dateStart: wed(2026, 8, 12) }))!;
     expect(next).toMatchObject({ system: "terms", suggested: { key: "2026-T2", week: 11 }, name: "T2W11" });
     expect(next.options.map((o) => o.label)).toEqual(["T1 2026", "T2 2026", "T3 2026"]);
-    // Editing the 5 Aug weekly leaves it out of its own suggestion.
-    const future = ids.weeklies.length; // the 5 Aug weekly isn't in `weeklies`
+    const future = ids.weeklies.length;
     void future;
     const own = (await leader.query(api.weeklyInsights.suggestWeekly, {
       subgroup: UNSW,
@@ -851,7 +829,6 @@ describe("creating an event as a Weekly", () => {
     const saved = await t.run((ctx) => ctx.db.get(id));
     expect(saved).toMatchObject({ weekly: { year: 2026, slot: 2, week: 11 }, tagIds: [ids.tag] });
 
-    // Leaving it out on update keeps it; null makes it an ordinary event.
     await leader.mutation(api.events.update, { eventId: id, ...base, name: "Renamed", tagIds: [ids.tag] });
     expect((await t.run((ctx) => ctx.db.get(id)))!.weekly).toEqual({ year: 2026, slot: 2, week: 11 });
     await leader.mutation(api.events.update, { eventId: id, ...base, tagIds: [ids.tag], weekly: null });

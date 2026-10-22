@@ -4,10 +4,6 @@ import { NavMenu } from "@/components/nav/NavMenu";
 import { SIDEBAR_WIDTH } from "@/components/nav/layout";
 import { spacing, useAppTheme } from "@/theme";
 
-/**
- * Wide screens' permanent left sidebar. It stands in for the top bar and the
- * bottom tabs, and stays beside every screen, including ones opened on top.
- */
 export const AppSidebar = () => {
   const t = useAppTheme();
   const insets = useSafeAreaInsets();

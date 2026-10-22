@@ -1,12 +1,3 @@
-/**
- * Spotting staff who are already in attendance as a member, so an admin can
- * merge the two. A new leader has usually been signed in as a member for a
- * year or more before they join staff, under whatever name the sign-in desk
- * typed; these rules are deliberately loose and an admin confirms each one.
- */
-
-/** Name words in lower case, without accents, punctuation or digits:
- *  "Li-Na  Wu" → ["li", "na", "wu"], "Sam Doe (2005)" → ["sam", "doe"]. */
 export const nameWords = (name: string): string[] =>
   name
     .normalize("NFKD")
@@ -17,7 +8,6 @@ export const nameWords = (name: string): string[] =>
     .split(" ")
     .filter(Boolean);
 
-/** How two names line up, strongest first. */
 export const NAME_MATCHES = ["same", "spacing", "order", "middle", "short", "typo"] as const;
 export type NameMatch = (typeof NAME_MATCHES)[number];
 
@@ -27,15 +17,6 @@ const isSubsequence = (short: string[], long: string[]): boolean => {
   return i === short.length;
 };
 
-/**
- * Whether two names could be the same person:
- * - `same`: "Hana Doe" / "hana  doe"
- * - `spacing`: "Li Na Wu" / "Lina Wu"
- * - `order`: "Doe Hana" / "Hana Doe"
- * - `middle`: "Mary Jane Doe" / "Mary Doe" (one only adds middle names)
- * - `short`: "Alex Morgan" / "Alexander Morgan" (a shortened first
- *   name, at least three letters, with the same surname)
- */
 export function nameMatch(a: string[], b: string[]): NameMatch | null {
   if (a.length === 0 || b.length === 0) return null;
   if (a.join(" ") === b.join(" ")) return "same";
@@ -53,9 +34,6 @@ export function nameMatch(a: string[], b: string[]): NameMatch | null {
   return x.length >= 3 && y.startsWith(x) ? "short" : null;
 }
 
-/** A member on another campus than the staff person's isn't them. Either side
- *  without a campus (staff outside campus roles, members never asked) can't
- *  rule a match out. */
 export const campusCompatible = (
   staffUniversities: readonly string[],
   memberCampus: string | undefined
@@ -88,8 +66,8 @@ export const sameCampus = (a: string | undefined, b: string | undefined): boolea
   return x === y;
 };
 
-export type DuplicateCandidate = { id: string; words: string[]; campus?: string };
-export type DuplicatePair<T extends DuplicateCandidate> = { a: T; b: T; match: NameMatch };
+type DuplicateCandidate = { id: string; words: string[]; campus?: string };
+type DuplicatePair<T extends DuplicateCandidate> = { a: T; b: T; match: NameMatch };
 
 export function duplicatePairs<T extends DuplicateCandidate>(people: readonly T[]): DuplicatePair<T>[] {
   const buckets = new Map<string, T[]>();

@@ -70,11 +70,6 @@ export const add = mutation({
   },
 });
 
-/**
- * Unread comments per design request for the caller: ones written since they
- * last opened the thread, by someone else. Comments imported from the old
- * app never count, so the import doesn't light up every old request.
- */
 export const unreadCounts = query({
   args: { ids: v.array(v.id("designRequests")) },
   handler: async (ctx, args): Promise<Record<Id<"designRequests">, number>> => {

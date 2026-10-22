@@ -74,12 +74,6 @@ import {
   weeklySettingsFields,
 } from "./weeklyInsightsData";
 
-// Insights → Attendance for each campus, built around its weekly meetings.
-// The rules live in shared/weeklyInsights.ts; this file stores their inputs
-// and results. A nightly build looks at the attendance change log since its
-// last run and only redoes what changed: usually just the current term, often
-// nothing at all. See docs/adr/0008-weekly-insights.md.
-
 const MAX_EVENTS = 5000;
 const EVENTS_PAGE = 1000;
 const MAX_AUDIT_ROWS = 5000;
@@ -88,11 +82,8 @@ const MAX_PROFILES_PER_YEAR = 3000;
 const MAX_MEMBER_EVENTS = 500;
 const GATHER_CHUNK = 20;
 const PEOPLE_CHUNK = 300;
-// The SOW view compares campuses over at most a year.
 const INDEX_WEEKLIES_WEEKS = 60;
 const NEVER = Number.MAX_SAFE_INTEGER;
-// Bump when what a view shows changes, so every campus redoes its views on
-// the next build after a deploy.
 export const VIEW_VERSION = 8;
 
 export async function readSettings(
@@ -112,8 +103,6 @@ const categoriesFor = (ctx: QueryCtx, subgroup: string) =>
     .withIndex("by_subgroup", (q) => q.eq("subgroup", subgroup))
     .unique();
 
-/** Everyone's category, under each key the sign-in screen might look them up
- *  by: staff signed in through a member row also go under that member. */
 const categoryEntries = (rows: TermRow[]) =>
   rows.flatMap((r) => [
     { key: r.key, category: r.category },
@@ -146,9 +135,6 @@ async function loadFacts(ctx: QueryCtx, subgroup: string): Promise<TermFacts[]> 
   return docs.map(toFacts).sort((a, b) => a.weeklies[0].at - b.weeklies[0].at);
 }
 
-// ---------------------------------------------------------------------------
-// Build
-
 const checkResult = v.object({
   settings: settingsValidator,
   version: v.number(),
@@ -165,7 +151,6 @@ const checkResult = v.object({
   needsBuild: v.boolean(),
 });
 
-/** What changed for this campus since its last build. */
 export const checkChanges = internalQuery({
   args: { subgroup: v.string(), now: v.number() },
   returns: checkResult,
@@ -175,7 +160,6 @@ export const checkChanges = internalQuery({
     const latestAudit = await ctx.db.query("attendanceAuditLog").order("desc").first();
     const latestEvent = await ctx.db.query("events").order("desc").first();
     if (!index) {
-      // A first build reads everything, so the change log so far is covered.
       return {
         settings,
         version,
@@ -204,8 +188,6 @@ export const checkChanges = internalQuery({
     const memberIds = new Set<Id<"attendanceMembers">>();
     let tagChanged = false;
     let metadataChanged = false;
-    // Someone who left staff had their sign-ins moved off their staff email
-    // onto a member record: re-read the weeklies that had the staff email.
     const leftStaff = new Set<string>();
     for (const row of audit) {
       if (row.eventId) eventIds.add(row.eventId);
@@ -218,7 +200,6 @@ export const checkChanges = internalQuery({
     const relevant: Id<"events">[] = [];
     for (const id of eventIds) {
       const event = await ctx.db.get("events", id);
-      // A deleted event may have been one of this campus's weeklies.
       if (!event || eventIncludesSubgroup(event.subgroups, subgroup)) relevant.push(id);
     }
     const memberKeys: string[] = [];
@@ -264,8 +245,6 @@ const weeklyEventValidator = v.object({
   mark: v.union(v.null(), weeklyMarkValidator),
 });
 
-/** One page of this campus's weekly meetings so far, newest first. Every
- *  page is read, so no old term looks deleted because of a cap. */
 export const weeklyEventsPage = internalQuery({
   args: {
     subgroup: v.string(),
@@ -305,7 +284,6 @@ export const weeklyEventsPage = internalQuery({
   },
 });
 
-/** This campus's stored term facts. */
 export const loadFactsDocs = internalQuery({
   args: { subgroup: v.string() },
   returns: v.array(v.object({ _id: v.id("weeklyTermFacts"), _creationTime: v.number(), ...termFactsFields })),
@@ -316,7 +294,6 @@ export const loadFactsDocs = internalQuery({
       .take(MAX_TERMS),
 });
 
-/** Who signed in to each event, as person keys. */
 export const attendanceFor = internalQuery({
   args: { eventIds: v.array(v.id("events")) },
   returns: v.array(v.object({ eventId: v.id("events"), keys: v.array(v.string()) })),
@@ -362,8 +339,6 @@ export async function resolvePeople(ctx: QueryCtx, keys: string[], years: number
     const raw = field ? member?.metadata?.[field._id] : undefined;
     return raw ? (field?.values?.[raw] ?? raw) : null;
   };
-  // Only a hand-set Alumni or Visitor counts: every other Role is what this
-  // build works out.
   const memberInfo = (member: Doc<"attendanceMembers"> | null) => {
     const campus = fieldLabel(campusField, member);
     const marked = markedRoleIn(fields, member?.metadata);
@@ -474,8 +449,6 @@ const indexFields = {
   nextCompareAt: v.number(),
 };
 
-/** Writes the campus's index row and drops views for periods that are gone.
- *  `categories` comes with a rebuilt latest term, for the sign-in tags. */
 export const saveIndex = internalMutation({
   args: { ...indexFields, categories: v.optional(v.array(personCategoryValidator)) },
   returns: v.null(),
@@ -505,7 +478,6 @@ export const saveIndex = internalMutation({
   },
 });
 
-/** Nothing to rebuild: just remember how far through the change log we are. */
 export const saveWatermark = internalMutation({
   args: { subgroup: v.string(), auditSeen: v.number(), eventsSeen: v.number() },
   returns: v.null(),
@@ -582,7 +554,6 @@ async function buildSubgroup(
   };
   const stored = new Map(data.facts.map((f) => [f.termKey, f]));
 
-  // Who came to each weekly, from the stored facts where they're still good.
   const keysByEvent = new Map<string, string[]>();
   for (const doc of data.facts) {
     doc.weeklies.forEach((w) => keysByEvent.set(w.eventId, []));
@@ -631,10 +602,6 @@ async function buildSubgroup(
   const changed = facts.map((f, i) => (sameFacts(f, stored.get(f.key)) ? -1 : i)).filter((i) => i >= 0);
   const removed = [...stored.keys()].filter((key) => !facts.some((f) => f.key === key));
 
-  // Which views to redo: every term from the one before the first change
-  // (so a term that just finished loses "so far" and its follow-ups), the
-  // latest term if someone in it was edited, or everything on a settings
-  // change.
   const latest = facts.length - 1;
   const recompute = new Set<number>();
   if (force || check.settingsChanged || check.metadataChanged) facts.forEach((_, i) => recompute.add(i));
@@ -644,13 +611,7 @@ async function buildSubgroup(
   const edited = new Set(check.memberKeys);
   const touches = (f: TermFacts | undefined) => !!f && Object.keys(f.attendance).some((k) => edited.has(k));
   if (latest >= 0 && (touches(facts[latest]) || touches(facts[latest - 1]))) recompute.add(latest);
-  // The latest term stopped running: no more "so far", and its year's
-  // comparison point is settled.
   if (latest >= 0 && check.compareDue) recompute.add(latest);
-  // A term that's gone (say all its weeklies were deleted) changes what the
-  // term after it compares with, and can leave another term as the latest:
-  // redo every term from the one after it, so the views and the sign-in
-  // categories follow.
   for (const key of removed) {
     const start = stored.get(key)!.weeklies[0].at;
     const next = facts.findIndex((f) => f.weeklies[0].at > start);
@@ -660,12 +621,9 @@ async function buildSubgroup(
   const thisYear = sydneyCalendarYear(new Date(now));
   const years = new Set<number>([...recompute].map((i) => facts[i].year));
   if (check.compareDue) years.add(thisYear);
-  // A year compares with the one before, so redo the years after a change.
   if (years.size) for (let y = Math.min(...years); y <= thisYear; y++) years.add(y);
   for (const y of [...years]) if (!facts.some((f) => f.year === y)) years.delete(y);
 
-  // People needed: everyone in the terms being redone and the terms before
-  // them (for categories and the comparison).
   const need = new Set<number>();
   const add = (i: number) => {
     if (i < 0) return;
@@ -731,8 +689,6 @@ async function buildSubgroup(
     });
   }
   for (const year of [...years].sort()) {
-    // The year in progress is compared with last year up to the same term
-    // and week; so are last year's terms in the by-term chart.
     const cut = year === thisYear ? (yearCutOf(facts, year) ?? undefined) : undefined;
     const result = computeYear(facts, year, c)!;
     const inYear = (y: number, to?: YearCut) =>
@@ -786,7 +742,6 @@ async function buildSubgroup(
   });
 }
 
-/** Rebuilds one campus, doing only what changed since its last build. */
 export const rebuild = internalAction({
   args: { subgroup: v.string(), force: v.optional(v.boolean()) },
   returns: v.null(),
@@ -807,7 +762,6 @@ export const rebuild = internalAction({
   },
 });
 
-/** The nightly build: every campus with a university row this staff year. */
 export const rebuildAll = internalMutation({
   args: { force: v.optional(v.boolean()), nightly: v.optional(v.boolean()) },
   returns: v.null(),
@@ -828,11 +782,6 @@ export const rebuildAll = internalMutation({
   },
 });
 
-/**
- * Changes the numbers Insights uses, e.g.
- * `npx convex run weeklyInsights:setSettings '{"regularShare":0.4}'`.
- * Every campus is rebuilt from its stored facts straight away.
- */
 export const setSettings = internalMutation({
   args: {
     regularShare: v.optional(v.number()),
@@ -863,8 +812,6 @@ export const setSettings = internalMutation({
   },
 });
 
-/** A campus's weeklies as Insights sees them: one campus, tagged Weekly
- *  Meeting or created as a Weekly (joint ones only if the setting allows). */
 export async function campusWeeklies(
   ctx: QueryCtx,
   subgroup: string,
@@ -886,9 +833,6 @@ export async function campusWeeklies(
 
 const markOption = v.object({ key: v.string(), label: v.string(), year: v.number(), slot: v.number() });
 
-/** What the New event form pre-fills for a Weekly on a date: its term (and
- *  the terms to choose from), week and name. `eventId` leaves an event being
- *  edited out of its own suggestion. */
 export const suggestWeekly = query({
   args: { subgroup: v.string(), dateStart: v.number(), eventId: v.optional(v.id("events")) },
   returns: v.union(
@@ -925,9 +869,6 @@ export const suggestWeekly = query({
   },
 });
 
-// ---------------------------------------------------------------------------
-// Reading
-
 const NOT_READY: ViewBlock = {
   type: "empty",
   icon: "sparkles-outline",
@@ -942,7 +883,6 @@ const NO_WEEKLIES: ViewBlock = {
   message: "Create this campus's weeklies as Weekly events and they'll show here the next day.",
 };
 
-/** A campus's Insights view for a term or year (its current term by default). */
 export const view = query({
   args: { subgroup: v.string(), period: v.optional(v.string()) },
   returns: v.union(
@@ -1000,7 +940,6 @@ async function eventsAttended(ctx: QueryCtx, key: string): Promise<MemberEvent[]
   return events.sort((a, b) => b.at - a.at);
 }
 
-/** One person's page: details, their weeklies at this campus, and every event. */
 export const member = query({
   args: { personKey: v.string(), subgroup: v.string() },
   returns: v.union(v.null(), v.object({ title: v.string(), blocks: v.array(weeklyBlockValidator) })),
@@ -1032,7 +971,6 @@ export const member = query({
     const staffProfile = memberDoc ? await latestProfileOfMember(ctx, memberDoc._id) : null;
     const email = memberDoc?.email ?? staffProfile?.email;
     if (email) details.push({ label: "Email", value: email });
-    // Their church: set on a member's record, or in a staff person's Profile.
     const staffUser =
       !memberDoc?.churchId && staffProfile
         ? await ctx.db
@@ -1078,9 +1016,6 @@ export const member = query({
 
 const SIGN_IN_TAGS: WeeklyCategory[] = ["newcomer", "visitor"];
 
-/** Newcomer and Visitor tags for an event's sign-in screen, from each campus's
- *  last build. A shared event only tags newcomers: someone from one of its
- *  campuses isn't visiting. */
 export const signInTags = query({
   args: { eventId: v.id("events") },
   returns: v.array(v.object({ key: v.string(), label: v.string(), colour: v.string() })),
@@ -1101,8 +1036,6 @@ export const signInTags = query({
   },
 });
 
-/** Each campus's average weekly head count over a range, highest first, for
- *  the SOW view. */
 export async function readCampusWeeklyAverages(
   ctx: QueryCtx,
   year: number,

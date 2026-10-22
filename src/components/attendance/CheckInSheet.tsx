@@ -25,13 +25,13 @@ const webOrigin = (): string =>
     ? window.location.origin
     : appLinkForScheme(appScheme()).web;
 
-export const checkInUrl = (token: string) => `${webOrigin()}/checkin/${token}`;
+const checkInUrl = (token: string) => `${webOrigin()}/checkin/${token}`;
 
 export function useCheckInPending(eventId: Id<"events">) {
   return useQuery(api.checkIn.pending, { eventId });
 }
 
-export type CheckInMember = MemberChoice & { subtitle?: string };
+type CheckInMember = MemberChoice & { subtitle?: string };
 
 type PendingRow = NonNullable<ReturnType<typeof useCheckInPending>>[number];
 
@@ -174,9 +174,9 @@ function MemberPicker({
       {shown.length === 0 ? (
         <Muted>
           {searching
-            ? "No one on the member list by that name."
+            ? "No one by that name."
             : members
-              ? "No one with a similar name. Search for them, or add them as a new member."
+              ? "No similar names."
               : "Loading the member list…"}
         </Muted>
       ) : (
@@ -304,23 +304,12 @@ export function CheckInSheet({
         {status === undefined ? null : status === null ? (
           <Muted>Sign in to use self check-in.</Muted>
         ) : !status.token ? (
-          <>
-            <Muted>
-              People scan a code and type their name, and can add their university and year. Nobody
-              can see the member list from the page. A first check-in waits here for you to match it
-              to a member; after that, the same phone signs them straight in. Leaders who open the
-              link while signed in are signed in at once.
-            </Muted>
-            <Muted>
-              The code works from two hours before the event until ten minutes after it ends.
-            </Muted>
-            <Btn
-              title="Turn on self check-in"
-              icon="qr-code-outline"
-              loading={busy === "enable"}
-              onPress={() => void act("enable", () => enable({ eventId }))}
-            />
-          </>
+          <Btn
+            title="Turn on self check-in"
+            icon="qr-code-outline"
+            loading={busy === "enable"}
+            onPress={() => void act("enable", () => enable({ eventId }))}
+          />
         ) : (
           <>
             <View style={styles.qrWrap}>
@@ -334,7 +323,7 @@ export function CheckInSheet({
                 ? `Open until ${sydneyDateTime(status.closesAt)}`
                 : phase === "before"
                   ? `Opens ${sydneyDateTime(status.opensAt)}`
-                  : "Closed. The event has ended."}
+                  : "Closed"}
             </Text>
             <View style={styles.row}>
               <Btn
@@ -428,11 +417,6 @@ export function CheckInSheet({
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>{row.name}</Text>
                     <Text style={[typography.caption, { color: t.muted }]}>{requestDetails(row)}</Text>
-                    <Text style={[typography.caption, { color: t.accent }]}>
-                      {rowSuggestions.length > 0
-                        ? "Is it one of these? Tap to sign them in, or add a new member."
-                        : "Not on the member list. Find them, or add a new member."}
-                    </Text>
                     {rowSuggestions.length > 0 ? (
                       <View style={styles.pills}>
                         {rowSuggestions.map((member) => (
@@ -492,7 +476,7 @@ export function CheckInSheet({
       <ConfirmDialog
         visible={confirmOff}
         title="Turn off self check-in?"
-        message="The code and link stop working straight away. Turning it on again makes a new code, so anything you printed or shared won't work. People already waiting stay on the list."
+        message="The code stops working. Turning it on again makes a new one."
         confirmLabel="Turn off"
         onConfirm={() => void act("disable", () => disable({ eventId }))}
         onClose={() => setConfirmOff(false)}

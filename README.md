@@ -137,7 +137,7 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   at a chosen time at least 5 minutes away; any admin can cancel a scheduled
   one. Rate limits per
   sender: 3 an hour, 10 a day, 10 waiting, and the same words twice within 10
-  minutes is refused. Tapping it opens `/announcements/[id]` (app 2.4.0 on).
+  minutes is refused. Tapping it opens `/announcements/[id]`.
   Once it has gone out, admins see on that page how many of its recipients
   have seen it (opened it, or opened their notifications since it arrived)
   and can list who hasn't.
@@ -288,7 +288,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
   banner that can be dismissed; below `minimum`, a full screen with only the
   store button. Nothing is asked until a policy is set:
-  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "minimum": "2.9.0", "recommended": "2.9.1"}'`
+  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "minimum": "2.9.25", "recommended": "2.10.0"}'`
   (`minimum`, and an optional `message` to replace the default text; `null`
   clears one). Staging builds and the web are never asked.
 
@@ -328,7 +328,7 @@ For a fresh deployment, regenerate the JWT keys with
 ### Workspace directory sync (optional)
 
 Syncs the sow.org.au member list weekly (Mondays 21:00 UTC, and via the
-admin screen's *Sync Directory* button) so admins assign people from a
+admin screen's *Sync directory now* button) so admins assign people from a
 picker, and copies each staff member's Workspace photo. Setup:
 
 1. In the Google Cloud console, create a **service account** (no roles
@@ -345,7 +345,7 @@ npx convex env set GOOGLE_ADMIN_IMPERSONATE <a-workspace-admin>@sow.org.au
 ```
 
 Until configured, the weekly sync no-ops and the admin screen shows
-"not synced yet". Syncing fills the picker and staff photos. Assigning
+"Never synced." Syncing fills the picker and staff photos. Assigning
 roles stays an explicit admin action.
 
 A person's photo is, in order: the one they uploaded in The SHED, their
@@ -366,15 +366,17 @@ is listed under Previously staff rather than as a brand-new person.
 
 ### Church map (optional)
 
-The Churches page draws a map of every church with an address. Without keys
-it is hidden on the web and Android, and iPhone falls back to Apple Maps.
-Create keys in the Google Cloud console, each restricted to its one API:
+The Churches page draws a map of every church with an address. iPhone always
+uses Apple Maps, which needs no key: since 2.10.0 the app leaves the Google
+Maps SDK for iOS out to keep the download small
+([ADR 0013](docs/adr/0013-apple-maps-on-iphone.md)). On the web and Android
+the map is Google Maps and is hidden without a key. Create keys in the Google
+Cloud console, each restricted to its one API:
 
 | Key | Where it goes | API | Restrict to |
 | --- | --- | --- | --- |
 | `GOOGLE_MAPS_API_KEY` | `npx convex env set` | Geocoding API | (server key) |
 | `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Vercel env (web build) | Maps JavaScript API | the web origins |
-| `GOOGLE_MAPS_IOS_API_KEY` | EAS env (app build) | Maps SDK for iOS | `au.org.sow.theshed` |
 | `GOOGLE_MAPS_ANDROID_API_KEY` | EAS env (app build) | Maps SDK for Android | package + SHA-1 |
 
 Dev and prod have separate keys: the DEVELOPMENT - The SHED project
@@ -398,12 +400,12 @@ Eight workflows, in `.github/workflows/`:
 
 | Workflow | File | Trigger |
 | --- | --- | --- |
-| Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds). Also runs `expo install --check`, so an Expo package that drifts off the SDK matrix fails here rather than in an iOS release build. A second job, **Web sweep**, starts a throwaway local Convex backend, seeds it (`scripts/sweep-backend.sh`, `scripts/sweep-seed.mjs`), serves the web app and opens every screen signed out and as a leader, a Head and an admin (`scripts/sweep.mjs`, Playwright). It fails on a crash screen or a page error and keeps the screenshots as a run artifact |
+| Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds). Also runs `expo install --check` with `EXPO_OFFLINE=1`, so an Expo package that drifts from the versions the installed `expo` lists fails here rather than in an iOS release build. Offline, the check reads that list from the locked `expo` package instead of Expo's server, so a new Expo patch release can't turn `main` red on its own; patches move with a deliberate `npx expo install --fix`. A second job, **Web sweep**, starts a throwaway local Convex backend, seeds it (`scripts/sweep-backend.sh`, `scripts/sweep-seed.mjs`), serves the web app and opens every screen signed out and as a leader, a Head and an admin (`scripts/sweep.mjs`, Playwright). It fails on a crash screen or a page error and keeps the screenshots as a run artifact |
 | Convex Deploy | `convex-deploy.yml` | merges to `main` → deploys the **prod** backend. `workflow_dispatch` deploys prod **only when run from `main`**. From any other ref it deploys a *preview* named after the branch (`--preview-name`), not prod |
 | Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
 | Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT). Database export as a zip, then Convex file storage (receipts, event attachments, avatars) copied incrementally to `storage/files/<sha256>` in the same bucket: each file is downloaded once, on the first night it exists, and `storage/manifest.json` records what is there and which files Convex has since deleted. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped. The BigQuery job then checks the warehouse against the night before (`scripts/warehouse-checks.mjs`): a core table missing or empty, a table that shrank by more than a fifth, or a report view missing posts to Google Chat and fails the step |
 | EAS Update | `eas-update.yml` | after each successful Convex Deploy of `main` (and by hand) → publishes the JavaScript bundle over the air to the `production` and `staging` channels. Only builds whose native fingerprint matches receive it, so a change to native code waits for the next store build |
-| Convex usage check | `convex-usage.yml` | Mondays 22:00 UTC (and by hand) → reads this billing period's usage and posts to Google Chat when database bandwidth or file storage passes 70% of the plan, or bandwidth is on track to exceed it (`scripts/convex-usage-alert.mjs`) |
+| Convex usage check | `convex-usage.yml` | Sundays 22:00 UTC, Monday morning in Sydney (and by hand) → reads this billing period's usage and posts to Google Chat when database bandwidth or file storage passes 70% of the plan, or bandwidth is on track to exceed it (`scripts/convex-usage-alert.mjs`) |
 | EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app |
 | EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app, then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
 
@@ -416,13 +418,15 @@ because the Convex URL is inlined at build time. A separate backend means a
 separate build, not a re-pointed domain.
 
 Repository secrets these need: `CONVEX_DEPLOY_KEY` (prod backend deploys and
-the GCS backup), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` (dev web), and
-`EXPO_TOKEN` (both EAS workflows), and `GOOGLE_CHAT_WEBHOOK_URL` (the Data and
-IT space's incoming webhook, for EAS Production's Chat post). Only **Deploy
-web (dev)** and the Chat post degrade gracefully when their secrets are
-missing. They skip. The other four
-have no such guard and will **fail** the run, which is the right behaviour for
-a deploy but worth knowing before you add a workflow to a fork. The backup also
+the GCS backup), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` +
+`GOOGLE_MAPS_WEB_KEY_DEV` (dev web), `EXPO_TOKEN` (EAS Update and both EAS
+builds), `CONVEX_ACCESS_TOKEN` (the usage check) and `GOOGLE_CHAT_WEBHOOK_URL`
+(the Data and IT space's incoming webhook, for EAS Production's Chat post).
+Only **Deploy web (dev)** and the Chat post degrade gracefully when their
+secrets are missing. They skip. Convex Deploy, the backup, EAS Update, the
+usage check and both EAS builds have no such guard and will **fail** the run,
+which is the right behaviour for a deploy but worth knowing before you add a
+workflow to a fork. The backup also
 needs the repository *variables*
 `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_BACKUP_SERVICE_ACCOUNT` and
 `GCS_BACKUP_BUCKET`. The BigQuery load uses the same identity and defaults to
@@ -445,17 +449,6 @@ by the backup SA; a pre-created warehouse dataset still needs that
 BigQuery job fails on its own. A local zip converts
 with `node scripts/convex-export-to-bigquery.mjs --zip snapshot.zip --out bq-ndjson`.
 Manual fallbacks remain `npx convex deploy -y` and `npm run deploy:web`.
-
-One-time setup to activate it:
-
-```bash
-npx eas init           # links the repo to an EAS project (adds projectId to app.json)
-npx eas credentials    # set up Apple Developer + Android keystore (EAS manages both)
-```
-
-then create an access token at <https://expo.dev/settings/access-tokens> and
-add it as the `EXPO_TOKEN` repository secret on GitHub. Until the secret
-exists, the workflow passes with a warning and skips the build/submit step.
 
 ### Releasing to TestFlight and the App Store
 
@@ -519,8 +512,11 @@ SITE_URL/APP_URL, Resend are set; Google OAuth + directory-sync vars need
 `--prod` copies when configured). Re-seed prod with the real admin email via
 `npx convex run --prod admin:seed '{"adminEmail":"you@sow.org.au"}'`.
 `NIGHTLY_JOBS_PAUSED=true` (for the shared dev deployment) makes the nightly
-Insights, attendance metrics and church map crons do nothing; run them by hand
-with `npx convex run attendanceMetrics:recomputeAll` or
+Insights, attendance metrics and church map crons do nothing. The paused
+attendance-metrics run also skips what it schedules: the campus weekly chart,
+staff trends, the roll call's member order (roster history) and Admin's
+member-pair suggestions. Run them by hand with
+`npx convex run attendanceMetrics:recomputeAll` or
 `npx convex run weeklyInsights:rebuildAll` when you need fresh numbers.
 
 The same app runs in the browser via react-native-web, hosted at
@@ -561,23 +557,11 @@ Every notification email ends with an "Open in THE SHED" link to the hosted
 web app (`APP_URL` env var, e.g. `/request/<id>`), so emails work for
 everyone immediately. To make those same HTTPS links open the **native app**
 when installed (iOS Universal Links / Android App Links, already configured
-in app.json via `associatedDomains` and `intentFilters`):
-
-1. After Apple enrollment: copy
-   `web/.well-known/apple-app-site-association.example` to
-   `web/.well-known/apple-app-site-association` (no extension) and replace
-   `YOUR_APPLE_TEAM_ID` with the real Team ID.
-2. After `eas credentials` creates the Android keystore: copy
-   `assetlinks.json.example` to `assetlinks.json` and paste the SHA-256
-   fingerprint of the default build credentials (shown by `eas credentials`),
-   plus Play Console's app-signing key (App integrity, App signing), since
-   Play re-signs every install from the store.
-3. Merge to `main`. Vercel's build (root `vercel.json`) copies the two
-   `.well-known/` files into the site, and the OS starts routing those links
-   into the app once Apple's CDN and Android pick them up.
-
-Until then the links simply open the web app, which is the right fallback
-anyway.
+in app.json via `associatedDomains` and `intentFilters`), Vercel's build
+(root `vercel.json`) copies `web/.well-known/apple-app-site-association` and
+`web/.well-known/assetlinks.json` into the site. If Play's app-signing key or
+the EAS Android keystore changes, add its SHA-256 fingerprint to
+`assetlinks.json` (see LAUNCH.md).
 
 ## Tests
 
@@ -594,7 +578,6 @@ the Insights metrics precompute.
 
 ## Not yet implemented
 
-- Past-year request archives.
 - The whole-**staff-year** range for the SOW Insights view: supported by the
   shared logic (`STAFF_YEAR_RANGE`) but not precomputed or offered (campuses
   get whole calendar years from their weeklies instead).

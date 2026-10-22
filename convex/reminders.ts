@@ -27,7 +27,6 @@ import {
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
-import { emailLinkFor } from "./appInstalls";
 import { designRequestUrl, headRecipients, marketingTeam } from "./designRequests";
 import {
   eventUrl,
@@ -307,7 +306,7 @@ async function sendDigest(ctx: MutationCtx, to: string, items: Item[]) {
   });
   const emailed = items.filter((item) => item.emailed);
   if (emailed.length === 0 || !(await wantsReminderEmails(ctx, to))) return;
-  const link = await emailLinkFor(ctx, to, landingUrl(emailed));
+  const link = landingUrl(emailed);
   await ctx.scheduler.runAfter(0, internal.emails.send, {
     to,
     subject: reminderSubject(emailed.length),

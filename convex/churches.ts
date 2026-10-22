@@ -21,6 +21,7 @@ import {
   sortServices,
 } from "../shared/churches";
 import { assignmentsOf, MEMBER, roleNeedsUniversity } from "../shared/flow";
+import { ALUMNI } from "../shared/memberRole";
 import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import {
@@ -34,10 +35,6 @@ import {
   rolesOf,
 } from "./model";
 import { isAssigned, staffProfileOfMember } from "./staffMembers";
-
-// Local churches staff go to. Any staff member can add one (with where it is
-// and when it meets) or fill in a missing detail; everyone picks theirs from
-// the list in their Profile.
 
 const MAX_CHURCHES = 500;
 const MAX_STAFF = 3000;
@@ -83,7 +80,6 @@ export const churchByName = (ctx: QueryCtx, name: string) =>
     .withIndex("by_nameKey", (q) => q.eq("nameKey", churchNameKey(name)))
     .first();
 
-/** Every church, A to Z. */
 export const list = query({
   args: {},
   returns: v.array(churchView),
@@ -136,7 +132,6 @@ async function checkName(ctx: MutationCtx, name: string, except?: Id<"churches">
   }
 }
 
-/** Adds a church to the list. */
 export const add = mutation({
   args: details,
   returns: v.id("churches"),
@@ -150,7 +145,6 @@ export const add = mutation({
   },
 });
 
-/** Fixes or fills in a church's name, location or service times. */
 export const update = mutation({
   args: { churchId: v.id("churches"), ...details },
   returns: v.null(),
@@ -171,12 +165,6 @@ export const update = mutation({
   },
 });
 
-/**
- * The Churches page: every church with the staff (who picked it in their
- * Profile) and members (set on their attendance record) who go there. Only
- * staff and campus leaders see members; everyone else sees staff and campus
- * leaders only.
- */
 const LEADER_ROLES = [
   "Director",
   "Head of Division",
@@ -191,8 +179,6 @@ const LEADER_ROLES = [
   "Student Leader",
   "Outsource",
 ];
-
-export const ALUMNI = "Alumni";
 
 export const roleRank = (role: string) => {
   if (role === MEMBER) return LEADER_ROLES.length + 1;
@@ -384,14 +370,6 @@ export const REMINDER = {
   url: "/profile",
 };
 
-/**
- * Reminds this staff year's staff who haven't picked a church in their
- * Profile: an in-app notification for each, and a push to their devices.
- * Dry run by default, which only counts them.
- *
- *   npx convex run --prod churches:remindToSetChurch '{}'
- *   npx convex run --prod churches:remindToSetChurch '{"dryRun": false}'
- */
 export const remindToSetChurch = internalMutation({
   args: { dryRun: v.optional(v.boolean()) },
   returns: v.object({ staff: v.number(), withoutChurch: v.number(), reminded: v.number() }),

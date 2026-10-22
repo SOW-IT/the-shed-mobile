@@ -1,35 +1,8 @@
-# Exports the production Convex database to Google Cloud Storage every day,
-# then replaces the business tables in convex_production with that snapshot
-# and rebuilds typed views in convex_warehouse. Convex file storage is
-# intentionally excluded. Auth sessions, refresh tokens and push tokens stay
-# out of BigQuery.
-#
-# Required repository variables:
-#   GCP_WORKLOAD_IDENTITY_PROVIDER - full Workload Identity Provider resource name
-#   GCP_BACKUP_SERVICE_ACCOUNT     - service account email used by GitHub Actions
-#   GCS_BACKUP_BUCKET              - bucket name only (without gs://)
-#
-# Optional repository variables:
-#   BQ_DATASET                     - defaults to convex_production
-#   BQ_WAREHOUSE_DATASET           - defaults to convex_warehouse (typed views)
-#   BQ_LOCATION                    - defaults to australia-southeast1
-#   GCP_PROJECT                    - defaults to theshedsow
-#
-# Required repository secret:
-#   CONVEX_DEPLOY_KEY              - production Convex deploy key
-#
-# The BigQuery job reads the zip with gcloud storage cp, so the backup service
-# account needs storage.objects.get on the backup bucket (in addition to the
-# write it already has). It also needs roles/bigquery.user on the project
-# (jobs plus datasets.create for a run-specific staging dataset) and
-# roles/bigquery.dataEditor on convex_production. Pre-creating the destination
-# dataset is fine; staging datasets are still created per run. The zip backup
-# still succeeds if that job fails.
 name: Backup Convex to GCS
 
 on:
   schedule:
-    - cron: "17 15 * * *" # Daily at 01:17 AEST / 02:17 AEDT
+    - cron: "17 15 * * *"
   workflow_dispatch:
 
 permissions:

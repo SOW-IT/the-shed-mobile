@@ -112,10 +112,6 @@ export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {
     .query("staffProfiles")
     .withIndex("by_email_and_year", (q) => q.eq("email", email))
     .take(100);
-  // Only an org-domain sign-in may claim legacy-domain profiles: the claim is
-  // for staff moved from sowaustralia.com to sow.org.au, and matching on the
-  // local part alone would let a personal account (e.g. a.b@gmail.com) take
-  // over a.b@sowaustralia.com's profiles, roles and history.
   if (bound.length === 0 && unbound.length === 0 && isOrgEmail(email)) {
     const localPart = email.split("@")[0];
     for (const domain of LEGACY_EMAIL_DOMAINS) {

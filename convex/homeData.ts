@@ -1,7 +1,5 @@
 import { v } from "convex/values";
 
-// Validators for the Home tab's blocks (types in shared/homeContent.ts).
-
 const buttonValidator = v.object({
   label: v.string(),
   url: v.string(),

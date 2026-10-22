@@ -605,7 +605,6 @@ describe("computeSubgroupMetrics — composition charts", () => {
 
 describe("shortDate", () => {
   it("labels the Sydney calendar day, not the UTC one", () => {
-    // 2026-09-30T23:00Z is already 1 October in Sydney (AEST, UTC+10).
     expect(shortDate(Date.UTC(2026, 8, 30, 23, 0))).toBe("1 Oct");
     expect(shortDate(Date.UTC(2026, 8, 30, 12, 0))).toBe("30 Sep");
   });

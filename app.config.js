@@ -15,17 +15,16 @@ const resolveGoogleServicesFile = () => {
 };
 
 const withMaps = (config) => {
-  const iosGoogleMapsApiKey = process.env.GOOGLE_MAPS_IOS_API_KEY || undefined;
   const androidGoogleMapsApiKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY || undefined;
   return {
     ...config,
     plugins: [
       ...(config.plugins ?? []),
-      ["react-native-maps", { iosGoogleMapsApiKey, androidGoogleMapsApiKey }],
+      ["react-native-maps", { androidGoogleMapsApiKey }],
     ],
     extra: {
       ...config.extra,
-      googleMaps: { ios: Boolean(iosGoogleMapsApiKey), android: Boolean(androidGoogleMapsApiKey) },
+      googleMaps: { android: Boolean(androidGoogleMapsApiKey) },
     },
   };
 };

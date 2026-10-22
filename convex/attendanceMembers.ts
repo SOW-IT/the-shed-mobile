@@ -64,11 +64,9 @@ export type MemberRow = {
   kind: "staff" | "member";
   name: string;
   email?: string;
-  /** A staff person's own email, alongside their staff one. */
   personalEmail?: string;
   memberId?: string;
   roles: string[];
-  /** A staff person's first org role, or a plain member's worked-out Role. */
   role?: string;
   subtitle?: string;
   university?: string;
@@ -225,7 +223,6 @@ export const list = query({
         return optionId === value;
       }
       if (roleField && fieldId === roleField._id) {
-        // Filtered by the Role each row shows, never what's saved on it.
         const filterLabel = roleField.values?.[value] ?? value;
         return roleFilterMatches(
           filterLabel,
@@ -319,7 +316,6 @@ export const get = query({
       (await staffProfileOfMember(ctx, row._id, currentStaffYear())) !== null;
     const fields = await allMetadataFields(ctx);
     const { settings } = await readSettings(ctx);
-    // The numbers the Role info button quotes.
     const roleRuleSettings = {
       regularShare: settings.regularShare,
       carryOverWeeklies: settings.carryOverWeeklies,
@@ -339,7 +335,6 @@ export const get = query({
         roleRuleSettings,
       };
     }
-    // Staff pick their church in their own Profile; the sheet just shows it.
     const user = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", profile.email.toLowerCase()))
@@ -372,8 +367,6 @@ export const byName = query({
     if (!(await optionalProfile(ctx))) return [];
     const trimmed = name.trim();
     if (!trimmed) return [];
-    // Exact matches come straight off the index; the case-insensitive
-    // fallback only scans when nothing matched exactly.
     const exact = await ctx.db
       .query("attendanceMembers")
       .withIndex("by_name", (q) => q.eq("name", trimmed))
@@ -415,15 +408,9 @@ export const ensureForStaff = mutation({
   },
 });
 
-/** Typing a staff email onto a plain member used to relabel the row as that
- *  staff person without moving its attendance, splitting their history (and
- *  leaving a hidden duplicate if they already had a row). Merge does it
- *  properly, so the Email field points there instead. */
 const staffEmailMessage = (profile: Doc<"staffProfiles">) =>
   `${profile.email} is ${personDisplayName(profile.name, profile.email)}'s staff email. Use Merge instead.`;
 
-/** The staff person an email belongs to, if any — lets the edit sheet offer
- *  Merge before the save is refused. */
 export const staffForEmail = query({
   args: { email: v.string(), staffYear: v.optional(v.number()) },
   handler: async (ctx, { email, staffYear }) => {
@@ -443,7 +430,6 @@ export const staffForEmail = query({
   },
 });
 
-/** A member's church from the list: checked to still be there. */
 async function checkedChurch(ctx: Ctx, churchId: Id<"churches"> | null | undefined) {
   if (churchId && !(await ctx.db.get("churches", churchId))) {
     throw new ConvexError("That church isn't in the list any more.");
@@ -462,8 +448,6 @@ export const create = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const trimmed = capitalizeMemberName(name.trim());
     if (!trimmed) throw new ConvexError("Name is required.");
-    // A member can't carry a staff email: that person is already listed as
-    // staff, and their attendance is keyed by that email.
     if (canonicalEmailKey(email)) {
       const staff = await latestStaffProfile(ctx, email);
       if (staff) {
@@ -495,12 +479,9 @@ export const update = mutation({
     memberId: v.id("attendanceMembers"),
     name: v.string(),
     email: v.optional(v.string()),
-    /** A staff person's own email; ignored for plain members. */
     personalEmail: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
     staffYear: v.optional(v.number()),
-    /** A plain member's church; null clears it, left out keeps it. Staff
-     *  set theirs in their own Profile, so it's ignored for them. */
     churchId: v.optional(v.union(v.id("churches"), v.null())),
   },
   handler: async (ctx, { memberId, name, email, personalEmail, metadata, staffYear, churchId }) => {
@@ -549,9 +530,6 @@ export const update = mutation({
     const trimmed = capitalizeMemberName(name.trim());
     if (!trimmed) throw new ConvexError("Name is required.");
     const ownEmail = email?.trim().toLowerCase() || undefined;
-    // A plain member's email is their own; a staff one (say a former
-    // leader's old SOW address, or one an import brought in) would make them
-    // read as staff, so it has to be replaced or cleared before saving.
     if (ownEmail && (await isStaffAddress(ctx, ownEmail))) {
       throw new ConvexError(NOT_PERSONAL(ownEmail));
     }
@@ -588,13 +566,8 @@ export const update = mutation({
 export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }): Promise<boolean> => {
-    // Deleting throws attendance away for good; leaders merge duplicates
-    // instead, and only admins (Data and IT, HR, the Governance head, the
-    // Director) can delete.
     const { email: actorEmail } = await requireAdmin(ctx);
     const row = await ctx.db.get(memberId);
-    // Someone else may have deleted or merged them first; say so rather than
-    // letting the caller report a deletion that didn't happen here.
     if (!row) return false;
     if (await staffProfileOfMember(ctx, memberId, currentStaffYear())) {
       throw new ConvexError(
@@ -606,17 +579,11 @@ export const remove = mutation({
       .withIndex("by_member", (q) => q.eq("memberId", memberId))
       .collect();
 
-    // Only the records that will actually be listed need a name, so the reads
-    // are bounded by the line cap rather than by how long the member has been
-    // around. Resolving every event first would spend one db.get per event
-    // against Convex's per-mutation index-range-read budget to produce names
-    // that get sliced off anyway.
     const listed = signed
       .slice()
       .sort((a, b) => b.signInTime - a.signInTime)
       .slice(0, MAX_AUDIT_ATTENDANCE_LINES);
 
-    // Named while their attendance rows still exist, once per distinct event.
     const eventNames = new Map<string, string>();
     for (const record of listed) {
       if (eventNames.has(record.eventId)) continue;
@@ -659,8 +626,6 @@ export const remove = mutation({
   },
 });
 
-/** What deleting a member takes with them, so the confirm sheet can name every
- *  event instead of a vague "their attendance". */
 export const deletePreview = query({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }) => {
@@ -713,11 +678,6 @@ const staffYearsToCheck = (profileYear: number): number[] => {
   return [...new Set([profileYear, now, now + 1])];
 };
 
-/** Someone's most recent staff profile in any year. Former staff are still
- *  staff here: their attendance is keyed by their org email. */
-/** A staff email rather than a personal one: an SOW address, or anyone's
- *  staff email in any year. Personal emails (a staff person's own, a plain
- *  member's) can't be one. */
 export const isStaffAddress = async (ctx: Ctx, email: string | undefined): Promise<boolean> =>
   isSowStaffAddress(email) || Boolean(await latestStaffProfile(ctx, email));
 
@@ -739,8 +699,6 @@ export const latestStaffProfile = async (
   return null;
 };
 
-/** The staff profile to use for this email: the one for the year being viewed
- *  (or this / next staff year) when there is one, else their latest. */
 const staffProfileForEmail = async (
   ctx: Ctx,
   email: string,
@@ -833,7 +791,6 @@ const mergeOptionsFor = (keep: MergeKeep, fields: MetadataField[]) => {
   const shown = (fieldId: string, value: string) => {
     const field = fields.find((f) => f._id === fieldId)!;
     const label = formatMetadataFieldValue(field.key, value, viewingYear, field.values) ?? value;
-    // Only a hand-set Role still means anything, so two old ones don't clash.
     return (field.key === ROLE_FIELD_KEY ? (markedRoleOf(label) ?? "") : label)
       .trim()
       .toLowerCase();

@@ -6,10 +6,6 @@ import { CommentThreadSheet } from "./CommentThreadSheet";
 
 const CLOSE_ANIMATION_MS = 300;
 
-/**
- * Whether a thread's query should be live: from opening its sheet until the
- * sheet has finished animating closed.
- */
 export const useThreadActive = (visible: boolean): boolean => {
   const [active, setActive] = useState(visible);
   useEffect(() => {
@@ -24,7 +20,6 @@ export const useThreadActive = (visible: boolean): boolean => {
   return active;
 };
 
-/** The last loaded value, so a reopened sheet doesn't flash a spinner. */
 export const useRetained = <T,>(current: T | undefined): T | undefined => {
   const [loaded, setLoaded] = useState<T | undefined>(current);
   useEffect(() => {
@@ -34,7 +29,6 @@ export const useRetained = <T,>(current: T | undefined): T | undefined => {
   return loaded;
 };
 
-/** A reimbursement request's comment thread. */
 export const CommentsSheet = ({
   request,
   visible,

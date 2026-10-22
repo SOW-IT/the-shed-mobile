@@ -151,7 +151,6 @@ describe("reading answers", () => {
     expect(formatDesignAnswer(field("drafts"), { drafts: true })).toBe("Yes");
     expect(formatDesignAnswer(field("notes"), answers)).toBe("Hi");
     expect(formatDesignAnswer(field("notes"), {})).toBeNull();
-    // A choice the form no longer offers still reads as itself.
     expect(formatDesignAnswer(field("types"), { types: ["retired"] })).toBe("retired");
     expect(formatDesignAnswer(field("types"), { types: ["other"] })).toBe("Other");
   });
@@ -189,7 +188,6 @@ describe("dates, names and statuses", () => {
     expect(isValidDateString("2028-02-29")).toBe(true);
     expect(formatDueDate("2026-10-20")).toBe("20 Oct 2026");
     expect(formatDueDate("soon")).toBe("soon");
-    // 2026-10-05 15:00 UTC is 6 October in Sydney.
     expect(sydneyToday(new Date(Date.UTC(2026, 9, 5, 15)))).toBe("2026-10-06");
     expect(sydneyToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });

@@ -74,27 +74,20 @@ export const instagramUrl = (handle: string) => `https://www.instagram.com/${han
 
 export type ChurchPersonGroup = "leader" | "staff" | "member";
 
-/** Who's on the Churches page, in filter order. Members are only sent to staff and campus leaders. */
 export const CHURCH_GROUPS: readonly { key: ChurchPersonGroup; label: string }[] = [
   { key: "leader", label: "Campus leaders" },
   { key: "staff", label: "Staff" },
   { key: "member", label: "Members" },
 ];
 
-/** The campus filter's key for people with no campus. */
 export const NO_CAMPUS = "";
 
-/**
- * What the Churches page narrows to. Nothing picked shows everyone; picking
- * options shows only those (any of them), within each filter.
- */
 export type ChurchFilter = { groups: readonly ChurchPersonGroup[]; campuses: readonly string[] };
 
 export const NO_CHURCH_FILTER: ChurchFilter = { groups: [], campuses: [] };
 
 export const isChurchFilterActive = (filter: ChurchFilter) => filter.groups.length > 0 || filter.campuses.length > 0;
 
-/** Picks an option, or unpicks it if it's already picked. */
 export const togglePicked = <K extends string>(picked: readonly K[], key: K): K[] =>
   picked.includes(key) ? picked.filter((k) => k !== key) : [...picked, key];
 
@@ -111,7 +104,6 @@ const campusShown = (person: Filterable, filter: ChurchFilter) =>
 export const churchPeopleMatching = <P extends Filterable>(people: readonly P[], filter: ChurchFilter): P[] =>
   people.filter((person) => groupShown(person, filter) && campusShown(person, filter));
 
-/** Each campus once, by label, with "no campus" (NO_CAMPUS) last when anyone has none. */
 export const churchCampuses = (people: readonly Filterable[], label: (campus: string) => string): string[] => {
   const campuses = [...new Set(people.flatMap((person) => (person.campus ? [person.campus] : [])))].sort((a, b) =>
     label(a).localeCompare(label(b))
@@ -119,10 +111,6 @@ export const churchCampuses = (people: readonly Filterable[], label: (campus: st
   return people.some((person) => !person.campus) ? [...campuses, NO_CAMPUS] : campuses;
 };
 
-/**
- * How many people each filter option covers: a group's count follows the
- * campus filter, and a campus's count follows the group filter.
- */
 export const churchFilterCounts = <E extends { people: readonly Filterable[] }>(
   churches: readonly E[],
   filter: ChurchFilter,

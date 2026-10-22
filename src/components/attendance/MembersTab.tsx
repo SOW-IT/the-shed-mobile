@@ -34,10 +34,6 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const PAGE_SIZE = 30;
 
-/**
- * Attendance → Members: the searchable, filterable member list for a year.
- * Pads its bottom to clear the tab's Create member footer.
- */
 export function MembersTab({
   year,
   onEditMember,
@@ -112,7 +108,6 @@ export function MembersTab({
     (count, values) => count + values.length,
     0
   );
-  // Held too, so the count doesn't blink while a new search loads.
   const total = useHeldValue(page?.total, "total").value ?? accumulated.length;
 
   if (metadata === undefined) return <LoadingState />;
@@ -162,7 +157,6 @@ export function MembersTab({
             label={`Filter: ${field.key}`}
             values={filters[field._id] ?? []}
             options={
-              // Everyone has a worked-out Role, so there's no Unselected.
               field.key === ROLE_FIELD_KEY
                 ? ROLE_FILTER_LABELS.map((label) => ({ label, value: label }))
                 : [

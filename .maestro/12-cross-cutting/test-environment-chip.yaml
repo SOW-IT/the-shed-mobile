@@ -1,11 +1,7 @@
-# §12.6 Test builds show the "Test Environment" chip; tapping explains the test
-# database. Only meaningful on the staging/dev build (APP_ID=…staging).
 appId: ${APP_ID}
 tags:
   - public
 ---
-# On iOS the chip's accessibilityLabel is "Test environment. What is this?"
-# (period, not an em dash) — match that, not the visible "Test Environment".
 - runFlow: ../common/ensure-signed-out.yaml
 - assertVisible:
     text: "Test environment. What is this?"

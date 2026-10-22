@@ -11,7 +11,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 
 type Row = { key: string; icon: IconName; label: string; count: number; href: string };
 
-export const waitingRows = (
+const waitingRows = (
   summary: NonNullable<(typeof api.waitingOnMe.summary)["_returnType"]>
 ): Row[] => {
   const rows: Row[] = [

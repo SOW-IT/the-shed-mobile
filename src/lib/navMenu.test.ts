@@ -7,8 +7,6 @@ import {
   NAV_LABELS,
   navViewer,
   roleLine,
-  showsDesignRequests,
-  showsEventRequests,
   showsReimbursements,
   sidebarItems,
 } from "./navMenu";
@@ -36,7 +34,6 @@ describe("navViewer", () => {
       canAdmin: false,
       canAnnounce: false,
     });
-    // Even if a stale `me` is still around while signing out.
     expect(
       navViewer(false, { profile: staffProfile, isCampusLeader: true, isAdmin: true })
     ).toEqual(signedOut);
@@ -85,22 +82,6 @@ describe("showsReimbursements", () => {
     expect(showsReimbursements(campusLeader)).toBe(false);
     expect(showsReimbursements(guest)).toBe(false);
     expect(showsReimbursements(signedOut)).toBe(false);
-  });
-});
-
-describe("showsDesignRequests", () => {
-  test("matches Reimbursements: staff who aren't campus leaders", () => {
-    expect(showsDesignRequests(staff)).toBe(true);
-    expect(showsDesignRequests(campusLeader)).toBe(false);
-    expect(showsDesignRequests(guest)).toBe(false);
-  });
-});
-
-describe("showsEventRequests", () => {
-  test("matches Reimbursements: staff above campus leaders", () => {
-    expect(showsEventRequests(staff)).toBe(true);
-    expect(showsEventRequests(campusLeader)).toBe(false);
-    expect(showsEventRequests(guest)).toBe(false);
   });
 });
 

@@ -19,7 +19,7 @@ export function AppErrorsCard() {
       <SectionTitle>App errors · last {recent.days} days</SectionTitle>
       <Card>
         {recent.errors.length === 0 ? (
-          <Muted>Nothing reported. The app sends a report when a screen crashes or a promise is left unhandled.</Muted>
+          <Muted>Nothing reported.</Muted>
         ) : (
           recent.errors.map((error) => {
             const expanded = open === error.id;

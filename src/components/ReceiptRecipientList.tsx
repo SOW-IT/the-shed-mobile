@@ -77,7 +77,7 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
       ) : null}
       {anyDeleted ? (
         <Text style={[typography.caption, { color: t.muted, fontStyle: "italic" }]}>
-          {`Receipt files for the ${staffYear} staff year were deleted when the staff year rolled over on 1 October ${staffYear + 1}. Only the file names remain for reference.`}
+          {`Receipt files for the ${staffYear} staff year were deleted on 1 October ${staffYear + 1}. Only the file names remain.`}
         </Text>
       ) : null}
     </View>

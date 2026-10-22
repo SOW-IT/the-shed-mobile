@@ -143,7 +143,6 @@ describe("staffRollover", () => {
         `Campus set to ${USYD}, from their last staff role`,
       ].join("\n"),
     });
-    // Role is worked out, so nothing is saved for it.
     expect((await s.getMember(leaverRow))?.metadata).toEqual({
       [s.fields.campus]: "usyd",
     });
@@ -405,8 +404,6 @@ describe("a staff person's personal email", () => {
     expect(found.page.map((r) => r.key)).toEqual([`staff:${LEAVER}`]);
 
     await expect(save(STAYER)).rejects.toThrow("is a staff email");
-    // Any SOW address is a staff one, even with no profile behind it, and so
-    // is their own staff email on the other domain.
     await expect(save("someone.else@sow.org.au")).rejects.toThrow("not a personal one");
     await expect(save("lee.aver@sowaustralia.com")).rejects.toThrow("not a personal one");
     await save("");
@@ -422,7 +419,6 @@ describe("a plain member's email", () => {
     const s = await setup();
     await s.profile(LEAVER, LAST, "Lee Aver");
     const admin = asUser(s.t, ADMIN);
-    // Creating with an SOW address that isn't anyone's profile.
     await expect(
       admin.mutation(api.attendanceMembers.create, { name: "New Person", email: "new.person@sow.org.au" })
     ).rejects.toThrow("not a personal one");
@@ -432,7 +428,6 @@ describe("a plain member's email", () => {
     });
     const save = (email: string) =>
       admin.mutation(api.attendanceMembers.update, { memberId, name: "Former Leader", email, staffYear: YEAR });
-    // A former leader's old staff email is still a staff email: merge them instead.
     await expect(save(LEAVER)).rejects.toThrow(/staff email/);
     await expect(save("anyone@sowaustralia.com")).rejects.toThrow("not a personal one");
     await save("former.leader@outlook.com");

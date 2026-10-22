@@ -43,9 +43,9 @@ programmes (PPN meant both a campus weekly's theme and the monthly SOW night).
 
 ## Consequences
 
-- Phones on 2.7.0 and older still show one mixed tag list, so a wrong-list tag
-  can still be picked; the server keeps it rather than silently dropping a
-  leader's choice.
+- Until 2.9.1 dropped them, phones on 2.7.0 and older showed one mixed tag
+  list, so a wrong-list tag could be picked; the server kept it rather than
+  silently dropping a leader's choice.
 - Joint weeklies have a mark but Insights still leaves them out of campus terms
   (`jointWeeklies`), as ADR 0008 decided.
 - Supersedes ADR 0008's "an untagged weekly is left out": what counts now is

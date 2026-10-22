@@ -52,10 +52,10 @@ user-facing milestone (like 1.6.0 Insights, 1.7.0 public app) — confirm first.
 Format follows the existing file exactly:
 
 - Insert a new section under `## [Unreleased]`:
-  `## [X.Y.Z] — YYYY-MM-DD` (em dash, today's date).
+  `## [X.Y.Z] - YYYY-MM-DD` (hyphen, today's date).
 - If `## [Unreleased]` already has entries, move them into the new section.
-- Group entries under `### Added` / `### Changed` / `### Fixed` (only the
-  headings you need, in that order).
+- Group entries under `### Added` / `### Removed` / `### Changed` /
+  `### Fixed` (only the headings you need, in that order).
 - Write entries in the file's voice: **bold user-facing summary sentence**,
   followed by plain-English detail of what changed and why. Describe behavior
   from the user's point of view, not the implementation diff.
@@ -87,13 +87,15 @@ the normal way the drift happens.
 
 ## 3. Run the CI checks locally
 
-GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, and the
-coverage test — run all three locally before opening the PR:
+GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, the
+coverage test and the offline Expo version check (plus a web sweep job). Run
+these locally before opening the PR:
 
 ```bash
 npm run lint
 npx tsc --noEmit
 npm run test:coverage
+EXPO_OFFLINE=1 npx expo install --check
 ```
 
 `test:coverage` enforces thresholds (100% lines, 92% branches on the covered

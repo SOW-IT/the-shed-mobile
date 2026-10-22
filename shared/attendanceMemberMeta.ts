@@ -19,9 +19,7 @@ export const GENDER_VALUES: Record<string, string> = {
 export const GENDER_OPTION_IDS = ["1", "2"] as const;
 export const CAMPUS_FIELD_KEY = "Campus";
 export const ROLE_FIELD_KEY = "Role";
-/** Free text about the person. Notes about one event go on that sign-in. */
 export const OTHER_INFO_FIELD_KEY = "Other Information";
-/** What the member field was called before notes moved onto each sign-in. */
 export const LEGACY_NOTES_FIELD_KEY = "Notes";
 
 export const STAFF_ROLE_FILTER_LABEL = STAFF_ROLE;
@@ -248,20 +246,17 @@ export const roleFilterMatches = (
   return metadataRoleLabel === filterLabel;
 };
 
-/** Role takes no new options: it's worked out (shared/memberRole.ts). */
 export const metadataFieldAllowsCustomOptions = (
   fieldKey: string,
   fieldNameLocked: boolean
 ): boolean => !fieldNameLocked || fieldKey === CAMPUS_FIELD_KEY;
 
-/** The subset of an `attendanceMetadata` row these helpers need. */
 export type MetadataFieldLike = {
   _id: string;
   key: string;
   values?: Record<string, string>;
 };
 
-/** Option id whose label is `label`, or the label itself for free-text values. */
 export const optionIdForLabel = (
   values: Record<string, string> | undefined,
   label: string
@@ -272,10 +267,6 @@ export const optionIdForLabel = (
   return label;
 };
 
-/**
- * Campus and Role are locked for staff: they mirror the org profile rather
- * than whatever was typed into the member record.
- */
 export const staffLockedMetadata = (
   fields: readonly MetadataFieldLike[],
   profile: ProfileLike,
@@ -324,7 +315,6 @@ export const memberOwnMetadata = (
   return next;
 };
 
-/** The member's campus from metadata, else their first org campus. */
 export const resolveUniversity = (
   fields: readonly MetadataFieldLike[],
   metadata: Record<string, string> | undefined,
@@ -341,7 +331,6 @@ export const resolveUniversity = (
   return orgCampuses[0];
 };
 
-/** "Value · Value" summary of a member's metadata, in field order. */
 const subtitlePart = (fieldKey: string, value: string): string | null => {
   if (fieldKey === STUDENT_YEAR_FIELD_KEY) return `Year ${value}`;
   if (fieldKey.endsWith("?")) {

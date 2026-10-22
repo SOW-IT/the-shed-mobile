@@ -10,10 +10,6 @@ import {
   inputToTime,
 } from "./dateTimeDisplay";
 
-// The browser's input covers the whole field but is invisible, so a tap or
-// click opens its own date/time picker while the field looks like the native
-// app's: an icon and "Wed, 7 Oct 2026" in the app font, not the browser's.
-// 16px stops iOS Safari zooming in when it takes focus.
 const hiddenInputStyle: CSSProperties = {
   position: "absolute",
   top: 0,
@@ -31,8 +27,6 @@ const hiddenInputStyle: CSSProperties = {
   appearance: "none",
 };
 
-// While someone types into the field from the keyboard, the browser's input is
-// shown over the field so they can see the day, month or hour they're on.
 const typingInputStyle = (t: AppTheme): CSSProperties => ({
   ...hiddenInputStyle,
   opacity: 1,
@@ -48,12 +42,10 @@ const typingInputStyle = (t: AppTheme): CSSProperties => ({
 
 const NOT_TYPING_KEYS = new Set(["Tab", "Shift", "Control", "Alt", "Meta", "Escape", "Enter", " "]);
 
-/** Opens the picker on a click, not only on the browser's own picker icon. */
 const openPicker = (input: HTMLInputElement) => {
   try {
     input.showPicker?.();
   } catch {
-    // Already open, or the browser won't open it from here; typing still works.
   }
 };
 
@@ -127,7 +119,6 @@ const WebPickerField = ({
           style={typing ? typingInputStyle(t) : hiddenInputStyle}
         />
         {display && onClear ? (
-          // After the input and raised, so it takes the tap instead of the picker.
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Clear ${label}`}

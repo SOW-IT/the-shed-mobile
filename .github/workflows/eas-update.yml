@@ -1,10 +1,3 @@
-# Publishes the JavaScript bundle to phones over the air after every merge to
-# main, for the production and staging channels. Only builds whose native
-# fingerprint matches the one computed here receive it; a merge that changes
-# native code (a new native module, an Expo SDK bump, app.json plugin
-# changes) produces a new fingerprint that no store build has yet, so that
-# update reaches nobody until the next EAS build ships. Runs after Convex
-# Deploy so the backend is never behind the bundle it serves.
 name: EAS Update
 
 on:

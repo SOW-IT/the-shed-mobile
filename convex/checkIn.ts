@@ -147,7 +147,6 @@ export const page = query({
       dateStart: event.dateStart,
       dateEnd: event.dateEnd,
       calendarYear: calendarYearOf(event),
-      campuses: campusesOf(event).map((value) => ({ value, label: subgroupLabel(value) })),
       universities: (await campusChoices(ctx, event)).map((value) => ({ value, label: subgroupLabel(value) })),
       open: checkInOpen(event),
       phase: checkInPhase(event),

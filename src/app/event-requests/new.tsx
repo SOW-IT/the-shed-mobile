@@ -64,10 +64,8 @@ const RequestSteps = () => {
 };
 
 const DAY = 86_400_000;
-/** Marketing needs time: events sooner than this get a gentle warning. */
 const LEAD_DAYS = 28;
 
-/** New event request, or with `?edit=<id>`, the requester's side editing it. */
 export default function EventRequestFormScreen() {
   const router = useRouter();
   const { edit } = useLocalSearchParams<{ edit?: string }>();
@@ -85,7 +83,6 @@ export default function EventRequestFormScreen() {
   const [error, setError] = useState<string | null>(null);
   const [problem, setProblem] = useState<{ key: string; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  // Events starting before this date get a gentle "that's soon" warning.
   const [leadCutoff] = useState(() => sydneyToday(new Date(Date.now() + LEAD_DAYS * DAY)));
 
   const fields = forms?.event;

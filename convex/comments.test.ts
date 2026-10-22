@@ -9,7 +9,6 @@ import schema from "./schema";
 const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 
-/** Runs `action`, then every scheduled follow-up it queued (e.g. the purge after a request deletion). */
 const withScheduled = async (
   t: TestConvex<typeof schema>,
   action: () => Promise<unknown>
@@ -542,7 +541,6 @@ describe("cancel cleans up the comment thread", () => {
   test("reactions spread over many comments share one budget per pass", async () => {
     const t = await setup();
     const id = await submit(t);
-    // 3 comments × 100 reactions = 300 reactions: more than one pass's budget of 200.
     await t.run(async (ctx) => {
       for (let c = 0; c < 3; c++) {
         const commentId = await ctx.db.insert("requestComments", {
@@ -580,7 +578,6 @@ describe("cancel cleans up the comment thread", () => {
     const id = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "hello" });
     const [comment] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
-    // More reactions than one batch holds, all on one comment.
     await t.run(async (ctx) => {
       for (let i = 0; i < 205; i++) {
         await ctx.db.insert("commentReactions", {
@@ -598,7 +595,6 @@ describe("cancel cleans up the comment thread", () => {
       }
     });
 
-    // One pass cannot clear 205 reactions + 201 read markers; it asks for another.
     vi.useFakeTimers();
     try {
       const firstPassScheduledMore = await t.mutation(

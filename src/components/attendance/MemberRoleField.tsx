@@ -14,11 +14,6 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const AUTOMATIC = "automatic";
 
-/**
- * The edit sheet's Role: worked out, so it's shown locked with an info button
- * that explains how. Leaders can still set Visitor or Alumni by hand for a
- * plain member, the two Roles Insights can't tell.
- */
 export function MemberRoleField({
   role,
   source,
@@ -29,7 +24,6 @@ export function MemberRoleField({
   role: string;
   source: RoleSource;
   marked: MarkedRole | null;
-  /** Leave out when the Role can't be set by hand (staff). */
   onMark?: (marked: MarkedRole | null) => void;
   ruleSettings?: RuleSettings;
 }) {
@@ -77,8 +71,7 @@ export function MemberRoleField({
       ) : null}
       <Sheet visible={infoOpen} onClose={() => setInfoOpen(false)} title="How Role is worked out">
         <Txt style={[typography.body, { color: t.text }]}>
-          Role isn&rsquo;t typed in. It follows these rules, and Insights works them out
-          again each night, so a change shows the next morning.
+          Insights works Role out each night from these rules.
         </Txt>
         <View style={styles.rules}>
           {roleRules(ruleSettings).map(({ role: name, rule }) => (
@@ -89,8 +82,7 @@ export function MemberRoleField({
           ))}
         </View>
         <Txt style={[typography.caption, { color: t.muted }]}>
-          Only Visitor and Alumni can be set by hand, for people Insights can&rsquo;t
-          tell. Staff and leaders always show their staff role.
+          Only Visitor and Alumni can be set by hand.
         </Txt>
       </Sheet>
     </View>

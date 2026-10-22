@@ -1,14 +1,7 @@
-# §9.4–9.6 Structure (Roles/Divisions/Departments/Universities) + Other tab
-# (Budget Manager, Director Threshold, Delegation, Directory Sync).
-# Read-mostly smoke: opens each area and asserts guards/copy without mutating.
 appId: ${APP_ID}
 tags:
   - admin
 ---
-# ADMIN_EMAIL is seeded as HOD of "E2E Test Dept" (not an admin
-# division/department per convex/model.ts's isAdminProfile), so it never
-# actually gets admin access despite .env.example's comment — use
-# DIRECTOR_EMAIL, which is seeded with the DIRECTOR role and really is admin.
 - runFlow: ../common/launch-fresh.yaml
 - runFlow:
     file: ../common/sign-in.yaml
@@ -17,7 +10,6 @@ tags:
       PASSWORD: ${DIRECTOR_PASSWORD}
 - runFlow: ../common/open-admin.yaml
 
-# ── Structure — Roles: system roles show the lock ────────────────────────────
 - tapOn: "Structure"
 - assertVisible:
     text: ".*Roles.*"
@@ -26,7 +18,6 @@ tags:
     text: "Managed by the app — can't be renamed or deleted"
     optional: true
 
-# ── Other tab ────────────────────────────────────────────────────────────────
 - tapOn: "Other"
 - assertVisible:
     text: ".*Budget Manager.*"
@@ -35,7 +26,6 @@ tags:
 - assertVisible:
     text: ".*(Delegation|delegations).*"
 
-# Directory Sync sits at the bottom; "Sync Directory Now" → confirm.
 - scrollUntilVisible:
     element:
       text: ".*Sync Directory Now.*"

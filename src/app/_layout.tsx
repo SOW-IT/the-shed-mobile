@@ -95,10 +95,6 @@ const AuthGate = () => {
   return isLoading || busy ? <LoadingState /> : <RootStack />;
 };
 
-/**
- * Every screen, plus the side menu: a permanent sidebar beside them on wide
- * screens, a drawer over them on phones (signed in only).
- */
 const RootStack = () => {
   const wide = useWideLayout();
   const { isAuthenticated } = useConvexAuth();
@@ -160,7 +156,6 @@ export default function RootLayout() {
       showFloatingActionButton: false,
     });
   }, []);
-  // Bundled, so this takes a moment; if a face fails, carry on with the system font.
   const [fontsLoaded, fontError] = useFonts(FONT_SOURCES);
   const fontsReady = fontsLoaded || fontError !== null;
   const t = useAppTheme();

@@ -27,8 +27,6 @@ export const parseDateInputValue = (value: string): Date | null => {
   return date;
 };
 
-/** A YYYY-MM-DD value moved by whole calendar days, or null when it can't
- *  be read. Steps the calendar, not 24-hour blocks, so DST can't skip a day. */
 export const addDaysToDateInputValue = (
   value: string,
   days: number
@@ -63,7 +61,6 @@ export const parseDateTimeInputValues = (
 
 const MINUTE_MS = 60_000;
 
-/** "just now", "5m ago" … "3w ago", "4mo ago", "1y ago". */
 export const timeAgo = (ms: number, now: number = Date.now()): string => {
   const secs = Math.floor((now - ms) / 1000);
   if (secs < 60) return "just now";

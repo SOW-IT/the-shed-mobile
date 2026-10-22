@@ -17,10 +17,6 @@ import { reportViewSql, reportViewsToPublish } from "./convexWarehouseReports.mj
 const IAM_HINT =
   "Grant the backup service account roles/bigquery.user on the project (jobs and datasets.create), roles/bigquery.dataEditor on the destination dataset and on the warehouse dataset, and storage.objects.get on the backup bucket. Or pre-create those datasets and skip automatic dataset creation.";
 
-/** Failures worth trying again: the runner's short-lived Google credentials
- *  (Workload Identity) or the network blipping, not a real bq error. On
- *  25 Sep 2026 one "upstream request timeout" fetching the identity token
- *  failed the whole nightly load. */
 export const TRANSIENT_FAILURE =
   /problem refreshing your\s+current auth tokens|Identity Pool subject token|upstream request timeout|timed? ?out|ECONNRESET|ETIMEDOUT|Connection reset|backendError|rateLimitExceeded|\b50[023]\b/i;
 

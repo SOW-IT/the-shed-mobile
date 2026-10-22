@@ -1,10 +1,6 @@
 import { Image, StyleSheet, Text, View } from "react-native";
 import { spacing, useAppTheme } from "@/theme";
 
-/**
- * Roughly how the announcement lands on a phone's lock screen: the app's icon
- * and name, the title in bold and the first few lines of the message.
- */
 export const PushPreview = ({ title, message }: { title: string; message: string }) => {
   const t = useAppTheme();
   const banner = t.dark ? "rgba(58, 58, 60, 0.92)" : "rgba(255, 255, 255, 0.92)";

@@ -369,11 +369,7 @@ export function MetadataTab({
                           <>
                             {field.key === ROLE_FIELD_KEY ? (
                               <View style={{ marginTop: spacing.xs }}>
-                                <Muted>
-                                  Roles are worked out from staff profiles and
-                                  Insights. Only Visitor and Alumni can be set on
-                                  a member by hand.
-                                </Muted>
+                                <Muted>Only Visitor and Alumni can be set by hand.</Muted>
                               </View>
                             ) : null}
                             {showSections && locked.length > 0 ? (

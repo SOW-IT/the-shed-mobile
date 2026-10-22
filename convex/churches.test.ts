@@ -555,7 +555,6 @@ describe("your church in your Profile", () => {
     expect(mine).toMatchObject({
       church: { _id: grace, name: "Grace Church", address: "1 Church St", serviceTimes: null },
     });
-    // Others see it too; signed-out visitors don't.
     expect((await asUser(t, ADMIN).query(api.profile.get, { email: STAFF }))!.church?.name).toBe("Grace Church");
     expect((await t.query(api.profile.get, { email: STAFF }))!.church?.name).toBe("Grace Church");
 
@@ -574,7 +573,6 @@ describe("the reminder", () => {
     const { t, sam } = await setup();
     const grace = await sam.mutation(api.churches.add, { name: "Grace Church" });
     await sam.mutation(api.profile.setChurch, { churchId: grace });
-    // Someone on staff who has never signed in, and someone who left staff.
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", { email: "new.one@sow.org.au", year: YEAR, assignments: [{ role: "Staff" }] });
       await ctx.db.insert("staffProfiles", { email: "gone@sow.org.au", year: YEAR - 1, assignments: [{ role: "Staff" }] });

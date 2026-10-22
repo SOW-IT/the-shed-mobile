@@ -1,5 +1,3 @@
-# Build and submit to staging (TestFlight staging / staging backend).
-# Manual only — trigger from the Actions tab ("Run workflow").
 name: EAS Staging
 
 on:

@@ -74,9 +74,9 @@ _Avoid_: home church (ambiguous with a campus), church (alone, for SOW itself)
 A signed-in account that is not Staff — someone who signed in with Apple
 rather than an `@sow.org.au` Google account (personal Google sign-in was
 removed in 2.4.7; guests who used it before keep their account but can't
-sign in with it again). A guest has an account and no profile. The Role
-option of the same name (it was called Visitor until 2.5.0) marks a
-non-student at events, such as a parent or a church guest.
+sign in with it again). A guest has an account and no profile. Guest is no
+longer a Role (2.9.9): a non-student at events, such as a parent or a church
+guest, is a hand-set Visitor.
 Deleting a guest's account removes everything it had; deleting a staff
 member's account removes only the sign-in, and their profiles stay.
 _Avoid_: visitor (in Attendance that's someone from another campus), public

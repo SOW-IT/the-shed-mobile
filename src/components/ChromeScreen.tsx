@@ -24,7 +24,6 @@ export const ChromeScreen = ({
   const me = useQuery(api.directory.me);
   const insets = useSafeAreaInsets();
   const { collapseStyle, barOpacityStyle, scrollProps } = useTopBarCollapse();
-  // Wide screens have the sidebar instead of a top bar.
   const wide = useWideLayout();
   return (
     <View style={[styles.screen, { backgroundColor: t.background }]}>

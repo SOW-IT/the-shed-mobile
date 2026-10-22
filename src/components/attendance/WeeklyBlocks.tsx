@@ -11,14 +11,10 @@ import {
 import { Avatar, Btn, ReadableColumn, ScrollCap, SearchField } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-// Draws the campus weeklies blocks (shared/weeklyInsightsView.ts). Like the
-// rest of Insights, the server decides what's in them; this only draws.
-
 type Block<T extends WeeklyBlock["type"]> = Extract<WeeklyBlock, { type: T }>;
 
 const PAGE = 40;
 
-/** How tall a list's box is before it scrolls inside (about six people). */
 const LIST_HEIGHT = 380;
 
 function CategoryPill({ pill }: { pill: Pill }) {
@@ -111,7 +107,6 @@ function PersonRow({
   );
 }
 
-/** A group heading inside a list: its name, and how many are in it. */
 function SectionLabel({ title, count }: { title: string; count: number }) {
   const t = useAppTheme();
   return (
@@ -134,8 +129,6 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
   const [limit, setLimit] = useState(PAGE);
   const [all, setAll] = useState(false);
 
-  // Within each section, people stay grouped by category (in the order the
-  // server lists the category chips), then by the chosen sort.
   const rank = useMemo(() => new Map(block.filters.map((f, i) => [f.key, i])), [block.filters]);
   const sections = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -159,7 +152,6 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
 
   const total = sections.reduce((n, s) => n + s.rows.length, 0);
   const max = all ? total : limit;
-  // Rows before each section, so only the first `max` rows are drawn.
   const before = sections.map((_, i) => sections.slice(0, i).reduce((n, s) => n + s.rows.length, 0));
   const toggle = (key: string) => {
     setChips((current) => (current.includes(key) ? current.filter((c) => c !== key) : [...current, key]));
@@ -297,7 +289,6 @@ function FollowUpGroups({
   );
 }
 
-/** Draws a campus weeklies block, or nothing for a type it doesn't know. */
 export function renderWeeklyBlock(
   block: WeeklyBlock,
   key: string,

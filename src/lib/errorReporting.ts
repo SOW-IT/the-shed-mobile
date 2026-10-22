@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import { appVersion } from "@/hooks/useReportAppVersion";
 
-export type ErrorReport = {
+type ErrorReport = {
   message: string;
   stack?: string;
   route?: string;

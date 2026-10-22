@@ -6,6 +6,66 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-10-22
+
+### Removed
+- **Server code kept only for app builds older than 2.9.25.** 2.9.25 becomes
+  the minimum app version (see LAUNCH.md for the release order), so these
+  go:
+  - the old bell list (`notifications.list`; the paged feed replaced it in
+    2.9.18);
+  - `requests.reviewedInYear`, `designRequests.years` and
+    `eventRequests.years`, and the unused `year` argument on Mine,
+    Finance's All requests and the event and design Mine lists (2.9.15
+    replaced the year pickers). `requests.requestYears` now returns only
+    `reviewedBefore`, the one field the app reads;
+  - the Insights charts that drew Overall as a third bar for apps that
+    didn't ask for lines (2.9.8); `lines` is still accepted;
+  - check-in's `campuses` field (2.9.25 reads `universities`);
+  - the "newer pages" links (`NEWER_PAGES`, the `#app` marker, tailored
+    email links and the bell's link filter), which only ever covered
+    `/checkin`. The web still keeps `/checkin` to itself.
+- **`events.attendanceCount` leaves the schema.** Head counts have lived in
+  `eventAttendanceCounts` since 2.9.29, and no event on prod or dev still
+  has the old field. `attendanceCounts:backfill` stays as a recount.
+- **The 2.9.9 one-off `renameNotesField`.** Prod already had "Other
+  Information"; dev was renamed before this release.
+- **Server one-offs nothing calls:** `admin:ensureUniversity`,
+  `admin:removeUniversityRow`, `admin:fillTagScopesWithAllGroups`,
+  `admin:nameStaffProfilesFromEmail`, `admin:stripAssignmentsInProfiles`,
+  `memberRepair:capitalizeMemberNames` and `notifications:unreadCountFor`.
+  No screen, script, workflow or 2.9.25 to 2.9.29 build uses them.
+- **Code comments**, in every TypeScript, JavaScript and YAML file. Lint,
+  type and test directives stay, and so do the version tags on pinned
+  GitHub Actions. Also gone: the unused `Chip` component, a second copy of
+  `ALUMNI` and two menu helpers that only renamed `showsReimbursements`.
+
+### Changed
+- **Less explaining on screen.** The self check-in sheet opens straight to
+  its button, the check-in page drops the line under each result and the
+  note under the form, and the sheet's waiting list loses its prompts.
+  Elsewhere, the email-reminder toggle, Suggested Merges, Role, receipt-file
+  notices, the contact form, the finance form and admin's year and delegate
+  notes keep one short sentence or none.
+- **Expo SDK 58 patch updates** (`expo` 58.0.17, `expo-updates` 58.0.18,
+  `expo-router` 58.0.25 and eight more), which CI's dependency check now
+  asks for. They change the app's runtime fingerprint, so 2.10.0 reaches
+  phones as a store update rather than over the air.
+- **The church map on iPhone is Apple Maps, and the iPhone app is about 10 MB
+  smaller to download** (an estimated 36 MB to 26 MB; 13 MB less once
+  installed). Google's map library for iOS was about two thirds of the
+  app's own code, and Apple encrypts app code before compressing the
+  download, so it barely shrank. The pins, names and tap-to-open work as
+  before on Apple's muted map, which needs no key. Android and the web keep
+  Google Maps (`docs/adr/0013-apple-maps-on-iphone.md`).
+- **Church pins on Google Maps stop redrawing on every frame.** Google Maps
+  turned each custom pin back into an image on every frame while the map
+  moved, the likely cause of the map's lag on iPhone up to 2.9.29 (Apple
+  Maps pins are plain views, so 2.10.0's iPhone map doesn't do it). A pin
+  now draws for its first half second and again only when it changes
+  (picked, renamed, resized, recoloured or the theme flips). On Android this applies
+  to builds with a Maps key; production has none yet, so it shows no map.
+
 ## [2.9.29] - 2026-10-21
 
 ### Changed

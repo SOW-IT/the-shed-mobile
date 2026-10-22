@@ -33,7 +33,6 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RiskRatingPill } from "./EventPills";
 import { LabelledField } from "./LabelledField";
 
-/** The Risk form while it's being filled in; each row has a key for the list. */
 export type RiskDraft = { noRisks: boolean; risks: (RiskRow & { key: string })[]; contingencies: string };
 
 let nextKey = 0;
@@ -61,7 +60,6 @@ export const riskDataFrom = (draft: RiskDraft): RiskData => ({
 
 const openLink = (url: string) => void Linking.openURL(url).catch(() => {});
 
-/** The Standard's links, to read it in full or keep a copy. */
 export const RiskStandardLinks = () => (
   <Row>
     <Btn
@@ -79,7 +77,6 @@ export const RiskStandardLinks = () => (
   </Row>
 );
 
-/** The Standard's matrix: likelihood down the side, consequence along the top. */
 const Matrix = () => {
   const t = useAppTheme();
   const colour = (rating: string) =>
@@ -133,7 +130,6 @@ const Matrix = () => {
   );
 };
 
-/** "How to rate a risk": SOW's Risk Management Standard, folded away until it's wanted. */
 const RiskGuide = () => {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
@@ -184,7 +180,6 @@ const RiskGuide = () => {
   );
 };
 
-/** A button showing the chosen level, opening the five levels with what each means. */
 const LevelPicker = ({
   label,
   value,
@@ -356,7 +351,6 @@ const RiskRowEditor = ({
   );
 };
 
-/** The Risk form: no notable risks, or each risk rated with the Standard's matrix. */
 export const RiskFormEditor = ({
   draft,
   onChange,
@@ -422,7 +416,6 @@ export const RiskFormEditor = ({
   );
 };
 
-/** A submitted Risk form, read-only. */
 export const RiskView = ({ data, imported }: { data: RiskData; imported: boolean }) => {
   const t = useAppTheme();
   const majors = majorRisks(data);

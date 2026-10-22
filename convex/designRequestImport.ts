@@ -12,15 +12,8 @@ import {
 import { DESIGN_REQUEST_FIELDS } from "./designRequestForm";
 import { currentStaffYear, staffProfilesForEmail } from "./model";
 
-/** The note on old requests the import closes; see `legacyStatus`. */
 export const CLOSED_ON_IMPORT_NOTE = "Closed when imported from the old SHED";
 
-/**
- * One design request from the old web app's Firestore
- * (designRequests/designRequests/<year>/<id>), with timestamps as epoch ms
- * and the requester's email looked up from their user doc where it exists.
- * Built by scripts/import-design-requests.mjs.
- */
 const flag = v.optional(v.union(v.boolean(), v.string()));
 const checkboxes = v.optional(v.record(v.string(), v.union(v.boolean(), v.string())));
 
@@ -61,7 +54,6 @@ export const legacyDesignRequestValidator = v.object({
 
 type Legacy = Infer<typeof legacyDesignRequestValidator>;
 
-// Old checkbox names → the current form's option values.
 const LEGACY_TYPES: Record<string, string> = {
   event: "event",
   promotion: "promotion",
@@ -103,11 +95,6 @@ export const sydneyDate = (ms: number) => {
   return `${year}-${pad2(month)}-${pad2(day)}`;
 };
 
-/**
- * The request's status in the old app, except that one from an earlier staff
- * year that was never finished comes in closed, so years-old requests don't sit
- * in the Marketing queue for good.
- */
 const legacyStatus = (r: Legacy): { status: DesignRequestStatus; closedOnImport: boolean } => {
   if (truthy(r.completed)) return { status: "COMPLETED", closedOnImport: false };
   if (r.approvedByHOD === "DECLINED") return { status: "DECLINED", closedOnImport: false };
@@ -121,12 +108,6 @@ const legacyStatus = (r: Legacy): { status: DesignRequestStatus; closedOnImport:
 const OLD_DOMAIN = "@sowaustralia.com";
 const CURRENT_DOMAIN = "@sow.org.au";
 
-/**
- * The person behind an old-app user id, as the address they sign in with now:
- * their latest staff profile (found through the id the org import kept, else
- * the email on their old user doc), else that email moved off the old
- * sowaustralia.com domain, else a clearly fake placeholder address.
- */
 export async function legacyEmail(
   ctx: MutationCtx,
   uid: string,
@@ -145,12 +126,6 @@ export async function legacyEmail(
     : address;
 }
 
-/**
- * Copies design requests from the old web app. Safe to re-run: a request is
- * matched on its old year and id, and is only rewritten while nobody has
- * acted on it in THE SHED since it was imported. Comments are matched on
- * their old id, so only new ones are added. Sends no notifications.
- */
 export const importLegacy = internalMutation({
   args: { requests: v.array(legacyDesignRequestValidator) },
   handler: async (ctx, args) => {

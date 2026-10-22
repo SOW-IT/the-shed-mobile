@@ -36,13 +36,6 @@ export type MergeSuggestion = {
   candidates: MergeCandidate[];
 };
 
-/**
- * Staff in the current staff year who look like someone still in attendance
- * as a plain member: a similar name, and the same campus when both have one. Merging
- * (the existing member → staff merge) or "Not the same" clears a pair, so an
- * empty list means the year is reconciled. Next year's staff aren't
- * suggested: they're merged once their year starts.
- */
 export const list = query({
   args: {},
   handler: async (ctx): Promise<MergeSuggestion[] | null> => {
@@ -54,8 +47,6 @@ export const list = query({
     const fields = await ctx.db.query("attendanceMetadata").collect();
     const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
     const allProfiles = await ctx.db.query("staffProfiles").collect();
-    // A row carrying anyone's staff email (any year) is that person's own
-    // staff row, not a duplicate: merging it away is blocked anyway.
     const linked = new Set(allProfiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
     const members = (await ctx.db.query("attendanceMembers").collect())
       .filter((m) => !linked.has(m._id))
@@ -66,8 +57,6 @@ export const list = query({
       )
     );
 
-    // One member can match several staff (two staff with the same name), so
-    // each member's sign-ins are read once.
     const histories = new Map<
       Id<"attendanceMembers">,
       { signIns: number; lastSignIn: number | null }
@@ -138,7 +127,6 @@ export const list = query({
   },
 });
 
-/** "Not the same person": stop suggesting this member for this staff person. */
 export const dismiss = mutation({
   args: { staffEmail: v.string(), memberId: v.id("attendanceMembers") },
   handler: async (ctx, { staffEmail, memberId }) => {

@@ -38,7 +38,6 @@ import {
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
-/** Sydney time, so the page and its PDF read the same wherever you are. */
 const when = sydneyDateTime;
 
 const EVENT_LABELS: Record<string, string> = {
@@ -64,7 +63,6 @@ const Answer = ({ label, children }: { label: string; children: ReactNode }) => 
   );
 };
 
-/** Each question the form asks, with this request's answer ("—" if none). */
 const Answers = ({
   request,
   fields,
@@ -113,7 +111,6 @@ const Timeline = ({ id }: { id: Id<"designRequests"> }) => {
   );
 };
 
-/** What happened to the request, in a sentence or two under its status. */
 const STEP_ICON = { done: "checkmark", declined: "close", current: null, todo: null } as const;
 
 const StatusTrack = ({
@@ -240,7 +237,6 @@ export default function DesignRequestScreen() {
     }
   }, [requestId, markNotificationsRead]);
 
-  // A thread link (a comment notification) opens the comments once.
   const threadLink = thread === "1" && requestId ? `${requestId}|${reopen ?? ""}` : null;
   useEffect(() => {
     if (threadLink && threadLink !== openedThreadLink) {
@@ -284,7 +280,6 @@ export default function DesignRequestScreen() {
     runBusy(busy, setBusy, setError, action, after);
   const unreadCount = unread[request._id] ?? 0;
 
-  // Built on the device from what this page shows, plus its history and comments.
   const downloadPdf = () =>
     run(async () => {
       const [{ buildDesignRequestPdf, designRequestPdfFilename }, history, comments] =

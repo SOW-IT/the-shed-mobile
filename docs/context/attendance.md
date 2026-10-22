@@ -144,15 +144,16 @@ locked ones; the Role field takes no new options. See
 [ADR 0002](../adr/0002-campus-is-a-superset-of-university.md).
 
 **Snapshot**:
-A pre-computed metrics aggregate for the SOW Sub-group and one trailing
-range, keyed by staff year. Current and incoming years may both have rows at
-once; Insights reads the current year only, never raw attendance. Campuses
-have no Snapshots since 2.5.0: their view comes from their Weeklies.
+A pre-computed metrics aggregate for one Sub-group and one trailing range,
+keyed by staff year. Current and incoming years may both have rows at once;
+Insights reads the current year only, never raw attendance. Every campus
+still gets Snapshots each night (BigQuery's `insights_*` views read them), but
+the app reads only SOW's: a campus's view comes from its Weeklies.
 _Avoid_: aggregate, cache, rollup
 
 **Nightly rebuild**:
-The crons that keep Insights fresh. SOW's Snapshots are recomputed every
-night; each campus's weeklies view redoes only what the attendance change
+The crons that keep Insights fresh. SOW's and every campus's Snapshots are
+recomputed every night; each campus's weeklies view redoes only what the attendance change
 log says changed since the night before (often nothing). A roll-call or event
 change is visible in Insights the next morning. The same rebuild refreshes
 General's staff trends and the current staff year's roster history (the
@@ -198,7 +199,7 @@ Someone whose Home campus is another campus and who has come to fewer than
 two of this campus's Weeklies this Term. With more, they're judged as
 Regular, Irregular or Newcomer like anyone else, but listed under other
 campuses.
-_Avoid_: guest (that's a non-student, see [Org](./org.md)), other campus
+_Avoid_: guest (that's a signed-in non-staff account, see [Org](./org.md)), other campus
 (for the person)
 
 **Needs follow-up**:

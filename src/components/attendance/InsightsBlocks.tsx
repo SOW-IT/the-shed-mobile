@@ -40,9 +40,6 @@ const isCalendarYear = (at: number) => Number.isInteger(at) && at >= 1000 && at 
 
 const tooltipTitle = (p: { at: number; label: string }) => (isCalendarYear(p.at) ? String(p.at) : p.label);
 
-// Draws the blocks an Insights `view` query returns. The server decides what
-// appears and in what order; this only knows how to draw each block type and
-// skips any it doesn't know, so an older app never breaks on a newer server.
 export function InsightsBlocks({
   blocks,
   width,
@@ -54,7 +51,6 @@ export function InsightsBlocks({
   blocks: (ViewBlock | WeeklyBlock)[];
   width: number;
   onOpenMember?: (memberId: Id<"attendanceMembers">) => void;
-  /** Campus weeklies rows open the person's page by their key. */
   onOpenPerson?: (personKey: string, subgroup?: string) => void;
   onEditMember?: (memberId: string) => void;
   onPickPeriod?: (period: string) => void;
@@ -280,7 +276,6 @@ export function InsightsBlocks({
     }
   };
 
-  // Consecutive charts share a responsive grid: as many columns as fit.
   const rendered: ReactNode[] = [];
   for (let i = 0; i < blocks.length; ) {
     if (!CHART_TYPES.has(blocks[i].type)) {

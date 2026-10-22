@@ -27,12 +27,7 @@ import {
   STAFF_SIDE_ROLES,
   staffYearStartMs,
 } from "../shared/flow";
-import {
-  displayNameFromEmail,
-  normalizeSubgroups,
-  personDisplayName,
-  SOW_SUBGROUP,
-} from "../shared/rollcall";
+import { personDisplayName } from "../shared/rollcall";
 import {
   previousStaffYearByEmailKey,
   previousStaffYearForEmail,
@@ -246,11 +241,6 @@ const remapScope = (
 ): Assignment[] =>
   assignments.map((a) => (a[key] === oldName ? { ...a, [key]: newName } : a));
 
-/**
- * Renames a department / division / university inside every profile of
- * `year` that references it. Streams the year's profiles rather than reading
- * a capped page, so no profile is silently left pointing at the old name.
- */
 const renameScopeInProfiles = async (
   ctx: MutationCtx,
   year: number,
@@ -363,28 +353,6 @@ const renameDepartmentInFormRequests = async (
   }
 };
 
-/**
- * Drops every assignment matching `remove` from the profiles of `year`.
- * Returns how many profiles changed.
- */
-const stripAssignmentsInProfiles = async (
-  ctx: MutationCtx,
-  year: number,
-  remove: (assignment: Assignment) => boolean,
-): Promise<number> => {
-  let touched = 0;
-  for await (const profile of ctx.db
-    .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", year))) {
-    const current = assignmentsOf(profile);
-    const kept = current.filter((a) => !remove(a));
-    if (kept.length === current.length) continue;
-    await patchFromAssignments(ctx, profile, kept);
-    touched++;
-  }
-  return touched;
-};
-
 const assertNobodyHolds = async (
   ctx: MutationCtx,
   year: number,
@@ -408,7 +376,6 @@ const assertNobodyHolds = async (
   );
 };
 
-/** Requests raised against `department` during staff year `year`. */
 const departmentRequestsInYear = (
   ctx: MutationCtx,
   year: number,
@@ -459,7 +426,6 @@ const clearBudgetManager = async (ctx: MutationCtx, year: number) => {
   }
 };
 
-/** Google directory display names keyed by email, for filling in unnamed rows. */
 const directoryNamesByEmail = async (
   ctx: QueryCtx,
 ): Promise<Map<string, string | null>> => {
@@ -501,7 +467,6 @@ const assertSingleDirector = async (
   }
 };
 
-/** Roles may only shrink for people whose headship is managed via Structure. */
 const assertNotPureRoleReduction = (
   existing: Doc<"staffProfiles"> | null,
   submittedRoles: string[],
@@ -518,11 +483,6 @@ const assertNotPureRoleReduction = (
   }
 };
 
-/**
- * Head roles are owned by the Structure section, so a profile edit keeps the
- * existing head assignments and drops any submitted membership of a
- * department the person already heads.
- */
 const mergeWithPreservedHeads = (
   existing: Doc<"staffProfiles"> | null,
   submitted: Assignment[],
@@ -564,7 +524,6 @@ const assertChaplaincyExists = async (ctx: MutationCtx, year: number) => {
   }
 };
 
-/** Shared tail of both `setStaffProfile` shapes once assignments are built. */
 const saveStaffProfile = async (
   ctx: MutationCtx,
   existing: Doc<"staffProfiles"> | null,
@@ -816,8 +775,6 @@ export const listStaffProfiles = query({
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
     const directoryNameByEmail = await directoryNamesByEmail(ctx);
-    // Looked up per person (both email spellings) rather than by scanning
-    // every account, so it stays exact however many accounts there are.
     const rows = [];
     for (const profile of profiles) {
       rows.push({
@@ -1080,59 +1037,6 @@ export const upsertUniversity = mutation({
     if (existing) return existing._id;
     const id = await ctx.db.insert("universities", { year: args.year, name });
     return id;
-  },
-});
-
-export const ensureUniversity = internalMutation({
-  args: { year: v.number(), name: v.string() },
-  handler: async (ctx, args) => {
-    const name = args.name.trim();
-    if (!name) throw new ConvexError("University name is required.");
-    const existing = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) =>
-        q.eq("year", args.year).eq("name", name),
-      )
-      .first();
-    if (existing) {
-      return {
-        id: existing._id,
-        created: false as const,
-        year: args.year,
-        name,
-      };
-    }
-    const id = await ctx.db.insert("universities", { year: args.year, name });
-    return { id, created: true as const, year: args.year, name };
-  },
-});
-
-export const removeUniversityRow = internalMutation({
-  args: { year: v.number(), name: v.string() },
-  handler: async (ctx, args) => {
-    const name = args.name.trim();
-    if (!name) throw new ConvexError("University name is required.");
-    const university = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) =>
-        q.eq("year", args.year).eq("name", name),
-      )
-      .first();
-    if (!university) {
-      return {
-        removed: false as const,
-        year: args.year,
-        name,
-        profilesTouched: 0,
-      };
-    }
-    const profilesTouched = await stripAssignmentsInProfiles(
-      ctx,
-      args.year,
-      (a) => a.university === name,
-    );
-    await ctx.db.delete("universities", university._id);
-    return { removed: true as const, year: args.year, name, profilesTouched };
   },
 });
 
@@ -1523,11 +1427,6 @@ export const removeDepartment = mutation({
   },
 });
 
-/**
- * Whether the signed-in caller may edit Finance settings for `year`: an admin
- * (using the same rollover-grace rules as `requireAdmin`) or that year's
- * Finance Head. Returns the caller's email, or null when they may not.
- */
 const financeSettingsAccess = async (
   ctx: QueryCtx,
   year: number,
@@ -1666,7 +1565,6 @@ export const setDirectorThreshold = mutation({
   },
 });
 
-/** The Director's threshold for event requests: separate from reimbursements'. */
 export const setEventDirectorThreshold = mutation({
   args: { year: v.number(), amount: v.number() },
   handler: async (ctx, args) => {
@@ -1690,47 +1588,6 @@ export const setEventDirectorThreshold = mutation({
       year: args.year,
       eventDirectorApprovalThreshold: args.amount,
     });
-  },
-});
-
-export const fillTagScopesWithAllGroups = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const tags = await ctx.db.query("attendanceTags").collect();
-    const universities = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear()))
-      .take(1000);
-    const allGroups = normalizeSubgroups([
-      SOW_SUBGROUP,
-      ...universities.map((u) => u.name),
-    ]);
-    let filled = 0;
-    if (allGroups.length > 0) {
-      for (const tag of tags) {
-        if (tag.subgroups?.length) continue;
-        await ctx.db.patch(tag._id, { subgroups: allGroups });
-        filled++;
-      }
-    }
-    return { filled, total: tags.length };
-  },
-});
-
-export const nameStaffProfilesFromEmail = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const profiles = await ctx.db.query("staffProfiles").collect();
-    let updated = 0;
-    for (const p of profiles) {
-      const name = p.name?.trim();
-      if (name && name.toLowerCase() !== p.email.toLowerCase()) continue;
-      const derived = displayNameFromEmail(p.email);
-      if (!derived) continue;
-      await ctx.db.patch(p._id, { name: derived });
-      updated++;
-    }
-    return { updated, total: profiles.length };
   },
 });
 

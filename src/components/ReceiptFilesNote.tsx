@@ -9,8 +9,8 @@ export const ReceiptFilesNote = ({ year }: { year: number }) => {
     <WarningBanner
       message={
         year === currentYear - 1
-          ? `Receipt files for the ${year} staff year will be deleted on 1 October ${currentYear}, when the staff year rolls over. Download anything you need to keep.`
-          : `Receipt files for the ${year} staff year have already been deleted and can no longer be opened. Only the file names remain for reference.`
+          ? `Receipt files for the ${year} staff year are deleted on 1 October ${currentYear}. Download anything you need.`
+          : `Receipt files for the ${year} staff year have been deleted. Only the file names remain.`
       }
     />
   );

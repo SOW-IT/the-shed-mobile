@@ -2,7 +2,6 @@ export const FINANCE = "Finance";
 
 export const ADMIN_DEPARTMENTS = ["Data and IT"];
 export const ADMIN_DIVISIONS = ["Human Resources"];
-/** Divisions whose head (only) is an admin; their other staff are not. */
 export const ADMIN_HEADED_DIVISIONS = ["Governance"];
 
 export const ROLES = [
@@ -222,7 +221,6 @@ const sydneyYmdFixedOffset = (
   };
 };
 
-/** Calendar parts of `date` in Sydney time (month is 1-based). */
 export const sydneyYmd = (
   date: Date
 ): { year: number; month: number; day: number; hour: number } => {
@@ -280,8 +278,6 @@ export const eventStaffYear = (dateStart: number): number =>
 export const staffYearStartMs = (year: number): number =>
   Date.UTC(year - 1, 8, 30, 14, 0, 0, 0);
 
-// Auth grace is deliberately not a fixed duration: it lasts until the Sydney
-// calendar year catches up with the staff year (see ADR 0003).
 export const withinRolloverAuthGrace = (
   staffYear: number,
   now: Date = new Date()
