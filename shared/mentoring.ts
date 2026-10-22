@@ -1,4 +1,10 @@
-import { assignmentsOf, formatAssignment, type ProfileLike, roleNeedsUniversity } from "./flow";
+import {
+  assignmentsOf,
+  formatAssignment,
+  type ProfileLike,
+  roleNeedsUniversity,
+  type RoleTitles,
+} from "./flow";
 
 export const EXTERNAL_NAME_MAX = 100;
 export const EXTERNAL_NOTES_MAX = 1000;
@@ -6,16 +12,18 @@ export const EXTERNAL_NOTES_MAX = 1000;
 export const isCampusLeaderProfile = (profile: ProfileLike): boolean =>
   assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role));
 
-export const campusLeaderLine = (profile: ProfileLike): string | null => {
+export const campusLeaderLine = (profile: ProfileLike, titles?: RoleTitles): string | null => {
   const text = assignmentsOf(profile)
     .filter((a) => roleNeedsUniversity(a.role))
-    .map(formatAssignment)
+    .map((a) => formatAssignment(a, titles))
     .join("  ·  ");
   return text || null;
 };
 
-export const profileLine = (profile: ProfileLike): string | null => {
-  const text = assignmentsOf(profile).map(formatAssignment).join("  ·  ");
+export const profileLine = (profile: ProfileLike, titles?: RoleTitles): string | null => {
+  const text = assignmentsOf(profile)
+    .map((a) => formatAssignment(a, titles))
+    .join("  ·  ");
   return text || null;
 };
 

@@ -8,6 +8,8 @@ import {
   DISPLAY_ACRONYMS,
   eventStaffYear,
   formatAssignment,
+  roleLabel,
+  roleTitle,
   incomingStaffYear,
   nextStepAfter,
   PENDING,
@@ -354,5 +356,22 @@ describe("reviewedHeading", () => {
   it("counts a short list and says when the list stops at the cap", () => {
     expect(reviewedHeading(3)).toBe("Reviewed (3)");
     expect(reviewedHeading(REVIEWED_LIMIT)).toBe(`Latest ${REVIEWED_LIMIT} reviewed`);
+  });
+});
+
+describe("role titles", () => {
+  const titles = { "Head of Department": "Department Overseer" };
+
+  test("show a year's own name for a role, or the usual one", () => {
+    expect(roleTitle("Head of Department", titles)).toBe("Department Overseer");
+    expect(roleTitle("Staff", titles)).toBe("Staff");
+    expect(roleLabel("Head of Department")).toBe("HOD");
+    expect(roleLabel("Head of Department", titles)).toBe("Department Overseer");
+    expect(formatAssignment({ role: "Head of Department", department: "Campus" }, titles)).toBe(
+      "Department Overseer → Campus"
+    );
+    expect(formatAssignment({ role: "Head of Department", department: "Campus" })).toBe(
+      "HOD → Campus"
+    );
   });
 });

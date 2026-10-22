@@ -40,6 +40,7 @@ import { DESIGN_REQUEST_FIELDS } from "./designRequestForm";
 import { EVENT_FIELDS } from "./eventRequestForm";
 import {
   assertManagedYear,
+  assignableRoleRows,
   currentStaffYear,
   DELEGATION_QUERY_LIMIT,
   findProfileForYear,
@@ -106,7 +107,9 @@ const leaverEmailSet = async (
 };
 
 const allowedRolesForYear = async (ctx: MutationCtx, year: number): Promise<Set<string>> => {
-  const rows = await ctx.db.query("roles").withIndex("by_year_and_name", (q) => q.eq("year", year)).take(500);
+  const rows = assignableRoleRows(
+    await ctx.db.query("roles").withIndex("by_year_and_name", (q) => q.eq("year", year)).take(500)
+  );
   return rows.length > 0 ? new Set(rows.map((r) => r.name)) : new Set<string>(ROLES);
 };
 
@@ -1537,7 +1540,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       .withIndex("by_year_and_name", (q) => q.eq("year", to).eq("name", role.name))
       .first();
     if (!existing) {
-      await ctx.db.insert("roles", { year: to, name: role.name });
+      await ctx.db.insert("roles", { year: to, name: role.name, standsFor: role.standsFor });
     }
     counts.roles++;
   }

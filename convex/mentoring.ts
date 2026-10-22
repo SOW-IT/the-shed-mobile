@@ -8,6 +8,7 @@ import {
   pairingsText,
   profileLine,
 } from "../shared/mentoring";
+import type { RoleTitles } from "../shared/flow";
 import { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import {
@@ -17,6 +18,7 @@ import {
   nextStaffYear,
   optionalEmail,
   requireAdmin,
+  roleTitlesForYear,
 } from "./model";
 import { photoFor } from "./photo";
 
@@ -99,7 +101,8 @@ async function mentorOf(
   ctx: QueryCtx,
   row: Doc<"mentorships">,
   warn: boolean,
-  cardFor: CardFor
+  cardFor: CardFor,
+  titles: RoleTitles
 ) {
   if (row.externalMentorId) {
     const external = await ctx.db.get("externalMentors", row.externalMentorId);
@@ -121,7 +124,7 @@ async function mentorOf(
     email,
     name: card.name,
     photo: card.photo,
-    line: card.profile ? profileLine(card.profile) : null,
+    line: card.profile ? profileLine(card.profile, titles) : null,
     warning: warn ? leaderMentorWarning(card.profile) : null,
   };
 }
@@ -137,6 +140,7 @@ export const pairings = query({
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(MENTORING_LIMIT);
     const cardFor = memo((email) => personCard(ctx, email, args.year));
+    const titles = await roleTitlesForYear(ctx, args.year);
     const editorName = memo(async (email) =>
       personName(ctx, email, await findProfileForYear(ctx, email, currentStaffYear()))
     );
@@ -149,10 +153,10 @@ export const pairings = query({
             email: mentee.email,
             name: mentee.name,
             photo: mentee.photo,
-            line: mentee.profile ? campusLeaderLine(mentee.profile) : null,
+            line: mentee.profile ? campusLeaderLine(mentee.profile, titles) : null,
             warning: editable ? menteeWarning(mentee.profile) : null,
           },
-          mentor: await mentorOf(ctx, row, editable, cardFor),
+          mentor: await mentorOf(ctx, row, editable, cardFor, titles),
           imported: row.legacyKey !== undefined,
           updatedAt: row.updatedAt,
           updatedBy: row.legacyKey !== undefined ? null : await editorName(row.updatedBy),
@@ -178,6 +182,7 @@ export const candidates = query({
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(MENTORING_LIMIT);
     const externals = await ctx.db.query("externalMentors").take(MENTORING_LIMIT);
+    const titles = await roleTitlesForYear(ctx, args.year);
     const externalNames = new Map(externals.map((e) => [e._id as string, e.name]));
     const names = new Map<string, string>();
     for (const profile of profiles) {
@@ -196,7 +201,7 @@ export const candidates = query({
       .map((profile) => ({
         email: profile.email,
         name: names.get(profile.email) ?? profile.email,
-        line: campusLeaderLine(profile),
+        line: campusLeaderLine(profile, titles),
         mentoredBy: mentorNameByMentee.get(profile.email) ?? null,
       }))
       .sort(byName);
@@ -205,7 +210,7 @@ export const candidates = query({
       .map((profile) => ({
         email: profile.email,
         name: names.get(profile.email) ?? profile.email,
-        line: profileLine(profile),
+        line: profileLine(profile, titles),
       }))
       .sort(byName);
     return {
@@ -255,6 +260,7 @@ export const myMentees = query({
       .query("mentorships")
       .withIndex("by_mentorEmail_and_year", (q) => q.eq("mentorEmail", email).eq("year", year))
       .take(MENTORING_LIMIT);
+    const titles = await roleTitlesForYear(ctx, year);
     const mentees = await Promise.all(
       rows.map(async (row) => {
         const card = await personCard(ctx, row.menteeEmail, year);
@@ -263,7 +269,7 @@ export const myMentees = query({
           email: card.email,
           name: card.name,
           photo: card.photo,
-          line: card.profile ? campusLeaderLine(card.profile) : null,
+          line: card.profile ? campusLeaderLine(card.profile, titles) : null,
         };
       })
     );
