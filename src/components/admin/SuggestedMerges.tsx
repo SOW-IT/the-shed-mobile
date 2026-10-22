@@ -13,7 +13,6 @@ import {
   ConfirmDialog,
   Grid,
   Muted,
-  ReadableColumn,
   Row,
   SectionTitle,
   Txt,
@@ -101,13 +100,6 @@ export function SuggestedMerges({
       {suggestions.length > 0 ? (
         <>
           <SectionTitle>Staff who look like a member</SectionTitle>
-          <ReadableColumn>
-            <Muted>
-              These staff look like people already signed in as members. Merging moves the
-              member&apos;s sign-ins onto the staff person, so attendance and Insights count
-              them once. Nothing changes until you merge.
-            </Muted>
-          </ReadableColumn>
           <Grid fixedWidth={360} align="start">
             {suggestions.map((s) => (
               <Card key={s.staffEmail}>
@@ -170,14 +162,6 @@ export function SuggestedMerges({
       {memberPairs.length > 0 ? (
         <>
           <SectionTitle>Members who may be the same person</SectionTitle>
-          <ReadableColumn>
-            <Muted>
-              These members have a similar name on the same campus and have never been signed
-              in to the same event, so one of them may have been added twice. Merging keeps the
-              one with more history and moves the other&apos;s sign-ins onto them. Nothing
-              changes until you merge.
-            </Muted>
-          </ReadableColumn>
           <Grid fixedWidth={360} align="start">
             {memberPairs.map((p) => (
               <Card key={p.id}>

@@ -967,7 +967,7 @@ export const MyRequests = ({
                       onNudge={(r) =>
                         setConfirm({
                           title: "Send a nudge?",
-                          message: `Reminds whoever needs to action your $${formatAmount(r.amount)} request ("${r.description}"). Once per day.`,
+                          message: `Reminds whoever needs to action "${r.description}". Once a day.`,
                           confirmLabel: "Send Nudge",
                           destructive: false,
                           onConfirm: () => void runOn(sendNudge, r._id),

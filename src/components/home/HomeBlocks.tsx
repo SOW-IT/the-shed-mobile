@@ -436,11 +436,7 @@ const ContactCard = ({ title, body }: { title: string; body: string }) => {
 
       <Sheet visible={sent} onClose={() => setSent(false)} title="Message sent">
         <View style={{ gap: spacing.sm }}>
-          <Txt>Thanks for reaching out. We&apos;ve received your message.</Txt>
-          <Muted>
-            You&apos;ll receive a reply within 2-3 business days. A confirmation
-            has been sent to your email too.
-          </Muted>
+          <Txt>Thanks for reaching out. We&apos;ll reply within 2-3 business days.</Txt>
           <View style={styles.buttonRow}>
             <Btn title="Done" onPress={() => setSent(false)} />
           </View>

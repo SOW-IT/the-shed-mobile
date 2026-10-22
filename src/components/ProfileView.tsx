@@ -195,10 +195,7 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
             <View style={styles.toggleRow}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Txt style={{ fontWeight: "600" }}>Email me daily reminders</Txt>
-                <Muted>
-                  One morning email listing what is waiting on you. Reminders still show in the
-                  app and as push notifications when this is off.
-                </Muted>
+                <Muted>One morning email listing what&apos;s waiting on you.</Muted>
               </View>
               <Switch
                 accessibilityLabel="Email me daily reminders"

@@ -32,6 +32,12 @@ All notable changes to **The SHED** mobile app. This project follows
   Information"; dev was renamed before this release.
 
 ### Changed
+- **Less explaining on screen.** The self check-in sheet opens straight to
+  its button, the check-in page drops the line under each result and the
+  note under the form, and the sheet's waiting list loses its prompts.
+  Elsewhere, the email-reminder toggle, Suggested Merges, Role, receipt-file
+  notices, the contact form, the finance form and admin's year and delegate
+  notes keep one short sentence or none.
 - **Expo SDK 58 patch updates** (`expo` 58.0.17, `expo-updates` 58.0.18,
   `expo-router` 58.0.25 and eight more), which CI's dependency check now
   asks for. They change the app's runtime fingerprint, so 2.10.0 reaches

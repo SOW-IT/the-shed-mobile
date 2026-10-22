@@ -125,7 +125,7 @@ export const FinanceFormEditor = ({
     <View style={{ gap: spacing.md }}>
       <Lines
         title="Income"
-        hint="Registrations, sponsorships, sales, anything coming in. Leave empty if there's none."
+        hint="Registrations, sponsorships, sales."
         rows={draft.income}
         addLabel="+ Add Income"
         placeholder="e.g. Registrations (100 × $30)"

@@ -948,7 +948,7 @@ export default function AdminScreen() {
       <InfoBanner
         message={
           selectedYear === currentYear + 1
-            ? `You're editing ${selectedYear}, the next staff year. It takes over from ${currentYear} when the staff year rolls over on 1 October ${currentYear}.`
+            ? `You're editing ${selectedYear}, the next staff year, which starts on 1 October ${currentYear}.`
             : null
         }
       />
@@ -1797,9 +1797,8 @@ export default function AdminScreen() {
               <SectionTitle>Approver delegation · {selectedYear}</SectionTitle>
               <Card>
                 <Muted>
-                  A delegate can approve, decline and pay everything their
-                  approver could, for this staff year. Remove it when the
-                  approver is back.
+                  A delegate can approve, decline and pay for their approver
+                  this staff year.
                 </Muted>
                 {(delegations ?? []).length === 0 ? (
                   <Muted>No delegations set.</Muted>

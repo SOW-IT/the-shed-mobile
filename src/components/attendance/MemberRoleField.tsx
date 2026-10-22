@@ -77,8 +77,7 @@ export function MemberRoleField({
       ) : null}
       <Sheet visible={infoOpen} onClose={() => setInfoOpen(false)} title="How Role is worked out">
         <Txt style={[typography.body, { color: t.text }]}>
-          Role isn&rsquo;t typed in. It follows these rules, and Insights works them out
-          again each night, so a change shows the next morning.
+          Insights works Role out each night from these rules.
         </Txt>
         <View style={styles.rules}>
           {roleRules(ruleSettings).map(({ role: name, rule }) => (
@@ -89,8 +88,7 @@ export function MemberRoleField({
           ))}
         </View>
         <Txt style={[typography.caption, { color: t.muted }]}>
-          Only Visitor and Alumni can be set by hand, for people Insights can&rsquo;t
-          tell. Staff and leaders always show their staff role.
+          Only Visitor and Alumni can be set by hand.
         </Txt>
       </Sheet>
     </View>
