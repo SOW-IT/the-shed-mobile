@@ -158,3 +158,35 @@ Student Leader at UNSW who is Staff in Events. Worked out again when it goes
 out, from the staff year the sender chose it in, so a scheduled announcement
 reaches whoever is in the audience then, even after the 1 October rollover.
 
+
+## Mentoring
+
+**Pairing**:
+One Campus leader and their mentor for one staff year. Each Campus leader has
+at most one mentor a year; a mentor can have any number. Changing the mentor
+overwrites the pairing (keeping who changed it and when), and pairings never
+carry over to the next year. Admins manage the current and next year; earlier
+years are read-only.
+_Avoid_: mentorship (in the UI), match
+
+**Mentee**:
+The Campus leader in a pairing: someone holding a university role (Student
+Leader, President, Vice President or Executive) that year. Nobody else can be
+paired as a mentee.
+
+**Mentor**:
+Either a leader with a `staffProfile` that year who is **not** a Campus
+leader (Campus leaders don't mentor each other), or an external mentor. A
+leader mentor sees their own current-year mentees under Mentoring; mentees
+don't see their mentor.
+
+**External mentor**:
+A mentor who isn't a SOW leader that year, kept on a reusable list (name, and
+optionally email, phone and notes) so they can be picked again in later
+years. One can't be deleted while any pairing, in any year, names them.
+
+**Imported pairing**:
+A pairing copied from the old SHED app's `mentees/{year}` documents by
+`scripts/import-mentoring.mjs`. Its mentee is matched by old user id or email;
+a mentor with no profile that year becomes an external mentor. Re-importing
+never overwrites a pairing changed in this app.

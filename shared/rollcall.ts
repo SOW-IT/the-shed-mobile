@@ -224,13 +224,6 @@ export const canReverseSignIn = (
   addedAt > event.dateEnd ||
   now - addedAt <= SIGN_IN_UNDO_GRACE_MS;
 
-export type AttendanceFrequencyScore = {
-  tagMatches: number;
-  subgroupMatches: number;
-  total: number;
-  latest: number;
-};
-
 export const memberMatchesEventCampus = (
   eventSubgroups: ReadonlySet<string>,
   member: { university?: string; campuses: string[] }
@@ -239,28 +232,6 @@ export const memberMatchesEventCampus = (
     (label): label is string => Boolean(label)
   );
   return labels.some((label) => eventSubgroups.has(label));
-};
-
-export const compareAttendanceFrequency = (
-  aScore: AttendanceFrequencyScore | undefined,
-  bScore: AttendanceFrequencyScore | undefined,
-  aCampusMatch: boolean,
-  bCampusMatch: boolean,
-  aName: string,
-  bName: string
-): number => {
-  const tagDelta = (bScore?.tagMatches ?? 0) - (aScore?.tagMatches ?? 0);
-  if (tagDelta !== 0) return tagDelta;
-  const subgroupDelta =
-    (bScore?.subgroupMatches ?? 0) - (aScore?.subgroupMatches ?? 0);
-  if (subgroupDelta !== 0) return subgroupDelta;
-  const campusDelta = Number(bCampusMatch) - Number(aCampusMatch);
-  if (campusDelta !== 0) return campusDelta;
-  const totalDelta = (bScore?.total ?? 0) - (aScore?.total ?? 0);
-  if (totalDelta !== 0) return totalDelta;
-  const latestDelta = (bScore?.latest ?? 0) - (aScore?.latest ?? 0);
-  if (latestDelta !== 0) return latestDelta;
-  return aName.localeCompare(bName);
 };
 
 type ProfileAssignment = {

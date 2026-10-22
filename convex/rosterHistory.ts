@@ -1,103 +1,135 @@
 import { v } from "convex/values";
-import { staffYearStartMs } from "../shared/flow";
-import { type AttendanceFrequencyScore, normalizeSubgroups } from "../shared/rollcall";
+import { LIKELIHOOD } from "../shared/rollCallLikelihood";
 import { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, QueryCtx } from "./_generated/server";
+import { internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
 import { currentStaffYear } from "./model";
+import { rankUpcomingEvents } from "./rollCallOrder";
 
-const ROSTER_HISTORY_EVENT_LIMIT = 60;
+const DAY_MS = 86_400_000;
+const SNAPSHOT_REACH_MS = 30 * DAY_MS;
+const SNAPSHOT_MS = LIKELIHOOD.windowDays * DAY_MS + SNAPSHOT_REACH_MS;
+const FULL_REBUILD_MS = 14 * DAY_MS;
+const REFRESH_MS = 14 * DAY_MS;
+const ROSTER_HISTORY_EVENT_LIMIT = 500;
 
 type HistoryEvent = {
   eventId: Id<"events">;
   dateStart: number;
   tagIds: string[];
   subgroups: string[];
+  weekly?: boolean;
+  count?: number;
 };
 
-type RosterHistory = {
+export type RosterHistory = {
   events: HistoryEvent[];
   attendees: Id<"attendanceMembers">[][];
 };
 
-async function liveHistory(ctx: QueryCtx, year: number): Promise<RosterHistory> {
-  const events = await ctx.db
-    .query("events")
-    .withIndex("by_dateStart", (q) =>
-      q.gte("dateStart", staffYearStartMs(year)).lt("dateStart", staffYearStartMs(year + 1))
-    )
-    .order("desc")
-    .take(ROSTER_HISTORY_EVENT_LIMIT);
-  const attendees = await Promise.all(
-    events.map(async (event) =>
-      (
-        await ctx.db
-          .query("attendance")
-          .withIndex("by_event", (q) => q.eq("eventId", event._id))
-          .collect()
-      ).map((row) => row.memberId)
-    )
-  );
+const latestSnapshot = (ctx: QueryCtx) =>
+  ctx.db.query("rosterHistorySnapshots").withIndex("by_year").order("desc").first();
+
+type PackedMembers = { memberIds: Id<"attendanceMembers">[]; memberEvents: string[] };
+
+const unpackEvents = (packed: string) => (packed ? packed.split(".").map((index) => parseInt(index, 36)) : []);
+
+function packedMembers(snapshot: Doc<"rosterHistorySnapshots">): PackedMembers {
+  if (snapshot.memberIds) return { memberIds: snapshot.memberIds, memberEvents: snapshot.memberEvents ?? [] };
+  const members = snapshot.members ?? [];
   return {
-    events: events.map((event) => ({
-      eventId: event._id,
-      dateStart: event.dateStart,
-      tagIds: (event.tagIds ?? []).map(String),
-      subgroups: event.subgroups,
-    })),
-    attendees,
+    memberIds: members.map((member) => member.memberId),
+    memberEvents: members.map((member) => member.events.map((index) => index.toString(36)).join(".")),
   };
 }
 
-export async function rosterHistory(ctx: QueryCtx, year: number): Promise<RosterHistory> {
-  const snapshot =
-    year === currentStaffYear()
-      ? await ctx.db
-          .query("rosterHistorySnapshots")
-          .withIndex("by_year", (q) => q.eq("year", year))
-          .first()
-      : null;
-  if (!snapshot) return await liveHistory(ctx, year);
+function snapshotHistory(snapshot: Doc<"rosterHistorySnapshots">): RosterHistory {
   const attendees = snapshot.events.map((): Id<"attendanceMembers">[] => []);
-  for (const member of snapshot.members) {
-    for (const index of member.events) attendees[index]?.push(member.memberId);
-  }
+  const { memberIds, memberEvents } = packedMembers(snapshot);
+  memberIds.forEach((memberId, i) => {
+    for (const index of unpackEvents(memberEvents[i] ?? "")) attendees[index]?.push(memberId);
+  });
   return { events: snapshot.events, attendees };
 }
 
-export function frequencyScores(
-  history: RosterHistory,
-  event: Doc<"events">
-): Map<string, AttendanceFrequencyScore> {
-  const eventTagIds = new Set((event.tagIds ?? []).map(String));
-  const eventSubgroups = new Set(normalizeSubgroups(event.subgroups));
-  const scores = new Map<string, AttendanceFrequencyScore>();
-  history.events.forEach((historyEvent, i) => {
-    if (historyEvent.eventId === event._id) return;
-    const tagMatch = historyEvent.tagIds.some((tagId) => eventTagIds.has(tagId));
-    const subgroupMatch = normalizeSubgroups(historyEvent.subgroups).some((subgroup) =>
-      eventSubgroups.has(subgroup)
-    );
-    for (const memberId of history.attendees[i]) {
-      const key = `member:${memberId}`;
-      const score = scores.get(key) ?? { tagMatches: 0, subgroupMatches: 0, total: 0, latest: 0 };
-      score.total += 1;
-      if (tagMatch) score.tagMatches += 1;
-      if (subgroupMatch) score.subgroupMatches += 1;
-      score.latest = Math.max(score.latest, historyEvent.dateStart);
-      scores.set(key, score);
-    }
-  });
-  return scores;
+export async function historyBefore(ctx: QueryCtx, dateStart: number): Promise<RosterHistory | null> {
+  const snapshot = await latestSnapshot(ctx);
+  if (!snapshot || dateStart < snapshot.builtAt - SNAPSHOT_REACH_MS) return null;
+  return snapshotHistory(snapshot);
 }
 
+const eventKey = (e: HistoryEvent) =>
+  [e.eventId, e.dateStart, e.tagIds.join(","), e.subgroups.join(","), e.weekly ? 1 : 0, e.count ?? ""].join("|");
+
+const sameHistory = (a: Doc<"rosterHistorySnapshots">, b: { events: HistoryEvent[] } & PackedMembers) => {
+  const members = packedMembers(a);
+  return (
+    a.events.length === b.events.length &&
+    members.memberIds.length === b.memberIds.length &&
+    a.events.every((event, i) => eventKey(event) === eventKey(b.events[i])) &&
+    members.memberIds.every((id, i) => id === b.memberIds[i] && members.memberEvents[i] === b.memberEvents[i])
+  );
+};
+
+const attendeesOf = async (ctx: MutationCtx, eventId: Id<"events">) =>
+  (
+    await ctx.db
+      .query("attendance")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect()
+  ).map((row) => row.memberId);
+
 export const rebuild = internalMutation({
-  args: { year: v.optional(v.number()) },
+  args: { full: v.optional(v.boolean()) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const year = args.year ?? currentStaffYear();
-    const live = await liveHistory(ctx, year);
+    const now = Date.now();
+    const previous = await latestSnapshot(ctx);
+    const full = args.full === true || !previous?.fullAt || now - previous.fullAt >= FULL_REBUILD_MS;
+    const windowStart = now - SNAPSHOT_MS;
+    const refreshFrom = full ? windowStart : Math.max(windowStart, previous!.builtAt - REFRESH_MS);
+    const known = new Map<string, { count?: number; attendees: Id<"attendanceMembers">[] }>();
+    const history: RosterHistory = { events: [], attendees: [] };
+    if (previous && !full) {
+      const cached = snapshotHistory(previous);
+      previous.events.forEach((event, i) => {
+        if (event.dateStart >= refreshFrom) {
+          known.set(event.eventId, { count: event.count, attendees: cached.attendees[i] });
+        } else if (event.dateStart >= windowStart) {
+          history.events.push(event);
+          history.attendees.push(cached.attendees[i]);
+        }
+      });
+    }
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_dateStart", (q) => q.gte("dateStart", refreshFrom).lt("dateStart", now))
+      .order("desc")
+      .take(ROSTER_HISTORY_EVENT_LIMIT);
+    for (const event of events) {
+      const counted = await ctx.db
+        .query("eventAttendanceCounts")
+        .withIndex("by_eventId", (q) => q.eq("eventId", event._id))
+        .first();
+      const cached = known.get(event._id);
+      history.events.push({
+        eventId: event._id,
+        dateStart: event.dateStart,
+        tagIds: (event.tagIds ?? []).map(String),
+        subgroups: event.subgroups,
+        weekly: event.weekly != null,
+        ...(counted ? { count: counted.count } : {}),
+      });
+      history.attendees.push(
+        cached && counted && cached.count === counted.count ? cached.attendees : await attendeesOf(ctx, event._id)
+      );
+    }
+    const order = history.events
+      .map((event, i) => ({ event, attendees: history.attendees[i] }))
+      .sort((a, b) => b.event.dateStart - a.event.dateStart || a.event.eventId.localeCompare(b.event.eventId));
+    history.events = order.map((row) => row.event);
+    history.attendees = order.map((row) => row.attendees);
     const eventsByMember = new Map<Id<"attendanceMembers">, number[]>();
-    live.attendees.forEach((memberIds, index) => {
+    history.attendees.forEach((memberIds, index) => {
       for (const memberId of memberIds) {
         const attended = eventsByMember.get(memberId) ?? [];
         attended.push(index);
@@ -105,23 +137,24 @@ export const rebuild = internalMutation({
       }
     });
     const doc = {
-      year,
-      builtAt: Date.now(),
-      events: live.events,
-      members: [...eventsByMember].map(([memberId, events]) => ({ memberId, events })),
+      year: currentStaffYear(),
+      builtAt: now,
+      fullAt: full ? now : previous!.fullAt,
+      events: history.events,
+      memberIds: [...eventsByMember.keys()],
+      memberEvents: [...eventsByMember.values()].map((indexes) => indexes.map((index) => index.toString(36)).join(".")),
     };
-    const existing = await ctx.db
-      .query("rosterHistorySnapshots")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .take(10);
-    if (existing.length === 0) {
+    const existing = full || !previous ? await ctx.db.query("rosterHistorySnapshots").take(20) : [previous];
+    const unchanged = !full && sameHistory(previous!, doc);
+    if (!unchanged && existing.length === 0) {
       await ctx.db.insert("rosterHistorySnapshots", doc);
-    } else {
+    } else if (!unchanged) {
       await ctx.db.replace("rosterHistorySnapshots", existing[0]._id, doc);
       for (const extra of existing.slice(1)) {
         await ctx.db.delete("rosterHistorySnapshots", extra._id);
       }
     }
+    await rankUpcomingEvents(ctx, history, now);
     return null;
   },
 });

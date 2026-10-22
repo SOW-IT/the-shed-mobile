@@ -13,7 +13,7 @@ import {
   resolveUniversity,
   ROLE_FIELD_KEY,
 } from "../shared/attendanceMemberMeta";
-import { auditEventName, canReverseSignIn, reversibleOnlyByGrace, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personKey, subgroupMatches } from "../shared/rollcall";
+import { auditEventName, canReverseSignIn, reversibleOnlyByGrace, memberMatchesEventCampus, normalizeSubgroups, personKey, subgroupMatches } from "../shared/rollcall";
 import { Doc, Id } from "./_generated/dataModel";
 import { mutation, type MutationCtx, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
@@ -22,7 +22,8 @@ import { adjustEventAttendanceCount } from "./attendanceCounts";
 import { memberAuditName, staffDisplayName } from "./attendanceMembers";
 import { eventCampuses, memberRoleResolver } from "./memberRoles";
 import { photoFor } from "./photo";
-import { frequencyScores, rosterHistory } from "./rosterHistory";
+import { compareLikelihood, LIKELIHOOD } from "../shared/rollCallLikelihood";
+import { storedOrder } from "./rollCallOrder";
 import {
   assignedProfileForEmail,
   isAssigned,
@@ -133,19 +134,19 @@ export const roster = query({
     if (!event) return rows.sort((a, b) => a.name.localeCompare(b.name));
 
     const eventSubgroups = new Set(normalizeSubgroups(event.subgroups));
-    const scores = frequencyScores(await rosterHistory(ctx, year), event);
-
-    const scoreOf = (entry: RosterEntry) =>
-      scores.get(entry.memberId ? `member:${entry.memberId}` : entry.key);
+    const order = await storedOrder(ctx, event._id);
+    const scores = new Map<string, number>(
+      (order?.memberIds ?? []).map((memberId, i) => [memberId, order!.scores[i] ?? 0])
+    );
+    const likelihood = new Map(
+      rows.map((entry) => [
+        entry.key,
+        (entry.memberId ? (scores.get(entry.memberId) ?? 0) : 0) +
+          (memberMatchesEventCampus(eventSubgroups, entry) ? LIKELIHOOD.campus : 0),
+      ])
+    );
     return rows.sort((a, b) =>
-      compareAttendanceFrequency(
-        scoreOf(a),
-        scoreOf(b),
-        memberMatchesEventCampus(eventSubgroups, a),
-        memberMatchesEventCampus(eventSubgroups, b),
-        a.name,
-        b.name
-      )
+      compareLikelihood(likelihood.get(a.key)!, likelihood.get(b.key)!, a.name, b.name)
     );
   },
 });

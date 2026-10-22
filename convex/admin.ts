@@ -40,6 +40,7 @@ import { DESIGN_REQUEST_FIELDS } from "./designRequestForm";
 import { EVENT_FIELDS } from "./eventRequestForm";
 import { logAttendanceAction } from "./attendanceAudit";
 import {
+  assertManagedYear,
   currentStaffYear,
   DELEGATION_QUERY_LIMIT,
   findProfileForYear,
@@ -78,14 +79,6 @@ const syncDirectorCacheAfterProfileChange = async (
     await setCachedDirectorEmail(ctx, year, email);
   } else if (wasDirector) {
     await setCachedDirectorEmail(ctx, year, "");
-  }
-};
-
-const assertManagedYear = (year: number) => {
-  if (year !== currentStaffYear() && year !== nextStaffYear()) {
-    throw new ConvexError(
-      `You can only manage ${currentStaffYear()} and ${nextStaffYear()}.`,
-    );
   }
 };
 

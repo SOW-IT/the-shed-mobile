@@ -175,6 +175,35 @@ export default defineSchema({
     .index("by_year_and_from", ["year", "fromEmail"])
     .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
 
+  mentorships: defineTable({
+    year: v.number(),
+    menteeEmail: v.string(),
+    mentorEmail: v.optional(v.string()),
+    externalMentorId: v.optional(v.id("externalMentors")),
+    updatedBy: v.string(),
+    updatedAt: v.number(),
+    legacyKey: v.optional(v.string()),
+  })
+    .index("by_year", ["year"])
+    .index("by_menteeEmail_and_year", ["menteeEmail", "year"])
+    .index("by_mentorEmail_and_year", ["mentorEmail", "year"])
+    .index("by_externalMentorId", ["externalMentorId"])
+    .index("by_legacyKey", ["legacyKey"]),
+
+  externalMentors: defineTable({
+    name: v.string(),
+    nameKey: v.string(),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    updatedBy: v.string(),
+    updatedAt: v.number(),
+    legacyKey: v.optional(v.string()),
+  })
+    .index("by_nameKey", ["nameKey"])
+    .index("by_email", ["email"])
+    .index("by_legacyKey", ["legacyKey"]),
+
   leavers: defineTable({
     year: v.number(),
     email: v.string(),
@@ -606,21 +635,36 @@ export default defineSchema({
   rosterHistorySnapshots: defineTable({
     year: v.number(),
     builtAt: v.number(),
+    fullAt: v.optional(v.number()),
     events: v.array(
       v.object({
         eventId: v.id("events"),
         dateStart: v.number(),
         tagIds: v.array(v.string()),
         subgroups: v.array(v.string()),
+        weekly: v.optional(v.boolean()),
+        count: v.optional(v.number()),
       })
     ),
-    members: v.array(
-      v.object({
-        memberId: v.id("attendanceMembers"),
-        events: v.array(v.number()),
-      })
+    members: v.optional(
+      v.array(
+        v.object({
+          memberId: v.id("attendanceMembers"),
+          events: v.array(v.number()),
+        })
+      )
     ),
+    memberIds: v.optional(v.array(v.id("attendanceMembers"))),
+    memberEvents: v.optional(v.array(v.string())),
   }).index("by_year", ["year"]),
+
+  rollCallOrders: defineTable({
+    eventId: v.id("events"),
+    inputKey: v.string(),
+    builtAt: v.number(),
+    memberIds: v.array(v.id("attendanceMembers")),
+    scores: v.array(v.number()),
+  }).index("by_eventId", ["eventId"]),
 
   staffTrendsSnapshots: defineTable({
     staffYear: v.number(),

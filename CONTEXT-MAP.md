@@ -47,6 +47,11 @@ hold code for all five — so each context's glossary lives under
   chosen campuses, divisions, departments and roles. Its audience is worked
   out from that year's Org, and it shares the notification feed with the
   other contexts but no other table. Its terms are in the Org glossary.
+- **Mentoring belongs to Org**: admins pair each year's Campus leaders with a
+  leader or an external mentor. Who can be a mentee or a mentor is read from
+  that year's `staffProfiles`; pairings are keyed by email and year like
+  approver delegations, and follow a person's email when it changes. Its
+  terms are in the Org glossary.
 - **Design Requests ↔ Event Requests**: an event's design and promotion is
   its Marketing form, never a design request. They share the server-driven
   form engine (`shared/forms.ts`) and the notification feed, but no table and

@@ -1819,6 +1819,7 @@ describe("roster ranking history", () => {
       dateEnd,
       subgroups: [MACQ],
     });
+    await t.mutation(internal.rosterHistory.rebuild, {});
     const roster = await leader.query(api.attendance.roster, { year: YEAR, eventId: targetId });
     const ranked = roster.slice(0, 2).map((r) => r.memberId).sort();
     expect(ranked).toEqual([staffMemberId, guestId].sort());

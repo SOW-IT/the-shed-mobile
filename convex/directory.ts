@@ -80,6 +80,12 @@ export const me = query({
       delegatorsForYear(ctx, year - 1, email),
     ]);
     const isDelegate = delegatedTo.length > 0 || prevDelegatedTo.length > 0;
+    const mentorship = await ctx.db
+      .query("mentorships")
+      .withIndex("by_mentorEmail_and_year", (q) =>
+        q.eq("mentorEmail", email).eq("year", currentStaffYear())
+      )
+      .first();
     return {
       email,
       year,
@@ -109,6 +115,7 @@ export const me = query({
         rolesOf(profile).includes(DIRECTOR) ||
         isDelegate,
       isCampusLeader: assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
+      isMentor: mentorship !== null,
       listsChurch: profile.year === year && assignmentsOf(profile).length > 0,
     };
   },
