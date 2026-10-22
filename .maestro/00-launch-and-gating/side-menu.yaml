@@ -13,6 +13,20 @@ tags:
 - assertVisible: "Open your profile"
 - assertVisible: "Profile"
 - assertVisible:
+    text: "Requests.*"
+- runFlow:
+    when:
+      notVisible: "Reimbursements.*"
+    commands:
+      - tapOn: "Requests.*"
+- assertVisible:
+    text: "Reimbursements.*"
+- assertVisible:
+    text: "Event Requests.*"
+- assertVisible:
+    text: "Design Requests.*"
+- tapOn: "Requests.*"
+- assertNotVisible:
     text: "Reimbursements.*"
 
 - tapOn:
@@ -41,5 +55,4 @@ tags:
 
 - runFlow: ../common/open-profile.yaml
 - assertVisible: ${STAFF_EMAIL}
-- tapOn: "Go back"
 - runFlow: ../common/open-reimbursements.yaml

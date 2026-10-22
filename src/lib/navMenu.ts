@@ -10,6 +10,7 @@ export type NavKey =
   | "org"
   | "profile"
   | "churches"
+  | "mentoring"
   | "announcements"
   | "admin";
 
@@ -23,6 +24,7 @@ export const NAV_HREFS = {
   org: "/org",
   profile: "/profile",
   churches: "/churches",
+  mentoring: "/mentoring",
   announcements: "/announcements",
   admin: "/admin",
 } as const satisfies Record<NavKey, string>;
@@ -37,6 +39,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   org: "Org Chart",
   profile: "Profile",
   churches: "Churches",
+  mentoring: "Mentoring",
   announcements: "Announcements",
   admin: "Admin",
 };
@@ -47,6 +50,7 @@ type NavViewer = {
   isCampusLeader: boolean;
   canAdmin: boolean;
   canAnnounce: boolean;
+  canMentoring: boolean;
 };
 
 type MeForNav =
@@ -55,6 +59,7 @@ type MeForNav =
       isCampusLeader?: boolean;
       isAdmin?: boolean;
       isFinanceHead?: boolean;
+      isMentor?: boolean;
     }
   | null
   | undefined;
@@ -67,7 +72,30 @@ export const navViewer = (signedIn: boolean, me: MeForNav): NavViewer => {
     isCampusLeader: isStaff && !!me?.isCampusLeader,
     canAdmin: signedIn && !!(me?.isAdmin || me?.isFinanceHead),
     canAnnounce: isStaff && !!me?.isAdmin,
+    canMentoring: isStaff && !!(me?.isAdmin || me?.isMentor),
   };
+};
+
+export const REQUEST_KEYS = ["reimbursements", "eventRequests", "designRequests"] as const;
+
+export type NavGroupKey = "requests";
+
+export const NAV_GROUP_LABELS: Record<NavGroupKey, string> = { requests: "Requests" };
+
+export type NavEntry =
+  | { kind: "item"; key: NavKey }
+  | { kind: "group"; key: NavGroupKey; items: NavKey[] };
+
+const isRequestKey = (key: NavKey) => (REQUEST_KEYS as readonly NavKey[]).includes(key);
+
+export const navEntries = (items: NavKey[]): NavEntry[] => {
+  const requests = items.filter(isRequestKey);
+  const entries: NavEntry[] = [];
+  for (const key of items) {
+    if (!isRequestKey(key)) entries.push({ kind: "item", key });
+    else if (key === requests[0]) entries.push({ kind: "group", key: "requests", items: requests });
+  }
+  return entries;
 };
 
 export const showsReimbursements = (viewer: NavViewer) =>
@@ -77,7 +105,8 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = ["profile"];
   if (viewer.isStaff) items.push("churches");
-  if (showsReimbursements(viewer)) items.push("reimbursements", "eventRequests", "designRequests");
+  if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
+  if (viewer.canMentoring) items.push("mentoring");
   if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
   return items;
@@ -85,10 +114,11 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
 
 export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
-  if (showsReimbursements(viewer)) items.push("reimbursements", "eventRequests", "designRequests");
+  if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.isStaff) items.push("attendance");
   items.push("insights", "org", "churches");
   if (viewer.signedIn) items.push("profile");
+  if (viewer.canMentoring) items.push("mentoring");
   if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
   return items;
@@ -116,6 +146,7 @@ export const activeNavKey = (pathname: string): NavKey | null => {
   if (pathname === "/announcements" || pathname.startsWith("/announcements/")) {
     return "announcements";
   }
+  if (pathname === "/mentoring") return "mentoring";
   if (pathname === "/admin") return "admin";
   return null;
 };

@@ -84,6 +84,14 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       after anyone submits more on the old site; requests already acted on in
       THE SHED are left alone.
 
+- [ ] **Copy the old app's mentoring pairings into production** once 2.10.1
+      is live: `gcloud auth login` (an account with access to `theshedsow`),
+      then `node scripts/import-mentoring.mjs --dry-run` and
+      `node scripts/import-mentoring.mjs --prod`. Check the skipped mentees it
+      lists. Re-running is safe; pairings changed in THE SHED are kept. Then
+      remove `scripts/import-mentoring.mjs` and `convex/mentoringImport.ts` in
+      the next ordinary PR.
+
 - [ ] **Privacy policy**: the App Store listing links SOW's general policy
       (`Privacy Policy (Final)_20240428.pdf`). Adapt it to cover Google
       sign-in (name/email), profile photos, receipt files including bank

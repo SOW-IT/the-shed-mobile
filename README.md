@@ -141,6 +141,21 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Once it has gone out, admins see on that page how many of its recipients
   have seen it (opened it, or opened their notifications since it arrived)
   and can list who hasn't.
+- **Mentoring** (`convex/mentoring.ts`, rules in `shared/mentoring.ts`),
+  from the side menu for admins (the Human Resources division among them) and
+  for anyone mentoring someone this year. Admins pair each **Campus leader**
+  with one mentor a year: a leader with a profile that year who isn't a
+  Campus leader, or an **external mentor** from a reusable list (name, email,
+  phone, notes). Pairings are per staff year, don't carry over, and only the
+  current and next year can change; the list flags a mentee or leader mentor
+  who no longer qualifies. A leader mentor sees just their own current-year
+  mentees. Pairings from the old app are copied in with
+  `scripts/import-mentoring.mjs` (safe to re-run; never overwrites a pairing
+  changed here).
+- **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
+  collapsible **Requests** group that opens itself on those pages, shows
+  their combined count while closed, and remembers being open or closed on
+  the device.
 - **Editable Home tab**: Home, Resources, Connect and Partner are typed
   blocks served by `homeContent.view` (one `homeTabs` row per edited tab,
   else the built-in content in `shared/homeContent.ts`). Admins, anyone in

@@ -19,7 +19,8 @@ tags:
 - runFlow: ../common/open-menu.yaml
 - assertVisible: "Profile"
 - assertNotVisible:
-    text: "Reimbursements.*"
+    text: "Requests.*"
+- assertNotVisible: "Mentoring"
 - runFlow: ../common/sign-out-e2e.yaml
 
 - runFlow: ../common/launch-fresh.yaml
@@ -39,7 +40,8 @@ tags:
 - runFlow: ../common/open-menu.yaml
 - assertVisible: "Profile"
 - assertVisible:
-    text: "Reimbursements.*"
+    text: "Requests.*"
+- assertNotVisible: "Mentoring"
 - assertNotVisible: "Admin"
 - runFlow: ../common/sign-out-e2e.yaml
 
@@ -51,3 +53,4 @@ tags:
       PASSWORD: ${FINANCE_PASSWORD}
 - runFlow: ../common/open-menu.yaml
 - assertVisible: "Admin"
+- assertNotVisible: "Mentoring"
