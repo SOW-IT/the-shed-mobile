@@ -31,11 +31,10 @@ in the last 30 days ran 2.9.19 or later.
 
 ## Consequences
 
-- A phone on 2.9.0 to 2.9.18 opens a check-in link in the app and gets the
-  not-found screen ("This page may need a newer THE SHED"), whose "Open on the
-  web" adds `#noapp` and so reaches Safari. That is one extra tap until they
-  update; raising `appUpdatePolicy.recommended` after the store build nudges
-  them.
+- Until 2.10.0, a phone on 2.9.0 to 2.9.18 opened a check-in link in the app
+  and got the not-found screen ("This page may need a newer THE SHED"), whose
+  "Open on the web" adds `#noapp` and so reaches Safari. From 2.10.0 the
+  minimum app is 2.9.25, so those phones get the update screen instead.
 - Android's intent filter covers the whole host, but production never served
   `assetlinks.json` either (see below), and until 2.9.26 the file named a
   keystore no build was signed with, so Android never verified the links.

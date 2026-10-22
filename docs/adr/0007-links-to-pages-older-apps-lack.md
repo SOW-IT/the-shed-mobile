@@ -55,5 +55,6 @@ needs to update.
 
 When a release adds a page that emails or notifications link to, raise the
 update policy's `minimum` to that release once it is in both stores. Until
-then an older app shows its not-found screen, with "Open on the web" and the
-store, which is the fallback this record described.
+then an older app shows its not-found screen. Once `recommended` has reached
+that release, the screen offers "Open on the web" and the store, the fallback
+this record described; before that it only says there's nothing there.

@@ -30,6 +30,15 @@ All notable changes to **The SHED** mobile app. This project follows
   has the old field. `attendanceCounts:backfill` stays as a recount.
 - **The 2.9.9 one-off `renameNotesField`.** Prod already had "Other
   Information"; dev was renamed before this release.
+- **Server one-offs nothing calls:** `admin:ensureUniversity`,
+  `admin:removeUniversityRow`, `admin:fillTagScopesWithAllGroups`,
+  `admin:nameStaffProfilesFromEmail`, `admin:stripAssignmentsInProfiles`,
+  `memberRepair:capitalizeMemberNames` and `notifications:unreadCountFor`.
+  No screen, script, workflow or 2.9.25 to 2.9.29 build uses them.
+- **Code comments**, in every TypeScript, JavaScript and YAML file. Lint,
+  type and test directives stay, and so do the version tags on pinned
+  GitHub Actions. Also gone: the unused `Chip` component, a second copy of
+  `ALUMNI` and two menu helpers that only renamed `showsReimbursements`.
 
 ### Changed
 - **Less explaining on screen.** The self check-in sheet opens straight to

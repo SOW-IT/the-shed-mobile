@@ -26,7 +26,7 @@ skill.
 | Netlify | `NETLIFY_AUTH_TOKEN` in `~/.hermes/.env` for phone HTML explain pages |
 | Checks | `npm run lint`, `npm run typecheck`, `npm test` / `npm run test:coverage` (no backend required) |
 
-Read `AGENTS.md` (Expo v56 docs link + Convex guidelines + Mac section) before
+Read `AGENTS.md` (Expo v58 docs link + Convex guidelines + Mac section) before
 coding. For Convex API patterns, read `convex/_generated/ai/guidelines.md` first.
 
 ## 1. Branch / worktree
