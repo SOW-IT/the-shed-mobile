@@ -1,7 +1,7 @@
 # The roll call's order is precomputed per event, within a database I/O budget
 
 "Not signed in" has always been sorted by how likely someone is to come, but
-until 2.10.1 the score only saw the latest 60 events of the current staff
+until 2.10.2 the score only saw the latest 60 events of the current staff
 year, compared them field by field (tag matches, then group matches, then
 campus, then totals), and was recomputed inside `attendance.roster` on every
 load. Since the staff year restarts on 1 October, the order was empty for
@@ -12,7 +12,7 @@ The Free plan's 1 GB of database I/O a month is shared by prod and dev and
 was already exceeded (`docs/convex-reads-2026-10-21.md`), with `roster`
 re-running on every sign-in for every phone that has the roll call open.
 
-From 2.10.1:
+From 2.10.2:
 
 - **One score**, in `shared/rollCallLikelihood.ts`: every sign-in in the 180
   days before the event, weighted 0.1, plus 1 for a shared group, 0.5 for a
