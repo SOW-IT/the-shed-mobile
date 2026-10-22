@@ -27,20 +27,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       2026-10-20 database bandwidth was 5.49 GB against a 1 GB plan (prod 4.56,
       dev 0.93), so the first run will warn; set `CONVEX_PLAN_DB_BANDWIDTH_GB`
       if the plan changes.
-- [ ] **Let the backup account replace the storage manifest and the
-      warehouse check's state.** The nightly file copy overwrites
-      `storage/manifest.json` after every page of files, and the warehouse
-      check overwrites `convex/production/checks/latest.json`. Both need
-      `storage.objects.delete` on the backup bucket for
-      `GCP_BACKUP_SERVICE_ACCOUNT` (file objects and the database zips are
-      never overwritten). Without it, new file objects and zips still upload
-      and each JSON file can be created once, but replacing it fails: on
-      2026-10-20 the manifest was created at 19:21:53Z and replacing it four
-      minutes later failed with
-      `GcsApiError('')`, so the file copy stops after its first page each
-      night, and the warehouse check will fail from its second night. The
-      first night with the grant downloads every file not yet in the
-      manifest once.
 - [ ] **Release 2.10.0 in this order.** It removes server code that apps
       older than 2.9.25 still call, and on 2026-10-22 54 of the 58 phones
       seen that week were older than 2.9.25.
@@ -199,6 +185,21 @@ the dataset. A load of the 31 Aug production zip published 26 tables
 (attendance 11556, requests 345, staffProfiles 845, users 57). Auth sessions
 and push tokens are not in the dataset. *Evidence: `bq ls
 theshedsow:convex_production` and those row counts on 2026-09-01.*
+
+**The backup account can replace its two state files** — and no other
+objects. The nightly file copy overwrites `storage/manifest.json` and the
+warehouse check overwrites `convex/production/checks/latest.json`, which needs
+`storage.objects.delete`. `roles/storage.objectCreator` doesn't include it,
+so from 2026-10-21 both replacements failed with `GcsApiError('')`: the file
+copy stopped after its first page each night, and the warehouse check failed.
+The SA now also has `roles/storage.objectUser` on the bucket, under the IAM
+condition `replace-backup-state`, which matches only those two object names.
+It still can't delete or overwrite the database zips or the copied files.
+*Evidence: the manual Backup Convex to GCS run on 2026-10-22 (run
+39851160632) passed both jobs. It copied 68 new files ("170 file(s) in
+Convex, 68 new, 102 already in GCS, 0 failed"), replaced the manifest at
+20:46:09Z and the check state at 21:01:26Z, and logged "Warehouse checks
+passed."*
 
 **Google OAuth** — `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` and
 `AUTH_ALLOWED_DOMAIN` are set on **both** deployments, for the `google`
