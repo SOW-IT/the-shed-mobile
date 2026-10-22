@@ -6,6 +6,29 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.1] - 2026-10-23
+
+### Changed
+- **The roll call puts the people most likely to come at the top of "Not
+  signed in".** Each person is scored from the last 180 days of sign-ins,
+  newest counting most (a sign-in's weight halves every 45 days), with the
+  most weight on the same campus's weeklies, then shared groups and tags,
+  plus a bonus when their campus is one of the event's. Replayed over every
+  2026 event, 31% of returning people were in the top ten of the list when
+  they signed in (12% before) and the typical person sat 21st, not 75th. The
+  old order only looked at the current staff year's latest 60 events, so it
+  started from nothing every 1 October.
+- **Each event's order is worked out ahead of time, not on every load.** It
+  is ranked when the event is saved within a week of starting (or up to 30
+  days after), and nightly for events on now or in the next week; it is
+  not ranked again unless a new event, sign-in, or the event's date, groups,
+  tags or weekly mark changed, and it is only rewritten when the order
+  actually moves. Renaming an event, or moving its end time, ranks nothing.
+  Opening the roll call reads a 7 KB stored order instead of the history
+  snapshot; on dev, a past event's roll call dropped from 1.26 MB to 402 KB
+  a load. The nightly rebuild reads about 60 KB on a quiet night and writes
+  nothing, with a full re-read every two weeks.
+
 ## [2.10.0] - 2026-10-22
 
 ### Removed
