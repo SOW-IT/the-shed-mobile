@@ -232,6 +232,96 @@ describe("setMentor", () => {
   });
 });
 
+describe("setPairings", () => {
+  const PAST = YEAR - 1;
+
+  const addPastProfiles = (t: TestConvex<typeof schema>) =>
+    t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: CARA,
+        year: PAST,
+        name: "Cara Chen",
+        assignments: [{ role: "Student Leader", university: MACQ }],
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: COLIN,
+        year: PAST,
+        name: "Colin Cho",
+        assignments: [{ role: "President", university: MACQ }],
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: SAM,
+        year: PAST,
+        name: "Sam Smith",
+        assignments: [{ role: "Staff", department: "Marketing" }],
+      });
+    });
+
+  test("adds any year's pairings for an admin, creating each external mentor once", async () => {
+    const { t, admin } = await setup();
+    await addPastProfiles(t);
+    await t.mutation(internal.mentoring.setPairings, {
+      year: PAST,
+      by: " ADMIN@sow.org.au ",
+      pairs: [
+        { menteeEmail: CARA, mentor: { kind: "leader", email: SAM } },
+        { menteeEmail: COLIN, mentor: { kind: "external", name: "  Pastor   Paul " } },
+      ],
+    });
+    await t.mutation(internal.mentoring.setPairings, {
+      year: YEAR,
+      by: ADMIN,
+      pairs: [{ menteeEmail: CARA, mentor: { kind: "external", name: "pastor paul" } }],
+    });
+    const externals = await t.run((ctx) => ctx.db.query("externalMentors").collect());
+    expect(externals).toHaveLength(1);
+    expect(externals[0]).toMatchObject({ name: "Pastor Paul", updatedBy: ADMIN });
+    const past = (await admin.query(api.mentoring.pairings, { year: PAST }))!;
+    expect(past.editable).toBe(false);
+    expect(past.pairs.map((p) => [p.mentee.email, p.mentor.name, p.updatedBy])).toEqual([
+      [CARA, "Sam Smith", ADMIN],
+      [COLIN, "Pastor Paul", ADMIN],
+    ]);
+    const now = (await admin.query(api.mentoring.pairings, { year: YEAR }))!;
+    expect(now.pairs[0].mentor).toMatchObject({ kind: "external", id: externals[0]._id });
+  });
+
+  test("refuses a non-admin and an ambiguous or empty name, and saves nothing on a failure", async () => {
+    const { t } = await setup();
+    await addPastProfiles(t);
+    const run = (
+      by: string,
+      pairs: {
+        menteeEmail: string;
+        mentor: { kind: "leader"; email: string } | { kind: "external"; name: string };
+      }[]
+    ) => t.mutation(internal.mentoring.setPairings, { year: PAST, by, pairs });
+    const toSam = [{ menteeEmail: CARA, mentor: { kind: "leader" as const, email: SAM } }];
+    await expect(run(SAM, toSam)).rejects.toThrow(`${SAM} isn't an admin in ${YEAR}.`);
+    await expect(run("nobody@sow.org.au", toSam)).rejects.toThrow("isn't an admin");
+    await expect(
+      run(ADMIN, [{ menteeEmail: CARA, mentor: { kind: "external", name: " " } }])
+    ).rejects.toThrow("Enter their name.");
+    await t.run(async (ctx) => {
+      for (const name of ["Twin", "twin"]) {
+        await ctx.db.insert("externalMentors", {
+          name,
+          nameKey: "twin",
+          updatedBy: ADMIN,
+          updatedAt: 1,
+        });
+      }
+    });
+    await expect(
+      run(ADMIN, [{ menteeEmail: CARA, mentor: { kind: "external", name: "Twin" } }])
+    ).rejects.toThrow("More than one external mentor is called Twin.");
+    await expect(
+      run(ADMIN, [...toSam, { menteeEmail: SAM, mentor: { kind: "leader", email: SAM } }])
+    ).rejects.toThrow(`${SAM} isn't a Campus leader in ${PAST}.`);
+    expect(await t.run((ctx) => ctx.db.query("mentorships").collect())).toEqual([]);
+  });
+});
+
 describe("warnings", () => {
   test("flag mentees and mentors who no longer qualify, in editable years only", async () => {
     const { t, admin } = await setup();
