@@ -152,7 +152,9 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   phone, notes). Pairings are per staff year, don't carry over, and only the
   current and next year can change; the list flags a mentee or leader mentor
   who no longer qualifies. A leader mentor sees just their own current-year
-  mentees. Pairings from the old app were copied in once, in 2.10.1.
+  mentees. Pairings from the old app were copied in once, in 2.10.1. A list
+  of pairings for any year can be added from the command line
+  (`mentoring:setPairings`) under the same rules.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on

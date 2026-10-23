@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.4] - 2026-10-23
+
+### Added
+- **A command-line tool for adding mentoring pairings**
+  (`mentoring:setPairings`) in any staff year, including past years the app
+  can't change. It checks each pair the way the Mentoring screen does, finds
+  an external mentor by name or adds them, records the admin who asked for
+  the change, and saves nothing if any pair fails.
+
 ## [2.10.3] - 2026-10-23
 
 ### Added

@@ -1,4 +1,4 @@
-import { ConvexError, v } from "convex/values";
+import { ConvexError, Infer, v } from "convex/values";
 import {
   campusLeaderLine,
   cleanExternalMentor,
@@ -10,11 +10,12 @@ import {
 } from "../shared/mentoring";
 import type { RoleTitles } from "../shared/flow";
 import { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import {
   assertManagedYear,
   currentStaffYear,
   findProfileForYear,
+  isAdminProfile,
   nextStaffYear,
   optionalEmail,
   requireAdmin,
@@ -278,56 +279,123 @@ export const myMentees = query({
   },
 });
 
+async function savePairing(
+  ctx: MutationCtx,
+  year: number,
+  menteeEmail: string,
+  choice: Infer<typeof mentorValidator>,
+  updatedBy: string
+): Promise<Id<"mentorships">> {
+  const mentee = await findProfileForYear(ctx, menteeEmail.trim().toLowerCase(), year);
+  if (!mentee || !isCampusLeaderProfile(mentee)) {
+    throw new ConvexError(`${menteeEmail} isn't a Campus leader in ${year}.`);
+  }
+  let mentorEmail: string | undefined;
+  let externalMentorId: Id<"externalMentors"> | undefined;
+  if (choice.kind === "leader") {
+    const mentor = await findProfileForYear(ctx, choice.email.trim().toLowerCase(), year);
+    if (!mentor) {
+      throw new ConvexError(
+        `${choice.email} has no profile for ${year}. Add them as an external mentor instead.`
+      );
+    }
+    if (isCampusLeaderProfile(mentor)) {
+      throw new ConvexError("Campus leaders can't mentor other Campus leaders.");
+    }
+    mentorEmail = mentor.email;
+  } else {
+    if (!(await ctx.db.get("externalMentors", choice.id))) {
+      throw new ConvexError("That external mentor was deleted.");
+    }
+    externalMentorId = choice.id;
+  }
+  const fields = {
+    mentorEmail,
+    externalMentorId,
+    updatedBy,
+    updatedAt: Date.now(),
+    legacyKey: undefined,
+  };
+  const existing = await ctx.db
+    .query("mentorships")
+    .withIndex("by_menteeEmail_and_year", (q) =>
+      q.eq("menteeEmail", mentee.email).eq("year", year)
+    )
+    .unique();
+  if (existing) {
+    await ctx.db.patch("mentorships", existing._id, fields);
+    return existing._id;
+  }
+  return await ctx.db.insert("mentorships", { year, menteeEmail: mentee.email, ...fields });
+}
+
+async function externalMentorNamed(
+  ctx: MutationCtx,
+  name: string,
+  updatedBy: string
+): Promise<Id<"externalMentors">> {
+  const draft = { name, email: "", phone: "", notes: "" };
+  const problem = externalMentorError(draft);
+  if (problem) throw new ConvexError(problem);
+  const clean = cleanExternalMentor(draft);
+  const key = nameKey(clean.name);
+  const same = await ctx.db
+    .query("externalMentors")
+    .withIndex("by_nameKey", (q) => q.eq("nameKey", key))
+    .take(2);
+  if (same.length > 1) {
+    throw new ConvexError(`More than one external mentor is called ${clean.name}.`);
+  }
+  if (same.length === 1) return same[0]._id;
+  return await ctx.db.insert("externalMentors", {
+    ...clean,
+    nameKey: key,
+    updatedBy,
+    updatedAt: Date.now(),
+  });
+}
+
 export const setMentor = mutation({
   args: { year: v.number(), menteeEmail: v.string(), mentor: mentorValidator },
   handler: async (ctx, args) => {
     const caller = await requireAdmin(ctx);
     assertManagedYear(args.year);
-    const mentee = await findProfileForYear(ctx, args.menteeEmail.trim().toLowerCase(), args.year);
-    if (!mentee || !isCampusLeaderProfile(mentee)) {
-      throw new ConvexError(`${args.menteeEmail} isn't a Campus leader in ${args.year}.`);
+    return await savePairing(ctx, args.year, args.menteeEmail, args.mentor, caller.email);
+  },
+});
+
+export const setPairings = internalMutation({
+  args: {
+    year: v.number(),
+    by: v.string(),
+    pairs: v.array(
+      v.object({
+        menteeEmail: v.string(),
+        mentor: v.union(
+          v.object({ kind: v.literal("leader"), email: v.string() }),
+          v.object({ kind: v.literal("external"), name: v.string() })
+        ),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const by = args.by.trim().toLowerCase();
+    const admin = await findProfileForYear(ctx, by, currentStaffYear());
+    if (!admin || !(await isAdminProfile(ctx, admin))) {
+      throw new ConvexError(`${args.by} isn't an admin in ${currentStaffYear()}.`);
     }
-    let mentorEmail: string | undefined;
-    let externalMentorId: Id<"externalMentors"> | undefined;
-    if (args.mentor.kind === "leader") {
-      const mentor = await findProfileForYear(ctx, args.mentor.email.trim().toLowerCase(), args.year);
-      if (!mentor) {
-        throw new ConvexError(
-          `${args.mentor.email} has no profile for ${args.year}. Add them as an external mentor instead.`
-        );
-      }
-      if (isCampusLeaderProfile(mentor)) {
-        throw new ConvexError("Campus leaders can't mentor other Campus leaders.");
-      }
-      mentorEmail = mentor.email;
-    } else {
-      if (!(await ctx.db.get("externalMentors", args.mentor.id))) {
-        throw new ConvexError("That external mentor was deleted.");
-      }
-      externalMentorId = args.mentor.id;
+    const saved: Id<"mentorships">[] = [];
+    for (const pair of args.pairs) {
+      const choice =
+        pair.mentor.kind === "leader"
+          ? pair.mentor
+          : {
+              kind: "external" as const,
+              id: await externalMentorNamed(ctx, pair.mentor.name, by),
+            };
+      saved.push(await savePairing(ctx, args.year, pair.menteeEmail, choice, by));
     }
-    const fields = {
-      mentorEmail,
-      externalMentorId,
-      updatedBy: caller.email,
-      updatedAt: Date.now(),
-      legacyKey: undefined,
-    };
-    const existing = await ctx.db
-      .query("mentorships")
-      .withIndex("by_menteeEmail_and_year", (q) =>
-        q.eq("menteeEmail", mentee.email).eq("year", args.year)
-      )
-      .unique();
-    if (existing) {
-      await ctx.db.patch("mentorships", existing._id, fields);
-      return existing._id;
-    }
-    return await ctx.db.insert("mentorships", {
-      year: args.year,
-      menteeEmail: mentee.email,
-      ...fields,
-    });
+    return saved;
   },
 });
 

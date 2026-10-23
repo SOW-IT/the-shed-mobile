@@ -70,11 +70,9 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       after anyone submits more on the old site; requests already acted on in
       THE SHED are left alone.
 
-- [ ] **Give 2019 and 2020 back their "Department Overseer" title** once
-      2.10.3 is live, and Juno Yu his 2019 Campus Chaplain role:
-      `npx convex run --prod history:setRoleTitle '{"year":2019,"title":"Department Overseer","standsFor":"Head of Department"}'`,
-      the same with `"year":2020`, then
-      `npx convex run --prod history:setPastAssignments '{"year":2019,"email":"juno.yu@sowaustralia.com","assignments":[{"role":"Campus Chaplain","department":"Chaplaincy"},{"role":"Head of Department","department":"Events"}]}'`.
+- [ ] **Add the 2025–26 and 2026–27 mentor lists** once 2.10.4 is live:
+      `npx convex run --prod mentoring:setPairings` for 2026 and 2027, eight
+      pairings each, from the lists given on 2026-10-23.
 
 - [ ] **Privacy policy**: the App Store listing links SOW's general policy
       (`Privacy Policy (Final)_20240428.pdf`). Adapt it to cover Google
@@ -99,6 +97,14 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 Recorded so nobody re-does them. Each was confirmed against the live
 deployments, not assumed.
+
+**2019 and 2020 called Head of Department "Department Overseer" again**:
+2.10.3's `history:setRoleTitle` ran on production for both years on
+2026-10-23, and `history:setPastAssignments` gave Juno Yu back his 2019
+Campus Chaplain role beside Head of Department for Events. *Evidence:* the
+roles rows read back with `standsFor: "Head of Department"`, Juno Yu's 2019
+profile reads back with both assignments, and the live org chart at
+theshed.sow.org.au shows "Department Overseer" for 2019.
 
 **Old app's mentoring pairings copied in**: 2.10.1's one-off import ran
 against production on 2026-10-23 and was removed in 2.10.3. *Evidence:* the
