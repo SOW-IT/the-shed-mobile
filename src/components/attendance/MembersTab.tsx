@@ -10,9 +10,9 @@ import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
   ROLE_FIELD_KEY,
-  orderedRoleFilterOptions,
   orderedSelectOptions,
 } from "../../../shared/attendanceMemberMeta";
+import { ROLE_FILTER_LABELS } from "../../../shared/memberRole";
 import {
   Btn,
   EmptyState,
@@ -34,10 +34,6 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const PAGE_SIZE = 30;
 
-/**
- * Attendance → Members: the searchable, filterable member list for a year.
- * Pads its bottom to clear the tab's Create member footer.
- */
 export function MembersTab({
   year,
   onEditMember,
@@ -112,7 +108,6 @@ export function MembersTab({
     (count, values) => count + values.length,
     0
   );
-  // Held too, so the count doesn't blink while a new search loads.
   const total = useHeldValue(page?.total, "total").value ?? accumulated.length;
 
   if (metadata === undefined) return <LoadingState />;
@@ -161,13 +156,16 @@ export function MembersTab({
             key={field._id}
             label={`Filter: ${field.key}`}
             values={filters[field._id] ?? []}
-            options={[
-              { label: "Unselected", value: "unset" },
-              ...(field.key === ROLE_FIELD_KEY
-                ? orderedRoleFilterOptions(field.values, field.lockedValues)
-                : orderedSelectOptions(field.values, field.lockedValues)
-              ).map(({ id, label }) => ({ label, value: id })),
-            ]}
+            options={
+              field.key === ROLE_FIELD_KEY
+                ? ROLE_FILTER_LABELS.map((label) => ({ label, value: label }))
+                : [
+                    { label: "Unselected", value: "unset" },
+                    ...orderedSelectOptions(field.values, field.lockedValues).map(
+                      ({ id, label }) => ({ label, value: id })
+                    ),
+                  ]
+            }
             placeholder="All"
             onSelect={(values) =>
               setFilters((prev) => {

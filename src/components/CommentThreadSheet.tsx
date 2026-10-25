@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { radius, spacing, typography, useAppTheme } from "../theme";
@@ -27,14 +27,8 @@ type ThreadComment = {
   reactions?: ThreadReaction[];
 };
 
-/** Comments added optimistically have no server id yet, so can't be reacted to. */
 const isOptimisticId = (id: string) => id.startsWith("optimistic-");
 
-/**
- * A request's comment thread in a bottom sheet: the comments, a composer, and,
- * when `onReact` is given, emoji reactions. The caller owns the data and
- * passes `comments` (undefined while loading, null when it can't be read).
- */
 export const CommentThreadSheet = ({
   visible,
   onClose,

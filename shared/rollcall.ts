@@ -87,8 +87,6 @@ export const defaultEventWindow = (): { dateStart: number; dateEnd: number } => 
   return { dateStart, dateEnd: dateStart + 2 * 60 * 60 * 1000 };
 };
 
-/** The event window from the Schedule step's fields. An event can run over
- *  several days, so the end has its own date. */
 export const eventWindowFromInputs = (fields: {
   startDate: string;
   startTime: string;
@@ -106,9 +104,6 @@ export const eventWindowFromInputs = (fields: {
   return { dateStart, dateEnd };
 };
 
-/** Where the end date goes when the start date moves: it keeps the same
- *  number of days after the start, so a one-day event stays one day and a
- *  three-day camp stays three days. */
 export const endDateAfterStartChange = (
   prevStart: string,
   nextStart: string,
@@ -156,12 +151,9 @@ export const formatEventRange = (startMs: number, endMs: number): string => {
   return `${date(start)}, ${time(start)} - ${date(end)}, ${time(end)}`;
 };
 
-/** Whether the event ends on a later calendar day than it starts. */
 export const isMultiDayEvent = (startMs: number, endMs: number): boolean =>
   toDateInputValue(new Date(startMs)) !== toDateInputValue(new Date(endMs));
 
-/** A sign-in's clock time, with the day in front for a multi-day event so
- *  Saturday's sign-ins read apart from Friday's. */
 export const formatSignInTime = (ms: number, withDay = false): string => {
   const time = new Date(ms).toLocaleTimeString("en-AU", {
     hour: "numeric",
@@ -201,11 +193,6 @@ export const personDisplayName = (
   return trimmed ?? "";
 };
 
-/**
- * Stable identity for an attendance row. Staff keys fold the legacy
- * `@sowaustralia.com` spelling into `@sow.org.au` so one person signed in
- * under either address is counted once.
- */
 export const personKey = (row: {
   email?: string | null;
   memberId?: string | null;
@@ -217,36 +204,25 @@ export const personKey = (row: {
 
 export const eventHasEnded = (dateEnd: number, now = Date.now()): boolean => now > dateEnd;
 
-/** How long after a sign-in it can still be undone once the event has ended,
- *  so a leader who taps the wrong person can fix it straight away. */
 export const SIGN_IN_UNDO_GRACE_MS = 10 * 60 * 1000;
 
-/** Whether a sign-in may be reversed only because it is still within the
- *  undo grace — i.e. the event has ended and it was made during the event. */
 export const reversibleOnlyByGrace = (
   event: { dateEnd: number },
-  signInTime: number,
+  addedAt: number,
   now = Date.now()
 ): boolean =>
   eventHasEnded(event.dateEnd, now) &&
-  signInTime <= event.dateEnd &&
-  now - signInTime <= SIGN_IN_UNDO_GRACE_MS;
+  addedAt <= event.dateEnd &&
+  now - addedAt <= SIGN_IN_UNDO_GRACE_MS;
 
 export const canReverseSignIn = (
   event: { dateEnd: number },
-  signInTime: number,
+  addedAt: number,
   now = Date.now()
 ): boolean =>
   !eventHasEnded(event.dateEnd, now) ||
-  signInTime > event.dateEnd ||
-  now - signInTime <= SIGN_IN_UNDO_GRACE_MS;
-
-type AttendanceFrequencyScore = {
-  tagMatches: number;
-  subgroupMatches: number;
-  total: number;
-  latest: number;
-};
+  addedAt > event.dateEnd ||
+  now - addedAt <= SIGN_IN_UNDO_GRACE_MS;
 
 export const memberMatchesEventCampus = (
   eventSubgroups: ReadonlySet<string>,
@@ -256,28 +232,6 @@ export const memberMatchesEventCampus = (
     (label): label is string => Boolean(label)
   );
   return labels.some((label) => eventSubgroups.has(label));
-};
-
-export const compareAttendanceFrequency = (
-  aScore: AttendanceFrequencyScore | undefined,
-  bScore: AttendanceFrequencyScore | undefined,
-  aCampusMatch: boolean,
-  bCampusMatch: boolean,
-  aName: string,
-  bName: string
-): number => {
-  const tagDelta = (bScore?.tagMatches ?? 0) - (aScore?.tagMatches ?? 0);
-  if (tagDelta !== 0) return tagDelta;
-  const subgroupDelta =
-    (bScore?.subgroupMatches ?? 0) - (aScore?.subgroupMatches ?? 0);
-  if (subgroupDelta !== 0) return subgroupDelta;
-  const campusDelta = Number(bCampusMatch) - Number(aCampusMatch);
-  if (campusDelta !== 0) return campusDelta;
-  const totalDelta = (bScore?.total ?? 0) - (aScore?.total ?? 0);
-  if (totalDelta !== 0) return totalDelta;
-  const latestDelta = (bScore?.latest ?? 0) - (aScore?.latest ?? 0);
-  if (latestDelta !== 0) return latestDelta;
-  return aName.localeCompare(bName);
 };
 
 type ProfileAssignment = {

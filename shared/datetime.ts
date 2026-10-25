@@ -27,8 +27,6 @@ export const parseDateInputValue = (value: string): Date | null => {
   return date;
 };
 
-/** A YYYY-MM-DD value moved by whole calendar days, or null when it can't
- *  be read. Steps the calendar, not 24-hour blocks, so DST can't skip a day. */
 export const addDaysToDateInputValue = (
   value: string,
   days: number
@@ -63,7 +61,6 @@ export const parseDateTimeInputValues = (
 
 const MINUTE_MS = 60_000;
 
-/** "just now", "5m ago" … "3w ago", "4mo ago", "1y ago". */
 export const timeAgo = (ms: number, now: number = Date.now()): string => {
   const secs = Math.floor((now - ms) / 1000);
   if (secs < 60) return "just now";
@@ -78,6 +75,30 @@ export const timeAgo = (ms: number, now: number = Date.now()): string => {
   const months = Math.floor(days / 30);
   if (months < 12) return `${months}mo ago`;
   return `${Math.floor(months / 12)}y ago`;
+};
+
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+export const daysSince = (since: number, now: number = Date.now()): number =>
+  Math.max(0, Math.floor((now - since) / DAY_MS));
+
+export const waitingLabel = (since: number, now: number = Date.now()): string => {
+  const days = daysSince(since, now);
+  if (days === 0) return "Waiting under a day";
+  return `Waiting ${days} ${days === 1 ? "day" : "days"}`;
+};
+
+export const formatDuration = (ms: number): string => {
+  if (ms < HOUR_MS) return "under an hour";
+  const hours = Math.round(ms / HOUR_MS);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  const days = ms / DAY_MS;
+  if (days < 10) {
+    const rounded = Math.round(days * 10) / 10;
+    return `${rounded} ${rounded === 1 ? "day" : "days"}`;
+  }
+  return `${Math.round(days)} days`;
 };
 
 export const compactAgo = (ms: number, now: number = Date.now()): string => {

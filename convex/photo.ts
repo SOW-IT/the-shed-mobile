@@ -1,6 +1,8 @@
 import { Doc } from "./_generated/dataModel";
 import { QueryCtx } from "./_generated/server";
 
+export const AVATAR_SMALL_ENOUGH_BYTES = 64 * 1024;
+
 type PhotoCtx = Pick<QueryCtx, "db" | "storage">;
 
 export async function photoUrl(

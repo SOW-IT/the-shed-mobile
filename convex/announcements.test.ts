@@ -11,16 +11,15 @@ const modules = import.meta.glob("./**/*.ts");
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-// Mid staff year, so nothing here straddles the 1 October rollover.
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
 const YEAR = staffYearForDate(new Date(PINNED_NOW));
 
-const ADMIN = "admin@sow.org.au"; // Data and IT staff
-const HR = "hannah@sow.org.au"; // People and Culture, in Human Resources
+const ADMIN = "admin@sow.org.au";
+const HR = "hannah@sow.org.au";
 const IT_HEAD = "ian@sow.org.au";
-const FIN = "fiona@sow.org.au"; // Finance staff
-const LEADER = "luke@sow.org.au"; // Student Leader at UNSW, also Events staff
-const PRES = "penny@sow.org.au"; // President at USYD
+const FIN = "fiona@sow.org.au";
+const LEADER = "luke@sow.org.au";
+const PRES = "penny@sow.org.au";
 const UNSW = "University of New South Wales";
 const USYD = "University of Sydney";
 
@@ -77,7 +76,6 @@ async function setup() {
     for (const [email, name, assignments] of people) {
       await ctx.db.insert("staffProfiles", { email, year: YEAR, name, assignments });
     }
-    // Last year's staff aren't this year's leaders.
     await ctx.db.insert("staffProfiles", {
       email: "old@sow.org.au",
       year: YEAR - 1,
@@ -119,7 +117,6 @@ describe("who can use announcements", () => {
       expect.arrayContaining(["Governance", "Human Resources"])
     );
     expect(options?.departments).toContainEqual({ name: "Finance", division: "Governance" });
-    // Only roles someone has this year, in the app's usual order.
     expect(options?.roles).toEqual(["Staff", "Student Leader", "President", "Head of Department"]);
     expect(await asUser(t, HR).query(api.announcements.options, {})).not.toBeNull();
 
@@ -142,16 +139,12 @@ describe("audienceSize", () => {
 
     expect(await size({})).toEqual({ people: 6, withApp: 2 });
     expect(await size({ departments: ["Finance"] })).toEqual({ people: 1, withApp: 1 });
-    // A division reaches its departments' staff.
     expect(await size({ divisions: ["Governance"] })).toEqual({ people: 3, withApp: 1 });
     expect(await size({ campuses: [UNSW, USYD] })).toEqual({ people: 2, withApp: 1 });
-    // Groups add up; roles narrow them down.
     expect(await size({ campuses: [USYD], departments: ["Finance"] })).toEqual({ people: 2, withApp: 1 });
     expect(await size({ roles: ["Staff"] })).toEqual({ people: 4, withApp: 2 });
     expect(await size({ campuses: [UNSW, USYD], roles: ["President"] })).toEqual({ people: 1, withApp: 0 });
-    // Luke is a Student Leader at UNSW and Staff in Events, not Staff at UNSW.
     expect(await size({ campuses: [UNSW], roles: ["Staff"] })).toEqual({ people: 0, withApp: 0 });
-    // Stray spaces and repeats don't matter.
     expect(await size({ departments: [" Finance ", "Finance", ""] })).toEqual({ people: 1, withApp: 1 });
   });
 });
@@ -191,6 +184,15 @@ describe("sending now", () => {
       ]);
     }
     expect(await notificationsFor(t, LEADER)).toEqual([]);
+    expect((await asUser(t, ADMIN).query(api.announcements.get, { id: result.id }))?.details?.seen).toEqual({
+      total: 3,
+      count: 0,
+      notSeen: [
+        { email: ADMIN, name: "Ada Admin" },
+        { email: FIN, name: "Fiona" },
+        { email: IT_HEAD, name: "Ian" },
+      ],
+    });
 
     const pushes = fetchMock.mock.calls.filter(([u]) => String(u).includes("push/send"));
     expect(pushes).toHaveLength(1);
@@ -209,7 +211,6 @@ describe("sending now", () => {
     const t = await setup();
     const fetchMock = okFetch();
     vi.stubGlobal("fetch", fetchMock);
-    // Fiona's app can open announcement pages; Ian has no app.
     await t.run((ctx) =>
       ctx.db.insert("appInstalls", { email: FIN, platform: "ios", version: "2.4.0", seenAt: PINNED_NOW })
     );
@@ -285,7 +286,6 @@ describe("scheduling", () => {
       }),
     ]);
     expect(waiting?.sent).toEqual([]);
-    // The page gets the sender's own activity, to check the limits first.
     expect(waiting?.mine).toEqual({
       recent: [
         {
@@ -301,6 +301,7 @@ describe("scheduling", () => {
       pending: 0,
     });
     expect(await notificationsFor(t, FIN)).toEqual([]);
+    expect((await admin.query(api.announcements.get, { id }))?.details?.seen).toBeNull();
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const after = await admin.query(api.announcements.list, {});
@@ -475,7 +476,6 @@ describe("checks before sending", () => {
     await expect(
       admin.mutation(api.announcements.send, draft({ message: "this WEEK'S staff meeting is on  Thursday at 7pm." }))
     ).rejects.toThrow(/just sent this/);
-    // Another admin sending the same words is their own announcement.
     await asUser(t, HR).mutation(api.announcements.send, draft());
   });
 
@@ -490,7 +490,6 @@ describe("checks before sending", () => {
     await expect(admin.mutation(api.announcements.send, draft({ title: "Five" }))).rejects.toThrow(
       /3 announcements an hour/
     );
-    // HR's allowance is their own.
     await asUser(t, HR).mutation(api.announcements.send, draft({ title: "Five" }));
     vi.setSystemTime(PINNED_NOW + HOUR + MINUTE);
     await admin.mutation(api.announcements.send, draft({ title: "Five" }));
@@ -574,7 +573,21 @@ describe("the announcement page", () => {
       details: null,
     });
     expect(await asUser(t, HR).query(api.announcements.get, { id })).toMatchObject({
-      details: { status: "sent", audience: "Finance", sendEmail: false, people: 1, withApp: 1, emailed: 0 },
+      details: {
+        status: "sent",
+        audience: "Finance",
+        sendEmail: false,
+        people: 1,
+        withApp: 1,
+        emailed: 0,
+        seen: { total: 1, count: 0, notSeen: [{ email: FIN, name: "Fiona" }] },
+      },
+    });
+    await asUser(t, FIN).mutation(api.notifications.markReadForAnnouncement, { announcementId: id });
+    expect((await asUser(t, HR).query(api.announcements.get, { id }))?.details?.seen).toEqual({
+      total: 1,
+      count: 1,
+      notSeen: [],
     });
     expect(await asUser(t, LEADER).query(api.announcements.get, { id })).toBeNull();
     expect(await t.query(api.announcements.get, { id })).toBeNull();

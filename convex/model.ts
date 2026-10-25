@@ -9,6 +9,7 @@ import {
   FINANCE,
   roleNeedsUniversity,
   rolesOfLike,
+  type RoleTitles,
   incomingStaffYear as incomingStaffYearForDate,
   staffYearForDate,
   withinRolloverAuthGrace,
@@ -24,6 +25,16 @@ export const DELEGATION_QUERY_LIMIT = 500;
 export const currentStaffYear = () => staffYearForDate(new Date());
 export const nextStaffYear = () => currentStaffYear() + 1;
 export const incomingStaffYear = () => incomingStaffYearForDate(new Date());
+
+export const assertManagedYear = (year: number) => {
+  if (year !== currentStaffYear() && year !== nextStaffYear()) {
+    throw new ConvexError(
+      `You can only manage ${currentStaffYear()} and ${nextStaffYear()}.`
+    );
+  }
+};
+
+export const nightlyJobsPaused = (): boolean => process.env.NIGHTLY_JOBS_PAUSED === "true";
 
 export const allowedDomain = () =>
   process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
@@ -113,11 +124,6 @@ export async function findMemberByEmail(
   return null;
 }
 
-/**
- * Best-known display name for `email` in `year`: the staff profile's name,
- * else the Google directory name, else null. Legacy-domain spellings of the
- * same address are tried too.
- */
 export async function resolveName(
   ctx: Ctx,
   email: string,
@@ -283,7 +289,6 @@ export async function resolveStaffIdentity(
   const profiles = await staffProfilesForEmail(ctx, email);
   const candidates = staffEmailCandidates(email);
 
-  // One account lookup serves both the import key and the user link below.
   let user: Doc<"users"> | null = null;
   for (const candidate of candidates) {
     user = await ctx.db
@@ -323,6 +328,20 @@ export async function resolveStaffIdentity(
   const userId = profiles.find((p) => p.userId !== undefined)?.userId ?? user?._id;
 
   return { importId, name, userId };
+}
+
+export const roleTitlesFrom = (rows: readonly Doc<"roles">[]): RoleTitles =>
+  Object.fromEntries(rows.flatMap((r) => (r.standsFor ? [[r.standsFor, r.name]] : [])));
+
+export const assignableRoleRows = (rows: readonly Doc<"roles">[]): Doc<"roles">[] =>
+  rows.filter((r) => r.standsFor === undefined);
+
+export async function roleTitlesForYear(ctx: Ctx, year: number): Promise<RoleTitles> {
+  const rows = await ctx.db
+    .query("roles")
+    .withIndex("by_year_and_name", (q) => q.eq("year", year))
+    .take(500);
+  return roleTitlesFrom(rows);
 }
 
 export async function getDepartment(

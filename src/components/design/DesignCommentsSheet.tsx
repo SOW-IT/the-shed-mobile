@@ -5,7 +5,6 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { CommentThreadSheet } from "@/components/CommentThreadSheet";
 import { useRetained, useThreadActive } from "@/components/CommentsSheet";
 
-/** A design request's comment thread: the requester and the Marketing team. */
 export const DesignCommentsSheet = ({
   id,
   visible,

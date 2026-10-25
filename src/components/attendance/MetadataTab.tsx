@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -6,7 +6,9 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
   CAMPUS_FIELD_KEY,
+  LEGACY_NOTES_FIELD_KEY,
   metadataFieldAllowsCustomOptions,
+  OTHER_INFO_FIELD_KEY,
   partitionSelectOptions,
   ROLE_FIELD_KEY,
 } from "../../../shared/attendanceMemberMeta";
@@ -40,7 +42,14 @@ type FieldDraft = {
 };
 
 const LOCKED_FIELD_KEYS = new Set(["Year", "Gender", "Campus", "Role"]);
-const GLOBAL_ONLY_FIELD_KEYS = new Set(["Year", "Gender", "Campus", "Role", "Notes"]);
+const GLOBAL_ONLY_FIELD_KEYS = new Set([
+  "Year",
+  "Gender",
+  "Campus",
+  "Role",
+  LEGACY_NOTES_FIELD_KEY,
+  OTHER_INFO_FIELD_KEY,
+]);
 
 const typeLabel = (type: FieldDraft["type"]) =>
   type === "select" ? "Select" : "Text input";
@@ -358,9 +367,16 @@ export function MetadataTab({
                           field.key === ROLE_FIELD_KEY;
                         return (
                           <>
+                            {field.key === ROLE_FIELD_KEY ? (
+                              <View style={{ marginTop: spacing.xs }}>
+                                <Muted>Only Visitor and Alumni can be set by hand.</Muted>
+                              </View>
+                            ) : null}
                             {showSections && locked.length > 0 ? (
                               <View style={{ marginTop: spacing.xs }}>
-                                <Muted>From org structure</Muted>
+                                <Muted>
+                                  {field.key === ROLE_FIELD_KEY ? "Built in" : "From org structure"}
+                                </Muted>
                               </View>
                             ) : null}
                             {locked.map(({ id, label }) =>

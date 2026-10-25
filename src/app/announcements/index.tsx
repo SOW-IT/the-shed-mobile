@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -40,11 +40,11 @@ import {
   WarningBanner,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { SignInPrompt } from "@/components/SignInPrompt";
 
 type Reach = "everyone" | "groups";
 type When = "now" | "later";
 
-/** "Fri 9 Oct, 3:00 pm" in the viewer's time. */
 const whenText = (ms: number) =>
   new Date(ms).toLocaleString("en-AU", {
     weekday: "short",
@@ -54,7 +54,6 @@ const whenText = (ms: number) =>
     minute: "2-digit",
   });
 
-/** The next whole hour, at least half an hour away: a sensible first pick. */
 const defaultSendAt = () => {
   const d = new Date(Date.now() + 30 * 60_000);
   d.setMinutes(0, 0, 0);
@@ -64,10 +63,8 @@ const defaultSendAt = () => {
 
 const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 
-/** The time right now, for event handlers (render uses `useNow`). */
 const currentTime = () => Date.now();
 
-/** The current time, refreshed every 15 seconds so time limits stay true while the page is open. */
 const useNow = () => {
   const [now, setNow] = useState(currentTime);
   useEffect(() => {
@@ -120,7 +117,6 @@ export default function AnnouncementsScreen() {
   } | null>(null);
 
   const audience = reach === "everyone" ? EVERYONE : groups;
-  // "Choose groups" with nothing picked would quietly mean everyone.
   const nothingPicked = reach === "groups" && isEveryone(groups);
   const size = useQuery(api.announcements.audienceSize, isAdmin ? { audience } : "skip");
   const back = () => (router.canGoBack() ? router.back() : router.replace("/home"));
@@ -130,14 +126,16 @@ export default function AnnouncementsScreen() {
   if (!isAdmin) {
     return (
       <Screen title="Announcements" onBack={back}>
-        <EmptyState icon="lock-closed-outline" title="Only admins can send announcements" />
+        {me === null ? (
+          <SignInPrompt what="page" />
+        ) : (
+          <EmptyState icon="lock-closed-outline" title="Only admins can send announcements" />
+        )}
       </Screen>
     );
   }
 
   const sendAt = when === "later" ? parseDateTimeInputValues(date, time) : null;
-  // Checked here first, so the button explains itself rather than the server
-  // refusing the send; the server checks the same rules again.
   const problemAt = (at: number) => {
     if (when === "later") {
       const late = sendAt === null ? "Pick a date and time." : scheduleError(sendAt, at);
@@ -155,7 +153,6 @@ export default function AnnouncementsScreen() {
     title.trim().length > 0 &&
     message.trim().length > 0 &&
     !!count &&
-    // The limits can't be checked until the sender's own sends have loaded.
     !!history &&
     !nothingPicked &&
     !problem.schedule &&
@@ -174,7 +171,6 @@ export default function AnnouncementsScreen() {
 
   const submit = async () => {
     if (sending) return;
-    // Time may have moved on while the confirmation was open.
     const late = problemAt(currentTime());
     if (late.schedule || late.limit) {
       setError(late.schedule ?? late.limit);

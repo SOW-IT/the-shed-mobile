@@ -22,6 +22,7 @@ import {
   yearMetadataSortKey,
   yearOptionIdForStoredValue,
 } from "../shared/attendanceMemberMeta";
+import { markedRoleOf, memberRole, withMarkedRole } from "../shared/memberRole";
 import { capitalizeMemberName, personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, isSowStaffAddress, staffEmailCandidates } from "../shared/rollcallImport";
 import {
@@ -38,8 +39,11 @@ import {
   logAttendanceAction,
   MAX_AUDIT_ATTENDANCE_LINES,
 } from "./attendanceAudit";
+import { recountEventAttendance } from "./attendanceCounts";
 import { Doc, Id } from "./_generated/dataModel";
+import { memberRoleResolver } from "./memberRoles";
 import { photoFor } from "./photo";
+import { readSettings } from "./weeklyInsights";
 import {
   assignedProfileForEmail,
   isAssigned,
@@ -60,17 +64,17 @@ export type MemberRow = {
   kind: "staff" | "member";
   name: string;
   email?: string;
-  /** A staff person's own email, alongside their staff one. */
   personalEmail?: string;
   memberId?: string;
   roles: string[];
+  role?: string;
   subtitle?: string;
   university?: string;
   metadata: Record<string, string>;
   photo?: string | null;
 };
 
-const allMetadataFields = async (
+export const allMetadataFields = async (
   ctx: Parameters<typeof getProfile>[0]
 ): Promise<MetadataField[]> =>
   (await ctx.db.query("attendanceMetadata").collect()).sort(
@@ -115,6 +119,7 @@ export const list = query({
     const metadataFields = await allMetadataFields(ctx);
     const yearField = metadataFields.find((f) => f.key === STUDENT_YEAR_FIELD_KEY);
     const roleField = metadataFields.find((f) => f.key === ROLE_FIELD_KEY);
+    const roleOf = await memberRoleResolver(ctx, metadataFields);
 
     const profiles = (
       await ctx.db
@@ -163,6 +168,7 @@ export const list = query({
         personalEmail: shadow?.email,
         memberId: shadow?._id,
         roles,
+        role: roles[0],
         subtitle: subtitle || undefined,
         university,
         metadata,
@@ -172,6 +178,11 @@ export const list = query({
 
     for (const m of pureExtras) {
       const university = resolveUniversity(metadataFields, m.metadata);
+      const { role } = roleOf(m);
+      const metaSubtitle = metadataSubtitle(metadataFields, m.metadata, viewingYear, [
+        CAMPUS_FIELD_KEY,
+        ROLE_FIELD_KEY,
+      ]);
       rows.push({
         key: `member:${m._id}`,
         kind: "member",
@@ -179,7 +190,8 @@ export const list = query({
         email: m.email,
         memberId: m._id,
         roles: [],
-        subtitle: metadataSubtitle(metadataFields, m.metadata, viewingYear, [CAMPUS_FIELD_KEY]),
+        role,
+        subtitle: [role, metaSubtitle].filter(Boolean).join(" · "),
         university,
         metadata: m.metadata ?? {},
       });
@@ -210,20 +222,15 @@ export const list = query({
         if (value === "unset") return optionId === "";
         return optionId === value;
       }
-      if (value === "unset") return !row.metadata[fieldId];
       if (roleField && fieldId === roleField._id) {
         const filterLabel = roleField.values?.[value] ?? value;
-        const stored = row.metadata[fieldId];
-        const metadataRoleLabel = stored
-          ? formatMetadataFieldValue(
-              roleField.key,
-              stored,
-              viewingYear,
-              roleField.values
-            )
-          : null;
-        return roleFilterMatches(filterLabel, row.roles, metadataRoleLabel);
+        return roleFilterMatches(
+          filterLabel,
+          row.roles,
+          row.kind === "member" ? (row.role ?? null) : null
+        );
       }
+      if (value === "unset") return !row.metadata[fieldId];
       return row.metadata[fieldId] === value;
     };
 
@@ -243,6 +250,7 @@ export const list = query({
     const sortKey = args.sortKey ?? "name";
     const sortField = metadataFields.find((f) => f._id === sortKey);
     const metadataSortValue = (row: MemberRow): string => {
+      if (roleField && sortKey === roleField._id) return row.role ?? "";
       const raw = row.metadata[sortKey] ?? "";
       if (!raw || !sortField) return raw;
       return (
@@ -306,7 +314,16 @@ export const get = query({
     const isStaffNow =
       (profile !== null && profileYear === currentStaffYear()) ||
       (await staffProfileOfMember(ctx, row._id, currentStaffYear())) !== null;
+    const fields = await allMetadataFields(ctx);
+    const { settings } = await readSettings(ctx);
+    const roleRuleSettings = {
+      regularShare: settings.regularShare,
+      carryOverWeeklies: settings.carryOverWeeklies,
+      newcomerPromoteWeeklies: settings.newcomerPromoteWeeklies,
+      visitorMinWeeklies: settings.visitorMinWeeklies,
+    };
     if (!profile) {
+      const roleOf = await memberRoleResolver(ctx, fields);
       return {
         ...row,
         isStaffOverlay: false,
@@ -314,10 +331,10 @@ export const get = query({
         nameLocked: false,
         personalEmail: undefined as string | undefined,
         profileChurch: null,
+        role: roleOf(row),
+        roleRuleSettings,
       };
     }
-    const fields = await allMetadataFields(ctx);
-    // Staff pick their church in their own Profile; the sheet just shows it.
     const user = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", profile.email.toLowerCase()))
@@ -333,9 +350,16 @@ export const get = query({
       personalEmail: row.email,
       metadata: staffLockedMetadata(fields, profile, row.metadata),
       profileChurch: church?.name ?? null,
+      role: (() => {
+        const staff = memberRole({ staffRole: rolesOfLike(profile)[0] });
+        return { ...staff, marked: null, automatic: staff };
+      })(),
+      roleRuleSettings,
     };
   },
 });
+
+const NAME_MATCH_LIMIT = 50;
 
 export const byName = query({
   args: { name: v.string() },
@@ -343,19 +367,20 @@ export const byName = query({
     if (!(await optionalProfile(ctx))) return [];
     const trimmed = name.trim();
     if (!trimmed) return [];
-    // Exact matches come straight off the index; the case-insensitive
-    // fallback only scans when nothing matched exactly.
     const exact = await ctx.db
       .query("attendanceMembers")
       .withIndex("by_name", (q) => q.eq("name", trimmed))
-      .take(50);
+      .take(NAME_MATCH_LIMIT);
     const normalized = trimmed.toLowerCase();
     const members =
       exact.length > 0
         ? exact
-        : (await ctx.db.query("attendanceMembers").collect()).filter(
-            (m) => m.name.trim().toLowerCase() === normalized
-          );
+        : (
+            await ctx.db
+              .query("attendanceMembers")
+              .withSearchIndex("search_name", (q) => q.search("name", trimmed))
+              .take(NAME_MATCH_LIMIT)
+          ).filter((m) => m.name.trim().toLowerCase() === normalized);
     return members
       .map((m) => ({
         _id: m._id,
@@ -383,15 +408,9 @@ export const ensureForStaff = mutation({
   },
 });
 
-/** Typing a staff email onto a plain member used to relabel the row as that
- *  staff person without moving its attendance, splitting their history (and
- *  leaving a hidden duplicate if they already had a row). Merge does it
- *  properly, so the Email field points there instead. */
 const staffEmailMessage = (profile: Doc<"staffProfiles">) =>
   `${profile.email} is ${personDisplayName(profile.name, profile.email)}'s staff email. Use Merge instead.`;
 
-/** The staff person an email belongs to, if any — lets the edit sheet offer
- *  Merge before the save is refused. */
 export const staffForEmail = query({
   args: { email: v.string(), staffYear: v.optional(v.number()) },
   handler: async (ctx, { email, staffYear }) => {
@@ -411,7 +430,6 @@ export const staffForEmail = query({
   },
 });
 
-/** A member's church from the list: checked to still be there. */
 async function checkedChurch(ctx: Ctx, churchId: Id<"churches"> | null | undefined) {
   if (churchId && !(await ctx.db.get("churches", churchId))) {
     throw new ConvexError("That church isn't in the list any more.");
@@ -430,8 +448,6 @@ export const create = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const trimmed = capitalizeMemberName(name.trim());
     if (!trimmed) throw new ConvexError("Name is required.");
-    // A member can't carry a staff email: that person is already listed as
-    // staff, and their attendance is keyed by that email.
     if (canonicalEmailKey(email)) {
       const staff = await latestStaffProfile(ctx, email);
       if (staff) {
@@ -444,7 +460,7 @@ export const create = mutation({
     const memberId = await ctx.db.insert("attendanceMembers", {
       name: trimmed,
       email: email?.trim().toLowerCase() || undefined,
-      metadata,
+      metadata: metadata && withMarkedRole(await allMetadataFields(ctx), metadata, undefined),
       churchId: (await checkedChurch(ctx, churchId)) ?? undefined,
     });
     await logAttendanceAction(ctx, {
@@ -463,12 +479,9 @@ export const update = mutation({
     memberId: v.id("attendanceMembers"),
     name: v.string(),
     email: v.optional(v.string()),
-    /** A staff person's own email; ignored for plain members. */
     personalEmail: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
     staffYear: v.optional(v.number()),
-    /** A plain member's church; null clears it, left out keeps it. Staff
-     *  set theirs in their own Profile, so it's ignored for them. */
     churchId: v.optional(v.union(v.id("churches"), v.null())),
   },
   handler: async (ctx, { memberId, name, email, personalEmail, metadata, staffYear, churchId }) => {
@@ -517,15 +530,13 @@ export const update = mutation({
     const trimmed = capitalizeMemberName(name.trim());
     if (!trimmed) throw new ConvexError("Name is required.");
     const ownEmail = email?.trim().toLowerCase() || undefined;
-    // A plain member's email is their own; a staff one (say a former
-    // leader's old SOW address, or one an import brought in) would make them
-    // read as staff, so it has to be replaced or cleared before saving.
     if (ownEmail && (await isStaffAddress(ctx, ownEmail))) {
       throw new ConvexError(NOT_PERSONAL(ownEmail));
     }
+    const fields = await allMetadataFields(ctx);
     const nextMetadata = staffNow
-      ? memberOwnMetadata(await allMetadataFields(ctx), metadata, row.metadata)
-      : metadata;
+      ? memberOwnMetadata(fields, metadata, row.metadata)
+      : withMarkedRole(fields, metadata, row.metadata);
     const nextChurch =
       churchId === undefined ? row.churchId : ((await checkedChurch(ctx, churchId)) ?? undefined);
     if (
@@ -555,13 +566,8 @@ export const update = mutation({
 export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }): Promise<boolean> => {
-    // Deleting throws attendance away for good; leaders merge duplicates
-    // instead, and only admins (Data and IT, HR, the Governance head, the
-    // Director) can delete.
     const { email: actorEmail } = await requireAdmin(ctx);
     const row = await ctx.db.get(memberId);
-    // Someone else may have deleted or merged them first; say so rather than
-    // letting the caller report a deletion that didn't happen here.
     if (!row) return false;
     if (await staffProfileOfMember(ctx, memberId, currentStaffYear())) {
       throw new ConvexError(
@@ -573,17 +579,11 @@ export const remove = mutation({
       .withIndex("by_member", (q) => q.eq("memberId", memberId))
       .collect();
 
-    // Only the records that will actually be listed need a name, so the reads
-    // are bounded by the line cap rather than by how long the member has been
-    // around. Resolving every event first would spend one db.get per event
-    // against Convex's per-mutation index-range-read budget to produce names
-    // that get sliced off anyway.
     const listed = signed
       .slice()
       .sort((a, b) => b.signInTime - a.signInTime)
       .slice(0, MAX_AUDIT_ATTENDANCE_LINES);
 
-    // Named while their attendance rows still exist, once per distinct event.
     const eventNames = new Map<string, string>();
     for (const record of listed) {
       if (eventNames.has(record.eventId)) continue;
@@ -598,6 +598,9 @@ export const remove = mutation({
     const hidden = signed.length - shown.length;
 
     for (const s of signed) await ctx.db.delete(s._id);
+    for (const eventId of new Set(signed.map((s) => s.eventId))) {
+      await recountEventAttendance(ctx, eventId);
+    }
     for (const profile of await profilesOfMember(ctx, memberId)) {
       await ctx.db.patch("staffProfiles", profile._id, { memberId: undefined });
     }
@@ -623,8 +626,6 @@ export const remove = mutation({
   },
 });
 
-/** What deleting a member takes with them, so the confirm sheet can name every
- *  event instead of a vague "their attendance". */
 export const deletePreview = query({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }) => {
@@ -677,11 +678,6 @@ const staffYearsToCheck = (profileYear: number): number[] => {
   return [...new Set([profileYear, now, now + 1])];
 };
 
-/** Someone's most recent staff profile in any year. Former staff are still
- *  staff here: their attendance is keyed by their org email. */
-/** A staff email rather than a personal one: an SOW address, or anyone's
- *  staff email in any year. Personal emails (a staff person's own, a plain
- *  member's) can't be one. */
 export const isStaffAddress = async (ctx: Ctx, email: string | undefined): Promise<boolean> =>
   isSowStaffAddress(email) || Boolean(await latestStaffProfile(ctx, email));
 
@@ -703,8 +699,6 @@ export const latestStaffProfile = async (
   return null;
 };
 
-/** The staff profile to use for this email: the one for the year being viewed
- *  (or this / next staff year) when there is one, else their latest. */
 const staffProfileForEmail = async (
   ctx: Ctx,
   email: string,
@@ -719,7 +713,7 @@ const staffProfileForEmail = async (
   return await latestStaffProfile(ctx, email);
 };
 
-const staffYearsOf = async (ctx: Ctx, memberId: Id<"attendanceMembers"> | undefined) =>
+export const staffYearsOf = async (ctx: Ctx, memberId: Id<"attendanceMembers"> | undefined) =>
   memberId
     ? new Set((await profilesOfMember(ctx, memberId)).filter(isAssigned).map((p) => p.year))
     : new Set<number>();
@@ -796,9 +790,8 @@ const mergeOptionsFor = (keep: MergeKeep, fields: MetadataField[]) => {
   const viewingYear = sydneyCalendarYear(new Date());
   const shown = (fieldId: string, value: string) => {
     const field = fields.find((f) => f._id === fieldId)!;
-    return (
-      formatMetadataFieldValue(field.key, value, viewingYear, field.values) ?? value
-    )
+    const label = formatMetadataFieldValue(field.key, value, viewingYear, field.values) ?? value;
+    return (field.key === ROLE_FIELD_KEY ? (markedRoleOf(label) ?? "") : label)
       .trim()
       .toLowerCase();
   };

@@ -4,11 +4,10 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { SOW_SUBGROUP } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -138,7 +137,6 @@ describe("legacy import matching", () => {
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await admin.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // Imported rows can carry an old SOW address; the app won't take one.
     const memberId = await t.run((ctx) =>
       ctx.db.insert("attendanceMembers", { name: "Ghost Person", email: "ghost.person@sowaustralia.com" })
     );
@@ -745,7 +743,6 @@ describe("events + roll-call", () => {
     const now = Date.now();
     const staffMemberId = await memberOf(t, STAFF);
     const { eventId, memberId } = await t.run(async (ctx) => {
-      // Ended 2 minutes ago; the guest was signed in by mistake 5 minutes ago.
       const eventId = await ctx.db.insert("events", {
         name: "Just ended",
         dateStart: now - 3600_000,
@@ -758,7 +755,6 @@ describe("events + roll-call", () => {
       return { eventId, memberId };
     });
     await leader.mutation(api.attendance.signOut, { eventId, memberId });
-    // 11 minutes ago is outside the grace.
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
     ).rejects.toThrow(/can't be undone/i);
@@ -1359,8 +1355,80 @@ describe("guards + edge cases", () => {
     await leader.mutation(api.attendance.signIn, { eventId, memberId });
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
     const row = rows.find((r) => r.name === "Test Member");
-    expect(row?.subtitle).toContain("Male");
+    expect(row?.subtitle).toBe("Member · Male");
     expect(row?.university).toBe(USYD);
+
+    await t.run((ctx) =>
+      ctx.db.insert("weeklyCategories", {
+        subgroup: USYD,
+        termKey: "2026-T2",
+        people: [{ key: `member:${memberId}`, category: "newcomer" }],
+      })
+    );
+    const after = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(after.find((r) => r.name === "Test Member")?.subtitle).toBe("Newcomer · Male");
+    const roster = await leader.query(api.attendance.roster, { year: YEAR });
+    expect(roster.find((r) => r.name === "Test Member")?.subtitle).toBe("Newcomer · Male");
+  });
+
+  test("a campus roll call works out Roles from that campus's weeklies only", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const memberId = await leader.mutation(api.attendanceMembers.create, { name: "Two Campus" });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("weeklyCategories", {
+        subgroup: USYD,
+        termKey: "2026-T2",
+        people: [{ key: `member:${memberId}`, category: "visitor" }],
+      });
+      await ctx.db.insert("weeklyCategories", {
+        subgroup: MACQ,
+        termKey: "2026-S2",
+        people: [{ key: `member:${memberId}`, category: "regular" }],
+      });
+    });
+    const { dateStart, dateEnd } = window();
+    const create = (subgroups: string[]) =>
+      leader.mutation(api.events.create, { name: "E", dateStart, dateEnd, subgroups });
+    const usydEvent = await create([USYD]);
+    const jointEvent = await create([USYD, MACQ]);
+    await leader.mutation(api.attendance.signIn, { eventId: usydEvent, memberId });
+    await leader.mutation(api.attendance.signIn, { eventId: jointEvent, memberId });
+
+    const subtitleAt = async (eventId: Id<"events">) => {
+      const listed = await leader.query(api.attendance.listByEvent, { eventId });
+      const roster = await leader.query(api.attendance.roster, { year: YEAR, eventId });
+      return [
+        listed.find((r) => r.name === "Two Campus")?.subtitle,
+        roster.find((r) => r.name === "Two Campus")?.subtitle,
+      ];
+    };
+    expect(await subtitleAt(usydEvent)).toEqual(["Visitor", "Visitor"]);
+    expect(await subtitleAt(jointEvent)).toEqual(["Regular", "Regular"]);
+    const everywhere = await leader.query(api.attendance.roster, { year: YEAR });
+    expect(everywhere.find((r) => r.name === "Two Campus")?.subtitle).toBe("Regular");
+  });
+
+  test("an org-wide roll call works out Roles from every campus", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const memberId = await leader.mutation(api.attendanceMembers.create, { name: "Macq Regular" });
+    await t.run((ctx) =>
+      ctx.db.insert("weeklyCategories", {
+        subgroup: MACQ,
+        termKey: "2026-S2",
+        people: [{ key: `member:${memberId}`, category: "regular" }],
+      })
+    );
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Conference",
+      dateStart,
+      dateEnd,
+      subgroups: [SOW_SUBGROUP],
+    });
+    const roster = await leader.query(api.attendance.roster, { year: YEAR, eventId });
+    expect(roster.find((r) => r.name === "Macq Regular")?.subtitle).toBe("Regular");
   });
 
   test("roster enriches staff shadows and listByEvent handles edge rows", async () => {
@@ -1751,6 +1819,7 @@ describe("roster ranking history", () => {
       dateEnd,
       subgroups: [MACQ],
     });
+    await t.mutation(internal.rosterHistory.rebuild, {});
     const roster = await leader.query(api.attendance.roster, { year: YEAR, eventId: targetId });
     const ranked = roster.slice(0, 2).map((r) => r.memberId).sort();
     expect(ranked).toEqual([staffMemberId, guestId].sort());

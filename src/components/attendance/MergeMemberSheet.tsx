@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Keyboard, StyleSheet, Text, View } from "react-native";
@@ -44,11 +44,6 @@ const historyLine = (h: History) =>
     ? "Not signed in to any events"
     : `${plural(h.events, "event")} · last ${sydneyDay(h.lastAttended!)}`;
 
-/**
- * Merge a duplicate into the member (or staff person) being edited. Only a
- * plain member can be merged away: picking a staff person keeps them and
- * merges this member in, and a staff person can only take in members.
- */
 export function MergeMemberSheet({
   visible,
   onClose,
@@ -60,38 +55,32 @@ export function MergeMemberSheet({
   staffYear,
   removeViewedByDefault = false,
   initialStaff,
+  initialMember,
 }: {
   visible: boolean;
   onClose: () => void;
-  /** Called with a one-line summary once the merge has succeeded. */
   onMerged: (summary: string) => void;
   memberId: Id<"attendanceMembers">;
   memberEmail?: string;
   isStaff: boolean;
   year: number;
   staffYear: number;
-  /** Opened from "delete": the member being viewed is the one to get rid of. */
   removeViewedByDefault?: boolean;
-  /** Opened from the Email field: go straight to merging into this staff person. */
   initialStaff?: { email: string; name: string } | null;
+  initialMember?: { memberId: Id<"attendanceMembers">; name: string; email?: string } | null;
 }) {
   const t = useAppTheme();
   const merge = useMutation(api.attendanceMembers.merge);
-  // Every field, not just the event's groups: a merge carries them all, and a
-  // conflict on another group's select field should still show its labels.
   const metadataFields = useQuery(api.attendanceMetadata.list, visible ? {} : "skip") ?? [];
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [picked, setPicked] = useState<Picked | null>(null);
   const [removeViewed, setRemoveViewed] = useState(removeViewedByDefault);
-  // Which pick has had its default direction settled (see the effect below).
   const [orientedFor, setOrientedFor] = useState<string | null>(null);
   const [resolutions, setResolutions] = useState<MergeResolutions>({});
   const [confirmText, setConfirmText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Once merged, the removed person is gone and a live preview would flash
-  // "no longer exists" while the sheet closes.
   const [merged, setMerged] = useState(false);
 
   useEffect(() => {
@@ -120,13 +109,22 @@ export function MergeMemberSheet({
   }, [visible, initialStaff]);
 
   useEffect(() => {
+    if (!visible || !initialMember) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- preselect when opened for a member pair
+    setPicked({
+      key: `member:${initialMember.memberId}`,
+      name: initialMember.name,
+      isStaff: false,
+      email: initialMember.email,
+      memberId: initialMember.memberId,
+    });
+  }, [visible, initialMember]);
+
+  useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(id);
   }, [search]);
 
-  // Stays subscribed while a pick is reviewed, so "Choose someone else" goes
-  // straight back to the list, and holds the last results while a new search
-  // loads so the list doesn't flash to a spinner on every keystroke.
   const typed = search.trim();
   const searching = visible && Boolean(debouncedSearch) && Boolean(typed);
   const { value: results, stale: resultsStale } = useHeldValue(
@@ -149,12 +147,9 @@ export function MergeMemberSheet({
     if (memberEmail && row.email?.toLowerCase() === memberEmail.toLowerCase()) {
       return false;
     }
-    // Staff can only take in members, never another staff person.
     return !(isStaff && row.key.startsWith("staff:"));
   });
 
-  // Staff are always the one kept. Between two members either can be kept,
-  // and staff being edited always keep the member they pick.
   const canSwap = Boolean(picked && !picked.isStaff && !isStaff && picked.memberId);
   const mergeArgs = picked
     ? picked.isStaff && picked.email
@@ -171,8 +166,6 @@ export function MergeMemberSheet({
   );
   const livePreviewReady =
     livePreview && !("blocked" in livePreview) ? livePreview : null;
-  // Between two members, keep whoever has more history by default, whichever
-  // way the sheet was opened. Staff are always kept, so there's nothing to pick.
   const orienting = Boolean(canSwap && picked && orientedFor !== picked.key);
   useEffect(() => {
     if (!orienting || !livePreviewReady || !picked) return;
@@ -182,8 +175,6 @@ export function MergeMemberSheet({
     }
     setOrientedFor(picked.key);
   }, [orienting, livePreviewReady, picked]);
-  // Swapping keeps the current review up (Merge off) until the swapped one
-  // loads, instead of collapsing the sheet to a spinner and back.
   const { value: preview, stale: previewStale } = useHeldValue(
     livePreview,
     picked ? `${picked.key}|${orientedFor ?? ""}` : "none"
@@ -339,7 +330,6 @@ export function MergeMemberSheet({
                     tag={rowIsStaff ? "STAFF" : undefined}
                     accessibilityLabel={`Merge with ${row.name}`}
                     onPress={() => {
-                      // Start the review at the top, not scrolled for the keyboard.
                       Keyboard.dismiss();
                       setPicked({
                         key: row.key,

@@ -289,62 +289,6 @@ describe("upsertUniversity", () => {
   });
 });
 
-describe("ensureUniversity", () => {
-  test("is idempotent — seed already includes WSU; a novel name inserts once", async () => {
-    const t = await setup();
-    const seeded = await t.mutation(internal.admin.ensureUniversity, {
-      year: YEAR,
-      name: "Western Sydney University",
-    });
-    expect(seeded.created).toBe(false);
-    expect(seeded.name).toBe("Western Sydney University");
-
-    const first = await t.mutation(internal.admin.ensureUniversity, {
-      year: YEAR,
-      name: "Example New Campus",
-    });
-    expect(first.created).toBe(true);
-    const second = await t.mutation(internal.admin.ensureUniversity, {
-      year: YEAR,
-      name: "Example New Campus",
-    });
-    expect(second.created).toBe(false);
-    expect(second.id).toBe(first.id);
-  });
-});
-
-describe("removeUniversityRow", () => {
-  test("removes a university, strips profile assignments, and no-ops when gone", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    await t.mutation(internal.admin.ensureUniversity, {
-      year: YEAR,
-      name: "Temp Ops Campus",
-    });
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: "sl-ops@sow.org.au",
-      year: YEAR,
-      assignments: [{ role: "Student Leader", university: "Temp Ops Campus" }],
-    });
-    const removed = await t.mutation(internal.admin.removeUniversityRow, {
-      year: YEAR,
-      name: "Temp Ops Campus",
-    });
-    expect(removed.removed).toBe(true);
-    expect(removed.profilesTouched).toBe(1);
-    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    const sl = profiles.find((p) => p.email === "sl-ops@sow.org.au");
-    expect(sl?.assignments?.some((a) => a.university === "Temp Ops Campus")).toBe(
-      false
-    );
-    const again = await t.mutation(internal.admin.removeUniversityRow, {
-      year: YEAR,
-      name: "Temp Ops Campus",
-    });
-    expect(again.removed).toBe(false);
-  });
-});
-
 describe("removeUniversity", () => {
   test("removes an unused university and no-ops on a missing one", async () => {
     const t = await setup();
@@ -2153,88 +2097,6 @@ describe("returning staff identity", () => {
   });
 });
 
-describe("fillTagScopesWithAllGroups", () => {
-  test("fills only unscoped tags with every group of their year, idempotently", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "UTS" });
-
-    const { unscopedId, emptyId, scopedId } = await t.run(async (ctx) => ({
-      unscopedId: await ctx.db.insert("attendanceTags", { name: "Meeting" }),
-      emptyId: await ctx.db.insert("attendanceTags", {
-        name: "Social",
-        subgroups: [],
-      }),
-      scopedId: await ctx.db.insert("attendanceTags", {
-        name: "Campus only",
-        subgroups: ["UTS"],
-      }),
-    }));
-
-    const first = await t.mutation(internal.admin.fillTagScopesWithAllGroups, {});
-    expect(first.filled).toBe(2);
-    expect(first.total).toBe(3);
-
-    const after = await t.run(async (ctx) => ({
-      unscoped: await ctx.db.get(unscopedId),
-      empty: await ctx.db.get(emptyId),
-      scoped: await ctx.db.get(scopedId),
-    }));
-    expect(after.unscoped!.subgroups).toEqual(expect.arrayContaining(["SOW", "UTS"]));
-    expect([...after.empty!.subgroups!].sort()).toEqual(
-      [...after.unscoped!.subgroups!].sort()
-    );
-    expect(after.scoped!.subgroups).toEqual(["UTS"]);
-
-    const second = await t.mutation(internal.admin.fillTagScopesWithAllGroups, {});
-    expect(second.filled).toBe(0);
-  });
-});
-
-describe("nameStaffProfilesFromEmail", () => {
-  test("derives readable names only for email/blank-named profiles, idempotently", async () => {
-    const t = await setup();
-
-    const ids = await t.run(async (ctx) => ({
-      blank: await ctx.db.insert("staffProfiles", {
-        email: "jane.doe@sow.org.au",
-        year: YEAR,
-      }),
-      emailName: await ctx.db.insert("staffProfiles", {
-        email: "john.smith@sow.org.au",
-        year: YEAR,
-        name: "john.smith@sow.org.au",
-      }),
-      realName: await ctx.db.insert("staffProfiles", {
-        email: "mq.leader@sow.org.au",
-        year: YEAR,
-        name: "Mary Quant",
-      }),
-      legacy: await ctx.db.insert("staffProfiles", {
-        email: "u12345@legacy.invalid",
-        year: YEAR,
-      }),
-    }));
-
-    const first = await t.mutation(internal.admin.nameStaffProfilesFromEmail, {});
-    expect(first.updated).toBe(2);
-
-    const after = await t.run(async (ctx) => ({
-      blank: await ctx.db.get(ids.blank),
-      emailName: await ctx.db.get(ids.emailName),
-      realName: await ctx.db.get(ids.realName),
-      legacy: await ctx.db.get(ids.legacy),
-    }));
-    expect(after.blank!.name).toBe("Jane Doe");
-    expect(after.emailName!.name).toBe("John Smith");
-    expect(after.realName!.name).toBe("Mary Quant");
-    expect(after.legacy!.name).toBeUndefined();
-
-    const second = await t.mutation(internal.admin.nameStaffProfilesFromEmail, {});
-    expect(second.updated).toBe(0);
-  });
-});
-
 describe("staff profiles and their attendance member", () => {
   const NEXT = YEAR + 1;
   const NEWBIE = "new.bie@sow.org.au";
@@ -2311,7 +2173,7 @@ describe("staff profiles and their attendance member", () => {
 
   test("removing a current-year profile turns them into a member", async () => {
     const t = await setup();
-    const roleField = await t.run((ctx) =>
+    await t.run((ctx) =>
       ctx.db.insert("attendanceMetadata", {
         key: "Role",
         type: "select",
@@ -2327,9 +2189,9 @@ describe("staff profiles and their attendance member", () => {
       actorEmail: ADMIN,
       memberId,
       subjectEmail: BELLA,
-      detail: `Not staff in ${YEAR}\nRole set to Member`,
+      detail: `Not staff in ${YEAR}`,
     });
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toEqual({ [roleField]: "2" });
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toEqual({});
   });
 
   test("removing a profile leaves the member alone while they are still staff, or in another year", async () => {

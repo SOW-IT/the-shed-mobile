@@ -19,6 +19,22 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   submitter would review themselves are auto-approved (HOD's own request,
   Budget Manager's own, Director's own ≥ $5k, Finance Head's own; Finance
   department requests have no HOD step).
+- **Reminders**: a morning job (`convex/reminders.ts`) chases whatever has
+  not moved, a day after the last movement, then three days later, then
+  weekly: reimbursement requests (the next approver, the requester's receipt,
+  Finance's payment), design requests (the Marketing Head's approval, the
+  team's unfinished work) and event forms (the requester's side for forms not
+  submitted, the requester's side and whoever submitted it for forms sent
+  back, the reviewer for forms waiting). Each person gets
+  one notification, push and email a morning listing everything waiting on
+  them; nobody with nothing waiting hears anything, and weekends are not
+  skipped. Reminder emails can be turned off on Profile. Home lists what is
+  waiting on you (`convex/waitingOnMe.ts`); Review, the Marketing queue and
+  To review say how long each item has waited and list the longest waiting
+  first. Admin, Other shows step timing (`convex/stepTiming.ts`): the typical
+  and longest wait at each step and who actioned it most, from the audit
+  trail. Pushes carry the unread count as the app icon badge on iOS; Android
+  syncs the count while the app is open, on launchers that show badges.
 - **Per-year roles and departments** (`staffProfiles`, `departments`,
   `divisions`, keyed by year). The staff year rolls over on **October 1**.
   Admins prepare next year in advance; a 21:00 30 Sep prefill copies the
@@ -27,7 +43,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   approved/paid by the approvers of the request's own year. Receipt files
   are kept for the current and previous staff years.
   Roles: Staff, Head of Department, **Head of Division** (belongs directly to
-  a division rather than a department; no HOD above them), Director.
+  a division rather than a department; no HOD above them), Director. Each
+  year keeps its own **role titles**: 2019 and 2020 show Head of Department
+  as "Department Overseer", and a future rename leaves earlier years as they
+  were (`history:setRoleTitle`, ADR 0015).
 - **Deadlock prevention**: submitting is rejected with a clear message while
   the year is missing an approver the request would need (department head,
   Budget Manager, Director for ≥ $5k, Finance head), and removing the Budget
@@ -88,8 +107,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   requests complete. Requesters can edit or cancel until a request closes,
   and everyone on it can comment. Marketing staff get in-app/push
   notifications and the team's emails go to marketing@sow.org.au. Lists:
-  Mine, the Marketing queue (open requests) and an All archive by staff
-  year. Any request can be downloaded as a PDF (built on the device with
+  Mine, the Marketing queue (open requests) and an All archive, each running
+  back through earlier staff years as you scroll; the Marketing Head opens on the queue when something waits on them.
+  A request's page shows its progress as Submitted, Approved (or Declined)
+  and Complete, with who and when. Any request can be downloaded as a PDF (built on the device with
   pdf-lib). Old requests from the web app are copied in with
   `scripts/import-design-requests.mjs` (safe to re-run). Design requests
   aren't for events: those go through Event Requests.
@@ -119,7 +140,25 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   at a chosen time at least 5 minutes away; any admin can cancel a scheduled
   one. Rate limits per
   sender: 3 an hour, 10 a day, 10 waiting, and the same words twice within 10
-  minutes is refused. Tapping it opens `/announcements/[id]` (app 2.4.0 on).
+  minutes is refused. Tapping it opens `/announcements/[id]`.
+  Once it has gone out, admins see on that page how many of its recipients
+  have seen it (opened it, or opened their notifications since it arrived)
+  and can list who hasn't.
+- **Mentoring** (`convex/mentoring.ts`, rules in `shared/mentoring.ts`),
+  from the side menu for admins (the Human Resources division among them) and
+  for anyone mentoring someone this year. Admins pair each **Campus leader**
+  with one mentor a year: a leader with a profile that year who isn't a
+  Campus leader, or an **external mentor** from a reusable list (name, email,
+  phone, notes). Pairings are per staff year, don't carry over, and only the
+  current and next year can change; the list flags a mentee or leader mentor
+  who no longer qualifies. A leader mentor sees just their own current-year
+  mentees. Pairings from the old app were copied in once, in 2.10.1. A list
+  of pairings for any year can be added from the command line
+  (`mentoring:setPairings`) under the same rules.
+- **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
+  collapsible **Requests** group that opens itself on those pages, shows
+  their combined count while closed, and remembers being open or closed on
+  the device.
 - **Editable Home tab**: Home, Resources, Connect and Partner are typed
   blocks served by `homeContent.view` (one `homeTabs` row per edited tab,
   else the built-in content in `shared/homeContent.ts`). Admins, anyone in
@@ -142,8 +181,28 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget
   Manager alert when the paid amount differs from the requested amount.
 - **Reimbursements** (opened from the side menu, at `/`): Mine (submit /
-  cancel / receipt), Review (approve / decline / pay, shown to approvers),
-  All (Finance staff), Bank.
+  cancel / receipt), Review (approve / decline / pay, shown to approvers and
+  to anyone who has reviewed a request before), All (Finance staff), Bank.
+  Each tab runs back through earlier staff years as you scroll, newest first
+  under a heading per year: on Mine your own requests, on Review everything
+  you approved or declined, on All (under Completed) every completed request;
+  a request sits under the year it was made in. The New
+  Request sheet shows who the request will go to as you type
+  (`requests.approvalPreview`), including the Director from the threshold and
+  any step your own role skips; image receipts show a thumbnail before you
+  submit. An approver with requests waiting and nothing of their own to act on
+  opens on Review, and a request link opens the tab that holds it (Mine,
+  Review, or All for Finance staff). Each request's clock button opens its
+  timeline: every step from submitted to paid with who did it and when, the
+  gaps between steps, what it is waiting on now and how many reminders have
+  gone out for that wait, and how long submitted-to-paid took.
+  A request, its timeline and its comments are visible only to the
+  requester, Finance staff, the approvers on its chain and their delegates
+  (in the request's staff year or the current one), and anyone who has
+  already acted on it (`canSeeRequest` in `convex/requests.ts`).
+- **Notifications** (the bell): everything sent to you, unread first, loading
+  older ones as you scroll (`notifications.feed`, 30 a page). Opening the
+  screen marks everything read.
 - **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
   Chart. On phones the top-left avatar, or a swipe from the left edge, opens
   a side menu with Profile, Reimbursements (staff other than campus leaders),
@@ -166,11 +225,21 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   signs in once for the whole event.
   Post-event sign-ins can be reversed; sign-ins made during an event can't,
   except within 10 minutes of being made.
+  "Not signed in" lists the people most likely to come first: a score from
+  the last 180 days of sign-ins (weight halving every 45 days, most for the
+  same campus's weeklies) plus a campus bonus, stored per event in
+  `rollCallOrders` (ADR 0014).
 - **Tags & metadata**: event tags in two lists, **Weeklies** (labels like BAM
   or PPN) and **Other events**, plus the automatic **Weeklies** tag on every
   weekly (a weekly is defined by its term and week, which drive the
   weekly-meeting analytics), and configurable member metadata fields (Year,
-  Gender, Campus, Role, …).
+  Gender, Campus, Role, Other Information, …). **Role is worked out**, not
+  typed: a staff person's role from their profile, otherwise Regular,
+  Irregular, Newcomer or Visitor from last night's Insights build, else
+  Member. Leaders can still set Visitor or Alumni by hand. The edit sheet
+  shows it locked, with an info button that explains the rules
+  (`shared/memberRole.ts`). Notes about one event are kept on that sign-in
+  ("Notes for this event", exported as Event notes).
 - **Merge duplicates**: fold two records for one person into one, moving every
   attendance record across (shared events collapse to one record). Someone who
   is staff this year can't be merged away, and two people who were both staff
@@ -190,8 +259,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   current year get their record when they're assigned; next year's staff get
   theirs on October 1 unless they're already linked. Leaving staff moves
   nothing: from October 1 they read as the plain member underneath, with an
-  empty Campus filled from their last role and an empty Role set to Member
-  (Alumni is set by leaders when someone graduates). A member's own email
+  empty Campus filled from their last role (their Role is worked out; leaders
+  set Alumni when someone graduates). A member's own email
   can't be an SOW address or anyone's staff email.
   Member names are capitalised as they're typed.
 - **Audit log**: an immutable trail of every attendance-area action (event /
@@ -207,7 +276,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   with filters, sorting and search; tapping someone opens their attendance
   page. For SOW, a Campuses / TWIG / PPN switcher: each campus's weekly
   average with past week / month / year ranges, then TWIG (campus leaders
-  only) and PPN (everyone, month by month) by staff year. Layout, charts,
+  only) and PPN (everyone, as cards and charts) by staff year. Layout, charts,
   wording and the SOW tabs come from the backend (`weeklyInsights.view`,
   `generalMetrics.view`, `attendanceMetrics.view`, `sowInsights.tabs`,
   `sowInsights.view`), so
@@ -217,11 +286,31 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   [docs/weekly-insights.md](docs/weekly-insights.md),
   [docs/sow-insights.md](docs/sow-insights.md) and
   [docs/attendance-metrics.md](docs/attendance-metrics.md).
+- **Self check-in**: on an event, the QR button turns on a check-in page
+  (`/checkin/<token>`, `convex/checkIn.ts`) and shows its code. People scan
+  it and type their full name, and can add their university and year; the
+  page never shows the member list, and the phone remembers the details
+  (`src/lib/checkInDevice.ts`). A first check-in waits on the event until a
+  leader matches it: matched people come first with "Sign in all", the rest
+  show same and similar names (`shared/checkInMatch.ts`), Find member and New
+  member. After that, the same phone signs that person straight in. A leader
+  who opens the link in the app is signed in at once. Sign-ins keep the time
+  people checked in. The page works from two hours before the event until ten
+  minutes after it ends, and turning it off (after a confirm) kills the link.
+  The app takes check-in links (ADR 0012); the web never bounces them.
+- **Over-the-air updates**: phone builds from 2.9.19 carry `expo-updates`
+  with a fingerprint runtime, so a JavaScript-only change reaches them after
+  a merge without a store build. A banner offers a restart once an update has
+  downloaded.
+- **App errors**: a screen that crashes, or an unhandled error, is reported
+  (`convex/appErrors.ts`) with the route, platform, version and who hit it,
+  grouped by fingerprint. Admins see the last seven days on Admin, Other and
+  clear them there.
 - **Update prompt**: phones ask for the store version when it's older than the
   server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
   banner that can be dismissed; below `minimum`, a full screen with only the
   store button. Nothing is asked until a policy is set:
-  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "minimum": "2.9.0", "recommended": "2.9.1"}'`
+  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "minimum": "2.9.25", "recommended": "2.10.0"}'`
   (`minimum`, and an optional `message` to replace the default text; `null`
   clears one). Staging builds and the web are never asked.
 
@@ -261,7 +350,7 @@ For a fresh deployment, regenerate the JWT keys with
 ### Workspace directory sync (optional)
 
 Syncs the sow.org.au member list weekly (Mondays 21:00 UTC, and via the
-admin screen's *Sync Directory* button) so admins assign people from a
+admin screen's *Sync directory now* button) so admins assign people from a
 picker, and copies each staff member's Workspace photo. Setup:
 
 1. In the Google Cloud console, create a **service account** (no roles
@@ -278,27 +367,38 @@ npx convex env set GOOGLE_ADMIN_IMPERSONATE <a-workspace-admin>@sow.org.au
 ```
 
 Until configured, the weekly sync no-ops and the admin screen shows
-"not synced yet". Syncing fills the picker and staff photos. Assigning
+"Never synced." Syncing fills the picker and staff photos. Assigning
 roles stays an explicit admin action.
 
 A person's photo is, in order: the one they uploaded in The SHED, their
 Workspace directory photo, the picture Google sent at their last sign-in,
-then their initials. The directory photo outranks the sign-in picture
+then their initials. The app resizes a picked photo to 512 px before it
+uploads it (a JPEG, or a PNG when the picked file is one, so see-through
+areas stay see-through until the server puts them on white). An uploaded photo
+over 64 KB is shrunk on the server to a 256 px JPEG a moment after upload
+(`avatars:shrinkAll` does older ones), skipping any too big to decode in an
+action's memory: JPEGs over 16 million colour samples (about 10 MP for a
+typical phone photo, 5 MP for a full-colour one) and PNGs over 10 MP. Phones
+keep each photo in the app's cache folder after the first download,
+showing the web copy until it lands.
+The directory photo outranks the sign-in picture
 because Google sends a letter placeholder to anyone who had no photo when
 they signed in, and that placeholder only changes when they sign in again. A directory email that matches a previous staff year
 is listed under Previously staff rather than as a brand-new person.
 
 ### Church map (optional)
 
-The Churches page draws a map of every church with an address. Without keys
-it is hidden on the web and Android, and iPhone falls back to Apple Maps.
-Create keys in the Google Cloud console, each restricted to its one API:
+The Churches page draws a map of every church with an address. iPhone always
+uses Apple Maps, which needs no key: since 2.10.0 the app leaves the Google
+Maps SDK for iOS out to keep the download small
+([ADR 0013](docs/adr/0013-apple-maps-on-iphone.md)). On the web and Android
+the map is Google Maps and is hidden without a key. Create keys in the Google
+Cloud console, each restricted to its one API:
 
 | Key | Where it goes | API | Restrict to |
 | --- | --- | --- | --- |
 | `GOOGLE_MAPS_API_KEY` | `npx convex env set` | Geocoding API | (server key) |
 | `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Vercel env (web build) | Maps JavaScript API | the web origins |
-| `GOOGLE_MAPS_IOS_API_KEY` | EAS env (app build) | Maps SDK for iOS | `au.org.sow.theshed` |
 | `GOOGLE_MAPS_ANDROID_API_KEY` | EAS env (app build) | Maps SDK for Android | package + SHA-1 |
 
 Dev and prod have separate keys: the DEVELOPMENT - The SHED project
@@ -318,14 +418,16 @@ npx convex run churches:locateAll '{}'
 
 ## CI/CD
 
-Six workflows, in `.github/workflows/`:
+Eight workflows, in `.github/workflows/`:
 
 | Workflow | File | Trigger |
 | --- | --- | --- |
-| Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds). Also runs `expo install --check`, so an Expo package that drifts off the SDK matrix fails here rather than in an iOS release build |
+| Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds). Also runs `expo install --check` with `EXPO_OFFLINE=1`, so an Expo package that drifts from the versions the installed `expo` lists fails here rather than in an iOS release build. Offline, the check reads that list from the locked `expo` package instead of Expo's server, so a new Expo patch release can't turn `main` red on its own; patches move with a deliberate `npx expo install --fix`. A second job, **Web sweep**, starts a throwaway local Convex backend, seeds it (`scripts/sweep-backend.sh`, `scripts/sweep-seed.mjs`), serves the web app and opens every screen signed out and as a leader, a Head and an admin (`scripts/sweep.mjs`, Playwright). It fails on a crash screen or a page error and keeps the screenshots as a run artifact |
 | Convex Deploy | `convex-deploy.yml` | merges to `main` → deploys the **prod** backend. `workflow_dispatch` deploys prod **only when run from `main`**. From any other ref it deploys a *preview* named after the branch (`--preview-name`), not prod |
 | Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
-| Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT). Database-only export, file storage excluded. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped |
+| Backup Convex to GCS | `convex-backup.yml` | weekly, Sundays at 15:17 UTC (Monday 01:17 AEST / 02:17 AEDT), and by hand. Weekly because each export reads the whole prod database, about 9.5 MB of database bandwidth a run. Database export as a zip, then Convex file storage (receipts, event attachments, avatars) copied incrementally to `storage/files/<sha256>` in the same bucket: each file is downloaded once, on the first run after it exists, and `storage/manifest.json` records what is there and which files Convex has since deleted. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped. The BigQuery job then checks the warehouse against the previous run (`scripts/warehouse-checks.mjs`): a core table missing or empty, a table that shrank by more than a fifth, or a report view missing posts to Google Chat and fails the step |
+| EAS Update | `eas-update.yml` | after each successful Convex Deploy of `main` (and by hand) → publishes the JavaScript bundle over the air to the `production` and `staging` channels. Only builds whose native fingerprint matches receive it, so a change to native code waits for the next store build |
+| Convex usage check | `convex-usage.yml` | Sundays 22:00 UTC, Monday morning in Sydney (and by hand) → reads this billing period's usage and posts to Google Chat when database bandwidth or file storage passes 70% of the plan, or bandwidth is on track to exceed it (`scripts/convex-usage-alert.mjs`) |
 | EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app |
 | EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app, then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
 
@@ -338,13 +440,15 @@ because the Convex URL is inlined at build time. A separate backend means a
 separate build, not a re-pointed domain.
 
 Repository secrets these need: `CONVEX_DEPLOY_KEY` (prod backend deploys and
-the GCS backup), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` (dev web), and
-`EXPO_TOKEN` (both EAS workflows), and `GOOGLE_CHAT_WEBHOOK_URL` (the Data and
-IT space's incoming webhook, for EAS Production's Chat post). Only **Deploy
-web (dev)** and the Chat post degrade gracefully when their secrets are
-missing. They skip. The other four
-have no such guard and will **fail** the run, which is the right behaviour for
-a deploy but worth knowing before you add a workflow to a fork. The backup also
+the GCS backup), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` +
+`GOOGLE_MAPS_WEB_KEY_DEV` (dev web), `EXPO_TOKEN` (EAS Update and both EAS
+builds), `CONVEX_ACCESS_TOKEN` (the usage check) and `GOOGLE_CHAT_WEBHOOK_URL`
+(the Data and IT space's incoming webhook, for EAS Production's Chat post).
+Only **Deploy web (dev)** and the Chat post degrade gracefully when their
+secrets are missing. They skip. Convex Deploy, the backup, EAS Update, the
+usage check and both EAS builds have no such guard and will **fail** the run,
+which is the right behaviour for a deploy but worth knowing before you add a
+workflow to a fork. The backup also
 needs the repository *variables*
 `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_BACKUP_SERVICE_ACCOUNT` and
 `GCS_BACKUP_BUCKET`. The BigQuery load uses the same identity and defaults to
@@ -368,17 +472,6 @@ BigQuery job fails on its own. A local zip converts
 with `node scripts/convex-export-to-bigquery.mjs --zip snapshot.zip --out bq-ndjson`.
 Manual fallbacks remain `npx convex deploy -y` and `npm run deploy:web`.
 
-One-time setup to activate it:
-
-```bash
-npx eas init           # links the repo to an EAS project (adds projectId to app.json)
-npx eas credentials    # set up Apple Developer + Android keystore (EAS manages both)
-```
-
-then create an access token at <https://expo.dev/settings/access-tokens> and
-add it as the `EXPO_TOKEN` repository secret on GitHub. Until the secret
-exists, the workflow passes with a warning and skips the build/submit step.
-
 ### Releasing to TestFlight and the App Store
 
 Builds and store submissions are **manual**, driven from GitHub Actions and run
@@ -395,10 +488,10 @@ build finishes).
 There are two app variants (defined in `app.config.js` + `eas.json`) that
 install side-by-side, so testers can keep production while testing staging:
 
-| Profile      | App name           | Bundle id / package          | Convex backend                  |
-| ------------ | ------------------ | ---------------------------- | ------------------------------- |
-| `staging`    | The SHED Staging   | `au.org.sow.theshed.staging` | dev (`successful-lynx-56`)      |
-| `production` | The SHED           | `au.org.sow.theshed`         | prod (`giant-bloodhound-191`)   |
+| Profile      | App name           | Icon                        | Bundle id / package          | Convex backend                  |
+| ------------ | ------------------ | --------------------------- | ---------------------------- | ------------------------------- |
+| `staging`    | The SHED Staging   | dark (cream logo on green)  | `au.org.sow.theshed.staging` | dev (`successful-lynx-56`)      |
+| `production` | The SHED           | light (green logo on cream) | `au.org.sow.theshed`         | prod (`giant-bloodhound-191`)   |
 
 **Ship staging first, then production:**
 
@@ -440,6 +533,13 @@ Prod env vars are managed with `npx convex env set --prod ...` (JWT keys,
 SITE_URL/APP_URL, Resend are set; Google OAuth + directory-sync vars need
 `--prod` copies when configured). Re-seed prod with the real admin email via
 `npx convex run --prod admin:seed '{"adminEmail":"you@sow.org.au"}'`.
+`NIGHTLY_JOBS_PAUSED=true` (for the shared dev deployment) makes the nightly
+Insights, attendance metrics and church map crons do nothing. The paused
+attendance-metrics run also skips what it schedules: the campus weekly chart,
+staff trends, the roll call's member order (roster history) and Admin's
+member-pair suggestions. Run them by hand with
+`npx convex run attendanceMetrics:recomputeAll` or
+`npx convex run weeklyInsights:rebuildAll` when you need fresh numbers.
 
 The same app runs in the browser via react-native-web, hosted at
 **<https://theshed.sow.org.au>** (Vercel project `the-shed-web`, served on the
@@ -479,20 +579,11 @@ Every notification email ends with an "Open in THE SHED" link to the hosted
 web app (`APP_URL` env var, e.g. `/request/<id>`), so emails work for
 everyone immediately. To make those same HTTPS links open the **native app**
 when installed (iOS Universal Links / Android App Links, already configured
-in app.json via `associatedDomains` and `intentFilters`):
-
-1. After Apple enrollment: copy
-   `web/.well-known/apple-app-site-association.example` to
-   `web/.well-known/apple-app-site-association` (no extension) and replace
-   `YOUR_APPLE_TEAM_ID` with the real Team ID.
-2. After `eas credentials` creates the Android keystore: copy
-   `assetlinks.json.example` to `assetlinks.json` and paste the SHA-256
-   signing fingerprint (shown by `eas credentials`).
-3. `npm run deploy:web`. The `.well-known/` files ship with the site, and
-   the OS starts routing those links into the app on the next install.
-
-Until then the links simply open the web app, which is the right fallback
-anyway.
+in app.json via `associatedDomains` and `intentFilters`), Vercel's build
+(root `vercel.json`) copies `web/.well-known/apple-app-site-association` and
+`web/.well-known/assetlinks.json` into the site. If Play's app-signing key or
+the EAS Android keystore changes, add its SHA-256 fingerprint to
+`assetlinks.json` (see LAUNCH.md).
 
 ## Tests
 
@@ -509,7 +600,6 @@ the Insights metrics precompute.
 
 ## Not yet implemented
 
-- Past-year request archives.
 - The whole-**staff-year** range for the SOW Insights view: supported by the
   shared logic (`STAFF_YEAR_RANGE`) but not precomputed or offered (campuses
   get whole calendar years from their weeklies instead).

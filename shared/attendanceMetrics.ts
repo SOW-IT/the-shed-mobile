@@ -4,6 +4,7 @@ import {
   isOrgWideSubgroup,
   subgroupMatches,
 } from "./rollcall";
+import { round1 } from "./numbers";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
@@ -146,8 +147,6 @@ const MONTHS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-// Chart labels and month buckets are calendar facts, so they follow the org's
-// day (Sydney) like the rest of the app, not the UTC day of the server.
 export const shortDate = (ms: number): string => {
   const { day, month } = sydneyYmd(new Date(ms));
   return `${day} ${MONTHS[month - 1]}`;
@@ -172,8 +171,6 @@ const humanGap = (from: number, to: number): string => {
   if (days < 14) return `${days} days`;
   return `${Math.round(days / 7)} weeks`;
 };
-
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 const roundRatio = (n: number): number => Math.round(n * 1000) / 1000;
 
@@ -248,15 +245,16 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       ? 0
       : round1(list.reduce((sum, e) => sum + countFor(e.id), 0) / list.length);
 
-  const avgAttendance = avg(periodEvents);
-  const avgAttendancePrev = prevEvents.length ? avg(prevEvents) : null;
+  const rollTaken = (e: MetricsEvent) => countFor(e.id) > 0;
+  const periodHeld = periodEvents.filter(rollTaken);
+  const prevHeld = prevEvents.filter(rollTaken);
+  const avgAttendance = avg(periodHeld);
+  const avgAttendancePrev = prevHeld.length ? avg(prevHeld) : null;
   const changePct =
     avgAttendancePrev && avgAttendancePrev > 0
       ? Math.round(((avgAttendance - avgAttendancePrev) / avgAttendancePrev) * 100)
       : null;
 
-  // A weekly meeting nobody signed in to didn't happen (a cancelled or holiday
-  // week), so it doesn't count towards the weekly average or its trend.
   const heldWeekly = (e: MetricsEvent) => e.isWeeklyMeeting && countFor(e.id) > 0;
   const periodWeeklies = periodEvents.filter(heldWeekly);
   const prevWeeklies = prevEvents.filter(heldWeekly);

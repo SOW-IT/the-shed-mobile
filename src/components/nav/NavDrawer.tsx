@@ -32,19 +32,15 @@ import { spacing, useAppTheme } from "@/theme";
 
 const DRAWER_WIDTH_FRACTION = 0.8;
 const DRAWER_MAX_WIDTH = 320;
-/** How far in from the left edge a swipe can start and still open the drawer. */
 const EDGE_SWIPE_WIDTH = 20;
 const BACKDROP_OPACITY = 0.45;
-/** A flick faster than this (pt/s) opens or closes the drawer whatever its position. */
 const FLING_VELOCITY = 500;
 const OPEN_TIMING = { duration: 260, easing: Easing.out(Easing.cubic) };
 const CLOSE_TIMING = { duration: 220, easing: Easing.out(Easing.cubic) };
 
 type NavDrawerContextValue = {
-  /** 0 closed → 1 open; follows the finger while the drawer is dragged. */
   progress: SharedValue<number>;
   width: number;
-  /** Whether the drawer is on screen at all (open, opening, or being dragged). */
   shown: boolean;
   show: () => void;
   hide: () => void;
@@ -56,7 +52,6 @@ const noop = () => {};
 
 const NavDrawerContext = createContext<NavDrawerContextValue | null>(null);
 
-/** Opens and closes the phone's side menu, e.g. from the top bar's avatar. */
 export const useNavDrawer = () => {
   const value = useContext(NavDrawerContext);
   return value ?? { open: noop, close: noop };
@@ -73,7 +68,6 @@ const clamp01 = (value: number) => {
   return Math.min(Math.max(value, 0), 1);
 };
 
-/** After a drag, finish opening or closing depending on where and how fast it was let go. */
 const settle = (progress: SharedValue<number>, velocityX: number, onClosed: () => void) => {
   "worklet";
   const opening =
@@ -104,8 +98,6 @@ export const NavDrawerProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [progress, hide]);
   useEffect(() => {
-    // Signing out (from anywhere) or growing a narrow window into a wide one
-    // (the sidebar takes over) shuts the drawer, so it never comes back open.
     if (isAuthenticated && !wide) return;
     progress.value = 0;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on sign-out / layout change
@@ -119,11 +111,6 @@ export const NavDrawerProvider = ({ children }: { children: ReactNode }) => {
   return <NavDrawerContext.Provider value={value}>{children}</NavDrawerContext.Provider>;
 };
 
-/**
- * A thin strip down a tab screen's left edge: a swipe that starts in it pulls
- * the drawer out under the finger. Only on phones (not web) and when signed
- * in. Swipes that start further in are left to the screen (sub-tab pager).
- */
 export const DrawerEdgeSwipe = ({ top }: { top: number }) => {
   const { progress, width, show, hide } = useDrawerState();
   const { isAuthenticated } = useConvexAuth();
@@ -153,11 +140,8 @@ export const DrawerEdgeSwipe = ({ top }: { top: number }) => {
   );
 };
 
-/** The phone's side menu: slides over the app from the left and dims the rest. */
 export const AppDrawer = () => {
   const { shown } = useDrawerState();
-  // Mounted only while on screen, so its drag-to-close gesture attaches to a
-  // visible view each time it opens.
   return shown ? <DrawerOverlay /> : null;
 };
 

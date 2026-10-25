@@ -9,9 +9,11 @@ import {
   isChaplainRole,
   isMemberOfDepartment,
   roleNeedsUniversity,
+  roleTitle,
 } from "../shared/flow";
 import { query } from "./_generated/server";
 import {
+  assignableRoleRows,
   currentStaffYear,
   delegatorsForYear,
   departmentsHeadedBy,
@@ -23,6 +25,8 @@ import {
   optionalProfile,
   optionalUser,
   rolesOf,
+  roleTitlesForYear,
+  roleTitlesFrom,
 } from "./model";
 import { photoUrl } from "./photo";
 
@@ -35,7 +39,13 @@ export const me = query({
       const user = await optionalUser(ctx);
       if (!user) return null;
       const photo = await photoUrl(ctx, user, null);
-      return { email: "", year: currentStaffYear(), name: user.name ?? null, photo, profile: null };
+      return {
+        email: "",
+        year: currentStaffYear(),
+        name: user.name ?? null,
+        photo,
+        profile: null,
+      };
     }
     const year = caller?.year ?? currentStaffYear();
     const settings = await ctx.db
@@ -80,6 +90,12 @@ export const me = query({
       delegatorsForYear(ctx, year - 1, email),
     ]);
     const isDelegate = delegatedTo.length > 0 || prevDelegatedTo.length > 0;
+    const mentorship = await ctx.db
+      .query("mentorships")
+      .withIndex("by_mentorEmail_and_year", (q) =>
+        q.eq("mentorEmail", email).eq("year", currentStaffYear()),
+      )
+      .first();
     return {
       email,
       year,
@@ -108,7 +124,11 @@ export const me = query({
         approvers.financeHeadEmail === email ||
         rolesOf(profile).includes(DIRECTOR) ||
         isDelegate,
-      isCampusLeader: assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
+      isCampusLeader: assignmentsOf(profile).some((a) =>
+        roleNeedsUniversity(a.role),
+      ),
+      roleTitles: await roleTitlesForYear(ctx, year),
+      isMentor: mentorship !== null,
       listsChurch: profile.year === year && assignmentsOf(profile).length > 0,
     };
   },
@@ -201,6 +221,8 @@ export const orgChart = query({
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", year))
       .take(1000);
+    const titles = await roleTitlesForYear(ctx, year);
+    const titled = (role: string) => roleTitle(role, titles);
 
     const directoryUsers = await ctx.db.query("directoryUsers").take(4000);
     const directoryByEmail = new Map(
@@ -266,7 +288,7 @@ export const orgChart = query({
           nameByEmail[b.email] ?? b.email,
         ),
       )
-      .map((p) => person(p.email, rolesFor(p).join(", ")));
+      .map((p) => person(p.email, rolesFor(p).map(titled).join(", ")));
 
     const generalExists = divisions.some((d) => d.name === FALLBACK_DIVISION);
     const staffUnderGeneral = generalExists && departments.length === 0;
@@ -275,8 +297,9 @@ export const orgChart = query({
       year,
       availableYears,
       nextYear: canSeeNextYear ? nextYear : null,
+      roleTitles: titles,
       director: directorProfile
-        ? person(directorProfile.email, directorRole)
+        ? person(directorProfile.email, titled(directorRole))
         : null,
       staff: staffUnderGeneral ? [] : staffPeople,
       divisions: divisions.map((division) => {
@@ -308,14 +331,16 @@ export const orgChart = query({
                   p.email,
                   assignmentsFor(p)
                     .filter((a) => a.department === department.name)
-                    .map((a) => a.role)
+                    .map((a) => titled(a.role))
                     .join(", "),
                 ),
               ),
           }));
         return {
           name: division.name,
-          head: divisionHead ? person(divisionHead, HEAD_OF_DIVISION) : null,
+          head: divisionHead
+            ? person(divisionHead, titled(HEAD_OF_DIVISION))
+            : null,
           departments:
             staffUnderGeneral && division.name === FALLBACK_DIVISION
               ? [
@@ -352,7 +377,7 @@ export const orgChart = query({
                     a.university === university.name &&
                     roleNeedsUniversity(a.role),
                 )
-                .map((a) => a.role)
+                .map((a) => titled(a.role))
                 .join(", "),
             ),
           ),
@@ -397,7 +422,8 @@ export const yearStructure = query({
         colour: d.colour ?? null,
       })),
       universities: universities.map((u) => u.name),
-      roles: roles.map((r) => r.name),
+      roles: assignableRoleRows(roles).map((r) => r.name),
+      roleTitles: roleTitlesFrom(roles),
       budgetManagerEmail: settings?.budgetManagerEmail ?? null,
       praiseManagerEmails: settings?.praiseManagerEmails ?? [],
       directorApprovalThreshold: settings?.directorApprovalThreshold ?? null,

@@ -34,10 +34,7 @@ export type EventRequest = Doc<"eventRequests">;
 export type SubForm = Doc<"eventSubForms">;
 export type SubForms = Record<SubFormKind, SubForm>;
 
-// ── Who can use event requests ──────────────────────────────────────────────
-
-/** Campus leaders work from Attendance; event requests are for the staff above them. */
-const isCampusLeader = (caller: CallerContext) =>
+export const isCampusLeader = (caller: CallerContext) =>
   assignmentsOf(caller.profile).some((a) => roleNeedsUniversity(a.role));
 
 export async function optionalEventStaff(ctx: Ctx): Promise<CallerContext | null> {
@@ -53,11 +50,8 @@ export async function requireEventStaff(ctx: Ctx): Promise<CallerContext> {
   return caller;
 }
 
-// ── Approvers ───────────────────────────────────────────────────────────────
-
 export type Approver = { email: string; year: number };
 
-/** Whoever holds a role now decides; the event's own year covers a gap. */
 const approverYears = (event: Pick<EventRequest, "year">) => [
   ...new Set([currentStaffYear(), event.year]),
 ];
@@ -85,7 +79,6 @@ export async function directorOf(
   return null;
 }
 
-/** Who approves a form at its current step. */
 export const stepApprover = (
   ctx: Ctx,
   event: Pick<EventRequest, "year">,
@@ -96,7 +89,6 @@ export const stepApprover = (
     ? directorOf(ctx, event)
     : headOf(ctx, event, SUB_FORM_TEAMS[kind]);
 
-/** The approver plus anyone covering for them. */
 export const recipientsFor = async (ctx: Ctx, approver: Approver | null) =>
   approver ? await withDelegatesForYear(ctx, approver.year, approver.email) : [];
 
@@ -109,18 +101,12 @@ export async function actsAs(
   return (await actAsEmails(ctx, approver.year, caller.email)).has(approver.email);
 }
 
-/** "Risk form", for history lines and messages. */
 export const formName = (kind: SubFormKind) => `${SUB_FORM_LABELS[kind]} form`;
 
-/** "the Compliance Head", for messages about a missing or acting approver. */
 export const approverTitle = (kind: SubFormKind, step: FinanceStep | undefined) =>
   kind === "finance" && step === "director" ? "the Director" : `the ${SUB_FORM_TEAMS[kind]} Head`;
 
-// ── Who can see and do what ─────────────────────────────────────────────────
-
-/** The caller's part in event requests generally, not any one event. */
 export interface ViewerScope {
-  /** Forms the caller reviews: they're on (or head) the team that reviews them. */
   teams: Record<SubFormKind, boolean>;
   director: boolean;
   events: boolean;
@@ -147,12 +133,10 @@ export async function viewerScope(
   };
 }
 
-/** Can look across every event: admins, Events, the three teams and the Director. */
 export const seesAll = (scope: ViewerScope) =>
   scope.admin || scope.events || scope.director || SUB_FORM_KINDS.some((k) => scope.teams[k]);
 
 export interface EventAccess extends ViewerScope {
-  /** The requester, or a member or the Head of the event's lead department. */
   requesterSide: boolean;
   canView: boolean;
 }
@@ -170,17 +154,17 @@ export async function accessTo(
   return { ...scope, requesterSide, canView: requesterSide || seesAll(scope) };
 }
 
-/** Who can write in a form's thread: the requester's side and that form's reviewers. */
 export const canCommentOn = (access: EventAccess, kind: SubFormKind) =>
   access.requesterSide || access.teams[kind] || (kind === "finance" && access.director);
-
-// ── Loading ─────────────────────────────────────────────────────────────────
 
 export async function requireEvent(ctx: Ctx, id: Id<"eventRequests">) {
   const event = await ctx.db.get("eventRequests", id);
   if (!event) throw new ConvexError("Event request not found.");
   return event;
 }
+
+export const pendingSince = (form: Pick<SubForm, "submittedAt" | "directorApprovedAt">): number =>
+  Math.max(form.submittedAt ?? 0, form.directorApprovedAt ?? 0);
 
 export async function subFormsOf(ctx: Ctx, id: Id<"eventRequests">): Promise<SubForms> {
   const rows = await ctx.db
@@ -193,8 +177,6 @@ export async function subFormsOf(ctx: Ctx, id: Id<"eventRequests">): Promise<Sub
   }
   return forms as SubForms;
 }
-
-// ── History and notifications ───────────────────────────────────────────────
 
 export const logEvent = async (
   ctx: MutationCtx,
@@ -217,7 +199,6 @@ export const eventUrl = (
 ) =>
   `/event-requests/${event._id}${opts.form ? `/${opts.form}` : ""}${opts.thread ? "?thread=1" : ""}`;
 
-/** The event in a few lines: what, when, where and whose. */
 export async function eventSummary(ctx: Ctx, event: EventRequest) {
   const requester = await displayName(ctx, event.requesterEmail, event.year);
   return [
@@ -236,7 +217,6 @@ export type Message = {
   url: string;
 };
 
-/** Email, in-app and push to each person once (in-app and push only with `email: false`). */
 export async function tell(
   ctx: MutationCtx,
   event: EventRequest,
@@ -258,7 +238,6 @@ export async function tell(
   }
 }
 
-/** One email to a team's shared inbox. */
 export async function emailInbox(
   ctx: MutationCtx,
   kind: SubFormKind,
@@ -271,7 +250,6 @@ export async function emailInbox(
   });
 }
 
-/** This year's members of a department, plus its Head. */
 export async function teamOf(ctx: Ctx, department: string): Promise<string[]> {
   const year = currentStaffYear();
   const emails = new Set<string>();
@@ -285,11 +263,6 @@ export async function teamOf(ctx: Ctx, department: string): Promise<string[]> {
   return [...emails];
 }
 
-/**
- * Moves the event on when its forms say so: to Approved once all three are
- * approved or not required (telling the requester's side and the three
- * teams), or back to In progress when one is reopened.
- */
 export async function settleEvent(ctx: MutationCtx, eventId: Id<"eventRequests">, actor: string) {
   const event = await requireEvent(ctx, eventId);
   if (event.status === "CANCELLED") return;

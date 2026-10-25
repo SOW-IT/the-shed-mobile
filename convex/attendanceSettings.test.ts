@@ -6,8 +6,6 @@ import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -477,7 +475,8 @@ describe("attendance metadata", () => {
       deleteIds: [],
     });
     const updated = await leader.query(api.attendanceMetadata.list, { });
-    expect(updated.find((f) => f.key === "Notes")).toBeTruthy();
+    expect(updated.find((f) => f.key === "Notes")).toBeUndefined();
+    expect(updated.find((f) => f.key === "Other Information")).toBeTruthy();
     expect(updated.find((f) => f.key === "Campus")?.values?.["10"]).toBe("Online");
 
     const gender = fields.find((f) => f.key === "Gender")!;
@@ -510,10 +509,19 @@ describe("attendance metadata", () => {
         deleteIds: [],
       })
     ).rejects.toThrow(/Duplicate metadata field/i);
+    await expect(
+      leader.mutation(api.attendanceMetadata.saveAll, {
+        fields: [
+          { key: "Notes", type: "input", order: 5 },
+          { key: "other information", type: "input", order: 6 },
+        ],
+        deleteIds: [],
+      })
+    ).rejects.toThrow(/Duplicate metadata field "other information"/i);
 
     await leader.mutation(api.attendanceMetadata.saveAll, {
       fields: updated
-        .filter((f) => f.key !== "Notes")
+        .filter((f) => f.key !== "Other Information")
         .map((f) => ({
           id: f._id,
           key: f.key,
@@ -522,11 +530,11 @@ describe("attendance metadata", () => {
           values: f.values,
           lockedValues: f.lockedValues,
         })),
-      deleteIds: [updated.find((f) => f.key === "Notes")!._id],
+      deleteIds: [updated.find((f) => f.key === "Other Information")!._id],
     });
     expect(
       (await leader.query(api.attendanceMetadata.list, { })).some(
-        (f) => f.key === "Notes"
+        (f) => f.key === "Other Information"
       )
     ).toBe(false);
 
@@ -582,7 +590,7 @@ describe("attendance metadata", () => {
           lockedValues: yearField.lockedValues,
         },
         {
-          key: "Notes",
+          key: "Comments",
           type: "input",
           order: 11,
         },
@@ -591,7 +599,7 @@ describe("attendance metadata", () => {
     });
     expect(
       (await leader.query(api.attendanceMetadata.list, { })).find(
-        (f) => f.key === "Notes"
+        (f) => f.key === "Comments"
       )?.type
     ).toBe("input");
 
@@ -906,7 +914,6 @@ describe("attendance members", () => {
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    // An imported row with an SOW address (the app won't take one).
     const memberId = await t.run((ctx) =>
       ctx.db.insert("attendanceMembers", { name: "Outside Person", email: OUTSIDER })
     );
@@ -1153,10 +1160,24 @@ describe("attendance members", () => {
       filters: { [refreshedRole._id]: newcomerRoleId },
       paginationOpts: { numItems: 50, cursor: null },
     });
-    expect(byNewcomerRole.page.map((r) => r.name)).toContain(
-      "Newcomer Role Guest"
-    );
+    expect(byNewcomerRole.page.map((r) => r.name)).not.toContain("Newcomer Role Guest");
     expect(byNewcomerRole.page.some((r) => r.email === STAFF)).toBe(false);
+    const byMemberRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: "Member" },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byMemberRole.page.map((r) => r.name)).toEqual(
+      expect.arrayContaining(["Member Role Guest", "Newcomer Role Guest"])
+    );
+    expect(byMemberRole.page.some((r) => r.kind === "staff")).toBe(false);
+    const byAlumniRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: "Alumni" },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byAlumniRole.page.map((r) => r.name)).toEqual(["Alumni Role Guest"]);
+    expect(byAlumniRole.page[0].subtitle).toBe("Alumni");
 
     const unset = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
@@ -1387,5 +1408,17 @@ describe("attendanceMembers.byName", () => {
     expect(
       await leader.query(api.attendanceMembers.byName, { name: "nobody" })
     ).toEqual([]);
+  });
+
+  test("a different-case lookup returns only whole-name matches, not names that merely share words", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await t.run(async (ctx) => {
+      for (const name of ["Jane Doe", "jane doe", "Jane Doering", "Janet Doe", "Doe Jane"]) {
+        await ctx.db.insert("attendanceMembers", { name });
+      }
+    });
+    const matches = await leader.query(api.attendanceMembers.byName, { name: "JANE DOE" });
+    expect(matches.map((m) => m.name).sort()).toEqual(["Jane Doe", "jane doe"]);
   });
 });

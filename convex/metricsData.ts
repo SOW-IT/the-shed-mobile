@@ -88,7 +88,12 @@ const viewCard = v.object({
   info: v.optional(v.object({ title: v.string(), body: v.string() })),
 });
 
-const legendItem = v.object({ key: v.string(), colour: v.string(), label: v.string() });
+const legendItem = v.object({
+  key: v.string(),
+  colour: v.string(),
+  label: v.string(),
+  shape: v.optional(v.literal("line")),
+});
 
 const segmentPoint = v.object({
   at: v.number(),
@@ -123,6 +128,10 @@ export const viewBlockValidator = v.union(
     stacked: v.boolean(),
     axisMax: v.optional(v.number()),
     keepZeros: v.optional(v.boolean()),
+    line: v.optional(
+      v.object({ key: v.string(), colour: v.string(), values: v.array(v.union(v.number(), v.null())) })
+    ),
+    unit: v.optional(v.string()),
   }),
   v.object({
     type: v.literal("bars"),
@@ -151,3 +160,37 @@ export const viewBlockValidator = v.union(
     action: v.optional(v.object({ label: v.string(), period: v.string() })),
   })
 );
+
+const rateSeries = v.object({
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
+});
+
+const pctSeries = v.object({
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
+});
+
+const avgYearsSeries = v.object({
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
+});
+
+export const staffTrendsValidator = v.object({
+  computedAt: v.number(),
+  years: v.array(v.number()),
+  allStaff: v.array(v.number()),
+  staff: v.array(v.number()),
+  studentLeaders: v.array(v.number()),
+  campuses: v.array(v.string()),
+  studentLeadersByCampus: v.array(
+    v.object({ campus: v.string(), counts: v.array(v.number()) })
+  ),
+  turnover: rateSeries,
+  retention: rateSeries,
+  tenure2Plus: pctSeries,
+  avgTenureYears: avgYearsSeries,
+});

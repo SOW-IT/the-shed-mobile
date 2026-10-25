@@ -1,8 +1,6 @@
 import { useMinuteTick } from "@/hooks/useMinuteTick";
-import {
-  getLocalFileSizeBytes,
-  uploadLocalFileToUrl,
-} from "@/lib/uploadLocalFile";
+import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
+import { uploadLocalFileToUrl } from "@/lib/uploadLocalFile";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { isSowStaffAddress } from "@shared/rollcallImport";
 import { useMutation, useQuery } from "convex/react";
@@ -15,17 +13,23 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { timeAgo } from "../../shared/datetime";
-import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
+import {
+  formatAssignment,
+  roleLabel,
+  staffYearForDate,
+} from "../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { ChromeScreen } from "./ChromeScreen";
 import { ChurchDetails, ChurchPicker } from "./ChurchPicker";
 import { DeleteAccountCard } from "./DeleteAccountCard";
 import { useSpotifyPlaylist } from "./music/useSpotifyPlaylist";
+import { SignInPrompt } from "./SignInPrompt";
 import {
   Avatar,
   Card,
@@ -33,7 +37,6 @@ import {
   errorMessage,
   FadeInView,
   LoadingState,
-  MAX_UPLOAD_BYTES,
   Muted,
   Screen,
   SectionTitle,
@@ -223,23 +226,31 @@ export const ProfileView = ({
 }) => {
   const t = useAppTheme();
   const profile = useQuery(api.profile.get, email ? { email } : {});
-  // Keeps "Last online 5m ago" current while the profile is open.
   useMinuteTick();
   const generateAvatarUploadUrl = useMutation(
     api.profile.generateAvatarUploadUrl,
   );
   const setAvatar = useMutation(api.profile.setAvatar);
+  const setReminderEmails = useMutation(api.profile.setReminderEmails);
 
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const router = useRouter();
-  const goBack = router.canGoBack() ? () => router.back() : undefined;
+  const goBack = () =>
+    router.canGoBack() ? router.back() : router.replace("/org");
 
-  if (!profile) {
+  if (profile === undefined) {
     return (
       <ProfileFrame asTab={asTab} onBack={goBack}>
         <LoadingState />
+      </ProfileFrame>
+    );
+  }
+  if (profile === null) {
+    return (
+      <ProfileFrame asTab={asTab} onBack={goBack}>
+        <SignInPrompt what="page" />
       </ProfileFrame>
     );
   }
@@ -255,23 +266,14 @@ export const ProfileView = ({
         mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 1,
       });
       if (result.canceled) return;
       setUploading(true);
-      const asset = result.assets[0];
-      const size = await getLocalFileSizeBytes(asset.uri);
-      if (size > MAX_UPLOAD_BYTES) {
-        const maxMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
-        throw new Error(
-          `Image is too large. Please choose one ${maxMb}MB or less.`,
-        );
-      }
+      const picked = result.assets[0];
+      const photo = await shrinkPhotoForUpload(picked.uri, picked.mimeType);
       const uploadUrl = await generateAvatarUploadUrl();
-      const storageId = await uploadLocalFileToUrl(uploadUrl, {
-        uri: asset.uri,
-        mimeType: asset.mimeType,
-      });
+      const storageId = await uploadLocalFileToUrl(uploadUrl, photo);
       await setAvatar({ storageId });
     } catch (e) {
       setError(errorMessage(e));
@@ -348,8 +350,12 @@ export const ProfileView = ({
                 ]}
               >
                 {(current.assignments ?? []).length > 0
-                  ? current.assignments.map(formatAssignment).join("  ·  ")
-                  : current.roles.map(acronym).join(", ")}{" "}
+                  ? current.assignments
+                      .map((a) => formatAssignment(a, current.roleTitles))
+                      .join("  ·  ")
+                  : current.roles
+                      .map((r) => roleLabel(r, current.roleTitles))
+                      .join(", ")}{" "}
                 · {current.year}
               </Text>
             </View>
@@ -368,6 +374,38 @@ export const ProfileView = ({
         <FadeInView delay={stagger(1)}>
           <Card>
             <ChurchPicker church={profile.church} />
+          </Card>
+        </FadeInView>
+      )}
+
+      {profile.isMe && profile.reminderEmails !== null && (
+        <FadeInView delay={stagger(2)}>
+          <Card>
+            <Text style={[typography.label, { color: t.muted }]}>
+              Notifications
+            </Text>
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Txt style={{ fontWeight: "600" }}>
+                  Email me daily reminders
+                </Txt>
+                <Muted>
+                  One morning email listing what&apos;s waiting on you.
+                </Muted>
+              </View>
+              <Switch
+                accessibilityLabel="Email me daily reminders"
+                value={profile.reminderEmails}
+                onValueChange={(enabled) => {
+                  setError(null);
+                  void setReminderEmails({ enabled }).catch((e: unknown) =>
+                    setError(errorMessage(e)),
+                  );
+                }}
+                trackColor={{ false: t.ghost, true: t.primarySoft }}
+                thumbColor={profile.reminderEmails ? t.primary : t.faint}
+              />
+            </View>
           </Card>
         </FadeInView>
       )}
@@ -448,14 +486,16 @@ export const ProfileView = ({
                               { color: t.dark ? t.text : t.primary },
                             ]}
                           >
-                            {formatAssignment(a)}
+                            {formatAssignment(a, entry.roleTitles)}
                           </Text>
                         </View>
                       ))}
                     </View>
                   ) : (
                     <Txt style={{ fontWeight: "700" }}>
-                      {entry.roles.map(acronym).join(", ") || "—"}
+                      {entry.roles
+                        .map((r) => roleLabel(r, entry.roleTitles))
+                        .join(", ") || "—"}
                     </Txt>
                   )}
                 </View>
@@ -482,6 +522,7 @@ export const ProfileView = ({
 };
 
 const styles = StyleSheet.create({
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   syncChip: {
     flexDirection: "row",
     alignItems: "center",

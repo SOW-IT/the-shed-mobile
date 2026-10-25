@@ -12,7 +12,7 @@ import {
   subgroupLabel,
   subgroupMatches,
 } from "../../../shared/rollcall";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { CampusMark } from "@/components/CampusMark";
@@ -49,20 +49,18 @@ const statusTone = (status: EventStatus, t: ReturnType<typeof useAppTheme>) => {
   return { bg: t.ghost, fg: t.ghostText };
 };
 
-/**
- * Attendance → Events: a subgroup's events, newest first. Tapping anywhere on
- * an event opens it; Edit opens the edit sheet.
- */
 export function EventsTab({
   subgroups,
   selectedSubgroup,
   onSelectedSubgroupChange,
   loadMoreRef,
+  onCreateEvent,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   loadMoreRef?: MutableRefObject<(() => void) | null>;
+  onCreateEvent?: () => void;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -163,7 +161,7 @@ export function EventsTab({
             <EmptyState
               icon="calendar-outline"
               title="No events yet"
-              message="Create an event to take attendance."
+              action={onCreateEvent ? { label: "Create an event", onPress: onCreateEvent } : undefined}
             />
           ) : (
             <View style={styles.eventsList}>
@@ -304,9 +302,6 @@ export function EventsTab({
                         >
                           {signedInLabel(event.attendanceCount)}
                         </Text>
-                        {/* Holds Edit's space in the line; the real button sits
-                            over it as a sibling of the row, because a button
-                            nested in the row's button is invalid on web. */}
                         <View
                           style={[styles.editButton, { borderColor: "transparent" }]}
                           importantForAccessibility="no-hide-descendants"
@@ -449,8 +444,6 @@ const styles = StyleSheet.create({
   badgeGroupRight: {
     justifyContent: "flex-end",
   },
-  // Tags keep their natural width (up to half the row) so subgroup pills wrap
-  // first instead of squeezing a short tag name onto two lines.
   tagGroup: {
     flexShrink: 0,
     maxWidth: "50%",

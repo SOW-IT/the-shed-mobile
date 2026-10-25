@@ -43,13 +43,9 @@ export async function logAttendanceAction(
   await ctx.db.insert("attendanceAuditLog", entry);
 }
 
-/** Deleting is permanent, so audit entries list what went with it — up to
- *  this many lines, with an exact count above them. */
 export const MAX_AUDIT_ATTENDANCE_LINES = 100;
 
-/** A sign-in time as it reads in the audit log, in Sydney time. */
 export const auditStamp = (ms: number): string => {
-  // A corrupt time must never stop a delete from being logged.
   if (!Number.isFinite(ms) || Number.isNaN(new Date(ms).getTime())) {
     return "unknown time";
   }
@@ -64,12 +60,13 @@ export const auditStamp = (ms: number): string => {
       hour12: true,
     }).format(new Date(ms));
   } catch {
-    // Runtimes without full ICU still get something sortable and unambiguous.
     return new Date(ms).toISOString();
   }
 };
 
 const MAX_ROWS_SCANNED_PER_CALL = 2000;
+const FILTER_AUDIT_ROWS = 200;
+const FILTER_RECENT_EVENTS = 40;
 
 export const list = query({
   args: {
@@ -156,7 +153,6 @@ export const list = query({
     const year = staffYearForDate(new Date());
     const nameByActor: Record<string, string> = {};
     for (const email of new Set(rows.map((r) => r.actorEmail))) {
-      // One-off admin commands log as "system:<job>" rather than a person.
       nameByActor[email] = email.startsWith("system:")
         ? `System (${email.slice("system:".length).replace(/-/g, " ")})`
         : await displayName(ctx, email, year);
@@ -185,7 +181,7 @@ export const filterOptions = query({
     const recent = await ctx.db
       .query("attendanceAuditLog")
       .order("desc")
-      .take(1000);
+      .take(FILTER_AUDIT_ROWS);
 
     const year = staffYearForDate(new Date());
     const actorEmails = [...new Set(recent.map((r) => r.actorEmail))];
@@ -197,12 +193,17 @@ export const filterOptions = query({
     );
     actors.sort((a, b) => a.name.localeCompare(b.name));
 
-    const eventIds = [
+    const started = await ctx.db
+      .query("events")
+      .withIndex("by_dateStart", (q) => q.lte("dateStart", Date.now()))
+      .order("desc")
+      .take(FILTER_RECENT_EVENTS);
+    const startedIds = new Set(started.map((e) => e._id));
+    const loggedIds = [
       ...new Set(recent.flatMap((r) => (r.eventId ? [r.eventId] : []))),
-    ];
-    const events = (
-      await Promise.all(eventIds.map((id) => ctx.db.get(id)))
-    )
+    ].filter((id) => !startedIds.has(id));
+    const logged = await Promise.all(loggedIds.map((id) => ctx.db.get(id)));
+    const events = [...started, ...logged]
       .filter((e): e is NonNullable<typeof e> => e !== null)
       .map((e) => ({
         id: e._id,

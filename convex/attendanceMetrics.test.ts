@@ -8,8 +8,6 @@ import type { MutationCtx } from "./_generated/server";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -69,7 +67,6 @@ async function setup() {
   return { t, leader };
 }
 
-// A campus's weeklies index row, as weeklyInsights.rebuild writes it.
 const weeklyIndex = (
   ctx: MutationCtx,
   subgroup: string,
@@ -114,7 +111,6 @@ describe("attendanceMetrics", () => {
     for (const year of [2026, 2027]) {
       expect(scheduled).toContainEqual({ subgroup: SOW_SUBGROUP, staffYear: year });
     }
-    // Campuses are built from their weeklies by weeklyInsights.rebuildAll.
     expect(scheduled.some((j) => j.subgroup === USYD)).toBe(true);
   });
 
@@ -231,6 +227,30 @@ describe("attendanceMetrics", () => {
     expect(jobs.every((j) => j.ranges === undefined)).toBe(true);
   });
 
+  test("a nightly run does nothing where nightly jobs are paused, and a manual run still rebuilds", async () => {
+    const { t } = await setup();
+    vi.stubEnv("NIGHTLY_JOBS_PAUSED", "true");
+    try {
+      const scheduled = () =>
+        t.run(async (ctx) => (await ctx.db.system.query("_scheduled_functions").collect()).length);
+      await t.mutation(internal.attendanceMetrics.recomputeAll, { nightly: true });
+      expect(await scheduled()).toBe(0);
+      await t.mutation(internal.attendanceMetrics.recomputeAll, {});
+      expect(await scheduled()).toBeGreaterThan(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  test("a nightly run still rebuilds where nightly jobs aren't paused", async () => {
+    const { t } = await setup();
+    await t.mutation(internal.attendanceMetrics.recomputeAll, { nightly: true });
+    const scheduled = await t.run(
+      async (ctx) => (await ctx.db.system.query("_scheduled_functions").collect()).length
+    );
+    expect(scheduled).toBeGreaterThan(0);
+  });
+
   test("recomputeAll also rebuilds the General tab's campus chart once", async () => {
     const { t } = await setup();
     await t.mutation(internal.attendanceMetrics.recomputeAll, {});
@@ -312,9 +332,9 @@ describe("attendanceMetrics", () => {
 
     const snap = await snapshotOf(t, USYD, 4);
     expect(snap!.data.leadersVsOthers).toEqual([
-      expect.objectContaining({ primary: 3, rest: 2 }),
+      expect.objectContaining({ primary: 2, rest: 3 }),
     ]);
-    expect(snap!.data.summary.leaderShare).toBe(0.6);
+    expect(snap!.data.summary.leaderShare).toBe(0.4);
     expect(snap!.data.campusMix).toEqual([
       expect.objectContaining({ primary: 2, rest: 1 }),
     ]);
@@ -645,7 +665,6 @@ describe("campus weekly averages in the SOW view", () => {
       await weeklyIndex(ctx, USYD, [
         { at: now - 2 * DAY, count: 10, joint: false },
         { at: now - 9 * DAY, count: 15, joint: false },
-        // Joint, and outside the 4-week range respectively.
         { at: now - 16 * DAY, count: 100, joint: true },
         { at: now - 60 * DAY, count: 99, joint: false },
       ]);
@@ -736,9 +755,10 @@ describe("view", () => {
       rangeWeeks: 4,
       includeCollaborative: false,
     });
-    expect(view?.blocks[1]).toEqual({
+    expect(view?.blocks[1]).toEqual({ type: "heading", text: "Weeklies" });
+    expect(view?.blocks[2]).toEqual({
       type: "breakdown",
-      title: "Weekly avg by campus",
+      title: "Weeklies average by campus",
       rows: [{ label: USYD, value: 42, colour: subgroupColour(USYD) }],
     });
   });

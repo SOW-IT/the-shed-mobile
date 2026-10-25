@@ -2,32 +2,53 @@
 
 > From 2.5.0 a **campus**'s view is built from its weekly meetings instead:
 > see [weekly-insights.md](weekly-insights.md). What follows now describes the
-> org-wide **SOW** view, whose Snapshots are the only ones still built.
+> org-wide **SOW** view, the only Snapshots the app reads (campus Snapshots
+> are still built each night, for BigQuery).
 
 A leader-facing dashboard that turns raw sign-in data into trends and gentle
 follow-up prompts for a sub-group and time range.
 
 - **UI (server-driven):** `api.attendanceMetrics.view` returns the tab as a
   list of typed blocks (`cards`, `bars`, `breakdown`, `followUps`, `label`,
-  `updated`, `empty`), laid out by `shared/attendanceMetricsView.ts`.
+  `heading`, `updated`, `empty`), laid out by `shared/attendanceMetricsView.ts`.
   `src/components/attendance/MetricsTab.tsx` only draws each block type and
   skips types it doesn't know, so what the tab shows, its wording and its
   order change with a **Convex deploy**, not an app release. The range presets
   come from `api.attendanceMetrics.rangeOptions` the same way. A brand-new
   block type still needs an app release before it appears.
-- **Insights → General** works the same way: `api.generalMetrics.view({ scope })`
+- **Insights → General** works the same way: `api.generalMetrics.view({ scope, lines })`
   returns blocks built by `shared/generalMetricsView.ts` plus the year list for
-  the scope picker. All years: staff and student-leader counts, retention and
-  average years served (overall / staff / student leaders) for the newest
-  year, labelled once ("2027 vs 2026"), then charts of staff & student
-  leaders, student leaders by campus, retention, average years served, served
-  2+ years, and weekly average by campus. One year: the same cards for that
-  year plus calendar-year weekly averages. Retention has no post-rollover
-  grace: the newest year's rate shows from 1 October and reflects the copied
-  roster until leavers are marked. Campus weekly averages are bucketed by
-  Sydney calendar year. Both tabs draw through
+  the scope picker. All years, labelled once ("2027 vs 2026"), in sections:
+  **People serving** (Overall / Staff / Student leaders cards, then Staff &
+  student leaders and Student leaders by campus), **Retention**, **Years
+  served** (Average years served cards, then Average years served and Served
+  2+ years) and **Weeklies** (Weeklies average by campus). One year: the same
+  sections as cards, plus that year's leaders by campus and calendar-year
+  weeklies averages. Both tabs draw through
   `src/components/attendance/InsightsBlocks.tsx`. Colours travel as theme
   tokens (`text`, `primary`, `accent`, `success`) or campus hex colours.
+- **Who's serving and for how long** (`computeStaffTrends`): someone serves in
+  staff year Y if they have a staff profile that year with a staff or student
+  leader role (Outsource alone doesn't count). Head counts are distinct
+  people. **Average years served** for Y counts every year each person serving
+  in Y has served, in any role, up to and including Y (never later years),
+  divided by how many are serving; Staff and Student leaders split those
+  people by their role in Y. So a staff member's student leader years count,
+  and Overall always sits between the two groups. **Served 2+ years** is the
+  share of the same people with two or more such years. **Retention** is the
+  share of last year's group (overall, staff or student leaders) still serving
+  this year in any role, so a student leader who joins staff is retained.
+  Retention has no post-rollover grace: the newest year's rate shows from
+  1 October and reflects the copied roster until leavers are marked.
+- **General's charts** for those four series are staff and student leader bars
+  side by side with Overall as a line over them (the `multiBars` block's
+  `line`), with `%` on the Retention and Served 2+ years axes (`unit`).
+  General has no bars/lines switch: it always draws bars. The app still sends
+  `lines: true`, which the server ignores since 2.10.0.
+- **Weeklies average by campus** is bucketed by Sydney calendar year (the
+  chart says so) and follows the weekly Insights' `jointWeeklies` setting:
+  off, a weekly shared by several campuses counts for none of them, like the
+  campus page.
 - **Logic (pure, shared, tested):** `shared/attendanceMetrics.ts`
   (`shared/attendanceMetrics.test.ts`).
 - **Backend precompute + read API:** `convex/attendanceMetrics.ts`
@@ -54,7 +75,10 @@ rebuilt by one cron, fanning out one bounded recompute per sub-group:
 - **General tab campus chart** — the same nightly `recomputeAll` also rebuilds
   `campusAttendanceSnapshots` (`generalMetrics.recomputeCampusWeeklyAttendance`),
   so Insights → General reads one small row instead of every weekly meeting's
-  attendance.
+  attendance. `weeklyInsights:setSettings` rebuilds it straight away too, so a
+  `jointWeeklies` change reaches General with the campus pages. After a deploy
+  that changes how these numbers are counted, run
+  `npx convex run attendanceMetrics:recomputeAll` (or wait for the night).
 
 Each recompute runs as an **action** (`recomputeSubgroup`) so it can page the
 large attendance read across several bounded query transactions instead of
@@ -106,6 +130,7 @@ they can be tuned in one place. Current values:
 | **Newcomer needs follow-up** | First attended once, a relevant weekly meeting has since occurred, and they haven't returned → *"Newcomer: first attended N ago, hasn't returned"* | `newcomerDays` |
 | **Re-engaged** | Attended within the last 30 days after a prior gap of ≥ 30 days → *"Returned after N away"* | `reengagedGapDays` |
 | **Weekly average** | Mean sign-ins per Weekly Meeting **that happened**: a Weekly Meeting with no sign-ins (cancelled or holiday week) is left out of the average and the weekly chart; the General/SOW per-campus averages use the same rule | — |
+| **Average per event** | Mean sign-ins per event that someone signed in to; an event with no roll is left out, for this period and the one before | n/a |
 | **Declining** | Fewer attendances in the recent half of the **selected range** than in the half before it → *"Attending less than before"* | — (splits the range in half) |
 
 A person appears in **Needs follow-up** at most once, using the most pressing
@@ -113,8 +138,9 @@ reason (at risk → lapsed → declining → newcomer-no-return → re-engaged).
 
 ### What the tab shows
 
-- **SOW:** the weekly-meeting average for each campus over the chosen range
-  (from each campus's recent weeklies), then SOW events' three numbers.
+- **SOW:** under **Weeklies**, the weeklies average for each campus over the
+  chosen range (from each campus's recent weeklies); under **SOW events**,
+  Average per event, People and New people.
   There's no follow-up list at org level. From 2.9.0 this is the **Campuses**
   tab; TWIG and PPN have their own tabs ([sow-insights.md](sow-insights.md)).
 - **A campus (before 2.5.0, historical):** three numbers, one chart and Needs
@@ -128,9 +154,8 @@ them from the snapshot.
 
 ## Language
 
-Follow-up copy is deliberately pastoral and non-judgemental ("Follow-up
-suggested", "A gentle prompt … No judgement implied"). These are people, not
-scores.
+Follow-up copy is deliberately pastoral and non-judgemental. These are people,
+not scores.
 
 ## Notes / future extensions
 

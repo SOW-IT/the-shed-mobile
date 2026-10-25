@@ -35,6 +35,11 @@ hold code for all five — so each context's glossary lives under
 - **Org → Design Requests**: the Marketing Head approves and the Marketing
   department does the work, both read from that year's Org. Design Requests
   shares the notification feed with Reimbursements but no other table.
+- **Reimbursements, Design Requests and Event Requests → the daily digest**:
+  one morning job (`convex/reminders.ts`) reads each context's open work and
+  sends each person a single reminder, and Home's "Waiting on you"
+  (`convex/waitingOnMe.ts`) and Admin's step timing (`convex/stepTiming.ts`)
+  read all three the same way. They read; they own nothing.
 - **Org → Event Requests**: the Marketing, Compliance and Finance Heads, the
   Director and the event's lead department all come from Org, as do the
   event Director threshold (in `yearSettings`) and who can see every event.
@@ -42,6 +47,11 @@ hold code for all five — so each context's glossary lives under
   chosen campuses, divisions, departments and roles. Its audience is worked
   out from that year's Org, and it shares the notification feed with the
   other contexts but no other table. Its terms are in the Org glossary.
+- **Mentoring belongs to Org**: admins pair each year's Campus leaders with a
+  leader or an external mentor. Who can be a mentee or a mentor is read from
+  that year's `staffProfiles`; pairings are keyed by email and year like
+  approver delegations, and follow a person's email when it changes. Its
+  terms are in the Org glossary.
 - **Design Requests ↔ Event Requests**: an event's design and promotion is
   its Marketing form, never a design request. They share the server-driven
   form engine (`shared/forms.ts`) and the notification feed, but no table and
@@ -52,11 +62,12 @@ hold code for all five — so each context's glossary lives under
   rebuild when it rolls over on October 1, but none controls it. See
   [ADR 0003](./docs/adr/0003-october-1-staff-year-rollover.md).
 
-Links between the web and the phone app sit outside the contexts too: pages
-added after people may have installed the app open in it only for those whose
-app reported a new enough version. See [ADR 0007](./docs/adr/0007-links-to-pages-older-apps-lack.md).
+Links between the web and the phone app sit outside the contexts too: every
+page exists in every supported app, and a release that adds a linked page
+raises the update policy's `minimum` (ADR 0007, superseded in 2.10.0). The
+web never hands `/checkin` to the app ([ADR 0012](./docs/adr/0012-check-in-links-open-the-app.md)).
 
-A nightly BigQuery copy of production Convex sits outside all five contexts.
+A weekly BigQuery copy of production Convex sits outside all five contexts.
 It is a snapshot for SQL, not a source of truth, and the app does not read it.
 JSON tables live in `convex_production`; typed views and Looker/Sheets report
 views live in `convex_warehouse`. See [ADR 0004](./docs/adr/0004-convex-to-bigquery-snapshot.md),

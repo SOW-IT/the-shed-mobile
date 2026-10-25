@@ -48,7 +48,8 @@ push notifications instead.
 **Marketing queue** and **archive**:
 The team's two views. The queue is every open request, from any year: what's
 waiting for approval and what's approved but not finished. The archive is
-every request from one staff year, for looking back.
+this staff year's requests, then earlier years' as you scroll, for looking
+back.
 
 **Status**:
 `Waiting for approval → Approved → Complete`, or closed early as `Declined`
@@ -64,3 +65,15 @@ under the requester's current address. One from an earlier staff year that was
 never finished comes in Complete with the note "Closed when imported from the
 old SHED", so it doesn't sit in the Marketing queue for good. Once anyone acts
 on it in THE SHED, a re-run leaves it alone.
+
+**Reminder**:
+Chases an open request that has not moved, on the same cadence as a
+[reimbursement](./reimbursements.md) reminder: the Marketing Head while it is
+Waiting for approval, the Marketing team (in-app, plus one email to the
+shared inbox) while it is Approved and not finished. It says when the design
+is needed by. Part of the person's daily digest.
+
+**Waiting since**:
+When a request started waiting on the Marketing team: its submission while
+Waiting for approval, its approval once Approved. The Marketing queue shows
+it and lists the longest waiting first.

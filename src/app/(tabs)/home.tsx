@@ -1,15 +1,15 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { DEFAULT_HOME_BLOCKS, HOME_TABS } from "../../../shared/homeContent";
 import { HomeBlocks } from "@/components/home/HomeBlocks";
+import { WaitingOnYou } from "@/components/home/WaitingOnYou";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-// Until the server answers, show the built-in content rather than a spinner.
 const FALLBACK_TABS = HOME_TABS.map(({ key, label }) => ({
   key,
   label,
@@ -25,7 +25,12 @@ export default function HomeScreen() {
   const tabs: PagerTab[] = (view?.tabs ?? FALLBACK_TABS).map((tab) => ({
     key: tab.key,
     label: tab.label,
-    render: () => <HomeBlocks blocks={tab.blocks} />,
+    render: () => (
+      <View style={styles.page}>
+        {tab.key === "home" ? <WaitingOnYou /> : null}
+        <HomeBlocks blocks={tab.blocks} />
+      </View>
+    ),
   }));
   const activeKey = tabs.some((tab) => tab.key === active) ? active : tabs[0].key;
   const activeLabel = tabs.find((tab) => tab.key === activeKey)?.label ?? "";
@@ -57,6 +62,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  page: { gap: spacing.md },
   fab: {
     position: "absolute",
     bottom: spacing.md,

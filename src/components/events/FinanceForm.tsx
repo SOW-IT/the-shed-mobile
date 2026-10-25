@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   financeTotals,
@@ -11,7 +11,6 @@ import { spacing, typography, useAppTheme } from "@/theme";
 
 type LineDraft = { key: string; label: string; amount: string };
 
-/** The Finance form while it's being filled in: amounts stay as typed text. */
 export type FinanceDraft = { income: LineDraft[]; expenses: LineDraft[]; spreadsheetUrl: string };
 
 let nextKey = 0;
@@ -103,7 +102,6 @@ const Lines = ({
   );
 };
 
-/** The Finance form: a simple rundown of income and expenses, totalled. */
 export const FinanceFormEditor = ({
   draft,
   onChange,
@@ -125,7 +123,7 @@ export const FinanceFormEditor = ({
     <View style={{ gap: spacing.md }}>
       <Lines
         title="Income"
-        hint="Registrations, sponsorships, sales, anything coming in. Leave empty if there's none."
+        hint="Registrations, sponsorships, sales."
         rows={draft.income}
         addLabel="+ Add Income"
         placeholder="e.g. Registrations (100 × $30)"
@@ -185,7 +183,6 @@ const Summary = ({ income, expenses }: { income: number; expenses: number }) => 
   );
 };
 
-/** A submitted Finance form, read-only. */
 export const FinanceView = ({ data }: { data: FinanceData }) => {
   const t = useAppTheme();
   const totals = financeTotals(data);

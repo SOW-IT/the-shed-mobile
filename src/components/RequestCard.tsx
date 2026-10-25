@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import React, { ReactNode, useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -26,56 +26,16 @@ import {
   LoadingState,
   Muted,
   Sheet,
-  SowSpinner,
   Txt,
 } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
-import { timeAgo } from "@shared/datetime";
+import { daysSince, timeAgo, waitingLabel } from "@shared/datetime";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { ReceiptRecipientList } from "./ReceiptRecipientList";
+import { eventLabel, RequestTimeline } from "./RequestTimeline";
 
-const EVENT_LABELS: Record<string, string> = {
-  submitted: "Submitted",
-  "auto-approved": "Auto-approved",
-  approved: "Approved",
-  declined: "Declined",
-  "receipt-submitted": "Receipt submitted",
-  paid: "Paid",
-};
-
-const History = ({ request }: { request: Doc<"requests"> }) => {
-  const t = useAppTheme();
-  const trail = useQuery(api.requests.auditTrail, { requestId: request._id });
-  if (!trail) {
-    return (
-      <View style={{ alignItems: "center", paddingVertical: spacing.md }}>
-        <SowSpinner size={28} />
-      </View>
-    );
-  }
-  return (
-    <View style={[styles.history, { backgroundColor: t.inputBackground }]}>
-      {trail.map((event, index) => (
-        <View key={index} style={styles.historyRow}>
-          <View style={[styles.historyDot, { backgroundColor: t.faint }]} />
-          <View style={{ flex: 1 }}>
-            <Text style={[typography.caption, { color: t.text, fontWeight: "600" }]}>
-              {EVENT_LABELS[event.action] ?? event.action}
-              {event.step
-                ? ` · ${STEP_LABELS[event.step as ApprovalStep] ?? event.step}`
-                : ""}
-            </Text>
-            <Text style={[typography.caption, { color: t.muted }]}>
-              {sydneyDateTime(event.at)} · {event.actor}
-              {event.detail ? ` · ${event.detail}` : ""}
-            </Text>
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-};
+const WAITING_LONG_DAYS = 7;
 
 const stepStatus = (request: Doc<"requests">, step: ApprovalStep): ApprovalStatus | undefined =>
   request[STEP_FIELDS[step]];
@@ -149,7 +109,7 @@ const StepInfoModal = ({
             info.events.map((event, i) => (
               <View key={i} style={{ gap: 2 }}>
                 <Text style={[typography.caption, { color: t.text, fontWeight: "600" }]}>
-                  {EVENT_LABELS[event.action] ?? event.action}
+                  {eventLabel(event.action)}
                 </Text>
                 <Muted>
                   {sydneyDateTime(event.at)}
@@ -339,6 +299,7 @@ export const RequestCard = ({
   autoOpenThread = false,
   deepLinkOpenKey,
   onAutoOpenThread,
+  waitingSince,
   children,
 }: {
   request: Doc<"requests">;
@@ -349,6 +310,7 @@ export const RequestCard = ({
   autoOpenThread?: boolean;
   deepLinkOpenKey?: string;
   onAutoOpenThread?: () => void;
+  waitingSince?: number;
   collapsible?: boolean;
   children?: ReactNode;
 }) => {
@@ -384,11 +346,6 @@ export const RequestCard = ({
       setExpanded(true);
     }
   }, [autoExpand, collapsible, deepLinkOpenKey]);
-  // Opens the thread only when a deep link asks for it. Kept separate from the
-  // expand effect so a later status change on the request (which flips
-  // `collapsible`) cannot re-open a thread the user has since closed. The
-  // parent is told once it has opened, so a card re-created for the same link
-  // (e.g. moved to another Review section) does not open it again.
   useEffect(() => {
     if (!autoOpenThread) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external deep-link focus sync
@@ -449,6 +406,20 @@ export const RequestCard = ({
         })}{" · "}
         {timeAgo(request._creationTime)}
       </Text>
+      {waitingSince !== undefined ? (
+        <Text
+          style={[
+            typography.caption,
+            {
+              color: daysSince(waitingSince) >= WAITING_LONG_DAYS ? t.accent : t.muted,
+              fontWeight: "700",
+              marginTop: -4,
+            },
+          ]}
+        >
+          {waitingLabel(waitingSince)}
+        </Text>
+      ) : null}
     </>
   );
 
@@ -474,7 +445,7 @@ export const RequestCard = ({
           </Text>
         </View>
       ) : null}
-      {showHistory ? <History request={request} /> : null}
+      {showHistory ? <RequestTimeline request={request} /> : null}
       <View style={[styles.actionsDivider, { backgroundColor: t.separator }]} />
       <View style={styles.actionsRow}>
         <View style={styles.actionsLeft}>
@@ -490,9 +461,9 @@ export const RequestCard = ({
         </View>
         <View style={styles.actionsRight}>
           <IconButton
-            name="receipt-outline"
+            name="time-outline"
             size={40}
-            accessibilityLabel={showHistory ? "Hide audit trail" : "Show audit trail"}
+            accessibilityLabel={showHistory ? "Hide timeline" : "Show timeline"}
             color={showHistory ? t.primary : t.ghostText}
             bg={showHistory ? t.primarySoft : undefined}
             onPress={() => setShowHistory((previous) => !previous)}
@@ -628,13 +599,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
-  history: {
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  historyRow: { flexDirection: "row", gap: spacing.sm },
-  historyDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
   actionsDivider: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
   actionsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   actionsLeft: {

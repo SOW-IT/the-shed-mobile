@@ -15,12 +15,7 @@ import {
   SOW_SUBGROUP,
   subgroupLabel,
 } from "../shared/rollcall";
-import {
-  CAMPUS_FIELD_KEY,
-  ROLE_FIELD_KEY,
-  roleFilterMatches,
-  STUDENT_LEADER_ROLE_FILTER_LABEL,
-} from "../shared/attendanceMemberMeta";
+import { CAMPUS_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import {
   computeSubgroupMetrics,
   METRICS_THRESHOLDS,
@@ -42,7 +37,7 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
-import { currentStaffYear, optionalProfile } from "./model";
+import { currentStaffYear, nightlyJobsPaused, optionalProfile } from "./model";
 import { metricsDataValidator, viewBlockValidator } from "./metricsData";
 import { readCampusWeeklyAverages } from "./weeklyInsights";
 import { photoFor } from "./photo";
@@ -261,7 +256,6 @@ async function resolvePersons(
 
   const metadataFields = await ctx.db.query("attendanceMetadata").collect();
   const campusField = metadataFields.find((f) => f.key === CAMPUS_FIELD_KEY);
-  const roleField = metadataFields.find((f) => f.key === ROLE_FIELD_KEY);
   const memberCampus = (
     metadata: Record<string, string> | undefined
   ): string | undefined => {
@@ -270,14 +264,6 @@ async function resolvePersons(
     const label = campusField?.values?.[raw] ?? raw;
     return label && label !== "Other" ? label : undefined;
   };
-  const memberRoleLabel = (
-    metadata: Record<string, string> | undefined
-  ): string | undefined => {
-    const raw = roleField ? metadata?.[roleField._id] : undefined;
-    if (!raw) return undefined;
-    return roleField?.values?.[raw] ?? raw;
-  };
-
   const persons: MetricsPerson[] = [];
   for (const key of keys) {
     if (!key.startsWith(MEMBER_PREFIX)) continue;
@@ -293,11 +279,7 @@ async function resolvePersons(
         name: member?.name ?? "Unknown",
         photo: null,
         breakdown: buildBreakdown("Member", undefined),
-        isStudentLeader: roleFilterMatches(
-          STUDENT_LEADER_ROLE_FILTER_LABEL,
-          [],
-          memberRoleLabel(member?.metadata) ?? null
-        ),
+        isStudentLeader: false,
         campuses: campus ? [campus] : undefined,
       });
       continue;
@@ -415,11 +397,10 @@ function metricsYears(): number[] {
 }
 
 export const recomputeAll = internalMutation({
-  args: { staffYear: v.optional(v.number()) },
+  args: { staffYear: v.optional(v.number()), nightly: v.optional(v.boolean()) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Only the org-wide SOW view uses these Snapshots now; each campus's view
-    // is built from its weekly meetings by weeklyInsights.rebuildAll.
+    if (args.nightly && nightlyJobsPaused()) return null;
     const years = args.staffYear ? [args.staffYear] : metricsYears();
     for (const year of years) {
       const universities = await ctx.db
@@ -438,6 +419,9 @@ export const recomputeAll = internalMutation({
       internal.generalMetrics.recomputeCampusWeeklyAttendance,
       {}
     );
+    await ctx.scheduler.runAfter(0, internal.generalMetrics.recomputeStaffTrends, {});
+    await ctx.scheduler.runAfter(0, internal.rosterHistory.rebuild, {});
+    await ctx.scheduler.runAfter(0, internal.memberPairSuggestions.rebuild, {});
     return null;
   },
 });

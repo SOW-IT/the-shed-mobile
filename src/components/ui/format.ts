@@ -55,14 +55,11 @@ export const runBusy = async (
   }
 };
 
-export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 export const MAX_RECEIPT_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 export const digitsOnly = (text: string): string => text.replace(/[^0-9]/g, "");
 
-/** Australian BSBs are exactly six digits. */
 export const BSB_LENGTH = 6;
-/** Australian account numbers are at most ten digits. */
 export const ACCOUNT_NUMBER_MAX_LENGTH = 10;
 
 export const maskAccount = (accountNumber: string): string =>

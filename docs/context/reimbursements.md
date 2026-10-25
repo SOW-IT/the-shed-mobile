@@ -47,7 +47,40 @@ At rollover, files from previous-previous and older are deleted. The Request
 and the file name stay; only the download dies.
 _Avoid_: invoice (the domain word is Receipt; the UI still says receipt/invoice)
 
+**Past years**:
+Each list carries on past this staff year as you scroll, newest first, a
+heading per year: Mine the caller's own Requests, Review every other person's
+Request the caller approved or declined (Review stays for anyone who has
+reviewed a Request, even if they approve nothing now), and All (Finance, under
+Completed) every completed Request. A Request belongs to the year it was made
+in, even when it was reviewed in the next; Review orders a year's Requests by
+when the caller reviewed them.
+
 **Deadlock prevention**:
 Refusing a submission up front when the year is missing an approver that
 Request would need, rather than letting it strand mid-chain. The error names
 the missing approver.
+
+**Reminder**:
+The morning message that chases a Request that has not moved: a day after
+its last movement, then three days later, then weekly. It goes to whoever
+the Request is waiting on. One person's reminders for the day, across every
+context, arrive as one notification, push and email (the **digest**);
+nobody with nothing waiting hears anything.
+_Avoid_: nag, escalation (nothing is escalated: the same person is reminded)
+
+**Waiting since**:
+When a Request reached the step it is at now, from its audit trail. Review
+shows it as "Waiting 6 days" and lists the longest waiting first.
+
+**Step timing**:
+How long each Step waited before it was actioned, over a staff year, with the
+typical (median) and longest wait and who actioned it most. On Admin for
+admins and the Finance Head.
+
+**On the request**:
+The people who may see a Request, its trail and its comments: the requester,
+Finance staff, whoever holds or covers an approver Step on its chain (in the
+Request's staff year or the current one), and anyone who has already actioned
+it. Anyone else is told the Request isn't one they can see.
+_Avoid_: participant (a nudge has its own, narrower set)

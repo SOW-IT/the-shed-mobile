@@ -1,7 +1,15 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
-import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { Doc } from "./_generated/dataModel";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  MutationCtx,
+  query,
+  QueryCtx,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
+import { Doc, Id } from "./_generated/dataModel";
 import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
 import {
   currentStaffYear,
@@ -9,13 +17,14 @@ import {
   optionalEmail,
   optionalProfile,
   optionalUser,
+  roleTitlesForYear,
   rolesOf,
 } from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
 import { viewOf } from "./churches";
 import { isAssigned } from "./staffMembers";
-import { photoUrl } from "./photo";
+import { AVATAR_SMALL_ENOUGH_BYTES, photoUrl } from "./photo";
 
 export const get = query({
   args: { email: v.optional(v.string()) },
@@ -68,8 +77,6 @@ export const get = query({
     const isMe =
       callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail);
     const seesPrivate = isMe || (await optionalProfile(ctx)) !== null;
-    // A member's church (no staff profile this year) is only for staff and
-    // campus leaders, as on the Churches page.
     const onStaff = serviceHistory.some((h) => h.year === currentStaffYear() && isAssigned(h));
     const church =
       user?.churchId && (onStaff || seesPrivate) ? await ctx.db.get("churches", user.churchId) : null;
@@ -82,19 +89,22 @@ export const get = query({
     const directorySyncedAt =
       directorySync?.lastSuccessAt ??
       (directorySync?.detail?.startsWith("synced") ? directorySync.at : null);
+    const titlesByYear = new Map<number, Awaited<ReturnType<typeof roleTitlesForYear>>>();
+    for (const h of serviceHistory) {
+      if (!titlesByYear.has(h.year)) titlesByYear.set(h.year, await roleTitlesForYear(ctx, h.year));
+    }
     const googleSignInAt = isOrgEmail(email) ? (user?.emailVerificationTime ?? null) : null;
     const googleSyncTimes = [googleSignInAt, directorySyncedAt].filter(
       (at): at is number => at !== null
     );
     return {
       email,
-      // Either staff email spelling is the same person.
       isMe,
+      reminderEmails: isMe ? user?.reminderEmails !== false : null,
       googleSyncedAt: isMe && googleSyncTimes.length ? Math.max(...googleSyncTimes) : null,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: await photoUrl(ctx, user, dirUser),
       church: church ? viewOf(church) : null,
-      // Only for signed-in staff.
       lastOnlineAt: seesPrivate ? await lastOnlineAt(ctx, email) : null,
       hasSignedIn: seesPrivate ? await hasSignedIn(ctx, email) : null,
       serviceHistory: serviceHistory.map((h) => ({
@@ -104,6 +114,7 @@ export const get = query({
         department: departmentsOf(h)[0] ?? null,
         division: divisionsOf(h)[0] ?? null,
         university: assignmentsOf(h).find((a) => a.university)?.university ?? null,
+        roleTitles: titlesByYear.get(h.year) ?? {},
       })),
     };
   },
@@ -114,6 +125,7 @@ async function ownProfileWithoutEmail(ctx: QueryCtx, user: Doc<"users">) {
   return {
     email: "",
     isMe: true,
+    reminderEmails: user.reminderEmails !== false,
     googleSyncedAt: null,
     name: user.name ?? null,
     photo: await photoUrl(ctx, user, null),
@@ -131,7 +143,6 @@ async function requireOwnUser(ctx: MutationCtx): Promise<Doc<"users">> {
   return user;
 }
 
-/** Picks your church from the list, or clears it (null). */
 export const setChurch = mutation({
   args: { churchId: v.union(v.id("churches"), v.null()) },
   returns: v.null(),
@@ -141,6 +152,16 @@ export const setChurch = mutation({
       throw new ConvexError("That church isn't in the list any more.");
     }
     await ctx.db.patch("users", user._id, { churchId: churchId ?? undefined });
+    return null;
+  },
+});
+
+export const setReminderEmails = mutation({
+  args: { enabled: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, { enabled }) => {
+    const user = await requireOwnUser(ctx);
+    await ctx.db.patch("users", user._id, { reminderEmails: enabled ? undefined : false });
     return null;
   },
 });
@@ -161,6 +182,44 @@ export const setAvatar = mutation({
       await ctx.storage.delete(user.avatarId);
     }
     await ctx.db.patch("users", user._id, { avatarId: args.storageId });
+    const file = await ctx.db.system.get(args.storageId);
+    if (file && file.size > AVATAR_SMALL_ENOUGH_BYTES) {
+      await ctx.scheduler.runAfter(0, internal.avatars.shrink, {
+        userId: user._id,
+        storageId: args.storageId,
+      });
+    }
     return null;
+  },
+});
+
+export const replaceAvatar = internalMutation({
+  args: { userId: v.id("users"), from: v.id("_storage"), to: v.id("_storage") },
+  returns: v.null(),
+  handler: async (ctx, { userId, from, to }) => {
+    const user = await ctx.db.get("users", userId);
+    if (user?.avatarId !== from) {
+      await ctx.storage.delete(to);
+      return null;
+    }
+    await ctx.db.patch("users", userId, { avatarId: to });
+    await ctx.storage.delete(from);
+    return null;
+  },
+});
+
+export const avatarsToShrink = internalQuery({
+  args: {},
+  returns: v.array(v.object({ userId: v.id("users"), storageId: v.id("_storage") })),
+  handler: async (ctx) => {
+    const found: { userId: Id<"users">; storageId: Id<"_storage"> }[] = [];
+    for await (const user of ctx.db.query("users")) {
+      if (!user.avatarId) continue;
+      const file = await ctx.db.system.get(user.avatarId);
+      if (file && file.size > AVATAR_SMALL_ENOUGH_BYTES) {
+        found.push({ userId: user._id, storageId: user.avatarId });
+      }
+    }
+    return found;
   },
 });

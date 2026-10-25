@@ -1,17 +1,8 @@
-# §0 Role-gated tab bar and side menu for signed-in roles. Needs seeded accounts.
-#   - campus leader: Attendance tab; no Reimbursements in the side menu
-#   - plain staff:   Attendance, Insights, Org Chart tabs; Reimbursements in the
-#                    side menu (it's no longer a tab); no Admin
-#   - admin/Finance Head: Admin in the side menu
-# Insights icon shows the BETA flag for everyone.
-#
-# iOS tab labels are "<Name>, tab, N of N" — never match the bare title.
 appId: ${APP_ID}
 tags:
   - staff
   - admin
 ---
-# ── Campus leader ────────────────────────────────────────────────────────────
 - runFlow: ../common/launch-fresh.yaml
 - runFlow:
     file: ../common/sign-in.yaml
@@ -28,10 +19,10 @@ tags:
 - runFlow: ../common/open-menu.yaml
 - assertVisible: "Profile"
 - assertNotVisible:
-    text: "Reimbursements.*"
+    text: "Requests.*"
+- assertNotVisible: "Mentoring"
 - runFlow: ../common/sign-out-e2e.yaml
 
-# ── Plain staff ──────────────────────────────────────────────────────────────
 - runFlow: ../common/launch-fresh.yaml
 - runFlow:
     file: ../common/sign-in.yaml
@@ -49,11 +40,11 @@ tags:
 - runFlow: ../common/open-menu.yaml
 - assertVisible: "Profile"
 - assertVisible:
-    text: "Reimbursements.*"
+    text: "Requests.*"
+- assertNotVisible: "Mentoring"
 - assertNotVisible: "Admin"
 - runFlow: ../common/sign-out-e2e.yaml
 
-# ── Finance Head: Admin in the side menu ─────────────────────────────────────
 - runFlow: ../common/launch-fresh.yaml
 - runFlow:
     file: ../common/sign-in.yaml
@@ -62,3 +53,4 @@ tags:
       PASSWORD: ${FINANCE_PASSWORD}
 - runFlow: ../common/open-menu.yaml
 - assertVisible: "Admin"
+- assertNotVisible: "Mentoring"

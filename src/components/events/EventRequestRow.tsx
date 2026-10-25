@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Doc } from "../../../convex/_generated/dataModel";
 import { formatDateTimeRange } from "@shared/forms";
@@ -12,12 +12,14 @@ import {
   type SubFormStatus,
 } from "@shared/eventRequests";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { WaitingLine } from "@/components/design/DesignRequestRow";
 import { EventStatusPill, SUB_FORM_TONES, toneColour } from "./EventPills";
 
 export type EventRequestListRow = Doc<"eventRequests"> & {
   requesterName: string | null;
   forms: Record<SubFormKind, { status: SubFormStatus; step?: FinanceStep }>;
   waitingOnMe?: SubFormKind[];
+  waitingSince?: number;
 };
 
 const STEP_ICONS: Record<SubFormStatus, keyof typeof Ionicons.glyphMap> = {
@@ -28,7 +30,6 @@ const STEP_ICONS: Record<SubFormStatus, keyof typeof Ionicons.glyphMap> = {
   NOT_REQUIRED: "remove-circle-outline",
 };
 
-/** Where each of the three forms is up to, as three small labelled dots. */
 const FormSteps = ({ forms }: { forms: EventRequestListRow["forms"] }) => {
   const t = useAppTheme();
   return (
@@ -52,7 +53,6 @@ const FormSteps = ({ forms }: { forms: EventRequestListRow["forms"] }) => {
   );
 };
 
-/** One event request in a list: what, when, where, whose, and where its forms are up to. */
 export const EventRequestRow = ({
   event,
   unread,
@@ -103,6 +103,7 @@ export const EventRequestRow = ({
           ) : null}
         </View>
         <FormSteps forms={event.forms} />
+        <WaitingLine since={event.waitingSince} />
         {waiting.length > 0 ? (
           <Text style={[typography.caption, { color: t.accent, fontWeight: "700" }]}>
             Waiting on you: {waiting.map((k) => SUB_FORM_LABELS[k]).join(", ")}

@@ -1,21 +1,14 @@
-# §7 Org Chart — public tab, year picker, Director card, open a person.
 appId: ${APP_ID}
 tags:
   - public
 ---
 - runFlow: ../common/ensure-signed-out.yaml
-# The bottom tab's a11y label is "Org Chart, tab, N of N". Signed-out launch
-# lands on Home — open the tab before asserting chart copy.
 - tapOn:
     text: ".*Org Chart, tab.*"
 
-# Director card at the top (role caption or the empty copy).
 - assertVisible:
     text: ".*(Director|No Director assigned).*"
 
-# Year picker present when multiple years exist. Its pill has no
-# accessibilityLabel at all — the tappable text is just the bare year number
-# (e.g. "2026"), not "Select year" (which doesn't exist anywhere).
 - tapOn:
     text: "[0-9]{4}"
     optional: true
@@ -23,10 +16,9 @@ tags:
     text: "Close"
     optional: true
 
-# Tapping a person opens /person/[email] (read-only when signed out).
 - tapOn:
     id: "org-person"
     index: 0
     optional: true
-- assertNotVisible: "Sign out"        # read-only person view
-- assertNotVisible: "Local church"    # private field hidden signed-out
+- assertNotVisible: "Sign out"
+- assertNotVisible: "Local church"

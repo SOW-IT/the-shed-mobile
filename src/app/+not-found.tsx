@@ -3,17 +3,11 @@ import Constants from "expo-constants";
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { Linking, Platform, View } from "react-native";
 import { api } from "@convex/_generated/api";
-import { appLinkForScheme } from "@shared/appLinks";
+import { appLinkForScheme, WEB_ONLY_MARKER } from "@shared/appLinks";
 import { Btn, EmptyState, LoadingState, ReadableColumn, Screen } from "@/components/ui";
 import { appVersion } from "@/hooks/useReportAppVersion";
 import { spacing } from "@/theme";
 
-/**
- * A link this version of the app has no page for. In the app that's usually
- * a page added in a newer version, so it offers the web (which always has the
- * latest pages) and the store. "#noapp" stops the web handing the page
- * straight back to this app.
- */
 export default function NotFoundScreen() {
   const router = useRouter();
   const pathname = usePathname();
@@ -26,7 +20,6 @@ export default function NotFoundScreen() {
     api.appInstalls.updateStatus,
     platform && version ? { platform, version } : "skip"
   );
-  // The router adds the unmatched path itself as "not-found"; it isn't part of the link.
   const query = new URLSearchParams(
     Object.entries(params).flatMap(([k, v]) =>
       v === undefined || k === "not-found"
@@ -34,7 +27,7 @@ export default function NotFoundScreen() {
         : (Array.isArray(v) ? v : [v]).map((x) => [k, String(x)])
     )
   ).toString();
-  const webUrl = `${link.web}${pathname}${query ? `?${query}` : ""}#noapp`;
+  const webUrl = `${link.web}${pathname}${query ? `?${query}` : ""}${WEB_ONLY_MARKER}`;
   const goHome = () => router.replace("/home");
 
   if (platform && version && check === undefined) {

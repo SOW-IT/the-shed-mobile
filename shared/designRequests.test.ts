@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  designStepTrack,
   changedDesignAnswers,
   designAnswersProblem,
   designRequestFiling,
@@ -150,7 +151,6 @@ describe("reading answers", () => {
     expect(formatDesignAnswer(field("drafts"), { drafts: true })).toBe("Yes");
     expect(formatDesignAnswer(field("notes"), answers)).toBe("Hi");
     expect(formatDesignAnswer(field("notes"), {})).toBeNull();
-    // A choice the form no longer offers still reads as itself.
     expect(formatDesignAnswer(field("types"), { types: ["retired"] })).toBe("retired");
     expect(formatDesignAnswer(field("types"), { types: ["other"] })).toBe("Other");
   });
@@ -188,7 +188,6 @@ describe("dates, names and statuses", () => {
     expect(isValidDateString("2028-02-29")).toBe(true);
     expect(formatDueDate("2026-10-20")).toBe("20 Oct 2026");
     expect(formatDueDate("soon")).toBe("soon");
-    // 2026-10-05 15:00 UTC is 6 October in Sydney.
     expect(sydneyToday(new Date(Date.UTC(2026, 9, 5, 15)))).toBe("2026-10-06");
     expect(sydneyToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
@@ -198,5 +197,41 @@ describe("dates, names and statuses", () => {
     expect(isOpenDesignStatus("PENDING")).toBe(true);
     expect(isOpenDesignStatus("APPROVED")).toBe(true);
     expect(isOpenDesignStatus("COMPLETED")).toBe(false);
+  });
+});
+
+describe("designStepTrack", () => {
+  const names = { requester: "Tony", decidedBy: "Annika", completedBy: "Charlotte" };
+  const track = (status: Parameters<typeof designStepTrack>[0]["status"]) =>
+    designStepTrack({ status, submittedAt: 1, decidedAt: 2, completedAt: 3 }, names).map((s) => [
+      s.label,
+      s.state,
+      s.name,
+      s.at,
+    ]);
+
+  test("waiting: submitted, approval is the current step", () => {
+    expect(track("PENDING")).toEqual([
+      ["Submitted", "done", "Tony", 1],
+      ["Approved", "current", null, null],
+      ["Complete", "todo", null, null],
+    ]);
+  });
+
+  test("approved, then complete, each with who and when", () => {
+    expect(track("APPROVED")[1]).toEqual(["Approved", "done", "Annika", 2]);
+    expect(track("APPROVED")[2]).toEqual(["Complete", "current", null, null]);
+    expect(track("COMPLETED")[2]).toEqual(["Complete", "done", "Charlotte", 3]);
+  });
+
+  test("declined stops at the decision; cancelled never reaches it", () => {
+    expect(track("DECLINED")[1]).toEqual(["Declined", "declined", "Annika", 2]);
+    expect(track("DECLINED")[2]).toEqual(["Complete", "todo", null, null]);
+    expect(track("CANCELLED").slice(1).map((s) => s[1])).toEqual(["todo", "todo"]);
+  });
+
+  test("a decision with no recorded time still shows who decided", () => {
+    const [, decided] = designStepTrack({ status: "APPROVED", submittedAt: 1 }, names);
+    expect(decided).toMatchObject({ name: "Annika", at: null });
   });
 });

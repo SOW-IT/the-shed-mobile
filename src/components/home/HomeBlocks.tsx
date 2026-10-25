@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import * as Linking from "expo-linking";
 import { Alert, Pressable, StyleSheet, Text, View, Image } from "react-native";
@@ -38,10 +38,6 @@ const open = (url: string) =>
     Alert.alert("Couldn't open this", "Please try again or use a different device.")
   );
 
-// Draws the blocks homeContent.view returns for one Home sub-tab. The server
-// (and the people editing it) decide what appears and in what order; this only
-// knows how to draw each block type and skips any it doesn't know, so an older
-// app never breaks on a newer server.
 export function HomeBlocks({ blocks }: { blocks: HomeBlock[] }) {
   return (
     <View style={styles.page}>
@@ -59,8 +55,6 @@ export function HomeBlocks({ blocks }: { blocks: HomeBlock[] }) {
 
 type CardBlock = Extract<HomeBlock, { type: "card" }>;
 
-// A plain card with a dot and no buttons is one item of a list (like Our
-// values), so a run of them is drawn as one card rather than a stack.
 const isListItem = (block: HomeBlock): block is CardBlock =>
   block.type === "card" &&
   block.tone !== "primary" &&
@@ -436,11 +430,7 @@ const ContactCard = ({ title, body }: { title: string; body: string }) => {
 
       <Sheet visible={sent} onClose={() => setSent(false)} title="Message sent">
         <View style={{ gap: spacing.sm }}>
-          <Txt>Thanks for reaching out. We&apos;ve received your message.</Txt>
-          <Muted>
-            You&apos;ll receive a reply within 2-3 business days. A confirmation
-            has been sent to your email too.
-          </Muted>
+          <Txt>Thanks for reaching out. We&apos;ll reply within 2-3 business days.</Txt>
           <View style={styles.buttonRow}>
             <Btn title="Done" onPress={() => setSent(false)} />
           </View>

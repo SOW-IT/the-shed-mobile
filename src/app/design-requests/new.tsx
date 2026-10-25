@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { api } from "../../../convex/_generated/api";
@@ -10,6 +10,8 @@ import {
   questionNumber,
   sydneyToday,
 } from "@shared/designRequests";
+import { staffOnlyMessage } from "@shared/staffOnly";
+import { SignInPrompt } from "@/components/SignInPrompt";
 import {
   answersFromDraft,
   DesignRequestForm,
@@ -32,12 +34,12 @@ import {
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
-/** New design request, or with `?edit=<id>`, the requester editing theirs. */
 export default function DesignRequestFormScreen() {
   const t = useAppTheme();
   const router = useRouter();
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   const editId = typeof edit === "string" && edit ? edit : null;
+  const { isLoading: authLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.directory.me);
   const structure = useQuery(
     api.directory.yearStructure,
@@ -69,6 +71,20 @@ export default function DesignRequestFormScreen() {
     ? `Edit ${designRequestName(existing.request).replace(/^Design/, "design")}`
     : "New Design Request";
 
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <Screen title={title} onBack={goBack}>
+        <SignInPrompt what="page" />
+      </Screen>
+    );
+  }
+  if (me && !me.profile) {
+    return (
+      <Screen title={title} onBack={goBack}>
+        <EmptyState icon="color-palette-outline" title="For SOW staff" message={staffOnlyMessage("Design", me)} />
+      </Screen>
+    );
+  }
   if (editId && (existing === null || (existing && !existing.can.edit))) {
     return (
       <Screen title="Design request" onBack={goBack}>
@@ -88,7 +104,6 @@ export default function DesignRequestFormScreen() {
     );
   }
 
-  // An edit keeps whatever due date it already had, even one now in the past.
   const today = sydneyToday();
   const existingDue = existing?.request.dueDate;
   const minDate = existingDue && existingDue < today ? existingDue : today;
@@ -137,8 +152,6 @@ export default function DesignRequestFormScreen() {
           disabled={saving}
           note={error}
           onPress={() => void save()}
-          // A form of text fields: the button stays put under the keyboard so
-          // it never covers the field being typed in.
           avoidKeyboard={false}
         />
       }

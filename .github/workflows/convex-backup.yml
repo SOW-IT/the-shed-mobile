@@ -1,35 +1,10 @@
-# Exports the production Convex database to Google Cloud Storage every day,
-# then replaces the business tables in convex_production with that snapshot
-# and rebuilds typed views in convex_warehouse. Convex file storage is
-# intentionally excluded. Auth sessions, refresh tokens and push tokens stay
-# out of BigQuery.
-#
-# Required repository variables:
-#   GCP_WORKLOAD_IDENTITY_PROVIDER - full Workload Identity Provider resource name
-#   GCP_BACKUP_SERVICE_ACCOUNT     - service account email used by GitHub Actions
-#   GCS_BACKUP_BUCKET              - bucket name only (without gs://)
-#
-# Optional repository variables:
-#   BQ_DATASET                     - defaults to convex_production
-#   BQ_WAREHOUSE_DATASET           - defaults to convex_warehouse (typed views)
-#   BQ_LOCATION                    - defaults to australia-southeast1
-#   GCP_PROJECT                    - defaults to theshedsow
-#
-# Required repository secret:
-#   CONVEX_DEPLOY_KEY              - production Convex deploy key
-#
-# The BigQuery job reads the zip with gcloud storage cp, so the backup service
-# account needs storage.objects.get on the backup bucket (in addition to the
-# write it already has). It also needs roles/bigquery.user on the project
-# (jobs plus datasets.create for a run-specific staging dataset) and
-# roles/bigquery.dataEditor on convex_production. Pre-creating the destination
-# dataset is fine; staging datasets are still created per run. The zip backup
-# still succeeds if that job fails.
 name: Backup Convex to GCS
 
 on:
   schedule:
-    - cron: "17 15 * * *" # Daily at 01:17 AEST / 02:17 AEDT
+    # Weekly: each export reads the whole prod database (about 9.5 MB of the
+    # plan's 1 GB/month of database bandwidth), so daily runs cost ~0.29 GB.
+    - cron: "17 15 * * 0"
   workflow_dispatch:
 
 permissions:
@@ -43,7 +18,7 @@ concurrency:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     outputs:
       path: ${{ steps.export.outputs.path }}
       date: ${{ steps.export.outputs.date }}
@@ -99,6 +74,26 @@ jobs:
           UPLOADED: ${{ steps.upload.outputs.uploaded }}
         run: echo "Uploaded $UPLOADED"
 
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          project_id: ${{ vars.GCP_PROJECT || 'theshedsow' }}
+
+      - name: Copy new storage files to GCS (failure here does not undo the database backup)
+        id: storage_files
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          GCS_BACKUP_BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
+        run: node scripts/backup-storage-files.mjs --bucket "$GCS_BACKUP_BUCKET"
+
+      - name: Flag the storage file copy failure
+        if: steps.storage_files.outcome == 'failure'
+        run: echo "::error title=Storage file backup failed::The database export and upload succeeded, but copying Convex storage files to gs://${GCS_BACKUP_BUCKET}/storage failed. See the step above; the next run retries every file not yet in the manifest."
+        env:
+          GCS_BACKUP_BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
+
   bigquery:
     needs: backup
     runs-on: ubuntu-latest
@@ -143,3 +138,14 @@ jobs:
             --dataset "$BQ_DATASET" \
             --warehouse "$BQ_WAREHOUSE_DATASET" \
             --location "$BQ_LOCATION"
+
+      - name: Check the warehouse against the last run
+        env:
+          GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+        run: |
+          node scripts/warehouse-checks.mjs \
+            --project "$GCP_PROJECT" \
+            --dataset "$BQ_DATASET" \
+            --warehouse "$BQ_WAREHOUSE_DATASET" \
+            --location "$BQ_LOCATION" \
+            --bucket "$GCS_BACKUP_BUCKET"

@@ -1,10 +1,25 @@
 {
   "applinks": {
-    "apps": [],
     "details": [
       {
-        "appID": "4FH642K7X2.au.org.sow.theshed",
-        "paths": ["*"]
+        "appIDs": [
+          "4FH642K7X2.au.org.sow.theshed"
+        ],
+        "components": [
+          {
+            "#": "noapp",
+            "exclude": true
+          },
+          {
+            "?": {
+              "code": "?*"
+            },
+            "exclude": true
+          },
+          {
+            "/": "/*"
+          }
+        ]
       }
     ]
   }

@@ -1,6 +1,5 @@
 import { parseTimeInputValue } from "@shared/datetime";
 
-/** How date and time fields show their value, the same on native and web. */
 export const formatDateDisplay = (d: Date): string =>
   d.toLocaleDateString("en-AU", {
     weekday: "short",
@@ -12,7 +11,6 @@ export const formatDateDisplay = (d: Date): string =>
 export const formatTimeDisplay = (d: Date): string =>
   d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
 
-/** An HH:MM value as today's date at that time, for display and pickers. */
 export const inputToTime = (value: string): Date | null => {
   const parts = parseTimeInputValue(value);
   if (!parts) return null;

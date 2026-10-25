@@ -46,6 +46,14 @@ A person with a `staffProfile` for a given staff year. Someone can be staff in
 a year.
 _Avoid_: employee, worker, team member
 
+**Years served**:
+For someone serving in a staff year (a `staffProfile` that year with a staff
+or student leader role), how many staff years they've served up to and
+including it, in any role; later years never count. Insights → General
+averages it over everyone serving that year, and splits staff from student
+leaders by their role in that year only.
+_Avoid_: tenure (for the per-role count it used to be), years as staff
+
 **Previously staff**:
 On Admin → Users, a person who has a `staffProfile` in an earlier year but not
 the year being edited, and who is in the Workspace directory or has signed in.
@@ -66,9 +74,9 @@ _Avoid_: home church (ambiguous with a campus), church (alone, for SOW itself)
 A signed-in account that is not Staff — someone who signed in with Apple
 rather than an `@sow.org.au` Google account (personal Google sign-in was
 removed in 2.4.7; guests who used it before keep their account but can't
-sign in with it again). A guest has an account and no profile. The Role
-option of the same name (it was called Visitor until 2.5.0) marks a
-non-student at events, such as a parent or a church guest.
+sign in with it again). A guest has an account and no profile. Guest is no
+longer a Role (2.9.9): a non-student at events, such as a parent or a church
+guest, is a hand-set Visitor.
 Deleting a guest's account removes everything it had; deleting a staff
 member's account removes only the sign-in, and their profiles stay.
 _Avoid_: visitor (in Attendance that's someone from another campus), public
@@ -122,6 +130,17 @@ division, the head of the Governance division (not its other staff), and the
 Director. Only admins assign roles and manage
 structure, and nobody can change their own role.
 
+**Role title**:
+What a role was called in a given year. A year's role list can name an app
+role differently ("Department Overseer" stood for Head of Department in 2019
+and 2020), and everything showing that year uses the year's own title while
+the role keeps working as the app's. Copying a year into the next carries its
+titles forward, so a later rename never changes earlier years. Past years are
+corrected with the internal `history:setRoleTitle` and
+`history:setPastAssignments` (command line only; they refuse this year and
+next). See [ADR 0015](../adr/0015-past-years-keep-their-role-titles.md).
+_Avoid_: alias, display name
+
 **Home editor**:
 Not a role — a derived permission. Admins, anyone in the Marketing
 department, and the head of the Engagement division (not its other staff,
@@ -150,3 +169,34 @@ Student Leader at UNSW who is Staff in Events. Worked out again when it goes
 out, from the staff year the sender chose it in, so a scheduled announcement
 reaches whoever is in the audience then, even after the 1 October rollover.
 
+
+## Mentoring
+
+**Pairing**:
+One Campus leader and their mentor for one staff year. Each Campus leader has
+at most one mentor a year; a mentor can have any number. Changing the mentor
+overwrites the pairing (keeping who changed it and when), and pairings never
+carry over to the next year. Admins manage the current and next year; earlier
+years are read-only.
+_Avoid_: mentorship (in the UI), match
+
+**Mentee**:
+The Campus leader in a pairing: someone holding a university role (Student
+Leader, President, Vice President or Executive) that year. Nobody else can be
+paired as a mentee.
+
+**Mentor**:
+Either a leader with a `staffProfile` that year who is **not** a Campus
+leader (Campus leaders don't mentor each other), or an external mentor. A
+leader mentor sees their own current-year mentees under Mentoring; mentees
+don't see their mentor.
+
+**External mentor**:
+A mentor who isn't a SOW leader that year, kept on a reusable list (name, and
+optionally email, phone and notes) so they can be picked again in later
+years. One can't be deleted while any pairing, in any year, names them.
+
+**Imported pairing**:
+A pairing copied once, in 2.10.1, from the old SHED app's `mentees/{year}`
+documents. Its mentee was matched by old user id or email; a mentor with no
+profile that year became an external mentor.

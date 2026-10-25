@@ -83,6 +83,35 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
     }
   }
 
+  const mentored = await ctx.db
+    .query("mentorships")
+    .withIndex("by_menteeEmail_and_year", (q) => q.eq("menteeEmail", oldEmail))
+    .take(100);
+  for (const mentorship of mentored) {
+    const taken = await ctx.db
+      .query("mentorships")
+      .withIndex("by_menteeEmail_and_year", (q) =>
+        q.eq("menteeEmail", newEmail).eq("year", mentorship.year)
+      )
+      .first();
+    if (taken || mentorship.mentorEmail === newEmail) {
+      await ctx.db.delete("mentorships", mentorship._id);
+    } else {
+      await ctx.db.patch("mentorships", mentorship._id, { menteeEmail: newEmail });
+    }
+  }
+  const mentoring = await ctx.db
+    .query("mentorships")
+    .withIndex("by_mentorEmail_and_year", (q) => q.eq("mentorEmail", oldEmail))
+    .take(500);
+  for (const mentorship of mentoring) {
+    if (mentorship.menteeEmail === newEmail) {
+      await ctx.db.delete("mentorships", mentorship._id);
+    } else {
+      await ctx.db.patch("mentorships", mentorship._id, { mentorEmail: newEmail });
+    }
+  }
+
   const tokens = await ctx.db
     .query("pushTokens")
     .withIndex("by_email", (q) => q.eq("email", oldEmail))
@@ -112,10 +141,6 @@ export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {
     .query("staffProfiles")
     .withIndex("by_email_and_year", (q) => q.eq("email", email))
     .take(100);
-  // Only an org-domain sign-in may claim legacy-domain profiles: the claim is
-  // for staff moved from sowaustralia.com to sow.org.au, and matching on the
-  // local part alone would let a personal account (e.g. a.b@gmail.com) take
-  // over a.b@sowaustralia.com's profiles, roles and history.
   if (bound.length === 0 && unbound.length === 0 && isOrgEmail(email)) {
     const localPart = email.split("@")[0];
     for (const domain of LEGACY_EMAIL_DOMAINS) {

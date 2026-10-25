@@ -6,11 +6,14 @@ import {
   GENDER_FIELD_KEY,
   GENDER_OPTION_IDS,
   GENDER_VALUES,
+  LEGACY_NOTES_FIELD_KEY,
+  OTHER_INFO_FIELD_KEY,
   ROLE_FIELD_KEY,
   STUDENT_YEAR_FIELD_KEY,
   STUDENT_YEAR_LEVELS,
   STUDENT_YEAR_VALUES,
 } from "../shared/attendanceMemberMeta";
+import { MARKED_ROLES } from "../shared/memberRole";
 import { canonicalSubgroup, subgroupMatches } from "../shared/rollcall";
 import {
   mutation,
@@ -32,6 +35,14 @@ const LOCKED_FIELD_KEYS = new Set([
   CAMPUS_FIELD_KEY,
   ROLE_FIELD_KEY,
 ]);
+
+const roleOptions = (roleRows: { name: string; standsFor?: string }[]): string[] => [
+  ...new Set([
+    ...ROLES,
+    ...roleRows.filter((r) => r.standsFor === undefined).map((r) => r.name),
+    ...MARKED_ROLES,
+  ]),
+];
 
 const lockedValuePresent = (
   values: Record<string, string>,
@@ -85,7 +96,7 @@ export const list = query({
         .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
         .collect(),
     ]);
-    const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
+    const orgRoles = roleOptions(roleRows);
 
     return rows
       .filter(
@@ -159,7 +170,7 @@ export const ensureDefaults = mutation({
       .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
       .collect();
     const roleValues: Record<string, string> = {};
-    const lockedRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
+    const lockedRoles = roleOptions(roleRows);
     lockedRoles.forEach((name, i) => {
       roleValues[String(i + 1)] = name;
     });
@@ -246,7 +257,7 @@ export const saveAll = mutation({
       .query("roles")
       .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
       .collect();
-    const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
+    const orgRoles = roleOptions(roleRows);
 
     const normalizeSelectValues = (
       fieldKey: string,
@@ -274,11 +285,12 @@ export const saveAll = mutation({
         lk === ROLE_FIELD_KEY.toLowerCase() ? ROLE_FIELD_KEY :
         lk === GENDER_FIELD_KEY.toLowerCase() ? GENDER_FIELD_KEY :
         lk === STUDENT_YEAR_FIELD_KEY.toLowerCase() ? STUDENT_YEAR_FIELD_KEY :
+        lk === LEGACY_NOTES_FIELD_KEY.toLowerCase() ? OTHER_INFO_FIELD_KEY :
         rawKey;
-      if (keys.has(lk)) {
+      if (keys.has(key.toLowerCase())) {
         throw new ConvexError(`Duplicate metadata field "${key}".`);
       }
-      keys.add(lk);
+      keys.add(key.toLowerCase());
 
       const values =
         field.type === "select"

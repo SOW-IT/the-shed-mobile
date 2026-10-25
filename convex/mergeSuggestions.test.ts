@@ -34,7 +34,6 @@ async function setup() {
     await staff(ALEX, "Alexander Morgan", YEAR, [
       { role: "Staff", department: "Marketing" },
     ]);
-    // Staff last year only: their staff row is never someone's duplicate.
     await staff("hana.doe2@sowaustralia.com", "Hana Doe", YEAR - 1, [
       { role: "Student Leader", university: USYD },
     ]);
@@ -99,8 +98,8 @@ describe("suggested merges", () => {
     await s.signIn(hana, 5_000);
     await s.signIn(hana, 9_000);
     const hanaNoCampus = await s.member("hana  doe");
-    await s.member("Hana Doe", { [s.campusField]: "unsw" }); // another campus
-    await s.member("Hana Doerr", { [s.campusField]: "usyd" }); // another name
+    await s.member("Hana Doe", { [s.campusField]: "unsw" });
+    await s.member("Hana Doerr", { [s.campusField]: "usyd" });
     await s.link(HANA, YEAR, await s.member("Hana Doe", { [s.campusField]: "usyd" }));
     await s.link(
       "hana.doe2@sowaustralia.com",
@@ -209,7 +208,6 @@ describe("suggested merges", () => {
       staffEmail: " Alexander.Morgan@sowaustralia.com ",
       memberId: alex,
     });
-    // Saying it twice is harmless.
     await s.admin.mutation(api.mergeSuggestions.dismiss, { staffEmail: ALEX, memberId: alex });
 
     expect(await s.admin.query(api.mergeSuggestions.list, {})).toEqual([]);

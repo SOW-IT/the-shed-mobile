@@ -1,5 +1,3 @@
-# §3.10 All segment (Finance) — Ongoing/Completed control, year picker, admin
-# bar preselects Other tab, Export requests CSV.
 appId: ${APP_ID}
 tags:
   - finance
@@ -11,8 +9,6 @@ tags:
       EMAIL: ${FINANCE_EMAIL}
       PASSWORD: ${FINANCE_PASSWORD}
 - runFlow: ../common/open-reimbursements.yaml
-# Wait for the segment strip to finish loading before tapping (segments carry
-# badges, e.g. "All, 19", so match by prefix).
 - extendedWaitUntil:
     visible:
       text: "Mine.*"
@@ -20,7 +16,6 @@ tags:
 - tapOn:
     text: "All.*"
 
-# Ongoing vs Completed segmented control.
 - extendedWaitUntil:
     visible: "Ongoing"
     timeout: 15000
@@ -28,13 +23,10 @@ tags:
 - tapOn: "Completed"
 - tapOn: "Ongoing"
 
-# Floating year picker (All segment only).
 - assertVisible:
     text: "Select year"
     optional: true
 
-# Export requests CSV card (title "Export", button "Download CSV"; the
-# "Export requests?" text only appears in the confirm dialog).
 - scrollUntilVisible:
     element:
       text: "Download CSV"
@@ -46,10 +38,6 @@ tags:
 - tapOn:
     text: "Cancel"
 
-# Admin bar on the All page opens Admin with the Other tab preselected. The
-# Finance Head is budget-manager-only (see admin.tsx), so the Users/Structure/
-# Other tab strip itself is elided — assert its content (Budget Manager
-# section) instead of a tab label that never renders for this role.
 - runFlow:
     file: ../common/open-admin.yaml
     optional: true

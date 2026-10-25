@@ -403,6 +403,17 @@ describe("the map", () => {
     expect((await sam.query(api.churches.directory, {}))[1].church.location).toEqual({ lat: -33.83, lng: 151.13 });
   });
 
+  test("the nightly run looks nothing up where nightly jobs are paused", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(found(-33.8, 151.0));
+    vi.stubGlobal("fetch", fetchMock);
+    const { t } = await setup();
+    vi.stubEnv("NIGHTLY_JOBS_PAUSED", "true");
+    await t.run((ctx) => ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", address: "1 Main St", addedBy: "sam@sow.org.au" }));
+    expect(await t.action(internal.churches.locateAll, { nightly: true })).toEqual({ located: 0, notFound: 0, failed: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await t.action(internal.churches.locateAll, {})).toEqual({ located: 1, notFound: 0, failed: 0 });
+  });
+
   test("a new address is looked up again; one Google can't find is tried again weeks later", async () => {
     const fetchMock = vi
       .fn()
@@ -544,7 +555,6 @@ describe("your church in your Profile", () => {
     expect(mine).toMatchObject({
       church: { _id: grace, name: "Grace Church", address: "1 Church St", serviceTimes: null },
     });
-    // Others see it too; signed-out visitors don't.
     expect((await asUser(t, ADMIN).query(api.profile.get, { email: STAFF }))!.church?.name).toBe("Grace Church");
     expect((await t.query(api.profile.get, { email: STAFF }))!.church?.name).toBe("Grace Church");
 
@@ -563,7 +573,6 @@ describe("the reminder", () => {
     const { t, sam } = await setup();
     const grace = await sam.mutation(api.churches.add, { name: "Grace Church" });
     await sam.mutation(api.profile.setChurch, { churchId: grace });
-    // Someone on staff who has never signed in, and someone who left staff.
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", { email: "new.one@sow.org.au", year: YEAR, assignments: [{ role: "Staff" }] });
       await ctx.db.insert("staffProfiles", { email: "gone@sow.org.au", year: YEAR - 1, assignments: [{ role: "Staff" }] });

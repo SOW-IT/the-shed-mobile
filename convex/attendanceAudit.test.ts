@@ -6,9 +6,6 @@ import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// The clock is pinned mid staff year (still ticking, so sign-in times differ):
-// events here are "now" plus up to a few days, which on the last days of
-// September would cross the 1 October rollover into a year with no sub-groups.
 const NOW = staffYearStartMs(staffYearForDate(new Date())) + 120 * 86_400_000;
 const YEAR = staffYearForDate(new Date(NOW));
 beforeEach(() => {
@@ -146,10 +143,8 @@ describe("attendance audit logging", () => {
     expect(deletion!.summary).toContain("Sam Member");
     const detail = deletion!.detail ?? "";
     expect(detail).toContain("Removed 2 attendance records:");
-    // Both events are named, so the record survives the rows being gone.
     expect(detail).toContain("Weekly Meeting");
     expect(detail).toContain("Camp");
-    // One line per removed record, each carrying a time next to its event.
     const lines = detail.split("\n").slice(1);
     expect(lines).toHaveLength(2);
     for (const line of lines) expect(line).toMatch(/ · .+\d{4}/);
@@ -182,7 +177,6 @@ describe("attendance audit logging", () => {
       name: "Sam Member",
     });
     await staff.mutation(api.attendance.signIn, { eventId, memberId });
-    // Drop the event row directly, leaving the attendance row orphaned.
     await t.run((ctx) => ctx.db.delete(eventId));
 
     await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId });
@@ -199,8 +193,6 @@ describe("attendance audit logging", () => {
       name: "Long Serving",
     });
     const base = window();
-    // 105 events, so the cap bites and the overflow line has to appear. A
-    // minute apart, so they stay in one staff year even near the 1 Oct rollover.
     for (let i = 0; i < 105; i++) {
       const eventId = await staff.mutation(api.events.create, {
         name: `Event ${i}`,
@@ -217,7 +209,6 @@ describe("attendance audit logging", () => {
     const lines = (deletion!.detail ?? "").split("\n");
     expect(lines[0]).toBe("Removed 105 attendance records:");
     expect(lines[lines.length - 1]).toBe("and 5 more");
-    // header + 100 listed + overflow
     expect(lines).toHaveLength(102);
   });
 
@@ -237,7 +228,6 @@ describe("attendance audit logging", () => {
     await staff.mutation(api.attendance.signIn, { eventId, memberId });
 
     const real = Intl.DateTimeFormat;
-    // Hermes without full ICU throws on a named time zone.
     vi.spyOn(Intl, "DateTimeFormat").mockImplementation(((
       ...args: ConstructorParameters<typeof Intl.DateTimeFormat>
     ) => {
@@ -252,7 +242,6 @@ describe("attendance audit logging", () => {
 
     const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
     expect(deletion!.detail).toContain("No ICU · ");
-    // Still sortable and unambiguous, just not localised.
     expect(deletion!.detail).toMatch(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/);
   });
 
@@ -527,6 +516,47 @@ describe("attendance audit logging", () => {
     expect(options.events[0].id).toBe(laterEvent);
   });
 
+  test("filterOptions reads only the newest audit rows, and still offers events that have started", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const quietEvent = await t.run((ctx) =>
+      ctx.db.insert("events", {
+        name: "Quiet Event",
+        dateStart: Date.now() - 86_400_000,
+        dateEnd: Date.now() - 82_800_000,
+        subgroups: [USYD],
+      })
+    );
+    const busyEvent = await staff.mutation(api.events.create, {
+      name: "Busy Event",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("attendanceAuditLog", {
+        actorEmail: "long-ago@sow.org.au",
+        entityType: "event",
+        action: "event.update",
+        summary: "An old edit",
+      });
+      for (let i = 0; i < 200; i++) {
+        await ctx.db.insert("attendanceAuditLog", {
+          actorEmail: STAFF,
+          entityType: "attendance",
+          action: "attendance.signIn",
+          summary: `Sign-in ${i}`,
+          eventId: busyEvent,
+        });
+      }
+    });
+
+    const options = await staff.query(api.attendanceAudit.filterOptions, {});
+    expect(options.actors.map((a) => a.email)).toEqual([STAFF]);
+    expect(options.events.map((e) => e.id).sort()).toEqual([busyEvent, quietEvent].sort());
+  });
+
   test("filterOptions is gated to signed-in staff", async () => {
     const t = await setup();
     const anon = await t.query(api.attendanceAudit.filterOptions, {});
@@ -610,7 +640,6 @@ describe("audit logging across attendance mutations", () => {
     const deletes = (await allLogs(t)).filter((l) => l.action === "event.delete");
     expect(deletes).toHaveLength(2);
     const busy = deletes.find((l) => l.summary.includes("Busy"))!;
-    // Names whose attendance went, with the event id kept for tracing.
     expect(busy.eventId).toBe(withPeople);
     expect(busy.detail).toMatch(/^Removed 1 attendance record:\nSam · /);
     expect(deletes.find((l) => l.summary.includes("Empty"))?.detail).toBe(
@@ -654,7 +683,6 @@ describe("audit logging across attendance mutations", () => {
     const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
     await staff.mutation(api.attendance.signIn, { eventId, memberId });
     await staff.mutation(api.attendance.signIn, { eventId, email: OTHER });
-    // A record whose member was since deleted still gets a line.
     await t.run(async (ctx) => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
       await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: 1 });

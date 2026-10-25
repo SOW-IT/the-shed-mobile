@@ -13,8 +13,7 @@ import { linkUserProfiles } from "./userLink";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
+const FIRST_PAGE = { paginationOpts: { numItems: 50, cursor: null } };
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -70,6 +69,42 @@ async function setup() {
   await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
   return t;
 }
+
+describe("approvalPreview", () => {
+  test("shows the chain a request will take, adding the Director at the threshold", async () => {
+    const t = await setup();
+    const rachel = asUser(t, RACHEL);
+    const small = await rachel.query(api.requests.approvalPreview, { department: "Marketing", amount: 200 });
+    expect(small?.map((s) => [s.step, s.skipped])).toEqual([
+      ["hod", false],
+      ["budgetManager", false],
+      ["financeHead", false],
+    ]);
+    const big = await rachel.query(api.requests.approvalPreview, { department: "Marketing", amount: 5000 });
+    expect(big?.map((s) => s.step)).toEqual(["hod", "budgetManager", "director", "financeHead"]);
+    expect(big?.find((s) => s.step === "director")?.label).toBe("Director");
+  });
+
+  test("marks the steps the requester's own role skips, like submit does", async () => {
+    const t = await setup();
+    const preview = await asUser(t, BELLA).query(api.requests.approvalPreview, {
+      department: "Finance",
+      amount: 100,
+    });
+    expect(preview?.map((s) => [s.step, s.skipped])).toEqual([
+      ["hod", true],
+      ["budgetManager", true],
+      ["financeHead", false],
+    ]);
+  });
+
+  test("is nothing for an unknown department or a caller with no profile", async () => {
+    const t = await setup();
+    expect(await asUser(t, RACHEL).query(api.requests.approvalPreview, { department: "Nowhere", amount: 50 })).toBeNull();
+    expect(await asUser(t, RACHEL).query(api.requests.approvalPreview, { department: " ", amount: 50 })).toBeNull();
+    expect(await asUser(t, "stranger@sow.org.au").query(api.requests.approvalPreview, { department: "Marketing", amount: 50 })).toBeNull();
+  });
+});
 
 describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
   test("a staff request starts fully pending, with Director only at >= $5000", async () => {
@@ -351,8 +386,8 @@ describe("approver delegation (out-of-office cover)", () => {
 
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(1);
-    const henryFeed = await asUser(t, HENRY).query(api.notifications.list, {});
-    const rachelFeed = await asUser(t, RACHEL).query(api.notifications.list, {});
+    const henryFeed = await asUser(t, HENRY).query(api.notifications.feed, FIRST_PAGE).then((r) => r?.page);
+    const rachelFeed = await asUser(t, RACHEL).query(api.notifications.feed, FIRST_PAGE).then((r) => r?.page);
     expect(henryFeed![0].title).toMatch(/approval/i);
     expect(rachelFeed![0].title).toMatch(/approval/i);
   });
@@ -364,7 +399,7 @@ describe("in-app notifications", () => {
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(0);
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
-    const feed = await asUser(t, HENRY).query(api.notifications.list, {});
+    const feed = await asUser(t, HENRY).query(api.notifications.feed, FIRST_PAGE).then((r) => r?.page);
     expect(feed).toHaveLength(1);
     expect(feed![0].read).toBe(false);
     expect(feed![0].title).toMatch(/approval/i);
@@ -375,17 +410,20 @@ describe("in-app notifications", () => {
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "a", amount: 100 });
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "b", amount: 200 });
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(2);
-    const feed = await asUser(t, HENRY).query(api.notifications.list, {});
+    const feed = await asUser(t, HENRY).query(api.notifications.feed, FIRST_PAGE).then((r) => r?.page);
     await asUser(t, HENRY).mutation(api.notifications.markRead, { id: feed![0].id });
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
-    await asUser(t, HENRY).mutation(api.notifications.markAllRead, {});
+    const marked = await asUser(t, HENRY).mutation(api.notifications.markAllRead, {});
+    expect(marked).toHaveLength(1);
+    expect(marked).not.toContain(feed![0].id);
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(0);
+    expect(await asUser(t, HENRY).mutation(api.notifications.markAllRead, {})).toEqual([]);
   });
 
   test("a notification can only be marked read by its owner", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
-    const feed = await asUser(t, HENRY).query(api.notifications.list, {});
+    const feed = await asUser(t, HENRY).query(api.notifications.feed, FIRST_PAGE).then((r) => r?.page);
     await expect(
       asUser(t, RACHEL).mutation(api.notifications.markRead, { id: feed![0].id })
     ).rejects.toThrow();
@@ -403,6 +441,47 @@ describe("in-app notifications", () => {
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(0);
     await asUser(t, RACHEL).mutation(api.notifications.markReadForRequest, { requestId: req._id });
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(0);
+  });
+
+  test("marking all read hands back at most 500 ids, and marks every one", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 520; i++) {
+        await ctx.db.insert("notifications", { userEmail: HENRY, title: `n${i}`, body: "", read: false });
+      }
+    });
+    const marked = await asUser(t, HENRY).mutation(api.notifications.markAllRead, {});
+    expect(marked).toHaveLength(500);
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(0);
+  });
+
+  test("the feed pages newest first, and is null while signed out", async () => {
+    const t = await setup();
+    for (const description of ["a", "b", "c"]) {
+      await asUser(t, RACHEL).mutation(api.requests.submit, { description, amount: 100 });
+    }
+    const firstPage = (await asUser(t, HENRY).query(api.notifications.feed, {
+      paginationOpts: { numItems: 2, cursor: null },
+    }))!;
+    expect(firstPage.page).toHaveLength(2);
+    expect(firstPage.isDone).toBe(false);
+    expect(firstPage.page[0].at).toBeGreaterThanOrEqual(firstPage.page[1].at);
+    expect(firstPage.page[0]).toMatchObject({ read: false, url: "/?tab=review" });
+    const secondPage = (await asUser(t, HENRY).query(api.notifications.feed, {
+      paginationOpts: { numItems: 2, cursor: firstPage.continueCursor },
+    }))!;
+    expect(secondPage.page).toHaveLength(1);
+    expect(secondPage.isDone).toBe(true);
+    const ids = [...firstPage.page, ...secondPage.page].map((n) => n.id);
+    expect(new Set(ids).size).toBe(3);
+    expect(
+      await t.query(api.notifications.feed, { paginationOpts: { numItems: 2, cursor: null } })
+    ).toBeNull();
+    const oldApp = (await asUser(t, HENRY).query(api.notifications.feed, {
+      paginationOpts: { numItems: 1, cursor: null },
+      appVersion: "1.0.0",
+    }))!;
+    expect(oldApp.page[0].url).toBe("/?tab=review");
   });
 
   test("opening one request leaves other requests' notifications unread", async () => {
@@ -749,6 +828,7 @@ describe("admin and per-year rules", () => {
         department: "Marketing",
         division: null,
         university: null,
+        roleTitles: {},
       },
       {
         year: YEAR - 1,
@@ -757,6 +837,7 @@ describe("admin and per-year rules", () => {
         department: "Events",
         division: null,
         university: null,
+        roleTitles: {},
       },
     ]);
 
@@ -993,8 +1074,15 @@ describe("audit trail and reminders", () => {
       ],
     });
     await asUser(t, FIONA).mutation(api.requests.pay, { requestId: request._id, paidAmount: 90 });
+    await t.run(async (ctx) => {
+      const bella = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", BELLA).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", bella!._id, { name: "Bella Budget" });
+    });
 
-    const trail = (await asUser(t, RACHEL).query(api.requests.auditTrail, {
+    const trail = (await asUser(t, HENRY).query(api.requests.auditTrail, {
       requestId: request._id,
     }))!;
     expect(trail.map((e) => [e.action, e.step, e.actor])).toEqual([
@@ -1007,6 +1095,7 @@ describe("audit trail and reminders", () => {
     ]);
     expect(trail.every((e) => typeof e.at === "number")).toBe(true);
     expect(trail[5].detail).toBe("$90");
+    expect(trail.map((e) => e.actorName)).toEqual([HENRY, HENRY, "Bella Budget", FIONA, HENRY, FIONA]);
 
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "y", amount: 50 });
     const [declined] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
@@ -1019,6 +1108,78 @@ describe("audit trail and reminders", () => {
     expect(declinedTrail.at(-1)).toMatchObject({
       action: "declined", step: "hod", actor: HENRY, detail: "Too dear",
     });
+  });
+
+  test("only people on a request can read it, its trail, its steps and its comments", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: DAN,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: "olly@sow.org.au",
+      roles: ["Staff"],
+      department: "Events",
+    });
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "posters", amount: 120 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    await asUser(t, HENRY).mutation(api.comments.add, { requestId: request._id, body: "Which printer?" });
+
+    const reads = async (email: string) => {
+      const as = asUser(t, email);
+      return {
+        get: (await as.query(api.requests.get, { requestId: request._id })) !== null,
+        trail: (await as.query(api.requests.auditTrail, { requestId: request._id })) !== null,
+        step: (await as.query(api.requests.stepInfo, { requestId: request._id, step: "hod" })) !== null,
+        actors: (await as.query(api.requests.stepActors, { requestId: request._id })) !== null,
+        comments: (await as.query(api.comments.list, { requestId: request._id })) !== null,
+        unread: (await as.query(api.comments.unreadCount, { requestId: request._id })) !== null,
+      };
+    };
+    const all = { get: true, trail: true, step: true, actors: true, comments: true, unread: true };
+    const none = { get: false, trail: false, step: false, actors: false, comments: false, unread: false };
+
+    expect(await reads(RACHEL)).toEqual(all);
+    expect(await reads(HENRY)).toEqual(all);
+    expect(await reads(BELLA)).toEqual(all);
+    expect(await reads(FIONA)).toEqual(all);
+    expect(await reads("olly@sow.org.au")).toEqual(none);
+    expect(await reads(DAN)).toEqual(none);
+    await expect(
+      asUser(t, "olly@sow.org.au").mutation(api.comments.add, { requestId: request._id, body: "hi" })
+    ).rejects.toThrow(/not found/);
+
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+    await asUser(t, ADMIN).mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Marketing",
+      division: "Engagement",
+      headEmail: DAN,
+    });
+    expect(await reads(HENRY)).toEqual(all);
+    expect(await reads(DAN)).toEqual(all);
+    expect(await t.query(api.requests.get, { requestId: request._id })).toBeNull();
+  });
+
+  test("someone covering for an approver can read the request", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "banner", amount: 80 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    const OLLY = "olly@sow.org.au";
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: OLLY,
+      roles: ["Staff"],
+      department: "Events",
+    });
+    expect(await asUser(t, OLLY).query(api.requests.auditTrail, { requestId: request._id })).toBeNull();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("approverDelegations", { year: YEAR, fromEmail: HENRY, toEmail: OLLY });
+    });
+    expect(await asUser(t, OLLY).query(api.requests.auditTrail, { requestId: request._id })).not.toBeNull();
   });
 
   test("reviewed lists what an approver actioned, newest first, deduped per request", async () => {

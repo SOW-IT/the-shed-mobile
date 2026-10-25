@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { departmentsOf } from "../shared/flow";
@@ -32,6 +33,7 @@ import {
   eventUrl,
   logEvent,
   optionalEventStaff,
+  pendingSince,
   recipientsFor,
   requireEvent,
   requireEventStaff,
@@ -51,11 +53,8 @@ type Ctx = QueryCtx | MutationCtx;
 const LIST_LIMIT = 300;
 const EVENTS_LIMIT = 300;
 
-// ── Lists ───────────────────────────────────────────────────────────────────
-
 type FormSummary = Pick<SubForm, "status" | "step">;
 
-/** Each event with its requester's name and where its three forms are up to. */
 async function withRows(ctx: Ctx, events: EventRequest[]) {
   const names = new Map<string, Promise<string | null>>();
   const rows = await Promise.all(
@@ -78,12 +77,7 @@ async function withRows(ctx: Ctx, events: EventRequest[]) {
 
 const dedupe = (events: EventRequest[]) => [...new Map(events.map((e) => [e._id, e])).values()];
 
-/**
- * Pending forms the caller reviews, and which of them are waiting on the
- * caller. Walks the events still in progress, so forms left pending on
- * cancelled events never crowd out live ones.
- */
-async function reviewForms(ctx: Ctx, caller: CallerContext) {
+export async function reviewForms(ctx: Ctx, caller: CallerContext) {
   const scope = await viewerScope(ctx, caller);
   if (!SUB_FORM_KINDS.some((k) => scope.teams[k]) && !scope.director) return [];
   const scopes = new Map<number, Promise<ViewerScope>>();
@@ -107,7 +101,6 @@ async function reviewForms(ctx: Ctx, caller: CallerContext) {
       if (form.status !== "PENDING") continue;
       const approver = await stepApprover(ctx, event, kind, form.step);
       const mine = form.submittedBy !== caller.email && (await actsAs(ctx, caller, approver));
-      // A team member sees their team's forms; the Director only the ones at their step.
       const here = await scopeFor(event);
       const relevant =
         mine ||
@@ -120,7 +113,6 @@ async function reviewForms(ctx: Ctx, caller: CallerContext) {
   return forms;
 }
 
-/** What the signed-in person can do with event requests. */
 export const viewer = query({
   args: {},
   handler: async (ctx) => {
@@ -136,7 +128,6 @@ export const viewer = query({
   },
 });
 
-/** How many forms are waiting on the caller's approval; drives the side menu badge. */
 export const waitingOnMe = query({
   args: {},
   handler: async (ctx) => {
@@ -146,59 +137,76 @@ export const waitingOnMe = query({
   },
 });
 
-/**
- * The caller's events and their department's, from `year`; for this staff
- * year, plus any still in progress from earlier years.
- */
-export const mine = query({
-  args: { year: v.optional(v.number()) },
-  handler: async (ctx, args) => {
-    const caller = await optionalEventStaff(ctx);
-    if (!caller) return null;
-    const year = args.year ?? caller.year;
-    const events: EventRequest[] = [
+async function ownEventsInYear(ctx: QueryCtx, caller: CallerContext, year: number) {
+  const events: EventRequest[] = [
+    ...(await ctx.db
+      .query("eventRequests")
+      .withIndex("by_requester_and_year", (q) =>
+        q.eq("requesterEmail", caller.email).eq("year", year)
+      )
+      .take(LIST_LIMIT)),
+  ];
+  for (const department of departmentsOf(caller.profile)) {
+    events.push(
       ...(await ctx.db
         .query("eventRequests")
-        .withIndex("by_requester_and_year", (q) =>
-          q.eq("requesterEmail", caller.email).eq("year", year)
+        .withIndex("by_department_and_year", (q) =>
+          q.eq("department", department).eq("year", year)
         )
-        .take(LIST_LIMIT)),
-    ];
+        .take(LIST_LIMIT))
+    );
+  }
+  return events;
+}
+
+export const mine = query({
+  args: {},
+  handler: async (ctx) => {
+    const caller = await optionalEventStaff(ctx);
+    if (!caller) return null;
+    const events = await ownEventsInYear(ctx, caller, caller.year);
+    events.push(
+      ...(await ctx.db
+        .query("eventRequests")
+        .withIndex("by_requester_and_status", (q) =>
+          q.eq("requesterEmail", caller.email).eq("status", "IN_PROGRESS")
+        )
+        .take(LIST_LIMIT))
+    );
     for (const department of departmentsOf(caller.profile)) {
       events.push(
         ...(await ctx.db
           .query("eventRequests")
-          .withIndex("by_department_and_year", (q) =>
-            q.eq("department", department).eq("year", year)
+          .withIndex("by_department_and_status", (q) =>
+            q.eq("department", department).eq("status", "IN_PROGRESS")
           )
           .take(LIST_LIMIT))
       );
-    }
-    if (year === caller.year) {
-      events.push(
-        ...(await ctx.db
-          .query("eventRequests")
-          .withIndex("by_requester_and_status", (q) =>
-            q.eq("requesterEmail", caller.email).eq("status", "IN_PROGRESS")
-          )
-          .take(LIST_LIMIT))
-      );
-      for (const department of departmentsOf(caller.profile)) {
-        events.push(
-          ...(await ctx.db
-            .query("eventRequests")
-            .withIndex("by_department_and_status", (q) =>
-              q.eq("department", department).eq("status", "IN_PROGRESS")
-            )
-            .take(LIST_LIMIT))
-        );
-      }
     }
     return await withRows(ctx, dedupe(events));
   },
 });
 
-/** Forms waiting for approval that the caller reviews, marking the ones waiting on them. */
+export const earlierMine = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalEventStaff(ctx);
+    if (!caller) return null;
+    let year = paginationOpts.cursor ? Number(paginationOpts.cursor) : caller.year - 1;
+    let events: EventRequest[] = [];
+    while (year >= EARLIEST_EVENT_REQUEST_YEAR && events.length === 0) {
+      events = dedupe(await ownEventsInYear(ctx, caller, year));
+      year--;
+    }
+    const isDone = year < EARLIEST_EVENT_REQUEST_YEAR;
+    return {
+      page: await withRows(ctx, events),
+      isDone,
+      continueCursor: isDone ? "" : String(year),
+    };
+  },
+});
+
 export const review = query({
   args: {},
   handler: async (ctx) => {
@@ -206,16 +214,43 @@ export const review = query({
     if (!caller) return null;
     const forms = await reviewForms(ctx, caller);
     const rows = await withRows(ctx, dedupe(forms.map((f) => f.event)));
-    return rows.map((row) => ({
-      ...row,
-      waitingOnMe: forms
-        .filter((f) => f.mine && f.event._id === row._id)
-        .map((f) => f.form.kind),
-    }));
+    return rows
+      .map((row) => {
+        const own = forms.filter((f) => f.event._id === row._id);
+        const waitingSince = Math.min(...own.map((f) => pendingSince(f.form)));
+        return {
+          ...row,
+          waitingSince,
+          waitingOnMe: own.filter((f) => f.mine).map((f) => f.form.kind),
+        };
+      })
+      .sort((a, b) => a.waitingSince - b.waitingSince);
   },
 });
 
-/** Every event from one staff year (and, for this year, any still in progress). */
+export async function requesterSideOpenEvents(
+  ctx: Ctx,
+  caller: CallerContext
+): Promise<EventRequest[]> {
+  const events: EventRequest[] = await ctx.db
+    .query("eventRequests")
+    .withIndex("by_requester_and_status", (q) =>
+      q.eq("requesterEmail", caller.email).eq("status", "IN_PROGRESS")
+    )
+    .take(LIST_LIMIT);
+  for (const department of departmentsOf(caller.profile)) {
+    events.push(
+      ...(await ctx.db
+        .query("eventRequests")
+        .withIndex("by_department_and_status", (q) =>
+          q.eq("department", department).eq("status", "IN_PROGRESS")
+        )
+        .take(LIST_LIMIT))
+    );
+  }
+  return dedupe(events);
+}
+
 export const all = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
@@ -238,40 +273,17 @@ export const all = query({
   },
 });
 
-/** The staff years the year pickers offer: ones with events, and this one. */
-export const years = query({
-  args: {},
-  handler: async (ctx) => {
+export const earlierAll = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalEventStaff(ctx);
-    if (!caller) return null;
-    const everyone = seesAll(await viewerScope(ctx, caller));
-    const mine = [caller.year];
-    const all = [caller.year];
-    for (let y = caller.year - 1; y >= EARLIEST_EVENT_REQUEST_YEAR; y--) {
-      let own = await ctx.db
-        .query("eventRequests")
-        .withIndex("by_requester_and_year", (q) =>
-          q.eq("requesterEmail", caller.email).eq("year", y)
-        )
-        .first();
-      for (const department of departmentsOf(caller.profile)) {
-        own ??= await ctx.db
-          .query("eventRequests")
-          .withIndex("by_department_and_year", (q) =>
-            q.eq("department", department).eq("year", y)
-          )
-          .first();
-      }
-      if (own) mine.push(y);
-      const any = everyone
-        ? await ctx.db
-            .query("eventRequests")
-            .withIndex("by_year_and_number", (q) => q.eq("year", y))
-            .first()
-        : null;
-      if (any) all.push(y);
-    }
-    return { mine, all };
+    if (!caller || !seesAll(await viewerScope(ctx, caller))) return null;
+    const result = await ctx.db
+      .query("eventRequests")
+      .withIndex("by_year_and_number", (q) => q.lt("year", caller.year))
+      .order("desc")
+      .paginate(paginationOpts);
+    return { ...result, page: await withRows(ctx, result.page) };
   },
 });
 
@@ -363,9 +375,6 @@ export const timeline = query({
   },
 });
 
-// ── Changes ─────────────────────────────────────────────────────────────────
-
-/** The event's answers checked against the form, with what it's filed under; throws with what to fix. */
 async function checkedEvent(
   ctx: Ctx,
   caller: CallerContext,
@@ -428,7 +437,6 @@ export const create = mutation({
   },
 });
 
-/** Tells the reviewers of forms already sent to them that the event changed. */
 async function tellReviewersOfChange(
   ctx: MutationCtx,
   event: EventRequest,

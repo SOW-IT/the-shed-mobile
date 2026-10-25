@@ -2,7 +2,6 @@ export const FINANCE = "Finance";
 
 export const ADMIN_DEPARTMENTS = ["Data and IT"];
 export const ADMIN_DIVISIONS = ["Human Resources"];
-/** Divisions whose head (only) is an admin; their other staff are not. */
 export const ADMIN_HEADED_DIVISIONS = ["Governance"];
 
 export const ROLES = [
@@ -174,7 +173,14 @@ export const dedupeAssignments = (assignments: Assignment[]): Assignment[] => {
   return out;
 };
 
-export const formatAssignment = (a: Assignment): string => {
+export type RoleTitles = Readonly<Record<string, string>>;
+
+export const roleTitle = (role: string, titles?: RoleTitles): string => titles?.[role] ?? role;
+
+export const roleLabel = (role: string, titles?: RoleTitles): string =>
+  titles?.[role] ?? acronym(role);
+
+export const formatAssignment = (a: Assignment, titles?: RoleTitles): string => {
   const department =
     isChaplainRole(a.role) && a.department === CHAPLAINCY_DEPARTMENT
       ? undefined
@@ -183,7 +189,8 @@ export const formatAssignment = (a: Assignment): string => {
     .filter((s): s is string => !!s)
     .map(acronym)
     .join(" · ");
-  return scope ? `${acronym(a.role)} → ${scope}` : acronym(a.role);
+  const label = roleLabel(a.role, titles);
+  return scope ? `${label} → ${scope}` : label;
 };
 
 export const DIRECTOR_APPROVAL_THRESHOLD = 5000;
@@ -222,7 +229,6 @@ const sydneyYmdFixedOffset = (
   };
 };
 
-/** Calendar parts of `date` in Sydney time (month is 1-based). */
 export const sydneyYmd = (
   date: Date
 ): { year: number; month: number; day: number; hour: number } => {
@@ -280,8 +286,6 @@ export const eventStaffYear = (dateStart: number): number =>
 export const staffYearStartMs = (year: number): number =>
   Date.UTC(year - 1, 8, 30, 14, 0, 0, 0);
 
-// Auth grace is deliberately not a fixed duration: it lasts until the Sydney
-// calendar year catches up with the staff year (see ADR 0003).
 export const withinRolloverAuthGrace = (
   staffYear: number,
   now: Date = new Date()
@@ -306,6 +310,11 @@ export const requestDeclined = (r: ApprovalState): boolean =>
   r.approvedByBudgetManager === DECLINED ||
   r.approvedByDirector === DECLINED ||
   r.approvedByFinanceHead === DECLINED;
+
+export const REVIEWED_LIMIT = 50;
+
+export const reviewedHeading = (count: number): string =>
+  count >= REVIEWED_LIMIT ? `Latest ${REVIEWED_LIMIT} reviewed` : `Reviewed (${count})`;
 
 export const requestFullyApproved = (r: ApprovalState): boolean =>
   r.approvedByHOD === APPROVED &&
@@ -332,6 +341,12 @@ export const requestDisplayStatus = (r: RequestLifecycle): RequestDisplayStatus 
   if (!r.receipt) return "AWAITING RECEIPT";
   return "AWAITING PAYMENT";
 };
+
+export const requestStaffYear = (request: { _creationTime: number }): number =>
+  eventStaffYear(request._creationTime);
+
+export const requestCreatedAt = (request: { _creationTime: number }): number =>
+  request._creationTime;
 
 export const requestCompleted = (r: RequestLifecycle): boolean =>
   requestDeclined(r) || r.paid === true;

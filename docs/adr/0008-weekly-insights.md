@@ -61,5 +61,5 @@ attendance for every campus every night to change, most nights, nothing.
 - Changing what a view shows needs `VIEW_VERSION` bumped, or the stored views
   stay as they were until their data changes.
 - The SOW view's campus comparison now reads each campus's recent weekly head
-  counts from the weekly index instead of per-campus Snapshots, which are no
-  longer built.
+  counts from the weekly index instead of per-campus Snapshots (built again
+  each night since 2.6.4, for BigQuery only).

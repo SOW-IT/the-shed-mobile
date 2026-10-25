@@ -14,15 +14,17 @@ import { dayLabel } from "./weeklyInsights";
 import {
   countDelta,
   type FollowRow,
-  type MonthRow,
   type PeopleRow,
   type Pill,
   type WeeklyBlock,
 } from "./weeklyInsightsView";
+import { round1 } from "./numbers";
 
 const THIS_COLOUR = "primary";
 const LAST_COLOUR = "#9CA3AFA6";
 const FOLLOW_UP_PREVIEW = 5;
+
+const PPN_ROLE_LABEL: Record<SowRole, string> = { leader: "Campus leaders", staff: "Other staff", none: "No staff profile" };
 
 const ROLE_META: Record<SowRole, { section: string; label: string; colour: string }> = {
   leader: { section: "Campus leaders", label: "Campus leader", colour: "#0F766E" },
@@ -31,6 +33,7 @@ const ROLE_META: Record<SowRole, { section: string; label: string; colour: strin
 };
 
 const REGULAR_FILTER = { key: "regular", label: "Regular", colour: "#16A34A" };
+const NOT_YET_FILTER = { key: "notYet", label: "Not yet", colour: "#DC2626" };
 
 const fullDate = (at: number) => `${dayLabel(at)} ${sydneyYmd(new Date(at)).year}`;
 
@@ -41,6 +44,13 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 const campusName = (campus: string | null) => (campus ? subgroupLabel(campus) : "No campus");
 
 const campusPage = (campus: string | null) => (campus && !isOrgWideSubgroup(campus) ? campus : undefined);
+
+const campusBars = (split: { campus: string | null; value: number }[]) =>
+  split.map((c) => ({
+    label: campusName(c.campus),
+    value: c.value,
+    colour: campusPage(c.campus) ? subgroupColour(c.campus as string) : undefined,
+  }));
 
 const noRollBlock = (events: SowEvent[], what: string): WeeklyBlock[] =>
   events.length
@@ -117,10 +127,10 @@ function twigRows(result: TwigResult, people: SowPeople): PeopleRow[] {
       name,
       photo: person?.photo ?? null,
       section: r.role,
-      tags: [r.role, ...(r.regular ? ["regular"] : [])],
+      tags: [r.role, ...(r.regular ? ["regular"] : []), ...(r.attended === 0 ? ["notYet"] : [])],
       category: rolePill(r),
       primary: `${r.attended}/${r.held} · ${pct(r.pct)}`,
-      secondary: lastCame(r.lastAt),
+      secondary: r.attended === 0 ? "Hasn't come to a TWIG this staff year" : lastCame(r.lastAt),
       warning: r.role === "none" ? `No staff profile for ${result.year}` : undefined,
       badge: r.regular ? { label: REGULAR_FILTER.label, colour: REGULAR_FILTER.colour } : undefined,
       dimmed: r.role === "staff" ? true : undefined,
@@ -193,7 +203,7 @@ export function buildTwigBlocks(input: {
   blocks.push({
     type: "breakdown",
     title: "Campus leader sign-ins by campus",
-    rows: result.byCampus.map((c) => ({ label: campusName(c.campus), value: c.value })),
+    rows: campusBars(result.byCampus),
   });
   if (result.running) {
     const followRows: FollowRow[] = result.followUp.map((r) => ({
@@ -224,7 +234,7 @@ export function buildTwigBlocks(input: {
   blocks.push({
     type: "people",
     title: "Everyone",
-    subtitle: `Everyone who came to a TWIG in staff year ${year}.`,
+    subtitle: `Everyone who came to a TWIG in staff year ${year}, and campus leaders who haven't come this staff year.`,
     sections: SOW_ROLE_ORDER.map((key) => ({ key, label: ROLE_META[key].section })),
     filters: [
       ...SOW_ROLE_ORDER.filter((key) => present.has(key)).map((key) => ({
@@ -233,6 +243,7 @@ export function buildTwigBlocks(input: {
         colour: ROLE_META[key].colour,
       })),
       ...(present.has("regular") ? [REGULAR_FILTER] : []),
+      ...(present.has("notYet") ? [NOT_YET_FILTER] : []),
     ],
     sorts: [
       { key: "pct", label: "Attendance %" },
@@ -245,13 +256,6 @@ export function buildTwigBlocks(input: {
   blocks.push(...noRollBlock(result.noRoll, "TWIG"));
   return blocks;
 }
-
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-const monthYear = (at: number) => {
-  const { month, year } = sydneyYmd(new Date(at));
-  return `${MONTH_NAMES[month - 1]} ${year}`;
-};
 
 export function buildPpnBlocks(input: { result: PpnResult; earlierYear?: number }): WeeklyBlock[] {
   const { result } = input;
@@ -268,50 +272,99 @@ export function buildPpnBlocks(input: { result: PpnResult; earlierYear?: number 
       ...noRollBlock(result.noRoll, "PPN"),
     ];
   }
-  const rows: MonthRow[] = result.rows.map((row) => ({
-    key: row.event.id,
-    title: `${fullDate(row.event.at)} · ${row.event.name}`,
-    value: String(row.total),
-    delta: row.last ? countDelta(row.total, row.last.total) : undefined,
-    hint: row.last
-      ? `vs ${row.last.total} in ${monthYear(row.last.event.at)}`
-      : `No PPN in ${monthYear(row.event.at).split(" ")[0]} last staff year`,
-    lines: [row.firstTimers ? `${plural(row.firstTimers, "first-timer")}` : "No first-timers"],
-    splits: [
-      {
-        title: "By campus",
-        parts: row.byCampus.map((c) => ({
-          label: campusName(c.campus),
-          value: c.value,
-          colour: c.campus && !isOrgWideSubgroup(c.campus) ? subgroupColour(c.campus) : undefined,
-        })),
-      },
-      {
-        title: "Who",
-        parts: SOW_ROLE_ORDER.map((role) => ({
-          label: role === "leader" ? "Campus leaders" : role === "staff" ? "Staff" : "Others",
-          value: row.byRole[role],
-          colour: ROLE_META[role].colour,
-        })),
-      },
-    ],
-  }));
-  const others = totals.byRole.none;
+  const ppns = [...result.rows].reverse();
+  const avg = round1(totals.signIns / ppns.length);
+  const lastAvg = result.lastAverage;
+  const anyMatched = ppns.some((r) => r.last);
+  const roles = SOW_ROLE_ORDER.filter((role) => totals.byRole[role] > 0);
   return [
+    { type: "caption", text: `Staff year ${year}: ${plural(ppns.length, "PPN")}.` },
+    { type: "heading", text: "Turnout" },
     {
-      type: "caption",
-      text:
-        `Staff year ${year}: ${plural(result.rows.length, "PPN")}, ${plural(totals.signIns, "sign-in")} from ${plural(totals.people, "person", "people")}` +
-        ` (${totals.byRole.leader} from campus leaders, ${totals.byRole.staff} from other staff, ${others} from others).` +
-        (others ? ` Others have no staff profile for ${year}; they're counted, not flagged.` : ""),
+      type: "cards",
+      layout: "grid",
+      cards: [
+        {
+          label: "Average per PPN",
+          value: String(avg),
+          delta: countDelta(avg, lastAvg),
+          hint: lastAvg === null ? undefined : `vs ${lastAvg}`,
+          info: {
+            title: "Average per PPN",
+            body: "Everyone who signed in, per PPN, against last staff year's PPNs up to the same date.",
+          },
+        },
+        {
+          label: "People",
+          value: String(totals.people),
+          info: { title: "People", body: "Different people at one or more PPNs this staff year." },
+        },
+      ],
     },
     {
-      type: "monthRows",
-      title: "Month by month",
-      subtitle: "Everyone who signed in, against the same month last staff year. A first-timer is at their first PPN ever.",
-      rows,
-      emptyText: "No PPNs yet.",
+      type: "multiBars",
+      title: "PPN by PPN",
+      subtitle: anyMatched ? `Everyone at each PPN, against the same month in ${year - 1}` : "Everyone at each PPN",
+      legend: [
+        { key: "now", colour: THIS_COLOUR, label: String(year) },
+        ...(anyMatched ? [{ key: "then", colour: LAST_COLOUR, label: String(year - 1) }] : []),
+      ],
+      points: ppns.map((r) => ({
+        at: r.event.at,
+        label: dayLabel(r.event.at),
+        segments: [
+          { key: "now", value: r.total, colour: THIS_COLOUR },
+          ...(r.last ? [{ key: "then", value: r.last.total, colour: LAST_COLOUR }] : []),
+        ],
+      })),
+      stacked: false,
+      keepZeros: true,
     },
+    { type: "heading", text: "Who came" },
+    {
+      type: "cards",
+      layout: "grid",
+      cards: [
+        {
+          label: "Campus leaders",
+          value: pct(totals.byRole.leader / totals.signIns),
+          hint: `${totals.byRole.leader} of ${plural(totals.signIns, "sign-in")}`,
+          info: { title: "Campus leaders", body: "The share of sign-ins from campus leaders." },
+        },
+        {
+          label: "First-timers",
+          value: String(totals.firstTimers),
+          info: { title: "First-timers", body: "People at their first PPN ever." },
+        },
+      ],
+    },
+    {
+      type: "multiBars",
+      title: "Who came",
+      legend: roles.map((role) => ({ key: role, colour: ROLE_META[role].colour, label: PPN_ROLE_LABEL[role] })),
+      points: ppns.map((r) => ({
+        at: r.event.at,
+        label: dayLabel(r.event.at),
+        segments: roles.map((role) => ({ key: role, value: r.byRole[role], colour: ROLE_META[role].colour })),
+      })),
+      stacked: true,
+    },
+    {
+      type: "stacked",
+      title: "First-timers",
+      legend: [
+        { key: "returning", colour: "primary", label: "Came before" },
+        { key: "fresh", colour: "accent", label: "First PPN" },
+      ],
+      labels: { fresh: "First PPN", returning: "Came before" },
+      points: ppns.map((r) => ({
+        at: r.event.at,
+        label: dayLabel(r.event.at),
+        fresh: r.firstTimers,
+        returning: r.total - r.firstTimers,
+      })),
+    },
+    { type: "breakdown", title: "Sign-ins by campus", rows: campusBars(totals.byCampus) },
     ...noRollBlock(result.noRoll, "PPN"),
   ];
 }

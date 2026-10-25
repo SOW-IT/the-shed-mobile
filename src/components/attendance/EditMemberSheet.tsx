@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -14,9 +14,12 @@ import {
   STUDENT_YEAR_FIELD_KEY,
   yearOptionIdForStoredValue,
 } from "../../../shared/attendanceMemberMeta";
+import { MEMBER } from "../../../shared/flow";
+import { markedRoleIn, type MarkedRole } from "../../../shared/memberRole";
 import { isSowStaffAddress } from "../../../shared/rollcallImport";
 import { capitalizeMemberName } from "../../../shared/rollcall";
 import { typedMatches } from "../../../shared/typedConfirm";
+import { MemberRoleField } from "@/components/attendance/MemberRoleField";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
 import { ChurchSelect } from "@/components/ChurchPicker";
 import {
@@ -74,9 +77,6 @@ export function EditMemberSheet({
   const isStaffOverlay = Boolean(row?.isStaffOverlay);
   const isStaffNow = Boolean(row?.isStaffNow);
   const nameLocked = isStaffOverlay && Boolean(row?.nameLocked);
-  // Deleting throws attendance away, so only admins (Data and IT, HR, the
-  // Governance head, the Director) get the button; everyone else merges
-  // duplicates instead.
   const me = useQuery(api.directory.me, visible ? {} : "skip");
   const canDelete = Boolean(me?.isAdmin);
 
@@ -96,7 +96,6 @@ export function EditMemberSheet({
   const [mergeStaff, setMergeStaff] = useState<{ email: string; name: string } | null>(
     null
   );
-  // Lives outside the sheet so it can confirm a merge or delete after closing.
   const [toast, setToast] = useState<ToastState>(null);
   const deleteImpact = useQuery(
     api.attendanceMembers.deletePreview,
@@ -109,9 +108,6 @@ export function EditMemberSheet({
   );
   const hasDuplicate = !memberId && (duplicates?.length ?? 0) > 0;
 
-  // A plain member given a staff email would only be relabelled, leaving their
-  // attendance split from the staff person's. Point to Merge instead. A staff
-  // person's own email field is checked the same way: it's for a personal one.
   const typedEmail = (isStaffOverlay ? personalEmail : email).trim().toLowerCase();
   const savedEmail = (isStaffOverlay ? row?.personalEmail : row?.email) ?? "";
   const emailChanged =
@@ -121,8 +117,6 @@ export function EditMemberSheet({
     visible && emailChanged ? { email: typedEmail, staffYear } : "skip"
   );
   const staffEmailOwner = emailChanged ? (staffForEmail ?? null) : null;
-  // Any other SOW address is still a staff one, never a personal email, even
-  // one already saved (an import can bring one in).
   const sowAddress = !staffEmailOwner && isSowStaffAddress(typedEmail);
 
   const metadataSummary = (meta: Record<string, string>) =>
@@ -168,6 +162,17 @@ export function EditMemberSheet({
     (!isStaffOverlay && churchId !== (row.churchId ?? null));
   const dirty = !memberId || memberChanged || notesChanged;
 
+  const markRole = (roleFieldId: string, mark: MarkedRole | null) =>
+    setMetadata((prev) => {
+      const next = { ...prev };
+      const savedRaw = row?.metadata?.[roleFieldId];
+      const savedMark = markedRoleIn(metadataFields, row?.metadata);
+      if (savedRaw && mark === savedMark) next[roleFieldId] = savedRaw;
+      else if (mark) next[roleFieldId] = mark;
+      else delete next[roleFieldId];
+      return next;
+    });
+
   const handleSave = () => {
     if (hasDuplicate) {
       setConfirmOpen(true);
@@ -190,7 +195,6 @@ export function EditMemberSheet({
           personalEmail: isStaffOverlay ? personalEmail : undefined,
           metadata,
           staffYear,
-          // Staff set their church in their own Profile.
           ...(isStaffOverlay ? {} : { churchId }),
         });
       } else if (!memberId) {
@@ -232,7 +236,6 @@ export function EditMemberSheet({
   };
 
   const loading = Boolean(memberId && row === undefined);
-  // Deleted or merged away by someone else while this sheet was open.
   const gone = Boolean(memberId) && row === null;
 
   const sheet = (
@@ -378,6 +381,25 @@ export function EditMemberSheet({
             const lockedForStaff =
               (isStaffOverlay || isStaffNow) &&
               (field.key === CAMPUS_FIELD_KEY || field.key === ROLE_FIELD_KEY);
+            if (field.key === ROLE_FIELD_KEY) {
+              const pending = markedRoleIn(metadataFields, metadata);
+              const shown =
+                lockedForStaff && row
+                  ? row.role
+                  : pending
+                    ? { role: pending, source: "marked" as const }
+                    : (row?.role.automatic ?? { role: MEMBER, source: "none" as const });
+              return (
+                <MemberRoleField
+                  key={field._id}
+                  role={shown.role}
+                  source={shown.source}
+                  marked={pending}
+                  onMark={lockedForStaff ? undefined : (mark) => markRole(field._id, mark)}
+                  ruleSettings={row?.roleRuleSettings}
+                />
+              );
+            }
             return field.type === "select" ? (
               <Select
                 key={field._id}
@@ -437,13 +459,18 @@ export function EditMemberSheet({
             );
           })}
           {eventAttendance ? (
-            <Field
-              label="Notes"
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Notes for this event…"
-              multiline
-            />
+            <View style={{ gap: 4 }}>
+              <Field
+                label="Notes for this event"
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Only for this sign-in…"
+                multiline
+              />
+              <Txt style={[typography.caption, { color: t.muted }]}>
+                Saved with this sign-in, like its time, not on the member.
+              </Txt>
+            </View>
           ) : null}
           <ErrorBanner message={error} />
           <Sheet
@@ -476,8 +503,6 @@ export function EditMemberSheet({
                     setDeleteOpen(false);
                     setMergeFromDelete(true);
                     setMergeStaff(null);
-                    // iOS can't present a modal while another is still
-                    // dismissing, so wait for the delete sheet to fade out.
                     setTimeout(() => setMergeOpen(true), durations.overlayOut + 80);
                   }}
                 />

@@ -45,6 +45,7 @@ const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
   org: { outline: "people-outline", filled: "people" },
   profile: { outline: "person-outline", filled: "person" },
   churches: { outline: "business-outline", filled: "business" },
+  mentoring: { outline: "compass-outline", filled: "compass" },
   announcements: { outline: "megaphone-outline", filled: "megaphone" },
   admin: { outline: "settings-outline", filled: "settings" },
 };
@@ -61,6 +62,7 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "attendance",
   "insights",
   "org",
+  "mentoring",
   "admin",
 ]);
 

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Keyboard, Platform, Pressable, Text, View, type ViewInstance } from "react-native";
 import { USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";
@@ -8,10 +8,6 @@ import { FOOTER_GAP, footerReach } from "@/lib/footerClearance";
 import { SowSpinner } from "./primitives";
 import { styles } from "./styles";
 
-/**
- * Provided by a Screen: a FooterAction reports how far it reaches up from the
- * bottom (note, button and offset), so the content can scroll clear of it.
- */
 export const FooterHeightContext = createContext<(height: number) => void>(() => {});
 
 const KEYBOARD_EASING = Easing.bezier(0.38, 0.7, 0.125, 1);
@@ -21,11 +17,6 @@ const KEYBOARD_LIFT_DURATION_SCALE = 0.6;
 const liftDuration = (keyboardDuration: number | undefined) =>
   Math.round((keyboardDuration ?? 250) * KEYBOARD_LIFT_DURATION_SCALE);
 
-/**
- * The full-width button pinned to the bottom of a screen, with an optional
- * warning note above it and an optional Cancel. Lifts above the keyboard on
- * iOS and reports its height so the screen can pad its content to clear it.
- */
 export const FooterAction = ({
   title,
   onPress,
@@ -54,8 +45,6 @@ export const FooterAction = ({
   const syncRef = useRef<() => void>(() => {});
   const reportFooterHeight = useContext(FooterHeightContext);
   useEffect(() => () => reportFooterHeight(0), [reportFooterHeight]);
-  // Reported from an effect on both inputs, since onLayout only fires on size
-  // changes on web and a new bottomOffset moves the footer without resizing it.
   const [layoutHeight, setLayoutHeight] = useState<number | null>(null);
   useEffect(() => {
     if (layoutHeight != null) {
@@ -69,12 +58,6 @@ export const FooterAction = ({
       return;
     }
     if (Platform.OS !== "ios") return;
-    // The footer's resting position is measured in window coordinates so the
-    // lift is exact wherever the footer lives: a tab screen sits above the tab
-    // bar, so lifting by the full keyboard height would leave a tab-bar-sized
-    // gap. Fallback for an unmeasurable footer is the old height-based lift.
-    // Measurement is async; a hide (or unmount) in between must win, so each
-    // hide bumps the generation and a stale measurement is dropped.
     let generation = 0;
     const liftFor = (
       keyboard: { screenY: number; height: number },
@@ -283,6 +266,9 @@ export const Btn = ({
           }).start()
         }
         disabled={disabled || loading}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }}
         style={[
           styles.btn,
           { backgroundColor: background },

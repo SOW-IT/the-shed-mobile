@@ -139,18 +139,6 @@ export const Row = ({
   return <View style={styles.row}>{children}</View>;
 };
 
-export const Chip = ({ label }: { label: string }) => {
-  const t = useAppTheme();
-  const colors =
-    label === "PAID" || label === "DECLINED" ? t.chip[label] : t.chip.default;
-  return (
-    <View style={[styles.chip, { backgroundColor: colors.bg }]}>
-      <View style={[styles.chipDot, { backgroundColor: colors.fg }]} />
-      <Text style={[styles.chipText, { color: colors.fg }]}>{label}</Text>
-    </View>
-  );
-};
-
 export const Muted = ({ children }: { children: ReactNode }) => {
   const t = useAppTheme();
   return <Text style={[typography.caption, { color: t.muted }]}>{children}</Text>;

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { ReactNode, useEffect, useState } from "react";
@@ -37,6 +37,7 @@ import {
   Card,
   ConfirmDialog,
   currencyText,
+  EmptyState,
   formatAmount,
   ErrorBanner,
   InfoBanner,
@@ -58,6 +59,9 @@ import {
   Txt,
 } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { SignInPrompt } from "@/components/SignInPrompt";
+import { AppErrorsCard } from "@/components/admin/AppErrorsCard";
+import { StepTimingCard } from "@/components/admin/StepTimingCard";
 import { SuggestedMerges } from "@/components/admin/SuggestedMerges";
 import { useAdminMutations } from "@/hooks/useAdminMutations";
 import { sydneyDateTime } from "@/lib/sydneyTime";
@@ -355,25 +359,26 @@ export default function AdminScreen() {
       setTab(tabParam);
     }
   }, [tabParam]);
-  // This staff year's staff who look like someone still in attendance as a
-  // member. The Merges tab only shows on this year and while there are any,
-  // so it goes once the year is reconciled.
   const viewingCurrentYear = selectedYear === currentYear;
   const mergeSuggestions = useQuery(
     api.mergeSuggestions.list,
     isAdmin && viewingCurrentYear ? {} : "skip"
   );
-  const mergeCount = (mergeSuggestions ?? []).reduce(
-    (n, s) => n + s.candidates.length,
-    0
+  const memberPairs = useQuery(
+    api.memberPairSuggestions.list,
+    isAdmin && viewingCurrentYear ? {} : "skip"
   );
+  const mergeCount =
+    (mergeSuggestions ?? []).reduce((n, s) => n + s.candidates.length, 0) +
+    (memberPairs ?? []).length;
+  const mergesLoaded = mergeSuggestions !== undefined && memberPairs !== undefined;
   const showMerges = isAdmin && viewingCurrentYear && mergeCount > 0;
   useEffect(() => {
-    if (tab === "merges" && mergeSuggestions && !showMerges) {
+    if (tab === "merges" && mergesLoaded && !showMerges) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- leave the tab once it empties
       setTab("users");
     }
-  }, [tab, mergeSuggestions, showMerges]);
+  }, [tab, mergesLoaded, showMerges]);
   const activeTab: AdminTab = budgetManagerOnly
     ? "other"
     : tab === "merges" && !showMerges
@@ -418,11 +423,8 @@ export default function AdminScreen() {
   const nameByEmail = new Map((people ?? []).map((p) => [p.email, p.name]));
   const unassignedEmails = new Set((unassigned ?? []).map((u) => u.email));
 
-  // Staff who have never signed in to The SHED, and a filter to see just them.
   const [onlyNotSignedIn, setOnlyNotSignedIn] = useState(false);
   const notSignedInCount = (profiles ?? []).filter((p) => !p.signedIn).length;
-  // Stays on even once everyone has signed in, so the list doesn't swap
-  // under the admin; the summary line keeps its Show everyone button.
   const showingNotSignedIn = onlyNotSignedIn;
   const { director, groupedProfiles, campusByUniversity, nonCampusOtherProfiles } =
     useGroupedProfiles(
@@ -573,8 +575,12 @@ export default function AdminScreen() {
 
   if (!hasAccess) {
     return (
-      <Screen>
-        <Muted>Only admins can access this screen.</Muted>
+      <Screen title="Admin">
+        {me === null ? (
+          <SignInPrompt what="page" />
+        ) : (
+          <EmptyState icon="lock-closed-outline" title="Only admins can open Admin" />
+        )}
       </Screen>
     );
   }
@@ -868,7 +874,7 @@ export default function AdminScreen() {
               {(profile.assignments ?? []).length > 0 ? (
                 <View style={{ marginTop: 2 }}>
                   {(profile.assignments ?? []).map((a, i) => (
-                    <Muted key={i}>{formatAssignment(a)}</Muted>
+                    <Muted key={i}>{formatAssignment(a, structure?.roleTitles)}</Muted>
                   ))}
                 </View>
               ) : (
@@ -940,7 +946,7 @@ export default function AdminScreen() {
       <InfoBanner
         message={
           selectedYear === currentYear + 1
-            ? `You're editing ${selectedYear}, the next staff year. It takes over from ${currentYear} when the staff year rolls over on 1 October ${currentYear}.`
+            ? `You're editing ${selectedYear}, the next staff year, which starts on 1 October ${currentYear}.`
             : null
         }
       />
@@ -1104,9 +1110,10 @@ export default function AdminScreen() {
         </>
       )}
 
-      {key === "merges" && mergeSuggestions && (
+      {key === "merges" && mergeSuggestions && memberPairs && (
         <SuggestedMerges
           suggestions={mergeSuggestions}
+          memberPairs={memberPairs}
           staffYear={currentYear}
           run={run}
           onMerged={(summary) => setToast({ text: summary })}
@@ -1868,9 +1875,8 @@ export default function AdminScreen() {
               <SectionTitle>Approver delegation · {selectedYear}</SectionTitle>
               <Card>
                 <Muted>
-                  A delegate can approve, decline and pay everything their
-                  approver could, for this staff year. Remove it when the
-                  approver is back.
+                  A delegate can approve, decline and pay for their approver
+                  this staff year.
                 </Muted>
                 {(delegations ?? []).length === 0 ? (
                   <Muted>No delegations set.</Muted>
@@ -1937,6 +1943,10 @@ export default function AdminScreen() {
               </Card>
             </View>
           )}
+
+          {hasAccess && <StepTimingCard year={selectedYear} />}
+
+          {isAdmin && <AppErrorsCard />}
 
           {isAdmin && (
             <View style={{ gap: spacing.md }}>

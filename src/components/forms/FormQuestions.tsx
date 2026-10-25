@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode } from "react";
 import { Platform, Text, View } from "react-native";
 import {
@@ -25,14 +25,8 @@ import {
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
-/**
- * The form's working copy of the answers. Amounts and counts stay as typed
- * text until they're submitted, so "12." can be on its way to "12.50", and a
- * date-time is "2026-01-12T13:00" even while only half of it is picked.
- */
 export type FormDraft = Record<string, FormAnswer>;
 
-/** A blank form: the department filled in, yes/no questions on No. */
 export const emptyDraft = (fields: readonly FormField[], department: string): FormDraft => {
   const draft: FormDraft = {};
   for (const field of fields) {
@@ -56,9 +50,6 @@ export const draftFromAnswers = (
   return draft;
 };
 
-/** The draft as answers to submit: typed amounts become numbers, and cleared
- *  dates and half-picked date-times drop, so an optional date left empty isn't
- *  sent as "" (which reads as an invalid date). */
 export const answersFromDraft = (fields: readonly FormField[], draft: FormDraft): FormAnswers => {
   const answers: FormAnswers = { ...draft };
   for (const field of fields) {
@@ -108,7 +99,6 @@ const Question = ({
   );
 };
 
-/** A date and a time, side by side, kept together as "2026-01-12T13:00". */
 const DateTimeInput = ({
   field,
   value,
@@ -314,12 +304,6 @@ const FieldInput = ({
   }
 };
 
-/**
- * Questions as the server defines them. Numbering follows what's on screen,
- * so a question that only applies sometimes doesn't leave a gap when it's
- * hidden; follow-up questions (shown when a choice is ticked) aren't numbered.
- * With an event `size`, choices recommended for it are tagged.
- */
 export const FormQuestions = ({
   fields,
   draft,
@@ -334,7 +318,6 @@ export const FormQuestions = ({
   onChange: (draft: FormDraft) => void;
   departments: string[];
   problem?: { key: string; message: string } | null;
-  /** The earliest date a "not in the past" question accepts. */
   minDate: string;
   size?: EventSize | null;
 }) => {

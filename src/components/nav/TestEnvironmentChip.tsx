@@ -1,14 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Sheet, Txt } from "@/components/ui";
 import { IS_DEV_ENVIRONMENT } from "@/env";
 import { radius, spacing, useAppTheme } from "@/theme";
 
-/**
- * The orange "Test Environment" chip on dev builds; tapping it explains what
- * the dev app is. Renders nothing on the live app.
- */
 export const TestEnvironmentChip = () => {
   const t = useAppTheme();
   const [info, setInfo] = useState(false);

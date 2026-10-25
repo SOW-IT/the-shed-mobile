@@ -2,7 +2,6 @@ import {
   assignmentsOf,
   MEMBER,
   type ProfileLike,
-  ROLES,
   rolesOfLike,
   STAFF_ROLE,
   STUDENT_LEADER,
@@ -20,18 +19,12 @@ export const GENDER_VALUES: Record<string, string> = {
 export const GENDER_OPTION_IDS = ["1", "2"] as const;
 export const CAMPUS_FIELD_KEY = "Campus";
 export const ROLE_FIELD_KEY = "Role";
+export const OTHER_INFO_FIELD_KEY = "Other Information";
+export const LEGACY_NOTES_FIELD_KEY = "Notes";
 
 export const STAFF_ROLE_FILTER_LABEL = STAFF_ROLE;
 export const STUDENT_LEADER_ROLE_FILTER_LABEL = STUDENT_LEADER;
 export const STUDENT_LEADER_ROLE_FILTER_ROLES = UNIVERSITY_ROLES;
-const ROLE_FILTER_LABELS = [
-  STAFF_ROLE_FILTER_LABEL,
-  STUDENT_LEADER_ROLE_FILTER_LABEL,
-] as const;
-const ROLE_FILTER_LABEL_SET = new Set<string>(ROLE_FILTER_LABELS);
-const STAFF_PROFILE_ROLE_FILTER_LABELS = new Set<string>(
-  ROLES.filter((role) => role !== MEMBER)
-);
 
 const YEAR_LEVEL_MAX = 15;
 
@@ -225,24 +218,6 @@ export const orderedSelectOptions = (
   return [...locked, ...custom];
 };
 
-export const orderedRoleFilterOptions = (
-  values: Record<string, string> | undefined,
-  lockedValues: string[] | undefined
-): MetadataSelectOption[] => {
-  const options = orderedSelectOptions(values, lockedValues);
-  const grouped = ROLE_FILTER_LABELS.map((label) => {
-    const existing = options.find((option) => option.label === label);
-    return existing ?? { id: label, label };
-  });
-  const extraAttendanceRoles = options.filter((option) => {
-    if (ROLE_FILTER_LABEL_SET.has(option.label)) return false;
-    if (option.label === MEMBER) return true;
-    if (STAFF_PROFILE_ROLE_FILTER_LABELS.has(option.label)) return false;
-    return !isLockedSelectOption(option.id, option.label, lockedValues);
-  });
-  return [...grouped, ...extraAttendanceRoles];
-};
-
 export const roleFilterMatches = (
   filterLabel: string,
   profileRoles: readonly string[],
@@ -274,19 +249,14 @@ export const roleFilterMatches = (
 export const metadataFieldAllowsCustomOptions = (
   fieldKey: string,
   fieldNameLocked: boolean
-): boolean =>
-  !fieldNameLocked ||
-  fieldKey === CAMPUS_FIELD_KEY ||
-  fieldKey === ROLE_FIELD_KEY;
+): boolean => !fieldNameLocked || fieldKey === CAMPUS_FIELD_KEY;
 
-/** The subset of an `attendanceMetadata` row these helpers need. */
 export type MetadataFieldLike = {
   _id: string;
   key: string;
   values?: Record<string, string>;
 };
 
-/** Option id whose label is `label`, or the label itself for free-text values. */
 export const optionIdForLabel = (
   values: Record<string, string> | undefined,
   label: string
@@ -297,10 +267,6 @@ export const optionIdForLabel = (
   return label;
 };
 
-/**
- * Campus and Role are locked for staff: they mirror the org profile rather
- * than whatever was typed into the member record.
- */
 export const staffLockedMetadata = (
   fields: readonly MetadataFieldLike[],
   profile: ProfileLike,
@@ -349,7 +315,6 @@ export const memberOwnMetadata = (
   return next;
 };
 
-/** The member's campus from metadata, else their first org campus. */
 export const resolveUniversity = (
   fields: readonly MetadataFieldLike[],
   metadata: Record<string, string> | undefined,
@@ -366,7 +331,6 @@ export const resolveUniversity = (
   return orgCampuses[0];
 };
 
-/** "Value · Value" summary of a member's metadata, in field order. */
 const subtitlePart = (fieldKey: string, value: string): string | null => {
   if (fieldKey === STUDENT_YEAR_FIELD_KEY) return `Year ${value}`;
   if (fieldKey.endsWith("?")) {

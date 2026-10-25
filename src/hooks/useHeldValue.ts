@@ -1,11 +1,5 @@
 import { useRef } from "react";
 
-/**
- * The last loaded value of a query, kept while it reloads with new arguments
- * so a list or preview doesn't collapse to a spinner and jump back. `stale`
- * is true while the value shown is from the previous arguments. A different
- * `holdKey` drops the held value (e.g. when a different person is picked).
- */
 export function useHeldValue<T>(
   value: T | undefined,
   holdKey: string

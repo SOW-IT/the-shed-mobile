@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { FastModal, SowSpinner } from "@/components/ui";
@@ -20,11 +20,6 @@ export const alertSowAccountRequired = (appleAvailable: boolean) =>
     [{ text: "OK" }]
   );
 
-/**
- * The sign-in choices (SOW account, Apple) as a small menu
- * dropping from wherever `anchor` puts it. `children` renders the button that
- * opens it.
- */
 export const SignInMenu = ({
   anchor,
   children,

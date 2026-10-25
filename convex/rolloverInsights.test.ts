@@ -53,7 +53,7 @@ const trendsOf = (t: TestConvex<typeof schema>) => t.run((ctx) => computeStaffTr
 
 const campusWeekly = async (t: TestConvex<typeof schema>) => {
   const { blocks } = await t.query(api.generalMetrics.view, { scope: "all" });
-  const chart = blocks.find((b) => b.type === "multiBars" && b.title === "Weekly avg by campus");
+  const chart = blocks.find((b) => b.type === "multiBars" && b.title === "Weeklies average by campus");
   if (chart?.type !== "multiBars") return { years: [], campuses: [] };
   return {
     years: chart.points.map((p) => p.at),
@@ -175,7 +175,6 @@ describe("October rollover → Attendance Insights", () => {
     );
     expect(campuses.sort()).toEqual([USYD, UNSW, newCampus].sort());
 
-    // Snapshots can still be built for any group on demand, and use 2027.
     for (const subgroup of [USYD, newCampus]) {
       await leader.action(internal.attendanceMetrics.recomputeSubgroup, { subgroup });
     }

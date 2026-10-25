@@ -1,6 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from "react";
 import { Animated, Image, Text, View } from "react-native";
+import { forgetCachedImage, useCachedImageUri } from "@/hooks/useCachedImageUri";
 import { USE_NATIVE_DRIVER, typography, useAppTheme } from "@/theme";
 import { Btn } from "./buttons";
 import { FadeInView, SowSpinner } from "./primitives";
@@ -35,7 +36,6 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
   if (!shown) return null;
   return (
     <Animated.View
-      // Often the only feedback once a sheet closes, so screen readers announce it.
       accessibilityRole="alert"
       accessibilityLiveRegion="assertive"
       style={[
@@ -70,7 +70,6 @@ export const WarningBanner = ({ message }: { message: string | null }) => {
   ) : null;
 };
 
-/** A neutral heads-up: something worth knowing, nothing wrong. */
 export const InfoBanner = ({ message }: { message: string | null }) => {
   const t = useAppTheme();
   return message ? (
@@ -81,7 +80,6 @@ export const InfoBanner = ({ message }: { message: string | null }) => {
   ) : null;
 };
 
-/** Bold red line with a warning icon for actions that can't be reversed. */
 export const CannotUndo = ({ text = "This can't be undone." }: { text?: string }) => {
   const t = useAppTheme();
   return (
@@ -143,9 +141,20 @@ export const Avatar = ({
 }) => {
   const t = useAppTheme();
   const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
+  const shownPhoto = photo && photo !== brokenPhoto ? photo : null;
+  const source = useCachedImageUri(shownPhoto);
   const round = { width: size, height: size, borderRadius: size / 2 };
-  if (photo && photo !== brokenPhoto) {
-    return <Image source={{ uri: photo }} style={round} onError={() => setBrokenPhoto(photo)} />;
+  if (shownPhoto && source) {
+    return (
+      <Image
+        source={{ uri: source }}
+        style={round}
+        onError={() => {
+          forgetCachedImage(shownPhoto);
+          setBrokenPhoto(shownPhoto);
+        }}
+      />
+    );
   }
   const initials = (name ?? "?")
     .split(" ")

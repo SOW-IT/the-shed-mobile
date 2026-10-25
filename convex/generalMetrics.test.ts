@@ -2,13 +2,12 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { DEFAULT_WEEKLY_SETTINGS } from "../shared/weeklyInsights";
 import { api, internal } from "./_generated/api";
 import {
   avgTenureYears,
   buildEmailToImportId,
   computeStaffTrends,
-  lifetimeAvgTenureYears,
-  lifetimeTenureAtLeastPct,
   profilePersonKey,
   retentionRate,
   tenureAtLeastPct,
@@ -17,8 +16,6 @@ import {
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-// Pinned mid staff year (still ticking) so dates a few weeks either side of
-// "now" never straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -127,16 +124,6 @@ describe("turnover and tenure helpers", () => {
     );
     expect(avgTenureYears(new Set(), yearsByPerson, 2025)).toBeNull();
   });
-
-  test("lifetimeTenureAtLeastPct is over everyone ever in the map", () => {
-    const yearsByPerson = new Map<string, Set<number>>([
-      ["a", new Set([2024, 2025])],
-      ["b", new Set([2025])],
-    ]);
-    expect(lifetimeTenureAtLeastPct(yearsByPerson)).toBe(50);
-    expect(lifetimeTenureAtLeastPct(new Map())).toBe(0);
-    expect(lifetimeAvgTenureYears(yearsByPerson)).toBe(1.5);
-  });
 });
 
 describe("staff trends", () => {
@@ -191,17 +178,65 @@ describe("staff trends", () => {
     expect(trends.avgTenureYears.overall).toEqual([1, 1.5]);
     expect(trends.avgTenureYears.staff).toEqual([1, 2]);
     expect(trends.avgTenureYears.studentLeaders).toEqual([1, 1.3]);
+  });
 
-    expect(trends.lifetimeTenure2Plus).toEqual({
-      overall: 50,
-      staff: 100,
-      studentLeaders: 33.3,
+  test("averages years served up to the picked year across every role, as in the worked example", async () => {
+    const t = convexTest(schema, modules);
+    const leader = [{ role: "Student Leader", university: "USYD" }];
+    const staff = [{ role: "Staff", department: "Ops" }];
+    const careers: { email: string; from: number; roleIn: (year: number) => Assignment[] }[] = [
+      { email: "leader1@sow.org.au", from: YEAR - 2, roleIn: () => leader },
+      { email: "leader2@sow.org.au", from: YEAR - 1, roleIn: () => leader },
+      { email: "staff3@sow.org.au", from: YEAR - 2, roleIn: () => staff },
+      { email: "staff4@sow.org.au", from: YEAR - 4, roleIn: () => staff },
+      { email: "staff6@sow.org.au", from: YEAR - 6, roleIn: (y) => (y < YEAR - 3 ? leader : staff) },
+    ];
+    await t.run(async (ctx) => {
+      for (const c of careers) {
+        for (let y = c.from; y <= YEAR; y++) {
+          await ctx.db.insert("staffProfiles", profile(c.email, y, c.roleIn(y)));
+        }
+      }
+      await ctx.db.insert("staffProfiles", profile("leader1@sow.org.au", NEXT, leader));
     });
-    expect(trends.lifetimeAvgTenureYears).toEqual({
-      overall: 1.5,
-      staff: 2,
-      studentLeaders: 1.3,
+    const trends = await trendsOf(t);
+    const at = (year: number) => trends.years.indexOf(year);
+
+    expect(trends.years.at(-1)).toBe(YEAR);
+    expect(trends.allStaff[at(YEAR)]).toBe(5);
+    expect(trends.avgTenureYears.overall[at(YEAR)]).toBe(4);
+    expect(trends.avgTenureYears.studentLeaders[at(YEAR)]).toBe(2.5);
+    expect(trends.avgTenureYears.staff[at(YEAR)]).toBe(5);
+
+    expect(trends.avgTenureYears.overall[at(PREV)]).toBe(3);
+    expect(trends.avgTenureYears.studentLeaders[at(PREV)]).toBe(1.5);
+    expect(trends.avgTenureYears.staff[at(PREV)]).toBe(4);
+
+    expect(trends.tenure2Plus.overall[at(YEAR)]).toBe(100);
+    expect(trends.tenure2Plus.overall[at(PREV)]).toBe(80);
+    expect(trends.tenure2Plus.studentLeaders[at(PREV)]).toBe(50);
+    expect(trends.tenure2Plus.staff[at(PREV)]).toBe(100);
+  });
+
+  test("a student leader who becomes staff is retained, and keeps their leader years", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert(
+        "staffProfiles",
+        profile("sam@sow.org.au", PREV, [{ role: "Student Leader", university: "USYD" }])
+      );
+      await ctx.db.insert("staffProfiles", profile("sam@sow.org.au", YEAR, [{ role: "Staff", department: "Ops" }]));
+      await ctx.db.insert("staffProfiles", profile("ann@sow.org.au", PREV, [{ role: "Staff", department: "Ops" }]));
     });
+    const trends = await trendsOf(t);
+
+    expect(trends.retention.studentLeaders).toEqual([null, 100]);
+    expect(trends.retention.staff).toEqual([null, 0]);
+    expect(trends.retention.overall).toEqual([null, 50]);
+    expect(trends.turnover.studentLeaders).toEqual([null, 0]);
+    expect(trends.avgTenureYears.staff).toEqual([1, 2]);
+    expect(trends.tenure2Plus.staff).toEqual([0, 100]);
+    expect(trends.avgTenureYears.overall).toEqual([1, 2]);
   });
 
   test("counts a leaver toward turnover and links a person across email renames", async () => {
@@ -243,12 +278,9 @@ describe("staff trends", () => {
     expect(trends.retention.staff).toEqual([null, 0]);
     expect(trends.retention.studentLeaders).toEqual([null, 100]);
 
-    expect(trends.lifetimeTenure2Plus.studentLeaders).toBe(100);
-    expect(trends.lifetimeTenure2Plus.staff).toBe(0);
-    expect(trends.lifetimeTenure2Plus.overall).toBe(33.3);
-    expect(trends.lifetimeAvgTenureYears.overall).toBe(1.3);
-    expect(trends.lifetimeAvgTenureYears.staff).toBe(1);
-    expect(trends.lifetimeAvgTenureYears.studentLeaders).toBe(2);
+    expect(trends.avgTenureYears.overall).toEqual([1, 1.5]);
+    expect(trends.avgTenureYears.staff).toEqual([1, 1]);
+    expect(trends.avgTenureYears.studentLeaders).toEqual([1, 2]);
   });
 
   test("partial importId backfill does not split one email into two people", async () => {
@@ -271,8 +303,8 @@ describe("staff trends", () => {
     const trends = await trendsOf(t);
     expect(trends.turnover.staff).toEqual([null, 0]);
     expect(trends.retention.staff).toEqual([null, 100]);
-    expect(trends.lifetimeTenure2Plus.staff).toBe(100);
-    expect(trends.lifetimeAvgTenureYears.staff).toBe(2);
+    expect(trends.tenure2Plus.staff).toEqual([0, 100]);
+    expect(trends.avgTenureYears.staff).toEqual([1, 2]);
   });
 
   test("leaves outsourced people out of the staff numbers", async () => {
@@ -383,7 +415,7 @@ describe("campus weekly attendance in General", () => {
 
   async function campusWeekly(t: TestConvex<typeof schema>) {
     const { blocks } = await t.query(api.generalMetrics.view, { scope: "all" });
-    const chart = blocks.find((b) => b.type === "multiBars" && b.title === "Weekly avg by campus");
+    const chart = blocks.find((b) => b.type === "multiBars" && b.title === "Weeklies average by campus");
     if (chart?.type !== "multiBars") return { years: [], campuses: [] };
     return {
       years: chart.points.map((p) => p.at),
@@ -410,6 +442,15 @@ describe("campus weekly attendance in General", () => {
       { campus: "UNSW", averages: [0, 8] },
       { campus: "USYD", averages: [15, 30] },
     ]);
+  });
+
+  test("takes each weekly's stored count instead of counting its sign-ins", async () => {
+    const t = await withStaffHistory();
+    const eventId = await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2026, count: 2 });
+    await t.run((ctx) => ctx.db.insert("eventAttendanceCounts", { eventId, count: 12 }));
+
+    const res = await campusWeekly(t);
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [0, 12] }]);
   });
 
   test("ignores events that aren't weeklies, whatever their tags", async () => {
@@ -472,6 +513,34 @@ describe("campus weekly attendance in General", () => {
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [9] }]);
   });
 
+  test("a weekly shared by several campuses counts only when joint weeklies are switched on", async () => {
+    const t = await withStaffHistory();
+    await weeklyMeeting(t, { campus: "UNSW", dateStart: IN_2025, count: 20 });
+    await weeklyMeeting(t, { campus: "UNSW", dateStart: IN_2025, count: 30 });
+    await t.run(async (ctx) => {
+      const eventId = await ctx.db.insert("events", {
+        name: "Mega Weeklies",
+        dateStart: IN_2025,
+        dateEnd: IN_2025 + 60 * 60 * 1000,
+        subgroups: ["UNSW", "USYD"],
+        weekly: { year: 2025, slot: 1, week: 5 },
+      });
+      for (let i = 0; i < 100; i++) {
+        const memberId = await ctx.db.insert("attendanceMembers", { name: `Mega ${i}` });
+        await ctx.db.insert("attendance", { eventId, memberId, signInTime: IN_2025 });
+      }
+    });
+    expect((await campusWeekly(t)).campuses).toEqual([{ campus: "UNSW", averages: [25] }]);
+
+    await t.run((ctx) =>
+      ctx.db.insert("weeklyInsightsSettings", { ...DEFAULT_WEEKLY_SETTINGS, jointWeeklies: true, version: 1 })
+    );
+    expect((await campusWeekly(t)).campuses).toEqual([
+      { campus: "UNSW", averages: [50] },
+      { campus: "USYD", averages: [100] },
+    ]);
+  });
+
   test("a weekly meeting nobody signed in to isn't averaged in", async () => {
     const t = await withStaffHistory();
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 20 });
@@ -530,19 +599,28 @@ describe("view", () => {
     await seed(t);
     const all = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: null });
     expect(all.years).toContain(YEAR);
+    const hasPeopleChart = (blocks: typeof all.blocks) =>
+      blocks.some((b) => b.type === "multiBars" && b.title === "Staff & student leaders");
     expect(all.blocks[0]).toMatchObject({ type: "label" });
-    expect(all.blocks[1]).toMatchObject({ type: "cards" });
-    expect(all.blocks.some((b) => b.type === "stacked")).toBe(true);
+    expect(all.blocks[1]).toMatchObject({ type: "heading", text: "People serving" });
+    expect(all.blocks[2]).toMatchObject({ type: "cards" });
+    expect(hasPeopleChart(all.blocks)).toBe(true);
+    const retention = (blocks: typeof all.blocks) =>
+      blocks.find((b) => b.type === "multiBars" && b.title === "Retention");
+    expect(retention(all.blocks)).toMatchObject({ unit: "%", line: { key: "Overall" } });
+    const withLines = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: null, lines: true });
+    expect(retention(withLines.blocks)).toEqual(retention(all.blocks));
 
     const year = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: YEAR });
-    expect(year.blocks[1]).toMatchObject({ type: "cards", layout: "grid" });
-    expect(year.blocks.some((b) => b.type === "stacked")).toBe(false);
+    expect(year.blocks[2]).toMatchObject({ type: "cards" });
+    expect(year.blocks[1]).toMatchObject({ type: "heading", text: "People serving" });
+    expect(hasPeopleChart(year.blocks)).toBe(false);
   });
 
   test("signed-out viewers always get the all-years view", async () => {
     const t = convexTest(schema, modules);
     await seed(t);
     const anon = await t.query(api.generalMetrics.view, { scope: YEAR });
-    expect(anon.blocks.some((b) => b.type === "stacked")).toBe(true);
+    expect(anon.blocks.some((b) => b.type === "multiBars" && b.title === "Staff & student leaders")).toBe(true);
   });
 });

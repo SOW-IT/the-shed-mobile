@@ -94,8 +94,6 @@ export const Grid = ({
   const scrollRef = useRef<ScrollViewInstance>(null);
   const scrollBy = useScrollBy();
   const toggleRef = useRef<ViewInstance>(null);
-  // Window y of the toggle just before collapsing, so the page can be
-  // scrolled to keep it under the finger once the box shrinks back.
   const collapseAnchorY = useRef<number | null>(null);
   const capIndex =
     maxVisible != null && items.length > maxVisible ? maxVisible - 1 : null;
@@ -154,7 +152,6 @@ export const Grid = ({
 
   if (capIndex == null) return grid;
 
-  // A cap that lands mid-row can leave nothing hidden.
   const overflows =
     cappedHeight == null || gridHeight == null || gridHeight > cappedHeight + 1;
   const boxed = overflows && !expanded;
@@ -249,11 +246,6 @@ export const Grid = ({
   );
 };
 
-/**
- * A long list kept to `maxHeight` and scrolled inside its box (like the
- * event sign-in lists), with a Show all button under it that lets the list
- * grow to full length (like the Admin user cards).
- */
 export const ScrollCap = ({
   children,
   maxHeight,
@@ -263,11 +255,8 @@ export const ScrollCap = ({
 }: {
   children: ReactNode;
   maxHeight: number;
-  /** How many rows there are, for the button: "Show all 42". */
   count: number;
-  /** Near the bottom of the box: the list can render more rows. */
   onEndReached?: () => void;
-  /** Show all (true) or Show fewer (false) was pressed. */
   onExpandedChange?: (expanded: boolean) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -281,7 +270,6 @@ export const ScrollCap = ({
   const overflows = contentHeight > maxHeight + 1;
   const boxed = overflows && !expanded;
 
-  // A new search or filter starts the box back at the top.
   if (seenCount !== count) {
     setSeenCount(count);
     setEdges({ atTop: true, atBottom: false });

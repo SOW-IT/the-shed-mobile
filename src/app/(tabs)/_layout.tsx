@@ -1,5 +1,6 @@
 import { useWideLayout } from "@/components/nav/layout";
 import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
+import { useBadgeSync } from "@/hooks/useBadgeSync";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useReportAppVersion } from "@/hooks/useReportAppVersion";
 import { useReportSeen } from "@/hooks/useReportSeen";
@@ -17,14 +18,12 @@ import {
   PressableStateCallbackType,
   StyleProp,
   StyleSheet,
-  Text,
   View,
   ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 
-/** The current tab's icon sits on a soft pill. */
 const TabPill = ({
   focused,
   children,
@@ -62,47 +61,6 @@ const tabIcon = (
     </TabPill>
   );
   return TabBarIcon;
-};
-
-const InsightsTabIcon = ({
-  color,
-  focused,
-}: {
-  color: ColorValue;
-  focused: boolean;
-}) => {
-  const t = useAppTheme();
-  return (
-    <TabPill focused={focused}>
-      <Ionicons
-        name={focused ? "stats-chart" : "stats-chart-outline"}
-        size={22}
-        color={color as string}
-      />
-      <View
-        style={{
-          position: "absolute",
-          top: -1,
-          right: -2,
-          backgroundColor: t.accent,
-          borderRadius: 4,
-          paddingHorizontal: 3,
-          paddingVertical: 0,
-        }}
-      >
-        <Text
-          style={{
-            color: "#ffffff",
-            fontSize: 6,
-            fontWeight: "800",
-            letterSpacing: 0.2,
-          }}
-        >
-          BETA
-        </Text>
-      </View>
-    </TabPill>
-  );
 };
 
 type TabBarButtonProps = {
@@ -198,10 +156,10 @@ export default function TabsLayout() {
   });
   useReportAppVersion();
   useReportSeen();
+  useBadgeSync(me === undefined ? undefined : !!me?.profile);
 
   const isStaff = !!me?.profile;
 
-  // Wide screens navigate from the sidebar; keep only the home-indicator gap.
   const wide = useWideLayout();
 
   if (waitingForRole) {
@@ -245,8 +203,6 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon("home-outline", "home"),
         }}
       />
-      {/* Reimbursements opens from the side menu, not the tab bar. It stays a
-          tab at "/" so notification links like "/?tab=review" keep working. */}
       <Tabs.Screen
         name="index"
         options={{
@@ -254,7 +210,6 @@ export default function TabsLayout() {
           ...sideMenuOnly,
         }}
       />
-      {/* Design Requests, Event Requests and Profile also open from the side menu only. */}
       <Tabs.Screen
         name="design-requests"
         options={{ title: "Design Requests", ...sideMenuOnly }}
@@ -286,9 +241,7 @@ export default function TabsLayout() {
         name="insights"
         options={{
           title: "Insights",
-          tabBarIcon: ({ color, focused }) => (
-            <InsightsTabIcon color={color} focused={focused} />
-          ),
+          tabBarIcon: tabIcon("stats-chart-outline", "stats-chart"),
         }}
       />
       <Tabs.Screen
@@ -305,6 +258,10 @@ export default function TabsLayout() {
           ...(isStaff ? sideMenuOnly : {}),
           tabBarIcon: tabIcon("business-outline", "business"),
         }}
+      />
+      <Tabs.Screen
+        name="mentoring"
+        options={{ title: "Mentoring", ...sideMenuOnly }}
       />
       <Tabs.Screen
         name="admin"

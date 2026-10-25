@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ReactNode, useEffect, useRef, useState } from "react";
@@ -36,10 +36,6 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 
 const campusName = (campus: string) => (campus === NO_CAMPUS ? "No campus" : subgroupLabel(campus));
 
-/**
- * One option in the filter: picked (tinted, ticked) or not (outlined). A
- * campus shows its colour as a dot, then as the tick once picked.
- */
 function FilterChip({
   on,
   label,
@@ -85,7 +81,6 @@ function FilterChip({
   );
 }
 
-/** One filter's options in a line that scrolls sideways when it doesn't fit. */
 function FilterRow({ title, children }: { title: string; children: ReactNode }) {
   return (
     <ScrollView
@@ -214,18 +209,11 @@ function ChurchCard({
   );
 }
 
-/**
- * The Churches page: every church staff and members go to, where it meets and
- * when, and who goes there. Staff pick theirs in their Profile; a member's is
- * set when editing their attendance record. Members only show for staff and
- * campus leaders.
- */
 export function ChurchesView() {
   const t = useAppTheme();
   const router = useRouter();
   const scrollRef = useRef<ScrollViewInstance>(null);
   const directory = useQuery(api.churches.directory);
-  // Staff and campus leaders can edit churches, and they're who gets members.
   const canEdit = useCanEditChurches();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ChurchFilter>(NO_CHURCH_FILTER);
@@ -407,7 +395,6 @@ export function ChurchesView() {
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   filters: { gap: spacing.sm },
-  // Runs to the screen's edges so the last option peeks out when it scrolls.
   chipScroll: { marginHorizontal: -spacing.lg },
   chips: { flexDirection: "row", gap: spacing.sm - 2, paddingHorizontal: spacing.lg },
   chip: {

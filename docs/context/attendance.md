@@ -19,7 +19,7 @@ Staff is a layer over a Member, one year at a time. Each year's
 and someone is staff in a staff year when that year's profile has at least one
 assignment. In those years their name, Campus and Role come from the profile;
 in every other year they read as the plain Member underneath, with that row's
-own Campus and Role. A profile with no assignments doesn't make anyone staff.
+own Campus and a Role worked out for a Member (see Role). A profile with no assignments doesn't make anyone staff.
 While someone is staff this staff year, the edit sheet keeps their row's own
 Campus and Role as they are and offers no Delete, even when opened from an
 event in another year. When their profile has no name, the row's own name
@@ -48,9 +48,9 @@ Someone who was staff last staff year and isn't this year. Nothing moves when
 they leave: their member row and every sign-in stay as they are, and from the
 new year they read as that plain Member. At 01:30 Sydney on October 1 (and
 when an admin removes this year's profile) their row's empty Campus is filled
-from their last staff role and an empty Role becomes Member, and a
-`member.leftStaff` entry goes in the audit log. A Role a leader set, such as
-Alumni, is kept.
+from their last staff role, and a `member.leftStaff` entry goes in the audit
+log. Their Role is worked out like any Member's; an Alumni a leader set is
+kept.
 _Avoid_: alumni (leaving staff isn't graduating; leaders set the Alumni role
 when someone graduates), ex-staff
 
@@ -99,32 +99,81 @@ campus. Admin → Merges lists them while there are any; Merge opens the usual
 merge review, and "Not the same" stops that pair being suggested. Linking next
 year's staff here before October 1 keeps their history on one row.
 
+**Suggested member pair**:
+Two plain Members who may be one person entered twice: a similar name (the
+Suggested merge rules, or one letter different on a name of two or more
+words), the same Home campus or both without one, never both signed in to the
+same event, and neither staff this staff year or last. Found by the Nightly
+rebuild and listed on Admin → Merges under "Members who may be the same
+person"; Merge opens the usual member merge review and "Not the same" stops
+that pair being suggested for good. A pair whose names or campuses no longer
+match drops off the list at once; two people at the same event are two people.
+_Avoid_: duplicate (an admin confirms each one)
+
 **Roll-call**:
 Signing Members in and out of an event. Once an event has ended, sign-ins made
 during it can only be reversed within 10 minutes of being made (the undo
 grace); post-event sign-ins can always be reversed.
 
+**Role**:
+What a person is, shown on the Members list, rosters and the edit sheet, and
+never typed in. Someone who is staff that year shows their staff profile's
+role. Anyone else shows a hand-set **Visitor** or **Alumni** if a leader set
+one, else their category in their Home campus's latest Term from last night's
+Insights build (Regular, Irregular, Newcomer or Visitor; another campus's if
+their own has none), else Member. Visitor and Alumni are the only Roles set by
+hand, for people the weeklies can't tell: a hand-set Visitor counts as a
+Visitor in Insights wherever they come, and Alumni as Staff, alumni & guests.
+Anything else saved in the Role field before 2.9.9 (Member, Newcomer, Guest,
+Student Leader…) no longer counts. The edit sheet shows Role locked, with an
+info button that lists these rules (`shared/memberRole.ts`).
+_Avoid_: status, type, Guest (no longer a Role)
+
+**Other Information** / **Notes for this event**:
+Other Information is a member field for anything about the person (it was the
+Notes field until 2.9.9). Notes about one event go on that sign-in, kept with
+it like its sign-in time, and export as the Event notes column. A member field
+called Notes is saved as Other Information.
+_Avoid_: notes (for the member field)
+
 **Locked option**:
 A metadata select option that is derived from Org and so cannot be deleted —
-the Campus field's Universities, the Role field's base roles. Admins may add
-options below the locked set but not remove the locked ones. See
+the Campus field's Universities, the Role field's base roles (with Visitor and
+Alumni). Admins may add options below the locked set but not remove the
+locked ones; the Role field takes no new options. See
 [ADR 0002](../adr/0002-campus-is-a-superset-of-university.md).
 
 **Snapshot**:
-A pre-computed metrics aggregate for the SOW Sub-group and one trailing
-range, keyed by staff year. Current and incoming years may both have rows at
-once; Insights reads the current year only, never raw attendance. Campuses
-have no Snapshots since 2.5.0: their view comes from their Weeklies.
+A pre-computed metrics aggregate for one Sub-group and one trailing range,
+keyed by staff year. Current and incoming years may both have rows at once;
+Insights reads the current year only, never raw attendance. Every campus
+still gets Snapshots each night (BigQuery's `insights_*` views read them), but
+the app reads only SOW's: a campus's view comes from its Weeklies.
 _Avoid_: aggregate, cache, rollup
 
 **Nightly rebuild**:
-The crons that keep Insights fresh. SOW's Snapshots are recomputed every
-night; each campus's weeklies view redoes only what the attendance change
+The crons that keep Insights fresh. SOW's and every campus's Snapshots are
+recomputed every night; each campus's weeklies view redoes only what the attendance change
 log says changed since the night before (often nothing). A roll-call or event
-change is visible in Insights the next morning. The October 1 prefill job also
+change is visible in Insights the next morning. The same rebuild refreshes
+General's staff trends and the roster history (the last 210 days of
+sign-ins), then ranks the week's events into their Roll call order, so a
+profile change shows in General, and a sign-in counts towards roll call
+order, the next morning. The October 1 prefill job also
 rebuilds the year that has just ended so the incoming year's Snapshots start
 honest.
 _Avoid_: dirty, dirty recompute (the old 15-minute mechanism, removed in 1.11)
+
+**Roll call order**:
+The order "Not signed in" lists people in: most likely to come first. A
+person's score adds up their sign-ins from the 180 days before the event,
+each worth less the older it is (half every 45 days) and more when it was the
+same campus's weekly, a shared group or a shared tag, plus a bonus when their
+campus is one of the event's. Stored per event (`rollCallOrders`, top 150),
+ranked when the event is saved within a week of starting and nightly for the
+week ahead; nobody beyond the stored 150, and any event without an order,
+falls back to campus then name. See ADR 0014.
+_Avoid_: frequency score, roster order
 
 **Weekly** (held weekly):
 A campus's weekly meeting: an event with a Term and week (its `weekly` mark,
@@ -145,7 +194,8 @@ _Avoid_: semester (for UNSW), staff year (for this)
 **Regular** / **Irregular**:
 For one Term: a Regular came to half or more of its held Weeklies (counting
 last term's too until four have been held); an Irregular is anyone else
-listed. The half is a setting.
+listed. On a whole calendar Year page, a student is Regular for half or more
+of that year's held Weeklies. The half is a setting.
 _Avoid_: member (Member means anyone in the attendance pool), active,
 inactive
 
@@ -160,7 +210,7 @@ Someone whose Home campus is another campus and who has come to fewer than
 two of this campus's Weeklies this Term. With more, they're judged as
 Regular, Irregular or Newcomer like anyone else, but listed under other
 campuses.
-_Avoid_: guest (that's a non-student, see [Org](./org.md)), other campus
+_Avoid_: guest (that's a signed-in non-staff account, see [Org](./org.md)), other campus
 (for the person)
 
 **Needs follow-up**:
@@ -192,3 +242,23 @@ The Newcomer or Visitor label beside a name on an event's sign-in screen
 while the event is on, taken from last night's Insights build, so a leader
 can welcome them. Only those two categories are shown there.
 _Avoid_: badge (that's the campus pill)
+
+**Self check-in**:
+A leader turns it on per event; the event then carries a `checkIn` token and
+shows a QR code for `/checkin/<token>`. A person types a name and may pick a
+university and a year, and that becomes a **check-in request**
+(`checkInRequests`). A leader confirms it (matched to a Member, or a new
+Member made with that university and year) or dismisses it; the sign-in
+keeps the request's time. Open from two hours before the event to ten
+minutes after it ends.
+_Avoid_: self sign-in, kiosk
+
+**Known phone**:
+A phone (its `clientKey`) with a confirmed check-in request under a name.
+When it checks in again under that name at another event, it is signed in
+straight away as that request's Member, with no leader (actor
+`system:self-check-in`). A check-in made for someone else, one undone from
+the phone, or one whose sign-in a leader has since removed doesn't count. A
+leader opening the link while signed in is signed in the same way, as their
+staff Member.
+_Avoid_: trusted device, remembered member

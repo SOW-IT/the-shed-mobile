@@ -1,5 +1,5 @@
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -34,7 +34,6 @@ export const Field = ({
   testID,
   accessibilityLabel,
 }: {
-  /** Shown above the box; leave out when a question heading already names it. */
   label?: string;
   value: string;
   onChangeText: (text: string) => void;
@@ -46,7 +45,6 @@ export const Field = ({
   multiline?: boolean;
   disabled?: boolean;
   maxLength?: number;
-  /** Stable handle for end-to-end tests. */
   testID?: string;
   accessibilityLabel?: string;
 }) => {
@@ -100,10 +98,6 @@ export const Field = ({
   );
 };
 
-/**
- * The search box above a list. Shows the spinner while results for the typed
- * text are on their way, and a clear button once there's text.
- */
 export const SearchField = ({
   value,
   onChangeText,
@@ -124,7 +118,13 @@ export const SearchField = ({
   const t = useAppTheme();
   const reveal = useRevealFocusedInput();
   return (
-    <View style={[styles.search, { backgroundColor: t.card, borderColor: t.border }, style]}>
+    <View
+      style={[
+        styles.search,
+        { backgroundColor: t.card, borderColor: t.border },
+        style,
+      ]}
+    >
       <Ionicons name="search-outline" size={18} color={t.faint} />
       <TextInput
         style={[styles.searchInput, { color: t.text }]}
@@ -263,7 +263,6 @@ export const OptionRow = ({
   selected: boolean;
   onPress: () => void;
   multi?: boolean;
-  /** A short tag after the label, e.g. "Recommended". */
   badge?: string;
   icon?: keyof typeof Ionicons.glyphMap;
 }) => {
@@ -280,7 +279,14 @@ export const OptionRow = ({
       accessibilityState={{ checked: selected }}
       accessibilityLabel={badge ? `${label}, ${badge.toLowerCase()}` : label}
     >
-      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+      <View
+        style={{
+          flex: 1,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.sm,
+        }}
+      >
         {icon ? <Ionicons name={icon} size={18} color={t.text} /> : null}
         <Text
           numberOfLines={1}
@@ -324,7 +330,6 @@ export const OptionRow = ({
   );
 };
 
-/** A tick box with its label beside it; the whole row toggles. */
 export const Checkbox = ({
   checked,
   onToggle,
@@ -356,7 +361,7 @@ export const Checkbox = ({
   );
 };
 
-export const YearPill = ({
+const YearPill = ({
   year,
   years,
   onSelect,
@@ -702,6 +707,11 @@ export const FloatingYearPicker = ({
   formatLabel?: (year: number) => string;
 }) => (
   <View pointerEvents="box-none" style={styles.floatingYearPicker}>
-    <YearPill year={year} years={years} onSelect={onSelect} formatLabel={formatLabel} />
+    <YearPill
+      year={year}
+      years={years}
+      onSelect={onSelect}
+      formatLabel={formatLabel}
+    />
   </View>
 );

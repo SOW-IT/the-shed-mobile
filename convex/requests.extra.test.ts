@@ -1043,7 +1043,6 @@ describe("cleanup.purgeOldReceiptFiles paging", () => {
         beforeMs: Date.now() + 1,
         batch: 1,
       });
-      // First page purged one request; the rest arrives via the reschedule.
       const purgedAfterFirstPage = (
         await Promise.all(files.map((f) => t.run((ctx) => ctx.storage.getUrl(f))))
       ).filter((url) => url === null).length;
@@ -1101,7 +1100,6 @@ describe("pay", () => {
         .first()
     );
     expect(paidNote?.title).toBe("Reimbursement paid");
-    // Paid exactly the requested amount: no "amount differs" nudge to the Budget Manager.
     const bellaNotes = await t.run((ctx) =>
       ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", BELLA)).collect()
     );
@@ -1133,13 +1131,31 @@ describe("browsing past years", () => {
     return id;
   };
 
+  type Review = { actor: string; action: string; daysIn: number };
+
   async function setupWithHistory(
-    seeds: { email: string; year: number; description: string }[]
+    seeds: { email: string; year: number; description: string; reviews?: Review[] }[]
   ) {
     const t = convexTest(schema, modules);
     const sorted = [...seeds].sort((a, b) => a.year - b.year);
+    const reviews: (Review & { requestId: Id<"requests">; at: number })[] = [];
     for (const s of sorted) {
-      await seedPastRequest(t, s.email, s.year, s.description);
+      const requestId = await seedPastRequest(t, s.email, s.year, s.description);
+      for (const r of s.reviews ?? []) {
+        reviews.push({ ...r, requestId, at: staffYearStartMs(s.year) + r.daysIn * 86_400_000 });
+      }
+    }
+    for (const r of reviews.sort((a, b) => a.at - b.at)) {
+      vi.setSystemTime(r.at);
+      await t.run((ctx) =>
+        ctx.db.insert("requestEvents", {
+          requestId: r.requestId,
+          actorEmail: r.actor,
+          action: r.action,
+          step: "hod",
+        })
+      );
+      vi.useRealTimers();
     }
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     const admin = asUser(t, ADMIN);
@@ -1160,7 +1176,7 @@ describe("browsing past years", () => {
     return t;
   }
 
-  test("myRequests({year}) returns only that year, newest-first, no carry-over", async () => {
+  test("myRequests shows this year's requests, not older years'", async () => {
     const t = await setupWithHistory([
       { email: RACHEL, year: YEAR - 2, description: "old one" },
       { email: RACHEL, year: YEAR - 2, description: "old two" },
@@ -1170,45 +1186,163 @@ describe("browsing past years", () => {
 
     const live = (await rachel.query(api.requests.myRequests, {}))!;
     expect(live.map((r) => r.description)).toEqual(["this year"]);
-
-    const past = (await rachel.query(api.requests.myRequests, { year: YEAR - 2 }))!;
-    expect(past.map((r) => r.description)).toEqual(["old two", "old one"]);
   });
 
-  test("requestYears lists the caller's request years plus the current one", async () => {
-    const t = await setupWithHistory([
-      { email: RACHEL, year: YEAR - 2, description: "old one" },
-    ]);
-    const rachel = asUser(t, RACHEL);
-    await rachel.mutation(api.requests.submit, { description: "this year", amount: 50 });
-
-    const years = (await rachel.query(api.requests.requestYears, {}))!;
-    expect(years.mine).toEqual([YEAR, YEAR - 2]);
-  });
-
-  test("requestYears never offers years before 2021, even with older org data", async () => {
-    const t = await setup();
-    await t.run((ctx) =>
-      ctx.db.insert("divisions", { year: 2019, name: "Governance" })
-    );
-    const years = (await asUser(t, BELLA).query(api.requests.requestYears, {}))!;
-    expect(years.all).not.toContain(2019);
-    expect(Math.min(...years.all)).toBeGreaterThanOrEqual(2021);
-  });
-
-  test("allRequests({year}) shows a past year to Finance only", async () => {
+  test("allRequests is for Finance only", async () => {
     const t = await setupWithHistory([
       { email: RACHEL, year: YEAR - 1, description: "last year" },
     ]);
 
-    const past = (await asUser(t, BELLA).query(api.requests.allRequests, {
-      year: YEAR - 1,
-    }))!;
-    expect(past.map((r) => r.description)).toEqual(["last year"]);
+    expect(Array.isArray(await asUser(t, BELLA).query(api.requests.allRequests, {}))).toBe(true);
+    await expect(asUser(t, RACHEL).query(api.requests.allRequests, {})).rejects.toThrow(/Only Finance/);
+  });
 
-    await expect(
-      asUser(t, RACHEL).query(api.requests.allRequests, { year: YEAR - 1 })
-    ).rejects.toThrow(/Only Finance/);
+  test("requestYears counts reviews of other people's requests in any year, not of one's own", async () => {
+    const t = await setupWithHistory([
+      {
+        email: RACHEL,
+        year: YEAR - 1,
+        description: "approved last year",
+        reviews: [{ actor: HENRY, action: "approved", daysIn: 10 }],
+      },
+      {
+        email: RACHEL,
+        year: YEAR - 1,
+        description: "declined last year",
+        reviews: [{ actor: HENRY, action: "declined", daysIn: 11 }],
+      },
+      {
+        email: RACHEL,
+        year: YEAR - 1,
+        description: "someone else's review",
+        reviews: [{ actor: FIONA, action: "approved", daysIn: 10 }],
+      },
+      {
+        email: HENRY,
+        year: YEAR - 1,
+        description: "henry's own",
+        reviews: [{ actor: HENRY, action: "auto-approved", daysIn: 0 }],
+      },
+      {
+        email: RACHEL,
+        year: YEAR - 2,
+        description: "carried over",
+        reviews: [{ actor: HENRY, action: "approved", daysIn: 380 }],
+      },
+    ]);
+
+    expect((await asUser(t, HENRY).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
+    expect((await asUser(t, FIONA).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
+    expect((await asUser(t, BELLA).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(false);
+  });
+
+  test("earlier years page back from before this staff year, newest first", async () => {
+    const t = await setupWithHistory([
+      {
+        email: RACHEL,
+        year: YEAR - 2,
+        description: "two years ago",
+        reviews: [{ actor: HENRY, action: "approved", daysIn: 5 }],
+      },
+      {
+        email: RACHEL,
+        year: YEAR - 1,
+        description: "last year",
+        reviews: [
+          { actor: HENRY, action: "approved", daysIn: 3 },
+          { actor: HENRY, action: "declined", daysIn: 4 },
+        ],
+      },
+      {
+        email: HENRY,
+        year: YEAR - 1,
+        description: "henry's own",
+        reviews: [{ actor: HENRY, action: "auto-approved", daysIn: 0 }],
+      },
+    ]);
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "this year", amount: 50 });
+    const opts = (numItems: number, cursor: string | null = null) => ({
+      paginationOpts: { numItems, cursor },
+    });
+
+    const first = (await rachel.query(api.requests.earlierMine, opts(1)))!;
+    expect(first.page.map((r) => r.description)).toEqual(["last year"]);
+    expect(first.isDone).toBe(false);
+    const rest = (await rachel.query(api.requests.earlierMine, opts(10, first.continueCursor)))!;
+    expect(rest.page.map((r) => r.description)).toEqual(["two years ago"]);
+    expect(rest.isDone).toBe(true);
+
+    const all = (await asUser(t, BELLA).query(api.requests.earlierAll, opts(10)))!;
+    expect(all.page.map((r) => r.description)).toEqual(["henry's own", "last year", "two years ago"]);
+    expect(await rachel.query(api.requests.earlierAll, opts(10))).toBeNull();
+
+    const reviewed = (await asUser(t, HENRY).query(api.requests.reviewedHistory, opts(10)))!;
+    expect(reviewed.page.map((r) => r.description)).toEqual(["last year", "two years ago"]);
+    expect(reviewed.page[0].reviewedAt).toBeGreaterThan(reviewed.page[1].reviewedAt);
+
+    const [lastYear] = await t.run((ctx) =>
+      ctx.db
+        .query("requests")
+        .filter((q) => q.eq(q.field("description"), "last year"))
+        .collect()
+    );
+    await t.run((ctx) => ctx.db.delete("requests", lastYear._id));
+    const afterDelete = (await asUser(t, HENRY).query(api.requests.reviewedHistory, opts(10)))!;
+    expect(afterDelete.page.map((r) => r.description)).toEqual(["two years ago"]);
+
+    expect(await t.query(api.requests.earlierMine, opts(10))).toBeNull();
+    expect(await t.query(api.requests.reviewedHistory, opts(10))).toBeNull();
+  });
+
+  test("reviewing this year's requests counts as having reviewed one", async () => {
+    const t = await setupWithHistory([
+      {
+        email: HENRY,
+        year: YEAR - 1,
+        description: "own, auto-approved",
+        reviews: [{ actor: HENRY, action: "auto-approved", daysIn: 1 }],
+      },
+    ]);
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 51; i++) {
+        const requestId = await ctx.db.insert("requests", {
+          requesterEmail: RACHEL,
+          department: "Marketing",
+          description: `this year ${i}`,
+          amount: 10,
+          approvedByHOD: "APPROVED",
+          approvedByBudgetManager: "PENDING",
+          approvedByFinanceHead: "PENDING",
+        });
+        await ctx.db.insert("requestEvents", { requestId, actorEmail: HENRY, action: "approved", step: "hod" });
+      }
+    });
+    const years = (await asUser(t, HENRY).query(api.requests.requestYears, {}))!;
+    expect(years.reviewedBefore).toBe(true);
+  });
+
+  test("requestYears says whether the caller has ever reviewed someone else's request", async () => {
+    const t = await setupWithHistory([
+      {
+        email: RACHEL,
+        year: YEAR - 1,
+        description: "last year",
+        reviews: [{ actor: HENRY, action: "approved", daysIn: 1 }],
+      },
+    ]);
+
+    expect((await asUser(t, HENRY).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
+    const rachel = (await asUser(t, RACHEL).query(api.requests.requestYears, {}))!;
+    expect(rachel.reviewedBefore).toBe(false);
+
+    const [request] = await t.run((ctx) => ctx.db.query("requests").collect());
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 250; i++) {
+        await ctx.db.insert("requestEvents", { requestId: request._id, actorEmail: HENRY, action: "nudged" });
+      }
+    });
+    expect((await asUser(t, HENRY).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
   });
 });
 

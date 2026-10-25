@@ -1,8 +1,6 @@
 import { v } from "convex/values";
 import { viewBlockValidator } from "./metricsData";
 
-// Validators for the campus weeklies view (shared/weeklyInsightsView.ts).
-
 const pill = v.object({ label: v.string(), colour: v.string() });
 
 const peopleRow = v.object({
@@ -95,39 +93,9 @@ export const weeklyBlockValidator = v.union(
       v.object({ title: v.string(), subtitle: v.string(), tag: v.optional(v.string()) })
     ),
     emptyText: v.string(),
-  }),
-  v.object({
-    type: v.literal("monthRows"),
-    title: v.string(),
-    subtitle: v.optional(v.string()),
-    rows: v.array(
-      v.object({
-        key: v.string(),
-        title: v.string(),
-        value: v.string(),
-        delta: v.optional(
-          v.object({
-            text: v.string(),
-            direction: v.union(v.literal("up"), v.literal("down"), v.literal("flat")),
-          })
-        ),
-        hint: v.optional(v.string()),
-        lines: v.array(v.string()),
-        splits: v.array(
-          v.object({
-            title: v.string(),
-            parts: v.array(
-              v.object({ label: v.string(), value: v.number(), colour: v.optional(v.string()) })
-            ),
-          })
-        ),
-      })
-    ),
-    emptyText: v.string(),
   })
 );
 
-/** The term and week a weekly was created with (see shared WeeklyMark). */
 export const weeklyMarkValidator = v.object({
   year: v.number(),
   slot: v.number(),
@@ -164,7 +132,6 @@ export const termFactsFields = {
   slot: v.number(),
   system: v.union(v.literal("terms"), v.literal("semesters")),
   weeklies: v.array(termWeeklyValidator),
-  // Person key → indexes into `weeklies`.
   attendance: v.array(v.object({ key: v.string(), indexes: v.array(v.number()) })),
 };
 
@@ -177,5 +144,4 @@ export const weeklyCategoryValidator = v.union(
   v.literal("staff")
 );
 
-/** A person key and their category in a campus's latest term. */
 export const personCategoryValidator = v.object({ key: v.string(), category: weeklyCategoryValidator });

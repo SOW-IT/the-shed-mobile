@@ -1,11 +1,12 @@
 import { useQuery } from "convex/react";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { type DesignRequestStatus } from "@shared/designRequests";
 import { ChromeScreen } from "@/components/ChromeScreen";
+import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import {
   DesignRequestRow,
@@ -15,7 +16,6 @@ import {
   Card,
   EmptyState,
   FadeInView,
-  FloatingYearPicker,
   FooterAction,
   LoadingState,
   Muted,
@@ -24,9 +24,9 @@ import {
   SectionTitle,
   stagger,
   Txt,
-  YearPill,
 } from "@/components/ui";
 import { spacing, typography } from "@/theme";
+import { staffOnlyMessage } from "@shared/staffOnly";
 
 type Group = { title: string; statuses: DesignRequestStatus[] };
 
@@ -46,27 +46,29 @@ const ARCHIVE_GROUPS: Group[] = [
   { title: "Declined or cancelled", statuses: ["DECLINED", "CANCELLED"] },
 ];
 
+const yearOfRequest = (row: DesignRequestListRow) => row.year;
+const submittedAtOf = (row: DesignRequestListRow) => row.submittedAt;
+
 const RequestList = ({
   rows,
   groups,
   showRequester,
   unread,
   empty,
-  header,
+  footer,
 }: {
   rows: DesignRequestListRow[] | null | undefined;
   groups: Group[];
   showRequester: boolean;
   unread: Record<string, number>;
   empty: { title: string; message: string; action?: { label: string; onPress: () => void } };
-  header?: ReactNode;
+  footer?: ReactNode;
 }) => {
   const router = useRouter();
   let index = 0;
   return (
     <ReadableColumn>
       <View style={{ gap: spacing.sm }}>
-        {header}
         {rows === undefined ? <LoadingState /> : null}
         {rows !== undefined && (rows === null || rows.length === 0) ? (
           <EmptyState
@@ -97,49 +99,102 @@ const RequestList = ({
             </View>
           );
         })}
+        {footer}
       </View>
     </ReadableColumn>
   );
 };
 
-/**
- * Design Requests: your own (Mine); for the Marketing team and admins, the
- * open requests to approve or finish (Marketing) and every request by staff
- * year (All), like Reimbursements' All tab.
- */
+const EarlierRequests = ({
+  history,
+  showRequester,
+  unread,
+}: {
+  history: ReturnType<typeof useEarlierYears<DesignRequestListRow>>;
+  showRequester: boolean;
+  unread: Record<string, number>;
+}) => {
+  const router = useRouter();
+  return (
+    <EarlierYears
+      groups={history.groups}
+      hasMore={history.hasMore}
+      loadingMore={history.loadingMore}
+      onLoadMore={history.loadMore}
+      renderRows={(rows) =>
+        rows.map((request) => (
+          <DesignRequestRow
+            key={request._id}
+            request={request}
+            showRequester={showRequester}
+            unread={unread[request._id] ?? 0}
+            onPress={() => router.push(`/design-requests/${request._id}`)}
+          />
+        ))
+      }
+    />
+  );
+};
+
 export default function DesignRequestsScreen() {
   const router = useRouter();
   const me = useQuery(api.directory.me);
   const staff = !!me?.profile;
   const viewer = useQuery(api.designRequests.viewer, staff ? {} : "skip");
-  const years = useQuery(api.designRequests.years, staff ? {} : "skip");
-  const [mineYear, setMineYear] = useState<number | null>(null);
-  const [archiveYear, setArchiveYear] = useState<number | null>(null);
   const team = !!viewer?.canSeeQueue;
-  const mine = useQuery(
-    api.designRequests.mine,
-    staff ? (mineYear === null ? {} : { year: mineYear }) : "skip"
-  );
+  const mine = useQuery(api.designRequests.mine, staff ? {} : "skip");
   const queue = useQuery(api.designRequests.queue, team ? {} : "skip");
-  const waitingOnMe = useQuery(api.designRequests.waitingOnMe, team ? {} : "skip") ?? 0;
-  const shownArchiveYear = archiveYear ?? me?.year;
+  const waitingOnMeRaw = useQuery(api.designRequests.waitingOnMe, team ? {} : "skip");
+  const waitingOnMe = waitingOnMeRaw ?? 0;
   const archive = useQuery(
     api.designRequests.archive,
-    team && shownArchiveYear !== undefined ? { year: shownArchiveYear } : "skip"
+    team && me ? { year: me.year } : "skip"
   );
+  const mineLoadMoreRef = useRef<(() => void) | null>(null);
+  const archiveLoadMoreRef = useRef<(() => void) | null>(null);
+  const earlierMine = useEarlierYears(api.designRequests.earlierMine, {
+    enabled: mine != null,
+    exclude: (mine ?? []).map((r) => r._id),
+    yearOf: yearOfRequest,
+    newestOf: submittedAtOf,
+    loadMoreRef: mineLoadMoreRef,
+  });
+  const earlierArchive = useEarlierYears(api.designRequests.earlierArchive, {
+    enabled: archive != null,
+    exclude: (archive ?? []).map((r) => r._id),
+    yearOf: yearOfRequest,
+    newestOf: submittedAtOf,
+    loadMoreRef: archiveLoadMoreRef,
+  });
+  const earlierRows = [...earlierMine.groups, ...earlierArchive.groups].flatMap((g) => g.rows);
   const ids = [
-    ...new Set([...(mine ?? []), ...(queue ?? []), ...(archive ?? [])].map((r) => r._id)),
+    ...new Set(
+      [...(mine ?? []), ...(queue ?? []), ...(archive ?? []), ...earlierRows].map((r) => r._id)
+    ),
   ] as Id<"designRequests">[];
   const unread =
     useQuery(api.designRequestComments.unreadCounts, ids.length > 0 ? { ids } : "skip") ??
     {};
 
   const { tab } = useLocalSearchParams<{ tab?: string }>();
-  const [active, setActive] = useState("mine");
+  const [active, setActive] = useState<string | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
     if (typeof tab === "string") setActive(tab);
   }, [tab]);
+  const landingKnown =
+    mine !== undefined && viewer !== undefined && (!team || waitingOnMeRaw !== undefined);
+  const landing = landingKnown
+    ? waitingOnMe > 0 && (mine ?? []).length === 0
+      ? "queue"
+      : "mine"
+    : null;
+  useEffect(() => {
+    if (active !== null || landing === null || typeof tab === "string") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActive(landing);
+  }, [active, landing, tab]);
+  const wanted = active ?? landing;
 
   if (me === undefined) {
     return (
@@ -154,12 +209,16 @@ export default function DesignRequestsScreen() {
       <ChromeScreen>
         <Card>
           <Txt style={typography.section}>Design Requests</Txt>
-          <Muted>
-            Design requests are for SOW staff. No role or department is assigned to{" "}
-            {me.email} for {me.year} yet.
-          </Muted>
+          <Muted>{staffOnlyMessage("Design", me)}</Muted>
         </Card>
       </ChromeScreen>
+    );
+  }
+  if (wanted === null) {
+    return (
+      <Screen>
+        <LoadingState />
+      </Screen>
     );
   }
 
@@ -167,9 +226,6 @@ export default function DesignRequestsScreen() {
     (rows ?? []).reduce((sum, r) => sum + (unread[r._id] ?? 0), 0);
   const badge = (count: number) => (count > 0 ? count : undefined);
 
-  const mineYears = years?.mine ?? [];
-  const archiveYears = years?.all ?? [];
-  const earlierArchiveYear = archiveYears.find((y) => y < (shownArchiveYear ?? me.year));
 
   const tabs: PagerTab[] = [
     {
@@ -182,25 +238,11 @@ export default function DesignRequestsScreen() {
           groups={MINE_GROUPS}
           showRequester={false}
           unread={unread}
-          header={
-            // The footer button sits where the floating picker would, so
-            // Mine's year picker lives at the top of the list.
-            mineYears.length > 1 ? (
-              <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-                <YearPill
-                  year={mineYear ?? me.year}
-                  years={mineYears}
-                  onSelect={(y) => setMineYear(y === me.year ? null : y)}
-                />
-              </View>
-            ) : null
-          }
+          footer={<EarlierRequests history={earlierMine} showRequester={false} unread={unread} />}
           empty={{
-            title: "No design requests",
+            title: earlierMine.groups.length > 0 ? "Nothing this year yet" : "No design requests",
             message:
-              mineYear === null
-                ? "Ask the Marketing team to design something for a project. For an event, make an Event Request instead."
-                : `You made no design requests in ${mineYear}.`,
+              "Ask the Marketing team to design something for a project. For an event, make an Event Request instead.",
           }}
         />
       ),
@@ -235,19 +277,10 @@ export default function DesignRequestsScreen() {
                 groups={ARCHIVE_GROUPS}
                 showRequester
                 unread={unread}
+                footer={<EarlierRequests history={earlierArchive} showRequester unread={unread} />}
                 empty={{
                   title: "Nothing here",
-                  message:
-                    shownArchiveYear === me.year
-                      ? `No design requests yet in ${me.year}.`
-                      : `There were no design requests in ${shownArchiveYear}.`,
-                  action:
-                    earlierArchiveYear === undefined
-                      ? undefined
-                      : {
-                          label: `See ${earlierArchiveYear}`,
-                          onPress: () => setArchiveYear(earlierArchiveYear),
-                        },
+                  message: `No design requests yet in ${me.year}.`,
                 }}
               />
             ),
@@ -255,7 +288,7 @@ export default function DesignRequestsScreen() {
         ]
       : []),
   ];
-  const activeKey = tabs.some((t) => t.key === active) ? active : "mine";
+  const activeKey = tabs.some((t) => t.key === wanted) ? wanted : "mine";
   const noHead = viewer !== undefined && viewer !== null && !viewer.hasMarketingHead;
 
   return (
@@ -277,15 +310,10 @@ export default function DesignRequestsScreen() {
         />
       }
       footerTabKey="mine"
-      floating={
-        activeKey === "all" && archiveYears.length > 1 ? (
-          <FloatingYearPicker
-            year={shownArchiveYear ?? me.year}
-            years={archiveYears}
-            onSelect={(y) => setArchiveYear(y === me.year ? null : y)}
-          />
-        ) : undefined
-      }
+      onEndReached={(key) => {
+        if (key === "mine") mineLoadMoreRef.current?.();
+        if (key === "all") archiveLoadMoreRef.current?.();
+      }}
     />
   );
 }

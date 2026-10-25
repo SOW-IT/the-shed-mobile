@@ -85,8 +85,9 @@ records stay, flagged deleted. All files in those old years, paid or not.
 `staffRolloverOnOct1`). Every assigned profile in the new year that doesn't
 point at a member row gets one: the row an earlier profile of the same person
 points at, or a new one. Then everyone who was staff last year and isn't this
-year has their row's empty Campus filled from their last staff role and an
-empty Role set to Member, with a `member.leftStaff` audit entry. Nothing else
+year has their row's empty Campus filled from their last staff role (until
+2.9.9 an empty Role was also set to Member; Role is worked out since), with a
+`member.leftStaff` audit entry. Nothing else
 changes for a leaver: their sign-ins already point at their member row, and
 staff-ness is read from each year's profile. It does not set Alumni. It runs
 after the flip so `currentStaffYear()` already names the new year, works in

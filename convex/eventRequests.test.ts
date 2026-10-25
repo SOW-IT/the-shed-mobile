@@ -10,8 +10,6 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 const DAY = 86_400_000;
-// Pinned mid staff year so dates a few weeks either side of "now" never
-// straddle the 1 October rollover (see ADR 0003).
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -26,18 +24,18 @@ const at = (days: number, hour = 18) =>
   sydneyDateTimeAnswer(PINNED_NOW + days * DAY).slice(0, 11) + `${String(hour).padStart(2, "0")}:00`;
 
 const ADMIN = "admin@sow.org.au";
-const EVA = "eva@sow.org.au"; // Events staff, the usual requester
-const ELLA = "ella@sow.org.au"; // Events staff
-const EDDIE = "eddie@sow.org.au"; // Events Head
-const MIKE = "mike@sow.org.au"; // Marketing Head
-const MARY = "mary@sow.org.au"; // Marketing staff
-const CORA = "cora@sow.org.au"; // Compliance Head
-const CARL = "carl@sow.org.au"; // Compliance staff
-const FIONA = "fiona@sow.org.au"; // Finance Head
-const FRED = "fred@sow.org.au"; // Finance staff
-const DAN = "dan@sow.org.au"; // Director
-const OLLIE = "ollie@sow.org.au"; // Missions staff: no part in Events' events
-const LEE = "lee@sow.org.au"; // a campus leader
+const EVA = "eva@sow.org.au";
+const ELLA = "ella@sow.org.au";
+const EDDIE = "eddie@sow.org.au";
+const MIKE = "mike@sow.org.au";
+const MARY = "mary@sow.org.au";
+const CORA = "cora@sow.org.au";
+const CARL = "carl@sow.org.au";
+const FIONA = "fiona@sow.org.au";
+const FRED = "fred@sow.org.au";
+const DAN = "dan@sow.org.au";
+const OLLIE = "ollie@sow.org.au";
+const LEE = "lee@sow.org.au";
 
 type T = TestConvex<typeof schema>;
 
@@ -153,7 +151,6 @@ const notificationsFor = (t: T, email: string) =>
       .collect()
   );
 
-/** Every email queued so far, whether or not it has run yet. */
 const emails = (t: T) =>
   t.run(async (ctx) =>
     (await ctx.db.system.query("_scheduled_functions").collect())
@@ -545,7 +542,6 @@ describe("the Finance form", () => {
     expect(await emailsTo(t, FIONA)).toEqual(["Finance form for [TEST] SAF27 needs your approval"]);
     expect(await emailsTo(t, SUB_FORM_INBOXES.finance)).toHaveLength(2);
 
-    // Changes at any step start the chain again.
     await asUser(t, FIONA).mutation(api.eventSubForms.requestChanges, {
       id,
       form: "finance",
@@ -707,7 +703,6 @@ describe("lists", () => {
       requesterName: null,
       forms: { marketing: { status: "PENDING" }, risk: { status: "DRAFT" } },
     });
-    expect(await asUser(t, ELLA).query(api.eventRequests.mine, { year: YEAR - 1 })).toEqual([]);
 
     const forMike = (await asUser(t, MIKE).query(api.eventRequests.review, {}))!;
     expect(forMike.map((r) => [r._id, r.waitingOnMe])).toEqual([[id, ["marketing"]]]);
@@ -721,34 +716,53 @@ describe("lists", () => {
     expect(all.map((r) => r._id).sort()).toEqual([id, other].sort());
     expect(await asUser(t, ELLA).query(api.eventRequests.all, { year: YEAR - 1 })).toEqual([]);
 
-    // Cancelled events drop out of review.
     await asUser(t, OLLIE).mutation(api.eventRequests.cancel, { id: other });
     expect(await asUser(t, CORA).query(api.eventRequests.review, {})).toEqual([]);
   });
 
-  test("years with events", async () => {
+  test("earlier years, newest first, a page at a time", async () => {
     const t = await setup();
     await create(t);
     await t.run(async (ctx) => {
       const event = (await ctx.db.query("eventRequests").collect())[0];
-      await ctx.db.insert("eventRequests", { ...omitSystem(event), year: YEAR - 2, number: 1 });
-      await ctx.db.insert("eventRequests", {
-        ...omitSystem(event),
-        year: YEAR - 1,
-        number: 1,
-        requesterEmail: OLLIE,
-        department: "Events",
+      const forms = await ctx.db.query("eventSubForms").collect();
+      for (const over of [
+        { year: YEAR - 3 },
+        { year: YEAR - 1, requesterEmail: OLLIE, department: "Events" },
+      ]) {
+        const copy = await ctx.db.insert("eventRequests", {
+          ...omitSystem(event),
+          number: 1,
+          ...over,
+        });
+        for (const form of forms) {
+          await ctx.db.insert("eventSubForms", { ...omitSystem(form), eventRequestId: copy });
+        }
+      }
+    });
+    const page = (email: string, cursor: string | null) =>
+      asUser(t, email).query(api.eventRequests.earlierMine, {
+        paginationOpts: { numItems: 20, cursor },
       });
-    });
-    expect(await asUser(t, ELLA).query(api.eventRequests.years, {})).toEqual({
-      mine: [YEAR, YEAR - 1, YEAR - 2],
-      all: [YEAR, YEAR - 1, YEAR - 2],
-    });
-    expect(await asUser(t, OLLIE).query(api.eventRequests.years, {})).toEqual({
-      mine: [YEAR, YEAR - 1],
-      all: [YEAR],
-    });
-    expect(await asUser(t, LEE).query(api.eventRequests.years, {})).toBeNull();
+
+    const first = (await page(ELLA, null))!;
+    expect(first.page.map((r) => [r.year, r.requesterEmail])).toEqual([[YEAR - 1, OLLIE]]);
+    expect(first).toMatchObject({ isDone: false, continueCursor: String(YEAR - 2) });
+    const second = (await page(ELLA, first.continueCursor))!;
+    expect(second.page.map((r) => r.year)).toEqual([YEAR - 3]);
+    const last = (await page(ELLA, second.continueCursor))!;
+    expect(last).toMatchObject({ page: [], isDone: true, continueCursor: "" });
+
+    expect((await page(OLLIE, null))!.page.map((r) => r.year)).toEqual([YEAR - 1]);
+    expect(await page(LEE, null)).toBeNull();
+
+    const all = (email: string) =>
+      asUser(t, email).query(api.eventRequests.earlierAll, {
+        paginationOpts: { numItems: 20, cursor: null },
+      });
+    expect((await all(ELLA))!.page.map((r) => r.year)).toEqual([YEAR - 1, YEAR - 3]);
+    expect((await all(ELLA))!.page[0].forms.marketing).toBeDefined();
+    expect(await all(OLLIE)).toBeNull();
   });
 });
 

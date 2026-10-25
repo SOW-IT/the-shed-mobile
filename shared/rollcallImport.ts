@@ -1,12 +1,10 @@
-export const normalizedEmail = (email: string | undefined): string | undefined => {
+const normalizedEmail = (email: string | undefined): string | undefined => {
   const lower = email?.trim().toLowerCase();
   return lower && lower.includes("@") ? lower : undefined;
 };
 
 const SOW_STAFF_DOMAINS = ["sow.org.au", "sowaustralia.com"] as const;
 
-/** An SOW address (sow.org.au or sowaustralia.com): a staff email, never
- *  someone's personal one. */
 export const isSowStaffAddress = (email: string | undefined): boolean => {
   const lower = email?.trim().toLowerCase() ?? "";
   const at = lower.lastIndexOf("@");
@@ -29,7 +27,6 @@ export function canonicalEmailKey(email: string | undefined): string | undefined
   return staffEmailCandidates(email)[0];
 }
 
-/** Latest staff year for each email spelling, earlier than `viewedYear`. */
 export function previousStaffYearByEmailKey(
   profiles: readonly { email: string; year: number }[],
   viewedYear: number

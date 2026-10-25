@@ -268,7 +268,6 @@ CROSS JOIN UNNEST(IFNULL(JSON_QUERY_ARRAY(r.document, '$.receipt.recipients'), [
 `.trim()
   );
 
-/** Flat, JSON-free views for Looker Studio and Connected Sheets. */
 export const REPORT_VIEWS = [
   {
     name: "insights_summary",

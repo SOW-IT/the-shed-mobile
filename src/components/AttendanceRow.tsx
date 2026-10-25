@@ -1,6 +1,6 @@
 import { Avatar } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { campusPill } from "@/components/attendance/campusPill";
@@ -23,9 +23,6 @@ const VELOCITY_COMMIT = 1200;
 
 const SLIDE_MS = 280;
 
-// One motion for a member moving between the lists: the card slides and
-// fades out, then the gap it leaves closes, while the card arriving in the
-// other list opens its space and fades in on the same curve.
 const SETTLE = Easing.bezier(0.2, 0, 0, 1);
 const RESIZE = Easing.bezier(0.4, 0, 0.2, 1);
 const ROW_HEIGHT = 72;
@@ -34,10 +31,8 @@ const COLLAPSE_DELAY_MS = 60;
 const COLLAPSE_MS = 260;
 const ENTER_FADE_DELAY_MS = 80;
 export const ATTENDANCE_ROW_ENTER_MS = 280;
-/** How long a leaving row takes until its space has fully closed. */
 export const ATTENDANCE_ROW_LEAVE_MS = COLLAPSE_DELAY_MS + COLLAPSE_MS;
 
-/** The gap a leaving row leaves, closing just after the card starts to go. */
 const closeLater = (done?: (finished?: boolean) => void) => {
   "worklet";
   return withDelay(
@@ -64,7 +59,6 @@ interface AttendanceRowProps {
   photo?: string | null;
   university?: string;
   roles?: string[];
-  /** A Newcomer or Visitor tag from Insights, beside the name. */
   tag?: { label: string; colour: string };
   mode: AttendanceRowMode;
   disabled?: boolean;
@@ -139,8 +133,6 @@ function AttendanceRowBase({
   useEffect(() => {
     if (!exiting) return;
     opacity.value = withTiming(0, { duration: LEAVE_MS, easing: SETTLE });
-    // Passed through closeLater, so the plugin can't see it's an animation
-    // callback: it has to be marked to run on the UI thread.
     itemHeight.value = closeLater((done) => {
       "worklet";
       if (done && onExited) runOnJS(onExited)();

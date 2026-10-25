@@ -6,7 +6,6 @@ import {
   TAG_LIST_LABEL,
   tagFilterLabels,
   canonicalSubgroup,
-  compareAttendanceFrequency,
   contrastingText,
   defaultAttendanceSubgroup,
   defaultEventWindow,
@@ -288,71 +287,6 @@ describe("memberMatchesEventCampus", () => {
         campuses: [],
       })
     ).toBe(false);
-  });
-});
-
-describe("compareAttendanceFrequency", () => {
-  test("prioritises tag history, then subgroup, campus, total, and recency", () => {
-    const frequent = {
-      tagMatches: 3,
-      subgroupMatches: 2,
-      total: 10,
-      latest: 100,
-    };
-    const sameTag = {
-      tagMatches: 3,
-      subgroupMatches: 1,
-      total: 20,
-      latest: 200,
-    };
-    const campusPeer = {
-      tagMatches: 0,
-      subgroupMatches: 0,
-      total: 1,
-      latest: 50,
-    };
-
-    expect(
-      compareAttendanceFrequency(frequent, sameTag, true, true, "A", "B")
-    ).toBeLessThan(0);
-    expect(
-      compareAttendanceFrequency(sameTag, frequent, true, true, "B", "A")
-    ).toBeGreaterThan(0);
-    expect(
-      compareAttendanceFrequency(campusPeer, undefined, true, false, "C", "D")
-    ).toBeLessThan(0);
-    expect(
-      compareAttendanceFrequency(
-        { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 1 },
-        { tagMatches: 0, subgroupMatches: 0, total: 2, latest: 9 },
-        false,
-        false,
-        "E",
-        "F"
-      )
-    ).toBeLessThan(0);
-
-    expect(
-      compareAttendanceFrequency(
-        { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 200 },
-        { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 100 },
-        false,
-        false,
-        "G",
-        "H"
-      )
-    ).toBeLessThan(0);
-
-    expect(
-      compareAttendanceFrequency(
-        { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 100 },
-        { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 100 },
-        false,
-        false,
-        "Alice",
-        "Bob"
-      )
-    ).toBeLessThan(0);
   });
 });
 

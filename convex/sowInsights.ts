@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { assignmentsOf, roleNeedsUniversity, staffYearForDate, staffYearStartMs } from "../shared/flow";
 import {
   computePpn,
   computeTwig,
@@ -19,6 +19,17 @@ import { weeklyBlockValidator } from "./weeklyInsightsData";
 const MAX_EVENTS = 5000;
 const MAX_TAGS = 500;
 const MAX_SIGN_INS_PER_EVENT = 2000;
+const MAX_PROFILES = 3000;
+
+async function leaderKeys(ctx: QueryCtx, year: number): Promise<string[]> {
+  const profiles = await ctx.db
+    .query("staffProfiles")
+    .withIndex("by_year", (q) => q.eq("year", year))
+    .take(MAX_PROFILES);
+  return profiles.flatMap((p) =>
+    p.memberId && assignmentsOf(p).some((a) => roleNeedsUniversity(a.role)) ? [`member:${p.memberId}`] : []
+  );
+}
 
 async function toSowEvent(ctx: QueryCtx, event: Doc<"events">): Promise<SowEvent> {
   const rows = await ctx.db
@@ -95,7 +106,8 @@ export const view = query({
     const load = (list: Doc<"events">[]) => Promise.all(list.map((e) => toSowEvent(ctx, e)));
 
     const [thisYear, lastYear] = await Promise.all([load(inYear(year)), load(inYear(year - 1))]);
-    const keys = [...new Set([...thisYear, ...lastYear].flatMap((e) => e.people))];
+    const roster = mode === "twig" ? await leaderKeys(ctx, year) : [];
+    const keys = [...new Set([...[...thisYear, ...lastYear].flatMap((e) => e.people), ...roster])];
     const people = new Map(
       (await resolvePeople(ctx, keys, [year - 1, year])).map((person) => [person.key, person])
     );
@@ -104,7 +116,7 @@ export const view = query({
     if (mode === "twig") {
       const { settings } = await readSettings(ctx);
       const rules = { regularShare: settings.regularShare, followUpMisses: settings.followUpMisses };
-      const result = computeTwig({ year, events: thisYear, lastEvents: lastYear, people, now, rules });
+      const result = computeTwig({ year, events: thisYear, lastEvents: lastYear, people, now, rules, roster });
       return {
         years: yearOptions,
         year,
@@ -118,6 +130,7 @@ export const view = query({
       lastEvents: lastYear,
       earlier: [...earlier, ...lastYear],
       people,
+      now,
     });
     return { years: yearOptions, year, blocks: buildPpnBlocks({ result, earlierYear }) };
   },

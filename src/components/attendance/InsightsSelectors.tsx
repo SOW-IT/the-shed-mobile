@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Btn, Sheet } from "@/components/ui";
@@ -130,9 +130,6 @@ type PickerPeriod = {
   slot?: number;
 };
 
-/** Picks a campus's term or whole year; the server lists the choices. Each
- *  year is one row, its terms side by side in their own columns and the
- *  whole year last. Without grouping (an older server), a plain list. */
 export function PeriodFab({
   periods,
   value,
@@ -318,7 +315,6 @@ export function GeneralScopeFab({
 }
 
 const styles = StyleSheet.create({
-  // One year in the term picker: a track of evenly split choices.
   periodRow: {
     flexDirection: "row",
     gap: 4,

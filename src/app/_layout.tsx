@@ -1,5 +1,7 @@
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorReporter } from "@/components/ErrorReporter";
+import { OtaUpdateBanner } from "@/components/OtaUpdateBanner";
 import { AppSidebar } from "@/components/nav/AppSidebar";
 import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
@@ -93,10 +95,6 @@ const AuthGate = () => {
   return isLoading || busy ? <LoadingState /> : <RootStack />;
 };
 
-/**
- * Every screen, plus the side menu: a permanent sidebar beside them on wide
- * screens, a drawer over them on phones (signed in only).
- */
 const RootStack = () => {
   const wide = useWideLayout();
   const { isAuthenticated } = useConvexAuth();
@@ -122,8 +120,6 @@ const RootStack = () => {
             <Stack.Screen name="event-requests/new" />
             <Stack.Screen name="event-requests/[id]/index" />
             <Stack.Screen name="event-requests/[id]/[form]" />
-            <Stack.Screen name="attendance/[subgroup]" />
-            <Stack.Screen name="attendance/event/new" />
             <Stack.Screen name="attendance/event/[eventId]" />
             <Stack.Screen name="attendance/member/[key]" />
             <Stack.Screen name="review" />
@@ -131,6 +127,7 @@ const RootStack = () => {
             <Stack.Screen name="announcements/index" />
             <Stack.Screen name="announcements/[id]" />
             <Stack.Screen name="all" />
+            <Stack.Screen name="checkin/[token]" />
             <Stack.Screen name="e2e-auth" />
             <Stack.Screen
               name="spotify-callback"
@@ -159,7 +156,6 @@ export default function RootLayout() {
       showFloatingActionButton: false,
     });
   }, []);
-  // Bundled, so this takes a moment; if a face fails, carry on with the system font.
   const [fontsLoaded, fontError] = useFonts(FONT_SOURCES);
   const fontsReady = fontsLoaded || fontError !== null;
   const t = useAppTheme();
@@ -182,7 +178,9 @@ export default function RootLayout() {
                 shouldHandleCode={Platform.OS !== "web"}
               >
                 <AuthGate />
+                <ErrorReporter />
                 <AppUpdatePrompt />
+                <OtaUpdateBanner />
               </ConvexAuthProvider>
             ) : (
               <ConfigurationErrorScreen />

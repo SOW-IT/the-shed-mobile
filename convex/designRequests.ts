@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
@@ -8,7 +9,6 @@ import {
   designAnswersProblem,
   designRequestFiling,
   designRequestName,
-  EARLIEST_DESIGN_REQUEST_YEAR,
   formatDesignAnswer,
   isOpenDesignStatus,
   MARKETING,
@@ -41,15 +41,9 @@ type DesignRequest = Doc<"designRequests">;
 const LIST_LIMIT = 300;
 const EVENTS_LIMIT = 200;
 
-// ── Who can do what ─────────────────────────────────────────────────────────
-
 const marketingHeadEmail = async (ctx: Ctx, year: number) =>
   (await getDepartment(ctx, year, MARKETING))?.headEmail;
 
-/**
- * Whether the caller acts as the Marketing Head for a request from `year`:
- * that year's head, this year's head, or someone either has delegated to.
- */
 async function actsAsMarketingHead(
   ctx: Ctx,
   caller: CallerContext,
@@ -97,14 +91,11 @@ async function requireRequest(ctx: Ctx, id: Id<"designRequests">) {
   return request;
 }
 
-// ── Notifications ───────────────────────────────────────────────────────────
-
 export const designRequestUrl = (
   request: Pick<DesignRequest, "_id">,
   opts?: { thread?: boolean }
 ) => `/design-requests/${request._id}${opts?.thread ? "?thread=1" : ""}`;
 
-/** The request in a few lines: its name, requester and the summary questions. */
 export async function requestSummary(ctx: Ctx, request: DesignRequest) {
   const requester = await displayName(ctx, request.requesterEmail, request.year);
   const answers = DESIGN_REQUEST_FIELDS.filter((field) => field.inSummary).flatMap(
@@ -120,7 +111,6 @@ export async function requestSummary(ctx: Ctx, request: DesignRequest) {
   ].join("\n");
 }
 
-/** The Marketing Head (and anyone covering for them) who decides `year`'s requests. */
 export async function headRecipients(ctx: Ctx, year: number): Promise<string[]> {
   for (const y of [year, currentStaffYear()]) {
     const head = await marketingHeadEmail(ctx, y);
@@ -129,8 +119,7 @@ export async function headRecipients(ctx: Ctx, year: number): Promise<string[]> 
   return [];
 }
 
-/** This year's Marketing staff, plus the Marketing Head. */
-async function marketingTeam(ctx: Ctx): Promise<string[]> {
+export async function marketingTeam(ctx: Ctx): Promise<string[]> {
   const year = currentStaffYear();
   const emails = new Set<string>();
   for await (const profile of ctx.db
@@ -143,11 +132,6 @@ async function marketingTeam(ctx: Ctx): Promise<string[]> {
   return [...emails];
 }
 
-/**
- * Tells the Marketing team: an in-app and push notification for each team
- * member (not the actor, the requester, or anyone in `skip`, who are told
- * separately), and one email to the team's shared inbox.
- */
 export async function tellTeam(
   ctx: MutationCtx,
   request: DesignRequest,
@@ -182,7 +166,6 @@ export async function tellTeam(
   });
 }
 
-/** Email, in-app and push notification to the requester. */
 export async function tellRequester(
   ctx: MutationCtx,
   request: DesignRequest,
@@ -234,25 +217,16 @@ const logEvent = async (
   });
 };
 
-// ── Lists ───────────────────────────────────────────────────────────────────
-
 const OPEN_STATUSES: DesignRequestStatus[] = ["PENDING", "APPROVED"];
 
-/**
- * `year`'s requests, plus, when that's the current staff year, requests from
- * any year that are still open, newest first.
- */
 async function yearWithOpen(
   year: number,
-  currentYear: number,
   byYear: (year: number) => Promise<DesignRequest[]>,
   byStatus: (status: DesignRequestStatus) => Promise<DesignRequest[]>
 ): Promise<DesignRequest[]> {
   const rows = new Map((await byYear(year)).map((r) => [r._id, r]));
-  if (year === currentYear) {
-    for (const status of OPEN_STATUSES) {
-      for (const r of await byStatus(status)) rows.set(r._id, r);
-    }
+  for (const status of OPEN_STATUSES) {
+    for (const r of await byStatus(status)) rows.set(r._id, r);
   }
   return [...rows.values()].sort((a, b) => b.submittedAt - a.submittedAt);
 }
@@ -280,7 +254,6 @@ async function canSeeQueue(ctx: Ctx, caller: CallerContext) {
   );
 }
 
-/** What the signed-in person can do with design requests. */
 export const viewer = query({
   args: {},
   handler: async (ctx) => {
@@ -297,34 +270,41 @@ export const viewer = query({
   },
 });
 
-/**
- * How many design requests are waiting on the caller: ones to approve for the
- * Marketing Head (and anyone covering), approved ones to finish for the rest
- * of the Marketing team. Drives the side menu badge.
- */
+export async function designWaitingOnMe(
+  ctx: Ctx,
+  caller: CallerContext
+): Promise<{ toApprove: number; toFinish: number }> {
+  const isHead = await actsAsMarketingHead(ctx, caller, caller.year);
+  if (!isHead && !isMarketingStaff(caller)) return { toApprove: 0, toFinish: 0 };
+  const countOf = async (status: DesignRequestStatus) =>
+    (
+      await ctx.db
+        .query("designRequests")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .take(LIST_LIMIT)
+    ).filter((r) => r.requesterEmail !== caller.email).length;
+  return {
+    toApprove: isHead ? await countOf("PENDING") : 0,
+    toFinish: await countOf("APPROVED"),
+  };
+}
+
 export const waitingOnMe = query({
   args: {},
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return 0;
-    const isHead = await actsAsMarketingHead(ctx, caller, caller.year);
-    if (!isHead && !isMarketingStaff(caller)) return 0;
-    const status: DesignRequestStatus = isHead ? "PENDING" : "APPROVED";
-    const rows = await ctx.db
-      .query("designRequests")
-      .withIndex("by_status", (q) => q.eq("status", status))
-      .take(LIST_LIMIT);
-    return rows.filter((r) => r.requesterEmail !== caller.email).length;
+    const { toApprove, toFinish } = await designWaitingOnMe(ctx, caller);
+    return toApprove + toFinish;
   },
 });
 
 export const mine = query({
-  args: { year: v.optional(v.number()) },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const rows = await yearWithOpen(
-      args.year ?? caller.year,
       caller.year,
       (year) =>
         ctx.db
@@ -345,7 +325,9 @@ export const mine = query({
   },
 });
 
-/** Requests still open, from any year: the Marketing team's (and admins') work list. */
+export const designWaitingSince = (request: DesignRequest): number =>
+  request.status === "APPROVED" ? (request.decidedAt ?? request.submittedAt) : request.submittedAt;
+
 export const queue = query({
   args: {},
   handler: async (ctx) => {
@@ -360,12 +342,13 @@ export const queue = query({
           .take(LIST_LIMIT))
       );
     }
-    rows.sort((a, b) => b.submittedAt - a.submittedAt);
-    return await withRequesterNames(ctx, rows);
+    const named = await withRequesterNames(ctx, rows);
+    return named
+      .map((r) => ({ ...r, waitingSince: designWaitingSince(r) }))
+      .sort((a, b) => a.waitingSince - b.waitingSince);
   },
 });
 
-/** Every request from one staff year, for the Marketing team and admins to look back on. */
 export const archive = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
@@ -380,32 +363,33 @@ export const archive = query({
   },
 });
 
-/** The staff years the year picker offers: ones with requests, and this one. */
-export const years = query({
-  args: {},
-  handler: async (ctx) => {
+export const earlierMine = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const team = await canSeeQueue(ctx, caller);
-    const mine = [caller.year];
-    const all = [caller.year];
-    for (let y = caller.year - 1; y >= EARLIEST_DESIGN_REQUEST_YEAR; y--) {
-      const own = await ctx.db
-        .query("designRequests")
-        .withIndex("by_requester_and_year", (q) =>
-          q.eq("requesterEmail", caller.email).eq("year", y)
-        )
-        .first();
-      if (own) mine.push(y);
-      const any = team
-        ? await ctx.db
-            .query("designRequests")
-            .withIndex("by_year_and_number", (q) => q.eq("year", y))
-            .first()
-        : null;
-      if (any) all.push(y);
-    }
-    return { mine, all };
+    const result = await ctx.db
+      .query("designRequests")
+      .withIndex("by_requester_and_year", (q) =>
+        q.eq("requesterEmail", caller.email).lt("year", caller.year)
+      )
+      .order("desc")
+      .paginate(paginationOpts);
+    return { ...result, page: await withRequesterNames(ctx, result.page) };
+  },
+});
+
+export const earlierArchive = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller || !(await canSeeQueue(ctx, caller))) return null;
+    const result = await ctx.db
+      .query("designRequests")
+      .withIndex("by_year_and_number", (q) => q.lt("year", caller.year))
+      .order("desc")
+      .paginate(paginationOpts);
+    return { ...result, page: await withRequesterNames(ctx, result.page) };
   },
 });
 
@@ -460,9 +444,6 @@ export const timeline = query({
   },
 });
 
-// ── Changes ─────────────────────────────────────────────────────────────────
-
-/** The stored answers for `raw`, checked against the form; throws with what to fix. */
 function checkedAnswers(raw: DesignAnswers, previous?: DesignAnswers) {
   const answers = normalizeDesignAnswers(DESIGN_REQUEST_FIELDS, raw);
   const problem = designAnswersProblem(
@@ -547,7 +528,6 @@ export const update = mutation({
     if (!isOpenDesignStatus(request.status)) {
       throw new ConvexError("This design request is closed, so it can't be edited.");
     }
-    // A due date that isn't being changed may already be in the past.
     const filed = checkedAnswers(args.answers, request.answers);
     const changed = changedDesignAnswers(
       DESIGN_REQUEST_FIELDS,

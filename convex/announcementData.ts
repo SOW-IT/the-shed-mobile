@@ -1,7 +1,5 @@
 import { v } from "convex/values";
 
-// Validators for announcements (rules in shared/announcements.ts).
-
 export const audienceValidator = v.object({
   campuses: v.array(v.string()),
   divisions: v.array(v.string()),

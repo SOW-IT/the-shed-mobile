@@ -8,6 +8,9 @@ A PR merged into `main` goes live straight away. Nothing else needs running:
   integration (project `the-shed-web`).
 - **Prod Convex**: `.github/workflows/convex-deploy.yml` runs `npx convex deploy`.
 - **Dev web** (<https://the-shed-web-dev.vercel.app>): `deploy-web-dev.yml`.
+- **Phones, JavaScript only**: `eas-update.yml` publishes an over-the-air
+  update after the prod Convex deploy, to builds whose native fingerprint
+  matches.
 
-Only the phone apps wait. EAS builds (`eas-production.yml`, `eas-staging.yml`)
-are started by hand, so a new screen reaches phones only after a store build.
+A change to native code waits for a store build. EAS builds
+(`eas-production.yml`, `eas-staging.yml`) are started by hand.

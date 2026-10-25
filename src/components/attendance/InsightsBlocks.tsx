@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Id } from "../../../convex/_generated/dataModel";
 import { type FollowUpPerson } from "../../../shared/attendanceMetrics";
 import {
@@ -40,9 +40,6 @@ const isCalendarYear = (at: number) => Number.isInteger(at) && at >= 1000 && at 
 
 const tooltipTitle = (p: { at: number; label: string }) => (isCalendarYear(p.at) ? String(p.at) : p.label);
 
-// Draws the blocks an Insights `view` query returns. The server decides what
-// appears and in what order; this only knows how to draw each block type and
-// skips any it doesn't know, so an older app never breaks on a newer server.
 export function InsightsBlocks({
   blocks,
   width,
@@ -54,7 +51,6 @@ export function InsightsBlocks({
   blocks: (ViewBlock | WeeklyBlock)[];
   width: number;
   onOpenMember?: (memberId: Id<"attendanceMembers">) => void;
-  /** Campus weeklies rows open the person's page by their key. */
   onOpenPerson?: (personKey: string, subgroup?: string) => void;
   onEditMember?: (memberId: string) => void;
   onPickPeriod?: (period: string) => void;
@@ -126,12 +122,21 @@ export function InsightsBlocks({
           ...p,
           segments: p.segments.map((s) => ({ ...s, colour: paint(s.colour), label: seriesLabel.get(s.key) ?? s.key })),
         }));
+        const line = block.line
+          ? {
+              ...block.line,
+              colour: paint(block.line.colour),
+              label: seriesLabel.get(block.line.key) ?? block.line.key,
+            }
+          : undefined;
         const props = {
           points,
           tooltipLabel: tooltipTitle,
           stacked: block.stacked,
           axisMax: block.axisMax,
           keepZeros: block.keepZeros,
+          line,
+          unit: block.unit,
         };
         return (
           <ChartCard
@@ -271,7 +276,6 @@ export function InsightsBlocks({
     }
   };
 
-  // Consecutive charts share a responsive grid: as many columns as fit.
   const rendered: ReactNode[] = [];
   for (let i = 0; i < blocks.length; ) {
     if (!CHART_TYPES.has(blocks[i].type)) {

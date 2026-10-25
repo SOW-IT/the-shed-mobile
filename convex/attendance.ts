@@ -13,13 +13,17 @@ import {
   resolveUniversity,
   ROLE_FIELD_KEY,
 } from "../shared/attendanceMemberMeta";
-import { auditEventName, canReverseSignIn, reversibleOnlyByGrace, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personKey, subgroupMatches } from "../shared/rollcall";
-import { Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { auditEventName, canReverseSignIn, reversibleOnlyByGrace, memberMatchesEventCampus, normalizeSubgroups, personKey, subgroupMatches } from "../shared/rollcall";
+import { Doc, Id } from "./_generated/dataModel";
+import { mutation, type MutationCtx, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
+import { adjustEventAttendanceCount } from "./attendanceCounts";
 import { memberAuditName, staffDisplayName } from "./attendanceMembers";
+import { eventCampuses, memberRoleResolver } from "./memberRoles";
 import { photoFor } from "./photo";
+import { compareLikelihood, LIKELIHOOD } from "../shared/rollCallLikelihood";
+import { storedOrder } from "./rollCallOrder";
 import {
   assignedProfileForEmail,
   isAssigned,
@@ -27,8 +31,6 @@ import {
   staffMemberForEmail,
   staffProfileOfMember,
 } from "./staffMembers";
-
-const ROSTER_HISTORY_EVENT_LIMIT = 60;
 
 export type RosterEntry = {
   key: string;
@@ -42,6 +44,9 @@ export type RosterEntry = {
   subtitle?: string;
   photo?: string | null;
 };
+
+const memberSubtitle = (role: string | undefined, details: string): string | undefined =>
+  [role, details].filter(Boolean).join(" · ") || undefined;
 
 export const roster = query({
   args: {
@@ -79,6 +84,11 @@ export const roster = query({
     const memberById = new Map(members.map((m) => [m._id, m]));
     const staffMemberIds = new Set(profiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
     const pureExtras = members.filter((m) => !staffMemberIds.has(m._id));
+    const roleOf = await memberRoleResolver(
+      ctx,
+      metadataFields,
+      event ? eventCampuses(event.subgroups) : undefined
+    );
 
     const staffRows: RosterEntry[] = await Promise.all(profiles.map(async (p) => {
       const shadow = p.memberId ? memberById.get(p.memberId) : undefined;
@@ -117,72 +127,26 @@ export const roster = query({
       roles: [],
       campuses: [],
       university: resolveUniversity(metadataFields, m.metadata),
-      subtitle: metadataSubtitle(metadataFields, m.metadata, memberYear, [CAMPUS_FIELD_KEY]) || undefined,
+      subtitle: memberSubtitle(roleOf(m).role, metadataSubtitle(metadataFields, m.metadata, memberYear, [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY])),
     }));
 
     const rows = [...staffRows, ...extraRows];
     if (!event) return rows.sort((a, b) => a.name.localeCompare(b.name));
 
-    const eventTagIds = new Set((event.tagIds ?? []).map(String));
     const eventSubgroups = new Set(normalizeSubgroups(event.subgroups));
-    const historyEvents = await ctx.db
-      .query("events")
-      .withIndex("by_dateStart", (q) =>
-        q
-          .gte("dateStart", staffYearStartMs(year))
-          .lt("dateStart", staffYearStartMs(year + 1))
-      )
-      .order("desc")
-      .take(ROSTER_HISTORY_EVENT_LIMIT);
-    const scores = new Map<
-      string,
-      { tagMatches: number; subgroupMatches: number; total: number; latest: number }
-    >();
-    const otherHistory = historyEvents.filter((h) => h._id !== event._id);
-    const historyAttendances = await Promise.all(
-      otherHistory.map((h) =>
-        ctx.db
-          .query("attendance")
-          .withIndex("by_event", (q) => q.eq("eventId", h._id))
-          .collect()
-      )
+    const order = await storedOrder(ctx, event._id);
+    const scores = new Map<string, number>(
+      (order?.memberIds ?? []).map((memberId, i) => [memberId, order!.scores[i] ?? 0])
     );
-    otherHistory.forEach((historyEvent, i) => {
-      for (const row of historyAttendances[i]) {
-        const key = `member:${row.memberId}`;
-        const score = scores.get(key) ?? {
-          tagMatches: 0,
-          subgroupMatches: 0,
-          total: 0,
-          latest: 0,
-        };
-        score.total += 1;
-        if ((historyEvent.tagIds ?? []).some((tagId) => eventTagIds.has(String(tagId)))) {
-          score.tagMatches += 1;
-        }
-        if (
-          normalizeSubgroups(historyEvent.subgroups).some((historySubgroup) =>
-            eventSubgroups.has(historySubgroup)
-          )
-        ) {
-          score.subgroupMatches += 1;
-        }
-        score.latest = Math.max(score.latest, historyEvent.dateStart);
-        scores.set(key, score);
-      }
-    });
-
-    const scoreOf = (entry: RosterEntry) =>
-      scores.get(entry.memberId ? `member:${entry.memberId}` : entry.key);
+    const likelihood = new Map(
+      rows.map((entry) => [
+        entry.key,
+        (entry.memberId ? (scores.get(entry.memberId) ?? 0) : 0) +
+          (memberMatchesEventCampus(eventSubgroups, entry) ? LIKELIHOOD.campus : 0),
+      ])
+    );
     return rows.sort((a, b) =>
-      compareAttendanceFrequency(
-        scoreOf(a),
-        scoreOf(b),
-        memberMatchesEventCampus(eventSubgroups, a),
-        memberMatchesEventCampus(eventSubgroups, b),
-        a.name,
-        b.name
-      )
+      compareLikelihood(likelihood.get(a.key)!, likelihood.get(b.key)!, a.name, b.name)
     );
   },
 });
@@ -210,6 +174,7 @@ export const listByEvent = query({
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
+    const roleOf = await memberRoleResolver(ctx, metadataFields, eventCampuses(event.subgroups));
 
     const withNames = await Promise.all(
       rows.map(async (row) => {
@@ -253,7 +218,10 @@ export const listByEvent = query({
           roles: [],
           campuses: [],
           university: resolveUniversity(metadataFields, member?.metadata),
-          subtitle: metadataSubtitle(metadataFields, member?.metadata, calendarYear, [CAMPUS_FIELD_KEY]) || undefined,
+          subtitle: memberSubtitle(
+            member ? roleOf(member).role : undefined,
+            metadataSubtitle(metadataFields, member?.metadata, calendarYear, [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY])
+          ),
           photo: null,
         };
       })
@@ -293,33 +261,48 @@ export const signIn = mutation({
     } else {
       memberId = memberArg!;
     }
-    const member = await ctx.db.get(memberId);
-    if (!member) throw new ConvexError("Member not found.");
-    const existing = await ctx.db
-      .query("attendance")
-      .withIndex("by_event_and_member", (q) =>
-        q.eq("eventId", eventId).eq("memberId", memberId)
-      )
-      .unique();
-    if (existing) return existing._id;
-    const id = await ctx.db.insert("attendance", {
-      eventId,
-      memberId,
-      signInTime: Date.now(),
-    });
-    const { name, email: subjectEmail } = await memberAuditName(ctx, member, year);
-    await logAttendanceAction(ctx, {
-      actorEmail,
-      entityType: "attendance",
-      action: "attendance.signIn",
-      summary: `${name} signed in to ${auditEventName(event)}`,
-      eventId,
-      memberId,
-      subjectEmail,
-    });
-    return id;
+    return await signInMember(ctx, event, memberId, actorEmail);
   },
 });
+
+export async function signInMember(
+  ctx: MutationCtx,
+  event: Doc<"events">,
+  memberId: Id<"attendanceMembers">,
+  actorEmail: string,
+  signInTime?: number
+): Promise<Id<"attendance">> {
+  const now = Date.now();
+  const eventId = event._id;
+  const year = eventStaffYear(event.dateStart);
+  const member = await ctx.db.get(memberId);
+  if (!member) throw new ConvexError("Member not found.");
+  const existing = await ctx.db
+    .query("attendance")
+    .withIndex("by_event_and_member", (q) =>
+      q.eq("eventId", eventId).eq("memberId", memberId)
+    )
+    .unique();
+  if (existing) return existing._id;
+  const id = await ctx.db.insert("attendance", {
+    eventId,
+    memberId,
+    signInTime: signInTime ?? now,
+    ...(signInTime !== undefined && signInTime !== now ? { addedAt: now } : {}),
+  });
+  await adjustEventAttendanceCount(ctx, eventId, 1);
+  const { name, email: subjectEmail } = await memberAuditName(ctx, member, year);
+  await logAttendanceAction(ctx, {
+    actorEmail,
+    entityType: "attendance",
+    action: "attendance.signIn",
+    summary: `${name} signed in to ${auditEventName(event)}`,
+    eventId,
+    memberId,
+    subjectEmail,
+  });
+  return id;
+}
 
 export const updateRecord = mutation({
   args: {
@@ -370,12 +353,11 @@ export const updateRecord = mutation({
   },
 });
 
-/** Audit note for a sign-in undone only because of the 10-minute grace. */
 const undoDetail = (
   event: { dateEnd: number } | null,
-  signInTime: number
+  addedAt: number
 ): string | undefined =>
-  event && reversibleOnlyByGrace(event, signInTime)
+  event && reversibleOnlyByGrace(event, addedAt)
     ? "Undone within 10 minutes of signing in, after the event ended"
     : undefined;
 
@@ -398,32 +380,46 @@ export const signOut = mutation({
       memberId = profile ? await knownMemberId(ctx, profile) : null;
     }
     if (!memberId) return;
-    const existing = await ctx.db
-      .query("attendance")
-      .withIndex("by_event_and_member", (q) =>
-        q.eq("eventId", eventId).eq("memberId", memberId)
-      )
-      .unique();
-    if (!existing) return;
-    if (event && !canReverseSignIn(event, existing.signInTime)) {
-      throw new ConvexError(
-        "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
-      );
-    }
-    await ctx.db.delete(existing._id);
-    const member = await ctx.db.get(memberId);
-    const who = member
-      ? await memberAuditName(ctx, member, year)
-      : { name: "A member", email: undefined };
-    await logAttendanceAction(ctx, {
-      actorEmail,
-      entityType: "attendance",
-      action: "attendance.signOut",
-      summary: `${who.name} signed out of ${auditEventName(event)}`,
-      eventId,
-      memberId,
-      subjectEmail: who.email,
-      detail: undoDetail(event, existing.signInTime),
-    });
+    await signOutMember(ctx, eventId, event, memberId, actorEmail);
   },
 });
+
+export async function signOutMember(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  event: Doc<"events"> | null,
+  memberId: Id<"attendanceMembers">,
+  actorEmail: string
+): Promise<boolean> {
+  const year = event ? eventStaffYear(event.dateStart) : staffYearForDate(new Date());
+  const existing = await ctx.db
+    .query("attendance")
+    .withIndex("by_event_and_member", (q) =>
+      q.eq("eventId", eventId).eq("memberId", memberId)
+    )
+    .unique();
+  if (!existing) return false;
+  const addedAt = existing.addedAt ?? existing.signInTime;
+  if (event && !canReverseSignIn(event, addedAt)) {
+    throw new ConvexError(
+      "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
+    );
+  }
+  await ctx.db.delete(existing._id);
+  await adjustEventAttendanceCount(ctx, eventId, -1);
+  const member = await ctx.db.get(memberId);
+  const who = member
+    ? await memberAuditName(ctx, member, year)
+    : { name: "A member", email: undefined };
+  await logAttendanceAction(ctx, {
+    actorEmail,
+    entityType: "attendance",
+    action: "attendance.signOut",
+    summary: `${who.name} signed out of ${auditEventName(event)}`,
+    eventId,
+    memberId,
+    subjectEmail: who.email,
+    detail: undoDetail(event, addedAt),
+  });
+  return true;
+}

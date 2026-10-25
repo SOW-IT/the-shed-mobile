@@ -51,9 +51,8 @@ export default function InsightsScreen() {
   const [includeCollaborative, setIncludeCollaborative] = useState(true);
   const [generalScope, setGeneralScope] = useState<GeneralScope>(null);
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
-  const generalView = useQuery(api.generalMetrics.view, { scope: generalScope });
+  const generalView = useQuery(api.generalMetrics.view, { scope: generalScope, lines: true });
   const router = useRouter();
-  // A campus shows its weeklies by term or year; SOW keeps the range picker.
   const campus = subgroup ?? subgroups?.[0] ?? null;
   const campusSelected = !!campus && !isOrgWideSubgroup(campus);
   const [periodByCampus, setPeriodByCampus] = useState<Record<string, string>>({});
@@ -176,7 +175,7 @@ export default function InsightsScreen() {
           recentYears={GENERAL_RECENT_YEARS}
         />
       ) : null}
-      <ChartModeFab mode={chartMode} onChange={setChartMode} />
+      {activeKey === "general" ? null : <ChartModeFab mode={chartMode} onChange={setChartMode} />}
     </>
   );
 

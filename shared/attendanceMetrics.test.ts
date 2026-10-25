@@ -177,6 +177,24 @@ describe("computeSubgroupMetrics — classification", () => {
 });
 
 describe("computeSubgroupMetrics — summary & trends", () => {
+  it("leaves events nobody signed in to out of the average per event", () => {
+    const held = oneOff(weeksAgo(3));
+    const noRoll = oneOff(weeksAgo(2));
+    const prevHeld = oneOff(weeksAgo(9));
+    const prevNoRoll = oneOff(weeksAgo(10));
+    const data = computeSubgroupMetrics(
+      build(
+        [prevNoRoll, prevHeld, held, noRoll],
+        [attend(prevHeld, "a"), attend(prevHeld, "b"), ...["a", "b", "c", "d"].map((k) => attend(held, k))],
+        ["a", "b", "c", "d"].map((k) => person(k)),
+        { historyStartMs: weeksAgo(20) }
+      )
+    );
+    expect(data.summary.avgAttendance).toBe(4);
+    expect(data.summary.avgAttendancePrev).toBe(2);
+    expect(data.summary.changePct).toBe(100);
+  });
+
   it("computes average attendance and change vs the previous period", () => {
     const prevA = oneOff(weeksAgo(15));
     const prevB = oneOff(weeksAgo(12));
@@ -587,7 +605,6 @@ describe("computeSubgroupMetrics — composition charts", () => {
 
 describe("shortDate", () => {
   it("labels the Sydney calendar day, not the UTC one", () => {
-    // 2026-09-30T23:00Z is already 1 October in Sydney (AEST, UTC+10).
     expect(shortDate(Date.UTC(2026, 8, 30, 23, 0))).toBe("1 Oct");
     expect(shortDate(Date.UTC(2026, 8, 30, 12, 0))).toBe("30 Sep");
   });
