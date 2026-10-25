@@ -3,21 +3,25 @@ import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { Avatar, ConfirmDialog } from "@/components/ui";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
 import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
+import { useNavGroupOpen } from "@/hooks/useNavGroupOpen";
 import { useSignOut } from "@/hooks/usePushRegistration";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import {
   activeNavKey,
   badgeText,
   drawerItems,
+  NAV_GROUP_LABELS,
   NAV_HREFS,
   NAV_LABELS,
+  navEntries,
+  type NavGroupKey,
   type NavKey,
   navViewer,
   roleLine,
   sidebarItems,
 } from "@/lib/navMenu";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { type Href, usePathname, useRouter } from "expo-router";
 import { useState } from "react";
@@ -50,7 +54,6 @@ const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
   admin: { outline: "settings-outline", filled: "settings" },
 };
 
-/** Links that switch the bottom-tab screen rather than open a screen on top. */
 const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "home",
   "music",
@@ -66,15 +69,158 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "admin",
 ]);
 
+const GROUP_ICONS: Record<
+  NavGroupKey,
+  { outline: IconName; filled: IconName }
+> = {
+  requests: { outline: "file-tray-full-outline", filled: "file-tray-full" },
+};
+
 type NavMenuVariant = "drawer" | "sidebar";
 
-/**
- * The side menu's contents, shared by the phone drawer and the wide-screen
- * sidebar: who you are, the links you can use, and Sign out. `onNavigate` runs
- * before any link is followed (the drawer closes itself with it). It scrolls
- * when it's taller than the screen (a short window, large text), so the
- * caller passes the safe-area gaps to keep clear of at either end.
- */
+const CountBadge = ({ count }: { count: number }) => {
+  const t = useAppTheme();
+  return count > 0 ? (
+    <View style={[styles.countBadge, { backgroundColor: t.warning }]}>
+      <Text style={styles.badgeText}>{badgeText(count)}</Text>
+    </View>
+  ) : null;
+};
+
+const NavItemRow = ({
+  icon,
+  label,
+  selected,
+  badge,
+  sidebar,
+  nested,
+  onPress,
+}: {
+  icon: { outline: IconName; filled: IconName };
+  label: string;
+  selected: boolean;
+  badge: number;
+  sidebar: boolean;
+  nested?: boolean;
+  onPress: () => void;
+}) => {
+  const t = useAppTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={badge > 0 ? `${label}, ${badge} to action` : label}
+      style={({ pressed }) => [
+        styles.item,
+        sidebar ? styles.itemSidebar : styles.itemDrawer,
+        nested && (sidebar ? styles.nestedSidebar : styles.nestedDrawer),
+        selected && { backgroundColor: t.primarySoft },
+        pressed && { opacity: 0.6 },
+      ]}
+    >
+      <Ionicons
+        name={selected ? icon.filled : icon.outline}
+        size={sidebar ? 24 : 26}
+        color={t.text}
+      />
+      <Text
+        numberOfLines={1}
+        style={[
+          sidebar ? styles.labelSidebar : styles.labelDrawer,
+          { color: t.text },
+          selected && styles.labelSelected,
+        ]}
+      >
+        {label}
+      </Text>
+      <CountBadge count={badge} />
+    </Pressable>
+  );
+};
+
+const NavGroupRows = ({
+  group,
+  items,
+  active,
+  sidebar,
+  badgeFor,
+  onSelect,
+}: {
+  group: NavGroupKey;
+  items: NavKey[];
+  active: NavKey | null;
+  sidebar: boolean;
+  badgeFor: (key: NavKey) => number;
+  onSelect: (key: NavKey) => void;
+}) => {
+  const t = useAppTheme();
+  const containsActive = active !== null && items.includes(active);
+  const [open, toggle] = useNavGroupOpen(group, containsActive);
+  const label = NAV_GROUP_LABELS[group];
+  const total = items.reduce((sum, key) => sum + badgeFor(key), 0);
+  return (
+    <View>
+      <Pressable
+        onPress={toggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={
+          !open && total > 0 ? `${label}, ${total} to action` : label
+        }
+        style={({ pressed }) => [
+          styles.item,
+          sidebar ? styles.itemSidebar : styles.itemDrawer,
+          !open && containsActive && { backgroundColor: t.primarySoft },
+          pressed && { opacity: 0.6 },
+        ]}
+      >
+        <Ionicons
+          name={
+            !open && containsActive
+              ? GROUP_ICONS[group].filled
+              : GROUP_ICONS[group].outline
+          }
+          size={sidebar ? 24 : 26}
+          color={t.text}
+        />
+        <Text
+          numberOfLines={1}
+          style={[
+            sidebar ? styles.labelSidebar : styles.labelDrawer,
+            { color: t.text },
+            !open && containsActive && styles.labelSelected,
+          ]}
+        >
+          {label}
+        </Text>
+        {open ? null : <CountBadge count={total} />}
+        <View style={styles.chevron}>
+          <Ionicons
+            name={open ? "chevron-up" : "chevron-down"}
+            size={18}
+            color={t.muted}
+          />
+        </View>
+      </Pressable>
+      {open
+        ? items.map((key) => (
+            <NavItemRow
+              key={key}
+              icon={NAV_ICONS[key]}
+              label={NAV_LABELS[key]}
+              selected={key === active}
+              badge={badgeFor(key)}
+              sidebar={sidebar}
+              nested
+              onPress={() => onSelect(key)}
+            />
+          ))
+        : null}
+    </View>
+  );
+};
+
 export const NavMenu = ({
   variant,
   onNavigate,
@@ -104,13 +250,19 @@ export const NavMenu = ({
   const sidebar = variant === "sidebar";
   const items = sidebar ? sidebarItems(viewer) : drawerItems(viewer);
   const active = activeNavKey(pathname);
-  const role = roleLine(me?.profile);
+  const role = roleLine(me?.profile, me?.roleTitles);
+  const badgeFor = (key: NavKey) =>
+    key === "reimbursements"
+      ? reimbursementsBadge
+      : key === "designRequests"
+        ? designRequestsBadge
+        : key === "eventRequests"
+          ? eventRequestsBadge
+          : 0;
 
   const go = (key: NavKey) => {
     onNavigate?.();
     const href = NAV_HREFS[key] as Href;
-    // A tab can't be pushed over a screen that's already on top of the tabs
-    // (a request, a person…): drop back to the tabs first, then switch.
     if (TAB_KEYS.has(key) && router.canDismiss()) router.dismissAll();
     router.navigate(href);
   };
@@ -185,7 +337,6 @@ export const NavMenu = ({
       </Pressable>
     </View>
   ) : (
-    // Drops just below the "Sign in" label (sidebar padding + avatar + label).
     <SignInMenu
       anchor={{
         top: insets.top + spacing.lg + avatarSize + 40,
@@ -233,69 +384,34 @@ export const NavMenu = ({
     >
       {header}
       {sidebar ? (
-        // Wide screens have no top bar, so the dev chip lives here instead.
         <View style={styles.chip}>
           <TestEnvironmentChip />
         </View>
       ) : null}
       <View style={styles.items}>
-        {items.map((key) => {
-          const selected = key === active;
-          const badge =
-            key === "reimbursements"
-              ? reimbursementsBadge
-              : key === "designRequests"
-                ? designRequestsBadge
-                : key === "eventRequests"
-                  ? eventRequestsBadge
-                  : 0;
-          const label = NAV_LABELS[key];
-          return (
-            <Pressable
-              key={key}
-              onPress={() => go(key)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={
-                badge > 0 ? `${label}, ${badge} to action` : label
-              }
-              style={({ pressed }) => [
-                styles.item,
-                sidebar ? styles.itemSidebar : styles.itemDrawer,
-                selected && { backgroundColor: t.primarySoft },
-                pressed && { opacity: 0.6 },
-              ]}
-            >
-              <Ionicons
-                name={selected ? NAV_ICONS[key].filled : NAV_ICONS[key].outline}
-                size={sidebar ? 24 : 26}
-                color={t.text}
-              />
-              <Text
-                numberOfLines={1}
-                style={[
-                  sidebar ? styles.labelSidebar : styles.labelDrawer,
-                  { color: t.text },
-                  selected && styles.labelSelected,
-                ]}
-              >
-                {label}
-              </Text>
-              {key === "insights" && sidebar ? (
-                <View style={[styles.tag, { backgroundColor: t.accent }]}>
-                  <Text style={styles.tagText}>BETA</Text>
-                </View>
-              ) : null}
-              {badge > 0 ? (
-                <View
-                  style={[styles.countBadge, { backgroundColor: t.warning }]}
-                >
-                  <Text style={styles.badgeText}>{badgeText(badge)}</Text>
-                </View>
-              ) : null}
-            </Pressable>
-          );
-        })}
+        {navEntries(items).map((entry) =>
+          entry.kind === "group" ? (
+            <NavGroupRows
+              key={entry.key}
+              group={entry.key}
+              items={entry.items}
+              active={active}
+              sidebar={sidebar}
+              badgeFor={badgeFor}
+              onSelect={go}
+            />
+          ) : (
+            <NavItemRow
+              key={entry.key}
+              icon={NAV_ICONS[entry.key]}
+              label={NAV_LABELS[entry.key]}
+              selected={entry.key === active}
+              badge={badgeFor(entry.key)}
+              sidebar={sidebar}
+              onPress={() => go(entry.key)}
+            />
+          ),
+        )}
       </View>
       {viewer.signedIn ? (
         <>
@@ -399,13 +515,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   labelSelected: { fontWeight: "800" },
-  tag: { borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
-  tagText: {
-    color: "#ffffff",
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 0.2,
-  },
+  nestedDrawer: { paddingLeft: spacing.sm + spacing.xl },
+  nestedSidebar: { paddingLeft: spacing.sm + spacing.lg },
+  chevron: { marginLeft: "auto" },
   countBadge: {
     minWidth: 22,
     height: 22,
