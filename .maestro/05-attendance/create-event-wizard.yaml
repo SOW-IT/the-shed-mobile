@@ -8,7 +8,7 @@ tags:
       EMAIL: ${STAFF_EMAIL}
       PASSWORD: ${STAFF_PASSWORD}
 
-- tapOn: "+ Create event"
+- tapOn: "Create event"
 
 - assertVisible:
     text: "Next"
@@ -33,7 +33,7 @@ tags:
           text: ".*Discard.*"
           optional: true
 
-- tapOn: "+ Create event"
+- tapOn: "Create event"
 - assertVisible:
     text: ".*(Schedule|Start|End).*"
 - tapOn: "Back"

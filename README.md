@@ -229,6 +229,9 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   the last 180 days of sign-ins (weight halving every 45 days, most for the
   same campus's weeklies) plus a campus bonus, stored per event in
   `rollCallOrders` (ADR 0014).
+  The Events list filters by tag (any of the picked tags) and by host
+  (hosted here, or shared in by another campus). `events.listBySubgroup`
+  applies the filter while it pages, so it covers every event.
 - **Tags & metadata**: event tags in two lists, **Weeklies** (labels like BAM
   or PPN) and **Other events**, plus the automatic **Weeklies** tag on every
   weekly (a weekly is defined by its term and week, which drive the

@@ -659,6 +659,107 @@ describe("events + roll-call", () => {
     expect(malicious.continueCursor).toBeNull();
   });
 
+  test("listBySubgroup keeps events carrying any picked tag", async () => {
+    const leader = asUser(t, LEADER);
+    const base = Date.now();
+    const [twig, ppn, social] = await t.run(async (ctx) => [
+      await ctx.db.insert("attendanceTags", { name: "TWIG" }),
+      await ctx.db.insert("attendanceTags", { name: "PPN" }),
+      await ctx.db.insert("attendanceTags", { name: "Social" }),
+    ]);
+    const insert = (name: string, offset: number, subgroups: string[], tagIds?: Id<"attendanceTags">[]) =>
+      t.run((ctx) =>
+        ctx.db.insert("events", {
+          name,
+          dateStart: base - offset,
+          dateEnd: base - offset + 3600_000,
+          subgroups,
+          tagIds,
+        })
+      );
+    const twigNight = await insert("TWIG night", 0, [USYD], [twig]);
+    await insert("Untagged", 1_000, [USYD]);
+    const ppnNight = await insert("PPN night", 2_000, [USYD], [social, ppn]);
+    await insert("Social only", 3_000, [USYD], [social]);
+    await insert("Other campus TWIG", 4_000, [MACQ], [twig]);
+
+    const one = await leader.query(api.events.listBySubgroup, { subgroup: USYD, tagIds: [twig] });
+    expect(one.events.map((e) => e._id)).toEqual([twigNight]);
+    expect(one.isDone).toBe(true);
+
+    const either = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      tagIds: [twig, ppn],
+    });
+    expect(either.events.map((e) => e._id)).toEqual([twigNight, ppnNight]);
+
+    const none = await leader.query(api.events.listBySubgroup, { subgroup: USYD, tagIds: [] });
+    expect(none.events).toHaveLength(4);
+
+    const first = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      tagIds: [twig, ppn],
+      numItems: 1,
+    });
+    expect(first.events.map((e) => e._id)).toEqual([twigNight]);
+    expect(first.continueCursor).toBeTruthy();
+    const second = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      tagIds: [twig, ppn],
+      cursor: first.continueCursor,
+      numItems: 1,
+    });
+    expect(second.events.map((e) => e._id)).toEqual([ppnNight]);
+    expect(second.isDone).toBe(true);
+
+    const narrowed = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      tagIds: [ppn],
+      cursor: first.continueCursor,
+      numItems: 5,
+    });
+    expect(narrowed.events.map((e) => e._id)).toEqual([ppnNight]);
+  });
+
+  test("listBySubgroup splits events hosted here from ones shared in", async () => {
+    const leader = asUser(t, LEADER);
+    const base = Date.now();
+    const twig = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "TWIG" }));
+    const hosted = await leader.mutation(api.events.create, {
+      name: "Hosted",
+      dateStart: base,
+      dateEnd: base + 3600_000,
+      subgroups: [USYD, MACQ],
+      tagIds: [twig],
+    });
+    const sharedIn = await leader.mutation(api.events.create, {
+      name: "Shared in",
+      dateStart: base - 10_000,
+      dateEnd: base - 10_000 + 3600_000,
+      subgroups: [MACQ, USYD],
+    });
+
+    const here = await leader.query(api.events.listBySubgroup, { subgroup: USYD, host: "here" });
+    expect(here.events.map((e) => e._id)).toEqual([hosted]);
+    const shared = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      host: "shared",
+    });
+    expect(shared.events.map((e) => e._id)).toEqual([sharedIn]);
+    const macqHere = await leader.query(api.events.listBySubgroup, {
+      subgroup: MACQ,
+      host: "here",
+    });
+    expect(macqHere.events.map((e) => e._id)).toEqual([sharedIn]);
+    const sharedTwig = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      host: "shared",
+      tagIds: [twig],
+    });
+    expect(sharedTwig.events).toEqual([]);
+    expect(sharedTwig.isDone).toBe(true);
+  });
+
   test("sign in is idempotent; sign out removes; counts track", async () => {
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
