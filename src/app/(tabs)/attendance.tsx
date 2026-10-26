@@ -2,16 +2,22 @@ import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "convex/react";
 import { roleNeedsUniversity, staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
+import { eventListFilterCount } from "../../../shared/rollcall";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
+import {
+  EventFilterSheet,
+  NO_EVENTS_FILTER,
+  type EventsFilter,
+} from "@/components/attendance/EventFilterSheet";
 import { AuditTab } from "@/components/attendance/AuditTab";
 import { EventsTab } from "@/components/attendance/EventsTab";
 import { MembersTab } from "@/components/attendance/MembersTab";
 import { MetadataTab, type SaveControls } from "@/components/attendance/MetadataTab";
 import { SettingsTab } from "@/components/attendance/SettingsTab";
-import { ConfirmDialog, FooterAction, LoadingState } from "@/components/ui";
+import { ConfirmDialog, FooterAction, FooterIconActions, LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 
@@ -22,6 +28,7 @@ export default function AttendanceScreen() {
   const calendarYear = sydneyCalendarYear(new Date());
   const subgroups = useQuery(api.events.subgroups);
   const metadata = useQuery(api.attendanceMetadata.list, {});
+  const tags = useQuery(api.attendanceTags.list, {});
   const [active, setActive] = useState("events");
   const [subgroup, setSelectedSubgroup] = useAttendanceSubgroup(
     subgroups,
@@ -33,6 +40,17 @@ export default function AttendanceScreen() {
       (assignment) => assignment.university !== undefined && roleNeedsUniversity(assignment.role)
     );
   const [createEventOpen, setCreateEventOpen] = useState(false);
+  const [eventFilterOpen, setEventFilterOpen] = useState(false);
+  const [pickedEventFilter, setEventFilter] = useState<EventsFilter>(NO_EVENTS_FILTER);
+  const eventFilter = useMemo(() => {
+    if (!tags) return pickedEventFilter;
+    const live = new Set(tags.map((tag) => tag._id));
+    const tagIds = pickedEventFilter.tagIds.filter((id) => live.has(id));
+    return tagIds.length === pickedEventFilter.tagIds.length
+      ? pickedEventFilter
+      : { ...pickedEventFilter, tagIds };
+  }, [tags, pickedEventFilter]);
+  const eventFilterCount = eventListFilterCount(eventFilter);
   const [memberSheetOpen, setMemberSheetOpen] = useState(false);
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
     null
@@ -83,10 +101,24 @@ export default function AttendanceScreen() {
       items.push({
         tabKey: "events",
         node: (
-          <FooterAction
-            title="+ Create event"
-            onPress={() => setCreateEventOpen(true)}
-            avoidKeyboard={false}
+          <FooterIconActions
+            actions={[
+              {
+                icon: "filter",
+                accessibilityLabel:
+                  eventFilterCount > 0
+                    ? `Filter events, ${eventFilterCount} on`
+                    : "Filter events",
+                onPress: () => setEventFilterOpen(true),
+                badge: eventFilterCount,
+              },
+              {
+                icon: "add",
+                accessibilityLabel: "Create event",
+                onPress: () => setCreateEventOpen(true),
+                primary: true,
+              },
+            ]}
           />
         ),
       });
@@ -147,7 +179,7 @@ export default function AttendanceScreen() {
       ),
     });
     return items;
-  }, [active, subgroup, subgroups, tagsSave, metaSave, canManage]);
+  }, [active, subgroup, subgroups, tagsSave, metaSave, canManage, eventFilterCount]);
 
   if (me === undefined || subgroups === undefined || metadata === undefined) {
     return <LoadingState />;
@@ -166,6 +198,9 @@ export default function AttendanceScreen() {
           onSelectedSubgroupChange={setSelectedSubgroup}
           loadMoreRef={eventsLoadMoreRef}
           onCreateEvent={subgroup ? () => setCreateEventOpen(true) : undefined}
+          filter={eventFilter}
+          onEditFilter={() => setEventFilterOpen(true)}
+          onClearFilter={() => setEventFilter(NO_EVENTS_FILTER)}
         />
       ),
     },
@@ -235,6 +270,15 @@ export default function AttendanceScreen() {
           onClose={() => setCreateEventOpen(false)}
           subgroup={subgroup}
           subgroups={subgroups}
+        />
+      ) : null}
+      {subgroup ? (
+        <EventFilterSheet
+          visible={eventFilterOpen}
+          onClose={() => setEventFilterOpen(false)}
+          subgroup={subgroup}
+          filter={eventFilter}
+          onChange={setEventFilter}
         />
       ) : null}
       <EditMemberSheet
