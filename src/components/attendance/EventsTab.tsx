@@ -80,10 +80,13 @@ export function EventsTab({
   const filterCount = eventListFilterCount(filter);
   const tags = useQuery(api.attendanceTags.list, {});
   const tagLabels = tags ? tagFilterLabels(tags) : [];
-  const filterSummary = [
-    ...(tags ?? []).flatMap((tag, i) => (tagIds.includes(tag._id) ? [tagLabels[i]] : [])),
-    ...(host ? [EVENT_HOST_LABEL[host]] : []),
-  ].join(", ");
+  const filterSummary =
+    tagIds.length > 0 && !tags
+      ? ""
+      : [
+          ...(tags ?? []).flatMap((tag, i) => (tagIds.includes(tag._id) ? [tagLabels[i]] : [])),
+          ...(host ? [EVENT_HOST_LABEL[host]] : []),
+        ].join(", ");
   const {
     rows: accumulated,
     result: page,
