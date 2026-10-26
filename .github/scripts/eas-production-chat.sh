@@ -23,16 +23,28 @@ if ! jq -e 'type == "array"' "$builds_file" >/dev/null 2>&1; then
 fi
 
 case "${JOB_STATUS:-failure}" in
-  success) outcome="built and sent to the stores" ;;
+  success)
+    if [ "${EAS_PLATFORM:-}" = "none" ]; then
+      outcome="not built, no native changes since the last store build"
+    else
+      outcome="built and sent to the stores"
+    fi
+    ;;
   cancelled) outcome="cancelled" ;;
   *) outcome="failed" ;;
+esac
+
+case "${EAS_PLATFORM:-}" in
+  ios | android) built_platform="$EAS_PLATFORM" ;;
+  all) built_platform="both" ;;
+  *) built_platform="${PLATFORM_INPUT:-both}" ;;
 esac
 
 message_file="${RUNNER_TEMP:-/tmp}/eas-production-chat.json"
 jq -n \
   --arg outcome "$outcome" \
   --arg version "$version" \
-  --arg platform "${PLATFORM_INPUT:-both}" \
+  --arg platform "$built_platform" \
   --arg subject "$subject" \
   --arg sha "$short_sha" \
   --arg commitUrl "${COMMIT_URL:-}" \
