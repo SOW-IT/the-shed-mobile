@@ -181,7 +181,7 @@ export function EventsTab({
             </View>
           ) : null}
 
-          {subgroup && filterCount > 0 ? (
+          {subgroup && filterSummary ? (
             <View style={[styles.filterLine, { backgroundColor: t.ghost }]}>
               <Pressable
                 accessibilityRole="button"

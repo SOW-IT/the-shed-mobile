@@ -13,7 +13,7 @@ import {
   type TagList,
 } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
-import { Btn, Muted, Row, Segmented, Sheet, Txt } from "@/components/ui";
+import { Btn, Muted, Row, Segmented, Sheet, SowSpinner, Txt } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
 export type EventsFilter = { tagIds: Id<"attendanceTags">[]; host?: EventHostFilter };
@@ -104,7 +104,11 @@ export function EventFilterSheet({
           </View>
         );
       })}
-      {tags === undefined ? null : shownTags.length === 0 ? (
+      {tags === undefined ? (
+        <View style={styles.loading}>
+          <SowSpinner size={32} />
+        </View>
+      ) : shownTags.length === 0 ? (
         <Muted>No tags yet. Add them in Tags.</Muted>
       ) : (
         <Muted>Pick several tags to see events with any of them.</Muted>
@@ -116,4 +120,5 @@ export function EventFilterSheet({
 const styles = StyleSheet.create({
   section: { gap: spacing.sm },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  loading: { alignItems: "center", paddingVertical: spacing.md },
 });
