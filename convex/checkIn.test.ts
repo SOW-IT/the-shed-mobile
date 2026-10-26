@@ -443,7 +443,7 @@ describe("sign-in times and new members' details", () => {
     const times = await signInTimes(t, eventId);
     expect(times[annId]).toBe(rows[0].requestedAt);
     expect(times[memberId]).toBe(rows[1].requestedAt);
-    expect(rows[1].requestedAt - rows[0].requestedAt).toBeGreaterThanOrEqual(60_000);
+    expect(rows[1].requestedAt - rows[0].requestedAt).toBeCloseTo(60_000, -1);
   });
 
   test("a new member gets the campus and year they gave; 6+ counts back five years", async () => {

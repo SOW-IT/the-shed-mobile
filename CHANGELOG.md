@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.7] - 2026-10-26
+
+### Changed
+- **Dependency updates from Dependabot**, with no visible change to the app:
+  `convex` 1.48.0, `convex-helpers` 0.1.129, `jose` 6.2.13, `convex-test`
+  0.0.64 and `expo/expo-github-action` 9.0.1 in the EAS workflows.
+- **Backend tests follow convex-test's real-backend clock.** convex-test now
+  pins `Date.now()` per transaction the way Convex does, which can land one
+  millisecond after a frozen test clock, and keeps a stored file's content
+  type. Nine tests that expected the old behaviour now allow for it.
+
 ## [2.10.6] - 2026-10-26
 
 ### Added

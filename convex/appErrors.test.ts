@@ -69,8 +69,8 @@ describe("reporting app errors", () => {
       version: "2.9.19",
       lastEmail: ADMIN,
       count: 3,
-      firstAt: NOW,
-      lastAt: NOW + 120_000,
+      firstAt: expect.closeTo(NOW, -1),
+      lastAt: expect.closeTo(NOW + 120_000, -1),
     });
   });
 
