@@ -431,11 +431,18 @@ Eight workflows, in `.github/workflows/`:
 | Backup Convex to GCS | `convex-backup.yml` | weekly, Sundays at 15:17 UTC (Monday 01:17 AEST / 02:17 AEDT), and by hand. Weekly because each export reads the whole prod database, about 9.5 MB of database bandwidth a run. Database export as a zip, then Convex file storage (receipts, event attachments, avatars) copied incrementally to `storage/files/<sha256>` in the same bucket: each file is downloaded once, on the first run after it exists, and `storage/manifest.json` records what is there and which files Convex has since deleted. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped. The BigQuery job then checks the warehouse against the previous run (`scripts/warehouse-checks.mjs`): a core table missing or empty, a table that shrank by more than a fifth, or a report view missing posts to Google Chat and fails the step |
 | EAS Update | `eas-update.yml` | after each successful Convex Deploy of `main` (and by hand) → publishes the JavaScript bundle over the air to the `production` and `staging` channels. Only builds whose native fingerprint matches receive it, so a change to native code waits for the next store build |
 | Convex usage check | `convex-usage.yml` | Sundays 22:00 UTC, Monday morning in Sydney (and by hand) → reads this billing period's usage and posts to Google Chat when database bandwidth or file storage passes 70% of the plan, or bandwidth is on track to exceed it (`scripts/convex-usage-alert.mjs`) |
-| EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app |
-| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app, then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
+| EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app, skipping any platform whose native code hasn't changed since its last store build |
+| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app, skipping any platform whose native code hasn't changed since its last store build, then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
 
 Both EAS workflows take a **platform** input (`both` / `ios` / `android`,
-default `both`) and are never triggered by a PR or a merge.
+default `both`) and are never triggered by a PR or a merge. Before building,
+they compare main's native fingerprint (`eas fingerprint:generate` for the
+profile) with the last finished store build for that profile and platform
+(`scripts/eas-fingerprint-check.mjs`). A platform whose fingerprint matches is
+skipped, because phones on that build already get main's JavaScript from EAS
+Update; the run's summary shows both fingerprints. Tick **force** to build
+anyway, for example to refresh the JavaScript bundled into the store
+download.
 
 The **prod web app** is published by Vercel's own git integration on merges to
 `main`, so it has no workflow of its own. The dev web app does need one,

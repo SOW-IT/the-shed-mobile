@@ -8,6 +8,10 @@ on:
         type: choice
         options: [both, ios, android]
         default: both
+      force:
+        description: "Build even if main's native code matches the last store build"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,11 +44,15 @@ jobs:
           eas-version: latest
           token: ${{ env.EXPO_TOKEN }}
 
-      - name: Resolve platform
-        run: |
-          platform="${{ inputs.platform || 'both' }}"
-          [ "$platform" = "both" ] && platform="all"
-          echo "EAS_PLATFORM=$platform" >> "$GITHUB_ENV"
+      - name: Skip platforms whose native code matches the last store build
+        id: fingerprint
+        env:
+          PLATFORM_INPUT: ${{ inputs.platform || 'both' }}
+          FORCE: ${{ inputs.force && 'true' || 'false' }}
+        run: node scripts/eas-fingerprint-check.mjs staging
 
       - name: Build & submit to staging
-        run: eas build --platform "${{ env.EAS_PLATFORM }}" --profile staging --non-interactive --auto-submit
+        if: steps.fingerprint.outputs.eas_platform != 'none'
+        env:
+          EAS_PLATFORM: ${{ steps.fingerprint.outputs.eas_platform }}
+        run: eas build --platform "$EAS_PLATFORM" --profile staging --non-interactive --auto-submit
