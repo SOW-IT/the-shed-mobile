@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.5] - 2026-10-26
+
+### Changed
+- **Tooling updates from Dependabot**, with no change to the app itself.
+  Playwright, which drives the CI web sweep, moves from 1.58.2 to 1.64.1, and
+  the sweep's screenshot upload uses `actions/upload-artifact` 7.0.2.
+  Dependabot no longer proposes `react-native-pager-view` updates: the Expo SDK
+  sets its version, and CI's `expo install --check` rejects any other.
+
 ## [2.10.4] - 2026-10-23
 
 ### Added
