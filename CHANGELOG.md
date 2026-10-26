@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.6] - 2026-10-26
+
+### Added
+- **Filter the Events list by tag and by host.** A filter button next to the
+  create button opens a sheet where you can pick any number of tags, from
+  both the Weeklies and Other events lists, and choose whether to see events
+  this campus hosts or ones another campus shared with it. Picking several
+  tags shows events with any of them. The button shows how many filters are
+  on, a line above the list says what they are, and Clear (on that line, in
+  the sheet, or under "No events match") turns them all off. The filtering
+  happens on the server, so it covers every event, not just the ones already
+  loaded.
+
+### Changed
+- **Create event is now a round + button** in the bottom corner, beside the
+  new filter button, instead of a full-width bar. Screen readers still
+  announce it as "Create event".
+
 ## [2.10.5] - 2026-10-26
 
 ### Changed
