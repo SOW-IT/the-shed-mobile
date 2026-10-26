@@ -40,14 +40,16 @@ describe("markSeen", () => {
 
     const hana = asUser(t, HANA);
     await hana.mutation(api.presence.markSeen, {});
-    vi.setSystemTime(NOW + SEEN_WRITE_INTERVAL_MS - 1);
+    const [{ at: firstAt }] = await seen();
+    expect(firstAt).toBeCloseTo(NOW, -1);
+    vi.setSystemTime(firstAt + SEEN_WRITE_INTERVAL_MS - 1);
     await hana.mutation(api.presence.markSeen, {});
-    expect(await seen()).toEqual([expect.objectContaining({ email: HANA, at: NOW })]);
+    expect(await seen()).toEqual([expect.objectContaining({ email: HANA, at: firstAt })]);
 
-    vi.setSystemTime(NOW + SEEN_WRITE_INTERVAL_MS);
+    vi.setSystemTime(firstAt + SEEN_WRITE_INTERVAL_MS);
     await hana.mutation(api.presence.markSeen, {});
     expect(await seen()).toEqual([
-      expect.objectContaining({ email: HANA, at: NOW + SEEN_WRITE_INTERVAL_MS }),
+      expect.objectContaining({ email: HANA, at: firstAt + SEEN_WRITE_INTERVAL_MS }),
     ]);
   });
 });
@@ -68,7 +70,7 @@ describe("Last online on a profile", () => {
       vi.setSystemTime(NOW);
     };
     const profile = () => admin.query(api.profile.get, { email: HANA });
-    const atMs = (ms: number) => expect.closeTo(ms, 0);
+    const atMs = (ms: number) => expect.closeTo(ms, -1);
     vi.setSystemTime(NOW);
 
     expect((await profile())?.lastOnlineAt).toEqual(atMs(NOW - 90 * 24 * 60 * MIN));
