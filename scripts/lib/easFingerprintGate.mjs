@@ -5,6 +5,8 @@ const RESULTS = {
   changed: "Native code changed, building",
   "no-earlier-build": "No finished store build to compare with, building",
   "no-recorded-fingerprint": "The last store build has no recorded fingerprint, building",
+  "not-submitted": "Unchanged, but that build has no finished store submission, building again",
+  "not-published": "Unchanged, but this commit isn't published over the air for it yet, building",
   forced: "Unchanged, building because force was ticked",
   unchanged: "Unchanged, skipped",
 };
@@ -21,9 +23,16 @@ export const requestedPlatforms = (input) => {
 export const buildFingerprint = (build) =>
   build?.runtime?.version ?? build?.runtimeVersion ?? build?.fingerprint?.hash ?? null;
 
+export const submissionFinished = (submissions, buildId) =>
+  Array.isArray(submissions) &&
+  submissions.some((submission) => submission?.buildId === buildId && submission?.status === "FINISHED");
+
+export const updateCommit = (updates, platform) =>
+  (Array.isArray(updates) ? updates : []).find((update) => update?.platform === platform)?.gitCommitHash ?? null;
+
 const buildLabel = (build) => `${build.appVersion ?? "?"} (build ${build.appBuildVersion ?? "?"})`;
 
-export const decidePlatform = ({ platform, current, lastBuild, force }) => {
+export const decidePlatform = ({ platform, current, lastBuild, submitted, publishedCommit, commit, force }) => {
   if (typeof current !== "string" || current === "") {
     throw new Error(`EAS returned no fingerprint for ${platformName(platform)}.`);
   }
@@ -32,6 +41,8 @@ export const decidePlatform = ({ platform, current, lastBuild, force }) => {
   if (!lastBuild) reason = "no-earlier-build";
   else if (!last) reason = "no-recorded-fingerprint";
   else if (last !== current) reason = "changed";
+  else if (!submitted) reason = "not-submitted";
+  else if (!commit || publishedCommit !== commit) reason = "not-published";
   else if (force) reason = "forced";
   else reason = "unchanged";
   return {
@@ -72,7 +83,7 @@ export const summaryMarkdown = (profile, decisions) => {
       "",
       `${skipped.map((decision) => platformName(decision.platform)).join(" and ")} ${
         skipped.length === 1 ? "has" : "have"
-      } the same native code as the last store build, so phones on that build already get main's JavaScript over the air from EAS Update. Run the workflow again with **force** ticked to build anyway.`
+      } the same native code as the last store build, which reached the store, and this commit is already published over the air to it. Run the workflow again with **force** ticked to build anyway.`
     );
   }
   return lines.join("\n");
@@ -81,4 +92,4 @@ export const summaryMarkdown = (profile, decisions) => {
 export const skipNotice = (profile, decision) =>
   `${platformName(decision.platform)} ${profile} skipped: main's native fingerprint ${decision.current.slice(0, 7)} matches ${
     decision.lastLabel
-  }, which already gets main over the air. Tick force to build anyway.`;
+  }, which already gets this commit over the air. Tick force to build anyway.`;

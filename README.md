@@ -436,12 +436,16 @@ Eight workflows, in `.github/workflows/`:
 
 Both EAS workflows take a **platform** input (`both` / `ios` / `android`,
 default `both`) and are never triggered by a PR or a merge. Before building,
-they compare main's native fingerprint (`eas fingerprint:generate` for the
-profile) with the last finished store build for that profile and platform
-(`scripts/eas-fingerprint-check.mjs`). A platform whose fingerprint matches is
-skipped, because phones on that build already get main's JavaScript from EAS
-Update; the run's summary shows both fingerprints. Tick **force** to build
-anyway, for example to refresh the JavaScript bundled into the store
+they compare the commit's native fingerprint (`eas fingerprint:generate` for
+the profile) with the last finished store build for that profile and platform
+(`scripts/eas-fingerprint-check.mjs`). A platform is skipped only when the
+fingerprints match, that build has a finished store submission, and the
+newest over-the-air update for that fingerprint on the profile's channel was
+published from the same commit, because phones on that build then already run
+it. Anything it can't confirm is built, so a failed submission is retried and
+a run from another branch, or before EAS Update has finished, still builds.
+The run's summary shows both fingerprints and the reason. Tick **force** to
+build anyway, for example to refresh the JavaScript bundled into the store
 download.
 
 The **prod web app** is published by Vercel's own git integration on merges to
