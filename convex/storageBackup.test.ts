@@ -34,7 +34,7 @@ describe("storageBackup.listFiles", () => {
       expect(file.size).toBeGreaterThan(0);
       expect(file.url).toEqual(await t.run((ctx) => ctx.storage.getUrl(file.storageId)));
     }
-    expect(all.find((f) => f.storageId === receipt)).toMatchObject({ size: 7, contentType: null });
+    expect(all.find((f) => f.storageId === receipt)).toMatchObject({ size: 7, contentType: "application/pdf" });
     expect(all.find((f) => f.storageId === avatar)?.size).toBe(6);
     expect(all.find((f) => f.storageId === untyped)?.contentType).toBeNull();
   });

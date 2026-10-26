@@ -6,17 +6,21 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
   contrastingText,
+  EVENT_HOST_LABEL,
+  eventListFilterCount,
   formatEventRange,
   isOrgWideSubgroup,
   subgroupColour,
   subgroupLabel,
   subgroupMatches,
+  tagFilterLabels,
 } from "../../../shared/rollcall";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { CampusMark } from "@/components/CampusMark";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
+import type { EventsFilter } from "@/components/attendance/EventFilterSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
 import {
   EmptyState,
@@ -55,24 +59,49 @@ export function EventsTab({
   onSelectedSubgroupChange,
   loadMoreRef,
   onCreateEvent,
+  filter,
+  onEditFilter,
+  onClearFilter,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   loadMoreRef?: MutableRefObject<(() => void) | null>;
   onCreateEvent?: () => void;
+  filter: EventsFilter;
+  onEditFilter: () => void;
+  onClearFilter: () => void;
 }) {
   const t = useAppTheme();
   const router = useRouter();
   const subgroup = selectedSubgroup ?? subgroups[0] ?? null;
   const [now, setNow] = useState(() => Date.now());
+  const { tagIds, host } = filter;
+  const filterCount = eventListFilterCount(filter);
+  const tags = useQuery(api.attendanceTags.list, {});
+  const tagLabels = tags ? tagFilterLabels(tags) : [];
+  const filterSummary =
+    tagIds.length > 0 && !tags
+      ? ""
+      : [
+          ...(tags ?? []).flatMap((tag, i) => (tagIds.includes(tag._id) ? [tagLabels[i]] : [])),
+          ...(host ? [EVENT_HOST_LABEL[host]] : []),
+        ].join(", ");
   const {
     rows: accumulated,
     result: page,
     hasMore,
   } = usePagedQuery(api.events.listBySubgroup, {
-    scopeKey: subgroup ?? "",
-    args: (cursor) => (subgroup ? { subgroup, cursor } : "skip"),
+    scopeKey: [subgroup ?? "", host ?? "", ...tagIds].join("|"),
+    args: (cursor) =>
+      subgroup
+        ? {
+            subgroup,
+            cursor,
+            ...(tagIds.length > 0 ? { tagIds } : {}),
+            ...(host ? { host } : {}),
+          }
+        : "skip",
     rowsOf: (result) => result.events,
     keyOf: (event) => event._id,
     loadMoreRef,
@@ -155,8 +184,46 @@ export function EventsTab({
             </View>
           ) : null}
 
-          {page === undefined && accumulated.length === 0 ? (
+          {subgroup && filterSummary ? (
+            <View style={[styles.filterLine, { backgroundColor: t.ghost }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Filtered by ${filterSummary}`}
+                accessibilityHint="Opens the filter"
+                onPress={onEditFilter}
+                style={({ pressed }) => [styles.filterSummary, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="filter" size={14} color={t.muted} />
+                <Text
+                  numberOfLines={2}
+                  style={[typography.caption, styles.filterSummaryText, { color: t.text }]}
+                >
+                  {filterSummary}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear filter"
+                hitSlop={8}
+                onPress={onClearFilter}
+                style={({ pressed }) => pressed && { opacity: 0.65 }}
+              >
+                <Text style={[typography.caption, styles.filterClear, { color: t.primary }]}>
+                  Clear
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {accumulated.length === 0 && (page === undefined || hasMore) ? (
             <LoadingState />
+          ) : accumulated.length === 0 && filterCount > 0 ? (
+            <EmptyState
+              icon="filter-outline"
+              title="No events match"
+              message="Nothing at this campus fits the filter."
+              action={{ label: "Clear filter", onPress: onClearFilter }}
+            />
           ) : accumulated.length === 0 ? (
             <EmptyState
               icon="calendar-outline"
@@ -333,7 +400,7 @@ export function EventsTab({
             })}
             </View>
           )}
-          {hasMore ? (
+          {hasMore && accumulated.length > 0 ? (
             <View style={{ alignItems: "center", paddingVertical: spacing.md }}>
               <SowSpinner size={36} />
             </View>
@@ -395,6 +462,23 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   exportButtonText: { fontSize: 13, fontWeight: "700" },
+  filterLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  filterSummary: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  filterSummaryText: { flex: 1, fontWeight: "600" },
+  filterClear: { fontWeight: "700" },
   eventsList: {
     marginHorizontal: -spacing.lg,
     overflow: "hidden",

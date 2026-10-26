@@ -6,6 +6,44 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.7] - 2026-10-26
+
+### Changed
+- **Dependency updates from Dependabot**, with no visible change to the app:
+  `convex` 1.48.0, `convex-helpers` 0.1.129, `jose` 6.2.13, `convex-test`
+  0.0.64 and `expo/expo-github-action` 9.0.1 in the EAS workflows.
+- **Backend tests follow convex-test's real-backend clock.** convex-test now
+  pins `Date.now()` per transaction the way Convex does, which can land one
+  millisecond after a frozen test clock, and keeps a stored file's content
+  type. Nine tests that expected the old behaviour now allow for it.
+
+## [2.10.6] - 2026-10-26
+
+### Added
+- **Filter the Events list by tag and by host.** A filter button next to the
+  create button opens a sheet where you can pick any number of tags, from
+  both the Weeklies and Other events lists, and choose whether to see events
+  this campus hosts or ones another campus shared with it. Picking several
+  tags shows events with any of them. The button shows how many filters are
+  on, a line above the list says what they are, and Clear (on that line, in
+  the sheet, or under "No events match") turns them all off. The filtering
+  happens on the server, so it covers every event, not just the ones already
+  loaded.
+
+### Changed
+- **Create event is now a round + button** in the bottom corner, beside the
+  new filter button, instead of a full-width bar. Screen readers still
+  announce it as "Create event".
+
+## [2.10.5] - 2026-10-26
+
+### Changed
+- **Tooling updates from Dependabot**, with no change to the app itself.
+  Playwright, which drives the CI web sweep, moves from 1.58.2 to 1.64.1, and
+  the sweep's screenshot upload uses `actions/upload-artifact` 7.0.2.
+  Dependabot no longer proposes `react-native-pager-view` updates: the Expo SDK
+  sets its version, and CI's `expo install --check` rejects any other.
+
 ## [2.10.4] - 2026-10-23
 
 ### Added

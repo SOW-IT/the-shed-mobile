@@ -18,6 +18,9 @@ import {
   reversibleOnlyByGrace,
   SIGN_IN_UNDO_GRACE_MS,
   eventIncludesSubgroup,
+  eventListFilterCount,
+  eventMatchesListFilter,
+  EVENT_HOST_LABEL,
   formatEventDate,
   formatEventRange,
   formatSignInTime,
@@ -492,5 +495,46 @@ describe("event campus labels", () => {
     expect(eventFilterLabel({ name: "Camp", subgroups: [], dateStart: Date.UTC(2026, 0, 5) })).toBe(
       "Camp · 5 Jan 2026"
     );
+  });
+});
+
+describe("event list filter", () => {
+  const USYD = "University of Sydney";
+  const MACQ = "Macquarie University";
+  const hostedHere = { subgroups: [USYD], tagIds: ["twig", "weeklies"] };
+  const sharedIn = { subgroups: [MACQ, USYD], tagIds: ["ppn"] };
+  const untagged = { subgroups: [USYD] };
+
+  test("no filter keeps every event of the campus and nothing else", () => {
+    expect(eventMatchesListFilter(hostedHere, USYD, {})).toBe(true);
+    expect(eventMatchesListFilter(sharedIn, USYD, {})).toBe(true);
+    expect(eventMatchesListFilter(untagged, USYD, { tagIds: [] })).toBe(true);
+    expect(eventMatchesListFilter(hostedHere, MACQ, {})).toBe(false);
+    expect(eventMatchesListFilter({ subgroups: [] }, USYD, {})).toBe(false);
+  });
+
+  test("tags match when the event carries any picked tag", () => {
+    expect(eventMatchesListFilter(hostedHere, USYD, { tagIds: ["ppn", "twig"] })).toBe(true);
+    expect(eventMatchesListFilter(sharedIn, USYD, { tagIds: ["ppn", "twig"] })).toBe(true);
+    expect(eventMatchesListFilter(sharedIn, USYD, { tagIds: ["twig"] })).toBe(false);
+    expect(eventMatchesListFilter(untagged, USYD, { tagIds: ["twig"] })).toBe(false);
+  });
+
+  test("host splits events this campus runs from ones shared in", () => {
+    expect(eventMatchesListFilter(hostedHere, USYD, { host: "here" })).toBe(true);
+    expect(eventMatchesListFilter(hostedHere, USYD, { host: "shared" })).toBe(false);
+    expect(eventMatchesListFilter(sharedIn, USYD, { host: "shared" })).toBe(true);
+    expect(eventMatchesListFilter(sharedIn, USYD, { host: "here" })).toBe(false);
+    expect(eventMatchesListFilter({ subgroups: ["ALL"] }, SOW_SUBGROUP, { host: "here" })).toBe(true);
+    expect(
+      eventMatchesListFilter(sharedIn, USYD, { host: "shared", tagIds: ["twig"] })
+    ).toBe(false);
+  });
+
+  test("counts each picked tag and the host choice", () => {
+    expect(eventListFilterCount({})).toBe(0);
+    expect(eventListFilterCount({ tagIds: ["a", "b"] })).toBe(2);
+    expect(eventListFilterCount({ tagIds: ["a"], host: "shared" })).toBe(2);
+    expect(EVENT_HOST_LABEL).toEqual({ here: "Hosted here", shared: "Shared with us" });
   });
 });
