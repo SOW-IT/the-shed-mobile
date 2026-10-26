@@ -274,3 +274,31 @@ export const eventFilterLabel = (event: {
     .filter(Boolean)
     .join(" · ");
 };
+
+export type EventHostFilter = "here" | "shared";
+
+export type EventListFilter = {
+  tagIds?: readonly string[];
+  host?: EventHostFilter;
+};
+
+export const EVENT_HOST_LABEL: Record<EventHostFilter, string> = {
+  here: "Hosted here",
+  shared: "Shared with us",
+};
+
+export const eventListFilterCount = (filter: EventListFilter): number =>
+  (filter.tagIds?.length ?? 0) + (filter.host ? 1 : 0);
+
+export const eventMatchesListFilter = (
+  event: { subgroups: string[]; tagIds?: readonly string[] },
+  subgroup: string,
+  filter: EventListFilter
+): boolean => {
+  const [host] = event.subgroups;
+  if (host === undefined || !eventIncludesSubgroup(event.subgroups, subgroup)) return false;
+  const wanted = filter.tagIds ?? [];
+  if (wanted.length > 0 && !event.tagIds?.some((id) => wanted.includes(id))) return false;
+  if (filter.host && subgroupMatches(host, subgroup) !== (filter.host === "here")) return false;
+  return true;
+};

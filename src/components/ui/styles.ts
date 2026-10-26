@@ -319,4 +319,16 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
   },
   footerActionText: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
+  footerIconBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

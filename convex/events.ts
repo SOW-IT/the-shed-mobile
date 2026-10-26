@@ -8,7 +8,7 @@ import {
 } from "../shared/flow";
 import {
   auditEventName,
-  eventIncludesSubgroup,
+  eventMatchesListFilter,
   normalizeSubgroups,
   SOW_SUBGROUP,
   subgroupLabel,
@@ -199,8 +199,10 @@ export const listBySubgroup = query({
     subgroup: v.string(),
     cursor: v.optional(v.union(v.string(), v.null())),
     numItems: v.optional(v.number()),
+    tagIds: v.optional(v.array(v.id("attendanceTags"))),
+    host: v.optional(v.union(v.literal("here"), v.literal("shared"))),
   },
-  handler: async (ctx, { subgroup, cursor, numItems = EVENTS_PAGE_SIZE }) => {
+  handler: async (ctx, { subgroup, cursor, numItems = EVENTS_PAGE_SIZE, tagIds, host }) => {
     const empty = { events: [], isDone: true, continueCursor: null } as const;
     if (!(await optionalProfile(ctx))) return empty;
     const pageSize = Math.min(
@@ -208,6 +210,8 @@ export const listBySubgroup = query({
       MAX_EVENTS_PAGE_SIZE
     );
     const decodedCursor = decodeListBySubgroupCursor(cursor);
+    const matches = (event: Doc<"events">) =>
+      eventMatchesListFilter(event, subgroup, { tagIds, host });
     const page: Doc<"events">[] = [];
     const remainingBufferedIds: Id<"events">[] = [];
     for (const rawEventId of decodedCursor.bufferedIds) {
@@ -215,7 +219,7 @@ export const listBySubgroup = query({
       if (!eventId) continue;
       const event = await ctx.db.get(eventId);
       if (!event) continue;
-      if (!eventIncludesSubgroup(event.subgroups, subgroup)) continue;
+      if (!matches(event)) continue;
       if (page.length < pageSize) {
         page.push(event);
       } else {
@@ -247,7 +251,7 @@ export const listBySubgroup = query({
       isDone = batch.isDone;
       scanned += batch.page.length;
       for (const event of batch.page) {
-        if (!eventIncludesSubgroup(event.subgroups, subgroup)) continue;
+        if (!matches(event)) continue;
         if (page.length < pageSize) {
           page.push(event);
         } else {

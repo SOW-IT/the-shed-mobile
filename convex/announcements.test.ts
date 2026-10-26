@@ -13,6 +13,7 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
 const YEAR = staffYearForDate(new Date(PINNED_NOW));
+const aboutMs = (ms: number) => expect.closeTo(ms, -1);
 
 const ADMIN = "admin@sow.org.au";
 const HR = "hannah@sow.org.au";
@@ -158,7 +159,7 @@ describe("sending now", () => {
       api.announcements.send,
       draft({ title: "  Staff meeting moved ", audience: audience({ divisions: ["Governance"] }) })
     );
-    expect(result).toMatchObject({ people: 3, sendAt: PINNED_NOW });
+    expect(result).toMatchObject({ people: 3, sendAt: aboutMs(PINNED_NOW) });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     const sent = await announcement(t, result.id);
@@ -322,7 +323,7 @@ describe("scheduling", () => {
     expect(await announcement(t, id)).toMatchObject({
       status: "cancelled",
       cancelledBy: HR,
-      cancelledAt: PINNED_NOW,
+      cancelledAt: aboutMs(PINNED_NOW),
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(await notificationsFor(t, FIN)).toEqual([]);
@@ -441,12 +442,14 @@ describe("scheduling", () => {
   test("a scheduled time has to be at least 5 minutes away and within 90 days", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
+    const now = PINNED_NOW + MINUTE;
+    vi.setSystemTime(now);
     await expect(
-      admin.mutation(api.announcements.send, draft({ sendAt: PINNED_NOW + 4 * MINUTE }))
+      admin.mutation(api.announcements.send, draft({ sendAt: now + 4 * MINUTE }))
     ).rejects.toThrow(/at least 5 minutes/);
-    await admin.mutation(api.announcements.send, draft({ sendAt: PINNED_NOW + 5 * MINUTE }));
+    await admin.mutation(api.announcements.send, draft({ sendAt: now + 5 * MINUTE }));
     await expect(
-      admin.mutation(api.announcements.send, draft({ sendAt: PINNED_NOW + 91 * DAY }))
+      admin.mutation(api.announcements.send, draft({ sendAt: now + 91 * DAY }))
     ).rejects.toThrow(/90 days/);
   });
 });
@@ -569,7 +572,7 @@ describe("the announcement page", () => {
       title: "Staff meeting moved",
       message: "This week's staff meeting is on Thursday at 7pm.",
       senderName: "Ada Admin",
-      at: PINNED_NOW,
+      at: aboutMs(PINNED_NOW),
       details: null,
     });
     expect(await asUser(t, HR).query(api.announcements.get, { id })).toMatchObject({

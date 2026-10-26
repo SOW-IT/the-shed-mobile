@@ -71,6 +71,12 @@ _Avoid_: member campus, university
 **Collaborative event**:
 An event tagged with more than one Sub-group. It appears under each of them.
 
+**Host**:
+The first Sub-group in an event's `subgroups`, the one that runs it. Under any
+other Sub-group the event is "shared with us": its row gets a bar in the
+host's colour, and the Events filter can show only events hosted here or only
+shared ones.
+
 **Multi-day event**:
 An event whose end falls on a later calendar day than its start, such as a
 camp or conference. It is still one event with one attendance list: each

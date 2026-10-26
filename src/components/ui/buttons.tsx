@@ -214,6 +214,67 @@ export const FooterAction = ({
   );
 };
 
+export type FooterIconAction = {
+  icon: keyof typeof Ionicons.glyphMap;
+  accessibilityLabel: string;
+  onPress: () => void;
+  badge?: number;
+  primary?: boolean;
+};
+
+const FOOTER_ICON_SIZE = 52;
+
+const FooterIconButton = ({ icon, accessibilityLabel, onPress, badge, primary }: FooterIconAction) => {
+  const t = useAppTheme();
+  const { scale, onPressIn, onPressOut } = usePressScale(0.94);
+  const iconColour = primary ? t.onPrimary : t.dark ? t.text : t.primary;
+  return (
+    <Animated.View style={[{ borderRadius: radius.full, transform: [{ scale }] }, t.shadowFloat]}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        style={[
+          styles.iconButton,
+          {
+            width: FOOTER_ICON_SIZE,
+            height: FOOTER_ICON_SIZE,
+            backgroundColor: primary ? t.primary : t.card,
+          },
+          !primary && { borderWidth: 1.5, borderColor: t.border },
+        ]}
+      >
+        <Ionicons name={icon} size={primary ? 28 : 23} color={iconColour} />
+        {badge != null && badge > 0 ? (
+          <View style={[styles.footerIconBadge, { backgroundColor: t.primary, borderColor: t.card }]}>
+            <Text style={[styles.iconBadgeText, { color: t.onPrimary }]}>{badge > 99 ? "99+" : badge}</Text>
+          </View>
+        ) : null}
+      </Pressable>
+    </Animated.View>
+  );
+};
+
+export const FooterIconActions = ({ actions }: { actions: FooterIconAction[] }) => {
+  const reportFooterHeight = useContext(FooterHeightContext);
+  useEffect(() => () => reportFooterHeight(0), [reportFooterHeight]);
+  return (
+    <View
+      pointerEvents="box-none"
+      onLayout={(e) => reportFooterHeight(footerReach(e.nativeEvent.layout.height))}
+      style={styles.footerWrap}
+    >
+      <View pointerEvents="box-none" style={[styles.footerRow, { justifyContent: "flex-end" }]}>
+        {actions.map((action) => (
+          <FooterIconButton key={action.icon} {...action} />
+        ))}
+      </View>
+    </View>
+  );
+};
+
 export const Btn = ({
   title,
   onPress,
