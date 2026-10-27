@@ -772,6 +772,11 @@ export default defineSchema({
     artist: v.string(),
     link: v.string(),
     isrc: v.optional(v.string()),
+
+    // Normalized values for duplicate detection
+    spotifyTrackId: v.optional(v.string()),
+    normalizedSongKey: v.optional(v.string()),
+
     status: approvalStatus,
     reviewedByEmail: v.optional(v.string()),
     reviewedTime: v.optional(v.number()),
@@ -779,7 +784,10 @@ export default defineSchema({
     declineComment: v.optional(v.string()),
   })
     .index("by_requester", ["requesterEmail"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_spotify_track_id", ["spotifyTrackId"])
+    .index("by_isrc", ["isrc"])
+    .index("by_normalized_song_key", ["normalizedSongKey"]),
 
   // A Spotify connection for a user, to view their requested playlists for the Praise List.
   spotifyConnections: defineTable({

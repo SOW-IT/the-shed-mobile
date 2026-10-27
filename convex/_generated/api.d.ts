@@ -60,6 +60,7 @@ import type * as mentoring from "../mentoring.js";
 import type * as mergeSuggestions from "../mergeSuggestions.js";
 import type * as metricsData from "../metricsData.js";
 import type * as model from "../model.js";
+import type * as musicBackfill from "../musicBackfill.js";
 import type * as musicRequests from "../musicRequests.js";
 import type * as notifications from "../notifications.js";
 import type * as pagination from "../pagination.js";
@@ -143,6 +144,7 @@ declare const fullApi: ApiFromModules<{
   mergeSuggestions: typeof mergeSuggestions;
   metricsData: typeof metricsData;
   model: typeof model;
+  musicBackfill: typeof musicBackfill;
   musicRequests: typeof musicRequests;
   notifications: typeof notifications;
   pagination: typeof pagination;
