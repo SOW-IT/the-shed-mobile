@@ -11,19 +11,19 @@ import {
 
 /** Get Praise Manager emails for the active staff year. */
 async function praiseManagerEmailsForYear(
-  ctx: any,
+  ctx: MusicCtx,
   year: number,
 ): Promise<string[]> {
   const settings = await ctx.db
     .query("yearSettings")
-    .withIndex("by_year", (q: any) => q.eq("year", year))
+    .withIndex("by_year", (q) => q.eq("year", year))
     .first();
   return settings?.praiseManagerEmails ?? [];
 }
 
 /** Check whether the caller is an assigned Praise Manager. */
 async function callerIsPraiseManager(
-  ctx: any,
+  ctx: MusicCtx,
   email: string,
 ): Promise<boolean> {
   const managers = await praiseManagerEmailsForYear(ctx, currentStaffYear());
@@ -35,7 +35,7 @@ async function callerIsPraiseManager(
 
 /** Create in-app notifications. */
 async function notify(
-  ctx: any,
+  ctx: MutationCtx,
   emails: string[],
   title: string,
   body: string,
@@ -349,11 +349,26 @@ export const previewBatch = mutation({
     if (!args.songs.length || args.songs.length > 50)
       throw new ConvexError("Add between 1 and 50 songs.");
     const batchSongs: MusicRequestRow[] = [];
+    const databaseDuplicateCache = new Map<
+      string,
+      Awaited<ReturnType<typeof findIndexedDuplicate>>
+    >();
     let exactDuplicates = 0;
     let possibleDuplicates = 0;
     for (const raw of args.songs) {
       const song = validateSong(raw);
-      const databaseDuplicate = await findIndexedDuplicate(ctx, song);
+      // Reuse database results for identical inputs within this preview only.
+      // Still compare against earlier entries in the batch on every iteration.
+      const cacheKey = JSON.stringify([
+        spotifyTrackId(song.link),
+        song.isrc ?? null,
+        normalizedSongKey(song.title, song.artist),
+      ]);
+      let databaseDuplicate = databaseDuplicateCache.get(cacheKey);
+      if (!databaseDuplicateCache.has(cacheKey)) {
+        databaseDuplicate = await findIndexedDuplicate(ctx, song);
+        databaseDuplicateCache.set(cacheKey, databaseDuplicate);
+      }
       const batchDuplicate = preferredDuplicate(batchSongs, song);
 
       const duplicate =
