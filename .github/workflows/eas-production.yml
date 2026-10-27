@@ -8,6 +8,10 @@ on:
         type: choice
         options: [both, ios, android]
         default: both
+      force:
+        description: "Build even if main's native code matches the last store build"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,14 +44,18 @@ jobs:
           eas-version: latest
           token: ${{ env.EXPO_TOKEN }}
 
-      - name: Resolve platform
-        run: |
-          platform="${{ inputs.platform || 'both' }}"
-          [ "$platform" = "both" ] && platform="all"
-          echo "EAS_PLATFORM=$platform" >> "$GITHUB_ENV"
+      - name: Skip platforms whose native code matches the last store build
+        id: fingerprint
+        env:
+          PLATFORM_INPUT: ${{ inputs.platform || 'both' }}
+          FORCE: ${{ inputs.force && 'true' || 'false' }}
+        run: node scripts/eas-fingerprint-check.mjs production
 
       - name: Build & submit to production
-        run: eas build --platform "${{ env.EAS_PLATFORM }}" --profile production --non-interactive --auto-submit --json > "$RUNNER_TEMP/eas-builds.json"
+        if: steps.fingerprint.outputs.eas_platform != 'none'
+        env:
+          EAS_PLATFORM: ${{ steps.fingerprint.outputs.eas_platform }}
+        run: eas build --platform "$EAS_PLATFORM" --profile production --non-interactive --auto-submit --json > "$RUNNER_TEMP/eas-builds.json"
 
       - name: Post to Data and IT in Google Chat
         if: always()
@@ -55,6 +63,7 @@ jobs:
           GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
           JOB_STATUS: ${{ job.status }}
           PLATFORM_INPUT: ${{ inputs.platform || 'both' }}
+          EAS_PLATFORM: ${{ steps.fingerprint.outputs.eas_platform }}
           ACTOR: ${{ github.triggering_actor }}
           REF_NAME: ${{ github.ref_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
