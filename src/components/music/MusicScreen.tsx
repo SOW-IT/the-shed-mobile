@@ -2,6 +2,7 @@ import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { FooterAction } from "@/components/ui";
 import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
+import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import { ApprovedPlaylistTab, MyRequestsTab, ToReviewTab } from "./MusicTabs";
@@ -13,9 +14,17 @@ import {
 
 export default function MusicScreen() {
   const me = useQuery(api.directory.me);
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
+  const [selectedTab, setSelectedTab] = useState<string | null>(null);
+  const canReview = me?.isPraiseManager === true;
+  const requestedTab =
+    tab === "review" && canReview
+      ? "toReview"
+      : tab === "my-requests" && me?.isPraiseManager === false
+        ? "myRequest"
+        : "approvedPlaylist";
 
-  // Current Music tab
-  const [active, setActive] = useState("approvedPlaylist");
+  const active = selectedTab ?? requestedTab;
 
   // Request sheet state
   const [requestPrefill, setRequestPrefill] = useState<MusicRequest | null>(
@@ -74,9 +83,6 @@ export default function MusicScreen() {
 
   const showMakeRequest = me?.profile != null;
 
-  // Only Praise Managers can review requests
-  const canReview = me?.isPraiseManager === true;
-
   // Music navigation tabs
   const tabs: PagerTab[] = [
     {
@@ -127,7 +133,7 @@ export default function MusicScreen() {
       <PagerScreen
         tabs={tabs}
         activeKey={active}
-        onActiveKeyChange={setActive}
+        onActiveKeyChange={setSelectedTab}
         footer={
           showMakeRequest ? (
             <FooterAction
