@@ -261,3 +261,55 @@ so Play installs open links in the app after their next update. On Android 14
 and older, an old app's "Open on the web" and a web sign-in on a phone with the
 app can land in the app, because those versions ignore the `#noapp` and
 `?code=` rules.
+
+## Praise List — Indexed Duplicate Detection Migration
+
+The Praise List uses indexed fields (`spotifyTrackId`, `normalizedSongKey`, and `isrc`) to detect duplicate music requests.
+
+Existing music requests created before these fields were introduced must be backfilled after deploying the updated Convex schema and functions.
+
+### Development
+
+The development deployment was previously backfilled for 106 existing requests. Recheck the migration if necessary.
+
+Run:
+
+```bash
+npx convex run musicBackfill:backfill '{}'
+```
+
+If `isDone` is `false`, repeat the command using the returned `continueCursor` value:
+
+```bash
+npx convex run musicBackfill:backfill '{"cursor":"PASTE_CONTINUE_CURSOR_HERE"}'
+```
+
+Continue until `isDone` is `true`.
+
+### Production
+
+**Do not run the migration against production until the updated schema and functions have been deployed and the production deployment has been confirmed.**
+
+Once the production deployment is ready, run:
+
+```bash
+npx convex run --prod musicBackfill:backfill '{}'
+```
+
+If `isDone` is `false`, repeat using the returned cursor:
+
+```bash
+npx convex run --prod musicBackfill:backfill '{"cursor":"PASTE_CONTINUE_CURSOR_HERE"}'
+```
+
+Continue until `isDone` is `true`.
+
+### Verification
+
+- Confirm that all pages have been processed.
+- Confirm the final response reports `isDone: true`.
+- Verify that a previously existing Spotify song is detected as a duplicate.
+- Check that approved songs remain visible and unchanged.
+- Keep the backfill function internal-only.
+
+**Important:** `checked` and `updated` are per-page counts, not totals across the migration. Record the results for each page when verifying the migration.
