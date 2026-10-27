@@ -229,6 +229,25 @@ function validateSong(song: {
   return { title, artist, link, isrc };
 }
 
+const MAX_COMMENT_LENGTH = 2000;
+
+function cleanComment(
+  value: string | undefined,
+  fieldName: string,
+): string | undefined {
+  const comment = value?.trim();
+
+  if (!comment) return undefined;
+
+  if (comment.length > MAX_COMMENT_LENGTH) {
+    throw new ConvexError(
+      `${fieldName} must be ${MAX_COMMENT_LENGTH} characters or fewer.`,
+    );
+  }
+
+  return comment;
+}
+
 /** Returns exact or possible duplicates; retains title/artist/status for existing UI. */
 export const checkDuplicate = query({
   args: {
@@ -270,11 +289,7 @@ export const submit = mutation({
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
     const song = validateSong(args);
-    if (args.requestComment && args.requestComment.trim().length > 2000) {
-      throw new ConvexError(
-        "Request comment must be 2000 characters or fewer.",
-      );
-    }
+    const requestComment = cleanComment(args.requestComment, "Request comment");
     const duplicate = await findIndexedDuplicate(ctx, song);
     if (duplicate?.kind === "exact")
       throw new ConvexError(
@@ -296,7 +311,7 @@ export const submit = mutation({
       ...song,
       spotifyTrackId: spotifyTrackId(song.link) ?? undefined,
       normalizedSongKey: normalizedSongKey(song.title, song.artist),
-      requestComment: args.requestComment?.trim() || undefined,
+      requestComment,
       albumArtUrl,
       status: isPraiseManager ? "APPROVED" : "PENDING",
       ...(isPraiseManager
@@ -377,6 +392,7 @@ export const submitMany = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
+    const requestComment = cleanComment(args.requestComment, "Request comment");
     if (!args.songs.length || args.songs.length > 50)
       throw new ConvexError("Add between 1 and 50 songs.");
     const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
@@ -405,7 +421,7 @@ export const submitMany = mutation({
           spotifyTrackId(song.link) && artwork && /^https:\/\//i.test(artwork)
             ? artwork
             : undefined,
-        requestComment: args.requestComment?.trim() || undefined,
+        requestComment,
         status: isPraiseManager ? "APPROVED" : "PENDING",
         ...(isPraiseManager
           ? { reviewedByEmail: caller.email, reviewedTime: Date.now() }
@@ -604,7 +620,7 @@ export const decline = mutation({
     if (request.status !== "PENDING") {
       throw new ConvexError("This request has already been reviewed.");
     }
-    const declineComment = args.reason?.trim() || undefined;
+    const declineComment = cleanComment(args.reason, "Decline reason");
     const reviewerName = await resolveName(
       ctx,
       caller.email,
@@ -656,6 +672,7 @@ export const update = mutation({
     }
     const song = validateSong(args);
     const { title, artist, link } = song;
+    const requestComment = cleanComment(args.requestComment, "Request comment");
     const duplicate = await findIndexedDuplicate(ctx, song, args.requestId);
     if (duplicate?.kind === "exact")
       throw new ConvexError("This recording has already been submitted.");
@@ -670,7 +687,7 @@ export const update = mutation({
       artist,
       link,
       isrc: song.isrc,
-      requestComment: args.requestComment?.trim() || undefined,
+      requestComment,
       spotifyTrackId: spotifyTrackId(song.link) ?? undefined,
       normalizedSongKey: normalizedSongKey(song.title, song.artist),
       albumArtUrl:

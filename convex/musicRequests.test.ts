@@ -71,6 +71,39 @@ const song = (
 });
 
 describe("music request indexed duplicates", () => {
+  test("prevents ordinary staff from approving requests", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    const requestId = await staff.mutation(api.musicRequests.submit, {
+      title: "Permission Test Song",
+      artist: "Test Artist",
+      link: "https://example.com/permission-test",
+    });
+
+    await expect(
+      staff.mutation(api.musicRequests.approve, { requestId }),
+    ).rejects.toThrow("Only Praise Managers can approve music requests.");
+  });
+
+  test("prevents ordinary staff from declining requests", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    const requestId = await staff.mutation(api.musicRequests.submit, {
+      title: "Decline Permission Test",
+      artist: "Test Artist",
+      link: "https://example.com/decline-permission",
+    });
+
+    await expect(
+      staff.mutation(api.musicRequests.decline, {
+        requestId,
+        reason: "Testing permissions",
+      }),
+    ).rejects.toThrow("Only Praise Managers can decline music requests.");
+  });
+
   test("recognizes Spotify URLs with different parameters", async () => {
     const t = await setup();
     const user = asUser(t, STAFF);
@@ -273,5 +306,183 @@ describe("music request indexed duplicates", () => {
     await expect(
       user.mutation(api.musicRequests.submit, song()),
     ).rejects.toThrow(/already requested/i);
+  });
+
+  test("automatically approves songs submitted by Praise Managers", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    await t.run(async (ctx) => {
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+
+      if (settings) {
+        await ctx.db.patch(settings._id, {
+          praiseManagerEmails: [ADMIN],
+        });
+      } else {
+        await ctx.db.insert("yearSettings", {
+          year: YEAR,
+          praiseManagerEmails: [ADMIN],
+        });
+      }
+    });
+
+    const requestId = await admin.mutation(api.musicRequests.submit, {
+      title: "Manager Auto Approval Test",
+      artist: "Test Artist",
+      link: "https://example.com/manager-auto-approval",
+    });
+
+    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+
+    expect(request?.status).toBe("APPROVED");
+    expect(request?.reviewedByEmail).toBe(ADMIN);
+    expect(request?.reviewedTime).toBeDefined();
+  });
+
+  test("prevents resubmission of declined songs", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    const requestId = await staff.mutation(api.musicRequests.submit, {
+      title: "Declined Song Test",
+      artist: "Test Artist",
+      link: SPOTIFY,
+    });
+
+    // Simulate a Praise Manager declining the request.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(requestId, {
+        status: "DECLINED",
+        reviewedByEmail: ADMIN,
+        reviewedTime: Date.now(),
+        declineComment: "Not suitable for the playlist",
+      });
+    });
+
+    // Attempt to request the same recording again.
+    await expect(
+      staff.mutation(api.musicRequests.submit, {
+        title: "Declined Song Test",
+        artist: "Test Artist",
+        link: SPOTIFY,
+      }),
+    ).rejects.toThrow("This recording was already requested (declined).");
+  });
+  test("rejects request comments longer than 2000 characters", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    await expect(
+      staff.mutation(api.musicRequests.submit, {
+        title: "Long Comment Test",
+        artist: "Test Artist",
+        link: "https://example.com/long-comment",
+        requestComment: "A".repeat(2001),
+      }),
+    ).rejects.toThrow("Request comment must be 2000 characters or fewer.");
+  });
+  test("rejects long comments in batch submissions", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    await expect(
+      staff.mutation(api.musicRequests.submitMany, {
+        songs: [
+          {
+            title: "Batch Comment Test",
+            artist: "Test Artist",
+            link: "https://example.com/batch-comment",
+          },
+        ],
+        requestComment: "A".repeat(2001),
+      }),
+    ).rejects.toThrow("Request comment must be 2000 characters or fewer.");
+  });
+
+  test("rejects request comments longer than 2000 characters when editing", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    const requestId = await staff.mutation(api.musicRequests.submit, {
+      title: "Edit Comment Test",
+      artist: "Test Artist",
+      link: "https://example.com/edit-comment",
+    });
+
+    await expect(
+      staff.mutation(api.musicRequests.update, {
+        requestId,
+        title: "Edit Comment Test",
+        artist: "Test Artist",
+        link: "https://example.com/edit-comment",
+        requestComment: "A".repeat(2001),
+      }),
+    ).rejects.toThrow("Request comment must be 2000 characters or fewer.");
+  });
+
+  test("rejects javascript URLs in music requests", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    await expect(
+      staff.mutation(api.musicRequests.submit, {
+        title: "Invalid URL Test",
+        artist: "Test Artist",
+        link: "javascript:alert(1)",
+      }),
+    ).rejects.toThrow("Please enter a valid HTTP or HTTPS music link.");
+  });
+
+  test("prevents ordinary staff from accessing the review queue", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    await expect(staff.query(api.musicRequests.toReview, {})).rejects.toThrow(
+      "Only Praise Managers can review music requests.",
+    );
+  });
+
+  test("rejects decline reasons longer than 2000 characters", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const admin = asUser(t, ADMIN);
+
+    const requestId = await staff.mutation(api.musicRequests.submit, {
+      title: "Long Decline Reason Test",
+      artist: "Test Artist",
+      link: "https://example.com/long-decline-reason",
+    });
+
+    await t.run(async (ctx) => {
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+      if (settings) {
+        await ctx.db.patch(settings._id, {
+          praiseManagerEmails: [ADMIN],
+        });
+      } else {
+        await ctx.db.insert("yearSettings", {
+          year: YEAR,
+          praiseManagerEmails: [ADMIN],
+        });
+      }
+    });
+
+    await expect(
+      admin.mutation(api.musicRequests.decline, {
+        requestId,
+        reason: "A".repeat(2001),
+      }),
+    ).rejects.toThrow("Decline reason must be 2000 characters or fewer.");
+
+    // An invalid decline attempt must leave the request pending.
+    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+    expect(request?.status).toBe("PENDING");
   });
 });
