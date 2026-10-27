@@ -119,7 +119,8 @@ export const showsReimbursements = (viewer: NavViewer) =>
 
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
-  const items: NavKey[] = ["profile", "music"];
+  const items: NavKey[] = ["profile"];
+  if (viewer.isStaff) items.push("music");
   if (viewer.isStaff) items.push("churches");
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.canMentoring) items.push("mentoring");
@@ -131,7 +132,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
 export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
-  if (viewer.signedIn) items.push("music");
+  if (viewer.isStaff) items.push("music");
   if (viewer.isStaff) items.push("attendance");
   items.push("insights", "org", "churches");
   if (viewer.signedIn) items.push("profile");

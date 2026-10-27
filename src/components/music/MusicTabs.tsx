@@ -8,7 +8,7 @@ import { radius, spacing, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -39,7 +39,7 @@ type MusicRequest = Doc<"musicRequests"> & {
 const shareLink = async (url: string) => {
   try {
     await Share.share({ message: url });
-  } catch (e) {
+  } catch {
     // user cancelled or share failed
   }
 };
@@ -48,7 +48,6 @@ const shareLink = async (url: string) => {
 function SongArtwork({ url, size = 46 }: { url?: string; size?: number }) {
   const t = useAppTheme();
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [url]);
   return (
     <View
       style={[
@@ -267,7 +266,10 @@ export const ApprovedPlaylistTab = ({
                         pressed && { opacity: 0.65 },
                       ]}
                     >
-                      <SongArtwork url={item.albumArtUrl} />
+                      <SongArtwork
+                        key={item.albumArtUrl ?? "no-artwork"}
+                        url={item.albumArtUrl}
+                      />
 
                       <View style={styles.musicSongDetails}>
                         <Text
@@ -402,7 +404,11 @@ function SongHeader({
   const t = useAppTheme();
   return (
     <View style={styles.requestHeader}>
-      <SongArtwork url={request.albumArtUrl} size={66} />
+      <SongArtwork
+        key={request.albumArtUrl ?? "no-artwork"}
+        url={request.albumArtUrl}
+        size={66}
+      />
       <View style={styles.requestHeadingText}>
         <Text
           style={[styles.requestSongTitle, { color: t.text }]}

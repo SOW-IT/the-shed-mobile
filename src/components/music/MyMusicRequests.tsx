@@ -53,7 +53,7 @@ const spotifyTrackUrl = (value: string): string | null => {
     return null;
   }
 };
-export const NewMusicRequestSheet = ({
+const MusicRequestSheetContent = ({
   visible,
   onClose,
   prefill,
@@ -65,16 +65,22 @@ export const NewMusicRequestSheet = ({
   hideRequestComment?: boolean;
 }) => {
   const t = useAppTheme();
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
-  const [link, setLink] = useState("");
-  const [requestComment, setRequestComment] = useState("");
+  const [title, setTitle] = useState(prefill?.title ?? "");
+  const [artist, setArtist] = useState(prefill?.artist ?? "");
+  const [link, setLink] = useState(prefill?.link ?? "");
+  const [requestComment, setRequestComment] = useState(
+    prefill?.requestComment ?? "",
+  );
   const [spotifyLink, setSpotifyLink] = useState("");
-  const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
-  const [isrc, setIsrc] = useState<string | undefined>();
+  const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(
+    prefill?.albumArtUrl ?? null,
+  );
+  const [isrc, setIsrc] = useState<string | undefined>(
+    prefill?.isrc ?? undefined,
+  );
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
-  const [manualExpanded, setManualExpanded] = useState(false);
+  const [manualExpanded, setManualExpanded] = useState(!!prefill);
   const duplicateLink = link.trim()
     ? spotifyTrackUrl(link)
     : spotifyTrackUrl(spotifyLink);
@@ -92,11 +98,13 @@ export const NewMusicRequestSheet = ({
   const possibleDuplicate = !duplicateIsSelf && duplicate?.kind === "possible";
   const getSpotifyTrack = useAction(api.spotify.getTrack);
   const spotifyPlaylist = useSpotifyPlaylist();
+  const refreshSpotifyConnection = spotifyPlaylist.refreshConnection;
+
   useEffect(() => {
     if (visible) {
-      void spotifyPlaylist.refreshConnection();
+      void refreshSpotifyConnection();
     }
-  }, [visible, spotifyPlaylist.refreshConnection]);
+  }, [visible, refreshSpotifyConnection]);
 
   const spotifyLinkType = detectSpotifyLink(spotifyLink);
   const [importingPlaylist, setImportingPlaylist] = useState(false);
@@ -115,10 +123,7 @@ export const NewMusicRequestSheet = ({
     setIsrc(undefined);
     setSpotifyError(null);
   };
-  const clearAllSongs = () => {
-    setSongs([]);
-    clearSong();
-  };
+
   const addSong = () => {
     if (!title.trim() || !artist.trim() || !link.trim()) {
       Alert.alert("Incomplete song", "Enter a title, artist and link.");
@@ -220,19 +225,6 @@ export const NewMusicRequestSheet = ({
       setImportingPlaylist(false);
     }
   };
-  useEffect(() => {
-    if (!visible) return;
-    setTitle(prefill?.title ?? "");
-    setArtist(prefill?.artist ?? "");
-    setLink(prefill?.link ?? "");
-    setRequestComment(prefill?.requestComment ?? "");
-    setSpotifyLink("");
-    setAlbumArtUrl(prefill?.albumArtUrl ?? null);
-    setIsrc(prefill?.isrc);
-    setSpotifyError(null);
-    setSongs([]);
-    setManualExpanded(!!prefill);
-  }, [visible, prefill?._id]);
   const clearSpotifyLink = () => {
     setSpotifyLink("");
     setSpotifyError(null);
@@ -787,6 +779,18 @@ export const NewMusicRequestSheet = ({
         />
       )}
     </Sheet>
+  );
+};
+export const NewMusicRequestSheet = (props: {
+  visible: boolean;
+  onClose: () => void;
+  prefill: MusicRequest | null;
+  hideRequestComment?: boolean;
+}) => {
+  if (!props.visible) return null;
+
+  return (
+    <MusicRequestSheetContent key={props.prefill?._id ?? "new"} {...props} />
   );
 };
 const buildGuideSteps = () => [
