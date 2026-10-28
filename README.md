@@ -210,6 +210,15 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   (iPad, desktop web) swap the top bar, bottom tabs and drawer for one
   permanent sidebar holding all of them (`src/components/nav/`,
   rules in `src/lib/navMenu.ts`).
+- **Org chart** (`src/app/(tabs)/org.tsx`, rules in `shared/orgChart.ts`),
+  signed in or not: a year's Director, staff, divisions with their
+  departments, and campus leaders. A search box finds people by name, email
+  or role, or by the department, division or campus they sit in (a campus by
+  its full or short name); every word typed has to match. Below it, a chip
+  for Staff, each division and each campus counts the people it covers;
+  picking any number shows only those parts of the chart, and nothing picked
+  shows everyone. "Show everyone" clears the search and the chips. On wide
+  screens the chips wrap instead of scrolling sideways, here and on Churches.
 
 ### Attendance
 
