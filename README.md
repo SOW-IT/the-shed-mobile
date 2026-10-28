@@ -215,9 +215,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   departments, and campus leaders. A search box finds people by name, email
   or role, or by the department, division or campus they sit in (a campus by
   its full or short name); every word typed has to match. Below it, a chip
-  for Staff, each division and each campus counts the people it covers;
-  picking any number shows only those parts of the chart, and nothing picked
-  shows everyone. "Show everyone" clears the search and the chips. On wide
+  for Staff, each division and each campus counts the people it covers in
+  the search results. Picking any number shows only those parts of the
+  results; nothing picked shows every part (with no search, everyone).
+  "Show everyone" clears the search and the chips. On wide
   screens the chips wrap instead of scrolling sideways, here and on Churches.
 
 ### Attendance
