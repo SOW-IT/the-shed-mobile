@@ -1,8 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import {
@@ -21,8 +21,9 @@ import { subgroupColour, subgroupLabel } from "../../shared/rollcall";
 import { ChromeScreen } from "./ChromeScreen";
 import { ChurchMap, churchMapAvailable, type ChurchPin } from "./ChurchMap";
 import { type Church, ChurchDetails, ChurchForm, useCanEditChurches } from "./ChurchPicker";
+import { FilterChip, FilterRow } from "./FilterChips";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { Btn, Card, EmptyState, FadeInView, hapticSelect, LoadingState, ScrollCap, SearchField, stagger } from "./ui";
+import { Btn, Card, EmptyState, FadeInView, LoadingState, ScrollCap, SearchField, stagger } from "./ui";
 
 type Entry = NonNullable<ReturnType<typeof useQuery<typeof api.churches.directory>>>[number] & {
   everyone: number;
@@ -35,66 +36,6 @@ const EXPANDED_VISIBLE_ROWS = 8;
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 const campusName = (campus: string) => (campus === NO_CAMPUS ? "No campus" : subgroupLabel(campus));
-
-function FilterChip({
-  on,
-  label,
-  count,
-  colour,
-  locked,
-  onPress,
-}: {
-  on: boolean;
-  label: string;
-  count: number;
-  colour?: string;
-  locked?: boolean;
-  onPress: () => void;
-}) {
-  const t = useAppTheme();
-  return (
-    <Pressable
-      role="checkbox"
-      aria-checked={on}
-      accessibilityLabel={`${label}, ${plural(count, "person", "people")}${locked ? ", only staff and campus leaders see them" : ""}`}
-      onPress={() => {
-        hapticSelect();
-        onPress();
-      }}
-      style={({ pressed }) => [
-        styles.chip,
-        on
-          ? { backgroundColor: t.primarySoft, borderColor: t.primarySoft, paddingLeft: 8 }
-          : { backgroundColor: t.card, borderColor: t.border, paddingLeft: colour ? 11 : 14 },
-        pressed && { opacity: 0.7 },
-      ]}
-    >
-      {on ? (
-        <Ionicons name="checkmark-circle" size={18} color={colour ?? (t.dark ? t.text : t.primary)} />
-      ) : colour ? (
-        <View style={[styles.dot, { backgroundColor: colour }]} />
-      ) : null}
-      <Text style={[styles.chipText, { color: t.text }]}>{label}</Text>
-      {locked ? <Ionicons name="lock-closed" size={11} color={t.muted} /> : null}
-      <Text style={[styles.chipCount, { color: t.muted }]}>{count}</Text>
-    </Pressable>
-  );
-}
-
-function FilterRow({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      accessibilityRole="list"
-      accessibilityLabel={title}
-      style={styles.chipScroll}
-      contentContainerStyle={styles.chips}
-    >
-      {children}
-    </ScrollView>
-  );
-}
 
 function ChurchCard({
   entry,
@@ -310,7 +251,7 @@ export function ChurchesView() {
                   on={filter.groups.includes(key)}
                   label={label}
                   count={counts.groups.get(key) ?? 0}
-                  locked={key === "member"}
+                  lockedNote={key === "member" ? "only staff and campus leaders see them" : undefined}
                   onPress={() => setFilter((prev) => ({ ...prev, groups: togglePicked(prev.groups, key) }))}
                 />
               ))}
@@ -395,19 +336,6 @@ export function ChurchesView() {
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   filters: { gap: spacing.sm },
-  chipScroll: { marginHorizontal: -spacing.lg },
-  chips: { flexDirection: "row", gap: spacing.sm - 2, paddingHorizontal: spacing.lg },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    minHeight: 36,
-    paddingRight: 12,
-    borderRadius: radius.full,
-    borderWidth: 1,
-  },
-  chipText: { fontSize: 13.5, fontWeight: "600", letterSpacing: -0.1 },
-  chipCount: { fontSize: 12.5, fontWeight: "600", fontVariant: ["tabular-nums"] },
   dot: { width: 9, height: 9, borderRadius: 5 },
   summary: {
     flexDirection: "row",

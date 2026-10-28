@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.10.8] - 2026-10-28
+## [2.10.10] - 2026-10-29
 
 ### Fixed
 - **CI's Expo SDK version check passes again.** Expo 58.0.20, Expo Router
@@ -14,6 +14,23 @@ All notable changes to **The SHED** mobile app. This project follows
   58.0.16, expo-file-system 58.0.12, expo-font 58.0.10 and expo-web-browser
   58.0.7: the Expo SDK 58 patch releases, which CI's SDK version check now
   expects. No visible change to the app.
+
+## [2.10.9] - 2026-10-29
+
+### Added
+- **Search and filter the Org chart.** A search box at the top finds people
+  by name, email or role, or by the department, division or campus they sit
+  in, so "finance" lists the Finance team and "unsw exec" lists UNSW's
+  executives. Every word typed has to match. Below it, a chip for each
+  division and campus (and Staff, in a year that has general staff) says how
+  many people it covers; pick any number to see only those parts of the
+  chart. A line under the chips counts who is showing, and "Show everyone"
+  clears the search and the chips.
+
+### Changed
+- **Filter chips wrap on wide screens.** On an iPad or a computer, the chips
+  on Churches and the Org chart now wrap onto another line instead of
+  running past the edge of the column, where a mouse couldn't reach them.
 
 ## [2.10.7] - 2026-10-26
 
