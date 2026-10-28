@@ -3,17 +3,22 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
-import { HEAD_OF_DEPARTMENT, universityColour } from "../../../shared/flow";
+import { togglePicked } from "../../../shared/churches";
+import { universityColour } from "../../../shared/flow";
+import { departmentHeadTitle, filterOrgChart } from "../../../shared/orgChart";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { ChromeScreen } from "@/components/ChromeScreen";
+import { FilterChip, FilterRow } from "@/components/FilterChips";
 import {
   Avatar,
+  Btn,
   FadeInView,
   FloatingYearPicker,
   Grid,
   LoadingState,
   Muted,
   ReadableColumn,
+  SearchField,
   stagger,
   Txt,
 } from "@/components/ui";
@@ -59,6 +64,8 @@ const Person = ({
 export default function OrgChartScreen() {
   const t = useAppTheme();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
   const chart = useQuery(
     api.directory.orgChart,
     selectedYear === null ? {} : { year: selectedYear }
@@ -71,6 +78,15 @@ export default function OrgChartScreen() {
       </ChromeScreen>
     );
   }
+
+  const { areas, active, counts, shown, people } = filterOrgChart(chart, search, picked);
+  const filtering = active.length > 0;
+  const searching = search.trim() !== "";
+  const campuses = shown.universities.filter((u) => u.members.length > 0);
+  const showEveryone = () => {
+    setPicked([]);
+    setSearch("");
+  };
 
   return (
     <ChromeScreen
@@ -88,19 +104,63 @@ export default function OrgChartScreen() {
         ) : undefined
       }
     >
-      {chart.director ? (
+      <ReadableColumn>
+        <View style={styles.finder}>
+          <SearchField value={search} onChangeText={setSearch} placeholder="Search people, roles or teams" />
+          {areas.length > 1 ? (
+            <FilterRow title="Teams and campuses">
+              {areas.map((area) => (
+                <FilterChip
+                  key={area.key}
+                  on={active.includes(area.key)}
+                  label={area.label}
+                  count={counts.get(area.key) ?? 0}
+                  colour={area.kind === "campus" ? universityColour(area.name) : undefined}
+                  onPress={() => setPicked((prev) => togglePicked(prev, area.key))}
+                />
+              ))}
+            </FilterRow>
+          ) : null}
+          <View style={[styles.summary, { borderTopColor: t.separator }]}>
+            <Text style={[typography.caption, { color: t.muted, flex: 1 }]} accessibilityLiveRegion="polite">
+              {people === 1 ? "1 person" : `${people} people`}
+            </Text>
+            {filtering || searching ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={showEveryone}
+                hitSlop={8}
+                style={({ pressed }) => pressed && { opacity: 0.6 }}
+              >
+                <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>Show everyone</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      </ReadableColumn>
+
+      {shown.director ? (
         <FadeInView delay={40}>
           <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
             <View style={[styles.directorCard, t.surfaceEdge, { backgroundColor: t.card }]}>
-              <Person person={chart.director} bold tag={chart.director.role ?? "Director"} size={46} />
+              <Person person={shown.director} bold tag={shown.director.role ?? "Director"} size={46} />
             </View>
           </ReadableColumn>
         </FadeInView>
-      ) : (
+      ) : filtering || searching ? null : (
         <Muted>No Director assigned for {chart.year} yet.</Muted>
       )}
 
-      {chart.staff.length > 0 && (
+      {(filtering || searching) && people === 0 ? (
+        <View style={styles.nothing}>
+          <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>
+            {searching ? "Nobody matches that search." : "Nobody matches these filters."}
+          </Text>
+          <Btn title="Show everyone" variant="ghost" onPress={showEveryone} />
+        </View>
+      ) : null}
+
+      {shown.staff.length > 0 && (
         <FadeInView delay={stagger(1)}>
           <View style={styles.divisionBlock}>
             <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
@@ -114,7 +174,7 @@ export default function OrgChartScreen() {
                   { backgroundColor: t.card, borderLeftColor: t.primary },
                 ]}
               >
-                {chart.staff.map((member) => (
+                {shown.staff.map((member) => (
                   <Person key={member.email} person={member} />
                 ))}
               </View>
@@ -123,7 +183,7 @@ export default function OrgChartScreen() {
         </FadeInView>
       )}
 
-      {chart.divisions.map((division, divisionIndex) => (
+      {shown.divisions.map((division, divisionIndex) => (
         <FadeInView key={division.name} delay={stagger(divisionIndex + 2)}>
           <View style={styles.divisionBlock}>
             <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
@@ -144,7 +204,7 @@ export default function OrgChartScreen() {
             ) : null}
 
             {division.departments.length === 0 ? (
-              <Muted>No departments.</Muted>
+              searching ? null : <Muted>No departments.</Muted>
             ) : (
               <Grid fixedWidth={ORG_CARD_WIDTH}>
                 {division.departments.map((dept) => (
@@ -161,7 +221,7 @@ export default function OrgChartScreen() {
                       <Person
                         person={dept.head}
                         bold
-                        tag={chart.roleTitles[HEAD_OF_DEPARTMENT] ?? "Head of Dept"}
+                        tag={departmentHeadTitle(chart.roleTitles)}
                       />
                     ) : null}
                     {dept.members.map((member) => (
@@ -178,33 +238,31 @@ export default function OrgChartScreen() {
         </FadeInView>
       ))}
 
-      {chart.universities.some((u) => u.members.length > 0) && (
-        <FadeInView delay={stagger(chart.divisions.length + 2)}>
+      {campuses.length > 0 && (
+        <FadeInView delay={stagger(shown.divisions.length + 2)}>
           <View style={styles.divisionBlock}>
             <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
               Campus
             </Text>
             <Grid fixedWidth={ORG_CARD_WIDTH}>
-              {chart.universities
-                .filter((u) => u.members.length > 0)
-                .map((u) => (
-                  <View
-                    key={u.name}
-                    style={[
-                      styles.deptCard,
-                      t.surfaceEdge,
-                      {
-                        backgroundColor: t.card,
-                        borderLeftColor: universityColour(u.name) ?? t.primary,
-                      },
-                    ]}
-                  >
-                    <Text style={[typography.label, { color: t.faint }]}>{u.name}</Text>
-                    {u.members.map((member) => (
-                      <Person key={member.email} person={member} />
-                    ))}
-                  </View>
-                ))}
+              {campuses.map((u) => (
+                <View
+                  key={u.name}
+                  style={[
+                    styles.deptCard,
+                    t.surfaceEdge,
+                    {
+                      backgroundColor: t.card,
+                      borderLeftColor: universityColour(u.name) ?? t.primary,
+                    },
+                  ]}
+                >
+                  <Text style={[typography.label, { color: t.faint }]}>{u.name}</Text>
+                  {u.members.map((member) => (
+                    <Person key={member.email} person={member} />
+                  ))}
+                </View>
+              ))}
             </Grid>
           </View>
         </FadeInView>
@@ -214,6 +272,22 @@ export default function OrgChartScreen() {
 }
 
 const styles = StyleSheet.create({
+  finder: {
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  summary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  nothing: {
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.xl,
+  },
   directorCard: {
     borderRadius: radius.lg,
     paddingHorizontal: spacing.lg,
