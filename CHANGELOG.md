@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.10] - 2026-10-29
+
+### Fixed
+- **CI's Expo SDK version check passes again.** Expo 58.0.21 and React
+  Native 0.88.1, with Expo Router 58.0.28, Expo UI 58.0.25,
+  expo-auth-session 58.0.16, expo-constants 58.0.14, expo-dev-client
+  58.0.17, expo-file-system 58.0.13, expo-font 58.0.11,
+  expo-image-manipulator 58.0.16, expo-linking 58.0.15, expo-notifications
+  58.1.7, expo-sharing 58.0.21, expo-splash-screen 58.0.12, expo-system-ui
+  58.0.7, expo-updates 58.0.19 and expo-web-browser 58.0.7: the Expo SDK 58
+  patch releases, which CI's SDK version check now expects. No visible
+  change to the app, but the native code changes, so phones get this
+  release from the App Store and Google Play rather than over the air.
+
 ## [2.10.9] - 2026-10-29
 
 ### Added
