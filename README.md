@@ -155,6 +155,18 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   mentees. Pairings from the old app were copied in once, in 2.10.1. A list
   of pairings for any year can be added from the command line
   (`mentoring:setPairings`) under the same rules.
+- **Grievances** (`convex/grievances.ts`, rules in `shared/grievances.ts`),
+  from the side menu and the Partner tab's "Raise a grievance" card. Anyone
+  can raise one, signed in or not (name, email, what it's about, what
+  happened); signed-out sending is limited to 3 an hour per email and 30 an
+  hour overall. Only the submitter and the **grievance team** (this year's
+  People and Culture and Compliance departments) can see it; other admins
+  can't. The team gets an in-app/push notification for each new one and its
+  emails go to grievances@sow.org.au. They take it on or give it to someone
+  on the team (Received), mark it In progress, and Resolve it with an
+  outcome note or close it as Not proceeding with a reason. The submitter is
+  emailed at every stage, and signed-in submitters follow it under Mine.
+  Pushes and in-app notifications carry only the grievance's number.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on

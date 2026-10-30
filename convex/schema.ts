@@ -12,6 +12,7 @@ import {
 } from "./weeklyInsightsData";
 import { homeBlockValidator } from "./homeData";
 import { designAnswersValidator, designStatusValidator } from "./designRequestData";
+import { grievanceFields, grievanceStatusValidator } from "./grievanceData";
 import {
   eventStatusValidator,
   financeDataValidator,
@@ -300,6 +301,7 @@ export default defineSchema({
     designRequestId: v.optional(v.id("designRequests")),
     eventRequestId: v.optional(v.id("eventRequests")),
     announcementId: v.optional(v.id("announcements")),
+    grievanceId: v.optional(v.id("grievances")),
     read: v.boolean(),
   })
     .index("by_user", ["userEmail"])
@@ -312,6 +314,7 @@ export default defineSchema({
     ])
     .index("by_user_and_eventRequest_and_read", ["userEmail", "eventRequestId", "read"])
     .index("by_user_and_announcement_and_read", ["userEmail", "announcementId", "read"])
+    .index("by_user_and_grievance_and_read", ["userEmail", "grievanceId", "read"])
     .index("by_announcement_and_read", ["announcementId", "read"])
     .index("by_request", ["requestId"]),
 
@@ -579,6 +582,38 @@ export default defineSchema({
     .index("by_event", ["eventId"])
     .index("by_event_and_member", ["eventId", "memberId"])
     .index("by_member", ["memberId"]),
+
+  grievances: defineTable({
+    number: v.number(),
+    year: v.number(),
+    submittedAt: v.number(),
+    accountEmail: v.optional(v.string()),
+    ...grievanceFields,
+    status: grievanceStatusValidator,
+    assigneeEmail: v.optional(v.string()),
+    receivedAt: v.optional(v.number()),
+    inProgressAt: v.optional(v.number()),
+    closedAt: v.optional(v.number()),
+    closedBy: v.optional(v.string()),
+    closingNote: v.optional(v.string()),
+  })
+    .index("by_number", ["number"])
+    .index("by_status", ["status"])
+    .index("by_accountEmail", ["accountEmail"]),
+
+  grievanceEvents: defineTable({
+    grievanceId: v.id("grievances"),
+    action: v.string(),
+    actorEmail: v.string(),
+    detail: v.optional(v.string()),
+  }).index("by_grievance", ["grievanceId"]),
+
+  grievanceRateLimit: defineTable({
+    fromEmail: v.string(),
+    submittedAt: v.number(),
+  })
+    .index("by_email_and_time", ["fromEmail", "submittedAt"])
+    .index("by_time", ["submittedAt"]),
 
   contactRateLimit: defineTable({
     fromEmail: v.string(),

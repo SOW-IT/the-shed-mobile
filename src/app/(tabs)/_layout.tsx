@@ -219,6 +219,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen name="mentoring" options={{ title: "Mentoring", ...sideMenuOnly }} />
+      <Tabs.Screen name="grievances" options={{ title: "Grievances", ...sideMenuOnly }} />
       <Tabs.Screen
         name="admin"
         options={{
