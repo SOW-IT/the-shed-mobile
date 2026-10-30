@@ -6,6 +6,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.12] - 2026-10-31
+
+### Added
+- **A Calendar of every SOW event.** Staff and campus leaders get Calendar in
+  the side menu: a month of TWIGs, PPNs, weeklies and campus and SOW events,
+  each coloured by category, with chips to show only some categories or
+  campuses. Tap a day to see its events and open one's roll-call; events
+  running over several days show on each day with their dates.
+- **Add events from the Calendar.** "Add Event" starts a new attendance event
+  on the day you picked, so attendance can be taken for it like any other.
+  New and edited events can be given a calendar category (Campus event, SOW
+  event, Marketing, Deadline or Other) for things like marketing schedules and
+  deadlines; TWIG and PPN still come from their tags.
+- **Copies to a shared Google Calendar.** Once a calendar is set up, every
+  event and each change to it is copied to it, so it can sit beside people's
+  own calendars. Changes made in Google don't come back to the app.
+
 ## [2.10.10] - 2026-10-29
 
 ### Fixed
