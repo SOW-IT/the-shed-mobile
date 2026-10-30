@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.11] - 2026-10-31
+
+### Added
+- **Raise a grievance, and follow it until it's resolved.** Anyone can raise
+  a grievance with SOW in confidence, signed in or not, from Grievances in
+  the side menu or "Raise a grievance" on the Partner tab: what it's about,
+  what happened, and optionally where, when, who was involved and what
+  they'd like to happen. Only the People and Culture and Compliance teams
+  see it. Each step is emailed to whoever raised it: received (with who's
+  looking after it), in progress, and resolved with the outcome, or closed
+  with a reason. Signed in, they can also follow its progress under Mine.
+- **People and Culture and Compliance handle grievances in the app.** The
+  team gets a notification for each new grievance, and grievances@sow.org.au
+  gets a copy. Open lists what's waiting, oldest first, and All lists every
+  grievance. Anyone on the team can take one on or give it to a teammate,
+  mark it in progress, and resolve it or close it as not proceeding. The
+  side menu counts new grievances and the open ones you're looking after.
+
 ## [2.10.10] - 2026-10-29
 
 ### Fixed
