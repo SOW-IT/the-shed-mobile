@@ -11,6 +11,7 @@ import {
   weeklySettingsFields,
 } from "./weeklyInsightsData";
 import { homeBlockValidator } from "./homeData";
+import { calendarCategoryValidator } from "./calendarData";
 import { designAnswersValidator, designStatusValidator } from "./designRequestData";
 import {
   eventStatusValidator,
@@ -471,6 +472,7 @@ export default defineSchema({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(weeklyMarkValidator),
+    category: v.optional(calendarCategoryValidator),
     checkIn: v.optional(
       v.object({ token: v.string(), enabledAt: v.number(), enabledBy: v.string() })
     ),

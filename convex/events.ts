@@ -47,6 +47,8 @@ import {
   startEventAttendanceCount,
 } from "./attendanceCounts";
 import { deleteRollCallOrder, rankingInputsChanged, scheduleRank } from "./rollCallOrder";
+import { calendarCategoryValidator } from "./calendarData";
+import { calendarSyncConfigured } from "./googleCalendar";
 
 const weeklyMarkArg = v.object({
   year: v.number(),
@@ -365,8 +367,9 @@ export const create = mutation({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(weeklyMarkArg),
+    category: v.optional(calendarCategoryValidator),
   },
-  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds, weekly }) => {
+  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds, weekly, category }) => {
     const { email } = await requireProfile(ctx);
     const eventFields = await validateEventFields(ctx, {
       name,
@@ -376,7 +379,7 @@ export const create = mutation({
       tagIds,
       weekly,
     });
-    const eventId = await ctx.db.insert("events", eventFields);
+    const eventId = await ctx.db.insert("events", { ...eventFields, category });
     await startEventAttendanceCount(ctx, eventId);
     await logAttendanceAction(ctx, {
       actorEmail: email,
@@ -390,6 +393,7 @@ export const create = mutation({
       actorEmail: email,
     });
     await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
+    await syncToGoogle(ctx, eventId);
     return eventId;
   },
 });
@@ -403,11 +407,12 @@ export const update = mutation({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(v.union(v.null(), weeklyMarkArg)),
+    category: v.optional(v.union(v.null(), calendarCategoryValidator)),
   },
   returns: v.null(),
   handler: async (
     ctx,
-    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly }
+    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly, category }
   ) => {
     const { email } = await requireProfile(ctx);
     const existing = await ctx.db.get(eventId);
@@ -420,7 +425,8 @@ export const update = mutation({
       tagIds,
       weekly: weekly === undefined ? existing.weekly : weekly,
     });
-    await ctx.db.patch(eventId, eventFields);
+    const nextCategory = category === undefined ? existing.category : (category ?? undefined);
+    await ctx.db.patch(eventId, { ...eventFields, category: nextCategory });
     if (rankingInputsChanged(existing, { ...existing, ...eventFields })) {
       await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
     }
@@ -434,6 +440,8 @@ export const update = mutation({
       changes.push("tags");
     if (JSON.stringify(existing.weekly ?? null) !== JSON.stringify(eventFields.weekly ?? null))
       changes.push("term and week");
+    if (existing.category !== nextCategory) changes.push("calendar category");
+    await syncToGoogle(ctx, eventId);
     if (changes.length) {
       await logAttendanceAction(ctx, {
         actorEmail: email,
@@ -447,6 +455,13 @@ export const update = mutation({
     return null;
   },
 });
+
+// Copies the event (or its removal) to the shared Google Calendar, when one is set up.
+async function syncToGoogle(ctx: MutationCtx, eventId: Id<"events">) {
+  if (calendarSyncConfigured()) {
+    await ctx.scheduler.runAfter(0, internal.googleCalendar.syncEvent, { eventId });
+  }
+}
 
 const attendeesToList = async (
   ctx: QueryCtx | MutationCtx,
@@ -502,6 +517,7 @@ export const remove = mutation({
     await deleteEventAttendanceCount(ctx, eventId);
     await deleteRollCallOrder(ctx, eventId);
     await ctx.db.delete(eventId);
+    await syncToGoogle(ctx, eventId);
     const hidden = rows.length - people.length;
     await logAttendanceAction(ctx, {
       actorEmail: email,

@@ -17,6 +17,14 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
+- [ ] **Turn on the shared Google Calendar** (2.10.12), if wanted: enable the
+      Google Calendar API in the service account's project, create a calendar
+      shared with the service account ("Make changes to events"), then
+      `npx convex env set --prod GOOGLE_CALENDAR_ID <id>` and
+      `npx convex run --prod googleCalendar:backfill '{"daysBack": 30}'`.
+      Until then the in-app Calendar works on its own. See the README's
+      "Shared Google Calendar".
+
 - [ ] **Confirm an over-the-air update reaches a phone.** iOS 2.9.23 and
       Android 2.9.24 are the first store builds with `expo-updates`. Check a
       publish lands with `eas update:list` and a phone on one of those builds.

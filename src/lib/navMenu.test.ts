@@ -110,6 +110,7 @@ describe("drawerItems", () => {
   test("staff get Profile, Churches, Reimbursements, Event Requests and Design Requests", () => {
     expect(drawerItems(staff)).toEqual([
       "profile",
+      "calendar",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -118,9 +119,10 @@ describe("drawerItems", () => {
   });
 
   test("admins and the Finance Head also get Admin, last; admins get Announcements before it", () => {
-    const withAdmin = ["profile", "churches", "reimbursements", "eventRequests", "designRequests", "admin"];
+    const withAdmin = ["profile", "calendar", "churches", "reimbursements", "eventRequests", "designRequests", "admin"];
     expect(drawerItems(admin)).toEqual([
       "profile",
+      "calendar",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -135,6 +137,7 @@ describe("drawerItems", () => {
   test("mentors get Mentoring without Announcements or Admin", () => {
     expect(drawerItems(mentor)).toEqual([
       "profile",
+      "calendar",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -144,9 +147,10 @@ describe("drawerItems", () => {
   });
 
   test("campus leaders don't get Reimbursements, Event or Design Requests, but keep Admin", () => {
-    expect(drawerItems(campusLeader)).toEqual(["profile", "churches"]);
+    expect(drawerItems(campusLeader)).toEqual(["profile", "calendar", "churches"]);
     expect(drawerItems(campusLeaderAdmin)).toEqual([
       "profile",
+      "calendar",
       "churches",
       "mentoring",
       "announcements",
@@ -171,6 +175,7 @@ describe("sidebarItems", () => {
       "eventRequests",
       "designRequests",
       "attendance",
+      "calendar",
       "insights",
       "org",
       "churches",
@@ -185,6 +190,7 @@ describe("sidebarItems", () => {
       "eventRequests",
       "designRequests",
       "attendance",
+      "calendar",
       "insights",
       "org",
       "churches",
@@ -199,6 +205,7 @@ describe("sidebarItems", () => {
     expect(sidebarItems(campusLeader)).toEqual([
       "home",
       "attendance",
+      "calendar",
       "insights",
       "org",
       "churches",
@@ -211,6 +218,7 @@ describe("navEntries", () => {
   test("folds the three request pages into one Requests group where the first sat", () => {
     expect(navEntries(drawerItems(admin))).toEqual([
       { kind: "item", key: "profile" },
+      { kind: "item", key: "calendar" },
       { kind: "item", key: "churches" },
       {
         kind: "group",
@@ -236,6 +244,7 @@ describe("navEntries", () => {
   test("no group when there are no request pages", () => {
     expect(navEntries(drawerItems(campusLeader))).toEqual([
       { kind: "item", key: "profile" },
+      { kind: "item", key: "calendar" },
       { kind: "item", key: "churches" },
     ]);
   });
@@ -251,6 +260,7 @@ describe("activeNavKey", () => {
   test("screens opened from a section highlight that section", () => {
     expect(activeNavKey("/request/abc123")).toBe("reimbursements");
     expect(activeNavKey("/review")).toBe("reimbursements");
+    expect(activeNavKey("/calendar")).toBe("calendar");
     expect(activeNavKey("/all")).toBe("reimbursements");
     expect(activeNavKey("/design-requests/abc123")).toBe("designRequests");
     expect(activeNavKey("/design-requests/new")).toBe("designRequests");

@@ -6,6 +6,7 @@ export type NavKey =
   | "designRequests"
   | "eventRequests"
   | "attendance"
+  | "calendar"
   | "insights"
   | "org"
   | "profile"
@@ -20,6 +21,7 @@ export const NAV_HREFS = {
   designRequests: "/design-requests",
   eventRequests: "/event-requests",
   attendance: "/attendance",
+  calendar: "/calendar",
   insights: "/insights",
   org: "/org",
   profile: "/profile",
@@ -35,6 +37,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   designRequests: "Design Requests",
   eventRequests: "Event Requests",
   attendance: "Attendance",
+  calendar: "Calendar",
   insights: "Insights",
   org: "Org Chart",
   profile: "Profile",
@@ -104,7 +107,7 @@ export const showsReimbursements = (viewer: NavViewer) =>
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = ["profile"];
-  if (viewer.isStaff) items.push("churches");
+  if (viewer.isStaff) items.push("calendar", "churches");
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.canMentoring) items.push("mentoring");
   if (viewer.canAnnounce) items.push("announcements");
@@ -115,7 +118,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
 export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
-  if (viewer.isStaff) items.push("attendance");
+  if (viewer.isStaff) items.push("attendance", "calendar");
   items.push("insights", "org", "churches");
   if (viewer.signedIn) items.push("profile");
   if (viewer.canMentoring) items.push("mentoring");
@@ -139,6 +142,7 @@ export const activeNavKey = (pathname: string): NavKey | null => {
   if (pathname === "/attendance" || pathname.startsWith("/attendance/")) {
     return "attendance";
   }
+  if (pathname === "/calendar") return "calendar";
   if (pathname === "/insights") return "insights";
   if (pathname === "/org") return "org";
   if (pathname === "/profile") return "profile";

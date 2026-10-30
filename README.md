@@ -227,6 +227,15 @@ A second feature area (ported from *time-to-rollcall*) for running roll-call at
 SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 `universities`) plus org-wide "SOW", all sharing one member pool.
 
+- **Calendar** (`convex/calendar.ts`, rules in `shared/calendar.ts`), from
+  the side menu for staff and campus leaders: a month of every attendance
+  event, coloured by category (TWIG and PPN from their tags, Weekly from its
+  term and week, otherwise a picked category: Campus event, SOW event,
+  Marketing, Deadline or Other, or Campus/SOW by where it's held). Chips filter
+  by category and campus; a day lists its events and opens their roll-call.
+  "Add Event" creates an attendance event on the picked day. Events are copied
+  one way to a shared Google Calendar (`convex/googleCalendar.ts`) once
+  `GOOGLE_CALENDAR_ID` is set: see [Shared Google Calendar](#shared-google-calendar-optional).
 - **Events & roll-call**: create events tagged with one or more sub-groups
   (multi-sub-group = a *collaborative* event that appears under each), then sign
   people in/out. Everyone signed in is a **member**; staff are members with
@@ -382,6 +391,27 @@ npx convex env set GOOGLE_ADMIN_IMPERSONATE <a-workspace-admin>@sow.org.au
 Until configured, the weekly sync no-ops and the admin screen shows
 "Never synced." Syncing fills the picker and staff photos. Assigning
 roles stays an explicit admin action.
+
+### Shared Google Calendar (optional)
+
+Every attendance event, and each change to it, is copied to one Google
+Calendar by the same service account. Nothing comes back from Google.
+
+1. In the service account's Google Cloud project, enable the **Google Calendar
+   API**.
+2. Create the calendar from a SOW account. Under *Share with specific people*,
+   add the service account's email with **Make changes to events**, then share
+   it with SOW as you like.
+3. Set its ID (*Settings → Integrate calendar → Calendar ID*) and copy the
+   events already in the app:
+
+```bash
+npx convex env set GOOGLE_CALENDAR_ID <id>@group.calendar.google.com
+npx convex run googleCalendar:backfill '{"daysBack": 30}'
+```
+
+Leave it unset on dev unless dev has its own test calendar: dev's events are
+test data.
 
 A person's photo is, in order: the one they uploaded in The SHED, their
 Workspace directory photo, the picture Google sent at their last sign-in,

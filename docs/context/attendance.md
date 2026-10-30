@@ -225,6 +225,13 @@ The gentle, explainable list for the current Term: people who were coming
 Newcomers who missed the last one while their visit is recent. Visitors have
 their own list. A prompt for a leader, never a judgement.
 
+**Calendar category**:
+How the Calendar colours and filters an event: TWIG or PPN from its tags,
+Weekly from its term and week, otherwise the category picked on the event
+(Campus event, SOW event, Marketing, Deadline, Other), or Campus/SOW event by
+whether it's held at SOW. Picking a category never changes Insights.
+_Avoid_: event type, calendar tag
+
 **TWIG** / **PPN** (SOW Insights):
 A TWIG is an event with the Other-events TWIG tag and no PPN tag; a PPN here
 is one with both (the SOW monthly night). SOW Insights counts only Held ones
