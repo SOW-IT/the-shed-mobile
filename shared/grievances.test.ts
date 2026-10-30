@@ -28,6 +28,7 @@ describe("grievanceProblem", () => {
   test.each([
     [{ name: " " }, "Please enter your name."],
     [{ email: "nope" }, "Please enter a valid email address."],
+    [{ email: "alex@example..com" }, "Please enter a valid email address."],
     [{ category: "gossip" }, "Please choose what it's about."],
     [{ details: "bad" }, "Please tell us what happened."],
     [{ details: "x".repeat(5001) }, '"What happened" can be at most 5000 characters.'],

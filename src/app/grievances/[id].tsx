@@ -154,7 +154,7 @@ export default function GrievanceScreen() {
     runBusy(busy, setBusy, setError, action, after);
   const steps = grievanceStepTrack(g, {
     submitter: g.name,
-    assignee: data.assigneeName,
+    assignee: data.receivedByName,
     closedBy: data.closedByName,
   });
   const resolving = closing === "RESOLVED";

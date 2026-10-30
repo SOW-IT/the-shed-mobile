@@ -37,6 +37,9 @@ const QUEUE_GROUPS: Group[] = [
 
 const ALL_GROUPS: Group[] = [...QUEUE_GROUPS, ...MINE_GROUPS.slice(1)];
 
+// convex/grievances.ts `all` returns at most this many.
+const ALL_LIMIT = 300;
+
 const INTRO =
   "Raise a grievance with SOW's People and Culture and Compliance teams. Only they can see it, and you'll get an email each time it moves along.";
 
@@ -180,6 +183,11 @@ export default function GrievancesScreen() {
                 groups={ALL_GROUPS}
                 forTeam
                 empty={{ title: "Nothing here", message: "No grievances have been raised yet." }}
+                header={
+                  (all?.length ?? 0) >= ALL_LIMIT ? (
+                    <Muted>{`Showing the newest ${ALL_LIMIT}. Older ones are still kept.`}</Muted>
+                  ) : undefined
+                }
               />
             ),
           },

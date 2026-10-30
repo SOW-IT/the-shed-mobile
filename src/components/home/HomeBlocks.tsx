@@ -121,12 +121,7 @@ const renderBlock = (block: HomeBlock, index: number) => {
     case "campuses":
       return <Campuses campuses={block.campuses} />;
     case "contact":
-      return (
-        <View style={styles.page}>
-          <ContactCard title={block.title} body={block.body} />
-          <GrievanceCard />
-        </View>
-      );
+      return <ContactCard title={block.title} body={block.body} />;
     default:
       return null;
   }
@@ -373,7 +368,7 @@ const CampusDetailSheet = ({
   );
 };
 
-const GrievanceCard = () => {
+export const GrievanceCard = () => {
   const router = useRouter();
   return (
     <Card>

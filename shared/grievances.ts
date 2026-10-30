@@ -77,7 +77,9 @@ export const normalizeGrievance = (input: GrievanceInput): GrievanceInput => ({
 
 export const grievanceProblem = (input: GrievanceInput): string | null => {
   if (!input.name) return "Please enter your name.";
-  if (!EMAIL_RE.test(input.email)) return "Please enter a valid email address.";
+  if (!EMAIL_RE.test(input.email) || input.email.includes("..")) {
+    return "Please enter a valid email address.";
+  }
   if (!GRIEVANCE_CATEGORIES.some((c) => c.value === input.category)) {
     return "Please choose what it's about.";
   }

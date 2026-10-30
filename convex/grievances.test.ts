@@ -154,6 +154,8 @@ describe("submitting", () => {
     await expect(
       t.mutation(api.grievances.submit, input({ email: "late@example.com" }))
     ).rejects.toThrow("The grievance form is busy");
+    // Signing in gets past the shared cap.
+    await asUser(t, LEO).mutation(api.grievances.submit, input());
 
     vi.setSystemTime(PINNED_NOW + 2 * 60 * 60 * 1000);
     await t.mutation(api.grievances.submit, input());
@@ -184,6 +186,8 @@ describe("handling", () => {
     expect(await emails(t)).toHaveLength(0);
 
     await asUser(t, CARL).mutation(api.grievances.assign, { id, assigneeEmail: PIA });
+    const view = await asUser(t, CARL).query(api.grievances.get, { id });
+    expect(view).toMatchObject({ assigneeName: PIA, receivedByName: HANA });
     sent = await emails(t);
     expect(sent.map((e) => e.to)).toEqual([GRIEVANCES_TEAM_EMAIL]);
     expect(sent[0].subject).toBe(`Grievance #1 given to ${PIA}`);

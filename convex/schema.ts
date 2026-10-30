@@ -591,6 +591,7 @@ export default defineSchema({
     ...grievanceFields,
     status: grievanceStatusValidator,
     assigneeEmail: v.optional(v.string()),
+    receivedBy: v.optional(v.string()),
     receivedAt: v.optional(v.number()),
     inProgressAt: v.optional(v.number()),
     closedAt: v.optional(v.number()),
@@ -610,9 +611,11 @@ export default defineSchema({
 
   grievanceRateLimit: defineTable({
     fromEmail: v.string(),
+    signedIn: v.boolean(),
     submittedAt: v.number(),
   })
     .index("by_email_and_time", ["fromEmail", "submittedAt"])
+    .index("by_signedIn_and_time", ["signedIn", "submittedAt"])
     .index("by_time", ["submittedAt"]),
 
   contactRateLimit: defineTable({

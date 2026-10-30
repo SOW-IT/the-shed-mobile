@@ -108,7 +108,7 @@ async function tellSubmitter(
 async function tellTeam(
   ctx: MutationCtx,
   g: Grievance,
-  opts: { actor: string; subject: string; body: string; replyTo?: string }
+  opts: { actor: string | undefined; subject: string; body: string; replyTo?: string }
 ) {
   const url = grievanceUrl(g);
   for (const to of await grievanceTeam(ctx)) {
@@ -131,7 +131,9 @@ async function tellTeam(
   });
 }
 
-async function checkRateLimit(ctx: MutationCtx, fromEmail: string) {
+// Signed-in people are limited per account only; the shared cap applies to
+// signed-out sending, so it can't lock out anyone who signs in.
+async function checkRateLimit(ctx: MutationCtx, fromEmail: string, signedIn: boolean) {
   const now = Date.now();
   const mine = await ctx.db
     .query("grievanceRateLimit")
@@ -144,13 +146,17 @@ async function checkRateLimit(ctx: MutationCtx, fromEmail: string) {
       "You've sent a few grievances recently. Please wait an hour, or email grievances@sow.org.au."
     );
   }
-  const everyone = await ctx.db
-    .query("grievanceRateLimit")
-    .withIndex("by_time", (q) => q.gt("submittedAt", now - RATE_WINDOW_MS))
-    .take(MAX_GLOBAL);
+  const everyone = signedIn
+    ? []
+    : await ctx.db
+        .query("grievanceRateLimit")
+        .withIndex("by_signedIn_and_time", (q) =>
+          q.eq("signedIn", false).gt("submittedAt", now - RATE_WINDOW_MS)
+        )
+        .take(MAX_GLOBAL);
   if (everyone.length >= MAX_GLOBAL) {
     throw new ConvexError(
-      "The grievance form is busy right now. Please try again later, or email grievances@sow.org.au."
+      "The grievance form is busy right now. Please sign in, try again later, or email grievances@sow.org.au."
     );
   }
   const stale = await ctx.db
@@ -158,7 +164,7 @@ async function checkRateLimit(ctx: MutationCtx, fromEmail: string) {
     .withIndex("by_time", (q) => q.lte("submittedAt", now - RATE_WINDOW_MS))
     .take(PRUNE_BATCH);
   for (const row of stale) await ctx.db.delete("grievanceRateLimit", row._id);
-  await ctx.db.insert("grievanceRateLimit", { fromEmail, submittedAt: now });
+  await ctx.db.insert("grievanceRateLimit", { fromEmail, signedIn, submittedAt: now });
 }
 
 export const submit = mutation({
@@ -168,7 +174,7 @@ export const submit = mutation({
     const input = normalizeGrievance({ ...args, email: accountEmail ?? args.email });
     const problem = grievanceProblem(input);
     if (problem) throw new ConvexError(problem);
-    await checkRateLimit(ctx, input.email);
+    await checkRateLimit(ctx, input.email, accountEmail !== undefined);
 
     const last = await ctx.db.query("grievances").withIndex("by_number").order("desc").first();
     const number = (last?.number ?? 0) + 1;
@@ -197,7 +203,7 @@ export const submit = mutation({
       .filter(Boolean)
       .join("\n");
     await tellTeam(ctx, g, {
-      actor: input.email,
+      actor: accountEmail,
       subject: `New ${name}`,
       body: `A new grievance is waiting for someone to take it.\n\n${contact}\n\n${details}`,
       replyTo: g.email,
@@ -218,7 +224,9 @@ export const assign = mutation({
     const first = g.status === "SUBMITTED";
     await ctx.db.patch("grievances", g._id, {
       assigneeEmail: args.assigneeEmail,
-      ...(first ? { status: "RECEIVED" as const, receivedAt: Date.now() } : {}),
+      ...(first
+        ? { status: "RECEIVED" as const, receivedAt: Date.now(), receivedBy: args.assigneeEmail }
+        : {}),
     });
     const assignee = (await nameOf(ctx, args.assigneeEmail)) as string;
     const taken = args.assigneeEmail === actor;
@@ -409,6 +417,7 @@ export const get = query({
     return {
       grievance: g,
       assigneeName: await nameOf(ctx, g.assigneeEmail),
+      receivedByName: await nameOf(ctx, g.receivedBy ?? g.assigneeEmail),
       closedByName: await nameOf(ctx, g.closedBy),
       isHandler,
       can: {
@@ -430,9 +439,10 @@ export const timeline = query({
     const events = await ctx.db
       .query("grievanceEvents")
       .withIndex("by_grievance", (q) => q.eq("grievanceId", args.id))
+      .order("desc")
       .take(EVENTS_LIMIT);
     return await Promise.all(
-      events.map(async (event) => ({
+      events.reverse().map(async (event) => ({
         at: event._creationTime,
         action: event.action,
         actorName:

@@ -73,7 +73,7 @@ export default function NewGrievanceScreen() {
     setSaving(true);
     try {
       const { id, number } = await submit(input);
-      if (accountEmail) router.replace(`/grievances/${id}`);
+      if (isAuthenticated) router.replace(`/grievances/${id}`);
       else setSent({ number, email: input.email });
     } catch (e) {
       setError(errorMessage(e));
@@ -116,7 +116,7 @@ export default function NewGrievanceScreen() {
       <ReadableColumn>
         <View style={{ gap: spacing.md }}>
           <Card>
-            <Txt style={typography.headline}>Only HR and Compliance see this</Txt>
+            <Txt style={typography.headline}>Only People and Culture and Compliance see this</Txt>
             <Muted>
               {`Your grievance goes to SOW's People and Culture and Compliance teams (${GRIEVANCES_TEAM_EMAIL}). We'll email you each time it moves along. If someone is in danger, call 000 first.`}
             </Muted>

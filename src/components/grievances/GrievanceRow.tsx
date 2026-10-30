@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Doc } from "../../../convex/_generated/dataModel";
-import { grievanceCategoryLabel } from "@shared/grievances";
+import { GRIEVANCE_STATUS_LABELS, grievanceCategoryLabel } from "@shared/grievances";
 import { sydneyDay } from "@/lib/sydneyTime";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { WaitingLine } from "@/components/design/DesignRequestRow";
@@ -25,7 +25,7 @@ export const GrievanceRow = ({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Grievance ${grievance.number}, ${about}, ${meta}`}
+      accessibilityLabel={`Grievance ${grievance.number}, ${about}, ${meta}, ${GRIEVANCE_STATUS_LABELS[grievance.status]}`}
       style={({ pressed }) => [
         styles.row,
         t.surfaceEdge,

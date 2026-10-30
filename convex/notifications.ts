@@ -138,14 +138,17 @@ export const markReadForGrievance = mutation({
   handler: async (ctx, args) => {
     const email = await optionalEmail(ctx);
     if (!email) return null;
-    const unread = await ctx.db
-      .query("notifications")
-      .withIndex("by_user_and_grievance_and_read", (q) =>
-        q.eq("userEmail", email).eq("grievanceId", args.grievanceId).eq("read", false)
-      )
-      .take(200);
-    for (const notification of unread) {
-      await ctx.db.patch("notifications", notification._id, { read: true });
+    for (;;) {
+      const unread = await ctx.db
+        .query("notifications")
+        .withIndex("by_user_and_grievance_and_read", (q) =>
+          q.eq("userEmail", email).eq("grievanceId", args.grievanceId).eq("read", false)
+        )
+        .take(200);
+      if (unread.length === 0) break;
+      for (const notification of unread) {
+        await ctx.db.patch("notifications", notification._id, { read: true });
+      }
     }
     return null;
   },
