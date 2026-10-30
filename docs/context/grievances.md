@@ -48,5 +48,7 @@ _Avoid_: status (in user-facing copy), received, approved, declined
 
 **Staff year** (of a grievance):
 The year it's listed under on Submitted: the one it was raised in, until
-1 October moves any still open into the new year. Only years grievances have
-been listed in are offered.
+1 October moves any still open into the new year (and the current year lists
+them even before the move runs). The current staff year is always offered,
+even with no grievances yet; earlier years only if grievances were listed in
+them.

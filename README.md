@@ -163,8 +163,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   this year's members of the departments chosen in Admin → Other (People and
   Culture and Compliance to start); other admins can't. Nothing goes to a
   team inbox: the team gets an in-app and push notification for each new
-  one and works on it under **Submitted**, listed by staff year (only years
-  with grievances; open ones move to the new year on 1 October). Stages:
+  one and works on it under **Submitted**, listed by staff year (the current
+  year, plus earlier years that have grievances; open ones move to the new
+  year just after midnight on 1 October, and the current year lists them
+  even before that runs). Stages:
   Submitted → In progress (someone has taken it on, or been given it) →
   Resolved with an outcome note, or Not proceeding with a reason. The
   submitter is emailed at each stage and, signed in, follows it under Mine

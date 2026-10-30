@@ -24,6 +24,8 @@ export const GrievanceOptionsSheet = ({
   const t = useAppTheme();
   const save = useMutation(api.grievances.setCategories);
   const [edited, setEdited] = useState<Option[] | null>(null);
+  // What the options were when editing began, so a save can't undo someone else's change.
+  const [base, setBase] = useState<string[] | null>(null);
   const [nextKey, setNextKey] = useState(categories.length);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +35,7 @@ export const GrievanceOptionsSheet = ({
 
   const change = (next: Option[]) => {
     setEdited(next);
+    if (base === null) setBase(categories);
     if (error) setError(null);
   };
   const move = (index: number, by: number) => {
@@ -46,6 +49,7 @@ export const GrievanceOptionsSheet = ({
   };
   const close = () => {
     setEdited(null);
+    setBase(null);
     setError(null);
     onClose();
   };
@@ -63,7 +67,7 @@ export const GrievanceOptionsSheet = ({
             loading={busy}
             disabled={unchanged}
             onPress={() =>
-              void runBusy(busy, setBusy, setError, () => save({ categories: texts }), close)
+              void runBusy(busy, setBusy, setError, () => save({ categories: texts, expected: base ?? categories }), close)
             }
           />
           <Btn title="Back" variant="ghost" onPress={close} />

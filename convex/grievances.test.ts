@@ -175,26 +175,34 @@ describe("submitting", () => {
   });
 });
 
+const DEFAULT_DEPARTMENTS = ["People and Culture", "Compliance"];
+
 describe("settings", () => {
   test("admins choose the team's departments; the team picks up the change", async () => {
     const t = await setup();
-    expect((await t.query(api.grievances.settings, {})).departments).toEqual([
+    expect((await t.query(api.grievances.settings, {})).departments).toEqual(DEFAULT_DEPARTMENTS);
+    const setDepartments = (email: string, departments: string[], expected = DEFAULT_DEPARTMENTS) =>
+      asUser(t, email).mutation(api.grievances.setDepartments, { departments, expected });
+    await expect(setDepartments(CARL, ["Marketing"])).rejects.toThrow("Only admins");
+    await expect(setDepartments(ADMIN, [" ", ""])).rejects.toThrow("Add at least one department.");
+    await expect(setDepartments(ADMIN, ["Alumni"])).rejects.toThrow(
+      `Nobody in Alumni has a role in ${YEAR}`
+    );
+    // A department with nobody in it is fine while another has people.
+    await setDepartments(ADMIN, [
       "People and Culture",
-      "Compliance",
+      " Training and Development ",
+      "people and culture",
+      "Alumni",
     ]);
-    await expect(
-      asUser(t, CARL).mutation(api.grievances.setDepartments, { departments: ["Marketing"] })
-    ).rejects.toThrow("Only admins");
-    await expect(
-      asUser(t, ADMIN).mutation(api.grievances.setDepartments, { departments: [" ", ""] })
-    ).rejects.toThrow("Add at least one department.");
-    await asUser(t, ADMIN).mutation(api.grievances.setDepartments, {
-      departments: ["People and Culture", " Training and Development ", "people and culture"],
-    });
     expect((await t.query(api.grievances.settings, {})).departments).toEqual([
       "People and Culture",
       "Training and Development",
+      "Alumni",
     ]);
+    await expect(setDepartments(ADMIN, ["Compliance"])).rejects.toThrow(
+      "Someone else changed this while you were editing."
+    );
     expect(await asUser(t, TESS).query(api.grievances.viewer, {})).toMatchObject({ isHandler: true });
     expect(await asUser(t, CARL).query(api.grievances.viewer, {})).toMatchObject({ isHandler: false });
     expect((await asUser(t, TESS).query(api.grievances.team, {}))!.map((p) => p.email)).toEqual([
@@ -204,25 +212,56 @@ describe("settings", () => {
     ]);
   });
 
+  test("renaming a department keeps the team: this year swaps the name, next year adds it", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const departments = async () => (await t.query(api.grievances.settings, {})).departments;
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Human Resources" });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR + 1,
+      name: "People and Culture",
+      division: "Human Resources",
+    });
+    await admin.mutation(api.admin.updateDepartment, {
+      year: YEAR + 1,
+      oldName: "People and Culture",
+      newName: "People",
+      division: "Human Resources",
+    });
+    expect(await departments()).toEqual([...DEFAULT_DEPARTMENTS, "People"]);
+    await admin.mutation(api.admin.updateDepartment, {
+      year: YEAR,
+      oldName: "People and Culture",
+      newName: "People and Care",
+      division: "Human Resources",
+      headEmail: PIA,
+    });
+    expect(await departments()).toEqual(["People and Care", "Compliance", "People"]);
+    expect(await asUser(t, HANA).query(api.grievances.viewer, {})).toMatchObject({ isHandler: true });
+    await admin.mutation(api.admin.updateDepartment, {
+      year: YEAR,
+      oldName: "Alumni",
+      newName: "Alumni Network",
+      division: "Engagement",
+    });
+    expect(await departments()).toEqual(["People and Care", "Compliance", "People"]);
+  });
+
   test("the team edits the form's options; old grievances keep their wording", async () => {
     const t = await setup();
     const id = await t.mutation(api.grievances.submit, input());
+    const setCategories = (email: string, categories: string[], expected = DEFAULT_GRIEVANCE_CATEGORIES) =>
+      asUser(t, email).mutation(api.grievances.setCategories, { categories, expected });
+    await expect(setCategories(LEO, ["X"])).rejects.toThrow("Only the grievance team");
     await expect(
-      asUser(t, LEO).mutation(api.grievances.setCategories, { categories: ["X"] })
-    ).rejects.toThrow("Only the grievance team");
-    await expect(
-      asUser(t, HANA).mutation(api.grievances.setCategories, {
-        categories: Array.from({ length: 21 }, (_, i) => `Option ${i}`),
-      })
+      setCategories(HANA, Array.from({ length: 21 }, (_, i) => `Option ${i}`))
     ).rejects.toThrow("at most 20 options");
-    await expect(
-      asUser(t, HANA).mutation(api.grievances.setCategories, { categories: ["x".repeat(81)] })
-    ).rejects.toThrow("at most 80 characters");
-    await asUser(t, HANA).mutation(api.grievances.setCategories, {
-      categories: ["A leader", "Safety"],
-    });
+    await expect(setCategories(HANA, ["x".repeat(81)])).rejects.toThrow("at most 80 characters");
+    await setCategories(HANA, ["A leader", "Safety"]);
     expect((await t.query(api.grievances.settings, {})).categories).toEqual(["A leader", "Safety"]);
     expect((await t.query(api.grievances.settings, {})).departments).toHaveLength(2);
+    // Carl started editing before Hana saved, so his save is refused.
+    await expect(setCategories(CARL, ["Other"])).rejects.toThrow("Someone else changed this");
     expect((await get(t, id)).category).toBe(CONDUCT);
     await t.mutation(api.grievances.submit, input({ category: "Safety", email: "s@example.com" }));
   });
@@ -363,6 +402,59 @@ describe("staff years", () => {
       action: "carried-over",
       actorName: "THE SHED",
       detail: `${YEAR} → ${YEAR + 1}`,
+    });
+  });
+});
+
+describe("review follow-ups", () => {
+  const oldGrievance = (over: Record<string, unknown> = {}) => ({
+    ref: crypto.randomUUID(),
+    year: YEAR - 1,
+    submittedAt: PINNED_NOW - 200 * DAY,
+    ...input(),
+    status: "SUBMITTED" as const,
+    ...over,
+  });
+
+  test("this year's list shows open grievances from earlier years before the move, and the move runs in batches", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 105; i++) await ctx.db.insert("grievances", oldGrievance());
+      await ctx.db.insert("grievances", oldGrievance({ status: "RESOLVED" }));
+    });
+    expect(await asUser(t, HANA).query(api.grievances.submitted, { year: YEAR })).toHaveLength(105);
+    expect(await t.mutation(internal.grievances.carryForward, {})).toEqual({ moved: 105 });
+    expect(await asUser(t, HANA).query(api.grievances.submitted, { year: YEAR })).toHaveLength(105);
+    expect(await asUser(t, HANA).query(api.grievances.submitted, { year: YEAR - 1 })).toHaveLength(1);
+  });
+
+  test("history names a team member by their staff name on their own grievance", async () => {
+    const t = await setup();
+    const id = await asUser(t, HANA).mutation(api.grievances.submit, input({ name: "H. D." }));
+    await asUser(t, HANA).mutation(api.grievances.assign, { id, assigneeEmail: HANA });
+    const history = await asUser(t, CARL).query(api.grievances.timeline, { id });
+    expect(history!.map((e) => e.actorName)).toEqual(["H. D.", HANA]);
+  });
+
+  test("an earlier year's grievance names people as they were that year", async () => {
+    const t = await setup();
+    const id = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", { email: "old@sow.org.au", year: YEAR - 1, name: "Ola Lee" });
+      return await ctx.db.insert(
+        "grievances",
+        oldGrievance({
+          status: "RESOLVED",
+          assigneeEmail: "old@sow.org.au",
+          inProgressAt: PINNED_NOW - 199 * DAY,
+          closedAt: PINNED_NOW - 198 * DAY,
+          closedBy: "old@sow.org.au",
+          closingNote: "Sorted",
+        })
+      );
+    });
+    expect(await asUser(t, HANA).query(api.grievances.get, { id })).toMatchObject({
+      assigneeName: "Ola Lee",
+      closedByName: "Ola Lee",
     });
   });
 });

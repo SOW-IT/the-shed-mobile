@@ -32,6 +32,7 @@ type Ctx = QueryCtx | MutationCtx;
 type Grievance = Doc<"grievances">;
 
 const LIST_LIMIT = 500;
+const CARRY_BATCH = 100;
 const EVENTS_LIMIT = 200;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_EMAIL = 3;
@@ -57,11 +58,32 @@ async function saveSettings(
   else await ctx.db.insert("grievanceSettings", { ...(await readSettings(ctx)), ...patch });
 }
 
+// Called when an admin renames a department. This year's rename swaps the
+// name; renaming next year's adds the new name so this year's team keeps working.
+export async function renameGrievanceDepartment(
+  ctx: MutationCtx,
+  year: number,
+  oldName: string,
+  newName: string
+) {
+  const { departments } = await readSettings(ctx);
+  if (!departments.includes(oldName) || departments.includes(newName)) return;
+  await saveSettings(ctx, {
+    departments:
+      year === currentStaffYear()
+        ? departments.map((d) => (d === oldName ? newName : d))
+        : [...departments, newName],
+  });
+}
+
+const sameList = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((value, i) => value === b[i]);
+
 const inDepartments = (profile: Doc<"staffProfiles">, departments: string[]) =>
   departments.some((d) => isMemberOfDepartment(profile, d));
 
-export async function grievanceTeam(ctx: Ctx): Promise<string[]> {
-  const { departments } = await readSettings(ctx);
+export async function grievanceTeam(ctx: Ctx, departmentList?: string[]): Promise<string[]> {
+  const departments = departmentList ?? (await readSettings(ctx)).departments;
   const emails = new Set<string>();
   for await (const profile of ctx.db
     .query("staffProfiles")
@@ -94,8 +116,8 @@ async function requireOpen(ctx: Ctx, id: Id<"grievances">): Promise<Grievance> {
   return grievance;
 }
 
-const nameOf = (ctx: Ctx, email: string | undefined) =>
-  email ? displayName(ctx, email, currentStaffYear()) : Promise.resolve(null);
+const nameOf = (ctx: Ctx, email: string | undefined, year = currentStaffYear()) =>
+  email ? displayName(ctx, email, year) : Promise.resolve(null);
 
 const logEvent = async (
   ctx: MutationCtx,
@@ -189,8 +211,12 @@ export const settings = query({
   handler: async (ctx) => await readSettings(ctx),
 });
 
+const STALE =
+  "Someone else changed this while you were editing. Close it and open it again to see their changes.";
+
 export const setDepartments = mutation({
-  args: { departments: v.array(v.string()) },
+  // `expected` is the list the editor started from, so a stale edit can't undo someone else's.
+  args: { departments: v.array(v.string()), expected: v.array(v.string()) },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const cleaned = cleanNameList(args.departments, {
@@ -199,13 +225,21 @@ export const setDepartments = mutation({
       maxLength: MAX_GRIEVANCE_OPTION,
     });
     if ("problem" in cleaned) throw new ConvexError(cleaned.problem);
+    if (!sameList((await readSettings(ctx)).departments, args.expected)) {
+      throw new ConvexError(STALE);
+    }
+    if ((await grievanceTeam(ctx, cleaned.list)).length === 0) {
+      throw new ConvexError(
+        `Nobody in ${cleaned.list.join(", ")} has a role in ${currentStaffYear()}, so nobody could see or handle grievances.`
+      );
+    }
     await saveSettings(ctx, { departments: cleaned.list });
     return null;
   },
 });
 
 export const setCategories = mutation({
-  args: { categories: v.array(v.string()) },
+  args: { categories: v.array(v.string()), expected: v.array(v.string()) },
   handler: async (ctx, args) => {
     await requireHandler(ctx);
     const cleaned = cleanNameList(args.categories, {
@@ -214,6 +248,9 @@ export const setCategories = mutation({
       maxLength: MAX_GRIEVANCE_OPTION,
     });
     if ("problem" in cleaned) throw new ConvexError(cleaned.problem);
+    if (!sameList((await readSettings(ctx)).categories, args.expected)) {
+      throw new ConvexError(STALE);
+    }
     await saveSettings(ctx, { categories: cleaned.list });
     return null;
   },
@@ -343,14 +380,18 @@ export const carryForward = internalMutation({
     const year = currentStaffYear();
     let moved = 0;
     for (const status of OPEN_GRIEVANCE_STATUSES) {
-      for (const g of await ctx.db
-        .query("grievances")
-        .withIndex("by_status", (q) => q.eq("status", status))
-        .take(LIST_LIMIT)) {
-        if (g.year >= year) continue;
-        await ctx.db.patch("grievances", g._id, { year });
-        await logEvent(ctx, g._id, "system", "carried-over", `${g.year} → ${year}`);
-        moved++;
+      // Each moved grievance leaves the range, so keep taking batches until none are left.
+      for (;;) {
+        const batch = await ctx.db
+          .query("grievances")
+          .withIndex("by_status_and_year", (q) => q.eq("status", status).lt("year", year))
+          .take(CARRY_BATCH);
+        if (batch.length === 0) break;
+        for (const g of batch) {
+          await ctx.db.patch("grievances", g._id, { year });
+          await logEvent(ctx, g._id, "system", "carried-over", `${g.year} → ${year}`);
+          moved++;
+        }
       }
     }
     return { moved };
@@ -408,6 +449,17 @@ export const submitted = query({
       .query("grievances")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(LIST_LIMIT);
+    // Open ones from earlier years belong to this year even before 1 October's move runs.
+    if (args.year === currentStaffYear()) {
+      for (const status of OPEN_GRIEVANCE_STATUSES) {
+        rows.push(
+          ...(await ctx.db
+            .query("grievances")
+            .withIndex("by_status_and_year", (q) => q.eq("status", status).lt("year", args.year))
+            .take(LIST_LIMIT))
+        );
+      }
+    }
     return rows.sort((a, b) => a.submittedAt - b.submittedAt);
   },
 });
@@ -460,8 +512,8 @@ export const get = query({
       grievance: rest,
       // The reference is for the team only.
       ref: isHandler ? ref : null,
-      assigneeName: await nameOf(ctx, g.assigneeEmail),
-      closedByName: await nameOf(ctx, g.closedBy),
+      assigneeName: await nameOf(ctx, g.assigneeEmail, g.year),
+      closedByName: await nameOf(ctx, g.closedBy, g.year),
       isHandler,
       can: {
         take: isHandler && open && g.assigneeEmail !== email,
@@ -490,9 +542,9 @@ export const timeline = query({
         actorName:
           event.actorEmail === "system"
             ? "THE SHED"
-            : event.actorEmail === g.email
+            : event.action === "submitted"
               ? g.name
-              : ((await nameOf(ctx, event.actorEmail)) as string),
+              : ((await nameOf(ctx, event.actorEmail, g.year)) as string),
         detail: event.detail ?? null,
       }))
     );

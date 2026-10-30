@@ -599,6 +599,7 @@ export default defineSchema({
   })
     .index("by_year", ["year"])
     .index("by_status", ["status"])
+    .index("by_status_and_year", ["status", "year"])
     .index("by_accountEmail", ["accountEmail"]),
 
   grievanceSettings: defineTable({

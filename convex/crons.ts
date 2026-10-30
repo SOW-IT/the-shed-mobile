@@ -18,7 +18,8 @@ crons.cron(
   {}
 );
 
-crons.cron("carry open grievances into the new staff year", "45 15 30 9 *", internal.grievances.carryForward, {});
+// 00:01 on 1 October in Sydney, just after the staff year changes.
+crons.cron("carry open grievances into the new staff year", "1 14 30 9 *", internal.grievances.carryForward, {});
 
 crons.cron("attendance metrics daily rebuild", "0 16 * * *", internal.attendanceMetrics.recomputeAll, { nightly: true });
 

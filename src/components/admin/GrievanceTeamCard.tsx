@@ -10,12 +10,13 @@ export const GrievanceTeamCard = ({ year }: { year: number }) => {
   const settings = useQuery(api.grievances.settings);
   const structure = useQuery(api.directory.yearStructure, { year });
   const save = useMutation(api.grievances.setDepartments);
-  const [picked, setPicked] = useState<string[] | null>(null);
+  // What the list was when editing began, so a save can't undo someone else's change.
+  const [draft, setDraft] = useState<{ base: string[]; picked: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!settings) return null;
   const saved = settings.departments;
-  const value = picked ?? saved;
+  const value = draft?.picked ?? saved;
   const names = [...new Set([...(structure?.departments ?? []).map((d) => d.name), ...saved])].sort();
   const unchanged = value.length === saved.length && value.every((d) => saved.includes(d));
   return (
@@ -31,7 +32,7 @@ export const GrievanceTeamCard = ({ year }: { year: number }) => {
           label="Departments"
           values={value}
           options={names.map((name) => ({ label: name, value: name }))}
-          onSelect={setPicked}
+          onSelect={(picked) => setDraft({ base: draft?.base ?? saved, picked })}
           placeholder="Choose departments…"
         />
         <ErrorBanner message={error} />
@@ -40,8 +41,12 @@ export const GrievanceTeamCard = ({ year }: { year: number }) => {
           loading={busy}
           disabled={unchanged || value.length === 0}
           onPress={() =>
-            void runBusy(busy, setBusy, setError, () => save({ departments: value }), () =>
-              setPicked(null)
+            void runBusy(
+              busy,
+              setBusy,
+              setError,
+              () => save({ departments: value, expected: draft?.base ?? saved }),
+              () => setDraft(null)
             )
           }
         />
