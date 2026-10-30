@@ -156,17 +156,21 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   of pairings for any year can be added from the command line
   (`mentoring:setPairings`) under the same rules.
 - **Grievances** (`convex/grievances.ts`, rules in `shared/grievances.ts`),
-  from the side menu and the Partner tab's "Raise a grievance" card. Anyone
-  can raise one, signed in or not (name, email, what it's about, what
-  happened); signed-out sending is limited to 3 an hour per email and 30 an
-  hour overall. Only the submitter and the **grievance team** (this year's
-  People and Culture and Compliance departments) can see it; other admins
-  can't. The team gets an in-app/push notification for each new one and its
-  emails go to grievances@sow.org.au. They take it on or give it to someone
-  on the team (Received), mark it In progress, and Resolve it with an
-  outcome note or close it as Not proceeding with a reason. The submitter is
-  emailed at every stage, and signed-in submitters follow it under Mine.
-  Pushes and in-app notifications carry only the grievance's number.
+  the fifth bottom tab for everyone, signed in or not (and a card on the
+  Partner tab). Anyone can raise one (name, email, what it's about, what
+  happened); each email can send 3 an hour, and signed-out sending 30 an
+  hour in all. Only the submitter and the **grievance team** can see it:
+  this year's members of the departments chosen in Admin → Other (People and
+  Culture and Compliance to start); other admins can't. Nothing goes to a
+  team inbox: the team gets an in-app and push notification for each new
+  one and works on it under **Submitted**, listed by staff year (only years
+  with grievances; open ones move to the new year on 1 October). Stages:
+  Submitted → In progress (someone has taken it on, or been given it) →
+  Resolved with an outcome note, or Not proceeding with a reason. The
+  submitter is emailed at each stage and, signed in, follows it under Mine
+  with push notifications. Each grievance has a random reference (a UUID)
+  that only the team sees. The team edits the "What is it about?" options;
+  grievances keep the wording they were raised with.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on

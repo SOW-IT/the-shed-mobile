@@ -6,7 +6,6 @@ const colours = (t: AppTheme, status: GrievanceStatus) => {
   switch (status) {
     case "SUBMITTED":
       return { bg: t.warningSoft, fg: t.dark ? t.warning : t.text };
-    case "RECEIVED":
     case "IN_PROGRESS":
       return { bg: t.primarySoft, fg: t.dark ? t.text : t.primary };
     case "RESOLVED":

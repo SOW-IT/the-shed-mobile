@@ -1,23 +1,24 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Doc } from "../../../convex/_generated/dataModel";
-import { GRIEVANCE_STATUS_LABELS, grievanceCategoryLabel } from "@shared/grievances";
+import { GRIEVANCE_STATUS_LABELS, grievanceRef } from "@shared/grievances";
 import { sydneyDay } from "@/lib/sydneyTime";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { WaitingLine } from "@/components/design/DesignRequestRow";
 import { GrievanceStatusPill } from "./GrievanceStatusPill";
 
+// Submitters' own rows come without the reference, which is for the team only.
+export type GrievanceListRow = Omit<Doc<"grievances">, "ref"> & { ref?: string };
+
 export const GrievanceRow = ({
   grievance,
-  forTeam,
   onPress,
 }: {
-  grievance: Doc<"grievances">;
-  forTeam: boolean;
+  grievance: GrievanceListRow;
   onPress: () => void;
 }) => {
   const t = useAppTheme();
-  const about = grievanceCategoryLabel(grievance.category);
+  const forTeam = grievance.ref !== undefined;
   const meta = [forTeam ? grievance.name : null, `Raised ${sydneyDay(grievance.submittedAt)}`]
     .filter(Boolean)
     .join(" · ");
@@ -25,7 +26,7 @@ export const GrievanceRow = ({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Grievance ${grievance.number}, ${about}, ${meta}, ${GRIEVANCE_STATUS_LABELS[grievance.status]}`}
+      accessibilityLabel={`Grievance about ${grievance.category}, ${meta}, ${GRIEVANCE_STATUS_LABELS[grievance.status]}`}
       style={({ pressed }) => [
         styles.row,
         t.surfaceEdge,
@@ -34,11 +35,13 @@ export const GrievanceRow = ({
       ]}
     >
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={[typography.caption, { color: t.faint, fontWeight: "700" }]}>
-          #{grievance.number}
-        </Text>
+        {grievance.ref ? (
+          <Text style={[typography.caption, { color: t.faint, fontWeight: "700" }]}>
+            {grievanceRef(grievance.ref)}
+          </Text>
+        ) : null}
         <Text numberOfLines={2} style={[typography.headline, { color: t.text }]}>
-          {about}
+          {grievance.category}
         </Text>
         <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
           {meta}

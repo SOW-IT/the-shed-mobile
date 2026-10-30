@@ -55,8 +55,9 @@ hold code for all six — so each context's glossary lives under
   that year's `staffProfiles`; pairings are keyed by email and year like
   approver delegations, and follow a person's email when it changes. Its
   terms are in the Org glossary.
-- **Org → Grievances**: the grievance team is that year's People and Culture
-  and Compliance departments, read from Org. Grievances shares the
+- **Org → Grievances**: the grievance team is that year's members of the
+  departments chosen in Admin (People and Culture and Compliance to start),
+  read from Org. Grievances shares the
   notification feed with the other contexts but no other table, and stays
   out of the daily digest and Home's "Waiting on you".
 - **Design Requests ↔ Event Requests**: an event's design and promotion is

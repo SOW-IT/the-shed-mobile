@@ -584,23 +584,27 @@ export default defineSchema({
     .index("by_member", ["memberId"]),
 
   grievances: defineTable({
-    number: v.number(),
+    ref: v.string(),
+    // The staff year it's listed under; open ones move to the new year on 1 October.
     year: v.number(),
     submittedAt: v.number(),
     accountEmail: v.optional(v.string()),
     ...grievanceFields,
     status: grievanceStatusValidator,
     assigneeEmail: v.optional(v.string()),
-    receivedBy: v.optional(v.string()),
-    receivedAt: v.optional(v.number()),
     inProgressAt: v.optional(v.number()),
     closedAt: v.optional(v.number()),
     closedBy: v.optional(v.string()),
     closingNote: v.optional(v.string()),
   })
-    .index("by_number", ["number"])
+    .index("by_year", ["year"])
     .index("by_status", ["status"])
     .index("by_accountEmail", ["accountEmail"]),
+
+  grievanceSettings: defineTable({
+    departments: v.array(v.string()),
+    categories: v.array(v.string()),
+  }),
 
   grievanceEvents: defineTable({
     grievanceId: v.id("grievances"),

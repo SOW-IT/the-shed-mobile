@@ -1,27 +1,37 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { isMemberOfDepartment } from "../shared/flow";
 import {
-  GRIEVANCE_DEPARTMENTS,
-  GRIEVANCES_TEAM_EMAIL,
+  cleanNameList,
+  DEFAULT_GRIEVANCE_CATEGORIES,
+  DEFAULT_GRIEVANCE_DEPARTMENTS,
   grievanceDetailLines,
-  grievanceName,
   grievanceProblem,
+  grievanceRef,
   isOpenGrievance,
+  MAX_GRIEVANCE_DEPARTMENTS,
+  MAX_GRIEVANCE_OPTION,
+  MAX_GRIEVANCE_OPTIONS,
   MAX_GRIEVANCE_TEXT,
   normalizeGrievance,
   OPEN_GRIEVANCE_STATUSES,
 } from "../shared/grievances";
 import { grievanceFields } from "./grievanceData";
-import { currentStaffYear, displayName, optionalEmail, optionalProfile } from "./model";
+import {
+  currentStaffYear,
+  displayName,
+  optionalEmail,
+  optionalProfile,
+  requireAdmin,
+} from "./model";
 import { appUrl, notify } from "./requests";
 
 type Ctx = QueryCtx | MutationCtx;
 type Grievance = Doc<"grievances">;
 
-const LIST_LIMIT = 300;
+const LIST_LIMIT = 500;
 const EVENTS_LIMIT = 200;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_EMAIL = 3;
@@ -30,32 +40,48 @@ const PRUNE_BATCH = 50;
 
 export const grievanceUrl = (g: Pick<Grievance, "_id">) => `/grievances/${g._id}`;
 
-// Department heads always hold an assignment in their department, so this covers them too.
-const isGrievanceHandler = (profile: Doc<"staffProfiles">) =>
-  GRIEVANCE_DEPARTMENTS.some((d) => isMemberOfDepartment(profile, d));
+async function readSettings(ctx: Ctx) {
+  const row = await ctx.db.query("grievanceSettings").first();
+  return {
+    departments: row?.departments ?? DEFAULT_GRIEVANCE_DEPARTMENTS,
+    categories: row?.categories ?? DEFAULT_GRIEVANCE_CATEGORIES,
+  };
+}
+
+async function saveSettings(
+  ctx: MutationCtx,
+  patch: Partial<{ departments: string[]; categories: string[] }>
+) {
+  const row = await ctx.db.query("grievanceSettings").first();
+  if (row) await ctx.db.patch("grievanceSettings", row._id, patch);
+  else await ctx.db.insert("grievanceSettings", { ...(await readSettings(ctx)), ...patch });
+}
+
+const inDepartments = (profile: Doc<"staffProfiles">, departments: string[]) =>
+  departments.some((d) => isMemberOfDepartment(profile, d));
 
 export async function grievanceTeam(ctx: Ctx): Promise<string[]> {
-  const year = currentStaffYear();
+  const { departments } = await readSettings(ctx);
   const emails = new Set<string>();
   for await (const profile of ctx.db
     .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", year))) {
-    if (isGrievanceHandler(profile)) emails.add(profile.email);
+    .withIndex("by_year", (q) => q.eq("year", currentStaffYear()))) {
+    if (inDepartments(profile, departments)) emails.add(profile.email);
   }
   return [...emails].sort();
 }
 
+// Department heads always hold an assignment in their department, so this covers them too.
 async function handlerEmail(ctx: Ctx): Promise<string | null> {
   const caller = await optionalProfile(ctx);
   if (!caller) return null;
-  return isGrievanceHandler(caller.profile) ? caller.email : null;
+  const { departments } = await readSettings(ctx);
+  return inDepartments(caller.profile, departments) ? caller.email : null;
 }
 
 async function requireHandler(ctx: Ctx): Promise<string> {
   const email = await handlerEmail(ctx);
-  if (!email) {
-    throw new ConvexError("Only the People and Culture and Compliance teams can handle grievances.");
-  }
+  if (!email) throw new ConvexError("Only the grievance team can do this.");
   return email;
 }
 
@@ -90,8 +116,7 @@ async function tellSubmitter(
   await ctx.scheduler.runAfter(0, internal.emails.send, {
     to: g.email,
     subject: opts.subject,
-    body: `Hi ${g.name},\n\n${opts.body}${link}\n\nIf you'd like to add anything, reply to this email and it will reach the team at ${GRIEVANCES_TEAM_EMAIL}.\n\nBlessings,\nThe SOW team`,
-    replyTo: GRIEVANCES_TEAM_EMAIL,
+    body: `Hi ${g.name},\n\n${opts.body}${link}\n\nBlessings,\nThe SOW team`,
   });
   await notify(ctx, {
     to: g.accountEmail,
@@ -105,30 +130,24 @@ async function tellSubmitter(
   });
 }
 
+// In-app and push only: grievances never go to a team inbox.
 async function tellTeam(
   ctx: MutationCtx,
   g: Grievance,
-  opts: { actor: string | undefined; subject: string; body: string; replyTo?: string }
+  opts: { actor: string | undefined; title: string; body: string }
 ) {
-  const url = grievanceUrl(g);
   for (const to of await grievanceTeam(ctx)) {
     if (to === g.accountEmail) continue;
     await notify(ctx, {
       to,
       actor: opts.actor,
-      subject: opts.subject,
-      body: opts.subject,
-      url,
+      subject: opts.title,
+      body: opts.body,
+      url: grievanceUrl(g),
       grievanceId: g._id,
       email: false,
     });
   }
-  await ctx.scheduler.runAfter(0, internal.emails.send, {
-    to: GRIEVANCES_TEAM_EMAIL,
-    subject: opts.subject,
-    body: `${opts.body}\n\nOpen in THE SHED: ${appUrl(url)}`,
-    replyTo: opts.replyTo,
-  });
 }
 
 // Signed-in people are limited per account only; the shared cap applies to
@@ -142,9 +161,7 @@ async function checkRateLimit(ctx: MutationCtx, fromEmail: string, signedIn: boo
     )
     .take(MAX_PER_EMAIL);
   if (mine.length >= MAX_PER_EMAIL) {
-    throw new ConvexError(
-      "You've sent a few grievances recently. Please wait an hour, or email grievances@sow.org.au."
-    );
+    throw new ConvexError("You've sent a few grievances recently. Please wait an hour.");
   }
   const everyone = signedIn
     ? []
@@ -156,7 +173,7 @@ async function checkRateLimit(ctx: MutationCtx, fromEmail: string, signedIn: boo
         .take(MAX_GLOBAL);
   if (everyone.length >= MAX_GLOBAL) {
     throw new ConvexError(
-      "The grievance form is busy right now. Please sign in, try again later, or email grievances@sow.org.au."
+      "The grievance form is busy right now. Please sign in, or try again later."
     );
   }
   const stale = await ctx.db
@@ -167,20 +184,53 @@ async function checkRateLimit(ctx: MutationCtx, fromEmail: string, signedIn: boo
   await ctx.db.insert("grievanceRateLimit", { fromEmail, signedIn, submittedAt: now });
 }
 
+export const settings = query({
+  args: {},
+  handler: async (ctx) => await readSettings(ctx),
+});
+
+export const setDepartments = mutation({
+  args: { departments: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const cleaned = cleanNameList(args.departments, {
+      one: "department",
+      max: MAX_GRIEVANCE_DEPARTMENTS,
+      maxLength: MAX_GRIEVANCE_OPTION,
+    });
+    if ("problem" in cleaned) throw new ConvexError(cleaned.problem);
+    await saveSettings(ctx, { departments: cleaned.list });
+    return null;
+  },
+});
+
+export const setCategories = mutation({
+  args: { categories: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    await requireHandler(ctx);
+    const cleaned = cleanNameList(args.categories, {
+      one: "option",
+      max: MAX_GRIEVANCE_OPTIONS,
+      maxLength: MAX_GRIEVANCE_OPTION,
+    });
+    if ("problem" in cleaned) throw new ConvexError(cleaned.problem);
+    await saveSettings(ctx, { categories: cleaned.list });
+    return null;
+  },
+});
+
 export const submit = mutation({
   args: grievanceFields,
   handler: async (ctx, args) => {
     const accountEmail = (await optionalEmail(ctx)) ?? undefined;
     const input = normalizeGrievance({ ...args, email: accountEmail ?? args.email });
-    const problem = grievanceProblem(input);
+    const problem = grievanceProblem(input, (await readSettings(ctx)).categories);
     if (problem) throw new ConvexError(problem);
     await checkRateLimit(ctx, input.email, accountEmail !== undefined);
 
-    const last = await ctx.db.query("grievances").withIndex("by_number").order("desc").first();
-    const number = (last?.number ?? 0) + 1;
     const id = await ctx.db.insert("grievances", {
       ...input,
-      number,
+      ref: crypto.randomUUID(),
       year: currentStaffYear(),
       submittedAt: Date.now(),
       accountEmail,
@@ -189,26 +239,20 @@ export const submit = mutation({
     await logEvent(ctx, id, input.email, "submitted");
 
     const g = (await ctx.db.get("grievances", id)) as Grievance;
-    const name = grievanceName(g);
-    const details = grievanceDetailLines(g).join("\n\n");
     await tellSubmitter(ctx, g, {
       actor: input.email,
-      subject: `We've received your grievance (#${number})`,
+      subject: "We've received your grievance",
       body:
-        "Thank you for telling us. Your grievance has gone to SOW's People and Culture and Compliance teams, and only they can see it. " +
-        "We'll email you as it moves along: when someone takes it on, when it's in progress, and when it's resolved.\n\n" +
-        `Reference: ${name}\n\n${details}`,
+        "Thank you for telling us. Your grievance has gone to SOW's grievance team, and only they can see it. " +
+        "We'll email you when someone is looking after it and when it's resolved.\n\n" +
+        grievanceDetailLines(g).join("\n\n"),
     });
-    const contact = [`From: ${g.name} (${g.email})`, g.phone ? `Phone: ${g.phone}` : ""]
-      .filter(Boolean)
-      .join("\n");
     await tellTeam(ctx, g, {
       actor: accountEmail,
-      subject: `New ${name}`,
-      body: `A new grievance is waiting for someone to take it.\n\n${contact}\n\n${details}`,
-      replyTo: g.email,
+      title: "New grievance",
+      body: `Grievance ${grievanceRef(g.ref)} is waiting for someone to take it on.`,
     });
-    return { id, number };
+    return id;
   },
 });
 
@@ -218,58 +262,31 @@ export const assign = mutation({
     const actor = await requireHandler(ctx);
     const g = await requireOpen(ctx, args.id);
     if (!(await grievanceTeam(ctx)).includes(args.assigneeEmail)) {
-      throw new ConvexError("Grievances can only be given to someone in People and Culture or Compliance.");
+      throw new ConvexError("Grievances can only be given to someone on the grievance team.");
     }
     if (g.assigneeEmail === args.assigneeEmail) return null;
     const first = g.status === "SUBMITTED";
     await ctx.db.patch("grievances", g._id, {
       assigneeEmail: args.assigneeEmail,
-      ...(first
-        ? { status: "RECEIVED" as const, receivedAt: Date.now(), receivedBy: args.assigneeEmail }
-        : {}),
+      ...(first ? { status: "IN_PROGRESS" as const, inProgressAt: Date.now() } : {}),
     });
     const assignee = (await nameOf(ctx, args.assigneeEmail)) as string;
     const taken = args.assigneeEmail === actor;
     await logEvent(ctx, g._id, actor, taken ? "taken" : "assigned", taken ? undefined : assignee);
-    const name = grievanceName(g);
     if (first) {
       await tellSubmitter(ctx, g, {
         actor,
-        subject: `Your grievance #${g.number} has been received`,
-        body: `${assignee} from the People and Culture and Compliance teams is looking after your grievance (${name}).`,
+        subject: "Your grievance is in progress",
+        body: `${assignee} from SOW's grievance team is looking after your grievance. They may contact you to talk it through.`,
       });
     }
+    const ref = grievanceRef(g.ref);
     await tellTeam(ctx, g, {
       actor,
-      subject: taken ? `${name} taken by ${assignee}` : `${name} given to ${assignee}`,
+      title: taken ? `${assignee} took on grievance ${ref}` : `Grievance ${ref} given to ${assignee}`,
       body: taken
         ? `${assignee} is looking after it.`
         : `${(await nameOf(ctx, actor)) as string} gave it to ${assignee}.`,
-    });
-    return null;
-  },
-});
-
-export const start = mutation({
-  args: { id: v.id("grievances") },
-  handler: async (ctx, args) => {
-    const actor = await requireHandler(ctx);
-    const g = await requireOpen(ctx, args.id);
-    if (g.status !== "RECEIVED") {
-      throw new ConvexError("Only a received grievance can be marked in progress.");
-    }
-    await ctx.db.patch("grievances", g._id, { status: "IN_PROGRESS", inProgressAt: Date.now() });
-    await logEvent(ctx, g._id, actor, "in-progress");
-    const name = grievanceName(g);
-    await tellSubmitter(ctx, g, {
-      actor,
-      subject: `Your grievance #${g.number} is in progress`,
-      body: `The team has started working on your grievance (${name}). They may contact you to talk it through.`,
-    });
-    await tellTeam(ctx, g, {
-      actor,
-      subject: `${name} is in progress`,
-      body: `${(await nameOf(ctx, actor)) as string} marked it in progress.`,
     });
     return null;
   },
@@ -302,22 +319,41 @@ export const close = mutation({
     });
     const resolved = args.outcome === "RESOLVED";
     await logEvent(ctx, g._id, actor, resolved ? "resolved" : "not-proceeding", note);
-    const name = grievanceName(g);
     await tellSubmitter(ctx, g, {
       actor,
-      subject: resolved
-        ? `Your grievance #${g.number} has been resolved`
-        : `An update on your grievance #${g.number}`,
+      subject: resolved ? "Your grievance has been resolved" : "An update on your grievance",
       body: resolved
-        ? `Your grievance (${name}) has been resolved.\n\nOutcome: ${note}`
-        : `Your grievance (${name}) won't be taken further.\n\nReason: ${note}`,
+        ? `Your grievance has been resolved.\n\nOutcome: ${note}`
+        : `Your grievance won't be taken further.\n\nReason: ${note}`,
     });
+    const ref = grievanceRef(g.ref);
     await tellTeam(ctx, g, {
       actor,
-      subject: resolved ? `${name} resolved` : `${name} closed, not proceeding`,
-      body: `${(await nameOf(ctx, actor)) as string} closed it.\n\n${resolved ? "Outcome" : "Reason"}: ${note}`,
+      title: resolved ? `Grievance ${ref} resolved` : `Grievance ${ref} closed, not proceeding`,
+      body: `${(await nameOf(ctx, actor)) as string} closed it.`,
     });
     return null;
+  },
+});
+
+// 1 October: grievances still open move to the new staff year's list.
+export const carryForward = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const year = currentStaffYear();
+    let moved = 0;
+    for (const status of OPEN_GRIEVANCE_STATUSES) {
+      for (const g of await ctx.db
+        .query("grievances")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .take(LIST_LIMIT)) {
+        if (g.year >= year) continue;
+        await ctx.db.patch("grievances", g._id, { year });
+        await logEvent(ctx, g._id, "system", "carried-over", `${g.year} → ${year}`);
+        moved++;
+      }
+    }
+    return { moved };
   },
 });
 
@@ -335,36 +371,44 @@ export const mine = query({
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
     if (!email) return null;
-    return await ctx.db
+    const rows = await ctx.db
       .query("grievances")
       .withIndex("by_accountEmail", (q) => q.eq("accountEmail", email))
       .order("desc")
       .take(LIST_LIMIT);
+    // The reference is for the team only.
+    return rows.map(({ ref: _ref, ...rest }) => rest);
   },
 });
 
-export const queue = query({
+// Only years grievances have been listed in, newest first, always including this one.
+export const years = query({
   args: {},
   handler: async (ctx) => {
     if (!(await handlerEmail(ctx))) return null;
-    const rows: Grievance[] = [];
-    for (const status of OPEN_GRIEVANCE_STATUSES) {
-      rows.push(
-        ...(await ctx.db
-          .query("grievances")
-          .withIndex("by_status", (q) => q.eq("status", status))
-          .take(LIST_LIMIT))
-      );
+    const years = new Set([currentStaffYear()]);
+    let row = await ctx.db.query("grievances").withIndex("by_year").first();
+    while (row) {
+      years.add(row.year);
+      const after = row.year;
+      row = await ctx.db
+        .query("grievances")
+        .withIndex("by_year", (q) => q.gt("year", after))
+        .first();
     }
-    return rows.sort((a, b) => a.submittedAt - b.submittedAt);
+    return [...years].sort((a, b) => b - a);
   },
 });
 
-export const all = query({
-  args: {},
-  handler: async (ctx) => {
+export const submitted = query({
+  args: { year: v.number() },
+  handler: async (ctx, args) => {
     if (!(await handlerEmail(ctx))) return null;
-    return await ctx.db.query("grievances").withIndex("by_number").order("desc").take(LIST_LIMIT);
+    const rows = await ctx.db
+      .query("grievances")
+      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .take(LIST_LIMIT);
+    return rows.sort((a, b) => a.submittedAt - b.submittedAt);
   },
 });
 
@@ -373,20 +417,17 @@ export const waitingOnMe = query({
   handler: async (ctx) => {
     const email = await handlerEmail(ctx);
     if (!email) return 0;
-    const rows = await ctx.db
+    const waiting = await ctx.db
       .query("grievances")
       .withIndex("by_status", (q) => q.eq("status", "SUBMITTED"))
       .take(LIST_LIMIT);
-    let count = rows.length;
-    for (const status of ["RECEIVED", "IN_PROGRESS"] as const) {
-      count += (
-        await ctx.db
-          .query("grievances")
-          .withIndex("by_status", (q) => q.eq("status", status))
-          .take(LIST_LIMIT)
-      ).filter((g) => g.assigneeEmail === email).length;
-    }
-    return count;
+    const mine = (
+      await ctx.db
+        .query("grievances")
+        .withIndex("by_status", (q) => q.eq("status", "IN_PROGRESS"))
+        .take(LIST_LIMIT)
+    ).filter((g) => g.assigneeEmail === email);
+    return waiting.length + mine.length;
   },
 });
 
@@ -414,17 +455,18 @@ export const get = query({
     const isHandler = (await handlerEmail(ctx)) !== null;
     if (!isHandler && g.accountEmail !== email) return null;
     const open = isOpenGrievance(g.status);
+    const { ref, ...rest } = g;
     return {
-      grievance: g,
+      grievance: rest,
+      // The reference is for the team only.
+      ref: isHandler ? ref : null,
       assigneeName: await nameOf(ctx, g.assigneeEmail),
-      receivedByName: await nameOf(ctx, g.receivedBy ?? g.assigneeEmail),
       closedByName: await nameOf(ctx, g.closedBy),
       isHandler,
       can: {
         take: isHandler && open && g.assigneeEmail !== email,
         assign: isHandler && open,
-        start: isHandler && g.status === "RECEIVED",
-        resolve: isHandler && open && g.status !== "SUBMITTED",
+        resolve: isHandler && g.status === "IN_PROGRESS",
         close: isHandler && open,
       },
     };
@@ -446,7 +488,11 @@ export const timeline = query({
         at: event._creationTime,
         action: event.action,
         actorName:
-          event.actorEmail === g.email ? g.name : ((await nameOf(ctx, event.actorEmail)) as string),
+          event.actorEmail === "system"
+            ? "THE SHED"
+            : event.actorEmail === g.email
+              ? g.name
+              : ((await nameOf(ctx, event.actorEmail)) as string),
         detail: event.detail ?? null,
       }))
     );

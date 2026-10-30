@@ -17,12 +17,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
-- [ ] **Create the grievances@sow.org.au Google Group** (2.10.11) with only
-      the People and Culture and Compliance teams in it, and let it receive
-      mail from outside the organisation. New grievances and every stage
-      change are emailed there; until it exists those emails bounce, though
-      the team still sees everything in the app.
-
 - [ ] **Confirm an over-the-air update reaches a phone.** iOS 2.9.23 and
       Android 2.9.24 are the first store builds with `expo-updates`. Check a
       publish lands with `eas update:list` and a phone on one of those builds.

@@ -111,7 +111,6 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.canMentoring) items.push("mentoring");
   if (viewer.canAnnounce) items.push("announcements");
-  items.push("grievances");
   if (viewer.canAdmin) items.push("admin");
   return items;
 };
@@ -120,11 +119,10 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.isStaff) items.push("attendance");
-  items.push("insights", "org", "churches");
+  items.push("insights", "org", "churches", "grievances");
   if (viewer.signedIn) items.push("profile");
   if (viewer.canMentoring) items.push("mentoring");
   if (viewer.canAnnounce) items.push("announcements");
-  items.push("grievances");
   if (viewer.canAdmin) items.push("admin");
   return items;
 };

@@ -2,7 +2,6 @@ import { v } from "convex/values";
 
 export const grievanceStatusValidator = v.union(
   v.literal("SUBMITTED"),
-  v.literal("RECEIVED"),
   v.literal("IN_PROGRESS"),
   v.literal("RESOLVED"),
   v.literal("NOT_PROCEEDING")

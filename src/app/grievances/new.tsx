@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import {
-  GRIEVANCE_CATEGORIES,
-  GRIEVANCES_TEAM_EMAIL,
+  andList,
   grievanceProblem,
   normalizeGrievance,
   type GrievanceInput,
@@ -42,11 +41,12 @@ export default function NewGrievanceScreen() {
   const { isAuthenticated } = useConvexAuth();
   const me = useQuery(api.directory.me);
   const viewer = useQuery(api.grievances.viewer, isAuthenticated ? {} : "skip");
+  const settings = useQuery(api.grievances.settings);
   const submit = useMutation(api.grievances.submit);
   const [draft, setDraft] = useState<GrievanceInput>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [sent, setSent] = useState<{ number: number; email: string } | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   const accountEmail = viewer?.email ?? null;
   const accountName = me?.name ?? null;
@@ -65,16 +65,16 @@ export default function NewGrievanceScreen() {
   const save = async () => {
     if (saving) return;
     const input = normalizeGrievance(draft);
-    const problem = grievanceProblem(input);
+    const problem = grievanceProblem(input, settings?.categories ?? []);
     if (problem) {
       setError(problem);
       return;
     }
     setSaving(true);
     try {
-      const { id, number } = await submit(input);
+      const id = await submit(input);
       if (isAuthenticated) router.replace(`/grievances/${id}`);
-      else setSent({ number, email: input.email });
+      else setSentTo(input.email);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -82,14 +82,14 @@ export default function NewGrievanceScreen() {
     }
   };
 
-  if (sent) {
+  if (sentTo) {
     return (
       <Screen title="Grievance sent" onBack={goBack}>
         <ReadableColumn>
           <EmptyState
             icon="shield-checkmark-outline"
-            title={`Thank you. It's Grievance #${sent.number}.`}
-            message={`We've sent a copy to ${sent.email}, and we'll email you there when someone takes it on, when it's in progress, and when it's resolved.`}
+            title="Thank you. We've received it."
+            message={`We've sent a copy to ${sentTo}, and we'll email you there when someone is looking after it and when it's resolved.`}
           />
           <View style={{ alignItems: "center" }}>
             <Btn title="Done" onPress={goBack} />
@@ -116,9 +116,9 @@ export default function NewGrievanceScreen() {
       <ReadableColumn>
         <View style={{ gap: spacing.md }}>
           <Card>
-            <Txt style={typography.headline}>Only People and Culture and Compliance see this</Txt>
+            <Txt style={typography.headline}>Only SOW&apos;s grievance team sees this</Txt>
             <Muted>
-              {`Your grievance goes to SOW's People and Culture and Compliance teams (${GRIEVANCES_TEAM_EMAIL}). We'll email you each time it moves along. If someone is in danger, call 000 first.`}
+              {`Your grievance goes to ${andList(settings?.departments ?? [])}, and nobody else. We'll email you each time it moves along. If someone is in danger, call 000 first.`}
             </Muted>
           </Card>
           <Card>
@@ -148,7 +148,7 @@ export default function NewGrievanceScreen() {
             <Select
               label="What is it about?"
               value={draft.category}
-              options={GRIEVANCE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+              options={(settings?.categories ?? []).map((c) => ({ value: c, label: c }))}
               onSelect={set("category")}
               placeholder="Choose one"
             />

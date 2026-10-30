@@ -103,8 +103,8 @@ describe("drawerItems", () => {
     expect(drawerItems(signedOut)).toEqual([]);
   });
 
-  test("guests get Profile and Grievances", () => {
-    expect(drawerItems(guest)).toEqual(["profile", "grievances"]);
+  test("guests get Profile only", () => {
+    expect(drawerItems(guest)).toEqual(["profile"]);
   });
 
   test("staff get Profile, Churches, Reimbursements, Event Requests and Design Requests", () => {
@@ -114,20 +114,11 @@ describe("drawerItems", () => {
       "reimbursements",
       "eventRequests",
       "designRequests",
-      "grievances",
     ]);
   });
 
   test("admins and the Finance Head also get Admin, last; admins get Announcements before it", () => {
-    const withAdmin = [
-      "profile",
-      "churches",
-      "reimbursements",
-      "eventRequests",
-      "designRequests",
-      "grievances",
-      "admin",
-    ];
+    const withAdmin = ["profile", "churches", "reimbursements", "eventRequests", "designRequests", "admin"];
     expect(drawerItems(admin)).toEqual([
       "profile",
       "churches",
@@ -136,7 +127,6 @@ describe("drawerItems", () => {
       "designRequests",
       "mentoring",
       "announcements",
-      "grievances",
       "admin",
     ]);
     expect(drawerItems(financeHead)).toEqual(withAdmin);
@@ -150,18 +140,16 @@ describe("drawerItems", () => {
       "eventRequests",
       "designRequests",
       "mentoring",
-      "grievances",
     ]);
   });
 
   test("campus leaders don't get Reimbursements, Event or Design Requests, but keep Admin", () => {
-    expect(drawerItems(campusLeader)).toEqual(["profile", "churches", "grievances"]);
+    expect(drawerItems(campusLeader)).toEqual(["profile", "churches"]);
     expect(drawerItems(campusLeaderAdmin)).toEqual([
       "profile",
       "churches",
       "mentoring",
       "announcements",
-      "grievances",
       "admin",
     ]);
   });
@@ -178,8 +166,8 @@ describe("sidebarItems", () => {
       "insights",
       "org",
       "churches",
-      "profile",
       "grievances",
+      "profile",
     ]);
   });
 
@@ -193,8 +181,8 @@ describe("sidebarItems", () => {
       "insights",
       "org",
       "churches",
-      "profile",
       "grievances",
+      "profile",
     ]);
   });
 
@@ -208,10 +196,10 @@ describe("sidebarItems", () => {
       "insights",
       "org",
       "churches",
+      "grievances",
       "profile",
       "mentoring",
       "announcements",
-      "grievances",
       "admin",
     ]);
   });
@@ -223,8 +211,8 @@ describe("sidebarItems", () => {
       "insights",
       "org",
       "churches",
-      "profile",
       "grievances",
+      "profile",
     ]);
   });
 });
@@ -241,7 +229,6 @@ describe("navEntries", () => {
       },
       { kind: "item", key: "mentoring" },
       { kind: "item", key: "announcements" },
-      { kind: "item", key: "grievances" },
       { kind: "item", key: "admin" },
     ]);
     expect(navEntries(sidebarItems(staff)).slice(0, 3)).toEqual([
@@ -260,7 +247,6 @@ describe("navEntries", () => {
     expect(navEntries(drawerItems(campusLeader))).toEqual([
       { kind: "item", key: "profile" },
       { kind: "item", key: "churches" },
-      { kind: "item", key: "grievances" },
     ]);
   });
 });

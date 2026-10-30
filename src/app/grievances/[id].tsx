@@ -5,8 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
-  grievanceCategoryLabel,
-  grievanceName,
+  grievanceRef,
   grievanceStepTrack,
   isOpenGrievance,
   type GrievanceOutcome,
@@ -39,7 +38,7 @@ const EVENT_LABELS: Record<string, string> = {
   submitted: "Raised",
   taken: "Taken on",
   assigned: "Given to someone",
-  "in-progress": "Marked in progress",
+  "carried-over": "Moved to the new staff year",
   resolved: "Resolved",
   "not-proceeding": "Closed, not proceeding",
 };
@@ -56,12 +55,12 @@ const Answer = ({ label, children }: { label: string; children: ReactNode }) => 
   );
 };
 
-const Details = ({ g }: { g: Doc<"grievances"> }) => (
+const Details = ({ g }: { g: Omit<Doc<"grievances">, "ref"> }) => (
   <Card>
     <Answer label="Raised by">
       {[g.name, g.email, g.phone].filter(Boolean).join(" · ")}
     </Answer>
-    <Answer label="About">{grievanceCategoryLabel(g.category)}</Answer>
+    <Answer label="About">{g.category}</Answer>
     {g.campus ? <Answer label="Campus or area">{g.campus}</Answer> : null}
     {g.happenedWhen ? <Answer label="When">{g.happenedWhen}</Answer> : null}
     {g.peopleInvolved ? <Answer label="Who was involved">{g.peopleInvolved}</Answer> : null}
@@ -106,7 +105,6 @@ export default function GrievanceScreen() {
   const viewer = useQuery(api.grievances.viewer, isAuthenticated ? {} : "skip");
   const team = useQuery(api.grievances.team, data?.isHandler ? {} : "skip");
   const assign = useMutation(api.grievances.assign);
-  const start = useMutation(api.grievances.start);
   const close = useMutation(api.grievances.close);
   const markRead = useMutation(api.notifications.markReadForGrievance);
 
@@ -154,14 +152,18 @@ export default function GrievanceScreen() {
     runBusy(busy, setBusy, setError, action, after);
   const steps = grievanceStepTrack(g, {
     submitter: g.name,
-    assignee: data.receivedByName,
+    assignee: data.assigneeName,
     closedBy: data.closedByName,
   });
   const resolving = closing === "RESOLVED";
 
   return (
     <>
-      <Screen title={grievanceName(g)} subtitle={grievanceCategoryLabel(g.category)} onBack={goBack}>
+      <Screen
+        title={data.ref ? `Grievance ${grievanceRef(data.ref)}` : "Your grievance"}
+        subtitle={g.category}
+        onBack={goBack}
+      >
         <ReadableColumn>
           <View style={{ gap: spacing.md }}>
             <FadeInView>
@@ -198,15 +200,6 @@ export default function GrievanceScreen() {
                         variant="tonal"
                         icon="person-add-outline"
                         onPress={() => setPicking(true)}
-                      />
-                    ) : null}
-                    {can.start ? (
-                      <Btn
-                        title="Mark In Progress"
-                        variant="tonal"
-                        icon="play-outline"
-                        loading={busy}
-                        onPress={() => void run(() => start({ id: g._id }))}
                       />
                     ) : null}
                     {can.resolve ? (

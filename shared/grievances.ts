@@ -1,48 +1,44 @@
-export const PEOPLE_AND_CULTURE = "People and Culture";
-export const COMPLIANCE = "Compliance";
-export const GRIEVANCE_DEPARTMENTS = [PEOPLE_AND_CULTURE, COMPLIANCE];
-export const GRIEVANCES_TEAM_EMAIL = "grievances@sow.org.au";
+// Who handles grievances and what the form offers are set in the app (Admin
+// sets the departments, the team sets the options); these are the defaults.
+export const DEFAULT_GRIEVANCE_DEPARTMENTS = ["People and Culture", "Compliance"];
+export const DEFAULT_GRIEVANCE_CATEGORIES = [
+  "How a leader or staff member acted",
+  "Bullying or harassment",
+  "Discrimination",
+  "Safety or wellbeing",
+  "A ministry, event or decision",
+  "Something else",
+];
 
 export const MAX_GRIEVANCE_TEXT = 5000;
 export const MAX_GRIEVANCE_SHORT = 200;
+export const MAX_GRIEVANCE_OPTIONS = 20;
+export const MAX_GRIEVANCE_OPTION = 80;
+export const MAX_GRIEVANCE_DEPARTMENTS = 10;
 
-export type GrievanceStatus =
-  | "SUBMITTED"
-  | "RECEIVED"
-  | "IN_PROGRESS"
-  | "RESOLVED"
-  | "NOT_PROCEEDING";
+export type GrievanceStatus = "SUBMITTED" | "IN_PROGRESS" | "RESOLVED" | "NOT_PROCEEDING";
 
 export type GrievanceOutcome = "RESOLVED" | "NOT_PROCEEDING";
 
-export const OPEN_GRIEVANCE_STATUSES: GrievanceStatus[] = ["SUBMITTED", "RECEIVED", "IN_PROGRESS"];
+export const OPEN_GRIEVANCE_STATUSES: GrievanceStatus[] = ["SUBMITTED", "IN_PROGRESS"];
 
 export const isOpenGrievance = (status: GrievanceStatus) =>
   OPEN_GRIEVANCE_STATUSES.includes(status);
 
 export const GRIEVANCE_STATUS_LABELS: Record<GrievanceStatus, string> = {
   SUBMITTED: "Submitted",
-  RECEIVED: "Received",
   IN_PROGRESS: "In progress",
   RESOLVED: "Resolved",
   NOT_PROCEEDING: "Not proceeding",
 };
 
-export const GRIEVANCE_CATEGORIES = [
-  { value: "conduct", label: "How a leader or staff member acted" },
-  { value: "bullying", label: "Bullying or harassment" },
-  { value: "discrimination", label: "Discrimination" },
-  { value: "safety", label: "Safety or wellbeing" },
-  { value: "ministry", label: "A ministry, event or decision" },
-  { value: "other", label: "Something else" },
-] as const;
+// "A", "A and B", "A, B and C".
+export const andList = (names: string[]): string =>
+  names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 
-export type GrievanceCategory = (typeof GRIEVANCE_CATEGORIES)[number]["value"];
-
-export const grievanceCategoryLabel = (category: string): string =>
-  GRIEVANCE_CATEGORIES.find((c) => c.value === category)?.label ?? category;
-
-export const grievanceName = (grievance: { number: number }) => `Grievance #${grievance.number}`;
+// The team refers to a grievance by the start of its reference; submitters
+// never see it.
+export const grievanceRef = (ref: string) => ref.slice(0, 8).toUpperCase();
 
 export type GrievanceInput = {
   name: string;
@@ -75,14 +71,12 @@ export const normalizeGrievance = (input: GrievanceInput): GrievanceInput => ({
   hopedOutcome: trimmed(input.hopedOutcome),
 });
 
-export const grievanceProblem = (input: GrievanceInput): string | null => {
+export const grievanceProblem = (input: GrievanceInput, categories: string[]): string | null => {
   if (!input.name) return "Please enter your name.";
   if (!EMAIL_RE.test(input.email) || input.email.includes("..")) {
     return "Please enter a valid email address.";
   }
-  if (!GRIEVANCE_CATEGORIES.some((c) => c.value === input.category)) {
-    return "Please choose what it's about.";
-  }
+  if (!categories.includes(input.category)) return "Please choose what it's about.";
   if (input.details.length < 10) return "Please tell us what happened.";
   if (input.details.length > MAX_GRIEVANCE_TEXT) {
     return `"What happened" can be at most ${MAX_GRIEVANCE_TEXT} characters.`;
@@ -97,9 +91,26 @@ export const grievanceProblem = (input: GrievanceInput): string | null => {
   return null;
 };
 
+// Trims, drops blanks and repeats; returns the list or what's wrong with it.
+export const cleanNameList = (
+  raw: string[],
+  what: { one: string; max: number; maxLength: number }
+): { list: string[] } | { problem: string } => {
+  const list: string[] = [];
+  for (const name of raw.map((n) => n.trim()).filter(Boolean)) {
+    if (!list.some((n) => n.toLowerCase() === name.toLowerCase())) list.push(name);
+  }
+  if (list.length === 0) return { problem: `Add at least one ${what.one}.` };
+  if (list.length > what.max) return { problem: `There can be at most ${what.max} ${what.one}s.` };
+  if (list.some((n) => n.length > what.maxLength)) {
+    return { problem: `Each ${what.one} can be at most ${what.maxLength} characters.` };
+  }
+  return { list };
+};
+
 export const grievanceDetailLines = (g: Omit<GrievanceInput, "name" | "email">): string[] =>
   [
-    `About: ${grievanceCategoryLabel(g.category)}`,
+    `About: ${g.category}`,
     g.campus ? `Campus or area: ${g.campus}` : "",
     g.happenedWhen ? `When: ${g.happenedWhen}` : "",
     g.peopleInvolved ? `People involved: ${g.peopleInvolved}` : "",
@@ -110,7 +121,7 @@ export const grievanceDetailLines = (g: Omit<GrievanceInput, "name" | "email">):
 type StepState = "done" | "declined" | "current" | "todo";
 
 export type GrievanceStep = {
-  key: "submitted" | "received" | "inProgress" | "closed";
+  key: "submitted" | "inProgress" | "closed";
   label: string;
   state: StepState;
   name: string | null;
@@ -118,40 +129,25 @@ export type GrievanceStep = {
 };
 
 export const grievanceStepTrack = (
-  g: {
-    status: GrievanceStatus;
-    submittedAt: number;
-    receivedAt?: number;
-    inProgressAt?: number;
-    closedAt?: number;
-  },
+  g: { status: GrievanceStatus; submittedAt: number; inProgressAt?: number; closedAt?: number },
   names: { submitter: string; assignee: string | null; closedBy: string | null }
 ): GrievanceStep[] => {
-  const order: GrievanceStatus[] = ["SUBMITTED", "RECEIVED", "IN_PROGRESS", "RESOLVED"];
   const notProceeding = g.status === "NOT_PROCEEDING";
-  const reached = notProceeding ? 3 : order.indexOf(g.status);
-  const stateAt = (index: number): StepState =>
-    index <= reached ? "done" : index === reached + 1 ? "current" : "todo";
+  const closed = notProceeding || g.status === "RESOLVED";
+  const started = g.inProgressAt !== undefined;
   return [
     { key: "submitted", label: "Submitted", state: "done", name: names.submitter, at: g.submittedAt },
     {
-      key: "received",
-      label: "Received",
-      state: notProceeding && !g.receivedAt ? "todo" : stateAt(1),
-      name: g.receivedAt ? names.assignee : null,
-      at: g.receivedAt ?? null,
-    },
-    {
       key: "inProgress",
       label: "In progress",
-      state: notProceeding && !g.inProgressAt ? "todo" : stateAt(2),
-      name: null,
+      state: started ? "done" : closed ? "todo" : "current",
+      name: started ? names.assignee : null,
       at: g.inProgressAt ?? null,
     },
     {
       key: "closed",
       label: notProceeding ? "Not proceeding" : "Resolved",
-      state: notProceeding ? "declined" : stateAt(3),
+      state: notProceeding ? "declined" : closed ? "done" : started ? "current" : "todo",
       name: names.closedBy,
       at: g.closedAt ?? null,
     },

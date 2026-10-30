@@ -18,6 +18,8 @@ crons.cron(
   {}
 );
 
+crons.cron("carry open grievances into the new staff year", "45 15 30 9 *", internal.grievances.carryForward, {});
+
 crons.cron("attendance metrics daily rebuild", "0 16 * * *", internal.attendanceMetrics.recomputeAll, { nightly: true });
 
 crons.cron("church map locations", "0 17 * * *", internal.churches.locateAll, { nightly: true });
