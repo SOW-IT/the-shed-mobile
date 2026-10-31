@@ -92,7 +92,6 @@ export function CreateEventSheet({
   subgroup,
   subgroups,
   event,
-  initialDate,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -100,8 +99,6 @@ export function CreateEventSheet({
   subgroup: string;
   subgroups: string[];
   event?: EditableEvent;
-  // A new event on this day (YYYY-MM-DD), e.g. the day picked on the calendar.
-  initialDate?: string;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -200,17 +197,7 @@ export function CreateEventSheet({
     }
     if (openedRef.current) return;
     openedRef.current = true;
-    if (!isEditing) {
-      if (initialDate) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- start a new event on the picked day
-        setDateStr(initialDate);
-        setEndDateStr(initialDate);
-        setKind("event");
-        setInitialKind("event");
-        setWhenTouched(true);
-      }
-      return;
-    }
+    if (!isEditing) return;
     const snapshot = {
       name: event?.name ?? "",
       category: (event?.category ?? "") as PickableCategory | "",
@@ -226,6 +213,7 @@ export function CreateEventSheet({
     const namedByCode =
       !!saved &&
       (["terms", "semesters"] as const).some((system) => weeklyName(system, saved.slot, saved.week) === snapshot.name);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load the event's saved fields on the open transition (edit mode)
     setName(snapshot.name);
     setNameTouched(!namedByCode);
     setWhenTouched(true);
@@ -248,7 +236,7 @@ export function CreateEventSheet({
     setDeleteText("");
     setConfirmCancel(false);
     setInitial(snapshot);
-  }, [visible, ownerGroup, event, isEditing, initialDate]);
+  }, [visible, ownerGroup, event, isEditing]);
 
   const weekly = kind === "weekly" && canBeWeekly;
   const preview = eventWindowFromInputs({

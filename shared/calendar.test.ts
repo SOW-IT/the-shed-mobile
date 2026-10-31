@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
   calendarCategoryLabel,
+  entryProblem,
+  normalizeEntry,
+  parseDayKey,
   calendarCategoryOf,
   daysOf,
   eventsByDay,
@@ -97,5 +100,37 @@ describe("Google", () => {
     expect(body.description).toBe(
       "PPN\nSOW, UNSW\nOpen in THE SHED: https://theshed.sow.org.au/attendance/event/abc"
     );
+  });
+});
+
+describe("calendar entries", () => {
+  const valid = ["SOW", "UNSW"];
+  const base = { name: "Posters due", dateStart: 1_000, dateEnd: 2_000, subgroups: ["SOW"] };
+  test("normalizeEntry trims and drops repeats", () => {
+    expect(normalizeEntry({ ...base, name: " Posters ", subgroups: ["SOW", "SOW"], notes: "  " })).toEqual({
+      ...base,
+      name: "Posters",
+      notes: undefined,
+    });
+  });
+  test.each([
+    [{ name: "" }, "Give it a name."],
+    [{ name: "x".repeat(121) }, "at most 120 characters"],
+    [{ dateEnd: 1_000 }, "It has to end after it starts."],
+    [{ dateEnd: 1_000 + 32 * 86_400_000 }, "at most 31 days"],
+    [{ subgroups: [] }, "Pick at least one campus, or SOW."],
+    [{ subgroups: ["Hogwarts"] }, "isn't a campus this year"],
+    [{ notes: "x".repeat(1001) }, "Notes can be at most 1000 characters."],
+  ])("%o → %s", (over, message) => {
+    expect(entryProblem({ ...base, ...over }, valid)).toContain(message);
+  });
+  test("a good one passes", () => {
+    expect(entryProblem({ ...base, subgroups: ["UNSW"], notes: "Print 200" }, valid)).toBeNull();
+  });
+  test("parseDayKey only accepts real days", () => {
+    expect(parseDayKey("2026-11-20")).toBe("2026-11-20");
+    expect(parseDayKey("2026-02-30")).toBeNull();
+    expect(parseDayKey("tomorrow")).toBeNull();
+    expect(parseDayKey(undefined)).toBeNull();
   });
 });

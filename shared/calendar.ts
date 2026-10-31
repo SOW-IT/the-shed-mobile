@@ -18,6 +18,13 @@ export type CalendarCategory =
 export const PICKABLE_CATEGORIES = ["campus", "sow", "marketing", "deadline", "other"] as const;
 export type PickableCategory = (typeof PICKABLE_CATEGORIES)[number];
 
+// A calendar-only entry has no tags or term, so it can be any category but Weekly.
+export const ENTRY_CATEGORIES = ["twig", "ppn", "campus", "sow", "marketing", "deadline", "other"] as const;
+export type EntryCategory = (typeof ENTRY_CATEGORIES)[number];
+
+export const MAX_ENTRY_NAME = 120;
+export const MAX_ENTRY_NOTES = 1000;
+
 export const CALENDAR_CATEGORIES: { key: CalendarCategory; label: string }[] = [
   { key: "twig", label: "TWIG" },
   { key: "ppn", label: "PPN" },
@@ -41,6 +48,44 @@ export const calendarCategoryOf = (
   if (event.weekly) return "weekly";
   if (event.category) return event.category;
   return event.subgroups.includes(SOW_SUBGROUP) ? "sow" : "campus";
+};
+
+export type EntryInput = {
+  name: string;
+  dateStart: number;
+  dateEnd: number;
+  subgroups: string[];
+  notes?: string;
+};
+
+export const normalizeEntry = <E extends EntryInput>(entry: E): E => ({
+  ...entry,
+  name: entry.name.trim(),
+  subgroups: [...new Set(entry.subgroups)],
+  notes: entry.notes?.trim() || undefined,
+});
+
+export const entryProblem = (entry: EntryInput, validSubgroups: string[]): string | null => {
+  if (!entry.name) return "Give it a name.";
+  if (entry.name.length > MAX_ENTRY_NAME) return `The name can be at most ${MAX_ENTRY_NAME} characters.`;
+  if (entry.dateEnd <= entry.dateStart) return "It has to end after it starts.";
+  if (entry.dateEnd - entry.dateStart > MAX_SPAN_DAYS * DAY_MS) {
+    return `It can run for at most ${MAX_SPAN_DAYS} days.`;
+  }
+  if (entry.subgroups.length === 0) return "Pick at least one campus, or SOW.";
+  const unknown = entry.subgroups.find((s) => !validSubgroups.includes(s));
+  if (unknown) return `"${unknown}" isn't a campus this year.`;
+  if ((entry.notes?.length ?? 0) > MAX_ENTRY_NOTES) {
+    return `Notes can be at most ${MAX_ENTRY_NOTES} characters.`;
+  }
+  return null;
+};
+
+// "2026-11-20" from a link, or null if it isn't a real day.
+export const parseDayKey = (value: unknown): string | null => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  return keyOfUtc(Date.UTC(y, m - 1, d)) === value ? value : null;
 };
 
 export const sydneyDayKey = (ms: number): string => {
@@ -140,14 +185,18 @@ const GOOGLE_COLOURS: Record<CalendarCategory, string> = {
 export const googleEventBody = (
   event: { name: string; dateStart: number; dateEnd: number; subgroups: string[] },
   category: CalendarCategory,
-  link: string
+  link: string,
+  notes?: string
 ) => ({
   summary: event.name,
   description: [
     calendarCategoryLabel(category),
     event.subgroups.map(subgroupLabel).join(", "),
+    notes ?? "",
     `Open in THE SHED: ${link}`,
-  ].join("\n"),
+  ]
+    .filter(Boolean)
+    .join("\n"),
   start: { dateTime: new Date(event.dateStart).toISOString(), timeZone: "Australia/Sydney" },
   end: { dateTime: new Date(event.dateEnd).toISOString(), timeZone: "Australia/Sydney" },
   colorId: GOOGLE_COLOURS[category],

@@ -1,8 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
-import { Redirect, useRouter } from "expo-router";
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import {
   CALENDAR_CATEGORIES,
@@ -11,6 +11,7 @@ import {
   eventsByDay,
   monthGrid,
   monthWindow,
+  parseDayKey,
   shiftMonth,
   sydneyDayKey,
   type CalendarCategory,
@@ -18,7 +19,9 @@ import {
 import { subgroupLabel } from "@shared/rollcall";
 import { universityColour } from "@shared/flow";
 import { ChromeScreen } from "@/components/ChromeScreen";
-import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
+import { useWideLayout } from "@/components/nav/layout";
+import type { Id } from "../../../convex/_generated/dataModel";
+import { CalendarEntrySheet, type EditableEntry } from "@/components/calendar/CalendarEntrySheet";
 import { CATEGORY_COLOURS } from "@/components/calendar/categoryColours";
 import { FilterChip, FilterRow } from "@/components/FilterChips";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
@@ -31,7 +34,7 @@ const useRange = (window: { from: number; to: number }, skip: boolean) =>
   useQuery(api.calendar.range, skip ? "skip" : window);
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
-const MAX_DOTS = 3;
+const MAX_ROWS = 3;
 
 const monthTitle = (year: number, month: number) =>
   new Intl.DateTimeFormat("en-AU", { month: "long", year: "numeric", timeZone: "UTC" }).format(
@@ -59,7 +62,7 @@ const shortDay = (ms: number) =>
 const toggle = <T,>(list: T[], value: T) =>
   list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
-const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress: () => void }) => {
+const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => void }) => {
   const t = useAppTheme();
   const colour = CATEGORY_COLOURS[event.category];
   const where = event.subgroups.map(subgroupLabel).join(", ");
@@ -69,7 +72,8 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress: () => voi
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
+      disabled={!onPress}
+      accessibilityRole={onPress ? "button" : undefined}
       accessibilityLabel={`${event.name}, ${calendarCategoryLabel(event.category)}, ${when}, ${where}`}
       style={({ pressed }) => [styles.eventRow, pressed && { opacity: 0.6 }]}
     >
@@ -82,9 +86,21 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress: () => voi
         <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
           <Text style={{ color: colour, fontWeight: "800" }}>{calendarCategoryLabel(event.category)}</Text>
           {` · ${where}`}
+          {event.kind === "entry" ? " · Calendar only" : ""}
         </Text>
+        {event.notes ? (
+          <Text selectable style={[typography.caption, { color: t.text }]}>
+            {event.notes}
+          </Text>
+        ) : null}
       </View>
-      <Ionicons name="chevron-forward" size={18} color={t.faint} />
+      {onPress ? (
+        <Ionicons
+          name={event.kind === "entry" ? "create-outline" : "chevron-forward"}
+          size={18}
+          color={t.faint}
+        />
+      ) : null}
     </Pressable>
   );
 };
@@ -101,6 +117,19 @@ export default function CalendarScreen() {
   const [categories, setCategories] = useState<CalendarCategory[]>([]);
   const [campuses, setCampuses] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<EditableEntry | null>(null);
+  const wide = useWideLayout();
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const gridBottom = useRef(0);
+  const { day } = useLocalSearchParams<{ day?: string }>();
+  useEffect(() => {
+    const linked = parseDayKey(day);
+    if (!linked) return;
+    const [y, m] = linked.split("-").map(Number);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- open the day a link points at
+    setMonth({ year: y, month: m });
+    setSelected(linked);
+  }, [day]);
   const events = useRange(monthWindow(year, month), !staff);
   const subgroups = useQuery(api.events.subgroups, staff ? {} : "skip");
   const [subgroup] = useAttendanceSubgroup(subgroups, me?.profile?.assignments);
@@ -127,7 +156,7 @@ export default function CalendarScreen() {
     new Set(
       [...eventsByDay(list).entries()]
         .filter(([key]) => monthKeys.has(key))
-        .flatMap(([, evs]) => evs.map((e) => e._id))
+        .flatMap(([, evs]) => evs.map((e) => e.id))
     ).size;
   const presentCategories = CALENDAR_CATEGORIES.filter((c) => all.some((e) => e.category === c.key));
   const presentCampuses = [...new Set(all.flatMap((e) => e.subgroups))].sort((a, b) =>
@@ -161,7 +190,7 @@ export default function CalendarScreen() {
 
   return (
     <>
-      <ChromeScreen floating={floating}>
+      <ChromeScreen floating={floating} scrollRef={scrollRef}>
         <ReadableColumn>
           <View style={{ gap: spacing.md, paddingBottom: 72 }}>
             <View style={styles.monthBar}>
@@ -202,62 +231,90 @@ export default function CalendarScreen() {
               </Pressable>
             ) : null}
 
-            <Card>
-              <View style={styles.week}>
-                {WEEKDAYS.map((d, i) => (
-                  <Text key={i} style={[styles.weekday, typography.caption, { color: t.faint }]}>
-                    {d}
-                  </Text>
-                ))}
-              </View>
-              {grid.map((week) => (
-                <View key={week[0].key} style={styles.week}>
-                  {week.map((day) => {
-                    const evs = byDay.get(day.key) ?? [];
-                    const isSelected = day.key === selected;
-                    const isToday = day.key === today;
-                    const dots = [...new Set(evs.map((e) => e.category))].slice(0, MAX_DOTS);
-                    return (
-                      <Pressable
-                        key={day.key}
-                        onPress={() => setSelected(day.key)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: isSelected }}
-                        accessibilityLabel={`${dayTitle(day.key)}, ${evs.length} event${evs.length === 1 ? "" : "s"}`}
-                        style={[
-                          styles.cell,
-                          isSelected && { backgroundColor: t.primarySoft },
-                        ]}
-                      >
-                        <View
+            <View
+              onLayout={(e) => {
+                gridBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
+              }}
+            >
+              <Card>
+                <View style={styles.week}>
+                  {WEEKDAYS.map((d, i) => (
+                    <Text key={i} style={[styles.weekday, typography.caption, { color: t.faint }]}>
+                      {d}
+                    </Text>
+                  ))}
+                </View>
+                {grid.map((week) => (
+                  <View key={week[0].key} style={styles.week}>
+                    {week.map((day) => {
+                      const evs = byDay.get(day.key) ?? [];
+                      const isSelected = day.key === selected;
+                      const isToday = day.key === today;
+                      const more = evs.length - MAX_ROWS;
+                      return (
+                        <Pressable
+                          key={day.key}
+                          onPress={() => {
+                            setSelected(day.key);
+                            // On a phone the day's events sit below the month; bring them into view.
+                            if (!wide) {
+                              scrollRef.current?.scrollTo({ y: Math.max(0, gridBottom.current - 160), animated: true });
+                            }
+                          }}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: isSelected }}
+                          accessibilityLabel={`${dayTitle(day.key)}, ${evs.length} event${evs.length === 1 ? "" : "s"}`}
                           style={[
-                            styles.dayNumber,
-                            isToday && { borderColor: t.accent, borderWidth: 2 },
+                            styles.cell,
+                            isSelected && { backgroundColor: t.primarySoft },
                           ]}
                         >
-                          <Text
+                          <View
                             style={[
-                              typography.body,
-                              {
-                                color: day.inMonth ? t.text : t.faint,
-                                fontWeight: isSelected || isToday ? "800" : "500",
-                              },
+                              styles.dayNumber,
+                              isToday && { borderColor: t.primary, borderWidth: 2 },
                             ]}
                           >
-                            {day.day}
-                          </Text>
-                        </View>
-                        <View style={styles.dots}>
-                          {dots.map((c) => (
-                            <View key={c} style={[styles.dot, { backgroundColor: CATEGORY_COLOURS[c] }]} />
-                          ))}
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ))}
-            </Card>
+                            <Text
+                              style={[
+                                typography.body,
+                                {
+                                  color: day.inMonth ? t.text : t.faint,
+                                  fontWeight: isSelected || isToday ? "800" : "500",
+                                },
+                              ]}
+                            >
+                              {day.day}
+                            </Text>
+                          </View>
+                          <View style={styles.chips}>
+                            {evs.slice(0, more > 0 ? MAX_ROWS - 1 : MAX_ROWS).map((e) => (
+                              <View
+                                key={e.id}
+                                style={[
+                                  styles.chip,
+                                  {
+                                    backgroundColor: `${CATEGORY_COLOURS[e.category]}26`,
+                                    borderLeftColor: CATEGORY_COLOURS[e.category],
+                                  },
+                                ]}
+                              >
+                                <Text numberOfLines={1} style={[styles.chipText, { color: t.text }]}>
+                                  {e.name}
+                                </Text>
+                              </View>
+                            ))}
+                            {more > 0 ? (
+                              <Text style={[styles.chipText, { color: t.muted }]}>+{more + 1} more</Text>
+                            ) : null}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ))}
+              </Card>
+            </View>
 
             <Text style={[typography.section, { color: t.text }]}>{dayTitle(selected)}</Text>
             {events === undefined ? (
@@ -269,16 +326,31 @@ export default function CalendarScreen() {
                 message={
                   shown.length < all.length
                     ? "Nothing that matches the filters on this day."
-                    : "Add an event and it shows here, in Attendance and on the SOW Google Calendar."
+                    : "Add something with the button below. Everything here is also on the SOW Events Google Calendar."
                 }
               />
             ) : (
               <Card>
                 {dayEvents.map((event) => (
                   <EventRow
-                    key={event._id}
+                    key={event.id}
                     event={event}
-                    onPress={() => router.push(`/attendance/event/${event._id}`)}
+                    onPress={
+                      event.kind === "attendance"
+                        ? () => router.push(`/attendance/event/${event.id}`)
+                        : event.canEdit
+                          ? () =>
+                              setEditing({
+                                id: event.id as Id<"calendarEntries">,
+                                name: event.name,
+                                dateStart: event.dateStart,
+                                dateEnd: event.dateEnd,
+                                subgroups: event.subgroups,
+                                category: event.category as EditableEntry["category"],
+                                notes: event.notes,
+                              })
+                          : undefined
+                    }
                   />
                 ))}
               </Card>
@@ -319,12 +391,16 @@ export default function CalendarScreen() {
         </ReadableColumn>
       </ChromeScreen>
       {subgroup && subgroups ? (
-        <CreateEventSheet
-          visible={adding}
-          onClose={() => setAdding(false)}
-          subgroup={subgroup}
+        <CalendarEntrySheet
+          visible={adding || editing !== null}
+          onClose={() => {
+            setAdding(false);
+            setEditing(null);
+          }}
+          day={selected}
           subgroups={subgroups}
-          initialDate={selected}
+          defaultSubgroup={subgroup}
+          entry={editing ?? undefined}
         />
       ) : null}
     </>
@@ -345,10 +421,12 @@ const styles = StyleSheet.create({
   weekday: { flex: 1, textAlign: "center", fontWeight: "700" },
   cell: {
     flex: 1,
+    minWidth: 0,
     alignItems: "center",
     paddingVertical: 4,
+    paddingHorizontal: 2,
     borderRadius: radius.md,
-    minHeight: 46,
+    minHeight: 92,
     gap: 2,
   },
   dayNumber: {
@@ -358,8 +436,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  dots: { flexDirection: "row", gap: 3, height: 6 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  chips: { alignSelf: "stretch", gap: 2 },
+  chip: { borderLeftWidth: 3, borderRadius: 3, paddingHorizontal: 3, paddingVertical: 1 },
+  chipText: { fontSize: 10, lineHeight: 13, fontWeight: "600" },
   eventRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
   eventBar: { width: 4, alignSelf: "stretch", borderRadius: 2 },
   fab: {

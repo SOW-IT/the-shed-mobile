@@ -263,3 +263,174 @@ describe("googleCalendar.backfill", () => {
     expect(calls.map((c) => c.body!.summary)).toEqual(["Recent", "Soon"]);
   });
 });
+
+const STAFF = "staff@sow.org.au";
+const OTHER = "other@sow.org.au";
+
+async function setupWithStaff() {
+  const base = await setup();
+  for (const email of [STAFF, OTHER]) {
+    await asUser(base.t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+  }
+  return base;
+}
+
+const entry = (over: Record<string, unknown> = {}) => ({
+  name: "Camp posters due",
+  ...at(3),
+  subgroups: ["SOW"],
+  category: "deadline" as const,
+  ...over,
+});
+
+describe("calendar entries", () => {
+  test("anyone with a role adds one; it's checked and listed with who can change it", async () => {
+    const { t } = await setupWithStaff();
+    await expect(t.mutation(api.calendar.addEntry, entry())).rejects.toThrow("You must be signed in");
+    const add = (over: Record<string, unknown>) => asUser(t, STAFF).mutation(api.calendar.addEntry, entry(over));
+    await expect(add({ name: "  " })).rejects.toThrow("Give it a name.");
+    await expect(add({ dateEnd: NOW + 3 * DAY })).rejects.toThrow("It has to end after it starts.");
+    await expect(add({ subgroups: ["Hogwarts"] })).rejects.toThrow('"Hogwarts" isn\'t a campus this year.');
+    const id = await add({ name: " Camp posters due ", notes: " Print 200 ", subgroups: ["SOW", USYD, "SOW"] });
+    expect(await t.run((ctx) => ctx.db.get("calendarEntries", id))).toMatchObject({
+      name: "Camp posters due",
+      notes: "Print 200",
+      subgroups: ["SOW", USYD],
+      createdBy: STAFF,
+    });
+
+    const window = { from: NOW, to: NOW + 10 * DAY };
+    const mine = await asUser(t, STAFF).query(api.calendar.range, window);
+    expect(mine).toEqual([
+      expect.objectContaining({ kind: "entry", id, category: "deadline", notes: "Print 200", canEdit: true }),
+    ]);
+    expect((await asUser(t, OTHER).query(api.calendar.range, window))![0].canEdit).toBe(false);
+    expect((await asUser(t, ADMIN).query(api.calendar.range, window))![0].canEdit).toBe(true);
+  });
+
+  test("only whoever added it, or an admin, can change or delete it", async () => {
+    const { t } = await setupWithStaff();
+    const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, entry());
+    await expect(
+      asUser(t, OTHER).mutation(api.calendar.updateEntry, { id, ...entry({ name: "Mine now" }) })
+    ).rejects.toThrow("Only whoever added it, or an admin");
+    await asUser(t, STAFF).mutation(api.calendar.updateEntry, { id, ...entry({ category: "marketing" }) });
+    await asUser(t, ADMIN).mutation(api.calendar.updateEntry, { id, ...entry({ name: "Posters due" }) });
+    expect(await t.run((ctx) => ctx.db.get("calendarEntries", id))).toMatchObject({
+      name: "Posters due",
+      category: "deadline",
+    });
+    await expect(asUser(t, OTHER).mutation(api.calendar.removeEntry, { id })).rejects.toThrow("Only whoever");
+    await asUser(t, STAFF).mutation(api.calendar.removeEntry, { id });
+    await expect(asUser(t, STAFF).mutation(api.calendar.removeEntry, { id })).rejects.toThrow(
+      "That calendar entry no longer exists."
+    );
+  });
+
+  test("changes are copied to Google once a calendar is set up", async () => {
+    const { t } = await setupWithStaff();
+    await configureGoogle();
+    googleFetch([]);
+    const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, entry());
+    await asUser(t, STAFF).mutation(api.calendar.updateEntry, { id, ...entry({ notes: "Bring tape" }) });
+    await asUser(t, STAFF).mutation(api.calendar.removeEntry, { id });
+    expect((await scheduledSyncs(t)).map((f) => [f.name, f.args[0]])).toEqual([
+      ["googleCalendar:syncEntry", { entryId: id }],
+      ["googleCalendar:syncEntry", { entryId: id }],
+      ["googleCalendar:syncEntry", { entryId: id }],
+    ]);
+  });
+});
+
+describe("googleCalendar for entries", () => {
+  test("pushes an entry with its notes and a link to its day, and removes it once deleted", async () => {
+    const { t } = await setupWithStaff();
+    const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, entry({ notes: "Print 200" }));
+    const unconfigured = googleFetch([]);
+    await t.action(internal.googleCalendar.syncEntry, { entryId: id });
+    expect(unconfigured).toHaveLength(0);
+
+    await configureGoogle();
+    let calls = googleFetch([200]);
+    await t.action(internal.googleCalendar.syncEntry, { entryId: id });
+    expect(calls[0]).toMatchObject({ method: "PUT", body: { summary: "Camp posters due", colorId: "4" } });
+    expect(String(calls[0].body!.description)).toContain("Print 200");
+    expect(String(calls[0].body!.description)).toContain("/calendar?day=");
+
+    await t.run((ctx) => ctx.db.delete("calendarEntries", id));
+    calls = googleFetch([204]);
+    await t.action(internal.googleCalendar.syncEntry, { entryId: id });
+    expect(calls.map((c) => c.method)).toEqual(["DELETE"]);
+  });
+
+  test("the backfill includes entries", async () => {
+    const { t } = await setupWithStaff();
+    await create(t, { name: "Stall" });
+    await asUser(t, STAFF).mutation(api.calendar.addEntry, entry());
+    await configureGoogle();
+    const calls = googleFetch([]);
+    expect(await t.action(internal.googleCalendar.backfill, { daysBack: 1 })).toEqual({ synced: 2 });
+    expect(calls.map((c) => c.body!.summary).sort()).toEqual(["Camp posters due", "Stall"]);
+  });
+});
+
+describe("googleCalendar.createSharedCalendar", () => {
+  const args = { name: "SOW Events", domain: "sow.org.au" };
+
+  test("needs the service account", async () => {
+    const { t } = await setup();
+    await expect(t.action(internal.googleCalendar.createSharedCalendar, args)).rejects.toThrow(
+      "Set GOOGLE_SA_CLIENT_EMAIL"
+    );
+  });
+
+  test("makes the calendar and shares it with everyone at the domain", async () => {
+    const { t } = await setup();
+    await configureGoogle();
+    const calls: { url: string; body: Record<string, unknown> }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        if (String(url).includes("oauth2")) {
+          return new Response(JSON.stringify({ access_token: "token" }), { status: 200 });
+        }
+        calls.push({ url: String(url), body: JSON.parse(String(init!.body)) });
+        return new Response(JSON.stringify({ id: "abc@group.calendar.google.com" }), { status: 200 });
+      })
+    );
+    expect(await t.action(internal.googleCalendar.createSharedCalendar, args)).toEqual({
+      calendarId: "abc@group.calendar.google.com",
+      addLink: `https://calendar.google.com/calendar/u/0?cid=${btoa("abc@group.calendar.google.com")}`,
+    });
+    expect(calls[0]).toMatchObject({ body: { summary: "SOW Events", timeZone: "Australia/Sydney" } });
+    expect(calls[1]).toMatchObject({
+      url: "https://www.googleapis.com/calendar/v3/calendars/abc%40group.calendar.google.com/acl",
+      body: { role: "reader", scope: { type: "domain", value: "sow.org.au" } },
+    });
+  });
+
+  test("reports Google refusing to create or share it", async () => {
+    const { t } = await setup();
+    await configureGoogle();
+    for (const [statuses, message] of [
+      [[403], "Google Calendar create failed: 403"],
+      [[200, 400], "Google Calendar share failed: 400"],
+    ] as const) {
+      const queue = [...statuses];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string | URL) =>
+          String(url).includes("oauth2")
+            ? new Response(JSON.stringify({ access_token: "token" }), { status: 200 })
+            : new Response(JSON.stringify({ id: "abc" }), { status: queue.shift() })
+        )
+      );
+      await expect(t.action(internal.googleCalendar.createSharedCalendar, args)).rejects.toThrow(message);
+    }
+  });
+});

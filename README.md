@@ -246,14 +246,20 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 `universities`) plus org-wide "SOW", all sharing one member pool.
 
 - **Calendar** (`convex/calendar.ts`, rules in `shared/calendar.ts`), from
-  the side menu for staff and campus leaders: a month of every attendance
-  event, coloured by category (TWIG and PPN from their tags, Weekly from its
-  term and week, otherwise a picked category: Campus event, SOW event,
-  Marketing, Deadline or Other, or Campus/SOW by where it's held). Chips filter
-  by category and campus; a day lists its events and opens their roll-call.
-  "Add Event" creates an attendance event on the picked day. Events are copied
-  one way to a shared Google Calendar (`convex/googleCalendar.ts`) once
-  `GOOGLE_CALENDAR_ID` is set: see [Shared Google Calendar](#shared-google-calendar-optional).
+  the side menu for staff and campus leaders: a month with each day's events
+  as short coloured rows (the start of each name), then the picked day's
+  events in full below. It shows every attendance event, wherever it was made,
+  plus **calendar entries** (`calendarEntries`): things like marketing
+  schedules and deadlines that don't take attendance, with optional notes.
+  "Add Event" adds an entry on the picked day, or an attendance event when
+  "Take attendance" is ticked. Whoever added an entry, or an admin, edits or
+  deletes it. Colours come from the category: TWIG and PPN from an attendance
+  event's tags, Weekly from its term and week, otherwise a picked category
+  (Campus event, SOW event, Marketing, Deadline or Other), or Campus/SOW by
+  where it's held. Chips filter by category and campus, and `/calendar?day=`
+  opens a day. Everything is copied one way to a shared Google Calendar
+  (`convex/googleCalendar.ts`) once `GOOGLE_CALENDAR_ID` is set: see
+  [Shared Google Calendar](#shared-google-calendar-optional).
 - **Events & roll-call**: create events tagged with one or more sub-groups
   (multi-sub-group = a *collaborative* event that appears under each), then sign
   people in/out. Everyone signed in is a **member**; staff are members with
@@ -412,21 +418,24 @@ roles stays an explicit admin action.
 
 ### Shared Google Calendar (optional)
 
-Every attendance event, and each change to it, is copied to one Google
-Calendar by the same service account. Nothing comes back from Google.
+Every attendance event and calendar entry, and each change to them, is
+copied to one Google Calendar by the same service account. Nothing comes back
+from Google. The **Google Calendar API** must be enabled in the service
+account's Google Cloud project.
 
-1. In the service account's Google Cloud project, enable the **Google Calendar
-   API**.
-2. Create the calendar from a SOW account. Under *Share with specific people*,
-   add the service account's email with **Make changes to events**, then share
-   it with SOW as you like.
-3. Set its ID (*Settings → Integrate calendar → Calendar ID*) and copy the
-   events already in the app:
+The service account can make the calendar itself, owned by it and readable by
+everyone at the domain; the result has its ID and a link for adding it in
+Google Calendar:
 
 ```bash
-npx convex env set GOOGLE_CALENDAR_ID <id>@group.calendar.google.com
+npx convex run googleCalendar:createSharedCalendar '{"name": "SOW Events", "domain": "sow.org.au"}'
+npx convex env set GOOGLE_CALENDAR_ID <calendarId from the result>
 npx convex run googleCalendar:backfill '{"daysBack": 30}'
 ```
+
+Or use an existing calendar: share it with the service account's email with
+**Make changes to events** and set its ID (*Settings → Integrate calendar →
+Calendar ID*) the same way.
 
 Leave it unset on dev unless dev has its own test calendar: dev's events are
 test data.

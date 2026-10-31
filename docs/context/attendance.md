@@ -232,6 +232,13 @@ Weekly from its term and week, otherwise the category picked on the event
 whether it's held at SOW. Picking a category never changes Insights.
 _Avoid_: event type, calendar tag
 
+**Calendar entry**:
+Something on the Calendar that doesn't take attendance, like a marketing
+schedule or a deadline: a name, when, where, a category and optional notes.
+Whoever added it, or an admin, can change it. Attendance events are on the
+Calendar too; an entry is never an attendance event.
+_Avoid_: event (for an entry), reminder
+
 **TWIG** / **PPN** (SOW Insights):
 A TWIG is an event with the Other-events TWIG tag and no PPN tag; a PPN here
 is one with both (the SOW monthly night). SOW Insights counts only Held ones

@@ -11,7 +11,7 @@ import {
   weeklySettingsFields,
 } from "./weeklyInsightsData";
 import { homeBlockValidator } from "./homeData";
-import { calendarCategoryValidator } from "./calendarData";
+import { calendarCategoryValidator, entryFields } from "./calendarData";
 import { designAnswersValidator, designStatusValidator } from "./designRequestData";
 import { grievanceFields, grievanceStatusValidator } from "./grievanceData";
 import {
@@ -482,6 +482,12 @@ export default defineSchema({
   })
     .index("by_dateStart", ["dateStart"])
     .index("by_checkIn_token", ["checkIn.token"]),
+
+  // Calendar entries that don't take attendance; attendance events show on the calendar too.
+  calendarEntries: defineTable({
+    ...entryFields,
+    createdBy: v.string(),
+  }).index("by_dateStart", ["dateStart"]),
 
   eventAttendanceCounts: defineTable({
     eventId: v.id("events"),
