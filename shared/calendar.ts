@@ -1,6 +1,6 @@
 import { pad2 } from "./datetime";
-import { sydneyYmd } from "./flow";
-import { SOW_SUBGROUP, subgroupLabel, type TagList } from "./rollcall";
+import { acronym, sydneyYmd, universityColour } from "./flow";
+import { isOrgWideSubgroup, SOW_SUBGROUP, subgroupLabel, type TagList } from "./rollcall";
 import { sowModeOf } from "./sowInsights";
 
 export type CalendarCategory =
@@ -49,6 +49,18 @@ export const calendarCategoryOf = (
   if (event.category) return event.category;
   return event.subgroups.includes(SOW_SUBGROUP) ? "sow" : "campus";
 };
+
+// A Weekly or Campus event at one campus wears that campus's colour; at
+// several, or at one without a colour, it keeps its category's.
+export const campusColourOf = (
+  category: CalendarCategory,
+  subgroups: string[]
+): string | undefined =>
+  (category === "weekly" || category === "campus") &&
+  subgroups.length === 1 &&
+  !isOrgWideSubgroup(subgroups[0])
+    ? universityColour(subgroups[0])
+    : undefined;
 
 export type EntryInput = {
   name: string;
@@ -141,10 +153,14 @@ const MAX_SPAN_DAYS = 31;
 // Only guards against a runaway loop: attendance events have no length limit.
 const MAX_DAYS_SHOWN = 366;
 
+// Ending at midnight doesn't count the next day.
+const lastDayKey = (dateStart: number, dateEnd: number) =>
+  sydneyDayKey(Math.max(dateStart, dateEnd - 1));
+
 // Each Sydney day an event touches, so a camp shows on every day it runs.
 export const daysOf = (dateStart: number, dateEnd: number): string[] => {
   const first = sydneyDayKey(dateStart);
-  const last = sydneyDayKey(Math.max(dateStart, dateEnd - 1));
+  const last = lastDayKey(dateStart, dateEnd);
   const [y, m, d] = first.split("-").map(Number);
   const keys: string[] = [];
   for (let i = 0; i < MAX_DAYS_SHOWN; i++) {
@@ -167,6 +183,64 @@ export const eventsByDay = <E extends { dateStart: number; dateEnd: number }>(
   return byDay;
 };
 
+export type WeekBar<E> = {
+  event: E;
+  // Columns, Monday = 0.
+  start: number;
+  span: number;
+  row: number;
+  fromBefore: boolean;
+  toAfter: boolean;
+};
+
+// A week of the month laid out like a wall calendar: an event running several
+// days is one bar across them, on one row. Only `rows` rows fit; the last one
+// gives way to "+N more" on any day with events that don't fit.
+export const weekLayout = <E extends { dateStart: number; dateEnd: number }>(
+  week: string[],
+  byDay: Map<string, E[]>,
+  rows: number
+): { bars: WeekBar<E>[]; more: number[] } => {
+  const placed = new Map<E, WeekBar<E>>();
+  week.forEach((key, col) => {
+    for (const event of byDay.get(key) ?? []) {
+      const bar = placed.get(event);
+      if (bar) {
+        bar.span = col - bar.start + 1;
+      } else {
+        placed.set(event, {
+          event,
+          start: col,
+          span: 1,
+          row: 0,
+          fromBefore: sydneyDayKey(event.dateStart) < week[0],
+          toAfter: lastDayKey(event.dateStart, event.dateEnd) > week[week.length - 1],
+        });
+      }
+    }
+  });
+  const columns = (bar: WeekBar<E>) => Array.from({ length: bar.span }, (_, i) => bar.start + i);
+  // Longer bars first, so a camp keeps one row and the day's evening slots in beside it.
+  const bars = [...placed.values()].sort(
+    (a, b) => a.start - b.start || b.span - a.span || a.event.dateStart - b.event.dateStart
+  );
+  const taken: Set<number>[] = [];
+  for (const bar of bars) {
+    while (columns(bar).some((col) => taken[bar.row]?.has(col))) bar.row++;
+    taken[bar.row] ??= new Set();
+    for (const col of columns(bar)) taken[bar.row].add(col);
+  }
+  const crowded = new Set(bars.filter((bar) => bar.row >= rows).flatMap(columns));
+  const fits = (bar: WeekBar<E>) =>
+    bar.row < rows - 1 || (bar.row === rows - 1 && !columns(bar).some((col) => crowded.has(col)));
+  return {
+    bars: bars.filter(fits),
+    more: week.map(
+      (_, col) => bars.filter((bar) => !fits(bar) && columns(bar).includes(col)).length
+    ),
+  };
+};
+
 // Google Calendar event ids must use the characters 0-9 and a-v; hex of the
 // Convex id fits, and lets every change find the same Google event again.
 export const googleEventId = (eventId: string): string =>
@@ -183,6 +257,20 @@ const GOOGLE_COLOURS: Record<CalendarCategory, string> = {
   deadline: "4",
   other: "8",
 };
+
+// The nearest of Google's colours to each campus's.
+const GOOGLE_CAMPUS_COLOURS: Record<string, string> = {
+  USYD: "4",
+  UNSW: "2",
+  UTS: "9",
+  MACQ: "5",
+  ACU: "3",
+  WSU: "11",
+};
+
+const googleColourOf = (category: CalendarCategory, subgroups: string[]): string =>
+  (campusColourOf(category, subgroups) && GOOGLE_CAMPUS_COLOURS[acronym(subgroups[0])]) ||
+  GOOGLE_COLOURS[category];
 
 export const googleEventBody = (
   event: { name: string; dateStart: number; dateEnd: number; subgroups: string[] },
@@ -201,6 +289,6 @@ export const googleEventBody = (
     .join("\n"),
   start: { dateTime: new Date(event.dateStart).toISOString(), timeZone: "Australia/Sydney" },
   end: { dateTime: new Date(event.dateEnd).toISOString(), timeZone: "Australia/Sydney" },
-  colorId: GOOGLE_COLOURS[category],
+  colorId: googleColourOf(category, event.subgroups),
   status: "confirmed",
 });

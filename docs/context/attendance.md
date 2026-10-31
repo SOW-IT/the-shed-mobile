@@ -229,7 +229,9 @@ their own list. A prompt for a leader, never a judgement.
 How the Calendar colours and filters an event: TWIG or PPN from its tags,
 Weekly from its term and week, otherwise the category picked on the event
 (Campus event, SOW event, Marketing, Deadline, Other), or Campus/SOW event by
-whether it's held at SOW. Picking a category never changes Insights.
+whether it's held at SOW. Picking a category never changes Insights. A
+Weekly or Campus event at one campus is coloured by that campus instead, but
+still filters under its category.
 _Avoid_: event type, calendar tag
 
 **Calendar entry**:

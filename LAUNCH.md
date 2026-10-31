@@ -17,6 +17,11 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
+- [ ] **Recolour the shared Google Calendar after 2.10.14.** Events already
+      copied keep their category colour until they next change. Once 2.10.14
+      is merged, run `npx convex run --prod googleCalendar:backfill
+      '{"daysBack": 365}'` so Weeklies and Campus events at one campus take
+      their campus's colour.
 - [ ] **Confirm an over-the-air update reaches a phone.** iOS 2.9.23 and
       Android 2.9.24 are the first store builds with `expo-updates`. Check a
       publish lands with `eas update:list` and a phone on one of those builds.

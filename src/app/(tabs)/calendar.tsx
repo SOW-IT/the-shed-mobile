@@ -7,6 +7,7 @@ import { api } from "../../../convex/_generated/api";
 import {
   CALENDAR_CATEGORIES,
   calendarCategoryLabel,
+  campusColourOf,
   daysOf,
   eventsByDay,
   monthGrid,
@@ -14,6 +15,7 @@ import {
   parseDayKey,
   shiftMonth,
   sydneyDayKey,
+  weekLayout,
   type CalendarCategory,
 } from "@shared/calendar";
 import { subgroupLabel } from "@shared/rollcall";
@@ -22,7 +24,7 @@ import { ChromeScreen } from "@/components/ChromeScreen";
 import { useWideLayout } from "@/components/nav/layout";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { CalendarEntrySheet, type EditableEntry } from "@/components/calendar/CalendarEntrySheet";
-import { CATEGORY_COLOURS } from "@/components/calendar/categoryColours";
+import { CATEGORY_COLOURS, eventColour } from "@/components/calendar/categoryColours";
 import { FilterChip, FilterRow } from "@/components/FilterChips";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 import { sydneyTime } from "@/lib/sydneyTime";
@@ -35,6 +37,11 @@ const useRange = (window: { from: number; to: number }, skip: boolean) =>
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const MAX_ROWS = 3;
+const ROW_HEIGHT = 17;
+const column = (col: number, span = 1) => ({
+  left: `${(col / 7) * 100}%` as const,
+  width: `${(span / 7) * 100}%` as const,
+});
 
 const monthTitle = (year: number, month: number) =>
   new Intl.DateTimeFormat("en-AU", { month: "long", year: "numeric", timeZone: "UTC" }).format(
@@ -64,7 +71,8 @@ const toggle = <T,>(list: T[], value: T) =>
 
 const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => void }) => {
   const t = useAppTheme();
-  const colour = CATEGORY_COLOURS[event.category];
+  const campusColour = campusColourOf(event.category, event.subgroups);
+  const colour = campusColour ?? CATEGORY_COLOURS[event.category];
   const where = event.subgroups.map(subgroupLabel).join(", ");
   const multiDay = daysOf(event.dateStart, event.dateEnd).length > 1;
   const at = (ms: number) => (multiDay ? `${shortDay(ms)}, ${sydneyTime(ms)}` : sydneyTime(ms));
@@ -84,7 +92,10 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
         </Text>
         <Text style={[typography.caption, { color: t.muted }]}>{when}</Text>
         <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
-          <Text style={{ color: colour, fontWeight: "800" }}>{calendarCategoryLabel(event.category)}</Text>
+          {/* Campus colours aren't all legible as text on both themes. */}
+          <Text style={{ color: campusColour ? t.text : colour, fontWeight: "800" }}>
+            {calendarCategoryLabel(event.category)}
+          </Text>
           {` · ${where}`}
           {event.kind === "entry" ? " · Calendar only" : ""}
         </Text>
@@ -261,75 +272,97 @@ export default function CalendarScreen() {
                     </Text>
                   ))}
                 </View>
-                {grid.map((week) => (
-                  <View key={week[0].key} style={styles.week}>
-                    {week.map((day) => {
-                      const evs = byDay.get(day.key) ?? [];
-                      const isSelected = day.key === selected;
-                      const isToday = day.key === today;
-                      const more = evs.length - MAX_ROWS;
-                      return (
-                        <Pressable
-                          key={day.key}
-                          onPress={() => {
-                            setSelected(day.key);
-                            // On a phone the day's events sit below the month; bring them into view.
-                            if (!wide) {
-                              scrollRef.current?.scrollTo({ y: Math.max(0, gridBottom.current - 160), animated: true });
-                            }
-                          }}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: isSelected }}
-                          accessibilityLabel={`${dayTitle(day.key)}, ${evs.length} event${evs.length === 1 ? "" : "s"}`}
-                          style={[
-                            styles.cell,
-                            isSelected && { backgroundColor: t.primarySoft },
-                          ]}
-                        >
-                          <View
+                {grid.map((week) => {
+                  const { bars, more } = weekLayout(
+                    week.map((d) => d.key),
+                    byDay,
+                    MAX_ROWS
+                  );
+                  return (
+                    <View key={week[0].key} style={styles.week}>
+                      {week.map((day) => {
+                        const evs = byDay.get(day.key) ?? [];
+                        const isSelected = day.key === selected;
+                        const isToday = day.key === today;
+                        return (
+                          <Pressable
+                            key={day.key}
+                            onPress={() => {
+                              setSelected(day.key);
+                              // On a phone the day's events sit below the month; bring them into view.
+                              if (!wide) {
+                                scrollRef.current?.scrollTo({ y: Math.max(0, gridBottom.current - 160), animated: true });
+                              }
+                            }}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: isSelected }}
+                            accessibilityLabel={`${dayTitle(day.key)}, ${evs.length} event${evs.length === 1 ? "" : "s"}`}
                             style={[
-                              styles.dayNumber,
-                              isToday && { borderColor: t.primary, borderWidth: 2 },
+                              styles.cell,
+                              isSelected && { backgroundColor: t.primarySoft },
                             ]}
                           >
-                            <Text
+                            <View
                               style={[
-                                typography.body,
-                                {
-                                  color: day.inMonth ? t.text : t.faint,
-                                  fontWeight: isSelected || isToday ? "800" : "500",
-                                },
+                                styles.dayNumber,
+                                isToday && { borderColor: t.primary, borderWidth: 2 },
                               ]}
                             >
-                              {day.day}
-                            </Text>
-                          </View>
-                          <View style={styles.chips}>
-                            {evs.slice(0, more > 0 ? MAX_ROWS - 1 : MAX_ROWS).map((e) => (
-                              <View
-                                key={e.id}
+                              <Text
                                 style={[
-                                  styles.chip,
+                                  typography.body,
                                   {
-                                    backgroundColor: `${CATEGORY_COLOURS[e.category]}26`,
-                                    borderLeftColor: CATEGORY_COLOURS[e.category],
+                                    color: day.inMonth ? t.text : t.faint,
+                                    fontWeight: isSelected || isToday ? "800" : "500",
                                   },
                                 ]}
                               >
+                                {day.day}
+                              </Text>
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                      {/* Over the days, so a camp is one bar; taps fall through to the day. */}
+                      <View pointerEvents="none" style={styles.bars}>
+                        {bars.map((bar) => {
+                          const colour = eventColour(bar.event);
+                          return (
+                            <View
+                              key={bar.event.id}
+                              style={[styles.slot, column(bar.start, bar.span), { top: bar.row * ROW_HEIGHT }]}
+                            >
+                              <View
+                                style={[
+                                  styles.chip,
+                                  { backgroundColor: `${colour}26`, borderLeftColor: colour },
+                                  bar.fromBefore && styles.fromBefore,
+                                  bar.toAfter && styles.toAfter,
+                                ]}
+                              >
                                 <Text numberOfLines={1} style={[styles.chipText, { color: t.text }]}>
-                                  {e.name}
+                                  {bar.event.name}
                                 </Text>
                               </View>
-                            ))}
-                            {more > 0 ? (
-                              <Text style={[styles.chipText, { color: t.muted }]}>+{more + 1} more</Text>
-                            ) : null}
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ))}
+                            </View>
+                          );
+                        })}
+                        {more.map((count, col) =>
+                          count > 0 ? (
+                            <View
+                              key={col}
+                              style={[styles.slot, column(col), { top: (MAX_ROWS - 1) * ROW_HEIGHT }]}
+                            >
+                              <Text numberOfLines={1} style={[styles.chipText, { color: t.muted }]}>
+                                +{count} more
+                              </Text>
+                            </View>
+                          ) : null
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
               </Card>
             </View>
 
@@ -453,8 +486,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  chips: { alignSelf: "stretch", gap: 2 },
-  chip: { borderLeftWidth: 3, borderRadius: 3, paddingHorizontal: 3, paddingVertical: 1 },
+  // Below the day number: the cell's top padding, the number and the gap.
+  bars: { position: "absolute", top: 38, left: 0, right: 0, bottom: 0 },
+  slot: { position: "absolute", paddingHorizontal: 2 },
+  chip: {
+    height: ROW_HEIGHT - 2,
+    borderLeftWidth: 3,
+    borderRadius: 3,
+    paddingHorizontal: 3,
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  fromBefore: { borderLeftWidth: 0, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
+  toAfter: { borderTopRightRadius: 0, borderBottomRightRadius: 0 },
   chipText: { fontSize: 10, lineHeight: 13, fontWeight: "600" },
   eventRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
   eventBar: { width: 4, alignSelf: "stretch", borderRadius: 2 },

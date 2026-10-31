@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.14] - 2026-11-01
+
+### Changed
+- **Events running over several days are one bar across the Calendar.** A
+  camp or retreat is a single bar from its first day to its last instead of a
+  separate row on each day, so it's easy to spot and its name has room. It
+  carries on along the next week's row when it runs past Sunday, and busy
+  days still end with "+N more".
+- **Weeklies and campus events wear their campus's colour.** A Weekly or
+  Campus event held at one campus is coloured like that campus everywhere
+  else in the app (USYD red, UNSW green, UTS blue, MACQ yellow, ACU purple,
+  WSU dark red) instead of the same blue or orange for every campus, and the
+  "Where" chips double as the key. One held at several campuses keeps the
+  Weekly or Campus event colour. The shared Google Calendar follows with the
+  nearest of Google's colours once each event is copied again.
+
 ## [2.10.13] - 2026-10-31
 
 ### Changed

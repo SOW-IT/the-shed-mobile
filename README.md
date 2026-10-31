@@ -246,9 +246,9 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 `universities`) plus org-wide "SOW", all sharing one member pool.
 
 - **Calendar** (`convex/calendar.ts`, rules in `shared/calendar.ts`), from
-  the side menu for staff and campus leaders: a month with each day's events
-  as short coloured rows (the start of each name), then the picked day's
-  events in full below. It shows every attendance event, wherever it was made,
+  the side menu for staff and campus leaders: a month where each event is a
+  coloured bar across the days it runs (the start of its name), then the
+  picked day's events in full below. It shows every attendance event, wherever it was made,
   plus **calendar entries** (`calendarEntries`): things like marketing
   schedules and deadlines that don't take attendance, with optional notes.
   "Add Event" adds an entry on the picked day, or an attendance event when
@@ -256,7 +256,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   deletes it. Colours come from the category: TWIG and PPN from an attendance
   event's tags, Weekly from its term and week, otherwise a picked category
   (Campus event, SOW event, Marketing, Deadline or Other), or Campus/SOW by
-  where it's held. Chips filter by category and campus, and `/calendar?day=`
+  where it's held; a Weekly or Campus event at one campus takes that campus's
+  colour instead (in Google, the nearest of its colours). Chips filter by category and campus, and `/calendar?day=`
   opens a day. Everything is copied one way to a shared Google Calendar
   (`convex/googleCalendar.ts`) once `GOOGLE_CALENDAR_ID` is set: see
   [Shared Google Calendar](#shared-google-calendar-optional).
