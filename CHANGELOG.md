@@ -6,6 +6,12 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.13] - 2026-10-31
+
+### Changed
+- **Dependency update from Dependabot**, with no visible change to the app:
+  `convex-test` 0.0.65, used only by the backend tests.
+
 ## [2.10.12] - 2026-10-31
 
 ### Added
