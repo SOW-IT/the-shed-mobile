@@ -49,6 +49,8 @@ import type * as eventRequests from "../eventRequests.js";
 import type * as eventSubForms from "../eventSubForms.js";
 import type * as events from "../events.js";
 import type * as generalMetrics from "../generalMetrics.js";
+import type * as grievanceData from "../grievanceData.js";
+import type * as grievances from "../grievances.js";
 import type * as history from "../history.js";
 import type * as homeContent from "../homeContent.js";
 import type * as homeData from "../homeData.js";
@@ -128,6 +130,8 @@ declare const fullApi: ApiFromModules<{
   eventSubForms: typeof eventSubForms;
   events: typeof events;
   generalMetrics: typeof generalMetrics;
+  grievanceData: typeof grievanceData;
+  grievances: typeof grievances;
   history: typeof history;
   homeContent: typeof homeContent;
   homeData: typeof homeData;

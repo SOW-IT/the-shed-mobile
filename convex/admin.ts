@@ -60,6 +60,7 @@ import {
   setCachedDirectorEmail,
 } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
+import { renameGrievanceDepartment } from "./grievances";
 import { hasSignedIn } from "./presence";
 import { attachMember, isAssigned, leaveStaff, staffProfileOfMember } from "./staffMembers";
 
@@ -1256,6 +1257,7 @@ export const updateDepartment = mutation({
       }
       await renameDepartmentInFormRequests(ctx, args.year, oldName, newName);
       await renameInScheduledAnnouncements(ctx, args.year, "departments", oldName, newName);
+      await renameGrievanceDepartment(ctx, args.year, oldName, newName);
     } else {
       await ctx.db.patch("departments", existing._id, {
         division: args.division,

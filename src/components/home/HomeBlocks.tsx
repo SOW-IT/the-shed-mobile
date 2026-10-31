@@ -2,6 +2,7 @@ import { useState } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import * as Linking from "expo-linking";
+import { useRouter } from "expo-router";
 import { Alert, Pressable, StyleSheet, Text, View, Image } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { universityColour } from "../../../shared/flow";
@@ -364,6 +365,27 @@ const CampusDetailSheet = ({
         </View>
       ) : null}
     </Sheet>
+  );
+};
+
+export const GrievanceCard = () => {
+  const router = useRouter();
+  return (
+    <Card>
+      <Txt style={styles.cardTitle}>Raise a grievance</Txt>
+      <Muted>
+        Something wrong that you&apos;d like SOW to look into? Tell SOW&apos;s grievance team
+        in confidence. We&apos;ll email you as it moves along.
+      </Muted>
+      <View style={styles.buttonRow}>
+        <Btn
+          title="Raise a grievance"
+          variant="tonal"
+          icon="shield-checkmark-outline"
+          onPress={() => router.push("/grievances/new")}
+        />
+      </View>
+    </Card>
   );
 };
 

@@ -1,5 +1,4 @@
 import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ReactNode, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -17,7 +16,8 @@ import { DesignCommentsSheet } from "@/components/design/DesignCommentsSheet";
 import { LabelledField } from "@/components/events/LabelledField";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
-import { sydneyDateTime, sydneyDay } from "@/lib/sydneyTime";
+import { sydneyDateTime } from "@/lib/sydneyTime";
+import { StepTrack } from "@/components/StepTrack";
 import { DesignStatusPill } from "@/components/design/DesignStatusPill";
 import {
   Btn,
@@ -111,8 +111,6 @@ const Timeline = ({ id }: { id: Id<"designRequests"> }) => {
   );
 };
 
-const STEP_ICON = { done: "checkmark", declined: "close", current: null, todo: null } as const;
-
 const StatusTrack = ({
   request,
   requesterName,
@@ -124,71 +122,14 @@ const StatusTrack = ({
   decidedByName: string | null;
   completedByName: string | null;
 }) => {
-  const t = useAppTheme();
   const steps = designStepTrack(request, {
     requester: requesterName,
     decidedBy: decidedByName,
     completedBy: completedByName,
   });
-  const fill = { done: t.success, declined: t.danger, current: t.warningSoft, todo: t.ghost };
   return (
     <View style={{ gap: spacing.xs }}>
-      <View
-        style={styles.track}
-        accessible
-        accessibilityLabel={steps
-          .map((step) => `${step.label}: ${step.state === "done" || step.state === "declined" ? `${step.name ?? ""} ${step.at ? sydneyDay(step.at) : ""}` : step.state === "current" ? "next" : "not yet"}`)
-          .join(", ")}
-      >
-        {steps.map((step, i) => {
-          const icon = STEP_ICON[step.state];
-          return (
-            <View key={step.key} style={styles.trackStep}>
-              <View style={styles.trackDotRow}>
-                <View style={[styles.trackLine, { backgroundColor: i === 0 ? "transparent" : fill[step.state === "current" ? "todo" : step.state] }]} />
-                <View
-                  style={[
-                    styles.trackDot,
-                    { backgroundColor: fill[step.state] },
-                    step.state === "current" && { borderWidth: 2, borderColor: t.warning },
-                  ]}
-                >
-                  {icon ? <Ionicons name={icon} size={12} color={t.background} /> : null}
-                </View>
-                <View
-                  style={[
-                    styles.trackLine,
-                    {
-                      backgroundColor:
-                        i === steps.length - 1
-                          ? "transparent"
-                          : fill[steps[i + 1].state === "done" ? "done" : "todo"],
-                    },
-                  ]}
-                />
-              </View>
-              <Text
-                style={[
-                  typography.caption,
-                  { color: step.state === "todo" ? t.faint : t.text, fontWeight: "700", textAlign: "center" },
-                ]}
-              >
-                {step.label}
-              </Text>
-              {step.name ? (
-                <Text numberOfLines={2} style={[typography.caption, { color: t.muted, textAlign: "center" }]}>
-                  {step.name}
-                </Text>
-              ) : null}
-              {step.at ? (
-                <Text style={[typography.caption, { color: t.faint, textAlign: "center" }]}>
-                  {sydneyDay(step.at)}
-                </Text>
-              ) : null}
-            </View>
-          );
-        })}
-      </View>
+      <StepTrack steps={steps} />
       {request.editedAt ? <Muted>{`Edited ${when(request.editedAt)}`}</Muted> : null}
       {request.status === "CANCELLED" && request.cancelledAt ? (
         <Muted>{`Cancelled ${when(request.cancelledAt)}`}</Muted>
@@ -484,11 +425,6 @@ export default function DesignRequestScreen() {
 }
 
 const styles = StyleSheet.create({
-  track: { flexDirection: "row", alignItems: "flex-start", marginTop: spacing.xs },
-  trackStep: { flex: 1, alignItems: "center", gap: 2 },
-  trackDotRow: { flexDirection: "row", alignItems: "center", alignSelf: "stretch", marginBottom: 4 },
-  trackLine: { flex: 1, height: 2 },
-  trackDot: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   answer: { gap: 4 },
   event: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
   eventDot: { width: 7, height: 7, borderRadius: 4, marginTop: 6 },

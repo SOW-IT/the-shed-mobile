@@ -6,6 +6,27 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.11] - 2026-10-31
+
+### Added
+- **Raise a grievance, and follow it until it's resolved.** Grievances is
+  the fifth tab at the bottom of the app for everyone, signed in or not.
+  Anyone can raise a grievance with SOW in confidence: what it's about, what
+  happened, and optionally where, when, who was involved and what they'd
+  like to happen. Only the grievance team sees it. Whoever raised it is
+  emailed as it moves from submitted to in progress (with who's looking
+  after it) to resolved with the outcome, or closed with a reason; signed
+  in, they also follow it under Mine and get a push at each step.
+- **The grievance team handles grievances in the app.** People and Culture
+  and Compliance to start; admins choose the departments in Admin → Other.
+  The team gets a push for each new grievance (nothing goes to an email
+  inbox) and works on them under Submitted, listed by staff year. Open
+  grievances move to the new staff year on 1 October. Anyone on the team can
+  take one on or give it to a teammate, resolve it or close it as not
+  proceeding, and edit the "What is it about?" options. Each grievance has a
+  random reference only the team sees. The tab counts new grievances and the
+  open ones you're looking after.
+
 ## [2.10.10] - 2026-10-29
 
 ### Fixed
