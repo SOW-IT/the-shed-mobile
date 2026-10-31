@@ -161,11 +161,18 @@ describe("drawerItems", () => {
 
 describe("sidebarItems", () => {
   test("signed-out people see the public pages", () => {
-    expect(sidebarItems(signedOut)).toEqual(["home", "insights", "org", "churches"]);
+    expect(sidebarItems(signedOut)).toEqual(["home", "insights", "org", "churches", "grievances"]);
   });
 
   test("guests add Profile", () => {
-    expect(sidebarItems(guest)).toEqual(["home", "insights", "org", "churches", "profile"]);
+    expect(sidebarItems(guest)).toEqual([
+      "home",
+      "insights",
+      "org",
+      "churches",
+      "grievances",
+      "profile",
+    ]);
   });
 
   test("staff see everything but Admin, in tab order", () => {
@@ -179,6 +186,7 @@ describe("sidebarItems", () => {
       "insights",
       "org",
       "churches",
+      "grievances",
       "profile",
     ]);
   });
@@ -194,6 +202,7 @@ describe("sidebarItems", () => {
       "insights",
       "org",
       "churches",
+      "grievances",
       "profile",
       "mentoring",
       "announcements",
@@ -209,6 +218,7 @@ describe("sidebarItems", () => {
       "insights",
       "org",
       "churches",
+      "grievances",
       "profile",
     ]);
   });
@@ -264,6 +274,7 @@ describe("activeNavKey", () => {
     expect(activeNavKey("/all")).toBe("reimbursements");
     expect(activeNavKey("/design-requests/abc123")).toBe("designRequests");
     expect(activeNavKey("/design-requests/new")).toBe("designRequests");
+    expect(activeNavKey("/grievances/new")).toBe("grievances");
     expect(activeNavKey("/event-requests/abc123/risk")).toBe("eventRequests");
     expect(activeNavKey("/event-requests/new")).toBe("eventRequests");
     expect(activeNavKey("/attendance/member/member:abc123")).toBe("attendance");

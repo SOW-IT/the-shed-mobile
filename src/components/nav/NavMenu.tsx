@@ -10,6 +10,7 @@ import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
 import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
+import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import { useNavGroupOpen } from "@/hooks/useNavGroupOpen";
 import { useSignOut } from "@/hooks/usePushRegistration";
@@ -44,6 +45,7 @@ const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
   churches: { outline: "business-outline", filled: "business" },
   mentoring: { outline: "compass-outline", filled: "compass" },
   announcements: { outline: "megaphone-outline", filled: "megaphone" },
+  grievances: { outline: "shield-checkmark-outline", filled: "shield-checkmark" },
   admin: { outline: "settings-outline", filled: "settings" },
 };
 
@@ -59,6 +61,7 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "insights",
   "org",
   "mentoring",
+  "grievances",
   "admin",
 ]);
 
@@ -223,6 +226,7 @@ export const NavMenu = ({
   const reimbursementsBadge = useReimbursementsBadge();
   const designRequestsBadge = useDesignRequestsBadge();
   const eventRequestsBadge = useEventRequestsBadge();
+  const grievancesBadge = useGrievancesBadge();
   const unread =
     useQuery(api.notifications.unreadCount, viewer.isStaff ? {} : "skip") ?? 0;
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
@@ -238,7 +242,9 @@ export const NavMenu = ({
         ? designRequestsBadge
         : key === "eventRequests"
           ? eventRequestsBadge
-          : 0;
+          : key === "grievances"
+            ? grievancesBadge
+            : 0;
 
   const go = (key: NavKey) => {
     onNavigate?.();

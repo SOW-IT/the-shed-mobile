@@ -13,6 +13,7 @@ export type NavKey =
   | "churches"
   | "mentoring"
   | "announcements"
+  | "grievances"
   | "admin";
 
 export const NAV_HREFS = {
@@ -28,6 +29,7 @@ export const NAV_HREFS = {
   churches: "/churches",
   mentoring: "/mentoring",
   announcements: "/announcements",
+  grievances: "/grievances",
   admin: "/admin",
 } as const satisfies Record<NavKey, string>;
 
@@ -44,6 +46,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   churches: "Churches",
   mentoring: "Mentoring",
   announcements: "Announcements",
+  grievances: "Grievances",
   admin: "Admin",
 };
 
@@ -119,7 +122,7 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.isStaff) items.push("attendance", "calendar");
-  items.push("insights", "org", "churches");
+  items.push("insights", "org", "churches", "grievances");
   if (viewer.signedIn) items.push("profile");
   if (viewer.canMentoring) items.push("mentoring");
   if (viewer.canAnnounce) items.push("announcements");
@@ -151,6 +154,7 @@ export const activeNavKey = (pathname: string): NavKey | null => {
     return "announcements";
   }
   if (pathname === "/mentoring") return "mentoring";
+  if (pathname === "/grievances" || pathname.startsWith("/grievances/")) return "grievances";
   if (pathname === "/admin") return "admin";
   return null;
 };

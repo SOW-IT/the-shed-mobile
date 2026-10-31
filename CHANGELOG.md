@@ -9,19 +9,28 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [2.10.12] - 2026-10-31
 
 ### Added
-- **A Calendar of every SOW event.** Staff and campus leaders get Calendar in
-  the side menu: a month of TWIGs, PPNs, weeklies and campus and SOW events,
-  each coloured by category, with chips to show only some categories or
-  campuses. Tap a day to see its events and open one's roll-call; events
-  running over several days show on each day with their dates.
-- **Add events from the Calendar.** "Add Event" starts a new attendance event
-  on the day you picked, so attendance can be taken for it like any other.
-  New and edited events can be given a calendar category (Campus event, SOW
-  event, Marketing, Deadline or Other) for things like marketing schedules and
-  deadlines; TWIG and PPN still come from their tags.
-- **Copies to a shared Google Calendar.** Once a calendar is set up, every
-  event and each change to it is copied to it, so it can sit beside people's
-  own calendars. Changes made in Google don't come back to the app.
+- **A Calendar of every SOW event.** PLACEHOLDER
+
+## [2.10.11] - 2026-10-31
+
+### Added
+- **Raise a grievance, and follow it until it's resolved.** Grievances is
+  the fifth tab at the bottom of the app for everyone, signed in or not.
+  Anyone can raise a grievance with SOW in confidence: what it's about, what
+  happened, and optionally where, when, who was involved and what they'd
+  like to happen. Only the grievance team sees it. Whoever raised it is
+  emailed as it moves from submitted to in progress (with who's looking
+  after it) to resolved with the outcome, or closed with a reason; signed
+  in, they also follow it under Mine and get a push at each step.
+- **The grievance team handles grievances in the app.** People and Culture
+  and Compliance to start; admins choose the departments in Admin → Other.
+  The team gets a push for each new grievance (nothing goes to an email
+  inbox) and works on them under Submitted, listed by staff year. Open
+  grievances move to the new staff year on 1 October. Anyone on the team can
+  take one on or give it to a teammate, resolve it or close it as not
+  proceeding, and edit the "What is it about?" options. Each grievance has a
+  random reference only the team sees. The tab counts new grievances and the
+  open ones you're looking after.
 
 ## [2.10.10] - 2026-10-29
 

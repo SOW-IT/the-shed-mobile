@@ -21,6 +21,7 @@ import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useReportAppVersion } from "@/hooks/useReportAppVersion";
 import { useBadgeSync } from "@/hooks/useBadgeSync";
+import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
 import { useReportSeen } from "@/hooks/useReportSeen";
 import { BOTTOM_TAB_HEIGHT, radius, useAppTheme } from "@/theme";
 
@@ -130,6 +131,7 @@ export default function TabsLayout() {
   useBadgeSync(me === undefined ? undefined : !!me?.profile);
 
   const isStaff = !!me?.profile;
+  const grievancesBadge = useGrievancesBadge();
 
   const wide = useWideLayout();
 
@@ -216,6 +218,14 @@ export default function TabsLayout() {
           title: "Churches",
           ...(isStaff ? sideMenuOnly : {}),
           tabBarIcon: tabIcon("business-outline", "business"),
+        }}
+      />
+      <Tabs.Screen
+        name="grievances"
+        options={{
+          title: "Grievances",
+          tabBarIcon: tabIcon("shield-checkmark-outline", "shield-checkmark"),
+          tabBarBadge: grievancesBadge > 0 ? grievancesBadge : undefined,
         }}
       />
       <Tabs.Screen name="mentoring" options={{ title: "Mentoring", ...sideMenuOnly }} />

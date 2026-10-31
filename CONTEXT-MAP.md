@@ -1,13 +1,13 @@
 # Context Map
 
-THE SHED is one Expo + Convex codebase serving five bounded contexts. They
+THE SHED is one Expo + Convex codebase serving six bounded contexts. They
 share a deployment, an auth session and a calendar, and almost nothing else:
 the approval chain's vocabulary (Budget Manager, receipt, Director threshold)
 never appears in Attendance, and Attendance's vocabulary (Member, sub-group,
 roll-call, snapshot) never appears in the chain.
 
 The contexts do not map to directories — `convex/`, `shared/` and `src/` each
-hold code for all five — so each context's glossary lives under
+hold code for all six — so each context's glossary lives under
 `docs/context/` rather than beside its code.
 
 ## Contexts
@@ -22,6 +22,9 @@ hold code for all five — so each context's glossary lives under
   team, from submitted request to completed design. Not for events.
 - [Event Requests](./docs/context/event-requests.md): an event and its
   Marketing, Risk and Finance forms, from first draft to approved to go ahead.
+- [Grievances](./docs/context/grievances.md): a confidential complaint raised
+  with SOW, from submitted to resolved, seen only by its submitter and the
+  People and Culture and Compliance teams.
 
 ## Relationships
 
@@ -52,6 +55,11 @@ hold code for all five — so each context's glossary lives under
   that year's `staffProfiles`; pairings are keyed by email and year like
   approver delegations, and follow a person's email when it changes. Its
   terms are in the Org glossary.
+- **Org → Grievances**: the grievance team is that year's members of the
+  departments chosen in Admin (People and Culture and Compliance to start),
+  read from Org. Grievances shares the
+  notification feed with the other contexts but no other table, and stays
+  out of the daily digest and Home's "Waiting on you".
 - **Design Requests ↔ Event Requests**: an event's design and promotion is
   its Marketing form, never a design request. They share the server-driven
   form engine (`shared/forms.ts`) and the notification feed, but no table and
@@ -67,7 +75,7 @@ page exists in every supported app, and a release that adds a linked page
 raises the update policy's `minimum` (ADR 0007, superseded in 2.10.0). The
 web never hands `/checkin` to the app ([ADR 0012](./docs/adr/0012-check-in-links-open-the-app.md)).
 
-A weekly BigQuery copy of production Convex sits outside all five contexts.
+A weekly BigQuery copy of production Convex sits outside all six contexts.
 It is a snapshot for SQL, not a source of truth, and the app does not read it.
 JSON tables live in `convex_production`; typed views and Looker/Sheets report
 views live in `convex_warehouse`. See [ADR 0004](./docs/adr/0004-convex-to-bigquery-snapshot.md),

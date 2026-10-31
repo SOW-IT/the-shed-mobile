@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { DEFAULT_HOME_BLOCKS, HOME_TABS } from "../../../shared/homeContent";
-import { HomeBlocks } from "@/components/home/HomeBlocks";
+import { GrievanceCard, HomeBlocks } from "@/components/home/HomeBlocks";
 import { WaitingOnYou } from "@/components/home/WaitingOnYou";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -29,6 +29,7 @@ export default function HomeScreen() {
       <View style={styles.page}>
         {tab.key === "home" ? <WaitingOnYou /> : null}
         <HomeBlocks blocks={tab.blocks} />
+        {tab.key === "partner" ? <GrievanceCard /> : null}
       </View>
     ),
   }));

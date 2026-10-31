@@ -53,6 +53,8 @@ import type * as events from "../events.js";
 import type * as generalMetrics from "../generalMetrics.js";
 import type * as googleAuth from "../googleAuth.js";
 import type * as googleCalendar from "../googleCalendar.js";
+import type * as grievanceData from "../grievanceData.js";
+import type * as grievances from "../grievances.js";
 import type * as history from "../history.js";
 import type * as homeContent from "../homeContent.js";
 import type * as homeData from "../homeData.js";
@@ -136,6 +138,8 @@ declare const fullApi: ApiFromModules<{
   generalMetrics: typeof generalMetrics;
   googleAuth: typeof googleAuth;
   googleCalendar: typeof googleCalendar;
+  grievanceData: typeof grievanceData;
+  grievances: typeof grievances;
   history: typeof history;
   homeContent: typeof homeContent;
   homeData: typeof homeData;
