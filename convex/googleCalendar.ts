@@ -96,7 +96,8 @@ export const entryBodiesPage = internalQuery({
   },
 });
 
-// Taken before a write; if another write holds it, that one is told to go again.
+// Taken before a write: returns this writer's token, or null when another
+// write holds it (that one is then told to go again).
 export const claimSync = internalMutation({
   args: { targetId: v.string() },
   handler: async (ctx, { targetId }) => {
@@ -107,23 +108,26 @@ export const claimSync = internalMutation({
       .unique();
     if (lock && lock.lockedUntil > now) {
       await ctx.db.patch("googleSyncLocks", lock._id, { pending: true });
-      return false;
+      return null;
     }
-    if (lock) await ctx.db.patch("googleSyncLocks", lock._id, { lockedUntil: now + LOCK_MS, pending: false });
-    else await ctx.db.insert("googleSyncLocks", { targetId, lockedUntil: now + LOCK_MS, pending: false });
-    return true;
+    const owner = crypto.randomUUID();
+    const fields = { owner, lockedUntil: now + LOCK_MS, pending: false };
+    if (lock) await ctx.db.patch("googleSyncLocks", lock._id, fields);
+    else await ctx.db.insert("googleSyncLocks", { targetId, ...fields });
+    return owner;
   },
 });
 
-// After a write: true means something changed meanwhile, so write again.
+// After a write: true means something changed meanwhile, so write again. A
+// writer whose lock expired and was taken over leaves the new owner's alone.
 export const finishSync = internalMutation({
-  args: { targetId: v.string(), failed: v.boolean() },
-  handler: async (ctx, { targetId, failed }) => {
+  args: { targetId: v.string(), owner: v.string(), failed: v.boolean() },
+  handler: async (ctx, { targetId, owner, failed }) => {
     const lock = await ctx.db
       .query("googleSyncLocks")
       .withIndex("by_targetId", (q) => q.eq("targetId", targetId))
       .unique();
-    if (!lock) return false;
+    if (!lock || lock.owner !== owner) return false;
     if (lock.pending && !failed) {
       await ctx.db.patch("googleSyncLocks", lock._id, { lockedUntil: Date.now() + LOCK_MS, pending: false });
       return true;
@@ -167,7 +171,8 @@ async function remove(token: string, id: string) {
 // One write at a time per id: an edit during a write makes it write again with
 // the newest body, so Google always ends up with the latest.
 async function sync(ctx: ActionCtx, id: string, read: () => Promise<GoogleBody | null>) {
-  if (!(await ctx.runMutation(internal.googleCalendar.claimSync, { targetId: id }))) return;
+  const owner: string | null = await ctx.runMutation(internal.googleCalendar.claimSync, { targetId: id });
+  if (owner === null) return;
   for (;;) {
     try {
       const body = await read();
@@ -175,10 +180,10 @@ async function sync(ctx: ActionCtx, id: string, read: () => Promise<GoogleBody |
       if (body) await push(token, id, body);
       else await remove(token, id);
     } catch (error) {
-      await ctx.runMutation(internal.googleCalendar.finishSync, { targetId: id, failed: true });
+      await ctx.runMutation(internal.googleCalendar.finishSync, { targetId: id, owner, failed: true });
       throw error;
     }
-    if (!(await ctx.runMutation(internal.googleCalendar.finishSync, { targetId: id, failed: false }))) {
+    if (!(await ctx.runMutation(internal.googleCalendar.finishSync, { targetId: id, owner, failed: false }))) {
       return;
     }
   }

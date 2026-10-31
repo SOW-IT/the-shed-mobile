@@ -483,14 +483,22 @@ describe("review follow-ups", () => {
     await expect(t.action(internal.googleCalendar.syncEvent, { eventId })).rejects.toThrow("update failed");
     expect(await t.run((ctx) => ctx.db.query("googleSyncLocks").collect())).toHaveLength(0);
 
-    expect(await t.mutation(internal.googleCalendar.finishSync, { targetId: "x", failed: false })).toBe(false);
-    expect(await t.mutation(internal.googleCalendar.claimSync, { targetId: "x" })).toBe(true);
-    expect(await t.mutation(internal.googleCalendar.claimSync, { targetId: "x" })).toBe(false);
+    const claim = () => t.mutation(internal.googleCalendar.claimSync, { targetId: "x" });
+    const finish = (owner: string, failed = false) =>
+      t.mutation(internal.googleCalendar.finishSync, { targetId: "x", owner, failed });
+    expect(await finish("nobody")).toBe(false);
+    const slow = (await claim())!;
+    expect(await claim()).toBeNull();
+    // The slow writer's lock expires and a new writer takes over.
     vi.setSystemTime(NOW + 2 * 60_000);
-    expect(await t.mutation(internal.googleCalendar.claimSync, { targetId: "x" })).toBe(true);
-    await t.mutation(internal.googleCalendar.claimSync, { targetId: "x" });
+    const fresh = (await claim())!;
+    expect(fresh).not.toBe(slow);
+    // The slow writer finishing late leaves the new owner's lock alone.
+    expect(await finish(slow)).toBe(false);
+    expect(await claim()).toBeNull();
     // Pending, but the write failed: the lock goes rather than looping.
-    expect(await t.mutation(internal.googleCalendar.finishSync, { targetId: "x", failed: true })).toBe(false);
+    expect(await finish(fresh, true)).toBe(false);
+    expect(await t.run((ctx) => ctx.db.query("googleSyncLocks").collect())).toHaveLength(0);
   });
 
   test("the backfill pages through more than one page", async () => {

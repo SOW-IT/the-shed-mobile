@@ -486,6 +486,7 @@ export default defineSchema({
   // One Google Calendar write at a time per event or entry (convex/googleCalendar.ts).
   googleSyncLocks: defineTable({
     targetId: v.string(),
+    owner: v.string(),
     lockedUntil: v.number(),
     pending: v.boolean(),
   }).index("by_targetId", ["targetId"]),
