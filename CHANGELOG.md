@@ -23,9 +23,11 @@ All notable changes to **The SHED** mobile app. This project follows
   admin, can edit or delete it. Tick "Take attendance at this event" to make
   it an attendance event instead, so leaders can sign people in. Attendance
   events can also be given a calendar category in Attendance.
-- **Copies to a shared Google Calendar.** Every event and entry, and each
-  change to them, is copied to a "SOW Events" Google Calendar that everyone at
-  sow.org.au can add. Changes made in Google don't come back to the app.
+- **Copies to a shared Google Calendar.** Once the "SOW Events" Google
+  Calendar is set up (see LAUNCH.md), every event and entry, and each change
+  to them, is copied to it, and everyone at sow.org.au can add it to their own
+  Google Calendar. Setting it up copies the past year's events and everything
+  ahead. Changes made in Google don't come back to the app.
 
 ## [2.10.11] - 2026-10-31
 

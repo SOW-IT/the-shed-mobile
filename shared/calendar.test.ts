@@ -67,7 +67,12 @@ describe("days", () => {
       "2026-11-07",
       "2026-11-08",
     ]);
-    expect(daysOf(sydney("2026-11-06T18:00:00"), sydney("2027-02-01T00:00:00"))).toHaveLength(31);
+    const long = daysOf(sydney("2026-11-06T18:00:00"), sydney("2027-02-01T00:00:00"));
+    expect(long).toHaveLength(87);
+    expect(long.at(-1)).toBe("2027-01-31");
+    // A 31-day entry can touch 32 Sydney dates; all of them show.
+    expect(daysOf(sydney("2026-11-01T18:00:00"), sydney("2026-12-02T18:00:00"))).toHaveLength(32);
+    expect(daysOf(0, 2 * 366 * 86_400_000)).toHaveLength(366);
   });
 
   test("eventsByDay sorts each day by start", () => {

@@ -483,6 +483,13 @@ export default defineSchema({
     .index("by_dateStart", ["dateStart"])
     .index("by_checkIn_token", ["checkIn.token"]),
 
+  // One Google Calendar write at a time per event or entry (convex/googleCalendar.ts).
+  googleSyncLocks: defineTable({
+    targetId: v.string(),
+    lockedUntil: v.number(),
+    pending: v.boolean(),
+  }).index("by_targetId", ["targetId"]),
+
   // Calendar entries that don't take attendance; attendance events show on the calendar too.
   calendarEntries: defineTable({
     ...entryFields,

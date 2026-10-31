@@ -146,6 +146,11 @@ export const CalendarEntrySheet = ({
                 ? [tagNamed("TWIG")]
                 : [];
           const found = tagIds.filter((id): id is Id<"attendanceTags"> => id !== undefined);
+          if (found.length < tagIds.length) {
+            throw new Error(
+              `Attendance has no ${category === "ppn" ? "TWIG and PPN tags" : "TWIG tag"} yet, so Insights couldn't count it. Add them under Attendance → Tags first.`
+            );
+          }
           await createEvent({
             name,
             ...window,
@@ -183,7 +188,12 @@ export const CalendarEntrySheet = ({
               <Btn
                 title={entry ? "Save" : attendance ? "Create Event" : "Add to Calendar"}
                 loading={busy}
-                disabled={!name.trim() || where.length === 0}
+                disabled={
+                  !name.trim() ||
+                  where.length === 0 ||
+                  // TWIG and PPN need their tags loaded before the event can carry them.
+                  (attendance && (category === "twig" || category === "ppn") && tags === undefined)
+                }
                 onPress={() => void save()}
               />
             </View>

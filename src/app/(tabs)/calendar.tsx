@@ -110,10 +110,24 @@ export default function CalendarScreen() {
   const router = useRouter();
   const me = useQuery(api.directory.me);
   const staff = !!me?.profile;
-  const [today] = useState(() => sydneyDayKey(Date.now()));
+  const [today, setToday] = useState(() => sydneyDayKey(Date.now()));
   const [ty, tm] = today.split("-").map(Number);
   const [{ year, month }, setMonth] = useState({ year: ty, month: tm });
   const [selected, setSelected] = useState(today);
+  // Past Sydney midnight, move Today on; a selection still on the old day follows it.
+  useEffect(() => {
+    const timer = setInterval(() => setToday(sydneyDayKey(Date.now())), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const lastToday = useRef(today);
+  useEffect(() => {
+    const old = lastToday.current;
+    lastToday.current = today;
+    if (old === today || selected !== old) return;
+    const [y, m] = today.split("-").map(Number);
+    setSelected(today);
+    setMonth({ year: y, month: m });
+  }, [today, selected]);
   const [categories, setCategories] = useState<CalendarCategory[]>([]);
   const [campuses, setCampuses] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
@@ -146,10 +160,13 @@ export default function CalendarScreen() {
   const grid = monthGrid(year, month);
   const monthKeys = new Set(grid.flat().filter((d) => d.inMonth).map((d) => d.key));
   const all = events ?? [];
+  // A chip picked in another month only applies where it has events.
+  const pickedCategories = categories.filter((c) => all.some((e) => e.category === c));
+  const pickedCampuses = campuses.filter((s) => all.some((e) => e.subgroups.includes(s)));
   const shown = all.filter(
     (e) =>
-      (categories.length === 0 || categories.includes(e.category)) &&
-      (campuses.length === 0 || e.subgroups.some((s) => campuses.includes(s)))
+      (pickedCategories.length === 0 || pickedCategories.includes(e.category)) &&
+      (pickedCampuses.length === 0 || e.subgroups.some((s) => pickedCampuses.includes(s)))
   );
   const byDay = eventsByDay(shown);
   const inMonth = (list: CalendarEvent[]) =>
@@ -326,7 +343,7 @@ export default function CalendarScreen() {
                 message={
                   shown.length < all.length
                     ? "Nothing that matches the filters on this day."
-                    : "Add something with the button below. Everything here is also on the SOW Events Google Calendar."
+                    : "Add something with the button below."
                 }
               />
             ) : (

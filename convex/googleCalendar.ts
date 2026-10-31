@@ -1,7 +1,13 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
-import { internalAction, internalQuery, QueryCtx } from "./_generated/server";
+import {
+  ActionCtx,
+  internalAction,
+  internalMutation,
+  internalQuery,
+  QueryCtx,
+} from "./_generated/server";
 import {
   calendarCategoryOf,
   googleEventBody,
@@ -14,7 +20,9 @@ import { appUrl } from "./requests";
 const EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const CALENDARS_SCOPE = "https://www.googleapis.com/auth/calendar";
 const API = "https://www.googleapis.com/calendar/v3";
-const BACKFILL_LIMIT = 1000;
+const BACKFILL_PAGE = 100;
+// A write that dies leaves its lock behind; after this long the next one goes ahead.
+const LOCK_MS = 60_000;
 const DAY_MS = 86_400_000;
 
 // The shared calendar's id: one made by createSharedCalendar below, or any
@@ -59,23 +67,69 @@ export const entryBody = internalQuery({
   },
 });
 
-export const bodiesFrom = internalQuery({
-  args: { from: v.number() },
-  handler: async (ctx, { from }) => {
-    const events = await ctx.db
+const pageArgs = { from: v.number(), cursor: v.union(v.string(), v.null()) };
+
+export const eventBodiesPage = internalQuery({
+  args: pageArgs,
+  handler: async (ctx, { from, cursor }) => {
+    const page = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) => q.gte("dateStart", from))
-      .take(BACKFILL_LIMIT);
-    const entries = await ctx.db
+      .paginate({ numItems: BACKFILL_PAGE, cursor });
+    return {
+      ...page,
+      page: await Promise.all(
+        page.page.map(async (event) => ({ id: event._id as string, body: await eventBodyFor(ctx, event) }))
+      ),
+    };
+  },
+});
+
+export const entryBodiesPage = internalQuery({
+  args: pageArgs,
+  handler: async (ctx, { from, cursor }) => {
+    const page = await ctx.db
       .query("calendarEntries")
       .withIndex("by_dateStart", (q) => q.gte("dateStart", from))
-      .take(BACKFILL_LIMIT);
-    return [
-      ...(await Promise.all(
-        events.map(async (event) => ({ id: event._id as string, body: await eventBodyFor(ctx, event) }))
-      )),
-      ...entries.map((entry) => ({ id: entry._id as string, body: entryBodyFor(entry) })),
-    ];
+      .paginate({ numItems: BACKFILL_PAGE, cursor });
+    return { ...page, page: page.page.map((entry) => ({ id: entry._id as string, body: entryBodyFor(entry) })) };
+  },
+});
+
+// Taken before a write; if another write holds it, that one is told to go again.
+export const claimSync = internalMutation({
+  args: { targetId: v.string() },
+  handler: async (ctx, { targetId }) => {
+    const now = Date.now();
+    const lock = await ctx.db
+      .query("googleSyncLocks")
+      .withIndex("by_targetId", (q) => q.eq("targetId", targetId))
+      .unique();
+    if (lock && lock.lockedUntil > now) {
+      await ctx.db.patch("googleSyncLocks", lock._id, { pending: true });
+      return false;
+    }
+    if (lock) await ctx.db.patch("googleSyncLocks", lock._id, { lockedUntil: now + LOCK_MS, pending: false });
+    else await ctx.db.insert("googleSyncLocks", { targetId, lockedUntil: now + LOCK_MS, pending: false });
+    return true;
+  },
+});
+
+// After a write: true means something changed meanwhile, so write again.
+export const finishSync = internalMutation({
+  args: { targetId: v.string(), failed: v.boolean() },
+  handler: async (ctx, { targetId, failed }) => {
+    const lock = await ctx.db
+      .query("googleSyncLocks")
+      .withIndex("by_targetId", (q) => q.eq("targetId", targetId))
+      .unique();
+    if (!lock) return false;
+    if (lock.pending && !failed) {
+      await ctx.db.patch("googleSyncLocks", lock._id, { lockedUntil: Date.now() + LOCK_MS, pending: false });
+      return true;
+    }
+    await ctx.db.delete("googleSyncLocks", lock._id);
+    return false;
   },
 });
 
@@ -110,20 +164,31 @@ async function remove(token: string, id: string) {
   }
 }
 
-async function sync(id: string, body: GoogleBody | null) {
-  const token = await googleAccessToken(EVENTS_SCOPE);
-  if (body) await push(token, id, body);
-  else await remove(token, id);
+// One write at a time per id: an edit during a write makes it write again with
+// the newest body, so Google always ends up with the latest.
+async function sync(ctx: ActionCtx, id: string, read: () => Promise<GoogleBody | null>) {
+  if (!(await ctx.runMutation(internal.googleCalendar.claimSync, { targetId: id }))) return;
+  for (;;) {
+    try {
+      const body = await read();
+      const token = await googleAccessToken(EVENTS_SCOPE);
+      if (body) await push(token, id, body);
+      else await remove(token, id);
+    } catch (error) {
+      await ctx.runMutation(internal.googleCalendar.finishSync, { targetId: id, failed: true });
+      throw error;
+    }
+    if (!(await ctx.runMutation(internal.googleCalendar.finishSync, { targetId: id, failed: false }))) {
+      return;
+    }
+  }
 }
 
 export const syncEvent = internalAction({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
     if (!calendarSyncConfigured()) return null;
-    const body: GoogleBody | null = await ctx.runQuery(internal.googleCalendar.eventBody, {
-      eventId,
-    });
-    await sync(eventId, body);
+    await sync(ctx, eventId, () => ctx.runQuery(internal.googleCalendar.eventBody, { eventId }));
     return null;
   },
 });
@@ -132,15 +197,13 @@ export const syncEntry = internalAction({
   args: { entryId: v.id("calendarEntries") },
   handler: async (ctx, { entryId }) => {
     if (!calendarSyncConfigured()) return null;
-    const body: GoogleBody | null = await ctx.runQuery(internal.googleCalendar.entryBody, {
-      entryId,
-    });
-    await sync(entryId, body);
+    await sync(ctx, entryId, () => ctx.runQuery(internal.googleCalendar.entryBody, { entryId }));
     return null;
   },
 });
 
-// Copies events and entries from `daysBack` days ago onwards; safe to run again.
+// Copies every event and entry from `daysBack` days ago onwards, a page at a
+// time; safe to run again.
 // npx convex run googleCalendar:backfill '{"daysBack": 90}'
 export const backfill = internalAction({
   args: { daysBack: v.number() },
@@ -148,13 +211,21 @@ export const backfill = internalAction({
     if (!calendarSyncConfigured()) {
       throw new Error("Set GOOGLE_CALENDAR_ID (and the service account) first.");
     }
-    const rows: { id: string; body: GoogleBody }[] = await ctx.runQuery(
-      internal.googleCalendar.bodiesFrom,
-      { from: Date.now() - daysBack * DAY_MS }
-    );
+    const from = Date.now() - daysBack * DAY_MS;
     const token = await googleAccessToken(EVENTS_SCOPE);
-    for (const row of rows) await push(token, row.id, row.body);
-    return { synced: rows.length };
+    let synced = 0;
+    for (const pageOf of [internal.googleCalendar.eventBodiesPage, internal.googleCalendar.entryBodiesPage]) {
+      let cursor: string | null = null;
+      for (;;) {
+        const result: { page: { id: string; body: GoogleBody }[]; isDone: boolean; continueCursor: string } =
+          await ctx.runQuery(pageOf, { from, cursor });
+        for (const row of result.page) await push(token, row.id, row.body);
+        synced += result.page.length;
+        if (result.isDone) break;
+        cursor = result.continueCursor;
+      }
+    }
+    return { synced };
   },
 });
 
@@ -179,7 +250,11 @@ export const createSharedCalendar = internalAction({
       role: "reader",
       scope: { type: "domain", value: domain },
     });
-    if (!shared.ok) await fail(shared, "share");
+    if (!shared.ok) {
+      throw new Error(
+        `Google Calendar share failed: ${shared.status} ${await shared.text()}. Calendar ${id} was made but isn't shared; share it or delete it before trying again.`
+      );
+    }
     return { calendarId: id, addLink: `https://calendar.google.com/calendar/u/0?cid=${btoa(id)}` };
   },
 });

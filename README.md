@@ -420,8 +420,11 @@ roles stays an explicit admin action.
 
 Every attendance event and calendar entry, and each change to them, is
 copied to one Google Calendar by the same service account. Nothing comes back
-from Google. The **Google Calendar API** must be enabled in the service
-account's Google Cloud project.
+from Google. It needs `GOOGLE_SA_CLIENT_EMAIL` and `GOOGLE_SA_PRIVATE_KEY`
+(set up in the Workspace directory sync steps above) and the **Google Calendar
+API** enabled in the service account's Google Cloud project. Without the
+service-account variables, copying stays off even when `GOOGLE_CALENDAR_ID`
+is set, and the commands below fail.
 
 The service account can make the calendar itself, owned by it and readable by
 everyone at the domain; the result has its ID and a link for adding it in
@@ -430,8 +433,11 @@ Google Calendar:
 ```bash
 npx convex run googleCalendar:createSharedCalendar '{"name": "SOW Events", "domain": "sow.org.au"}'
 npx convex env set GOOGLE_CALENDAR_ID <calendarId from the result>
-npx convex run googleCalendar:backfill '{"daysBack": 30}'
+npx convex run googleCalendar:backfill '{"daysBack": 365}'
 ```
+
+The backfill copies everything that starts from `daysBack` days ago onwards,
+a page at a time, and is safe to run again.
 
 Or use an existing calendar: share it with the service account's email with
 **Make changes to events** and set its ID (*Settings → Integrate calendar →

@@ -18,7 +18,7 @@ async function validSubgroups(ctx: Ctx, dateStart: number): Promise<string[]> {
   const universities = await ctx.db
     .query("universities")
     .withIndex("by_year_and_name", (q) => q.eq("year", eventStaffYear(dateStart)))
-    .take(100);
+    .collect();
   return [SOW_SUBGROUP, ...universities.map((u) => u.name)];
 }
 
@@ -87,15 +87,29 @@ export const range = query({
   handler: async (ctx, { from, to }) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const events = await ctx.db
+    // Skip ones that ended before the window as they're read, so they can't fill the cap.
+    const events: Doc<"events">[] = [];
+    for await (const event of ctx.db
       .query("events")
-      .withIndex("by_dateStart", (q) => q.gte("dateStart", from - LONGEST_EVENT_MS).lt("dateStart", to))
-      .take(RANGE_LIMIT);
-    const entries = await ctx.db
+      .withIndex("by_dateStart", (q) => q.gte("dateStart", from - LONGEST_EVENT_MS).lt("dateStart", to))) {
+      if (event.dateEnd < from) continue;
+      events.push(event);
+      if (events.length >= RANGE_LIMIT) break;
+    }
+    const entries: Doc<"calendarEntries">[] = [];
+    for await (const entry of ctx.db
       .query("calendarEntries")
-      .withIndex("by_dateStart", (q) => q.gte("dateStart", from - LONGEST_EVENT_MS).lt("dateStart", to))
-      .take(RANGE_LIMIT);
-    const tags = new Map((await ctx.db.query("attendanceTags").take(500)).map((t) => [t._id, t]));
+      .withIndex("by_dateStart", (q) => q.gte("dateStart", from - LONGEST_EVENT_MS).lt("dateStart", to))) {
+      if (entry.dateEnd < from) continue;
+      entries.push(entry);
+      if (entries.length >= RANGE_LIMIT) break;
+    }
+    const tagIds = [...new Set(events.flatMap((event) => event.tagIds ?? []))];
+    const tags = new Map(
+      (await Promise.all(tagIds.map((id) => ctx.db.get(id)))).flatMap((tag) =>
+        tag ? [[tag._id, tag] as const] : []
+      )
+    );
     const isAdmin = await isAdminProfile(ctx, caller.profile);
     const fromEvents = events.map((event) => {
       const eventTags = (event.tagIds ?? []).flatMap((id) => {
@@ -127,6 +141,6 @@ export const range = query({
       notes: entry.notes ?? null,
       canEdit: isAdmin || entry.createdBy === caller.email,
     }));
-    return [...fromEvents, ...fromEntries].filter((row) => row.dateEnd >= from);
+    return [...fromEvents, ...fromEntries];
   },
 });

@@ -21,7 +21,8 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       `npx convex run --prod googleCalendar:createSharedCalendar '{"name":
       "SOW Events", "domain": "sow.org.au"}'`, then `npx convex env set --prod
       GOOGLE_CALENDAR_ID <calendarId>` and `npx convex run --prod
-      googleCalendar:backfill '{"daysBack": 30}'`. Needs the Google Calendar
+      googleCalendar:backfill '{"daysBack": 365}'` (the past year and everything
+      ahead). Needs the Google Calendar
       API enabled in the service account's project. See the README's "Shared
       Google Calendar".
 

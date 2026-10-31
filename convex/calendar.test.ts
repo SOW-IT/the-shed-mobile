@@ -419,7 +419,7 @@ describe("googleCalendar.createSharedCalendar", () => {
     await configureGoogle();
     for (const [statuses, message] of [
       [[403], "Google Calendar create failed: 403"],
-      [[200, 400], "Google Calendar share failed: 400"],
+      [[200, 400], "Calendar abc was made but isn't shared"],
     ] as const) {
       const queue = [...statuses];
       vi.stubGlobal(
@@ -432,5 +432,76 @@ describe("googleCalendar.createSharedCalendar", () => {
       );
       await expect(t.action(internal.googleCalendar.createSharedCalendar, args)).rejects.toThrow(message);
     }
+  });
+});
+
+describe("review follow-ups", () => {
+  test("events that ended before the month can't fill the cap", async () => {
+    const { t } = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 500; i++) {
+        await ctx.db.insert("events", { name: `Old ${i}`, subgroups: ["SOW"], ...at(-20 + i / 1000, 1) });
+      }
+    });
+    const id = await create(t, { name: "This month" });
+    const rows = await asUser(t, ADMIN).query(api.calendar.range, { from: NOW, to: NOW + 10 * DAY });
+    expect(rows!.map((r) => r.id)).toEqual([id]);
+  });
+
+  test("an edit during a Google write is written straight after, so Google ends up with the newest", async () => {
+    const { t } = await setup();
+    const eventId = await create(t, { name: "Old name" });
+    await configureGoogle();
+    const puts: string[] = [];
+    let first = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        if (String(url).includes("oauth2")) {
+          return new Response(JSON.stringify({ access_token: "token" }), { status: 200 });
+        }
+        puts.push(JSON.parse(String(init!.body)).summary);
+        if (first) {
+          first = false;
+          // While this write is in flight, the event changes and a second sync starts.
+          await t.run((ctx) => ctx.db.patch("events", eventId, { name: "New name" }));
+          await t.action(internal.googleCalendar.syncEvent, { eventId });
+        }
+        return new Response("{}", { status: 200 });
+      })
+    );
+    await t.action(internal.googleCalendar.syncEvent, { eventId });
+    expect(puts).toEqual(["Old name", "New name"]);
+    expect(await t.run((ctx) => ctx.db.query("googleSyncLocks").collect())).toHaveLength(0);
+  });
+
+  test("a failed write frees its lock, and a lock left behind expires", async () => {
+    const { t } = await setup();
+    const eventId = await create(t, { name: "Stall" });
+    await configureGoogle();
+    googleFetch([500]);
+    await expect(t.action(internal.googleCalendar.syncEvent, { eventId })).rejects.toThrow("update failed");
+    expect(await t.run((ctx) => ctx.db.query("googleSyncLocks").collect())).toHaveLength(0);
+
+    expect(await t.mutation(internal.googleCalendar.finishSync, { targetId: "x", failed: false })).toBe(false);
+    expect(await t.mutation(internal.googleCalendar.claimSync, { targetId: "x" })).toBe(true);
+    expect(await t.mutation(internal.googleCalendar.claimSync, { targetId: "x" })).toBe(false);
+    vi.setSystemTime(NOW + 2 * 60_000);
+    expect(await t.mutation(internal.googleCalendar.claimSync, { targetId: "x" })).toBe(true);
+    await t.mutation(internal.googleCalendar.claimSync, { targetId: "x" });
+    // Pending, but the write failed: the lock goes rather than looping.
+    expect(await t.mutation(internal.googleCalendar.finishSync, { targetId: "x", failed: true })).toBe(false);
+  });
+
+  test("the backfill pages through more than one page", async () => {
+    const { t } = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 130; i++) {
+        await ctx.db.insert("events", { name: `E${i}`, subgroups: ["SOW"], ...at(1 + i / 100) });
+      }
+    });
+    await configureGoogle();
+    googleFetch([]);
+    expect(await t.action(internal.googleCalendar.backfill, { daysBack: 1 })).toEqual({ synced: 130 });
   });
 });

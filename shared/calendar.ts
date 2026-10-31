@@ -138,6 +138,8 @@ export const shiftMonth = (year: number, month: number, by: number) => {
 };
 
 const MAX_SPAN_DAYS = 31;
+// Only guards against a runaway loop: attendance events have no length limit.
+const MAX_DAYS_SHOWN = 366;
 
 // Each Sydney day an event touches, so a camp shows on every day it runs.
 export const daysOf = (dateStart: number, dateEnd: number): string[] => {
@@ -145,7 +147,7 @@ export const daysOf = (dateStart: number, dateEnd: number): string[] => {
   const last = sydneyDayKey(Math.max(dateStart, dateEnd - 1));
   const [y, m, d] = first.split("-").map(Number);
   const keys: string[] = [];
-  for (let i = 0; i < MAX_SPAN_DAYS; i++) {
+  for (let i = 0; i < MAX_DAYS_SHOWN; i++) {
     const key = keyOfUtc(Date.UTC(y, m - 1, d) + i * DAY_MS);
     keys.push(key);
     if (key >= last) break;
