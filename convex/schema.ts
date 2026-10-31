@@ -11,6 +11,7 @@ import {
   weeklySettingsFields,
 } from "./weeklyInsightsData";
 import { homeBlockValidator } from "./homeData";
+import { calendarCategoryValidator, entryFields } from "./calendarData";
 import { designAnswersValidator, designStatusValidator } from "./designRequestData";
 import { grievanceFields, grievanceStatusValidator } from "./grievanceData";
 import {
@@ -474,12 +475,27 @@ export default defineSchema({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(weeklyMarkValidator),
+    category: v.optional(calendarCategoryValidator),
     checkIn: v.optional(
       v.object({ token: v.string(), enabledAt: v.number(), enabledBy: v.string() })
     ),
   })
     .index("by_dateStart", ["dateStart"])
     .index("by_checkIn_token", ["checkIn.token"]),
+
+  // One Google Calendar write at a time per event or entry (convex/googleCalendar.ts).
+  googleSyncLocks: defineTable({
+    targetId: v.string(),
+    owner: v.string(),
+    lockedUntil: v.number(),
+    pending: v.boolean(),
+  }).index("by_targetId", ["targetId"]),
+
+  // Calendar entries that don't take attendance; attendance events show on the calendar too.
+  calendarEntries: defineTable({
+    ...entryFields,
+    createdBy: v.string(),
+  }).index("by_dateStart", ["dateStart"]),
 
   eventAttendanceCounts: defineTable({
     eventId: v.id("events"),

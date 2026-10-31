@@ -245,6 +245,21 @@ A second feature area (ported from *time-to-rollcall*) for running roll-call at
 SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 `universities`) plus org-wide "SOW", all sharing one member pool.
 
+- **Calendar** (`convex/calendar.ts`, rules in `shared/calendar.ts`), from
+  the side menu for staff and campus leaders: a month with each day's events
+  as short coloured rows (the start of each name), then the picked day's
+  events in full below. It shows every attendance event, wherever it was made,
+  plus **calendar entries** (`calendarEntries`): things like marketing
+  schedules and deadlines that don't take attendance, with optional notes.
+  "Add Event" adds an entry on the picked day, or an attendance event when
+  "Take attendance" is ticked. Whoever added an entry, or an admin, edits or
+  deletes it. Colours come from the category: TWIG and PPN from an attendance
+  event's tags, Weekly from its term and week, otherwise a picked category
+  (Campus event, SOW event, Marketing, Deadline or Other), or Campus/SOW by
+  where it's held. Chips filter by category and campus, and `/calendar?day=`
+  opens a day. Everything is copied one way to a shared Google Calendar
+  (`convex/googleCalendar.ts`) once `GOOGLE_CALENDAR_ID` is set: see
+  [Shared Google Calendar](#shared-google-calendar-optional).
 - **Events & roll-call**: create events tagged with one or more sub-groups
   (multi-sub-group = a *collaborative* event that appears under each), then sign
   people in/out. Everyone signed in is a **member**; staff are members with
@@ -400,6 +415,36 @@ npx convex env set GOOGLE_ADMIN_IMPERSONATE <a-workspace-admin>@sow.org.au
 Until configured, the weekly sync no-ops and the admin screen shows
 "Never synced." Syncing fills the picker and staff photos. Assigning
 roles stays an explicit admin action.
+
+### Shared Google Calendar (optional)
+
+Every attendance event and calendar entry, and each change to them, is
+copied to one Google Calendar by the same service account. Nothing comes back
+from Google. It needs `GOOGLE_SA_CLIENT_EMAIL` and `GOOGLE_SA_PRIVATE_KEY`
+(set up in the Workspace directory sync steps above) and the **Google Calendar
+API** enabled in the service account's Google Cloud project. Without the
+service-account variables, copying stays off even when `GOOGLE_CALENDAR_ID`
+is set, and the commands below fail.
+
+The service account can make the calendar itself, owned by it and readable by
+everyone at the domain; the result has its ID and a link for adding it in
+Google Calendar:
+
+```bash
+npx convex run googleCalendar:createSharedCalendar '{"name": "SOW Events", "domain": "sow.org.au"}'
+npx convex env set GOOGLE_CALENDAR_ID <calendarId from the result>
+npx convex run googleCalendar:backfill '{"daysBack": 365}'
+```
+
+The backfill copies everything that starts from `daysBack` days ago onwards,
+a page at a time, and is safe to run again.
+
+Or use an existing calendar: share it with the service account's email with
+**Make changes to events** and set its ID (*Settings → Integrate calendar →
+Calendar ID*) the same way.
+
+Leave it unset on dev unless dev has its own test calendar: dev's events are
+test data.
 
 A person's photo is, in order: the one they uploaded in The SHED, their
 Workspace directory photo, the picture Google sent at their last sign-in,

@@ -6,6 +6,29 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.12] - 2026-10-31
+
+### Added
+- **A Calendar of every SOW event.** Staff and campus leaders get Calendar in
+  the side menu: a month where each day shows the start of its events' names
+  in coloured rows, so you can tell them apart at a glance. Tap a day to see
+  its events in full below; tap an attendance event to open its roll-call.
+  TWIGs, PPNs, weeklies and campus and SOW events from Attendance all appear
+  on their own. Chips show only some categories or campuses, and events
+  running over several days show on each day with their dates. Today is
+  ringed in the app's green.
+- **Add things to the calendar, with or without attendance.** "Add Event"
+  puts an entry on the day you picked, for things like marketing schedules,
+  deadlines and timelines, with a category and notes; whoever added it, or an
+  admin, can edit or delete it. Tick "Take attendance at this event" to make
+  it an attendance event instead, so leaders can sign people in. Attendance
+  events can also be given a calendar category in Attendance.
+- **Copies to a shared Google Calendar.** Once the "SOW Events" Google
+  Calendar is set up (see LAUNCH.md), every event and entry, and each change
+  to them, is copied to it, and everyone at sow.org.au can add it to their own
+  Google Calendar. Setting it up copies the past year's events and everything
+  ahead. Changes made in Google don't come back to the app.
+
 ## [2.10.11] - 2026-10-31
 
 ### Added
