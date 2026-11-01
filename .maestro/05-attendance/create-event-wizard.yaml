@@ -8,36 +8,17 @@ tags:
       EMAIL: ${STAFF_EMAIL}
       PASSWORD: ${STAFF_PASSWORD}
 
+# One screen since 2.8.0 (no Next steps): when, tags and campuses. Since
+# 2.10.14 there's no calendar category to pick; it comes from tags and where.
 - tapOn: "Create event"
+- extendedWaitUntil:
+    visible: "Shared with"
+    timeout: 10000
+- assertVisible: "Tags"
+- assertVisible: "Runs over several days"
+- assertNotVisible: "Calendar category"
 
-- assertVisible:
-    text: "Next"
-- tapOn: "e.g. Weekly Meeting"
-- inputText: "E2E Wizard Event"
-- tapOn: "Next"
-
-- tapOn: "Next"
-
-- tapOn: "Next"
-
-- assertVisible:
-    text: ".*(Schedule|Start|End).*"
-
-- tapOn: "Close"
-- runFlow:
-    when:
-      visible:
-        text: ".*Discard.*"
-    commands:
-      - tapOn:
-          text: ".*Discard.*"
-          optional: true
-
-- tapOn: "Create event"
-- assertVisible:
-    text: ".*(Schedule|Start|End).*"
-- tapOn: "Back"
-- tapOn: "Back"
-- tapOn: "Back"
-- assertVisible: "E2E Wizard Event"
-- tapOn: "Close"
+# Leaving creates nothing.
+- tapOn: "Cancel"
+- assertNotVisible: "Shared with"
+- assertVisible: "Events"
