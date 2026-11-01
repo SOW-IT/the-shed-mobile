@@ -107,10 +107,10 @@ describe("drawerItems", () => {
     expect(drawerItems(guest)).toEqual(["profile"]);
   });
 
-  test("staff get Profile, Churches, Reimbursements, Event Requests and Design Requests", () => {
+  test("staff get Profile, Insights (the Calendar is their tab), Churches, Reimbursements, Event Requests and Design Requests", () => {
     expect(drawerItems(staff)).toEqual([
       "profile",
-      "calendar",
+      "insights",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -119,10 +119,10 @@ describe("drawerItems", () => {
   });
 
   test("admins and the Finance Head also get Admin, last; admins get Announcements before it", () => {
-    const withAdmin = ["profile", "calendar", "churches", "reimbursements", "eventRequests", "designRequests", "admin"];
+    const withAdmin = ["profile", "insights", "churches", "reimbursements", "eventRequests", "designRequests", "admin"];
     expect(drawerItems(admin)).toEqual([
       "profile",
-      "calendar",
+      "insights",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -137,7 +137,7 @@ describe("drawerItems", () => {
   test("mentors get Mentoring without Announcements or Admin", () => {
     expect(drawerItems(mentor)).toEqual([
       "profile",
-      "calendar",
+      "insights",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -147,10 +147,10 @@ describe("drawerItems", () => {
   });
 
   test("campus leaders don't get Reimbursements, Event or Design Requests, but keep Admin", () => {
-    expect(drawerItems(campusLeader)).toEqual(["profile", "calendar", "churches"]);
+    expect(drawerItems(campusLeader)).toEqual(["profile", "insights", "churches"]);
     expect(drawerItems(campusLeaderAdmin)).toEqual([
       "profile",
-      "calendar",
+      "insights",
       "churches",
       "mentoring",
       "announcements",
@@ -160,8 +160,8 @@ describe("drawerItems", () => {
 });
 
 describe("sidebarItems", () => {
-  test("signed-out people see the public pages", () => {
-    expect(sidebarItems(signedOut)).toEqual(["home", "insights", "org", "churches", "grievances"]);
+  test("signed-out people see the public pages, without Insights", () => {
+    expect(sidebarItems(signedOut)).toEqual(["home", "org", "churches", "grievances"]);
   });
 
   test("guests add Profile", () => {
@@ -228,7 +228,7 @@ describe("navEntries", () => {
   test("folds the three request pages into one Requests group where the first sat", () => {
     expect(navEntries(drawerItems(admin))).toEqual([
       { kind: "item", key: "profile" },
-      { kind: "item", key: "calendar" },
+      { kind: "item", key: "insights" },
       { kind: "item", key: "churches" },
       {
         kind: "group",
@@ -254,7 +254,7 @@ describe("navEntries", () => {
   test("no group when there are no request pages", () => {
     expect(navEntries(drawerItems(campusLeader))).toEqual([
       { kind: "item", key: "profile" },
-      { kind: "item", key: "calendar" },
+      { kind: "item", key: "insights" },
       { kind: "item", key: "churches" },
     ]);
   });

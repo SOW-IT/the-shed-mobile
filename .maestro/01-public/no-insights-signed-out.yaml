@@ -1,0 +1,20 @@
+appId: ${APP_ID}
+tags:
+  - public
+---
+- runFlow: ../common/ensure-signed-out.yaml
+- assertVisible:
+    text: ".*Home, tab.*"
+- assertNotVisible:
+    text: ".*Insights, tab.*"
+
+# A link to Insights lands on Home instead.
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "insights"
+- extendedWaitUntil:
+    visible:
+      text: ".*Home, tab.*"
+    timeout: 15000
+- assertNotVisible: "General"

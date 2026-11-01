@@ -11,7 +11,7 @@ Flows tagged `manual` are excluded from automation by design — see
 ├── .env.example           # copy → .env, fill accounts (git-ignored)
 ├── common/                # reusable subflows (launch, sign-in, sign-out, deep link)
 ├── 00-launch-and-gating/  # tab gating, side menu
-├── 01-public/             # signed-out Home/Insights/Org/contact/sign-in
+├── 01-public/             # signed-out Home/Org/contact/sign-in, no Insights
 ├── 02-auth/               # sign-out, deep-link-while-out, (manual) grace window
 ├── 03-requests/           # reimbursement lifecycle
 ├── 04-bank/               # bank accounts
@@ -115,6 +115,7 @@ against the Convex dev backend via the `e2e-auth` bypass):
 - `05-attendance/tags-metadata-audit.yaml`
 - `05-attendance/export.yaml`
 - `06-insights/general-and-attendance-segments.yaml`
+- `13-calendar/week-view-and-deadline.yaml`
 - `07-org-chart/org-chart.yaml`
 - `08-profile/own-profile.yaml`
 - `09-admin/access-and-tabs.yaml`
@@ -127,7 +128,7 @@ against the Convex dev backend via the `e2e-auth` bypass):
 
 - `01-public/home-four-pages.yaml`
 - `01-public/contact-form.yaml`
-- `01-public/insights-general-only.yaml`
+- `01-public/no-insights-signed-out.yaml`
 - `01-public/org-chart-and-profiles.yaml`
 - `01-public/sign-in.yaml` (real Google OAuth is best-effort — see
   `common/sign-in-google.yaml`'s header; this only fully exercises staff

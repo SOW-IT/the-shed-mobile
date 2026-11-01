@@ -198,10 +198,21 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon("checkbox-outline", "checkbox"),
         }}
       />
+      {/* Staff get the Calendar in Insights' place; Insights moves to their side menu. */}
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: "Calendar",
+          ...(isStaff ? {} : sideMenuOnly),
+          tabBarIcon: tabIcon("calendar-outline", "calendar"),
+        }}
+      />
+      {/* Signed out, there's no Insights at all; signed in without a role, it's a tab. */}
       <Tabs.Screen
         name="insights"
         options={{
           title: "Insights",
+          ...(isStaff || !isAuthenticated ? sideMenuOnly : {}),
           tabBarIcon: tabIcon("stats-chart-outline", "stats-chart"),
         }}
       />
@@ -229,7 +240,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen name="mentoring" options={{ title: "Mentoring", ...sideMenuOnly }} />
-      <Tabs.Screen name="calendar" options={{ title: "Calendar", ...sideMenuOnly }} />
       <Tabs.Screen
         name="admin"
         options={{

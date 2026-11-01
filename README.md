@@ -221,10 +221,13 @@ changing anything seasonal, the October 1 staff-year rollover in particular
 - **Notifications** (the bell): everything sent to you, unread first, loading
   older ones as you scroll (`notifications.feed`, 30 a page). Opening the
   screen marks everything read.
-- **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
-  Chart. On phones the top-left avatar, or a swipe from the left edge, opens
-  a side menu with Profile, Reimbursements (staff other than campus leaders),
-  Admin (admins and the Finance Head) and Sign out. Screens 700pt and wider
+- **Navigation**: bottom tabs Home, Attendance and Calendar (staff, campus
+  leaders included), Insights (signed in without a staff role), Org Chart,
+  Churches (anyone not on staff) and Grievances; signed out there's no
+  Insights at all, and `/insights` goes to Home. On phones the top-left
+  avatar, or a swipe from the left edge, opens a side menu with Profile,
+  Insights and Churches (staff), Requests (staff other than campus leaders),
+  Mentoring, Announcements, Admin (admins and the Finance Head) and Sign out. Screens 700pt and wider
   (iPad, desktop web) swap the top bar, bottom tabs and drawer for one
   permanent sidebar holding all of them (`src/components/nav/`,
   rules in `src/lib/navMenu.ts`).
@@ -318,7 +321,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   member / tag / metadata edits, merges and deletes, and each
   sign-in/edit/sign-out), read by the Attendance → Audit tab.
 - **CSV export**: export attendance.
-- **Insights** (a dedicated bottom tab): for a campus, its **weekly meetings**
+- **Insights** (signed in only: in the side menu for staff, a bottom tab for
+  others): for a campus, its **weekly meetings**
   by term (T1–T3 / Sem 1–2) or calendar year: cards against the term before
   (a year against last year), a
   follow-up list (people who were coming but stopped, newcomers who haven't

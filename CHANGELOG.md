@@ -27,6 +27,12 @@ All notable changes to **The SHED** mobile app. This project follows
   title.
 
 ### Changed
+- **Calendar takes Insights' place in the bottom bar.** For staff and campus
+  leaders the bottom bar is Home, Attendance, Calendar, Org Chart and
+  Grievances, and Insights moves to the side menu (it stays in the sidebar on
+  wide screens). Signed in without a staff role, Insights is still a tab.
+  Signed out, Insights isn't shown at all and a link to it opens Home, so the
+  public General numbers and "Sign in to view more" are gone.
 - **Events running over several days are one bar across the Calendar.** A
   camp or retreat is a single bar from its first day to its last instead of a
   separate row on each day, so it's easy to spot and its name has room. It
