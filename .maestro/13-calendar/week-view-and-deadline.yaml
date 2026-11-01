@@ -29,7 +29,7 @@ tags:
 - assertVisible: "Time"
 - tapOn: "Add to Calendar"
 - extendedWaitUntil:
-    visible: ".*E2E applications close.*Due.*"
+    visible: ".*E2E applications close.*Due [0-9].*"
     timeout: 15000
 
 # The month shows it too, in the day's list below the month.
@@ -37,15 +37,15 @@ tags:
 - assertNotVisible: "9 am"
 - scrollUntilVisible:
     element:
-      text: ".*E2E applications close.*Due.*"
+      text: ".*E2E applications close.*Due [0-9].*"
     direction: DOWN
 
 # Tidy up: whoever added it can delete it.
-- tapOn: ".*E2E applications close.*Due.*"
+- tapOn: ".*E2E applications close.*Due [0-9].*"
 - tapOn: "Delete"
 - extendedWaitUntil:
     visible: "It comes off the calendar for everyone."
     timeout: 5000
 # The confirm dialog is on top, so this is its Delete.
 - tapOn: "Delete"
-- assertNotVisible: ".*E2E applications close.*Due.*"
+- assertNotVisible: ".*E2E applications close.*Due [0-9].*"

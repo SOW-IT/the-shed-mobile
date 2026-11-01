@@ -125,15 +125,25 @@ export const WeekView = <E extends WeekEvent>({
           <View style={{ width: GUTTER }} />
           <View style={{ flex: 1 }}>
             {strip.bars.map((bar) => (
-              <Pressable
+              <View
                 key={bar.event.id}
-                onPress={() => onOpen(bar.event, week[bar.start])}
-                accessibilityRole="button"
-                accessibilityLabel={`${bar.event.name}, ${bar.event.due ? "due all day, " : ""}${calendarCategoryLabel(bar.event.category)}`}
                 style={[styles.slot, barColumn(bar.start, bar.span), { top: bar.row * BAR_ROW }]}
               >
                 <EventBar event={bar.event} fromBefore={bar.fromBefore} toAfter={bar.toAfter} />
-              </Pressable>
+                {/* A target per day, so tapping Friday on a long bar picks Friday. */}
+                <View style={[StyleSheet.absoluteFill, styles.row]}>
+                  {Array.from({ length: bar.span }, (_, i) => (
+                    <Pressable
+                      key={i}
+                      onPress={() => onOpen(bar.event, week[bar.start + i])}
+                      accessible={i === 0}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${bar.event.name}, ${bar.event.due ? "due all day, " : ""}${calendarCategoryLabel(bar.event.category)}`}
+                      style={{ flex: 1 }}
+                    />
+                  ))}
+                </View>
+              </View>
             ))}
             {strip.more.map((count, col) =>
               count > 0 ? (

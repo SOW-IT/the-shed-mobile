@@ -301,9 +301,16 @@ export const dayBlocks = <E extends { dateStart: number; dateEnd: number }>(
 ): DayBlock<E>[] => {
   const blocks = events
     .map((event) => {
-      const from = sydneyMinutes(event.dateStart);
-      const length = Math.max(MIN_BLOCK_MINUTES, (event.dateEnd - event.dateStart) / 60_000);
-      return { event, from, to: Math.min(DAY_MINUTES, from + length), col: 0, cols: 1 };
+      const start = sydneyMinutes(event.dateStart);
+      // By the clock, so a daylight-saving night doesn't stretch or shrink a block;
+      // ending at the next midnight is the end of the day.
+      const end =
+        sydneyDayKey(event.dateEnd) === sydneyDayKey(event.dateStart)
+          ? sydneyMinutes(event.dateEnd)
+          : DAY_MINUTES;
+      const to = Math.min(DAY_MINUTES, Math.max(end, start + MIN_BLOCK_MINUTES));
+      // A deadline at 11:59 pm starts higher up rather than shrink below the minimum.
+      return { event, from: Math.min(start, to - MIN_BLOCK_MINUTES), to, col: 0, cols: 1 };
     })
     .sort((a, b) => a.from - b.from || b.to - a.to);
   let group: DayBlock<E>[] = [];

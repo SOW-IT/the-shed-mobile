@@ -115,9 +115,11 @@ export const CalendarEntrySheet = ({
       setDateStr(start);
       setEndDateStr(end);
       setMultiDay(start !== end);
-      // A deadline has no length, so if it's switched to an event it runs an hour.
-      const fromTime = entry.due === "day" ? DEFAULT_DUE_TIME : toTimeInputValue(new Date(entry.dateStart));
-      setStartTime(fromTime);
+      // A deadline has no length, so if it's switched to an event it runs an hour;
+      // one due at 11:59 pm becomes 11:00 to 11:59 pm.
+      const dueAt = entry.due === "day" ? DEFAULT_DUE_TIME : toTimeInputValue(new Date(entry.dateStart));
+      const fromTime = entry.due && hourAfter(dueAt) <= dueAt ? "23:00" : dueAt;
+      setStartTime(entry.due ? fromTime : toTimeInputValue(new Date(entry.dateStart)));
       setEndTime(entry.due ? hourAfter(fromTime) : toTimeInputValue(new Date(entry.dateEnd)));
       setWhere(entry.subgroups);
       setCategory(entry.category);

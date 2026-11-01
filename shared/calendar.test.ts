@@ -161,9 +161,13 @@ describe("week view", () => {
       ["prep", 1050, 1080, 1, 2],
       ["twig", 1110, 1260, 1, 2],
       ["late", 1170, 1200, 0, 2],
-      // At least half an hour tall, but not past midnight.
-      ["deadline", 1430, 1440, 0, 1],
+      // At least half an hour tall, so near midnight it starts earlier.
+      ["deadline", 1410, 1440, 0, 1],
     ]);
+    const late = dayBlocks([{ dateStart: sydney("2026-11-04T23:59:00"), dateEnd: sydney("2026-11-04T23:59:00") }]);
+    expect(late.map((b) => [b.from, b.to])).toEqual([[1410, 1440]]);
+    const toMidnight = dayBlocks([{ dateStart: sydney("2026-11-04T22:00:00"), dateEnd: sydney("2026-11-05T00:00:00") }]);
+    expect(toMidnight.map((b) => [b.from, b.to])).toEqual([[1320, 1440]]);
     const three = dayBlocks([at("a", "18:00", "20:00"), at("b", "18:00", "19:00"), at("c", "18:30", "19:30")]);
     expect(three.map((b) => [b.event.name, b.col, b.cols])).toEqual([
       ["a", 0, 3],
@@ -177,6 +181,16 @@ describe("week view", () => {
     expect(clockTime(9 * 60)).toBe("9:00 am");
     expect(clockTime(12 * 60)).toBe("12:00 pm");
     expect(clockTime(23 * 60 + 59)).toBe("11:59 pm");
+  });
+
+  test("dayBlocks follows the clock across daylight saving", () => {
+    // Clocks go forward at 2 am on 4 October 2026: 1:30 am AEST to 3:30 am AEDT is one hour.
+    const spring = { dateStart: Date.parse("2026-10-04T01:30:00+10:00"), dateEnd: Date.parse("2026-10-04T03:30:00+11:00") };
+    expect(spring.dateEnd - spring.dateStart).toBe(60 * 60_000);
+    expect(dayBlocks([spring]).map((b) => [b.from, b.to])).toEqual([[90, 210]]);
+    // Clocks go back at 3 am on 5 April 2026: 1:30 am AEDT to 3:30 am AEST is three hours.
+    const autumn = { dateStart: Date.parse("2026-04-05T01:30:00+11:00"), dateEnd: Date.parse("2026-04-05T03:30:00+10:00") };
+    expect(dayBlocks([autumn]).map((b) => [b.from, b.to])).toEqual([[90, 210]]);
   });
 
   test("hourAfter is an hour on, or the last minute of the day", () => {
