@@ -341,7 +341,7 @@ export default function CalendarScreen() {
               }}
             >
               {view === "week" ? (
-                <Card>
+                <Card style={wide ? undefined : styles.fullBleed}>
                   <WeekView
                     week={week}
                     byDay={byDay}
@@ -362,7 +362,7 @@ export default function CalendarScreen() {
                   />
                 </Card>
               ) : (
-                <Card>
+                <Card style={wide ? undefined : styles.fullBleed}>
                   <View style={styles.week}>
                     {WEEKDAYS.map((d, i) => (
                       <Text key={i} style={[styles.weekday, typography.caption, { color: t.faint }]}>
@@ -554,6 +554,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.full,
     marginTop: -spacing.sm,
+  },
+  // On a phone the calendar runs edge to edge, so each day gets as much room as it can.
+  fullBleed: {
+    marginHorizontal: -spacing.lg,
+    paddingHorizontal: 0,
+    paddingVertical: spacing.sm,
+    borderRadius: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
   },
   week: { flexDirection: "row" },
   weekday: { flex: 1, textAlign: "center", fontWeight: "700" },
