@@ -129,6 +129,7 @@ const MusicRequestSheetContent = ({
   hideRequestComment?: boolean;
 }) => {
   const t = useAppTheme();
+  const hideAutofill = prefill?.status === "APPROVED";
   const [title, setTitle] = useState(prefill?.title ?? "");
   const [artist, setArtist] = useState(prefill?.artist ?? "");
   const [link, setLink] = useState(prefill?.link ?? "");
@@ -671,221 +672,231 @@ const MusicRequestSheetContent = ({
         </Row>
       }
     >
-      <View
-        style={[
-          styles.spotifySection,
-          {
-            borderColor: t.separator,
-            backgroundColor: t.card,
-          },
-        ]}
-      >
-        <View style={styles.spotifyHeading}>
-          <Ionicons name="musical-notes-outline" size={20} color={t.primary} />
-          <Text style={[styles.spotifyTitle, { color: t.text }]}>
-            Add from Spotify or YouTube
-          </Text>
-        </View>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          Paste a Spotify or YouTube song or playlist link.
-        </Text>
-
-        <Text style={[typography.caption, { color: t.warning }]}>
-          Spotify playlists require access through your connected account.
-          Public YouTube playlists can be imported without signing in.
-        </Text>
-
-        <View style={{ position: "relative" }}>
-          <Field
-            label="Music Link"
-            value={spotifyLink}
-            onChangeText={(value) => {
-              setSpotifyLink(value);
-              setSpotifyError(null);
-              setTitle("");
-              setArtist("");
-              setLink("");
-              setAlbumArtUrl(null);
-              setIsrc(undefined);
-            }}
-            placeholder="https://open.spotify.com/track/... or playlist/..."
-            autoCapitalize="none"
-          />
-
-          {spotifyLink.length > 0 && (
-            <Pressable
-              onPress={clearSpotifyLink}
-              accessibilityRole="button"
-              accessibilityLabel="Clear Spotify link"
-              hitSlop={8}
-              style={{
-                position: "absolute",
-                right: 12,
-                bottom: 10,
-                width: 28,
-                height: 28,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 14,
-                backgroundColor: t.card,
-              }}
-            >
-              <Ionicons name="close" size={18} color={t.muted} />
-            </Pressable>
-          )}
-        </View>
-
-        <Btn
-          title={
-            isPlaylist
-              ? importingPlaylist
-                ? "Importing..."
-                : "Import playlist"
-              : fetchingSpotify
-                ? "Finding song..."
-                : "Autofill song"
-          }
-          icon={isPlaylist ? "download-outline" : "search-outline"}
-          onPress={() => {
-            if (youtubePlaylistLink) {
-              void importYouTube();
-            } else if (spotifyLinkType === "playlist") {
-              void importPlaylist();
-            } else if (youtubeLink) {
-              void autofillYouTube();
-            } else {
-              void autofillSpotify();
-            }
-          }}
-          disabled={
-            !validMusicLink ||
-            fetchingSpotify ||
-            importingPlaylist ||
-            submitting ||
-            (isPlaylist && (songs.length >= 50 || !!prefill))
-          }
-        />
-
-        {spotifyLink.trim() && !validMusicLink ? (
-          <Text style={[typography.caption, { color: t.warning }]}>
-            Enter a valid Spotify or YouTube song or playlist URL.
-          </Text>
-        ) : null}
-        {spotifyLinkType === "playlist" &&
-        !spotifyPlaylist.connected &&
-        !prefill ? (
-          <Text style={[typography.caption, { color: t.muted }]}>
-            Connect Spotify from your Profile page to import playlists.
-          </Text>
-        ) : null}
-        {spotifyError ? (
-          <Text style={[typography.caption, { color: t.warning }]}>
-            {spotifyError}
-          </Text>
-        ) : null}
-
-        {(youtubeLink || youtubePlaylistLink) && (
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "flex-start",
-              gap: spacing.sm,
-              padding: spacing.sm,
-              borderRadius: radius.md,
+      {!hideAutofill && (
+        <View
+          style={[
+            styles.spotifySection,
+            {
+              borderColor: t.separator,
               backgroundColor: t.card,
-            }}
-          >
-            <Ionicons name="alert-circle-outline" size={18} color={t.warning} />
-            <Text style={[typography.caption, { color: t.warning, flex: 1 }]}>
-              YouTube song details may be inaccurate. Please double-check the
-              song title and artist before submitting.
+            },
+          ]}
+        >
+          <View style={styles.spotifyHeading}>
+            <Ionicons
+              name="musical-notes-outline"
+              size={20}
+              color={t.primary}
+            />
+            <Text style={[styles.spotifyTitle, { color: t.text }]}>
+              Add from Spotify or YouTube
             </Text>
           </View>
-        )}
+          <Text style={[typography.caption, { color: t.muted }]}>
+            Paste a Spotify or YouTube song or playlist link.
+          </Text>
 
-        {!prefill && (
-          <View style={{ marginTop: spacing.sm }}>
+          <Text style={[typography.caption, { color: t.warning }]}>
+            Spotify playlists require access through your connected account.
+            Public YouTube playlists can be imported without signing in.
+          </Text>
+
+          <View style={{ position: "relative" }}>
+            <Field
+              label="Music Link"
+              value={spotifyLink}
+              onChangeText={(value) => {
+                setSpotifyLink(value);
+                setSpotifyError(null);
+                setTitle("");
+                setArtist("");
+                setLink("");
+                setAlbumArtUrl(null);
+                setIsrc(undefined);
+              }}
+              placeholder="https://open.spotify.com/track/... or playlist/..."
+              autoCapitalize="none"
+            />
+
+            {spotifyLink.length > 0 && (
+              <Pressable
+                onPress={clearSpotifyLink}
+                accessibilityRole="button"
+                accessibilityLabel="Clear Spotify link"
+                hitSlop={8}
+                style={{
+                  position: "absolute",
+                  right: 12,
+                  bottom: 10,
+                  width: 28,
+                  height: 28,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 14,
+                  backgroundColor: t.card,
+                }}
+              >
+                <Ionicons name="close" size={18} color={t.muted} />
+              </Pressable>
+            )}
+          </View>
+
+          <Btn
+            title={
+              isPlaylist
+                ? importingPlaylist
+                  ? "Importing..."
+                  : "Import playlist"
+                : fetchingSpotify
+                  ? "Finding song..."
+                  : "Autofill song"
+            }
+            icon={isPlaylist ? "download-outline" : "search-outline"}
+            onPress={() => {
+              if (youtubePlaylistLink) {
+                void importYouTube();
+              } else if (spotifyLinkType === "playlist") {
+                void importPlaylist();
+              } else if (youtubeLink) {
+                void autofillYouTube();
+              } else {
+                void autofillSpotify();
+              }
+            }}
+            disabled={
+              !validMusicLink ||
+              fetchingSpotify ||
+              importingPlaylist ||
+              submitting ||
+              (isPlaylist && (songs.length >= 50 || !!prefill))
+            }
+          />
+
+          {spotifyLink.trim() && !validMusicLink ? (
+            <Text style={[typography.caption, { color: t.warning }]}>
+              Enter a valid Spotify or YouTube song or playlist URL.
+            </Text>
+          ) : null}
+          {spotifyLinkType === "playlist" &&
+          !spotifyPlaylist.connected &&
+          !prefill ? (
+            <Text style={[typography.caption, { color: t.muted }]}>
+              Connect Spotify from your Profile page to import playlists.
+            </Text>
+          ) : null}
+          {spotifyError ? (
+            <Text style={[typography.caption, { color: t.warning }]}>
+              {spotifyError}
+            </Text>
+          ) : null}
+
+          {(youtubeLink || youtubePlaylistLink) && (
             <View
               style={{
                 flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.xs,
+                alignItems: "flex-start",
+                gap: spacing.sm,
+                padding: spacing.sm,
+                borderRadius: radius.md,
+                backgroundColor: t.card,
               }}
             >
               <Ionicons
-                name={
-                  !spotifyPlaylist.ready
-                    ? "time-outline"
-                    : spotifyPlaylist.connected
-                      ? "checkmark-circle"
-                      : "close-circle"
-                }
-                size={17}
-                color={
-                  !spotifyPlaylist.ready
-                    ? t.muted
-                    : spotifyPlaylist.connected
-                      ? "#1DB954"
-                      : "#EF4444"
-                }
+                name="alert-circle-outline"
+                size={18}
+                color={t.warning}
               />
-              <Text
-                style={[
-                  typography.caption,
-                  {
-                    color: !spotifyPlaylist.ready
+              <Text style={[typography.caption, { color: t.warning, flex: 1 }]}>
+                YouTube song details may be inaccurate. Please double-check the
+                song title and artist before submitting.
+              </Text>
+            </View>
+          )}
+
+          {!prefill && (
+            <View style={{ marginTop: spacing.sm }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.xs,
+                }}
+              >
+                <Ionicons
+                  name={
+                    !spotifyPlaylist.ready
+                      ? "time-outline"
+                      : spotifyPlaylist.connected
+                        ? "checkmark-circle"
+                        : "close-circle"
+                  }
+                  size={17}
+                  color={
+                    !spotifyPlaylist.ready
                       ? t.muted
                       : spotifyPlaylist.connected
                         ? "#1DB954"
-                        : "#EF4444",
-                    fontWeight: "600",
-                  },
-                ]}
-              >
-                {!spotifyPlaylist.ready
-                  ? "Checking Spotify connection..."
-                  : spotifyPlaylist.connected
-                    ? "Spotify connected"
-                    : "Spotify not connected"}
-              </Text>
+                        : "#EF4444"
+                  }
+                />
+                <Text
+                  style={[
+                    typography.caption,
+                    {
+                      color: !spotifyPlaylist.ready
+                        ? t.muted
+                        : spotifyPlaylist.connected
+                          ? "#1DB954"
+                          : "#EF4444",
+                      fontWeight: "600",
+                    },
+                  ]}
+                >
+                  {!spotifyPlaylist.ready
+                    ? "Checking Spotify connection..."
+                    : spotifyPlaylist.connected
+                      ? "Spotify connected"
+                      : "Spotify not connected"}
+                </Text>
+              </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {duplicate && !duplicateIsSelf ? (
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "flex-start",
-              gap: spacing.sm,
-              paddingVertical: spacing.sm,
-            }}
-          >
-            <Ionicons
-              name={"alert-circle-outline"}
-              size={20}
-              color={t.warning}
-            />
-            <View style={{ flex: 1, gap: 3 }}>
-              <Text style={{ color: t.text, fontWeight: "700" }}>
-                {possibleDuplicate
-                  ? "Possible duplicate song"
-                  : duplicate.status === "APPROVED"
-                    ? "Already in the playlist"
-                    : duplicate.status === "PENDING"
-                      ? "This song has already been requested"
-                      : "This song was previously declined"}
-              </Text>
-              <Text style={[typography.caption, { color: t.muted }]}>
-                {duplicate.title} by {duplicate.artist}
-                {possibleDuplicate
-                  ? ". You can request this version anyway."
-                  : ". You can't submit another request for this recording."}
-              </Text>
+          {duplicate && !duplicateIsSelf ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "flex-start",
+                gap: spacing.sm,
+                paddingVertical: spacing.sm,
+              }}
+            >
+              <Ionicons
+                name={"alert-circle-outline"}
+                size={20}
+                color={t.warning}
+              />
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={{ color: t.text, fontWeight: "700" }}>
+                  {possibleDuplicate
+                    ? "Possible duplicate song"
+                    : duplicate.status === "APPROVED"
+                      ? "Already in the playlist"
+                      : duplicate.status === "PENDING"
+                        ? "This song has already been requested"
+                        : "This song was previously declined"}
+                </Text>
+                <Text style={[typography.caption, { color: t.muted }]}>
+                  {duplicate.title} by {duplicate.artist}
+                  {possibleDuplicate
+                    ? ". You can request this version anyway."
+                    : ". You can't submit another request for this recording."}
+                </Text>
+              </View>
             </View>
-          </View>
-        ) : null}
-      </View>
+          ) : null}
+        </View>
+      )}
       {albumArtUrl ? (
         <View style={styles.preview}>
           <Image
@@ -907,7 +918,7 @@ const MusicRequestSheetContent = ({
         }}
       >
         <Text style={{ color: t.text, fontWeight: "700" }}>
-          Add song manually
+          {prefill ? "Edit song details" : "Add song manually"}
         </Text>
         <Ionicons
           name={manualExpanded ? "chevron-up" : "chevron-down"}
