@@ -146,6 +146,7 @@ export const range = query({
         notes: null,
         due: null,
         eventRequestId: await openableEventRequest(ctx, caller, event.eventRequestId),
+        fromEventRequest: event.eventRequestId !== undefined,
         canEdit: false,
       };
     }));
@@ -161,6 +162,7 @@ export const range = query({
       notes: entry.notes ?? null,
       due: entry.due ?? null,
       eventRequestId: await openableEventRequest(ctx, caller, entry.eventRequestId),
+      fromEventRequest: entry.eventRequestId !== undefined,
       // One from an event request follows the request instead.
       canEdit: !entry.eventRequestId && (isAdmin || entry.createdBy === caller.email),
     })));

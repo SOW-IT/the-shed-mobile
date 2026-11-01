@@ -31,7 +31,7 @@ import { CATEGORY_COLOURS } from "@/components/calendar/categoryColours";
 import { dayTitle } from "@/components/calendar/dayTitle";
 import { BAR_ROW, barColumn, EventBar, MoreLabel } from "@/components/calendar/EventBar";
 import { WeekView } from "@/components/calendar/WeekView";
-import { FilterChip, FilterRow } from "@/components/FilterChips";
+import { EVENTS, FilterChip, FilterRow } from "@/components/FilterChips";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 import { useCalendarView } from "@/hooks/useCalendarView";
 import { sydneyTime } from "@/lib/sydneyTime";
@@ -119,7 +119,7 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
             {calendarCategoryLabel(event.category)}
           </Text>
           {where ? ` · ${where}` : ""}
-          {event.eventRequestId ? " · Event request" : event.kind === "entry" ? " · Calendar only" : ""}
+          {event.fromEventRequest ? " · Event request" : event.kind === "entry" ? " · Calendar only" : ""}
         </Text>
         {event.notes ? (
           <Text selectable style={[typography.caption, { color: t.text }]}>
@@ -482,6 +482,7 @@ export default function CalendarScreen() {
                     label={c.label}
                     colour={CATEGORY_COLOURS[c.key]}
                     count={inView(all.filter((e) => e.category === c.key))}
+                    counting={EVENTS}
                     onPress={() => setCategories((prev) => toggle(prev, c.key))}
                   />
                 ))}
@@ -496,6 +497,7 @@ export default function CalendarScreen() {
                     label={subgroupLabel(s)}
                     colour={universityColour(s)}
                     count={inView(all.filter((e) => e.subgroups.includes(s)))}
+                    counting={EVENTS}
                     onPress={() => setCampuses((prev) => toggle(prev, s))}
                   />
                 ))}

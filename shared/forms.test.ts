@@ -66,6 +66,11 @@ describe("the field kinds event requests added", () => {
     expect(problem({ start: "2026-10-01T09:00" }, { start: "2026-10-01T09:00" })).toBeNull();
     expect(problem({ end: "2026-11-01T17:00" })).toBe('"Ends" can\'t be before "Starts".');
     expect(problem({ end: "2026-11-01T21:00" })).toBeNull();
+    expect(problem({ end: good.start })).toBeNull();
+    const ending = FIELDS.map((f) => (f.key === "end" ? { ...f, role: "end" as const } : f));
+    expect(answersProblem(ending, { ...good, end: good.start } as never, TODAY)).toBe(
+      '"Ends" has to be after "Starts".'
+    );
     expect(problem({ open: "2026-11-02T09:00" })).toBe('"Opens" can\'t be after "Starts".');
     expect(problem({ start: "bad", end: "2026-11-01T21:00" }, { start: "bad" })).toMatch(
       /Pick a date and time/

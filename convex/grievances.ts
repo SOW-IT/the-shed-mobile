@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { isMemberOfDepartment } from "../shared/flow";
+import { isMemberOfDepartment, withinRolloverAuthGrace } from "../shared/flow";
 import {
   cleanNameList,
   DEFAULT_GRIEVANCE_CATEGORIES,
@@ -22,8 +22,8 @@ import { grievanceFields } from "./grievanceData";
 import {
   currentStaffYear,
   displayName,
+  getProfile,
   optionalEmail,
-  optionalProfile,
   requireAdmin,
 } from "./model";
 import { appUrl, notify } from "./requests";
@@ -82,12 +82,23 @@ const sameList = (a: string[], b: string[]) =>
 const inDepartments = (profile: Doc<"staffProfiles">, departments: string[]) =>
   departments.some((d) => isMemberOfDepartment(profile, d));
 
+async function teamYear(ctx: Ctx): Promise<number> {
+  const year = currentStaffYear();
+  if (!withinRolloverAuthGrace(year)) return year;
+  const setUp = await ctx.db
+    .query("staffProfiles")
+    .withIndex("by_year", (q) => q.eq("year", year))
+    .first();
+  return setUp ? year : year - 1;
+}
+
 export async function grievanceTeam(ctx: Ctx, departmentList?: string[]): Promise<string[]> {
   const departments = departmentList ?? (await readSettings(ctx)).departments;
+  const year = await teamYear(ctx);
   const emails = new Set<string>();
   for await (const profile of ctx.db
     .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", currentStaffYear()))) {
+    .withIndex("by_year", (q) => q.eq("year", year))) {
     if (inDepartments(profile, departments)) emails.add(profile.email);
   }
   return [...emails].sort();
@@ -95,10 +106,12 @@ export async function grievanceTeam(ctx: Ctx, departmentList?: string[]): Promis
 
 // Department heads always hold an assignment in their department, so this covers them too.
 async function handlerEmail(ctx: Ctx): Promise<string | null> {
-  const caller = await optionalProfile(ctx);
-  if (!caller) return null;
+  const email = await optionalEmail(ctx);
+  if (!email) return null;
+  const profile = await getProfile(ctx, email, await teamYear(ctx));
+  if (!profile) return null;
   const { departments } = await readSettings(ctx);
-  return inDepartments(caller.profile, departments) ? caller.email : null;
+  return inDepartments(profile, departments) ? email : null;
 }
 
 async function requireHandler(ctx: Ctx): Promise<string> {
@@ -176,12 +189,14 @@ async function tellTeam(
 // signed-out sending, so it can't lock out anyone who signs in.
 async function checkRateLimit(ctx: MutationCtx, fromEmail: string, signedIn: boolean) {
   const now = Date.now();
-  const mine = await ctx.db
-    .query("grievanceRateLimit")
-    .withIndex("by_email_and_time", (q) =>
-      q.eq("fromEmail", fromEmail).gt("submittedAt", now - RATE_WINDOW_MS)
-    )
-    .take(MAX_PER_EMAIL);
+  const mine = (
+    await ctx.db
+      .query("grievanceRateLimit")
+      .withIndex("by_email_and_time", (q) =>
+        q.eq("fromEmail", fromEmail).gt("submittedAt", now - RATE_WINDOW_MS)
+      )
+      .take(2 * MAX_PER_EMAIL)
+  ).filter((row) => row.signedIn === signedIn);
   if (mine.length >= MAX_PER_EMAIL) {
     throw new ConvexError("You've sent a few grievances recently. Please wait an hour.");
   }
@@ -230,7 +245,7 @@ export const setDepartments = mutation({
     }
     if ((await grievanceTeam(ctx, cleaned.list)).length === 0) {
       throw new ConvexError(
-        `Nobody in ${cleaned.list.join(", ")} has a role in ${currentStaffYear()}, so nobody could see or handle grievances.`
+        `Nobody in ${cleaned.list.join(", ")} has a role in ${await teamYear(ctx)}, so nobody could see or handle grievances.`
       );
     }
     await saveSettings(ctx, { departments: cleaned.list });
@@ -367,7 +382,7 @@ export const close = mutation({
     await tellTeam(ctx, g, {
       actor,
       title: resolved ? `Grievance ${ref} resolved` : `Grievance ${ref} closed, not proceeding`,
-      body: `${(await nameOf(ctx, actor)) as string} closed it.`,
+      body: `${(await nameOf(ctx, actor)) as string} ${resolved ? "resolved" : "closed"} it.`,
     });
     return null;
   },

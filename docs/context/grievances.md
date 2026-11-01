@@ -21,7 +21,8 @@ _Avoid_: number, ticket number
 
 **Grievance team**:
 Everyone in the current staff year's grievance departments, Heads included.
-Admins choose the departments (People and Culture and Compliance to start);
+From 1 October, until anyone has a role in the new staff year, last year's
+team carries on. Admins choose the departments (People and Culture and Compliance to start);
 the team alone sees every grievance, takes them on, gives them to each other,
 closes them and edits the form's options. Admins outside those departments
 can't see grievances.

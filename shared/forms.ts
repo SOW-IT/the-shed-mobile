@@ -224,6 +224,9 @@ const dateTimeProblem = (
     if (sign === 1 && value < otherValue) {
       return `"${field.shortLabel}" can't be before "${other.shortLabel}".`;
     }
+    if (sign === 1 && value === otherValue && field.role === "end") {
+      return `"${field.shortLabel}" has to be after "${other.shortLabel}".`;
+    }
     if (sign === -1 && value > otherValue) {
       return `"${field.shortLabel}" can't be after "${other.shortLabel}".`;
     }

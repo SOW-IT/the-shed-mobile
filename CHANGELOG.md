@@ -6,6 +6,37 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.16] - 2026-11-02
+
+### Fixed
+- **Only this year's grievance team sees grievances from October to
+  December.** Between 1 October and the end of the year, someone whose only
+  People and Culture or Compliance role was last year's could still open
+  every grievance, see its reference and close it. Now last year's team
+  carries on only until anyone has a role in the new staff year; from then
+  the new year's team alone sees and handles grievances, as the team list
+  and notifications already did.
+- **Grievances sent signed out with your email no longer block you signed
+  in.** The "three an hour" limit counted grievances sent signed out with an
+  address against that address's signed-in account too, so someone could
+  stop a staff member raising one. Signed-in and signed-out sending now each
+  have their own three an hour.
+- **Changes reach the shared Google Calendar after Google has a hiccup.** A
+  copy to Google that failed was never tried again, and an edit made while
+  it was being written was lost with it, so Google kept the old details
+  until the next change. A failed copy is now tried again after 1, 5 and 30
+  minutes with the latest details, and an edit that arrives mid-copy is
+  written again a minute later in case that copy never finishes.
+- **An event request has to end after it starts.** One ending at the same
+  minute it started could be approved but never went on the Calendar.
+- **Small wording fixes.** The Calendar's filter chips read "3 events" to
+  screen readers instead of "3 people"; the grievance team's notice for a
+  resolved grievance says "resolved it" instead of "closed it"; "Grievance
+  not found" names the grievance team's departments as set in Admin instead
+  of always People and Culture and Compliance; and a calendar event made
+  from an event request says "Event request", not "Calendar only", for
+  people who can't open the request.
+
 ## [2.10.15] - 2026-11-02
 
 ### Changed
