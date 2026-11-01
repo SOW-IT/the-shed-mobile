@@ -6,6 +6,73 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.14] - 2026-11-01
+
+### Added
+- **A week view on the Calendar, like Google Calendar's.** Switch between
+  Month and Week at the top. The week shows the hours down the side and
+  each event where it happens, side by side when they overlap, with events
+  running over several days and all-day deadlines in a strip along the top
+  and a red line at the time now. Tap an event to open it, or tap an empty
+  hour to add something then with the time filled in. The Calendar remembers
+  Month or Week on each phone or browser, and `/calendar?view=week` opens
+  the week.
+- **Deadlines for things that are due or going out.** "Add Event" has Event
+  and Deadline: a deadline is a name, a day and, if you like, a time, with
+  no end, for things like applications closing or a post going live. It
+  shows with a flag on the month, the week and the day's list ("Due
+  11:59 pm", or "Due all day"), and can be turned back into an event. The
+  shared Google Calendar gets it as an all-day event, with any time in its
+  title.
+- **Event requests can take attendance, and go on the Calendar once
+  approved.** The event form has a "Take attendance at this event" box. When
+  every form is signed off, an event that takes attendance becomes an SOW
+  attendance event; one that doesn't becomes a calendar event. Each links to
+  the others: the request has "Attendance" and "On the Calendar" buttons, the
+  roll-call says "From an event request", and the calendar row opens the
+  request. They follow the request: editing its name or times moves them,
+  ticking or unticking attendance swaps one for the other, and cancelling
+  removes them, except an attendance event someone was signed in to.
+
+### Changed
+- **Adding to the Calendar is simpler.** An entry is an Event or a Deadline,
+  with no Category or Where. Ticking "Take attendance" asks where it's held,
+  then carries on in Attendance's event form for its tags, whether it's a
+  weekly and any other campuses; an existing calendar event can be switched
+  to take attendance the same way, and becomes that attendance event. An
+  attendance event's calendar category now comes only from its tags (TWIG,
+  PPN), its term (Weekly) and where it's held (Campus or SOW event), so
+  Attendance's "Calendar category" picker is gone.
+- **Calendar takes Insights' place in the bottom bar.** For staff and campus
+  leaders the bottom bar is Home, Attendance, Calendar, Org Chart and
+  Grievances, and Insights moves to the side menu (it stays in the sidebar on
+  wide screens). Signed in without a staff role, Insights is still a tab.
+  Signed out, Insights isn't shown at all and a link to it opens Home, so the
+  public General numbers and "Sign in to view more" are gone.
+- **Events running over several days are one bar across the Calendar.** A
+  camp or retreat is a single bar from its first day to its last instead of a
+  separate row on each day, so it's easy to spot and its name has room. It
+  carries on along the next week's row when it runs past Sunday, and busy
+  days still end with "+N more".
+- **Weeklies and campus events wear their campus's colour.** A Weekly or
+  Campus event held at one campus is coloured like that campus everywhere
+  else in the app (USYD red, UNSW green, UTS blue, MACQ yellow, ACU purple,
+  WSU dark red) instead of the same blue or orange for every campus, and the
+  "Where" chips double as the key. One held at several campuses keeps the
+  Weekly or Campus event colour. The shared Google Calendar follows with the
+  nearest of Google's colours once each event is copied again.
+- **Send Grievance is at the end of the form** instead of pinned to the
+  bottom of the screen.
+- **Save and Cancel on Attendance's Tags and Metadata fade out** until
+  something has changed.
+- **The Calendar has one icon everywhere**: the bottom tab now uses the side
+  menu's, so it isn't mistaken for Event Requests.
+
+### Fixed
+- **Deleting a calendar entry works on iPhone.** Tapping Delete in a calendar
+  entry did nothing on iOS, because its "are you sure?" box couldn't open over
+  the entry; it now opens on top of it, as it always did on web.
+
 ## [2.10.13] - 2026-10-31
 
 ### Changed

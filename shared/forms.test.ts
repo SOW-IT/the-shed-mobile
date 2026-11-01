@@ -8,6 +8,7 @@ import {
   formatDateTimeRange,
   isValidDateTimeString,
   isValidUrl,
+  msFromSydneyDateTimeAnswer,
   normalizeAnswers,
   offeredOptions,
   questionNumber,
@@ -115,6 +116,14 @@ describe("the field kinds event requests added", () => {
     expect(answerForRole(FIELDS, { name: "SAF" }, "title")).toBe("SAF");
     expect(answerForRole(FIELDS, {}, "start")).toBe("");
     expect(answerForRole(FIELDS, {}, "location")).toBe("");
+  });
+
+  test("msFromSydneyDateTimeAnswer reads a Sydney date and time back", () => {
+    expect(msFromSydneyDateTimeAnswer("2026-01-12T13:00")).toBe(Date.UTC(2026, 0, 12, 2, 0));
+    expect(msFromSydneyDateTimeAnswer("2026-07-01T15:00")).toBe(Date.UTC(2026, 6, 1, 5, 0));
+    // 2:30 am on 4 October 2026 doesn't exist (clocks jump to 3 am): it reads as 3:30.
+    expect(sydneyDateTimeAnswer(msFromSydneyDateTimeAnswer("2026-10-04T02:30")!)).toBe("2026-10-04T03:30");
+    expect(msFromSydneyDateTimeAnswer("next Friday")).toBeNull();
   });
 });
 

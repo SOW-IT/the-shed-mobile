@@ -127,7 +127,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   thread. The Events department, the three teams, the Director and admins can
   see every event. Team emails go to marketing@, compliance@ and
   finance@sow.org.au. Any event downloads as a PDF whose Risk and Finance
-  pages follow the Governance Review Form.
+  pages follow the Governance Review Form. Once approved, an event goes on the
+  Calendar: as an SOW attendance event when "Take attendance at this event" is
+  ticked, otherwise as a calendar event. It links both ways and follows the
+  request's edits and cancelling (`convex/eventRequestLinks.ts`).
 - **Announcements** (`convex/announcements.ts`, rules in
   `shared/announcements.ts`), from the side menu for admins (the Human
   Resources division among them). A title and message go to **all leaders**
@@ -221,10 +224,13 @@ changing anything seasonal, the October 1 staff-year rollover in particular
 - **Notifications** (the bell): everything sent to you, unread first, loading
   older ones as you scroll (`notifications.feed`, 30 a page). Opening the
   screen marks everything read.
-- **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
-  Chart. On phones the top-left avatar, or a swipe from the left edge, opens
-  a side menu with Profile, Reimbursements (staff other than campus leaders),
-  Admin (admins and the Finance Head) and Sign out. Screens 700pt and wider
+- **Navigation**: bottom tabs Home, Attendance and Calendar (staff, campus
+  leaders included), Insights (signed in without a staff role), Org Chart,
+  Churches (anyone not on staff) and Grievances; signed out there's no
+  Insights at all, and `/insights` goes to Home. On phones the top-left
+  avatar, or a swipe from the left edge, opens a side menu with Profile,
+  Insights and Churches (staff), Requests (staff other than campus leaders),
+  Mentoring, Announcements, Admin (admins and the Finance Head) and Sign out. Screens 700pt and wider
   (iPad, desktop web) swap the top bar, bottom tabs and drawer for one
   permanent sidebar holding all of them (`src/components/nav/`,
   rules in `src/lib/navMenu.ts`).
@@ -245,18 +251,27 @@ A second feature area (ported from *time-to-rollcall*) for running roll-call at
 SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 `universities`) plus org-wide "SOW", all sharing one member pool.
 
-- **Calendar** (`convex/calendar.ts`, rules in `shared/calendar.ts`), from
-  the side menu for staff and campus leaders: a month with each day's events
-  as short coloured rows (the start of each name), then the picked day's
+- **Calendar** (`convex/calendar.ts`, rules in `shared/calendar.ts`), a
+  bottom tab for staff and campus leaders: a month where each event is a
+  coloured bar across the days it runs (the start of its name), or a week
+  with the hours down the side like Google Calendar's (Month or Week is
+  remembered per device; `?view=week` opens the week), then the picked day's
   events in full below. It shows every attendance event, wherever it was made,
-  plus **calendar entries** (`calendarEntries`): things like marketing
-  schedules and deadlines that don't take attendance, with optional notes.
-  "Add Event" adds an entry on the picked day, or an attendance event when
-  "Take attendance" is ticked. Whoever added an entry, or an admin, edits or
-  deletes it. Colours come from the category: TWIG and PPN from an attendance
-  event's tags, Weekly from its term and week, otherwise a picked category
-  (Campus event, SOW event, Marketing, Deadline or Other), or Campus/SOW by
-  where it's held. Chips filter by category and campus, and `/calendar?day=`
+  plus **calendar entries** (`calendarEntries`): things that don't take
+  attendance, with optional notes and no campus. "Add Event" adds an Event or
+  a **deadline** (a day and an optional time with no end, shown with a flag)
+  on the picked day, or the hour tapped on the week. Ticking "Take attendance"
+  asks where it's held and carries on in Attendance's event form (tags,
+  weekly, other campuses); an existing entry switched to take attendance is
+  replaced by the event (`events.create` `replacesEntryId`). Whoever added an
+  entry, or an admin, edits or deletes it. Nothing is picked: TWIG and PPN
+  come from an attendance event's tags, Weekly from its term and week, and
+  otherwise Campus or SOW event from where it's held; an entry is an Event or
+  a Deadline. A Weekly or Campus event at one campus takes that campus's
+  colour (in Google, the nearest of its colours). An approved **event
+  request** adds its own SOW attendance event (when it takes attendance) or
+  calendar event, and keeps it in step (`convex/eventRequestLinks.ts`). Chips
+  filter by category and campus, and `/calendar?day=`
   opens a day. Everything is copied one way to a shared Google Calendar
   (`convex/googleCalendar.ts`) once `GOOGLE_CALENDAR_ID` is set: see
   [Shared Google Calendar](#shared-google-calendar-optional).
@@ -313,7 +328,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   member / tag / metadata edits, merges and deletes, and each
   sign-in/edit/sign-out), read by the Attendance → Audit tab.
 - **CSV export**: export attendance.
-- **Insights** (a dedicated bottom tab): for a campus, its **weekly meetings**
+- **Insights** (signed in only: in the side menu for staff, a bottom tab for
+  others): for a campus, its **weekly meetings**
   by term (T1–T3 / Sem 1–2) or calendar year: cards against the term before
   (a year against last year), a
   follow-up list (people who were coming but stopped, newcomers who haven't

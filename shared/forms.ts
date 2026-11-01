@@ -137,6 +137,17 @@ export const sydneyDateTimeAnswer = (ms: number): string => {
   return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
 };
 
+// Back from "2026-11-20T18:00" in Sydney to a time. Sydney is 10 or 11 hours
+// ahead; a time skipped when the clocks go forward reads as an hour later.
+export const msFromSydneyDateTimeAnswer = (answer: string): number | null => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(answer);
+  if (!match) return null;
+  const [year, month, day, hour, minute] = match.slice(1).map(Number);
+  const wallClock = Date.UTC(year, month - 1, day, hour, minute);
+  const asSydney = (offsetHours: number) => wallClock - offsetHours * 3_600_000;
+  return sydneyDateTimeAnswer(asSydney(11)) === answer ? asSydney(11) : asSydney(10);
+};
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 

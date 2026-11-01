@@ -8,8 +8,9 @@ tags:
     env:
       EMAIL: ${STAFF_EMAIL}
       PASSWORD: ${STAFF_PASSWORD}
-- tapOn:
-    text: ".*Insights, tab.*"
+# Staff have the Calendar as a tab, so Insights is in the side menu.
+- runFlow: ../common/open-menu.yaml
+- tapOn: "Insights"
 
 - assertVisible: "General"
 - assertVisible: "Attendance"

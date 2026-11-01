@@ -99,6 +99,15 @@ export const EVENT_FIELDS: FormField[] = [
     role: "end",
   },
   {
+    key: "takeAttendance",
+    kind: "checkboxes",
+    label: "Attendance",
+    shortLabel: "Take attendance",
+    hint: "Once the event is approved it becomes an SOW attendance event, so people can be signed in.",
+    required: false,
+    options: [{ value: "yes", label: "Take attendance at this event" }],
+  },
+  {
     key: "registrationOpen",
     kind: "dateTime",
     label: "When should registrations open?",

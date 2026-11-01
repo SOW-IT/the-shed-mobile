@@ -408,6 +408,10 @@ export default defineSchema({
     cancelledBy: v.optional(v.string()),
     cancelNote: v.optional(v.string()),
     legacyKey: v.optional(v.string()),
+    // What approving it put on the Calendar: an attendance event when it takes
+    // attendance, otherwise a calendar event (see convex/eventRequestLinks.ts).
+    attendanceEventId: v.optional(v.id("events")),
+    calendarEntryId: v.optional(v.id("calendarEntries")),
   })
     .index("by_year_and_number", ["year", "number"])
     .index("by_requester_and_year", ["requesterEmail", "year"])
@@ -476,6 +480,8 @@ export default defineSchema({
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(weeklyMarkValidator),
     category: v.optional(calendarCategoryValidator),
+    // The approved event request this attendance event comes from.
+    eventRequestId: v.optional(v.id("eventRequests")),
     checkIn: v.optional(
       v.object({ token: v.string(), enabledAt: v.number(), enabledBy: v.string() })
     ),
@@ -495,6 +501,8 @@ export default defineSchema({
   calendarEntries: defineTable({
     ...entryFields,
     createdBy: v.string(),
+    // The approved event request this calendar event comes from.
+    eventRequestId: v.optional(v.id("eventRequests")),
   }).index("by_dateStart", ["dateStart"]),
 
   eventAttendanceCounts: defineTable({

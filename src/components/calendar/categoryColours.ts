@@ -1,4 +1,4 @@
-import type { CalendarCategory } from "@shared/calendar";
+import { campusColourOf, type CalendarCategory } from "@shared/calendar";
 
 // Mid-tone colours that read on both the cream and the dark theme.
 export const CATEGORY_COLOURS: Record<CalendarCategory, string> = {
@@ -7,7 +7,9 @@ export const CATEGORY_COLOURS: Record<CalendarCategory, string> = {
   weekly: "#3a86c8",
   campus: "#d07a2d",
   sow: "#14958a",
-  marketing: "#d4527a",
+  event: "#6b7f99",
   deadline: "#d1453b",
-  other: "#8a8a80",
 };
+
+export const eventColour = (event: { category: CalendarCategory; subgroups: string[] }): string =>
+  campusColourOf(event.category, event.subgroups) ?? CATEGORY_COLOURS[event.category];

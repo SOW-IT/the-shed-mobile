@@ -226,18 +226,28 @@ Newcomers who missed the last one while their visit is recent. Visitors have
 their own list. A prompt for a leader, never a judgement.
 
 **Calendar category**:
-How the Calendar colours and filters an event: TWIG or PPN from its tags,
-Weekly from its term and week, otherwise the category picked on the event
-(Campus event, SOW event, Marketing, Deadline, Other), or Campus/SOW event by
-whether it's held at SOW. Picking a category never changes Insights.
+How the Calendar colours and filters something, and never picked: an
+attendance event is TWIG or PPN from its tags, Weekly from its term and week,
+otherwise Campus or SOW event by whether it's held at SOW; a calendar entry is
+an Event, or a Deadline when it's due. A Weekly or Campus event at one campus
+is coloured by that campus instead, but still filters under its category.
 _Avoid_: event type, calendar tag
 
 **Calendar entry**:
 Something on the Calendar that doesn't take attendance, like a marketing
-schedule or a deadline: a name, when, where, a category and optional notes.
+schedule or a deadline: a name, when and optional notes, with no campus.
+Switching one to take attendance makes it an attendance event instead.
 Whoever added it, or an admin, can change it. Attendance events are on the
-Calendar too; an entry is never an attendance event.
+Calendar too; an entry is never an attendance event. An entry either runs
+from a start to an end, or is a **deadline**.
 _Avoid_: event (for an entry), reminder
+
+**Deadline** (Calendar):
+A calendar entry for one moment rather than a span: something due or going
+out, like applications closing or a post going live. It's due on a day, or at
+a time on that day, has no end, and is shown with a flag. Not the same as the
+Deadline category, though a deadline can have it.
+_Avoid_: task, due date (for the entry), reminder
 
 **TWIG** / **PPN** (SOW Insights):
 A TWIG is an event with the Other-events TWIG tag and no PPN tag; a PPN here

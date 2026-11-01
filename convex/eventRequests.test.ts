@@ -689,6 +689,161 @@ describe("going ahead", () => {
   });
 });
 
+describe("on the Calendar", () => {
+  const approveAll = async (t: T, id: Id<"eventRequests">) => {
+    await submitMarketing(t, id);
+    await approve(t, id, "marketing", MIKE);
+    await submitRisk(t, id, risks({ noRisks: true }));
+    await submitFinance(t, id);
+    await approve(t, id, "finance", FIONA);
+  };
+  const request = (t: T, id: Id<"eventRequests">) => t.run((ctx) => ctx.db.get("eventRequests", id));
+  const onCalendar = async (t: T) =>
+    (await asUser(t, EVA).query(api.calendar.range, { from: PINNED_NOW, to: PINNED_NOW + 60 * DAY }))!.map(
+      (row) => ({ kind: row.kind, name: row.name, category: row.category, eventRequestId: row.eventRequestId, canEdit: row.canEdit })
+    );
+
+  test("nothing shows until it's approved; then it's a calendar event that follows the request", async () => {
+    const t = await setup();
+    const id = await create(t);
+    expect(await onCalendar(t)).toEqual([]);
+    await approveAll(t, id);
+    const linked = (await request(t, id))!;
+    expect(linked.attendanceEventId).toBeUndefined();
+    const entry = (await t.run((ctx) => ctx.db.get("calendarEntries", linked.calendarEntryId!)))!;
+    expect(entry).toMatchObject({ name: "[TEST] SAF27", eventRequestId: id, createdBy: EVA });
+    expect(sydneyDateTimeAnswer(entry.dateStart)).toBe(at(40, 11));
+    expect(sydneyDateTimeAnswer(entry.dateEnd)).toBe(at(40, 17));
+    expect(await onCalendar(t)).toEqual([
+      { kind: "entry", name: "[TEST] SAF27", category: "event", eventRequestId: id, canEdit: false },
+    ]);
+    await expect(
+      asUser(t, ADMIN).mutation(api.calendar.removeEntry, { id: linked.calendarEntryId! })
+    ).rejects.toThrow("comes from an event request");
+
+    // Reopened and edited: the calendar event is renamed and moved.
+    await asUser(t, EVA).mutation(api.eventSubForms.reopen, { id, form: "finance" });
+    await asUser(t, EVA).mutation(api.eventRequests.update, {
+      id,
+      answers: eventAnswers({ name: "[TEST] SAF27 dinner", start: at(41, 18), end: at(41, 21) }),
+    });
+    const moved = (await t.run((ctx) => ctx.db.get("calendarEntries", linked.calendarEntryId!)))!;
+    expect(moved.name).toBe("[TEST] SAF27 dinner");
+    expect(sydneyDateTimeAnswer(moved.dateStart)).toBe(at(41, 18));
+
+    await asUser(t, EVA).mutation(api.eventRequests.cancel, { id });
+    expect(await onCalendar(t)).toEqual([]);
+    expect((await request(t, id))!.calendarEntryId).toBeUndefined();
+  });
+
+  test("with Take attendance ticked, approving makes an SOW attendance event instead", async () => {
+    const t = await setup();
+    const id = await create(t, EVA, { takeAttendance: ["yes"] });
+    expect((await get(t, id)).event.answers.takeAttendance).toEqual(["yes"]);
+    await approveAll(t, id);
+    const linked = (await request(t, id))!;
+    expect(linked.calendarEntryId).toBeUndefined();
+    const event = (await t.run((ctx) => ctx.db.get("events", linked.attendanceEventId!)))!;
+    expect(event).toMatchObject({ name: "[TEST] SAF27", subgroups: ["SOW"], eventRequestId: id });
+    expect(await onCalendar(t)).toEqual([
+      { kind: "attendance", name: "[TEST] SAF27", category: "sow", eventRequestId: id, canEdit: false },
+    ]);
+
+    // Edited with attendance still ticked: the attendance event is renamed and moved.
+    await asUser(t, EVA).mutation(api.eventSubForms.reopen, { id, form: "finance" });
+    await asUser(t, EVA).mutation(api.eventRequests.update, {
+      id,
+      answers: eventAnswers({ takeAttendance: ["yes"], name: "[TEST] SAF27 gala", start: at(42, 18), end: at(42, 22) }),
+    });
+    const moved = (await t.run((ctx) => ctx.db.get("events", event._id)))!;
+    expect(moved.name).toBe("[TEST] SAF27 gala");
+    expect(sydneyDateTimeAnswer(moved.dateEnd)).toBe(at(42, 22));
+    const audit = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
+    expect(audit.some((a) => /^Updated event "\[TEST\] SAF27 gala".* from its event request$/.test(a.summary))).toBe(true);
+
+    // Unticked: nobody was signed in, so the attendance event goes and a calendar event takes its place.
+    await asUser(t, EVA).mutation(api.eventRequests.update, { id, answers: eventAnswers() });
+    expect(await t.run((ctx) => ctx.db.get("events", event._id))).toBeNull();
+    expect((await onCalendar(t)).map((row) => row.kind)).toEqual(["entry"]);
+
+    // Ticked again: back to an attendance event, and the calendar event goes.
+    await asUser(t, EVA).mutation(api.eventRequests.update, {
+      id,
+      answers: eventAnswers({ takeAttendance: ["yes"], name: "[TEST] SAF27 again" }),
+    });
+    expect(await onCalendar(t)).toEqual([
+      { kind: "attendance", name: "[TEST] SAF27 again", category: "sow", eventRequestId: id, canEdit: false },
+    ]);
+  });
+
+  test("an attendance event people were signed in to stays, even when the request is cancelled", async () => {
+    const t = await setup();
+    const id = await create(t, EVA, { takeAttendance: ["yes"] });
+    await approveAll(t, id);
+    const eventId = (await request(t, id))!.attendanceEventId!;
+    await t.run(async (ctx) => {
+      const count = await ctx.db
+        .query("eventAttendanceCounts")
+        .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
+        .unique();
+      await ctx.db.patch("eventAttendanceCounts", count!._id, { count: 3 });
+    });
+    await asUser(t, EVA).mutation(api.eventSubForms.reopen, { id, form: "finance" });
+    await asUser(t, EVA).mutation(api.eventRequests.update, { id, answers: eventAnswers() });
+    expect(await t.run((ctx) => ctx.db.get("events", eventId))).not.toBeNull();
+    expect((await onCalendar(t)).map((row) => row.kind)).toEqual(["attendance"]);
+    await asUser(t, EVA).mutation(api.eventRequests.cancel, { id });
+    expect(await t.run((ctx) => ctx.db.get("events", eventId))).not.toBeNull();
+    expect((await request(t, id))!.attendanceEventId).toBe(eventId);
+  });
+
+  test("only people who can open the request get its link, and its name and times follow the request", async () => {
+    const t = await setup();
+    const id = await create(t, EVA, { takeAttendance: ["yes"] });
+    await approveAll(t, id);
+    const eventId = (await request(t, id))!.attendanceEventId!;
+    const window = { from: PINNED_NOW, to: PINNED_NOW + 60 * DAY };
+    const linkFor = async (email: string) =>
+      (await asUser(t, email).query(api.calendar.range, window))![0].eventRequestId;
+    expect(await linkFor(EVA)).toBe(id);
+    expect(await linkFor(OLLIE)).toBeNull();
+    expect(await linkFor(LEE)).toBeNull();
+    const asSeenBy = (email: string) => asUser(t, email).query(api.events.get, { eventId });
+    expect(await asSeenBy(EVA)).toMatchObject({ fromEventRequest: true, eventRequestId: id });
+    const outsider = (await asSeenBy(OLLIE))!;
+    expect(outsider.fromEventRequest).toBe(true);
+    expect(outsider.eventRequestId).toBeUndefined();
+
+    const event = (await t.run((ctx) => ctx.db.get("events", eventId)))!;
+    const same = { eventId, name: event.name, dateStart: event.dateStart, dateEnd: event.dateEnd, subgroups: ["SOW"] };
+    await expect(asUser(t, EVA).mutation(api.events.update, { ...same, name: "Renamed" })).rejects.toThrow(
+      "come from its event request"
+    );
+    await expect(
+      asUser(t, EVA).mutation(api.events.update, { ...same, dateEnd: event.dateEnd + DAY })
+    ).rejects.toThrow("come from its event request");
+    await asUser(t, EVA).mutation(api.events.update, same);
+  });
+
+  test("a request longer than the Calendar shows is cut to 31 days there", async () => {
+    const t = await setup();
+    const id = await create(t, EVA, { end: at(80, 17) });
+    await approveAll(t, id);
+    const entryId = (await request(t, id))!.calendarEntryId!;
+    const saved = (await t.run((ctx) => ctx.db.get("calendarEntries", entryId)))!;
+    expect(saved.dateEnd - saved.dateStart).toBe(31 * DAY);
+  });
+
+  test("deleting the attendance event in Attendance unlinks it", async () => {
+    const t = await setup();
+    const id = await create(t, EVA, { takeAttendance: ["yes"] });
+    await approveAll(t, id);
+    const eventId = (await request(t, id))!.attendanceEventId!;
+    await asUser(t, EVA).mutation(api.events.remove, { eventId });
+    expect((await request(t, id))!.attendanceEventId).toBeUndefined();
+  });
+});
+
 describe("lists", () => {
   test("mine, review and all", async () => {
     const t = await setup();

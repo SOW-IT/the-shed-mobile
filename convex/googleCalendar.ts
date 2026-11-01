@@ -10,6 +10,7 @@ import {
 } from "./_generated/server";
 import {
   calendarCategoryOf,
+  entryCategory,
   googleEventBody,
   googleEventId,
   sydneyDayKey,
@@ -46,7 +47,7 @@ async function eventBodyFor(ctx: QueryCtx, event: Doc<"events">): Promise<Google
 const entryBodyFor = (entry: Doc<"calendarEntries">): GoogleBody =>
   googleEventBody(
     entry,
-    entry.category,
+    entryCategory(entry),
     appUrl(`/calendar?day=${sydneyDayKey(entry.dateStart)}`),
     entry.notes
   );

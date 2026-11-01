@@ -10,7 +10,7 @@ tags:
 
 - assertVisible:
     text: ".*Home, tab.*"
-- assertVisible:
+- assertNotVisible:
     text: ".*Insights, tab.*"
 
 - assertNotVisible:
