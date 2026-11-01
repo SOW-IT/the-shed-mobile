@@ -98,6 +98,7 @@ describe("calendar.range", () => {
     await create(t, { name: "PPN", tagIds: [twig, ppn] });
     await create(t, { name: "Leaders' retreat", subgroups: ["SOW"] });
     await create(t, { name: "Welcome week stall" });
+    // A category picked on an attendance event before 2.10.14 is ignored.
     await create(t, { name: "Camp posters due", category: "deadline", ...at(2) });
     await create(t, { name: "Camp", ...at(-3, 5 * 24) });
     await create(t, { name: "Long gone", ...at(-20) });
@@ -113,7 +114,7 @@ describe("calendar.range", () => {
       ["PPN", "ppn"],
       ["Leaders' retreat", "sow"],
       ["Welcome week stall", "campus"],
-      ["Camp posters due", "deadline"],
+      ["Camp posters due", "campus"],
     ]);
     expect(rows![0].subgroups).toEqual([USYD]);
     expect(rows![1].tags).toEqual([{ name: "TWIG", colour: "#123456" }]);
@@ -306,8 +307,9 @@ describe("calendar entries", () => {
 
     const window = { from: NOW, to: NOW + 10 * DAY };
     const mine = await asUser(t, STAFF).query(api.calendar.range, window);
+    // An entry is an Event unless it's due; the category an older app sent is ignored.
     expect(mine).toEqual([
-      expect.objectContaining({ kind: "entry", id, category: "deadline", notes: "Print 200", canEdit: true }),
+      expect.objectContaining({ kind: "entry", id, category: "event", notes: "Print 200", canEdit: true }),
     ]);
     expect((await asUser(t, OTHER).query(api.calendar.range, window))![0].canEdit).toBe(false);
     expect((await asUser(t, ADMIN).query(api.calendar.range, window))![0].canEdit).toBe(true);
@@ -353,6 +355,35 @@ describe("calendar entries", () => {
     expect(saved!.dateEnd).toBeGreaterThan(saved!.dateStart);
   });
 
+  test("an entry needs no campus", async () => {
+    const { t } = await setupWithStaff();
+    const { subgroups: _subgroups, category: _category, ...noWhere } = entry();
+    const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, noWhere);
+    const [row] = (await asUser(t, STAFF).query(api.calendar.range, { from: NOW, to: NOW + 10 * DAY }))!;
+    expect(row).toMatchObject({ id, subgroups: [], category: "event" });
+  });
+
+  test("taking attendance turns an entry into an attendance event, in one go", async () => {
+    const { t } = await setupWithStaff();
+    await configureGoogle();
+    googleFetch([]);
+    const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, entry());
+    const asEvent = { name: "Camp posters due", subgroups: [USYD], ...at(3), replacesEntryId: id };
+    await expect(asUser(t, OTHER).mutation(api.events.create, asEvent)).rejects.toThrow("Only whoever added it");
+    expect(await t.run((ctx) => ctx.db.query("events").collect())).toHaveLength(0);
+
+    const eventId = await asUser(t, STAFF).mutation(api.events.create, asEvent);
+    expect(await t.run((ctx) => ctx.db.get("calendarEntries", id))).toBeNull();
+    const rows = await asUser(t, STAFF).query(api.calendar.range, { from: NOW, to: NOW + 10 * DAY });
+    expect(rows!.map((r) => [r.kind, r.id, r.category])).toEqual([["attendance", eventId, "campus"]]);
+    expect((await scheduledSyncs(t)).map((f) => [f.name, f.args[0]])).toEqual(
+      expect.arrayContaining([
+        ["googleCalendar:syncEntry", { entryId: id }],
+        ["googleCalendar:syncEvent", { eventId }],
+      ])
+    );
+  });
+
   test("changes are copied to Google once a calendar is set up", async () => {
     const { t } = await setupWithStaff();
     await configureGoogle();
@@ -379,7 +410,7 @@ describe("googleCalendar for entries", () => {
     await configureGoogle();
     let calls = googleFetch([200]);
     await t.action(internal.googleCalendar.syncEntry, { entryId: id });
-    expect(calls[0]).toMatchObject({ method: "PUT", body: { summary: "Camp posters due", colorId: "4" } });
+    expect(calls[0]).toMatchObject({ method: "PUT", body: { summary: "Camp posters due", colorId: "1" } });
     expect(String(calls[0].body!.description)).toContain("Print 200");
     expect(String(calls[0].body!.description)).toContain("/calendar?day=");
 

@@ -7,9 +7,8 @@ export const CATEGORY_COLOURS: Record<CalendarCategory, string> = {
   weekly: "#3a86c8",
   campus: "#d07a2d",
   sow: "#14958a",
-  marketing: "#d4527a",
+  event: "#6b7f99",
   deadline: "#d1453b",
-  other: "#8a8a80",
 };
 
 export const eventColour = (event: { category: CalendarCategory; subgroups: string[] }): string =>

@@ -3,24 +3,11 @@ import { acronym, SYDNEY_TIME_ZONE, sydneyYmd, universityColour } from "./flow";
 import { isOrgWideSubgroup, SOW_SUBGROUP, subgroupLabel, type TagList } from "./rollcall";
 import { sowModeOf } from "./sowInsights";
 
-export type CalendarCategory =
-  | "twig"
-  | "ppn"
-  | "weekly"
-  | "campus"
-  | "sow"
-  | "marketing"
-  | "deadline"
-  | "other";
-
-// TWIG and PPN come from an event's tags and Weekly from its term and week,
-// so Insights and the calendar always agree; the rest can be picked.
-export const PICKABLE_CATEGORIES = ["campus", "sow", "marketing", "deadline", "other"] as const;
-export type PickableCategory = (typeof PICKABLE_CATEGORIES)[number];
-
-// A calendar-only entry has no tags or term, so it can be any category but Weekly.
-export const ENTRY_CATEGORIES = ["twig", "ppn", "campus", "sow", "marketing", "deadline", "other"] as const;
-export type EntryCategory = (typeof ENTRY_CATEGORIES)[number];
+// Nothing is picked. An attendance event's comes from its tags (TWIG, PPN),
+// its term and week (Weekly) or where it's held (Campus or SOW event), so
+// Insights and the calendar always agree; a calendar entry is an Event, or a
+// Deadline when it's due rather than running from a start to an end.
+export type CalendarCategory = "twig" | "ppn" | "weekly" | "campus" | "sow" | "event" | "deadline";
 
 // A deadline is one moment rather than a span, like applications closing or a
 // post going live: due on a day, or at a time on it.
@@ -36,24 +23,27 @@ export const CALENDAR_CATEGORIES: { key: CalendarCategory; label: string }[] = [
   { key: "weekly", label: "Weekly" },
   { key: "campus", label: "Campus event" },
   { key: "sow", label: "SOW event" },
-  { key: "marketing", label: "Marketing" },
+  { key: "event", label: "Event" },
   { key: "deadline", label: "Deadline" },
-  { key: "other", label: "Other" },
 ];
 
 export const calendarCategoryLabel = (key: CalendarCategory): string =>
   CALENDAR_CATEGORIES.find((c) => c.key === key)?.label as string;
 
+// An attendance event's category. One picked before 2.10.14 is ignored.
 export const calendarCategoryOf = (
-  event: { category?: PickableCategory; weekly?: unknown; subgroups: string[] },
+  event: { weekly?: unknown; subgroups: string[] },
   tags: { name: string; list?: TagList }[]
 ): CalendarCategory => {
   const sow = sowModeOf(tags);
   if (sow) return sow;
   if (event.weekly) return "weekly";
-  if (event.category) return event.category;
   return event.subgroups.includes(SOW_SUBGROUP) ? "sow" : "campus";
 };
+
+// A calendar entry's category. Any category or campus stored before 2.10.14 is ignored.
+export const entryCategory = (entry: { due?: Due }): "event" | "deadline" =>
+  entry.due ? "deadline" : "event";
 
 // A Weekly or Campus event at one campus wears that campus's colour; at
 // several, or at one without a colour, it keeps its category's.
@@ -67,11 +57,13 @@ export const campusColourOf = (
     ? universityColour(subgroups[0])
     : undefined;
 
+// Calendar entries have no campus; `subgroups` is only checked when an
+// older version of the app still sends it.
 export type EntryInput = {
   name: string;
   dateStart: number;
   dateEnd: number;
-  subgroups: string[];
+  subgroups?: string[];
   notes?: string;
   due?: Due;
 };
@@ -79,7 +71,7 @@ export type EntryInput = {
 export const normalizeEntry = <E extends EntryInput>(entry: E): E => ({
   ...entry,
   name: entry.name.trim(),
-  subgroups: [...new Set(entry.subgroups)],
+  subgroups: [...new Set(entry.subgroups ?? [])],
   notes: entry.notes?.trim() || undefined,
   // Always present, so turning a deadline back into an event clears it.
   due: entry.due,
@@ -95,8 +87,7 @@ export const entryProblem = (entry: EntryInput, validSubgroups: string[]): strin
   } else if (entry.dateEnd - entry.dateStart > MAX_SPAN_DAYS * DAY_MS) {
     return `It can run for at most ${MAX_SPAN_DAYS} days.`;
   }
-  if (entry.subgroups.length === 0) return "Pick at least one campus, or SOW.";
-  const unknown = entry.subgroups.find((s) => !validSubgroups.includes(s));
+  const unknown = (entry.subgroups ?? []).find((s) => !validSubgroups.includes(s));
   if (unknown) return `"${unknown}" isn't a campus this year.`;
   if ((entry.notes?.length ?? 0) > MAX_ENTRY_NOTES) {
     return `Notes can be at most ${MAX_ENTRY_NOTES} characters.`;
@@ -355,9 +346,8 @@ const GOOGLE_COLOURS: Record<CalendarCategory, string> = {
   weekly: "7",
   campus: "9",
   sow: "11",
-  marketing: "6",
+  event: "1",
   deadline: "4",
-  other: "8",
 };
 
 // The nearest of Google's colours to each campus's.
@@ -388,7 +378,7 @@ const googleWhen = (event: { dateStart: number; dateEnd: number; due?: Due }) =>
 };
 
 export const googleEventBody = (
-  event: { name: string; dateStart: number; dateEnd: number; subgroups: string[]; due?: Due },
+  event: { name: string; dateStart: number; dateEnd: number; subgroups?: string[]; due?: Due },
   category: CalendarCategory,
   link: string,
   notes?: string
@@ -397,13 +387,13 @@ export const googleEventBody = (
     event.due === "time" ? `${event.name} · ${clockTime(sydneyMinutes(event.dateStart))}` : event.name,
   description: [
     calendarCategoryLabel(category),
-    event.subgroups.map(subgroupLabel).join(", "),
+    (event.subgroups ?? []).map(subgroupLabel).join(", "),
     notes ?? "",
     `Open in THE SHED: ${link}`,
   ]
     .filter(Boolean)
     .join("\n"),
   ...googleWhen(event),
-  colorId: googleColourOf(category, event.subgroups),
+  colorId: googleColourOf(category, event.subgroups ?? []),
   status: "confirmed",
 });

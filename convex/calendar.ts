@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { calendarCategoryOf, entryProblem, normalizeEntry } from "../shared/calendar";
+import { calendarCategoryOf, entryCategory, entryProblem, normalizeEntry } from "../shared/calendar";
 import { eventStaffYear } from "../shared/flow";
 import { normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import { entryFields } from "./calendarData";
@@ -40,6 +40,14 @@ async function requireEditableEntry(ctx: MutationCtx, id: Id<"calendarEntries">)
     throw new ConvexError("Only whoever added it, or an admin, can change this entry.");
   }
   return entry;
+}
+
+// When an entry starts taking attendance it becomes an attendance event: the
+// event is created and the entry removed in the same transaction.
+export async function removeReplacedEntry(ctx: MutationCtx, entryId: Id<"calendarEntries">) {
+  await requireEditableEntry(ctx, entryId);
+  await ctx.db.delete("calendarEntries", entryId);
+  await syncEntry(ctx, entryId);
 }
 
 async function syncEntry(ctx: MutationCtx, entryId: Id<"calendarEntries">) {
@@ -136,8 +144,8 @@ export const range = query({
       name: entry.name,
       dateStart: entry.dateStart,
       dateEnd: entry.dateEnd,
-      subgroups: normalizeSubgroups(entry.subgroups),
-      category: entry.category,
+      subgroups: normalizeSubgroups(entry.subgroups ?? []),
+      category: entryCategory(entry),
       tags: [],
       notes: entry.notes ?? null,
       due: entry.due ?? null,

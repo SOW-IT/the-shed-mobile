@@ -24,6 +24,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import { removeReplacedEntry } from "./calendar";
 import { optionalProfile, requireProfile } from "./model";
 import { memberAuditName } from "./attendanceMembers";
 import { readSettings } from "./weeklyInsights";
@@ -368,9 +369,12 @@ export const create = mutation({
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(weeklyMarkArg),
     category: v.optional(calendarCategoryValidator),
+    // A calendar entry this event replaces, when an entry starts taking attendance.
+    replacesEntryId: v.optional(v.id("calendarEntries")),
   },
-  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds, weekly, category }) => {
+  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds, weekly, category, replacesEntryId }) => {
     const { email } = await requireProfile(ctx);
+    if (replacesEntryId) await removeReplacedEntry(ctx, replacesEntryId);
     const eventFields = await validateEventFields(ctx, {
       name,
       dateStart,

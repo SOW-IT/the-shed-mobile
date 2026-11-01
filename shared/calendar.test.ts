@@ -3,6 +3,7 @@ import { universityColour } from "./flow";
 import {
   calendarCategoryLabel,
   campusColourOf,
+  entryCategory,
   clockTime,
   entryProblem,
   normalizeEntry,
@@ -29,14 +30,22 @@ const sydney = (iso: string) => new Date(`${iso}+11:00`).getTime();
 
 describe("calendarCategoryOf", () => {
   const campus = { subgroups: ["UNSW"] };
-  test("tags, then weekly, then the picked category, then where it's held", () => {
+  test("tags, then weekly, then where it's held; a category picked before is ignored", () => {
     expect(calendarCategoryOf(campus, [{ name: "TWIG" }])).toBe("twig");
     expect(calendarCategoryOf(campus, [{ name: "TWIG" }, { name: "PPN" }])).toBe("ppn");
     expect(calendarCategoryOf({ ...campus, weekly: { week: 1 } }, [])).toBe("weekly");
-    expect(calendarCategoryOf({ ...campus, category: "marketing" }, [])).toBe("marketing");
+    const picked = { ...campus, category: "marketing" };
+    expect(calendarCategoryOf(picked, [])).toBe("campus");
     expect(calendarCategoryOf({ subgroups: ["SOW"] }, [])).toBe("sow");
     expect(calendarCategoryOf(campus, [{ name: "PPN" }])).toBe("campus");
     expect(calendarCategoryLabel("deadline")).toBe("Deadline");
+  });
+
+  test("a calendar entry is an Event, or a Deadline when it's due", () => {
+    expect(entryCategory({})).toBe("event");
+    expect(entryCategory({ due: "day" })).toBe("deadline");
+    expect(entryCategory({ due: "time" })).toBe("deadline");
+    expect(calendarCategoryLabel("event")).toBe("Event");
   });
 });
 
@@ -350,7 +359,6 @@ describe("calendar entries", () => {
     [{ name: "x".repeat(121) }, "at most 120 characters"],
     [{ dateEnd: 1_000 }, "It has to end after it starts."],
     [{ dateEnd: 1_000 + 32 * 86_400_000 }, "at most 31 days"],
-    [{ subgroups: [] }, "Pick at least one campus, or SOW."],
     [{ subgroups: ["Hogwarts"] }, "isn't a campus this year"],
     [{ notes: "x".repeat(1001) }, "Notes can be at most 1000 characters."],
     [{ due: "time" as const }, "A deadline is one moment, with no end."],
@@ -361,6 +369,11 @@ describe("calendar entries", () => {
     expect(entryProblem({ ...base, subgroups: ["UNSW"], notes: "Print 200" }, valid)).toBeNull();
     expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "day" }, valid)).toBeNull();
     expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "time" }, valid)).toBeNull();
+  });
+  test("an entry needs no campus; one sent by an older app is still checked", () => {
+    const noWhere = { name: "Team lunch", dateStart: 1_000, dateEnd: 2_000 };
+    expect(entryProblem(noWhere, valid)).toBeNull();
+    expect(normalizeEntry(noWhere)).toMatchObject({ subgroups: [] });
   });
   test("parseDayKey only accepts real days", () => {
     expect(parseDayKey("2026-11-20")).toBe("2026-11-20");

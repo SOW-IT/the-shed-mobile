@@ -25,6 +25,7 @@ import { universityColour } from "@shared/flow";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import { useWideLayout } from "@/components/nav/layout";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { type AttendanceDraft, CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { CalendarEntrySheet, type EditableEntry } from "@/components/calendar/CalendarEntrySheet";
 import { CATEGORY_COLOURS } from "@/components/calendar/categoryColours";
 import { dayTitle } from "@/components/calendar/dayTitle";
@@ -86,6 +87,7 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
   const t = useAppTheme();
   const campusColour = campusColourOf(event.category, event.subgroups);
   const colour = campusColour ?? CATEGORY_COLOURS[event.category];
+  // Calendar entries have no campus; attendance events always do.
   const where = event.subgroups.map(subgroupLabel).join(", ");
   const multiDay = daysOf(event.dateStart, event.dateEnd).length > 1;
   const at = (ms: number) => (multiDay ? `${shortDay(ms)}, ${sydneyTime(ms)}` : sydneyTime(ms));
@@ -100,7 +102,7 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? "button" : undefined}
-      accessibilityLabel={`${event.name}, ${calendarCategoryLabel(event.category)}, ${when}, ${where}`}
+      accessibilityLabel={[event.name, calendarCategoryLabel(event.category), when, where].filter(Boolean).join(", ")}
       style={({ pressed }) => [styles.eventRow, pressed && { opacity: 0.6 }]}
     >
       <View style={[styles.eventBar, { backgroundColor: colour }]} />
@@ -116,7 +118,7 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
           <Text style={{ color: campusColour ? t.text : colour, fontWeight: "800" }}>
             {calendarCategoryLabel(event.category)}
           </Text>
-          {` · ${where}`}
+          {where ? ` · ${where}` : ""}
           {event.kind === "entry" ? " · Calendar only" : ""}
         </Text>
         {event.notes ? (
@@ -167,6 +169,10 @@ export default function CalendarScreen() {
   // A time picked on the week view, for the new event.
   const [addTime, setAddTime] = useState<string | undefined>();
   const [editing, setEditing] = useState<EditableEntry | null>(null);
+  // Taking attendance carries on in Attendance's event form.
+  const [attendanceDraft, setAttendanceDraft] = useState<{ subgroup: string; draft: AttendanceDraft } | null>(
+    null
+  );
   const wide = useWideLayout();
   const scrollRef = useRef<ScrollViewInstance>(null);
   const gridBottom = useRef(0);
@@ -247,8 +253,6 @@ export default function CalendarScreen() {
               name: event.name,
               dateStart: event.dateStart,
               dateEnd: event.dateEnd,
-              subgroups: event.subgroups,
-              category: event.category as EditableEntry["category"],
               notes: event.notes,
               due: event.due,
             })
@@ -510,6 +514,20 @@ export default function CalendarScreen() {
           subgroups={subgroups}
           defaultSubgroup={subgroup}
           entry={editing ?? undefined}
+          onTakeAttendance={(owner, draft) => {
+            setAdding(false);
+            setEditing(null);
+            setAttendanceDraft({ subgroup: owner, draft });
+          }}
+        />
+      ) : null}
+      {subgroup && subgroups ? (
+        <CreateEventSheet
+          visible={attendanceDraft !== null}
+          onClose={() => setAttendanceDraft(null)}
+          subgroup={attendanceDraft?.subgroup ?? subgroup}
+          subgroups={subgroups}
+          draft={attendanceDraft?.draft}
         />
       ) : null}
     </>

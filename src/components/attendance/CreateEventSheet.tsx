@@ -46,11 +46,6 @@ import {
   tagListOf,
 } from "../../../shared/rollcall";
 import {
-  calendarCategoryLabel,
-  PICKABLE_CATEGORIES,
-  type PickableCategory,
-} from "../../../shared/calendar";
-import {
   DEFAULT_WEEKLY_SETTINGS,
   nextWeeklyDate,
   termSystemFor,
@@ -68,13 +63,19 @@ const timeInputFromMs = (ms: number): string => toTimeInputValue(new Date(ms));
 
 type EditableEvent = Pick<
   Doc<"events">,
-  "_id" | "name" | "dateStart" | "dateEnd" | "subgroups" | "tagIds" | "weekly" | "category"
+  "_id" | "name" | "dateStart" | "dateEnd" | "subgroups" | "tagIds" | "weekly"
 >;
 
-const CATEGORY_OPTIONS = [
-  { value: "", label: "Automatic: campus or SOW event" },
-  ...PICKABLE_CATEGORIES.map((key) => ({ value: key, label: calendarCategoryLabel(key) })),
-];
+// From the Calendar: what was filled in there, and the calendar entry this
+// replaces when an entry starts taking attendance.
+export type AttendanceDraft = {
+  name: string;
+  dateStr: string;
+  endDateStr: string;
+  startTime: string;
+  endTime: string;
+  replacesEntryId?: Id<"calendarEntries">;
+};
 
 type Kind = "weekly" | "event";
 type TermPick = { year: number; slot: number };
@@ -92,6 +93,7 @@ export function CreateEventSheet({
   subgroup,
   subgroups,
   event,
+  draft,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -99,6 +101,7 @@ export function CreateEventSheet({
   subgroup: string;
   subgroups: string[];
   event?: EditableEvent;
+  draft?: AttendanceDraft;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -120,7 +123,6 @@ export function CreateEventSheet({
   const [nameTouched, setNameTouched] = useState(false);
   const [whenTouched, setWhenTouched] = useState(false);
   const [selectedTags, setSelectedTags] = useState<Id<"attendanceTags">[]>([]);
-  const [category, setCategory] = useState<PickableCategory | "">("");
   const [collaborators, setCollaborators] = useState<string[]>([subgroup]);
   const [sharing, setSharing] = useState(false);
   const [dateStr, setDateStr] = useState(defaultDate());
@@ -140,7 +142,6 @@ export function CreateEventSheet({
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [initial, setInitial] = useState({
     name: "",
-    category: "" as PickableCategory | "",
     tags: [] as Id<"attendanceTags">[],
     collaborators: [subgroup],
     dateStr: defaultDate(),
@@ -164,7 +165,6 @@ export function CreateEventSheet({
     setTerm(null);
     setWeek(null);
     setSelectedTags([]);
-    setCategory("");
     setCollaborators([subgroup]);
     setSharing(false);
     setDateStr(defaultDate());
@@ -176,7 +176,6 @@ export function CreateEventSheet({
     setSubmitting(false);
     setInitial({
       name: "",
-      category: "",
       tags: [],
       collaborators: [subgroup],
       dateStr: defaultDate(),
@@ -197,10 +196,41 @@ export function CreateEventSheet({
     }
     if (openedRef.current) return;
     openedRef.current = true;
+    if (!isEditing && draft) {
+      // From the Calendar: keep what was filled in there, as a one-off event.
+      const snapshot = {
+        name: draft.name,
+        tags: [] as Id<"attendanceTags">[],
+        collaborators: [subgroup],
+        dateStr: draft.dateStr,
+        endDateStr: draft.endDateStr,
+        startTime: draft.startTime,
+        endTime: draft.endTime,
+      };
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- load the Calendar's draft, or the event's saved fields, on the open transition
+      setName(draft.name);
+      setNameTouched(true);
+      setWhenTouched(true);
+      setKind("event");
+      setInitialKind("event");
+      setTerm(null);
+      setWeek(null);
+      setSelectedTags([]);
+      setCollaborators([subgroup]);
+      setSharing(false);
+      setError(null);
+      setSubmitting(false);
+      setDateStr(draft.dateStr);
+      setEndDateStr(draft.endDateStr);
+      setMultiDay(draft.dateStr !== draft.endDateStr);
+      setStartTime(draft.startTime);
+      setEndTime(draft.endTime);
+      setInitial(snapshot);
+      return;
+    }
     if (!isEditing) return;
     const snapshot = {
       name: event?.name ?? "",
-      category: (event?.category ?? "") as PickableCategory | "",
       tags: event?.tagIds ?? [],
       collaborators: event?.subgroups ?? [ownerGroup],
       dateStr: event ? dateInputFromMs(event.dateStart) : defaultDate(),
@@ -213,7 +243,6 @@ export function CreateEventSheet({
     const namedByCode =
       !!saved &&
       (["terms", "semesters"] as const).some((system) => weeklyName(system, saved.slot, saved.week) === snapshot.name);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- load the event's saved fields on the open transition (edit mode)
     setName(snapshot.name);
     setNameTouched(!namedByCode);
     setWhenTouched(true);
@@ -222,7 +251,6 @@ export function CreateEventSheet({
     setTerm(event?.weekly ? { year: event.weekly.year, slot: event.weekly.slot } : null);
     setWeek(event?.weekly?.week ?? null);
     setSelectedTags(snapshot.tags);
-    setCategory(snapshot.category);
     setCollaborators(snapshot.collaborators);
     setSharing(snapshot.collaborators.length > 1);
     setDateStr(snapshot.dateStr);
@@ -236,7 +264,7 @@ export function CreateEventSheet({
     setDeleteText("");
     setConfirmCancel(false);
     setInitial(snapshot);
-  }, [visible, ownerGroup, event, isEditing]);
+  }, [visible, ownerGroup, event, isEditing, draft, subgroup]);
 
   const weekly = kind === "weekly" && canBeWeekly;
   const preview = eventWindowFromInputs({
@@ -385,7 +413,8 @@ export function CreateEventSheet({
         await updateEvent({
           eventId: event._id,
           ...payload,
-          category: weekly ? null : category || null,
+          // Calendar categories aren't picked any more; clear one from before.
+          category: null,
           ...(mark ? { weekly: mark } : initialKind === "weekly" ? { weekly: null } : {}),
         });
         onClose();
@@ -394,7 +423,7 @@ export function CreateEventSheet({
       const eventId = await createEvent({
         ...payload,
         ...(mark ? { weekly: mark } : {}),
-        ...(!weekly && category ? { category } : {}),
+        ...(draft?.replacesEntryId ? { replacesEntryId: draft.replacesEntryId } : {}),
       });
       resetForm();
       onClose();
@@ -449,7 +478,6 @@ export function CreateEventSheet({
         pickedTerm?.slot !== event.weekly.slot ||
         pickedWeek !== event.weekly.week)) ||
     !sameMembers(selectedTags, initial.tags) ||
-    category !== initial.category ||
     !sameMembers(collaborators, initial.collaborators) ||
     dateStr !== initial.dateStr ||
     endDateStr !== initial.endDateStr ||
@@ -617,20 +645,6 @@ export function CreateEventSheet({
             </Txt>
           )}
         </View>
-
-        {weekly ? null : (
-          <View style={{ gap: spacing.xs }}>
-            <Select
-              label="Calendar category"
-              value={category}
-              options={CATEGORY_OPTIONS}
-              onSelect={(value) => setCategory(value as PickableCategory | "")}
-            />
-            <Txt style={[typography.caption, { color: t.faint }]}>
-              TWIG and PPN show on the calendar from their tags.
-            </Txt>
-          </View>
-        )}
 
         <View style={{ gap: spacing.sm }}>
           <View style={[styles.row, { alignItems: "center" }]}>

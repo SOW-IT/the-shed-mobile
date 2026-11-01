@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 
-// The categories an attendance event can be given (TWIG, PPN and Weekly come from its tags and term).
+// Categories that could be picked before 2.10.14. Kept so stored values and
+// older versions of the app still validate; the calendar now works them out.
 export const calendarCategoryValidator = v.union(
   v.literal("campus"),
   v.literal("sow"),
@@ -9,7 +10,7 @@ export const calendarCategoryValidator = v.union(
   v.literal("other")
 );
 
-// A calendar-only entry has no tags, so it can be any of these.
+// Likewise for calendar entries before 2.10.14 (now an Event or a Deadline).
 export const entryCategoryValidator = v.union(
   v.literal("twig"),
   v.literal("ppn"),
@@ -27,8 +28,9 @@ export const entryFields = {
   name: v.string(),
   dateStart: v.number(),
   dateEnd: v.number(),
-  subgroups: v.array(v.string()),
-  category: entryCategoryValidator,
+  // Only from before 2.10.14: entries no longer have a campus or a category.
+  subgroups: v.optional(v.array(v.string())),
+  category: v.optional(entryCategoryValidator),
   notes: v.optional(v.string()),
   due: v.optional(dueValidator),
 };
