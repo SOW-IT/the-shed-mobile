@@ -8,13 +8,13 @@ tags:
 - assertNotVisible:
     text: ".*Insights, tab.*"
 
-# A link to Insights lands on Home instead.
+# A link to Insights lands on Home instead. The tab bar is always there, so
+# wait for something only Home shows.
 - runFlow:
     file: ../common/open-deeplink.yaml
     env:
       PATH: "insights"
 - extendedWaitUntil:
-    visible:
-      text: ".*Home, tab.*"
+    visible: "Our values"
     timeout: 15000
 - assertNotVisible: "General"
