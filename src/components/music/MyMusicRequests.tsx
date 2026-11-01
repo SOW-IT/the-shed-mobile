@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
+import { parseYouTubeSong } from "../../../convex/shared/youtube";
 import { useSpotifyPlaylist } from "./useSpotifyPlaylist";
 
 export type MusicRequest = Doc<"musicRequests">;
@@ -58,6 +59,7 @@ const youtubeVideoUrl = (value: string): string | null => {
   try {
     const url = new URL(value.trim());
     const host = url.hostname.toLowerCase();
+
     let videoId: string | null = null;
 
     if (host === "youtu.be" || host === "www.youtu.be") {
@@ -83,6 +85,33 @@ const youtubeVideoUrl = (value: string): string | null => {
     return videoId && /^[a-zA-Z0-9_-]{11}$/.test(videoId)
       ? `https://www.youtube.com/watch?v=${videoId}`
       : null;
+  } catch {
+    return null;
+  }
+};
+
+const youtubePlaylistUrl = (value: string): string | null => {
+  try {
+    const url = new URL(value.trim());
+
+    if (
+      ![
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "music.youtube.com",
+      ].includes(url.hostname.toLowerCase())
+    ) {
+      return null;
+    }
+
+    const playlistId = url.searchParams.get("list");
+
+    if (!playlistId || !/^[a-zA-Z0-9_-]+$/.test(playlistId)) {
+      return null;
+    }
+
+    return `https://www.youtube.com/playlist?list=${playlistId}`;
   } catch {
     return null;
   }
@@ -132,6 +161,7 @@ const MusicRequestSheetContent = ({
   const duplicateBlocked = !duplicateIsSelf && duplicate?.kind === "exact";
   const possibleDuplicate = !duplicateIsSelf && duplicate?.kind === "possible";
   const getSpotifyTrack = useAction(api.spotify.getTrack);
+  const importYouTubePlaylist = useAction(api.youtube.importPlaylist);
   const spotifyPlaylist = useSpotifyPlaylist();
   const refreshSpotifyConnection = spotifyPlaylist.refreshConnection;
 
@@ -142,8 +172,13 @@ const MusicRequestSheetContent = ({
   }, [visible, refreshSpotifyConnection]);
 
   const spotifyLinkType = detectSpotifyLink(spotifyLink);
+  const youtubePlaylistLink = youtubePlaylistUrl(spotifyLink);
   const youtubeLink = youtubeVideoUrl(spotifyLink);
-  const validMusicLink = !!spotifyLinkType || !!youtubeLink;
+
+  const isPlaylist = spotifyLinkType === "playlist" || !!youtubePlaylistLink;
+
+  const validMusicLink =
+    !!spotifyLinkType || !!youtubeLink || !!youtubePlaylistLink;
   const [importingPlaylist, setImportingPlaylist] = useState(false);
   const submit = useMutation(api.musicRequests.submit);
   const update = useMutation(api.musicRequests.update);
@@ -262,6 +297,74 @@ const MusicRequestSheetContent = ({
       setImportingPlaylist(false);
     }
   };
+
+  const importYouTube = async () => {
+    if (importingPlaylist || submitting || prefill) return;
+
+    const playlistUrl = youtubePlaylistUrl(spotifyLink);
+    if (!playlistUrl) {
+      setSpotifyError("Please enter a valid YouTube playlist URL.");
+      return;
+    }
+
+    setImportingPlaylist(true);
+    setSpotifyError(null);
+
+    try {
+      const result = await importYouTubePlaylist({
+        link: playlistUrl,
+      });
+
+      const existing = new Set(
+        songs.map(
+          (song) =>
+            spotifyTrackUrl(song.link) ??
+            youtubeVideoUrl(song.link) ??
+            song.link.trim().toLowerCase(),
+        ),
+      );
+
+      const available = Math.max(0, 50 - songs.length);
+
+      const fresh = result.songs.filter((song) => {
+        const key =
+          spotifyTrackUrl(song.link) ??
+          youtubeVideoUrl(song.link) ??
+          song.link.trim().toLowerCase();
+
+        if (existing.has(key)) return false;
+
+        existing.add(key);
+        return true;
+      });
+
+      const toAdd = fresh.slice(0, available);
+
+      setSongs((current) => [...current, ...toAdd]);
+
+      Alert.alert(
+        "YouTube playlist imported",
+        `${toAdd.length} song(s) added.${
+          result.limited
+            ? " Only the first 50 playlist entries were fetched."
+            : ""
+        }${
+          fresh.length > available ? " The submission limit is 50 songs." : ""
+        }`,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not import YouTube playlist.";
+
+      setSpotifyError(message);
+      Alert.alert("Couldn't import playlist", message);
+    } finally {
+      setImportingPlaylist(false);
+    }
+  };
+
   const clearSpotifyLink = () => {
     setSpotifyLink("");
     setSpotifyError(null);
@@ -321,27 +424,10 @@ const MusicRequestSheetContent = ({
         thumbnail_url: string;
       } = await response.json();
 
-      let songTitle = data.title;
-      let artistName = data.author_name;
+      const { title, artist } = parseYouTubeSong(data.title, data.author_name);
 
-      // Remove common video-title suffixes.
-      songTitle = songTitle
-        .replace(
-          /\s*[\[(](official (music )?video|official audio|lyrics?|visualizer)[\])]/gi,
-          "",
-        )
-        .trim();
-
-      // Common YouTube format: Artist - Song Title
-      const separator = songTitle.indexOf(" - ");
-
-      if (separator !== -1) {
-        artistName = songTitle.slice(0, separator).trim();
-        songTitle = songTitle.slice(separator + 3).trim();
-      }
-
-      setTitle(songTitle);
-      setArtist(artistName);
+      setTitle(title);
+      setArtist(artist);
       setLink(cleanUrl);
       setAlbumArtUrl(data.thumbnail_url);
       setIsrc(undefined);
@@ -558,11 +644,12 @@ const MusicRequestSheetContent = ({
           </Text>
         </View>
         <Text style={[typography.caption, { color: t.muted }]}>
-          Paste a Spotify track, Spotify playlist or YouTube video link.
+          Paste a Spotify or YouTube song or playlist link.
         </Text>
 
         <Text style={[typography.caption, { color: t.warning }]}>
-          Note: You can only import playlists that you own or collaborate on.
+          Spotify playlists require access through your connected account.
+          Public YouTube playlists can be imported without signing in.
         </Text>
 
         <View style={{ position: "relative" }}>
@@ -607,7 +694,7 @@ const MusicRequestSheetContent = ({
 
         <Btn
           title={
-            spotifyLinkType === "playlist"
+            isPlaylist
               ? importingPlaylist
                 ? "Importing..."
                 : "Import playlist"
@@ -615,13 +702,11 @@ const MusicRequestSheetContent = ({
                 ? "Finding song..."
                 : "Autofill song"
           }
-          icon={
-            spotifyLinkType === "playlist"
-              ? "download-outline"
-              : "search-outline"
-          }
+          icon={isPlaylist ? "download-outline" : "search-outline"}
           onPress={() => {
-            if (spotifyLinkType === "playlist") {
+            if (youtubePlaylistLink) {
+              void importYouTube();
+            } else if (spotifyLinkType === "playlist") {
               void importPlaylist();
             } else if (youtubeLink) {
               void autofillYouTube();
@@ -634,14 +719,13 @@ const MusicRequestSheetContent = ({
             fetchingSpotify ||
             importingPlaylist ||
             submitting ||
-            (spotifyLinkType === "playlist" &&
-              (songs.length >= 50 || !!prefill))
+            (isPlaylist && (songs.length >= 50 || !!prefill))
           }
         />
 
         {spotifyLink.trim() && !validMusicLink ? (
           <Text style={[typography.caption, { color: t.warning }]}>
-            Enter a valid Spotify track, playlist or YouTube video URL.
+            Enter a valid Spotify or YouTube song or playlist URL.
           </Text>
         ) : null}
         {spotifyLinkType === "playlist" &&
@@ -656,6 +740,26 @@ const MusicRequestSheetContent = ({
             {spotifyError}
           </Text>
         ) : null}
+
+        {(youtubeLink || youtubePlaylistLink) && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: spacing.sm,
+              padding: spacing.sm,
+              borderRadius: radius.md,
+              backgroundColor: t.card,
+            }}
+          >
+            <Ionicons name="alert-circle-outline" size={18} color={t.warning} />
+            <Text style={[typography.caption, { color: t.warning, flex: 1 }]}>
+              YouTube song details may be inaccurate. Please double-check the
+              song title and artist before submitting.
+            </Text>
+          </View>
+        )}
+
         {!prefill && (
           <View style={{ marginTop: spacing.sm }}>
             <View

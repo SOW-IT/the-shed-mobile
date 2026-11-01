@@ -79,6 +79,7 @@ import type * as reminders from "../reminders.js";
 import type * as requests from "../requests.js";
 import type * as rollCallOrder from "../rollCallOrder.js";
 import type * as rosterHistory from "../rosterHistory.js";
+import type * as shared_youtube from "../shared/youtube.js";
 import type * as sowInsights from "../sowInsights.js";
 import type * as spotify from "../spotify.js";
 import type * as spotifyConnections from "../spotifyConnections.js";
@@ -91,6 +92,7 @@ import type * as userLink from "../userLink.js";
 import type * as waitingOnMe from "../waitingOnMe.js";
 import type * as weeklyInsights from "../weeklyInsights.js";
 import type * as weeklyInsightsData from "../weeklyInsightsData.js";
+import type * as youtube from "../youtube.js";
 
 import type {
   ApiFromModules,
@@ -170,6 +172,7 @@ declare const fullApi: ApiFromModules<{
   requests: typeof requests;
   rollCallOrder: typeof rollCallOrder;
   rosterHistory: typeof rosterHistory;
+  "shared/youtube": typeof shared_youtube;
   sowInsights: typeof sowInsights;
   spotify: typeof spotify;
   spotifyConnections: typeof spotifyConnections;
@@ -182,6 +185,7 @@ declare const fullApi: ApiFromModules<{
   waitingOnMe: typeof waitingOnMe;
   weeklyInsights: typeof weeklyInsights;
   weeklyInsightsData: typeof weeklyInsightsData;
+  youtube: typeof youtube;
 }>;
 
 /**
