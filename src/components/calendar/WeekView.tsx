@@ -136,9 +136,15 @@ export const WeekView = <E extends WeekEvent>({
                     <Pressable
                       key={i}
                       onPress={() => onOpen(bar.event, week[bar.start + i])}
+                      // One button for screen readers; the other days are just bigger targets.
                       accessible={i === 0}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${bar.event.name}, ${bar.event.due ? "due all day, " : ""}${calendarCategoryLabel(bar.event.category)}`}
+                      aria-hidden={i > 0}
+                      accessibilityRole={i === 0 ? "button" : undefined}
+                      accessibilityLabel={
+                        i === 0
+                          ? `${bar.event.name}, ${bar.event.due ? "due all day, " : ""}${calendarCategoryLabel(bar.event.category)}`
+                          : undefined
+                      }
                       style={{ flex: 1 }}
                     />
                   ))}
