@@ -797,6 +797,43 @@ describe("on the Calendar", () => {
     expect((await request(t, id))!.attendanceEventId).toBe(eventId);
   });
 
+  test("only people who can open the request get its link, and its name and times follow the request", async () => {
+    const t = await setup();
+    const id = await create(t, EVA, { takeAttendance: ["yes"] });
+    await approveAll(t, id);
+    const eventId = (await request(t, id))!.attendanceEventId!;
+    const window = { from: PINNED_NOW, to: PINNED_NOW + 60 * DAY };
+    const linkFor = async (email: string) =>
+      (await asUser(t, email).query(api.calendar.range, window))![0].eventRequestId;
+    expect(await linkFor(EVA)).toBe(id);
+    expect(await linkFor(OLLIE)).toBeNull();
+    expect(await linkFor(LEE)).toBeNull();
+    const asSeenBy = (email: string) => asUser(t, email).query(api.events.get, { eventId });
+    expect(await asSeenBy(EVA)).toMatchObject({ fromEventRequest: true, eventRequestId: id });
+    const outsider = (await asSeenBy(OLLIE))!;
+    expect(outsider.fromEventRequest).toBe(true);
+    expect(outsider.eventRequestId).toBeUndefined();
+
+    const event = (await t.run((ctx) => ctx.db.get("events", eventId)))!;
+    const same = { eventId, name: event.name, dateStart: event.dateStart, dateEnd: event.dateEnd, subgroups: ["SOW"] };
+    await expect(asUser(t, EVA).mutation(api.events.update, { ...same, name: "Renamed" })).rejects.toThrow(
+      "come from its event request"
+    );
+    await expect(
+      asUser(t, EVA).mutation(api.events.update, { ...same, dateEnd: event.dateEnd + DAY })
+    ).rejects.toThrow("come from its event request");
+    await asUser(t, EVA).mutation(api.events.update, same);
+  });
+
+  test("a request longer than the Calendar shows is cut to 31 days there", async () => {
+    const t = await setup();
+    const id = await create(t, EVA, { end: at(80, 17) });
+    await approveAll(t, id);
+    const entryId = (await request(t, id))!.calendarEntryId!;
+    const saved = (await t.run((ctx) => ctx.db.get("calendarEntries", entryId)))!;
+    expect(saved.dateEnd - saved.dateStart).toBe(31 * DAY);
+  });
+
   test("deleting the attendance event in Attendance unlinks it", async () => {
     const t = await setup();
     const id = await create(t, EVA, { takeAttendance: ["yes"] });

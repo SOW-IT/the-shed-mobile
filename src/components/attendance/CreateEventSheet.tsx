@@ -64,7 +64,7 @@ const timeInputFromMs = (ms: number): string => toTimeInputValue(new Date(ms));
 type EditableEvent = Pick<
   Doc<"events">,
   "_id" | "name" | "dateStart" | "dateEnd" | "subgroups" | "tagIds" | "weekly"
->;
+> & { fromEventRequest?: boolean };
 
 // From the Calendar: what was filled in there, and the calendar entry this
 // replaces when an entry starts taking attendance.
@@ -577,53 +577,62 @@ export function CreateEventSheet({
           </View>
         ) : null}
 
-        <Field
-          label="Name"
-          value={nameValue}
-          onChangeText={(text) => {
-            setName(text);
-            setNameTouched(true);
-          }}
-          placeholder={weekly ? code || "e.g. T3W5" : "e.g. Hot Pot Night"}
-        />
-
-        <View style={{ gap: spacing.sm }}>
-          <DateInput
-            label={multiDay ? "Start date" : "Date"}
-            value={dateStr}
-            onChange={changeStartDate}
+        {event?.fromEventRequest ? (
+          // The server rejects changes to these; they follow the event request.
+          <Txt style={[typography.caption, { color: t.faint }]}>
+            Its name, date and times come from its event request, so change them there.
+          </Txt>
+        ) : (
+          <>
+          <Field
+            label="Name"
+            value={nameValue}
+            onChangeText={(text) => {
+              setName(text);
+              setNameTouched(true);
+            }}
+            placeholder={weekly ? code || "e.g. T3W5" : "e.g. Hot Pot Night"}
           />
-          {multiDay ? (
+
+          <View style={{ gap: spacing.sm }}>
             <DateInput
-              label="End date"
-              value={endDateStr}
-              min={addDaysToDateInputValue(dateStr, 1) ?? dateStr}
-              onChange={(value) => {
-                setEndDateStr(value);
-                setWhenTouched(true);
-              }}
+              label={multiDay ? "Start date" : "Date"}
+              value={dateStr}
+              onChange={changeStartDate}
             />
-          ) : null}
-          <View style={styles.row}>
-            <TimeInput
-              label="Start"
-              value={startTime}
-              onChange={(value) => {
-                setStartTime(value);
-                setWhenTouched(true);
-              }}
-            />
-            <TimeInput
-              label="End"
-              value={endTime}
-              onChange={(value) => {
-                setEndTime(value);
-                setWhenTouched(true);
-              }}
-            />
+            {multiDay ? (
+              <DateInput
+                label="End date"
+                value={endDateStr}
+                min={addDaysToDateInputValue(dateStr, 1) ?? dateStr}
+                onChange={(value) => {
+                  setEndDateStr(value);
+                  setWhenTouched(true);
+                }}
+              />
+            ) : null}
+            <View style={styles.row}>
+              <TimeInput
+                label="Start"
+                value={startTime}
+                onChange={(value) => {
+                  setStartTime(value);
+                  setWhenTouched(true);
+                }}
+              />
+              <TimeInput
+                label="End"
+                value={endTime}
+                onChange={(value) => {
+                  setEndTime(value);
+                  setWhenTouched(true);
+                }}
+              />
+            </View>
+            <Checkbox checked={multiDay} onToggle={toggleMultiDay} label="Runs over several days" />
           </View>
-          <Checkbox checked={multiDay} onToggle={toggleMultiDay} label="Runs over several days" />
-        </View>
+          </>
+        )}
 
         <View style={{ gap: spacing.sm }}>
           <Txt style={[typography.label, { color: t.muted }]}>Tags</Txt>

@@ -259,7 +259,7 @@ export default function EventRequestScreen() {
                       title="On the Calendar"
                       variant="tonal"
                       icon="calendar-clear-outline"
-                      onPress={() => router.push(`/calendar?day=${event.startsAt.slice(0, 10)}`)}
+                      onPress={() => router.push(`/calendar?day=${event.startsAt.slice(0, 10)}&at=${Date.now()}`)}
                     />
                   ) : null}
                   <Btn

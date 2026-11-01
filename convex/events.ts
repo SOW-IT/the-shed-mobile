@@ -25,6 +25,7 @@ import {
   query,
 } from "./_generated/server";
 import { removeReplacedEntry } from "./calendar";
+import { openableEventRequest } from "./eventRequestAccess";
 import { optionalProfile, requireProfile } from "./model";
 import { memberAuditName } from "./attendanceMembers";
 import { readSettings } from "./weeklyInsights";
@@ -303,11 +304,18 @@ export const subgroups = query({
 export const get = query({
   args: { eventId: v.string() },
   handler: async (ctx, { eventId: rawEventId }) => {
-    if (!(await optionalProfile(ctx))) return null;
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
     const eventId = ctx.db.normalizeId("events", rawEventId);
     if (!eventId) return null;
     const event = await ctx.db.get(eventId);
-    return event ? await annotate(ctx, event) : null;
+    if (!event) return null;
+    return {
+      ...(await annotate(ctx, event)),
+      // Its name and times follow the request; the link is only for those who can open it.
+      fromEventRequest: !!event.eventRequestId,
+      eventRequestId: (await openableEventRequest(ctx, caller, event.eventRequestId)) ?? undefined,
+    };
   },
 });
 
@@ -468,6 +476,12 @@ export const update = mutation({
     const { email } = await requireProfile(ctx);
     const existing = await ctx.db.get(eventId);
     if (!existing) throw new ConvexError("Event not found.");
+    if (
+      existing.eventRequestId &&
+      (name.trim() !== existing.name || dateStart !== existing.dateStart || dateEnd !== existing.dateEnd)
+    ) {
+      throw new ConvexError("Its name and times come from its event request, so change them there.");
+    }
     const eventFields = await validateEventFields(ctx, {
       name,
       dateStart,

@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import {
@@ -173,10 +173,14 @@ export default function CalendarScreen() {
   const [attendanceDraft, setAttendanceDraft] = useState<{ subgroup: string; draft: AttendanceDraft } | null>(
     null
   );
+  // Opening it waits for the calendar sheet to close; leaving the tab cancels that.
+  const handoff = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useFocusEffect(useCallback(() => () => clearTimeout(handoff.current), []));
   const wide = useWideLayout();
   const scrollRef = useRef<ScrollViewInstance>(null);
   const gridBottom = useRef(0);
-  const { day, view: linkedView } = useLocalSearchParams<{ day?: string; view?: string }>();
+  // `at` makes a link to the day already shown move back to it.
+  const { day, view: linkedView, at } = useLocalSearchParams<{ day?: string; view?: string; at?: string }>();
   useEffect(() => {
     const linked = parseDayKey(day);
     if (!linked) return;
@@ -184,7 +188,7 @@ export default function CalendarScreen() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- open the day a link points at
     setMonth({ year: y, month: m });
     setSelected(linked);
-  }, [day]);
+  }, [day, at]);
   // `?view=week` opens the week view, and it's remembered like picking it.
   useEffect(() => {
     if (linkedView === "week" || linkedView === "month") setView(linkedView);
@@ -520,7 +524,11 @@ export default function CalendarScreen() {
             setAdding(false);
             setEditing(null);
             // iOS can't open the next sheet until this one has finished closing.
-            setTimeout(() => setAttendanceDraft({ subgroup: owner, draft }), durations.overlayOut + 80);
+            clearTimeout(handoff.current);
+            handoff.current = setTimeout(
+              () => setAttendanceDraft({ subgroup: owner, draft }),
+              durations.overlayOut + 80
+            );
           }}
         />
       ) : null}

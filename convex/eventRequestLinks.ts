@@ -1,5 +1,6 @@
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
+import { MAX_SPAN_MS } from "../shared/calendar";
 import { type FormAnswers, msFromSydneyDateTimeAnswer } from "../shared/forms";
 import { SOW_SUBGROUP } from "../shared/rollcall";
 import { syncEntry } from "./calendar";
@@ -14,7 +15,8 @@ const requestWindow = (request: Doc<"eventRequests">) => {
   const dateStart = msFromSydneyDateTimeAnswer(request.startsAt);
   const dateEnd = msFromSydneyDateTimeAnswer(request.endsAt);
   if (dateStart === null || dateEnd === null || dateEnd <= dateStart) return null;
-  return { dateStart, dateEnd };
+  // No longer than the Calendar shows, so it doesn't drop off part-way through.
+  return { dateStart, dateEnd: Math.min(dateEnd, dateStart + MAX_SPAN_MS) };
 };
 
 const hasSignIns = async (ctx: MutationCtx, eventId: Id<"events">) =>

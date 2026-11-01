@@ -2,15 +2,22 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { calendarCategoryOf, entryCategory, entryProblem, normalizeEntry } from "../shared/calendar";
+import {
+  calendarCategoryOf,
+  entryCategory,
+  entryProblem,
+  MAX_SPAN_MS,
+  normalizeEntry,
+} from "../shared/calendar";
 import { eventStaffYear } from "../shared/flow";
 import { normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import { entryFields } from "./calendarData";
+import { openableEventRequest } from "./eventRequestAccess";
 import { calendarSyncConfigured } from "./googleCalendar";
 import { isAdminProfile, optionalProfile, requireProfile, type CallerContext } from "./model";
 
 const RANGE_LIMIT = 500;
-const LONGEST_EVENT_MS = 31 * 86_400_000;
+const LONGEST_EVENT_MS = MAX_SPAN_MS;
 
 type Ctx = QueryCtx | MutationCtx;
 
@@ -122,7 +129,7 @@ export const range = query({
       )
     );
     const isAdmin = await isAdminProfile(ctx, caller.profile);
-    const fromEvents = events.map((event) => {
+    const fromEvents = await Promise.all(events.map(async (event) => {
       const eventTags = (event.tagIds ?? []).flatMap((id) => {
         const tag = tags.get(id);
         return tag ? [tag] : [];
@@ -138,11 +145,11 @@ export const range = query({
         tags: eventTags.map((tag) => ({ name: tag.name, colour: tag.colour })),
         notes: null,
         due: null,
-        eventRequestId: event.eventRequestId ?? null,
+        eventRequestId: await openableEventRequest(ctx, caller, event.eventRequestId),
         canEdit: false,
       };
-    });
-    const fromEntries = entries.map((entry) => ({
+    }));
+    const fromEntries = await Promise.all(entries.map(async (entry) => ({
       kind: "entry" as const,
       id: entry._id as string,
       name: entry.name,
@@ -153,10 +160,10 @@ export const range = query({
       tags: [],
       notes: entry.notes ?? null,
       due: entry.due ?? null,
-      eventRequestId: entry.eventRequestId ?? null,
+      eventRequestId: await openableEventRequest(ctx, caller, entry.eventRequestId),
       // One from an event request follows the request instead.
       canEdit: !entry.eventRequestId && (isAdmin || entry.createdBy === caller.email),
-    }));
+    })));
     return [...fromEvents, ...fromEntries];
   },
 });

@@ -155,6 +155,18 @@ export async function accessTo(
   return { ...scope, requesterSide, canView: requesterSide || seesAll(scope) };
 }
 
+// The event request something on the Calendar came from, but only when this
+// viewer can open it, so a link never leads to "not found".
+export async function openableEventRequest(
+  ctx: Ctx,
+  caller: CallerContext,
+  id: Id<"eventRequests"> | undefined
+): Promise<Id<"eventRequests"> | null> {
+  if (!id || isCampusLeader(caller)) return null;
+  const event = await ctx.db.get("eventRequests", id);
+  return event && (await accessTo(ctx, caller, event)).canView ? id : null;
+}
+
 export const canCommentOn = (access: EventAccess, kind: SubFormKind) =>
   access.requesterSide || access.teams[kind] || (kind === "finance" && access.director);
 

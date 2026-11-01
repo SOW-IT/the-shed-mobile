@@ -14,6 +14,9 @@ export type CalendarCategory = "twig" | "ppn" | "weekly" | "campus" | "sow" | "e
 export const DUE_KINDS = ["day", "time"] as const;
 export type Due = (typeof DUE_KINDS)[number];
 
+// The longest an entry runs, and how far back the Calendar looks for one still running.
+export const MAX_SPAN_MS = 31 * 86_400_000;
+
 export const MAX_ENTRY_NAME = 120;
 export const MAX_ENTRY_NOTES = 1000;
 
