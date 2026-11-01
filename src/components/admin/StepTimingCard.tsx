@@ -15,11 +15,7 @@ export const StepTimingCard = ({ year }: { year: number }) => {
     <View style={{ gap: spacing.md }}>
       <SectionTitle>Step timing · {year}</SectionTitle>
       <Card>
-        <Muted>
-          How long each step took before someone actioned it, from the audit trail of every
-          request made in {year}: the typical (median) wait and the longest, then the people
-          who actioned it most.
-        </Muted>
+        <Muted>The median and longest wait at each step for requests made in {year}, and who actioned it most.</Muted>
         {sections === undefined ? <LoadingState /> : null}
         {sections?.map((section) => (
           <View key={section.key} style={styles.section}>

@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { isMemberOfDepartment, withinRolloverAuthGrace } from "../shared/flow";
+import { isMemberOfDepartment, rolloverGraceEndMs, withinRolloverAuthGrace } from "../shared/flow";
 import {
   cleanNameList,
   DEFAULT_GRIEVANCE_CATEGORIES,
@@ -22,8 +22,8 @@ import { grievanceFields } from "./grievanceData";
 import {
   currentStaffYear,
   displayName,
-  getProfile,
   optionalEmail,
+  optionalProfile,
   requireAdmin,
 } from "./model";
 import { appUrl, notify } from "./requests";
@@ -82,23 +82,12 @@ const sameList = (a: string[], b: string[]) =>
 const inDepartments = (profile: Doc<"staffProfiles">, departments: string[]) =>
   departments.some((d) => isMemberOfDepartment(profile, d));
 
-async function teamYear(ctx: Ctx): Promise<number> {
-  const year = currentStaffYear();
-  if (!withinRolloverAuthGrace(year)) return year;
-  const setUp = await ctx.db
-    .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", year))
-    .first();
-  return setUp ? year : year - 1;
-}
-
 export async function grievanceTeam(ctx: Ctx, departmentList?: string[]): Promise<string[]> {
   const departments = departmentList ?? (await readSettings(ctx)).departments;
-  const year = await teamYear(ctx);
   const emails = new Set<string>();
   for await (const profile of ctx.db
     .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", year))) {
+    .withIndex("by_year", (q) => q.eq("year", currentStaffYear()))) {
     if (inDepartments(profile, departments)) emails.add(profile.email);
   }
   return [...emails].sort();
@@ -106,13 +95,21 @@ export async function grievanceTeam(ctx: Ctx, departmentList?: string[]): Promis
 
 // Department heads always hold an assignment in their department, so this covers them too.
 async function handlerEmail(ctx: Ctx): Promise<string | null> {
-  const email = await optionalEmail(ctx);
-  if (!email) return null;
-  const profile = await getProfile(ctx, email, await teamYear(ctx));
-  if (!profile) return null;
+  const caller = await optionalProfile(ctx);
+  if (!caller) return null;
   const { departments } = await readSettings(ctx);
-  return inDepartments(profile, departments) ? email : null;
+  return inDepartments(caller.profile, departments) ? caller.email : null;
 }
+
+async function openHeldBy(ctx: Ctx, email: string): Promise<number> {
+  const held = await ctx.db
+    .query("grievances")
+    .withIndex("by_status", (q) => q.eq("status", "IN_PROGRESS"))
+    .take(LIST_LIMIT);
+  return held.filter((g) => g.assigneeEmail === email).length;
+}
+
+const HANDOVER_DEADLINE = "31 December";
 
 async function requireHandler(ctx: Ctx): Promise<string> {
   const email = await handlerEmail(ctx);
@@ -245,7 +242,7 @@ export const setDepartments = mutation({
     }
     if ((await grievanceTeam(ctx, cleaned.list)).length === 0) {
       throw new ConvexError(
-        `Nobody in ${cleaned.list.join(", ")} has a role in ${await teamYear(ctx)}, so nobody could see or handle grievances.`
+        `Nobody in ${cleaned.list.join(", ")} has a role in ${currentStaffYear()}, so nobody could see or handle grievances.`
       );
     }
     await saveSettings(ctx, { departments: cleaned.list });
@@ -418,7 +415,45 @@ export const viewer = query({
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
     if (!email) return null;
-    return { email, isHandler: (await handlerEmail(ctx)) !== null };
+    const isHandler = (await handlerEmail(ctx)) !== null;
+    const outgoing = isHandler && !(await grievanceTeam(ctx)).includes(email);
+    return {
+      email,
+      isHandler,
+      handover: outgoing
+        ? { open: await openHeldBy(ctx, email), until: rolloverGraceEndMs(currentStaffYear()) }
+        : null,
+    };
+  },
+});
+
+// 1 December: whoever still looks after open grievances without a role on
+// this year's team is asked to hand them over before the rollover grace ends.
+export const remindOutgoingHandlers = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const year = currentStaffYear();
+    if (!withinRolloverAuthGrace(year)) return { reminded: 0 };
+    const team = new Set(await grievanceTeam(ctx));
+    const held = new Map<string, number>();
+    for await (const g of ctx.db
+      .query("grievances")
+      .withIndex("by_status", (q) => q.eq("status", "IN_PROGRESS"))) {
+      if (!g.assigneeEmail || team.has(g.assigneeEmail)) continue;
+      held.set(g.assigneeEmail, (held.get(g.assigneeEmail) ?? 0) + 1);
+    }
+    for (const [email, open] of held) {
+      const count = open === 1 ? "1 open grievance" : `${open} open grievances`;
+      await notify(ctx, {
+        to: email,
+        subject: `Hand over your grievances by ${HANDOVER_DEADLINE}`,
+        body:
+          `You're looking after ${count} but aren't on ${year}'s grievance team. ` +
+          `Give them to someone on the team, or resolve them, by ${HANDOVER_DEADLINE}; after that you won't be able to open them.`,
+        url: "/grievances?tab=submitted",
+      });
+    }
+    return { reminded: held.size };
   },
 });
 

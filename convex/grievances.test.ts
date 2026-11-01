@@ -419,13 +419,19 @@ describe("regression fixes", () => {
     );
   });
 
-  test("from 1 October last year's team carries on until the new year has people, then only the new year's", async () => {
+  test("from 1 October last year's team keeps access, is told to hand over, and is reminded on 1 December", async () => {
     const t = await setup();
     const id = await t.mutation(api.grievances.submit, input());
-    vi.setSystemTime(staffYearStartMs(YEAR + 1) + DAY);
-    expect(await asUser(t, HANA).query(api.grievances.viewer, {})).toEqual({ email: HANA, isHandler: true });
-    expect((await asUser(t, HANA).query(api.grievances.team, {}))!.map((m) => m.email)).toContain(HANA);
+    await asUser(t, HANA).mutation(api.grievances.assign, { id, assigneeEmail: HANA });
+    const other = await t.mutation(api.grievances.submit, input({ email: "b@example.com" }));
+    await asUser(t, CARL).mutation(api.grievances.assign, { id: other, assigneeEmail: CARL });
+    expect(await asUser(t, HANA).query(api.grievances.viewer, {})).toEqual({
+      email: HANA,
+      isHandler: true,
+      handover: null,
+    });
 
+    vi.setSystemTime(staffYearStartMs(YEAR + 1) + DAY);
     await t.run(async (ctx) => {
       const carl = (await ctx.db
         .query("staffProfiles")
@@ -434,15 +440,36 @@ describe("regression fixes", () => {
       const { _id, _creationTime, ...profile } = carl;
       await ctx.db.insert("staffProfiles", { ...profile, year: YEAR + 1 });
     });
-    expect(await asUser(t, HANA).query(api.grievances.viewer, {})).toEqual({ email: HANA, isHandler: false });
-    expect(await asUser(t, HANA).query(api.grievances.get, { id })).toBeNull();
-    expect(await asUser(t, HANA).query(api.grievances.submitted, { year: YEAR + 1 })).toBeNull();
-    expect(await asUser(t, HANA).query(api.grievances.waitingOnMe, {})).toBe(0);
-    await expect(
-      asUser(t, HANA).mutation(api.grievances.close, { id, outcome: "NOT_PROCEEDING", note: "No" })
-    ).rejects.toThrow("Only the grievance team");
+    expect(await asUser(t, HANA).query(api.grievances.viewer, {})).toEqual({
+      email: HANA,
+      isHandler: true,
+      handover: { open: 1, until: Date.UTC(YEAR, 11, 31, 13) },
+    });
+    expect(await asUser(t, CARL).query(api.grievances.viewer, {})).toMatchObject({ handover: null });
+    expect(await asUser(t, HANA).query(api.grievances.get, { id })).toMatchObject({ isHandler: true });
     expect((await asUser(t, CARL).query(api.grievances.team, {}))!.map((m) => m.email)).toEqual([CARL]);
-    expect(await asUser(t, CARL).query(api.grievances.get, { id })).toMatchObject({ isHandler: true });
+    await expect(
+      asUser(t, CARL).mutation(api.grievances.assign, { id: other, assigneeEmail: HANA })
+    ).rejects.toThrow("only be given to someone on the grievance team");
+
+    await clearOutbox(t);
+    expect(await t.mutation(internal.grievances.remindOutgoingHandlers, {})).toEqual({ reminded: 1 });
+    expect(await emails(t)).toEqual([
+      expect.objectContaining({
+        to: HANA,
+        subject: "Hand over your grievances by 31 December",
+        body: expect.stringContaining("1 open grievance but aren't on " + (YEAR + 1) + "'s grievance team"),
+      }),
+    ]);
+    expect(await notificationsFor(t, CARL)).toHaveLength(0);
+    expect((await pushesTo(t, HANA)).filter((f) => f.state.kind === "pending")).toHaveLength(1);
+
+    await asUser(t, HANA).mutation(api.grievances.assign, { id, assigneeEmail: CARL });
+    expect(await asUser(t, HANA).query(api.grievances.viewer, {})).toMatchObject({ handover: { open: 0 } });
+
+    vi.setSystemTime(Date.UTC(YEAR, 11, 31, 14));
+    expect(await asUser(t, HANA).query(api.grievances.viewer, {})).toMatchObject({ isHandler: false });
+    expect(await t.mutation(internal.grievances.remindOutgoingHandlers, {})).toEqual({ reminded: 0 });
   });
 
   test("the team's notice says resolved or closed to match", async () => {
@@ -556,6 +583,7 @@ describe("seeing grievances", () => {
     expect(await asUser(t, MEMBER).query(api.grievances.viewer, {})).toEqual({
       email: MEMBER,
       isHandler: false,
+      handover: null,
     });
     expect(await asUser(t, PIA).query(api.grievances.viewer, {})).toMatchObject({ isHandler: true });
   });

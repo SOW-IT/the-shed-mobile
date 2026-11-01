@@ -119,7 +119,7 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
             {calendarCategoryLabel(event.category)}
           </Text>
           {where ? ` · ${where}` : ""}
-          {event.fromEventRequest ? " · Event request" : event.kind === "entry" ? " · Calendar only" : ""}
+          {event.fromEventRequest ? " · Event request" : event.kind === "entry" && !event.due ? " · Calendar only" : ""}
         </Text>
         {event.notes ? (
           <Text selectable style={[typography.caption, { color: t.text }]}>

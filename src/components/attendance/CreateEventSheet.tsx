@@ -623,6 +623,7 @@ export function CreateEventSheet({
               <TimeInput
                 label="End"
                 value={endTime}
+                min={multiDay ? undefined : startTime}
                 onChange={(value) => {
                   setEndTime(value);
                   setWhenTouched(true);

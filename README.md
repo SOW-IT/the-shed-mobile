@@ -164,9 +164,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   happened); each email can send 3 an hour signed in and 3 signed out, and
   signed-out sending 30 an hour in all. Only the submitter and the
   **grievance team** can see it: this year's members of the departments
-  chosen in Admin → Other (People and Culture and Compliance to start;
-  last year's members from 1 October until anyone has a role in the new
-  year); other admins can't. Nothing goes to a
+  chosen in Admin → Other (People and Culture and Compliance to start);
+  other admins can't. From 1 October to 31 December last year's members
+  keep access (the rollover grace), see a notice to hand over what they're
+  looking after, and are reminded on 1 December. Nothing goes to a
   team inbox: the team gets an in-app and push notification for each new
   one and works on it under **Submitted**, listed by staff year (the current
   year, plus earlier years that have grievances; open ones move to the new

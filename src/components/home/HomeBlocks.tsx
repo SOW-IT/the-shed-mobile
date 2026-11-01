@@ -373,10 +373,7 @@ export const GrievanceCard = () => {
   return (
     <Card>
       <Txt style={styles.cardTitle}>Raise a grievance</Txt>
-      <Muted>
-        Something wrong that you&apos;d like SOW to look into? Tell SOW&apos;s grievance team
-        in confidence. We&apos;ll email you as it moves along.
-      </Muted>
+      <Muted>Raise it with SOW&apos;s grievance team in confidence.</Muted>
       <View style={styles.buttonRow}>
         <Btn
           title="Raise a grievance"

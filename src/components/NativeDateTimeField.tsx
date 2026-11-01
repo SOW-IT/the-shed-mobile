@@ -158,16 +158,19 @@ export const NativeDateInput = ({
 export const NativeTimeInput = ({
   label,
   value,
+  min,
   onChange,
 }: {
   label: string;
   value: string;
+  min?: string;
   onChange: (value: string) => void;
 }) => {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
   const current = inputToTime(value);
-  const initial = current ?? new Date();
+  const minTime = min ? inputToTime(min) ?? undefined : undefined;
+  const initial = clampDate(current ?? new Date(), minTime);
   return (
     <>
       <FieldButton
@@ -190,9 +193,11 @@ export const NativeTimeInput = ({
             display="spinner"
             style={{ width: "100%" }}
             value={initial}
+            minimumDate={minTime}
             accentColor={t.primary}
             onValueChange={(_event, date) => {
-              onChange(toTimeInputValue(date));
+              const chosen = toTimeInputValue(date);
+              onChange(min && chosen < min ? min : chosen);
               if (PICKER_IS_A_DIALOG) setOpen(false);
             }}
             onDismiss={() => setOpen(false)}

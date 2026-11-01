@@ -211,9 +211,6 @@ export const CalendarEntrySheet = ({
         active={deadline ? "deadline" : "event"}
         onChange={(key) => setDeadline(key === "deadline")}
       />
-      {deadline ? (
-        <Muted>Something due or going out on a day, like applications closing or a post going live.</Muted>
-      ) : null}
       <Field
         label="Name"
         value={name}
@@ -250,7 +247,7 @@ export const CalendarEntrySheet = ({
               <TimeInput label="Start" value={startTime} onChange={setStartTime} />
             </View>
             <View style={{ flex: 1 }}>
-              <TimeInput label="End" value={endTime} onChange={setEndTime} />
+              <TimeInput label="End" value={endTime} min={multiDay ? undefined : startTime} onChange={setEndTime} />
             </View>
           </View>
           <Checkbox
@@ -276,13 +273,9 @@ export const CalendarEntrySheet = ({
             options={subgroups.map((s) => ({ value: s, label: subgroupLabel(s) }))}
             onSelect={setWhere}
           />
-          <Muted>
-            {`Next: its tags, whether it's a weekly, and any other campuses, as in Attendance. ${
-              entry
-                ? `Once it's created, it replaces this calendar entry${entry.notes ? " (its notes aren't kept)" : ""}.`
-                : "Leaders can then sign people in."
-            }`}
-          </Muted>
+          {entry ? (
+            <Muted>{`The attendance event replaces this entry${entry.notes ? "; its notes aren't kept" : ""}.`}</Muted>
+          ) : null}
         </>
       ) : (
         <Field
