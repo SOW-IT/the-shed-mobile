@@ -53,6 +53,41 @@ const spotifyTrackUrl = (value: string): string | null => {
     return null;
   }
 };
+
+const youtubeVideoUrl = (value: string): string | null => {
+  try {
+    const url = new URL(value.trim());
+    const host = url.hostname.toLowerCase();
+    let videoId: string | null = null;
+
+    if (host === "youtu.be" || host === "www.youtu.be") {
+      videoId = url.pathname.split("/")[1];
+    } else if (
+      [
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "music.youtube.com",
+      ].includes(host)
+    ) {
+      if (url.pathname === "/watch") {
+        videoId = url.searchParams.get("v");
+      } else {
+        const match = url.pathname.match(
+          /^\/(?:shorts|live|embed)\/([a-zA-Z0-9_-]{11})/,
+        );
+        videoId = match?.[1] ?? null;
+      }
+    }
+
+    return videoId && /^[a-zA-Z0-9_-]{11}$/.test(videoId)
+      ? `https://www.youtube.com/watch?v=${videoId}`
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 const MusicRequestSheetContent = ({
   visible,
   onClose,
@@ -107,6 +142,8 @@ const MusicRequestSheetContent = ({
   }, [visible, refreshSpotifyConnection]);
 
   const spotifyLinkType = detectSpotifyLink(spotifyLink);
+  const youtubeLink = youtubeVideoUrl(spotifyLink);
+  const validMusicLink = !!spotifyLinkType || !!youtubeLink;
   const [importingPlaylist, setImportingPlaylist] = useState(false);
   const submit = useMutation(api.musicRequests.submit);
   const update = useMutation(api.musicRequests.update);
@@ -232,7 +269,7 @@ const MusicRequestSheetContent = ({
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
     if (!cleanUrl) {
-      setSpotifyError("Please paste a valid Spotify track link. ");
+      setSpotifyError("Please paste a valid Spotify or YouTube URL. ");
       return;
     }
     setFetchingSpotify(true);
@@ -257,6 +294,69 @@ const MusicRequestSheetContent = ({
       setFetchingSpotify(false);
     }
   };
+
+  const autofillYouTube = async () => {
+    const cleanUrl = youtubeVideoUrl(spotifyLink);
+
+    if (!cleanUrl) {
+      setSpotifyError("Please paste a valid YouTube video link.");
+      return;
+    }
+
+    setFetchingSpotify(true);
+    setSpotifyError(null);
+
+    try {
+      const response = await fetch(
+        `https://www.youtube.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Could not retrieve YouTube video information.");
+      }
+
+      const data: {
+        title: string;
+        author_name: string;
+        thumbnail_url: string;
+      } = await response.json();
+
+      let songTitle = data.title;
+      let artistName = data.author_name;
+
+      // Remove common video-title suffixes.
+      songTitle = songTitle
+        .replace(
+          /\s*[\[(](official (music )?video|official audio|lyrics?|visualizer)[\])]/gi,
+          "",
+        )
+        .trim();
+
+      // Common YouTube format: Artist - Song Title
+      const separator = songTitle.indexOf(" - ");
+
+      if (separator !== -1) {
+        artistName = songTitle.slice(0, separator).trim();
+        songTitle = songTitle.slice(separator + 3).trim();
+      }
+
+      setTitle(songTitle);
+      setArtist(artistName);
+      setLink(cleanUrl);
+      setAlbumArtUrl(data.thumbnail_url);
+      setIsrc(undefined);
+      setManualExpanded(true);
+    } catch (error) {
+      setSpotifyError(
+        error instanceof Error
+          ? error.message
+          : "Could not retrieve YouTube information.",
+      );
+    } finally {
+      setFetchingSpotify(false);
+    }
+  };
+
   const submitBatch = async (
     all: SpotifySong[],
     allowPossibleDuplicates: boolean,
@@ -454,11 +554,11 @@ const MusicRequestSheetContent = ({
         <View style={styles.spotifyHeading}>
           <Ionicons name="musical-notes-outline" size={20} color={t.primary} />
           <Text style={[styles.spotifyTitle, { color: t.text }]}>
-            Add from Spotify
+            Add from Spotify or YouTube
           </Text>
         </View>
         <Text style={[typography.caption, { color: t.muted }]}>
-          Paste a Spotify song or playlist link.
+          Paste a Spotify track, Spotify playlist or YouTube video link.
         </Text>
 
         <Text style={[typography.caption, { color: t.warning }]}>
@@ -467,7 +567,7 @@ const MusicRequestSheetContent = ({
 
         <View style={{ position: "relative" }}>
           <Field
-            label="Spotify song or playlist URL"
+            label="Music Link"
             value={spotifyLink}
             onChangeText={(value) => {
               setSpotifyLink(value);
@@ -520,13 +620,17 @@ const MusicRequestSheetContent = ({
               ? "download-outline"
               : "search-outline"
           }
-          onPress={() =>
-            void (spotifyLinkType === "playlist"
-              ? importPlaylist()
-              : autofillSpotify())
-          }
+          onPress={() => {
+            if (spotifyLinkType === "playlist") {
+              void importPlaylist();
+            } else if (youtubeLink) {
+              void autofillYouTube();
+            } else {
+              void autofillSpotify();
+            }
+          }}
           disabled={
-            !spotifyLinkType ||
+            !validMusicLink ||
             fetchingSpotify ||
             importingPlaylist ||
             submitting ||
@@ -534,9 +638,10 @@ const MusicRequestSheetContent = ({
               (songs.length >= 50 || !!prefill))
           }
         />
-        {spotifyLink.trim() && !spotifyLinkType ? (
+
+        {spotifyLink.trim() && !validMusicLink ? (
           <Text style={[typography.caption, { color: t.warning }]}>
-            Enter a valid Spotify track or playlist URL.
+            Enter a valid Spotify track, playlist or YouTube video URL.
           </Text>
         ) : null}
         {spotifyLinkType === "playlist" &&
