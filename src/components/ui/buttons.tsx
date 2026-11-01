@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Keyboard, Platform, Pressable, Text, View, type ViewInstance } from "react-native";
-import { USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";
+import { durations, USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";
 import { usePressScale } from "./format";
 import { useAnyModalOpen } from "./modalPresence";
 import { FOOTER_GAP, footerReach } from "@/lib/footerClearance";
@@ -26,6 +26,7 @@ export const FooterAction = ({
   cancel,
   bottomOffset = 0,
   avoidKeyboard = true,
+  hidden = false,
 }: {
   title: string;
   onPress: () => void;
@@ -35,8 +36,18 @@ export const FooterAction = ({
   cancel?: { onPress: () => void; disabled?: boolean; title?: string };
   bottomOffset?: number;
   avoidKeyboard?: boolean;
+  // Faded out and untappable, e.g. Save and Cancel while nothing has changed.
+  hidden?: boolean;
 }) => {
   const t = useAppTheme();
+  const [fade] = useState(() => new Animated.Value(hidden ? 0 : 1));
+  useEffect(() => {
+    Animated.timing(fade, {
+      toValue: hidden ? 0 : 1,
+      duration: durations.fadeIn,
+      useNativeDriver: USE_NATIVE_DRIVER,
+    }).start();
+  }, [hidden, fade]);
   const [scale] = useState(() => new Animated.Value(1));
   const [lift] = useState(() => new Animated.Value(0));
   const modalOpen = useAnyModalOpen();
@@ -121,8 +132,10 @@ export const FooterAction = ({
       ]}
     >
       <Animated.View
-        pointerEvents="box-none"
-        style={{ transform: [{ translateY: Animated.multiply(lift, -1) }] }}
+        pointerEvents={hidden ? "none" : "box-none"}
+        accessibilityElementsHidden={hidden}
+        importantForAccessibility={hidden ? "no-hide-descendants" : "auto"}
+        style={{ opacity: fade, transform: [{ translateY: Animated.multiply(lift, -1) }] }}
       >
         {note ? (
           <View

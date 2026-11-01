@@ -12,12 +12,14 @@ export type NavKey =
   | "designRequests"
   | "eventRequests"
   | "attendance"
+  | "calendar"
   | "insights"
   | "org"
   | "profile"
   | "churches"
   | "mentoring"
   | "announcements"
+  | "grievances"
   | "admin";
 
 export const NAV_HREFS = {
@@ -27,12 +29,14 @@ export const NAV_HREFS = {
   designRequests: "/design-requests",
   eventRequests: "/event-requests",
   attendance: "/attendance",
+  calendar: "/calendar",
   insights: "/insights",
   org: "/org",
   profile: "/profile",
   churches: "/churches",
   mentoring: "/mentoring",
   announcements: "/announcements",
+  grievances: "/grievances",
   admin: "/admin",
 } as const satisfies Record<NavKey, string>;
 
@@ -43,12 +47,14 @@ export const NAV_LABELS: Record<NavKey, string> = {
   eventRequests: "Event Requests",
   music: "Praise List",
   attendance: "Attendance",
+  calendar: "Calendar",
   insights: "Insights",
   org: "Org Chart",
   profile: "Profile",
   churches: "Churches",
   mentoring: "Mentoring",
   announcements: "Announcements",
+  grievances: "Grievances",
   admin: "Admin",
 };
 
@@ -120,8 +126,8 @@ export const showsReimbursements = (viewer: NavViewer) =>
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = ["profile"];
-  if (viewer.isStaff) items.push("music");
-  if (viewer.isStaff) items.push("churches");
+  // Staff have the Calendar as a bottom tab, so Insights moves in here.
+  if (viewer.isStaff) items.push("music", "insights", "churches");
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.canMentoring) items.push("mentoring");
   if (viewer.canAnnounce) items.push("announcements");
@@ -133,8 +139,9 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.isStaff) items.push("music");
-  if (viewer.isStaff) items.push("attendance");
-  items.push("insights", "org", "churches");
+  if (viewer.isStaff) items.push("attendance", "calendar");
+  if (viewer.signedIn) items.push("insights");
+  items.push("org", "churches", "grievances");
   if (viewer.signedIn) items.push("profile");
   if (viewer.canMentoring) items.push("mentoring");
   if (viewer.canAnnounce) items.push("announcements");
@@ -163,6 +170,7 @@ export const activeNavKey = (pathname: string): NavKey | null => {
   if (pathname === "/attendance" || pathname.startsWith("/attendance/")) {
     return "attendance";
   }
+  if (pathname === "/calendar") return "calendar";
   if (pathname === "/insights") return "insights";
   if (pathname === "/org") return "org";
   if (pathname === "/profile") return "profile";
@@ -171,6 +179,8 @@ export const activeNavKey = (pathname: string): NavKey | null => {
     return "announcements";
   }
   if (pathname === "/mentoring") return "mentoring";
+  if (pathname === "/grievances" || pathname.startsWith("/grievances/"))
+    return "grievances";
   if (pathname === "/admin") return "admin";
   if (pathname === "/music" || pathname.startsWith("/music/")) {
     return "music";

@@ -14,11 +14,11 @@ import {
   previousStaffYearForEmail,
   staffEmailCandidates,
 } from "../shared/rollcallImport";
+import { googleAccessToken, googleServiceAccountConfigured } from "./googleAuth";
 import { optionalEmail, requireAdmin } from "./model";
 
 const SCOPE = "https://www.googleapis.com/auth/admin.directory.user.readonly";
 const DIRECTORY_LIMIT = 10000;
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 const base64urlToBytes = (data: string): Uint8Array => {
   const normalised = data
@@ -32,72 +32,14 @@ const base64urlToBytes = (data: string): Uint8Array => {
   return bytes;
 };
 
-const base64url = (bytes: Uint8Array): string => {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-};
-const encodeJson = (value: unknown): string =>
-  base64url(new TextEncoder().encode(JSON.stringify(value)));
-
-const pemToArrayBuffer = (pem: string): ArrayBuffer => {
-  const body = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\s/g, "");
-  const binary = atob(body);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
-};
-
 async function getAccessToken(): Promise<string> {
-  const clientEmail = process.env.GOOGLE_SA_CLIENT_EMAIL;
-  const privateKeyPem = process.env.GOOGLE_SA_PRIVATE_KEY?.replace(/\\n/g, "\n");
   const impersonate = process.env.GOOGLE_ADMIN_IMPERSONATE;
-  if (!clientEmail || !privateKeyPem || !impersonate) {
+  if (!googleServiceAccountConfigured() || !impersonate) {
     throw new Error(
       "Directory sync is not configured: set GOOGLE_SA_CLIENT_EMAIL, GOOGLE_SA_PRIVATE_KEY and GOOGLE_ADMIN_IMPERSONATE."
     );
   }
-
-  const now = Math.floor(Date.now() / 1000);
-  const unsigned = `${encodeJson({ alg: "RS256", typ: "JWT" })}.${encodeJson({
-    iss: clientEmail,
-    sub: impersonate,
-    scope: SCOPE,
-    aud: TOKEN_URL,
-    iat: now,
-    exp: now + 3600,
-  })}`;
-
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    pemToArrayBuffer(privateKeyPem),
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    key,
-    new TextEncoder().encode(unsigned)
-  );
-  const assertion = `${unsigned}.${base64url(new Uint8Array(signature))}`;
-
-  const response = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion,
-    }),
-  });
-  if (!response.ok) {
-    throw new Error(`Google token exchange failed: ${await response.text()}`);
-  }
-  const { access_token } = (await response.json()) as { access_token: string };
-  return access_token;
+  return await googleAccessToken(SCOPE, impersonate);
 }
 
 async function fetchPhoto(

@@ -5,6 +5,7 @@ import {
   announcementStatusValidator,
   audienceValidator,
 } from "./announcementData";
+import { calendarCategoryValidator, entryFields } from "./calendarData";
 import {
   designAnswersValidator,
   designStatusValidator,
@@ -17,6 +18,7 @@ import {
   subFormKindValidator,
   subFormStatusValidator,
 } from "./eventRequestData";
+import { grievanceFields, grievanceStatusValidator } from "./grievanceData";
 import { homeBlockValidator } from "./homeData";
 import { metricsDataValidator, staffTrendsValidator } from "./metricsData";
 import {
@@ -309,6 +311,7 @@ export default defineSchema({
     designRequestId: v.optional(v.id("designRequests")),
     eventRequestId: v.optional(v.id("eventRequests")),
     announcementId: v.optional(v.id("announcements")),
+    grievanceId: v.optional(v.id("grievances")),
     read: v.boolean(),
   })
     .index("by_user", ["userEmail"])
@@ -327,6 +330,11 @@ export default defineSchema({
     .index("by_user_and_announcement_and_read", [
       "userEmail",
       "announcementId",
+      "read",
+    ])
+    .index("by_user_and_grievance_and_read", [
+      "userEmail",
+      "grievanceId",
       "read",
     ])
     .index("by_announcement_and_read", ["announcementId", "read"])
@@ -421,6 +429,10 @@ export default defineSchema({
     cancelledBy: v.optional(v.string()),
     cancelNote: v.optional(v.string()),
     legacyKey: v.optional(v.string()),
+    // What approving it put on the Calendar: an attendance event when it takes
+    // attendance, otherwise a calendar event (see convex/eventRequestLinks.ts).
+    attendanceEventId: v.optional(v.id("events")),
+    calendarEntryId: v.optional(v.id("calendarEntries")),
   })
     .index("by_year_and_number", ["year", "number"])
     .index("by_requester_and_year", ["requesterEmail", "year"])
@@ -495,6 +507,9 @@ export default defineSchema({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(weeklyMarkValidator),
+    category: v.optional(calendarCategoryValidator),
+    // The approved event request this attendance event comes from.
+    eventRequestId: v.optional(v.id("eventRequests")),
     checkIn: v.optional(
       v.object({
         token: v.string(),
@@ -505,6 +520,22 @@ export default defineSchema({
   })
     .index("by_dateStart", ["dateStart"])
     .index("by_checkIn_token", ["checkIn.token"]),
+
+  // One Google Calendar write at a time per event or entry (convex/googleCalendar.ts).
+  googleSyncLocks: defineTable({
+    targetId: v.string(),
+    owner: v.string(),
+    lockedUntil: v.number(),
+    pending: v.boolean(),
+  }).index("by_targetId", ["targetId"]),
+
+  // Calendar entries that don't take attendance; attendance events show on the calendar too.
+  calendarEntries: defineTable({
+    ...entryFields,
+    createdBy: v.string(),
+    // The approved event request this calendar event comes from.
+    eventRequestId: v.optional(v.id("eventRequests")),
+  }).index("by_dateStart", ["dateStart"]),
 
   eventAttendanceCounts: defineTable({
     eventId: v.id("events"),
@@ -625,6 +656,46 @@ export default defineSchema({
     .index("by_event", ["eventId"])
     .index("by_event_and_member", ["eventId", "memberId"])
     .index("by_member", ["memberId"]),
+
+  grievances: defineTable({
+    ref: v.string(),
+    // The staff year it's listed under; open ones move to the new year on 1 October.
+    year: v.number(),
+    submittedAt: v.number(),
+    accountEmail: v.optional(v.string()),
+    ...grievanceFields,
+    status: grievanceStatusValidator,
+    assigneeEmail: v.optional(v.string()),
+    inProgressAt: v.optional(v.number()),
+    closedAt: v.optional(v.number()),
+    closedBy: v.optional(v.string()),
+    closingNote: v.optional(v.string()),
+  })
+    .index("by_year", ["year"])
+    .index("by_status", ["status"])
+    .index("by_status_and_year", ["status", "year"])
+    .index("by_accountEmail", ["accountEmail"]),
+
+  grievanceSettings: defineTable({
+    departments: v.array(v.string()),
+    categories: v.array(v.string()),
+  }),
+
+  grievanceEvents: defineTable({
+    grievanceId: v.id("grievances"),
+    action: v.string(),
+    actorEmail: v.string(),
+    detail: v.optional(v.string()),
+  }).index("by_grievance", ["grievanceId"]),
+
+  grievanceRateLimit: defineTable({
+    fromEmail: v.string(),
+    signedIn: v.boolean(),
+    submittedAt: v.number(),
+  })
+    .index("by_email_and_time", ["fromEmail", "submittedAt"])
+    .index("by_signedIn_and_time", ["signedIn", "submittedAt"])
+    .index("by_time", ["submittedAt"]),
 
   contactRateLimit: defineTable({
     fromEmail: v.string(),

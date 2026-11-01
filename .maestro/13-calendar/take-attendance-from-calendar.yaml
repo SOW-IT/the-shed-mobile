@@ -1,0 +1,38 @@
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "calendar?view=month"
+- extendedWaitUntil:
+    visible: "Month"
+    timeout: 20000
+
+# A calendar event has no Where or category until it takes attendance.
+- tapOn: "Add an event on.*"
+- assertNotVisible: "Category"
+- assertNotVisible: "Where"
+- tapOn: "Take attendance at this event"
+- assertVisible: "Where"
+- tapOn: "e.g. Marketing meeting"
+- inputText: "E2E hot chocolate"
+- tapOn: "Next"
+
+# It carries on in Attendance's event form, with the name kept.
+- extendedWaitUntil:
+    visible: "Shared with"
+    timeout: 10000
+- assertVisible: "E2E hot chocolate"
+- tapOn: "Create event"
+- extendedWaitUntil:
+    visible: ".*E2E hot chocolate.*"
+    timeout: 15000

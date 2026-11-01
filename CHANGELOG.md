@@ -6,6 +6,154 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.14] - 2026-11-01
+
+### Added
+- **A week view on the Calendar, like Google Calendar's.** Switch between
+  Month and Week at the top. The week shows the hours down the side and
+  each event where it happens, side by side when they overlap, with events
+  running over several days and all-day deadlines in a strip along the top
+  and a red line at the time now. Tap an event to open it, or tap an empty
+  hour to add something then with the time filled in. The Calendar remembers
+  Month or Week on each phone or browser, and `/calendar?view=week` opens
+  the week.
+- **Deadlines for things that are due or going out.** "Add Event" has Event
+  and Deadline: a deadline is a name, a day and, if you like, a time, with
+  no end, for things like applications closing or a post going live. It
+  shows with a flag on the month, the week and the day's list ("Due
+  11:59 pm", or "Due all day"), and can be turned back into an event. The
+  shared Google Calendar gets it as an all-day event, with any time in its
+  title.
+- **Event requests can take attendance, and go on the Calendar once
+  approved.** The event form has a "Take attendance at this event" box. When
+  every form is signed off, an event that takes attendance becomes an SOW
+  attendance event; one that doesn't becomes a calendar event. Each links to
+  the others: the request has "Attendance" and "On the Calendar" buttons, the
+  roll-call says "From an event request", and the calendar row opens the
+  request. They follow the request: editing its name or times moves them,
+  ticking or unticking attendance swaps one for the other, and cancelling
+  removes them, except an attendance event someone was signed in to.
+
+### Changed
+- **Adding to the Calendar is simpler.** An entry is an Event or a Deadline,
+  with no Category or Where. Ticking "Take attendance" asks where it's held,
+  then carries on in Attendance's event form for its tags, whether it's a
+  weekly and any other campuses; an existing calendar event can be switched
+  to take attendance the same way, and becomes that attendance event. An
+  attendance event's calendar category now comes only from its tags (TWIG,
+  PPN), its term (Weekly) and where it's held (Campus or SOW event), so
+  Attendance's "Calendar category" picker is gone.
+- **Calendar takes Insights' place in the bottom bar.** For staff and campus
+  leaders the bottom bar is Home, Attendance, Calendar, Org Chart and
+  Grievances, and Insights moves to the side menu (it stays in the sidebar on
+  wide screens). Signed in without a staff role, Insights is still a tab.
+  Signed out, Insights isn't shown at all and a link to it opens Home, so the
+  public General numbers and "Sign in to view more" are gone.
+- **Events running over several days are one bar across the Calendar.** A
+  camp or retreat is a single bar from its first day to its last instead of a
+  separate row on each day, so it's easy to spot and its name has room. It
+  carries on along the next week's row when it runs past Sunday, and busy
+  days still end with "+N more".
+- **Weeklies and campus events wear their campus's colour.** A Weekly or
+  Campus event held at one campus is coloured like that campus everywhere
+  else in the app (USYD red, UNSW green, UTS blue, MACQ yellow, ACU purple,
+  WSU dark red) instead of the same blue or orange for every campus, and the
+  "Where" chips double as the key. One held at several campuses keeps the
+  Weekly or Campus event colour. The shared Google Calendar follows with the
+  nearest of Google's colours once each event is copied again.
+- **Send Grievance is at the end of the form** instead of pinned to the
+  bottom of the screen.
+- **Save and Cancel on Attendance's Tags and Metadata fade out** until
+  something has changed.
+- **The Calendar has one icon everywhere**: the bottom tab now uses the side
+  menu's, so it isn't mistaken for Event Requests.
+
+### Fixed
+- **Deleting a calendar entry works on iPhone.** Tapping Delete in a calendar
+  entry did nothing on iOS, because its "are you sure?" box couldn't open over
+  the entry; it now opens on top of it, as it always did on web.
+
+## [2.10.13] - 2026-10-31
+
+### Changed
+- **Dependency update from Dependabot**, with no visible change to the app:
+  `convex-test` 0.0.65, used only by the backend tests.
+
+## [2.10.12] - 2026-10-31
+
+### Added
+- **A Calendar of every SOW event.** Staff and campus leaders get Calendar in
+  the side menu: a month where each day shows the start of its events' names
+  in coloured rows, so you can tell them apart at a glance. Tap a day to see
+  its events in full below; tap an attendance event to open its roll-call.
+  TWIGs, PPNs, weeklies and campus and SOW events from Attendance all appear
+  on their own. Chips show only some categories or campuses, and events
+  running over several days show on each day with their dates. Today is
+  ringed in the app's green.
+- **Add things to the calendar, with or without attendance.** "Add Event"
+  puts an entry on the day you picked, for things like marketing schedules,
+  deadlines and timelines, with a category and notes; whoever added it, or an
+  admin, can edit or delete it. Tick "Take attendance at this event" to make
+  it an attendance event instead, so leaders can sign people in. Attendance
+  events can also be given a calendar category in Attendance.
+- **Copies to a shared Google Calendar.** Once the "SOW Events" Google
+  Calendar is set up (see LAUNCH.md), every event and entry, and each change
+  to them, is copied to it, and everyone at sow.org.au can add it to their own
+  Google Calendar. Setting it up copies the past year's events and everything
+  ahead. Changes made in Google don't come back to the app.
+
+## [2.10.11] - 2026-10-31
+
+### Added
+- **Raise a grievance, and follow it until it's resolved.** Grievances is
+  the fifth tab at the bottom of the app for everyone, signed in or not.
+  Anyone can raise a grievance with SOW in confidence: what it's about, what
+  happened, and optionally where, when, who was involved and what they'd
+  like to happen. Only the grievance team sees it. Whoever raised it is
+  emailed as it moves from submitted to in progress (with who's looking
+  after it) to resolved with the outcome, or closed with a reason; signed
+  in, they also follow it under Mine and get a push at each step.
+- **The grievance team handles grievances in the app.** People and Culture
+  and Compliance to start; admins choose the departments in Admin → Other.
+  The team gets a push for each new grievance (nothing goes to an email
+  inbox) and works on them under Submitted, listed by staff year. Open
+  grievances move to the new staff year on 1 October. Anyone on the team can
+  take one on or give it to a teammate, resolve it or close it as not
+  proceeding, and edit the "What is it about?" options. Each grievance has a
+  random reference only the team sees. The tab counts new grievances and the
+  open ones you're looking after.
+
+## [2.10.10] - 2026-10-29
+
+### Fixed
+- **CI's Expo SDK version check passes again.** Expo 58.0.21 and React
+  Native 0.88.1, with Expo Router 58.0.28, Expo UI 58.0.25,
+  expo-auth-session 58.0.16, expo-constants 58.0.14, expo-dev-client
+  58.0.17, expo-file-system 58.0.13, expo-font 58.0.11,
+  expo-image-manipulator 58.0.16, expo-linking 58.0.15, expo-notifications
+  58.1.7, expo-sharing 58.0.21, expo-splash-screen 58.0.12, expo-system-ui
+  58.0.7, expo-updates 58.0.19 and expo-web-browser 58.0.7: the Expo SDK 58
+  patch releases, which CI's SDK version check now expects. No visible
+  change to the app, but the native code changes, so phones get this
+  release from the App Store and Google Play rather than over the air.
+
+## [2.10.9] - 2026-10-29
+
+### Added
+- **Search and filter the Org chart.** A search box at the top finds people
+  by name, email or role, or by the department, division or campus they sit
+  in, so "finance" lists the Finance team and "unsw exec" lists UNSW's
+  executives. Every word typed has to match. Below it, a chip for each
+  division and campus (and Staff, in a year that has general staff) says how
+  many people it covers; pick any number to see only those parts of the
+  chart. A line under the chips counts who is showing, and "Show everyone"
+  clears the search and the chips.
+
+### Changed
+- **Filter chips wrap on wide screens.** On an iPad or a computer, the chips
+  on Churches and the Org chart now wrap onto another line instead of
+  running past the edge of the column, where a mouse couldn't reach them.
+
 ## [2.10.7] - 2026-10-26
 
 ### Changed

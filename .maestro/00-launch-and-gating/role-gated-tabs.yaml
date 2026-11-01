@@ -15,9 +15,12 @@ tags:
 - assertVisible:
     text: ".*Org Chart, tab.*"
 - assertVisible:
+    text: ".*Calendar, tab.*"
+- assertNotVisible:
     text: ".*Insights, tab.*"
 - runFlow: ../common/open-menu.yaml
 - assertVisible: "Profile"
+- assertVisible: "Insights"
 - assertNotVisible:
     text: "Requests.*"
 - assertNotVisible: "Mentoring"
@@ -34,11 +37,14 @@ tags:
 - assertVisible:
     text: ".*Attendance, tab.*"
 - assertVisible:
+    text: ".*Calendar, tab.*"
+- assertNotVisible:
     text: ".*Insights, tab.*"
 - assertVisible:
     text: ".*Org Chart, tab.*"
 - runFlow: ../common/open-menu.yaml
 - assertVisible: "Profile"
+- assertVisible: "Insights"
 - assertVisible:
     text: "Requests.*"
 - assertNotVisible: "Mentoring"

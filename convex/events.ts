@@ -24,6 +24,8 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import { removeReplacedEntry } from "./calendar";
+import { openableEventRequest } from "./eventRequestAccess";
 import { optionalProfile, requireProfile } from "./model";
 import { memberAuditName } from "./attendanceMembers";
 import { readSettings } from "./weeklyInsights";
@@ -47,6 +49,8 @@ import {
   startEventAttendanceCount,
 } from "./attendanceCounts";
 import { deleteRollCallOrder, rankingInputsChanged, scheduleRank } from "./rollCallOrder";
+import { calendarCategoryValidator } from "./calendarData";
+import { calendarSyncConfigured } from "./googleCalendar";
 
 const weeklyMarkArg = v.object({
   year: v.number(),
@@ -300,11 +304,18 @@ export const subgroups = query({
 export const get = query({
   args: { eventId: v.string() },
   handler: async (ctx, { eventId: rawEventId }) => {
-    if (!(await optionalProfile(ctx))) return null;
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
     const eventId = ctx.db.normalizeId("events", rawEventId);
     if (!eventId) return null;
     const event = await ctx.db.get(eventId);
-    return event ? await annotate(ctx, event) : null;
+    if (!event) return null;
+    return {
+      ...(await annotate(ctx, event)),
+      // Its name and times follow the request; the link is only for those who can open it.
+      fromEventRequest: !!event.eventRequestId,
+      eventRequestId: (await openableEventRequest(ctx, caller, event.eventRequestId)) ?? undefined,
+    };
   },
 });
 
@@ -357,6 +368,44 @@ export const notifyNewEvent = internalMutation({
   },
 });
 
+type NewEvent = {
+  name: string;
+  dateStart: number;
+  dateEnd: number;
+  subgroups: string[];
+  tagIds?: Id<"attendanceTags">[];
+  weekly?: WeeklyMark;
+  category?: Doc<"events">["category"];
+};
+
+// Creates an attendance event with everything that comes with one: its count,
+// the audit line, the new-event notice, its roll-call order and its Google copy.
+export async function insertEvent(
+  ctx: MutationCtx,
+  actorEmail: string,
+  { category, ...fields }: NewEvent,
+  eventRequestId?: Id<"eventRequests">
+): Promise<Id<"events">> {
+  const eventFields = await validateEventFields(ctx, fields);
+  const eventId = await ctx.db.insert("events", {
+    ...eventFields,
+    category,
+    ...(eventRequestId ? { eventRequestId } : {}),
+  });
+  await startEventAttendanceCount(ctx, eventId);
+  await logAttendanceAction(ctx, {
+    actorEmail,
+    entityType: "event",
+    action: "event.create",
+    summary: `Created event "${eventFields.name}" (${eventFields.subgroups.join(", ")})`,
+    eventId,
+  });
+  await ctx.scheduler.runAfter(0, internal.events.notifyNewEvent, { eventId, actorEmail });
+  await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
+  await syncToGoogle(ctx, eventId);
+  return eventId;
+}
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -365,34 +414,48 @@ export const create = mutation({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(weeklyMarkArg),
+    category: v.optional(calendarCategoryValidator),
+    // A calendar entry this event replaces, when an entry starts taking attendance.
+    replacesEntryId: v.optional(v.id("calendarEntries")),
   },
-  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds, weekly }) => {
+  handler: async (ctx, { replacesEntryId, ...fields }) => {
     const { email } = await requireProfile(ctx);
-    const eventFields = await validateEventFields(ctx, {
-      name,
-      dateStart,
-      dateEnd,
-      subgroups,
-      tagIds,
-      weekly,
-    });
-    const eventId = await ctx.db.insert("events", eventFields);
-    await startEventAttendanceCount(ctx, eventId);
-    await logAttendanceAction(ctx, {
-      actorEmail: email,
-      entityType: "event",
-      action: "event.create",
-      summary: `Created event "${eventFields.name}" (${eventFields.subgroups.join(", ")})`,
-      eventId,
-    });
-    await ctx.scheduler.runAfter(0, internal.events.notifyNewEvent, {
-      eventId,
-      actorEmail: email,
-    });
-    await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
-    return eventId;
+    if (replacesEntryId) await removeReplacedEntry(ctx, replacesEntryId);
+    return await insertEvent(ctx, email, fields);
   },
 });
+
+// Renames or moves an event to follow its event request.
+export async function retimeEvent(
+  ctx: MutationCtx,
+  actorEmail: string,
+  eventId: Id<"events">,
+  next: { name: string; dateStart: number; dateEnd: number }
+) {
+  const existing = await ctx.db.get(eventId);
+  if (!existing) return;
+  const eventFields = await validateEventFields(ctx, { ...existing, ...next });
+  const changes = [
+    existing.name !== eventFields.name ? "name" : null,
+    existing.dateStart !== eventFields.dateStart ? "start date" : null,
+    existing.dateEnd !== eventFields.dateEnd ? "end date" : null,
+  ].filter((change) => change !== null);
+  if (changes.length === 0) return;
+  const { name, dateStart, dateEnd } = eventFields;
+  await ctx.db.patch(eventId, { name, dateStart, dateEnd });
+  if (rankingInputsChanged(existing, { ...existing, dateStart })) {
+    await scheduleRank(ctx, { _id: eventId, dateStart });
+  }
+  await syncToGoogle(ctx, eventId);
+  await logAttendanceAction(ctx, {
+    actorEmail,
+    entityType: "event",
+    action: "event.update",
+    summary: `Updated event ${auditEventName(eventFields)} from its event request`,
+    eventId,
+    detail: `Changed: ${changes.join(", ")}`,
+  });
+}
 
 export const update = mutation({
   args: {
@@ -403,15 +466,22 @@ export const update = mutation({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(v.union(v.null(), weeklyMarkArg)),
+    category: v.optional(v.union(v.null(), calendarCategoryValidator)),
   },
   returns: v.null(),
   handler: async (
     ctx,
-    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly }
+    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly, category }
   ) => {
     const { email } = await requireProfile(ctx);
     const existing = await ctx.db.get(eventId);
     if (!existing) throw new ConvexError("Event not found.");
+    if (
+      existing.eventRequestId &&
+      (name.trim() !== existing.name || dateStart !== existing.dateStart || dateEnd !== existing.dateEnd)
+    ) {
+      throw new ConvexError("Its name and times come from its event request, so change them there.");
+    }
     const eventFields = await validateEventFields(ctx, {
       name,
       dateStart,
@@ -420,7 +490,8 @@ export const update = mutation({
       tagIds,
       weekly: weekly === undefined ? existing.weekly : weekly,
     });
-    await ctx.db.patch(eventId, eventFields);
+    const nextCategory = category === undefined ? existing.category : (category ?? undefined);
+    await ctx.db.patch(eventId, { ...eventFields, category: nextCategory });
     if (rankingInputsChanged(existing, { ...existing, ...eventFields })) {
       await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
     }
@@ -434,6 +505,8 @@ export const update = mutation({
       changes.push("tags");
     if (JSON.stringify(existing.weekly ?? null) !== JSON.stringify(eventFields.weekly ?? null))
       changes.push("term and week");
+    if (existing.category !== nextCategory) changes.push("calendar category");
+    await syncToGoogle(ctx, eventId);
     if (changes.length) {
       await logAttendanceAction(ctx, {
         actorEmail: email,
@@ -447,6 +520,13 @@ export const update = mutation({
     return null;
   },
 });
+
+// Copies the event (or its removal) to the shared Google Calendar, when one is set up.
+async function syncToGoogle(ctx: MutationCtx, eventId: Id<"events">) {
+  if (calendarSyncConfigured()) {
+    await ctx.scheduler.runAfter(0, internal.googleCalendar.syncEvent, { eventId });
+  }
+}
 
 const attendeesToList = async (
   ctx: QueryCtx | MutationCtx,
@@ -481,42 +561,55 @@ export const deletePreview = query({
   },
 });
 
+// Deletes an event with its sign-ins, check-in requests, count and roll-call
+// order, copies the removal to Google, and logs who was signed in.
+export async function deleteEvent(ctx: MutationCtx, actorEmail: string, eventId: Id<"events">) {
+  const event = await ctx.db.get(eventId);
+  if (!event) return;
+  const rows = await ctx.db
+    .query("attendance")
+    .withIndex("by_event", (q) => q.eq("eventId", eventId))
+    .collect();
+  const people = await attendeesToList(ctx, event, rows);
+  for (const row of rows) await ctx.db.delete(row._id);
+  const checkIns = await ctx.db
+    .query("checkInRequests")
+    .withIndex("by_event_and_status", (q) => q.eq("eventId", eventId))
+    .collect();
+  for (const request of checkIns) await ctx.db.delete(request._id);
+  await deleteEventAttendanceCount(ctx, eventId);
+  await deleteRollCallOrder(ctx, eventId);
+  await ctx.db.delete(eventId);
+  await syncToGoogle(ctx, eventId);
+  if (event.eventRequestId) {
+    const request = await ctx.db.get(event.eventRequestId);
+    if (request?.attendanceEventId === eventId) {
+      await ctx.db.patch(request._id, { attendanceEventId: undefined });
+    }
+  }
+  const hidden = rows.length - people.length;
+  await logAttendanceAction(ctx, {
+    actorEmail,
+    entityType: "event",
+    action: "event.delete",
+    summary: `Deleted event ${auditEventName(event)}`,
+    eventId,
+    detail: rows.length
+      ? [
+          `Removed ${rows.length} attendance record${rows.length === 1 ? "" : "s"}:`,
+          ...people.map((p) => `${p.name} · ${auditStamp(p.signInTime)}`),
+          ...(hidden > 0 ? [`and ${hidden} more`] : []),
+        ].join("\n")
+      : "Removed no attendance records",
+  });
+}
+
 export const remove = mutation({
   args: { eventId: v.id("events") },
   returns: v.null(),
   handler: async (ctx, { eventId }) => {
     const { email } = await requireProfile(ctx);
-    const event = await ctx.db.get(eventId);
-    if (!event) return null;
-    const rows = await ctx.db
-      .query("attendance")
-      .withIndex("by_event", (q) => q.eq("eventId", eventId))
-      .collect();
-    const people = await attendeesToList(ctx, event, rows);
-    for (const row of rows) await ctx.db.delete(row._id);
-    const checkIns = await ctx.db
-      .query("checkInRequests")
-      .withIndex("by_event_and_status", (q) => q.eq("eventId", eventId))
-      .collect();
-    for (const request of checkIns) await ctx.db.delete(request._id);
-    await deleteEventAttendanceCount(ctx, eventId);
-    await deleteRollCallOrder(ctx, eventId);
-    await ctx.db.delete(eventId);
-    const hidden = rows.length - people.length;
-    await logAttendanceAction(ctx, {
-      actorEmail: email,
-      entityType: "event",
-      action: "event.delete",
-      summary: `Deleted event ${auditEventName(event)}`,
-      eventId,
-      detail: rows.length
-        ? [
-            `Removed ${rows.length} attendance record${rows.length === 1 ? "" : "s"}:`,
-            ...people.map((p) => `${p.name} · ${auditStamp(p.signInTime)}`),
-            ...(hidden > 0 ? [`and ${hidden} more`] : []),
-          ].join("\n")
-        : "Removed no attendance records",
-    });
+    await deleteEvent(ctx, email, eventId);
     return null;
   },
 });

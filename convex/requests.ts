@@ -141,6 +141,7 @@ export const notify = async (
     requestId?: Id<"requests">;
     designRequestId?: Id<"designRequests">;
     eventRequestId?: Id<"eventRequests">;
+    grievanceId?: Id<"grievances">;
     email?: boolean;
   }
 ) => {
@@ -154,6 +155,7 @@ export const notify = async (
     requestId,
     designRequestId,
     eventRequestId,
+    grievanceId,
     email = true,
   } = opts;
   if (!to) return;
@@ -176,6 +178,7 @@ export const notify = async (
     ...(requestId ? { requestId } : {}),
     ...(designRequestId ? { designRequestId } : {}),
     ...(eventRequestId ? { eventRequestId } : {}),
+    ...(grievanceId ? { grievanceId } : {}),
     read: false,
   });
   await ctx.scheduler.runAfter(0, internal.push.send, {

@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { GENERAL_RECENT_YEARS } from "../../../shared/attendanceMetrics";
@@ -24,7 +24,7 @@ import {
   ChartModeProvider,
 } from "@/components/attendance/MetricsCharts";
 import { MetricsTab } from "@/components/attendance/MetricsTab";
-import { EmptyState, LoadingState } from "@/components/ui";
+import { LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 
@@ -94,24 +94,15 @@ export default function InsightsScreen() {
     return <LoadingState />;
   }
 
-  const isStaff = !!me?.profile;
-  const isSignedIn = !!me;
-  const signInPrompt = !isSignedIn ? (
-    <EmptyState
-      icon="log-in-outline"
-      title="Sign in to view more"
-      message="You're seeing the public view. Sign in to see the full dashboard."
-    />
-  ) : null;
+  // Insights is only for people who are signed in.
+  if (me === null) return <Redirect href="/home" />;
+  const isStaff = !!me.profile;
 
   const generalTab: PagerTab = {
     key: "general",
     label: "General",
     render: () => (
-      <>
-        <GeneralMetricsTab view={generalView} />
-        {signInPrompt}
-      </>
+      <GeneralMetricsTab view={generalView} />
     ),
   };
   const attendanceTab: PagerTab = {
@@ -167,14 +158,14 @@ export default function InsightsScreen() {
           includeCollaborative={includeCollaborative}
           onCollaborativeChange={setIncludeCollaborative}
         />
-      ) : isSignedIn ? (
+      ) : (
         <GeneralScopeFab
           years={generalView?.years ?? []}
           value={generalScope}
           onChange={setGeneralScope}
           recentYears={GENERAL_RECENT_YEARS}
         />
-      ) : null}
+      )}
       {activeKey === "general" ? null : <ChartModeFab mode={chartMode} onChange={setChartMode} />}
     </>
   );

@@ -64,7 +64,18 @@ const timeInputFromMs = (ms: number): string => toTimeInputValue(new Date(ms));
 type EditableEvent = Pick<
   Doc<"events">,
   "_id" | "name" | "dateStart" | "dateEnd" | "subgroups" | "tagIds" | "weekly"
->;
+> & { fromEventRequest?: boolean };
+
+// From the Calendar: what was filled in there, and the calendar entry this
+// replaces when an entry starts taking attendance.
+export type AttendanceDraft = {
+  name: string;
+  dateStr: string;
+  endDateStr: string;
+  startTime: string;
+  endTime: string;
+  replacesEntryId?: Id<"calendarEntries">;
+};
 
 type Kind = "weekly" | "event";
 type TermPick = { year: number; slot: number };
@@ -82,6 +93,7 @@ export function CreateEventSheet({
   subgroup,
   subgroups,
   event,
+  draft,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -89,6 +101,7 @@ export function CreateEventSheet({
   subgroup: string;
   subgroups: string[];
   event?: EditableEvent;
+  draft?: AttendanceDraft;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -183,6 +196,38 @@ export function CreateEventSheet({
     }
     if (openedRef.current) return;
     openedRef.current = true;
+    if (!isEditing && draft) {
+      // From the Calendar: keep what was filled in there, as a one-off event.
+      const snapshot = {
+        name: draft.name,
+        tags: [] as Id<"attendanceTags">[],
+        collaborators: [subgroup],
+        dateStr: draft.dateStr,
+        endDateStr: draft.endDateStr,
+        startTime: draft.startTime,
+        endTime: draft.endTime,
+      };
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- load the Calendar's draft, or the event's saved fields, on the open transition
+      setName(draft.name);
+      setNameTouched(true);
+      setWhenTouched(true);
+      setKind("event");
+      setInitialKind("event");
+      setTerm(null);
+      setWeek(null);
+      setSelectedTags([]);
+      setCollaborators([subgroup]);
+      setSharing(false);
+      setError(null);
+      setSubmitting(false);
+      setDateStr(draft.dateStr);
+      setEndDateStr(draft.endDateStr);
+      setMultiDay(draft.dateStr !== draft.endDateStr);
+      setStartTime(draft.startTime);
+      setEndTime(draft.endTime);
+      setInitial(snapshot);
+      return;
+    }
     if (!isEditing) return;
     const snapshot = {
       name: event?.name ?? "",
@@ -198,7 +243,6 @@ export function CreateEventSheet({
     const namedByCode =
       !!saved &&
       (["terms", "semesters"] as const).some((system) => weeklyName(system, saved.slot, saved.week) === snapshot.name);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- load the event's saved fields on the open transition (edit mode)
     setName(snapshot.name);
     setNameTouched(!namedByCode);
     setWhenTouched(true);
@@ -220,7 +264,7 @@ export function CreateEventSheet({
     setDeleteText("");
     setConfirmCancel(false);
     setInitial(snapshot);
-  }, [visible, ownerGroup, event, isEditing]);
+  }, [visible, ownerGroup, event, isEditing, draft, subgroup]);
 
   const weekly = kind === "weekly" && canBeWeekly;
   const preview = eventWindowFromInputs({
@@ -369,12 +413,18 @@ export function CreateEventSheet({
         await updateEvent({
           eventId: event._id,
           ...payload,
+          // Calendar categories aren't picked any more; clear one from before.
+          category: null,
           ...(mark ? { weekly: mark } : initialKind === "weekly" ? { weekly: null } : {}),
         });
         onClose();
         return;
       }
-      const eventId = await createEvent({ ...payload, ...(mark ? { weekly: mark } : {}) });
+      const eventId = await createEvent({
+        ...payload,
+        ...(mark ? { weekly: mark } : {}),
+        ...(draft?.replacesEntryId ? { replacesEntryId: draft.replacesEntryId } : {}),
+      });
       resetForm();
       onClose();
       router.push({
@@ -527,53 +577,62 @@ export function CreateEventSheet({
           </View>
         ) : null}
 
-        <Field
-          label="Name"
-          value={nameValue}
-          onChangeText={(text) => {
-            setName(text);
-            setNameTouched(true);
-          }}
-          placeholder={weekly ? code || "e.g. T3W5" : "e.g. Hot Pot Night"}
-        />
-
-        <View style={{ gap: spacing.sm }}>
-          <DateInput
-            label={multiDay ? "Start date" : "Date"}
-            value={dateStr}
-            onChange={changeStartDate}
+        {event?.fromEventRequest ? (
+          // The server rejects changes to these; they follow the event request.
+          <Txt style={[typography.caption, { color: t.faint }]}>
+            Its name, date and times come from its event request, so change them there.
+          </Txt>
+        ) : (
+          <>
+          <Field
+            label="Name"
+            value={nameValue}
+            onChangeText={(text) => {
+              setName(text);
+              setNameTouched(true);
+            }}
+            placeholder={weekly ? code || "e.g. T3W5" : "e.g. Hot Pot Night"}
           />
-          {multiDay ? (
+
+          <View style={{ gap: spacing.sm }}>
             <DateInput
-              label="End date"
-              value={endDateStr}
-              min={addDaysToDateInputValue(dateStr, 1) ?? dateStr}
-              onChange={(value) => {
-                setEndDateStr(value);
-                setWhenTouched(true);
-              }}
+              label={multiDay ? "Start date" : "Date"}
+              value={dateStr}
+              onChange={changeStartDate}
             />
-          ) : null}
-          <View style={styles.row}>
-            <TimeInput
-              label="Start"
-              value={startTime}
-              onChange={(value) => {
-                setStartTime(value);
-                setWhenTouched(true);
-              }}
-            />
-            <TimeInput
-              label="End"
-              value={endTime}
-              onChange={(value) => {
-                setEndTime(value);
-                setWhenTouched(true);
-              }}
-            />
+            {multiDay ? (
+              <DateInput
+                label="End date"
+                value={endDateStr}
+                min={addDaysToDateInputValue(dateStr, 1) ?? dateStr}
+                onChange={(value) => {
+                  setEndDateStr(value);
+                  setWhenTouched(true);
+                }}
+              />
+            ) : null}
+            <View style={styles.row}>
+              <TimeInput
+                label="Start"
+                value={startTime}
+                onChange={(value) => {
+                  setStartTime(value);
+                  setWhenTouched(true);
+                }}
+              />
+              <TimeInput
+                label="End"
+                value={endTime}
+                onChange={(value) => {
+                  setEndTime(value);
+                  setWhenTouched(true);
+                }}
+              />
+            </View>
+            <Checkbox checked={multiDay} onToggle={toggleMultiDay} label="Runs over several days" />
           </View>
-          <Checkbox checked={multiDay} onToggle={toggleMultiDay} label="Runs over several days" />
-        </View>
+          </>
+        )}
 
         <View style={{ gap: spacing.sm }}>
           <Txt style={[typography.label, { color: t.muted }]}>Tags</Txt>

@@ -127,7 +127,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   thread. The Events department, the three teams, the Director and admins can
   see every event. Team emails go to marketing@, compliance@ and
   finance@sow.org.au. Any event downloads as a PDF whose Risk and Finance
-  pages follow the Governance Review Form.
+  pages follow the Governance Review Form. Once approved, an event goes on the
+  Calendar: as an SOW attendance event when "Take attendance at this event" is
+  ticked, otherwise as a calendar event. It links both ways and follows the
+  request's edits and cancelling (`convex/eventRequestLinks.ts`).
 - **Announcements** (`convex/announcements.ts`, rules in
   `shared/announcements.ts`), from the side menu for admins (the Human
   Resources division among them). A title and message go to **all leaders**
@@ -155,6 +158,24 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   mentees. Pairings from the old app were copied in once, in 2.10.1. A list
   of pairings for any year can be added from the command line
   (`mentoring:setPairings`) under the same rules.
+- **Grievances** (`convex/grievances.ts`, rules in `shared/grievances.ts`),
+  the fifth bottom tab for everyone, signed in or not (and a card on the
+  Partner tab). Anyone can raise one (name, email, what it's about, what
+  happened); each email can send 3 an hour, and signed-out sending 30 an
+  hour in all. Only the submitter and the **grievance team** can see it:
+  this year's members of the departments chosen in Admin → Other (People and
+  Culture and Compliance to start); other admins can't. Nothing goes to a
+  team inbox: the team gets an in-app and push notification for each new
+  one and works on it under **Submitted**, listed by staff year (the current
+  year, plus earlier years that have grievances; open ones move to the new
+  year just after midnight on 1 October, and the current year lists them
+  even before that runs). Stages:
+  Submitted → In progress (someone has taken it on, or been given it) →
+  Resolved with an outcome note, or Not proceeding with a reason. The
+  submitter is emailed at each stage and, signed in, follows it under Mine
+  with push notifications. Each grievance has a random reference (a UUID)
+  that only the team sees. The team edits the "What is it about?" options;
+  grievances keep the wording they were raised with.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on
@@ -203,13 +224,26 @@ changing anything seasonal, the October 1 staff-year rollover in particular
 - **Notifications** (the bell): everything sent to you, unread first, loading
   older ones as you scroll (`notifications.feed`, 30 a page). Opening the
   screen marks everything read.
-- **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
-  Chart. On phones the top-left avatar, or a swipe from the left edge, opens
-  a side menu with Profile, Reimbursements (staff other than campus leaders),
-  Admin (admins and the Finance Head) and Sign out. Screens 700pt and wider
+- **Navigation**: bottom tabs Home, Attendance and Calendar (staff, campus
+  leaders included), Insights (signed in without a staff role), Org Chart,
+  Churches (anyone not on staff) and Grievances; signed out there's no
+  Insights at all, and `/insights` goes to Home. On phones the top-left
+  avatar, or a swipe from the left edge, opens a side menu with Profile,
+  Insights and Churches (staff), Requests (staff other than campus leaders),
+  Mentoring, Announcements, Admin (admins and the Finance Head) and Sign out. Screens 700pt and wider
   (iPad, desktop web) swap the top bar, bottom tabs and drawer for one
   permanent sidebar holding all of them (`src/components/nav/`,
   rules in `src/lib/navMenu.ts`).
+- **Org chart** (`src/app/(tabs)/org.tsx`, rules in `shared/orgChart.ts`),
+  signed in or not: a year's Director, staff, divisions with their
+  departments, and campus leaders. A search box finds people by name, email
+  or role, or by the department, division or campus they sit in (a campus by
+  its full or short name); every word typed has to match. Below it, a chip
+  for Staff, each division and each campus counts the people it covers in
+  the search results. Picking any number shows only those parts of the
+  results; nothing picked shows every part (with no search, everyone).
+  "Show everyone" clears the search and the chips. On wide
+  screens the chips wrap instead of scrolling sideways, here and on Churches.
 
 ### Attendance
 
@@ -217,6 +251,30 @@ A second feature area (ported from *time-to-rollcall*) for running roll-call at
 SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 `universities`) plus org-wide "SOW", all sharing one member pool.
 
+- **Calendar** (`convex/calendar.ts`, rules in `shared/calendar.ts`), a
+  bottom tab for staff and campus leaders: a month where each event is a
+  coloured bar across the days it runs (the start of its name), or a week
+  with the hours down the side like Google Calendar's (Month or Week is
+  remembered per device; `?view=week` opens the week), then the picked day's
+  events in full below. It shows every attendance event, wherever it was made,
+  plus **calendar entries** (`calendarEntries`): things that don't take
+  attendance, with optional notes and no campus. "Add Event" adds an Event or
+  a **deadline** (a day and an optional time with no end, shown with a flag)
+  on the picked day, or the hour tapped on the week. Ticking "Take attendance"
+  asks where it's held and carries on in Attendance's event form (tags,
+  weekly, other campuses); an existing entry switched to take attendance is
+  replaced by the event (`events.create` `replacesEntryId`). Whoever added an
+  entry, or an admin, edits or deletes it. Nothing is picked: TWIG and PPN
+  come from an attendance event's tags, Weekly from its term and week, and
+  otherwise Campus or SOW event from where it's held; an entry is an Event or
+  a Deadline. A Weekly or Campus event at one campus takes that campus's
+  colour (in Google, the nearest of its colours). An approved **event
+  request** adds its own SOW attendance event (when it takes attendance) or
+  calendar event, and keeps it in step (`convex/eventRequestLinks.ts`). Chips
+  filter by category and campus, and `/calendar?day=`
+  opens a day. Everything is copied one way to a shared Google Calendar
+  (`convex/googleCalendar.ts`) once `GOOGLE_CALENDAR_ID` is set: see
+  [Shared Google Calendar](#shared-google-calendar-optional).
 - **Events & roll-call**: create events tagged with one or more sub-groups
   (multi-sub-group = a *collaborative* event that appears under each), then sign
   people in/out. Everyone signed in is a **member**; staff are members with
@@ -270,7 +328,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   member / tag / metadata edits, merges and deletes, and each
   sign-in/edit/sign-out), read by the Attendance → Audit tab.
 - **CSV export**: export attendance.
-- **Insights** (a dedicated bottom tab): for a campus, its **weekly meetings**
+- **Insights** (signed in only: in the side menu for staff, a bottom tab for
+  others): for a campus, its **weekly meetings**
   by term (T1–T3 / Sem 1–2) or calendar year: cards against the term before
   (a year against last year), a
   follow-up list (people who were coming but stopped, newcomers who haven't
@@ -373,6 +432,36 @@ Until configured, the weekly sync no-ops and the admin screen shows
 "Never synced." Syncing fills the picker and staff photos. Assigning
 roles stays an explicit admin action.
 
+### Shared Google Calendar (optional)
+
+Every attendance event and calendar entry, and each change to them, is
+copied to one Google Calendar by the same service account. Nothing comes back
+from Google. It needs `GOOGLE_SA_CLIENT_EMAIL` and `GOOGLE_SA_PRIVATE_KEY`
+(set up in the Workspace directory sync steps above) and the **Google Calendar
+API** enabled in the service account's Google Cloud project. Without the
+service-account variables, copying stays off even when `GOOGLE_CALENDAR_ID`
+is set, and the commands below fail.
+
+The service account can make the calendar itself, owned by it and readable by
+everyone at the domain; the result has its ID and a link for adding it in
+Google Calendar:
+
+```bash
+npx convex run googleCalendar:createSharedCalendar '{"name": "SOW Events", "domain": "sow.org.au"}'
+npx convex env set GOOGLE_CALENDAR_ID <calendarId from the result>
+npx convex run googleCalendar:backfill '{"daysBack": 365}'
+```
+
+The backfill copies everything that starts from `daysBack` days ago onwards,
+a page at a time, and is safe to run again.
+
+Or use an existing calendar: share it with the service account's email with
+**Make changes to events** and set its ID (*Settings → Integrate calendar →
+Calendar ID*) the same way.
+
+Leave it unset on dev unless dev has its own test calendar: dev's events are
+test data.
+
 A person's photo is, in order: the one they uploaded in The SHED, their
 Workspace directory photo, the picture Google sent at their last sign-in,
 then their initials. The app resizes a picked photo to 512 px before it
@@ -431,11 +520,22 @@ Eight workflows, in `.github/workflows/`:
 | Backup Convex to GCS | `convex-backup.yml` | weekly, Sundays at 15:17 UTC (Monday 01:17 AEST / 02:17 AEDT), and by hand. Weekly because each export reads the whole prod database, about 9.5 MB of database bandwidth a run. Database export as a zip, then Convex file storage (receipts, event attachments, avatars) copied incrementally to `storage/files/<sha256>` in the same bucket: each file is downloaded once, on the first run after it exists, and `storage/manifest.json` records what is there and which files Convex has since deleted. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped. The BigQuery job then checks the warehouse against the previous run (`scripts/warehouse-checks.mjs`): a core table missing or empty, a table that shrank by more than a fifth, or a report view missing posts to Google Chat and fails the step |
 | EAS Update | `eas-update.yml` | after each successful Convex Deploy of `main` (and by hand) → publishes the JavaScript bundle over the air to the `production` and `staging` channels. Only builds whose native fingerprint matches receive it, so a change to native code waits for the next store build |
 | Convex usage check | `convex-usage.yml` | Sundays 22:00 UTC, Monday morning in Sydney (and by hand) → reads this billing period's usage and posts to Google Chat when database bandwidth or file storage passes 70% of the plan, or bandwidth is on track to exceed it (`scripts/convex-usage-alert.mjs`) |
-| EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app |
-| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app, then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
+| EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app, skipping any platform whose native code hasn't changed since its last store build |
+| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app, skipping any platform whose native code hasn't changed since its last store build, then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
 
 Both EAS workflows take a **platform** input (`both` / `ios` / `android`,
-default `both`) and are never triggered by a PR or a merge.
+default `both`) and are never triggered by a PR or a merge. Before building,
+they compare the commit's native fingerprint (`eas fingerprint:generate` for
+the profile) with the last finished store build for that profile and platform
+(`scripts/eas-fingerprint-check.mjs`). A platform is skipped only when the
+fingerprints match, that build has a finished store submission, and the
+newest over-the-air update for that fingerprint on the profile's channel was
+published from the same commit, because phones on that build then already run
+it. Anything it can't confirm is built, so a failed submission is retried and
+a run from another branch, or before EAS Update has finished, still builds.
+The run's summary shows both fingerprints and the reason. Tick **force** to
+build anyway, for example to refresh the JavaScript bundled into the store
+download.
 
 The **prod web app** is published by Vercel's own git integration on merges to
 `main`, so it has no workflow of its own. The dev web app does need one,

@@ -956,9 +956,23 @@ export default function EventAttendanceScreen() {
     </View>
   );
   const eventDate = (
-    <Text style={[typography.caption, { color: t.muted }]}>
-      {formatEventRange(event.dateStart, event.dateEnd)}
-    </Text>
+    <View style={{ gap: 2 }}>
+      <Text style={[typography.caption, { color: t.muted }]}>
+        {formatEventRange(event.dateStart, event.dateEnd)}
+      </Text>
+      {event.eventRequestId ? (
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => router.push(`/event-requests/${event.eventRequestId}`)}
+          hitSlop={6}
+          style={({ pressed }) => pressed && { opacity: 0.6 }}
+        >
+          <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
+            From an event request ›
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
   const eventMeta = metaUnderTitle ? (
     <View style={styles.metaUnderTitle}>

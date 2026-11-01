@@ -13,4 +13,6 @@ A PR merged into `main` goes live straight away. Nothing else needs running:
   matches.
 
 A change to native code waits for a store build. EAS builds
-(`eas-production.yml`, `eas-staging.yml`) are started by hand.
+(`eas-production.yml`, `eas-staging.yml`) are started by hand, and skip a
+platform whose native fingerprint matches its last store build unless
+**force** is ticked.

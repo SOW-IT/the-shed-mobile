@@ -45,6 +45,7 @@ import {
 import { logAttendanceAction } from "./attendanceAudit";
 import { DESIGN_REQUEST_FIELDS } from "./designRequestForm";
 import { EVENT_FIELDS } from "./eventRequestForm";
+import { renameGrievanceDepartment } from "./grievances";
 import {
   assertManagedYear,
   assignableRoleRows,
@@ -1426,6 +1427,7 @@ export const updateDepartment = mutation({
         oldName,
         newName,
       );
+      await renameGrievanceDepartment(ctx, args.year, oldName, newName);
     } else {
       await ctx.db.patch("departments", existing._id, {
         division: args.division,

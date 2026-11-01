@@ -49,6 +49,18 @@ const memberId = run("attendanceMembers:create", { name: "Sweep Member", metadat
 run("attendance:signIn", { eventId, memberId }, SWEEP_PEOPLE.leader);
 run("requests:submit", { description: "Sweep reimbursement", amount: 42 }, SWEEP_PEOPLE.staff);
 const checkInToken = run("checkIn:enable", { eventId }, SWEEP_PEOPLE.leader);
+// The calendar shows a deadline and an entry running over several days.
+const DAY = 24 * 60 * 60 * 1000;
+run(
+  "calendar:addEntry",
+  { name: "Sweep deadline", dateStart: now + DAY, dateEnd: now + DAY, subgroups: ["SOW"], category: "deadline", due: "time" },
+  SWEEP_PEOPLE.staff
+);
+run(
+  "calendar:addEntry",
+  { name: "Sweep camp", dateStart: now, dateEnd: now + 2 * DAY, subgroups: [UNSW], category: "campus" },
+  SWEEP_PEOPLE.staff
+);
 
 const seeded = { year, eventId, memberId, checkInToken, people: SWEEP_PEOPLE };
 writeFileSync("sweep-seed.json", JSON.stringify(seeded, null, 2));

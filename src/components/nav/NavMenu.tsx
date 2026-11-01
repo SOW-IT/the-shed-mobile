@@ -3,6 +3,7 @@ import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { Avatar, ConfirmDialog } from "@/components/ui";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
 import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
+import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
 import { useNavGroupOpen } from "@/hooks/useNavGroupOpen";
 import { useSignOut } from "@/hooks/usePushRegistration";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
@@ -45,12 +46,17 @@ const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
   designRequests: { outline: "color-palette-outline", filled: "color-palette" },
   eventRequests: { outline: "calendar-outline", filled: "calendar" },
   attendance: { outline: "checkbox-outline", filled: "checkbox" },
+  calendar: { outline: "calendar-clear-outline", filled: "calendar-clear" },
   insights: { outline: "stats-chart-outline", filled: "stats-chart" },
   org: { outline: "people-outline", filled: "people" },
   profile: { outline: "person-outline", filled: "person" },
   churches: { outline: "business-outline", filled: "business" },
   mentoring: { outline: "compass-outline", filled: "compass" },
   announcements: { outline: "megaphone-outline", filled: "megaphone" },
+  grievances: {
+    outline: "shield-checkmark-outline",
+    filled: "shield-checkmark",
+  },
   admin: { outline: "settings-outline", filled: "settings" },
 };
 
@@ -63,9 +69,11 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "profile",
   "churches",
   "attendance",
+  "calendar",
   "insights",
   "org",
   "mentoring",
+  "grievances",
   "admin",
 ]);
 
@@ -243,6 +251,7 @@ export const NavMenu = ({
   const reimbursementsBadge = useReimbursementsBadge();
   const designRequestsBadge = useDesignRequestsBadge();
   const eventRequestsBadge = useEventRequestsBadge();
+  const grievancesBadge = useGrievancesBadge();
   const unread =
     useQuery(api.notifications.unreadCount, viewer.isStaff ? {} : "skip") ?? 0;
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
@@ -258,7 +267,9 @@ export const NavMenu = ({
         ? designRequestsBadge
         : key === "eventRequests"
           ? eventRequestsBadge
-          : 0;
+          : key === "grievances"
+            ? grievancesBadge
+            : 0;
 
   const go = (key: NavKey) => {
     onNavigate?.();

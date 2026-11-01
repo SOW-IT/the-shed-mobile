@@ -13,7 +13,10 @@ structure: who fills in, who reviews and who approves all come from
 One event, numbered within the staff year it was created in ("#3 · 2027").
 Carries the answers to the event form (the old web app's "Make an Event
 Request": name, purpose, goals, theme, location, registration goal, audience,
-dates, notes) and is filed under a **lead department**.
+dates, notes, whether to take attendance) and is filed under a **lead
+department**. Once approved it puts one thing on the Calendar and keeps it in
+step: an SOW attendance event when it takes attendance, otherwise a calendar
+event (`convex/eventRequestLinks.ts`).
 _Avoid_: event form (the old app's name), booking, ticket
 
 **Lead department**:

@@ -121,10 +121,11 @@ describe("drawerItems", () => {
     expect(drawerItems(guest)).toEqual(["profile"]);
   });
 
-  test("staff get Profile, Praise List, Churches, Reimbursements, Event Requests and Design Requests", () => {
+  test("staff get Profile, Music, Insights (the Calendar is their tab), Churches, Reimbursements, Event Requests and Design Requests", () => {
     expect(drawerItems(staff)).toEqual([
       "profile",
       "music",
+      "insights",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -136,6 +137,7 @@ describe("drawerItems", () => {
     const withAdmin = [
       "profile",
       "music",
+      "insights",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -145,6 +147,7 @@ describe("drawerItems", () => {
     expect(drawerItems(admin)).toEqual([
       "profile",
       "music",
+      "insights",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -160,6 +163,7 @@ describe("drawerItems", () => {
     expect(drawerItems(mentor)).toEqual([
       "profile",
       "music",
+      "insights",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -169,10 +173,16 @@ describe("drawerItems", () => {
   });
 
   test("campus leaders don't get Reimbursements, Event or Design Requests, but keep Admin", () => {
-    expect(drawerItems(campusLeader)).toEqual(["profile", "music", "churches"]);
+    expect(drawerItems(campusLeader)).toEqual([
+      "profile",
+      "music",
+      "insights",
+      "churches",
+    ]);
     expect(drawerItems(campusLeaderAdmin)).toEqual([
       "profile",
       "music",
+      "insights",
       "churches",
       "mentoring",
       "announcements",
@@ -182,12 +192,12 @@ describe("drawerItems", () => {
 });
 
 describe("sidebarItems", () => {
-  test("signed-out people see the public pages", () => {
+  test("signed-out people see the public pages, without Insights", () => {
     expect(sidebarItems(signedOut)).toEqual([
       "home",
-      "insights",
       "org",
       "churches",
+      "grievances",
     ]);
   });
 
@@ -197,6 +207,7 @@ describe("sidebarItems", () => {
       "insights",
       "org",
       "churches",
+      "grievances",
       "profile",
     ]);
   });
@@ -209,9 +220,11 @@ describe("sidebarItems", () => {
       "designRequests",
       "music",
       "attendance",
+      "calendar",
       "insights",
       "org",
       "churches",
+      "grievances",
       "profile",
     ]);
   });
@@ -224,9 +237,11 @@ describe("sidebarItems", () => {
       "designRequests",
       "music",
       "attendance",
+      "calendar",
       "insights",
       "org",
       "churches",
+      "grievances",
       "profile",
       "mentoring",
       "announcements",
@@ -239,9 +254,11 @@ describe("sidebarItems", () => {
       "home",
       "music",
       "attendance",
+      "calendar",
       "insights",
       "org",
       "churches",
+      "grievances",
       "profile",
     ]);
   });
@@ -252,6 +269,7 @@ describe("navEntries", () => {
     expect(navEntries(drawerItems(admin))).toEqual([
       { kind: "item", key: "profile" },
       { kind: "item", key: "music" },
+      { kind: "item", key: "insights" },
       { kind: "item", key: "churches" },
       {
         kind: "group",
@@ -279,6 +297,7 @@ describe("navEntries", () => {
     expect(navEntries(drawerItems(campusLeader))).toEqual([
       { kind: "item", key: "profile" },
       { kind: "item", key: "music" },
+      { kind: "item", key: "insights" },
       { kind: "item", key: "churches" },
     ]);
   });
@@ -294,9 +313,11 @@ describe("activeNavKey", () => {
   test("screens opened from a section highlight that section", () => {
     expect(activeNavKey("/request/abc123")).toBe("reimbursements");
     expect(activeNavKey("/review")).toBe("reimbursements");
+    expect(activeNavKey("/calendar")).toBe("calendar");
     expect(activeNavKey("/all")).toBe("reimbursements");
     expect(activeNavKey("/design-requests/abc123")).toBe("designRequests");
     expect(activeNavKey("/design-requests/new")).toBe("designRequests");
+    expect(activeNavKey("/grievances/new")).toBe("grievances");
     expect(activeNavKey("/event-requests/abc123/risk")).toBe("eventRequests");
     expect(activeNavKey("/event-requests/new")).toBe("eventRequests");
     expect(activeNavKey("/attendance/member/member:abc123")).toBe("attendance");

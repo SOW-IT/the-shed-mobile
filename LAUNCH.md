@@ -98,6 +98,26 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 Recorded so nobody re-does them. Each was confirmed against the live
 deployments, not assumed.
 
+**Shared Google Calendar recoloured for 2.10.14**: right after 2.10.14
+(#427) was merged on 2026-11-01, `googleCalendar:backfill '{"daysBack": 365}'`
+re-copied every event and entry, so Weeklies and Campus events at one campus
+took the nearest Google colour to their campus's, and calendar entries took
+Event or Deadline colours. *Evidence:* the backfill returned `{"synced": 157}`
+at about 03:45 UTC, and afterwards prod's `googleSyncLocks` was empty (no write
+stuck mid-way).
+
+**Shared "SOW Events" Google Calendar on**: on 2026-10-31, after 2.10.12,
+the Google Calendar API was enabled in the service account's project,
+`googleCalendar:createSharedCalendar` made "SOW Events" (owned by the service
+account, readable by everyone at sow.org.au), prod `GOOGLE_CALENDAR_ID` was
+set to it, and `googleCalendar:backfill '{"daysBack": 365}'` copied the past
+year and everything ahead. This calendar is the one to keep, not the older
+hand-made "Events" calendar, which the app doesn't touch. Only the service
+account can edit it in Google; re-run the backfill to re-sync. *Evidence:*
+the backfill returned `{"synced": 157}`, and at 2026-10-31 06:55 UTC prod's
+`GOOGLE_CALENDAR_ID` still named the SOW Events calendar and
+`googleSyncLocks` was empty (no write stuck mid-way).
+
 **2019 and 2020 called Head of Department "Department Overseer" again**:
 2.10.3's `history:setRoleTitle` ran on production for both years on
 2026-10-23, and `history:setPastAssignments` gave Juno Yu back his 2019
