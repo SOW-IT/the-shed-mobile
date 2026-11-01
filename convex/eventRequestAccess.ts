@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
+import { syncEventRequestLinks } from "./eventRequestLinks";
 import { assignmentsOf, isMemberOfDepartment, roleNeedsUniversity } from "../shared/flow";
 import { formatDateTimeRange } from "../shared/forms";
 import {
@@ -274,6 +275,7 @@ export async function settleEvent(ctx: MutationCtx, eventId: Id<"eventRequests">
     return;
   }
   await ctx.db.patch("eventRequests", event._id, { status, approvedAt: Date.now() });
+  await syncEventRequestLinks(ctx, event._id, actor);
   await logEvent(ctx, event._id, actor, "event-approved");
   const summary = await eventSummary(ctx, event);
   const message = {

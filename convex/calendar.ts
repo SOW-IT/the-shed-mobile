@@ -36,6 +36,9 @@ async function requireEditableEntry(ctx: MutationCtx, id: Id<"calendarEntries">)
   const caller = await requireProfile(ctx);
   const entry = await ctx.db.get("calendarEntries", id);
   if (!entry) throw new ConvexError("That calendar entry no longer exists.");
+  if (entry.eventRequestId) {
+    throw new ConvexError("This comes from an event request, so change it there.");
+  }
   if (!(await canEditEntry(ctx, caller, entry))) {
     throw new ConvexError("Only whoever added it, or an admin, can change this entry.");
   }
@@ -50,7 +53,7 @@ export async function removeReplacedEntry(ctx: MutationCtx, entryId: Id<"calenda
   await syncEntry(ctx, entryId);
 }
 
-async function syncEntry(ctx: MutationCtx, entryId: Id<"calendarEntries">) {
+export async function syncEntry(ctx: MutationCtx, entryId: Id<"calendarEntries">) {
   if (calendarSyncConfigured()) {
     await ctx.scheduler.runAfter(0, internal.googleCalendar.syncEntry, { entryId });
   }
@@ -135,6 +138,7 @@ export const range = query({
         tags: eventTags.map((tag) => ({ name: tag.name, colour: tag.colour })),
         notes: null,
         due: null,
+        eventRequestId: event.eventRequestId ?? null,
         canEdit: false,
       };
     });
@@ -149,7 +153,9 @@ export const range = query({
       tags: [],
       notes: entry.notes ?? null,
       due: entry.due ?? null,
-      canEdit: isAdmin || entry.createdBy === caller.email,
+      eventRequestId: entry.eventRequestId ?? null,
+      // One from an event request follows the request instead.
+      canEdit: !entry.eventRequestId && (isAdmin || entry.createdBy === caller.email),
     }));
     return [...fromEvents, ...fromEntries];
   },

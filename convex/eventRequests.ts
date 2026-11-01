@@ -1,6 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import { syncEventRequestLinks } from "./eventRequestLinks";
 import { departmentsOf } from "../shared/flow";
 import {
   answerForRole,
@@ -474,6 +475,7 @@ export const update = mutation({
     const changed = changedAnswers(EVENT_FIELDS, event.answers, filed.answers);
     if (changed.length === 0) return null;
     await ctx.db.patch("eventRequests", event._id, { ...filed, editedAt: Date.now() });
+    await syncEventRequestLinks(ctx, event._id, caller.email);
     await logEvent(ctx, event._id, caller.email, "edited", { detail: changed.join(", ") });
     const updated = await requireEvent(ctx, event._id);
     const summary = await eventSummary(ctx, updated);
@@ -513,6 +515,7 @@ export const cancel = mutation({
       cancelledBy: caller.email,
       cancelNote: note,
     });
+    await syncEventRequestLinks(ctx, event._id, caller.email);
     await logEvent(ctx, event._id, caller.email, "cancelled", { detail: note });
     const summary = await eventSummary(ctx, event);
     const noteLine = note ? `\nNote: ${note}` : "";

@@ -36,7 +36,7 @@ import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 import { useCalendarView } from "@/hooks/useCalendarView";
 import { sydneyTime } from "@/lib/sydneyTime";
 import { Card, EmptyState, LoadingState, Muted, ReadableColumn, Screen, Segmented } from "@/components/ui";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
 
 type CalendarEvent = NonNullable<ReturnType<typeof useRange>>[number];
 const useRange = (window: { from: number; to: number }, skip: boolean) =>
@@ -119,7 +119,7 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
             {calendarCategoryLabel(event.category)}
           </Text>
           {where ? ` · ${where}` : ""}
-          {event.kind === "entry" ? " · Calendar only" : ""}
+          {event.eventRequestId ? " · Event request" : event.kind === "entry" ? " · Calendar only" : ""}
         </Text>
         {event.notes ? (
           <Text selectable style={[typography.caption, { color: t.text }]}>
@@ -129,7 +129,7 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
       </View>
       {onPress ? (
         <Ionicons
-          name={event.kind === "entry" ? "create-outline" : "chevron-forward"}
+          name={event.kind === "entry" && !event.eventRequestId ? "create-outline" : "chevron-forward"}
           size={18}
           color={t.faint}
         />
@@ -246,17 +246,19 @@ export default function CalendarScreen() {
   const openerFor = (event: CalendarEvent) =>
     event.kind === "attendance"
       ? () => router.push(`/attendance/event/${event.id}`)
-      : event.canEdit
-        ? () =>
-            setEditing({
-              id: event.id as Id<"calendarEntries">,
-              name: event.name,
-              dateStart: event.dateStart,
-              dateEnd: event.dateEnd,
-              notes: event.notes,
-              due: event.due,
-            })
-        : undefined;
+      : event.eventRequestId
+        ? () => router.push(`/event-requests/${event.eventRequestId}`)
+        : event.canEdit
+          ? () =>
+              setEditing({
+                id: event.id as Id<"calendarEntries">,
+                name: event.name,
+                dateStart: event.dateStart,
+                dateEnd: event.dateEnd,
+                notes: event.notes,
+                due: event.due,
+              })
+          : undefined;
 
   const floating = subgroup ? (
     <Pressable
@@ -517,7 +519,8 @@ export default function CalendarScreen() {
           onTakeAttendance={(owner, draft) => {
             setAdding(false);
             setEditing(null);
-            setAttendanceDraft({ subgroup: owner, draft });
+            // iOS can't open the next sheet until this one has finished closing.
+            setTimeout(() => setAttendanceDraft({ subgroup: owner, draft }), durations.overlayOut + 80);
           }}
         />
       ) : null}

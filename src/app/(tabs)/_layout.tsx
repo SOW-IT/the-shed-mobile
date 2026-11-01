@@ -204,7 +204,8 @@ export default function TabsLayout() {
         options={{
           title: "Calendar",
           ...(isStaff ? {} : sideMenuOnly),
-          tabBarIcon: tabIcon("calendar-outline", "calendar"),
+          // The same as the side menu's, so it isn't mistaken for Event Requests.
+          tabBarIcon: tabIcon("calendar-clear-outline", "calendar-clear"),
         }}
       />
       {/* Signed out, there's no Insights at all; signed in without a role, it's a tab. */}

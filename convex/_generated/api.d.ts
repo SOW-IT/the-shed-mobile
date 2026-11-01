@@ -47,6 +47,7 @@ import type * as eventRequestAccess from "../eventRequestAccess.js";
 import type * as eventRequestComments from "../eventRequestComments.js";
 import type * as eventRequestData from "../eventRequestData.js";
 import type * as eventRequestForm from "../eventRequestForm.js";
+import type * as eventRequestLinks from "../eventRequestLinks.js";
 import type * as eventRequests from "../eventRequests.js";
 import type * as eventSubForms from "../eventSubForms.js";
 import type * as events from "../events.js";
@@ -132,6 +133,7 @@ declare const fullApi: ApiFromModules<{
   eventRequestComments: typeof eventRequestComments;
   eventRequestData: typeof eventRequestData;
   eventRequestForm: typeof eventRequestForm;
+  eventRequestLinks: typeof eventRequestLinks;
   eventRequests: typeof eventRequests;
   eventSubForms: typeof eventSubForms;
   events: typeof events;

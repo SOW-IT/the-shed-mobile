@@ -245,6 +245,23 @@ export default function EventRequestScreen() {
                       onPress={() => router.push(`/event-requests/new?edit=${event._id}`)}
                     />
                   ) : null}
+                  {/* What approving it put on the Calendar (convex/eventRequestLinks.ts). */}
+                  {event.attendanceEventId ? (
+                    <Btn
+                      title="Attendance"
+                      variant="tonal"
+                      icon="checkbox-outline"
+                      onPress={() => router.push(`/attendance/event/${event.attendanceEventId}`)}
+                    />
+                  ) : null}
+                  {event.attendanceEventId || event.calendarEntryId ? (
+                    <Btn
+                      title="On the Calendar"
+                      variant="tonal"
+                      icon="calendar-clear-outline"
+                      onPress={() => router.push(`/calendar?day=${event.startsAt.slice(0, 10)}`)}
+                    />
+                  ) : null}
                   <Btn
                     title="Download PDF"
                     variant="tonal"

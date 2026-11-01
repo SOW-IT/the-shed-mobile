@@ -149,6 +149,7 @@ export default function AttendanceScreen() {
           }
           onPress={() => setConfirmSaveTags(true)}
           avoidKeyboard={false}
+          hidden={!tagsSave.dirty && !tagsSave.saving && !tagsSave.error}
           cancel={{
             onPress: () => setConfirmRevertTags(true),
             disabled: !tagsSave.dirty || tagsSave.saving,
@@ -171,6 +172,7 @@ export default function AttendanceScreen() {
           }
           onPress={() => setConfirmSaveMeta(true)}
           avoidKeyboard={false}
+          hidden={!metaSave.dirty && !metaSave.saving && !metaSave.error}
           cancel={{
             onPress: () => setConfirmRevertMeta(true),
             disabled: !metaSave.dirty || metaSave.saving,

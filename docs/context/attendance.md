@@ -226,17 +226,17 @@ Newcomers who missed the last one while their visit is recent. Visitors have
 their own list. A prompt for a leader, never a judgement.
 
 **Calendar category**:
-How the Calendar colours and filters an event: TWIG or PPN from its tags,
-Weekly from its term and week, otherwise the category picked on the event
-(Campus event, SOW event, Marketing, Deadline, Other), or Campus/SOW event by
-whether it's held at SOW. Picking a category never changes Insights. A
-Weekly or Campus event at one campus is coloured by that campus instead, but
-still filters under its category.
+How the Calendar colours and filters something, and never picked: an
+attendance event is TWIG or PPN from its tags, Weekly from its term and week,
+otherwise Campus or SOW event by whether it's held at SOW; a calendar entry is
+an Event, or a Deadline when it's due. A Weekly or Campus event at one campus
+is coloured by that campus instead, but still filters under its category.
 _Avoid_: event type, calendar tag
 
 **Calendar entry**:
 Something on the Calendar that doesn't take attendance, like a marketing
-schedule or a deadline: a name, when, where, a category and optional notes.
+schedule or a deadline: a name, when and optional notes, with no campus.
+Switching one to take attendance makes it an attendance event instead.
 Whoever added it, or an admin, can change it. Attendance events are on the
 Calendar too; an entry is never an attendance event. An entry either runs
 from a start to an end, or is a **deadline**.

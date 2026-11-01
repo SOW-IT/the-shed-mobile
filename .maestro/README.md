@@ -116,6 +116,7 @@ against the Convex dev backend via the `e2e-auth` bypass):
 - `05-attendance/export.yaml`
 - `06-insights/general-and-attendance-segments.yaml`
 - `13-calendar/week-view-and-deadline.yaml`
+- `13-calendar/take-attendance-from-calendar.yaml`
 - `07-org-chart/org-chart.yaml`
 - `08-profile/own-profile.yaml`
 - `09-admin/access-and-tabs.yaml`

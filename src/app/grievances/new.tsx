@@ -13,9 +13,9 @@ import {
   Btn,
   Card,
   EmptyState,
+  ErrorBanner,
   errorMessage,
   Field,
-  FooterAction,
   Muted,
   ReadableColumn,
   Screen,
@@ -103,15 +103,6 @@ export default function NewGrievanceScreen() {
     <Screen
       title="Raise a Grievance"
       onBack={goBack}
-      footer={
-        <FooterAction
-          title={saving ? "Sending…" : "Send Grievance"}
-          disabled={saving}
-          note={error}
-          onPress={() => void save()}
-          avoidKeyboard={false}
-        />
-      }
     >
       <ReadableColumn>
         <View style={{ gap: spacing.md }}>
@@ -181,6 +172,15 @@ export default function NewGrievanceScreen() {
               multiline
             />
           </Card>
+          {/* At the end of the form, not pinned to the screen. */}
+          <ErrorBanner message={error} />
+          <Btn
+            title={saving ? "Sending…" : "Send Grievance"}
+            icon="send-outline"
+            loading={saving}
+            disabled={saving}
+            onPress={() => void save()}
+          />
         </View>
       </ReadableColumn>
     </Screen>
