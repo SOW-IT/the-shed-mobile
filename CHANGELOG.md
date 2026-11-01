@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.15] - 2026-11-02
+
+### Changed
+- **The Calendar uses the whole width of a phone.** The month and the week
+  run edge to edge instead of sitting in a padded card, so each day is about
+  a quarter wider and more of each event's name fits: a week's day goes from
+  about 41 to 50 points on an iPhone. Wider screens keep the card.
+
 ## [2.10.14] - 2026-11-01
 
 ### Added

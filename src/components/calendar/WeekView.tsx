@@ -39,7 +39,8 @@ const inStrip = (event: WeekEvent) => event.due === "day" || runsSeveralDays(eve
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
-const GUTTER = 36;
+// Room for "10 pm" and a little space from the edge of a phone, where the week runs edge to edge.
+const GUTTER = 40;
 const HOUR_HEIGHT = 44;
 const STRIP_ROWS = 3;
 // Narrower than this, a block has room for one cut-short line of its name.
