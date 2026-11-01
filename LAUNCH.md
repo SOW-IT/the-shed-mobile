@@ -17,11 +17,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
-- [ ] **Recolour the shared Google Calendar after 2.10.14.** Events already
-      copied keep their category colour until they next change. Once 2.10.14
-      is merged, run `npx convex run --prod googleCalendar:backfill
-      '{"daysBack": 365}'` so Weeklies and Campus events at one campus take
-      their campus's colour.
 - [ ] **Confirm an over-the-air update reaches a phone.** iOS 2.9.23 and
       Android 2.9.24 are the first store builds with `expo-updates`. Check a
       publish lands with `eas update:list` and a phone on one of those builds.
@@ -102,6 +97,14 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 Recorded so nobody re-does them. Each was confirmed against the live
 deployments, not assumed.
+
+**Shared Google Calendar recoloured for 2.10.14**: right after 2.10.14
+(#427) was merged on 2026-11-01, `googleCalendar:backfill '{"daysBack": 365}'`
+re-copied every event and entry, so Weeklies and Campus events at one campus
+took the nearest Google colour to their campus's, and calendar entries took
+Event or Deadline colours. *Evidence:* the backfill returned `{"synced": 157}`
+at about 03:45 UTC, and afterwards prod's `googleSyncLocks` was empty (no write
+stuck mid-way).
 
 **Shared "SOW Events" Google Calendar on**: on 2026-10-31, after 2.10.12,
 the Google Calendar API was enabled in the service account's project,
