@@ -186,6 +186,9 @@ const MusicRequestSheetContent = ({
   const submitMany = useMutation(api.musicRequests.submitMany);
   const previewBatch = useMutation(api.musicRequests.previewBatch);
   const [songs, setSongs] = useState<SpotifySong[]>([]);
+  const [editingSongIndex, setEditingSongIndex] = useState<number | null>(null);
+  const [editSongTitle, setEditSongTitle] = useState("");
+  const [editSongArtist, setEditSongArtist] = useState("");
   const clearSong = () => {
     setTitle("");
     setArtist("");
@@ -235,6 +238,46 @@ const MusicRequestSheetContent = ({
     }
     queueSong();
   };
+
+  const startEditingSong = (index: number) => {
+    const song = songs[index];
+    if (!song) return;
+
+    setEditingSongIndex(index);
+    setEditSongTitle(song.title);
+    setEditSongArtist(song.artist);
+  };
+
+  const saveEditedSong = () => {
+    if (editingSongIndex === null) return;
+
+    if (!editSongTitle.trim() || !editSongArtist.trim()) {
+      Alert.alert(
+        "Incomplete song",
+        "Please enter both the song title and artist.",
+      );
+      return;
+    }
+
+    setSongs((current) =>
+      current.map((song, index) =>
+        index === editingSongIndex
+          ? {
+              ...song,
+              title: editSongTitle.trim(),
+              artist: editSongArtist.trim(),
+            }
+          : song,
+      ),
+    );
+
+    setEditingSongIndex(null);
+  };
+
+  const cancelEditingSong = () => {
+    setEditingSongIndex(null);
+  };
+
   const queueSong = () => {
     setSongs((current) => [
       ...current,
@@ -943,37 +986,105 @@ const MusicRequestSheetContent = ({
             <View
               key={`${song.link}-${index}`}
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.sm,
                 padding: spacing.sm,
                 borderRadius: radius.md,
                 backgroundColor: t.card,
+                gap: spacing.sm,
               }}
             >
-              {song.albumArtUrl ? (
-                <Image
-                  source={{ uri: song.albumArtUrl }}
-                  style={{ width: 42, height: 42, borderRadius: radius.sm }}
-                />
-              ) : (
-                <Ionicons name="musical-note" size={24} color={t.muted} />
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: t.text, fontWeight: "700" }}>
-                  {song.title}
-                </Text>
-                <Text style={{ color: t.muted }}>{song.artist}</Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${song.title}`}
-                onPress={() =>
-                  setSongs((current) => current.filter((_, i) => i !== index))
-                }
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.sm,
+                }}
               >
-                <Ionicons name="trash-outline" size={22} color={t.warning} />
-              </Pressable>
+                {song.albumArtUrl ? (
+                  <Image
+                    source={{ uri: song.albumArtUrl }}
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: radius.sm,
+                    }}
+                  />
+                ) : (
+                  <Ionicons name="musical-note" size={24} color={t.muted} />
+                )}
+
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: t.text, fontWeight: "700" }}>
+                    {song.title}
+                  </Text>
+                  <Text style={{ color: t.muted }}>{song.artist}</Text>
+                </View>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${song.title}`}
+                  disabled={submitting || importingPlaylist}
+                  onPress={() => startEditingSong(index)}
+                  style={{ padding: spacing.xs }}
+                >
+                  <Ionicons name="pencil-outline" size={20} color={t.primary} />
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${song.title}`}
+                  disabled={submitting || importingPlaylist}
+                  onPress={() => {
+                    setSongs((current) =>
+                      current.filter((_, i) => i !== index),
+                    );
+
+                    setEditingSongIndex((current) => {
+                      if (current === null) return null;
+                      if (current === index) return null;
+                      return current > index ? current - 1 : current;
+                    });
+                  }}
+                  style={{ padding: spacing.xs }}
+                >
+                  <Ionicons name="trash-outline" size={22} color={t.warning} />
+                </Pressable>
+              </View>
+
+              {editingSongIndex === index && (
+                <View style={{ gap: spacing.sm }}>
+                  <Field
+                    label="Song Title"
+                    value={editSongTitle}
+                    onChangeText={setEditSongTitle}
+                    placeholder="Enter song title"
+                  />
+
+                  <Field
+                    label="Artist"
+                    value={editSongArtist}
+                    onChangeText={setEditSongArtist}
+                    placeholder="Enter artist"
+                  />
+
+                  <Row spread>
+                    <Btn
+                      title="Cancel"
+                      variant="ghost"
+                      onPress={cancelEditingSong}
+                    />
+                    <Btn
+                      title="Save"
+                      onPress={saveEditedSong}
+                      disabled={
+                        !editSongTitle.trim() ||
+                        !editSongArtist.trim() ||
+                        submitting ||
+                        importingPlaylist
+                      }
+                    />
+                  </Row>
+                </View>
+              )}
             </View>
           ))}
         </View>
