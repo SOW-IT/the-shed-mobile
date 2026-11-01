@@ -3,19 +3,26 @@ import { universityColour } from "./flow";
 import {
   calendarCategoryLabel,
   campusColourOf,
+  clockTime,
   entryProblem,
   normalizeEntry,
   parseDayKey,
+  runsSeveralDays,
   calendarCategoryOf,
   daysOf,
+  dayBlocks,
   eventsByDay,
   googleEventBody,
   googleEventId,
+  hourAfter,
   monthGrid,
   monthWindow,
+  shiftDay,
   shiftMonth,
   sydneyDayKey,
+  sydneyMinutes,
   weekLayout,
+  weekOf,
 } from "./calendar";
 
 const sydney = (iso: string) => new Date(`${iso}+11:00`).getTime();
@@ -100,6 +107,82 @@ describe("days", () => {
     const byDay = eventsByDay([late, camp]);
     expect(byDay.get("2026-11-06")!.map((e) => e.name)).toEqual(["camp", "late"]);
     expect(byDay.get("2026-11-05")!.map((e) => e.name)).toEqual(["camp"]);
+  });
+});
+
+describe("week view", () => {
+  test("weekOf is Monday to Sunday, across months and years", () => {
+    expect(weekOf("2026-11-04")).toEqual(monthGrid(2026, 11)[1].map((d) => d.key));
+    expect(weekOf("2026-11-08")[0]).toBe("2026-11-02");
+    expect(weekOf("2026-11-02")[0]).toBe("2026-11-02");
+    expect(weekOf("2027-01-01")).toEqual([
+      "2026-12-28",
+      "2026-12-29",
+      "2026-12-30",
+      "2026-12-31",
+      "2027-01-01",
+      "2027-01-02",
+      "2027-01-03",
+    ]);
+    expect(shiftDay("2026-11-30", 7)).toBe("2026-12-07");
+    expect(shiftDay("2026-11-02", -7)).toBe("2026-10-26");
+  });
+
+  test("runsSeveralDays goes by Sydney dates", () => {
+    expect(runsSeveralDays({ dateStart: sydney("2026-11-06T18:00:00"), dateEnd: sydney("2026-11-07T00:00:00") })).toBe(false);
+    expect(runsSeveralDays({ dateStart: sydney("2026-11-06T18:00:00"), dateEnd: sydney("2026-11-07T00:30:00") })).toBe(true);
+  });
+
+  test("sydneyMinutes counts from Sydney's midnight", () => {
+    expect(sydneyMinutes(sydney("2026-11-06T18:30:00"))).toBe(18 * 60 + 30);
+    expect(sydneyMinutes(sydney("2026-11-06T00:00:00"))).toBe(0);
+    // 3 pm in Sydney in winter (UTC+10).
+    expect(sydneyMinutes(Date.parse("2026-07-01T05:00:00Z"))).toBe(15 * 60);
+  });
+
+  test("dayBlocks puts overlapping events side by side and the rest full width", () => {
+    const at = (name: string, from: string, to: string) => ({
+      name,
+      dateStart: sydney(`2026-11-04T${from}:00`),
+      dateEnd: sydney(`2026-11-04T${to}:00`),
+    });
+    const blocks = dayBlocks([
+      at("lunch", "12:00", "14:00"),
+      at("weekly", "17:00", "19:00"),
+      at("twig", "18:30", "21:00"),
+      at("prep", "17:30", "18:00"),
+      at("late", "19:30", "20:00"),
+      at("deadline", "23:50", "23:59"),
+    ]);
+    expect(blocks.map(({ event, from, to, col, cols }) => [event.name, from, to, col, cols])).toEqual([
+      ["lunch", 720, 840, 0, 1],
+      // prep and then twig take the second column; late reuses the first once weekly ends.
+      ["weekly", 1020, 1140, 0, 2],
+      ["prep", 1050, 1080, 1, 2],
+      ["twig", 1110, 1260, 1, 2],
+      ["late", 1170, 1200, 0, 2],
+      // At least half an hour tall, but not past midnight.
+      ["deadline", 1430, 1440, 0, 1],
+    ]);
+    const three = dayBlocks([at("a", "18:00", "20:00"), at("b", "18:00", "19:00"), at("c", "18:30", "19:30")]);
+    expect(three.map((b) => [b.event.name, b.col, b.cols])).toEqual([
+      ["a", 0, 3],
+      ["b", 1, 3],
+      ["c", 2, 3],
+    ]);
+  });
+
+  test("clockTime reads like the rest of the app", () => {
+    expect(clockTime(0)).toBe("12:00 am");
+    expect(clockTime(9 * 60)).toBe("9:00 am");
+    expect(clockTime(12 * 60)).toBe("12:00 pm");
+    expect(clockTime(23 * 60 + 59)).toBe("11:59 pm");
+  });
+
+  test("hourAfter is an hour on, or the last minute of the day", () => {
+    expect(hourAfter("09:00")).toBe("10:00");
+    expect(hourAfter("18:00")).toBe("19:00");
+    expect(hourAfter("23:00")).toBe("23:59");
   });
 });
 
@@ -216,6 +299,23 @@ describe("Google", () => {
     expect(colour("weekly", ["USYD", "UNSW"])).toBe("7");
     expect(colour("campus", ["SOW"])).toBe("9");
   });
+
+  test("a deadline is an all-day event on its Sydney day, with any time in its title", () => {
+    const due = sydney("2026-11-20T23:59:00");
+    const deadline = (kind: "day" | "time") =>
+      googleEventBody(
+        { name: "Applications close", dateStart: due, dateEnd: due, subgroups: ["SOW"], due: kind },
+        "deadline",
+        "link"
+      );
+    expect(deadline("time")).toMatchObject({
+      summary: "Applications close · 11:59 pm",
+      start: { date: "2026-11-20" },
+      end: { date: "2026-11-21" },
+    });
+    expect(deadline("day")).toMatchObject({ summary: "Applications close", start: { date: "2026-11-20" } });
+    expect(deadline("day").start).not.toHaveProperty("dateTime");
+  });
 });
 
 describe("calendar entries", () => {
@@ -226,7 +326,10 @@ describe("calendar entries", () => {
       ...base,
       name: "Posters",
       notes: undefined,
+      due: undefined,
     });
+    // Present even when it's not a deadline, so saving an event clears an old one.
+    expect(Object.keys(normalizeEntry(base))).toContain("due");
   });
   test.each([
     [{ name: "" }, "Give it a name."],
@@ -236,11 +339,14 @@ describe("calendar entries", () => {
     [{ subgroups: [] }, "Pick at least one campus, or SOW."],
     [{ subgroups: ["Hogwarts"] }, "isn't a campus this year"],
     [{ notes: "x".repeat(1001) }, "Notes can be at most 1000 characters."],
+    [{ due: "time" as const }, "A deadline is one moment, with no end."],
   ])("%o → %s", (over, message) => {
     expect(entryProblem({ ...base, ...over }, valid)).toContain(message);
   });
   test("a good one passes", () => {
     expect(entryProblem({ ...base, subgroups: ["UNSW"], notes: "Print 200" }, valid)).toBeNull();
+    expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "day" }, valid)).toBeNull();
+    expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "time" }, valid)).toBeNull();
   });
   test("parseDayKey only accepts real days", () => {
     expect(parseDayKey("2026-11-20")).toBe("2026-11-20");

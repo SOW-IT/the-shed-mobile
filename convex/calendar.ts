@@ -126,6 +126,7 @@ export const range = query({
         category: calendarCategoryOf(event, eventTags),
         tags: eventTags.map((tag) => ({ name: tag.name, colour: tag.colour })),
         notes: null,
+        due: null,
         canEdit: false,
       };
     });
@@ -139,6 +140,7 @@ export const range = query({
       category: entry.category,
       tags: [],
       notes: entry.notes ?? null,
+      due: entry.due ?? null,
       canEdit: isAdmin || entry.createdBy === caller.email,
     }));
     return [...fromEvents, ...fromEntries];

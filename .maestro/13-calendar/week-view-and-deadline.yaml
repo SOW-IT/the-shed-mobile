@@ -1,0 +1,51 @@
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# The week view: the hours down the side, opened from a link.
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "calendar?view=week"
+- extendedWaitUntil:
+    visible: "9 am"
+    timeout: 20000
+- assertVisible: "Week"
+
+# A deadline due at a time, added from the week view.
+- tapOn: "Add an event on.*"
+- tapOn: "Deadline"
+- assertVisible: "All day"
+- tapOn: "e.g. Applications close"
+- inputText: "E2E applications close"
+- tapOn: "All day"
+- assertVisible: "Time"
+- tapOn: "Add to Calendar"
+- extendedWaitUntil:
+    visible: ".*E2E applications close.*Due.*"
+    timeout: 15000
+
+# The month shows it too, in the day's list below the month.
+- tapOn: "Month"
+- assertNotVisible: "9 am"
+- scrollUntilVisible:
+    element:
+      text: ".*E2E applications close.*Due.*"
+    direction: DOWN
+
+# Tidy up: whoever added it can delete it.
+- tapOn: ".*E2E applications close.*Due.*"
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible: "It comes off the calendar for everyone."
+    timeout: 5000
+# The confirm dialog is on top, so this is its Delete.
+- tapOn: "Delete"
+- assertNotVisible: ".*E2E applications close.*Due.*"

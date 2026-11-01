@@ -22,7 +22,8 @@ Flows tagged `manual` are excluded from automation by design — see
 ├── 09-admin/              # admin access, structure, other
 ├── 10-notifications/      # in-app bell (+ manual push)
 ├── 11-deeplinks/          # routed screens
-└── 12-cross-cutting/      # test chip, chrome collapse, (manual) sync/cron
+├── 12-cross-cutting/      # test chip, chrome collapse, (manual) sync/cron
+└── 13-calendar/           # week view, adding and deleting a deadline
 ```
 
 ## Prerequisites

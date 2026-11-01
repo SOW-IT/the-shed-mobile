@@ -20,6 +20,9 @@ export const entryCategoryValidator = v.union(
   v.literal("other")
 );
 
+// A deadline: due on a day, or at a time on it (see Due in shared/calendar.ts).
+export const dueValidator = v.union(v.literal("day"), v.literal("time"));
+
 export const entryFields = {
   name: v.string(),
   dateStart: v.number(),
@@ -27,4 +30,5 @@ export const entryFields = {
   subgroups: v.array(v.string()),
   category: entryCategoryValidator,
   notes: v.optional(v.string()),
+  due: v.optional(dueValidator),
 };

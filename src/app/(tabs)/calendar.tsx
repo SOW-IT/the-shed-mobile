@@ -13,9 +13,11 @@ import {
   monthGrid,
   monthWindow,
   parseDayKey,
+  shiftDay,
   shiftMonth,
   sydneyDayKey,
   weekLayout,
+  weekOf,
   type CalendarCategory,
 } from "@shared/calendar";
 import { subgroupLabel } from "@shared/rollcall";
@@ -24,11 +26,15 @@ import { ChromeScreen } from "@/components/ChromeScreen";
 import { useWideLayout } from "@/components/nav/layout";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { CalendarEntrySheet, type EditableEntry } from "@/components/calendar/CalendarEntrySheet";
-import { CATEGORY_COLOURS, eventColour } from "@/components/calendar/categoryColours";
+import { CATEGORY_COLOURS } from "@/components/calendar/categoryColours";
+import { dayTitle } from "@/components/calendar/dayTitle";
+import { BAR_ROW, barColumn, EventBar, MoreLabel } from "@/components/calendar/EventBar";
+import { WeekView } from "@/components/calendar/WeekView";
 import { FilterChip, FilterRow } from "@/components/FilterChips";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
+import { useCalendarView } from "@/hooks/useCalendarView";
 import { sydneyTime } from "@/lib/sydneyTime";
-import { Card, EmptyState, LoadingState, Muted, ReadableColumn, Screen } from "@/components/ui";
+import { Card, EmptyState, LoadingState, Muted, ReadableColumn, Screen, Segmented } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type CalendarEvent = NonNullable<ReturnType<typeof useRange>>[number];
@@ -37,25 +43,32 @@ const useRange = (window: { from: number; to: number }, skip: boolean) =>
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const MAX_ROWS = 3;
-const ROW_HEIGHT = 17;
-const column = (col: number, span = 1) => ({
-  left: `${(col / 7) * 100}%` as const,
-  width: `${(span / 7) * 100}%` as const,
-});
+const VIEWS = [
+  { key: "month", label: "Month" },
+  { key: "week", label: "Week" },
+];
 
 const monthTitle = (year: number, month: number) =>
   new Intl.DateTimeFormat("en-AU", { month: "long", year: "numeric", timeZone: "UTC" }).format(
     new Date(Date.UTC(year, month - 1, 1))
   );
 
-const dayTitle = (key: string) => {
+const formatDay = (key: string, options: Intl.DateTimeFormatOptions) => {
   const [y, m, d] = key.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-AU", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(y, m - 1, d)));
+  return new Intl.DateTimeFormat("en-AU", { ...options, timeZone: "UTC" }).format(
+    new Date(Date.UTC(y, m - 1, d))
+  );
+};
+
+// "2 – 8 November 2026", "30 Nov – 6 Dec 2026", "28 Dec 2026 – 3 Jan 2027".
+const weekTitle = (week: string[]) => {
+  const [first, last] = [week[0], week[week.length - 1]];
+  const full = formatDay(last, { day: "numeric", month: "long", year: "numeric" });
+  if (first.slice(0, 7) === last.slice(0, 7)) return `${Number(first.slice(8))} – ${full}`;
+  const short = { day: "numeric", month: "short" } as const;
+  return first.slice(0, 4) === last.slice(0, 4)
+    ? `${formatDay(first, short)} – ${formatDay(last, { ...short, year: "numeric" })}`
+    : `${formatDay(first, { ...short, year: "numeric" })} – ${formatDay(last, { ...short, year: "numeric" })}`;
 };
 
 const shortDay = (ms: number) =>
@@ -76,7 +89,12 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
   const where = event.subgroups.map(subgroupLabel).join(", ");
   const multiDay = daysOf(event.dateStart, event.dateEnd).length > 1;
   const at = (ms: number) => (multiDay ? `${shortDay(ms)}, ${sydneyTime(ms)}` : sydneyTime(ms));
-  const when = `${at(event.dateStart)} – ${at(event.dateEnd)}`;
+  const when =
+    event.due === "day"
+      ? "Due all day"
+      : event.due === "time"
+        ? `Due ${sydneyTime(event.dateStart)}`
+        : `${at(event.dateStart)} – ${at(event.dateEnd)}`;
   return (
     <Pressable
       onPress={onPress}
@@ -88,6 +106,8 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
       <View style={[styles.eventBar, { backgroundColor: colour }]} />
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={[typography.headline, { color: t.text }]} numberOfLines={2}>
+          {event.due ? <Ionicons name="flag" size={14} color={colour} /> : null}
+          {event.due ? " " : ""}
           {event.name}
         </Text>
         <Text style={[typography.caption, { color: t.muted }]}>{when}</Text>
@@ -121,13 +141,14 @@ export default function CalendarScreen() {
   const router = useRouter();
   const me = useQuery(api.directory.me);
   const staff = !!me?.profile;
-  const [today, setToday] = useState(() => sydneyDayKey(Date.now()));
+  const [now, setNow] = useState(() => Date.now());
+  const today = sydneyDayKey(now);
   const [ty, tm] = today.split("-").map(Number);
   const [{ year, month }, setMonth] = useState({ year: ty, month: tm });
   const [selected, setSelected] = useState(today);
   // Past Sydney midnight, move Today on; a selection still on the old day follows it.
   useEffect(() => {
-    const timer = setInterval(() => setToday(sydneyDayKey(Date.now())), 60_000);
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, []);
   const lastToday = useRef(today);
@@ -141,12 +162,15 @@ export default function CalendarScreen() {
   }, [today, selected]);
   const [categories, setCategories] = useState<CalendarCategory[]>([]);
   const [campuses, setCampuses] = useState<string[]>([]);
+  const [view, setView] = useCalendarView();
   const [adding, setAdding] = useState(false);
+  // A time picked on the week view, for the new event.
+  const [addTime, setAddTime] = useState<string | undefined>();
   const [editing, setEditing] = useState<EditableEntry | null>(null);
   const wide = useWideLayout();
   const scrollRef = useRef<ScrollViewInstance>(null);
   const gridBottom = useRef(0);
-  const { day } = useLocalSearchParams<{ day?: string }>();
+  const { day, view: linkedView } = useLocalSearchParams<{ day?: string; view?: string }>();
   useEffect(() => {
     const linked = parseDayKey(day);
     if (!linked) return;
@@ -155,6 +179,10 @@ export default function CalendarScreen() {
     setMonth({ year: y, month: m });
     setSelected(linked);
   }, [day]);
+  // `?view=week` opens the week view, and it's remembered like picking it.
+  useEffect(() => {
+    if (linkedView === "week" || linkedView === "month") setView(linkedView);
+  }, [linkedView, setView]);
   const events = useRange(monthWindow(year, month), !staff);
   const subgroups = useQuery(api.events.subgroups, staff ? {} : "skip");
   const [subgroup] = useAttendanceSubgroup(subgroups, me?.profile?.assignments);
@@ -180,10 +208,12 @@ export default function CalendarScreen() {
       (pickedCampuses.length === 0 || e.subgroups.some((s) => pickedCampuses.includes(s)))
   );
   const byDay = eventsByDay(shown);
-  const inMonth = (list: CalendarEvent[]) =>
+  const week = weekOf(selected);
+  const visibleKeys = view === "week" ? new Set(week) : monthKeys;
+  const inView = (list: CalendarEvent[]) =>
     new Set(
       [...eventsByDay(list).entries()]
-        .filter(([key]) => monthKeys.has(key))
+        .filter(([key]) => visibleKeys.has(key))
         .flatMap(([, evs]) => evs.map((e) => e.id))
     ).size;
   const presentCategories = CALENDAR_CATEGORIES.filter((c) => all.some((e) => e.category === c.key));
@@ -193,6 +223,13 @@ export default function CalendarScreen() {
   const dayEvents = byDay.get(selected) ?? [];
 
   const go = (by: number) => {
+    if (view === "week") {
+      const next = shiftDay(selected, 7 * by);
+      const [y, m] = next.split("-").map(Number);
+      setSelected(next);
+      setMonth({ year: y, month: m });
+      return;
+    }
     const next = shiftMonth(year, month, by);
     setMonth(next);
     setSelected(
@@ -200,11 +237,31 @@ export default function CalendarScreen() {
     );
   };
 
+  const openerFor = (event: CalendarEvent) =>
+    event.kind === "attendance"
+      ? () => router.push(`/attendance/event/${event.id}`)
+      : event.canEdit
+        ? () =>
+            setEditing({
+              id: event.id as Id<"calendarEntries">,
+              name: event.name,
+              dateStart: event.dateStart,
+              dateEnd: event.dateEnd,
+              subgroups: event.subgroups,
+              category: event.category as EditableEntry["category"],
+              notes: event.notes,
+              due: event.due,
+            })
+        : undefined;
+
   const floating = subgroup ? (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Add an event on ${dayTitle(selected)}`}
-      onPress={() => setAdding(true)}
+      onPress={() => {
+        setAddTime(undefined);
+        setAdding(true);
+      }}
       style={({ pressed }) => [
         styles.fab,
         t.surfaceEdge,
@@ -225,19 +282,19 @@ export default function CalendarScreen() {
               <Pressable
                 onPress={() => go(-1)}
                 accessibilityRole="button"
-                accessibilityLabel="Previous month"
+                accessibilityLabel={view === "week" ? "Previous week" : "Previous month"}
                 hitSlop={8}
                 style={styles.arrow}
               >
                 <Ionicons name="chevron-back" size={22} color={t.text} />
               </Pressable>
               <Text style={[typography.title, { color: t.text, flex: 1, textAlign: "center" }]}>
-                {monthTitle(year, month)}
+                {view === "week" ? weekTitle(week) : monthTitle(year, month)}
               </Text>
               <Pressable
                 onPress={() => go(1)}
                 accessibilityRole="button"
-                accessibilityLabel="Next month"
+                accessibilityLabel={view === "week" ? "Next week" : "Next month"}
                 hitSlop={8}
                 style={styles.arrow}
               >
@@ -258,112 +315,128 @@ export default function CalendarScreen() {
                 </Text>
               </Pressable>
             ) : null}
+            <Segmented
+              segments={VIEWS}
+              active={view}
+              onChange={(key) => {
+                setView(key as typeof view);
+                // Keep a `?view=` link in step, so reloading doesn't switch back.
+                router.setParams({ view: key });
+              }}
+            />
 
             <View
               onLayout={(e) => {
                 gridBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
               }}
             >
-              <Card>
-                <View style={styles.week}>
-                  {WEEKDAYS.map((d, i) => (
-                    <Text key={i} style={[styles.weekday, typography.caption, { color: t.faint }]}>
-                      {d}
-                    </Text>
-                  ))}
-                </View>
-                {grid.map((week) => {
-                  const { bars, more } = weekLayout(
-                    week.map((d) => d.key),
-                    byDay,
-                    MAX_ROWS
-                  );
-                  return (
-                    <View key={week[0].key} style={styles.week}>
-                      {week.map((day) => {
-                        const evs = byDay.get(day.key) ?? [];
-                        const isSelected = day.key === selected;
-                        const isToday = day.key === today;
-                        return (
-                          <Pressable
-                            key={day.key}
-                            onPress={() => {
-                              setSelected(day.key);
-                              // On a phone the day's events sit below the month; bring them into view.
-                              if (!wide) {
-                                scrollRef.current?.scrollTo({ y: Math.max(0, gridBottom.current - 160), animated: true });
-                              }
-                            }}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: isSelected }}
-                            accessibilityLabel={`${dayTitle(day.key)}, ${evs.length} event${evs.length === 1 ? "" : "s"}`}
-                            style={[
-                              styles.cell,
-                              isSelected && { backgroundColor: t.primarySoft },
-                            ]}
-                          >
-                            <View
-                              style={[
-                                styles.dayNumber,
-                                isToday && { borderColor: t.primary, borderWidth: 2 },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  typography.body,
-                                  {
-                                    color: day.inMonth ? t.text : t.faint,
-                                    fontWeight: isSelected || isToday ? "800" : "500",
-                                  },
-                                ]}
-                              >
-                                {day.day}
-                              </Text>
-                            </View>
-                          </Pressable>
-                        );
-                      })}
-                      {/* Over the days, so a camp is one bar; taps fall through to the day. */}
-                      <View pointerEvents="none" style={styles.bars}>
-                        {bars.map((bar) => {
-                          const colour = eventColour(bar.event);
+              {view === "week" ? (
+                <Card>
+                  <WeekView
+                    week={week}
+                    byDay={byDay}
+                    today={today}
+                    selected={selected}
+                    now={now}
+                    onSelectDay={setSelected}
+                    onOpen={(event, day) => (openerFor(event) ?? (() => setSelected(day)))()}
+                    onAddAt={
+                      subgroup
+                        ? (day, hour) => {
+                            setSelected(day);
+                            setAddTime(`${String(hour).padStart(2, "0")}:00`);
+                            setAdding(true);
+                          }
+                        : undefined
+                    }
+                  />
+                </Card>
+              ) : (
+                <Card>
+                  <View style={styles.week}>
+                    {WEEKDAYS.map((d, i) => (
+                      <Text key={i} style={[styles.weekday, typography.caption, { color: t.faint }]}>
+                        {d}
+                      </Text>
+                    ))}
+                  </View>
+                  {grid.map((gridWeek) => {
+                    const { bars, more } = weekLayout(
+                      gridWeek.map((d) => d.key),
+                      byDay,
+                      MAX_ROWS
+                    );
+                    return (
+                      <View key={gridWeek[0].key} style={styles.week}>
+                        {gridWeek.map((day) => {
+                          const evs = byDay.get(day.key) ?? [];
+                          const isSelected = day.key === selected;
+                          const isToday = day.key === today;
                           return (
-                            <View
-                              key={bar.event.id}
-                              style={[styles.slot, column(bar.start, bar.span), { top: bar.row * ROW_HEIGHT }]}
+                            <Pressable
+                              key={day.key}
+                              onPress={() => {
+                                setSelected(day.key);
+                                // On a phone the day's events sit below the month; bring them into view.
+                                if (!wide) {
+                                  scrollRef.current?.scrollTo({ y: Math.max(0, gridBottom.current - 160), animated: true });
+                                }
+                              }}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: isSelected }}
+                              accessibilityLabel={`${dayTitle(day.key)}, ${evs.length} event${evs.length === 1 ? "" : "s"}`}
+                              style={[
+                                styles.cell,
+                                isSelected && { backgroundColor: t.primarySoft },
+                              ]}
                             >
                               <View
                                 style={[
-                                  styles.chip,
-                                  { backgroundColor: `${colour}26`, borderLeftColor: colour },
-                                  bar.fromBefore && styles.fromBefore,
-                                  bar.toAfter && styles.toAfter,
+                                  styles.dayNumber,
+                                  isToday && { borderColor: t.primary, borderWidth: 2 },
                                 ]}
                               >
-                                <Text numberOfLines={1} style={[styles.chipText, { color: t.text }]}>
-                                  {bar.event.name}
+                                <Text
+                                  style={[
+                                    typography.body,
+                                    {
+                                      color: day.inMonth ? t.text : t.faint,
+                                      fontWeight: isSelected || isToday ? "800" : "500",
+                                    },
+                                  ]}
+                                >
+                                  {day.day}
                                 </Text>
                               </View>
-                            </View>
+                            </Pressable>
                           );
                         })}
-                        {more.map((count, col) =>
-                          count > 0 ? (
+                        {/* Over the days, so a camp is one bar; taps fall through to the day. */}
+                        <View pointerEvents="none" style={styles.bars}>
+                          {bars.map((bar) => (
                             <View
-                              key={col}
-                              style={[styles.slot, column(col), { top: (MAX_ROWS - 1) * ROW_HEIGHT }]}
+                              key={bar.event.id}
+                              style={[styles.slot, barColumn(bar.start, bar.span), { top: bar.row * BAR_ROW }]}
                             >
-                              <Text numberOfLines={1} style={[styles.chipText, { color: t.muted }]}>
-                                +{count} more
-                              </Text>
+                              <EventBar event={bar.event} fromBefore={bar.fromBefore} toAfter={bar.toAfter} />
                             </View>
-                          ) : null
-                        )}
+                          ))}
+                          {more.map((count, col) =>
+                            count > 0 ? (
+                              <View
+                                key={col}
+                                style={[styles.slot, barColumn(col), { top: (MAX_ROWS - 1) * BAR_ROW }]}
+                              >
+                                <MoreLabel count={count} />
+                              </View>
+                            ) : null
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  );
-                })}
-              </Card>
+                    );
+                  })}
+                </Card>
+              )}
             </View>
 
             <Text style={[typography.section, { color: t.text }]}>{dayTitle(selected)}</Text>
@@ -385,22 +458,7 @@ export default function CalendarScreen() {
                   <EventRow
                     key={event.id}
                     event={event}
-                    onPress={
-                      event.kind === "attendance"
-                        ? () => router.push(`/attendance/event/${event.id}`)
-                        : event.canEdit
-                          ? () =>
-                              setEditing({
-                                id: event.id as Id<"calendarEntries">,
-                                name: event.name,
-                                dateStart: event.dateStart,
-                                dateEnd: event.dateEnd,
-                                subgroups: event.subgroups,
-                                category: event.category as EditableEntry["category"],
-                                notes: event.notes,
-                              })
-                          : undefined
-                    }
+                    onPress={openerFor(event)}
                   />
                 ))}
               </Card>
@@ -413,7 +471,7 @@ export default function CalendarScreen() {
                     on={categories.includes(c.key)}
                     label={c.label}
                     colour={CATEGORY_COLOURS[c.key]}
-                    count={inMonth(all.filter((e) => e.category === c.key))}
+                    count={inView(all.filter((e) => e.category === c.key))}
                     onPress={() => setCategories((prev) => toggle(prev, c.key))}
                   />
                 ))}
@@ -427,7 +485,7 @@ export default function CalendarScreen() {
                     on={campuses.includes(s)}
                     label={subgroupLabel(s)}
                     colour={universityColour(s)}
-                    count={inMonth(all.filter((e) => e.subgroups.includes(s)))}
+                    count={inView(all.filter((e) => e.subgroups.includes(s)))}
                     onPress={() => setCampuses((prev) => toggle(prev, s))}
                   />
                 ))}
@@ -448,6 +506,7 @@ export default function CalendarScreen() {
             setEditing(null);
           }}
           day={selected}
+          time={editing ? undefined : addTime}
           subgroups={subgroups}
           defaultSubgroup={subgroup}
           entry={editing ?? undefined}
@@ -489,17 +548,6 @@ const styles = StyleSheet.create({
   // Below the day number: the cell's top padding, the number and the gap.
   bars: { position: "absolute", top: 38, left: 0, right: 0, bottom: 0 },
   slot: { position: "absolute", paddingHorizontal: 2 },
-  chip: {
-    height: ROW_HEIGHT - 2,
-    borderLeftWidth: 3,
-    borderRadius: 3,
-    paddingHorizontal: 3,
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  fromBefore: { borderLeftWidth: 0, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
-  toAfter: { borderTopRightRadius: 0, borderBottomRightRadius: 0 },
-  chipText: { fontSize: 10, lineHeight: 13, fontWeight: "600" },
   eventRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
   eventBar: { width: 4, alignSelf: "stretch", borderRadius: 2 },
   fab: {

@@ -238,8 +238,16 @@ _Avoid_: event type, calendar tag
 Something on the Calendar that doesn't take attendance, like a marketing
 schedule or a deadline: a name, when, where, a category and optional notes.
 Whoever added it, or an admin, can change it. Attendance events are on the
-Calendar too; an entry is never an attendance event.
+Calendar too; an entry is never an attendance event. An entry either runs
+from a start to an end, or is a **deadline**.
 _Avoid_: event (for an entry), reminder
+
+**Deadline** (Calendar):
+A calendar entry for one moment rather than a span: something due or going
+out, like applications closing or a post going live. It's due on a day, or at
+a time on that day, has no end, and is shown with a flag. Not the same as the
+Deadline category, though a deadline can have it.
+_Avoid_: task, due date (for the entry), reminder
 
 **TWIG** / **PPN** (SOW Insights):
 A TWIG is an event with the Other-events TWIG tag and no PPN tag; a PPN here

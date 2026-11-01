@@ -332,6 +332,27 @@ describe("calendar entries", () => {
     );
   });
 
+  test("a deadline is one moment, and saving it as an event clears it", async () => {
+    const { t } = await setupWithStaff();
+    const due = { dateStart: NOW + 3 * DAY, dateEnd: NOW + 3 * DAY, due: "time" as const };
+    await expect(
+      asUser(t, STAFF).mutation(api.calendar.addEntry, entry({ ...due, dateEnd: NOW + 3 * DAY + 1 }))
+    ).rejects.toThrow("A deadline is one moment, with no end.");
+    const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, entry(due));
+    const window = { from: NOW, to: NOW + 10 * DAY };
+    await create(t, { name: "Stall" });
+    const listed = await asUser(t, STAFF).query(api.calendar.range, window);
+    expect(listed!.map((e) => [e.name, e.due])).toEqual([
+      ["Stall", null],
+      ["Camp posters due", "time"],
+    ]);
+
+    await asUser(t, STAFF).mutation(api.calendar.updateEntry, { id, ...entry() });
+    const saved = await t.run((ctx) => ctx.db.get("calendarEntries", id));
+    expect(saved).not.toHaveProperty("due");
+    expect(saved!.dateEnd).toBeGreaterThan(saved!.dateStart);
+  });
+
   test("changes are copied to Google once a calendar is set up", async () => {
     const { t } = await setupWithStaff();
     await configureGoogle();
@@ -366,6 +387,19 @@ describe("googleCalendar for entries", () => {
     calls = googleFetch([204]);
     await t.action(internal.googleCalendar.syncEntry, { entryId: id });
     expect(calls.map((c) => c.method)).toEqual(["DELETE"]);
+  });
+
+  test("a deadline goes to Google as an all-day event", async () => {
+    const { t } = await setupWithStaff();
+    const id = await asUser(t, STAFF).mutation(
+      api.calendar.addEntry,
+      entry({ dateStart: NOW + 3 * DAY, dateEnd: NOW + 3 * DAY, due: "day" })
+    );
+    await configureGoogle();
+    const calls = googleFetch([200]);
+    await t.action(internal.googleCalendar.syncEntry, { entryId: id });
+    expect(calls[0].body).toMatchObject({ summary: "Camp posters due", start: { date: expect.any(String) } });
+    expect(calls[0].body).not.toHaveProperty("start.dateTime");
   });
 
   test("the backfill includes entries", async () => {

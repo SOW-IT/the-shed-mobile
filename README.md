@@ -247,12 +247,16 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 
 - **Calendar** (`convex/calendar.ts`, rules in `shared/calendar.ts`), from
   the side menu for staff and campus leaders: a month where each event is a
-  coloured bar across the days it runs (the start of its name), then the
-  picked day's events in full below. It shows every attendance event, wherever it was made,
+  coloured bar across the days it runs (the start of its name), or a week
+  with the hours down the side like Google Calendar's (Month or Week is
+  remembered per device; `?view=week` opens the week), then the picked day's
+  events in full below. It shows every attendance event, wherever it was made,
   plus **calendar entries** (`calendarEntries`): things like marketing
   schedules and deadlines that don't take attendance, with optional notes.
-  "Add Event" adds an entry on the picked day, or an attendance event when
-  "Take attendance" is ticked. Whoever added an entry, or an admin, edits or
+  "Add Event" adds an entry on the picked day (or the hour tapped on the
+  week), an attendance event when "Take attendance" is ticked, or a
+  **deadline**: a day and an optional time with no end, for things due or
+  going out, shown with a flag. Whoever added an entry, or an admin, edits or
   deletes it. Colours come from the category: TWIG and PPN from an attendance
   event's tags, Weekly from its term and week, otherwise a picked category
   (Campus event, SOW event, Marketing, Deadline or Other), or Campus/SOW by
