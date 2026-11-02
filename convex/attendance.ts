@@ -407,8 +407,9 @@ export const searchRoster = query({
   },
 });
 
-// Self check-in looks up every typed name that matched no one in one call, so
-// the year's staff are read once and not once per name.
+// Self check-in looks up the typed names that matched no one in one call, so
+// the year's staff are read once and not once per name. Only the first 20 are
+// looked up, oldest first; later ones move up as those are signed in or dismissed.
 export const searchRosterNames = query({
   args: { eventId: v.id("events"), names: v.array(v.string()) },
   handler: async (ctx, { eventId, names }): Promise<RosterEntry[]> => {

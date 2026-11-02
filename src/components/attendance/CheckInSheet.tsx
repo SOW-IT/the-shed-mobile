@@ -329,7 +329,7 @@ export function CheckInSheet({
     () => [...new Set((pending ?? []).filter((row) => !row.match).map((row) => row.name))],
     [pending]
   );
-  // One lookup for all of them, kept on screen while a new arrival changes the names.
+  // One lookup for the first 20 of them, kept on screen while a new arrival changes the names.
   const lookUpNames = visible && unmatchedNames.length > 0;
   const { value: nameMatches } = useHeldValue(
     useQuery(api.attendance.searchRosterNames, lookUpNames ? { eventId, names: unmatchedNames } : "skip"),
