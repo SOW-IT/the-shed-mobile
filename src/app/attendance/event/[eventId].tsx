@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import type { FunctionReturnType } from "convex/server";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,
@@ -54,9 +55,15 @@ import {
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { useHeldValue } from "@/hooks/useHeldValue";
+
+type RosterEntry = FunctionReturnType<typeof api.attendance.roster>[number];
+type AttendanceRow = FunctionReturnType<typeof api.attendance.listByEvent>[number];
 
 const ROSTER_PAGE_SIZE = 30;
 const UNSIGNED_PAGE_SIZE = 10;
+const LIKELY_LIMIT = 50;
+const SEARCH_DEBOUNCE_MS = 300;
 const UNSIGNED_ROW_HEIGHT = 72 + spacing.sm;
 const UNSIGNED_VISIBLE_ROWS = 3;
 const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * UNSIGNED_VISIBLE_ROWS;
@@ -77,6 +84,21 @@ const withoutKey = <T extends Set<string> | Map<string, unknown>>(
   next.delete(key);
   return next;
 };
+
+const entryOfAttendance = (a: AttendanceRow): RosterEntry => ({
+  key: personKey(a),
+  kind: a.kind,
+  email: a.email ?? undefined,
+  memberId: a.memberId,
+  name: a.name,
+  roles: a.roles,
+  campuses: a.campuses,
+  university: a.university,
+  subtitle:
+    [a.kind === "staff" ? a.roles.join(" · ") : "", a.subtitle].filter(Boolean).join(" · ") ||
+    undefined,
+  photo: a.photo,
+});
 
 const memberSubtitle = (member: {
   roles: string[];
@@ -144,7 +166,9 @@ export default function EventAttendanceScreen() {
   const eventSubgroup = event?.subgroups[0];
   const roster = useQuery(
     api.attendance.roster,
-    event ? { year: eventStaffYear(event.dateStart), subgroup: eventSubgroup, eventId: evId } : "skip"
+    event
+      ? { year: eventStaffYear(event.dateStart), subgroup: eventSubgroup, eventId: evId, limit: LIKELY_LIMIT }
+      : "skip"
   );
   const signIn = useMutation(api.attendance.signIn);
   const checkInPending = useCheckInPending(evId);
@@ -162,9 +186,18 @@ export default function EventAttendanceScreen() {
     [signInTags]
   );
 
-  const [optimisticSignedIn, setOptimisticSignedIn] = useState<
-    Map<string, NonNullable<typeof roster>[number]>
-  >(new Map());
+  const [optimisticSignedIn, setOptimisticSignedIn] = useState<Map<string, RosterEntry>>(
+    new Map()
+  );
+  const [returned, setReturned] = useState<Map<string, RosterEntry>>(new Map());
+  const keepReturned = (rows: AttendanceRow[]) =>
+    setReturned((prev) => {
+      const fresh = rows.filter((row) => !prev.has(personKey(row)));
+      if (fresh.length === 0) return prev;
+      const next = new Map(prev);
+      for (const row of fresh) next.set(personKey(row), entryOfAttendance(row));
+      return next;
+    });
   const [optimisticSignedOut, setOptimisticSignedOut] = useState<Set<string>>(
     new Set()
   );
@@ -189,6 +222,11 @@ export default function EventAttendanceScreen() {
   );
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [search]);
   const [toast, setToast] = useState<ToastState>(null);
   const [eventEditOpen, setEventEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -356,6 +394,7 @@ export default function EventAttendanceScreen() {
         }
         return n;
       });
+      keepReturned(genuinelyRemoteSignedOut.flatMap((k) => prevByKey.get(k) ?? []));
       for (const k of genuinelyRemoteSignedOut) {
         afterTransition(`remoteOut:${k}`, () => settleRemoteSignedOut(k));
       }
@@ -365,6 +404,39 @@ export default function EventAttendanceScreen() {
 
   const searchQuery = search.trim().toLowerCase();
   const isSearching = searchQuery.length > 0;
+  const serverSearching = isSearching && debouncedSearch.length > 0;
+  const { value: searchResults, stale: searchStale } = useHeldValue(
+    useQuery(
+      api.attendance.searchRoster,
+      serverSearching ? { eventId: evId, search: debouncedSearch } : "skip"
+    ),
+    serverSearching ? "search" : "idle"
+  );
+  const searchLoading =
+    isSearching && (search.trim() !== debouncedSearch || searchResults === undefined || searchStale);
+
+  const matchesSearch = useCallback(
+    (p: {
+      name: string;
+      email?: string | null;
+      subtitle?: string;
+      roles?: string[];
+      university?: string;
+    }) =>
+      p.name.toLowerCase().includes(searchQuery) ||
+      (p.email?.toLowerCase().includes(searchQuery) ?? false) ||
+      (p.subtitle?.toLowerCase().includes(searchQuery) ?? false) ||
+      (p.roles?.some((role) => role.toLowerCase().includes(searchQuery)) ??
+        false) ||
+      (p.university?.toLowerCase().includes(searchQuery) ?? false),
+    [searchQuery]
+  );
+  // Until the newest search arrives, the last one's results stay only while they
+  // still match what's typed.
+  const liveSearchResults = useMemo(
+    () => (searchLoading ? searchResults?.filter(matchesSearch) : searchResults),
+    [searchLoading, searchResults, matchesSearch]
+  );
 
   const columnsRef = useRef<ViewInstance>(null);
   const [columnsHeight, setColumnsHeight] = useState<number>();
@@ -392,14 +464,31 @@ export default function EventAttendanceScreen() {
     lastSignedInEndHeight.current = -1;
   }, [search, event?._id]);
 
+  const pool = useMemo(() => {
+    const rows = [...(roster ?? [])];
+    const keys = new Set(rows.map((m) => m.key));
+    for (const [key, entry] of returned) if (!keys.has(key)) rows.push(entry);
+    return rows;
+  }, [roster, returned]);
+  const searchKeys = useMemo(
+    () => new Set((isSearching ? (liveSearchResults ?? []) : []).map((m) => m.key)),
+    [isSearching, liveSearchResults]
+  );
+  const searchExtras = useMemo(() => {
+    const keys = new Set(pool.map((m) => m.key));
+    return isSearching ? (liveSearchResults ?? []).filter((m) => !keys.has(m.key)) : [];
+  }, [pool, liveSearchResults, isSearching]);
   const rosterByKey = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof roster>[number]>();
-    for (const m of roster ?? []) map.set(m.key, m);
+    const map = new Map<string, RosterEntry>();
+    for (const m of [...pool, ...searchExtras]) map.set(m.key, m);
+    for (const [key, m] of optimisticSignedIn) if (!map.has(key)) map.set(key, m);
     return map;
-  }, [roster]);
+  }, [pool, searchExtras, optimisticSignedIn]);
 
   const signedInList = useMemo(() => {
-    const enteringKeys = new Set([...optimisticSignedIn.keys(), ...remoteSignedIn]);
+    const enteringKeys = new Set(
+      [...optimisticSignedIn.keys(), ...remoteSignedIn].filter((key) => rosterByKey.has(key))
+    );
     const real = (attendance ?? []).filter((a) => !enteringKeys.has(personKey(a)));
     const realKeys = new Set(real.map((a) => personKey(a)));
     const leaving = new Map<string, NonNullable<typeof attendance>[number]>();
@@ -415,7 +504,7 @@ export default function EventAttendanceScreen() {
     const now = Date.now();
     const pending = [...enteringKeys]
       .map((key) => rosterByKey.get(key))
-      .filter((m): m is NonNullable<typeof roster>[number] => m != null)
+      .filter((m): m is RosterEntry => m != null)
       .map((m) => ({
         _id: `optimistic:${m.key}` as NonNullable<typeof attendance>[number]["_id"],
         _creationTime: now,
@@ -442,24 +531,24 @@ export default function EventAttendanceScreen() {
 
   const unsignedList = useMemo(() => {
     const enteringKeys = new Set([...optimisticSignedOut, ...remoteSignedOut.keys()]);
-    const real = (roster ?? []).filter(
+    const real = pool.filter(
       (m) =>
         !enteringKeys.has(m.key) &&
         (!signedInKeys.has(m.key) || remoteSignedIn.has(m.key) || leavingUnsigned.has(m.key))
     );
     const pending = [...enteringKeys]
       .map((key) => rosterByKey.get(key))
-      .filter((m): m is NonNullable<typeof roster>[number] => m != null);
+      .filter((m): m is RosterEntry => m != null);
     const combined = enteringKeys.size === 0 ? real : [...pending, ...real];
 
     if (signedOutOrder.length === 0) return combined;
     const rank = new Map(signedOutOrder.map((k, i) => [k, i]));
-    const pinned: NonNullable<typeof roster> = [];
-    const rest: NonNullable<typeof roster> = [];
+    const pinned: RosterEntry[] = [];
+    const rest: RosterEntry[] = [];
     for (const m of combined) (rank.has(m.key) ? pinned : rest).push(m);
     pinned.sort((a, b) => rank.get(a.key)! - rank.get(b.key)!);
     return [...pinned, ...rest];
-  }, [roster, signedInKeys, optimisticSignedOut, remoteSignedIn, remoteSignedOut, leavingUnsigned, rosterByKey, signedOutOrder]);
+  }, [pool, signedInKeys, optimisticSignedOut, remoteSignedIn, remoteSignedOut, leavingUnsigned, rosterByKey, signedOutOrder]);
 
   const unsignedKeySig = useMemo(
     () => unsignedList.map((m) => m.key).join(" "),
@@ -475,6 +564,7 @@ export default function EventAttendanceScreen() {
     setNewlyAddedUnsigned(new Set());
     setSignedOutOrder([]);
     setSuppressUnsignedFadeIn(new Set());
+    setReturned(new Map());
   }, [event?._id]);
   if (roster !== undefined && prevUnsignedSig !== unsignedKeySig) {
     const prevKeys =
@@ -503,26 +593,27 @@ export default function EventAttendanceScreen() {
     return () => clearTimeout(timer);
   }, [newlyAddedUnsigned]);
 
-  const matchesSearch = useCallback(
-    (p: {
-      name: string;
-      email?: string | null;
-      subtitle?: string;
-      roles?: string[];
-      university?: string;
-    }) =>
-      p.name.toLowerCase().includes(searchQuery) ||
-      (p.email?.toLowerCase().includes(searchQuery) ?? false) ||
-      (p.subtitle?.toLowerCase().includes(searchQuery) ?? false) ||
-      (p.roles?.some((role) => role.toLowerCase().includes(searchQuery)) ??
-        false) ||
-      (p.university?.toLowerCase().includes(searchQuery) ?? false),
-    [searchQuery]
-  );
-  const filteredUnsignedList = useMemo(
-    () => (isSearching ? unsignedList.filter(matchesSearch) : unsignedList),
-    [unsignedList, isSearching, matchesSearch]
-  );
+  const filteredUnsignedList = useMemo(() => {
+    if (!isSearching) return unsignedList;
+    const found = searchExtras.filter(
+      (m) =>
+        !optimisticSignedOut.has(m.key) &&
+        !remoteSignedOut.has(m.key) &&
+        (!signedInKeys.has(m.key) || remoteSignedIn.has(m.key) || leavingUnsigned.has(m.key))
+    );
+    return [...unsignedList.filter((m) => matchesSearch(m) || searchKeys.has(m.key)), ...found];
+  }, [
+    unsignedList,
+    isSearching,
+    matchesSearch,
+    searchKeys,
+    searchExtras,
+    optimisticSignedOut,
+    remoteSignedOut,
+    signedInKeys,
+    remoteSignedIn,
+    leavingUnsigned,
+  ]);
   const filteredSignedInList = useMemo(
     () => (isSearching ? signedInList.filter(matchesSearch) : signedInList),
     [signedInList, isSearching, matchesSearch]
@@ -536,8 +627,13 @@ export default function EventAttendanceScreen() {
   ).length;
   const optimisticSignedInCount =
     (attendance?.length ?? 0) + pendingSignedIn - pendingSignedOut;
-  const rosterSize = roster?.length ?? 0;
-  const optimisticUnsignedCount = Math.max(0, rosterSize - optimisticSignedInCount);
+  const optimisticUnsignedCount = pool.filter(
+    (m) =>
+      !(
+        optimisticSignedIn.has(m.key) ||
+        (signedInKeys.has(m.key) && !optimisticSignedOut.has(m.key))
+      )
+  ).length;
 
   const visibleUnsigned = filteredUnsignedList.slice(0, unsignedLimit);
   const visibleSignedIn = filteredSignedInList.slice(0, signedInLimit);
@@ -581,7 +677,7 @@ export default function EventAttendanceScreen() {
     setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE);
   }, [hasMoreSignedIn]);
 
-  const onSignInStart = (m: NonNullable<typeof roster>[number]) => {
+  const onSignInStart = (m: RosterEntry) => {
     setOptimisticSignedIn((prev) => new Map(prev).set(m.key, m));
     setLeavingUnsigned((prev) => new Set(prev).add(m.key));
     afterTransition(`signIn:${m.key}`, () =>
@@ -591,7 +687,7 @@ export default function EventAttendanceScreen() {
       order.includes(m.key) ? order.filter((k) => k !== m.key) : order
     );
   };
-  const onSignIn = (m: NonNullable<typeof roster>[number]) => {
+  const onSignIn = (m: RosterEntry) => {
     if (!canEdit) return;
     hapticSelect();
     const onFailure = (e: unknown) => {
@@ -616,6 +712,7 @@ export default function EventAttendanceScreen() {
   const onSignOutStart = (a: NonNullable<typeof attendance>[number]) => {
     const key = personKey(a);
     if (!key) return;
+    keepReturned([a]);
     setOptimisticSignedOut((prev) => new Set(prev).add(key));
     setLeavingSignedIn((prev) => new Map(prev).set(key, a));
     afterTransition(`signOut:${key}`, () =>
@@ -688,7 +785,7 @@ export default function EventAttendanceScreen() {
     }
   };
 
-  const editRosterEntry = (m: NonNullable<typeof roster>[number]) => {
+  const editRosterEntry = (m: RosterEntry) => {
     if (m.memberId) {
       void openEdit({ memberId: m.memberId as Id<"attendanceMembers"> });
     } else if (m.email) {
@@ -884,7 +981,11 @@ export default function EventAttendanceScreen() {
   );
 
   const unsignedEmptyState = isSearching ? null : (
-    <Muted>Everyone in the pool is signed in 🎉</Muted>
+    <Muted>
+      {optimisticSignedInCount > 0
+        ? "Everyone expected is signed in 🎉 Search to add anyone else."
+        : "Search to find people and sign them in."}
+    </Muted>
   );
 
   const eventActions = (
@@ -1060,6 +1161,7 @@ export default function EventAttendanceScreen() {
           value={search}
           onChangeText={setSearch}
           placeholder="Search members…"
+          loading={searchLoading}
           style={styles.search}
         />
       </View>

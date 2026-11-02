@@ -6,6 +6,7 @@ import { metricsDataValidator, staffTrendsValidator } from "./metricsData";
 import {
   personCategoryValidator,
   termFactsFields,
+  weeklyCategoryValidator,
   weeklyBlockValidator,
   weeklyMarkValidator,
   weeklySettingsFields,
@@ -576,6 +577,11 @@ export default defineSchema({
     .index("by_churchId", ["churchId"])
     .searchIndex("search_name", { searchField: "name" }),
 
+  attendanceMemberCount: defineTable({
+    count: v.number(),
+    countedAt: v.number(),
+  }),
+
   mergeSuggestionDismissals: defineTable({
     staffEmail: v.string(),
     memberId: v.id("attendanceMembers"),
@@ -776,6 +782,14 @@ export default defineSchema({
     termKey: v.string(),
     people: v.array(personCategoryValidator),
   }).index("by_subgroup", ["subgroup"]),
+
+  weeklyCategoryPeople: defineTable({
+    subgroup: v.string(),
+    key: v.string(),
+    category: weeklyCategoryValidator,
+  })
+    .index("by_key", ["key"])
+    .index("by_subgroup", ["subgroup"]),
 
   homeTabs: defineTable({
     key: v.string(),

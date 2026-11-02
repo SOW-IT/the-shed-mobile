@@ -286,10 +286,11 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   signs in once for the whole event.
   Post-event sign-ins can be reversed; sign-ins made during an event can't,
   except within 10 minutes of being made.
-  "Not signed in" lists the people most likely to come first: a score from
+  "Not signed in" lists the 50 people most likely to come: a score from
   the last 180 days of sign-ins (weight halving every 45 days, most for the
   same campus's weeklies) plus a campus bonus, stored per event in
-  `rollCallOrders` (ADR 0014).
+  `rollCallOrders` (ADR 0014). Anyone else is found with the search, which
+  asks the server (`attendance.searchRoster`, ADR 0016).
   The Events list filters by tag (any of the picked tags) and by host
   (hosted here, or shared in by another campus). `events.listBySubgroup`
   applies the filter while it pages, so it covers every event.

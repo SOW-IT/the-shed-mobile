@@ -11,6 +11,8 @@ import type { QueryCtx } from "./_generated/server";
 
 const MAX_CAMPUSES = 100;
 
+type RoleSubject = Pick<Doc<"attendanceMembers">, "_id" | "metadata">;
+
 export const eventCampuses = (subgroups: string[]): string[] | undefined => {
   const normalized = normalizeSubgroups(subgroups);
   if (normalized.length === 0 || normalized.some(isOrgWideSubgroup)) return undefined;
@@ -45,13 +47,9 @@ export async function categoriesByPerson(
   return byPerson;
 }
 
-export async function memberRoleResolver(
-  ctx: QueryCtx,
-  fields: readonly MetadataFieldLike[],
-  campuses?: readonly string[]
-) {
-  const categories = await categoriesByPerson(ctx, campuses);
-  return (member: Pick<Doc<"attendanceMembers">, "_id" | "metadata">) => {
+const resolverFor =
+  (fields: readonly MetadataFieldLike[], categories: Map<string, CampusCategory[]>) =>
+  (member: RoleSubject) => {
     const marked = markedRoleIn(fields, member.metadata);
     const insights = insightsRoleOf(
       categories.get(`member:${member._id}`) ?? [],
@@ -59,4 +57,39 @@ export async function memberRoleResolver(
     );
     return { ...memberRole({ marked, insights }), marked, automatic: memberRole({ insights }) };
   };
+
+export async function memberRoleResolver(
+  ctx: QueryCtx,
+  fields: readonly MetadataFieldLike[],
+  campuses?: readonly string[]
+) {
+  return resolverFor(fields, await categoriesByPerson(ctx, campuses));
+}
+
+export async function memberRolesFor(
+  ctx: QueryCtx,
+  fields: readonly MetadataFieldLike[],
+  members: readonly RoleSubject[],
+  campuses?: readonly string[]
+) {
+  if (!(await ctx.db.query("weeklyCategoryPeople").first())) {
+    return await memberRoleResolver(ctx, fields, campuses);
+  }
+  const wanted = campuses ? new Set(campuses) : null;
+  const byPerson = new Map<string, CampusCategory[]>();
+  for (const member of members) {
+    const key = `member:${member._id}`;
+    if (byPerson.has(key)) continue;
+    const rows = await ctx.db
+      .query("weeklyCategoryPeople")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .take(MAX_CAMPUSES);
+    byPerson.set(
+      key,
+      rows
+        .filter((row) => !wanted || wanted.has(row.subgroup))
+        .map((row) => ({ subgroup: row.subgroup, category: row.category }))
+    );
+  }
+  return resolverFor(fields, byPerson);
 }

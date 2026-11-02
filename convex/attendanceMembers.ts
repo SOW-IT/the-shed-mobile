@@ -41,7 +41,8 @@ import {
 } from "./attendanceAudit";
 import { recountEventAttendance } from "./attendanceCounts";
 import { Doc, Id } from "./_generated/dataModel";
-import { memberRoleResolver } from "./memberRoles";
+import { deleteMember, insertMember, memberCount } from "./memberCount";
+import { memberRoleResolver, memberRolesFor } from "./memberRoles";
 import { photoFor } from "./photo";
 import { readSettings } from "./weeklyInsights";
 import {
@@ -100,6 +101,209 @@ export async function memberAuditName(
 const staffSubtitle = (roles: string[]): string | undefined =>
   roles.length > 0 ? roles.join(" · ") : undefined;
 
+type StaffSource = {
+  profile: Doc<"staffProfiles">;
+  shadow: Doc<"attendanceMembers"> | undefined;
+};
+
+const staffRowOf = (
+  fields: readonly MetadataField[],
+  viewingYear: number,
+  { profile: p, shadow }: StaffSource
+): MemberRow => {
+  const metadata = staffLockedMetadata(fields, p, shadow?.metadata);
+  const assignments = assignmentsOf(p);
+  const roles = rolesOfLike(p);
+  const campuses = [
+    ...new Set(
+      assignments.flatMap((a) =>
+        a.university && roleNeedsUniversity(a.role) ? [a.university] : []
+      )
+    ),
+  ];
+  const metaSubtitle = metadataSubtitle(fields, metadata, viewingYear, [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY]);
+  const subtitle = [staffSubtitle(roles), metaSubtitle].filter(Boolean).join(" · ");
+  return {
+    key: `staff:${p.email}`,
+    kind: "staff",
+    name: staffDisplayName(p, shadow?.name),
+    email: p.email,
+    personalEmail: shadow?.email,
+    memberId: shadow?._id,
+    roles,
+    role: roles[0],
+    subtitle: subtitle || undefined,
+    university: resolveUniversity(fields, metadata, campuses),
+    metadata,
+  };
+};
+
+const memberRowOf = (
+  fields: readonly MetadataField[],
+  viewingYear: number,
+  m: Doc<"attendanceMembers">,
+  role: string
+): MemberRow => {
+  const metaSubtitle = metadataSubtitle(fields, m.metadata, viewingYear, [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY]);
+  return {
+    key: `member:${m._id}`,
+    kind: "member",
+    name: m.name,
+    email: m.email,
+    memberId: m._id,
+    roles: [],
+    role,
+    subtitle: [role, metaSubtitle].filter(Boolean).join(" · "),
+    university: resolveUniversity(fields, m.metadata),
+    metadata: m.metadata ?? {},
+  };
+};
+
+const withPhoto = async (ctx: QueryCtx, row: MemberRow, profile: Doc<"staffProfiles">): Promise<MemberRow> => {
+  const user = profile.userId ? await ctx.db.get(profile.userId) : null;
+  return { ...row, photo: await photoFor(ctx, user, profile.email) };
+};
+
+const staffSourcesOf = async (ctx: QueryCtx, year: number): Promise<StaffSource[]> => {
+  const profiles = (
+    await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", year))
+      .collect()
+  ).filter(isAssigned);
+  return await Promise.all(
+    profiles.map(async (profile) => ({
+      profile,
+      shadow: profile.memberId ? ((await ctx.db.get(profile.memberId)) ?? undefined) : undefined,
+    }))
+  );
+};
+
+const NAME_CURSOR = "name:";
+
+type NameCursor = { staff: number; name: string | null; at: number | null };
+
+const nameCursorOf = (cursor: string | null): NameCursor | null => {
+  if (cursor === null) return { staff: 0, name: null, at: null };
+  if (!cursor.startsWith(NAME_CURSOR)) return null;
+  try {
+    const { staff, name, at } = JSON.parse(cursor.slice(NAME_CURSOR.length)) as Partial<NameCursor>;
+    if (typeof staff !== "number" || !Number.isInteger(staff) || staff < 0) return null;
+    if (name === null && at === null) return { staff, name, at };
+    return typeof name === "string" && typeof at === "number" ? { staff, name, at } : null;
+  } catch {
+    return null;
+  }
+};
+
+const nameOrder = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" });
+
+async function* oldestFirstWithinName(members: AsyncIterable<Doc<"attendanceMembers">>) {
+  let run: Doc<"attendanceMembers">[] = [];
+  for await (const member of members) {
+    if (run.length > 0 && run[0].name !== member.name) {
+      yield* run.reverse();
+      run = [];
+    }
+    run.push(member);
+  }
+  yield* run.reverse();
+}
+
+async function* membersByNameAfter(ctx: QueryCtx, cursor: NameCursor, asc: boolean) {
+  const { name, at } = cursor;
+  const members = () => ctx.db.query("attendanceMembers");
+  if (name !== null && at !== null) {
+    yield* members().withIndex("by_name", (q) => q.eq("name", name).gt("_creationTime", at));
+  }
+  if (asc) {
+    yield* name === null
+      ? members().withIndex("by_name")
+      : members().withIndex("by_name", (q) => q.gt("name", name));
+    return;
+  }
+  yield* oldestFirstWithinName(
+    name === null
+      ? members().withIndex("by_name").order("desc")
+      : members().withIndex("by_name", (q) => q.lt("name", name)).order("desc")
+  );
+}
+
+async function pageByName(
+  ctx: QueryCtx,
+  opts: {
+    year: number;
+    asc: boolean;
+    numItems: number;
+    cursor: NameCursor;
+    counted: number;
+    fields: MetadataField[];
+    viewingYear: number;
+  }
+) {
+  const { asc, numItems, cursor, fields, viewingYear } = opts;
+  const sources = await staffSourcesOf(ctx, opts.year);
+  const staffIds = new Set(sources.flatMap((s) => (s.profile.memberId ? [s.profile.memberId] : [])));
+  const linked = new Set(sources.flatMap((s) => (s.shadow ? [s.shadow._id] : [])));
+  const staff = sources
+    .map((source) => ({ source, row: staffRowOf(fields, viewingYear, source) }))
+    .sort((a, b) => (asc ? nameOrder(a.row.name, b.row.name) : nameOrder(b.row.name, a.row.name)));
+
+  const stream = membersByNameAfter(ctx, cursor, asc);
+  let staffAt = cursor.staff;
+  let last = { name: cursor.name, at: cursor.at };
+  let held: Doc<"attendanceMembers"> | null = null;
+  let streamDone = false;
+  const peekMember = async () => {
+    while (!held && !streamDone) {
+      const next = await stream.next();
+      if (next.done) streamDone = true;
+      else if (staffIds.has(next.value._id)) last = { name: next.value.name, at: next.value._creationTime };
+      else held = next.value;
+    }
+    return held;
+  };
+  const staffGoesFirst = (staffName: string, memberName: string) =>
+    asc ? nameOrder(staffName, memberName) <= 0 : nameOrder(staffName, memberName) >= 0;
+
+  const picked: ({ staff: (typeof staff)[number] } | { member: Doc<"attendanceMembers"> })[] = [];
+  while (picked.length < numItems) {
+    const member = await peekMember();
+    const next = staff[staffAt];
+    if (!member && !next) break;
+    if (next && (!member || staffGoesFirst(next.row.name, member.name))) {
+      picked.push({ staff: next });
+      staffAt++;
+    } else {
+      picked.push({ member: member! });
+      last = { name: member!.name, at: member!._creationTime };
+      held = null;
+    }
+  }
+  const more = staffAt < staff.length || (await peekMember()) !== null;
+  const pageMembers = picked.flatMap((p) => ("member" in p ? [p.member] : []));
+  const roleOf = await memberRolesFor(ctx, fields, pageMembers);
+  const page = await Promise.all(
+    picked.map((p) =>
+      "member" in p
+        ? memberRowOf(fields, viewingYear, p.member, roleOf(p.member).role)
+        : withPhoto(ctx, p.staff.row, p.staff.source.profile)
+    )
+  );
+  return {
+    page,
+    isDone: !more,
+    continueCursor: more ? NAME_CURSOR + JSON.stringify({ staff: staffAt, ...last }) : "",
+    total: sources.length + opts.counted - linked.size,
+  };
+}
+
+const activeFilters = (filters: Record<string, string | string[]> | undefined) =>
+  Object.entries(filters ?? {}).flatMap(([fieldId, raw]) => {
+    const values = (Array.isArray(raw) ? raw : [raw]).filter((value) => value && value !== "all");
+    return values.length > 0 ? [[fieldId, values] as const] : [];
+  });
+
 export const list = query({
   args: {
     year: v.number(),
@@ -113,92 +317,52 @@ export const list = query({
   },
   handler: async (ctx, args) => {
     if (!(await optionalProfile(ctx))) {
-      return { page: [], isDone: true, continueCursor: "" };
+      return { page: [], isDone: true, continueCursor: "", total: 0 };
     }
     const viewingYear = sydneyCalendarYear(new Date());
     const metadataFields = await allMetadataFields(ctx);
+    const q = args.search?.trim().toLowerCase();
+    const filters = activeFilters(args.filters);
+    const sortKey = args.sortKey ?? "name";
+    const { numItems, cursor } = args.paginationOpts;
+
+    const nameCursor = nameCursorOf(cursor);
+    if (!q && filters.length === 0 && sortKey === "name" && nameCursor) {
+      const counted = await memberCount(ctx);
+      if (counted !== null) {
+        return await pageByName(ctx, {
+          year: args.year,
+          asc: args.sortAsc ?? true,
+          numItems,
+          cursor: nameCursor,
+          counted,
+          fields: metadataFields,
+          viewingYear,
+        });
+      }
+    }
+
     const yearField = metadataFields.find((f) => f.key === STUDENT_YEAR_FIELD_KEY);
     const roleField = metadataFields.find((f) => f.key === ROLE_FIELD_KEY);
     const roleOf = await memberRoleResolver(ctx, metadataFields);
 
-    const profiles = (
-      await ctx.db
-        .query("staffProfiles")
-        .withIndex("by_year", (q) => q.eq("year", args.year))
-        .collect()
-    ).filter(isAssigned);
+    const sources = await staffSourcesOf(ctx, args.year);
     const members = await ctx.db.query("attendanceMembers").collect();
-    const memberById = new Map(members.map((m) => [m._id, m]));
-    const staffMemberIds = new Set(profiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
+    const staffMemberIds = new Set(sources.flatMap((s) => (s.profile.memberId ? [s.profile.memberId] : [])));
     const pureExtras = members.filter((m) => !staffMemberIds.has(m._id));
-
+    const profileByKey = new Map<string, Doc<"staffProfiles">>();
     const rows: MemberRow[] = [];
 
-    for (const p of profiles) {
-      const shadow = p.memberId ? memberById.get(p.memberId) : undefined;
-      const metadata = staffLockedMetadata(metadataFields, p, shadow?.metadata);
-      const assignments = assignmentsOf(p);
-      const roles = rolesOfLike(p);
-      const campuses = [
-        ...new Set(
-          assignments.flatMap((a) =>
-            a.university && roleNeedsUniversity(a.role) ? [a.university] : []
-          )
-        ),
-      ];
-      const user = p.userId ? await ctx.db.get(p.userId) : null;
-      const orgSubtitle = staffSubtitle(roles);
-      const metaSubtitle = metadataSubtitle(
-        metadataFields,
-        metadata,
-        viewingYear,
-        [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY]
-      );
-      const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
-      const university = resolveUniversity(
-        metadataFields,
-        metadata,
-        campuses
-      );
-      rows.push({
-        key: `staff:${p.email}`,
-        kind: "staff",
-        name: staffDisplayName(p, shadow?.name),
-        email: p.email,
-        personalEmail: shadow?.email,
-        memberId: shadow?._id,
-        roles,
-        role: roles[0],
-        subtitle: subtitle || undefined,
-        university,
-        metadata,
-        photo: await photoFor(ctx, user, p.email),
-      });
+    for (const source of sources) {
+      const row = staffRowOf(metadataFields, viewingYear, source);
+      profileByKey.set(row.key, source.profile);
+      rows.push(row);
     }
-
     for (const m of pureExtras) {
-      const university = resolveUniversity(metadataFields, m.metadata);
-      const { role } = roleOf(m);
-      const metaSubtitle = metadataSubtitle(metadataFields, m.metadata, viewingYear, [
-        CAMPUS_FIELD_KEY,
-        ROLE_FIELD_KEY,
-      ]);
-      rows.push({
-        key: `member:${m._id}`,
-        kind: "member",
-        name: m.name,
-        email: m.email,
-        memberId: m._id,
-        roles: [],
-        role,
-        subtitle: [role, metaSubtitle].filter(Boolean).join(" · "),
-        university,
-        metadata: m.metadata ?? {},
-      });
+      rows.push(memberRowOf(metadataFields, viewingYear, m, roleOf(m).role));
     }
 
     let filtered = rows;
-    const q = args.search?.trim().toLowerCase();
     if (q) {
       filtered = filtered.filter(
         (r) =>
@@ -234,20 +398,13 @@ export const list = query({
       return row.metadata[fieldId] === value;
     };
 
-    if (args.filters) {
-      for (const [fieldId, rawValue] of Object.entries(args.filters)) {
-        const values = (Array.isArray(rawValue) ? rawValue : [rawValue]).filter(
-          (value) => value && value !== "all"
-        );
-        if (values.length === 0) continue;
-        filtered = filtered.filter((row) =>
-          values.some((value) => matchesFieldFilter(row, fieldId, value))
-        );
-      }
+    for (const [fieldId, values] of filters) {
+      filtered = filtered.filter((row) =>
+        values.some((value) => matchesFieldFilter(row, fieldId, value))
+      );
     }
 
     const asc = args.sortAsc ?? true;
-    const sortKey = args.sortKey ?? "name";
     const sortField = metadataFields.find((f) => f._id === sortKey);
     const metadataSortValue = (row: MemberRow): string => {
       if (roleField && sortKey === roleField._id) return row.role ?? "";
@@ -287,9 +444,14 @@ export const list = query({
       return asc ? cmp : -cmp;
     });
 
-    const { numItems, cursor } = args.paginationOpts;
-    const start = cursor ? Number(cursor) : 0;
-    const page = filtered.slice(start, start + numItems);
+    const offset = Number(cursor);
+    const start = cursor && Number.isInteger(offset) && offset > 0 ? offset : 0;
+    const page = await Promise.all(
+      filtered.slice(start, start + numItems).map((row) => {
+        const profile = profileByKey.get(row.key);
+        return profile ? withPhoto(ctx, row, profile) : row;
+      })
+    );
     const next = start + numItems;
     return {
       page,
@@ -457,7 +619,7 @@ export const create = mutation({
       }
       if (isSowStaffAddress(email)) throw new ConvexError(NOT_PERSONAL(email!.trim().toLowerCase()));
     }
-    const memberId = await ctx.db.insert("attendanceMembers", {
+    const memberId = await insertMember(ctx, {
       name: trimmed,
       email: email?.trim().toLowerCase() || undefined,
       metadata: metadata && withMarkedRole(await allMetadataFields(ctx), metadata, undefined),
@@ -604,7 +766,7 @@ export const remove = mutation({
     for (const profile of await profilesOfMember(ctx, memberId)) {
       await ctx.db.patch("staffProfiles", profile._id, { memberId: undefined });
     }
-    await ctx.db.delete(memberId);
+    await deleteMember(ctx, memberId);
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "member",
@@ -971,7 +1133,7 @@ export const merge = mutation({
       ...(await fieldsFor()),
       churchId: keep.row.churchId ?? remove.churchId,
     });
-    await ctx.db.delete(victim.row._id);
+    await deleteMember(ctx, victim.row._id);
 
     await logAttendanceAction(ctx, {
       actorEmail,

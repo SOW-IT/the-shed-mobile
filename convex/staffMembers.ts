@@ -10,6 +10,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
 import { recountEventAttendance } from "./attendanceCounts";
+import { insertMember } from "./memberCount";
 import { getProfile } from "./model";
 
 type Ctx = QueryCtx | MutationCtx;
@@ -136,7 +137,7 @@ export async function linkOrCreateMember(
   const known = await linkKnownMember(ctx, profile);
   if (known) return known;
   const name = staffMemberName(profile);
-  const memberId = await ctx.db.insert("attendanceMembers", { name });
+  const memberId = await insertMember(ctx, { name });
   await linkPerson(ctx, profile, memberId);
   await logAttendanceAction(ctx, {
     actorEmail,
