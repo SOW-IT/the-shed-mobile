@@ -292,6 +292,22 @@ describe("the roll call lists the people most likely to come", () => {
     expect(nora.memberId).toBeUndefined();
   });
 
+  test("staff nobody ranked still pass a last place that scores no more than the campus bonus", async () => {
+    const { admin, member, staff, event, order } = await setup();
+    const ann = await member("Ann Lee");
+    const ben = await member("Ben Ng");
+    await staff(NO_SHADOW, { name: "Nora Shadowless", role: "Student Leader", university: USYD });
+    const eventId = await event();
+    await order(eventId, [
+      [ann, 0.5],
+      [ben, 0.2],
+    ]);
+    const full = await admin.query(api.attendance.roster, { year: YEAR, eventId });
+    const top = await admin.query(api.attendance.roster, { year: YEAR, eventId, limit: 2 });
+    expect(top.map((r) => r.name)).toEqual(["Nora Shadowless", "Ann Lee"]);
+    expect(top).toEqual(full.slice(0, 2));
+  });
+
   test("the limit is clamped, and without an event or a limit the whole list comes back", async () => {
     const { admin, eventId } = await rosterWorld();
     expect(await admin.query(api.attendance.roster, { year: YEAR, eventId, limit: 0 })).toHaveLength(1);
@@ -355,6 +371,32 @@ describe("roll call search", () => {
     ).toEqual([expect.objectContaining({ kind: "staff", name: "Quinn Shadowed", memberId: shadow })]);
     expect(await admin.query(api.attendance.searchRoster, { eventId, search: "cap" })).toHaveLength(25);
   });
+
+  test("staff matching by name or email are kept over those matching only a role, whatever the order", async () => {
+    const { admin, staff, event } = await setup();
+    for (let i = 0; i < 26; i++) await staff(`pat${i}@sow.org.au`, { name: `Pat ${i}`, role: "Student Leader", university: USYD });
+    await staff("zed@sow.org.au", { name: "Zed Leaderson" });
+    const eventId = await event();
+    const found = await admin.query(api.attendance.searchRoster, { eventId, search: "leader" });
+    expect(found).toHaveLength(25);
+    expect(found[0]).toMatchObject({ kind: "staff", name: "Zed Leaderson" });
+  });
+
+  test("self check-in looks up every unmatched name in one call", async () => {
+    const { t, admin, eventId, member } = await rosterWorld();
+    await member("Bob Lee");
+    const lookUp = (names: string[]) => admin.query(api.attendance.searchRosterNames, { eventId, names });
+
+    const found = await lookUp(["Ann Lee", " Bob ", "Ann Lee", "", "Sam Staff", "Sam"]);
+    expect(found.map((r) => r.name)).toEqual(expect.arrayContaining(["Ann Lee", "Bob Lee", "Sam Staff"]));
+    expect(new Set(keysOf(found)).size).toBe(found.length);
+    expect(found.filter((r) => r.name === "Sam Staff")).toHaveLength(1);
+
+    const nobody = Array.from({ length: 20 }, (_, i) => `Nobody${i}`);
+    expect(await lookUp([...nobody, "Ann Lee"])).toEqual([]);
+    expect(await lookUp(["  "])).toEqual([]);
+    expect(await t.query(api.attendance.searchRosterNames, { eventId, names: ["Ann"] })).toEqual([]);
+  });
 });
 
 async function membersWorld() {
@@ -410,6 +452,22 @@ describe("the Members tab reads one page at a time", () => {
     expect(everyone.rows.find((r) => (r as { name?: string }).name === "Mia Ho")).toMatchObject({ role: "Regular" });
     await t.mutation(internal.categoryPeople.backfill, {});
     expect(await pageAll(admin, { numItems: 2 })).toEqual(everyone);
+  });
+
+  test("names whose index order differs from A to Z move, but are never dropped or repeated", async () => {
+    const { t, admin, member } = await membersWorld();
+    await member("Mackay Wu");
+    await member("MacKenzie Ho");
+    await member("\u00c9lise Tan");
+    const everyone = await pageAll(admin, { numItems: 200 });
+    await t.mutation(internal.memberCount.recount, {});
+    for (const numItems of [1, 3]) {
+      for (const sortAsc of [true, false]) {
+        const paged = await pageAll(admin, { numItems, sortAsc });
+        expect(paged.total).toBe(everyone.total);
+        expect(keysOf(paged.rows).sort()).toEqual(keysOf(everyone.rows).sort());
+      }
+    }
   });
 
   test("old offset cursors and broken name cursors fall back to reading everything", async () => {

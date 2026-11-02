@@ -52,6 +52,8 @@ const memberSubtitle = (role: string | undefined, details: string): string | und
 export const ROSTER_LIMIT_MAX = 200;
 const SEARCH_MEMBER_LIMIT = 25;
 const SEARCH_STAFF_LIMIT = 25;
+const NAME_LOOKUP_LIMIT = 20;
+const NAME_LOOKUP_MEMBER_LIMIT = 10;
 
 type MetadataField = Doc<"attendanceMetadata">;
 
@@ -202,7 +204,9 @@ async function likelyRoster(
       profile,
     });
   }
-  if (picked.length < limit) {
+  // Staff nobody ranked score only the campus bonus, so they can also pass a
+  // last place that scores no more than that.
+  if (picked.length < limit || cutoff() <= LIKELIHOOD.campus) {
     const staff: Candidate[] = [];
     for (const profile of await assignedProfiles(ctx, profileYear)) {
       const key = personKey({ email: profile.email });
@@ -220,7 +224,7 @@ async function likelyRoster(
         profile,
       });
     }
-    picked.push(...staff.sort(byLikelihood).slice(0, limit - picked.length));
+    picked.push(...staff.sort(byLikelihood).slice(0, limit));
   }
   return await candidateEntries(ctx, event, fields, memberYear, picked.sort(byLikelihood).slice(0, limit));
 }
@@ -299,6 +303,97 @@ export const roster = query({
 const searchHit = (needle: string, ...haystack: (string | undefined)[]) =>
   haystack.some((text) => text?.toLowerCase().includes(needle));
 
+type StaffToSearch = {
+  profile: Doc<"staffProfiles">;
+  name: string;
+  shadow: Doc<"attendanceMembers"> | null;
+};
+
+// What every search of an event's roll call needs, read once however many
+// names are looked up.
+async function searchScope(ctx: QueryCtx, event: Doc<"events">) {
+  const fields = await fieldsForEvent(ctx, event);
+  const eventSubgroups = new Set(normalizeSubgroups(event.subgroups));
+  const order = await storedOrder(ctx, event._id);
+  const scores = new Map<string, number>(
+    (order?.memberIds ?? []).map((memberId, i) => [memberId, order!.scores[i] ?? 0])
+  );
+  const profiles = await assignedProfiles(ctx, eventStaffYear(event.dateStart));
+  const staff: StaffToSearch[] = await Promise.all(
+    profiles.map(async (profile) => {
+      const shadow =
+        profile.memberId && profileOwnName(profile) === null
+          ? await ctx.db.get("attendanceMembers", profile.memberId)
+          : null;
+      return { profile, shadow, name: staffDisplayName(profile, shadow?.name) };
+    })
+  );
+  const members = new Map<Id<"attendanceMembers">, Promise<Doc<"attendanceMembers"> | null>>();
+  return {
+    fields,
+    memberYear: sydneyCalendarYear(new Date(event.dateStart)),
+    staff,
+    profileOfMember: new Map(profiles.flatMap((p) => (p.memberId ? [[p.memberId, p] as const] : []))),
+    likelihood: (memberId: Id<"attendanceMembers"> | undefined, place: { university?: string; campuses: string[] }) =>
+      (memberId ? (scores.get(memberId) ?? 0) : 0) +
+      (memberMatchesEventCampus(eventSubgroups, place) ? LIKELIHOOD.campus : 0),
+    member: (id: Id<"attendanceMembers">) => {
+      if (!members.has(id)) members.set(id, ctx.db.get("attendanceMembers", id));
+      return members.get(id)!;
+    },
+  };
+}
+
+type SearchScope = Awaited<ReturnType<typeof searchScope>>;
+
+async function searchCandidates(
+  ctx: QueryCtx,
+  scope: SearchScope,
+  text: string,
+  memberLimit: number
+): Promise<SearchCandidate[]> {
+  const needle = text.toLowerCase();
+  const found = new Map<string, SearchCandidate>();
+  const add = (profile: Doc<"staffProfiles"> | null, member: Doc<"attendanceMembers"> | null) => {
+    const key = profile ? personKey({ email: profile.email }) : personKey({ memberId: member!._id });
+    if (found.has(key)) return;
+    const place = profile
+      ? { university: staffUniversity(profile, scope.fields, member), campuses: staffCampuses(profile) }
+      : { university: resolveUniversity(scope.fields, member!.metadata), campuses: [] };
+    const name = profile ? staffDisplayName(profile, member?.name) : member!.name;
+    found.set(key, {
+      key,
+      name,
+      exact: searchHit(needle, name, profile?.email),
+      likelihood: scope.likelihood(member?._id, place),
+      member,
+      profile,
+    });
+  };
+  // Every matching staffer is ranked before the cap, names and emails first,
+  // so a name match is never dropped for one that only matched a role or campus.
+  const staffHits = scope.staff
+    .filter(({ profile, name }) =>
+      searchHit(needle, name, profile.email, ...assignmentsOf(profile).map((a) => a.role), ...staffCampuses(profile))
+    )
+    .map((hit) => ({
+      ...hit,
+      exact: searchHit(needle, hit.name, hit.profile.email),
+      likelihood: scope.likelihood(hit.profile.memberId, { campuses: staffCampuses(hit.profile) }),
+    }))
+    .sort((a, b) => Number(b.exact) - Number(a.exact) || compareLikelihood(a.likelihood, b.likelihood, a.name, b.name))
+    .slice(0, SEARCH_STAFF_LIMIT);
+  for (const { profile, shadow } of staffHits) {
+    add(profile, shadow ?? (profile.memberId ? await scope.member(profile.memberId) : null));
+  }
+  const members = await ctx.db
+    .query("attendanceMembers")
+    .withSearchIndex("search_name", (q) => q.search("name", text))
+    .take(memberLimit);
+  for (const member of members) add(scope.profileOfMember.get(member._id) ?? null, member);
+  return [...found.values()].sort(bySearchMatch);
+}
+
 export const searchRoster = query({
   args: { eventId: v.id("events"), search: v.string() },
   handler: async (ctx, { eventId, search }): Promise<RosterEntry[]> => {
@@ -306,56 +401,29 @@ export const searchRoster = query({
     const text = search.trim();
     const event = text ? await ctx.db.get(eventId) : null;
     if (!event) return [];
-    const needle = text.toLowerCase();
-    const profileYear = eventStaffYear(event.dateStart);
-    const memberYear = sydneyCalendarYear(new Date(event.dateStart));
-    const fields = await fieldsForEvent(ctx, event);
-    const eventSubgroups = new Set(normalizeSubgroups(event.subgroups));
-    const order = await storedOrder(ctx, event._id);
-    const scores = new Map<string, number>(
-      (order?.memberIds ?? []).map((memberId, i) => [memberId, order!.scores[i] ?? 0])
-    );
-    const profiles = await assignedProfiles(ctx, profileYear);
-    const profileOfMember = new Map(profiles.flatMap((p) => (p.memberId ? [[p.memberId, p] as const] : [])));
+    const scope = await searchScope(ctx, event);
+    const found = await searchCandidates(ctx, scope, text, SEARCH_MEMBER_LIMIT);
+    return await candidateEntries(ctx, event, scope.fields, scope.memberYear, found);
+  },
+});
+
+// Self check-in looks up every typed name that matched no one in one call, so
+// the year's staff are read once and not once per name.
+export const searchRosterNames = query({
+  args: { eventId: v.id("events"), names: v.array(v.string()) },
+  handler: async (ctx, { eventId, names }): Promise<RosterEntry[]> => {
+    if (!(await optionalProfile(ctx))) return [];
+    const texts = [...new Set(names.map((name) => name.trim()).filter(Boolean))].slice(0, NAME_LOOKUP_LIMIT);
+    const event = texts.length > 0 ? await ctx.db.get(eventId) : null;
+    if (!event) return [];
+    const scope = await searchScope(ctx, event);
     const found = new Map<string, SearchCandidate>();
-    const add = (profile: Doc<"staffProfiles"> | null, member: Doc<"attendanceMembers"> | null) => {
-      const key = profile ? personKey({ email: profile.email }) : personKey({ memberId: member!._id });
-      if (found.has(key)) return;
-      const place = profile
-        ? { university: staffUniversity(profile, fields, member), campuses: staffCampuses(profile) }
-        : { university: resolveUniversity(fields, member!.metadata), campuses: [] };
-      const name = profile ? staffDisplayName(profile, member?.name) : member!.name;
-      found.set(key, {
-        key,
-        name,
-        exact: searchHit(needle, name, profile?.email),
-        likelihood:
-          (member ? (scores.get(member._id) ?? 0) : 0) +
-          (memberMatchesEventCampus(eventSubgroups, place) ? LIKELIHOOD.campus : 0),
-        member,
-        profile,
-      });
-    };
-    let staffHits = 0;
-    for (const profile of profiles) {
-      if (staffHits >= SEARCH_STAFF_LIMIT) break;
-      const shadow =
-        profile.memberId && profileOwnName(profile) === null
-          ? await ctx.db.get("attendanceMembers", profile.memberId)
-          : null;
-      const name = staffDisplayName(profile, shadow?.name);
-      if (!searchHit(needle, name, profile.email, ...assignmentsOf(profile).map((a) => a.role), ...staffCampuses(profile))) {
-        continue;
+    for (const text of texts) {
+      for (const hit of await searchCandidates(ctx, scope, text, NAME_LOOKUP_MEMBER_LIMIT)) {
+        if (!found.has(hit.key)) found.set(hit.key, hit);
       }
-      staffHits++;
-      add(profile, shadow ?? (profile.memberId ? await ctx.db.get("attendanceMembers", profile.memberId) : null));
     }
-    const members = await ctx.db
-      .query("attendanceMembers")
-      .withSearchIndex("search_name", (q) => q.search("name", text))
-      .take(SEARCH_MEMBER_LIMIT);
-    for (const member of members) add(profileOfMember.get(member._id) ?? null, member);
-    return await candidateEntries(ctx, event, fields, memberYear, [...found.values()].sort(bySearchMatch));
+    return await candidateEntries(ctx, event, scope.fields, scope.memberYear, [...found.values()]);
   },
 });
 

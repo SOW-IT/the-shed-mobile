@@ -23,13 +23,19 @@ Daniel picked the second, with a list of 25 to 50. From 2.10.18:
 - `roster` with a `limit` (the app sends 50) walks the event's
   `rollCallOrders` in score order, adds the campus bonus, and stops once no
   later score could reach the 50th place. When fewer than 50 are ranked it
-  fills up with the year's staff, campus first. When at least 50 are ranked,
-  the 50 are the first 50 of the old full list, in the same order. Without a
-  `limit` (app versions before 2.10.18) it still returns everyone.
+  fills up with the year's staff, campus first, and when the 50th place
+  scores no more than the campus bonus, staff nobody ranked compete for it
+  too. The 50 are then the first 50 of the old full list, in the same order,
+  except that a member nobody ranked is never listed: the old list put
+  members of the event's campus above a 50th place that low, and search finds
+  them now. Without a `limit` (app versions before 2.10.18) it still returns
+  everyone.
 - `attendance.searchRoster` finds staff by name, email, role or campus and
   members through the `search_name` index (words, the last one as a prefix),
-  names containing the typed text first. Self check-in's suggestions and its
-  member picker use it too.
+  names containing the typed text first. Staff are ranked before the 25 are
+  kept. Self check-in's member picker uses it too, and its suggestions use
+  `attendance.searchRosterNames`, which looks up every unmatched name (up to
+  20) in one call so the year's staff are read once.
 - Insights roles are read per person from `weeklyCategoryPeople`, a copy of
   `weeklyCategories` kept by the nightly Insights save, instead of a whole
   campus document (22 KB, or 70 KB for all campuses).

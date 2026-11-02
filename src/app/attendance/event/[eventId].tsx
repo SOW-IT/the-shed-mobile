@@ -415,6 +415,29 @@ export default function EventAttendanceScreen() {
   const searchLoading =
     isSearching && (search.trim() !== debouncedSearch || searchResults === undefined || searchStale);
 
+  const matchesSearch = useCallback(
+    (p: {
+      name: string;
+      email?: string | null;
+      subtitle?: string;
+      roles?: string[];
+      university?: string;
+    }) =>
+      p.name.toLowerCase().includes(searchQuery) ||
+      (p.email?.toLowerCase().includes(searchQuery) ?? false) ||
+      (p.subtitle?.toLowerCase().includes(searchQuery) ?? false) ||
+      (p.roles?.some((role) => role.toLowerCase().includes(searchQuery)) ??
+        false) ||
+      (p.university?.toLowerCase().includes(searchQuery) ?? false),
+    [searchQuery]
+  );
+  // Until the newest search arrives, the last one's results stay only while they
+  // still match what's typed.
+  const liveSearchResults = useMemo(
+    () => (searchLoading ? searchResults?.filter(matchesSearch) : searchResults),
+    [searchLoading, searchResults, matchesSearch]
+  );
+
   const columnsRef = useRef<ViewInstance>(null);
   const [columnsHeight, setColumnsHeight] = useState<number>();
   const [footerHeight, setFooterHeight] = useState(0);
@@ -448,13 +471,13 @@ export default function EventAttendanceScreen() {
     return rows;
   }, [roster, returned]);
   const searchKeys = useMemo(
-    () => new Set((isSearching ? (searchResults ?? []) : []).map((m) => m.key)),
-    [isSearching, searchResults]
+    () => new Set((isSearching ? (liveSearchResults ?? []) : []).map((m) => m.key)),
+    [isSearching, liveSearchResults]
   );
   const searchExtras = useMemo(() => {
     const keys = new Set(pool.map((m) => m.key));
-    return isSearching ? (searchResults ?? []).filter((m) => !keys.has(m.key)) : [];
-  }, [pool, searchResults, isSearching]);
+    return isSearching ? (liveSearchResults ?? []).filter((m) => !keys.has(m.key)) : [];
+  }, [pool, liveSearchResults, isSearching]);
   const rosterByKey = useMemo(() => {
     const map = new Map<string, RosterEntry>();
     for (const m of [...pool, ...searchExtras]) map.set(m.key, m);
@@ -570,22 +593,6 @@ export default function EventAttendanceScreen() {
     return () => clearTimeout(timer);
   }, [newlyAddedUnsigned]);
 
-  const matchesSearch = useCallback(
-    (p: {
-      name: string;
-      email?: string | null;
-      subtitle?: string;
-      roles?: string[];
-      university?: string;
-    }) =>
-      p.name.toLowerCase().includes(searchQuery) ||
-      (p.email?.toLowerCase().includes(searchQuery) ?? false) ||
-      (p.subtitle?.toLowerCase().includes(searchQuery) ?? false) ||
-      (p.roles?.some((role) => role.toLowerCase().includes(searchQuery)) ??
-        false) ||
-      (p.university?.toLowerCase().includes(searchQuery) ?? false),
-    [searchQuery]
-  );
   const filteredUnsignedList = useMemo(() => {
     if (!isSearching) return unsignedList;
     const found = searchExtras.filter(

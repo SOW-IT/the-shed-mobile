@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMutation, useQueries, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
@@ -34,7 +34,7 @@ export function useCheckInPending(eventId: Id<"events">) {
 
 type CheckInMember = MemberChoice & { subtitle?: string };
 
-type FoundPerson = { memberId?: string; name: string; university?: string; subtitle?: string };
+type FoundPerson = { kind?: string; memberId?: string; name: string; university?: string; subtitle?: string };
 
 const PICKER_DEBOUNCE_MS = 300;
 
@@ -176,14 +176,23 @@ function MemberPicker({
   };
   const searching = query.trim().length > 0;
   const lookingUp = row !== null && searching && debounced.length > 0;
-  const { value: found } = useHeldValue(
+  const { value: found, stale } = useHeldValue(
     useQuery(api.attendance.searchRoster, lookingUp ? { eventId, search: debounced } : "skip"),
     lookingUp ? "search" : "idle"
   );
   const pool = withFound(members, searching ? (found ?? []) : []) ?? [];
+  const named = searching ? searchMembers(query, pool) : [];
+  // Staff the server found by email, role or campus, which no name match keeps.
+  // Those from an older search wait for the new one.
+  const staffFound =
+    lookingUp && debounced === query.trim() && !stale
+      ? (withFound([], (found ?? []).filter((person) => person.kind === "staff")) ?? []).filter(
+          (person) => !named.some((n) => n.memberId === person.memberId)
+        )
+      : [];
   const shown = row
     ? searching
-      ? searchMembers(query, pool)
+      ? [...named, ...staffFound]
       : suggestMembers(row.name, row.campus, pool, 8)
     : [];
   return (
@@ -320,26 +329,13 @@ export function CheckInSheet({
     () => [...new Set((pending ?? []).filter((row) => !row.match).map((row) => row.name))],
     [pending]
   );
-  const nameLookups = useQueries(
-    useMemo(
-      () =>
-        Object.fromEntries(
-          (visible ? unmatchedNames : []).map((name) => [
-            name,
-            { query: api.attendance.searchRoster, args: { eventId, search: name } },
-          ])
-        ),
-      [visible, unmatchedNames, eventId]
-    )
+  // One lookup for all of them, kept on screen while a new arrival changes the names.
+  const lookUpNames = visible && unmatchedNames.length > 0;
+  const { value: nameMatches } = useHeldValue(
+    useQuery(api.attendance.searchRosterNames, lookUpNames ? { eventId, names: unmatchedNames } : "skip"),
+    lookUpNames ? "names" : "idle"
   );
-  const known = useMemo(
-    () =>
-      withFound(
-        members,
-        Object.values(nameLookups).flatMap((result) => (Array.isArray(result) ? (result as FoundPerson[]) : []))
-      ),
-    [members, nameLookups]
-  );
+  const known = useMemo(() => withFound(members, nameMatches ?? []), [members, nameMatches]);
   const suggestions = useMemo(
     () =>
       new Map(
