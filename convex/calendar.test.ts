@@ -578,3 +578,99 @@ describe("review follow-ups", () => {
     expect(await t.action(internal.googleCalendar.backfill, { daysBack: 1 })).toEqual({ synced: 130 });
   });
 });
+
+describe("regression fixes", () => {
+  test("a failed write is tried again later, with whatever changed meanwhile", async () => {
+    const { t } = await setup();
+    const eventId = await create(t, { name: "Old name" });
+    await configureGoogle();
+    const puts: string[] = [];
+    let first = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        if (String(url).includes("oauth2")) {
+          return new Response(JSON.stringify({ access_token: "token" }), { status: 200 });
+        }
+        puts.push(JSON.parse(String(init!.body)).summary);
+        if (first) {
+          first = false;
+          await t.run((ctx) => ctx.db.patch("events", eventId, { name: "New name" }));
+          await t.action(internal.googleCalendar.syncEvent, { eventId });
+          return new Response("busy", { status: 503 });
+        }
+        return new Response("{}", { status: 200 });
+      })
+    );
+    const before = Date.now();
+    await expect(t.action(internal.googleCalendar.syncEvent, { eventId })).rejects.toThrow(
+      "update failed: 503"
+    );
+    const retries = await scheduledSyncs(t);
+    expect(retries.map((f) => f.args[0])).toEqual([
+      { eventId, attempt: 1 },
+      { eventId, attempt: 1 },
+    ]);
+    for (const retry of retries) {
+      expect(retry.scheduledTime - before).toBeGreaterThanOrEqual(60_000);
+      expect(retry.scheduledTime - before).toBeLessThan(70_000);
+    }
+    await t.action(internal.googleCalendar.syncEvent, { eventId, attempt: 1 });
+    expect(puts).toEqual(["Old name", "New name"]);
+    expect(await t.run((ctx) => ctx.db.query("googleSyncLocks").collect())).toHaveLength(0);
+  });
+
+  test("waits 5 minutes before the second retry and 30 before the third", async () => {
+    const { t } = await setup();
+    const eventId = await create(t, { name: "Stall" });
+    await configureGoogle();
+    for (const [attempt, delay] of [
+      [1, 5 * 60_000],
+      [2, 30 * 60_000],
+    ] as const) {
+      googleFetch([500]);
+      const before = Date.now();
+      await expect(t.action(internal.googleCalendar.syncEvent, { eventId, attempt })).rejects.toThrow(
+        "update failed"
+      );
+      const retry = (await scheduledSyncs(t)).find(
+        (f) => (f.args[0] as { attempt: number }).attempt === attempt + 1
+      )!;
+      expect(retry.scheduledTime - before).toBeGreaterThanOrEqual(delay);
+      expect(retry.scheduledTime - before).toBeLessThan(delay + 10_000);
+    }
+  });
+
+  test("Google's error is still reported when its retry can't be scheduled", async () => {
+    const { t } = await setup();
+    const eventId = await create(t, { name: "Stall" });
+    await configureGoogle();
+    googleFetch([500]);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      t.action(internal.googleCalendar.syncEvent, { eventId, attempt: 0.5 })
+    ).rejects.toThrow("update failed: 500");
+    expect(logged).toHaveBeenCalledWith("Could not schedule a Google Calendar retry", expect.any(Error));
+    expect(await scheduledSyncs(t)).toHaveLength(0);
+    logged.mockRestore();
+  });
+
+  test("gives up after three more tries, for entries too", async () => {
+    const { t } = await setupWithStaff();
+    const eventId = await create(t, { name: "Stall" });
+    const entryId = await asUser(t, STAFF).mutation(api.calendar.addEntry, entry({}));
+    await configureGoogle();
+    googleFetch([500]);
+    await expect(t.action(internal.googleCalendar.syncEvent, { eventId, attempt: 3 })).rejects.toThrow(
+      "update failed"
+    );
+    expect(await scheduledSyncs(t)).toHaveLength(0);
+    googleFetch([500]);
+    await expect(t.action(internal.googleCalendar.syncEntry, { entryId, attempt: 2 })).rejects.toThrow(
+      "update failed"
+    );
+    expect((await scheduledSyncs(t)).map((f) => [f.name, f.args[0]])).toEqual([
+      ["googleCalendar:syncEntry", { entryId, attempt: 3 }],
+    ]);
+  });
+});

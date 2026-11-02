@@ -37,6 +37,14 @@ export const addDaysToDateInputValue = (
   return toDateInputValue(date);
 };
 
+export const minuteAfterTime = (time: string): string | null => {
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!match) return null;
+  const next = Number(match[1]) * 60 + Number(match[2]) + 1;
+  if (next >= 24 * 60) return null;
+  return `${pad2(Math.floor(next / 60))}:${pad2(next % 60)}`;
+};
+
 export const parseTimeInputValue = (
   value: string
 ): { hours: number; minutes: number } | null => {

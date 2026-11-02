@@ -25,6 +25,7 @@ const BACKFILL_PAGE = 100;
 // A write that dies leaves its lock behind; after this long the next one goes ahead.
 const LOCK_MS = 60_000;
 const DAY_MS = 86_400_000;
+const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 30 * 60_000];
 
 // The shared calendar's id: one made by createSharedCalendar below, or any
 // calendar shared with the service account with "Make changes to events".
@@ -171,9 +172,19 @@ async function remove(token: string, id: string) {
 
 // One write at a time per id: an edit during a write makes it write again with
 // the newest body, so Google always ends up with the latest.
-async function sync(ctx: ActionCtx, id: string, read: () => Promise<GoogleBody | null>) {
+async function sync(
+  ctx: ActionCtx,
+  id: string,
+  read: () => Promise<GoogleBody | null>,
+  attempt: number,
+  retryAfter: (delayMs: number) => Promise<unknown>
+) {
+  const retriesLeft = attempt < RETRY_DELAYS_MS.length;
   const owner: string | null = await ctx.runMutation(internal.googleCalendar.claimSync, { targetId: id });
-  if (owner === null) return;
+  if (owner === null) {
+    if (retriesLeft) await retryAfter(LOCK_MS);
+    return;
+  }
   for (;;) {
     try {
       const body = await read();
@@ -182,6 +193,11 @@ async function sync(ctx: ActionCtx, id: string, read: () => Promise<GoogleBody |
       else await remove(token, id);
     } catch (error) {
       await ctx.runMutation(internal.googleCalendar.finishSync, { targetId: id, owner, failed: true });
+      if (retriesLeft) {
+        await retryAfter(RETRY_DELAYS_MS[attempt]).catch((scheduleError) => {
+          console.error("Could not schedule a Google Calendar retry", scheduleError);
+        });
+      }
       throw error;
     }
     if (!(await ctx.runMutation(internal.googleCalendar.finishSync, { targetId: id, owner, failed: false }))) {
@@ -191,19 +207,33 @@ async function sync(ctx: ActionCtx, id: string, read: () => Promise<GoogleBody |
 }
 
 export const syncEvent = internalAction({
-  args: { eventId: v.id("events") },
-  handler: async (ctx, { eventId }) => {
+  args: { eventId: v.id("events"), attempt: v.optional(v.number()) },
+  handler: async (ctx, { eventId, attempt = 0 }): Promise<null> => {
     if (!calendarSyncConfigured()) return null;
-    await sync(ctx, eventId, () => ctx.runQuery(internal.googleCalendar.eventBody, { eventId }));
+    await sync(
+      ctx,
+      eventId,
+      () => ctx.runQuery(internal.googleCalendar.eventBody, { eventId }),
+      attempt,
+      (delayMs) =>
+        ctx.scheduler.runAfter(delayMs, internal.googleCalendar.syncEvent, { eventId, attempt: attempt + 1 })
+    );
     return null;
   },
 });
 
 export const syncEntry = internalAction({
-  args: { entryId: v.id("calendarEntries") },
-  handler: async (ctx, { entryId }) => {
+  args: { entryId: v.id("calendarEntries"), attempt: v.optional(v.number()) },
+  handler: async (ctx, { entryId, attempt = 0 }): Promise<null> => {
     if (!calendarSyncConfigured()) return null;
-    await sync(ctx, entryId, () => ctx.runQuery(internal.googleCalendar.entryBody, { entryId }));
+    await sync(
+      ctx,
+      entryId,
+      () => ctx.runQuery(internal.googleCalendar.entryBody, { entryId }),
+      attempt,
+      (delayMs) =>
+        ctx.scheduler.runAfter(delayMs, internal.googleCalendar.syncEntry, { entryId, attempt: attempt + 1 })
+    );
     return null;
   },
 });

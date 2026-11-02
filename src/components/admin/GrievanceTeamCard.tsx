@@ -23,11 +23,7 @@ export const GrievanceTeamCard = ({ year }: { year: number }) => {
     <View style={{ gap: spacing.md }}>
       <SectionTitle>Grievance team</SectionTitle>
       <Card>
-        <Muted>
-          Everyone in these departments sees every grievance raised, gets a notification for each
-          new one, and can take it on, give it to a teammate, resolve it and edit the form&apos;s
-          options. Nobody else can see grievances, admins included.
-        </Muted>
+        <Muted>Everyone in these departments sees and handles every grievance. Nobody else can, admins included.</Muted>
         <MultiSelect
           label="Departments"
           values={value}

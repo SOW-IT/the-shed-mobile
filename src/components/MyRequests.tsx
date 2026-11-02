@@ -986,7 +986,7 @@ export const MyRequests = ({
         hasMore={earlier.hasMore}
         loadingMore={earlier.loadingMore}
         onLoadMore={earlier.loadMore}
-        note={(y) => <ReceiptFilesNote year={y} />}
+        note={(years) => <ReceiptFilesNote years={years} />}
         renderRows={(rows) => (
           <Grid minColumnWidth={380}>
             {rows.map((request) => (

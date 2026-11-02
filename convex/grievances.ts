@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { isMemberOfDepartment } from "../shared/flow";
+import { isMemberOfDepartment, rolloverGraceEndMs, withinRolloverAuthGrace } from "../shared/flow";
 import {
   cleanNameList,
   DEFAULT_GRIEVANCE_CATEGORIES,
@@ -24,6 +24,7 @@ import {
   displayName,
   optionalEmail,
   optionalProfile,
+  profileForCurrentYear,
   requireAdmin,
 } from "./model";
 import { appUrl, notify } from "./requests";
@@ -101,6 +102,20 @@ async function handlerEmail(ctx: Ctx): Promise<string | null> {
   return inDepartments(caller.profile, departments) ? caller.email : null;
 }
 
+async function openHeldBy(ctx: Ctx, email: string): Promise<number> {
+  let count = 0;
+  for await (const _ of ctx.db
+    .query("grievances")
+    .withIndex("by_assigneeEmail_and_status", (q) =>
+      q.eq("assigneeEmail", email).eq("status", "IN_PROGRESS")
+    )) {
+    count++;
+  }
+  return count;
+}
+
+const HANDOVER_DEADLINE = "31 December";
+
 async function requireHandler(ctx: Ctx): Promise<string> {
   const email = await handlerEmail(ctx);
   if (!email) throw new ConvexError("Only the grievance team can do this.");
@@ -176,12 +191,14 @@ async function tellTeam(
 // signed-out sending, so it can't lock out anyone who signs in.
 async function checkRateLimit(ctx: MutationCtx, fromEmail: string, signedIn: boolean) {
   const now = Date.now();
-  const mine = await ctx.db
-    .query("grievanceRateLimit")
-    .withIndex("by_email_and_time", (q) =>
-      q.eq("fromEmail", fromEmail).gt("submittedAt", now - RATE_WINDOW_MS)
-    )
-    .take(MAX_PER_EMAIL);
+  const mine = (
+    await ctx.db
+      .query("grievanceRateLimit")
+      .withIndex("by_email_and_time", (q) =>
+        q.eq("fromEmail", fromEmail).gt("submittedAt", now - RATE_WINDOW_MS)
+      )
+      .take(2 * MAX_PER_EMAIL)
+  ).filter((row) => row.signedIn === signedIn);
   if (mine.length >= MAX_PER_EMAIL) {
     throw new ConvexError("You've sent a few grievances recently. Please wait an hour.");
   }
@@ -367,7 +384,7 @@ export const close = mutation({
     await tellTeam(ctx, g, {
       actor,
       title: resolved ? `Grievance ${ref} resolved` : `Grievance ${ref} closed, not proceeding`,
-      body: `${(await nameOf(ctx, actor)) as string} closed it.`,
+      body: `${(await nameOf(ctx, actor)) as string} ${resolved ? "resolved" : "closed"} it.`,
     });
     return null;
   },
@@ -403,7 +420,50 @@ export const viewer = query({
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
     if (!email) return null;
-    return { email, isHandler: (await handlerEmail(ctx)) !== null };
+    const isHandler = (await handlerEmail(ctx)) !== null;
+    const outgoing = isHandler && !(await grievanceTeam(ctx)).includes(email);
+    return {
+      email,
+      isHandler,
+      handover: outgoing
+        ? { open: await openHeldBy(ctx, email), until: rolloverGraceEndMs(currentStaffYear()) }
+        : null,
+    };
+  },
+});
+
+// 1 December: whoever still looks after open grievances without a role on
+// this year's team is asked to hand them over before the rollover grace ends.
+export const remindOutgoingHandlers = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const year = currentStaffYear();
+    if (!withinRolloverAuthGrace(year)) return { reminded: 0 };
+    const team = new Set(await grievanceTeam(ctx));
+    const { departments } = await readSettings(ctx);
+    const held = new Map<string, number>();
+    for await (const g of ctx.db
+      .query("grievances")
+      .withIndex("by_status", (q) => q.eq("status", "IN_PROGRESS"))) {
+      if (!g.assigneeEmail || team.has(g.assigneeEmail)) continue;
+      held.set(g.assigneeEmail, (held.get(g.assigneeEmail) ?? 0) + 1);
+    }
+    for (const email of held.keys()) {
+      const holder = await profileForCurrentYear(ctx, email);
+      if (!holder || !inDepartments(holder.profile, departments)) held.delete(email);
+    }
+    for (const [email, open] of held) {
+      const count = open === 1 ? "1 open grievance" : `${open} open grievances`;
+      await notify(ctx, {
+        to: email,
+        subject: `Hand over your grievances by ${HANDOVER_DEADLINE}`,
+        body:
+          `You're looking after ${count} but aren't on ${year}'s grievance team. ` +
+          `Give them to someone on the team, or resolve them, by ${HANDOVER_DEADLINE}; after that you won't be able to open them.`,
+        url: "/grievances?tab=submitted",
+      });
+    }
+    return { reminded: held.size };
   },
 });
 
@@ -473,13 +533,7 @@ export const waitingOnMe = query({
       .query("grievances")
       .withIndex("by_status", (q) => q.eq("status", "SUBMITTED"))
       .take(LIST_LIMIT);
-    const mine = (
-      await ctx.db
-        .query("grievances")
-        .withIndex("by_status", (q) => q.eq("status", "IN_PROGRESS"))
-        .take(LIST_LIMIT)
-    ).filter((g) => g.assigneeEmail === email);
-    return waiting.length + mine.length;
+    return waiting.length + (await openHeldBy(ctx, email));
   },
 });
 

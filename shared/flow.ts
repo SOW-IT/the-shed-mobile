@@ -296,6 +296,9 @@ export const withinRolloverAuthGrace = (
 
 export const sydneyCalendarYear = (date: Date): number => sydneyYmd(date).year;
 
+export const rolloverGraceEndMs = (staffYear: number): number =>
+  Date.UTC(staffYear - 1, 11, 31, 13, 0, 0, 0);
+
 export const EARLIEST_REQUEST_YEAR = 2021;
 
 export interface ApprovalState {

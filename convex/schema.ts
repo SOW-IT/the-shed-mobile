@@ -624,7 +624,8 @@ export default defineSchema({
     .index("by_year", ["year"])
     .index("by_status", ["status"])
     .index("by_status_and_year", ["status", "year"])
-    .index("by_accountEmail", ["accountEmail"]),
+    .index("by_accountEmail", ["accountEmail"])
+    .index("by_assigneeEmail_and_status", ["assigneeEmail", "status"]),
 
   grievanceSettings: defineTable({
     departments: v.array(v.string()),

@@ -6,6 +6,53 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.16] - 2026-11-02
+
+### Fixed
+- **Last year's grievance team is asked to hand over by 31 December.** From
+  1 October, someone whose grievance role was last year's keeps seeing and
+  handling grievances until 31 December, the same grace every role has over
+  the rollover, but new grievances and "Give to" only go to this year's
+  team. Submitted now shows them a notice saying when the access ends and
+  how many open grievances they're looking after, and on 1 December anyone
+  still looking after open grievances without a role on this year's team is
+  emailed and pushed to give them to the team or resolve them.
+- **Grievances sent signed out with your email no longer block you signed
+  in.** The "three an hour" limit counted grievances sent signed out with an
+  address against that address's signed-in account too, so someone could
+  stop a staff member raising one. Signed-in and signed-out sending now each
+  have their own three an hour.
+- **Changes reach the shared Google Calendar after Google has a hiccup.** A
+  copy to Google that failed was never tried again, and an edit made while
+  it was being written was lost with it, so Google kept the old details
+  until the next change. A failed copy is now tried again after 1, 5 and 30
+  minutes with the latest details, and an edit that arrives mid-copy is
+  written again a minute later in case that copy never finishes.
+- **An event's end can't be set before its start.** The end's date and time
+  pickers start from the start, in event requests, the Calendar's entries
+  and Attendance's events. A request ending at the minute it starts, which
+  could be approved but never went on the Calendar, is refused.
+- **Small wording fixes.** The Calendar's filter chips read "3 events" to
+  screen readers instead of "3 people"; the grievance team's notice for a
+  resolved grievance says "resolved it" instead of "closed it"; "Grievance
+  not found" names the grievance team's departments as set in Admin instead
+  of always People and Culture and Compliance; and a calendar event made
+  from an event request says "Event request", not "Calendar only", for
+  people who can't open the request, and a deadline doesn't say "Calendar
+  only" at all.
+
+### Changed
+- **Past requests are one list.** Under Reimbursements' Mine and Reviewed
+  (and All, Design Requests and Event Requests), requests from earlier staff
+  years are one "Past requests" list, newest first, loading more as you
+  scroll, instead of a section per staff year. The notes about receipt
+  files show once, above the list.
+- **Shorter explanations.** The deadline's description in the Calendar's
+  Add and Edit sheets is gone, and the explanations on Home's grievance
+  card, Admin's grievance team and step timing cards, the form options
+  sheet, the Calendar's "Take attendance" step, the "Grievance sent" screen
+  and the event request's attendance box are a sentence each.
+
 ## [2.10.15] - 2026-11-02
 
 ### Changed

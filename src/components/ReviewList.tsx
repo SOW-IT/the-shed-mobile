@@ -386,7 +386,7 @@ export const ReviewList = ({
         hasMore={earlier.hasMore}
         loadingMore={earlier.loadingMore}
         onLoadMore={earlier.loadMore}
-        note={(year) => <ReceiptFilesNote year={year} />}
+        note={(years) => <ReceiptFilesNote years={years} />}
         renderRows={(rows) =>
           rows.map((request) => (
             <RequestCard key={request._id} request={request} showRequester collapsible />

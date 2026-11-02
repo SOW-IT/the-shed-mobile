@@ -174,10 +174,12 @@ export const WebDateInput = ({
 export const WebTimeInput = ({
   label,
   value,
+  min,
   onChange,
 }: {
   label: string;
   value: string;
+  min?: string;
   onChange: (value: string) => void;
 }) => {
   const time = inputToTime(value);
@@ -187,9 +189,10 @@ export const WebTimeInput = ({
       type="time"
       icon="time-outline"
       value={value}
+      min={min}
       display={time ? formatTimeDisplay(time) : null}
       placeholder="Select time"
-      onChange={onChange}
+      onChange={(chosen) => onChange(min && chosen && chosen < min ? min : chosen)}
     />
   );
 };

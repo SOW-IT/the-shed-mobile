@@ -103,7 +103,7 @@ export const EVENT_FIELDS: FormField[] = [
     kind: "checkboxes",
     label: "Attendance",
     shortLabel: "Take attendance",
-    hint: "Once the event is approved it becomes an SOW attendance event, so people can be signed in.",
+    hint: "Once approved, it becomes an attendance event.",
     required: false,
     options: [{ value: "yes", label: "Take attendance at this event" }],
   },

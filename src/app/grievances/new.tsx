@@ -89,7 +89,7 @@ export default function NewGrievanceScreen() {
           <EmptyState
             icon="shield-checkmark-outline"
             title="Thank you. We've received it."
-            message={`We've sent a copy to ${sentTo}, and we'll email you there when someone is looking after it and when it's resolved.`}
+            message={`A copy has gone to ${sentTo}. We'll email you there as it moves along.`}
           />
           <View style={{ alignItems: "center" }}>
             <Btn title="Done" onPress={goBack} />
