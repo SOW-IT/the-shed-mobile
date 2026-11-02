@@ -38,6 +38,8 @@ import {
   actAsEmails,
   currentStaffYear,
   delegatesForYear,
+  delegatorsForYear,
+  departmentsHeadedBy,
   displayName,
   getApprovers,
   getDepartment,
@@ -790,6 +792,24 @@ export type ReviewQueues = {
 };
 
 const oldestFirst = (rows: ReviewRow[]) => rows.sort((a, b) => a.waitingSince - b.waitingSince);
+
+export async function mayReviewReimbursements(
+  ctx: Ctx,
+  email: string,
+  year: number
+): Promise<boolean> {
+  for (const y of [year, year - 1]) {
+    if ((await departmentsHeadedBy(ctx, y, email)).length > 0) return true;
+    const settings = await getYearSettings(ctx, y);
+    if (settings?.budgetManagerEmail === email || settings?.directorEmail === email) {
+      return true;
+    }
+    const profile = await getProfile(ctx, email, y);
+    if (profile && rolesOf(profile).includes(DIRECTOR)) return true;
+    if ((await delegatorsForYear(ctx, y, email)).length > 0) return true;
+  }
+  return false;
+}
 
 export async function reviewQueues(
   ctx: Ctx,
