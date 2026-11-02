@@ -6,6 +6,25 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.17] - 2026-11-02
+
+### Changed
+- **Attendance only loads the tab you are looking at on phones.** Opening
+  Attendance used to load Events, Members, Tags, Metadata and Audit all at
+  once, so every visit pulled the full members list (about 440 KB of database
+  reads) even when you only wanted the roll call. Each tab now loads the
+  first time you swipe or tap to it, and the next tab starts loading as you
+  swipe towards it, so nothing shows up blank. The same applies to the Home,
+  Reimbursements, Design Requests and Grievances tab strips.
+- **The Members list loads 60 people at a time instead of 30.** Each page
+  costs the same database read, so a scroll through the list now takes half
+  as many.
+- **Home's "Waiting on you" card no longer scans every open reimbursement for
+  people who cannot approve any.** Staff who are not a Head of Department,
+  the Budget Manager, a Director or a delegate (this staff year or last)
+  skip the reimbursement queue check, cutting that card's database reads
+  from about 160 KB to 9 KB per load. Approvers see exactly what they saw
+  before.
 ## [2.10.16] - 2026-11-02
 
 ### Fixed
