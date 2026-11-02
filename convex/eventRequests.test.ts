@@ -207,6 +207,7 @@ describe("the event", () => {
     const t = await setup();
     await expect(create(t, EVA, { name: " " })).rejects.toThrow('Answer "Event name".');
     await expect(create(t, EVA, { end: at(39) })).rejects.toThrow(/can't be before "Starts"/);
+    await expect(create(t, EVA, { end: at(40, 11) })).rejects.toThrow('"Ends" has to be after "Starts".');
     await expect(create(t, EVA, { department: "Missions" })).rejects.toThrow(
       /one you're in/
     );

@@ -9,6 +9,7 @@ import {
   type FormAnswers,
   type FormField,
 } from "@shared/forms";
+import { addDaysToDateInputValue, minuteAfterTime } from "@shared/datetime";
 import { type EventSize } from "@shared/eventRequests";
 import { NativeDateInput, NativeTimeInput } from "@/components/NativeDateTimeField";
 import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
@@ -114,11 +115,18 @@ const DateTimeInput = ({
 }) => {
   const [date = "", time = ""] = value.split("T");
   const [floorDate = "", floorTime = ""] = notBefore?.split("T") ?? [];
-  const candidates = [field.notInPast ? minDate : "", floorDate].filter(Boolean);
+  const ends = field.role === "end" && floorTime !== "";
+  const nextMinute = ends ? minuteAfterTime(floorTime) : null;
+  const earliestDate =
+    ends && nextMinute === null ? addDaysToDateInputValue(floorDate, 1) ?? floorDate : floorDate;
+  const earliestTime = ends ? nextMinute ?? "" : floorTime;
+  const candidates = [field.notInPast ? minDate : "", earliestDate].filter(Boolean);
   const min = candidates.length > 0 ? candidates.sort().at(-1) : undefined;
-  const minTime = floorDate && date === floorDate ? floorTime : undefined;
+  const timeFloorOn = (d: string) => (earliestDate && d === earliestDate && earliestTime ? earliestTime : undefined);
+  const minTime = timeFloorOn(date);
   const set = (d: string, tm: string) => {
-    const clamped = floorDate && d === floorDate && tm && tm < floorTime ? floorTime : tm;
+    const floor = timeFloorOn(d);
+    const clamped = floor && tm && tm < floor ? floor : tm;
     onChange(d || clamped ? `${d}T${clamped}` : "");
   };
   return (

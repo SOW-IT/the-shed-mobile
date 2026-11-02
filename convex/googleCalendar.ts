@@ -193,7 +193,11 @@ async function sync(
       else await remove(token, id);
     } catch (error) {
       await ctx.runMutation(internal.googleCalendar.finishSync, { targetId: id, owner, failed: true });
-      if (retriesLeft) await retryAfter(RETRY_DELAYS_MS[attempt]);
+      if (retriesLeft) {
+        await retryAfter(RETRY_DELAYS_MS[attempt]).catch((scheduleError) => {
+          console.error("Could not schedule a Google Calendar retry", scheduleError);
+        });
+      }
       throw error;
     }
     if (!(await ctx.runMutation(internal.googleCalendar.finishSync, { targetId: id, owner, failed: false }))) {

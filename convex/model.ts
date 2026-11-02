@@ -69,7 +69,7 @@ export async function requireEmail(ctx: Ctx): Promise<string> {
   return email;
 }
 
-async function profileForCurrentYear(
+export async function profileForCurrentYear(
   ctx: Ctx,
   email: string
 ): Promise<CallerContext | null> {

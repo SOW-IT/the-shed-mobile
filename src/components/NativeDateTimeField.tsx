@@ -171,6 +171,10 @@ export const NativeTimeInput = ({
   const current = inputToTime(value);
   const minTime = min ? inputToTime(min) ?? undefined : undefined;
   const initial = clampDate(current ?? new Date(), minTime);
+  const close = () => {
+    if (min && value && value < min) onChange(min);
+    setOpen(false);
+  };
   return (
     <>
       <FieldButton
@@ -182,10 +186,10 @@ export const NativeTimeInput = ({
       />
       <Sheet
         visible={open}
-        onClose={() => setOpen(false)}
+        onClose={close}
         scrollable={false}
         title={label}
-        footer={<Btn title="Done" onPress={() => setOpen(false)} />}
+        footer={<Btn title="Done" onPress={close} />}
       >
         <View style={{ alignSelf: "stretch", paddingVertical: spacing.sm }}>
           <DateTimePicker
@@ -200,7 +204,7 @@ export const NativeTimeInput = ({
               onChange(min && chosen < min ? min : chosen);
               if (PICKER_IS_A_DIALOG) setOpen(false);
             }}
-            onDismiss={() => setOpen(false)}
+            onDismiss={close}
           />
         </View>
       </Sheet>

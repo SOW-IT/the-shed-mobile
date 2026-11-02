@@ -31,6 +31,7 @@ import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
   addDaysToDateInputValue,
+  minuteAfterTime,
   pad2,
   toDateInputValue,
   toTimeInputValue,
@@ -623,7 +624,7 @@ export function CreateEventSheet({
               <TimeInput
                 label="End"
                 value={endTime}
-                min={multiDay ? undefined : startTime}
+                min={multiDay ? undefined : minuteAfterTime(startTime) ?? undefined}
                 onChange={(value) => {
                   setEndTime(value);
                   setWhenTouched(true);

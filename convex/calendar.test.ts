@@ -602,16 +602,43 @@ describe("regression fixes", () => {
         return new Response("{}", { status: 200 });
       })
     );
+    const before = Date.now();
     await expect(t.action(internal.googleCalendar.syncEvent, { eventId })).rejects.toThrow(
       "update failed: 503"
     );
-    expect((await scheduledSyncs(t)).map((f) => f.args[0])).toEqual([
+    const retries = await scheduledSyncs(t);
+    expect(retries.map((f) => f.args[0])).toEqual([
       { eventId, attempt: 1 },
       { eventId, attempt: 1 },
     ]);
+    for (const retry of retries) {
+      expect(retry.scheduledTime - before).toBeGreaterThanOrEqual(60_000);
+      expect(retry.scheduledTime - before).toBeLessThan(70_000);
+    }
     await t.action(internal.googleCalendar.syncEvent, { eventId, attempt: 1 });
     expect(puts).toEqual(["Old name", "New name"]);
     expect(await t.run((ctx) => ctx.db.query("googleSyncLocks").collect())).toHaveLength(0);
+  });
+
+  test("waits 5 minutes before the second retry and 30 before the third", async () => {
+    const { t } = await setup();
+    const eventId = await create(t, { name: "Stall" });
+    await configureGoogle();
+    for (const [attempt, delay] of [
+      [1, 5 * 60_000],
+      [2, 30 * 60_000],
+    ] as const) {
+      googleFetch([500]);
+      const before = Date.now();
+      await expect(t.action(internal.googleCalendar.syncEvent, { eventId, attempt })).rejects.toThrow(
+        "update failed"
+      );
+      const retry = (await scheduledSyncs(t)).find(
+        (f) => (f.args[0] as { attempt: number }).attempt === attempt + 1
+      )!;
+      expect(retry.scheduledTime - before).toBeGreaterThanOrEqual(delay);
+      expect(retry.scheduledTime - before).toBeLessThan(delay + 10_000);
+    }
   });
 
   test("gives up after three more tries, for entries too", async () => {

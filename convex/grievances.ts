@@ -24,6 +24,7 @@ import {
   displayName,
   optionalEmail,
   optionalProfile,
+  profileForCurrentYear,
   requireAdmin,
 } from "./model";
 import { appUrl, notify } from "./requests";
@@ -102,11 +103,15 @@ async function handlerEmail(ctx: Ctx): Promise<string | null> {
 }
 
 async function openHeldBy(ctx: Ctx, email: string): Promise<number> {
-  const held = await ctx.db
+  let count = 0;
+  for await (const _ of ctx.db
     .query("grievances")
-    .withIndex("by_status", (q) => q.eq("status", "IN_PROGRESS"))
-    .take(LIST_LIMIT);
-  return held.filter((g) => g.assigneeEmail === email).length;
+    .withIndex("by_assigneeEmail_and_status", (q) =>
+      q.eq("assigneeEmail", email).eq("status", "IN_PROGRESS")
+    )) {
+    count++;
+  }
+  return count;
 }
 
 const HANDOVER_DEADLINE = "31 December";
@@ -435,12 +440,17 @@ export const remindOutgoingHandlers = internalMutation({
     const year = currentStaffYear();
     if (!withinRolloverAuthGrace(year)) return { reminded: 0 };
     const team = new Set(await grievanceTeam(ctx));
+    const { departments } = await readSettings(ctx);
     const held = new Map<string, number>();
     for await (const g of ctx.db
       .query("grievances")
       .withIndex("by_status", (q) => q.eq("status", "IN_PROGRESS"))) {
       if (!g.assigneeEmail || team.has(g.assigneeEmail)) continue;
       held.set(g.assigneeEmail, (held.get(g.assigneeEmail) ?? 0) + 1);
+    }
+    for (const email of held.keys()) {
+      const holder = await profileForCurrentYear(ctx, email);
+      if (!holder || !inDepartments(holder.profile, departments)) held.delete(email);
     }
     for (const [email, open] of held) {
       const count = open === 1 ? "1 open grievance" : `${open} open grievances`;
@@ -523,13 +533,7 @@ export const waitingOnMe = query({
       .query("grievances")
       .withIndex("by_status", (q) => q.eq("status", "SUBMITTED"))
       .take(LIST_LIMIT);
-    const mine = (
-      await ctx.db
-        .query("grievances")
-        .withIndex("by_status", (q) => q.eq("status", "IN_PROGRESS"))
-        .take(LIST_LIMIT)
-    ).filter((g) => g.assigneeEmail === email);
-    return waiting.length + mine.length;
+    return waiting.length + (await openHeldBy(ctx, email));
   },
 });
 

@@ -452,6 +452,8 @@ describe("regression fixes", () => {
       asUser(t, CARL).mutation(api.grievances.assign, { id: other, assigneeEmail: HANA })
     ).rejects.toThrow("only be given to someone on the grievance team");
 
+    const gone = await t.mutation(api.grievances.submit, input({ email: "c@example.com" }));
+    await t.run((ctx) => ctx.db.patch("grievances", gone, { status: "IN_PROGRESS", assigneeEmail: TESS }));
     await clearOutbox(t);
     expect(await t.mutation(internal.grievances.remindOutgoingHandlers, {})).toEqual({ reminded: 1 });
     expect(await emails(t)).toEqual([
@@ -479,6 +481,10 @@ describe("regression fixes", () => {
     await asUser(t, HANA).mutation(api.grievances.close, { id, outcome: "RESOLVED", note: "Sorted" });
     const notices = await notificationsFor(t, CARL);
     expect(notices.at(-1)!.body).toMatch(/ resolved it\.$/);
+    const other = await t.mutation(api.grievances.submit, input({ email: "b@example.com" }));
+    await asUser(t, HANA).mutation(api.grievances.assign, { id: other, assigneeEmail: HANA });
+    await asUser(t, HANA).mutation(api.grievances.close, { id: other, outcome: "NOT_PROCEEDING", note: "Duplicate" });
+    expect((await notificationsFor(t, CARL)).at(-1)!.body).toMatch(/ closed it\.$/);
   });
 });
 

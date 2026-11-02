@@ -6,6 +6,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { hourAfter, MAX_ENTRY_NAME, MAX_ENTRY_NOTES, type Due } from "@shared/calendar";
 import {
   addDaysToDateInputValue,
+  minuteAfterTime,
   parseDateTimeInputValues,
   toDateInputValue,
   toTimeInputValue,
@@ -247,7 +248,12 @@ export const CalendarEntrySheet = ({
               <TimeInput label="Start" value={startTime} onChange={setStartTime} />
             </View>
             <View style={{ flex: 1 }}>
-              <TimeInput label="End" value={endTime} min={multiDay ? undefined : startTime} onChange={setEndTime} />
+              <TimeInput
+                label="End"
+                value={endTime}
+                min={multiDay ? undefined : minuteAfterTime(startTime) ?? undefined}
+                onChange={setEndTime}
+              />
             </View>
           </View>
           <Checkbox

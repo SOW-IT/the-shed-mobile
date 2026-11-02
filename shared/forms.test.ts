@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { minuteAfterTime } from "./datetime";
 import {
   answerForRole,
   answersProblem,
@@ -71,6 +72,10 @@ describe("the field kinds event requests added", () => {
     expect(answersProblem(ending, { ...good, end: good.start } as never, TODAY)).toBe(
       '"Ends" has to be after "Starts".'
     );
+    expect(minuteAfterTime("18:00")).toBe("18:01");
+    expect(minuteAfterTime("09:59")).toBe("10:00");
+    expect(minuteAfterTime("23:59")).toBeNull();
+    expect(minuteAfterTime("")).toBeNull();
     expect(problem({ open: "2026-11-02T09:00" })).toBe('"Opens" can\'t be after "Starts".');
     expect(problem({ start: "bad", end: "2026-11-01T21:00" }, { start: "bad" })).toMatch(
       /Pick a date and time/
