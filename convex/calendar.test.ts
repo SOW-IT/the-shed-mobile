@@ -641,6 +641,20 @@ describe("regression fixes", () => {
     }
   });
 
+  test("Google's error is still reported when its retry can't be scheduled", async () => {
+    const { t } = await setup();
+    const eventId = await create(t, { name: "Stall" });
+    await configureGoogle();
+    googleFetch([500]);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      t.action(internal.googleCalendar.syncEvent, { eventId, attempt: 0.5 })
+    ).rejects.toThrow("update failed: 500");
+    expect(logged).toHaveBeenCalledWith("Could not schedule a Google Calendar retry", expect.any(Error));
+    expect(await scheduledSyncs(t)).toHaveLength(0);
+    logged.mockRestore();
+  });
+
   test("gives up after three more tries, for entries too", async () => {
     const { t } = await setupWithStaff();
     const eventId = await create(t, { name: "Stall" });
