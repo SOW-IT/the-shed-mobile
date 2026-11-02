@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.10.18] - 2026-11-02
+## [2.10.17] - 2026-11-02
 
 ### Changed
 - **Roll call lists the 50 people most likely to come, and the search finds
@@ -18,7 +18,7 @@ All notable changes to **The SHED** mobile app. This project follows
   name, email, role or campus, so anyone can still be signed in. Someone
   signed out stays listed for the rest of the visit. Self check-in's
   "Similar names" and its "Who is it?" search look through everyone the same
-  way. App versions before 2.10.18 still get the whole list.
+  way. App versions before 2.10.17 still get the whole list.
 - **Attendance reads much less from the database.** The roll call's list
   reads about 50 KB instead of about 430 KB, and each page of the Members
   tab about 60 KB instead of about 470 KB: its default A to Z view now reads

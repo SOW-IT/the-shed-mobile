@@ -17,12 +17,12 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
-- [ ] **After 2.10.18 deploys, fill the two new tables on prod** (optional,
+- [ ] **After 2.10.17 deploys, fill the two new tables on prod** (optional,
       the nightly jobs do it): `npx convex run --prod memberCount:recount`
       makes the Members tab page by name straight away, and
       `npx convex run --prod categoryPeople:backfill` lets roles be read per
       person. Until then both read as before, nothing breaks. Once the
-      minimum app version is 2.10.18 or later, drop the full list from
+      minimum app version is 2.10.17 or later, drop the full list from
       `attendance.roster` (calls without a `limit`).
 - [ ] **Confirm an over-the-air update reaches a phone.** iOS 2.9.23 and
       Android 2.9.24 are the first store builds with `expo-updates`. Check a
