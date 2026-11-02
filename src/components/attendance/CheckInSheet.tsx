@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMutation, useQuery } from "convex/react";
-import { useMemo, useState } from "react";
+import { useMutation, useQueries, useQuery } from "convex/react";
+import { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -14,6 +14,7 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { QrCode } from "./QrCode";
 import { phaseBetween } from "../../../shared/checkInWindow";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
+import { useHeldValue } from "@/hooks/useHeldValue";
 
 const appScheme = (): string | undefined => {
   const scheme = Constants.expoConfig?.scheme;
@@ -32,6 +33,30 @@ export function useCheckInPending(eventId: Id<"events">) {
 }
 
 type CheckInMember = MemberChoice & { subtitle?: string };
+
+type FoundPerson = { memberId?: string; name: string; university?: string; subtitle?: string };
+
+const PICKER_DEBOUNCE_MS = 300;
+
+const withFound = (
+  members: readonly CheckInMember[] | undefined,
+  found: readonly FoundPerson[]
+): CheckInMember[] | undefined => {
+  if (!members) return undefined;
+  const merged = [...members];
+  const seen = new Set(members.map((m) => m.memberId));
+  for (const person of found) {
+    if (!person.memberId || seen.has(person.memberId)) continue;
+    seen.add(person.memberId);
+    merged.push({
+      memberId: person.memberId,
+      name: person.name,
+      university: person.university ?? null,
+      subtitle: person.subtitle,
+    });
+  }
+  return merged;
+};
 
 type PendingRow = NonNullable<ReturnType<typeof useCheckInPending>>[number];
 
@@ -122,6 +147,7 @@ function RoundButton({
 }
 
 function MemberPicker({
+  eventId,
   row,
   members,
   signedIn,
@@ -129,6 +155,7 @@ function MemberPicker({
   onNew,
   onClose,
 }: {
+  eventId: Id<"events">;
   row: PendingRow | null;
   members: readonly CheckInMember[] | undefined;
   signedIn: ReadonlySet<string>;
@@ -138,15 +165,26 @@ function MemberPicker({
 }) {
   const t = useAppTheme();
   const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(query.trim()), PICKER_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [query]);
   const close = () => {
     setQuery("");
     onClose();
   };
   const searching = query.trim().length > 0;
+  const lookingUp = row !== null && searching && debounced.length > 0;
+  const { value: found } = useHeldValue(
+    useQuery(api.attendance.searchRoster, lookingUp ? { eventId, search: debounced } : "skip"),
+    lookingUp ? "search" : "idle"
+  );
+  const pool = withFound(members, searching ? (found ?? []) : []) ?? [];
   const shown = row
     ? searching
-      ? searchMembers(query, members ?? [])
-      : suggestMembers(row.name, row.campus, members ?? [], 8)
+      ? searchMembers(query, pool)
+      : suggestMembers(row.name, row.campus, pool, 8)
     : [];
   return (
     <OptionSheet
@@ -278,6 +316,30 @@ export function CheckInSheet({
 
   const matched = (pending ?? []).filter((row) => row.match);
   const unmatched = (pending ?? []).filter((row) => !row.match);
+  const unmatchedNames = useMemo(
+    () => [...new Set((pending ?? []).filter((row) => !row.match).map((row) => row.name))],
+    [pending]
+  );
+  const nameLookups = useQueries(
+    useMemo(
+      () =>
+        Object.fromEntries(
+          (visible ? unmatchedNames : []).map((name) => [
+            name,
+            { query: api.attendance.searchRoster, args: { eventId, search: name } },
+          ])
+        ),
+      [visible, unmatchedNames, eventId]
+    )
+  );
+  const known = useMemo(
+    () =>
+      withFound(
+        members,
+        Object.values(nameLookups).flatMap((result) => (Array.isArray(result) ? (result as FoundPerson[]) : []))
+      ),
+    [members, nameLookups]
+  );
   const suggestions = useMemo(
     () =>
       new Map(
@@ -285,12 +347,12 @@ export function CheckInSheet({
           .filter((row) => !row.match)
           .map((row) => [
             row.id,
-            members
-              ? suggestMembers(row.name, row.campus, members)
+            known
+              ? suggestMembers(row.name, row.campus, known)
               : row.choices.map((choice) => ({ memberId: choice.memberId, name: row.name, university: choice.campus })),
           ])
       ),
-    [pending, members]
+    [pending, known]
   );
   const signIn = (row: PendingRow, memberId?: Id<"attendanceMembers">) =>
     void act(row.id, () => confirm({ requestId: row.id, ...(memberId ? { memberId } : {}) }));
@@ -466,8 +528,9 @@ export function CheckInSheet({
         ) : null}
       </View>
       <MemberPicker
+        eventId={eventId}
         row={picking}
-        members={members}
+        members={known}
         signedIn={signedIn}
         onPick={(row, memberId) => signIn(row, memberId)}
         onNew={addAsNew}

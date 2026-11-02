@@ -63,6 +63,7 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
+import { syncCategoryPeople } from "./categoryPeople";
 import { currentStaffYear, nightlyJobsPaused, optionalProfile } from "./model";
 import { photoFor } from "./photo";
 import { isAssigned, latestProfileOfMember } from "./staffMembers";
@@ -473,6 +474,7 @@ export const saveIndex = internalMutation({
         if (saved) await ctx.db.replace("weeklyCategories", saved._id, next);
         else await ctx.db.insert("weeklyCategories", next);
       }
+      await syncCategoryPeople(ctx, row.subgroup, row.currentKey === null ? [] : categories!);
     }
     return null;
   },

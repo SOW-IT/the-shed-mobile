@@ -30,4 +30,6 @@ crons.cron("weekly insights nightly build", "30 16 * * *", internal.weeklyInsigh
 
 crons.cron("purge old app errors", "45 17 * * *", internal.appErrors.purgeOld, {});
 
+crons.cron("recount attendance members", "15 17 * * *", internal.memberCount.recount, { nightly: true });
+
 export default crons;

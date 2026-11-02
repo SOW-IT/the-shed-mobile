@@ -10,6 +10,7 @@ import { signInMember, signOutMember } from "./attendance";
 import { logAttendanceAction } from "./attendanceAudit";
 import { withMarkedRole } from "../shared/memberRole";
 import { allMetadataFields, staffDisplayName } from "./attendanceMembers";
+import { insertMember } from "./memberCount";
 import { optionalEmail, optionalProfile, optionalUser, requireEmail, requireProfile } from "./model";
 import { assignedProfileForEmail, knownMemberId, personName, staffMemberForEmail } from "./staffMembers";
 
@@ -462,7 +463,7 @@ export const confirm = mutation({
     if (memberId && !(await ctx.db.get("attendanceMembers", memberId))) memberId = undefined;
     if (!memberId) {
       const metadata = await newMemberMetadata(ctx, request, event);
-      memberId = await ctx.db.insert("attendanceMembers", {
+      memberId = await insertMember(ctx, {
         name: request.name,
         ...(metadata ? { metadata } : {}),
       });
