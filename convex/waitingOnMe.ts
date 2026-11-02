@@ -6,7 +6,12 @@ import { designWaitingOnMe } from "./designRequests";
 import { isCampusLeader, subFormsOf } from "./eventRequestAccess";
 import { requesterSideOpenEvents, reviewForms } from "./eventRequests";
 import { optionalProfile } from "./model";
-import { mineTabRequests, openRequestsAcrossYears, reviewQueues } from "./requests";
+import {
+  mayReviewReimbursements,
+  mineTabRequests,
+  openRequestsAcrossYears,
+  reviewQueues,
+} from "./requests";
 
 const counts = v.object({
   reimbursements: v.object({ toReview: v.number(), toPay: v.number(), receipts: v.number() }),
@@ -20,11 +25,9 @@ export const summary = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller || isCampusLeader(caller)) return null;
-    const queues = await reviewQueues(
-      ctx,
-      caller,
-      await openRequestsAcrossYears(ctx, caller.year)
-    );
+    const queues = (await mayReviewReimbursements(ctx, caller.email, caller.year))
+      ? await reviewQueues(ctx, caller, await openRequestsAcrossYears(ctx, caller.year))
+      : null;
     const mine = await mineTabRequests(ctx, caller.email, caller.year);
     const receipts = mine.filter((r) => requestFullyApproved(r) && !r.receipt).length;
     const design = await designWaitingOnMe(ctx, caller);
@@ -36,12 +39,13 @@ export const summary = query({
     }
     return {
       reimbursements: {
-        toReview:
-          queues.hod.length +
-          queues.budgetManager.length +
-          queues.director.length +
-          queues.financeHead.length,
-        toPay: queues.readyToPay.length,
+        toReview: queues
+          ? queues.hod.length +
+            queues.budgetManager.length +
+            queues.director.length +
+            queues.financeHead.length
+          : 0,
+        toPay: queues?.readyToPay.length ?? 0,
         receipts,
       },
       design,

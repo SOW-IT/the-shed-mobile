@@ -1,6 +1,6 @@
 # The roll call lists the 50 most likely people and searches for the rest
 
-Until 2.10.17 `attendance.roster` returned everyone in the pool, about 1,400
+Until 2.10.18 `attendance.roster` returned everyone in the pool, about 1,400
 members plus the year's staff, so the phone could filter them as you typed.
 Every call read every `attendanceMembers` row: 394 to 444 KB on dev's copy of
 the data, 430 KB a call in prod, about 85% of it member rows nobody scrolls
@@ -18,14 +18,14 @@ with dev's data):
   the last year's 144 events, the stored top 150 already held 78% of the
   people who signed in, and 8% were first sign-ins that are created anyway.
 
-Daniel picked the second, with a list of 25 to 50. From 2.10.17:
+Daniel picked the second, with a list of 25 to 50. From 2.10.18:
 
 - `roster` with a `limit` (the app sends 50) walks the event's
   `rollCallOrders` in score order, adds the campus bonus, and stops once no
   later score could reach the 50th place. When fewer than 50 are ranked it
   fills up with the year's staff, campus first. When at least 50 are ranked,
   the 50 are the first 50 of the old full list, in the same order. Without a
-  `limit` (app versions before 2.10.17) it still returns everyone.
+  `limit` (app versions before 2.10.18) it still returns everyone.
 - `attendance.searchRoster` finds staff by name, email, role or campus and
   members through the `search_name` index (words, the last one as a prefix),
   names containing the typed text first. Self check-in's suggestions and its
