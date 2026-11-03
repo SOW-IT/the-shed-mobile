@@ -79,11 +79,11 @@ export const EventRequestRow = ({
         <View style={styles.top}>
           <Text numberOfLines={3} style={[typography.headline, styles.name, { color: t.text }]}>
             {event.name}
-            {event.editedAt ? (
-              <Text style={[typography.caption, { color: t.faint }]}>{"  "}Edited</Text>
-            ) : null}
           </Text>
           <View style={styles.topRight}>
+            {event.editedAt ? (
+              <Text style={[typography.caption, { color: t.faint }]}>Edited</Text>
+            ) : null}
             <UnreadBubble count={unread} />
             <EventStatusPill status={event.status} />
           </View>

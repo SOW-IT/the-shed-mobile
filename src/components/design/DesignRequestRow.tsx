@@ -74,11 +74,11 @@ export const DesignRequestRow = ({
         <View style={styles.top}>
           <Text numberOfLines={3} style={[typography.headline, styles.name, { color: t.text }]}>
             {items || "Design request"}
-            {request.editedAt ? (
-              <Text style={[typography.caption, { color: t.faint }]}>{"  "}Edited</Text>
-            ) : null}
           </Text>
           <View style={styles.topRight}>
+            {request.editedAt ? (
+              <Text style={[typography.caption, { color: t.faint }]}>Edited</Text>
+            ) : null}
             <UnreadBubble count={unread} />
             <DesignStatusPill status={request.status} />
           </View>
