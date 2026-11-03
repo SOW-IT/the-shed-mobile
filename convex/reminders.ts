@@ -275,8 +275,10 @@ async function collectEventForms(ctx: MutationCtx, digest: Digest, now: number) 
 
 const COMMENT_LOOKBACK_MS = 7 * COMMENT_REMINDER_AFTER_MS;
 // How much one run reads, so a busy week can't sink the digest: the newest
-// 1,000 comments, then the 50 most recently active threads of each kind, 200
-// comments each, for who has commented there. Later threads wait a day.
+// 1,000 comments, then the 50 threads of each kind with the newest comments
+// that are due (a day old), 200 comments each, for who has commented there.
+// More than 50 due threads in a week is far beyond what SOW has; past that the
+// oldest wouldn't be reminded.
 const COMMENT_SCAN_LIMIT = 1000;
 const THREADS_PER_RUN = 50;
 const THREAD_LIMIT = 200;
@@ -309,6 +311,7 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
   let scanned = 0;
   for await (const comment of ctx.db.query("eventRequestComments").order("desc")) {
     if (comment._creationTime < since || ++scanned > COMMENT_SCAN_LIMIT) break;
+    if (now - comment.postedAt < COMMENT_REMINDER_AFTER_MS) continue;
     const key = `${comment.eventRequestId} ${comment.form}`;
     eventThreads.set(key, [...(eventThreads.get(key) ?? []), comment]);
   }
@@ -371,7 +374,7 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
   scanned = 0;
   for await (const comment of ctx.db.query("designRequestComments").order("desc")) {
     if (comment._creationTime < since || ++scanned > COMMENT_SCAN_LIMIT) break;
-    if (comment.legacyKey !== undefined) continue;
+    if (comment.legacyKey !== undefined || now - comment.postedAt < COMMENT_REMINDER_AFTER_MS) continue;
     const id = comment.designRequestId;
     designThreads.set(id, [...(designThreads.get(id) ?? []), comment]);
   }
