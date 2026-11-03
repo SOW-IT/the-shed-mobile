@@ -159,6 +159,15 @@ async function unreadCountFor(
   return unread.filter((c) => c.authorEmail !== email).length;
 }
 
+export const canComment = query({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    const request = await ctx.db.get("requests", args.requestId);
+    return !!caller && !!request && (await canSeeRequest(ctx, caller, request));
+  },
+});
+
 export const unreadCount = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {

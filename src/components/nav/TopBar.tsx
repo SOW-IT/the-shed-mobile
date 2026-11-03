@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { UpdatePill } from "@/components/AppUpdatePrompt";
 import { Avatar, usePressScale } from "@/components/ui";
+import { ActingAsChip } from "@/components/nav/ActingAs";
 import { useNavDrawer } from "@/components/nav/NavDrawer";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
@@ -39,6 +40,7 @@ export const TopBar = ({
     <View style={styles.topBar}>
       <View style={styles.center} pointerEvents="box-none">
         <TestEnvironmentChip />
+        <ActingAsChip />
         <UpdatePill />
       </View>
       {isAuthenticated ? (
@@ -122,6 +124,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    flexDirection: "row",
+    gap: spacing.xs,
     alignItems: "center",
     justifyContent: "center",
   },

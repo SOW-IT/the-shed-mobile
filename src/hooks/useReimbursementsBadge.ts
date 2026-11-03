@@ -1,5 +1,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { countWaiting } from "../../shared/actingAs";
 import { requestFullyApproved } from "../../shared/flow";
 
 export const useReimbursementsBadge = (): number => {
@@ -30,5 +31,5 @@ export const useReimbursementsBadge = (): number => {
     ) ?? 0;
 
   if (!shown) return 0;
-  return mineActionCount + mineUnread + reviewRequests.length + reviewUnread;
+  return mineActionCount + mineUnread + countWaiting(reviewRequests) + reviewUnread;
 };

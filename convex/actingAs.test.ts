@@ -461,6 +461,11 @@ describe("admins see every view by default", () => {
     ).toEqual({});
     expect(await admin.query(api.comments.unreadCount, { requestId: requests.hod })).toBe(0);
     expect(await admin.query(api.comments.list, { requestId: requests.hod })).toHaveLength(1);
+    expect(await admin.query(api.comments.canComment, { requestId: requests.hod })).toBe(false);
+    expect(await asUser(t, EVA).query(api.comments.canComment, { requestId: requests.hod })).toBe(
+      true
+    );
+    expect(await t.query(api.comments.canComment, { requestId: requests.hod })).toBe(false);
     expect(
       await asUser(t, EVA).query(api.comments.unreadCountsForRequests, { requestIds: [requests.hod] })
     ).toEqual({ [requests.hod]: 1 });
@@ -483,6 +488,9 @@ describe("admins see every view by default", () => {
     expect(await admin.query(api.designRequestComments.unreadCounts, { ids: [design.pending] })).toEqual({});
     await t.run((ctx) => ctx.db.delete("requests", requests.hod));
     expect(await admin.query(api.comments.unreadTotalForRequests, { requestIds: [requests.hod] })).toBe(0);
+    expect(await asUser(t, EVA).query(api.comments.canComment, { requestId: requests.hod })).toBe(
+      false
+    );
   });
 });
 

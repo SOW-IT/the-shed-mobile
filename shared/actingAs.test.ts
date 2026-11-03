@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   ALL_VIEWS,
+  countWaiting,
   departmentHighlights,
   personaApproves,
   personaApprovesForm,
@@ -105,6 +106,11 @@ describe("event forms", () => {
     expect(personaApprovesForm(DIRECTOR, "finance", "director")).toBe(true);
     expect(personaApprovesForm(FINANCE_HEAD, "finance", "director")).toBe(false);
   });
+});
+
+test("only rows waiting on you count towards a badge", () => {
+  expect(countWaiting()).toBe(0);
+  expect(countWaiting([{ waiting: true }, { waiting: false }], [{ waiting: true }])).toBe(2);
 });
 
 describe("lenses", () => {

@@ -314,9 +314,7 @@ export default function DesignRequestScreen() {
                       onPress={() => router.push(`/design-requests/new?edit=${request._id}`)}
                     />
                   ) : null}
-                  {can.comment ? (
-                    <CommentsButton unread={unreadCount} onPress={() => setCommentsOpen(true)} />
-                  ) : null}
+                  <CommentsButton unread={unreadCount} onPress={() => setCommentsOpen(true)} />
                   <Btn
                     title="Download PDF"
                     variant="tonal"
@@ -341,13 +339,12 @@ export default function DesignRequestScreen() {
         </ReadableColumn>
       </Screen>
 
-      {can.comment ? (
-        <DesignCommentsSheet
-          id={request._id}
-          visible={commentsOpen}
-          onClose={() => setCommentsOpen(false)}
-        />
-      ) : null}
+      <DesignCommentsSheet
+        id={request._id}
+        visible={commentsOpen}
+        onClose={() => setCommentsOpen(false)}
+        canPost={can.comment}
+      />
 
       <Sheet
         visible={declining}

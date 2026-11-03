@@ -89,6 +89,9 @@ export const personaHighlights = (persona: Persona): string[] => {
   ];
 };
 
+export const countWaiting = (...lists: { waiting: boolean }[][]): number =>
+  lists.reduce((sum, rows) => sum + rows.filter((row) => row.waiting).length, 0);
+
 export async function seesThrough(
   lens: Lens,
   real: () => boolean | Promise<boolean>,

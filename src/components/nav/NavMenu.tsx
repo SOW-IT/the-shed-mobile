@@ -6,6 +6,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { Avatar, ConfirmDialog } from "@/components/ui";
+import { ActingAsControl } from "@/components/nav/ActingAs";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
@@ -311,6 +312,7 @@ export const NavMenu = ({
           </Text>
         ) : null}
       </Pressable>
+      <ActingAsControl />
     </View>
   ) : (
     <SignInMenu
