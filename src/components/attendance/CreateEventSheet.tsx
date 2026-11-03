@@ -48,7 +48,7 @@ import {
 } from "../../../shared/rollcall";
 import {
   DEFAULT_WEEKLY_SETTINGS,
-  nextWeeklyDate,
+  nextWeeklyInputs,
   termSystemFor,
   WEEK_MAX,
   weeklyName,
@@ -292,13 +292,13 @@ export function CreateEventSheet({
     if (!visible || isEditing || whenTouched) return;
     if (weekly && previous) {
       if (whenFor === "weekly") return;
-      const next = nextWeeklyDate(dateInputFromMs(previous.dateStart), defaultDate());
+      const next = nextWeeklyInputs(previous, defaultDate());
       // eslint-disable-next-line react-hooks/set-state-in-effect -- a new weekly starts a week after the campus's last one, at its times
-      setDateStr(next);
-      setEndDateStr(next);
-      setMultiDay(false);
-      setStartTime(timeInputFromMs(previous.dateStart));
-      setEndTime(timeInputFromMs(previous.dateEnd));
+      setDateStr(next.startDate);
+      setEndDateStr(next.endDate);
+      setMultiDay(next.startDate !== next.endDate);
+      setStartTime(next.startTime);
+      setEndTime(next.endTime);
       setWhenFor("weekly");
       return;
     }

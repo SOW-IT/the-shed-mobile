@@ -9,6 +9,7 @@ import {
   followUps,
   type HeldWeekly,
   nextWeeklyDate,
+  nextWeeklyInputs,
   type TermFacts,
   termKey,
   termLabel,
@@ -192,6 +193,24 @@ describe("week numbers and marks", () => {
     expect(nextWeeklyDate("2026-09-02", "2026-10-15")).toBe("2026-10-21");
     expect(nextWeeklyDate("2026-12-30", "2026-12-01")).toBe("2027-01-06");
     expect(nextWeeklyDate("2028-02-23", "2028-02-01")).toBe("2028-03-01");
+  });
+
+  test("the next weekly's form keeps the last one's times and days", () => {
+    const at = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).getTime();
+    expect(nextWeeklyInputs({ dateStart: at(28, 18, 30), dateEnd: at(28, 20, 30) }, "2026-11-03")).toEqual({
+      startDate: "2026-11-04",
+      startTime: "18:30",
+      endDate: "2026-11-04",
+      endTime: "20:30",
+    });
+    // One that ran past midnight still ends the next day.
+    expect(nextWeeklyInputs({ dateStart: at(28, 23), dateEnd: at(29, 1) }, "2026-11-03")).toEqual({
+      startDate: "2026-11-04",
+      startTime: "23:00",
+      endDate: "2026-11-05",
+      endTime: "01:00",
+    });
+    expect(nextWeeklyInputs({ dateStart: at(31, 22), dateEnd: at(31, 23, 30) }, "2026-11-03").endDate).toBe("2026-11-07");
   });
 });
 
