@@ -6,6 +6,30 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.22] - 2026-11-04
+
+### Added
+- **Reimbursements have a Past tab.** Your requests from earlier staff years
+  used to sit under Mine, below this year's, in a "Past requests" list. They
+  now have their own tab, right after Mine, newest first with a divider for
+  each staff year. It opens with the ten most recent and loads the next ten
+  as you scroll near the end, with a spinner while they load and a line
+  saying how many there are once you reach the last one. Cards work as they
+  did: tap one for its details, timeline and comments, and the notes about
+  deleted receipt files show above the list. A declined one now has the
+  Resubmit button too, which opens a new request on Mine filled in from it.
+  The tab only shows for someone who has a request from an earlier year.
+
+### Changed
+- **Mine is this staff year's requests.** Last year's requests that aren't
+  paid or declined yet stay on Mine as before, and move to Past once they
+  are. With nothing this year, Mine says so and has a button to see
+  past requests.
+- **A link to an earlier year's request opens Past.** A notification or
+  email about a comment on an older request opens the Past tab with that
+  request on top, opened up, and its comments showing when the link was for
+  a comment.
+
 ## [2.10.20] - 2026-11-03
 
 ### Changed
