@@ -341,7 +341,7 @@ export default function CalendarScreen() {
                 gridBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
               }}
             >
-              <SwipePeriod onPage={go}>
+              <SwipePeriod periodKey={view === "week" ? `week:${week[0]}` : `month:${year}-${month}`} onPage={go}>
                 {view === "week" ? (
                   <Card style={wide ? undefined : styles.fullBleed}>
                     <WeekView
