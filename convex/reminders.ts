@@ -284,14 +284,18 @@ async function collectEventForms(ctx: MutationCtx, digest: Digest, now: number) 
 }
 
 const COMMENT_LOOKBACK_MS = 7 * COMMENT_REMINDER_AFTER_MS;
-// How much one run reads, so a busy week can't sink the digest: the newest
-// 1,000 comments that are due (a day to a week old), then the 50 threads of
-// each kind with the newest of those, and the newest 200 comments in each for
-// who has commented there. More than 50 due threads in a week is far beyond
-// what SOW has; past that the oldest wouldn't be reminded.
+// How much one run reads, so a busy week can't sink the digest (Convex allows
+// 4,096 reads a mutation, shared with the other reminders): the newest 1,000
+// comments that are due (a day to a week old), then the 20 threads of each
+// kind with the newest of those, the newest 200 comments in each for who has
+// commented there, and access checks for at most 60 of those commenters (the
+// requester, submitter and approver are always reminded). That's roughly
+// 60 × 15 + 2 × 20 × 25 = 1,900 reads. Busier weeks than that are far beyond
+// what SOW has; past it the oldest threads and later commenters miss out.
 const COMMENT_SCAN_LIMIT = 1000;
-const THREADS_PER_RUN = 50;
+const THREADS_PER_RUN = 20;
 const THREAD_LIMIT = 200;
+const COMMENTER_CHECKS = 60;
 
 type Comment = { authorEmail: string; postedAt: number };
 type Read = { lastReadAt: number; remindedAt?: number };
@@ -359,6 +363,7 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
       .take(THREAD_LIMIT);
     const commenters: string[] = [];
     for (const author of commenterEmails(thread, comments)) {
+      if (!callers.has(author) && callers.size >= COMMENTER_CHECKS) continue;
       const caller = await callerFor(author);
       if (!caller || isCampusLeader(caller)) continue;
       let accessOf = eventAccess.get(author);
@@ -430,6 +435,7 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
     // can still comment on a design request.
     const commenters: string[] = [];
     for (const author of commenterEmails(thread, comments)) {
+      if (!callers.has(author) && callers.size >= COMMENTER_CHECKS) continue;
       const caller = await callerFor(author);
       if (caller && (await designAccessTo(ctx, caller, request)).canComment) commenters.push(author);
     }
