@@ -126,8 +126,8 @@ describe("event request PDF", () => {
   });
 
   test("names the file after the event", () => {
-    expect(eventRequestPdfFilename({ year: 2027, number: 3, name: "SAF27: The Big One!" })).toBe(
-      "event-request-2027-3-saf27-the-big-one.pdf"
+    expect(eventRequestPdfFilename({ startsAt: "2027-08-14T18:00", name: "SAF27: The Big One!" })).toBe(
+      "event-request-2027-08-14-saf27-the-big-one.pdf"
     );
   });
 });

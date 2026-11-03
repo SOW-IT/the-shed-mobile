@@ -350,6 +350,111 @@ describe("event form reminders", () => {
   });
 });
 
+describe("unread comment reminders", () => {
+  test("a comment still unread a day later reminds the people its thread is for, once", async () => {
+    const t = await setup();
+    const id = await createEvent(t);
+    await submitRisk(t, id);
+    await asUser(t, CORA).mutation(api.eventRequestComments.add, {
+      id,
+      form: "risk",
+      body: "What's the wet weather plan?",
+    });
+    await clearOutbox(t);
+
+    atDay(0.5);
+    await run(t);
+    expect(await notificationsFor(t, RACHEL)).toEqual([]);
+
+    atDay(1.1);
+    await run(t);
+    const [note] = await notificationsFor(t, RACHEL);
+    expect(note.body).toBe("2 event forms and 1 thread with unread comments are waiting on you.");
+    const [email] = await emailsTo(t, RACHEL);
+    expect(email.body).toContain("1 unread comment on the Risk form for Winter Camp");
+    // Cora wrote it, and Eddie isn't on the thread.
+    for (const other of [CORA, EDDIE]) {
+      for (const mail of await emailsTo(t, other)) expect(mail.body).not.toContain("unread comment");
+    }
+
+    // Reminded once: the next run leaves it alone.
+    await clearOutbox(t);
+    atDay(2.2);
+    await run(t);
+    expect(await notificationsFor(t, RACHEL)).toEqual([]);
+
+    // Cora reads Rachel's reply in time, so only the later one reminds her.
+    await asUser(t, RACHEL).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Tents" });
+    await asUser(t, CORA).mutation(api.eventRequestComments.markRead, { id, form: "risk" });
+    atDay(2.3);
+    await asUser(t, RACHEL).mutation(api.eventRequestComments.add, { id, form: "risk", body: "And a hall" });
+    await clearOutbox(t);
+    atDay(3.4);
+    await run(t);
+    const coraMail = (await emailsTo(t, CORA)).map((m) => m.body).join("\n");
+    expect(coraMail).toContain("1 unread comment on the Risk form for Winter Camp");
+
+    // A week on, nothing is looked at again.
+    await clearOutbox(t);
+    atDay(12);
+    await run(t);
+    for (const who of [RACHEL, CORA]) {
+      for (const mail of await emailsTo(t, who)) expect(mail.body).not.toContain("unread comment");
+    }
+  });
+
+  test("design request comments remind the requester and the Marketing Head", async () => {
+    const t = await setup();
+    const id = await submitDesign(t);
+    const gone = await submitDesign(t, MARY);
+    await asUser(t, MARY).mutation(api.designRequestComments.add, { id, body: "Which colours?" });
+    await asUser(t, HENRY).mutation(api.designRequestComments.add, { id: gone, body: "Hi" });
+    await t.run((ctx) => ctx.db.delete("designRequests", gone));
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    for (const who of [RACHEL, HENRY]) {
+      const body = (await emailsTo(t, who)).map((m) => m.body).join("\n");
+      expect(body).toContain("1 unread comment on the design request for Poster");
+    }
+    const maryMail = (await emailsTo(t, MARY)).map((m) => m.body).join("\n");
+    expect(maryMail).not.toContain("unread comment");
+
+    await asUser(t, RACHEL).mutation(api.designRequestComments.markRead, { id });
+    atDay(1.2);
+    await asUser(t, MARY).mutation(api.designRequestComments.add, { id, body: "Blue?" });
+    await t.run(async (ctx) => {
+      await ctx.db.patch("designRequests", id, { title: "" });
+      const event = await ctx.db.insert("eventRequests", {
+        year: YEAR,
+        number: 9,
+        requesterEmail: RACHEL,
+        department: "Events",
+        submittedAt: Date.now(),
+        answers: {},
+        name: "Gone",
+        startsAt: at(40, 9),
+        endsAt: at(40, 17),
+        location: "Hall",
+        status: "IN_PROGRESS",
+      });
+      await ctx.db.insert("eventRequestComments", {
+        eventRequestId: event,
+        form: "risk",
+        authorEmail: CORA,
+        body: "Hi",
+        postedAt: Date.now(),
+      });
+      await ctx.db.delete("eventRequests", event);
+    });
+    await clearOutbox(t);
+    atDay(2.2);
+    await run(t);
+    const rachel = (await emailsTo(t, RACHEL)).map((m) => m.body).join("\n");
+    expect(rachel).toContain("1 unread comment on a design request");
+  });
+});
+
 describe("the daily digest", () => {
   test("one person with several kinds waiting gets one notification and one email, pointing at Home", async () => {
     const t = await setup();
@@ -370,7 +475,7 @@ describe("the daily digest", () => {
     expect(mail).toHaveLength(1);
     expect(mail[0].subject).toBe("Reminder: 2 things are waiting on you in THE SHED");
     expect(mail[0].body).toContain("$40 from mary@sow.org.au (Marketing), Paint: waiting on your HOD approval for 1 day");
-    expect(mail[0].body).toContain("Design request #1");
+    expect(mail[0].body).toContain("Design request: Poster for Events");
   });
 
   test("nothing goes out when nothing is waiting, and a weekend run still sends", async () => {

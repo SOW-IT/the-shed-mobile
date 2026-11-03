@@ -6,6 +6,36 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.21] - 2026-11-04
+
+### Added
+- **A comment still unread a day later is in the morning reminder.** Each
+  design or event request comment goes in once, to the requester, the form's
+  submitter and approver (the Marketing Head for a design request) and anyone
+  else in the thread, by notification, push and email.
+
+### Changed
+- **Every staff member can see every event request.** All is no longer just
+  for the Events department, the reviewing teams, the Director and admins.
+  Other staff can read a request, its forms and its comments, but only the
+  requester's department fills it in, edits or cancels it, and only it and
+  each form's team comment. Campus leaders still don't see event requests.
+- **Only the requester and the Marketing team see design requests.** Admins
+  no longer see the Marketing queue or other people's design requests.
+- **Event and design request cards are easier to scan.** They show the
+  request's name with no number or year, "Edited" next to the name, and the
+  status at the top right, with the whole card outlined in the status's
+  colour. Event cards spread Marketing, Risk and Finance left, middle and
+  right, a little bigger, and no longer say "Waiting on you" (To review shows
+  that, with its count). Design cards say when the request was submitted.
+- **History reads newest first, as a timeline.** Event request, design
+  request and reimbursement histories put the latest step at the top, joined
+  by a line, with more space for longer gaps and how long each gap was ("3
+  days earlier").
+- **Design request emails and notifications name what was asked for.** They
+  say "Design request: Booklet" instead of "Design request #4 (2027)". Event
+  request reminders, PDFs and file names drop the number too.
+
 ## [2.10.20] - 2026-11-03
 
 ### Changed

@@ -59,9 +59,10 @@ const input = (over: Partial<DesignRequestPdfInput> = {}): DesignRequestPdfInput
 
 describe("design request PDF", () => {
   test("names the file by year and number", () => {
-    expect(designRequestPdfFilename({ year: 2027, number: 4 })).toBe(
-      "design-request-2027-4.pdf"
+    expect(designRequestPdfFilename({ title: "Booklet, Poster (A3)" })).toBe(
+      "design-request-booklet-poster-a3.pdf"
     );
+    expect(designRequestPdfFilename({ title: "" })).toBe("design-request.pdf");
   });
 
   test("times are Sydney time with plain spaces", () => {
@@ -112,7 +113,7 @@ describe("design request PDF", () => {
   test("builds a PDF even with characters the font can't draw", async () => {
     const bytes = await buildDesignRequestPdf(input());
     const doc = await PDFDocument.load(bytes);
-    expect(doc.getTitle()).toBe("Design request #4 (2027)");
+    expect(doc.getTitle()).toBe("Design request: Poster");
     expect(doc.getPageCount()).toBe(1);
   });
 

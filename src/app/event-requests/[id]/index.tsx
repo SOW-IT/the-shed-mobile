@@ -7,12 +7,12 @@ import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { formatAnswer, formatDateTimeRange, isFieldShown } from "@shared/forms";
 import {
-  eventRequestRef,
   SUB_FORM_KINDS,
   SUB_FORM_LABELS,
   type SubFormKind,
 } from "@shared/eventRequests";
 import { EventStatusPill, SubFormStatusPill } from "@/components/events/EventPills";
+import { HistoryTimeline } from "@/components/HistoryTimeline";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
 import { eventHistoryLabel, subFormCardLine } from "@/lib/eventRequestText";
@@ -93,27 +93,22 @@ const FormCard = ({
 };
 
 const Timeline = ({ id }: { id: Id<"eventRequests"> }) => {
-  const t = useAppTheme();
+  // Newest first.
   const events = useQuery(api.eventRequests.timeline, { id });
   if (!events || events.length === 0) return null;
   return (
     <>
       <SectionTitle>History</SectionTitle>
       <Card>
-        {events.map((event, index) => (
-          <View key={index} style={styles.event}>
-            <View style={[styles.eventDot, { backgroundColor: t.faint }]} />
-            <View style={{ flex: 1 }}>
-              <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>
-                {eventHistoryLabel(event.action, event.form)}
-              </Text>
-              <Text style={[typography.caption, { color: t.muted }]}>
-                {sydneyDateTime(event.at)} · {event.actorName}
-                {event.detail ? ` · ${event.detail}` : ""}
-              </Text>
-            </View>
-          </View>
-        ))}
+        <HistoryTimeline
+          entries={events.map((event) => ({
+            at: event.at,
+            action: event.action,
+            label: eventHistoryLabel(event.action, event.form),
+            who: event.actorName,
+            detail: event.detail,
+          }))}
+        />
       </Card>
     </>
   );
@@ -221,7 +216,7 @@ export default function EventRequestScreen() {
 
   return (
     <>
-      <Screen title={event.name} subtitle={eventRequestRef(event)} onBack={goBack}>
+      <Screen title={event.name} onBack={goBack}>
         <ReadableColumn>
           <View style={{ gap: spacing.md }}>
             <FadeInView>
@@ -359,6 +354,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  event: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
-  eventDot: { width: 7, height: 7, borderRadius: 4, marginTop: 6 },
 });

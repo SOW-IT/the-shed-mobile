@@ -1,6 +1,6 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { syncEventRequestLinks } from "./eventRequestLinks";
 import { departmentsOf } from "../shared/flow";
 import {
@@ -38,7 +38,6 @@ import {
   recipientsFor,
   requireEvent,
   requireEventStaff,
-  seesAll,
   stepApprover,
   subFormsOf,
   tell,
@@ -124,7 +123,6 @@ export const viewer = query({
       year: caller.year,
       departments: departmentsOf(caller.profile),
       reviews: SUB_FORM_KINDS.some((k) => scope.teams[k]) || scope.director,
-      seesAll: seesAll(scope),
     };
   },
 });
@@ -256,7 +254,7 @@ export const all = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     const caller = await optionalEventStaff(ctx);
-    if (!caller || !seesAll(await viewerScope(ctx, caller))) return null;
+    if (!caller) return null;
     const events = await ctx.db
       .query("eventRequests")
       .withIndex("by_year_and_number", (q) => q.eq("year", args.year))
@@ -278,7 +276,7 @@ export const earlierAll = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalEventStaff(ctx);
-    if (!caller || !seesAll(await viewerScope(ctx, caller))) return null;
+    if (!caller) return null;
     const result = await ctx.db
       .query("eventRequests")
       .withIndex("by_year_and_number", (q) => q.lt("year", caller.year))
@@ -297,7 +295,6 @@ export const get = query({
     const event = id ? await ctx.db.get("eventRequests", id) : null;
     if (!event) return null;
     const access = await accessTo(ctx, caller, event);
-    if (!access.canView) return null;
     const forms = await subFormsOf(ctx, event._id);
     const nameOf = (email: string | undefined) =>
       email ? displayName(ctx, email, event.year) : Promise.resolve(null);
@@ -359,10 +356,11 @@ export const timeline = query({
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
     const event = await ctx.db.get("eventRequests", args.id);
-    if (!event || !(await accessTo(ctx, caller, event)).canView) return null;
+    if (!event) return null;
     const events = await ctx.db
       .query("eventRequestEvents")
       .withIndex("by_eventRequest", (q) => q.eq("eventRequestId", args.id))
+      .order("desc")
       .take(EVENTS_LIMIT);
     return await Promise.all(
       events.map(async (row) => ({
@@ -530,6 +528,51 @@ export const cancel = mutation({
       },
       (form) => form.status !== "DRAFT"
     );
+    return null;
+  },
+});
+
+// Removes cancelled event requests for good (such as test ones), with their
+// forms, history and comments. Run from the CLI; one that isn't cancelled, or
+// still has an attendance event on the Calendar, is refused.
+export const removeCancelled = internalMutation({
+  args: { ids: v.array(v.id("eventRequests")) },
+  handler: async (ctx, args) => {
+    for (const id of args.ids) {
+      const event = await requireEvent(ctx, id);
+      if (event.status !== "CANCELLED" || event.attendanceEventId || event.calendarEntryId) {
+        throw new ConvexError(
+          `Only a cancelled event request with nothing on the Calendar can be removed (${event.name}).`
+        );
+      }
+    }
+    for (const id of args.ids) {
+      for (const form of await ctx.db
+        .query("eventSubForms")
+        .withIndex("by_eventRequest_and_kind", (q) => q.eq("eventRequestId", id))
+        .collect()) {
+        await ctx.db.delete("eventSubForms", form._id);
+      }
+      for (const row of await ctx.db
+        .query("eventRequestEvents")
+        .withIndex("by_eventRequest", (q) => q.eq("eventRequestId", id))
+        .collect()) {
+        await ctx.db.delete("eventRequestEvents", row._id);
+      }
+      for (const comment of await ctx.db
+        .query("eventRequestComments")
+        .withIndex("by_eventRequest_and_form_and_postedAt", (q) => q.eq("eventRequestId", id))
+        .collect()) {
+        await ctx.db.delete("eventRequestComments", comment._id);
+      }
+      for (const read of await ctx.db
+        .query("eventRequestCommentReads")
+        .withIndex("by_eventRequest_and_form_and_user", (q) => q.eq("eventRequestId", id))
+        .collect()) {
+        await ctx.db.delete("eventRequestCommentReads", read._id);
+      }
+      await ctx.db.delete("eventRequests", id);
+    }
     return null;
   },
 });

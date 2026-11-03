@@ -6,7 +6,6 @@ import { syncEventRequestLinks } from "./eventRequestLinks";
 import { assignmentsOf, isMemberOfDepartment, roleNeedsUniversity } from "../shared/flow";
 import { formatDateTimeRange } from "../shared/forms";
 import {
-  EVENTS,
   eventRequestName,
   eventStatusFor,
   SUB_FORM_INBOXES,
@@ -22,7 +21,6 @@ import {
   displayName,
   getApprovers,
   getDepartment,
-  isAdminProfile,
   optionalProfile,
   requireProfile,
   withDelegatesForYear,
@@ -110,8 +108,6 @@ export const approverTitle = (kind: SubFormKind, step: FinanceStep | undefined) 
 export interface ViewerScope {
   teams: Record<SubFormKind, boolean>;
   director: boolean;
-  events: boolean;
-  admin: boolean;
 }
 
 export async function viewerScope(
@@ -129,17 +125,14 @@ export async function viewerScope(
   return {
     teams,
     director: await actsAs(ctx, caller, await directorOf(ctx, event)),
-    events: isMemberOfDepartment(caller.profile, EVENTS),
-    admin: await isAdminProfile(ctx, caller.profile),
   };
 }
 
-export const seesAll = (scope: ViewerScope) =>
-  scope.admin || scope.events || scope.director || SUB_FORM_KINDS.some((k) => scope.teams[k]);
-
+// Every staff member can see every event request (campus leaders can't see
+// any); only the requester's side fills its forms in, and each form's team
+// approves it.
 export interface EventAccess extends ViewerScope {
   requesterSide: boolean;
-  canView: boolean;
 }
 
 export async function accessTo(
@@ -152,7 +145,7 @@ export async function accessTo(
     event.requesterEmail === caller.email ||
     isMemberOfDepartment(caller.profile, event.department) ||
     (await actsAs(ctx, caller, await headOf(ctx, event, event.department)));
-  return { ...scope, requesterSide, canView: requesterSide || seesAll(scope) };
+  return { ...scope, requesterSide };
 }
 
 // The event request something on the Calendar came from, but only when this
@@ -163,8 +156,7 @@ export async function openableEventRequest(
   id: Id<"eventRequests"> | undefined
 ): Promise<Id<"eventRequests"> | null> {
   if (!id || isCampusLeader(caller)) return null;
-  const event = await ctx.db.get("eventRequests", id);
-  return event && (await accessTo(ctx, caller, event)).canView ? id : null;
+  return (await ctx.db.get("eventRequests", id)) ? id : null;
 }
 
 export const canCommentOn = (access: EventAccess, kind: SubFormKind) =>

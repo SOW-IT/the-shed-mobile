@@ -10,8 +10,10 @@ approves and who does the work comes from [Org](./org.md).
 ## Language
 
 **Design request**:
-One ask of the Marketing team, numbered within the staff year it was submitted
-in ("Design request #4 (2027)"). Carries the requester's answers to the form.
+One ask of the Marketing team, called by what it asks for ("Design request:
+Booklet, Poster"). It is numbered within the staff year it was submitted in,
+but the number isn't shown. Carries the requester's answers to the form.
+Only the requester and the Marketing team see it; being an admin doesn't.
 _Avoid_: design ticket, job, brief
 
 **Form**:
@@ -71,7 +73,9 @@ Chases an open request that has not moved, on the same cadence as a
 [reimbursement](./reimbursements.md) reminder: the Marketing Head while it is
 Waiting for approval, the Marketing team (in-app, plus one email to the
 shared inbox) while it is Approved and not finished. It says when the design
-is needed by. Part of the person's daily digest.
+is needed by. Part of the person's daily digest. A comment still unread a
+day after it was posted is in it once too, for the requester, the Marketing
+Head and anyone else in the thread.
 
 **Waiting since**:
 When a request started waiting on the Marketing team: its submission while

@@ -26,7 +26,6 @@ import {
   currentStaffYear,
   displayName,
   getDepartment,
-  isAdminProfile,
   optionalProfile,
   requireProfile,
   resolveName,
@@ -75,9 +74,11 @@ export async function accessTo(
   const isRequester = request.requesterEmail === caller.email;
   const isHead = await actsAsMarketingHead(ctx, caller, request.year);
   const isTeam = isHead || isMarketingStaff(caller);
+  // Only the requester and the Marketing team see a design request; being an
+  // admin adds nothing.
   const canComment = isRequester || isTeam;
   return {
-    canView: canComment || (await isAdminProfile(ctx, caller.profile)),
+    canView: canComment,
     canComment,
     canDecide: isHead && !isRequester,
     canComplete: isTeam,
@@ -246,12 +247,9 @@ async function withRequesterNames(ctx: Ctx, rows: DesignRequest[]) {
   );
 }
 
+// Only the Marketing team sees every design request.
 async function canSeeQueue(ctx: Ctx, caller: CallerContext) {
-  return (
-    isMarketingStaff(caller) ||
-    (await actsAsMarketingHead(ctx, caller, caller.year)) ||
-    (await isAdminProfile(ctx, caller.profile))
-  );
+  return isMarketingStaff(caller) || (await actsAsMarketingHead(ctx, caller, caller.year));
 }
 
 export const viewer = query({
@@ -432,6 +430,7 @@ export const timeline = query({
     const events = await ctx.db
       .query("designRequestEvents")
       .withIndex("by_designRequest", (q) => q.eq("designRequestId", args.id))
+      .order("desc")
       .take(EVENTS_LIMIT);
     return await Promise.all(
       events.map(async (event) => ({
@@ -492,7 +491,7 @@ export const submit = mutation({
     const summary = await requestSummary(ctx, request);
     await tellRequester(ctx, request, {
       actor: email,
-      subject: `Your ${name} has been submitted`,
+      subject: `${name} has been submitted`,
       pushTitle: "Design request submitted",
       body: autoApprove
         ? `It's approved, as you're the Marketing Head, and the Marketing team has been told.\n\n${summary}`
@@ -508,7 +507,7 @@ export const submit = mutation({
         });
     await tellTeam(ctx, request, {
       actor: email,
-      subject: `New ${name}`,
+      subject: `New ${name.replace(/^Design/, "design")}`,
       pushTitle: "New design request",
       body: `${autoApprove ? "Approved by the Marketing Head." : "Waiting on the Marketing Head's approval."}\n\n${summary}`,
       skip: heads,
@@ -602,7 +601,7 @@ export const approve = mutation({
     const approver = await displayName(ctx, caller.email, request.year);
     await tellRequester(ctx, request, {
       actor: caller.email,
-      subject: `Your ${name} has been approved`,
+      subject: `${name} has been approved`,
       pushTitle: "Design request approved",
       body: `${approver} approved it, and the Marketing team has been told.\n\n${summary}`,
     });
@@ -642,7 +641,7 @@ export const decline = mutation({
     const decliner = await displayName(ctx, caller.email, request.year);
     await tellRequester(ctx, request, {
       actor: caller.email,
-      subject: `Your ${name} has been declined`,
+      subject: `${name} has been declined`,
       pushTitle: "Design request declined",
       body: `${decliner} declined it.\nReason: ${reason}\n\n${summary}`,
     });
@@ -684,7 +683,7 @@ export const complete = mutation({
     const noteLine = note ? `\nNote: ${note}` : "";
     await tellRequester(ctx, request, {
       actor: caller.email,
-      subject: `Your ${name} is complete`,
+      subject: `${name} is complete`,
       pushTitle: "Design request complete",
       body: `${completer} marked it complete.${noteLine}\n\n${summary}`,
     });

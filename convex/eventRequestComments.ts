@@ -41,7 +41,7 @@ export const list = query({
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
     const event = await ctx.db.get("eventRequests", args.id);
-    if (!event || !(await accessTo(ctx, caller, event)).canView) return null;
+    if (!event) return null;
     const comments = await commentsFor(ctx, args.id, args.form).take(COMMENTS_LIMIT);
     return await commentRows(ctx, comments, event.year, caller.email);
   },
@@ -107,7 +107,12 @@ export const unreadCounts = query({
     const caller = await optionalEventStaff(ctx);
     if (!caller) return counts;
     for (const id of new Set(args.ids)) {
+      const event = await ctx.db.get("eventRequests", id);
+      if (!event) continue;
+      // Only threads you're part of count: every staff member can read them all.
+      const access = await accessTo(ctx, caller, event);
       for (const form of SUB_FORM_KINDS) {
+        if (!canCommentOn(access, form)) continue;
         const read = await ctx.db
           .query("eventRequestCommentReads")
           .withIndex("by_eventRequest_and_form_and_user", (q) =>

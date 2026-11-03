@@ -36,8 +36,10 @@ export type DesignRequestPdfInput = {
   generatedAt: number;
 };
 
-export const designRequestPdfFilename = (r: { year: number; number: number }) =>
-  `design-request-${r.year}-${r.number}.pdf`;
+export const designRequestPdfFilename = (r: { title: string }) => {
+  const slug = r.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return slug ? `design-request-${slug}.pdf` : "design-request.pdf";
+};
 
 export const pdfTime = sydneyDateTime;
 

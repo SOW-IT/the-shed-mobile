@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Doc } from "../../../convex/_generated/dataModel";
 import { formatDateTimeRange } from "@shared/forms";
 import {
-  eventRequestRef,
   SUB_FORM_KINDS,
   SUB_FORM_LABELS,
   SUB_FORM_STATUS_LABELS,
@@ -12,8 +11,8 @@ import {
   type SubFormStatus,
 } from "@shared/eventRequests";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { WaitingLine } from "@/components/design/DesignRequestRow";
-import { EventStatusPill, SUB_FORM_TONES, toneColour } from "./EventPills";
+import { UnreadBubble, WaitingLine } from "@/components/design/DesignRequestRow";
+import { EventStatusPill, eventStatusColour, SUB_FORM_TONES, toneColour } from "./EventPills";
 
 export type EventRequestListRow = Doc<"eventRequests"> & {
   requesterName: string | null;
@@ -30,6 +29,7 @@ const STEP_ICONS: Record<SubFormStatus, keyof typeof Ionicons.glyphMap> = {
   NOT_REQUIRED: "remove-circle-outline",
 };
 
+// Marketing on the left, Risk in the middle and Finance on the right.
 const FormSteps = ({ forms }: { forms: EventRequestListRow["forms"] }) => {
   const t = useAppTheme();
   return (
@@ -43,10 +43,10 @@ const FormSteps = ({ forms }: { forms: EventRequestListRow["forms"] }) => {
         >
           <Ionicons
             name={STEP_ICONS[forms[kind].status]}
-            size={14}
+            size={18}
             color={toneColour(t, SUB_FORM_TONES[forms[kind].status])}
           />
-          <Text style={[typography.caption, { color: t.muted }]}>{SUB_FORM_LABELS[kind]}</Text>
+          <Text style={[styles.stepLabel, { color: t.muted }]}>{SUB_FORM_LABELS[kind]}</Text>
         </View>
       ))}
     </View>
@@ -64,7 +64,6 @@ export const EventRequestRow = ({
 }) => {
   const t = useAppTheme();
   const who = event.requesterName ?? event.requesterEmail;
-  const waiting = event.waitingOnMe ?? [];
   return (
     <Pressable
       onPress={onPress}
@@ -72,43 +71,31 @@ export const EventRequestRow = ({
       accessibilityLabel={`${event.name}, ${formatDateTimeRange(event.startsAt, event.endsAt)}`}
       style={({ pressed }) => [
         styles.row,
-        t.surfaceEdge,
-        { backgroundColor: t.card },
+        { backgroundColor: t.card, borderColor: eventStatusColour(t, event.status) },
         pressed && { opacity: 0.7 },
       ]}
     >
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={[typography.caption, { color: t.faint, fontWeight: "700" }]}>
-          {eventRequestRef(event)}
-          {event.editedAt ? "  ·  Edited" : ""}
-        </Text>
-        <Text numberOfLines={2} style={[typography.headline, { color: t.text }]}>
-          {event.name}
-        </Text>
+        <View style={styles.top}>
+          <Text numberOfLines={3} style={[typography.headline, styles.name, { color: t.text }]}>
+            {event.name}
+            {event.editedAt ? (
+              <Text style={[typography.caption, { color: t.faint }]}>{"  "}Edited</Text>
+            ) : null}
+          </Text>
+          <View style={styles.topRight}>
+            <UnreadBubble count={unread} />
+            <EventStatusPill status={event.status} />
+          </View>
+        </View>
         <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
           {formatDateTimeRange(event.startsAt, event.endsAt)}
         </Text>
         <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
           {event.location} · {who} ({event.department})
         </Text>
-        <View style={styles.footer}>
-          <EventStatusPill status={event.status} />
-          {unread > 0 ? (
-            <View style={[styles.unread, { backgroundColor: t.accentSoft }]}>
-              <Ionicons name="chatbubble" size={11} color={t.accent} />
-              <Text style={[typography.caption, { color: t.accent, fontWeight: "700" }]}>
-                {unread}
-              </Text>
-            </View>
-          ) : null}
-        </View>
         <FormSteps forms={event.forms} />
         <WaitingLine since={event.waitingSince} />
-        {waiting.length > 0 ? (
-          <Text style={[typography.caption, { color: t.accent, fontWeight: "700" }]}>
-            Waiting on you: {waiting.map((k) => SUB_FORM_LABELS[k]).join(", ")}
-          </Text>
-        ) : null}
       </View>
       <Ionicons name="chevron-forward" size={18} color={t.faint} />
     </Pressable>
@@ -121,17 +108,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md,
     borderRadius: radius.lg,
+    borderWidth: 1.5,
     padding: spacing.lg,
   },
-  footer: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 2 },
-  steps: { flexDirection: "row", gap: spacing.md, marginTop: 4, flexWrap: "wrap" },
+  top: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  name: { flex: 1 },
+  topRight: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 },
+  steps: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
   step: { flexDirection: "row", alignItems: "center", gap: 6 },
-  unread: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
+  stepLabel: { fontSize: 14.5, fontWeight: "600" },
 });

@@ -8,7 +8,6 @@ import {
 } from "../../shared/forms";
 import {
   EVENT_STATUS_LABELS,
-  eventRequestRef,
   financeTotals,
   LIKELIHOOD_GUIDE,
   majorRisks,
@@ -56,8 +55,8 @@ export type EventRequestPdfInput = {
   generatedAt: number;
 };
 
-export const eventRequestPdfFilename = (e: { year: number; number: number; name: string }) =>
-  `event-request-${e.year}-${e.number}-${e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.pdf`;
+export const eventRequestPdfFilename = (e: { startsAt: string; name: string }) =>
+  `event-request-${e.startsAt.slice(0, 10)}-${e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.pdf`;
 
 const BAND = rgb(0.06, 0.27, 0.36);
 const HEADER = rgb(0.13, 0.36, 0.6);
@@ -151,7 +150,7 @@ export async function buildEventRequestPdf(input: EventRequestPdfInput): Promise
     `${SUB_FORM_LABELS[kind]} form: ${subFormStatusLine(kind, forms[kind], { imported: !!event.legacyKey, canFill: false })}`;
 
   w.text(event.name, { font: bold, size: 20, color: TEXT, gap: 2 });
-  w.text(`Event request ${eventRequestRef(event)}`, { font: regular, size: 11, color: MUTED, gap: 6 });
+  w.text("Event request", { font: regular, size: 11, color: MUTED, gap: 6 });
   w.text(`Status: ${EVENT_STATUS_LABELS[event.status]}`, { font: bold, size: 11, color: TEXT, gap: 3 });
   for (const line of [
     formatDateTimeRange(event.startsAt, event.endsAt),

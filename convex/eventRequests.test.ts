@@ -160,10 +160,11 @@ const emails = (t: T) =>
 const emailsTo = async (t: T, to: string) =>
   (await emails(t)).filter((e) => e.to === to).map((e) => e.subject);
 
+// Oldest first, though the timeline lists the newest first.
 const actions = async (t: T, id: Id<"eventRequests">) =>
-  (await asUser(t, EVA).query(api.eventRequests.timeline, { id }))!.map((e) =>
-    e.form ? `${e.form}:${e.action}` : e.action
-  );
+  (await asUser(t, EVA).query(api.eventRequests.timeline, { id }))!
+    .map((e) => (e.form ? `${e.form}:${e.action}` : e.action))
+    .reverse();
 
 describe("who can use event requests", () => {
   test("campus leaders and people without a profile can't", async () => {
@@ -174,29 +175,27 @@ describe("who can use event requests", () => {
     expect(await asUser(t, "nobody@sow.org.au").query(api.eventRequests.waitingOnMe, {})).toBe(0);
   });
 
-  test("who sees an event: its department, the reviewing teams, Events, the Director and admins", async () => {
+  test("every staff member sees every event, but only its side and its teams act on it", async () => {
     const t = await setup();
     const id = await create(t);
-    for (const email of [EVA, ELLA, EDDIE, MARY, CARL, FRED, DAN, ADMIN]) {
+    for (const email of [EVA, ELLA, EDDIE, MARY, CARL, FRED, DAN, ADMIN, OLLIE]) {
       expect((await asUser(t, email).query(api.eventRequests.get, { id }))?.event._id).toBe(id);
     }
-    expect(await asUser(t, OLLIE).query(api.eventRequests.get, { id })).toBeNull();
+    const outsider = (await asUser(t, OLLIE).query(api.eventRequests.get, { id }))!;
+    expect(outsider.can).toEqual({ edit: false, cancel: false });
+    for (const kind of ["marketing", "risk", "finance"] as const) {
+      expect(outsider.forms[kind].can).toEqual({ fill: false, decide: false, reopen: false, comment: false });
+    }
+    expect(await asUser(t, OLLIE).query(api.eventRequests.timeline, { id })).not.toBeNull();
+    expect((await asUser(t, OLLIE).query(api.eventRequests.all, { year: YEAR }))!.map((e) => e._id)).toEqual([id]);
     expect(await asUser(t, OLLIE).query(api.eventRequests.get, { id: "nonsense" })).toBeNull();
-    expect(await asUser(t, OLLIE).query(api.eventRequests.timeline, { id })).toBeNull();
     expect(await asUser(t, LEE).query(api.eventRequests.get, { id })).toBeNull();
     expect(await asUser(t, LEE).query(api.eventRequests.timeline, { id })).toBeNull();
-    expect(await asUser(t, OLLIE).query(api.eventRequests.all, { year: YEAR })).toBeNull();
-    expect(await asUser(t, OLLIE).query(api.eventRequests.viewer, {})).toMatchObject({
-      reviews: false,
-      seesAll: false,
-    });
-    expect(await asUser(t, CARL).query(api.eventRequests.viewer, {})).toMatchObject({
-      reviews: true,
-      seesAll: true,
-    });
+    expect(await asUser(t, LEE).query(api.eventRequests.all, { year: YEAR })).toBeNull();
+    expect(await asUser(t, OLLIE).query(api.eventRequests.viewer, {})).toMatchObject({ reviews: false });
+    expect(await asUser(t, CARL).query(api.eventRequests.viewer, {})).toMatchObject({ reviews: true });
     expect(await asUser(t, ELLA).query(api.eventRequests.viewer, {})).toMatchObject({
       reviews: false,
-      seesAll: true,
       departments: ["Events"],
     });
   });
@@ -257,7 +256,7 @@ describe("the event", () => {
     expect((await get(t, id)).event).toMatchObject({ location: "Town Hall" });
     expect((await actions(t, id)).at(-1)).toBe("edited");
     const timeline = await asUser(t, EVA).query(api.eventRequests.timeline, { id });
-    expect(timeline!.at(-1)!.detail).toBe("Location, Notes");
+    expect(timeline![0]).toMatchObject({ action: "edited", detail: "Location, Notes" });
     expect((await notificationsFor(t, CORA)).map((n) => n.title)).toContain("Event edited");
     expect(await emailsTo(t, SUB_FORM_INBOXES.risk)).toContain(
       "Event request: [TEST] SAF27 was edited"
@@ -798,7 +797,7 @@ describe("on the Calendar", () => {
     expect((await request(t, id))!.attendanceEventId).toBe(eventId);
   });
 
-  test("only people who can open the request get its link, and its name and times follow the request", async () => {
+  test("staff get the request's link but campus leaders don't, and its name and times follow the request", async () => {
     const t = await setup();
     const id = await create(t, EVA, { takeAttendance: ["yes"] });
     await approveAll(t, id);
@@ -807,13 +806,14 @@ describe("on the Calendar", () => {
     const linkFor = async (email: string) =>
       (await asUser(t, email).query(api.calendar.range, window))![0].eventRequestId;
     expect(await linkFor(EVA)).toBe(id);
-    expect(await linkFor(OLLIE)).toBeNull();
+    expect(await linkFor(OLLIE)).toBe(id);
     expect(await linkFor(LEE)).toBeNull();
     const asSeenBy = (email: string) => asUser(t, email).query(api.events.get, { eventId });
     expect(await asSeenBy(EVA)).toMatchObject({ fromEventRequest: true, eventRequestId: id });
-    const outsider = (await asSeenBy(OLLIE))!;
-    expect(outsider.fromEventRequest).toBe(true);
-    expect(outsider.eventRequestId).toBeUndefined();
+    expect(await asSeenBy(OLLIE)).toMatchObject({ fromEventRequest: true, eventRequestId: id });
+    const leader = (await asSeenBy(LEE))!;
+    expect(leader.fromEventRequest).toBe(true);
+    expect(leader.eventRequestId).toBeUndefined();
 
     const event = (await t.run((ctx) => ctx.db.get("events", eventId)))!;
     const same = { eventId, name: event.name, dateStart: event.dateStart, dateEnd: event.dateEnd, subgroups: ["SOW"] };
@@ -918,7 +918,34 @@ describe("lists", () => {
       });
     expect((await all(ELLA))!.page.map((r) => r.year)).toEqual([YEAR - 1, YEAR - 3]);
     expect((await all(ELLA))!.page[0].forms.marketing).toBeDefined();
-    expect(await all(OLLIE)).toBeNull();
+    expect((await all(OLLIE))!.page.map((r) => r.year)).toEqual([YEAR - 1, YEAR - 3]);
+    expect(await all(LEE)).toBeNull();
+  });
+});
+
+describe("removing test requests", () => {
+  test("only cancelled requests go, with their forms, history and comments", async () => {
+    const t = await setup();
+    const keep = await create(t);
+    const id = await create(t);
+    await asUser(t, EVA).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Test" });
+    await asUser(t, CARL).mutation(api.eventRequestComments.markRead, { id, form: "risk" });
+    await expect(t.mutation(internal.eventRequests.removeCancelled, { ids: [id] })).rejects.toThrow(
+      /Only a cancelled event request/
+    );
+    await asUser(t, EVA).mutation(api.eventRequests.cancel, { id });
+    await t.mutation(internal.eventRequests.removeCancelled, { ids: [id] });
+    const left = await t.run(async (ctx) => ({
+      requests: (await ctx.db.query("eventRequests").collect()).map((r) => r._id),
+      forms: (await ctx.db.query("eventSubForms").collect()).map((f) => f.eventRequestId),
+      history: (await ctx.db.query("eventRequestEvents").collect()).map((e) => e.eventRequestId),
+      comments: await ctx.db.query("eventRequestComments").collect(),
+      reads: await ctx.db.query("eventRequestCommentReads").collect(),
+    }));
+    expect(left.requests).toEqual([keep]);
+    expect(new Set([...left.forms, ...left.history])).toEqual(new Set([keep]));
+    expect(left.comments).toEqual([]);
+    expect(left.reads).toEqual([]);
   });
 });
 
@@ -956,7 +983,11 @@ describe("comments", () => {
       [EVA, "Is the venue quote OK?", false],
       [FRED, "Looks fine", false],
     ]);
-    expect(await asUser(t, OLLIE).query(api.eventRequestComments.list, { id, form: "finance" })).toBeNull();
+    // Other staff can read a thread but not add to it.
+    expect(await asUser(t, OLLIE).query(api.eventRequestComments.list, { id, form: "finance" })).toHaveLength(2);
+    await expect(
+      asUser(t, OLLIE).mutation(api.eventRequestComments.add, { id, form: "finance", body: "Hi" })
+    ).rejects.toThrow(/can comment on this form/);
     expect(await asUser(t, LEE).query(api.eventRequestComments.list, { id, form: "finance" })).toBeNull();
 
     expect(await asUser(t, EVA).query(api.eventRequestComments.unreadCounts, { ids: [id] })).toEqual({
@@ -966,6 +997,10 @@ describe("comments", () => {
     await asUser(t, EVA).mutation(api.eventRequestComments.markRead, { id, form: "finance" });
     expect(await asUser(t, EVA).query(api.eventRequestComments.unreadCounts, { ids: [id] })).toEqual({});
     expect(await asUser(t, LEE).query(api.eventRequestComments.unreadCounts, { ids: [id] })).toEqual({});
+    // Staff outside the thread can read it, but it doesn't count as unread for them.
+    expect(await asUser(t, OLLIE).query(api.eventRequestComments.unreadCounts, { ids: [id] })).toEqual({});
+    await t.run((ctx) => ctx.db.delete("eventRequests", id));
+    expect(await asUser(t, EVA).query(api.eventRequestComments.unreadCounts, { ids: [id] })).toEqual({});
   });
 
   test("opening the event clears its notifications", async () => {

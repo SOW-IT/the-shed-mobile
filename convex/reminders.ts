@@ -4,7 +4,7 @@ import {
   sydneyToday,
   type DesignRequestStatus,
 } from "../shared/designRequests";
-import { eventRequestRef, SUB_FORM_KINDS } from "../shared/eventRequests";
+import { SUB_FORM_KINDS } from "../shared/eventRequests";
 import {
   currentStep,
   eventStaffYear,
@@ -15,6 +15,7 @@ import {
 import { formatAmount } from "../shared/money";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import {
+  COMMENT_REMINDER_AFTER_MS,
   dueText,
   eventTimingText,
   forDays,
@@ -25,7 +26,7 @@ import {
   type ReminderKind,
 } from "../shared/reminders";
 import { internal } from "./_generated/api";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
 import { designRequestUrl, headRecipients, marketingTeam } from "./designRequests";
 import {
@@ -174,7 +175,7 @@ async function collectDesignRequests(
       );
       if (recipients.length === 0) continue;
       const needed = dueText(request.dueDate, today);
-      const what = `${designRequestName(request)}, ${request.title} for ${request.department}`;
+      const what = `${designRequestName(request)} for ${request.department}`;
       const line =
         status === "PENDING"
           ? `${what}: waiting on your approval ${forDays(days)}${needed ? `, ${needed}` : ""}`
@@ -256,7 +257,7 @@ async function collectEventForms(ctx: MutationCtx, digest: Digest, now: number) 
       if (recipients.length === 0) continue;
       const { due, count, days } = reminderDue(form, formMovementAt(event, form, trail), now);
       if (!due) continue;
-      const line = `${formName(kind)} for ${event.name} (${eventRequestRef(event)}): ${waitingOn} ${forDays(days)}${timing ? `; ${timing}` : ""}`;
+      const line = `${formName(kind)} for ${event.name}: ${waitingOn} ${forDays(days)}${timing ? `; ${timing}` : ""}`;
       const url = eventUrl(event, { form: kind });
       for (const to of recipients) {
         add(digest, to, { kind: "event", line, url, listUrl, emailed: true });
@@ -265,6 +266,124 @@ async function collectEventForms(ctx: MutationCtx, digest: Digest, now: number) 
         lastReminderAt: now,
         reminderCount: count + 1,
       });
+    }
+  }
+}
+
+const COMMENT_LOOKBACK_MS = 7 * COMMENT_REMINDER_AFTER_MS;
+
+type Comment = { authorEmail: string; postedAt: number };
+type Read = { lastReadAt: number; remindedAt?: number } | null;
+
+// The comments in a thread someone still hasn't read a day after they were
+// posted, leaving out any an earlier reminder already mentioned.
+const unreadToRemind = (comments: Comment[], to: string, read: Read, now: number) => {
+  const since = Math.max(read?.lastReadAt ?? 0, read?.remindedAt ?? 0);
+  return comments.filter(
+    (c) =>
+      c.authorEmail !== to &&
+      c.postedAt > since &&
+      now - c.postedAt >= COMMENT_REMINDER_AFTER_MS
+  );
+};
+
+const newestOf = (comments: Comment[]) => Math.max(...comments.map((c) => c.postedAt));
+
+// Unread comments go to whoever the thread is for: the requester, the form's
+// submitter and approver (the Marketing Head for a design request), and anyone
+// who has commented on it.
+async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: number) {
+  const since = now - COMMENT_LOOKBACK_MS;
+  const eventThreads = new Map<string, Doc<"eventRequestComments">[]>();
+  for await (const comment of ctx.db.query("eventRequestComments").order("desc")) {
+    if (comment._creationTime < since) break;
+    const key = `${comment.eventRequestId} ${comment.form}`;
+    eventThreads.set(key, [...(eventThreads.get(key) ?? []), comment]);
+  }
+  for (const comments of eventThreads.values()) {
+    const { eventRequestId, form: kind } = comments[0];
+    const event = await ctx.db.get("eventRequests", eventRequestId);
+    if (!event) continue;
+    const form = (await subFormsOf(ctx, event._id))[kind];
+    const recipients = uniqueRecipients([
+      event.requesterEmail,
+      form.submittedBy,
+      ...(await recipientsFor(ctx, await stepApprover(ctx, event, kind, form.step))),
+      ...comments.map((c) => c.authorEmail),
+    ]);
+    for (const to of recipients) {
+      const read = await ctx.db
+        .query("eventRequestCommentReads")
+        .withIndex("by_eventRequest_and_form_and_user", (q) =>
+          q.eq("eventRequestId", event._id).eq("form", kind).eq("userEmail", to)
+        )
+        .unique();
+      const unread = unreadToRemind(comments, to, read, now);
+      if (unread.length === 0) continue;
+      add(digest, to, {
+        kind: "comment",
+        line: `${plural(unread.length, "unread comment")} on the ${formName(kind)} for ${event.name}`,
+        url: eventUrl(event, { form: kind, thread: true }),
+        listUrl: "/event-requests",
+        emailed: true,
+      });
+      const remindedAt = newestOf(unread);
+      if (read) {
+        await ctx.db.patch("eventRequestCommentReads", read._id, { remindedAt });
+      } else {
+        await ctx.db.insert("eventRequestCommentReads", {
+          eventRequestId: event._id,
+          form: kind,
+          userEmail: to,
+          lastReadAt: 0,
+          remindedAt,
+        });
+      }
+    }
+  }
+
+  const designThreads = new Map<Id<"designRequests">, Doc<"designRequestComments">[]>();
+  for await (const comment of ctx.db.query("designRequestComments").order("desc")) {
+    if (comment._creationTime < since) break;
+    if (comment.legacyKey !== undefined) continue;
+    const id = comment.designRequestId;
+    designThreads.set(id, [...(designThreads.get(id) ?? []), comment]);
+  }
+  for (const [id, comments] of designThreads) {
+    const request = await ctx.db.get("designRequests", id);
+    if (!request) continue;
+    const recipients = uniqueRecipients([
+      request.requesterEmail,
+      ...(await headRecipients(ctx, request.year)),
+      ...comments.map((c) => c.authorEmail),
+    ]);
+    for (const to of recipients) {
+      const read = await ctx.db
+        .query("designRequestCommentReads")
+        .withIndex("by_designRequest_and_user", (q) =>
+          q.eq("designRequestId", id).eq("userEmail", to)
+        )
+        .unique();
+      const unread = unreadToRemind(comments, to, read, now);
+      if (unread.length === 0) continue;
+      add(digest, to, {
+        kind: "comment",
+        line: `${plural(unread.length, "unread comment")} on ${request.title ? `the design request for ${request.title}` : "a design request"}`,
+        url: designRequestUrl(request, { thread: true }),
+        listUrl: "/design-requests",
+        emailed: true,
+      });
+      const remindedAt = newestOf(unread);
+      if (read) {
+        await ctx.db.patch("designRequestCommentReads", read._id, { remindedAt });
+      } else {
+        await ctx.db.insert("designRequestCommentReads", {
+          designRequestId: id,
+          userEmail: to,
+          lastReadAt: 0,
+          remindedAt,
+        });
+      }
     }
   }
 }
@@ -323,6 +442,7 @@ export const remindStale = internalMutation({
     await collectRequests(ctx, digest, now);
     await collectDesignRequests(ctx, digest, inbox, now);
     await collectEventForms(ctx, digest, now);
+    await collectUnreadComments(ctx, digest, now);
     for (const { to, items } of digest.values()) {
       await sendDigest(ctx, to, items);
     }
