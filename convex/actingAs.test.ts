@@ -372,7 +372,7 @@ describe("choosing who to act as", () => {
     expect(await asUser(t, ADMIN).query(api.eventRequests.viewer, {})).not.toBeNull();
     expect(await asUser(t, ADMIN).query(api.waitingOnMe.summary, {})).not.toBeNull();
     await actAs(t, MARKETING_STAFF);
-    expect((await me(t)).isCampusLeader).toBe(false);
+    expect(await me(t)).toMatchObject({ isCampusLeader: false, canRequestEvents: false });
     expect(await asUser(t, ADMIN).query(api.eventRequests.viewer, {})).toMatchObject({
       reviews: true,
     });
