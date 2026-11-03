@@ -274,9 +274,12 @@ async function collectEventForms(ctx: MutationCtx, digest: Digest, now: number) 
 }
 
 const COMMENT_LOOKBACK_MS = 7 * COMMENT_REMINDER_AFTER_MS;
-// The newest comments one run looks at, so a busy week can't sink the digest.
+// How much one run reads, so a busy week can't sink the digest: the newest
+// 1,000 comments, then the 50 most recently active threads of each kind, 200
+// comments each, for who has commented there. Later threads wait a day.
 const COMMENT_SCAN_LIMIT = 1000;
-const THREAD_LIMIT = 500;
+const THREADS_PER_RUN = 50;
+const THREAD_LIMIT = 200;
 
 type Comment = { authorEmail: string; postedAt: number };
 type Read = { lastReadAt: number; remindedAt?: number } | null;
@@ -309,7 +312,7 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
     const key = `${comment.eventRequestId} ${comment.form}`;
     eventThreads.set(key, [...(eventThreads.get(key) ?? []), comment]);
   }
-  for (const comments of eventThreads.values()) {
+  for (const comments of [...eventThreads.values()].slice(0, THREADS_PER_RUN)) {
     const { eventRequestId, form: kind } = comments[0];
     const event = await ctx.db.get("eventRequests", eventRequestId);
     if (!event) continue;
@@ -374,7 +377,7 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
   }
   // Only the requester and the Marketing team can see a design request.
   const team = new Set((await marketingTeam(ctx)).map(emailKey));
-  for (const [id, comments] of designThreads) {
+  for (const [id, comments] of [...designThreads].slice(0, THREADS_PER_RUN)) {
     const request = await ctx.db.get("designRequests", id);
     if (!request) continue;
     const thread = await ctx.db
