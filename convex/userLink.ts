@@ -119,6 +119,19 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
   for (const token of tokens) {
     await ctx.db.patch("pushTokens", token._id, { email: newEmail });
   }
+
+  const choice = await ctx.db
+    .query("actingAs")
+    .withIndex("by_email", (q) => q.eq("email", oldEmail))
+    .unique();
+  if (choice) {
+    const taken = await ctx.db
+      .query("actingAs")
+      .withIndex("by_email", (q) => q.eq("email", newEmail))
+      .unique();
+    if (taken) await ctx.db.delete("actingAs", choice._id);
+    else await ctx.db.patch("actingAs", choice._id, { email: newEmail });
+  }
 }
 
 export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {

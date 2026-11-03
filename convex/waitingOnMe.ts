@@ -25,8 +25,9 @@ export const summary = query({
   returns: v.union(counts, v.null()),
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
-    if (!caller || isCampusLeader(caller)) return null;
+    if (!caller) return null;
     const lens = await lensFor(ctx, caller);
+    if (lens.kind === "self" && isCampusLeader(caller)) return null;
     const queues =
       lens.kind !== "self" || (await mayReviewReimbursements(ctx, caller.email, caller.year))
         ? await reviewQueues(ctx, caller, await openRequestsAcrossYears(ctx, caller.year), lens)

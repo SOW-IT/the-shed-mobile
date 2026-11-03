@@ -38,10 +38,15 @@ What we weighed (2026-11-04):
   glossary already says admins outside it can't see them. All views and
   every persona leave them out.
 - **Admin tools.** `directory.me` reports the persona's flags, so while
-  acting as Marketing staff the menu has no Admin, Announcements or
-  Mentoring, like a Marketing staff member's. The server still lets the
-  admin use them; the chip at the top and "Acting as" in the menu reset to
-  All views in one tap.
+  acting as Marketing staff the menu has no Admin or Announcements, like a
+  Marketing staff member's. Mentoring stays for an admin who mentors someone
+  themselves: their mentees are theirs, like Mine. The server still lets the
+  admin use the tools; the chip at the top and "Acting as" in the menu reset
+  to All views in one tap.
+- **Campus leaders.** An admin who also holds a campus role is not treated as
+  a campus leader on All views or while acting as a role, so the staff views
+  (reimbursements, event requests, Waiting on you) stay open; creating an
+  event still checks the real roles.
 
 Trade-offs: the server reads the admin's status and the `actingAs` row in
 each honouring query (a few indexed reads); a persona's Waiting on you can

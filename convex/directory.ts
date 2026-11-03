@@ -125,7 +125,8 @@ export const me = query({
         : headedDepartments,
       isDelegate,
       isApprover: await seesThrough(lens, () => isApprover, personaApproves),
-      isCampusLeader: assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
+      isCampusLeader:
+        lens.kind === "self" && assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
       roleTitles,
       isMentor: mentorship !== null,
       listsChurch: profile.year === year && assignmentsOf(profile).length > 0,

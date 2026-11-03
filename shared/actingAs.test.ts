@@ -125,6 +125,8 @@ describe("lenses", () => {
   test("acting as someone follows their role, and no lens follows your own", async () => {
     expect(await seesThrough(as, () => false, inMarketing)).toBe(true);
     expect(await waitsThrough(as, () => false, inMarketing)).toBe(true);
+    expect(await seesThrough(as, () => true, () => false)).toBe(false);
+    expect(await waitsThrough(as, () => true, () => false)).toBe(false);
     expect(await seesThrough(SELF_LENS, async () => false, inMarketing)).toBe(false);
     expect(await waitsThrough(SELF_LENS, () => true, inMarketing)).toBe(true);
   });

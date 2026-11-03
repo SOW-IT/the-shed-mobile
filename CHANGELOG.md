@@ -13,10 +13,11 @@ All notable changes to **The SHED** mobile app. This project follows
   at the top of the menu, picks All views (the default) or a role: the
   Director, the Budget Manager, or the staff or Head of any of this year's
   departments. The app then looks the way it does for someone in that role:
-  their tabs, queues, badges and Waiting on you, and no Admin, Announcements
-  or Mentoring unless the role has them. Acting as Marketing staff shows
-  every design request, the Marketing queue and the Marketing forms waiting
-  for review; Compliance staff see the Risk forms; Finance see every
+  their tabs, queues, badges and Waiting on you, and no Admin or
+  Announcements unless the role has them (Mentoring stays only if you mentor
+  someone yourself, since your mentees are yours). Acting as Marketing staff
+  shows every design request, the Marketing queue and the Marketing forms
+  waiting for review; Compliance staff see the Risk forms; Finance see every
   reimbursement. A chip at the top of the screen says who you're acting as,
   and tapping it goes back to All views. The choice is saved to your account,
   so it follows you to your other devices.

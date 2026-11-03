@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
+import { lensFor } from "./actingAs";
 import { syncEventRequestLinks } from "./eventRequestLinks";
 import { assignmentsOf, isMemberOfDepartment, roleNeedsUniversity } from "../shared/flow";
 import { formatDateTimeRange } from "../shared/forms";
@@ -36,9 +37,12 @@ export type SubForms = Record<SubFormKind, SubForm>;
 export const isCampusLeader = (caller: CallerContext) =>
   assignmentsOf(caller.profile).some((a) => roleNeedsUniversity(a.role));
 
+const seesStaffViews = async (ctx: Ctx, caller: CallerContext): Promise<boolean> =>
+  !isCampusLeader(caller) || (await lensFor(ctx, caller)).kind !== "self";
+
 export async function optionalEventStaff(ctx: Ctx): Promise<CallerContext | null> {
   const caller = await optionalProfile(ctx);
-  return caller && !isCampusLeader(caller) ? caller : null;
+  return caller && (await seesStaffViews(ctx, caller)) ? caller : null;
 }
 
 export async function requireEventStaff(ctx: Ctx): Promise<CallerContext> {

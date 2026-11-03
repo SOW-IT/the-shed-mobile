@@ -44,8 +44,12 @@ export const CommentsSheet = ({
     active ? { requestId: request._id } : "skip"
   );
   const loaded = useRetained(comments);
-  const canPost =
-    useQuery(api.comments.canComment, active ? { requestId: request._id } : "skip") !== false;
+  const permission = useQuery(
+    api.comments.canComment,
+    active ? { requestId: request._id } : "skip"
+  );
+  const canPost = permission !== false;
+  const postReady = permission === true;
   const add = useMutation(api.comments.add).withOptimisticUpdate(
     (localStore, { requestId, body }) => {
       const current = localStore.getQuery(api.comments.list, { requestId });
@@ -110,12 +114,13 @@ export const CommentsSheet = ({
       comments={loaded}
       onSend={(body) => add({ requestId: request._id, body })}
       onReact={
-        canPost
+        postReady
           ? (commentId, emoji) =>
               toggleReaction({ commentId: commentId as Id<"requestComments">, emoji })
           : undefined
       }
       canPost={canPost}
+      postReady={postReady}
       readOnlyNote="Only the requester, Finance and the request's approvers can comment on it."
     />
   );

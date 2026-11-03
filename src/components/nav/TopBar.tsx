@@ -39,8 +39,10 @@ export const TopBar = ({
   return (
     <View style={styles.topBar}>
       <View style={styles.center} pointerEvents="box-none">
-        <TestEnvironmentChip />
-        <ActingAsChip />
+        <View style={styles.chipRow} pointerEvents="box-none">
+          <TestEnvironmentChip />
+          <ActingAsChip />
+        </View>
         <UpdatePill />
       </View>
       {isAuthenticated ? (
@@ -124,10 +126,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    gap: 2,
     alignItems: "center",
     justifyContent: "center",
   },
+  chipRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   signInButton: {
     flexDirection: "row",
     alignItems: "center",

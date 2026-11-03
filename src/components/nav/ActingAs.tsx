@@ -57,12 +57,14 @@ const ChoiceRow = ({
   caption,
   selected,
   onPress,
+  disabled = false,
   children,
 }: {
   title: string;
   caption?: string;
   selected: boolean;
   onPress?: () => void;
+  disabled?: boolean;
   children?: ReactNode;
 }) => {
   const t = useAppTheme();
@@ -98,13 +100,15 @@ const ChoiceRow = ({
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="radio"
-      accessibilityState={{ checked: selected }}
+      accessibilityState={{ checked: selected, disabled }}
       accessibilityLabel={caption ? `${title}, ${caption}` : title}
       style={({ pressed }) => [
         styles.choiceRow,
         selected && { backgroundColor: t.primarySoft },
         pressed && { opacity: 0.7 },
+        disabled && styles.disabled,
       ]}
     >
       {body}
@@ -117,19 +121,22 @@ const ChoiceChip = ({
   accessibilityLabel,
   selected,
   onPress,
+  disabled = false,
 }: {
   label: string;
   accessibilityLabel: string;
   selected: boolean;
   onPress: () => void;
+  disabled?: boolean;
 }) => {
   const t = useAppTheme();
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       hitSlop={4}
       accessibilityRole="radio"
-      accessibilityState={{ checked: selected }}
+      accessibilityState={{ checked: selected, disabled }}
       accessibilityLabel={accessibilityLabel}
       style={({ pressed }) => [
         styles.choiceChip,
@@ -137,6 +144,7 @@ const ChoiceChip = ({
           ? { backgroundColor: t.primary, borderColor: t.primary }
           : { backgroundColor: t.card, borderColor: t.border },
         pressed && { opacity: 0.7 },
+        disabled && styles.disabled,
       ]}
     >
       <Text style={[styles.choiceChipText, { color: selected ? t.onPrimary : t.text }]}>
@@ -163,7 +171,7 @@ export const ActingAsPicker = ({
   titles?: RoleTitles;
 }) => {
   const options = useQuery(api.actingAs.options, visible ? {} : "skip");
-  const { choose, error } = useChoose();
+  const { choose, busy, error } = useChoose();
   const pick = (persona: Persona | null) => {
     void choose(persona).then((ok) => {
       if (ok) onClose();
@@ -188,6 +196,7 @@ export const ActingAsPicker = ({
         caption="Every list, queue and form, the default"
         selected={current === null}
         onPress={() => pick(null)}
+        disabled={busy}
       />
       <GroupLabel>Roles</GroupLabel>
       {roles.map((persona) => (
@@ -197,6 +206,7 @@ export const ActingAsPicker = ({
           caption={personaHighlights(persona).join(" · ")}
           selected={samePersona(current, persona)}
           onPress={() => pick(persona)}
+          disabled={busy}
         />
       ))}
       <GroupLabel>Departments</GroupLabel>
@@ -218,12 +228,14 @@ export const ActingAsPicker = ({
                 accessibilityLabel={personaLabel(staff)}
                 selected={samePersona(current, staff)}
                 onPress={() => pick(staff)}
+                disabled={busy}
               />
               <ChoiceChip
                 label="Head"
                 accessibilityLabel={personaLabel(head)}
                 selected={samePersona(current, head)}
                 onPress={() => pick(head)}
+                disabled={busy}
               />
             </View>
           </ChoiceRow>
@@ -236,7 +248,7 @@ export const ActingAsPicker = ({
 export const ActingAsControl = () => {
   const t = useAppTheme();
   const { actingAs, titles } = useActingAs();
-  const { choose } = useChoose();
+  const { choose, busy, error } = useChoose();
   const [open, setOpen] = useState(false);
   if (!actingAs) return null;
   const acting = actingAs.persona !== null;
@@ -271,6 +283,7 @@ export const ActingAsControl = () => {
         {acting ? (
           <Pressable
             onPress={() => void choose(null)}
+            disabled={busy}
             hitSlop={6}
             accessibilityRole="button"
             accessibilityLabel={`Stop acting as ${label} and go back to ${ALL_VIEWS_LABEL}`}
@@ -278,12 +291,18 @@ export const ActingAsControl = () => {
               styles.reset,
               { backgroundColor: t.accentSoft },
               pressed && { opacity: 0.7 },
+              busy && styles.disabled,
             ]}
           >
             <Ionicons name="close" size={15} color={t.accent} />
           </Pressable>
         ) : null}
       </View>
+      {error ? (
+        <Text accessibilityRole="alert" style={[typography.caption, { color: t.danger }]}>
+          {`Couldn't go back to ${ALL_VIEWS_LABEL}. ${error}`}
+        </Text>
+      ) : null}
       <ActingAsPicker
         visible={open}
         onClose={() => setOpen(false)}
@@ -297,32 +316,39 @@ export const ActingAsControl = () => {
 export const ActingAsChip = () => {
   const t = useAppTheme();
   const { actingAs } = useActingAs();
-  const { choose } = useChoose();
+  const { choose, busy, error } = useChoose();
   if (!actingAs?.persona) return null;
   const label = actingAs.label ?? "";
   return (
     <Pressable
       onPress={() => void choose(null)}
+      disabled={busy}
       hitSlop={6}
       accessibilityRole="button"
-      accessibilityLabel={`Acting as ${label}. Tap to go back to ${ALL_VIEWS_LABEL}`}
+      accessibilityLabel={
+        error
+          ? `Couldn't go back to ${ALL_VIEWS_LABEL}: ${error} Tap to try again`
+          : `Acting as ${label}. Tap to go back to ${ALL_VIEWS_LABEL}`
+      }
       style={({ pressed }) => [
         styles.chip,
-        { backgroundColor: t.accent },
+        { backgroundColor: error ? t.danger : t.accent },
         pressed && { opacity: 0.7 },
+        busy && styles.disabled,
       ]}
     >
-      <Ionicons name="eye" size={12} color={t.onPrimary} />
+      <Ionicons name={error ? "alert-circle" : "eye"} size={12} color={t.onPrimary} />
       <Text numberOfLines={1} style={[styles.chipText, { color: t.onPrimary }]}>
-        {label}
+        {error ? "Couldn't reset, tap to retry" : label}
       </Text>
-      <Ionicons name="close" size={12} color={t.onPrimary} />
+      <Ionicons name={error ? "refresh" : "close"} size={12} color={t.onPrimary} />
     </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
   intro: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
+  disabled: { opacity: 0.5 },
   controlBlock: { gap: spacing.xs, marginTop: spacing.sm },
   controlCaption: {
     fontSize: 11,
@@ -356,7 +382,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    maxWidth: 170,
+    maxWidth: 150,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: radius.full,

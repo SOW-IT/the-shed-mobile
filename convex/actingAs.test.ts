@@ -8,6 +8,7 @@ import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import schema from "./schema";
+import { linkUserProfiles } from "./userLink";
 
 const modules = import.meta.glob("./**/*.ts");
 const DAY = 86_400_000;
@@ -325,6 +326,55 @@ describe("choosing who to act as", () => {
     });
   });
 
+  test("the choice follows a renamed account", async () => {
+    const { t } = await setup();
+    await actAs(t, MARKETING_STAFF);
+    const userId = await t.run((ctx) => ctx.db.insert("users", { email: ADMIN }));
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
+    await t.run((ctx) => ctx.db.patch("users", userId, { email: "admin.new@sow.org.au" }));
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
+    expect(await t.run((ctx) => ctx.db.query("actingAs").collect())).toMatchObject([
+      { email: "admin.new@sow.org.au", persona: MARKETING_STAFF },
+    ]);
+    expect((await me(t, "admin.new@sow.org.au")).actingAs?.label).toBe("Marketing staff");
+
+    await t.run((ctx) =>
+      ctx.db.insert("actingAs", { email: "admin.newer@sow.org.au", persona: { role: "director" } })
+    );
+    await t.run((ctx) => ctx.db.patch("users", userId, { email: "admin.newer@sow.org.au" }));
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
+    expect(await t.run((ctx) => ctx.db.query("actingAs").collect())).toMatchObject([
+      { email: "admin.newer@sow.org.au", persona: { role: "director" } },
+    ]);
+  });
+
+  test("an admin who is also a campus leader still gets the staff views", async () => {
+    const { t } = await setup();
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", ADMIN).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", profile!._id, {
+        assignments: [
+          { role: "Staff", department: "Data and IT" },
+          { role: "Student Leader", university: "University of New South Wales" },
+        ],
+      });
+    });
+    expect((await me(t)).isCampusLeader).toBe(false);
+    expect(await asUser(t, ADMIN).query(api.eventRequests.viewer, {})).not.toBeNull();
+    expect(await asUser(t, ADMIN).query(api.waitingOnMe.summary, {})).not.toBeNull();
+    await actAs(t, MARKETING_STAFF);
+    expect((await me(t)).isCampusLeader).toBe(false);
+    expect(await asUser(t, ADMIN).query(api.eventRequests.viewer, {})).toMatchObject({
+      reviews: true,
+    });
+    expect((await me(t, LEE)).isCampusLeader).toBe(true);
+    expect(await asUser(t, LEE).query(api.eventRequests.viewer, {})).toBeNull();
+    expect(await asUser(t, LEE).query(api.waitingOnMe.summary, {})).toBeNull();
+  });
+
   test("deleting an account forgets the choice", async () => {
     const { t } = await setup();
     await actAs(t, MARKETING_STAFF);
@@ -400,6 +450,9 @@ describe("admins see every view by default", () => {
 
   test("every reimbursement queue and the Finance views, with only their own work to action", async () => {
     const { t, requests } = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("requests", request({ requesterEmail: ADMIN, department: "Data and IT" }))
+    );
     const admin = asUser(t, ADMIN);
     const queues = await reimbursementQueues(t);
     expect(queues).toMatchObject({
@@ -410,8 +463,8 @@ describe("admins see every view by default", () => {
       readyToPay: [requests.pay],
     });
     expect(queues.rows.every((r) => !r.canAct && !r.waiting)).toBe(true);
-    expect(await admin.query(api.requests.allRequests, {})).toHaveLength(6);
-    expect(await admin.query(api.requests.requestsForExport, { years: [YEAR] })).toHaveLength(6);
+    expect(await admin.query(api.requests.allRequests, {})).toHaveLength(7);
+    expect(await admin.query(api.requests.requestsForExport, { years: [YEAR] })).toHaveLength(7);
     expect(
       await admin.query(api.requests.earlierAll, { paginationOpts: { numItems: 10, cursor: null } })
     ).toMatchObject({ page: [] });
