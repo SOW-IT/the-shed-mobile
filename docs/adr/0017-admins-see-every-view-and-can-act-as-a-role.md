@@ -46,7 +46,8 @@ What we weighed (2026-11-04):
 - **Campus leaders.** An admin who also holds a campus role is not treated as
   a campus leader on All views or while acting as a role, so the staff views
   (reimbursements, event requests, Waiting on you) stay open; creating an
-  event still checks the real roles.
+  event still checks the real roles, and `directory.me` reports
+  `canRequestEvents` from them so the New Event Request button stays hidden.
 
 Trade-offs: the server reads the admin's status and the `actingAs` row in
 each honouring query (a few indexed reads); a persona's Waiting on you can

@@ -72,7 +72,7 @@ export default function EventRequestFormScreen() {
   const editId = typeof edit === "string" && edit ? edit : null;
   const { isLoading: authLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.directory.me);
-  const staff = !!me?.profile && !me.isCampusLeader;
+  const staff = !!me?.profile && me.canRequestEvents;
   const viewer = useQuery(api.eventRequests.viewer, staff ? {} : "skip");
   const structure = useQuery(api.directory.yearStructure, me?.profile ? { year: me.year } : "skip");
   const existing = useQuery(api.eventRequests.get, editId ? { id: editId } : "skip");

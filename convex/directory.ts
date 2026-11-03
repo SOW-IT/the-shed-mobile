@@ -88,6 +88,7 @@ export const me = query({
     const persona = lens.kind === "as" ? lens.persona : null;
     const roleTitles = await roleTitlesForYear(ctx, year);
     const isFinanceHead = approvers.financeHeadEmail === email;
+    const isRealCampusLeader = assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role));
     const isApprover =
       headedDepartments.some((d) => d !== FINANCE) ||
       approvers.budgetManagerEmail === email ||
@@ -125,8 +126,8 @@ export const me = query({
         : headedDepartments,
       isDelegate,
       isApprover: await seesThrough(lens, () => isApprover, personaApproves),
-      isCampusLeader:
-        lens.kind === "self" && assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
+      isCampusLeader: lens.kind === "self" && isRealCampusLeader,
+      canRequestEvents: !isRealCampusLeader,
       roleTitles,
       isMentor: mentorship !== null,
       listsChurch: profile.year === year && assignmentsOf(profile).length > 0,

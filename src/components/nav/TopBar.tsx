@@ -17,6 +17,8 @@ import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import { badgeText } from "@/lib/navMenu";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
+const EDGE_CONTROLS_WIDTH = 60;
+
 export const TopBar = ({
   photo,
   name,
@@ -126,10 +128,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    paddingHorizontal: EDGE_CONTROLS_WIDTH,
     alignItems: "center",
     justifyContent: "center",
   },
-  chipRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  chipRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, maxWidth: "100%" },
   signInButton: {
     flexDirection: "row",
     alignItems: "center",

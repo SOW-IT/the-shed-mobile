@@ -350,6 +350,7 @@ describe("choosing who to act as", () => {
 
   test("an admin who is also a campus leader still gets the staff views", async () => {
     const { t } = await setup();
+    expect((await me(t)).canRequestEvents).toBe(true);
     await t.run(async (ctx) => {
       const profile = await ctx.db
         .query("staffProfiles")
@@ -362,7 +363,12 @@ describe("choosing who to act as", () => {
         ],
       });
     });
-    expect((await me(t)).isCampusLeader).toBe(false);
+    expect(await me(t)).toMatchObject({ isCampusLeader: false, canRequestEvents: false });
+    await expect(
+      asUser(t, ADMIN).mutation(api.eventRequests.create, {
+        answers: eventAnswers({ department: "Data and IT" }),
+      })
+    ).rejects.toThrow(/not campus leaders/);
     expect(await asUser(t, ADMIN).query(api.eventRequests.viewer, {})).not.toBeNull();
     expect(await asUser(t, ADMIN).query(api.waitingOnMe.summary, {})).not.toBeNull();
     await actAs(t, MARKETING_STAFF);
@@ -370,7 +376,7 @@ describe("choosing who to act as", () => {
     expect(await asUser(t, ADMIN).query(api.eventRequests.viewer, {})).toMatchObject({
       reviews: true,
     });
-    expect((await me(t, LEE)).isCampusLeader).toBe(true);
+    expect(await me(t, LEE)).toMatchObject({ isCampusLeader: true, canRequestEvents: false });
     expect(await asUser(t, LEE).query(api.eventRequests.viewer, {})).toBeNull();
     expect(await asUser(t, LEE).query(api.waitingOnMe.summary, {})).toBeNull();
   });
