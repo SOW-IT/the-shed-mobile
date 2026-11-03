@@ -372,7 +372,12 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **App errors**: a screen that crashes, or an unhandled error, is reported
   (`convex/appErrors.ts`) with the route, platform, version and who hit it,
   grouped by fingerprint. Admins see the last seven days on Admin, Other and
-  clear them there.
+  clear them there. Not reported: network drops in unhandled rejections, the
+  web's "Requiring unknown module" from Expo's synchronous first try at a
+  route (it then loads the chunk), and a web tab from an older release that
+  can't load a screen's code, which reloads itself once onto the new release
+  (`src/lib/staleRelease.ts`) and is only reported if that fails again within
+  a minute.
 - **Update prompt**: phones ask for the store version when it's older than the
   server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
   banner that can be dismissed; below `minimum`, a full screen with only the
@@ -660,8 +665,11 @@ app use the dev deployment. Redeploy the site with:
 npm run deploy:web
 ```
 
-(`web/vercel.json` provides clean URLs + an SPA fallback for the dynamic
-routes.) When Google sign-in is configured, also set the deployment's
+(`web/vercel.json`, like the root `vercel.json` that Vercel's own build
+uses, provides an SPA fallback for the dynamic routes. Missing files under
+`/_expo/` and `/assets/` are left out of it so they 404: a tab still running
+an older release then gets a clean chunk-load error and reloads, instead of
+being handed the HTML page as JavaScript.) When Google sign-in is configured, also set the deployment's
 `SITE_URL` to the hosted URL so web OAuth redirects return there:
 
 ```bash

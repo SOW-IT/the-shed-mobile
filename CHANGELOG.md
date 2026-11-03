@@ -6,6 +6,30 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.25] - 2026-11-04
+
+### Fixed
+- **The web app moves onto a new release instead of showing "Something went
+  wrong".** A tab left open from before a release used to fail the next time
+  it opened a screen it hadn't loaded yet, because that screen's code had
+  been replaced. The site now answers a request for old code with "not
+  found" instead of the app's own page, and the app reloads itself once onto
+  the new release and opens the screen you asked for. If the new release
+  can't load either, you see "This part of The SHED couldn't load" with a
+  Reload button, and it isn't retried in a loop.
+- **Links to maps, websites, Instagram, email and phone numbers always do
+  something.** On iPhone, a church's address or website could do nothing at
+  all when iOS wouldn't open it. Web links now try again inside the app,
+  addresses fall back to Google Maps, and if nothing can open you're told
+  why, with the address, email or number to use instead.
+- **A dropped connection shows a plain message.** Signing in, uploading a
+  receipt or saving something while offline says to check your internet
+  connection instead of "Failed to fetch" or "Network request failed".
+- **The error log only lists real problems.** Almost every web page load
+  logged a "Requiring unknown module" error even though nothing went wrong,
+  and short network drops were logged as app errors. Neither is logged any
+  more, and a screen that recovers by reloading isn't logged either.
+
 ## [2.10.20] - 2026-11-03
 
 ### Changed
