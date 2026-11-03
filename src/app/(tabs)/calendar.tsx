@@ -457,7 +457,7 @@ export default function CalendarScreen() {
               <LoadingState />
             ) : dayEvents.length === 0 ? (
               <EmptyState
-                icon="calendar-clear-outline"
+                icon="calendar-outline"
                 title="Nothing on"
                 message={
                   shown.length < all.length

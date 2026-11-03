@@ -13,6 +13,7 @@ import {
   type SubFormKind,
 } from "@shared/eventRequests";
 import { EventStatusPill, SubFormStatusPill } from "@/components/events/EventPills";
+import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
 import { eventHistoryLabel, subFormCardLine } from "@/lib/eventRequestText";
@@ -161,7 +162,7 @@ export default function EventRequestScreen() {
     return (
       <Screen title="Event request" onBack={goBack}>
         <EmptyState
-          icon="calendar-outline"
+          icon={EVENT_REQUEST_ICON.outline}
           title="Event request not found"
           message="It may have been removed, or it isn't one you can see."
         />
@@ -258,7 +259,7 @@ export default function EventRequestScreen() {
                     <Btn
                       title="On the Calendar"
                       variant="tonal"
-                      icon="calendar-clear-outline"
+                      icon="calendar-outline"
                       onPress={() => router.push(`/calendar?day=${event.startsAt.slice(0, 10)}&at=${Date.now()}`)}
                     />
                   ) : null}

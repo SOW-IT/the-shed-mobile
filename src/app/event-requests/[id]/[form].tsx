@@ -28,6 +28,7 @@ import {
 import { CommentsButton } from "@/components/CommentThreadSheet";
 import { EventCommentsSheet } from "@/components/events/EventCommentsSheet";
 import { SubFormStatusPill } from "@/components/events/EventPills";
+import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
   financeDataFrom,
   financeDraftFrom,
@@ -165,7 +166,7 @@ export default function EventSubFormScreen() {
     return (
       <Screen title="Event form" onBack={goBack}>
         <EmptyState
-          icon="calendar-outline"
+          icon={EVENT_REQUEST_ICON.outline}
           title="Form not found"
           message="It may have been removed, or it isn't one you can see."
         />

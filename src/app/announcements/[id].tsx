@@ -29,7 +29,10 @@ export default function AnnouncementScreen() {
   const announcement = useQuery(api.announcements.get, id ? { id } : "skip");
   const markRead = useMutation(api.notifications.markReadForAnnouncement);
   const [showNotSeen, setShowNotSeen] = useState(false);
-  const back = () => (router.canGoBack() ? router.back() : router.replace("/home"));
+  const back = () =>
+    router.canGoBack()
+      ? router.back()
+      : router.replace(announcement?.details ? "/announcements" : "/home");
 
   const loadedId = announcement?.id;
   useEffect(() => {
