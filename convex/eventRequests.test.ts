@@ -192,7 +192,10 @@ describe("who can use event requests", () => {
     expect(await asUser(t, LEE).query(api.eventRequests.get, { id })).toBeNull();
     expect(await asUser(t, LEE).query(api.eventRequests.timeline, { id })).toBeNull();
     expect(await asUser(t, LEE).query(api.eventRequests.all, { year: YEAR })).toBeNull();
-    expect(await asUser(t, OLLIE).query(api.eventRequests.viewer, {})).toMatchObject({ reviews: false });
+    expect(await asUser(t, OLLIE).query(api.eventRequests.viewer, {})).toMatchObject({
+      reviews: false,
+      seesAll: true,
+    });
     expect(await asUser(t, CARL).query(api.eventRequests.viewer, {})).toMatchObject({ reviews: true });
     expect(await asUser(t, ELLA).query(api.eventRequests.viewer, {})).toMatchObject({
       reviews: false,

@@ -123,6 +123,9 @@ export const viewer = query({
       year: caller.year,
       departments: departmentsOf(caller.profile),
       reviews: SUB_FORM_KINDS.some((k) => scope.teams[k]) || scope.director,
+      // Every staff member sees All; app versions before 2.10.21 show it only
+      // when this is true.
+      seesAll: true,
     };
   },
 });

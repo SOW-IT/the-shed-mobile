@@ -28,7 +28,7 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   back, the reviewer for forms waiting). A design or event request comment
   still unread a day after it was posted goes in once, to the requester, the
   form's submitter and approver (the Marketing Head for a design request) and
-  anyone else in the thread. Each person gets
+  anyone else who has commented there and still can. Each person gets
   one notification, push and email a morning listing everything waiting on
   them; nobody with nothing waiting hears anything, and weekends are not
   skipped. Reminder emails can be turned off on Profile. Home lists what is

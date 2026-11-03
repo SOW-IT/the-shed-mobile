@@ -8,7 +8,7 @@ import {
   type DesignField,
   type DesignRequestStatus,
 } from "../../shared/designRequests";
-import { MUTED, PdfWriter, TEXT } from "./pdfWriter";
+import { fileSlug, MUTED, PdfWriter, TEXT } from "./pdfWriter";
 import { sydneyDateTime } from "./sydneyTime";
 
 export type DesignRequestPdfInput = {
@@ -37,7 +37,7 @@ export type DesignRequestPdfInput = {
 };
 
 export const designRequestPdfFilename = (r: { title: string }) => {
-  const slug = r.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const slug = fileSlug(r.title);
   return slug ? `design-request-${slug}.pdf` : "design-request.pdf";
 };
 

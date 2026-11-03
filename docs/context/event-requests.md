@@ -105,7 +105,7 @@ side while the form is Not submitted or has Changes requested, the form's
 reviewer while it is Waiting for approval. It says how far off the event is.
 Part of the person's daily digest. A comment still unread a day after it was
 posted is in it once too, for the requester, the form's submitter and
-approver and anyone else in the thread.
+approver and anyone else who has commented there and still can.
 
 **Waiting since**:
 When a form was sent for approval. To review shows it and lists the events
