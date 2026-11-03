@@ -2,22 +2,18 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { Fragment, type MutableRefObject, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Alert, Image, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
   DIRECTOR_APPROVAL_THRESHOLD,
   requestCompleted,
-  requestCreatedAt,
   requestDeclined,
   requestFullyApproved,
-  requestStaffYear,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
-import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
-import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import {
   getLocalFileSizeBytes,
@@ -826,7 +822,7 @@ export const MyRequests = ({
   focusThread = false,
   focusReopenKey,
   onFocusThreadOpened,
-  loadMoreRef,
+  onShowPast,
 }: {
   departments: string[];
   defaultDepartment: string;
@@ -840,17 +836,10 @@ export const MyRequests = ({
   focusReopenKey?: string;
   onFocusThreadOpened?: () => void;
   directorThreshold?: number;
-  loadMoreRef?: MutableRefObject<(() => void) | null>;
+  onShowPast?: () => void;
 }) => {
   const t = useAppTheme();
   const requests = useQuery(api.requests.myRequests, {});
-  const earlier = useEarlierYears(api.requests.earlierMine, {
-    enabled: requests != null,
-    exclude: (requests ?? []).map((r) => r._id),
-    yearOf: requestStaffYear,
-    newestOf: requestCreatedAt,
-    loadMoreRef,
-  });
   const cancel = useMutation(api.requests.cancel);
   const deleteDeclined = useMutation(api.requests.deleteDeclined);
   const sendNudge = useMutation(api.requests.nudge);
@@ -890,11 +879,21 @@ export const MyRequests = ({
       {requests == null ? (
         <LoadingState />
       ) : requests.length === 0 ? (
-        <EmptyState
-          icon="receipt-outline"
-          title={earlier.groups.length > 0 ? "Nothing this year yet" : "No requests yet"}
-          action={onMakeRequest ? { label: "Make a request", onPress: onMakeRequest } : undefined}
-        />
+        <>
+          <EmptyState
+            icon="receipt-outline"
+            title={onShowPast ? "Nothing this year yet" : "No requests yet"}
+            message={
+              onShowPast ? "Your requests from earlier staff years are under Past." : undefined
+            }
+            action={onMakeRequest ? { label: "Make a request", onPress: onMakeRequest } : undefined}
+          />
+          {onShowPast ? (
+            <View style={styles.pastLink}>
+              <Btn title="See past requests" variant="ghost" onPress={onShowPast} />
+            </View>
+          ) : null}
+        </>
       ) : (
         <Grid minColumnWidth={380}>
           {[...requests]
@@ -981,20 +980,6 @@ export const MyRequests = ({
           })}
         </Grid>
       )}
-      <EarlierYears
-        groups={earlier.groups}
-        hasMore={earlier.hasMore}
-        loadingMore={earlier.loadingMore}
-        onLoadMore={earlier.loadMore}
-        note={(years) => <ReceiptFilesNote years={years} />}
-        renderRows={(rows) => (
-          <Grid minColumnWidth={380}>
-            {rows.map((request) => (
-              <RequestCard key={request._id} request={request} collapsible />
-            ))}
-          </Grid>
-        )}
-      />
       <NewRequestSheet
         visible={newOpen}
         onClose={onNewClose}
@@ -1077,6 +1062,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
   },
+  pastLink: { alignItems: "center", marginTop: -spacing.md },
   saveToggleRow: {
     flexDirection: "row",
     alignItems: "center",
