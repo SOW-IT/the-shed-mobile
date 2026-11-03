@@ -479,6 +479,49 @@ describe("unread comment reminders", () => {
     }
   });
 
+  test("an approver whose Head address is an alias is reminded there", async () => {
+    const t = await setup();
+    const alias = "cora@sowaustralia.com";
+    await t.run(async (ctx) => {
+      for (const department of await ctx.db.query("departments").collect()) {
+        if (department.name === "Compliance") {
+          await ctx.db.patch("departments", department._id, { headEmail: alias });
+        }
+      }
+    });
+    const id = await createEvent(t);
+    await asUser(t, RACHEL).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Tents?" });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    expect((await emailsTo(t, alias)).map((m) => m.body).join("\n")).toContain(
+      "1 unread comment on the Risk form for Winter Camp"
+    );
+  });
+
+  test("a requester who has since become a campus leader isn't reminded", async () => {
+    const t = await setup();
+    const id = await createEvent(t);
+    await submitRisk(t, id, SAM);
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", RACHEL).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", profile!._id, {
+        assignments: [{ role: "Student Leader", university: "UNSW" }],
+      });
+    });
+    await asUser(t, CORA).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Rain plan?" });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    for (const mail of await emailsTo(t, RACHEL)) expect(mail.body).not.toContain("unread comment");
+    expect((await emailsTo(t, SAM)).map((m) => m.body).join("\n")).toContain(
+      "1 unread comment on the Risk form for Winter Camp"
+    );
+  });
+
   test("design request comments remind the requester and the Marketing Head", async () => {
     const t = await setup();
     const id = await submitDesign(t);

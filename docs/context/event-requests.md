@@ -86,8 +86,9 @@ The requester's side sees their events (Mine). The three teams, their Heads
 and the Director review what's waiting for them (To review, with a badge for
 what's waiting on you). They, the Events department and admins can see every
 event (All). Only the requester's side fills in, edits or cancels it, and
-only a form's team and requester's side comment on it. Mine and All run back through earlier staff years as you
-scroll. Campus leaders don't use event requests.
+only a form's team, the requester's side and (on Finance forms) the Director
+comment on it. Mine and All run back through earlier staff years as you scroll.
+Campus leaders don't use event requests.
 
 **Legacy event**:
 An event form imported once from the old web app's Firestore (2.3.0; the
