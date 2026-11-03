@@ -258,10 +258,11 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   bottom tab for staff and campus leaders: a month where each event is a
   coloured bar across the days it runs (the start of its name), or a week
   with the hours down the side like Google Calendar's (Month or Week is
-  remembered per device; `?view=week` opens the week), then the picked day's
-  events in full below. It shows every attendance event, wherever it was made,
-  plus **calendar entries** (`calendarEntries`): things that don't take
-  attendance, with optional notes and no campus. "Add Event" adds an Event or
+  remembered per device; `?view=week` opens the week; swiping the month or
+  week left or right goes to the next or previous one, like the arrows), then
+  the picked day's events in full below. It shows every attendance event,
+  wherever it was made, plus **calendar entries** (`calendarEntries`):
+  things that don't take attendance, with optional notes and no campus. "Add Event" adds an Event or
   a **deadline** (a day and an optional time with no end, shown with a flag)
   on the picked day, or the hour tapped on the week. Ticking "Take attendance"
   asks where it's held and carries on in Attendance's event form (tags,
