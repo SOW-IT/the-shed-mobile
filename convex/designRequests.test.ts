@@ -215,7 +215,11 @@ describe("who sees what", () => {
       canSeeQueue: true,
     });
     expect(await viewer(MARY)).toMatchObject({ isMarketingStaff: true, canSeeQueue: true });
-    expect(await viewer(ADMIN)).toMatchObject({ isMarketingStaff: false, canSeeQueue: false });
+    expect(await viewer(ADMIN)).toMatchObject({
+      isMarketingHead: false,
+      isMarketingStaff: false,
+      canSeeQueue: true,
+    });
     expect(await viewer(RACHEL)).toMatchObject({ canSeeQueue: false });
     expect(await t.query(api.designRequests.viewer, {})).toBeNull();
   });
@@ -263,7 +267,7 @@ describe("who sees what", () => {
     expect(current!.every((r) => r.requesterEmail === RACHEL)).toBe(true);
 
     expect(await rachel.query(api.designRequests.queue, {})).toBeNull();
-    expect(await asUser(t, ADMIN).query(api.designRequests.queue, {})).toBeNull();
+    expect(await asUser(t, ADMIN).query(api.designRequests.queue, {})).toHaveLength(3);
     const queue = await asUser(t, MARY).query(api.designRequests.queue, {});
     expect(queue!.map((r) => `${r.year}#${r.number}`).sort()).toEqual(
       [`${YEAR}#1`, `${YEAR}#2`, `${YEAR - 2}#1`].sort()
@@ -298,7 +302,7 @@ describe("who sees what", () => {
     expect(await t.query(api.designRequests.earlierMine, firstPage)).toBeNull();
   });
 
-  test("a request is visible to its requester and Marketing only, not admins", async () => {
+  test("a request is visible to its requester, Marketing and admins (read-only)", async () => {
     const t = await setup();
     const id = await submit(t, RACHEL);
     const get = (email: string, raw: string = id) =>
@@ -313,7 +317,13 @@ describe("who sees what", () => {
     });
     expect((await get(HENRY))!.can).toMatchObject({ approve: true, comment: true });
     expect((await get(MARY))!.can).toMatchObject({ approve: false, complete: false });
-    expect(await get(ADMIN)).toBeNull();
+    expect((await get(ADMIN))!.can).toEqual({
+      approve: false,
+      complete: false,
+      edit: false,
+      cancel: false,
+      comment: false,
+    });
     expect(await get(PAUL)).toBeNull();
     expect(await get(RACHEL, "not-an-id")).toBeNull();
     expect(await t.query(api.designRequests.get, { id })).toBeNull();

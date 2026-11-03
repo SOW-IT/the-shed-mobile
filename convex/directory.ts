@@ -10,7 +10,16 @@ import {
   roleNeedsUniversity,
   roleTitle,
 } from "../shared/flow";
+import {
+  personaApproves,
+  personaHeads,
+  personaInDepartment,
+  personaIsBudgetManager,
+  personaIsDirector,
+  seesThrough,
+} from "../shared/actingAs";
 import { query } from "./_generated/server";
+import { actingAsView, lensFor, personaIsAdmin, viewsAsAdmin } from "./actingAs";
 import { photoUrl } from "./photo";
 import {
   currentStaffYear,
@@ -74,6 +83,17 @@ export const me = query({
         q.eq("mentorEmail", email).eq("year", currentStaffYear())
       )
       .first();
+    const isAdmin = await isAdminProfile(ctx, profile);
+    const lens = await lensFor(ctx, { email, year, profile }, isAdmin);
+    const persona = lens.kind === "as" ? lens.persona : null;
+    const roleTitles = await roleTitlesForYear(ctx, year);
+    const isFinanceHead = approvers.financeHeadEmail === email;
+    const isApprover =
+      headedDepartments.some((d) => d !== FINANCE) ||
+      approvers.budgetManagerEmail === email ||
+      isFinanceHead ||
+      rolesOf(profile).includes(DIRECTOR) ||
+      isDelegate;
     return {
       email,
       year,
@@ -87,23 +107,29 @@ export const me = query({
         departments: departmentsOf(profile),
         divisions: divisionsOf(profile),
       },
-      isAdmin: await isAdminProfile(ctx, profile),
-      isFinance: isMemberOfDepartment(profile, FINANCE),
-      isDirector: rolesOf(profile).includes(DIRECTOR),
-      isBudgetManager: approvers.budgetManagerEmail === email,
-      isFinanceHead: approvers.financeHeadEmail === email,
-      headedDepartments,
+      isAdmin: persona ? await personaIsAdmin(ctx, year, persona) : isAdmin,
+      isFinance: await seesThrough(
+        lens,
+        () => isMemberOfDepartment(profile, FINANCE),
+        (p) => personaInDepartment(p, FINANCE)
+      ),
+      isDirector: persona ? personaIsDirector(persona) : rolesOf(profile).includes(DIRECTOR),
+      isBudgetManager: persona
+        ? personaIsBudgetManager(persona)
+        : approvers.budgetManagerEmail === email,
+      isFinanceHead: persona ? personaHeads(persona, FINANCE) : isFinanceHead,
+      headedDepartments: persona
+        ? persona.role === "head"
+          ? [persona.department]
+          : []
+        : headedDepartments,
       isDelegate,
-      isApprover:
-        headedDepartments.some((d) => d !== FINANCE) ||
-        approvers.budgetManagerEmail === email ||
-        approvers.financeHeadEmail === email ||
-        rolesOf(profile).includes(DIRECTOR) ||
-        isDelegate,
+      isApprover: await seesThrough(lens, () => isApprover, personaApproves),
       isCampusLeader: assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
-      roleTitles: await roleTitlesForYear(ctx, year),
+      roleTitles,
       isMentor: mentorship !== null,
       listsChurch: profile.year === year && assignmentsOf(profile).length > 0,
+      actingAs: actingAsView(lens, roleTitles),
     };
   },
 });
@@ -130,7 +156,7 @@ export const availableYears = query({
     if ((await optionalEmail(ctx)) === null) return null;
     const thisYear = currentStaffYear();
     const nextYear = nextStaffYear();
-    const canSeeNextYear = caller ? await isAdminProfile(ctx, caller.profile) : false;
+    const canSeeNextYear = await viewsAsAdmin(ctx, caller);
     const divisions = await ctx.db.query("divisions").take(1000);
     return [...new Set([...divisions.map((d) => d.year), thisYear, nextYear])]
       .filter((y) => y <= thisYear || (canSeeNextYear && y === nextYear))
@@ -154,7 +180,7 @@ export const orgChart = query({
     const nextYear = nextStaffYear();
 
     const caller = await optionalProfile(ctx);
-    const canSeeNextYear = caller ? await isAdminProfile(ctx, caller.profile) : false;
+    const canSeeNextYear = await viewsAsAdmin(ctx, caller);
 
     const requestedYear = args.year ?? thisYear;
     const year =

@@ -24,8 +24,17 @@ import {
   STEP_LABELS,
   type ApprovalStatus,
 } from "../shared/flow";
+import {
+  personaHeads,
+  personaHoldsStep,
+  personaInDepartment,
+  personaSeesRequest,
+  seesThrough,
+  type Lens,
+} from "../shared/actingAs";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
+import { lensFor } from "./actingAs";
 import { rememberBankAccount } from "./bankAccounts";
 import {
   internalMutation,
@@ -636,14 +645,46 @@ export async function canSeeRequest(
   return events.some((event) => event.actorEmail === caller.email);
 }
 
+export async function viewsRequest(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  request: Doc<"requests">,
+  lens: Lens
+): Promise<boolean> {
+  return (
+    (await seesThrough(lens, () => false, (p) => personaSeesRequest(p, request))) ||
+    (await canSeeRequest(ctx, caller, request))
+  );
+}
+
+async function seesReceiptDetails(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  request: Doc<"requests">,
+  lens: Lens
+): Promise<boolean> {
+  return (
+    (await seesThrough(lens, () => false, (p) => personaInDepartment(p, FINANCE))) ||
+    (await canViewReceiptDetails(ctx, caller, request))
+  );
+}
+
 async function requestForCaller(
   ctx: QueryCtx,
   caller: CallerContext,
-  request: Doc<"requests">
+  request: Doc<"requests">,
+  lens: Lens
 ): Promise<Doc<"requests">> {
-  if (await canViewReceiptDetails(ctx, caller, request)) return request;
+  if (await seesReceiptDetails(ctx, caller, request, lens)) return request;
   return { ...request, receipt: receiptSummary(request) };
 }
+
+const seesAllRequests = async (ctx: QueryCtx, caller: CallerContext) =>
+  await seesThrough(
+    await lensFor(ctx, caller),
+    () => isMemberOfDepartment(caller.profile, FINANCE),
+    (p) => personaInDepartment(p, FINANCE)
+  );
 
 const MINE_PER_YEAR_LIMIT = 200;
 
@@ -735,7 +776,7 @@ export const earlierAll = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalProfile(ctx);
-    if (!caller || !isMemberOfDepartment(caller.profile, FINANCE)) return null;
+    if (!caller || !(await seesAllRequests(ctx, caller))) return null;
     return await ctx.db
       .query("requests")
       .withIndex("by_creation_time", (q) =>
@@ -751,6 +792,7 @@ export const reviewedHistory = query({
   handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
+    const lens = await lensFor(ctx, caller);
     const result = await ctx.db
       .query("requestEvents")
       .withIndex("by_actor", (q) => q.eq("actorEmail", caller.email))
@@ -764,7 +806,7 @@ export const reviewedHistory = query({
       const request = await ctx.db.get("requests", event.requestId);
       if (request === null || request.requesterEmail === caller.email) continue;
       page.push({
-        ...(await requestForCaller(ctx, caller, request)),
+        ...(await requestForCaller(ctx, caller, request, lens)),
         reviewedAt: event._creationTime,
       });
     }
@@ -781,7 +823,11 @@ export const lastMovementAt = async (ctx: Ctx, request: Doc<"requests">): Promis
   return Math.max(request._creationTime, latest?._creationTime ?? 0);
 };
 
-export type ReviewRow = Doc<"requests"> & { waitingSince: number };
+export type ReviewRow = Doc<"requests"> & {
+  waitingSince: number;
+  canAct: boolean;
+  waiting: boolean;
+};
 
 export type ReviewQueues = {
   hod: ReviewRow[];
@@ -814,7 +860,8 @@ export async function mayReviewReimbursements(
 export async function reviewQueues(
   ctx: Ctx,
   caller: CallerContext,
-  open: Doc<"requests">[]
+  open: Doc<"requests">[],
+  lens: Lens
 ): Promise<ReviewQueues> {
   const { email, year } = caller;
   const approversFor = makeApproverResolver(ctx);
@@ -824,14 +871,18 @@ export async function reviewQueues(
   });
   const actAsIn = makeActAsResolver(ctx, email);
 
-  const hod: ReviewRow[] = [];
-  const budgetManager: ReviewRow[] = [];
-  const director: ReviewRow[] = [];
-  const financeHead: ReviewRow[] = [];
+  const queues: Record<Step, ReviewRow[]> = {
+    hod: [],
+    budgetManager: [],
+    director: [],
+    financeHead: [],
+  };
   const readyToPay: ReviewRow[] = [];
-  const waiting = async (request: Doc<"requests">): Promise<ReviewRow> => ({
+  const row = async (request: Doc<"requests">, canAct: boolean): Promise<ReviewRow> => ({
     ...request,
     waitingSince: await lastMovementAt(ctx, request),
+    canAct,
+    waiting: lens.kind === "as" || canAct,
   });
 
   for (const request of open) {
@@ -853,37 +904,38 @@ export async function reviewQueues(
       );
     };
 
-    if (
-      request.receipt !== undefined &&
-      request.paid === false &&
-      matches((a) => a.financeHeadEmail)
-    ) {
-      readyToPay.push(await waiting(request));
+    if (request.receipt !== undefined && request.paid === false) {
+      const pays = matches((a) => a.financeHeadEmail);
+      if (await seesThrough(lens, () => pays, (p) => personaHeads(p, FINANCE))) {
+        readyToPay.push(await row(request, pays));
+      }
     }
 
     if (request.requesterEmail === email || requestCompleted(request)) continue;
     const step = currentStep(request);
-    if (step === "hod" && matches((a) => a.hodEmail) && request.department !== FINANCE) {
-      hod.push(await waiting(request));
-    } else if (step === "budgetManager" && matches((a) => a.budgetManagerEmail)) {
-      budgetManager.push(await waiting(request));
-    } else if (
-      step === "director" &&
-      ((await callerRolesIn(reqYear)).includes(DIRECTOR) ||
-        (await callerRolesIn(year)).includes(DIRECTOR) ||
-        matches((a) => a.directorEmail))
+    if (step === null || (step === "hod" && request.department === FINANCE)) continue;
+    const canAct =
+      step === "director"
+        ? (await callerRolesIn(reqYear)).includes(DIRECTOR) ||
+          (await callerRolesIn(year)).includes(DIRECTOR) ||
+          matches((a) => a.directorEmail)
+        : matches((a) => approverEmailFor(step, a));
+    if (
+      await seesThrough(
+        lens,
+        () => canAct,
+        (p) => personaHoldsStep(p, step, request.department)
+      )
     ) {
-      director.push(await waiting(request));
-    } else if (step === "financeHead" && matches((a) => a.financeHeadEmail)) {
-      financeHead.push(await waiting(request));
+      queues[step].push(await row(request, canAct));
     }
   }
 
   return {
-    hod: oldestFirst(hod),
-    budgetManager: oldestFirst(budgetManager),
-    director: oldestFirst(director),
-    financeHead: oldestFirst(financeHead),
+    hod: oldestFirst(queues.hod),
+    budgetManager: oldestFirst(queues.budgetManager),
+    director: oldestFirst(queues.director),
+    financeHead: oldestFirst(queues.financeHead),
     readyToPay: oldestFirst(readyToPay),
   };
 }
@@ -896,7 +948,8 @@ export const toReview = query({
     return await reviewQueues(
       ctx,
       caller,
-      await openRequestsAcrossYears(ctx, caller.year)
+      await openRequestsAcrossYears(ctx, caller.year),
+      await lensFor(ctx, caller)
     );
   },
 });
@@ -908,7 +961,8 @@ export const reviewed = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const open = await openRequestsAcrossYears(ctx, caller.year);
-    const queues = await reviewQueues(ctx, caller, open);
+    const lens = await lensFor(ctx, caller);
+    const queues = await reviewQueues(ctx, caller, open, lens);
     const seen = new Set<Id<"requests">>(
       Object.values(queues).flatMap((rows) => rows.map((r) => r._id))
     );
@@ -951,7 +1005,7 @@ export const reviewed = query({
     return await Promise.all(
       docs
         .filter((r): r is Doc<"requests"> => r !== null)
-        .map((request) => requestForCaller(ctx, caller, request))
+        .map((request) => requestForCaller(ctx, caller, request, lens))
     );
   },
 });
@@ -961,7 +1015,7 @@ export const allRequests = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    if (!isMemberOfDepartment(caller.profile, FINANCE)) {
+    if (!(await seesAllRequests(ctx, caller))) {
       throw new ConvexError("Only Finance staff can view all requests.");
     }
     return await openRequestsAcrossYears(ctx, caller.year);
@@ -973,7 +1027,7 @@ export const requestsForExport = query({
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    if (!isMemberOfDepartment(caller.profile, FINANCE)) {
+    if (!(await seesAllRequests(ctx, caller))) {
       throw new ConvexError("Only Finance staff can export requests.");
     }
     const years = [...new Set(args.years)]
@@ -1395,8 +1449,9 @@ export const get = query({
     const requestId = ctx.db.normalizeId("requests", args.requestId);
     if (!requestId) return null;
     const request = await ctx.db.get("requests", requestId);
-    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
-    return await requestForCaller(ctx, caller, request);
+    const lens = await lensFor(ctx, caller);
+    if (!request || !(await viewsRequest(ctx, caller, request, lens))) return null;
+    return await requestForCaller(ctx, caller, request, lens);
   },
 });
 
@@ -1406,7 +1461,9 @@ export const auditTrail = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
+    if (!request || !(await viewsRequest(ctx, caller, request, await lensFor(ctx, caller)))) {
+      return null;
+    }
     const events = await ctx.db
       .query("requestEvents")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
@@ -1441,7 +1498,9 @@ export const stepInfo = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
+    if (!request || !(await viewsRequest(ctx, caller, request, await lensFor(ctx, caller)))) {
+      return null;
+    }
     const reqYear = requestYear(request);
     const approvers = await getApprovers(ctx, reqYear, request.department);
     const officeholderEmail = approverEmailFor(args.step, approvers) ?? null;
@@ -1475,7 +1534,9 @@ export const stepActors = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
+    if (!request || !(await viewsRequest(ctx, caller, request, await lensFor(ctx, caller)))) {
+      return null;
+    }
     const reqYear = requestYear(request);
     const approvers = await getApprovers(ctx, reqYear, request.department);
     const allEvents = await recentRequestEvents(ctx, args.requestId);
@@ -1771,7 +1832,9 @@ export const receiptAttachments = query({
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) return null;
 
-    if (!(await canViewReceiptDetails(ctx, caller, request))) return null;
+    if (!(await seesReceiptDetails(ctx, caller, request, await lensFor(ctx, caller)))) {
+      return null;
+    }
 
     if (!request.receipt) return [];
     return await Promise.all(

@@ -9,6 +9,8 @@
  */
 
 import type * as account from "../account.js";
+import type * as actingAs from "../actingAs.js";
+import type * as actingAsData from "../actingAsData.js";
 import type * as admin from "../admin.js";
 import type * as announcementData from "../announcementData.js";
 import type * as announcements from "../announcements.js";
@@ -97,6 +99,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   account: typeof account;
+  actingAs: typeof actingAs;
+  actingAsData: typeof actingAsData;
   admin: typeof admin;
   announcementData: typeof announcementData;
   announcements: typeof announcements;
