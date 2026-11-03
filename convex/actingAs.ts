@@ -54,8 +54,8 @@ export async function personaIsAdmin(
   year: number,
   persona: Persona
 ): Promise<boolean> {
-  if (persona.role === "director") return true;
-  const department = personaDepartment(persona) as string;
+  const department = personaDepartment(persona);
+  if (department === null) return persona.role === "director";
   if (ADMIN_DEPARTMENTS.includes(department)) return true;
   const row = await getDepartment(ctx, year, department);
   return row !== null && ADMIN_DIVISIONS.includes(row.division);
