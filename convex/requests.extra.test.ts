@@ -1411,6 +1411,30 @@ describe("browsing past years", () => {
     expect((await henry.query(api.requests.earlierMine, all))!.page).toEqual([]);
     expect((await henry.query(api.requests.requestYears, {}))!.hasPast).toBe(false);
   });
+
+  test("a Past page holding only Mine's carry-overs is empty but not the end", async () => {
+    const t = await setupWithHistory([
+      { email: RACHEL, year: YEAR - 2, description: "paid two years ago" },
+      ...Array.from({ length: 10 }, (_, i) => ({
+        email: RACHEL,
+        year: YEAR - 1,
+        description: `carried ${i}`,
+        open: true,
+      })),
+    ]);
+    const rachel = asUser(t, RACHEL);
+
+    const first = (await rachel.query(api.requests.earlierMine, {
+      paginationOpts: { numItems: 10, cursor: null },
+    }))!;
+    expect(first.page).toEqual([]);
+    expect(first.isDone).toBe(false);
+    const rest = (await rachel.query(api.requests.earlierMine, {
+      paginationOpts: { numItems: 10, cursor: first.continueCursor },
+    }))!;
+    expect(rest.page.map((r) => r.description)).toEqual(["paid two years ago"]);
+    expect(rest.isDone).toBe(true);
+  });
 });
 
 describe("money in the audit trail and notifications", () => {
