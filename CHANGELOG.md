@@ -15,11 +15,11 @@ All notable changes to **The SHED** mobile app. This project follows
   else who has commented there and still can, by notification, push and email.
 
 ### Changed
-- **Every staff member can see every event request.** All is no longer just
-  for the Events department, the reviewing teams, the Director and admins.
-  Other staff can read a request, its forms and its comments, but only the
-  requester's department fills it in, edits or cancels it, and only it and
-  each form's team comment. Campus leaders still don't see event requests.
+- **Event requests stay with staff.** Campus leaders still can't see them,
+  and who sees what is unchanged: the requester's department sees its own
+  (Mine), and the Events department, the reviewing teams, the Director and
+  admins see every event (All). Unread comment counts only show for people
+  who can comment on that thread.
 - **Only the requester and the Marketing team see design requests.** Admins
   no longer see the Marketing queue or other people's design requests.
 - **Event and design request cards are easier to scan.** They show the

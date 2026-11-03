@@ -130,7 +130,7 @@ export default function EventRequestsScreen() {
   const review = useQuery(api.eventRequests.review, viewer?.reviews ? {} : "skip");
   const all = useQuery(
     api.eventRequests.all,
-    viewer && me ? { year: me.year } : "skip"
+    viewer?.seesAll && me ? { year: me.year } : "skip"
   );
   const mineLoadMoreRef = useRef<(() => void) | null>(null);
   const allLoadMoreRef = useRef<(() => void) | null>(null);
@@ -227,8 +227,7 @@ export default function EventRequestsScreen() {
           },
         ]
       : []),
-    // Every staff member sees every event request.
-    ...(viewer
+    ...(viewer?.seesAll
       ? [
           {
             key: "all",

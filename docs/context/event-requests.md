@@ -84,9 +84,9 @@ Not comments.
 **Who sees what**:
 The requester's side sees their events (Mine). The three teams, their Heads
 and the Director review what's waiting for them (To review, with a badge for
-what's waiting on you). Every staff member can see every event and its
-comments (All), but only the requester's side fills in, edits or cancels it,
-and only a form's team and requester's side comment on it. Mine and All run back through earlier staff years as you
+what's waiting on you). They, the Events department and admins can see every
+event (All). Only the requester's side fills in, edits or cancels it, and
+only a form's team and requester's side comment on it. Mine and All run back through earlier staff years as you
 scroll. Campus leaders don't use event requests.
 
 **Legacy event**:

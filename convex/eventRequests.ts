@@ -38,6 +38,7 @@ import {
   recipientsFor,
   requireEvent,
   requireEventStaff,
+  seesAll,
   stepApprover,
   subFormsOf,
   tell,
@@ -123,9 +124,7 @@ export const viewer = query({
       year: caller.year,
       departments: departmentsOf(caller.profile),
       reviews: SUB_FORM_KINDS.some((k) => scope.teams[k]) || scope.director,
-      // Every staff member sees All; app versions before 2.10.21 show it only
-      // when this is true.
-      seesAll: true,
+      seesAll: seesAll(scope),
     };
   },
 });
@@ -257,7 +256,7 @@ export const all = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     const caller = await optionalEventStaff(ctx);
-    if (!caller) return null;
+    if (!caller || !seesAll(await viewerScope(ctx, caller))) return null;
     const events = await ctx.db
       .query("eventRequests")
       .withIndex("by_year_and_number", (q) => q.eq("year", args.year))
@@ -279,7 +278,7 @@ export const earlierAll = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalEventStaff(ctx);
-    if (!caller) return null;
+    if (!caller || !seesAll(await viewerScope(ctx, caller))) return null;
     const result = await ctx.db
       .query("eventRequests")
       .withIndex("by_year_and_number", (q) => q.lt("year", caller.year))
@@ -298,6 +297,7 @@ export const get = query({
     const event = id ? await ctx.db.get("eventRequests", id) : null;
     if (!event) return null;
     const access = await accessTo(ctx, caller, event);
+    if (!access.canView) return null;
     const forms = await subFormsOf(ctx, event._id);
     const nameOf = (email: string | undefined) =>
       email ? displayName(ctx, email, event.year) : Promise.resolve(null);
@@ -359,7 +359,7 @@ export const timeline = query({
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
     const event = await ctx.db.get("eventRequests", args.id);
-    if (!event) return null;
+    if (!event || !(await accessTo(ctx, caller, event)).canView) return null;
     const events = await ctx.db
       .query("eventRequestEvents")
       .withIndex("by_eventRequest", (q) => q.eq("eventRequestId", args.id))
