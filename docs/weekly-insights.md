@@ -109,9 +109,10 @@ date's year) and a Week dropdown (1 to 14), pre-filled for the event's date by
 added), and a name like "T3W5" or "S2W5" that follows them until the leader
 types in it. The date defaults to a week after the campus's last weekly (or
 the next same weekday if that has passed), at that weekly's times. An Other
-event, and every SOW event, starts now and runs two hours (ending the next day
-when that passes midnight); switching a new weekly to Other event moves it
-back to now unless the date or times were changed by hand. Picking a
+event, and every SOW event, starts at the nearest half hour and runs two hours
+(ending the next day when that passes midnight); switching a new weekly to
+Other event moves it back to today unless the date or times were changed by
+hand. Picking a
 term and week the campus already has asks for confirmation. The event stores
 `weekly: { year, slot, week }` and gets the *Weeklies* tag; switching an event
 back to Other event takes both off, along with any weekly-only tags.

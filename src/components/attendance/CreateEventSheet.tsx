@@ -56,7 +56,7 @@ import {
 
 const defaultDate = (): string => toDateInputValue(new Date());
 
-// A new one-off event starts now and runs two hours.
+// A new one-off event starts at the nearest half hour and runs two hours.
 const nowWhen = () => {
   const now = defaultEventInputs();
   return { dateStr: now.startDate, endDateStr: now.endDate, startTime: now.startTime, endTime: now.endTime };
@@ -302,9 +302,9 @@ export function CreateEventSheet({
       setWhenFor("weekly");
       return;
     }
-    // Any other event starts now, and so does a weekly while the campus's
-    // last weekly loads (or if it has none). Switching a weekly to "Other
-    // event" moves it back to now.
+    // Any other event starts at the nearest half hour, and so does a weekly
+    // while the campus's last weekly loads (or if it has none). Switching a
+    // weekly to "Other event" moves it back to today.
     const startNow = whenFor === null || (!weekly && whenFor === "weekly");
     if (!startNow) return;
     const when = nowWhen();

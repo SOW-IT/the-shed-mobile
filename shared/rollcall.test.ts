@@ -225,24 +225,30 @@ describe("contrastingText", () => {
 });
 
 describe("defaultEventWindow", () => {
-  test("starts ~now and runs exactly two hours", () => {
-    const before = Date.now();
-    const { dateStart, dateEnd } = defaultEventWindow();
-    const after = Date.now();
-    expect(dateStart).toBeGreaterThanOrEqual(before);
-    expect(dateStart).toBeLessThanOrEqual(after);
-    expect(dateEnd - dateStart).toBe(2 * 60 * 60 * 1000);
+  const at = (h: number, m: number, sec = 0) => new Date(2026, 10, 3, h, m, sec).getTime();
+
+  test("starts at the nearest half hour and runs exactly two hours", () => {
+    expect(defaultEventWindow(at(13, 37))).toEqual({ dateStart: at(13, 30), dateEnd: at(15, 30) });
+    expect(defaultEventWindow(at(13, 44, 59)).dateStart).toBe(at(13, 30));
+    expect(defaultEventWindow(at(13, 45)).dateStart).toBe(at(14, 0));
+    expect(defaultEventWindow(at(13, 0)).dateStart).toBe(at(13, 0));
+    expect(defaultEventWindow(at(13, 14, 59)).dateStart).toBe(at(13, 0));
+    expect(defaultEventWindow(at(13, 15)).dateStart).toBe(at(13, 30));
+  });
+
+  test("rounds up into the next day just before midnight", () => {
+    expect(defaultEventWindow(at(23, 50)).dateStart).toBe(new Date(2026, 10, 4, 0, 0).getTime());
   });
 });
 
 describe("defaultEventInputs", () => {
-  test("fills today's date, the current time and two hours later", () => {
+  test("fills today's date, the nearest half hour and two hours later", () => {
     const now = new Date(2026, 10, 3, 14, 37, 52).getTime();
     expect(defaultEventInputs(now)).toEqual({
       startDate: "2026-11-03",
-      startTime: "14:37",
+      startTime: "14:30",
       endDate: "2026-11-03",
-      endTime: "16:37",
+      endTime: "16:30",
     });
   });
 
@@ -250,16 +256,17 @@ describe("defaultEventInputs", () => {
     const now = new Date(2026, 11, 31, 23, 5).getTime();
     expect(defaultEventInputs(now)).toEqual({
       startDate: "2026-12-31",
-      startTime: "23:05",
+      startTime: "23:00",
       endDate: "2027-01-01",
-      endTime: "01:05",
+      endTime: "01:00",
     });
   });
 
   test("starts now when no time is given", () => {
-    vi.useFakeTimers({ now: new Date(2026, 10, 3, 9, 0) });
+    vi.useFakeTimers({ now: new Date(2026, 10, 3, 9, 10) });
     try {
       expect(defaultEventInputs()).toMatchObject({ startDate: "2026-11-03", startTime: "09:00", endTime: "11:00" });
+      expect(defaultEventWindow().dateStart).toBe(new Date(2026, 10, 3, 9, 0).getTime());
     } finally {
       vi.useRealTimers();
     }
