@@ -113,7 +113,14 @@ const styles = StyleSheet.create({
   top: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   name: { flex: 1 },
   topRight: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 },
-  steps: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
+  steps: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    columnGap: spacing.md,
+    rowGap: 4,
+    marginTop: 6,
+  },
   step: { flexDirection: "row", alignItems: "center", gap: 6 },
   stepLabel: { fontSize: 14.5, fontWeight: "600" },
 });

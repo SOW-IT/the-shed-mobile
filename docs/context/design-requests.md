@@ -75,7 +75,7 @@ Waiting for approval, the Marketing team (in-app, plus one email to the
 shared inbox) while it is Approved and not finished. It says when the design
 is needed by. Part of the person's daily digest. A comment still unread a
 day after it was posted is in it once too, for the requester, the Marketing
-Head and anyone else in the thread.
+Head and anyone on the Marketing team who has commented there.
 
 **Waiting since**:
 When a request started waiting on the Marketing team: its submission while

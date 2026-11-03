@@ -140,12 +140,32 @@ export async function accessTo(
   caller: CallerContext,
   event: EventRequest
 ): Promise<EventAccess> {
-  const scope = await viewerScope(ctx, caller, event);
-  const requesterSide =
-    event.requesterEmail === caller.email ||
-    isMemberOfDepartment(caller.profile, event.department) ||
-    (await actsAs(ctx, caller, await headOf(ctx, event, event.department)));
-  return { ...scope, requesterSide };
+  return await accessResolver(ctx, caller)(event);
+}
+
+// accessTo for many events at once: the lookups only depend on each event's
+// year and department, so they're done once per year and department.
+export function accessResolver(ctx: Ctx, caller: CallerContext) {
+  const scopes = new Map<number, Promise<ViewerScope>>();
+  const heads = new Map<string, Promise<boolean>>();
+  return async (event: EventRequest): Promise<EventAccess> => {
+    let scope = scopes.get(event.year);
+    if (!scope) {
+      scope = viewerScope(ctx, caller, event);
+      scopes.set(event.year, scope);
+    }
+    const key = `${event.year} ${event.department}`;
+    let head = heads.get(key);
+    if (!head) {
+      head = headOf(ctx, event, event.department).then((h) => actsAs(ctx, caller, h));
+      heads.set(key, head);
+    }
+    const requesterSide =
+      event.requesterEmail === caller.email ||
+      isMemberOfDepartment(caller.profile, event.department) ||
+      (await head);
+    return { ...(await scope), requesterSide };
+  };
 }
 
 // The event request something on the Calendar came from, but only when this

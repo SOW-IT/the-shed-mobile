@@ -63,6 +63,9 @@ describe("design request PDF", () => {
       "design-request-booklet-poster-a3.pdf"
     );
     expect(designRequestPdfFilename({ title: "" })).toBe("design-request.pdf");
+    const long = designRequestPdfFilename({ title: "Other: ".concat("a very long answer ".repeat(200)) });
+    expect(long.length).toBeLessThan(120);
+    expect(long).toMatch(/^design-request-other-a-very-long-answer-[a-z-]*[a-z]\.pdf$/);
   });
 
   test("times are Sydney time with plain spaces", () => {

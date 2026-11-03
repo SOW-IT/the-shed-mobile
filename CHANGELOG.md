@@ -12,7 +12,7 @@ All notable changes to **The SHED** mobile app. This project follows
 - **A comment still unread a day later is in the morning reminder.** Each
   design or event request comment goes in once, to the requester, the form's
   submitter and approver (the Marketing Head for a design request) and anyone
-  else in the thread, by notification, push and email.
+  else who has commented there and still can, by notification, push and email.
 
 ### Changed
 - **Every staff member can see every event request.** All is no longer just

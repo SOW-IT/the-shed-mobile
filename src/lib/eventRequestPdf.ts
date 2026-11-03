@@ -22,7 +22,7 @@ import {
 } from "../../shared/eventRequests";
 import { money } from "../../shared/money";
 import { subFormStatusLine, type FormStatusFacts } from "./eventRequestText";
-import { MARGIN, MUTED, PAGE, PdfWriter, TEXT, WIDTH } from "./pdfWriter";
+import { fileSlug, MARGIN, MUTED, PAGE, PdfWriter, TEXT, WIDTH } from "./pdfWriter";
 import { sydneyDateTime } from "./sydneyTime";
 
 export type EventRequestPdfInput = {
@@ -56,7 +56,7 @@ export type EventRequestPdfInput = {
 };
 
 export const eventRequestPdfFilename = (e: { startsAt: string; name: string }) =>
-  `event-request-${e.startsAt.slice(0, 10)}-${e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.pdf`;
+  `event-request-${e.startsAt.slice(0, 10)}-${fileSlug(e.name)}.pdf`;
 
 const BAND = rgb(0.06, 0.27, 0.36);
 const HEADER = rgb(0.13, 0.36, 0.6);
