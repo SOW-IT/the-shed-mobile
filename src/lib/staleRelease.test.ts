@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   browserReloadHost,
   createStaleReloader,
@@ -121,7 +121,48 @@ describe("createStaleReloader", () => {
 });
 
 describe("browserReloadHost", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
   test("has nothing to reload outside a browser", () => {
     expect(browserReloadHost()).toBeNull();
+  });
+
+  test("reloads the page and records the time in the tab's session storage", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const storage = memoryStorage();
+    const reload = vi.fn();
+    vi.stubGlobal("window", { location: { reload }, sessionStorage: storage });
+    vi.stubGlobal("navigator", { onLine: true });
+    const reloader = createStaleReloader(browserReloadHost);
+    expect(reloader.reload()).toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(storage.values.get(STALE_RELOAD_KEY)).toBe("1000000");
+  });
+
+  test("does not reload while the browser is offline", () => {
+    const reload = vi.fn();
+    vi.stubGlobal("window", { location: { reload }, sessionStorage: memoryStorage() });
+    vi.stubGlobal("navigator", { onLine: false });
+    expect(createStaleReloader(browserReloadHost).reload()).toBe(false);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  test("does not reload when session storage is blocked", () => {
+    const reload = vi.fn();
+    const blockedWindow = { location: { reload } };
+    Object.defineProperty(blockedWindow, "sessionStorage", {
+      get: () => {
+        throw new Error("SecurityError");
+      },
+    });
+    vi.stubGlobal("window", blockedWindow);
+    vi.stubGlobal("navigator", { onLine: true });
+    expect(browserReloadHost()?.storage).toBeNull();
+    expect(createStaleReloader(browserReloadHost).reload()).toBe(false);
+    expect(reload).not.toHaveBeenCalled();
   });
 });

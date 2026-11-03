@@ -375,9 +375,10 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   clear them there. Not reported: network drops in unhandled rejections, the
   web's "Requiring unknown module" from Expo's synchronous first try at a
   route (it then loads the chunk), and a web tab from an older release that
-  can't load a screen's code, which reloads itself once onto the new release
-  (`src/lib/staleRelease.ts`) and is only reported if that fails again within
-  a minute.
+  can't load a screen's code and reloads itself once onto the new release
+  (`src/lib/staleRelease.ts`). That error is reported when the tab can't
+  reload (offline, or no session storage), or when it fails again within a
+  minute of the reload.
 - **Update prompt**: phones ask for the store version when it's older than the
   server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
   banner that can be dismissed; below `minimum`, a full screen with only the
