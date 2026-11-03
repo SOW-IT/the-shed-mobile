@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.20] - 2026-11-03
+
+### Changed
+- **A new Other event or SOW event starts now and runs two hours.** New
+  events used to start at 5 pm today and end at 7 pm. They now start at the
+  current time and end two hours later, running into the next day when it's
+  late in the evening. New weeklies still start a week after the campus's
+  last weekly, on the same day and at the same times.
+
+### Fixed
+- **Switching a new weekly to "Other event" moves it back to today.** The
+  date and times used to stay on the campus's weekly day, such as next
+  Wednesday at 6:30 pm. Times you've changed yourself are kept when you
+  switch.
+
 ## [2.10.18] - 2026-11-02
 
 ### Changed

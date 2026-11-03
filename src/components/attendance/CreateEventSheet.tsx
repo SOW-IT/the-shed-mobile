@@ -32,11 +32,11 @@ import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
   addDaysToDateInputValue,
   minuteAfterTime,
-  pad2,
   toDateInputValue,
   toTimeInputValue,
 } from "../../../shared/datetime";
 import {
+  defaultEventInputs,
   endDateAfterStartChange,
   eventWindowFromInputs,
   isMultiDayEvent,
@@ -56,7 +56,11 @@ import {
 
 const defaultDate = (): string => toDateInputValue(new Date());
 
-const defaultTime = (hour: number): string => `${pad2(hour)}:00`;
+// A new one-off event starts now and runs two hours.
+const nowWhen = () => {
+  const now = defaultEventInputs();
+  return { dateStr: now.startDate, endDateStr: now.endDate, startTime: now.startTime, endTime: now.endTime };
+};
 
 const dateInputFromMs = (ms: number): string => toDateInputValue(new Date(ms));
 
@@ -123,14 +127,18 @@ export function CreateEventSheet({
   const [week, setWeek] = useState<number | null>(null);
   const [nameTouched, setNameTouched] = useState(false);
   const [whenTouched, setWhenTouched] = useState(false);
+  // Which default a new event's date and times hold until they're changed by
+  // hand; null when the sheet opens, until one is filled in.
+  const [whenFor, setWhenFor] = useState<Kind | null>(null);
   const [selectedTags, setSelectedTags] = useState<Id<"attendanceTags">[]>([]);
   const [collaborators, setCollaborators] = useState<string[]>([subgroup]);
   const [sharing, setSharing] = useState(false);
-  const [dateStr, setDateStr] = useState(defaultDate());
-  const [endDateStr, setEndDateStr] = useState(defaultDate());
+  const [opening] = useState(nowWhen);
+  const [dateStr, setDateStr] = useState(opening.dateStr);
+  const [endDateStr, setEndDateStr] = useState(opening.endDateStr);
   const [multiDay, setMultiDay] = useState(false);
-  const [startTime, setStartTime] = useState(defaultTime(17));
-  const [endTime, setEndTime] = useState(defaultTime(19));
+  const [startTime, setStartTime] = useState(opening.startTime);
+  const [endTime, setEndTime] = useState(opening.endTime);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
@@ -145,10 +153,7 @@ export function CreateEventSheet({
     name: "",
     tags: [] as Id<"attendanceTags">[],
     collaborators: [subgroup],
-    dateStr: defaultDate(),
-    endDateStr: defaultDate(),
-    startTime: defaultTime(17),
-    endTime: defaultTime(19),
+    ...opening,
   });
   const openedRef = useRef(false);
   const eventName = event?.name ?? "";
@@ -158,9 +163,11 @@ export function CreateEventSheet({
   }, [visible, ensureMetadata]);
 
   const resetForm = () => {
+    const when = nowWhen();
     setName("");
     setNameTouched(false);
     setWhenTouched(false);
+    setWhenFor(null);
     setKind(startKind);
     setInitialKind(startKind);
     setTerm(null);
@@ -168,22 +175,14 @@ export function CreateEventSheet({
     setSelectedTags([]);
     setCollaborators([subgroup]);
     setSharing(false);
-    setDateStr(defaultDate());
-    setEndDateStr(defaultDate());
-    setMultiDay(false);
-    setStartTime(defaultTime(17));
-    setEndTime(defaultTime(19));
+    setDateStr(when.dateStr);
+    setEndDateStr(when.endDateStr);
+    setMultiDay(when.dateStr !== when.endDateStr);
+    setStartTime(when.startTime);
+    setEndTime(when.endTime);
     setError(null);
     setSubmitting(false);
-    setInitial({
-      name: "",
-      tags: [],
-      collaborators: [subgroup],
-      dateStr: defaultDate(),
-      endDateStr: defaultDate(),
-      startTime: defaultTime(17),
-      endTime: defaultTime(19),
-    });
+    setInitial({ name: "", tags: [], collaborators: [subgroup], ...when });
   };
 
   const weekliesTagIds = new Set(
@@ -229,18 +228,24 @@ export function CreateEventSheet({
       setInitial(snapshot);
       return;
     }
-    if (!isEditing) return;
+    if (!event) {
+      // A new event: the date and times are filled in below, now or on the
+      // campus's weekly day.
+      setWhenTouched(false);
+      setWhenFor(null);
+      return;
+    }
     const snapshot = {
-      name: event?.name ?? "",
-      tags: event?.tagIds ?? [],
-      collaborators: event?.subgroups ?? [ownerGroup],
-      dateStr: event ? dateInputFromMs(event.dateStart) : defaultDate(),
-      endDateStr: event ? dateInputFromMs(event.dateEnd) : defaultDate(),
-      startTime: event ? timeInputFromMs(event.dateStart) : defaultTime(17),
-      endTime: event ? timeInputFromMs(event.dateEnd) : defaultTime(19),
+      name: event.name,
+      tags: event.tagIds ?? [],
+      collaborators: event.subgroups,
+      dateStr: dateInputFromMs(event.dateStart),
+      endDateStr: dateInputFromMs(event.dateEnd),
+      startTime: timeInputFromMs(event.dateStart),
+      endTime: timeInputFromMs(event.dateEnd),
     };
-    const savedKind: Kind = event?.weekly ? "weekly" : "event";
-    const saved = event?.weekly;
+    const savedKind: Kind = event.weekly ? "weekly" : "event";
+    const saved = event.weekly;
     const namedByCode =
       !!saved &&
       (["terms", "semesters"] as const).some((system) => weeklyName(system, saved.slot, saved.week) === snapshot.name);
@@ -249,8 +254,8 @@ export function CreateEventSheet({
     setWhenTouched(true);
     setKind(savedKind);
     setInitialKind(savedKind);
-    setTerm(event?.weekly ? { year: event.weekly.year, slot: event.weekly.slot } : null);
-    setWeek(event?.weekly?.week ?? null);
+    setTerm(event.weekly ? { year: event.weekly.year, slot: event.weekly.slot } : null);
+    setWeek(event.weekly?.week ?? null);
     setSelectedTags(snapshot.tags);
     setCollaborators(snapshot.collaborators);
     setSharing(snapshot.collaborators.length > 1);
@@ -284,17 +289,32 @@ export function CreateEventSheet({
 
   const previous = suggestion?.previous ?? null;
   useEffect(() => {
-    if (!visible || isEditing || whenTouched || !weekly || !previous) return;
-    const start = dateInputFromMs(previous.dateStart);
-    const next = nextWeeklyDate(start, defaultDate());
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- a new weekly starts a week after the campus's last one, at its times
-    setDateStr(next);
-    setEndDateStr(next);
-    setMultiDay(false);
-    setStartTime(timeInputFromMs(previous.dateStart));
-    setEndTime(timeInputFromMs(previous.dateEnd));
-    setWhenTouched(true);
-  }, [visible, isEditing, whenTouched, weekly, previous]);
+    if (!visible || isEditing || whenTouched) return;
+    if (weekly && previous) {
+      if (whenFor === "weekly") return;
+      const next = nextWeeklyDate(dateInputFromMs(previous.dateStart), defaultDate());
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- a new weekly starts a week after the campus's last one, at its times
+      setDateStr(next);
+      setEndDateStr(next);
+      setMultiDay(false);
+      setStartTime(timeInputFromMs(previous.dateStart));
+      setEndTime(timeInputFromMs(previous.dateEnd));
+      setWhenFor("weekly");
+      return;
+    }
+    // Any other event starts now, and so does a weekly while the campus's
+    // last weekly loads (or if it has none). Switching a weekly to "Other
+    // event" moves it back to now.
+    const startNow = whenFor === null || (!weekly && whenFor === "weekly");
+    if (!startNow) return;
+    const when = nowWhen();
+    setDateStr(when.dateStr);
+    setEndDateStr(when.endDateStr);
+    setMultiDay(when.dateStr !== when.endDateStr);
+    setStartTime(when.startTime);
+    setEndTime(when.endTime);
+    setWhenFor("event");
+  }, [visible, isEditing, whenTouched, weekly, previous, whenFor]);
 
   const termOptions = suggestion?.options ?? [];
   const termFits = (p: TermPick | null) =>

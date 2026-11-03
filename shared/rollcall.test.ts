@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   auditEventName,
   eventCampusLabel,
@@ -8,6 +8,7 @@ import {
   canonicalSubgroup,
   contrastingText,
   defaultAttendanceSubgroup,
+  defaultEventInputs,
   defaultEventWindow,
   endDateAfterStartChange,
   eventWindowFromInputs,
@@ -231,6 +232,37 @@ describe("defaultEventWindow", () => {
     expect(dateStart).toBeGreaterThanOrEqual(before);
     expect(dateStart).toBeLessThanOrEqual(after);
     expect(dateEnd - dateStart).toBe(2 * 60 * 60 * 1000);
+  });
+});
+
+describe("defaultEventInputs", () => {
+  test("fills today's date, the current time and two hours later", () => {
+    const now = new Date(2026, 10, 3, 14, 37, 52).getTime();
+    expect(defaultEventInputs(now)).toEqual({
+      startDate: "2026-11-03",
+      startTime: "14:37",
+      endDate: "2026-11-03",
+      endTime: "16:37",
+    });
+  });
+
+  test("ends the next day when it starts after 10 pm", () => {
+    const now = new Date(2026, 11, 31, 23, 5).getTime();
+    expect(defaultEventInputs(now)).toEqual({
+      startDate: "2026-12-31",
+      startTime: "23:05",
+      endDate: "2027-01-01",
+      endTime: "01:05",
+    });
+  });
+
+  test("starts now when no time is given", () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 3, 9, 0) });
+    try {
+      expect(defaultEventInputs()).toMatchObject({ startDate: "2026-11-03", startTime: "09:00", endTime: "11:00" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
