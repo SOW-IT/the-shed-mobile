@@ -281,6 +281,7 @@ export default function RequestsScreen() {
       case "past":
         return (
           <PastRequests
+            account={me.email}
             loadMoreRef={pastLoadMoreRef}
             linked={pastRequest}
             focusThread={focusThread}

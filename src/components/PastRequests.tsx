@@ -52,6 +52,7 @@ const YearDivider = ({ year }: { year: number }) => {
 };
 
 export const PastRequests = ({
+  account,
   loadMoreRef,
   linked,
   focusThread = false,
@@ -59,6 +60,7 @@ export const PastRequests = ({
   onFocusThreadOpened,
   onResubmit,
 }: {
+  account: string;
   loadMoreRef?: MutableRefObject<(() => void) | null>;
   linked?: Doc<"requests"> | null;
   focusThread?: boolean;
@@ -71,7 +73,7 @@ export const PastRequests = ({
   const { rows, hasMore, loadMore, loadingFirstPage, loadingMore } = usePagedQuery(
     api.requests.earlierMine,
     {
-      scopeKey: "past",
+      scopeKey: `past:${account}`,
       args: (cursor) => ({ paginationOpts: { numItems: PAST_PAGE_SIZE, cursor } }),
       rowsOf: (result) => result.page,
       keyOf: (row) => row._id,
