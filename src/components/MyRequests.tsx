@@ -879,21 +879,15 @@ export const MyRequests = ({
       {requests == null ? (
         <LoadingState />
       ) : requests.length === 0 ? (
-        <>
-          <EmptyState
-            icon="receipt-outline"
-            title={onShowPast ? "Nothing this year yet" : "No requests yet"}
-            message={
-              onShowPast ? "Your requests from earlier staff years are under Past." : undefined
-            }
-            action={onMakeRequest ? { label: "Make a request", onPress: onMakeRequest } : undefined}
-          />
-          {onShowPast ? (
-            <View style={styles.pastLink}>
-              <Btn title="See past requests" variant="ghost" onPress={onShowPast} />
-            </View>
-          ) : null}
-        </>
+        <EmptyState
+          icon="receipt-outline"
+          title={onShowPast ? "Nothing this year yet" : "No requests yet"}
+          message={onShowPast ? "Your requests from earlier staff years are under Past." : undefined}
+          action={onMakeRequest ? { label: "Make a request", onPress: onMakeRequest } : undefined}
+          secondaryAction={
+            onShowPast ? { label: "See past requests", onPress: onShowPast } : undefined
+          }
+        />
       ) : (
         <Grid minColumnWidth={380}>
           {[...requests]
@@ -1062,7 +1056,6 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
   },
-  pastLink: { alignItems: "center", marginTop: -spacing.md },
   saveToggleRow: {
     flexDirection: "row",
     alignItems: "center",

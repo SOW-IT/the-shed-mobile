@@ -7,6 +7,7 @@ import { usePagedQuery } from "@/hooks/usePagedQuery";
 import type { RequestPrefill } from "@/components/MyRequests";
 import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import { RequestCard } from "@/components/RequestCard";
+import { useScrollBy } from "@/components/ui/scrollAnchor";
 import {
   EmptyState,
   FadeInView,
@@ -78,6 +79,11 @@ export const PastRequests = ({
     }
   );
   const shown = linked ? rows.filter((row) => row._id !== linked._id) : rows;
+  const scrollBy = useScrollBy();
+  const linkKey = linked ? `${linked._id}:${focusReopenKey ?? ""}` : null;
+  useEffect(() => {
+    if (linkKey !== null) scrollBy(-Number.MAX_SAFE_INTEGER);
+  }, [linkKey, scrollBy]);
   const [measured, setMeasured] = useState({ count: -1, height: 0 });
   const shortOfScreen = measured.count === shown.length && measured.height < windowHeight;
   useEffect(() => {
@@ -85,8 +91,9 @@ export const PastRequests = ({
   }, [shortOfScreen, hasMore, loadingMore, loadMore]);
 
   const total = shown.length + (linked ? 1 : 0);
+  const more = hasMore || loadingMore;
   if (loadingFirstPage && !linked) return <LoadingState />;
-  if (total === 0 && !hasMore) {
+  if (total === 0 && !more) {
     return (
       <EmptyState
         icon="time-outline"
@@ -159,7 +166,7 @@ export const PastRequests = ({
           </Grid>
         </View>
       ))}
-      {hasMore ? (
+      {more ? (
         <View style={styles.more}>
           <SowSpinner size={36} />
         </View>
