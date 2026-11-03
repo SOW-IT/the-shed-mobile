@@ -1379,6 +1379,38 @@ describe("browsing past years", () => {
       "paid two years ago",
     ]);
   });
+
+  test("an open request from last year that Mine's 200 leaves out is on Past", async () => {
+    const t = await setupWithHistory([
+      { email: DAN, year: YEAR - 1, description: "dan's oldest open", open: true },
+      ...Array.from({ length: 200 }, (_, i) => ({
+        email: DAN,
+        year: YEAR - 1,
+        description: `dan open ${i}`,
+        open: true,
+      })),
+      ...Array.from({ length: 200 }, (_, i) => ({
+        email: HENRY,
+        year: YEAR - 1,
+        description: `henry open ${i}`,
+        open: true,
+      })),
+    ]);
+    const all = { paginationOpts: { numItems: 300, cursor: null } };
+    const dan = asUser(t, DAN);
+    const henry = asUser(t, HENRY);
+
+    const danMine = (await dan.query(api.requests.myRequests, {}))!;
+    expect(danMine).toHaveLength(200);
+    expect(danMine.some((r) => r.description === "dan's oldest open")).toBe(false);
+    const danPast = (await dan.query(api.requests.earlierMine, all))!;
+    expect(danPast.page.map((r) => r.description)).toEqual(["dan's oldest open"]);
+    expect((await dan.query(api.requests.requestYears, {}))!.hasPast).toBe(true);
+
+    expect((await henry.query(api.requests.myRequests, {}))!).toHaveLength(200);
+    expect((await henry.query(api.requests.earlierMine, all))!.page).toEqual([]);
+    expect((await henry.query(api.requests.requestYears, {}))!.hasPast).toBe(false);
+  });
 });
 
 describe("money in the audit trail and notifications", () => {

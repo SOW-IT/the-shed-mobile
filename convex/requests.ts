@@ -674,10 +674,22 @@ const requesterRequestsBefore = (ctx: QueryCtx, email: string, year: number) =>
     .order("desc");
 
 const hasPastRequests = async (ctx: QueryCtx, email: string, year: number) => {
-  for await (const request of requesterRequestsBefore(ctx, email, year)) {
-    if (!carriedIntoMine(request, year)) return true;
-  }
-  return false;
+  const newest = await requesterRequestsBefore(ctx, email, year).take(MINE_PER_YEAR_LIMIT + 1);
+  return newest.some((request, at) => at >= MINE_PER_YEAR_LIMIT || !carriedIntoMine(request, year));
+};
+
+const shownOnMine = async (ctx: QueryCtx, request: Doc<"requests">, year: number) => {
+  if (!carriedIntoMine(request, year)) return false;
+  const newerLastYear = await ctx.db
+    .query("requests")
+    .withIndex("by_requester", (q) =>
+      q
+        .eq("requesterEmail", request.requesterEmail)
+        .gt("_creationTime", request._creationTime)
+        .lt("_creationTime", staffYearStartMs(year))
+    )
+    .take(MINE_PER_YEAR_LIMIT);
+  return newerLastYear.length < MINE_PER_YEAR_LIMIT;
 };
 
 export const myRequests = query({
@@ -741,10 +753,11 @@ export const earlierMine = query({
     const result = await requesterRequestsBefore(ctx, caller.email, caller.year).paginate(
       paginationOpts
     );
-    return {
-      ...result,
-      page: result.page.filter((request) => !carriedIntoMine(request, caller.year)),
-    };
+    const page: Doc<"requests">[] = [];
+    for (const request of result.page) {
+      if (!(await shownOnMine(ctx, request, caller.year))) page.push(request);
+    }
+    return { ...result, page };
   },
 });
 
