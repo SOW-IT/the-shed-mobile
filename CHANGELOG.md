@@ -25,6 +25,17 @@ All notable changes to **The SHED** mobile app. This project follows
   end used to land before its start (11 pm to 1 am on the same day), so it
   couldn't be saved without fixing the date.
 
+## [2.10.19] - 2026-11-03
+
+### Added
+- **Swipe the Calendar to change month or week.** Swiping the month grid
+  left goes to the next month and swiping right goes to the previous one;
+  in the week view the same swipe moves a week at a time. It does exactly
+  what the arrows beside the title do, including which day is picked. The
+  calendar follows your finger a little while you swipe, a short or mostly
+  up-and-down drag still scrolls the page or the hours, and the filter chips
+  below keep scrolling sideways as before. With Reduce Motion on, the month
+  changes without the slide.
 ## [2.10.18] - 2026-11-02
 
 ### Changed
