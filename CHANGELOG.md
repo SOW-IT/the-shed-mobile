@@ -25,7 +25,7 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Event and design request cards are easier to scan.** They show the
   request's name with no number or year, "Edited" next to the name, and the
   status at the top right, with the whole card outlined in the status's
-  colour. Event cards spread Marketing, Risk and Finance left, middle and
+  colour and no arrow on the right. Event cards spread Marketing, Risk and Finance left, middle and
   right, a little bigger, and no longer say "Waiting on you" (To review shows
   that, with its count). Design cards say when the request was submitted.
 - **History reads newest first, as a timeline.** Event request, design

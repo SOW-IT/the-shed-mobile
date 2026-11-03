@@ -91,7 +91,6 @@ export const DesignRequestRow = ({
         </Text>
         <WaitingLine since={request.waitingSince} />
       </View>
-      <Ionicons name="chevron-forward" size={18} color={t.faint} />
     </Pressable>
   );
 };

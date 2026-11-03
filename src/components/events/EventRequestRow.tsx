@@ -97,7 +97,6 @@ export const EventRequestRow = ({
         <FormSteps forms={event.forms} />
         <WaitingLine since={event.waitingSince} />
       </View>
-      <Ionicons name="chevron-forward" size={18} color={t.faint} />
     </Pressable>
   );
 };
