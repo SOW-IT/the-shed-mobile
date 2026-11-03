@@ -1,9 +1,8 @@
 import { useState } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
-import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
-import { Alert, Pressable, StyleSheet, Text, View, Image } from "react-native";
+import { Pressable, StyleSheet, Text, View, Image } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { universityColour } from "../../../shared/flow";
 import {
@@ -15,6 +14,7 @@ import {
 } from "../../../shared/homeContent";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { CampusMark } from "@/components/CampusMark";
+import { openExternalLink } from "@/lib/openExternalLink";
 import {
   Btn,
   Card,
@@ -34,10 +34,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 const iconOr = (name: string | undefined, fallback: IconName): IconName =>
   name && name in Ionicons.glyphMap ? (name as IconName) : fallback;
 
-const open = (url: string) =>
-  void Linking.openURL(url).catch(() =>
-    Alert.alert("Couldn't open this", "Please try again or use a different device.")
-  );
+const open = (url: string) => void openExternalLink(url);
 
 export function HomeBlocks({ blocks }: { blocks: HomeBlock[] }) {
   return (

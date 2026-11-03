@@ -1,11 +1,12 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { eventStaffYear } from "../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { formatAmount, LoadingBar, Muted, Row, Txt } from "@/components/ui";
+import { openExternalLink } from "@/lib/openExternalLink";
 
 export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
@@ -53,7 +54,7 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
               <Pressable
                 key={j}
                 style={({ pressed }) => [styles.fileLink, pressed && { opacity: 0.6 }]}
-                onPress={() => void Linking.openURL(file.url!)}
+                onPress={() => void openExternalLink(file.url!)}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${file.name}`}
               >

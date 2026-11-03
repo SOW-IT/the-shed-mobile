@@ -1,24 +1,28 @@
 import { Component, ErrorInfo, ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { reportError } from "@/lib/errorReporting";
+import { isStaleReleaseError, RELOAD_NEEDED_TEXT } from "@/lib/appErrorKinds";
+import { reportError, staleReload } from "@/lib/errorReporting";
 import { useAppTheme } from "../theme";
 
 export class ErrorBoundary extends Component<
   { children: ReactNode },
-  { error: Error | null }
+  { error: Error | null; reloading: boolean }
 > {
-  state = { error: null as Error | null };
+  state = { error: null as Error | null, reloading: false };
 
   static getDerivedStateFromError(error: Error) {
-    return { error };
+    return { error, reloading: isStaleReleaseError(error) && staleReload.canReload() };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    if (isStaleReleaseError(error) && staleReload.reload()) return;
+    if (this.state.reloading) this.setState({ reloading: false });
     reportError(error, info.componentStack);
   }
 
   render() {
+    if (this.state.reloading) return <ReloadingNotice />;
     if (this.state.error) {
       return (
         <ErrorFallback
@@ -31,6 +35,22 @@ export class ErrorBoundary extends Component<
   }
 }
 
+const reloadPage = () => {
+  if (typeof window !== "undefined") window.location.reload();
+};
+
+function ReloadingNotice() {
+  const theme = useAppTheme();
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ActivityIndicator color={theme.primary} />
+      <Text style={[styles.message, { color: theme.muted }]}>
+        Loading the latest version of The SHED…
+      </Text>
+    </View>
+  );
+}
+
 function ErrorFallback({
   error,
   onRetry,
@@ -39,20 +59,21 @@ function ErrorFallback({
   onRetry: () => void;
 }) {
   const theme = useAppTheme();
+  const reloadInstead = Platform.OS === "web" && isStaleReleaseError(error);
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Text style={[styles.title, { color: theme.text }]}>
         Something went wrong
       </Text>
       <Text style={[styles.message, { color: theme.muted }]}>
-        {String(error.message ?? error)}
+        {reloadInstead ? RELOAD_NEEDED_TEXT : String(error.message ?? error)}
       </Text>
       <Pressable
         style={[styles.button, { backgroundColor: theme.primary }]}
-        onPress={onRetry}
+        onPress={reloadInstead ? reloadPage : onRetry}
       >
         <Text style={[styles.buttonText, { color: theme.onPrimary }]}>
-          Try again
+          {reloadInstead ? "Reload" : "Try again"}
         </Text>
       </Pressable>
     </View>

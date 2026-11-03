@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import {
@@ -11,6 +11,8 @@ import {
   WEEKDAYS,
   websiteLabel,
 } from "../../shared/churches";
+import { mapsLink } from "@/lib/externalLinks";
+import { openExternalLink } from "@/lib/openExternalLink";
 import { durations, radius, spacing, typography, useAppTheme } from "../theme";
 import { NativeTimeInput } from "./NativeDateTimeField";
 import { Btn, ErrorBanner, errorMessage, Field, OptionSheet, Select, Sheet } from "./ui";
@@ -30,12 +32,8 @@ export type Church = {
 export const useCanEditChurches = () => Boolean(useQuery(api.directory.me)?.profile);
 
 const openInMaps = (address: string) => {
-  const query = encodeURIComponent(address);
-  void Linking.openURL(
-    Platform.OS === "ios"
-      ? `https://maps.apple.com/?q=${query}`
-      : `https://www.google.com/maps/search/?api=1&query=${query}`
-  );
+  const { url, ...options } = mapsLink(address, Platform.OS);
+  void openExternalLink(url, options);
 };
 
 export function ChurchDetails({ church, onEdit, bare }: { church: Church; onEdit?: () => void; bare?: boolean }) {
@@ -71,7 +69,7 @@ export function ChurchDetails({ church, onEdit, bare }: { church: Church; onEdit
         <Pressable
           accessibilityRole="link"
           accessibilityLabel={`${church.name} website`}
-          onPress={() => void Linking.openURL(church.website!)}
+          onPress={() => void openExternalLink(church.website!)}
           style={({ pressed }) => [styles.detailRow, pressed && { opacity: 0.6 }]}
         >
           <Ionicons name="globe-outline" size={16} color={t.primary} />
@@ -84,7 +82,7 @@ export function ChurchDetails({ church, onEdit, bare }: { church: Church; onEdit
         <Pressable
           accessibilityRole="link"
           accessibilityLabel={`${church.name} on Instagram`}
-          onPress={() => void Linking.openURL(instagramUrl(church.instagram!))}
+          onPress={() => void openExternalLink(instagramUrl(church.instagram!))}
           style={({ pressed }) => [styles.detailRow, pressed && { opacity: 0.6 }]}
         >
           <Ionicons name="logo-instagram" size={16} color={t.primary} />

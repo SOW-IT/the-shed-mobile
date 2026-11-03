@@ -1,5 +1,16 @@
 import { Platform } from "react-native";
 import { appVersion } from "@/hooks/useReportAppVersion";
+import {
+  isNetworkError,
+  isStaleReleaseError,
+  isStaleScriptError,
+  isUnknownModuleError,
+} from "./appErrorKinds";
+import { browserReloadHost, createStaleReloader } from "./staleRelease";
+
+export const staleReload = createStaleReloader(() =>
+  Platform.OS === "web" ? browserReloadHost() : null
+);
 
 type ErrorReport = {
   message: string;
@@ -75,6 +86,12 @@ type GlobalWithErrorUtils = typeof globalThis & {
   };
 };
 
+const reportUnhandled = (error: unknown) => {
+  if (isNetworkError(error)) return;
+  if (isStaleReleaseError(error) && staleReload.reload()) return;
+  reportError(error);
+};
+
 const installGlobalHandlers = () => {
   if (installed) return;
   installed = true;
@@ -82,20 +99,23 @@ const installGlobalHandlers = () => {
   if (Platform.OS !== "web" && !__DEV__) {
     runtime.HermesInternal?.enablePromiseRejectionTracker?.({
       allRejections: true,
-      onUnhandled: (_id, error) => reportError(error),
+      onUnhandled: (_id, error) => reportUnhandled(error),
     });
   }
   const errorUtils = runtime.ErrorUtils;
   if (errorUtils) {
     const previous = errorUtils.getGlobalHandler();
     errorUtils.setGlobalHandler((error, isFatal) => {
-      reportError(error);
+      if (Platform.OS !== "web" || !isUnknownModuleError(error)) reportError(error);
       previous?.(error, isFatal);
     });
   }
   if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
-    window.addEventListener("error", (event) => reportError(event.error ?? event.message));
-    window.addEventListener("unhandledrejection", (event) => reportError(event.reason));
+    window.addEventListener("error", (event) => {
+      if (isStaleScriptError(event) && staleReload.reload()) return;
+      reportUnhandled(event.error ?? event.message);
+    });
+    window.addEventListener("unhandledrejection", (event) => reportUnhandled(event.reason));
   }
 };
 
