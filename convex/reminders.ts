@@ -28,9 +28,14 @@ import {
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
-import { designRequestUrl, headRecipients, marketingTeam } from "./designRequests";
 import {
-  accessTo,
+  accessTo as designAccessTo,
+  designRequestUrl,
+  headRecipients,
+  marketingTeam,
+} from "./designRequests";
+import {
+  accessResolver,
   canCommentOn,
   eventUrl,
   formName,
@@ -40,7 +45,12 @@ import {
   stepApprover,
   subFormsOf,
 } from "./eventRequestAccess";
-import { currentStaffYear, profileForCurrentYear, withDelegatesForYear } from "./model";
+import {
+  currentStaffYear,
+  profileForCurrentYear,
+  withDelegatesForYear,
+  type CallerContext,
+} from "./model";
 import {
   appUrl,
   lastMovementAt,
@@ -274,24 +284,30 @@ async function collectEventForms(ctx: MutationCtx, digest: Digest, now: number) 
 }
 
 const COMMENT_LOOKBACK_MS = 7 * COMMENT_REMINDER_AFTER_MS;
-// How much one run reads, so a busy week can't sink the digest: the newest
-// 1,000 comments, then the 50 threads of each kind with the newest comments
-// that are due (a day old), 200 comments each, for who has commented there.
-// More than 50 due threads in a week is far beyond what SOW has; past that the
-// oldest wouldn't be reminded.
+// How much one run reads, so a busy week can't sink the digest (Convex allows
+// 4,096 reads a mutation, shared with the other reminders): the newest 1,000
+// comments that are due (a day to a week old), then the 20 threads of each
+// kind with the newest of those, the newest 200 comments in each for who has
+// commented there, and access checks for at most 60 of those commenters (the
+// requester, submitter and approver are always reminded). That's roughly
+// 60 × 15 + 2 × 20 × 25 = 1,900 reads. Busier weeks than that are far beyond
+// what SOW has; past it the oldest threads and later commenters miss out.
 const COMMENT_SCAN_LIMIT = 1000;
-const THREADS_PER_RUN = 50;
+const THREADS_PER_RUN = 20;
 const THREAD_LIMIT = 200;
+const COMMENTER_CHECKS = 60;
 
 type Comment = { authorEmail: string; postedAt: number };
-type Read = { lastReadAt: number; remindedAt?: number } | null;
+type Read = { lastReadAt: number; remindedAt?: number };
 
 const emailKey = (email: string) => canonicalEmailKey(email) ?? email;
+// Both staff addresses, since someone reads under the one they sign in with.
+const addressesOf = (email: string) => [...new Set([email, ...staffEmailCandidates(email)])];
 
 // The comments in a thread someone still hasn't read a day after they were
 // posted, leaving out their own and any an earlier reminder already mentioned.
-const unreadToRemind = (comments: Comment[], to: string, read: Read, now: number) => {
-  const since = Math.max(read?.lastReadAt ?? 0, read?.remindedAt ?? 0);
+const unreadToRemind = (comments: Comment[], to: string, reads: Read[], now: number) => {
+  const since = Math.max(0, ...reads.map((r) => Math.max(r.lastReadAt, r.remindedAt ?? 0)));
   return comments.filter(
     (c) =>
       emailKey(c.authorEmail) !== emailKey(to) &&
@@ -302,16 +318,34 @@ const unreadToRemind = (comments: Comment[], to: string, read: Read, now: number
 
 const newestOf = (comments: Comment[]) => Math.max(...comments.map((c) => c.postedAt));
 
+// Who has commented in a thread: the authors of its newest comments and of
+// the ones being reminded about.
+const commenterEmails = (thread: Comment[], due: Comment[]) =>
+  [...new Set([...thread, ...due].map((c) => c.authorEmail))];
+
 // Unread comments go to whoever the thread is for: the requester, the form's
 // submitter and approver (the Marketing Head for a design request), and anyone
 // who has commented on it and can still comment there.
 async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: number) {
   const since = now - COMMENT_LOOKBACK_MS;
+  const dueBy = now - COMMENT_REMINDER_AFTER_MS;
+  const callers = new Map<string, Promise<CallerContext | null>>();
+  const callerFor = (email: string) => {
+    let caller = callers.get(email);
+    if (!caller) {
+      caller = profileForCurrentYear(ctx, email);
+      callers.set(email, caller);
+    }
+    return caller;
+  };
+  const eventAccess = new Map<string, ReturnType<typeof accessResolver>>();
+
   const eventThreads = new Map<string, Doc<"eventRequestComments">[]>();
-  let scanned = 0;
-  for await (const comment of ctx.db.query("eventRequestComments").order("desc")) {
-    if (comment._creationTime < since || ++scanned > COMMENT_SCAN_LIMIT) break;
-    if (now - comment.postedAt < COMMENT_REMINDER_AFTER_MS) continue;
+  for (const comment of await ctx.db
+    .query("eventRequestComments")
+    .withIndex("by_creation_time", (q) => q.gte("_creationTime", since).lte("_creationTime", dueBy))
+    .order("desc")
+    .take(COMMENT_SCAN_LIMIT)) {
     const key = `${comment.eventRequestId} ${comment.form}`;
     eventThreads.set(key, [...(eventThreads.get(key) ?? []), comment]);
   }
@@ -325,13 +359,19 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
       .withIndex("by_eventRequest_and_form_and_postedAt", (q) =>
         q.eq("eventRequestId", event._id).eq("form", kind)
       )
+      .order("desc")
       .take(THREAD_LIMIT);
     const commenters: string[] = [];
-    for (const author of new Set(thread.map((c) => c.authorEmail))) {
-      const caller = await profileForCurrentYear(ctx, author);
-      if (caller && !isCampusLeader(caller) && canCommentOn(await accessTo(ctx, caller, event), kind)) {
-        commenters.push(author);
+    for (const author of commenterEmails(thread, comments)) {
+      if (!callers.has(author) && callers.size >= COMMENTER_CHECKS) continue;
+      const caller = await callerFor(author);
+      if (!caller || isCampusLeader(caller)) continue;
+      let accessOf = eventAccess.get(author);
+      if (!accessOf) {
+        accessOf = accessResolver(ctx, caller);
+        eventAccess.set(author, accessOf);
       }
+      if (canCommentOn(await accessOf(event), kind)) commenters.push(author);
     }
     const recipients = uniqueRecipients([
       event.requesterEmail,
@@ -340,13 +380,17 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
       ...commenters,
     ]);
     for (const to of recipients) {
-      const read = await ctx.db
-        .query("eventRequestCommentReads")
-        .withIndex("by_eventRequest_and_form_and_user", (q) =>
-          q.eq("eventRequestId", event._id).eq("form", kind).eq("userEmail", to)
-        )
-        .unique();
-      const unread = unreadToRemind(comments, to, read, now);
+      const reads: Doc<"eventRequestCommentReads">[] = [];
+      for (const email of addressesOf(to)) {
+        const read = await ctx.db
+          .query("eventRequestCommentReads")
+          .withIndex("by_eventRequest_and_form_and_user", (q) =>
+            q.eq("eventRequestId", event._id).eq("form", kind).eq("userEmail", email)
+          )
+          .unique();
+        if (read) reads.push(read);
+      }
+      const unread = unreadToRemind(comments, to, reads, now);
       if (unread.length === 0) continue;
       add(digest, to, {
         kind: "comment",
@@ -356,9 +400,8 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
         emailed: true,
       });
       const remindedAt = newestOf(unread);
-      if (read) {
-        await ctx.db.patch("eventRequestCommentReads", read._id, { remindedAt });
-      } else {
+      for (const read of reads) await ctx.db.patch("eventRequestCommentReads", read._id, { remindedAt });
+      if (reads.length === 0) {
         await ctx.db.insert("eventRequestCommentReads", {
           eventRequestId: event._id,
           form: kind,
@@ -371,35 +414,48 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
   }
 
   const designThreads = new Map<Id<"designRequests">, Doc<"designRequestComments">[]>();
-  scanned = 0;
-  for await (const comment of ctx.db.query("designRequestComments").order("desc")) {
-    if (comment._creationTime < since || ++scanned > COMMENT_SCAN_LIMIT) break;
-    if (comment.legacyKey !== undefined || now - comment.postedAt < COMMENT_REMINDER_AFTER_MS) continue;
+  for (const comment of await ctx.db
+    .query("designRequestComments")
+    .withIndex("by_creation_time", (q) => q.gte("_creationTime", since).lte("_creationTime", dueBy))
+    .order("desc")
+    .take(COMMENT_SCAN_LIMIT)) {
+    if (comment.legacyKey !== undefined) continue;
     const id = comment.designRequestId;
     designThreads.set(id, [...(designThreads.get(id) ?? []), comment]);
   }
-  // Only the requester and the Marketing team can see a design request.
-  const team = new Set((await marketingTeam(ctx)).map(emailKey));
   for (const [id, comments] of [...designThreads].slice(0, THREADS_PER_RUN)) {
     const request = await ctx.db.get("designRequests", id);
     if (!request) continue;
     const thread = await ctx.db
       .query("designRequestComments")
       .withIndex("by_designRequest_and_postedAt", (q) => q.eq("designRequestId", id))
+      .order("desc")
       .take(THREAD_LIMIT);
+    // Only the requester and the Marketing team (or whoever covers its Head)
+    // can still comment on a design request.
+    const commenters: string[] = [];
+    for (const author of commenterEmails(thread, comments)) {
+      if (!callers.has(author) && callers.size >= COMMENTER_CHECKS) continue;
+      const caller = await callerFor(author);
+      if (caller && (await designAccessTo(ctx, caller, request)).canComment) commenters.push(author);
+    }
     const recipients = uniqueRecipients([
       request.requesterEmail,
       ...(await headRecipients(ctx, request.year)),
-      ...thread.map((c) => c.authorEmail).filter((email) => team.has(emailKey(email))),
+      ...commenters,
     ]);
     for (const to of recipients) {
-      const read = await ctx.db
-        .query("designRequestCommentReads")
-        .withIndex("by_designRequest_and_user", (q) =>
-          q.eq("designRequestId", id).eq("userEmail", to)
-        )
-        .unique();
-      const unread = unreadToRemind(comments, to, read, now);
+      const reads: Doc<"designRequestCommentReads">[] = [];
+      for (const email of addressesOf(to)) {
+        const read = await ctx.db
+          .query("designRequestCommentReads")
+          .withIndex("by_designRequest_and_user", (q) =>
+            q.eq("designRequestId", id).eq("userEmail", email)
+          )
+          .unique();
+        if (read) reads.push(read);
+      }
+      const unread = unreadToRemind(comments, to, reads, now);
       if (unread.length === 0) continue;
       add(digest, to, {
         kind: "comment",
@@ -409,9 +465,8 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
         emailed: true,
       });
       const remindedAt = newestOf(unread);
-      if (read) {
-        await ctx.db.patch("designRequestCommentReads", read._id, { remindedAt });
-      } else {
+      for (const read of reads) await ctx.db.patch("designRequestCommentReads", read._id, { remindedAt });
+      if (reads.length === 0) {
         await ctx.db.insert("designRequestCommentReads", {
           designRequestId: id,
           userEmail: to,

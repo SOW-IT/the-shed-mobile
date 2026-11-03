@@ -457,6 +457,28 @@ describe("unread comment reminders", () => {
     );
   });
 
+  test("comments an approver read under their login address don't remind their other address", async () => {
+    const t = await setup();
+    const alias = "cora@sowaustralia.com";
+    await t.run(async (ctx) => {
+      for (const department of await ctx.db.query("departments").collect()) {
+        if (department.name === "Compliance") {
+          await ctx.db.patch("departments", department._id, { headEmail: alias });
+        }
+      }
+    });
+    const id = await createEvent(t);
+    await asUser(t, RACHEL).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Tents?" });
+    atDay(0.2);
+    await asUser(t, CORA).mutation(api.eventRequestComments.markRead, { id, form: "risk" });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    for (const who of [CORA, alias]) {
+      for (const mail of await emailsTo(t, who)) expect(mail.body).not.toContain("unread comment");
+    }
+  });
+
   test("design request comments remind the requester and the Marketing Head", async () => {
     const t = await setup();
     const id = await submitDesign(t);
