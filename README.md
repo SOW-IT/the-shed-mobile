@@ -60,6 +60,16 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Only they can assign roles/departments (for the current and next year),
   manage divisions/departments, and set the **Budget Manager** (who must be
   from the Finance department). Users can never change their own role.
+- **Acting as** (`convex/actingAs.ts`, `shared/actingAs.ts`, ADR 0017):
+  admins see every role-gated view by default ("All views": the Marketing
+  queue and every design request, every team's event forms to review, every
+  reimbursement queue and Finance's All tab and export), read-only unless the
+  work is really theirs. Under their name in the menu they can instead act
+  as the Director, the Budget Manager, or the staff or Head of one of the
+  year's departments, and see exactly that role's tabs, queues and badges; a
+  chip at the top resets it. The choice is stored per admin on the server
+  (`actingAs` table). It never grants an action, and grievances stay with the
+  grievance team.
 - **Org structure** (seeded, editable per-year by admins): Governance (Data
   and IT, Finance, Compliance), Engagement (Marketing, Alumni), Human
   Resources (People and Culture, Training and Development), Operations
@@ -108,8 +118,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   are checked against them server-side. Only the **Marketing Head** (or
   their delegate) approves or declines; anyone in Marketing marks approved
   requests complete. Requesters can edit or cancel until a request closes,
-  and everyone on it can comment. Only the requester and the Marketing team
-  see a request (admins don't). Marketing staff get in-app/push
+  and everyone on it can comment. Only the requester, the Marketing team and
+  admins (read-only) see a request. Marketing staff get in-app/push
   notifications and the team's emails go to marketing@sow.org.au. Lists:
   Mine, the Marketing queue (open requests) and an All archive, each running
   back through earlier staff years as you scroll; the Marketing Head opens on the queue when something waits on them.

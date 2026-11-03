@@ -87,7 +87,9 @@ and the Director review what's waiting for them (To review, with a badge for
 what's waiting on you). Every staff member can see every event and its
 comments (All), but only the requester's side fills in, edits or cancels it,
 and only a form's team and requester's side comment on it. Mine and All run back through earlier staff years as you
-scroll. Campus leaders don't use event requests.
+scroll. Campus leaders don't use event requests. Admins see every team's
+forms in To review, read-only, or one team's when acting as it (see **Acting
+as** in [Org](./org.md)).
 
 **Legacy event**:
 An event form imported once from the old web app's Firestore (2.3.0; the

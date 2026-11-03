@@ -130,6 +130,25 @@ division, the head of the Governance division (not its other staff), and the
 Director. Only admins assign roles and manage
 structure, and nobody can change their own role.
 
+**All views**:
+What an admin sees by default: every list, queue and form a role or
+department would open, as each of those people would see it (the Marketing
+queue and every design request, every team's event forms to review, every
+reimbursement queue and Finance's All tab). Anything the admin can't really
+do is read-only, and badges count only what's waiting on the admin.
+Grievances are not part of it.
+_Avoid_: god mode, superuser
+
+**Acting as**:
+An admin's choice to see the app as one role instead of All views: the
+Director, the Budget Manager (who is Finance staff), or the staff or Head of
+one of this year's departments. Lists, tabs, queues and badges become that
+role's; the admin's own requests stay theirs. It changes what they see,
+never what they can do, and it is saved per admin on the server (`actingAs`),
+so it follows them across devices. A department that no longer exists falls
+back to All views. See [ADR 0017](../adr/0017-admins-see-every-view-and-can-act-as-a-role.md).
+_Avoid_: impersonation (it is never a particular person), view as
+
 **Role title**:
 What a role was called in a given year. A year's role list can name an app
 role differently ("Department Overseer" stood for Head of Department in 2019
