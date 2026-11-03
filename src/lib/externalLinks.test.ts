@@ -1,12 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { browserFallbackFor, googleMapsUrl, linkFailureText, mapsLink } from "./externalLinks";
 
-const ADDRESS = "41b College Street, Gladesville NSW 2111";
+const ADDRESS = "12 Example Street, Glebe NSW 2037";
 
 describe("mapsLink", () => {
   test("opens Apple Maps on iOS and falls back to Google Maps in the browser", () => {
     const link = mapsLink(ADDRESS, "ios");
-    expect(link.url).toBe("https://maps.apple.com/?q=41b%20College%20Street%2C%20Gladesville%20NSW%202111");
+    expect(link.url).toBe("https://maps.apple.com/?q=12%20Example%20Street%2C%20Glebe%20NSW%202037");
     expect(link.fallbackUrl).toBe(googleMapsUrl(ADDRESS));
     expect(link.failure).toEqual({ title: "Couldn't open Maps", message: `The address is ${ADDRESS}.` });
   });
@@ -15,7 +15,7 @@ describe("mapsLink", () => {
     for (const os of ["android", "web"]) {
       const link = mapsLink(ADDRESS, os);
       expect(link.url).toBe(
-        "https://www.google.com/maps/search/?api=1&query=41b%20College%20Street%2C%20Gladesville%20NSW%202111"
+        "https://www.google.com/maps/search/?api=1&query=12%20Example%20Street%2C%20Glebe%20NSW%202037"
       );
       expect(link.fallbackUrl).toBe(link.url);
     }
@@ -24,7 +24,7 @@ describe("mapsLink", () => {
 
 describe("browserFallbackFor", () => {
   test("retries a web link in the in-app browser", () => {
-    expect(browserFallbackFor("https://fields.org.au/sbf/")).toBe("https://fields.org.au/sbf/");
+    expect(browserFallbackFor("https://example.org/church/")).toBe("https://example.org/church/");
     expect(browserFallbackFor("https://maps.apple.com/?q=x", "https://www.google.com/maps/search/?api=1&query=x")).toBe(
       "https://www.google.com/maps/search/?api=1&query=x"
     );
@@ -39,9 +39,9 @@ describe("browserFallbackFor", () => {
 
 describe("linkFailureText", () => {
   test("names the site so it can be opened by hand", () => {
-    expect(linkFailureText("https://fields.org.au/sbf/")).toEqual({
+    expect(linkFailureText("https://example.org/church/")).toEqual({
       title: "Couldn't open this link",
-      message: "Try again, or open fields.org.au/sbf in your browser.",
+      message: "Try again, or open example.org/church in your browser.",
     });
     expect(linkFailureText("https://www.instagram.com/harbourcity/").message).toBe(
       "Try again, or open instagram.com/harbourcity in your browser."
