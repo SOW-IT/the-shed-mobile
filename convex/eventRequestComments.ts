@@ -42,7 +42,7 @@ export const list = query({
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
     const event = await ctx.db.get("eventRequests", args.id);
-    if (!event) return null;
+    if (!event || !(await accessTo(ctx, caller, event)).canView) return null;
     const comments = await commentsFor(ctx, args.id, args.form).take(COMMENTS_LIMIT);
     return await commentRows(ctx, comments, event.year, caller.email);
   },

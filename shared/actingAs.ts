@@ -1,5 +1,6 @@
 import { MARKETING } from "./designRequests";
 import {
+  EVENTS,
   SUB_FORM_KINDS,
   SUB_FORM_LABELS,
   SUB_FORM_TEAMS,
@@ -140,6 +141,9 @@ export const personaOnTeam = (persona: Persona, kind: SubFormKind): boolean =>
 
 export const personaReviewsEvents = (persona: Persona): boolean =>
   personaIsDirector(persona) || SUB_FORM_KINDS.some((kind) => personaOnTeam(persona, kind));
+
+export const personaSeesAllEvents = (persona: Persona): boolean =>
+  personaInDepartment(persona, EVENTS) || personaReviewsEvents(persona);
 
 const directorStep = (kind: SubFormKind, step: FinanceStep | undefined) =>
   kind === "finance" && step === "director";

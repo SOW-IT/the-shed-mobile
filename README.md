@@ -62,11 +62,13 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   from the Finance department). Users can never change their own role.
 - **Acting as** (`convex/actingAs.ts`, `shared/actingAs.ts`, ADR 0017):
   admins see every role-gated view by default ("All views": the Marketing
-  queue and every design request, every team's event forms to review, every
-  reimbursement queue and Finance's All tab and export), read-only unless the
+  queue and every design request, every event request and every team's forms
+  to review, every reimbursement queue and Finance's All tab and export),
+  read-only unless the
   work is really theirs. Under their name in the menu they can instead act
   as the Director, the Budget Manager, or the staff or Head of one of the
-  year's departments, and see exactly that role's tabs, queues and badges; a
+  year's departments, and see exactly that role's tabs, queues and badges
+  (ordinary staff of a department see only its event requests, no All); a
   chip at the top resets it. The choice is stored per admin on the server
   (`actingAs` table). It never grants an action, and grievances stay with the
   grievance team.
@@ -141,8 +143,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   in Admin → Other, or not required at $0). The event is approved once all
   three are approved or not required. The requester's department fills the
   forms in; reviewers can ask for changes; each form has its own comment
-  thread. Every staff member can see every event (All); only the requester's
-  side and each form's team act on it. Cards show the event's name (no
+  thread. The Events department, the three teams, the Director and admins can
+  see every event (All); other staff see their own department's. Cards show the event's name (no
   numbers), its status top right with the card outlined in that colour, and
   Marketing, Risk and Finance across the bottom; history is newest first,
   spaced by the time between steps. Team emails go to marketing@, compliance@ and

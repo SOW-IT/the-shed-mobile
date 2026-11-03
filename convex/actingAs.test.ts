@@ -441,8 +441,10 @@ describe("admins see every view by default", () => {
     const admin = asUser(t, ADMIN);
     expect(await admin.query(api.eventRequests.viewer, {})).toMatchObject({
       reviews: true,
+      seesAll: true,
       departments: ["Data and IT"],
     });
+    expect((await admin.query(api.eventRequests.all, { year: YEAR }))!).toHaveLength(5);
     const review = (await admin.query(api.eventRequests.review, {}))!;
     expect(review.map((r) => r._id).sort()).toEqual(
       sorted(events.marketing, events.risk, events.director)
@@ -755,6 +757,41 @@ describe("acting as other roles", () => {
     await expect(
       asUser(t, ADMIN).mutation(api.requests.approve, { requestId: requests.hod, step: "hod" })
     ).rejects.toThrow(/not the approver/);
+  });
+
+  test("All event requests follow the role: ordinary staff see only their department's", async () => {
+    const { t, events } = await setup();
+    const admin = asUser(t, ADMIN);
+    const viewer = () => admin.query(api.eventRequests.viewer, {});
+    const firstPage = { paginationOpts: { numItems: 10, cursor: null } };
+
+    await actAs(t, { role: "staff", department: "Missions" });
+    expect(await viewer()).toMatchObject({ reviews: false, seesAll: false });
+    expect(await admin.query(api.eventRequests.all, { year: YEAR })).toBeNull();
+    expect(await admin.query(api.eventRequests.earlierAll, firstPage)).toBeNull();
+    expect((await admin.query(api.eventRequests.mine, {}))!.map((r) => r._id).sort()).toEqual(
+      sorted(events.risk, events.admin)
+    );
+    expect(await asUser(t, OLLIE).query(api.eventRequests.viewer, {})).toMatchObject({
+      seesAll: false,
+    });
+    expect((await admin.query(api.eventRequests.get, { id: events.marketing }))!.can).toEqual({
+      edit: false,
+      cancel: false,
+    });
+
+    for (const persona of [
+      { role: "staff", department: "Events" },
+      { role: "staff", department: "Marketing" },
+      { role: "head", department: "Compliance" },
+      { role: "director" },
+      { role: "staff", department: "Data and IT" },
+    ] as Persona[]) {
+      await actAs(t, persona);
+      expect(await viewer()).toMatchObject({ seesAll: true });
+      expect(await admin.query(api.eventRequests.all, { year: YEAR })).toHaveLength(5);
+    }
+    expect(await admin.query(api.eventRequests.earlierAll, firstPage)).toMatchObject({ page: [] });
   });
 
   test("an admin department or division keeps the admin views", async () => {

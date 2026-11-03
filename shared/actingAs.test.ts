@@ -10,6 +10,7 @@ import {
   personaHoldsStep,
   personaLabel,
   personaReviewsEvents,
+  personaSeesAllEvents,
   personaSeesForm,
   personaSeesRequest,
   samePersona,
@@ -96,6 +97,10 @@ describe("event forms", () => {
     expect(personaReviewsEvents(MARKETING_STAFF)).toBe(true);
     expect(personaReviewsEvents(DIRECTOR)).toBe(true);
     expect(personaReviewsEvents({ role: "staff", department: "Events" })).toBe(false);
+    expect(personaSeesAllEvents({ role: "staff", department: "Events" })).toBe(true);
+    expect(personaSeesAllEvents(MARKETING_STAFF)).toBe(true);
+    expect(personaSeesAllEvents(DIRECTOR)).toBe(true);
+    expect(personaSeesAllEvents({ role: "head", department: "Missions" })).toBe(false);
     expect(personaSeesForm(MARKETING_STAFF, "marketing", undefined)).toBe(true);
     expect(personaSeesForm(MARKETING_STAFF, "risk", undefined)).toBe(false);
     expect(personaSeesForm(DIRECTOR, "finance", "director")).toBe(true);

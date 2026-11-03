@@ -7,12 +7,13 @@ import {
   personaApprovesForm,
   personaDepartment,
   personaReviewsEvents,
+  personaSeesAllEvents,
   personaSeesForm,
   seesThrough,
   waitsThrough,
   type Lens,
 } from "../shared/actingAs";
-import { lensFor } from "./actingAs";
+import { lensFor, personaIsAdmin } from "./actingAs";
 import {
   answerForRole,
   answersProblem,
@@ -48,6 +49,7 @@ import {
   recipientsFor,
   requireEvent,
   requireEventStaff,
+  seesAll,
   stepApprover,
   subFormsOf,
   tell,
@@ -92,6 +94,14 @@ const reviewsAny = (scope: ViewerScope) =>
 
 const reviewsEvents = (ctx: Ctx, caller: CallerContext, lens: Lens) =>
   seesThrough(lens, async () => reviewsAny(await viewerScope(ctx, caller)), personaReviewsEvents);
+
+const seesAllEvents = async (ctx: Ctx, caller: CallerContext, lens: Lens) => {
+  if (lens.kind === "all") return true;
+  if (lens.kind === "self") return seesAll(await viewerScope(ctx, caller));
+  return (
+    personaSeesAllEvents(lens.persona) || (await personaIsAdmin(ctx, caller.year, lens.persona))
+  );
+};
 
 export const sideDepartments = (caller: CallerContext, lens: Lens): string[] => {
   if (lens.kind !== "as") return departmentsOf(caller.profile);
@@ -150,13 +160,12 @@ export const viewer = query({
   handler: async (ctx) => {
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
+    const lens = await lensFor(ctx, caller);
     return {
       year: caller.year,
       departments: departmentsOf(caller.profile),
-      reviews: await reviewsEvents(ctx, caller, await lensFor(ctx, caller)),
-      // Every staff member sees All; app versions before 2.10.21 show it only
-      // when this is true.
-      seesAll: true,
+      reviews: await reviewsEvents(ctx, caller, lens),
+      seesAll: await seesAllEvents(ctx, caller, lens),
     };
   },
 });
@@ -282,7 +291,7 @@ export const all = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     const caller = await optionalEventStaff(ctx);
-    if (!caller) return null;
+    if (!caller || !(await seesAllEvents(ctx, caller, await lensFor(ctx, caller)))) return null;
     const events = await ctx.db
       .query("eventRequests")
       .withIndex("by_year_and_number", (q) => q.eq("year", args.year))
@@ -304,7 +313,7 @@ export const earlierAll = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalEventStaff(ctx);
-    if (!caller) return null;
+    if (!caller || !(await seesAllEvents(ctx, caller, await lensFor(ctx, caller)))) return null;
     const result = await ctx.db
       .query("eventRequests")
       .withIndex("by_year_and_number", (q) => q.lt("year", caller.year))
@@ -323,6 +332,7 @@ export const get = query({
     const event = id ? await ctx.db.get("eventRequests", id) : null;
     if (!event) return null;
     const access = await accessTo(ctx, caller, event);
+    if (!access.canView) return null;
     const forms = await subFormsOf(ctx, event._id);
     const nameOf = (email: string | undefined) =>
       email ? displayName(ctx, email, event.year) : Promise.resolve(null);
@@ -384,7 +394,7 @@ export const timeline = query({
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
     const event = await ctx.db.get("eventRequests", args.id);
-    if (!event) return null;
+    if (!event || !(await accessTo(ctx, caller, event)).canView) return null;
     const events = await ctx.db
       .query("eventRequestEvents")
       .withIndex("by_eventRequest", (q) => q.eq("eventRequestId", args.id))

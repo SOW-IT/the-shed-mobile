@@ -18,17 +18,20 @@ All notable changes to **The SHED** mobile app. This project follows
   someone yourself, since your mentees are yours). Acting as Marketing staff
   shows every design request, the Marketing queue and the Marketing forms
   waiting for review; Compliance staff see the Risk forms; Finance see every
-  reimbursement. A chip at the top of the screen says who you're acting as,
-  and tapping it goes back to All views. The choice is saved to your account,
-  so it follows you to your other devices.
+  reimbursement. Acting as ordinary staff of a department shows only that
+  department's event requests, with no All tab; Events staff, the reviewing
+  teams and the Director see All. A chip at the top of the screen says who
+  you're acting as, and tapping it goes back to All views. The choice is
+  saved to your account, so it follows you to your other devices.
 - **Acting as never lets you do more.** Approving, completing, editing,
   paying and commenting still go by your own roles; anything you can't do is
   shown read-only, and comment threads you can't add to say who can.
 
 ### Changed
 - **Admins see every view by default.** On All views an admin sees the
-  Marketing queue and every design request, every team's event forms waiting
-  for review, and every reimbursement queue, the All tab and the export, as
+  Marketing queue and every design request, every event request and every
+  team's forms waiting for review, and every reimbursement queue, the All tab
+  and the export, as
   Finance would. Badges still count only what's waiting on you, and unread
   comment badges only threads you're part of. Grievances stay with the
   grievance team.
@@ -42,11 +45,11 @@ All notable changes to **The SHED** mobile app. This project follows
   else who has commented there and still can, by notification, push and email.
 
 ### Changed
-- **Every staff member can see every event request.** All is no longer just
-  for the Events department, the reviewing teams, the Director and admins.
-  Other staff can read a request, its forms and its comments, but only the
-  requester's department fills it in, edits or cancels it, and only it and
-  each form's team comment. Campus leaders still don't see event requests.
+- **Event requests stay with staff.** Campus leaders still can't see them,
+  and who sees what is unchanged: the requester's department sees its own
+  (Mine), and the Events department, the reviewing teams, the Director and
+  admins see every event (All). Unread comment counts only show for people
+  who can comment on that thread.
 - **Only the requester and the Marketing team see design requests.** Admins
   no longer see the Marketing queue or other people's design requests.
 - **Event and design request cards are easier to scan.** They show the

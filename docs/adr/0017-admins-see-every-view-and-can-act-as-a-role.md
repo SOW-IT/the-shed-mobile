@@ -1,8 +1,9 @@
 # Admins see every view and can act as a role
 
-2.10.21 narrowed who sees what: every staff member reads every event request,
-and only the requester and the Marketing team see design requests, so admins
-lost the Marketing queue. Daniel asked for the opposite for admins: see every
+2.10.21 narrowed who sees design requests to the requester and the Marketing
+team, so admins lost the Marketing queue. Event requests kept main's rule: the
+requester's department sees its own, and the Events department, the reviewing
+teams, the Director and admins see every event (All). Daniel asked for the opposite for admins: see every
 view by default, and be able to pick a department and role (Marketing staff,
 say) to see exactly what that person sees.
 
@@ -34,6 +35,12 @@ What we weighed (2026-11-04):
   role, they count what would be waiting on that role, so the preview matches
   what that person sees. Unread comment counts always follow the real
   threads the admin is in, since reads are personal.
+- **Event requests.** All views keeps every event (admins already had All).
+  A persona gets All when that role would: Events staff, a reviewing team's
+  staff or Head, the Director, or an admin department; ordinary staff of
+  another department see only their department's events, with no All tab.
+  An event's page still opens for an admin by a link, since their real
+  access allows it, but read-only.
 - **Grievances.** They are confidential to the grievance team, and the
   glossary already says admins outside it can't see them. All views and
   every persona leave them out.
