@@ -21,6 +21,9 @@ All notable changes to **The SHED** mobile app. This project follows
   date and times used to stay on the campus's weekly day, such as next
   Wednesday at 6:30 pm. Times you've changed yourself are kept when you
   switch.
+- **A new weekly after one that ran past midnight ends the next day.** Its
+  end used to land before its start (11 pm to 1 am on the same day), so it
+  couldn't be saved without fixing the date.
 
 ## [2.10.18] - 2026-11-02
 
