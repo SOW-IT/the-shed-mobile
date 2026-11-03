@@ -79,11 +79,11 @@ export const EventRequestRow = ({
         <View style={styles.top}>
           <Text numberOfLines={3} style={[typography.headline, styles.name, { color: t.text }]}>
             {event.name}
-            {event.editedAt ? (
-              <Text style={[typography.caption, { color: t.faint }]}>{"  "}Edited</Text>
-            ) : null}
           </Text>
           <View style={styles.topRight}>
+            {event.editedAt ? (
+              <Text style={[typography.caption, { color: t.faint }]}>Edited</Text>
+            ) : null}
             <UnreadBubble count={unread} />
             <EventStatusPill status={event.status} />
           </View>
@@ -97,7 +97,6 @@ export const EventRequestRow = ({
         <FormSteps forms={event.forms} />
         <WaitingLine since={event.waitingSince} />
       </View>
-      <Ionicons name="chevron-forward" size={18} color={t.faint} />
     </Pressable>
   );
 };
@@ -114,7 +113,14 @@ const styles = StyleSheet.create({
   top: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   name: { flex: 1 },
   topRight: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 },
-  steps: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
+  steps: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    columnGap: spacing.md,
+    rowGap: 4,
+    marginTop: 6,
+  },
   step: { flexDirection: "row", alignItems: "center", gap: 6 },
   stepLabel: { fontSize: 14.5, fontWeight: "600" },
 });

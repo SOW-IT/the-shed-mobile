@@ -12,7 +12,7 @@ All notable changes to **The SHED** mobile app. This project follows
 - **A comment still unread a day later is in the morning reminder.** Each
   design or event request comment goes in once, to the requester, the form's
   submitter and approver (the Marketing Head for a design request) and anyone
-  else in the thread, by notification, push and email.
+  else who has commented there and still can, by notification, push and email.
 
 ### Changed
 - **Every staff member can see every event request.** All is no longer just
@@ -23,11 +23,12 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Only the requester and the Marketing team see design requests.** Admins
   no longer see the Marketing queue or other people's design requests.
 - **Event and design request cards are easier to scan.** They show the
-  request's name with no number or year, "Edited" next to the name, and the
-  status at the top right, with the whole card outlined in the status's
-  colour. Event cards spread Marketing, Risk and Finance left, middle and
-  right, a little bigger, and no longer say "Waiting on you" (To review shows
-  that, with its count). Design cards say when the request was submitted.
+  request's name with no number or year, and "Edited" and the status at the
+  top right next to the name, with the whole card outlined in the status's
+  colour and no arrow on the right. Event cards spread Marketing, Risk and
+  Finance left, middle and right, a little bigger, and no longer say "Waiting
+  on you" (To review shows that, with its count). Design cards say when the
+  request was submitted.
 - **History reads newest first, as a timeline.** Event request, design
   request and reimbursement histories put the latest step at the top, joined
   by a line, with more space for longer gaps and how long each gap was ("3

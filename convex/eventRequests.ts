@@ -154,6 +154,9 @@ export const viewer = query({
       year: caller.year,
       departments: departmentsOf(caller.profile),
       reviews: await reviewsEvents(ctx, caller, await lensFor(ctx, caller)),
+      // Every staff member sees All; app versions before 2.10.21 show it only
+      // when this is true.
+      seesAll: true,
     };
   },
 });
