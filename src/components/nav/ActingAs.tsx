@@ -12,7 +12,14 @@ import {
   type Persona,
 } from "@shared/actingAs";
 import type { RoleTitles } from "@shared/flow";
-import { ErrorBanner, errorMessage, hapticSelect, LoadingState, Muted, OptionSheet } from "@/components/ui";
+import {
+  ErrorBanner,
+  errorMessage,
+  hapticSelect,
+  LoadingState,
+  Muted,
+  OptionSheet,
+} from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type ActingAs = { persona: Persona | null; label: string | null };
@@ -170,10 +177,12 @@ export const ActingAsPicker = ({
       onClose={onClose}
       footer={error ? <ErrorBanner message={error} /> : undefined}
     >
-      <Muted>
-        See the app the way someone in a role does. You can still only do what your own roles let
-        you do.
-      </Muted>
+      <View style={styles.intro}>
+        <Muted>
+          See the app the way someone in a role does. You can still only do what your own roles let
+          you do.
+        </Muted>
+      </View>
       <ChoiceRow
         title={ALL_VIEWS_LABEL}
         caption="Every list, queue and form, the default"
@@ -233,45 +242,48 @@ export const ActingAsControl = () => {
   const acting = actingAs.persona !== null;
   const label = actingAs.label ?? ALL_VIEWS_LABEL;
   return (
-    <View style={styles.controlRow}>
-      <Pressable
-        onPress={() => setOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel={`Acting as ${label}. Change who you're acting as`}
-        style={({ pressed }) => [
-          styles.control,
-          { backgroundColor: acting ? t.accentSoft : t.ghost },
-          pressed && { opacity: 0.7 },
-        ]}
-      >
-        <Ionicons
-          name={acting ? "eye" : "eye-outline"}
-          size={15}
-          color={acting ? t.accent : t.ghostText}
-        />
-        <Text
-          numberOfLines={1}
-          style={[styles.controlText, { color: acting ? t.accent : t.ghostText }]}
-        >
-          {`Acting as: ${label}`}
-        </Text>
-        <Ionicons name="chevron-down" size={14} color={acting ? t.accent : t.muted} />
-      </Pressable>
-      {acting ? (
+    <View style={styles.controlBlock}>
+      <Text style={[styles.controlCaption, { color: t.muted }]}>Acting as</Text>
+      <View style={styles.controlRow}>
         <Pressable
-          onPress={() => void choose(null)}
-          hitSlop={6}
+          onPress={() => setOpen(true)}
           accessibilityRole="button"
-          accessibilityLabel={`Stop acting as ${label} and go back to ${ALL_VIEWS_LABEL}`}
+          accessibilityLabel={`Acting as ${label}. Change who you're acting as`}
           style={({ pressed }) => [
-            styles.reset,
-            { backgroundColor: t.accentSoft },
+            styles.control,
+            { backgroundColor: acting ? t.accentSoft : t.ghost },
             pressed && { opacity: 0.7 },
           ]}
         >
-          <Ionicons name="close" size={15} color={t.accent} />
+          <Ionicons
+            name={acting ? "eye" : "eye-outline"}
+            size={15}
+            color={acting ? t.accent : t.ghostText}
+          />
+          <Text
+            numberOfLines={2}
+            style={[styles.controlText, { color: acting ? t.accent : t.ghostText }]}
+          >
+            {label}
+          </Text>
+          <Ionicons name="chevron-down" size={14} color={acting ? t.accent : t.muted} />
         </Pressable>
-      ) : null}
+        {acting ? (
+          <Pressable
+            onPress={() => void choose(null)}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={`Stop acting as ${label} and go back to ${ALL_VIEWS_LABEL}`}
+            style={({ pressed }) => [
+              styles.reset,
+              { backgroundColor: t.accentSoft },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="close" size={15} color={t.accent} />
+          </Pressable>
+        ) : null}
+      </View>
       <ActingAsPicker
         visible={open}
         onClose={() => setOpen(false)}
@@ -310,11 +322,18 @@ export const ActingAsChip = () => {
 };
 
 const styles = StyleSheet.create({
+  intro: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
+  controlBlock: { gap: spacing.xs, marginTop: spacing.sm },
+  controlCaption: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
   controlRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
-    marginTop: spacing.sm,
   },
   control: {
     flexDirection: "row",
