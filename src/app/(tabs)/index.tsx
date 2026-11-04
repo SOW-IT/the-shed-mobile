@@ -9,6 +9,7 @@ import {
   requestFullyApproved,
 } from "../../../shared/flow";
 import { threadDeepLinkKey } from "../../../shared/deepLinks";
+import { countWaiting } from "@shared/actingAs";
 import { isSowStaffAddress } from "../../../shared/rollcallImport";
 import { staffOnlyMessage } from "@shared/staffOnly";
 import { AllRequestsList } from "@/components/AllRequestsList";
@@ -18,6 +19,7 @@ import { ExportRequestsCard } from "@/components/ExportRequestsCard";
 import { GuideSheet, MyRequests } from "@/components/MyRequests";
 import { type RequestPrefill } from "@/components/MyRequests";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { PastRequests } from "@/components/PastRequests";
 import { ReviewList } from "@/components/ReviewList";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import {
@@ -84,16 +86,47 @@ export default function RequestsScreen() {
         : "skip"
     ) ?? 0;
   const reviewCount = review
-    ? review.hod.length +
-      review.budgetManager.length +
-      review.director.length +
-      review.financeHead.length +
-      review.readyToPay.length
+    ? countWaiting(
+        review.hod,
+        review.budgetManager,
+        review.director,
+        review.financeHead,
+        review.readyToPay
+      )
     : 0;
 
   const mineCount = (myRequests ?? []).filter(
     (r) => requestFullyApproved(r) && !r.receipt
   ).length;
+
+  const { tab, focus, thread, reopen } = useLocalSearchParams<{
+    tab?: string;
+    focus?: string;
+    thread?: string;
+    reopen?: string;
+  }>();
+  const focusReopenKey = typeof reopen === "string" ? reopen : undefined;
+  const focusId = typeof focus === "string" && focus ? focus : undefined;
+  const focusRequest = useQuery(
+    api.requests.get,
+    me?.profile && focusId ? { requestId: focusId } : "skip"
+  );
+  const focusResolving =
+    me?.profile != null &&
+    focusId !== undefined &&
+    (focusRequest === undefined || myRequests === undefined);
+  const focusInPast =
+    focusRequest != null &&
+    myRequests != null &&
+    focusRequest.requesterEmail === me?.email &&
+    !myRequests.some((r) => r._id === focusRequest._id);
+  const pastRequest = focusInPast ? focusRequest : null;
+  const linkedTab =
+    focusInPast && (tab === undefined || tab === "mine")
+      ? "past"
+      : typeof tab === "string"
+        ? tab
+        : undefined;
 
   const segments = [
     {
@@ -102,6 +135,7 @@ export default function RequestsScreen() {
       badge: mineCount > 0 ? mineCount : undefined,
       messageBadge: myUnreadComments > 0 ? myUnreadComments : undefined,
     },
+    ...(requestYears?.hasPast || focusInPast ? [{ key: "past", label: "Past" }] : []),
     ...(me?.isApprover || requestYears?.reviewedBefore
       ? [
           {
@@ -124,14 +158,6 @@ export default function RequestsScreen() {
     { key: "bank", label: "Bank" },
   ];
 
-  const { tab, focus, thread, reopen } = useLocalSearchParams<{
-    tab?: string;
-    focus?: string;
-    thread?: string;
-    reopen?: string;
-  }>();
-  const focusReopenKey = typeof reopen === "string" ? reopen : undefined;
-  const focusId = typeof focus === "string" && focus ? focus : undefined;
   const threadLinkKey = threadDeepLinkKey(focusId, thread, focusReopenKey);
   const [openedThreadLink, setOpenedThreadLink] = useState<string | null>(null);
   const focusThread = threadLinkKey !== null && threadLinkKey !== openedThreadLink;
@@ -142,8 +168,8 @@ export default function RequestsScreen() {
   const [active, setActive] = useState<string | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
-    if (typeof tab === "string") setActive(tab);
-  }, [tab, reopen]);
+    if (linkedTab !== undefined && !focusResolving) setActive(linkedTab);
+  }, [linkedTab, reopen, focusResolving]);
   const markReadForRequest = useMutation(api.notifications.markReadForRequest);
   useEffect(() => {
     if (focusId) {
@@ -158,11 +184,11 @@ export default function RequestsScreen() {
       : "mine"
     : null;
   useEffect(() => {
-    if (active !== null || landing === null || typeof tab === "string") return;
+    if (active !== null || landing === null || linkedTab !== undefined || focusResolving) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setActive(landing);
-  }, [active, landing, tab]);
-  const wanted = active ?? landing;
+  }, [active, landing, linkedTab, focusResolving]);
+  const wanted = active ?? (focusResolving ? null : linkedTab ?? landing);
   const activeSegment =
     wanted !== null && segments.some((s) => s.key === wanted) ? wanted : "mine";
 
@@ -187,7 +213,7 @@ export default function RequestsScreen() {
   const showMakeRequest = me?.profile != null;
 
   const loadMoreRef = useRef<(() => void) | null>(null);
-  const mineLoadMoreRef = useRef<(() => void) | null>(null);
+  const pastLoadMoreRef = useRef<(() => void) | null>(null);
   const reviewLoadMoreRef = useRef<(() => void) | null>(null);
 
   if (me === undefined) return <Screen><LoadingState /></Screen>;
@@ -226,7 +252,7 @@ export default function RequestsScreen() {
     );
   }
 
-  if (wanted === null) return <Screen><LoadingState /></Screen>;
+  if (wanted === null || requestYears === undefined) return <Screen><LoadingState /></Screen>;
 
   const renderAll = () => (
     <>
@@ -255,6 +281,22 @@ export default function RequestsScreen() {
             />
           </ReadableColumn>
         );
+      case "past":
+        return (
+          <PastRequests
+            account={me.email}
+            loadMoreRef={pastLoadMoreRef}
+            linked={pastRequest}
+            focusThread={focusThread}
+            focusReopenKey={focusReopenKey}
+            onFocusThreadOpened={onFocusThreadOpened}
+            onResubmit={(p) => {
+              setRequestPrefill(p);
+              setNewRequestOpen(true);
+              setActive("mine");
+            }}
+          />
+        );
       case "all":
         return renderAll();
       case "bank":
@@ -267,7 +309,6 @@ export default function RequestsScreen() {
         return (
           <>
             <MyRequests
-              loadMoreRef={mineLoadMoreRef}
               departments={departmentNames}
               defaultDepartment={defaultDepartment}
               newOpen={newRequestOpen}
@@ -280,6 +321,7 @@ export default function RequestsScreen() {
               focusThread={focusThread}
               focusReopenKey={focusReopenKey}
               onFocusThreadOpened={onFocusThreadOpened}
+              onShowPast={requestYears?.hasPast ? () => setActive("past") : undefined}
             />
           </>
         );
@@ -300,7 +342,7 @@ export default function RequestsScreen() {
         fullWidth
         onEndReached={(key) => {
           if (key === "all") loadMoreRef.current?.();
-          if (key === "mine") mineLoadMoreRef.current?.();
+          if (key === "past") pastLoadMoreRef.current?.();
           if (key === "review") reviewLoadMoreRef.current?.();
         }}
         footer={

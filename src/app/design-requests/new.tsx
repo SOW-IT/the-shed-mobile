@@ -12,6 +12,7 @@ import {
 } from "@shared/designRequests";
 import { staffOnlyMessage } from "@shared/staffOnly";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
   answersFromDraft,
   DesignRequestForm,
@@ -168,7 +169,7 @@ export default function DesignRequestFormScreen() {
               <Btn
                 title="Make an Event Request"
                 variant="tonal"
-                icon="calendar-outline"
+                icon={EVENT_REQUEST_ICON.outline}
                 onPress={() => router.replace("/event-requests/new")}
               />
             </Row>

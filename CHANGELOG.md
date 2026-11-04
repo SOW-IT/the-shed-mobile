@@ -30,6 +30,114 @@ All notable changes to **The SHED** mobile app. This project follows
   and short network drops were logged as app errors. Neither is logged any
   more, and a screen that recovers by reloading isn't logged either.
 
+## [2.10.24] - 2026-11-04
+
+### Added
+- **Admins can act as a department or role.** "Acting as", under your name
+  at the top of the menu, picks All views (the default) or a role: the
+  Director, the Budget Manager, or the staff or Head of any of this year's
+  departments. The app then looks the way it does for someone in that role:
+  their tabs, queues, badges and Waiting on you, and no Admin or
+  Announcements unless the role has them (Mentoring stays only if you mentor
+  someone yourself, since your mentees are yours). Acting as Marketing staff
+  shows every design request, the Marketing queue and the Marketing forms
+  waiting for review; Compliance staff see the Risk forms; Finance see every
+  reimbursement. Acting as ordinary staff of a department shows only that
+  department's event requests, with no All tab; Events staff, the reviewing
+  teams and the Director see All. A chip at the top of the screen says who
+  you're acting as, and tapping it goes back to All views. The choice is
+  saved to your account, so it follows you to your other devices.
+- **Acting as never lets you do more.** Approving, completing, editing,
+  paying and commenting still go by your own roles; anything you can't do is
+  shown read-only, and comment threads you can't add to say who can.
+
+### Changed
+- **Admins see every view by default.** On All views an admin sees the
+  Marketing queue and every design request, every event request and every
+  team's forms waiting for review, and every reimbursement queue, the All tab
+  and the export, as
+  Finance would. Badges still count only what's waiting on you, and unread
+  comment badges only threads you're part of. Grievances stay with the
+  grievance team.
+
+## [2.10.23] - 2026-11-04
+
+### Changed
+- **Event Requests has a calendar with a tick, and the Calendar has the
+  plain calendar.** Event Requests used the calendar icon, which looked more
+  like a calendar than the Calendar tab's own icon did. Event Requests now
+  shows a calendar with a tick in the side menu, the sidebar on wide screens,
+  its empty and "not found" pages, the "Make an Event Request" button and the
+  "Waiting on you" card on Home. The Calendar's bottom tab and its side menu
+  entry take the old Event Requests calendar.
+- **Insights sits at the bottom of the side menu, just above
+  Announcements.** For staff it used to come second, under Profile; on wide
+  screens it sat under Calendar. It now comes after Mentoring, with only
+  Announcements and Admin below it, for everyone who has it in the menu.
+- **Announcements is its own screen, like Insights.** Choosing Announcements
+  in the side menu used to slide it in on top of the screen you were on, with
+  a back arrow and no top bar. It now opens in place with the top bar, the
+  bell and the bottom tabs, and the side menu shows it as the screen you're
+  on. An announcement still opens on top, and going back from it lands on
+  Announcements, even after reloading the page in a browser. Links to
+  `/announcements` and to an announcement in pushes, emails and the bell keep
+  working.
+
+## [2.10.22] - 2026-11-04
+
+### Added
+- **Reimbursements have a Past tab.** Your requests from earlier staff years
+  used to sit under Mine, below this year's, in a "Past requests" list. They
+  now have their own tab, right after Mine, newest first with a divider for
+  each staff year. It opens with the ten most recent and loads the next ten
+  as you scroll near the end, with a spinner while they load and a line
+  saying how many there are once you reach the last one. Cards work as they
+  did: tap one for its details, timeline and comments, and the notes about
+  deleted receipt files show above the list. A declined one now has the
+  Resubmit button too, which opens a new request on Mine filled in from it.
+  The tab only shows for someone who has a request from an earlier year.
+
+### Changed
+- **Mine is this staff year's requests.** Last year's requests that aren't
+  paid or declined yet stay on Mine as before, and move to Past once they
+  are. With nothing this year, Mine says so and has a button to see
+  past requests.
+- **A link to an earlier year's request opens Past.** A notification or
+  email about a comment on an older request opens the Past tab with that
+  request on top, opened up, and its comments showing when the link was for
+  a comment.
+
+## [2.10.21] - 2026-11-04
+
+### Added
+- **A comment still unread a day later is in the morning reminder.** Each
+  design or event request comment goes in once, to the requester, the form's
+  submitter and approver (the Marketing Head for a design request) and anyone
+  else who has commented there and still can, by notification, push and email.
+
+### Changed
+- **Event requests stay with staff.** Campus leaders still can't see them,
+  and who sees what is unchanged: the requester's department sees its own
+  (Mine), and the Events department, the reviewing teams, the Director and
+  admins see every event (All). Unread comment counts only show for people
+  who can comment on that thread.
+- **Only the requester and the Marketing team see design requests.** Admins
+  no longer see the Marketing queue or other people's design requests.
+- **Event and design request cards are easier to scan.** They show the
+  request's name with no number or year, and "Edited" and the status at the
+  top right next to the name, with the whole card outlined in the status's
+  colour and no arrow on the right. Event cards spread Marketing, Risk and
+  Finance left, middle and right, a little bigger, and no longer say "Waiting
+  on you" (To review shows that, with its count). Design cards say when the
+  request was submitted.
+- **History reads newest first, as a timeline.** Event request, design
+  request and reimbursement histories put the latest step at the top, joined
+  by a line, with more space for longer gaps and how long each gap was ("3
+  days earlier").
+- **Design request emails and notifications name what was asked for.** They
+  say "Design request: Booklet" instead of "Design request #4 (2027)". Event
+  request reminders, PDFs and file names drop the number too.
+
 ## [2.10.20] - 2026-11-03
 
 ### Changed

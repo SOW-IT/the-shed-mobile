@@ -5,7 +5,9 @@ import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
-import { Avatar, ConfirmDialog } from "@/components/ui";
+import { AppIcon, type AppIconName, Avatar, ConfirmDialog } from "@/components/ui";
+import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
+import { ActingAsControl } from "@/components/nav/ActingAs";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
@@ -32,13 +34,13 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
+const NAV_ICONS: Record<NavKey, { outline: AppIconName; filled: AppIconName }> = {
   home: { outline: "home-outline", filled: "home" },
   reimbursements: { outline: "receipt-outline", filled: "receipt" },
   designRequests: { outline: "color-palette-outline", filled: "color-palette" },
-  eventRequests: { outline: "calendar-outline", filled: "calendar" },
+  eventRequests: EVENT_REQUEST_ICON,
   attendance: { outline: "checkbox-outline", filled: "checkbox" },
-  calendar: { outline: "calendar-clear-outline", filled: "calendar-clear" },
+  calendar: { outline: "calendar-outline", filled: "calendar" },
   insights: { outline: "stats-chart-outline", filled: "stats-chart" },
   org: { outline: "people-outline", filled: "people" },
   profile: { outline: "person-outline", filled: "person" },
@@ -61,6 +63,7 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "insights",
   "org",
   "mentoring",
+  "announcements",
   "grievances",
   "admin",
 ]);
@@ -89,7 +92,7 @@ const NavItemRow = ({
   nested,
   onPress,
 }: {
-  icon: { outline: IconName; filled: IconName };
+  icon: { outline: AppIconName; filled: AppIconName };
   label: string;
   selected: boolean;
   badge: number;
@@ -112,7 +115,7 @@ const NavItemRow = ({
         pressed && { opacity: 0.6 },
       ]}
     >
-      <Ionicons
+      <AppIcon
         name={selected ? icon.filled : icon.outline}
         size={sidebar ? 24 : 26}
         color={t.text}
@@ -311,6 +314,7 @@ export const NavMenu = ({
           </Text>
         ) : null}
       </Pressable>
+      <ActingAsControl />
     </View>
   ) : (
     <SignInMenu

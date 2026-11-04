@@ -95,5 +95,7 @@ export const designRequestFiling = (
   title: answerForRole(fields, answers, "title"),
 });
 
-export const designRequestName = (r: { year: number; number: number }): string =>
-  `Design request #${r.number} (${r.year})`;
+// Design requests are named by what they ask for, like event requests are by
+// their event; the year and number aren't shown.
+export const designRequestName = (r: { title: string }): string =>
+  r.title ? `Design request: ${r.title}` : "Design request";

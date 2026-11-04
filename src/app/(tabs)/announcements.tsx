@@ -18,6 +18,7 @@ import {
 import { parseDateTimeInputValues, toDateInputValue, toTimeInputValue } from "@shared/datetime";
 import { acronym } from "@shared/flow";
 import { PushPreview } from "@/components/announcements/PushPreview";
+import { ChromeScreen } from "@/components/ChromeScreen";
 import { NativeDateInput, NativeTimeInput } from "@/components/NativeDateTimeField";
 import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
 import {
@@ -35,6 +36,7 @@ import {
   Screen,
   SectionTitle,
   Segmented,
+  Toast,
   type ToastState,
   Txt,
   WarningBanner,
@@ -119,13 +121,12 @@ export default function AnnouncementsScreen() {
   const audience = reach === "everyone" ? EVERYONE : groups;
   const nothingPicked = reach === "groups" && isEveryone(groups);
   const size = useQuery(api.announcements.audienceSize, isAdmin ? { audience } : "skip");
-  const back = () => (router.canGoBack() ? router.back() : router.replace("/home"));
   const now = useNow();
 
   if (me === undefined) return <LoadingState />;
   if (!isAdmin) {
     return (
-      <Screen title="Announcements" onBack={back}>
+      <Screen title="Announcements">
         {me === null ? (
           <SignInPrompt what="page" />
         ) : (
@@ -210,7 +211,7 @@ export default function AnnouncementsScreen() {
   };
 
   return (
-    <Screen title="Announcements" onBack={back} maxWidth={720} toast={toast}>
+    <ChromeScreen floating={<Toast toast={toast} />}>
       <View style={{ gap: spacing.md }}>
         <SectionTitle>New announcement</SectionTitle>
         <Card>
@@ -469,7 +470,7 @@ export default function AnnouncementsScreen() {
         }}
         onClose={() => setCancelTarget(null)}
       />
-    </Screen>
+    </ChromeScreen>
   );
 }
 

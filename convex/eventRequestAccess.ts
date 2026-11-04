@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
+import { lensFor } from "./actingAs";
 import { syncEventRequestLinks } from "./eventRequestLinks";
 import { assignmentsOf, isMemberOfDepartment, roleNeedsUniversity } from "../shared/flow";
 import { formatDateTimeRange } from "../shared/forms";
@@ -38,9 +39,12 @@ export type SubForms = Record<SubFormKind, SubForm>;
 export const isCampusLeader = (caller: CallerContext) =>
   assignmentsOf(caller.profile).some((a) => roleNeedsUniversity(a.role));
 
+const seesStaffViews = async (ctx: Ctx, caller: CallerContext): Promise<boolean> =>
+  !isCampusLeader(caller) || (await lensFor(ctx, caller)).kind !== "self";
+
 export async function optionalEventStaff(ctx: Ctx): Promise<CallerContext | null> {
   const caller = await optionalProfile(ctx);
-  return caller && !isCampusLeader(caller) ? caller : null;
+  return caller && (await seesStaffViews(ctx, caller)) ? caller : null;
 }
 
 export async function requireEventStaff(ctx: Ctx): Promise<CallerContext> {
@@ -147,12 +151,33 @@ export async function accessTo(
   caller: CallerContext,
   event: EventRequest
 ): Promise<EventAccess> {
-  const scope = await viewerScope(ctx, caller, event);
-  const requesterSide =
-    event.requesterEmail === caller.email ||
-    isMemberOfDepartment(caller.profile, event.department) ||
-    (await actsAs(ctx, caller, await headOf(ctx, event, event.department)));
-  return { ...scope, requesterSide, canView: requesterSide || seesAll(scope) };
+  return await accessResolver(ctx, caller)(event);
+}
+
+// accessTo for many events at once: the lookups only depend on each event's
+// year and department, so they're done once per year and department.
+export function accessResolver(ctx: Ctx, caller: CallerContext) {
+  const scopes = new Map<number, Promise<ViewerScope>>();
+  const heads = new Map<string, Promise<boolean>>();
+  return async (event: EventRequest): Promise<EventAccess> => {
+    let scope = scopes.get(event.year);
+    if (!scope) {
+      scope = viewerScope(ctx, caller, event);
+      scopes.set(event.year, scope);
+    }
+    const key = `${event.year} ${event.department}`;
+    let head = heads.get(key);
+    if (!head) {
+      head = headOf(ctx, event, event.department).then((h) => actsAs(ctx, caller, h));
+      heads.set(key, head);
+    }
+    const requesterSide =
+      event.requesterEmail === caller.email ||
+      isMemberOfDepartment(caller.profile, event.department) ||
+      (await head);
+    const resolved = await scope;
+    return { ...resolved, requesterSide, canView: requesterSide || seesAll(resolved) };
+  };
 }
 
 // The event request something on the Calendar came from, but only when this

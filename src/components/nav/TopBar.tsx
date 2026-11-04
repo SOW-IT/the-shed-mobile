@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { UpdatePill } from "@/components/AppUpdatePrompt";
 import { Avatar, usePressScale } from "@/components/ui";
+import { ActingAsChip } from "@/components/nav/ActingAs";
 import { useNavDrawer } from "@/components/nav/NavDrawer";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
@@ -15,6 +16,8 @@ import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import { badgeText } from "@/lib/navMenu";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+
+const EDGE_CONTROLS_WIDTH = 60;
 
 export const TopBar = ({
   photo,
@@ -38,7 +41,10 @@ export const TopBar = ({
   return (
     <View style={styles.topBar}>
       <View style={styles.center} pointerEvents="box-none">
-        <TestEnvironmentChip />
+        <View style={styles.chipRow} pointerEvents="box-none">
+          <TestEnvironmentChip />
+          <ActingAsChip />
+        </View>
         <UpdatePill />
       </View>
       {isAuthenticated ? (
@@ -122,9 +128,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    paddingHorizontal: EDGE_CONTROLS_WIDTH,
     alignItems: "center",
     justifyContent: "center",
   },
+  chipRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, maxWidth: "100%" },
   signInButton: {
     flexDirection: "row",
     alignItems: "center",

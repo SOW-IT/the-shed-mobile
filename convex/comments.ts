@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { mutation, query, QueryCtx } from "./_generated/server";
+import { lensFor } from "./actingAs";
 import {
   currentStaffYear,
   getApprovers,
@@ -8,6 +9,7 @@ import {
   requireProfile,
   resolveName,
   withDelegatesForYear,
+  type CallerContext,
 } from "./model";
 import {
   actionOwnerEmail,
@@ -16,6 +18,7 @@ import {
   mineTabRequests,
   notify,
   requestUrl,
+  viewsRequest,
 } from "./requests";
 import { ALLOWED_REACTIONS, APPROVED, eventStaffYear } from "../shared/flow";
 import { formatAmount } from "../shared/money";
@@ -84,7 +87,9 @@ export const list = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
+    if (!request || !(await viewsRequest(ctx, caller, request, await lensFor(ctx, caller)))) {
+      return null;
+    }
 
     const comments = (
       await ctx.db
@@ -154,16 +159,42 @@ async function unreadCountFor(
   return unread.filter((c) => c.authorEmail !== email).length;
 }
 
+export const canComment = query({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    const request = await ctx.db.get("requests", args.requestId);
+    return !!caller && !!request && (await canSeeRequest(ctx, caller, request));
+  },
+});
+
 export const unreadCount = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request || !(await canSeeRequest(ctx, caller, request))) return null;
+    const lens = await lensFor(ctx, caller);
+    if (!request || !(await viewsRequest(ctx, caller, request, lens))) return null;
+    if (lens.kind !== "self" && !(await canSeeRequest(ctx, caller, request))) return 0;
     return await unreadCountFor(ctx, args.requestId, caller.email);
   },
 });
+
+async function threadsOf(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  requestIds: Id<"requests">[]
+): Promise<Id<"requests">[]> {
+  const ids = [...new Set(requestIds)];
+  if ((await lensFor(ctx, caller)).kind === "self") return ids;
+  const own: Id<"requests">[] = [];
+  for (const id of ids) {
+    const request = await ctx.db.get("requests", id);
+    if (request && (await canSeeRequest(ctx, caller, request))) own.push(id);
+  }
+  return own;
+}
 
 export const unreadTotalForRequests = query({
   args: { requestIds: v.array(v.id("requests")) },
@@ -171,7 +202,7 @@ export const unreadTotalForRequests = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return 0;
     let total = 0;
-    for (const requestId of new Set(args.requestIds)) {
+    for (const requestId of await threadsOf(ctx, caller, args.requestIds)) {
       total += await unreadCountFor(ctx, requestId, caller.email);
     }
     return total;
@@ -184,7 +215,7 @@ export const unreadCountsForRequests = query({
     const caller = await optionalProfile(ctx);
     const counts: Record<Id<"requests">, number> = {};
     if (!caller) return counts;
-    for (const requestId of new Set(args.requestIds)) {
+    for (const requestId of await threadsOf(ctx, caller, args.requestIds)) {
       const unread = await unreadCountFor(ctx, requestId, caller.email);
       if (unread > 0) counts[requestId] = unread;
     }

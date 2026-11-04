@@ -13,6 +13,7 @@ import {
 } from "@shared/designRequests";
 import { CommentsButton } from "@/components/CommentThreadSheet";
 import { DesignCommentsSheet } from "@/components/design/DesignCommentsSheet";
+import { HistoryTimeline } from "@/components/HistoryTimeline";
 import { LabelledField } from "@/components/events/LabelledField";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
@@ -85,27 +86,22 @@ const Answers = ({
 };
 
 const Timeline = ({ id }: { id: Id<"designRequests"> }) => {
-  const t = useAppTheme();
+  // Newest first.
   const events = useQuery(api.designRequests.timeline, { id });
   if (!events || events.length === 0) return null;
   return (
     <>
       <SectionTitle>History</SectionTitle>
       <Card>
-        {events.map((event, index) => (
-          <View key={index} style={styles.event}>
-            <View style={[styles.eventDot, { backgroundColor: t.faint }]} />
-            <View style={{ flex: 1 }}>
-              <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>
-                {EVENT_LABELS[event.action] ?? event.action}
-              </Text>
-              <Text style={[typography.caption, { color: t.muted }]}>
-                {when(event.at)} · {event.actorName}
-                {event.detail ? ` · ${event.detail}` : ""}
-              </Text>
-            </View>
-          </View>
-        ))}
+        <HistoryTimeline
+          entries={events.map((event) => ({
+            at: event.at,
+            action: event.action,
+            label: EVENT_LABELS[event.action] ?? event.action,
+            who: event.actorName,
+            detail: event.detail,
+          }))}
+        />
       </Card>
     </>
   );
@@ -257,11 +253,7 @@ export default function DesignRequestScreen() {
 
   return (
     <>
-      <Screen
-        title={designRequestName(request)}
-        subtitle={request.title || undefined}
-        onBack={goBack}
-      >
+      <Screen title={request.title || "Design request"} onBack={goBack}>
         <ReadableColumn>
           <View style={{ gap: spacing.md }}>
             <FadeInView>
@@ -322,9 +314,7 @@ export default function DesignRequestScreen() {
                       onPress={() => router.push(`/design-requests/new?edit=${request._id}`)}
                     />
                   ) : null}
-                  {can.comment ? (
-                    <CommentsButton unread={unreadCount} onPress={() => setCommentsOpen(true)} />
-                  ) : null}
+                  <CommentsButton unread={unreadCount} onPress={() => setCommentsOpen(true)} />
                   <Btn
                     title="Download PDF"
                     variant="tonal"
@@ -349,13 +339,12 @@ export default function DesignRequestScreen() {
         </ReadableColumn>
       </Screen>
 
-      {can.comment ? (
-        <DesignCommentsSheet
-          id={request._id}
-          visible={commentsOpen}
-          onClose={() => setCommentsOpen(false)}
-        />
-      ) : null}
+      <DesignCommentsSheet
+        id={request._id}
+        visible={commentsOpen}
+        onClose={() => setCommentsOpen(false)}
+        canPost={can.comment}
+      />
 
       <Sheet
         visible={declining}
@@ -426,6 +415,4 @@ export default function DesignRequestScreen() {
 
 const styles = StyleSheet.create({
   answer: { gap: 4 },
-  event: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
-  eventDot: { width: 7, height: 7, borderRadius: 4, marginTop: 6 },
 });

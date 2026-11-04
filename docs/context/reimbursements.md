@@ -48,13 +48,18 @@ and the file name stay; only the download dies.
 _Avoid_: invoice (the domain word is Receipt; the UI still says receipt/invoice)
 
 **Past years**:
-Each list carries on past this staff year as you scroll, newest first, a
-heading per year: Mine the caller's own Requests, Review every other person's
-Request the caller approved or declined (Review stays for anyone who has
-reviewed a Request, even if they approve nothing now), and All (Finance, under
-Completed) every completed Request. A Request belongs to the year it was made
-in, even when it was reviewed in the next; Review orders a year's Requests by
-when the caller reviewed them.
+Requests from before this staff year. The caller's own are on the **Past**
+tab, not under Mine: newest first, ten at a time as you scroll, a divider per
+staff year. Mine keeps last year's Requests that are still open (not paid and
+not declined) until they finish, then they move to Past. Past shows only for
+someone who has a Past Request. Review carries on past this staff year as you
+scroll with every other person's Request the caller approved or declined
+(Review stays for anyone who has reviewed a Request, even if they approve
+nothing now), and All (Finance, under Completed) with every completed
+Request. A Request belongs to the year it was made in, even when it was
+reviewed in the next; Review orders a year's Requests by when the caller
+reviewed them.
+_Avoid_: history, archive (the tab is Past)
 
 **Deadlock prevention**:
 Refusing a submission up front when the year is missing an approver that
@@ -82,5 +87,7 @@ admins and the Finance Head.
 The people who may see a Request, its trail and its comments: the requester,
 Finance staff, whoever holds or covers an approver Step on its chain (in the
 Request's staff year or the current one), and anyone who has already actioned
-it. Anyone else is told the Request isn't one they can see.
+it. Admins see every Request too, read-only, as Finance would (see **Acting
+as** in [Org](./org.md)). Anyone else is told the Request isn't one they can
+see.
 _Avoid_: participant (a nudge has its own, narrower set)

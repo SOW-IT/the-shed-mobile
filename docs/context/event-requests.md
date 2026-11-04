@@ -10,8 +10,8 @@ structure: who fills in, who reviews and who approves all come from
 ## Language
 
 **Event request**:
-One event, numbered within the staff year it was created in ("#3 · 2027").
-Carries the answers to the event form (the old web app's "Make an Event
+One event, called by its name. It is numbered within the staff year it was
+created in, but the number isn't shown. Carries the answers to the event form (the old web app's "Make an Event
 Request": name, purpose, goals, theme, location, registration goal, audience,
 dates, notes, whether to take attendance) and is filed under a **lead
 department**. Once approved it puts one thing on the Calendar and keeps it in
@@ -85,8 +85,13 @@ Not comments.
 The requester's side sees their events (Mine). The three teams, their Heads
 and the Director review what's waiting for them (To review, with a badge for
 what's waiting on you). They, the Events department and admins can see every
-event (All). Mine and All run back through earlier staff years as you
-scroll. Campus leaders don't use event requests.
+event (All). Only the requester's side fills in, edits or cancels it, and
+only a form's team, the requester's side and (on Finance forms) the Director
+comment on it. Mine and All run back through earlier staff years as you scroll.
+Campus leaders don't use event requests. Admins see every team's forms in To
+review, read-only. Acting as a role (see **Acting as** in [Org](./org.md)),
+they see that role's To review, Mine and All: ordinary staff of a department
+get their department's events and no All tab.
 
 **Legacy event**:
 An event form imported once from the old web app's Firestore (2.3.0; the
@@ -102,7 +107,9 @@ Chases a form on an event still in progress that has not moved, on the same
 cadence as a [reimbursement](./reimbursements.md) reminder: the requester's
 side while the form is Not submitted or has Changes requested, the form's
 reviewer while it is Waiting for approval. It says how far off the event is.
-Part of the person's daily digest.
+Part of the person's daily digest. A comment still unread a day after it was
+posted is in it once too, for the requester, the form's submitter and
+approver and anyone else who has commented there and still can.
 
 **Waiting since**:
 When a form was sent for approval. To review shows it and lists the events

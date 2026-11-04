@@ -5,6 +5,7 @@ import { durations, USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme 
 import { usePressScale } from "./format";
 import { useAnyModalOpen } from "./modalPresence";
 import { FOOTER_GAP, footerReach } from "@/lib/footerClearance";
+import { AppIcon, type AppIconName } from "./icon";
 import { SowSpinner } from "./primitives";
 import { styles } from "./styles";
 
@@ -301,7 +302,7 @@ export const Btn = ({
   variant?: "primary" | "danger" | "ghost" | "success" | "tonal";
   disabled?: boolean;
   loading?: boolean;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: AppIconName;
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
@@ -353,7 +354,7 @@ export const Btn = ({
           <SowSpinner size={20} onDark={variant === "primary" ? !t.dark : t.dark} />
         ) : icon ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-            <Ionicons name={icon} size={17} color={textColor} />
+            <AppIcon name={icon} size={17} color={textColor} />
             <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
           </View>
         ) : (

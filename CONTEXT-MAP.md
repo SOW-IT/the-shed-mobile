@@ -55,6 +55,11 @@ hold code for all six — so each context's glossary lives under
   that year's `staffProfiles`; pairings are keyed by email and year like
   approver delegations, and follow a person's email when it changes. Its
   terms are in the Org glossary.
+- **Acting as belongs to Org**: an admin's All views, or the role they act
+  as, is read by Reimbursements, Design Requests, Event Requests and Home's
+  "Waiting on you" to decide what to list, never what may be done. It reads
+  the year's departments and stores one row per admin (`actingAs`).
+  Grievances ignore it ([ADR 0017](./docs/adr/0017-admins-see-every-view-and-can-act-as-a-role.md)).
 - **Org → Grievances**: the grievance team is that year's members of the
   departments chosen in Admin (People and Culture and Compliance to start),
   read from Org. Grievances shares the

@@ -1,6 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { personaValidator } from "./actingAsData";
 import { announcementStatusValidator, audienceValidator } from "./announcementData";
 import { metricsDataValidator, staffTrendsValidator } from "./metricsData";
 import {
@@ -169,6 +170,11 @@ export default defineSchema({
     .index("by_year_and_to", ["year", "toEmail"])
     .index("by_year_and_from", ["year", "fromEmail"])
     .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
+
+  actingAs: defineTable({
+    email: v.string(),
+    persona: personaValidator,
+  }).index("by_email", ["email"]),
 
   mentorships: defineTable({
     year: v.number(),
@@ -389,6 +395,8 @@ export default defineSchema({
     designRequestId: v.id("designRequests"),
     userEmail: v.string(),
     lastReadAt: v.number(),
+    // The newest unread comment the daily reminder has already mentioned.
+    remindedAt: v.optional(v.number()),
   }).index("by_designRequest_and_user", ["designRequestId", "userEmail"]),
 
   eventRequests: defineTable({
@@ -463,6 +471,8 @@ export default defineSchema({
     form: subFormKindValidator,
     userEmail: v.string(),
     lastReadAt: v.number(),
+    // The newest unread comment the daily reminder has already mentioned.
+    remindedAt: v.optional(v.number()),
   }).index("by_eventRequest_and_form_and_user", ["eventRequestId", "form", "userEmail"]),
 
   requestNudges: defineTable({

@@ -113,7 +113,6 @@ const RootStack = () => {
             <Stack.Screen name="attendance/member/[key]" />
             <Stack.Screen name="review" />
             <Stack.Screen name="edit-home" />
-            <Stack.Screen name="announcements/index" />
             <Stack.Screen name="announcements/[id]" />
             <Stack.Screen name="all" />
             <Stack.Screen name="checkin/[token]" />
