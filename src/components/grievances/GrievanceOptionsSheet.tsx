@@ -74,10 +74,7 @@ export const GrievanceOptionsSheet = ({
         </View>
       }
     >
-      <Muted>
-        The choices people pick from for &quot;What is it about?&quot;, in the order they&apos;re
-        shown. Grievances already raised keep the wording they were raised with.
-      </Muted>
+      <Muted>Shown in this order. Grievances already raised keep their wording.</Muted>
       {options.map((option, index) => (
         <View
           key={option.key}

@@ -1,4 +1,5 @@
 import { DAY_MS } from "./attendanceMetrics";
+import { toDateInputValue, toTimeInputValue } from "./datetime";
 import { eventStaffYear, sydneyYmd } from "./flow";
 import { subgroupMatches } from "./rollcall";
 import { round1 } from "./numbers";
@@ -233,6 +234,27 @@ export function nextWeeklyDate(previous: string, today: string): string {
   do at += 7 * DAY_MS;
   while (iso(at) < today);
   return iso(at);
+}
+
+// A new weekly's form: a week after the campus's last weekly (see
+// nextWeeklyDate), at its times and over as many days, so one that ran past
+// midnight still ends the next day.
+export function nextWeeklyInputs(
+  previous: { dateStart: number; dateEnd: number },
+  today: string
+): { startDate: string; startTime: string; endDate: string; endTime: string } {
+  const start = new Date(previous.dateStart);
+  const end = new Date(previous.dateEnd);
+  const dayOf = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round((dayOf(end) - dayOf(start)) / DAY_MS);
+  const startDate = nextWeeklyDate(toDateInputValue(start), today);
+  const [y, m, d] = startDate.split("-").map(Number);
+  return {
+    startDate,
+    startTime: toTimeInputValue(start),
+    endDate: new Date(Date.UTC(y, m - 1, d) + days * DAY_MS).toISOString().slice(0, 10),
+    endTime: toTimeInputValue(end),
+  };
 }
 
 export function suggestWeekly(

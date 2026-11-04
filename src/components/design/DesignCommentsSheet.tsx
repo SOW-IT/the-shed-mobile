@@ -9,10 +9,12 @@ export const DesignCommentsSheet = ({
   id,
   visible,
   onClose,
+  canPost,
 }: {
   id: Id<"designRequests">;
   visible: boolean;
   onClose: () => void;
+  canPost: boolean;
 }) => {
   const active = useThreadActive(visible);
   const comments = useQuery(api.designRequestComments.list, active ? { id } : "skip");
@@ -48,6 +50,8 @@ export const DesignCommentsSheet = ({
       onClose={onClose}
       comments={loaded}
       onSend={(body) => add({ id, body })}
+      canPost={canPost}
+      readOnlyNote="Only the requester and the Marketing team can comment on a design request."
     />
   );
 };

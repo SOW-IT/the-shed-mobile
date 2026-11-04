@@ -9,6 +9,7 @@ import { answersProblemAt, normalizeAnswers, questionNumber, sydneyToday } from 
 import { SUB_FORM_KINDS, SUB_FORM_LABELS } from "@shared/eventRequests";
 import { staffOnlyMessage } from "@shared/staffOnly";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
   answersFromDraft,
   draftFromAnswers,
@@ -72,7 +73,7 @@ export default function EventRequestFormScreen() {
   const editId = typeof edit === "string" && edit ? edit : null;
   const { isLoading: authLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.directory.me);
-  const staff = !!me?.profile && !me.isCampusLeader;
+  const staff = !!me?.profile && me.canRequestEvents;
   const viewer = useQuery(api.eventRequests.viewer, staff ? {} : "skip");
   const structure = useQuery(api.directory.yearStructure, me?.profile ? { year: me.year } : "skip");
   const existing = useQuery(api.eventRequests.get, editId ? { id: editId } : "skip");
@@ -113,7 +114,7 @@ export default function EventRequestFormScreen() {
   if (me && !staff) {
     return (
       <Screen title={title} onBack={goBack}>
-        <EmptyState icon="calendar-outline" title="For SOW staff" message={staffOnlyMessage("Event", me)} />
+        <EmptyState icon={EVENT_REQUEST_ICON.outline} title="For SOW staff" message={staffOnlyMessage("Event", me)} />
       </Screen>
     );
   }
@@ -121,7 +122,7 @@ export default function EventRequestFormScreen() {
     return (
       <Screen title="Event request" onBack={goBack}>
         <EmptyState
-          icon="calendar-outline"
+          icon={EVENT_REQUEST_ICON.outline}
           title="This event can't be edited"
           message="Only the requester's department can edit an event, and only while it's in progress."
         />

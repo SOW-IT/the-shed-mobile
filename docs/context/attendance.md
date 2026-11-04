@@ -177,8 +177,9 @@ each worth less the older it is (half every 45 days) and more when it was the
 same campus's weekly, a shared group or a shared tag, plus a bonus when their
 campus is one of the event's. Stored per event (`rollCallOrders`, top 150),
 ranked when the event is saved within a week of starting and nightly for the
-week ahead; nobody beyond the stored 150, and any event without an order,
-falls back to campus then name. See ADR 0014.
+week ahead. "Not signed in" shows the first 50 of that order, topped up with
+the year's staff (campus first) when fewer are ranked or the 50th scores no
+more than the campus bonus; everyone else is found with the search. See ADR 0014 and ADR 0016.
 _Avoid_: frequency score, roster order
 
 **Weekly** (held weekly):

@@ -4,12 +4,11 @@ import { type Href, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { plural } from "@shared/reminders";
-import { Card, FadeInView, Txt } from "@/components/ui";
+import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
+import { AppIcon, type AppIconName, Card, FadeInView, Txt } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-type IconName = keyof typeof Ionicons.glyphMap;
-
-type Row = { key: string; icon: IconName; label: string; count: number; href: string };
+type Row = { key: string; icon: AppIconName; label: string; count: number; href: string };
 
 const waitingRows = (
   summary: NonNullable<(typeof api.waitingOnMe.summary)["_returnType"]>
@@ -52,7 +51,7 @@ const waitingRows = (
     },
     {
       key: "eventReview",
-      icon: "calendar-outline",
+      icon: EVENT_REQUEST_ICON.outline,
       label: plural(summary.events.toReview, "event form") + " to review",
       count: summary.events.toReview,
       href: "/event-requests?tab=review",
@@ -94,7 +93,7 @@ export const WaitingOnYou = () => {
               pressed && { opacity: 0.6 },
             ]}
           >
-            <Ionicons name={row.icon} size={18} color={t.muted} />
+            <AppIcon name={row.icon} size={18} color={t.muted} />
             <Text style={[typography.body, { color: t.text, flex: 1 }]}>{row.label}</Text>
             <View style={[styles.count, { backgroundColor: t.accentSoft }]}>
               <Text style={[typography.caption, { color: t.accent, fontWeight: "800" }]}>

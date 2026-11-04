@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
   CONSEQUENCE_GUIDE,
   isRiskLevel,
@@ -29,6 +29,7 @@ import {
   Row,
   SectionTitle,
 } from "@/components/ui";
+import { openExternalLink } from "@/lib/openExternalLink";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RiskRatingPill } from "./EventPills";
 import { LabelledField } from "./LabelledField";
@@ -58,7 +59,7 @@ export const riskDataFrom = (draft: RiskDraft): RiskData => ({
   ...(draft.contingencies.trim() ? { contingencies: draft.contingencies } : {}),
 });
 
-const openLink = (url: string) => void Linking.openURL(url).catch(() => {});
+const openLink = (url: string) => void openExternalLink(url);
 
 export const RiskStandardLinks = () => (
   <Row>

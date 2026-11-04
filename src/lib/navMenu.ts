@@ -126,10 +126,11 @@ export const showsReimbursements = (viewer: NavViewer) =>
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = ["profile"];
-  // Staff have the Calendar as a bottom tab, so Insights moves in here.
-  if (viewer.isStaff) items.push("music", "insights", "churches");
+  if (viewer.isStaff) items.push("music", "churches");
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.canMentoring) items.push("mentoring");
+  // Staff have the Calendar as a bottom tab, so Insights moves in here.
+  if (viewer.isStaff) items.push("insights");
   if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
   return items;
@@ -140,10 +141,10 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.isStaff) items.push("music");
   if (viewer.isStaff) items.push("attendance", "calendar");
-  if (viewer.signedIn) items.push("insights");
   items.push("org", "churches", "grievances");
   if (viewer.signedIn) items.push("profile");
   if (viewer.canMentoring) items.push("mentoring");
+  if (viewer.signedIn) items.push("insights");
   if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
   return items;

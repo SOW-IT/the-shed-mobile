@@ -180,11 +180,14 @@ const PaySheet = ({
 };
 
 const SECTIONS: { key: Exclude<Step, never>; title: string }[] = [
-  { key: "hod", title: "Awaiting Your HOD Approval" },
-  { key: "budgetManager", title: "Awaiting Your Budget Approval" },
-  { key: "director", title: "Awaiting Your Director Approval" },
-  { key: "financeHead", title: "Awaiting Your Finance Head Approval" },
+  { key: "hod", title: "HOD" },
+  { key: "budgetManager", title: "Budget" },
+  { key: "director", title: "Director" },
+  { key: "financeHead", title: "Finance Head" },
 ];
+
+const sectionTitle = (title: string, rows: { canAct: boolean }[]) =>
+  `Awaiting ${rows.every((r) => r.canAct) ? "Your " : ""}${title} Approval`;
 
 export const ReviewList = ({
   focusId,
@@ -294,36 +297,40 @@ export const ReviewList = ({
                 data[key].length === 0 ? null : (
                   <View key={key} style={{ gap: spacing.md }}>
                     <SectionTitle>
-                      {title} ({data[key].length})
+                      {sectionTitle(title, data[key])} ({data[key].length})
                     </SectionTitle>
                     {data[key].map((request, index) => (
                       <FadeInView key={request._id} delay={stagger(index)}>
                         <RequestCard
                           request={request}
                           showRequester
-                          actionRequired
+                          actionRequired={request.canAct}
                           waitingSince={request.waitingSince}
                           autoExpand={request._id === focusId}
                           autoOpenThread={request._id === focusId && focusThread}
                           deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
                           onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
                         >
-                          <IconButton
-                            name="checkmark"
-                            size={40}
-                            bg={t.successSoft}
-                            color={t.success}
-                            accessibilityLabel="Approve"
-                            onPress={() => setApproveTarget({ request, step: key })}
-                          />
-                          <IconButton
-                            name="close"
-                            size={40}
-                            bg={t.dangerSoft}
-                            color={t.danger}
-                            accessibilityLabel="Decline"
-                            onPress={() => setDeclineTarget({ request, step: key })}
-                          />
+                          {request.canAct ? (
+                            <>
+                              <IconButton
+                                name="checkmark"
+                                size={40}
+                                bg={t.successSoft}
+                                color={t.success}
+                                accessibilityLabel="Approve"
+                                onPress={() => setApproveTarget({ request, step: key })}
+                              />
+                              <IconButton
+                                name="close"
+                                size={40}
+                                bg={t.dangerSoft}
+                                color={t.danger}
+                                accessibilityLabel="Decline"
+                                onPress={() => setDeclineTarget({ request, step: key })}
+                              />
+                            </>
+                          ) : undefined}
                         </RequestCard>
                       </FadeInView>
                     ))}
@@ -338,22 +345,24 @@ export const ReviewList = ({
                       <RequestCard
                         request={request}
                         showRequester
-                        actionRequired
+                        actionRequired={request.canAct}
                         waitingSince={request.waitingSince}
                         autoExpand={request._id === focusId}
                         autoOpenThread={request._id === focusId && focusThread}
                         deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
                         onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
                       >
-                        <IconButton
-                          name="cash-outline"
-                          size={40}
-                          label="Mark paid"
-                          bg={t.successSoft}
-                          color={t.success}
-                          accessibilityLabel="Mark as paid"
-                          onPress={() => setPayTarget(request)}
-                        />
+                        {request.canAct ? (
+                          <IconButton
+                            name="cash-outline"
+                            size={40}
+                            label="Mark paid"
+                            bg={t.successSoft}
+                            color={t.success}
+                            accessibilityLabel="Mark as paid"
+                            onPress={() => setPayTarget(request)}
+                          />
+                        ) : undefined}
                       </RequestCard>
                     </FadeInView>
                   ))}
@@ -386,7 +395,7 @@ export const ReviewList = ({
         hasMore={earlier.hasMore}
         loadingMore={earlier.loadingMore}
         onLoadMore={earlier.loadMore}
-        note={(year) => <ReceiptFilesNote year={year} />}
+        note={(years) => <ReceiptFilesNote years={years} />}
         renderRows={(rows) =>
           rows.map((request) => (
             <RequestCard key={request._id} request={request} showRequester collapsible />

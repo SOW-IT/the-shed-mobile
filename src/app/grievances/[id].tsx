@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
+  andList,
   grievanceRef,
   grievanceStepTrack,
   isOpenGrievance,
@@ -104,6 +105,7 @@ export default function GrievanceScreen() {
   const data = useQuery(api.grievances.get, id && isAuthenticated ? { id } : "skip");
   const viewer = useQuery(api.grievances.viewer, isAuthenticated ? {} : "skip");
   const team = useQuery(api.grievances.team, data?.isHandler ? {} : "skip");
+  const departments = useQuery(api.grievances.settings)?.departments ?? [];
   const assign = useMutation(api.grievances.assign);
   const close = useMutation(api.grievances.close);
   const markRead = useMutation(api.notifications.markReadForGrievance);
@@ -141,7 +143,7 @@ export default function GrievanceScreen() {
         <EmptyState
           icon="shield-checkmark-outline"
           title="Grievance not found"
-          message="Only the person who raised it and the People and Culture and Compliance teams can see a grievance."
+          message={`Only the person who raised it and SOW's grievance team${departments.length > 0 ? ` (${andList(departments)})` : ""} can see a grievance.`}
         />
       </Screen>
     );

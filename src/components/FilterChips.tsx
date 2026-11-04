@@ -5,12 +5,17 @@ import { radius, spacing, useAppTheme } from "../theme";
 import { useWideLayout } from "./nav/layout";
 import { hapticSelect } from "./ui";
 
-const people = (count: number) => `${count} ${count === 1 ? "person" : "people"}`;
+export const PEOPLE = ["person", "people"] as const;
+export const EVENTS = ["event", "events"] as const;
+
+const counted = (count: number, [one, many]: readonly [string, string]) =>
+  `${count} ${count === 1 ? one : many}`;
 
 export function FilterChip({
   on,
   label,
   count,
+  counting = PEOPLE,
   colour,
   lockedNote,
   onPress,
@@ -18,6 +23,7 @@ export function FilterChip({
   on: boolean;
   label: string;
   count: number;
+  counting?: readonly [string, string];
   colour?: string;
   lockedNote?: string;
   onPress: () => void;
@@ -27,7 +33,7 @@ export function FilterChip({
     <Pressable
       role="checkbox"
       aria-checked={on}
-      accessibilityLabel={[label, people(count), lockedNote].filter(Boolean).join(", ")}
+      accessibilityLabel={[label, counted(count, counting), lockedNote].filter(Boolean).join(", ")}
       onPress={() => {
         hapticSelect();
         onPress();

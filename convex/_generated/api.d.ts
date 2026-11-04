@@ -9,6 +9,8 @@
  */
 
 import type * as account from "../account.js";
+import type * as actingAs from "../actingAs.js";
+import type * as actingAsData from "../actingAsData.js";
 import type * as admin from "../admin.js";
 import type * as announcementData from "../announcementData.js";
 import type * as announcements from "../announcements.js";
@@ -29,6 +31,7 @@ import type * as avatars from "../avatars.js";
 import type * as bankAccounts from "../bankAccounts.js";
 import type * as calendar from "../calendar.js";
 import type * as calendarData from "../calendarData.js";
+import type * as categoryPeople from "../categoryPeople.js";
 import type * as checkIn from "../checkIn.js";
 import type * as churches from "../churches.js";
 import type * as cleanup from "../cleanup.js";
@@ -60,6 +63,7 @@ import type * as history from "../history.js";
 import type * as homeContent from "../homeContent.js";
 import type * as homeData from "../homeData.js";
 import type * as http from "../http.js";
+import type * as memberCount from "../memberCount.js";
 import type * as memberPairSuggestions from "../memberPairSuggestions.js";
 import type * as memberRepair from "../memberRepair.js";
 import type * as memberRoles from "../memberRoles.js";
@@ -102,6 +106,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   account: typeof account;
+  actingAs: typeof actingAs;
+  actingAsData: typeof actingAsData;
   admin: typeof admin;
   announcementData: typeof announcementData;
   announcements: typeof announcements;
@@ -122,6 +128,7 @@ declare const fullApi: ApiFromModules<{
   bankAccounts: typeof bankAccounts;
   calendar: typeof calendar;
   calendarData: typeof calendarData;
+  categoryPeople: typeof categoryPeople;
   checkIn: typeof checkIn;
   churches: typeof churches;
   cleanup: typeof cleanup;
@@ -153,6 +160,7 @@ declare const fullApi: ApiFromModules<{
   homeContent: typeof homeContent;
   homeData: typeof homeData;
   http: typeof http;
+  memberCount: typeof memberCount;
   memberPairSuggestions: typeof memberPairSuggestions;
   memberRepair: typeof memberRepair;
   memberRoles: typeof memberRoles;

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Keyboard, StyleSheet, View } from "react-native";
 import PagerView from "react-native-pager-view";
 import type { PagerCarouselProps, PagerScrollState } from "@/components/PagerScreen";
@@ -15,6 +15,17 @@ export const PagerCarousel = ({
     tabs.findIndex((tab) => tab.key === activeKey),
     0
   );
+  const activeTabKey = tabs[index]?.key;
+  const [mountedKeys, setMountedKeys] = useState<ReadonlySet<string>>(
+    () => new Set(activeTabKey ? [activeTabKey] : [])
+  );
+  if (activeTabKey && !mountedKeys.has(activeTabKey)) {
+    setMountedKeys(new Set([...mountedKeys, activeTabKey]));
+  }
+  const revealPage = (key: string | undefined) => {
+    if (!key) return;
+    setMountedKeys((prev) => (prev.has(key) ? prev : new Set([...prev, key])));
+  };
   const pagerRef = useRef<PagerView>(null);
   const position = useRef(index);
   const programmatic = useRef(false);
@@ -32,6 +43,8 @@ export const PagerCarousel = ({
       style={styles.pager}
       initialPage={index}
       onPageScroll={(e: { nativeEvent: { position: number; offset: number } }) => {
+        revealPage(tabs[e.nativeEvent.position]?.key);
+        if (e.nativeEvent.offset > 0) revealPage(tabs[e.nativeEvent.position + 1]?.key);
         const value = e.nativeEvent.position + e.nativeEvent.offset;
         lastScroll.current = value;
         scrollPosition?.setValue(value);
@@ -59,7 +72,7 @@ export const PagerCarousel = ({
     >
       {tabs.map((tab) => (
         <View key={tab.key} style={styles.pagerPage}>
-          {renderPage(tab)}
+          {mountedKeys.has(tab.key) ? renderPage(tab) : null}
         </View>
       ))}
     </PagerView>

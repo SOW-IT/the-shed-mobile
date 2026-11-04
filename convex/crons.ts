@@ -20,6 +20,7 @@ crons.cron(
 
 // 00:01 on 1 October in Sydney, just after the staff year changes.
 crons.cron("carry open grievances into the new staff year", "1 14 30 9 *", internal.grievances.carryForward, {});
+crons.cron("remind last year's grievance handlers", "1 13 30 11 *", internal.grievances.remindOutgoingHandlers, {});
 
 crons.cron("attendance metrics daily rebuild", "0 16 * * *", internal.attendanceMetrics.recomputeAll, { nightly: true });
 
@@ -28,5 +29,7 @@ crons.cron("church map locations", "0 17 * * *", internal.churches.locateAll, { 
 crons.cron("weekly insights nightly build", "30 16 * * *", internal.weeklyInsights.rebuildAll, { nightly: true });
 
 crons.cron("purge old app errors", "45 17 * * *", internal.appErrors.purgeOld, {});
+
+crons.cron("recount attendance members", "15 17 * * *", internal.memberCount.recount, { nightly: true });
 
 export default crons;

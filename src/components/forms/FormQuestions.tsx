@@ -9,6 +9,7 @@ import {
   type FormAnswers,
   type FormField,
 } from "@shared/forms";
+import { addDaysToDateInputValue, minuteAfterTime } from "@shared/datetime";
 import { type EventSize } from "@shared/eventRequests";
 import { NativeDateInput, NativeTimeInput } from "@/components/NativeDateTimeField";
 import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
@@ -104,15 +105,30 @@ const DateTimeInput = ({
   value,
   onChange,
   minDate,
+  notBefore,
 }: {
   field: FormField;
   value: string;
   onChange: (value: string) => void;
   minDate: string;
+  notBefore?: string;
 }) => {
   const [date = "", time = ""] = value.split("T");
-  const min = field.notInPast ? minDate : undefined;
-  const set = (d: string, tm: string) => onChange(d || tm ? `${d}T${tm}` : "");
+  const [floorDate = "", floorTime = ""] = notBefore?.split("T") ?? [];
+  const ends = field.role === "end" && floorTime !== "";
+  const nextMinute = ends ? minuteAfterTime(floorTime) : null;
+  const earliestDate =
+    ends && nextMinute === null ? addDaysToDateInputValue(floorDate, 1) ?? floorDate : floorDate;
+  const earliestTime = ends ? nextMinute ?? "" : floorTime;
+  const candidates = [field.notInPast ? minDate : "", earliestDate].filter(Boolean);
+  const min = candidates.length > 0 ? candidates.sort().at(-1) : undefined;
+  const timeFloorOn = (d: string) => (earliestDate && d === earliestDate && earliestTime ? earliestTime : undefined);
+  const minTime = timeFloorOn(date);
+  const set = (d: string, tm: string) => {
+    const floor = timeFloorOn(d);
+    const clamped = floor && tm && tm < floor ? floor : tm;
+    onChange(d || clamped ? `${d}T${clamped}` : "");
+  };
   return (
     <View style={{ flexDirection: "row", gap: spacing.sm }}>
       {Platform.OS === "web" ? (
@@ -124,7 +140,7 @@ const DateTimeInput = ({
             onChange={(d) => set(d, time)}
             onClear={field.required ? undefined : () => onChange("")}
           />
-          <WebTimeInput label="Time" value={time} onChange={(tm) => set(date, tm)} />
+          <WebTimeInput label="Time" value={time} min={minTime} onChange={(tm) => set(date, tm)} />
         </>
       ) : (
         <>
@@ -138,7 +154,7 @@ const DateTimeInput = ({
             />
           </View>
           <View style={{ flex: 1 }}>
-            <NativeTimeInput label="Time" value={time} onChange={(tm) => set(date, tm)} />
+            <NativeTimeInput label="Time" value={time} min={minTime} onChange={(tm) => set(date, tm)} />
           </View>
         </>
       )}
@@ -266,6 +282,7 @@ const FieldInput = ({
           value={text}
           onChange={(v) => set(field.key, v)}
           minDate={minDate}
+          notBefore={field.notBefore ? String(draft[field.notBefore] ?? "") : undefined}
         />
       );
     case "yesNo":

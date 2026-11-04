@@ -37,6 +37,14 @@ export const addDaysToDateInputValue = (
   return toDateInputValue(date);
 };
 
+export const minuteAfterTime = (time: string): string | null => {
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!match) return null;
+  const next = Number(match[1]) * 60 + Number(match[2]) + 1;
+  if (next >= 24 * 60) return null;
+  return `${pad2(Math.floor(next / 60))}:${pad2(next % 60)}`;
+};
+
 export const parseTimeInputValue = (
   value: string
 ): { hours: number; minutes: number } | null => {
@@ -88,6 +96,12 @@ export const waitingLabel = (since: number, now: number = Date.now()): string =>
   if (days === 0) return "Waiting under a day";
   return `Waiting ${days} ${days === 1 ? "day" : "days"}`;
 };
+
+// The space a history timeline leaves between two entries: none under an
+// hour, then more for longer gaps (on a log scale, so hours, days and weeks
+// look different and a month-long gap doesn't run off the screen).
+export const timelineGapHeight = (ms: number): number =>
+  ms < HOUR_MS ? 0 : Math.min(80, Math.round(12 + 6 * Math.log2(ms / HOUR_MS)));
 
 export const formatDuration = (ms: number): string => {
   if (ms < HOUR_MS) return "under an hour";

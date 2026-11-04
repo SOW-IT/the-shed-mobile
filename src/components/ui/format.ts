@@ -2,6 +2,7 @@ import * as Haptics from "expo-haptics";
 import { ConvexError } from "convex/values";
 import { useState } from "react";
 import { Animated, Platform } from "react-native";
+import { friendlyErrorText } from "@/lib/appErrorKinds";
 import { USE_NATIVE_DRIVER } from "@/theme";
 
 export const hapticSelect = () => {
@@ -31,9 +32,7 @@ export const usePressScale = (pressedScale = 0.96) => {
 export const errorMessage = (e: unknown): string =>
   e instanceof ConvexError
     ? String(e.data)
-    : e instanceof Error
-      ? e.message
-      : "Something went wrong";
+    : (friendlyErrorText(e) ?? (e instanceof Error ? e.message : "Something went wrong"));
 
 export const runBusy = async (
   busy: boolean,

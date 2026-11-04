@@ -6,6 +6,7 @@ import { sydneyToday, type DesignAnswers } from "../shared/designRequests";
 import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { mayReviewReimbursements } from "./requests";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -183,6 +184,52 @@ describe("waitingOnMe.summary", () => {
     expect(await summaryFor(t, FIONA)).toEqual({
       ...nothing,
       reimbursements: { toReview: 0, toPay: 1, receipts: 0 },
+    });
+  });
+});
+
+describe("mayReviewReimbursements", () => {
+  const check = (t: T, email: string) => t.run((ctx) => mayReviewReimbursements(ctx, email, YEAR));
+  test("heads, the budget manager, directors, delegates and last year's heads can review; plain staff cannot", async () => {
+    const t = await setup();
+    expect(await check(t, MARY)).toBe(false);
+    expect(await check(t, HENRY)).toBe(true);
+    expect(await check(t, BELLA)).toBe(true);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: "dana@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Director" }],
+      });
+      await ctx.db.insert("approverDelegations", { year: YEAR, fromEmail: EDDIE, toEmail: RACHEL });
+      await ctx.db.insert("departments", {
+        year: YEAR - 1,
+        name: "Archive",
+        division: "Old",
+        headEmail: "olive@sow.org.au",
+      });
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+      await ctx.db.patch("yearSettings", settings!._id, { directorEmail: "sid@sow.org.au" });
+    });
+    expect(await check(t, "dana@sow.org.au")).toBe(true);
+    expect(await check(t, RACHEL)).toBe(true);
+    expect(await check(t, "olive@sow.org.au")).toBe(true);
+    expect(await check(t, "sid@sow.org.au")).toBe(true);
+    expect(await check(t, MARY)).toBe(false);
+  });
+
+  test("a delegate's summary counts what the delegating head has to review", async () => {
+    const t = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("approverDelegations", { year: YEAR, fromEmail: EDDIE, toEmail: MARY })
+    );
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "Tents", amount: 90 });
+    expect(await summaryFor(t, MARY)).toEqual({
+      ...nothing,
+      reimbursements: { toReview: 1, toPay: 0, receipts: 0 },
     });
   });
 });

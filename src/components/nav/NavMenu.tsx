@@ -1,6 +1,13 @@
+import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
+import { ActingAsControl } from "@/components/nav/ActingAs";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
-import { Avatar, ConfirmDialog } from "@/components/ui";
+import {
+  AppIcon,
+  type AppIconName,
+  Avatar,
+  ConfirmDialog,
+} from "@/components/ui";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
 import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
 import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
@@ -39,26 +46,30 @@ import { api } from "../../../convex/_generated/api";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
-  home: { outline: "home-outline", filled: "home" },
-  music: { outline: "musical-notes-outline", filled: "musical-notes" },
-  reimbursements: { outline: "receipt-outline", filled: "receipt" },
-  designRequests: { outline: "color-palette-outline", filled: "color-palette" },
-  eventRequests: { outline: "calendar-outline", filled: "calendar" },
-  attendance: { outline: "checkbox-outline", filled: "checkbox" },
-  calendar: { outline: "calendar-clear-outline", filled: "calendar-clear" },
-  insights: { outline: "stats-chart-outline", filled: "stats-chart" },
-  org: { outline: "people-outline", filled: "people" },
-  profile: { outline: "person-outline", filled: "person" },
-  churches: { outline: "business-outline", filled: "business" },
-  mentoring: { outline: "compass-outline", filled: "compass" },
-  announcements: { outline: "megaphone-outline", filled: "megaphone" },
-  grievances: {
-    outline: "shield-checkmark-outline",
-    filled: "shield-checkmark",
-  },
-  admin: { outline: "settings-outline", filled: "settings" },
-};
+const NAV_ICONS: Record<NavKey, { outline: AppIconName; filled: AppIconName }> =
+  {
+    home: { outline: "home-outline", filled: "home" },
+    music: { outline: "musical-notes-outline", filled: "musical-notes" },
+    reimbursements: { outline: "receipt-outline", filled: "receipt" },
+    designRequests: {
+      outline: "color-palette-outline",
+      filled: "color-palette",
+    },
+    eventRequests: EVENT_REQUEST_ICON,
+    attendance: { outline: "checkbox-outline", filled: "checkbox" },
+    calendar: { outline: "calendar-outline", filled: "calendar" },
+    insights: { outline: "stats-chart-outline", filled: "stats-chart" },
+    org: { outline: "people-outline", filled: "people" },
+    profile: { outline: "person-outline", filled: "person" },
+    churches: { outline: "business-outline", filled: "business" },
+    mentoring: { outline: "compass-outline", filled: "compass" },
+    announcements: { outline: "megaphone-outline", filled: "megaphone" },
+    grievances: {
+      outline: "shield-checkmark-outline",
+      filled: "shield-checkmark",
+    },
+    admin: { outline: "settings-outline", filled: "settings" },
+  };
 
 const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "home",
@@ -73,6 +84,7 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "insights",
   "org",
   "mentoring",
+  "announcements",
   "grievances",
   "admin",
 ]);
@@ -104,7 +116,7 @@ const NavItemRow = ({
   nested,
   onPress,
 }: {
-  icon: { outline: IconName; filled: IconName };
+  icon: { outline: AppIconName; filled: AppIconName };
   label: string;
   selected: boolean;
   badge: number;
@@ -127,7 +139,7 @@ const NavItemRow = ({
         pressed && { opacity: 0.6 },
       ]}
     >
-      <Ionicons
+      <AppIcon
         name={selected ? icon.filled : icon.outline}
         size={sidebar ? 24 : 26}
         color={t.text}
@@ -346,6 +358,7 @@ export const NavMenu = ({
           </Text>
         ) : null}
       </Pressable>
+      <ActingAsControl />
     </View>
   ) : (
     <SignInMenu

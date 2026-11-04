@@ -71,7 +71,7 @@ export function EarlierYears<Row>({
   hasMore,
   loadingMore,
   onLoadMore,
-  heading = (year) => `${year} staff year`,
+  title = "Past requests",
   note,
   renderRows,
 }: {
@@ -79,19 +79,20 @@ export function EarlierYears<Row>({
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
-  heading?: (year: number) => string;
-  note?: (year: number) => ReactNode;
+  title?: string;
+  note?: (years: number[]) => ReactNode;
   renderRows: (rows: Row[]) => ReactNode;
 }) {
+  const rows = groups.flatMap((group) => group.rows);
   return (
     <>
-      {groups.map(({ year, rows }) => (
-        <View key={year} style={{ gap: spacing.sm }}>
-          <SectionTitle>{hasMore ? heading(year) : `${heading(year)} · ${rows.length}`}</SectionTitle>
-          {note?.(year)}
+      {rows.length > 0 ? (
+        <View style={{ gap: spacing.sm }}>
+          <SectionTitle>{hasMore ? title : `${title} · ${rows.length}`}</SectionTitle>
+          {note?.(groups.map((group) => group.year))}
           {renderRows(rows)}
         </View>
-      ))}
+      ) : null}
       {hasMore ? (
         <View style={{ alignItems: "center", paddingVertical: spacing.md }}>
           {loadingMore ? (

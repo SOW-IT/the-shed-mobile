@@ -22,6 +22,7 @@ import {
   SectionTitle,
   stagger,
   Txt,
+  WarningBanner,
 } from "@/components/ui";
 import { spacing, typography } from "@/theme";
 
@@ -177,6 +178,15 @@ export default function GrievancesScreen() {
                 groups={SUBMITTED_GROUPS}
                 header={
                   <View style={{ gap: spacing.sm }}>
+                    {viewer?.handover ? (
+                      <WarningBanner
+                        message={`Your grievance role was last year's, so this access ends on 31 December. ${
+                          viewer.handover.open === 0
+                            ? "You aren't looking after any open grievances."
+                            : `Give the ${viewer.handover.open === 1 ? "one" : viewer.handover.open} you're looking after to someone on this year's team, or resolve ${viewer.handover.open === 1 ? "it" : "them"}, before then.`
+                        }`}
+                      />
+                    ) : null}
                     <Row>
                       <Btn
                         title="Edit Form Options"

@@ -32,7 +32,7 @@ import {
 } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 60;
 
 export function MembersTab({
   year,

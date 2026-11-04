@@ -6,6 +6,264 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.25] - 2026-11-04
+
+### Fixed
+- **The web app moves onto a new release instead of showing "Something went
+  wrong".** A tab left open from before a release used to fail the next time
+  it opened a screen it hadn't loaded yet, because that screen's code had
+  been replaced. The site now answers a request for old code with "not
+  found" instead of the app's own page, and the app reloads itself once onto
+  the new release and opens the screen you asked for. If the new release
+  can't load either, you see "This part of The SHED couldn't load" with a
+  Reload button, and it isn't retried in a loop.
+- **Links to maps, websites, Instagram, email and phone numbers always do
+  something.** On iPhone, a church's address or website could do nothing at
+  all when iOS wouldn't open it. Web links now try again inside the app,
+  addresses fall back to Google Maps, and if nothing can open you're told
+  why, with the address, email or number to use instead.
+- **A dropped connection shows a plain message.** Signing in, uploading a
+  receipt or saving something while offline says to check your internet
+  connection instead of "Failed to fetch" or "Network request failed".
+- **The error log only lists real problems.** Almost every web page load
+  logged a "Requiring unknown module" error even though nothing went wrong,
+  and short network drops were logged as app errors. Neither is logged any
+  more, and a screen that recovers by reloading isn't logged either.
+
+## [2.10.24] - 2026-11-04
+
+### Added
+- **Admins can act as a department or role.** "Acting as", under your name
+  at the top of the menu, picks All views (the default) or a role: the
+  Director, the Budget Manager, or the staff or Head of any of this year's
+  departments. The app then looks the way it does for someone in that role:
+  their tabs, queues, badges and Waiting on you, and no Admin or
+  Announcements unless the role has them (Mentoring stays only if you mentor
+  someone yourself, since your mentees are yours). Acting as Marketing staff
+  shows every design request, the Marketing queue and the Marketing forms
+  waiting for review; Compliance staff see the Risk forms; Finance see every
+  reimbursement. Acting as ordinary staff of a department shows only that
+  department's event requests, with no All tab; Events staff, the reviewing
+  teams and the Director see All. A chip at the top of the screen says who
+  you're acting as, and tapping it goes back to All views. The choice is
+  saved to your account, so it follows you to your other devices.
+- **Acting as never lets you do more.** Approving, completing, editing,
+  paying and commenting still go by your own roles; anything you can't do is
+  shown read-only, and comment threads you can't add to say who can.
+
+### Changed
+- **Admins see every view by default.** On All views an admin sees the
+  Marketing queue and every design request, every event request and every
+  team's forms waiting for review, and every reimbursement queue, the All tab
+  and the export, as
+  Finance would. Badges still count only what's waiting on you, and unread
+  comment badges only threads you're part of. Grievances stay with the
+  grievance team.
+
+## [2.10.23] - 2026-11-04
+
+### Changed
+- **Event Requests has a calendar with a tick, and the Calendar has the
+  plain calendar.** Event Requests used the calendar icon, which looked more
+  like a calendar than the Calendar tab's own icon did. Event Requests now
+  shows a calendar with a tick in the side menu, the sidebar on wide screens,
+  its empty and "not found" pages, the "Make an Event Request" button and the
+  "Waiting on you" card on Home. The Calendar's bottom tab and its side menu
+  entry take the old Event Requests calendar.
+- **Insights sits at the bottom of the side menu, just above
+  Announcements.** For staff it used to come second, under Profile; on wide
+  screens it sat under Calendar. It now comes after Mentoring, with only
+  Announcements and Admin below it, for everyone who has it in the menu.
+- **Announcements is its own screen, like Insights.** Choosing Announcements
+  in the side menu used to slide it in on top of the screen you were on, with
+  a back arrow and no top bar. It now opens in place with the top bar, the
+  bell and the bottom tabs, and the side menu shows it as the screen you're
+  on. An announcement still opens on top, and going back from it lands on
+  Announcements, even after reloading the page in a browser. Links to
+  `/announcements` and to an announcement in pushes, emails and the bell keep
+  working.
+
+## [2.10.22] - 2026-11-04
+
+### Added
+- **Reimbursements have a Past tab.** Your requests from earlier staff years
+  used to sit under Mine, below this year's, in a "Past requests" list. They
+  now have their own tab, right after Mine, newest first with a divider for
+  each staff year. It opens with the ten most recent and loads the next ten
+  as you scroll near the end, with a spinner while they load and a line
+  saying how many there are once you reach the last one. Cards work as they
+  did: tap one for its details, timeline and comments, and the notes about
+  deleted receipt files show above the list. A declined one now has the
+  Resubmit button too, which opens a new request on Mine filled in from it.
+  The tab only shows for someone who has a request from an earlier year.
+
+### Changed
+- **Mine is this staff year's requests.** Last year's requests that aren't
+  paid or declined yet stay on Mine as before, and move to Past once they
+  are. With nothing this year, Mine says so and has a button to see
+  past requests.
+- **A link to an earlier year's request opens Past.** A notification or
+  email about a comment on an older request opens the Past tab with that
+  request on top, opened up, and its comments showing when the link was for
+  a comment.
+
+## [2.10.21] - 2026-11-04
+
+### Added
+- **A comment still unread a day later is in the morning reminder.** Each
+  design or event request comment goes in once, to the requester, the form's
+  submitter and approver (the Marketing Head for a design request) and anyone
+  else who has commented there and still can, by notification, push and email.
+
+### Changed
+- **Event requests stay with staff.** Campus leaders still can't see them,
+  and who sees what is unchanged: the requester's department sees its own
+  (Mine), and the Events department, the reviewing teams, the Director and
+  admins see every event (All). Unread comment counts only show for people
+  who can comment on that thread.
+- **Only the requester and the Marketing team see design requests.** Admins
+  no longer see the Marketing queue or other people's design requests.
+- **Event and design request cards are easier to scan.** They show the
+  request's name with no number or year, and "Edited" and the status at the
+  top right next to the name, with the whole card outlined in the status's
+  colour and no arrow on the right. Event cards spread Marketing, Risk and
+  Finance left, middle and right, a little bigger, and no longer say "Waiting
+  on you" (To review shows that, with its count). Design cards say when the
+  request was submitted.
+- **History reads newest first, as a timeline.** Event request, design
+  request and reimbursement histories put the latest step at the top, joined
+  by a line, with more space for longer gaps and how long each gap was ("3
+  days earlier").
+- **Design request emails and notifications name what was asked for.** They
+  say "Design request: Booklet" instead of "Design request #4 (2027)". Event
+  request reminders, PDFs and file names drop the number too.
+
+## [2.10.20] - 2026-11-03
+
+### Changed
+- **A new Other event or SOW event starts at the nearest half hour and runs
+  two hours.** New events used to start at 5 pm today and end at 7 pm. They
+  now start at the half hour nearest the current time (1:37 pm becomes
+  1:30 pm) and end two hours later, running into the next day when it's late
+  in the evening. New weeklies still start a week after the campus's last
+  weekly, on the same day and at the same times.
+
+### Fixed
+- **Switching a new weekly to "Other event" moves it back to today.** The
+  date and times used to stay on the campus's weekly day, such as next
+  Wednesday at 6:30 pm. Times you've changed yourself are kept when you
+  switch.
+- **A new weekly after one that ran past midnight ends the next day.** Its
+  end used to land before its start (11 pm to 1 am on the same day), so it
+  couldn't be saved without fixing the date.
+
+## [2.10.19] - 2026-11-03
+
+### Added
+- **Swipe the Calendar to change month or week.** Swiping the month grid
+  left goes to the next month and swiping right goes to the previous one;
+  in the week view the same swipe moves a week at a time. It does exactly
+  what the arrows beside the title do, including which day is picked. The
+  calendar follows your finger a little while you swipe, a short or mostly
+  up-and-down drag still scrolls the page or the hours, and the filter chips
+  below keep scrolling sideways as before. With Reduce Motion on, the month
+  changes without the slide.
+## [2.10.18] - 2026-11-02
+
+### Changed
+- **Roll call lists the 50 people most likely to come, and the search finds
+  everyone else.** "Not signed in" used to list the whole pool, about 1,400
+  people. It now lists the 50 most likely to come, staff and members
+  together, in the same order as before, and its count is how many of them
+  haven't signed in yet. Typing in the search still filters that list and
+  also looks up everyone else, members by a word of their name and staff by
+  name, email, role or campus, so anyone can still be signed in. Someone
+  signed out stays listed for the rest of the visit. Self check-in's
+  "Similar names" and its "Who is it?" search look through everyone the same
+  way. App versions before 2.10.18 still get the whole list.
+- **Attendance reads much less from the database.** The roll call's list
+  reads about 50 KB instead of about 430 KB, and each page of the Members
+  tab about 60 KB instead of about 470 KB: its default A to Z view now reads
+  one page at a time, with the total kept as a stored count. Searching,
+  filtering or sorting the Members tab by a field still reads everyone, but
+  only looks up photos for the rows on the page. Insights roles are read for
+  the people shown instead of a whole campus at a time.
+
+## [2.10.17] - 2026-11-02
+
+### Changed
+- **Attendance only loads the tab you are looking at on phones.** Opening
+  Attendance used to load Events, Members, Tags, Metadata and Audit all at
+  once, so every visit pulled the full members list (about 440 KB of database
+  reads) even when you only wanted the roll call. Each tab now loads the
+  first time you swipe or tap to it, and the next tab starts loading as you
+  swipe towards it, so nothing shows up blank. The same applies to the Home,
+  Reimbursements, Design Requests and Grievances tab strips.
+- **The Members list loads 60 people at a time instead of 30.** Each page
+  costs the same database read, so a scroll through the list now takes half
+  as many.
+- **Home's "Waiting on you" card no longer scans every open reimbursement for
+  people who cannot approve any.** Staff who are not a Head of Department,
+  the Budget Manager, a Director or a delegate (this staff year or last)
+  skip the reimbursement queue check, cutting that card's database reads
+  from about 160 KB to 9 KB per load. Approvers see exactly what they saw
+  before.
+
+## [2.10.16] - 2026-11-02
+
+### Fixed
+- **Last year's grievance team is asked to hand over by 31 December.** From
+  1 October, someone whose grievance role was last year's keeps seeing and
+  handling grievances until 31 December, the same grace every role has over
+  the rollover, but new grievances and "Give to" only go to this year's
+  team. Submitted now shows them a notice saying when the access ends and
+  how many open grievances they're looking after, and on 1 December anyone
+  still looking after open grievances without a role on this year's team is
+  emailed and pushed to give them to the team or resolve them.
+- **Grievances sent signed out with your email no longer block you signed
+  in.** The "three an hour" limit counted grievances sent signed out with an
+  address against that address's signed-in account too, so someone could
+  stop a staff member raising one. Signed-in and signed-out sending now each
+  have their own three an hour.
+- **Changes reach the shared Google Calendar after Google has a hiccup.** A
+  copy to Google that failed was never tried again, and an edit made while
+  it was being written was lost with it, so Google kept the old details
+  until the next change. A failed copy is now tried again after 1, 5 and 30
+  minutes with the latest details, and an edit that arrives mid-copy is
+  written again a minute later in case that copy never finishes.
+- **An event's end can't be set before its start.** The end's date and time
+  pickers start from the start, in event requests, the Calendar's entries
+  and Attendance's events. A request ending at the minute it starts, which
+  could be approved but never went on the Calendar, is refused.
+- **Small wording fixes.** The Calendar's filter chips read "3 events" to
+  screen readers instead of "3 people"; the grievance team's notice for a
+  resolved grievance says "resolved it" instead of "closed it"; "Grievance
+  not found" names the grievance team's departments as set in Admin instead
+  of always People and Culture and Compliance; and a calendar event made
+  from an event request says "Event request", not "Calendar only", for
+  people who can't open the request, and a deadline doesn't say "Calendar
+  only" at all.
+
+### Changed
+- **Past requests are one list.** Under Reimbursements' Mine and Reviewed
+  (and All, Design Requests and Event Requests), requests from earlier staff
+  years are one "Past requests" list, newest first, loading more as you
+  scroll, instead of a section per staff year. The notes about receipt
+  files show once, above the list.
+- **Shorter explanations.** The deadline's description in the Calendar's
+  Add and Edit sheets is gone, and the explanations on Home's grievance
+  card, Admin's grievance team and step timing cards, the form options
+  sheet, the Calendar's "Take attendance" step, the "Grievance sent" screen
+  and the event request's attendance box are a sentence each.
+
+## [2.10.15] - 2026-11-02
+
+### Changed
+- **The Calendar uses the whole width of a phone.** The month and the week
+  run edge to edge instead of sitting in a padded card, so each day is about
+  a quarter wider and more of each event's name fits: a week's day goes from
+  about 41 to 50 points on an iPhone. Wider screens keep the card.
+
 ## [2.10.14] - 2026-11-01
 
 ### Added

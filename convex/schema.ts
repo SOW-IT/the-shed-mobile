@@ -1,6 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { personaValidator } from "./actingAsData";
 import {
   announcementStatusValidator,
   audienceValidator,
@@ -25,6 +26,7 @@ import {
   personCategoryValidator,
   termFactsFields,
   weeklyBlockValidator,
+  weeklyCategoryValidator,
   weeklyMarkValidator,
   weeklySettingsFields,
 } from "./weeklyInsightsData";
@@ -177,6 +179,11 @@ export default defineSchema({
     .index("by_year_and_to", ["year", "toEmail"])
     .index("by_year_and_from", ["year", "fromEmail"])
     .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
+
+  actingAs: defineTable({
+    email: v.string(),
+    persona: personaValidator,
+  }).index("by_email", ["email"]),
 
   mentorships: defineTable({
     year: v.number(),
@@ -409,6 +416,8 @@ export default defineSchema({
     designRequestId: v.id("designRequests"),
     userEmail: v.string(),
     lastReadAt: v.number(),
+    // The newest unread comment the daily reminder has already mentioned.
+    remindedAt: v.optional(v.number()),
   }).index("by_designRequest_and_user", ["designRequestId", "userEmail"]),
 
   eventRequests: defineTable({
@@ -486,6 +495,8 @@ export default defineSchema({
     form: subFormKindValidator,
     userEmail: v.string(),
     lastReadAt: v.number(),
+    // The newest unread comment the daily reminder has already mentioned.
+    remindedAt: v.optional(v.number()),
   }).index("by_eventRequest_and_form_and_user", [
     "eventRequestId",
     "form",
@@ -616,6 +627,11 @@ export default defineSchema({
     .index("by_churchId", ["churchId"])
     .searchIndex("search_name", { searchField: "name" }),
 
+  attendanceMemberCount: defineTable({
+    count: v.number(),
+    countedAt: v.number(),
+  }),
+
   mergeSuggestionDismissals: defineTable({
     staffEmail: v.string(),
     memberId: v.id("attendanceMembers"),
@@ -674,7 +690,8 @@ export default defineSchema({
     .index("by_year", ["year"])
     .index("by_status", ["status"])
     .index("by_status_and_year", ["status", "year"])
-    .index("by_accountEmail", ["accountEmail"]),
+    .index("by_accountEmail", ["accountEmail"])
+    .index("by_assigneeEmail_and_status", ["assigneeEmail", "status"]),
 
   grievanceSettings: defineTable({
     departments: v.array(v.string()),
@@ -826,6 +843,14 @@ export default defineSchema({
     termKey: v.string(),
     people: v.array(personCategoryValidator),
   }).index("by_subgroup", ["subgroup"]),
+
+  weeklyCategoryPeople: defineTable({
+    subgroup: v.string(),
+    key: v.string(),
+    category: weeklyCategoryValidator,
+  })
+    .index("by_key", ["key"])
+    .index("by_subgroup", ["subgroup"]),
 
   homeTabs: defineTable({
     key: v.string(),

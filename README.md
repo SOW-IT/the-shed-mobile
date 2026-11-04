@@ -25,7 +25,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Finance's payment), design requests (the Marketing Head's approval, the
   team's unfinished work) and event forms (the requester's side for forms not
   submitted, the requester's side and whoever submitted it for forms sent
-  back, the reviewer for forms waiting). Each person gets
+  back, the reviewer for forms waiting). A design or event request comment
+  still unread a day after it was posted goes in once, to the requester, the
+  form's submitter and approver (the Marketing Head for a design request) and
+  anyone else who has commented there and still can. Each person gets
   one notification, push and email a morning listing everything waiting on
   them; nobody with nothing waiting hears anything, and weekends are not
   skipped. Reminder emails can be turned off on Profile. Home lists what is
@@ -57,6 +60,19 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Only they can assign roles/departments (for the current and next year),
   manage divisions/departments, and set the **Budget Manager** (who must be
   from the Finance department). Users can never change their own role.
+- **Acting as** (`convex/actingAs.ts`, `shared/actingAs.ts`, ADR 0017):
+  admins see every role-gated view by default ("All views": the Marketing
+  queue and every design request, every event request and every team's forms
+  to review, every reimbursement queue and Finance's All tab and export),
+  read-only unless the
+  work is really theirs. Under their name in the menu they can instead act
+  as the Director, the Budget Manager, or the staff or Head of one of the
+  year's departments, and see exactly that role's tabs, queues and badges
+  (ordinary staff of a department see only its event requests, no All, and
+  Mine still lists the admin's own); a
+  chip at the top resets it. The choice is stored per admin on the server
+  (`actingAs` table). It never grants an action, and grievances stay with the
+  grievance team.
 - **Org structure** (seeded, editable per-year by admins): Governance (Data
   and IT, Finance, Compliance), Engagement (Marketing, Alumni), Human
   Resources (People and Culture, Training and Development), Operations
@@ -105,12 +121,16 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   are checked against them server-side. Only the **Marketing Head** (or
   their delegate) approves or declines; anyone in Marketing marks approved
   requests complete. Requesters can edit or cancel until a request closes,
-  and everyone on it can comment. Marketing staff get in-app/push
+  and everyone on it can comment. Only the requester, the Marketing team and
+  admins (read-only) see a request. Marketing staff get in-app/push
   notifications and the team's emails go to marketing@sow.org.au. Lists:
   Mine, the Marketing queue (open requests) and an All archive, each running
   back through earlier staff years as you scroll; the Marketing Head opens on the queue when something waits on them.
-  A request's page shows its progress as Submitted, Approved (or Declined)
-  and Complete, with who and when. Any request can be downloaded as a PDF (built on the device with
+  Requests are named by what they ask for (no numbers). Each card is outlined
+  in its status's colour and says when it was submitted. A request's page
+  shows its progress as Submitted, Approved (or Declined) and Complete, with
+  who and when, and its history newest first, spaced by the time between
+  steps. Any request can be downloaded as a PDF (built on the device with
   pdf-lib). Old requests from the web app are copied in with
   `scripts/import-design-requests.mjs` (safe to re-run). Design requests
   aren't for events: those go through Event Requests.
@@ -125,7 +145,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   three are approved or not required. The requester's department fills the
   forms in; reviewers can ask for changes; each form has its own comment
   thread. The Events department, the three teams, the Director and admins can
-  see every event. Team emails go to marketing@, compliance@ and
+  see every event (All); other staff see their own department's. Cards show
+  the event's name (no numbers), its status top right with the card outlined in that colour, and
+  Marketing, Risk and Finance across the bottom; history is newest first,
+  spaced by the time between steps. Team emails go to marketing@, compliance@ and
   finance@sow.org.au. Any event downloads as a PDF whose Risk and Finance
   pages follow the Governance Review Form. Once approved, an event goes on the
   Calendar: as an SOW attendance event when "Take attendance at this event" is
@@ -161,10 +184,13 @@ changing anything seasonal, the October 1 staff-year rollover in particular
 - **Grievances** (`convex/grievances.ts`, rules in `shared/grievances.ts`),
   the fifth bottom tab for everyone, signed in or not (and a card on the
   Partner tab). Anyone can raise one (name, email, what it's about, what
-  happened); each email can send 3 an hour, and signed-out sending 30 an
-  hour in all. Only the submitter and the **grievance team** can see it:
-  this year's members of the departments chosen in Admin → Other (People and
-  Culture and Compliance to start); other admins can't. Nothing goes to a
+  happened); each email can send 3 an hour signed in and 3 signed out, and
+  signed-out sending 30 an hour in all. Only the submitter and the
+  **grievance team** can see it: this year's members of the departments
+  chosen in Admin → Other (People and Culture and Compliance to start);
+  other admins can't. From 1 October to 31 December last year's members
+  keep access (the rollover grace), see a notice to hand over what they're
+  looking after, and are reminded on 1 December. Nothing goes to a
   team inbox: the team gets an in-app and push notification for each new
   one and works on it under **Submitted**, listed by staff year (the current
   year, plus earlier years that have grievances; open ones move to the new
@@ -202,20 +228,24 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget
   Manager alert when the paid amount differs from the requested amount.
 - **Reimbursements** (opened from the side menu, at `/`): Mine (submit /
-  cancel / receipt), Review (approve / decline / pay, shown to approvers and
-  to anyone who has reviewed a request before), All (Finance staff), Bank.
-  Each tab runs back through earlier staff years as you scroll, newest first
-  under a heading per year: on Mine your own requests, on Review everything
-  you approved or declined, on All (under Completed) every completed request;
-  a request sits under the year it was made in. The New
+  cancel / receipt, this staff year's requests plus last year's still open),
+  Past (your own requests from earlier staff years, shown once you have any),
+  Review (approve / decline / pay, shown to approvers and to anyone who has
+  reviewed a request before), All (Finance staff), Bank. Past loads ten at a
+  time and fetches the next ten as you near the end (`requests.earlierMine`),
+  newest first with a divider per staff year, ending on how many there are;
+  a declined one can be resubmitted from there. Review runs back through
+  everything you approved or declined, and All (under Completed) through
+  every completed request, as you scroll; a request sits under the year it
+  was made in. The New
   Request sheet shows who the request will go to as you type
   (`requests.approvalPreview`), including the Director from the threshold and
   any step your own role skips; image receipts show a thumbnail before you
   submit. An approver with requests waiting and nothing of their own to act on
   opens on Review, and a request link opens the tab that holds it (Mine,
-  Review, or All for Finance staff). Each request's clock button opens its
-  timeline: every step from submitted to paid with who did it and when, the
-  gaps between steps, what it is waiting on now and how many reminders have
+  Past with the request on top, Review, or All for Finance staff). Each request's clock button opens its
+  timeline, newest first: every step from submitted to paid with who did it
+  and when, the gaps between steps (spaced by how long they were), what it is waiting on now and how many reminders have
   gone out for that wait, and how long submitted-to-paid took.
   A request, its timeline and its comments are visible only to the
   requester, Finance staff, the approvers on its chain and their delegates
@@ -229,8 +259,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Churches (anyone not on staff) and Grievances; signed out there's no
   Insights at all, and `/insights` goes to Home. On phones the top-left
   avatar, or a swipe from the left edge, opens a side menu with Profile,
-  Insights and Churches (staff), Requests (staff other than campus leaders),
-  Mentoring, Announcements, Admin (admins and the Finance Head) and Sign out. Screens 700pt and wider
+  Churches (staff), Requests (staff other than campus leaders), Mentoring,
+  Insights (staff, just above Announcements), Announcements, Admin (admins and
+  the Finance Head) and Sign out. Announcements, Mentoring and Admin are
+  screens of their own like Insights, not pushed on top. Screens 700pt and wider
   (iPad, desktop web) swap the top bar, bottom tabs and drawer for one
   permanent sidebar holding all of them (`src/components/nav/`,
   rules in `src/lib/navMenu.ts`).
@@ -255,10 +287,11 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   bottom tab for staff and campus leaders: a month where each event is a
   coloured bar across the days it runs (the start of its name), or a week
   with the hours down the side like Google Calendar's (Month or Week is
-  remembered per device; `?view=week` opens the week), then the picked day's
-  events in full below. It shows every attendance event, wherever it was made,
-  plus **calendar entries** (`calendarEntries`): things that don't take
-  attendance, with optional notes and no campus. "Add Event" adds an Event or
+  remembered per device; `?view=week` opens the week; swiping the month or
+  week left or right goes to the next or previous one, like the arrows), then
+  the picked day's events in full below. It shows every attendance event,
+  wherever it was made, plus **calendar entries** (`calendarEntries`):
+  things that don't take attendance, with optional notes and no campus. "Add Event" adds an Event or
   a **deadline** (a day and an optional time with no end, shown with a flag)
   on the picked day, or the hour tapped on the week. Ticking "Take attendance"
   asks where it's held and carries on in Attendance's event form (tags,
@@ -283,10 +316,11 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   signs in once for the whole event.
   Post-event sign-ins can be reversed; sign-ins made during an event can't,
   except within 10 minutes of being made.
-  "Not signed in" lists the people most likely to come first: a score from
+  "Not signed in" lists the 50 people most likely to come: a score from
   the last 180 days of sign-ins (weight halving every 45 days, most for the
   same campus's weeklies) plus a campus bonus, stored per event in
-  `rollCallOrders` (ADR 0014).
+  `rollCallOrders` (ADR 0014). Anyone else is found with the search, which
+  asks the server (`attendance.searchRoster`, ADR 0016).
   The Events list filters by tag (any of the picked tags) and by host
   (hosted here, or shared in by another campus). `events.listBySubgroup`
   applies the filter while it pages, so it covers every event.
@@ -367,7 +401,13 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **App errors**: a screen that crashes, or an unhandled error, is reported
   (`convex/appErrors.ts`) with the route, platform, version and who hit it,
   grouped by fingerprint. Admins see the last seven days on Admin, Other and
-  clear them there.
+  clear them there. Not reported: network drops in unhandled rejections, the
+  web's "Requiring unknown module" from Expo's synchronous first try at a
+  route (it then loads the chunk), and a web tab from an older release that
+  can't load a screen's code and reloads itself once onto the new release
+  (`src/lib/staleRelease.ts`). That error is reported when the tab can't
+  reload (offline, or no session storage), or when it fails again within a
+  minute of the reload.
 - **Update prompt**: phones ask for the store version when it's older than the
   server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
   banner that can be dismissed; below `minimum`, a full screen with only the
@@ -655,8 +695,11 @@ app use the dev deployment. Redeploy the site with:
 npm run deploy:web
 ```
 
-(`web/vercel.json` provides clean URLs + an SPA fallback for the dynamic
-routes.) When Google sign-in is configured, also set the deployment's
+(`web/vercel.json`, like the root `vercel.json` that Vercel's own build
+uses, provides an SPA fallback for the dynamic routes. Missing files under
+`/_expo/` and `/assets/` are left out of it so they 404: a tab still running
+an older release then gets a clean chunk-load error and reloads, instead of
+being handed the HTML page as JavaScript.) When Google sign-in is configured, also set the deployment's
 `SITE_URL` to the hosted URL so web OAuth redirects return there:
 
 ```bash

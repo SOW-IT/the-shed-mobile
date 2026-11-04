@@ -723,7 +723,7 @@ describe("attendance members", () => {
         year: YEAR,
         paginationOpts: { numItems: 10, cursor: null },
       })
-    ).toEqual({ page: [], isDone: true, continueCursor: "" });
+    ).toEqual({ page: [], isDone: true, continueCursor: "", total: 0 });
   });
 
   test("dedupes an attendance-only member who later becomes staff, per year", async () => {

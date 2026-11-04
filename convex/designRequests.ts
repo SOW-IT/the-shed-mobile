@@ -5,6 +5,15 @@ import { Doc, Id } from "./_generated/dataModel";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { isMemberOfDepartment } from "../shared/flow";
 import {
+  personaHeads,
+  personaInDepartment,
+  seesThrough,
+  waitsThrough,
+  type Lens,
+  type Persona,
+} from "../shared/actingAs";
+import { lensFor } from "./actingAs";
+import {
   changedDesignAnswers,
   designAnswersProblem,
   designRequestFiling,
@@ -26,7 +35,6 @@ import {
   currentStaffYear,
   displayName,
   getDepartment,
-  isAdminProfile,
   optionalProfile,
   requireProfile,
   resolveName,
@@ -75,9 +83,11 @@ export async function accessTo(
   const isRequester = request.requesterEmail === caller.email;
   const isHead = await actsAsMarketingHead(ctx, caller, request.year);
   const isTeam = isHead || isMarketingStaff(caller);
+  // Only the requester and the Marketing team see a design request; being an
+  // admin adds nothing.
   const canComment = isRequester || isTeam;
   return {
-    canView: canComment || (await isAdminProfile(ctx, caller.profile)),
+    canView: canComment,
     canComment,
     canDecide: isHead && !isRequester,
     canComplete: isTeam,
@@ -246,12 +256,35 @@ async function withRequesterNames(ctx: Ctx, rows: DesignRequest[]) {
   );
 }
 
+// Only the Marketing team sees every design request.
 async function canSeeQueue(ctx: Ctx, caller: CallerContext) {
-  return (
-    isMarketingStaff(caller) ||
-    (await actsAsMarketingHead(ctx, caller, caller.year)) ||
-    (await isAdminProfile(ctx, caller.profile))
+  return isMarketingStaff(caller) || (await actsAsMarketingHead(ctx, caller, caller.year));
+}
+
+const onMarketingTeam = (persona: Persona) => personaInDepartment(persona, MARKETING);
+
+const seesQueue = (ctx: Ctx, caller: CallerContext, lens: Lens) =>
+  seesThrough(lens, () => canSeeQueue(ctx, caller), onMarketingTeam);
+
+export async function viewableAccess(
+  ctx: Ctx,
+  caller: CallerContext,
+  request: DesignRequest
+): Promise<DesignRequestAccess | null> {
+  const access = await accessTo(ctx, caller, request);
+  if (access.canView) return access;
+  const lens = await lensFor(ctx, caller);
+  return (await seesThrough(lens, () => false, onMarketingTeam)) ? access : null;
+}
+
+async function viewerRoles(ctx: Ctx, caller: CallerContext, lens: Lens) {
+  const isHead = await waitsThrough(
+    lens,
+    () => actsAsMarketingHead(ctx, caller, caller.year),
+    (persona) => personaHeads(persona, MARKETING)
   );
+  const isStaff = await waitsThrough(lens, () => isMarketingStaff(caller), onMarketingTeam);
+  return { isHead, isStaff };
 }
 
 export const viewer = query({
@@ -259,23 +292,25 @@ export const viewer = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const isHead = await actsAsMarketingHead(ctx, caller, caller.year);
+    const lens = await lensFor(ctx, caller);
+    const { isHead, isStaff } = await viewerRoles(ctx, caller, lens);
     return {
       year: caller.year,
       hasMarketingHead: (await marketingHeadEmail(ctx, caller.year)) !== undefined,
       isMarketingHead: isHead,
-      isMarketingStaff: isMarketingStaff(caller),
-      canSeeQueue: await canSeeQueue(ctx, caller),
+      isMarketingStaff: isStaff,
+      canSeeQueue: await seesQueue(ctx, caller, lens),
     };
   },
 });
 
 export async function designWaitingOnMe(
   ctx: Ctx,
-  caller: CallerContext
+  caller: CallerContext,
+  lens: Lens
 ): Promise<{ toApprove: number; toFinish: number }> {
-  const isHead = await actsAsMarketingHead(ctx, caller, caller.year);
-  if (!isHead && !isMarketingStaff(caller)) return { toApprove: 0, toFinish: 0 };
+  const { isHead, isStaff } = await viewerRoles(ctx, caller, lens);
+  if (!isHead && !isStaff) return { toApprove: 0, toFinish: 0 };
   const countOf = async (status: DesignRequestStatus) =>
     (
       await ctx.db
@@ -294,7 +329,11 @@ export const waitingOnMe = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return 0;
-    const { toApprove, toFinish } = await designWaitingOnMe(ctx, caller);
+    const { toApprove, toFinish } = await designWaitingOnMe(
+      ctx,
+      caller,
+      await lensFor(ctx, caller)
+    );
     return toApprove + toFinish;
   },
 });
@@ -328,11 +367,16 @@ export const mine = query({
 export const designWaitingSince = (request: DesignRequest): number =>
   request.status === "APPROVED" ? (request.decidedAt ?? request.submittedAt) : request.submittedAt;
 
+const queueViewer = async (ctx: Ctx) => {
+  const caller = await optionalProfile(ctx);
+  return caller && (await seesQueue(ctx, caller, await lensFor(ctx, caller))) ? caller : null;
+};
+
 export const queue = query({
   args: {},
   handler: async (ctx) => {
-    const caller = await optionalProfile(ctx);
-    if (!caller || !(await canSeeQueue(ctx, caller))) return null;
+    const caller = await queueViewer(ctx);
+    if (!caller) return null;
     const rows: DesignRequest[] = [];
     for (const status of OPEN_STATUSES) {
       rows.push(
@@ -352,8 +396,8 @@ export const queue = query({
 export const archive = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
-    const caller = await optionalProfile(ctx);
-    if (!caller || !(await canSeeQueue(ctx, caller))) return null;
+    const caller = await queueViewer(ctx);
+    if (!caller) return null;
     const rows = await ctx.db
       .query("designRequests")
       .withIndex("by_year_and_number", (q) => q.eq("year", args.year))
@@ -382,8 +426,8 @@ export const earlierMine = query({
 export const earlierArchive = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
-    const caller = await optionalProfile(ctx);
-    if (!caller || !(await canSeeQueue(ctx, caller))) return null;
+    const caller = await queueViewer(ctx);
+    if (!caller) return null;
     const result = await ctx.db
       .query("designRequests")
       .withIndex("by_year_and_number", (q) => q.lt("year", caller.year))
@@ -401,8 +445,8 @@ export const get = query({
     const id = ctx.db.normalizeId("designRequests", args.id);
     const request = id ? await ctx.db.get("designRequests", id) : null;
     if (!request) return null;
-    const access = await accessTo(ctx, caller, request);
-    if (!access.canView) return null;
+    const access = await viewableAccess(ctx, caller, request);
+    if (!access) return null;
     const open = isOpenDesignStatus(request.status);
     const nameOf = (email: string | undefined) =>
       email ? displayName(ctx, email, request.year) : Promise.resolve(null);
@@ -428,10 +472,11 @@ export const timeline = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const request = await ctx.db.get("designRequests", args.id);
-    if (!request || !(await accessTo(ctx, caller, request)).canView) return null;
+    if (!request || !(await viewableAccess(ctx, caller, request))) return null;
     const events = await ctx.db
       .query("designRequestEvents")
       .withIndex("by_designRequest", (q) => q.eq("designRequestId", args.id))
+      .order("desc")
       .take(EVENTS_LIMIT);
     return await Promise.all(
       events.map(async (event) => ({
@@ -492,7 +537,7 @@ export const submit = mutation({
     const summary = await requestSummary(ctx, request);
     await tellRequester(ctx, request, {
       actor: email,
-      subject: `Your ${name} has been submitted`,
+      subject: `${name} has been submitted`,
       pushTitle: "Design request submitted",
       body: autoApprove
         ? `It's approved, as you're the Marketing Head, and the Marketing team has been told.\n\n${summary}`
@@ -508,7 +553,7 @@ export const submit = mutation({
         });
     await tellTeam(ctx, request, {
       actor: email,
-      subject: `New ${name}`,
+      subject: `New ${name.replace(/^Design/, "design")}`,
       pushTitle: "New design request",
       body: `${autoApprove ? "Approved by the Marketing Head." : "Waiting on the Marketing Head's approval."}\n\n${summary}`,
       skip: heads,
@@ -602,7 +647,7 @@ export const approve = mutation({
     const approver = await displayName(ctx, caller.email, request.year);
     await tellRequester(ctx, request, {
       actor: caller.email,
-      subject: `Your ${name} has been approved`,
+      subject: `${name} has been approved`,
       pushTitle: "Design request approved",
       body: `${approver} approved it, and the Marketing team has been told.\n\n${summary}`,
     });
@@ -642,7 +687,7 @@ export const decline = mutation({
     const decliner = await displayName(ctx, caller.email, request.year);
     await tellRequester(ctx, request, {
       actor: caller.email,
-      subject: `Your ${name} has been declined`,
+      subject: `${name} has been declined`,
       pushTitle: "Design request declined",
       body: `${decliner} declined it.\nReason: ${reason}\n\n${summary}`,
     });
@@ -684,7 +729,7 @@ export const complete = mutation({
     const noteLine = note ? `\nNote: ${note}` : "";
     await tellRequester(ctx, request, {
       actor: caller.email,
-      subject: `Your ${name} is complete`,
+      subject: `${name} is complete`,
       pushTitle: "Design request complete",
       body: `${completer} marked it complete.${noteLine}\n\n${summary}`,
     });

@@ -350,6 +350,285 @@ describe("event form reminders", () => {
   });
 });
 
+describe("unread comment reminders", () => {
+  test("a comment still unread a day later reminds the people its thread is for, once", async () => {
+    const t = await setup();
+    const id = await createEvent(t);
+    await submitRisk(t, id);
+    await asUser(t, CORA).mutation(api.eventRequestComments.add, {
+      id,
+      form: "risk",
+      body: "What's the wet weather plan?",
+    });
+    await clearOutbox(t);
+
+    atDay(0.5);
+    await run(t);
+    expect(await notificationsFor(t, RACHEL)).toEqual([]);
+
+    atDay(1.1);
+    await run(t);
+    const [note] = await notificationsFor(t, RACHEL);
+    expect(note.body).toBe("2 event forms and 1 thread with unread comments are waiting on you.");
+    const [email] = await emailsTo(t, RACHEL);
+    expect(email.body).toContain("1 unread comment on the Risk form for Winter Camp");
+    // Cora wrote it, and Eddie isn't on the thread.
+    for (const other of [CORA, EDDIE]) {
+      for (const mail of await emailsTo(t, other)) expect(mail.body).not.toContain("unread comment");
+    }
+
+    // Reminded once: the next run leaves it alone.
+    await clearOutbox(t);
+    atDay(2.2);
+    await run(t);
+    expect(await notificationsFor(t, RACHEL)).toEqual([]);
+
+    // Cora reads Rachel's reply in time, so only the later one reminds her.
+    await asUser(t, RACHEL).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Tents" });
+    await asUser(t, CORA).mutation(api.eventRequestComments.markRead, { id, form: "risk" });
+    atDay(2.3);
+    await asUser(t, RACHEL).mutation(api.eventRequestComments.add, { id, form: "risk", body: "And a hall" });
+    await clearOutbox(t);
+    atDay(3.4);
+    await run(t);
+    const coraMail = (await emailsTo(t, CORA)).map((m) => m.body).join("\n");
+    expect(coraMail).toContain("1 unread comment on the Risk form for Winter Camp");
+
+    // A week on, nothing is looked at again.
+    await clearOutbox(t);
+    atDay(12);
+    await run(t);
+    for (const who of [RACHEL, CORA]) {
+      for (const mail of await emailsTo(t, who)) expect(mail.body).not.toContain("unread comment");
+    }
+  });
+
+  test("earlier commenters hear about replies while they can still comment, under either address", async () => {
+    const t = await setup();
+    const id = await createEvent(t);
+    // Bella (Finance) asks a question; Rachel only answers nine days later.
+    await asUser(t, BELLA).mutation(api.eventRequestComments.add, { id, form: "finance", body: "Budget?" });
+    atDay(9);
+    await asUser(t, RACHEL).mutation(api.eventRequestComments.add, { id, form: "finance", body: "$500" });
+    await clearOutbox(t);
+    atDay(10.1);
+    await run(t);
+    const bella = (await emailsTo(t, BELLA)).map((m) => m.body).join("\n");
+    expect(bella).toContain("1 unread comment on the Finance form for Winter Camp");
+
+    // Once Bella has left Finance she can't comment there, so she isn't reminded.
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", BELLA).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", profile!._id, {
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+    });
+    atDay(11);
+    await asUser(t, RACHEL).mutation(api.eventRequestComments.add, { id, form: "finance", body: "Or $600" });
+    await clearOutbox(t);
+    atDay(12.2);
+    await run(t);
+    for (const mail of await emailsTo(t, BELLA)) expect(mail.body).not.toContain("unread comment");
+  });
+
+  test("an approver listed under their other address isn't reminded of their own comment", async () => {
+    const t = await setup();
+    const alias = "cora@sowaustralia.com";
+    await t.run(async (ctx) => {
+      for (const department of await ctx.db.query("departments").collect()) {
+        if (department.name === "Compliance") {
+          await ctx.db.patch("departments", department._id, { headEmail: alias });
+        }
+      }
+    });
+    const id = await createEvent(t);
+    await asUser(t, CORA).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Rain plan?" });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    for (const who of [CORA, alias]) {
+      for (const mail of await emailsTo(t, who)) expect(mail.body).not.toContain("unread comment");
+    }
+    expect((await emailsTo(t, RACHEL)).map((m) => m.body).join("\n")).toContain(
+      "1 unread comment on the Risk form for Winter Camp"
+    );
+  });
+
+  test("comments an approver read under their login address don't remind their other address", async () => {
+    const t = await setup();
+    const alias = "cora@sowaustralia.com";
+    await t.run(async (ctx) => {
+      for (const department of await ctx.db.query("departments").collect()) {
+        if (department.name === "Compliance") {
+          await ctx.db.patch("departments", department._id, { headEmail: alias });
+        }
+      }
+    });
+    const id = await createEvent(t);
+    await asUser(t, RACHEL).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Tents?" });
+    atDay(0.2);
+    await asUser(t, CORA).mutation(api.eventRequestComments.markRead, { id, form: "risk" });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    for (const who of [CORA, alias]) {
+      for (const mail of await emailsTo(t, who)) expect(mail.body).not.toContain("unread comment");
+    }
+  });
+
+  test("an approver whose Head address is an alias is reminded there", async () => {
+    const t = await setup();
+    const alias = "cora@sowaustralia.com";
+    await t.run(async (ctx) => {
+      for (const department of await ctx.db.query("departments").collect()) {
+        if (department.name === "Compliance") {
+          await ctx.db.patch("departments", department._id, { headEmail: alias });
+        }
+      }
+    });
+    const id = await createEvent(t);
+    await asUser(t, RACHEL).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Tents?" });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    expect((await emailsTo(t, alias)).map((m) => m.body).join("\n")).toContain(
+      "1 unread comment on the Risk form for Winter Camp"
+    );
+  });
+
+  test("a requester who has since become a campus leader isn't reminded", async () => {
+    const t = await setup();
+    const id = await createEvent(t);
+    await submitRisk(t, id, SAM);
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", RACHEL).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", profile!._id, {
+        assignments: [{ role: "Student Leader", university: "UNSW" }],
+      });
+    });
+    await asUser(t, CORA).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Rain plan?" });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    for (const mail of await emailsTo(t, RACHEL)) expect(mail.body).not.toContain("unread comment");
+    expect((await emailsTo(t, SAM)).map((m) => m.body).join("\n")).toContain(
+      "1 unread comment on the Risk form for Winter Camp"
+    );
+  });
+
+  test("a requester with no staff profile this year, or a submitter who has left the department, isn't reminded", async () => {
+    const t = await setup();
+    const id = await createEvent(t);
+    await submitRisk(t, id, SAM);
+    await asUser(t, SAM).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Plan attached" });
+    await asUser(t, CORA).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Rain plan?" });
+    await t.run(async (ctx) => {
+      const profileOf = (email: string) =>
+        ctx.db
+          .query("staffProfiles")
+          .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", YEAR))
+          .unique();
+      await ctx.db.delete("staffProfiles", (await profileOf(RACHEL))!._id);
+      await ctx.db.patch("staffProfiles", (await profileOf(SAM))!._id, {
+        assignments: [{ role: "Staff", department: "Finance" }],
+      });
+    });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    for (const person of [RACHEL, SAM]) {
+      for (const mail of await emailsTo(t, person)) expect(mail.body).not.toContain("unread comment");
+      for (const note of await notificationsFor(t, person)) expect(note.body).not.toContain("unread comment");
+    }
+    expect((await emailsTo(t, CORA)).map((m) => m.body).join("\n")).toContain(
+      "1 unread comment on the Risk form for Winter Camp"
+    );
+  });
+
+  test("design request comments remind the requester and the Marketing Head", async () => {
+    const t = await setup();
+    const id = await submitDesign(t);
+    const gone = await submitDesign(t, MARY);
+    await asUser(t, MARY).mutation(api.designRequestComments.add, { id, body: "Which colours?" });
+    await asUser(t, HENRY).mutation(api.designRequestComments.add, { id: gone, body: "Hi" });
+    await t.run((ctx) => ctx.db.delete("designRequests", gone));
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    for (const who of [RACHEL, HENRY]) {
+      const body = (await emailsTo(t, who)).map((m) => m.body).join("\n");
+      expect(body).toContain("1 unread comment on the design request for Poster");
+    }
+    const maryMail = (await emailsTo(t, MARY)).map((m) => m.body).join("\n");
+    expect(maryMail).not.toContain("unread comment");
+
+
+    await asUser(t, RACHEL).mutation(api.designRequestComments.markRead, { id });
+    atDay(1.2);
+    await asUser(t, MARY).mutation(api.designRequestComments.add, { id, body: "Blue?" });
+    await t.run(async (ctx) => {
+      await ctx.db.patch("designRequests", id, { title: "" });
+      const event = await ctx.db.insert("eventRequests", {
+        year: YEAR,
+        number: 9,
+        requesterEmail: RACHEL,
+        department: "Events",
+        submittedAt: Date.now(),
+        answers: {},
+        name: "Gone",
+        startsAt: at(40, 9),
+        endsAt: at(40, 17),
+        location: "Hall",
+        status: "IN_PROGRESS",
+      });
+      await ctx.db.insert("eventRequestComments", {
+        eventRequestId: event,
+        form: "risk",
+        authorEmail: CORA,
+        body: "Hi",
+        postedAt: Date.now(),
+      });
+      await ctx.db.delete("eventRequests", event);
+    });
+    await clearOutbox(t);
+    atDay(2.2);
+    await run(t);
+    const rachel = (await emailsTo(t, RACHEL)).map((m) => m.body).join("\n");
+    expect(rachel).toContain("1 unread comment on a design request");
+
+    // Mary is on the thread, so Rachel's reply reminds her, until she leaves Marketing.
+    atDay(2.25);
+    await asUser(t, RACHEL).mutation(api.designRequestComments.add, { id, body: "Green" });
+    await clearOutbox(t);
+    atDay(3.3);
+    await run(t);
+    expect((await emailsTo(t, MARY)).map((m) => m.body).join("\n")).toContain(
+      "1 unread comment on a design request"
+    );
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", MARY).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", profile!._id, {
+        assignments: [{ role: "Staff", department: "Events" }],
+      });
+    });
+    atDay(3.4);
+    await asUser(t, RACHEL).mutation(api.designRequestComments.add, { id, body: "Teal" });
+    await clearOutbox(t);
+    atDay(4.5);
+    await run(t);
+    for (const mail of await emailsTo(t, MARY)) expect(mail.body).not.toContain("unread comment");
+  });
+});
+
 describe("the daily digest", () => {
   test("one person with several kinds waiting gets one notification and one email, pointing at Home", async () => {
     const t = await setup();
@@ -370,7 +649,7 @@ describe("the daily digest", () => {
     expect(mail).toHaveLength(1);
     expect(mail[0].subject).toBe("Reminder: 2 things are waiting on you in THE SHED");
     expect(mail[0].body).toContain("$40 from mary@sow.org.au (Marketing), Paint: waiting on your HOD approval for 1 day");
-    expect(mail[0].body).toContain("Design request #1");
+    expect(mail[0].body).toContain("Design request: Poster for Events");
   });
 
   test("nothing goes out when nothing is waiting, and a weekend run still sends", async () => {

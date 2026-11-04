@@ -4,6 +4,7 @@ import {
   parseDateInputValue,
   parseDateTimeInputValues,
   toDateInputValue,
+  toTimeInputValue,
 } from "./datetime";
 import { acronym, sydneyYmd, UNIVERSITY_COLOURS, universityColour } from "./flow";
 import { canonicalEmailKey } from "./rollcallImport";
@@ -82,9 +83,29 @@ export const contrastingText = (hex: string): string => {
   return lum > 0.6 ? "#000000" : "#ffffff";
 };
 
-export const defaultEventWindow = (): { dateStart: number; dateEnd: number } => {
-  const dateStart = Date.now();
+// Starts at the nearest half hour (1:37 → 1:30, 1:45 → 2:00) and runs two hours.
+export const defaultEventWindow = (now: number = Date.now()): { dateStart: number; dateEnd: number } => {
+  const start = new Date(now);
+  const minutes = start.getMinutes() + (start.getSeconds() * 1000 + start.getMilliseconds()) / 60000;
+  start.setMinutes(Math.round(minutes / 30) * 30, 0, 0);
+  const dateStart = start.getTime();
   return { dateStart, dateEnd: dateStart + 2 * 60 * 60 * 1000 };
+};
+
+// A new one-off event's form starts at the nearest half hour and runs two
+// hours; one that starts after 10 pm ends the next day.
+export const defaultEventInputs = (
+  now: number = Date.now()
+): { startDate: string; startTime: string; endDate: string; endTime: string } => {
+  const { dateStart, dateEnd } = defaultEventWindow(now);
+  const start = new Date(dateStart);
+  const end = new Date(dateEnd);
+  return {
+    startDate: toDateInputValue(start),
+    startTime: toTimeInputValue(start),
+    endDate: toDateInputValue(end),
+    endTime: toTimeInputValue(end),
+  };
 };
 
 export const eventWindowFromInputs = (fields: {
