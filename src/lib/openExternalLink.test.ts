@@ -54,6 +54,7 @@ describe("openExternalLink", () => {
     native.openBrowserAsync.mockResolvedValue({ type: "dismiss" });
     const { url, ...options } = mapsLink("12 Example Street, Glebe NSW 2037", "ios");
     await expect(openExternalLink(url, options)).resolves.toBe(true);
+    expect(native.openURL).toHaveBeenCalledWith(url);
     expect(native.openBrowserAsync).toHaveBeenCalledWith(options.fallbackUrl);
   });
 

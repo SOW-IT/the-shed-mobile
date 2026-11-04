@@ -106,7 +106,10 @@ const installGlobalHandlers = () => {
   if (errorUtils) {
     const previous = errorUtils.getGlobalHandler();
     errorUtils.setGlobalHandler((error, isFatal) => {
-      if (Platform.OS !== "web" || !isUnknownModuleError(error)) reportError(error);
+      const expectedWebMiss = Platform.OS === "web" && isUnknownModuleError(error);
+      if (!expectedWebMiss && !(isStaleReleaseError(error) && staleReload.reload())) {
+        reportError(error);
+      }
       previous?.(error, isFatal);
     });
   }

@@ -112,6 +112,22 @@ describe("web global handlers", () => {
     expect(app.reports.map((r) => r.message)).toEqual([chunkFailed().message, "Unexpected token '<'"]);
   });
 
+  test("reload, without reporting, when a chunk failure reaches the fatal handler", async () => {
+    const app = await setUp();
+    const failure = chunkFailed();
+    app.fatal(failure);
+    expect(app.reload).toHaveBeenCalledTimes(1);
+    expect(app.reports).toEqual([]);
+    expect(app.previous).toHaveBeenCalledWith(failure, true);
+  });
+
+  test("report a fatal chunk failure within a minute of a reload", async () => {
+    const app = await setUp({ sessionAt: String(5_000_000 - 10_000) });
+    app.fatal(chunkFailed());
+    expect(app.reload).not.toHaveBeenCalled();
+    expect(app.reports.map((r) => r.message)).toEqual([chunkFailed().message]);
+  });
+
   test("report other script errors as before", async () => {
     const app = await setUp();
     app.scriptError({ message: "Uncaught TypeError: x is not a function", filename: chunk, error: new TypeError("x is not a function") });
@@ -125,8 +141,13 @@ describe("native global handlers", () => {
     const app = await setUp({ os: "ios" });
     app.fatal(new Error('Requiring unknown module "12".'));
     app.hermes(chunkFailed());
+    app.fatal(new Error("Loading module https://x/_expo/static/js/ios/a.js failed."));
     expect(app.reload).not.toHaveBeenCalled();
-    expect(app.reports.map((r) => r.message)).toEqual(['Requiring unknown module "12".', chunkFailed().message]);
+    expect(app.reports.map((r) => r.message)).toEqual([
+      'Requiring unknown module "12".',
+      chunkFailed().message,
+      "Loading module https://x/_expo/static/js/ios/a.js failed.",
+    ]);
     expect(app.reports.every((r) => r.platform === "ios")).toBe(true);
   });
 
