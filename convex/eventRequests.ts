@@ -100,7 +100,7 @@ const seesAllEvents = async (ctx: Ctx, caller: CallerContext, lens: Lens) => {
   if (lens.kind === "all") return true;
   if (lens.kind === "self") return seesAll(await viewerScope(ctx, caller));
   return (
-    personaSeesAllEvents(lens.persona) || (await personaIsAdmin(ctx, caller.year, lens.persona))
+    personaSeesAllEvents(lens.persona) || personaIsAdmin(lens.persona)
   );
 };
 

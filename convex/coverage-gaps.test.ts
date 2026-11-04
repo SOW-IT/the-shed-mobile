@@ -398,71 +398,30 @@ describe("admin.removeStaffProfile vacates a division headship", () => {
   });
 });
 
-describe("model.isAdminProfile via a Human Resources division headship", () => {
-  test("heading the HR division grants admin even without an HR department", async () => {
+describe("model.isAdminProfile for division heads", () => {
+  test("heading HR or Governance doesn't make someone an admin until they're chosen", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR,
-      name: "Engagement",
-      headEmail: "han@sow.org.au",
-    });
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR,
-      name: "Human Resources",
-      headEmail: "han@sow.org.au",
-    });
-    await asUser(t, "han@sow.org.au").mutation(api.admin.setStaffProfile, {
-      email: "newbie@sow.org.au",
-      year: YEAR,
-      roles: ["Staff"],
-      department: "Marketing",
-    });
-    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    expect(profiles.map((p) => p.email)).toContain("newbie@sow.org.au");
-  });
-});
-
-describe("model.isAdminProfile via the Governance division headship", () => {
-  test("the Governance head is an admin, but other Governance staff are not", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    const HEAD = "gov.head@sow.org.au";
-    const STAFF = "compliance.staff@sow.org.au";
-    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Governance", headEmail: HEAD });
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR,
-      name: "Compliance",
-      division: "Governance",
-    });
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: STAFF,
-      year: YEAR,
-      roles: ["Staff"],
-      department: "Compliance",
-    });
-
-    const head = asUser(t, HEAD);
-    expect((await head.query(api.directory.me, {}))?.isAdmin).toBe(true);
-    await head.mutation(api.admin.setStaffProfile, {
-      email: "newbie@sow.org.au",
-      year: YEAR,
-      roles: ["Staff"],
-      department: "Marketing",
-    });
-    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    expect(profiles.map((p) => p.email)).toContain("newbie@sow.org.au");
-
-    const staff = asUser(t, STAFF);
-    expect((await staff.query(api.directory.me, {}))?.isAdmin).toBe(false);
-    await expect(
-      staff.mutation(api.admin.setStaffProfile, {
-        email: "other@sow.org.au",
+    const HR_HEAD = "han@sow.org.au";
+    const GOV_HEAD = "gov.head@sow.org.au";
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Human Resources", headEmail: HR_HEAD });
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Governance", headEmail: GOV_HEAD });
+    const add = (email: string, by: string) =>
+      asUser(t, by).mutation(api.admin.setStaffProfile, {
+        email,
         year: YEAR,
         roles: ["Staff"],
         department: "Marketing",
-      })
-    ).rejects.toThrow(/Only admins/);
+      });
+    for (const head of [HR_HEAD, GOV_HEAD]) {
+      expect((await asUser(t, head).query(api.directory.me, {}))?.isAdmin).toBe(false);
+      await expect(add("other@sow.org.au", head)).rejects.toThrow(/Only admins/);
+    }
+    await t.mutation(internal.admins.add, { email: GOV_HEAD, addedBy: ADMIN });
+    expect((await asUser(t, GOV_HEAD).query(api.directory.me, {}))?.isAdmin).toBe(true);
+    await add("newbie@sow.org.au", GOV_HEAD);
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    expect(profiles.map((p) => p.email)).toContain("newbie@sow.org.au");
   });
 });
 

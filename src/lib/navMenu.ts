@@ -127,7 +127,7 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   items.push("org", "churches", "grievances");
   if (viewer.signedIn) items.push("profile");
   if (viewer.canMentoring) items.push("mentoring");
-  if (viewer.signedIn) items.push("insights");
+  if (viewer.isStaff) items.push("insights");
   if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
   return items;

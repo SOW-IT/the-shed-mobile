@@ -1,8 +1,6 @@
 import { ConvexError } from "convex/values";
 import {
   ADMIN_DEPARTMENTS,
-  ADMIN_DIVISIONS,
-  ADMIN_HEADED_DIVISIONS,
   assignmentsOf,
   departmentsOf,
   DIRECTOR,
@@ -200,33 +198,26 @@ export async function isAdminProfile(
   ctx: Ctx,
   profile: Doc<"staffProfiles">
 ): Promise<boolean> {
-  const roles = rolesOf(profile);
-  if (roles.includes(DIRECTOR)) return true;
-  const headed = await divisionsHeadedBy(ctx, profile.year, profile.email);
-  if (
-    headed.some(
-      (division) =>
-        ADMIN_DIVISIONS.includes(division.name) ||
-        ADMIN_HEADED_DIVISIONS.includes(division.name)
-    )
-  ) {
-    return true;
-  }
-  for (const dept of departmentsOf(profile)) {
-    if (ADMIN_DEPARTMENTS.includes(dept)) return true;
-    const department = await getDepartment(ctx, profile.year, dept);
-    if (department !== null && ADMIN_DIVISIONS.includes(department.division)) {
-      return true;
-    }
-  }
-  return false;
+  if (isFixedAdmin(profile)) return true;
+  if (profile.year !== currentStaffYear()) return false;
+  return (await chosenAdmin(ctx, profile.email)) !== null;
 }
+
+export const isFixedAdmin = (profile: Doc<"staffProfiles">): boolean =>
+  rolesOf(profile).includes(DIRECTOR) ||
+  departmentsOf(profile).some((dept) => ADMIN_DEPARTMENTS.includes(dept));
+
+export const chosenAdmin = (ctx: Ctx, email: string) =>
+  ctx.db
+    .query("admins")
+    .withIndex("by_email", (q) => q.eq("email", email.trim().toLowerCase()))
+    .unique();
 
 export async function requireAdmin(ctx: Ctx): Promise<CallerContext> {
   const caller = await requireProfile(ctx);
   if (!(await isAdminProfile(ctx, caller.profile))) {
     throw new ConvexError(
-      "Only admins (Data and IT, the Human Resources division, the Governance head or the Director) can do this."
+      "Only admins can do this: the Director, Data and IT, and the people they've made admins."
     );
   }
   return caller;

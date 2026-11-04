@@ -1,8 +1,6 @@
 export const FINANCE = "Finance";
 
 export const ADMIN_DEPARTMENTS = ["Data and IT"];
-export const ADMIN_DIVISIONS = ["Human Resources"];
-export const ADMIN_HEADED_DIVISIONS = ["Governance"];
 
 export const ROLES = [
   "Staff",

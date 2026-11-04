@@ -155,8 +155,7 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   ticked, otherwise as a calendar event. It links both ways and follows the
   request's edits and cancelling (`convex/eventRequestLinks.ts`).
 - **Announcements** (`convex/announcements.ts`, rules in
-  `shared/announcements.ts`), from the side menu for admins (the Human
-  Resources division among them). A title and message go to **all leaders**
+  `shared/announcements.ts`), from the side menu for admins. A title and message go to **all leaders**
   (everyone with a staff profile this year) or to chosen campuses, divisions
   and departments, narrowed by role. The screen shows a lock-screen preview
   and how many people it reaches (and how many have the app), and asks for
@@ -171,7 +170,7 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   have seen it (opened it, or opened their notifications since it arrived)
   and can list who hasn't.
 - **Mentoring** (`convex/mentoring.ts`, rules in `shared/mentoring.ts`),
-  from the side menu for admins (the Human Resources division among them) and
+  from the side menu for admins and
   for anyone mentoring someone this year. Admins pair each **Campus leader**
   with one mentor a year: a leader with a profile that year who isn't a
   Campus leader, or an **external mentor** from a reusable list (name, email,
@@ -254,10 +253,16 @@ changing anything seasonal, the October 1 staff-year rollover in particular
 - **Notifications** (the bell): everything sent to you, unread first, loading
   older ones as you scroll (`notifications.feed`, 30 a page). Opening the
   screen marks everything read.
+- **Admins** (`convex/admins.ts`): the Director and everyone in Data and IT
+  are always admins. Admins choose anyone else on staff this year (not campus
+  leaders) in Admin → Other → Admins, searching by name or email, and remove
+  them with a confirm. The list carries over the October rollover; a chosen
+  person with no role in the current year shows as "not an admin right now".
 - **Navigation**: bottom tabs Home, Attendance and Calendar (staff, campus
-  leaders included), Insights (signed in without a staff role), Org Chart,
-  Churches (anyone not on staff) and Grievances; signed out there's no
-  Insights at all, and `/insights` goes to Home. On phones the top-left
+  leaders included), Org Chart, Churches (anyone not on staff) and
+  Grievances. Insights is only for staff and campus leaders; anyone else
+  (signed out, or signed in without a staff role) has no Insights, and
+  `/insights` goes to Home. On phones the top-left
   avatar, or a swipe from the left edge, opens a side menu with Profile,
   Churches (staff), Requests (staff other than campus leaders), Mentoring,
   Insights (staff, just above Announcements), Announcements, Admin (admins and
@@ -346,7 +351,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   members before joining staff) with Merge or "Not the same" for each. Merging
   a staff person who has no member record yet just links their profile to the
   member.
-  Only admins (Data and IT, HR, the Governance head, the Director) can delete
+  Only admins (the Director, Data and IT, and anyone admins have chosen) can delete
   a member; the sheet
   lists every event whose attendance goes with them and points to merging.
 - **Staff and leavers**: every person, staff included, has one member record
@@ -362,8 +367,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   member / tag / metadata edits, merges and deletes, and each
   sign-in/edit/sign-out), read by the Attendance → Audit tab.
 - **CSV export**: export attendance.
-- **Insights** (signed in only: in the side menu for staff, a bottom tab for
-  others): for a campus, its **weekly meetings**
+- **Insights** (staff and campus leaders only, from the side menu): for a campus, its **weekly meetings**
   by term (T1–T3 / Sem 1–2) or calendar year: cards against the term before
   (a year against last year), a
   follow-up list (people who were coming but stopped, newcomers who haven't
