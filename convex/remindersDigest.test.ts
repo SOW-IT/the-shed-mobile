@@ -522,6 +522,35 @@ describe("unread comment reminders", () => {
     );
   });
 
+  test("a requester with no staff profile this year, or a submitter who has left the department, isn't reminded", async () => {
+    const t = await setup();
+    const id = await createEvent(t);
+    await submitRisk(t, id, SAM);
+    await asUser(t, SAM).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Plan attached" });
+    await asUser(t, CORA).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Rain plan?" });
+    await t.run(async (ctx) => {
+      const profileOf = (email: string) =>
+        ctx.db
+          .query("staffProfiles")
+          .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", YEAR))
+          .unique();
+      await ctx.db.delete("staffProfiles", (await profileOf(RACHEL))!._id);
+      await ctx.db.patch("staffProfiles", (await profileOf(SAM))!._id, {
+        assignments: [{ role: "Staff", department: "Finance" }],
+      });
+    });
+    await clearOutbox(t);
+    atDay(1.1);
+    await run(t);
+    for (const person of [RACHEL, SAM]) {
+      for (const mail of await emailsTo(t, person)) expect(mail.body).not.toContain("unread comment");
+      for (const note of await notificationsFor(t, person)) expect(note.body).not.toContain("unread comment");
+    }
+    expect((await emailsTo(t, CORA)).map((m) => m.body).join("\n")).toContain(
+      "1 unread comment on the Risk form for Winter Camp"
+    );
+  });
+
   test("design request comments remind the requester and the Marketing Head", async () => {
     const t = await setup();
     const id = await submitDesign(t);

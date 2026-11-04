@@ -365,24 +365,25 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
       )
       .order("desc")
       .take(THREAD_LIMIT);
-    const commenters: string[] = [];
-    for (const author of commenterEmails(thread, comments)) {
-      if (!canCheck(author)) continue;
-      const caller = await callerFor(author);
-      if (!caller || isCampusLeader(caller)) continue;
-      let accessOf = eventAccess.get(author);
+    const canStillComment = async (email: string) => {
+      const caller = await callerFor(email);
+      if (!caller || isCampusLeader(caller)) return false;
+      let accessOf = eventAccess.get(email);
       if (!accessOf) {
         accessOf = accessResolver(ctx, caller);
-        eventAccess.set(author, accessOf);
+        eventAccess.set(email, accessOf);
       }
-      if (canCommentOn(await accessOf(event), kind)) commenters.push(author);
+      return canCommentOn(await accessOf(event), kind);
+    };
+    const commenters: string[] = [];
+    for (const author of commenterEmails(thread, comments)) {
+      if (canCheck(author) && (await canStillComment(author))) commenters.push(author);
     }
     // The requester and submitter, unless they've since become campus
     // leaders, who can't open event requests.
     const requesterSide: string[] = [];
     for (const email of [event.requesterEmail, form.submittedBy]) {
-      const caller = email ? await callerFor(email) : null;
-      if (email && !(caller && isCampusLeader(caller))) requesterSide.push(email);
+      if (email && (await canStillComment(email))) requesterSide.push(email);
     }
     const recipients = uniqueRecipients([
       ...requesterSide,
