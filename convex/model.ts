@@ -199,6 +199,7 @@ export async function isAdminProfile(
   profile: Doc<"staffProfiles">
 ): Promise<boolean> {
   if (isFixedAdmin(profile)) return true;
+  if (profile.year !== currentStaffYear()) return false;
   return (await chosenAdmin(ctx, profile.email)) !== null;
 }
 

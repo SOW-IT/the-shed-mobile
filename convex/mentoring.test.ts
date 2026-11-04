@@ -83,6 +83,13 @@ describe("access", () => {
     const hr = await asUser(t, HANA).query(api.mentoring.pairings, { year: YEAR });
     expect(hr).toEqual({ year: YEAR, editable: true, pairs: [] });
   });
+
+  test("a chosen admin outside People and Culture can see pairings", async () => {
+    const { t } = await setup();
+    await t.mutation(internal.admins.add, { email: SID, addedBy: ADMIN });
+    const sid = await asUser(t, SID).query(api.mentoring.pairings, { year: YEAR });
+    expect(sid).toEqual({ year: YEAR, editable: true, pairs: [] });
+  });
 });
 
 describe("candidates", () => {

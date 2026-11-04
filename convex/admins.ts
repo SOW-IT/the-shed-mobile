@@ -16,6 +16,7 @@ import type { Doc } from "./_generated/dataModel";
 type Ctx = QueryCtx | MutationCtx;
 
 const MAX_CHOSEN_ADMINS = 50;
+const MAX_STORED_ROWS = 200;
 const MAX_PROFILES = 3000;
 const STALE = "Someone else changed the admins while you were editing. Check the list and try again.";
 
@@ -27,7 +28,7 @@ const thisYearsProfiles = (ctx: Ctx) =>
     .withIndex("by_year", (q) => q.eq("year", currentStaffYear()))
     .take(MAX_PROFILES);
 
-const chosenRows = (ctx: Ctx) => ctx.db.query("admins").take(MAX_CHOSEN_ADMINS + 1);
+const chosenRows = (ctx: Ctx) => ctx.db.query("admins").take(MAX_STORED_ROWS);
 
 const isCampusLeaderProfile = (profile: Doc<"staffProfiles">) =>
   assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role));
@@ -93,12 +94,14 @@ export const set = mutation({
     if (wanted.length > MAX_CHOSEN_ADMINS) {
       throw new ConvexError(`There can be at most ${MAX_CHOSEN_ADMINS} chosen admins.`);
     }
-    const rows = await chosenRows(ctx);
+    const profileList = await thisYearsProfiles(ctx);
+    const profiles = new Map(profileList.map((p) => [normalEmail(p.email), p]));
+    const fixedEmails = new Set(profileList.filter(isFixedAdmin).map((p) => normalEmail(p.email)));
+    const rows = (await chosenRows(ctx)).filter((row) => !fixedEmails.has(row.email));
     if (!sameSet(rows.map((row) => row.email), [...new Set(args.expected.map(normalEmail))])) {
       throw new ConvexError(STALE);
     }
     const current = new Set(rows.map((row) => row.email));
-    const profiles = new Map((await thisYearsProfiles(ctx)).map((p) => [normalEmail(p.email), p]));
     for (const email of wanted) {
       if (current.has(email)) continue;
       const profile = profiles.get(email);
@@ -124,6 +127,9 @@ export const add = internalMutation({
   handler: async (ctx, args) => {
     const email = normalEmail(args.email);
     if (await chosenAdmin(ctx, email)) return null;
+    if ((await chosenRows(ctx)).length >= MAX_CHOSEN_ADMINS) {
+      throw new ConvexError(`There can be at most ${MAX_CHOSEN_ADMINS} chosen admins.`);
+    }
     await ctx.db.insert("admins", { email, addedBy: args.addedBy, addedAt: Date.now() });
     return null;
   },
