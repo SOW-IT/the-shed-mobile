@@ -4,6 +4,7 @@ import { Animated, Image, Text, View } from "react-native";
 import { forgetCachedImage, useCachedImageUri } from "@/hooks/useCachedImageUri";
 import { USE_NATIVE_DRIVER, typography, useAppTheme } from "@/theme";
 import { Btn } from "./buttons";
+import { AppIcon, type AppIconName } from "./icon";
 import { FadeInView, SowSpinner } from "./primitives";
 import { styles } from "./styles";
 
@@ -99,7 +100,7 @@ export const EmptyState = ({
   action,
   secondaryAction,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: AppIconName;
   title: string;
   message?: string;
   action?: { label: string; onPress: () => void };
@@ -110,7 +111,7 @@ export const EmptyState = ({
     <FadeInView>
       <View style={styles.empty}>
         <View style={[styles.emptyIcon, { backgroundColor: t.primarySoft }]}>
-          <Ionicons name={icon} size={26} color={t.dark ? t.text : t.primary} />
+          <AppIcon name={icon} size={26} color={t.dark ? t.text : t.primary} />
         </View>
         <Text style={[typography.headline, { color: t.text, textAlign: "center" }]}>
           {title}

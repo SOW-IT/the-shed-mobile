@@ -205,7 +205,7 @@ export default function TabsLayout() {
           title: "Calendar",
           ...(isStaff ? {} : sideMenuOnly),
           // The same as the side menu's, so it isn't mistaken for Event Requests.
-          tabBarIcon: tabIcon("calendar-clear-outline", "calendar-clear"),
+          tabBarIcon: tabIcon("calendar-outline", "calendar"),
         }}
       />
       {/* Signed out, there's no Insights at all; signed in without a role, it's a tab. */}
@@ -241,6 +241,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen name="mentoring" options={{ title: "Mentoring", ...sideMenuOnly }} />
+      <Tabs.Screen name="announcements" options={{ title: "Announcements", ...sideMenuOnly }} />
       <Tabs.Screen
         name="admin"
         options={{

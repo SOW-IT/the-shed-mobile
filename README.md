@@ -246,8 +246,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Churches (anyone not on staff) and Grievances; signed out there's no
   Insights at all, and `/insights` goes to Home. On phones the top-left
   avatar, or a swipe from the left edge, opens a side menu with Profile,
-  Insights and Churches (staff), Requests (staff other than campus leaders),
-  Mentoring, Announcements, Admin (admins and the Finance Head) and Sign out. Screens 700pt and wider
+  Churches (staff), Requests (staff other than campus leaders), Mentoring,
+  Insights (staff, just above Announcements), Announcements, Admin (admins and
+  the Finance Head) and Sign out. Announcements, Mentoring and Admin are
+  screens of their own like Insights, not pushed on top. Screens 700pt and wider
   (iPad, desktop web) swap the top bar, bottom tabs and drawer for one
   permanent sidebar holding all of them (`src/components/nav/`,
   rules in `src/lib/navMenu.ts`).

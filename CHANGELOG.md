@@ -6,6 +6,29 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.23] - 2026-11-04
+
+### Changed
+- **Event Requests has a calendar with a tick, and the Calendar has the
+  plain calendar.** Event Requests used the calendar icon, which looked more
+  like a calendar than the Calendar tab's own icon did. Event Requests now
+  shows a calendar with a tick in the side menu, the sidebar on wide screens,
+  its empty and "not found" pages, the "Make an Event Request" button and the
+  "Waiting on you" card on Home. The Calendar's bottom tab and its side menu
+  entry take the old Event Requests calendar.
+- **Insights sits at the bottom of the side menu, just above
+  Announcements.** For staff it used to come second, under Profile; on wide
+  screens it sat under Calendar. It now comes after Mentoring, with only
+  Announcements and Admin below it, for everyone who has it in the menu.
+- **Announcements is its own screen, like Insights.** Choosing Announcements
+  in the side menu used to slide it in on top of the screen you were on, with
+  a back arrow and no top bar. It now opens in place with the top bar, the
+  bell and the bottom tabs, and the side menu shows it as the screen you're
+  on. An announcement still opens on top, and going back from it lands on
+  Announcements, even after reloading the page in a browser. Links to
+  `/announcements` and to an announcement in pushes, emails and the bell keep
+  working.
+
 ## [2.10.22] - 2026-11-04
 
 ### Added

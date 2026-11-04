@@ -107,52 +107,52 @@ describe("drawerItems", () => {
     expect(drawerItems(guest)).toEqual(["profile"]);
   });
 
-  test("staff get Profile, Insights (the Calendar is their tab), Churches, Reimbursements, Event Requests and Design Requests", () => {
+  test("staff get Profile, Churches, Reimbursements, Event Requests, Design Requests and, last, Insights (the Calendar is their tab)", () => {
     expect(drawerItems(staff)).toEqual([
       "profile",
-      "insights",
       "churches",
       "reimbursements",
       "eventRequests",
       "designRequests",
+      "insights",
     ]);
   });
 
-  test("admins and the Finance Head also get Admin, last; admins get Announcements before it", () => {
-    const withAdmin = ["profile", "insights", "churches", "reimbursements", "eventRequests", "designRequests", "admin"];
+  test("admins and the Finance Head also get Admin, last; admins get Announcements before it, under Insights", () => {
+    const withAdmin = ["profile", "churches", "reimbursements", "eventRequests", "designRequests", "insights", "admin"];
     expect(drawerItems(admin)).toEqual([
       "profile",
-      "insights",
       "churches",
       "reimbursements",
       "eventRequests",
       "designRequests",
       "mentoring",
+      "insights",
       "announcements",
       "admin",
     ]);
     expect(drawerItems(financeHead)).toEqual(withAdmin);
   });
 
-  test("mentors get Mentoring without Announcements or Admin", () => {
+  test("mentors get Mentoring above Insights, without Announcements or Admin", () => {
     expect(drawerItems(mentor)).toEqual([
       "profile",
-      "insights",
       "churches",
       "reimbursements",
       "eventRequests",
       "designRequests",
       "mentoring",
+      "insights",
     ]);
   });
 
   test("campus leaders don't get Reimbursements, Event or Design Requests, but keep Admin", () => {
-    expect(drawerItems(campusLeader)).toEqual(["profile", "insights", "churches"]);
+    expect(drawerItems(campusLeader)).toEqual(["profile", "churches", "insights"]);
     expect(drawerItems(campusLeaderAdmin)).toEqual([
       "profile",
-      "insights",
       "churches",
       "mentoring",
+      "insights",
       "announcements",
       "admin",
     ]);
@@ -164,18 +164,18 @@ describe("sidebarItems", () => {
     expect(sidebarItems(signedOut)).toEqual(["home", "org", "churches", "grievances"]);
   });
 
-  test("guests add Profile", () => {
+  test("guests add Profile and, last, Insights", () => {
     expect(sidebarItems(guest)).toEqual([
       "home",
-      "insights",
       "org",
       "churches",
       "grievances",
       "profile",
+      "insights",
     ]);
   });
 
-  test("staff see everything but Admin, in tab order", () => {
+  test("staff see everything but Admin, with Insights last", () => {
     expect(sidebarItems(staff)).toEqual([
       "home",
       "reimbursements",
@@ -183,15 +183,15 @@ describe("sidebarItems", () => {
       "designRequests",
       "attendance",
       "calendar",
-      "insights",
       "org",
       "churches",
       "grievances",
       "profile",
+      "insights",
     ]);
   });
 
-  test("admins see everything", () => {
+  test("admins see everything, with Insights just above Announcements", () => {
     expect(sidebarItems(admin)).toEqual([
       "home",
       "reimbursements",
@@ -199,12 +199,12 @@ describe("sidebarItems", () => {
       "designRequests",
       "attendance",
       "calendar",
-      "insights",
       "org",
       "churches",
       "grievances",
       "profile",
       "mentoring",
+      "insights",
       "announcements",
       "admin",
     ]);
@@ -215,12 +215,24 @@ describe("sidebarItems", () => {
       "home",
       "attendance",
       "calendar",
-      "insights",
       "org",
       "churches",
       "grievances",
       "profile",
+      "insights",
     ]);
+  });
+});
+
+describe("Insights in the menus", () => {
+  test("sits at the bottom for everyone who has it there, with only Announcements and Admin below", () => {
+    const viewers = [guest, staff, campusLeader, admin, financeHead, mentor, campusLeaderAdmin];
+    for (const items of viewers.flatMap((viewer) => [drawerItems(viewer), sidebarItems(viewer)])) {
+      if (!items.includes("insights")) continue;
+      const below = items.slice(items.indexOf("insights") + 1);
+      expect(below.filter((key) => key !== "announcements" && key !== "admin")).toEqual([]);
+      if (items.includes("announcements")) expect(below[0]).toBe("announcements");
+    }
   });
 });
 
@@ -228,7 +240,6 @@ describe("navEntries", () => {
   test("folds the three request pages into one Requests group where the first sat", () => {
     expect(navEntries(drawerItems(admin))).toEqual([
       { kind: "item", key: "profile" },
-      { kind: "item", key: "insights" },
       { kind: "item", key: "churches" },
       {
         kind: "group",
@@ -236,6 +247,7 @@ describe("navEntries", () => {
         items: ["reimbursements", "eventRequests", "designRequests"],
       },
       { kind: "item", key: "mentoring" },
+      { kind: "item", key: "insights" },
       { kind: "item", key: "announcements" },
       { kind: "item", key: "admin" },
     ]);
@@ -254,8 +266,8 @@ describe("navEntries", () => {
   test("no group when there are no request pages", () => {
     expect(navEntries(drawerItems(campusLeader))).toEqual([
       { kind: "item", key: "profile" },
-      { kind: "item", key: "insights" },
       { kind: "item", key: "churches" },
+      { kind: "item", key: "insights" },
     ]);
   });
 });

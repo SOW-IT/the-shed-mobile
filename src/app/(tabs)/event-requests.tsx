@@ -9,6 +9,7 @@ import { ChromeScreen } from "@/components/ChromeScreen";
 import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { EventRequestRow, type EventRequestListRow } from "@/components/events/EventRequestRow";
+import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
   Card,
   EmptyState,
@@ -61,7 +62,7 @@ const EventList = ({
         {rows === undefined ? <LoadingState /> : null}
         {rows !== undefined && (rows === null || rows.length === 0) ? (
           <EmptyState
-            icon="calendar-outline"
+            icon={EVENT_REQUEST_ICON.outline}
             title={empty.title}
             message={empty.message}
             action={empty.action}
