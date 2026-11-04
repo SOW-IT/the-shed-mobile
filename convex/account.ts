@@ -86,6 +86,10 @@ async function deleteByEmail(
         .take(WIPE_BATCH),
       (row) => ctx.db.delete("appInstalls", row._id)
     ),
+    await deleteBatch(
+      await ctx.db.query("actingAs").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("actingAs", row._id)
+    ),
   ];
   if (includeGuestData) {
     more.push(

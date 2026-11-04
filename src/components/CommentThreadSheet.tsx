@@ -36,6 +36,7 @@ export const CommentThreadSheet = ({
   onSend,
   onReact,
   canPost = true,
+  postReady = true,
   readOnlyNote = "You can read these comments but can't add to them.",
 }: {
   visible: boolean;
@@ -44,6 +45,7 @@ export const CommentThreadSheet = ({
   onSend: (body: string) => Promise<unknown>;
   onReact?: (commentId: string, emoji: string) => Promise<unknown>;
   canPost?: boolean;
+  postReady?: boolean;
   readOnlyNote?: string;
 }) => {
   const t = useAppTheme();
@@ -51,7 +53,7 @@ export const CommentThreadSheet = ({
   const [focused, setFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const canSend = !sending && draft.trim() !== "";
+  const canSend = postReady && !sending && draft.trim() !== "";
   const [reactingTo, setReactingTo] = useState<string | null>(null);
   const [moreFor, setMoreFor] = useState<string | null>(null);
 
@@ -65,7 +67,7 @@ export const CommentThreadSheet = ({
 
   const send = async () => {
     const body = draft.trim();
-    if (!body || sending) return;
+    if (!body || sending || !postReady) return;
     setSending(true);
     setDraft("");
     setError(null);

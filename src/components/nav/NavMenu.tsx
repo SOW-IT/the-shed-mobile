@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { AppIcon, type AppIconName, Avatar, ConfirmDialog } from "@/components/ui";
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
+import { ActingAsControl } from "@/components/nav/ActingAs";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
@@ -313,6 +314,7 @@ export const NavMenu = ({
           </Text>
         ) : null}
       </Pressable>
+      <ActingAsControl />
     </View>
   ) : (
     <SignInMenu

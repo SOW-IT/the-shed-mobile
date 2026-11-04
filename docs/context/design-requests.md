@@ -13,7 +13,8 @@ approves and who does the work comes from [Org](./org.md).
 One ask of the Marketing team, called by what it asks for ("Design request:
 Booklet, Poster"). It is numbered within the staff year it was submitted in,
 but the number isn't shown. Carries the requester's answers to the form.
-Only the requester and the Marketing team see it; being an admin doesn't.
+Only the requester and the Marketing team see it, plus admins on All views
+(or acting as Marketing), read-only. See **Acting as** in [Org](./org.md).
 _Avoid_: design ticket, job, brief
 
 **Form**:
@@ -51,7 +52,7 @@ push notifications instead.
 The team's two views. The queue is every open request, from any year: what's
 waiting for approval and what's approved but not finished. The archive is
 this staff year's requests, then earlier years' as you scroll, for looking
-back.
+back. Admins see both, read-only.
 
 **Status**:
 `Waiting for approval → Approved → Complete`, or closed early as `Declined`

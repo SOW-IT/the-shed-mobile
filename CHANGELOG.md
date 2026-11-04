@@ -6,6 +6,36 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.24] - 2026-11-04
+
+### Added
+- **Admins can act as a department or role.** "Acting as", under your name
+  at the top of the menu, picks All views (the default) or a role: the
+  Director, the Budget Manager, or the staff or Head of any of this year's
+  departments. The app then looks the way it does for someone in that role:
+  their tabs, queues, badges and Waiting on you, and no Admin or
+  Announcements unless the role has them (Mentoring stays only if you mentor
+  someone yourself, since your mentees are yours). Acting as Marketing staff
+  shows every design request, the Marketing queue and the Marketing forms
+  waiting for review; Compliance staff see the Risk forms; Finance see every
+  reimbursement. Acting as ordinary staff of a department shows only that
+  department's event requests, with no All tab; Events staff, the reviewing
+  teams and the Director see All. A chip at the top of the screen says who
+  you're acting as, and tapping it goes back to All views. The choice is
+  saved to your account, so it follows you to your other devices.
+- **Acting as never lets you do more.** Approving, completing, editing,
+  paying and commenting still go by your own roles; anything you can't do is
+  shown read-only, and comment threads you can't add to say who can.
+
+### Changed
+- **Admins see every view by default.** On All views an admin sees the
+  Marketing queue and every design request, every event request and every
+  team's forms waiting for review, and every reimbursement queue, the All tab
+  and the export, as
+  Finance would. Badges still count only what's waiting on you, and unread
+  comment badges only threads you're part of. Grievances stay with the
+  grievance team.
+
 ## [2.10.23] - 2026-11-04
 
 ### Changed

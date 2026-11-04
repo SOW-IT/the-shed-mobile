@@ -258,10 +258,12 @@ export default function EventRequestsScreen() {
       onActiveKeyChange={setActive}
       fullWidth
       footer={
-        <FooterAction
-          title="+ New Event Request"
-          onPress={() => router.push("/event-requests/new")}
-        />
+        me.canRequestEvents ? (
+          <FooterAction
+            title="+ New Event Request"
+            onPress={() => router.push("/event-requests/new")}
+          />
+        ) : undefined
       }
       footerTabKey="mine"
       onEndReached={(key) => {

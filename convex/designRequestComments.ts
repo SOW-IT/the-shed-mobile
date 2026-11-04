@@ -2,7 +2,8 @@ import { ConvexError, v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { designRequestName } from "../shared/designRequests";
-import { accessTo, tellRequester, tellTeam } from "./designRequests";
+import { lensFor } from "./actingAs";
+import { accessTo, tellRequester, tellTeam, viewableAccess } from "./designRequests";
 import { commentRows, displayName, optionalProfile, requireProfile } from "./model";
 
 const COMMENTS_LIMIT = 500;
@@ -21,7 +22,7 @@ export const list = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const request = await ctx.db.get("designRequests", args.id);
-    if (!request || !(await accessTo(ctx, caller, request)).canView) return null;
+    if (!request || !(await viewableAccess(ctx, caller, request))) return null;
     const comments = await commentsFor(ctx, args.id).take(COMMENTS_LIMIT);
     return await commentRows(ctx, comments, request.year, caller.email);
   },
@@ -76,7 +77,12 @@ export const unreadCounts = query({
     const counts: Record<Id<"designRequests">, number> = {};
     const caller = await optionalProfile(ctx);
     if (!caller) return counts;
+    const onlyOwnThreads = (await lensFor(ctx, caller)).kind !== "self";
     for (const id of new Set(args.ids)) {
+      if (onlyOwnThreads) {
+        const request = await ctx.db.get("designRequests", id);
+        if (!request || !(await accessTo(ctx, caller, request)).canComment) continue;
+      }
       const read = await ctx.db
         .query("designRequestCommentReads")
         .withIndex("by_designRequest_and_user", (q) =>

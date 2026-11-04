@@ -88,7 +88,10 @@ what's waiting on you). They, the Events department and admins can see every
 event (All). Only the requester's side fills in, edits or cancels it, and
 only a form's team, the requester's side and (on Finance forms) the Director
 comment on it. Mine and All run back through earlier staff years as you scroll.
-Campus leaders don't use event requests.
+Campus leaders don't use event requests. Admins see every team's forms in To
+review, read-only. Acting as a role (see **Acting as** in [Org](./org.md)),
+they see that role's To review, Mine and All: ordinary staff of a department
+get their department's events and no All tab.
 
 **Legacy event**:
 An event form imported once from the old web app's Firestore (2.3.0; the

@@ -4,6 +4,17 @@ import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_gen
 import { syncEventRequestLinks } from "./eventRequestLinks";
 import { departmentsOf } from "../shared/flow";
 import {
+  personaApprovesForm,
+  personaDepartment,
+  personaReviewsEvents,
+  personaSeesAllEvents,
+  personaSeesForm,
+  seesThrough,
+  waitsThrough,
+  type Lens,
+} from "../shared/actingAs";
+import { lensFor, personaIsAdmin } from "./actingAs";
+import {
   answerForRole,
   answersProblem,
   changedAnswers,
@@ -32,6 +43,7 @@ import {
   emailInbox,
   eventSummary,
   eventUrl,
+  isCampusLeader,
   logEvent,
   optionalEventStaff,
   pendingSince,
@@ -78,9 +90,28 @@ async function withRows(ctx: Ctx, events: EventRequest[]) {
 
 const dedupe = (events: EventRequest[]) => [...new Map(events.map((e) => [e._id, e])).values()];
 
-export async function reviewForms(ctx: Ctx, caller: CallerContext) {
-  const scope = await viewerScope(ctx, caller);
-  if (!SUB_FORM_KINDS.some((k) => scope.teams[k]) && !scope.director) return [];
+const reviewsAny = (scope: ViewerScope) =>
+  SUB_FORM_KINDS.some((k) => scope.teams[k]) || scope.director;
+
+const reviewsEvents = (ctx: Ctx, caller: CallerContext, lens: Lens) =>
+  seesThrough(lens, async () => reviewsAny(await viewerScope(ctx, caller)), personaReviewsEvents);
+
+const seesAllEvents = async (ctx: Ctx, caller: CallerContext, lens: Lens) => {
+  if (lens.kind === "all") return true;
+  if (lens.kind === "self") return seesAll(await viewerScope(ctx, caller));
+  return (
+    personaSeesAllEvents(lens.persona) || (await personaIsAdmin(ctx, caller.year, lens.persona))
+  );
+};
+
+export const sideDepartments = (caller: CallerContext, lens: Lens): string[] => {
+  if (lens.kind !== "as") return departmentsOf(caller.profile);
+  const department = personaDepartment(lens.persona);
+  return department === null ? [] : [department];
+};
+
+export async function reviewForms(ctx: Ctx, caller: CallerContext, lens: Lens) {
+  if (!(await reviewsEvents(ctx, caller, lens))) return [];
   const scopes = new Map<number, Promise<ViewerScope>>();
   const scopeFor = (event: EventRequest) => {
     let found = scopes.get(event.year);
@@ -100,14 +131,25 @@ export async function reviewForms(ctx: Ctx, caller: CallerContext) {
     for (const kind of SUB_FORM_KINDS) {
       const form = all[kind];
       if (form.status !== "PENDING") continue;
-      const approver = await stepApprover(ctx, event, kind, form.step);
-      const mine = form.submittedBy !== caller.email && (await actsAs(ctx, caller, approver));
-      const here = await scopeFor(event);
+      const mine =
+        form.submittedBy !== caller.email &&
+        (await waitsThrough(
+          lens,
+          async () => actsAs(ctx, caller, await stepApprover(ctx, event, kind, form.step)),
+          (persona) => personaApprovesForm(persona, kind, form.step)
+        ));
       const relevant =
         mine ||
-        (kind === "finance" && form.step === "director"
-          ? here.director || here.teams.finance
-          : here.teams[kind]);
+        (await seesThrough(
+          lens,
+          async () => {
+            const here = await scopeFor(event);
+            return kind === "finance" && form.step === "director"
+              ? here.director || here.teams.finance
+              : here.teams[kind];
+          },
+          (persona) => personaSeesForm(persona, kind, form.step)
+        ));
       if (relevant) forms.push({ form, event, mine });
     }
   }
@@ -119,12 +161,12 @@ export const viewer = query({
   handler: async (ctx) => {
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
-    const scope = await viewerScope(ctx, caller);
+    const lens = await lensFor(ctx, caller);
     return {
       year: caller.year,
       departments: departmentsOf(caller.profile),
-      reviews: SUB_FORM_KINDS.some((k) => scope.teams[k]) || scope.director,
-      seesAll: seesAll(scope),
+      reviews: await reviewsEvents(ctx, caller, lens),
+      seesAll: await seesAllEvents(ctx, caller, lens),
     };
   },
 });
@@ -134,11 +176,17 @@ export const waitingOnMe = query({
   handler: async (ctx) => {
     const caller = await optionalEventStaff(ctx);
     if (!caller) return 0;
-    return (await reviewForms(ctx, caller)).filter((f) => f.mine).length;
+    const forms = await reviewForms(ctx, caller, await lensFor(ctx, caller));
+    return forms.filter((f) => f.mine).length;
   },
 });
 
-async function ownEventsInYear(ctx: QueryCtx, caller: CallerContext, year: number) {
+async function ownEventsInYear(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  departments: string[],
+  year: number
+) {
   const events: EventRequest[] = [
     ...(await ctx.db
       .query("eventRequests")
@@ -147,7 +195,7 @@ async function ownEventsInYear(ctx: QueryCtx, caller: CallerContext, year: numbe
       )
       .take(LIST_LIMIT)),
   ];
-  for (const department of departmentsOf(caller.profile)) {
+  for (const department of departments) {
     events.push(
       ...(await ctx.db
         .query("eventRequests")
@@ -165,25 +213,11 @@ export const mine = query({
   handler: async (ctx) => {
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
-    const events = await ownEventsInYear(ctx, caller, caller.year);
-    events.push(
-      ...(await ctx.db
-        .query("eventRequests")
-        .withIndex("by_requester_and_status", (q) =>
-          q.eq("requesterEmail", caller.email).eq("status", "IN_PROGRESS")
-        )
-        .take(LIST_LIMIT))
-    );
-    for (const department of departmentsOf(caller.profile)) {
-      events.push(
-        ...(await ctx.db
-          .query("eventRequests")
-          .withIndex("by_department_and_status", (q) =>
-            q.eq("department", department).eq("status", "IN_PROGRESS")
-          )
-          .take(LIST_LIMIT))
-      );
-    }
+    const departments = sideDepartments(caller, await lensFor(ctx, caller));
+    const events = [
+      ...(await ownEventsInYear(ctx, caller, departments, caller.year)),
+      ...(await requesterSideOpenEvents(ctx, caller, departments)),
+    ];
     return await withRows(ctx, dedupe(events));
   },
 });
@@ -193,10 +227,11 @@ export const earlierMine = query({
   handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
+    const departments = sideDepartments(caller, await lensFor(ctx, caller));
     let year = paginationOpts.cursor ? Number(paginationOpts.cursor) : caller.year - 1;
     let events: EventRequest[] = [];
     while (year >= EARLIEST_EVENT_REQUEST_YEAR && events.length === 0) {
-      events = dedupe(await ownEventsInYear(ctx, caller, year));
+      events = dedupe(await ownEventsInYear(ctx, caller, departments, year));
       year--;
     }
     const isDone = year < EARLIEST_EVENT_REQUEST_YEAR;
@@ -213,7 +248,7 @@ export const review = query({
   handler: async (ctx) => {
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
-    const forms = await reviewForms(ctx, caller);
+    const forms = await reviewForms(ctx, caller, await lensFor(ctx, caller));
     const rows = await withRows(ctx, dedupe(forms.map((f) => f.event)));
     return rows
       .map((row) => {
@@ -231,7 +266,8 @@ export const review = query({
 
 export async function requesterSideOpenEvents(
   ctx: Ctx,
-  caller: CallerContext
+  caller: CallerContext,
+  departments: string[]
 ): Promise<EventRequest[]> {
   const events: EventRequest[] = await ctx.db
     .query("eventRequests")
@@ -239,7 +275,7 @@ export async function requesterSideOpenEvents(
       q.eq("requesterEmail", caller.email).eq("status", "IN_PROGRESS")
     )
     .take(LIST_LIMIT);
-  for (const department of departmentsOf(caller.profile)) {
+  for (const department of departments) {
     events.push(
       ...(await ctx.db
         .query("eventRequests")
@@ -256,7 +292,7 @@ export const all = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     const caller = await optionalEventStaff(ctx);
-    if (!caller || !seesAll(await viewerScope(ctx, caller))) return null;
+    if (!caller || !(await seesAllEvents(ctx, caller, await lensFor(ctx, caller)))) return null;
     const events = await ctx.db
       .query("eventRequests")
       .withIndex("by_year_and_number", (q) => q.eq("year", args.year))
@@ -278,7 +314,7 @@ export const earlierAll = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalEventStaff(ctx);
-    if (!caller || !seesAll(await viewerScope(ctx, caller))) return null;
+    if (!caller || !(await seesAllEvents(ctx, caller, await lensFor(ctx, caller)))) return null;
     const result = await ctx.db
       .query("eventRequests")
       .withIndex("by_year_and_number", (q) => q.lt("year", caller.year))
@@ -302,6 +338,9 @@ export const get = query({
     const nameOf = (email: string | undefined) =>
       email ? displayName(ctx, email, event.year) : Promise.resolve(null);
     const open = event.status !== "CANCELLED";
+    // A campus leader who is an admin can look through a lens, but every
+    // event action still turns them away.
+    const acts = !isCampusLeader(caller);
     const formViews = {} as Record<
       SubFormKind,
       SubForm & {
@@ -325,16 +364,18 @@ export const get = query({
         approverName: await nameOf(approver?.email),
         can: {
           fill:
+            acts &&
             access.requesterSide &&
             event.status === "IN_PROGRESS" &&
             isSubFormEditable(form.status),
           decide:
+            acts &&
             event.status === "IN_PROGRESS" &&
             form.status === "PENDING" &&
             form.submittedBy !== caller.email &&
             (await actsAs(ctx, caller, approver)),
-          reopen: access.requesterSide && open && isSubFormDone(form.status),
-          comment: canCommentOn(access, kind),
+          reopen: acts && access.requesterSide && open && isSubFormDone(form.status),
+          comment: acts && canCommentOn(access, kind),
         },
       };
     }
@@ -346,8 +387,8 @@ export const get = query({
       forms: formViews,
       directorThreshold: eventDirectorThresholdOr(settings?.eventDirectorApprovalThreshold),
       can: {
-        edit: access.requesterSide && event.status === "IN_PROGRESS",
-        cancel: access.requesterSide && open,
+        edit: acts && access.requesterSide && event.status === "IN_PROGRESS",
+        cancel: acts && access.requesterSide && open,
       },
     };
   },

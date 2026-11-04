@@ -87,5 +87,7 @@ admins and the Finance Head.
 The people who may see a Request, its trail and its comments: the requester,
 Finance staff, whoever holds or covers an approver Step on its chain (in the
 Request's staff year or the current one), and anyone who has already actioned
-it. Anyone else is told the Request isn't one they can see.
+it. Admins see every Request too, read-only, as Finance would (see **Acting
+as** in [Org](./org.md)). Anyone else is told the Request isn't one they can
+see.
 _Avoid_: participant (a nudge has its own, narrower set)

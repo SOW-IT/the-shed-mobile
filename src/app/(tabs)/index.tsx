@@ -9,6 +9,7 @@ import {
   requestFullyApproved,
 } from "../../../shared/flow";
 import { threadDeepLinkKey } from "../../../shared/deepLinks";
+import { countWaiting } from "@shared/actingAs";
 import { isSowStaffAddress } from "../../../shared/rollcallImport";
 import { staffOnlyMessage } from "@shared/staffOnly";
 import { AllRequestsList } from "@/components/AllRequestsList";
@@ -85,11 +86,13 @@ export default function RequestsScreen() {
         : "skip"
     ) ?? 0;
   const reviewCount = review
-    ? review.hod.length +
-      review.budgetManager.length +
-      review.director.length +
-      review.financeHead.length +
-      review.readyToPay.length
+    ? countWaiting(
+        review.hod,
+        review.budgetManager,
+        review.director,
+        review.financeHead,
+        review.readyToPay
+      )
     : 0;
 
   const mineCount = (myRequests ?? []).filter(
