@@ -97,11 +97,13 @@ export const EmptyState = ({
   title,
   message,
   action,
+  secondaryAction,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   message?: string;
   action?: { label: string; onPress: () => void };
+  secondaryAction?: { label: string; onPress: () => void };
 }) => {
   const t = useAppTheme();
   return (
@@ -119,6 +121,9 @@ export const EmptyState = ({
           </Text>
         ) : null}
         {action ? <Btn title={action.label} variant="tonal" onPress={action.onPress} /> : null}
+        {secondaryAction ? (
+          <Btn title={secondaryAction.label} variant="ghost" onPress={secondaryAction.onPress} />
+        ) : null}
       </View>
     </FadeInView>
   );

@@ -1112,7 +1112,8 @@ describe("browsing past years", () => {
     t: TestConvex<typeof schema>,
     email: string,
     year: number,
-    description: string
+    description: string,
+    open = false
   ) => {
     vi.setSystemTime(staffYearStartMs(year) + 1);
     const id = await t.run((ctx) =>
@@ -1122,9 +1123,9 @@ describe("browsing past years", () => {
         description,
         amount: 100,
         approvedByHOD: "APPROVED",
-        approvedByBudgetManager: "APPROVED",
-        approvedByFinanceHead: "APPROVED",
-        paid: true,
+        approvedByBudgetManager: open ? "PENDING" : "APPROVED",
+        approvedByFinanceHead: open ? "PENDING" : "APPROVED",
+        ...(open ? {} : { paid: true }),
       })
     );
     vi.useRealTimers();
@@ -1134,13 +1135,13 @@ describe("browsing past years", () => {
   type Review = { actor: string; action: string; daysIn: number };
 
   async function setupWithHistory(
-    seeds: { email: string; year: number; description: string; reviews?: Review[] }[]
+    seeds: { email: string; year: number; description: string; reviews?: Review[]; open?: boolean }[]
   ) {
     const t = convexTest(schema, modules);
     const sorted = [...seeds].sort((a, b) => a.year - b.year);
     const reviews: (Review & { requestId: Id<"requests">; at: number })[] = [];
     for (const s of sorted) {
-      const requestId = await seedPastRequest(t, s.email, s.year, s.description);
+      const requestId = await seedPastRequest(t, s.email, s.year, s.description, s.open);
       for (const r of s.reviews ?? []) {
         reviews.push({ ...r, requestId, at: staffYearStartMs(s.year) + r.daysIn * 86_400_000 });
       }
@@ -1343,6 +1344,96 @@ describe("browsing past years", () => {
       }
     });
     expect((await asUser(t, HENRY).query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
+  });
+
+  test("Past holds earlier years' requests except last year's open ones, which stay on Mine", async () => {
+    const t = await setupWithHistory([
+      { email: RACHEL, year: YEAR - 2, description: "paid two years ago" },
+      { email: RACHEL, year: YEAR - 1, description: "still open from last year", open: true },
+      { email: DAN, year: YEAR - 1, description: "dan's open one", open: true },
+    ]);
+    const opts = { paginationOpts: { numItems: 10, cursor: null } };
+    const rachel = asUser(t, RACHEL);
+    const dan = asUser(t, DAN);
+
+    const [open] = (await rachel.query(api.requests.myRequests, {}))!;
+    expect(open.description).toBe("still open from last year");
+    const past = (await rachel.query(api.requests.earlierMine, opts))!;
+    expect(past.page.map((r) => r.description)).toEqual(["paid two years ago"]);
+    expect((await rachel.query(api.requests.requestYears, {}))!.hasPast).toBe(true);
+
+    expect((await dan.query(api.requests.myRequests, {}))!.map((r) => r.description)).toEqual([
+      "dan's open one",
+    ]);
+    const danPast = (await dan.query(api.requests.earlierMine, opts))!;
+    expect(danPast.page).toEqual([]);
+    expect(danPast.isDone).toBe(true);
+    expect((await dan.query(api.requests.requestYears, {}))!.hasPast).toBe(false);
+    expect((await asUser(t, HENRY).query(api.requests.requestYears, {}))!.hasPast).toBe(false);
+
+    await t.run((ctx) => ctx.db.patch("requests", open._id, { approvedByBudgetManager: "DECLINED" }));
+    expect(await rachel.query(api.requests.myRequests, {})).toEqual([]);
+    const afterDecline = (await rachel.query(api.requests.earlierMine, opts))!;
+    expect(afterDecline.page.map((r) => r.description)).toEqual([
+      "still open from last year",
+      "paid two years ago",
+    ]);
+  });
+
+  test("an open request from last year that Mine's 200 leaves out is on Past", async () => {
+    const t = await setupWithHistory([
+      { email: DAN, year: YEAR - 1, description: "dan's oldest open", open: true },
+      ...Array.from({ length: 200 }, (_, i) => ({
+        email: DAN,
+        year: YEAR - 1,
+        description: `dan open ${i}`,
+        open: true,
+      })),
+      ...Array.from({ length: 200 }, (_, i) => ({
+        email: HENRY,
+        year: YEAR - 1,
+        description: `henry open ${i}`,
+        open: true,
+      })),
+    ]);
+    const all = { paginationOpts: { numItems: 300, cursor: null } };
+    const dan = asUser(t, DAN);
+    const henry = asUser(t, HENRY);
+
+    const danMine = (await dan.query(api.requests.myRequests, {}))!;
+    expect(danMine).toHaveLength(200);
+    expect(danMine.some((r) => r.description === "dan's oldest open")).toBe(false);
+    const danPast = (await dan.query(api.requests.earlierMine, all))!;
+    expect(danPast.page.map((r) => r.description)).toEqual(["dan's oldest open"]);
+    expect((await dan.query(api.requests.requestYears, {}))!.hasPast).toBe(true);
+
+    expect((await henry.query(api.requests.myRequests, {}))!).toHaveLength(200);
+    expect((await henry.query(api.requests.earlierMine, all))!.page).toEqual([]);
+    expect((await henry.query(api.requests.requestYears, {}))!.hasPast).toBe(false);
+  });
+
+  test("a Past page holding only Mine's carry-overs is empty but not the end", async () => {
+    const t = await setupWithHistory([
+      { email: RACHEL, year: YEAR - 2, description: "paid two years ago" },
+      ...Array.from({ length: 10 }, (_, i) => ({
+        email: RACHEL,
+        year: YEAR - 1,
+        description: `carried ${i}`,
+        open: true,
+      })),
+    ]);
+    const rachel = asUser(t, RACHEL);
+
+    const first = (await rachel.query(api.requests.earlierMine, {
+      paginationOpts: { numItems: 10, cursor: null },
+    }))!;
+    expect(first.page).toEqual([]);
+    expect(first.isDone).toBe(false);
+    const rest = (await rachel.query(api.requests.earlierMine, {
+      paginationOpts: { numItems: 10, cursor: first.continueCursor },
+    }))!;
+    expect(rest.page.map((r) => r.description)).toEqual(["paid two years ago"]);
+    expect(rest.isDone).toBe(true);
   });
 });
 

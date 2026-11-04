@@ -215,18 +215,22 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget
   Manager alert when the paid amount differs from the requested amount.
 - **Reimbursements** (opened from the side menu, at `/`): Mine (submit /
-  cancel / receipt), Review (approve / decline / pay, shown to approvers and
-  to anyone who has reviewed a request before), All (Finance staff), Bank.
-  Each tab runs back through earlier staff years as you scroll, newest first
-  under a heading per year: on Mine your own requests, on Review everything
-  you approved or declined, on All (under Completed) every completed request;
-  a request sits under the year it was made in. The New
+  cancel / receipt, this staff year's requests plus last year's still open),
+  Past (your own requests from earlier staff years, shown once you have any),
+  Review (approve / decline / pay, shown to approvers and to anyone who has
+  reviewed a request before), All (Finance staff), Bank. Past loads ten at a
+  time and fetches the next ten as you near the end (`requests.earlierMine`),
+  newest first with a divider per staff year, ending on how many there are;
+  a declined one can be resubmitted from there. Review runs back through
+  everything you approved or declined, and All (under Completed) through
+  every completed request, as you scroll; a request sits under the year it
+  was made in. The New
   Request sheet shows who the request will go to as you type
   (`requests.approvalPreview`), including the Director from the threshold and
   any step your own role skips; image receipts show a thumbnail before you
   submit. An approver with requests waiting and nothing of their own to act on
   opens on Review, and a request link opens the tab that holds it (Mine,
-  Review, or All for Finance staff). Each request's clock button opens its
+  Past with the request on top, Review, or All for Finance staff). Each request's clock button opens its
   timeline, newest first: every step from submitted to paid with who did it
   and when, the gaps between steps (spaced by how long they were), what it is waiting on now and how many reminders have
   gone out for that wait, and how long submitted-to-paid took.
