@@ -69,7 +69,10 @@ approved form is locked until the requester's side **reopens** it.
 `In progress → Approved` once every form is approved or not required, which
 tells the requester's side and all three teams it can go ahead. Reopening a
 form puts it back in progress. The requester's side can **cancel** it at any
-point; it's kept, not deleted.
+point; it's kept, not deleted. An event that went ahead without all its forms
+can be **approved without every form** by an admin from the command line
+(`eventSubForms:approveWithoutForms`): it goes on the Calendar, its unsent
+forms stay not submitted, and nobody is told.
 
 **Auto-approval**:
 A form submitted by the person who approves its step (say, the Finance Head's

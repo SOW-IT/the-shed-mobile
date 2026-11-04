@@ -140,6 +140,7 @@ describe("event request text", () => {
       "Changes requested on the Marketing form"
     );
     expect(eventHistoryLabel("approved", null)).toBe("Form approved");
+    expect(eventHistoryLabel("approved-without-forms", null)).toBe("Event approved without every form");
     for (const action of ["created", "edited", "auto-approved", "not-required", "reopened", "event-approved", "cancelled", "imported"]) {
       expect(eventHistoryLabel(action, "risk")).not.toBe(action);
     }

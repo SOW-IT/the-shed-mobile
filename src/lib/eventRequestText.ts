@@ -29,6 +29,8 @@ export const eventHistoryLabel = (action: string, form: SubFormKind | null): str
       return `${name} reopened`;
     case "event-approved":
       return "Event approved: every form signed off";
+    case "approved-without-forms":
+      return "Event approved without every form";
     case "cancelled":
       return "Event cancelled";
     case "imported":

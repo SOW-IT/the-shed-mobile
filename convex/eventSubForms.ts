@@ -1,6 +1,8 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, MutationCtx } from "./_generated/server";
+import { internalMutation, mutation, MutationCtx } from "./_generated/server";
+import { syncEventRequestLinks } from "./eventRequestLinks";
 import { MARKETING } from "../shared/designRequests";
+import { andList } from "../shared/grievances";
 import {
   answersProblem,
   MAX_ANSWER_LENGTH,
@@ -20,6 +22,8 @@ import {
   normalizeRisk,
   riskDraftProblem,
   riskProblem,
+  SUB_FORM_KINDS,
+  SUB_FORM_LABELS,
   SUB_FORM_TEAMS,
   type FinanceData,
   type FinanceStep,
@@ -428,6 +432,31 @@ export const reopen = mutation({
     await tell(ctx, event, await recipientsFor(ctx, head), note, { email: false });
     await emailInbox(ctx, args.form, note);
     await settleEvent(ctx, event._id, caller.email);
+    return null;
+  },
+});
+
+// For an event that went ahead without all its forms: approves it as it is,
+// which puts it on the Calendar. The forms nobody submitted stay unsubmitted,
+// and nobody is told, since they weren't signed off. Run from the CLI, with
+// the email of the admin who decided it.
+export const approveWithoutForms = internalMutation({
+  args: { id: v.id("eventRequests"), actorEmail: v.string() },
+  handler: async (ctx, { id, actorEmail }) => {
+    const event = await requireEvent(ctx, id);
+    if (event.status !== "IN_PROGRESS") {
+      throw new ConvexError("Only an event that's in progress can be approved this way.");
+    }
+    const forms = await subFormsOf(ctx, id);
+    const missing = SUB_FORM_KINDS.filter((kind) => !isSubFormDone(forms[kind].status));
+    if (missing.some((kind) => forms[kind].status === "PENDING")) {
+      throw new ConvexError("A form is waiting for approval. Approve it or ask for changes first.");
+    }
+    await ctx.db.patch("eventRequests", id, { status: "APPROVED", approvedAt: Date.now() });
+    await syncEventRequestLinks(ctx, id, actorEmail);
+    await logEvent(ctx, id, actorEmail, "approved-without-forms", {
+      detail: `${andList(missing.map((kind) => SUB_FORM_LABELS[kind]))} ${missing.length === 1 ? "wasn't" : "weren't"} submitted.`,
+    });
     return null;
   },
 });

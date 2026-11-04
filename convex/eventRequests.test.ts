@@ -677,6 +677,40 @@ describe("going ahead", () => {
     ).rejects.toThrow(/Only an approved form/);
   });
 
+  test("an admin can approve an event that went ahead without all its forms", async () => {
+    const t = await setup();
+    const id = await create(t);
+    await submitRisk(t, id);
+    await approve(t, id, "risk", CORA);
+    const before = (await emails(t)).length;
+    const noticesBefore = (await notificationsFor(t, EVA)).length;
+    await t.mutation(internal.eventSubForms.approveWithoutForms, { id, actorEmail: ADMIN });
+    const data = await get(t, id);
+    expect(data.event.status).toBe("APPROVED");
+    expect(data.event.approvedAt).toBeDefined();
+    expect(data.event.calendarEntryId).toBeDefined();
+    expect(data.forms.marketing.status).toBe("DRAFT");
+    expect(data.forms.finance.status).toBe("DRAFT");
+    expect(data.forms.marketing.can.fill).toBe(false);
+    // Nobody is told.
+    expect((await emails(t)).length).toBe(before);
+    expect((await notificationsFor(t, EVA)).length).toBe(noticesBefore);
+    const timeline = (await asUser(t, EVA).query(api.eventRequests.timeline, { id }))!;
+    expect(timeline.at(-1)).toMatchObject({
+      action: "approved-without-forms",
+      detail: "Marketing and Finance weren't submitted.",
+    });
+
+    await expect(
+      t.mutation(internal.eventSubForms.approveWithoutForms, { id, actorEmail: ADMIN })
+    ).rejects.toThrow(/in progress/);
+    const pending = await create(t);
+    await submitMarketing(t, pending);
+    await expect(
+      t.mutation(internal.eventSubForms.approveWithoutForms, { id: pending, actorEmail: ADMIN })
+    ).rejects.toThrow(/waiting for approval/);
+  });
+
   test("a form missing from the database is reported", async () => {
     const t = await setup();
     const id = await create(t);

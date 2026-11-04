@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.26] - 2026-11-04
+
+### Added
+- **An event that went ahead without all its forms can still be approved.**
+  An admin can approve it as it is from the command line
+  (`eventSubForms:approveWithoutForms`), which puts it on the Calendar like
+  any approved event. The forms nobody submitted stay "Not submitted", its
+  history says "Event approved without every form" and names them, and no
+  one is emailed or notified, since those forms were never signed off.
+
 ## [2.10.20] - 2026-11-03
 
 ### Changed
