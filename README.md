@@ -144,8 +144,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   three are approved or not required. The requester's department fills the
   forms in; reviewers can ask for changes; each form has its own comment
   thread. The Events department, the three teams, the Director and admins can
-  see every event (All); other staff see their own department's. Cards show the event's name (no
-  numbers), its status top right with the card outlined in that colour, and
+  see every event (All); other staff see their own department's. Cards show
+  the event's name (no numbers), its status top right with the card outlined in that colour, and
   Marketing, Risk and Finance across the bottom; history is newest first,
   spaced by the time between steps. Team emails go to marketing@, compliance@ and
   finance@sow.org.au. Any event downloads as a PDF whose Risk and Finance

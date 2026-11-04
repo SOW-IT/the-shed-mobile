@@ -288,10 +288,11 @@ const COMMENT_LOOKBACK_MS = 7 * COMMENT_REMINDER_AFTER_MS;
 // 4,096 reads a mutation, shared with the other reminders): the newest 1,000
 // comments that are due (a day to a week old), then the 20 threads of each
 // kind with the newest of those, the newest 200 comments in each for who has
-// commented there, and access checks for at most 60 of those commenters (the
-// requester, submitter and approver are always reminded). That's roughly
-// 60 × 15 + 2 × 20 × 25 = 1,900 reads. Busier weeks than that are far beyond
-// what SOW has; past it the oldest threads and later commenters miss out.
+// commented there, access checks for at most 60 of those commenters, and a
+// profile check for each event's requester and submitter (the approver is
+// always reminded). That's roughly 60 × 15 + 2 × 20 × 25 + 20 × 4 ≈ 2,000
+// reads. Busier weeks than that are far beyond what SOW has; past it the
+// oldest threads and later commenters miss out.
 const COMMENT_SCAN_LIMIT = 1000;
 const THREADS_PER_RUN = 20;
 const THREAD_LIMIT = 200;
@@ -338,6 +339,9 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
     }
     return caller;
   };
+  let commenterChecks = 0;
+  const canCheck = (author: string) =>
+    callers.has(author) || commenterChecks++ < COMMENTER_CHECKS;
   const eventAccess = new Map<string, ReturnType<typeof accessResolver>>();
 
   const eventThreads = new Map<string, Doc<"eventRequestComments">[]>();
@@ -363,7 +367,7 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
       .take(THREAD_LIMIT);
     const commenters: string[] = [];
     for (const author of commenterEmails(thread, comments)) {
-      if (!callers.has(author) && callers.size >= COMMENTER_CHECKS) continue;
+      if (!canCheck(author)) continue;
       const caller = await callerFor(author);
       if (!caller || isCampusLeader(caller)) continue;
       let accessOf = eventAccess.get(author);
@@ -373,9 +377,15 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
       }
       if (canCommentOn(await accessOf(event), kind)) commenters.push(author);
     }
+    // The requester and submitter, unless they've since become campus
+    // leaders, who can't open event requests.
+    const requesterSide: string[] = [];
+    for (const email of [event.requesterEmail, form.submittedBy]) {
+      const caller = email ? await callerFor(email) : null;
+      if (email && !(caller && isCampusLeader(caller))) requesterSide.push(email);
+    }
     const recipients = uniqueRecipients([
-      event.requesterEmail,
-      form.submittedBy,
+      ...requesterSide,
       ...(await recipientsFor(ctx, await stepApprover(ctx, event, kind, form.step))),
       ...commenters,
     ]);
@@ -435,7 +445,7 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
     // can still comment on a design request.
     const commenters: string[] = [];
     for (const author of commenterEmails(thread, comments)) {
-      if (!callers.has(author) && callers.size >= COMMENTER_CHECKS) continue;
+      if (!canCheck(author)) continue;
       const caller = await callerFor(author);
       if (caller && (await designAccessTo(ctx, caller, request)).canComment) commenters.push(author);
     }
