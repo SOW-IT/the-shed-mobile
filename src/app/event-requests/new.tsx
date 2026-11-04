@@ -9,6 +9,7 @@ import { answersProblemAt, normalizeAnswers, questionNumber, sydneyToday } from 
 import { SUB_FORM_KINDS, SUB_FORM_LABELS } from "@shared/eventRequests";
 import { staffOnlyMessage } from "@shared/staffOnly";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
   answersFromDraft,
   draftFromAnswers,
@@ -113,7 +114,7 @@ export default function EventRequestFormScreen() {
   if (me && !staff) {
     return (
       <Screen title={title} onBack={goBack}>
-        <EmptyState icon="calendar-outline" title="For SOW staff" message={staffOnlyMessage("Event", me)} />
+        <EmptyState icon={EVENT_REQUEST_ICON.outline} title="For SOW staff" message={staffOnlyMessage("Event", me)} />
       </Screen>
     );
   }
@@ -121,7 +122,7 @@ export default function EventRequestFormScreen() {
     return (
       <Screen title="Event request" onBack={goBack}>
         <EmptyState
-          icon="calendar-outline"
+          icon={EVENT_REQUEST_ICON.outline}
           title="This event can't be edited"
           message="Only the requester's department can edit an event, and only while it's in progress."
         />

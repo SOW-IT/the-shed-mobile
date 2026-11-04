@@ -691,17 +691,40 @@ const MINE_PER_YEAR_LIMIT = 200;
 const requesterYearPage = (ctx: Ctx, email: string, y: number) =>
   requesterRequestsInYear(ctx, email, y).order("desc").take(MINE_PER_YEAR_LIMIT);
 
+const carriedIntoMine = (request: Doc<"requests">, year: number): boolean =>
+  requestYear(request) === year - 1 && !requestCompleted(request);
+
 export const mineTabRequests = async (
   ctx: Ctx,
   email: string,
   year: number
 ): Promise<Doc<"requests">[]> => {
   const current = await requesterYearPage(ctx, email, year);
-  const carriedOver = (await requesterYearPage(ctx, email, year - 1)).filter(
-    (r) => !requestCompleted(r)
+  const carriedOver = (await requesterYearPage(ctx, email, year - 1)).filter((r) =>
+    carriedIntoMine(r, year)
   );
   return [...current, ...carriedOver];
 };
+
+const requesterRequestsBefore = (ctx: QueryCtx, email: string, year: number) =>
+  ctx.db
+    .query("requests")
+    .withIndex("by_requester", (q) =>
+      q.eq("requesterEmail", email).lt("_creationTime", staffYearStartMs(year))
+    )
+    .order("desc");
+
+const hasPastRequests = async (ctx: QueryCtx, email: string, year: number) => {
+  const newest = await requesterRequestsBefore(ctx, email, year).take(MINE_PER_YEAR_LIMIT + 1);
+  return newest.some((request, at) => at >= MINE_PER_YEAR_LIMIT || !carriedIntoMine(request, year));
+};
+
+const carriedIdsOnMine = async (ctx: QueryCtx, email: string, year: number) =>
+  new Set(
+    (await requesterYearPage(ctx, email, year - 1))
+      .filter((request) => carriedIntoMine(request, year))
+      .map((request) => request._id)
+  );
 
 export const myRequests = query({
   args: {},
@@ -718,10 +741,11 @@ export const requestYears = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
+    const hasPast = await hasPastRequests(ctx, caller.email, caller.year);
     for (let y = currentStaffYear(); y >= EARLIEST_REQUEST_YEAR; y--) {
-      if (await reviewedSomeIn(ctx, caller.email, y)) return { reviewedBefore: true };
+      if (await reviewedSomeIn(ctx, caller.email, y)) return { reviewedBefore: true, hasPast };
     }
-    return { reviewedBefore: false };
+    return { reviewedBefore: false, hasPast };
   },
 });
 
@@ -760,15 +784,13 @@ export const earlierMine = query({
   handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    return await ctx.db
-      .query("requests")
-      .withIndex("by_requester", (q) =>
-        q
-          .eq("requesterEmail", caller.email)
-          .lt("_creationTime", staffYearStartMs(caller.year))
-      )
-      .order("desc")
-      .paginate(paginationOpts);
+    const result = await requesterRequestsBefore(ctx, caller.email, caller.year).paginate(
+      paginationOpts
+    );
+    const onMine = result.page.some((request) => carriedIntoMine(request, caller.year))
+      ? await carriedIdsOnMine(ctx, caller.email, caller.year)
+      : new Set<Id<"requests">>();
+    return { ...result, page: result.page.filter((request) => !onMine.has(request._id)) };
   },
 });
 

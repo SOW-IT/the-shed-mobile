@@ -36,6 +36,53 @@ All notable changes to **The SHED** mobile app. This project follows
   comment badges only threads you're part of. Grievances stay with the
   grievance team.
 
+## [2.10.23] - 2026-11-04
+
+### Changed
+- **Event Requests has a calendar with a tick, and the Calendar has the
+  plain calendar.** Event Requests used the calendar icon, which looked more
+  like a calendar than the Calendar tab's own icon did. Event Requests now
+  shows a calendar with a tick in the side menu, the sidebar on wide screens,
+  its empty and "not found" pages, the "Make an Event Request" button and the
+  "Waiting on you" card on Home. The Calendar's bottom tab and its side menu
+  entry take the old Event Requests calendar.
+- **Insights sits at the bottom of the side menu, just above
+  Announcements.** For staff it used to come second, under Profile; on wide
+  screens it sat under Calendar. It now comes after Mentoring, with only
+  Announcements and Admin below it, for everyone who has it in the menu.
+- **Announcements is its own screen, like Insights.** Choosing Announcements
+  in the side menu used to slide it in on top of the screen you were on, with
+  a back arrow and no top bar. It now opens in place with the top bar, the
+  bell and the bottom tabs, and the side menu shows it as the screen you're
+  on. An announcement still opens on top, and going back from it lands on
+  Announcements, even after reloading the page in a browser. Links to
+  `/announcements` and to an announcement in pushes, emails and the bell keep
+  working.
+
+## [2.10.22] - 2026-11-04
+
+### Added
+- **Reimbursements have a Past tab.** Your requests from earlier staff years
+  used to sit under Mine, below this year's, in a "Past requests" list. They
+  now have their own tab, right after Mine, newest first with a divider for
+  each staff year. It opens with the ten most recent and loads the next ten
+  as you scroll near the end, with a spinner while they load and a line
+  saying how many there are once you reach the last one. Cards work as they
+  did: tap one for its details, timeline and comments, and the notes about
+  deleted receipt files show above the list. A declined one now has the
+  Resubmit button too, which opens a new request on Mine filled in from it.
+  The tab only shows for someone who has a request from an earlier year.
+
+### Changed
+- **Mine is this staff year's requests.** Last year's requests that aren't
+  paid or declined yet stay on Mine as before, and move to Past once they
+  are. With nothing this year, Mine says so and has a button to see
+  past requests.
+- **A link to an earlier year's request opens Past.** A notification or
+  email about a comment on an older request opens the Past tab with that
+  request on top, opened up, and its comments showing when the link was for
+  a comment.
+
 ## [2.10.21] - 2026-11-04
 
 ### Added
