@@ -259,6 +259,17 @@ const reimbursementQueues = async (t: T, email = ADMIN) => {
 
 const sorted = (...ids: string[]) => [...ids].sort();
 
+// Makes the admin the Data and IT Head, with a Data and IT request waiting on them.
+const adminHeadsDataAndIT = (t: T) =>
+  t.run(async (ctx) => {
+    const department = await ctx.db
+      .query("departments")
+      .withIndex("by_year_and_name", (q) => q.eq("year", YEAR).eq("name", "Data and IT"))
+      .unique();
+    await ctx.db.patch("departments", department!._id, { headEmail: ADMIN });
+    return await ctx.db.insert("requests", request({ requesterEmail: OLLIE, department: "Data and IT" }));
+  });
+
 describe("choosing who to act as", () => {
   test("only admins get the choice, and it starts on All views", async () => {
     const { t } = await setup();
@@ -381,6 +392,38 @@ describe("choosing who to act as", () => {
     expect(await asUser(t, LEE).query(api.waitingOnMe.summary, {})).toBeNull();
   });
 
+  test("an admin who is also a campus leader gets their own event read-only", async () => {
+    const { t, events } = await setup();
+    const canOf = async () => {
+      const page = (await asUser(t, ADMIN).query(api.eventRequests.get, { id: events.admin }))!;
+      return { event: page.can, forms: Object.values(page.forms).map((form) => form.can) };
+    };
+    expect((await canOf()).event).toEqual({ edit: true, cancel: true });
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", ADMIN).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", profile!._id, {
+        assignments: [
+          { role: "Staff", department: "Data and IT" },
+          { role: "Student Leader", university: "University of New South Wales" },
+        ],
+      });
+    });
+    for (const persona of [null, MARKETING_STAFF]) {
+      await actAs(t, persona);
+      const can = await canOf();
+      expect(can.event).toEqual({ edit: false, cancel: false });
+      expect(can.forms).toEqual(
+        Array(3).fill({ fill: false, decide: false, reopen: false, comment: false })
+      );
+    }
+    await expect(
+      asUser(t, ADMIN).mutation(api.eventRequests.cancel, { id: events.admin })
+    ).rejects.toThrow(/not campus leaders/);
+  });
+
   test("deleting an account forgets the choice", async () => {
     const { t } = await setup();
     await actAs(t, MARKETING_STAFF);
@@ -490,6 +533,15 @@ describe("admins see every view by default", () => {
       design: { toApprove: 0, toFinish: 0 },
       events: { toReview: 0, toFill: 3 },
     });
+  });
+
+  test("an admin's own approval stays in Reviewed after the request moves on", async () => {
+    const { t } = await setup();
+    const id = await adminHeadsDataAndIT(t);
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.requests.approve, { requestId: id, step: "hod" });
+    expect((await reimbursementQueues(t)).budgetManager).toContain(id);
+    expect((await admin.query(api.requests.reviewed, {}))!.map((r) => r._id)).toEqual([id]);
   });
 
   test("the real approver still has the buttons and the badge", async () => {
@@ -662,6 +714,16 @@ describe("acting as Marketing staff", () => {
     await expect(
       admin.mutation(api.comments.add, { requestId: requests.marketingHod, body: "Hi" })
     ).rejects.toThrow(/Request not found/);
+  });
+
+  test("still lets the admin approve what they really approve", async () => {
+    const { t } = await actingAsMarketing();
+    const id = await adminHeadsDataAndIT(t);
+    await asUser(t, ADMIN).mutation(api.requests.approve, { requestId: id, step: "hod" });
+    expect(await t.run((ctx) => ctx.db.get("requests", id))).toMatchObject({
+      approvedByHOD: "APPROVED",
+      approvedByBudgetManager: "PENDING",
+    });
   });
 });
 

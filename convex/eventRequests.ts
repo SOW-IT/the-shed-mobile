@@ -43,6 +43,7 @@ import {
   emailInbox,
   eventSummary,
   eventUrl,
+  isCampusLeader,
   logEvent,
   optionalEventStaff,
   pendingSince,
@@ -337,6 +338,9 @@ export const get = query({
     const nameOf = (email: string | undefined) =>
       email ? displayName(ctx, email, event.year) : Promise.resolve(null);
     const open = event.status !== "CANCELLED";
+    // A campus leader who is an admin can look through a lens, but every
+    // event action still turns them away.
+    const acts = !isCampusLeader(caller);
     const formViews = {} as Record<
       SubFormKind,
       SubForm & {
@@ -360,16 +364,18 @@ export const get = query({
         approverName: await nameOf(approver?.email),
         can: {
           fill:
+            acts &&
             access.requesterSide &&
             event.status === "IN_PROGRESS" &&
             isSubFormEditable(form.status),
           decide:
+            acts &&
             event.status === "IN_PROGRESS" &&
             form.status === "PENDING" &&
             form.submittedBy !== caller.email &&
             (await actsAs(ctx, caller, approver)),
-          reopen: access.requesterSide && open && isSubFormDone(form.status),
-          comment: canCommentOn(access, kind),
+          reopen: acts && access.requesterSide && open && isSubFormDone(form.status),
+          comment: acts && canCommentOn(access, kind),
         },
       };
     }
@@ -381,8 +387,8 @@ export const get = query({
       forms: formViews,
       directorThreshold: eventDirectorThresholdOr(settings?.eventDirectorApprovalThreshold),
       can: {
-        edit: access.requesterSide && event.status === "IN_PROGRESS",
-        cancel: access.requesterSide && open,
+        edit: acts && access.requesterSide && event.status === "IN_PROGRESS",
+        cancel: acts && access.requesterSide && open,
       },
     };
   },
