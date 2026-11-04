@@ -67,13 +67,18 @@ export const eventTimingText = (startsAt: string, today: string): string => {
   return `the event was ${plural(-days, "day")} ago`;
 };
 
-export type ReminderKind = "reimbursement" | "design" | "event";
+export type ReminderKind = "reimbursement" | "design" | "event" | "comment";
 
 const KIND_NOUNS: Record<ReminderKind, [string, string]> = {
   reimbursement: ["reimbursement request", "reimbursement requests"],
   design: ["design request", "design requests"],
   event: ["event form", "event forms"],
+  comment: ["thread with unread comments", "threads with unread comments"],
 };
+
+// A comment still unread this long after it was posted goes in the next
+// morning's reminder, once.
+export const COMMENT_REMINDER_AFTER_MS = DAY_MS;
 
 export const summarizeWaiting = (counts: Partial<Record<ReminderKind, number>>): string => {
   const parts = (Object.keys(KIND_NOUNS) as ReminderKind[])

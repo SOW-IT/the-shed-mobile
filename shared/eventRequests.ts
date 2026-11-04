@@ -383,6 +383,3 @@ export const financeProblem = (data: FinanceData): string | null => {
 };
 
 export const eventRequestName = (r: { name: string }): string => `Event request: ${r.name}`;
-
-export const eventRequestRef = (r: { number: number; year: number }): string =>
-  `#${r.number} · ${r.year}`;

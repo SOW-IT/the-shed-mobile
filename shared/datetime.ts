@@ -97,6 +97,12 @@ export const waitingLabel = (since: number, now: number = Date.now()): string =>
   return `Waiting ${days} ${days === 1 ? "day" : "days"}`;
 };
 
+// The space a history timeline leaves between two entries: none under an
+// hour, then more for longer gaps (on a log scale, so hours, days and weeks
+// look different and a month-long gap doesn't run off the screen).
+export const timelineGapHeight = (ms: number): number =>
+  ms < HOUR_MS ? 0 : Math.min(80, Math.round(12 + 6 * Math.log2(ms / HOUR_MS)));
+
 export const formatDuration = (ms: number): string => {
   if (ms < HOUR_MS) return "under an hour";
   const hours = Math.round(ms / HOUR_MS);

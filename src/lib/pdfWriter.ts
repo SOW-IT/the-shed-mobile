@@ -110,3 +110,13 @@ export class PdfWriter {
     });
   }
 }
+
+// A file name stays well under the 255-byte limit however long the name is.
+const FILE_SLUG_LENGTH = 80;
+
+export const fileSlug = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, FILE_SLUG_LENGTH)
+    .replace(/^-+|-+$/g, "");

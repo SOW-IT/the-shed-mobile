@@ -160,10 +160,11 @@ const emails = (t: T) =>
 const emailsTo = async (t: T, to: string) =>
   (await emails(t)).filter((e) => e.to === to).map((e) => e.subject);
 
+// Oldest first, though the timeline lists the newest first.
 const actions = async (t: T, id: Id<"eventRequests">) =>
-  (await asUser(t, EVA).query(api.eventRequests.timeline, { id }))!.map((e) =>
-    e.form ? `${e.form}:${e.action}` : e.action
-  );
+  (await asUser(t, EVA).query(api.eventRequests.timeline, { id }))!
+    .map((e) => (e.form ? `${e.form}:${e.action}` : e.action))
+    .reverse();
 
 describe("who can use event requests", () => {
   test("campus leaders and people without a profile can't", async () => {
@@ -257,7 +258,7 @@ describe("the event", () => {
     expect((await get(t, id)).event).toMatchObject({ location: "Town Hall" });
     expect((await actions(t, id)).at(-1)).toBe("edited");
     const timeline = await asUser(t, EVA).query(api.eventRequests.timeline, { id });
-    expect(timeline!.at(-1)!.detail).toBe("Location, Notes");
+    expect(timeline![0]).toMatchObject({ action: "edited", detail: "Location, Notes" });
     expect((await notificationsFor(t, CORA)).map((n) => n.title)).toContain("Event edited");
     expect(await emailsTo(t, SUB_FORM_INBOXES.risk)).toContain(
       "Event request: [TEST] SAF27 was edited"
@@ -919,6 +920,33 @@ describe("lists", () => {
     expect((await all(ELLA))!.page.map((r) => r.year)).toEqual([YEAR - 1, YEAR - 3]);
     expect((await all(ELLA))!.page[0].forms.marketing).toBeDefined();
     expect(await all(OLLIE)).toBeNull();
+    expect(await all(LEE)).toBeNull();
+  });
+});
+
+describe("removing test requests", () => {
+  test("only cancelled requests go, with their forms, history and comments", async () => {
+    const t = await setup();
+    const keep = await create(t);
+    const id = await create(t);
+    await asUser(t, EVA).mutation(api.eventRequestComments.add, { id, form: "risk", body: "Test" });
+    await asUser(t, CARL).mutation(api.eventRequestComments.markRead, { id, form: "risk" });
+    await expect(t.mutation(internal.eventRequests.removeCancelled, { ids: [id] })).rejects.toThrow(
+      /Only a cancelled event request/
+    );
+    await asUser(t, EVA).mutation(api.eventRequests.cancel, { id });
+    await t.mutation(internal.eventRequests.removeCancelled, { ids: [id] });
+    const left = await t.run(async (ctx) => ({
+      requests: (await ctx.db.query("eventRequests").collect()).map((r) => r._id),
+      forms: (await ctx.db.query("eventSubForms").collect()).map((f) => f.eventRequestId),
+      history: (await ctx.db.query("eventRequestEvents").collect()).map((e) => e.eventRequestId),
+      comments: await ctx.db.query("eventRequestComments").collect(),
+      reads: await ctx.db.query("eventRequestCommentReads").collect(),
+    }));
+    expect(left.requests).toEqual([keep]);
+    expect(new Set([...left.forms, ...left.history])).toEqual(new Set([keep]));
+    expect(left.comments).toEqual([]);
+    expect(left.reads).toEqual([]);
   });
 });
 
@@ -966,6 +994,11 @@ describe("comments", () => {
     await asUser(t, EVA).mutation(api.eventRequestComments.markRead, { id, form: "finance" });
     expect(await asUser(t, EVA).query(api.eventRequestComments.unreadCounts, { ids: [id] })).toEqual({});
     expect(await asUser(t, LEE).query(api.eventRequestComments.unreadCounts, { ids: [id] })).toEqual({});
+    // Staff outside the thread can read it, but it doesn't count as unread for them.
+    expect(await asUser(t, MARY).query(api.eventRequestComments.list, { id, form: "finance" })).toHaveLength(2);
+    expect(await asUser(t, MARY).query(api.eventRequestComments.unreadCounts, { ids: [id] })).toEqual({});
+    await t.run((ctx) => ctx.db.delete("eventRequests", id));
+    expect(await asUser(t, EVA).query(api.eventRequestComments.unreadCounts, { ids: [id] })).toEqual({});
   });
 
   test("opening the event clears its notifications", async () => {

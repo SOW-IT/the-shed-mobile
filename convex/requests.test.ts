@@ -1085,17 +1085,18 @@ describe("audit trail and reminders", () => {
     const trail = (await asUser(t, HENRY).query(api.requests.auditTrail, {
       requestId: request._id,
     }))!;
+    // Newest first.
     expect(trail.map((e) => [e.action, e.step, e.actor])).toEqual([
-      ["submitted", null, HENRY],
-      ["auto-approved", "hod", HENRY],
-      ["approved", "budgetManager", BELLA],
-      ["approved", "financeHead", FIONA],
-      ["receipt-submitted", null, HENRY],
       ["paid", null, FIONA],
+      ["receipt-submitted", null, HENRY],
+      ["approved", "financeHead", FIONA],
+      ["approved", "budgetManager", BELLA],
+      ["auto-approved", "hod", HENRY],
+      ["submitted", null, HENRY],
     ]);
     expect(trail.every((e) => typeof e.at === "number")).toBe(true);
-    expect(trail[5].detail).toBe("$90");
-    expect(trail.map((e) => e.actorName)).toEqual([HENRY, HENRY, "Bella Budget", FIONA, HENRY, FIONA]);
+    expect(trail[0].detail).toBe("$90");
+    expect(trail.map((e) => e.actorName)).toEqual([FIONA, HENRY, FIONA, "Bella Budget", HENRY, HENRY]);
 
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "y", amount: 50 });
     const [declined] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
@@ -1105,7 +1106,7 @@ describe("audit trail and reminders", () => {
     const declinedTrail = (await asUser(t, RACHEL).query(api.requests.auditTrail, {
       requestId: declined._id,
     }))!;
-    expect(declinedTrail.at(-1)).toMatchObject({
+    expect(declinedTrail[0]).toMatchObject({
       action: "declined", step: "hod", actor: HENRY, detail: "Too dear",
     });
   });

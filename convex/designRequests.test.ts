@@ -189,7 +189,7 @@ describe("submitting", () => {
     expect(request.status).toBe("APPROVED");
     expect(request.decidedBy).toBe(HENRY);
     const events = await asUser(t, HENRY).query(api.designRequests.timeline, { id });
-    expect(events!.map((e) => e.action)).toEqual(["submitted", "auto-approved"]);
+    expect(events!.map((e) => e.action)).toEqual(["auto-approved", "submitted"]);
     expect((await notificationsFor(t, MARY)).map((n) => n.body)).toContain(
       "Approved by the Marketing Head."
     );
@@ -215,7 +215,7 @@ describe("who sees what", () => {
       canSeeQueue: true,
     });
     expect(await viewer(MARY)).toMatchObject({ isMarketingStaff: true, canSeeQueue: true });
-    expect(await viewer(ADMIN)).toMatchObject({ isMarketingStaff: false, canSeeQueue: true });
+    expect(await viewer(ADMIN)).toMatchObject({ isMarketingStaff: false, canSeeQueue: false });
     expect(await viewer(RACHEL)).toMatchObject({ canSeeQueue: false });
     expect(await t.query(api.designRequests.viewer, {})).toBeNull();
   });
@@ -263,7 +263,8 @@ describe("who sees what", () => {
     expect(current!.every((r) => r.requesterEmail === RACHEL)).toBe(true);
 
     expect(await rachel.query(api.designRequests.queue, {})).toBeNull();
-    const queue = await asUser(t, ADMIN).query(api.designRequests.queue, {});
+    expect(await asUser(t, ADMIN).query(api.designRequests.queue, {})).toBeNull();
+    const queue = await asUser(t, MARY).query(api.designRequests.queue, {});
     expect(queue!.map((r) => `${r.year}#${r.number}`).sort()).toEqual(
       [`${YEAR}#1`, `${YEAR}#2`, `${YEAR - 2}#1`].sort()
     );
@@ -297,7 +298,7 @@ describe("who sees what", () => {
     expect(await t.query(api.designRequests.earlierMine, firstPage)).toBeNull();
   });
 
-  test("a request is visible to its requester, Marketing and admins only", async () => {
+  test("a request is visible to its requester and Marketing only, not admins", async () => {
     const t = await setup();
     const id = await submit(t, RACHEL);
     const get = (email: string, raw: string = id) =>
@@ -312,7 +313,7 @@ describe("who sees what", () => {
     });
     expect((await get(HENRY))!.can).toMatchObject({ approve: true, comment: true });
     expect((await get(MARY))!.can).toMatchObject({ approve: false, complete: false });
-    expect((await get(ADMIN))!.can).toMatchObject({ comment: false });
+    expect(await get(ADMIN)).toBeNull();
     expect(await get(PAUL)).toBeNull();
     expect(await get(RACHEL, "not-an-id")).toBeNull();
     expect(await t.query(api.designRequests.get, { id })).toBeNull();
@@ -452,7 +453,7 @@ describe("editing and cancelling", () => {
     const [maryNote] = await notificationsFor(t, MARY);
     expect(maryNote.body).toBe("The requester changed: What to design, Key message.");
     const events = await rachel.query(api.designRequests.timeline, { id });
-    expect(events!.at(-1)).toMatchObject({
+    expect(events![0]).toMatchObject({
       action: "edited",
       detail: "What to design, Key message",
     });

@@ -2,7 +2,6 @@ import { describe, expect, test } from "vitest";
 import {
   eventDirectorThresholdOr,
   eventRequestName,
-  eventRequestRef,
   eventSize,
   eventStatusFor,
   financeDraftProblem,
@@ -50,7 +49,6 @@ describe("statuses and sizes", () => {
 
   test("names and thresholds", () => {
     expect(eventRequestName({ name: "SAF26" })).toBe("Event request: SAF26");
-    expect(eventRequestRef({ number: 3, year: 2027 })).toBe("#3 · 2027");
     expect(eventDirectorThresholdOr(null)).toBe(5000);
     expect(eventDirectorThresholdOr(8000)).toBe(8000);
   });

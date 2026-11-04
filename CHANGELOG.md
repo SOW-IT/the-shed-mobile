@@ -29,6 +29,61 @@ All notable changes to **The SHED** mobile app. This project follows
   `/announcements` and to an announcement in pushes, emails and the bell keep
   working.
 
+## [2.10.22] - 2026-11-04
+
+### Added
+- **Reimbursements have a Past tab.** Your requests from earlier staff years
+  used to sit under Mine, below this year's, in a "Past requests" list. They
+  now have their own tab, right after Mine, newest first with a divider for
+  each staff year. It opens with the ten most recent and loads the next ten
+  as you scroll near the end, with a spinner while they load and a line
+  saying how many there are once you reach the last one. Cards work as they
+  did: tap one for its details, timeline and comments, and the notes about
+  deleted receipt files show above the list. A declined one now has the
+  Resubmit button too, which opens a new request on Mine filled in from it.
+  The tab only shows for someone who has a request from an earlier year.
+
+### Changed
+- **Mine is this staff year's requests.** Last year's requests that aren't
+  paid or declined yet stay on Mine as before, and move to Past once they
+  are. With nothing this year, Mine says so and has a button to see
+  past requests.
+- **A link to an earlier year's request opens Past.** A notification or
+  email about a comment on an older request opens the Past tab with that
+  request on top, opened up, and its comments showing when the link was for
+  a comment.
+
+## [2.10.21] - 2026-11-04
+
+### Added
+- **A comment still unread a day later is in the morning reminder.** Each
+  design or event request comment goes in once, to the requester, the form's
+  submitter and approver (the Marketing Head for a design request) and anyone
+  else who has commented there and still can, by notification, push and email.
+
+### Changed
+- **Event requests stay with staff.** Campus leaders still can't see them,
+  and who sees what is unchanged: the requester's department sees its own
+  (Mine), and the Events department, the reviewing teams, the Director and
+  admins see every event (All). Unread comment counts only show for people
+  who can comment on that thread.
+- **Only the requester and the Marketing team see design requests.** Admins
+  no longer see the Marketing queue or other people's design requests.
+- **Event and design request cards are easier to scan.** They show the
+  request's name with no number or year, and "Edited" and the status at the
+  top right next to the name, with the whole card outlined in the status's
+  colour and no arrow on the right. Event cards spread Marketing, Risk and
+  Finance left, middle and right, a little bigger, and no longer say "Waiting
+  on you" (To review shows that, with its count). Design cards say when the
+  request was submitted.
+- **History reads newest first, as a timeline.** Event request, design
+  request and reimbursement histories put the latest step at the top, joined
+  by a line, with more space for longer gaps and how long each gap was ("3
+  days earlier").
+- **Design request emails and notifications name what was asked for.** They
+  say "Design request: Booklet" instead of "Design request #4 (2027)". Event
+  request reminders, PDFs and file names drop the number too.
+
 ## [2.10.20] - 2026-11-03
 
 ### Changed
