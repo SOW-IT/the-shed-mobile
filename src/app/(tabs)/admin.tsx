@@ -61,6 +61,7 @@ import {
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { AppErrorsCard } from "@/components/admin/AppErrorsCard";
+import { AdminsCard } from "@/components/admin/AdminsCard";
 import { GrievanceTeamCard } from "@/components/admin/GrievanceTeamCard";
 import { StepTimingCard } from "@/components/admin/StepTimingCard";
 import { SuggestedMerges } from "@/components/admin/SuggestedMerges";
@@ -1862,6 +1863,8 @@ export default function AdminScreen() {
           )}
 
           {hasAccess && <StepTimingCard year={selectedYear} />}
+
+          {isAdmin && <AdminsCard />}
 
           {isAdmin && <GrievanceTeamCard year={currentYear} />}
 

@@ -643,6 +643,12 @@ export default defineSchema({
     .index("by_accountEmail", ["accountEmail"])
     .index("by_assigneeEmail_and_status", ["assigneeEmail", "status"]),
 
+  admins: defineTable({
+    email: v.string(),
+    addedBy: v.string(),
+    addedAt: v.number(),
+  }).index("by_email", ["email"]),
+
   grievanceSettings: defineTable({
     departments: v.array(v.string()),
     categories: v.array(v.string()),

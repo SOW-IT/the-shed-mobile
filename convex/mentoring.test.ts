@@ -34,6 +34,7 @@ async function setup() {
   ]) {
     await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...profile });
   }
+  await t.mutation(internal.admins.add, { email: HANA, addedBy: ADMIN });
   await t.run(async (ctx) => {
     for (const [email, name] of [
       [CARA, "Cara Chen"],
@@ -67,7 +68,7 @@ describe("access", () => {
     expect(await t.query(api.mentoring.myMentees, {})).toBeNull();
   });
 
-  test("only admins see pairings; the HR division counts as admin", async () => {
+  test("only admins see pairings; a chosen admin counts", async () => {
     const { t } = await setup();
     await expect(asUser(t, SAM).query(api.mentoring.pairings, { year: YEAR })).rejects.toThrow(
       "Only admins"

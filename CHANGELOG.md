@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.27] - 2026-11-05
+
+### Changed
+- **Admins choose who else is an admin.** The Director and everyone in Data
+  and IT are always admins. Anyone else on staff this year is an admin only
+  once an admin adds them in Admin → Other → Admins, where you search by name
+  or email, and they can be removed again (with a confirm). Being in People
+  and Culture, Training and Development, or heading the Human Resources or
+  Governance division no longer makes someone an admin by itself. Someone
+  chosen stays an admin after 1 October as long as they're still on staff.
+- **Insights is only for staff and campus leaders.** Someone signed in
+  without a staff role (last year's staff and leaders, mostly) used to get an
+  Insights tab with the General totals; it's gone, and the Insights link
+  takes them Home.
+
 ## [2.10.25] - 2026-11-04
 
 ### Fixed
