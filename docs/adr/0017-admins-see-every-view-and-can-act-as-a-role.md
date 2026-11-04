@@ -40,7 +40,11 @@ What we weighed (2026-11-04):
   staff or Head, the Director, or an admin department; ordinary staff of
   another department see only their department's events, with no All tab.
   An event's page still opens for an admin by a link, since their real
-  access allows it, but read-only.
+  access allows it, but read-only unless their real role gives them the
+  action: an admin on the event's requester side (they asked for it, or are
+  in or head its department) can still edit or cancel it, and an admin who
+  really approves a form can decide it. An admin who is also a campus leader
+  gets it read-only either way, since event actions are for staff.
 - **Grievances.** They are confidential to the grievance team, and the
   glossary already says admins outside it can't see them. All views and
   every persona leave them out.

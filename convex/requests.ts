@@ -986,7 +986,7 @@ export const reviewed = query({
     const lens = await lensFor(ctx, caller);
     const queues = await reviewQueues(ctx, caller, open, lens);
     const seen = new Set<Id<"requests">>(
-      Object.values(queues).flatMap((rows) => rows.map((r) => r._id))
+      Object.values(queues).flatMap((rows) => rows.filter((r) => r.canAct).map((r) => r._id))
     );
     const reviewedIds: Id<"requests">[] = [];
     for await (const event of ctx.db
