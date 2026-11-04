@@ -1,6 +1,6 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { syncEventRequestLinks } from "./eventRequestLinks";
 import { departmentsOf } from "../shared/flow";
 import {
@@ -363,6 +363,7 @@ export const timeline = query({
     const events = await ctx.db
       .query("eventRequestEvents")
       .withIndex("by_eventRequest", (q) => q.eq("eventRequestId", args.id))
+      .order("desc")
       .take(EVENTS_LIMIT);
     return await Promise.all(
       events.map(async (row) => ({
@@ -530,6 +531,51 @@ export const cancel = mutation({
       },
       (form) => form.status !== "DRAFT"
     );
+    return null;
+  },
+});
+
+// Removes cancelled event requests for good (such as test ones), with their
+// forms, history and comments. Run from the CLI; one that isn't cancelled, or
+// still has an attendance event on the Calendar, is refused.
+export const removeCancelled = internalMutation({
+  args: { ids: v.array(v.id("eventRequests")) },
+  handler: async (ctx, args) => {
+    for (const id of args.ids) {
+      const event = await requireEvent(ctx, id);
+      if (event.status !== "CANCELLED" || event.attendanceEventId || event.calendarEntryId) {
+        throw new ConvexError(
+          `Only a cancelled event request with nothing on the Calendar can be removed (${event.name}).`
+        );
+      }
+    }
+    for (const id of args.ids) {
+      for (const form of await ctx.db
+        .query("eventSubForms")
+        .withIndex("by_eventRequest_and_kind", (q) => q.eq("eventRequestId", id))
+        .collect()) {
+        await ctx.db.delete("eventSubForms", form._id);
+      }
+      for (const row of await ctx.db
+        .query("eventRequestEvents")
+        .withIndex("by_eventRequest", (q) => q.eq("eventRequestId", id))
+        .collect()) {
+        await ctx.db.delete("eventRequestEvents", row._id);
+      }
+      for (const comment of await ctx.db
+        .query("eventRequestComments")
+        .withIndex("by_eventRequest_and_form_and_postedAt", (q) => q.eq("eventRequestId", id))
+        .collect()) {
+        await ctx.db.delete("eventRequestComments", comment._id);
+      }
+      for (const read of await ctx.db
+        .query("eventRequestCommentReads")
+        .withIndex("by_eventRequest_and_form_and_user", (q) => q.eq("eventRequestId", id))
+        .collect()) {
+        await ctx.db.delete("eventRequestCommentReads", read._id);
+      }
+      await ctx.db.delete("eventRequests", id);
+    }
     return null;
   },
 });

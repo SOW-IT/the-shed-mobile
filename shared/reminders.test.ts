@@ -109,6 +109,9 @@ describe("wording", () => {
     expect(summarizeWaiting({ reimbursement: 1, design: 2, event: 3 })).toBe(
       "1 reimbursement request, 2 design requests and 3 event forms are waiting on you."
     );
+    expect(summarizeWaiting({ event: 1, comment: 1 })).toBe(
+      "1 event form and 1 thread with unread comments are waiting on you."
+    );
   });
 
   it("writes the email subject", () => {

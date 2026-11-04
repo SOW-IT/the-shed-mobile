@@ -4,6 +4,7 @@ import {
   compactAgo,
   daysSince,
   formatDuration,
+  timelineGapHeight,
   pad2,
   parseDateInputValue,
   parseDateTimeInputValues,
@@ -47,6 +48,19 @@ describe("formatDuration", () => {
     expect(formatDuration(1.46 * DAY)).toBe("1.5 days");
     expect(formatDuration(9.94 * DAY)).toBe("9.9 days");
     expect(formatDuration(12.6 * DAY)).toBe("13 days");
+  });
+});
+
+describe("timelineGapHeight", () => {
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+
+  it("leaves no gap under an hour, then more for longer gaps, up to a cap", () => {
+    expect(timelineGapHeight(HOUR - 1)).toBe(0);
+    expect(timelineGapHeight(HOUR)).toBe(12);
+    expect(timelineGapHeight(DAY)).toBe(40);
+    expect(timelineGapHeight(7 * DAY)).toBe(56);
+    expect(timelineGapHeight(365 * DAY)).toBe(80);
   });
 });
 

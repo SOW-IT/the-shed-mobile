@@ -4,6 +4,7 @@ import { mutation, query, QueryCtx } from "./_generated/server";
 import { SUB_FORM_KINDS, SUB_FORM_TEAMS, type SubFormKind } from "../shared/eventRequests";
 import { subFormKindValidator } from "./eventRequestData";
 import {
+  accessResolver,
   accessTo,
   canCommentOn,
   directorOf,
@@ -106,8 +107,14 @@ export const unreadCounts = query({
     const counts: Record<string, Partial<Record<SubFormKind, number>>> = {};
     const caller = await optionalEventStaff(ctx);
     if (!caller) return counts;
+    const accessOf = accessResolver(ctx, caller);
     for (const id of new Set(args.ids)) {
+      const event = await ctx.db.get("eventRequests", id);
+      if (!event) continue;
+      // Only threads you're part of count: every staff member can read them all.
+      const access = await accessOf(event);
       for (const form of SUB_FORM_KINDS) {
+        if (!canCommentOn(access, form)) continue;
         const read = await ctx.db
           .query("eventRequestCommentReads")
           .withIndex("by_eventRequest_and_form_and_user", (q) =>
