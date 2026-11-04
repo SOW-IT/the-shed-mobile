@@ -193,7 +193,8 @@ describe("dates, names and statuses", () => {
   });
 
   test("names and statuses", () => {
-    expect(designRequestName({ year: 2027, number: 4 })).toBe("Design request #4 (2027)");
+    expect(designRequestName({ title: "Booklet, Poster" })).toBe("Design request: Booklet, Poster");
+    expect(designRequestName({ title: "" })).toBe("Design request");
     expect(isOpenDesignStatus("PENDING")).toBe(true);
     expect(isOpenDesignStatus("APPROVED")).toBe(true);
     expect(isOpenDesignStatus("COMPLETED")).toBe(false);

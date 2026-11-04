@@ -25,7 +25,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Finance's payment), design requests (the Marketing Head's approval, the
   team's unfinished work) and event forms (the requester's side for forms not
   submitted, the requester's side and whoever submitted it for forms sent
-  back, the reviewer for forms waiting). Each person gets
+  back, the reviewer for forms waiting). A design or event request comment
+  still unread a day after it was posted goes in once, to the requester, the
+  form's submitter and approver (the Marketing Head for a design request) and
+  anyone else who has commented there and still can. Each person gets
   one notification, push and email a morning listing everything waiting on
   them; nobody with nothing waiting hears anything, and weekends are not
   skipped. Reminder emails can be turned off on Profile. Home lists what is
@@ -105,12 +108,16 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   are checked against them server-side. Only the **Marketing Head** (or
   their delegate) approves or declines; anyone in Marketing marks approved
   requests complete. Requesters can edit or cancel until a request closes,
-  and everyone on it can comment. Marketing staff get in-app/push
+  and everyone on it can comment. Only the requester and the Marketing team
+  see a request (admins don't). Marketing staff get in-app/push
   notifications and the team's emails go to marketing@sow.org.au. Lists:
   Mine, the Marketing queue (open requests) and an All archive, each running
   back through earlier staff years as you scroll; the Marketing Head opens on the queue when something waits on them.
-  A request's page shows its progress as Submitted, Approved (or Declined)
-  and Complete, with who and when. Any request can be downloaded as a PDF (built on the device with
+  Requests are named by what they ask for (no numbers). Each card is outlined
+  in its status's colour and says when it was submitted. A request's page
+  shows its progress as Submitted, Approved (or Declined) and Complete, with
+  who and when, and its history newest first, spaced by the time between
+  steps. Any request can be downloaded as a PDF (built on the device with
   pdf-lib). Old requests from the web app are copied in with
   `scripts/import-design-requests.mjs` (safe to re-run). Design requests
   aren't for events: those go through Event Requests.
@@ -125,7 +132,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   three are approved or not required. The requester's department fills the
   forms in; reviewers can ask for changes; each form has its own comment
   thread. The Events department, the three teams, the Director and admins can
-  see every event. Team emails go to marketing@, compliance@ and
+  see every event (All); other staff see their own department's. Cards show
+  the event's name (no numbers), its status top right with the card outlined in that colour, and
+  Marketing, Risk and Finance across the bottom; history is newest first,
+  spaced by the time between steps. Team emails go to marketing@, compliance@ and
   finance@sow.org.au. Any event downloads as a PDF whose Risk and Finance
   pages follow the Governance Review Form. Once approved, an event goes on the
   Calendar: as an SOW attendance event when "Take attendance at this event" is
@@ -221,8 +231,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   submit. An approver with requests waiting and nothing of their own to act on
   opens on Review, and a request link opens the tab that holds it (Mine,
   Past with the request on top, Review, or All for Finance staff). Each request's clock button opens its
-  timeline: every step from submitted to paid with who did it and when, the
-  gaps between steps, what it is waiting on now and how many reminders have
+  timeline, newest first: every step from submitted to paid with who did it
+  and when, the gaps between steps (spaced by how long they were), what it is waiting on now and how many reminders have
   gone out for that wait, and how long submitted-to-paid took.
   A request, its timeline and its comments are visible only to the
   requester, Finance staff, the approvers on its chain and their delegates

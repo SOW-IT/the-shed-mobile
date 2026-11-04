@@ -1432,6 +1432,7 @@ export const auditTrail = query({
     const events = await ctx.db
       .query("requestEvents")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .order("desc")
       .take(200);
     const reqYear = requestYear(request);
     const names = new Map<string, Promise<string>>();

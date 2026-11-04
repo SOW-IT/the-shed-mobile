@@ -50,6 +50,10 @@ const RATING_TONES: Record<RiskRating, Tone> = {
 export const toneColour = (t: AppTheme, tone: Tone) =>
   tone === "waiting" ? t.warning : toneColours(t, tone).fg;
 
+// An event request card is outlined in its status pill's colour.
+export const eventStatusColour = (t: AppTheme, status: EventRequestStatus) =>
+  toneColour(t, EVENT_TONES[status]);
+
 const Pill = ({ label, tone }: { label: string; tone: Tone }) => {
   const t = useAppTheme();
   const { bg, fg } = toneColours(t, tone);

@@ -20,6 +20,10 @@ const colours = (t: AppTheme, status: DesignRequestStatus) => {
   }
 };
 
+// A design request card is outlined in its status pill's colour.
+export const designStatusColour = (t: AppTheme, status: DesignRequestStatus) =>
+  status === "PENDING" ? t.warning : colours(t, status).fg;
+
 export const DesignStatusPill = ({ status }: { status: DesignRequestStatus }) => {
   const t = useAppTheme();
   const { bg, fg } = colours(t, status);

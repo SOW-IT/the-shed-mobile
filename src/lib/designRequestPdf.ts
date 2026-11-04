@@ -8,7 +8,7 @@ import {
   type DesignField,
   type DesignRequestStatus,
 } from "../../shared/designRequests";
-import { MUTED, PdfWriter, TEXT } from "./pdfWriter";
+import { fileSlug, MUTED, PdfWriter, TEXT } from "./pdfWriter";
 import { sydneyDateTime } from "./sydneyTime";
 
 export type DesignRequestPdfInput = {
@@ -36,8 +36,10 @@ export type DesignRequestPdfInput = {
   generatedAt: number;
 };
 
-export const designRequestPdfFilename = (r: { year: number; number: number }) =>
-  `design-request-${r.year}-${r.number}.pdf`;
+export const designRequestPdfFilename = (r: { title: string }) => {
+  const slug = fileSlug(r.title);
+  return slug ? `design-request-${slug}.pdf` : "design-request.pdf";
+};
 
 export const pdfTime = sydneyDateTime;
 
