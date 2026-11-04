@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
   financeTotals,
   type FinanceData,
@@ -7,6 +7,7 @@ import {
 } from "@shared/eventRequests";
 import { formatAmount, money, sumAmounts } from "@shared/money";
 import { Btn, Card, currencyText, Field, Muted } from "@/components/ui";
+import { openExternalLink } from "@/lib/openExternalLink";
 import { spacing, typography, useAppTheme } from "@/theme";
 
 type LineDraft = { key: string; label: string; amount: string };
@@ -216,7 +217,7 @@ export const FinanceView = ({ data }: { data: FinanceData }) => {
           title="Open the Spreadsheet"
           variant="tonal"
           icon="open-outline"
-          onPress={() => void Linking.openURL(data.spreadsheetUrl!).catch(() => {})}
+          onPress={() => void openExternalLink(data.spreadsheetUrl!)}
         />
       ) : null}
     </View>

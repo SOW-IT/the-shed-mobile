@@ -6,6 +6,7 @@ import { maybeCompleteAuthSession, openAuthSessionAsync } from "expo-web-browser
 import { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { searchWithoutSignInParams, WEB_ONLY_MARKER } from "../../shared/appLinks";
+import { friendlyErrorText } from "@/lib/appErrorKinds";
 
 maybeCompleteAuthSession();
 
@@ -86,7 +87,7 @@ export const useWebAuthCodeExchange = () => {
 };
 
 export const errorText = (e: unknown): string =>
-  e instanceof Error ? e.message : String(e);
+  friendlyErrorText(e) ?? (e instanceof Error ? e.message : String(e));
 
 export const useGoogleSignIn = () => {
   const { signIn } = useAuthActions();

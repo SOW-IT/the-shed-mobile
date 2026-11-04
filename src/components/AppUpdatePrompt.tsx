@@ -3,11 +3,12 @@ import { useQuery } from "convex/react";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import { useSyncExternalStore } from "react";
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { appLinkForScheme } from "../../shared/appLinks";
 import { Btn } from "@/components/ui";
 import { appVersion } from "@/hooks/useReportAppVersion";
+import { openExternalLink } from "@/lib/openExternalLink";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const nativePlatform = (): "ios" | "android" | null =>
@@ -56,7 +57,7 @@ const useUpdateCheck = () => {
   );
   const dismissed = useSyncExternalStore(subscribeDismissed, getDismissed, getDismissed);
   const openStore = () => {
-    if (storeUrl) void Linking.openURL(storeUrl).catch(() => {});
+    if (storeUrl) void openExternalLink(storeUrl);
   };
   return { check: storeUrl ? check : undefined, version, dismissed, openStore };
 };
