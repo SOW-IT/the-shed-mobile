@@ -396,8 +396,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   The app takes check-in links (ADR 0012); the web never bounces them.
 - **Over-the-air updates**: phone builds from 2.9.19 carry `expo-updates`
   with a fingerprint runtime, so a JavaScript-only change reaches them after
-  a merge without a store build. A banner offers a restart once an update has
-  downloaded.
+  a merge without a store build. Once an update has downloaded, a popup in the
+  middle of the screen offers a big Restart button (or Not now).
 - **App errors**: a screen that crashes, or an unhandled error, is reported
   (`convex/appErrors.ts`) with the route, platform, version and who hit it,
   grouped by fingerprint. Admins see the last seven days on Admin, Other and

@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.26] - 2026-11-04
+
+### Changed
+- **"An update is ready" is now a popup in the middle of the screen.** When a
+  new version has downloaded, a card appears over the app with a big Restart
+  button, so it's hard to miss. Not now closes it, and the update is then
+  picked up the next time the app is opened from scratch.
+
 ## [2.10.24] - 2026-11-04
 
 ### Added
