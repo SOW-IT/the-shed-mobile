@@ -56,6 +56,9 @@ describe("openExternalLink", () => {
     await expect(openExternalLink(url, options)).resolves.toBe(true);
     expect(native.openURL).toHaveBeenCalledWith(url);
     expect(native.openBrowserAsync).toHaveBeenCalledWith(options.fallbackUrl);
+    expect(native.openURL.mock.invocationCallOrder[0]).toBeLessThan(
+      native.openBrowserAsync.mock.invocationCallOrder[0]
+    );
   });
 
   test("explains what to do when neither the link nor the browser opens", async () => {
