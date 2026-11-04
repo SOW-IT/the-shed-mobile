@@ -121,6 +121,18 @@ describe("web global handlers", () => {
     expect(app.previous).toHaveBeenCalledWith(failure, true);
   });
 
+  test("report a fatal chunk failure and pass it on when the reload itself throws", async () => {
+    const app = await setUp();
+    app.reload.mockImplementation(() => {
+      throw new Error("reload blocked");
+    });
+    const failure = chunkFailed();
+    app.fatal(failure);
+    expect(app.reload).toHaveBeenCalledTimes(1);
+    expect(app.reports.map((r) => r.message)).toEqual([failure.message]);
+    expect(app.previous).toHaveBeenCalledWith(failure, true);
+  });
+
   test("report a fatal chunk failure within a minute of a reload", async () => {
     const app = await setUp({ sessionAt: String(5_000_000 - 10_000) });
     app.fatal(chunkFailed());

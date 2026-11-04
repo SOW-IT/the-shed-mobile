@@ -118,6 +118,18 @@ describe("createStaleReloader", () => {
     expect(reloader.reload()).toBe(false);
     expect(unwritable.reloads).toHaveLength(0);
   });
+
+  test("reports failure, and doesn't claim a reload is pending, when the reload throws", () => {
+    const blocked = host({
+      reload: () => {
+        throw new Error("reload blocked");
+      },
+    });
+    const reloader = createStaleReloader(() => blocked);
+    expect(reloader.reload()).toBe(false);
+    expect(reloader.canReload()).toBe(false);
+    expect(reloader.reload()).toBe(false);
+  });
 });
 
 describe("browserReloadHost", () => {

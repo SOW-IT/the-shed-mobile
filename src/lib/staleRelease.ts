@@ -47,7 +47,12 @@ export const createStaleReloader = (getHost: () => ReloadHost | null) => {
         return false;
       }
       pending = true;
-      host.reload();
+      try {
+        host.reload();
+      } catch {
+        pending = false;
+        return false;
+      }
       return true;
     },
   };
