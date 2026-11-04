@@ -1,11 +1,12 @@
 import { useQuery } from "convex/react";
 import Constants from "expo-constants";
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
-import { Linking, Platform, View } from "react-native";
+import { Platform, View } from "react-native";
 import { api } from "@convex/_generated/api";
 import { appLinkForScheme, WEB_ONLY_MARKER } from "@shared/appLinks";
 import { Btn, EmptyState, LoadingState, ReadableColumn, Screen } from "@/components/ui";
 import { appVersion } from "@/hooks/useReportAppVersion";
+import { openExternalLink } from "@/lib/openExternalLink";
 import { spacing } from "@/theme";
 
 export default function NotFoundScreen() {
@@ -59,14 +60,14 @@ export default function NotFoundScreen() {
               <Btn
                 title="Open on the web"
                 icon="open-outline"
-                onPress={() => void Linking.openURL(webUrl).catch(() => {})}
+                onPress={() => void openExternalLink(webUrl)}
               />
               <Btn
                 title={`Update ${version} → ${latest}`}
                 variant="tonal"
                 icon="download-outline"
                 onPress={() => {
-                  if (store) void Linking.openURL(store).catch(() => {});
+                  if (store) void openExternalLink(store);
                 }}
               />
             </>
