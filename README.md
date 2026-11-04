@@ -68,7 +68,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   work is really theirs. Under their name in the menu they can instead act
   as the Director, the Budget Manager, or the staff or Head of one of the
   year's departments, and see exactly that role's tabs, queues and badges
-  (ordinary staff of a department see only its event requests, no All); a
+  (ordinary staff of a department see only its event requests, no All, and
+  Mine still lists the admin's own); a
   chip at the top resets it. The choice is stored per admin on the server
   (`actingAs` table). It never grants an action, and grievances stay with the
   grievance team.
