@@ -61,7 +61,8 @@ hold code for all six — so each context's glossary lives under
   the year's departments and stores one row per admin (`actingAs`).
   Grievances ignore it ([ADR 0017](./docs/adr/0017-admins-see-every-view-and-can-act-as-a-role.md)).
 - **Org → Grievances**: the grievance team is that year's members of the
-  departments chosen in Admin (People and Culture and Compliance to start),
+  departments the team chooses in Grievances → Settings (People and Culture
+  and Compliance to start),
   read from Org. Grievances shares the
   notification feed with the other contexts but no other table, and stays
   out of the daily digest and Home's "Waiting on you".

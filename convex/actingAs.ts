@@ -1,6 +1,8 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { ADMIN_DEPARTMENTS, type RoleTitles } from "../shared/flow";
+import { type RoleTitles } from "../shared/flow";
+import type { Teams } from "../shared/teams";
+import { teamsFor } from "./teamJobs";
 import {
   ALL_VIEWS,
   personaDepartment,
@@ -29,7 +31,7 @@ const choiceOf = (ctx: Ctx, email: string) =>
     .unique();
 
 const departmentExists = async (ctx: Ctx, year: number, persona: Persona) => {
-  const department = personaDepartment(persona);
+  const department = personaDepartment(persona, await teamsFor(ctx, year));
   return department === null || (await getDepartment(ctx, year, department)) !== null;
 };
 
@@ -49,17 +51,17 @@ export async function lensFor(
   return persona ? { kind: "as", persona } : ALL_VIEWS;
 }
 
-export function personaIsAdmin(persona: Persona): boolean {
-  const department = personaDepartment(persona);
+export function personaIsAdmin(persona: Persona, teams: Teams): boolean {
+  const department = personaDepartment(persona, teams);
   if (department === null) return persona.role === "director";
-  return ADMIN_DEPARTMENTS.includes(department);
+  return department === teams.admin;
 }
 
 export async function viewsAsAdmin(ctx: Ctx, caller: CallerContext | null): Promise<boolean> {
   if (!caller) return false;
   const isAdmin = await isAdminProfile(ctx, caller.profile);
   const lens = await lensFor(ctx, caller, isAdmin);
-  return lens.kind === "as" ? personaIsAdmin(lens.persona) : isAdmin;
+  return lens.kind === "as" ? personaIsAdmin(lens.persona, await teamsFor(ctx, caller.year)) : isAdmin;
 }
 
 export const actingAsView =(lens: Lens, titles?: RoleTitles) =>
@@ -82,6 +84,7 @@ export const options = query({
       year: caller.year,
       current: await chosenPersona(ctx, caller),
       departments: departments.map((d) => ({ name: d.name, division: d.division })),
+      teams: await teamsFor(ctx, caller.year),
     };
   },
 });
@@ -93,7 +96,7 @@ export const set = mutation({
     const caller = await requireAdmin(ctx);
     if (persona && !(await departmentExists(ctx, caller.year, persona))) {
       throw new ConvexError(
-        `There's no ${personaDepartment(persona)} department in ${caller.year}.`
+        `There's no ${personaDepartment(persona, await teamsFor(ctx, caller.year))} department in ${caller.year}.`
       );
     }
     const choice = await choiceOf(ctx, caller.email);

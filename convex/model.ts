@@ -1,10 +1,10 @@
 import { ConvexError } from "convex/values";
+import type { Teams } from "../shared/teams";
+import { teamsFor } from "./teamJobs";
 import {
-  ADMIN_DEPARTMENTS,
   assignmentsOf,
   departmentsOf,
   DIRECTOR,
-  FINANCE,
   roleNeedsUniversity,
   rolesOfLike,
   type RoleTitles,
@@ -198,14 +198,13 @@ export async function isAdminProfile(
   ctx: Ctx,
   profile: Doc<"staffProfiles">
 ): Promise<boolean> {
-  if (isFixedAdmin(profile)) return true;
+  if (isFixedAdminIn(await teamsFor(ctx, profile.year), profile)) return true;
   if (profile.year !== currentStaffYear()) return false;
   return (await chosenAdmin(ctx, profile.email)) !== null;
 }
 
-export const isFixedAdmin = (profile: Doc<"staffProfiles">): boolean =>
-  rolesOf(profile).includes(DIRECTOR) ||
-  departmentsOf(profile).some((dept) => ADMIN_DEPARTMENTS.includes(dept));
+export const isFixedAdminIn = (teams: Teams, profile: Doc<"staffProfiles">): boolean =>
+  rolesOf(profile).includes(DIRECTOR) || departmentsOf(profile).includes(teams.admin);
 
 export const chosenAdmin = (ctx: Ctx, email: string) =>
   ctx.db
@@ -423,6 +422,7 @@ export async function actAsEmails(
 }
 
 export interface Approvers {
+  financeDepartment: string;
   hodEmail?: string;
   budgetManagerEmail?: string;
   financeHeadEmail?: string;
@@ -444,13 +444,18 @@ export async function setCachedDirectorEmail(
   await ctx.db.insert("yearSettings", { year, directorEmail: value });
 }
 
+export async function financeApprovers(ctx: Ctx, year: number): Promise<Approvers> {
+  return await getApprovers(ctx, year, (await teamsFor(ctx, year)).finance);
+}
+
 export async function getApprovers(
   ctx: Ctx,
   year: number,
   departmentName: string
 ): Promise<Approvers> {
   const department = await getDepartment(ctx, year, departmentName);
-  const finance = await getDepartment(ctx, year, FINANCE);
+  const financeDepartment = (await teamsFor(ctx, year)).finance;
+  const finance = await getDepartment(ctx, year, financeDepartment);
   const settings = await getYearSettings(ctx, year);
   let directorEmail: string | undefined;
   if (settings?.directorEmail !== undefined) {
@@ -467,6 +472,7 @@ export async function getApprovers(
     }
   }
   return {
+    financeDepartment,
     hodEmail: department?.headEmail,
     budgetManagerEmail: settings?.budgetManagerEmail,
     financeHeadEmail: finance?.headEmail,

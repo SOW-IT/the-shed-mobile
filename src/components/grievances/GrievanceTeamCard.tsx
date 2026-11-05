@@ -23,7 +23,10 @@ export const GrievanceTeamCard = ({ year }: { year: number }) => {
     <View style={{ gap: spacing.md }}>
       <SectionTitle>Grievance team</SectionTitle>
       <Card>
-        <Muted>Everyone in these departments sees and handles every grievance. Nobody else can, admins included.</Muted>
+        <Muted>
+          Everyone in these departments sees and handles every grievance. Nobody else can, admins
+          included. Taking your own department off removes your access.
+        </Muted>
         <MultiSelect
           label="Departments"
           values={value}

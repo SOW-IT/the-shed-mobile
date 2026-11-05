@@ -6,6 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { EventRequestStatus } from "@shared/eventRequests";
 import { ChromeScreen } from "@/components/ChromeScreen";
+import { FinanceSettingsButton } from "@/components/finance/FinanceSettings";
 import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { EventRequestRow, type EventRequestListRow } from "@/components/events/EventRequestRow";
@@ -46,12 +47,14 @@ const EventList = ({
   groups = GROUPS,
   unread,
   empty,
+  header,
   footer,
 }: {
   rows: EventRequestListRow[] | null | undefined;
   groups?: Group[];
   unread: Unread;
   empty: { title: string; message: string; action?: { label: string; onPress: () => void } };
+  header?: ReactNode;
   footer?: ReactNode;
 }) => {
   const router = useRouter();
@@ -59,6 +62,7 @@ const EventList = ({
   return (
     <ReadableColumn>
       <View style={{ gap: spacing.sm }}>
+        {header}
         {rows === undefined ? <LoadingState /> : null}
         {rows !== undefined && (rows === null || rows.length === 0) ? (
           <EmptyState
@@ -238,6 +242,7 @@ export default function EventRequestsScreen() {
               <EventList
                 rows={all}
                 unread={unread}
+                header={<FinanceSettingsButton year={me.year} />}
                 footer={<EarlierEvents history={earlierAll} unread={unread} />}
                 empty={{
                   title: "Nothing here",

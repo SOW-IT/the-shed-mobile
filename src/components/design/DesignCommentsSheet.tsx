@@ -51,7 +51,7 @@ export const DesignCommentsSheet = ({
       comments={loaded}
       onSend={(body) => add({ id, body })}
       canPost={canPost}
-      readOnlyNote="Only the requester and the Marketing team can comment on a design request."
+      readOnlyNote="Only the requester and the design team can comment on a design request."
     />
   );
 };

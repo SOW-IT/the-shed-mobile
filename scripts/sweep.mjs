@@ -53,6 +53,11 @@ const routes = [
   "/insights?tab=attendance",
   "/mentoring",
   "/admin",
+  "/admin?tab=teams",
+  "/admin?tab=system",
+  "/finance-settings",
+  "/attendance/merges",
+  "/grievances?tab=settings",
   "/no-such-page",
 ];
 

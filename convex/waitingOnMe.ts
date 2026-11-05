@@ -38,7 +38,7 @@ export const summary = query({
     const design = await designWaitingOnMe(ctx, caller, lens);
     const toReview = (await reviewForms(ctx, caller, lens)).filter((f) => f.mine).length;
     let toFill = 0;
-    for (const event of await requesterSideOpenEvents(ctx, caller, sideDepartments(caller, lens))) {
+    for (const event of await requesterSideOpenEvents(ctx, caller, await sideDepartments(ctx, caller, lens))) {
       const forms = await subFormsOf(ctx, event._id);
       toFill += SUB_FORM_KINDS.filter((kind) => isSubFormEditable(forms[kind].status)).length;
     }

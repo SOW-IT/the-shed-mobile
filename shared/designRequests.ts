@@ -4,8 +4,6 @@ import {
   type FormField,
 } from "./forms";
 
-export const MARKETING = "Marketing";
-
 export const MARKETING_TEAM_EMAIL = "marketing@sow.org.au";
 
 export type DesignRequestStatus =

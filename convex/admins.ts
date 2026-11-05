@@ -1,12 +1,14 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { ADMIN_DEPARTMENTS, assignmentsOf, DIRECTOR, roleNeedsUniversity } from "../shared/flow";
+import { assignmentsOf, DIRECTOR, roleNeedsUniversity } from "../shared/flow";
+import type { Teams } from "../shared/teams";
+import { teamsFor } from "./teamJobs";
 import {
   chosenAdmin,
   currentStaffYear,
   displayName,
   isAdminProfile,
-  isFixedAdmin,
+  isFixedAdminIn,
   optionalProfile,
   requireAdmin,
   rolesOf,
@@ -33,8 +35,8 @@ const chosenRows = (ctx: Ctx) => ctx.db.query("admins").take(MAX_STORED_ROWS);
 const isCampusLeaderProfile = (profile: Doc<"staffProfiles">) =>
   assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role));
 
-const fixedReason = (profile: Doc<"staffProfiles">) =>
-  rolesOf(profile).includes(DIRECTOR) ? "Director" : ADMIN_DEPARTMENTS.join(", ");
+const fixedReason = (teams: Teams, profile: Doc<"staffProfiles">) =>
+  rolesOf(profile).includes(DIRECTOR) ? "Director" : teams.admin;
 
 const nameOf = (profile: Doc<"staffProfiles">) => profile.name ?? profile.email;
 
@@ -55,12 +57,13 @@ export const list = query({
     const caller = await optionalProfile(ctx);
     if (!caller || !(await isAdminProfile(ctx, caller.profile))) return null;
     const profiles = await thisYearsProfiles(ctx);
+    const teams = await teamsFor(ctx, currentStaffYear());
     const profileByEmail = new Map(profiles.map((p) => [normalEmail(p.email), p]));
-    const fixed = profiles.filter(isFixedAdmin);
+    const fixed = profiles.filter((p) => isFixedAdminIn(teams, p));
     const fixedEmails = new Set(fixed.map((p) => normalEmail(p.email)));
     const chosen = (await chosenRows(ctx)).filter((row) => !fixedEmails.has(row.email));
     return {
-      fixed: byName(fixed.map((p) => ({ email: p.email, name: nameOf(p), reason: fixedReason(p) }))),
+      fixed: byName(fixed.map((p) => ({ email: p.email, name: nameOf(p), reason: fixedReason(teams, p) }))),
       chosen: byName(
         await Promise.all(
           chosen.map(async (row) => {
@@ -96,7 +99,10 @@ export const set = mutation({
     }
     const profileList = await thisYearsProfiles(ctx);
     const profiles = new Map(profileList.map((p) => [normalEmail(p.email), p]));
-    const fixedEmails = new Set(profileList.filter(isFixedAdmin).map((p) => normalEmail(p.email)));
+    const teams = await teamsFor(ctx, currentStaffYear());
+    const fixedEmails = new Set(
+      profileList.filter((p) => isFixedAdminIn(teams, p)).map((p) => normalEmail(p.email))
+    );
     const rows = (await chosenRows(ctx)).filter((row) => !fixedEmails.has(row.email));
     if (!sameSet(rows.map((row) => row.email), [...new Set(args.expected.map(normalEmail))])) {
       throw new ConvexError(STALE);
