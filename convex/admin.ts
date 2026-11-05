@@ -3,8 +3,6 @@ import type { Audience } from "../shared/announcements";
 import { EVENTS, SUB_FORM_TEAMS } from "../shared/eventRequests";
 import {
   ADMIN_DEPARTMENTS,
-  ADMIN_DIVISIONS,
-  ADMIN_HEADED_DIVISIONS,
   Assignment,
   assignmentFor,
   assignmentsOf,
@@ -245,9 +243,7 @@ const APP_KEYED_DEPARTMENTS: readonly string[] = [
   ]),
 ];
 
-const APP_KEYED_DIVISIONS: readonly string[] = [
-  ...new Set([...ADMIN_DIVISIONS, ...ADMIN_HEADED_DIVISIONS]),
-];
+const APP_KEYED_DIVISIONS: readonly string[] = [];
 
 const assertRenamable = (kind: "department" | "division", oldName: string, newName: string) => {
   const keyed = kind === "department" ? APP_KEYED_DEPARTMENTS : APP_KEYED_DIVISIONS;

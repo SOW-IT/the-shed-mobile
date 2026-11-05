@@ -221,7 +221,7 @@ describe("chaplaincy roles", () => {
 });
 
 describe("admin via division headship", () => {
-  test("the head of an admin division is treated as an admin", async () => {
+  test("heading a division no longer makes someone an admin", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "hrhead@sow.org.au";
@@ -229,7 +229,7 @@ describe("admin via division headship", () => {
       year: YEAR, name: "Human Resources", headEmail: email,
     });
     const me = await asUser(t, email).query(api.directory.me, {});
-    expect(me?.isAdmin).toBe(true);
+    expect(me?.isAdmin).toBe(false);
   });
 });
 

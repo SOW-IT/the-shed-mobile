@@ -124,11 +124,13 @@ Department above them.
 Approves requests at or above the director threshold. At most one per year.
 
 **Admin**:
-Not a role — a derived permission. The Data and IT department, every
-department in the Human Resources division, the head of the Human Resources
-division, the head of the Governance division (not its other staff), and the
-Director. Only admins assign roles and manage
-structure, and nobody can change their own role.
+Not a role — a permission. The Director and everyone in the Data and IT
+department are always admins; anyone else on staff this year is an admin when
+an admin has chosen them in Admin → Other → Admins (the `admins` table, which
+carries over the October rollover; someone with no role in the current year is
+listed but isn't an admin until they have one). Campus leaders can't be chosen.
+Only admins assign roles and manage structure, and nobody can change their own
+role (ADR 0018).
 
 **All views**:
 What an admin sees by default: every list, queue and form a role or

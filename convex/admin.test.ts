@@ -2234,7 +2234,7 @@ describe("names the app relies on", () => {
       "Finance",
       "Marketing",
     ]);
-    expect([...locked.divisions].sort()).toEqual(["Governance", "Human Resources"]);
+    expect(locked.divisions).toEqual([]);
 
     const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     for (const name of locked.departments) {

@@ -208,15 +208,7 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon("calendar-outline", "calendar"),
         }}
       />
-      {/* Signed out, there's no Insights at all; signed in without a role, it's a tab. */}
-      <Tabs.Screen
-        name="insights"
-        options={{
-          title: "Insights",
-          ...(isStaff || !isAuthenticated ? sideMenuOnly : {}),
-          tabBarIcon: tabIcon("stats-chart-outline", "stats-chart"),
-        }}
-      />
+      <Tabs.Screen name="insights" options={{ title: "Insights", ...sideMenuOnly }} />
       <Tabs.Screen
         name="org"
         options={{

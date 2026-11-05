@@ -707,7 +707,7 @@ describe("admin and per-year rules", () => {
     ).rejects.toThrow(/only manage/);
   });
 
-  test("Human Resources division members are admins too", async () => {
+  test("Human Resources division members are admins only once chosen", async () => {
     const t = await setup();
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
       email: "pnc@sow.org.au",
@@ -715,6 +715,10 @@ describe("admin and per-year rules", () => {
       roles: ["Staff"],
       department: "People and Culture",
     });
+    await expect(
+      asUser(t, "pnc@sow.org.au").query(api.admin.listStaffProfiles, { year: YEAR })
+    ).rejects.toThrow(/Only admins/);
+    await t.mutation(internal.admins.add, { email: "pnc@sow.org.au", addedBy: ADMIN });
     await asUser(t, "pnc@sow.org.au").mutation(api.admin.setStaffProfile, {
       email: "someone@sow.org.au",
       year: YEAR,
@@ -1884,7 +1888,7 @@ describe("deadlock prevention and validation fixes", () => {
     ).rejects.toThrow(/reason/);
   });
 
-  test("the Director and the HR division head are admins; other division heads aren't", async () => {
+  test("the Director is an admin; division heads, HR's included, aren't", async () => {
     const t = await setup();
     await asUser(t, DAN).mutation(api.admin.setStaffProfile, {
       email: "new@sow.org.au", year: YEAR, roles: ["Staff"], department: "Marketing",
@@ -1892,9 +1896,11 @@ describe("deadlock prevention and validation fixes", () => {
     await asUser(t, ADMIN).mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Human Resources", headEmail: "hrhead@sow.org.au",
     });
-    await asUser(t, "hrhead@sow.org.au").mutation(api.admin.setStaffProfile, {
-      email: "new2@sow.org.au", year: YEAR, roles: ["Staff"], department: "Marketing",
-    });
+    await expect(
+      asUser(t, "hrhead@sow.org.au").mutation(api.admin.setStaffProfile, {
+        email: "new2@sow.org.au", year: YEAR, roles: ["Staff"], department: "Marketing",
+      })
+    ).rejects.toThrow(/Only admins/);
     await asUser(t, ADMIN).mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Engagement", headEmail: "enghead@sow.org.au",
     });

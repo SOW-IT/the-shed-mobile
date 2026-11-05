@@ -95,7 +95,7 @@ export default function InsightsScreen() {
   }
 
   // Insights is only for people who are signed in.
-  if (me === null) return <Redirect href="/home" />;
+  if (me === null || !me.profile) return <Redirect href="/home" />;
   const isStaff = !!me.profile;
 
   const generalTab: PagerTab = {

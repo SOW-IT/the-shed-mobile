@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { ADMIN_DEPARTMENTS, ADMIN_DIVISIONS, type RoleTitles } from "../shared/flow";
+import { ADMIN_DEPARTMENTS, type RoleTitles } from "../shared/flow";
 import {
   ALL_VIEWS,
   personaDepartment,
@@ -49,23 +49,17 @@ export async function lensFor(
   return persona ? { kind: "as", persona } : ALL_VIEWS;
 }
 
-export async function personaIsAdmin(
-  ctx: Ctx,
-  year: number,
-  persona: Persona
-): Promise<boolean> {
+export function personaIsAdmin(persona: Persona): boolean {
   const department = personaDepartment(persona);
   if (department === null) return persona.role === "director";
-  if (ADMIN_DEPARTMENTS.includes(department)) return true;
-  const row = await getDepartment(ctx, year, department);
-  return row !== null && ADMIN_DIVISIONS.includes(row.division);
+  return ADMIN_DEPARTMENTS.includes(department);
 }
 
 export async function viewsAsAdmin(ctx: Ctx, caller: CallerContext | null): Promise<boolean> {
   if (!caller) return false;
   const isAdmin = await isAdminProfile(ctx, caller.profile);
   const lens = await lensFor(ctx, caller, isAdmin);
-  return lens.kind === "as" ? await personaIsAdmin(ctx, caller.year, lens.persona) : isAdmin;
+  return lens.kind === "as" ? personaIsAdmin(lens.persona) : isAdmin;
 }
 
 export const actingAsView =(lens: Lens, titles?: RoleTitles) =>

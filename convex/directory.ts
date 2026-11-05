@@ -108,7 +108,7 @@ export const me = query({
         departments: departmentsOf(profile),
         divisions: divisionsOf(profile),
       },
-      isAdmin: persona ? await personaIsAdmin(ctx, year, persona) : isAdmin,
+      isAdmin: persona ? personaIsAdmin(persona) : isAdmin,
       isFinance: await seesThrough(
         lens,
         () => isMemberOfDepartment(profile, FINANCE),

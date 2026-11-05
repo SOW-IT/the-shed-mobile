@@ -34,6 +34,7 @@ async function setup() {
   ]) {
     await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...profile });
   }
+  await t.mutation(internal.admins.add, { email: HANA, addedBy: ADMIN });
   await t.run(async (ctx) => {
     for (const [email, name] of [
       [CARA, "Cara Chen"],
@@ -67,7 +68,7 @@ describe("access", () => {
     expect(await t.query(api.mentoring.myMentees, {})).toBeNull();
   });
 
-  test("only admins see pairings; the HR division counts as admin", async () => {
+  test("only admins see pairings; a chosen admin counts", async () => {
     const { t } = await setup();
     await expect(asUser(t, SAM).query(api.mentoring.pairings, { year: YEAR })).rejects.toThrow(
       "Only admins"
@@ -81,6 +82,13 @@ describe("access", () => {
     ).rejects.toThrow("Only admins");
     const hr = await asUser(t, HANA).query(api.mentoring.pairings, { year: YEAR });
     expect(hr).toEqual({ year: YEAR, editable: true, pairs: [] });
+  });
+
+  test("a chosen admin outside People and Culture can see pairings", async () => {
+    const { t } = await setup();
+    await t.mutation(internal.admins.add, { email: SID, addedBy: ADMIN });
+    const sid = await asUser(t, SID).query(api.mentoring.pairings, { year: YEAR });
+    expect(sid).toEqual({ year: YEAR, editable: true, pairs: [] });
   });
 });
 

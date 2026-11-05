@@ -164,15 +164,8 @@ describe("sidebarItems", () => {
     expect(sidebarItems(signedOut)).toEqual(["home", "org", "churches", "grievances"]);
   });
 
-  test("guests add Profile and, last, Insights", () => {
-    expect(sidebarItems(guest)).toEqual([
-      "home",
-      "org",
-      "churches",
-      "grievances",
-      "profile",
-      "insights",
-    ]);
+  test("guests add Profile, but no Insights", () => {
+    expect(sidebarItems(guest)).toEqual(["home", "org", "churches", "grievances", "profile"]);
   });
 
   test("staff see everything but Admin, with Insights last", () => {
