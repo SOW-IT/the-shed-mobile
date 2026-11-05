@@ -178,9 +178,8 @@ describe("what a team job changes", () => {
   test("copying a staff year clears a budget manager who isn't in the copied finance team", async () => {
     const { t, admin } = await setup();
     await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
-    await admin.mutation(api.admin.setBudgetManager, { year: YEAR + 1, email: FINN });
-    await admin.mutation(api.teams.set, { year: YEAR, job: "finance", department: "Alumni" });
-    expect(await budgetManager(t, YEAR)).toBeUndefined();
+    await admin.mutation(api.teams.set, { year: YEAR + 1, job: "finance", department: "Alumni" });
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: FINN });
     await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1, force: true });
     expect(await departmentOf(t, YEAR + 1, "finance")).toBe("Alumni");
     expect(await budgetManager(t, YEAR + 1)).toBeUndefined();

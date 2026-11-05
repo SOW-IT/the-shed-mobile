@@ -1599,7 +1599,7 @@ export default function AdminScreen() {
       {key === "teams" && (
         <CardGrid>
           <AdminsCard />
-          <TeamJobsCard year={selectedYear} />
+          <TeamJobsCard key={selectedYear} year={selectedYear} />
         </CardGrid>
       )}
 
