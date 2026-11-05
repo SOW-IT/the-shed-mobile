@@ -47,7 +47,14 @@ What we weighed (2026-11-04):
   gets it read-only either way, since event actions are for staff.
 - **Grievances.** They are confidential to the grievance team, and the
   glossary already says admins outside it can't see them. All views and
-  every persona leave them out.
+  every persona leave them out. An admin who really is on the team sees the
+  team's view only on All views or while acting as a role in a grievance
+  department.
+- **What a screen shows follows the role.** Any check that decides what to
+  show (Finance settings, the Home editor, editing other people's calendar
+  entries, the Review tab's history, the grievance team's view and badge)
+  answers for the persona, not the admin's real rights. The persona has no
+  history of its own, so Reviewed is empty. Actions keep their real checks.
 - **Admin tools.** `directory.me` reports the persona's flags, so while
   acting as Marketing staff the menu has no Admin or Announcements, like a
   Marketing staff member's. Mentoring stays for an admin who mentors someone
