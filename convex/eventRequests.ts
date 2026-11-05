@@ -1,3 +1,4 @@
+import { teamsFor } from "./teamJobs";
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
@@ -38,7 +39,7 @@ import { EVENT_FIELDS } from "./eventRequestForm";
 import {
   accessTo,
   actsAs,
-  approverTitle,
+  approverTitleFor,
   canCommentOn,
   emailInbox,
   eventSummary,
@@ -93,25 +94,35 @@ const dedupe = (events: EventRequest[]) => [...new Map(events.map((e) => [e._id,
 const reviewsAny = (scope: ViewerScope) =>
   SUB_FORM_KINDS.some((k) => scope.teams[k]) || scope.director;
 
-const reviewsEvents = (ctx: Ctx, caller: CallerContext, lens: Lens) =>
-  seesThrough(lens, async () => reviewsAny(await viewerScope(ctx, caller)), personaReviewsEvents);
+const reviewsEvents = async (ctx: Ctx, caller: CallerContext, lens: Lens) => {
+  const teams = await teamsFor(ctx, caller.year);
+  return seesThrough(
+    lens,
+    async () => reviewsAny(await viewerScope(ctx, caller)),
+    (persona) => personaReviewsEvents(persona, teams)
+  );
+};
 
 const seesAllEvents = async (ctx: Ctx, caller: CallerContext, lens: Lens) => {
   if (lens.kind === "all") return true;
   if (lens.kind === "self") return seesAll(await viewerScope(ctx, caller));
-  return (
-    personaSeesAllEvents(lens.persona) || personaIsAdmin(lens.persona)
-  );
+  const teams = await teamsFor(ctx, caller.year);
+  return personaSeesAllEvents(lens.persona, teams) || personaIsAdmin(lens.persona, teams);
 };
 
-export const sideDepartments = (caller: CallerContext, lens: Lens): string[] => {
+export const sideDepartments = async (
+  ctx: Ctx,
+  caller: CallerContext,
+  lens: Lens
+): Promise<string[]> => {
   if (lens.kind !== "as") return departmentsOf(caller.profile);
-  const department = personaDepartment(lens.persona);
+  const department = personaDepartment(lens.persona, await teamsFor(ctx, caller.year));
   return department === null ? [] : [department];
 };
 
 export async function reviewForms(ctx: Ctx, caller: CallerContext, lens: Lens) {
   if (!(await reviewsEvents(ctx, caller, lens))) return [];
+  const teams = await teamsFor(ctx, caller.year);
   const scopes = new Map<number, Promise<ViewerScope>>();
   const scopeFor = (event: EventRequest) => {
     let found = scopes.get(event.year);
@@ -136,7 +147,7 @@ export async function reviewForms(ctx: Ctx, caller: CallerContext, lens: Lens) {
         (await waitsThrough(
           lens,
           async () => actsAs(ctx, caller, await stepApprover(ctx, event, kind, form.step)),
-          (persona) => personaApprovesForm(persona, kind, form.step)
+          (persona) => personaApprovesForm(persona, kind, form.step, teams)
         ));
       const relevant =
         mine ||
@@ -148,7 +159,7 @@ export async function reviewForms(ctx: Ctx, caller: CallerContext, lens: Lens) {
               ? here.director || here.teams.finance
               : here.teams[kind];
           },
-          (persona) => personaSeesForm(persona, kind, form.step)
+          (persona) => personaSeesForm(persona, kind, form.step, teams)
         ));
       if (relevant) forms.push({ form, event, mine });
     }
@@ -213,7 +224,7 @@ export const mine = query({
   handler: async (ctx) => {
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
-    const departments = sideDepartments(caller, await lensFor(ctx, caller));
+    const departments = await sideDepartments(ctx, caller, await lensFor(ctx, caller));
     const events = [
       ...(await ownEventsInYear(ctx, caller, departments, caller.year)),
       ...(await requesterSideOpenEvents(ctx, caller, departments)),
@@ -227,7 +238,7 @@ export const earlierMine = query({
   handler: async (ctx, { paginationOpts }) => {
     const caller = await optionalEventStaff(ctx);
     if (!caller) return null;
-    const departments = sideDepartments(caller, await lensFor(ctx, caller));
+    const departments = await sideDepartments(ctx, caller, await lensFor(ctx, caller));
     let year = paginationOpts.cursor ? Number(paginationOpts.cursor) : caller.year - 1;
     let events: EventRequest[] = [];
     while (year >= EARLIEST_EVENT_REQUEST_YEAR && events.length === 0) {
@@ -360,7 +371,7 @@ export const get = query({
         submittedByName: await nameOf(form.submittedBy),
         decidedByName: await nameOf(form.decidedBy),
         directorApprovedByName: await nameOf(form.directorApprovedBy),
-        approverTitle: approverTitle(kind, form.step),
+        approverTitle: await approverTitleFor(ctx, approver, kind, form.step),
         approverName: await nameOf(approver?.email),
         can: {
           fill:

@@ -293,17 +293,21 @@ describe("suggested member pairs", () => {
     expect(listed![0].a.role).toBeUndefined();
   });
 
-  test("only admins see or dismiss pairs, and a pair needs two living members", async () => {
+  test("staff and campus leaders see or dismiss pairs, and a pair needs two living members", async () => {
     const s = await setup();
     const a = await s.onCampus("Hana Doe");
     const b = await s.onCampus("Hana Doe");
     expect(await s.t.query(api.memberPairSuggestions.list, {})).toBeNull();
-    await expect(s.leader.query(api.memberPairSuggestions.list, {})).rejects.toThrow(
-      /Only admins/
-    );
+    const stranger = asUser(s.t, "nobody@sow.org.au");
+    await expect(stranger.query(api.memberPairSuggestions.list, {})).rejects.toThrow(/No role/);
     await expect(
-      s.leader.mutation(api.memberPairSuggestions.dismiss, { memberA: a, memberB: b })
-    ).rejects.toThrow(/Only admins/);
+      stranger.mutation(api.memberPairSuggestions.dismiss, { memberA: a, memberB: b })
+    ).rejects.toThrow(/No role/);
+    expect(Array.isArray(await s.leader.query(api.memberPairSuggestions.list, {}))).toBe(true);
+    await s.leader.mutation(api.memberPairSuggestions.dismiss, { memberA: a, memberB: b });
+    expect(await s.rows()).toEqual([
+      expect.objectContaining({ status: "dismissed", dismissedBy: LEADER }),
+    ]);
     await expect(
       s.admin.mutation(api.memberPairSuggestions.dismiss, { memberA: a, memberB: a })
     ).rejects.toThrow(/two different people/);

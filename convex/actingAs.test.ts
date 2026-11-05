@@ -696,7 +696,7 @@ describe("acting as Marketing staff", () => {
     ).rejects.toThrow(/Only the Marketing team/);
     await expect(
       admin.mutation(api.designRequestComments.add, { id: design.pending, body: "Hi" })
-    ).rejects.toThrow(/Only the requester and the Marketing team/);
+    ).rejects.toThrow(/Only the requester and the design team/);
     await expect(
       admin.mutation(api.eventSubForms.saveMarketing, {
         id: events.marketingTeam,

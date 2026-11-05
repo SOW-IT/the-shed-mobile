@@ -76,7 +76,7 @@ export const navViewer = (signedIn: boolean, me: MeForNav): NavViewer => {
     signedIn,
     isStaff,
     isCampusLeader: isStaff && !!me?.isCampusLeader,
-    canAdmin: signedIn && !!(me?.isAdmin || me?.isFinanceHead),
+    canAdmin: signedIn && !!me?.isAdmin,
     canAnnounce: isStaff && !!me?.isAdmin,
     canMentoring: isStaff && !!(me?.isAdmin || me?.isMentor),
   };

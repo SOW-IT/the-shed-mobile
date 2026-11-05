@@ -19,6 +19,7 @@ import { MetadataTab, type SaveControls } from "@/components/attendance/Metadata
 import { SettingsTab } from "@/components/attendance/SettingsTab";
 import { ConfirmDialog, FooterAction, FooterIconActions, LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { useMergeSuggestions } from "@/components/attendance/MergesTab";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 
 export default function AttendanceScreen() {
@@ -30,6 +31,7 @@ export default function AttendanceScreen() {
   const metadata = useQuery(api.attendanceMetadata.list, {});
   const tags = useQuery(api.attendanceTags.list, {});
   const [active, setActive] = useState("events");
+  const merges = useMergeSuggestions(!!me?.profile && active === "members");
   const [subgroup, setSelectedSubgroup] = useAttendanceSubgroup(
     subgroups,
     me?.profile?.assignments
@@ -213,6 +215,7 @@ export default function AttendanceScreen() {
       render: (scrollProps) => (
         <MembersTab
           year={year}
+          mergeCount={merges.count}
           onEditMember={openEditMember}
           scrollProps={scrollProps}
           loadMoreRef={membersLoadMoreRef}
@@ -256,7 +259,7 @@ export default function AttendanceScreen() {
     <>
       <PagerScreen
         tabs={tabs}
-        activeKey={active}
+        activeKey={tabs.some((t) => t.key === active) ? active : "events"}
         onActiveKeyChange={setActive}
         footers={tabFooters}
         onEndReached={(key) => {

@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useMutation, useQuery } from "convex/react";
 import { MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
@@ -36,16 +37,19 @@ const PAGE_SIZE = 60;
 
 export function MembersTab({
   year,
+  mergeCount = 0,
   onEditMember,
   scrollProps,
   loadMoreRef,
 }: {
   year: number;
+  mergeCount?: number;
   onEditMember: (memberId: Id<"attendanceMembers">) => void;
   scrollProps?: TopBarScrollProps;
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) {
   const t = useAppTheme();
+  const router = useRouter();
   const footerClearancePadding = usePagerFooterClearance();
   const ensureDefaults = useMutation(api.attendanceMetadata.ensureDefaults);
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
@@ -190,6 +194,16 @@ export function MembersTab({
         <ErrorBanner message={openError} />
       </View>
 
+      {mergeCount > 0 ? (
+        <View style={styles.mergesRow}>
+          <Btn
+            title={`${mergeCount} may be the same person · Review`}
+            variant="tonal"
+            icon="git-merge-outline"
+            onPress={() => router.push("/attendance/merges" as never)}
+          />
+        </View>
+      ) : null}
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>
         <Text style={[typography.label, { color: t.muted }]}>Members</Text>
         <View style={[styles.totalPill, { backgroundColor: t.ghost }]}>
@@ -239,6 +253,7 @@ export function MembersTab({
 }
 
 const styles = StyleSheet.create({
+  mergesRow: { alignItems: "flex-start", paddingTop: spacing.sm },
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
   sortRow: {
     flexDirection: "row",

@@ -1,7 +1,8 @@
 import { ConvexError, v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { mutation, query, QueryCtx } from "./_generated/server";
-import { SUB_FORM_KINDS, SUB_FORM_TEAMS, type SubFormKind } from "../shared/eventRequests";
+import { SUB_FORM_KINDS, SUB_FORM_LABELS, type SubFormKind } from "../shared/eventRequests";
+import { SUB_FORM_JOBS } from "../shared/teams";
 import { subFormKindValidator } from "./eventRequestData";
 import {
   accessResolver,
@@ -58,7 +59,7 @@ export const add = mutation({
     const event = await requireEvent(ctx, args.id);
     if (!canCommentOn(await accessTo(ctx, caller, event), args.form)) {
       throw new ConvexError(
-        `Only the requester's department and the ${SUB_FORM_TEAMS[args.form]} team can comment on this form.`
+        `Only the requester's department and the team that reviews ${SUB_FORM_LABELS[args.form]} forms can comment on this form.`
       );
     }
     const commentId = await ctx.db.insert("eventRequestComments", {
@@ -85,7 +86,7 @@ export const add = mutation({
       (e) => e !== caller.email
     );
     await tell(ctx, event, emailed, note);
-    const team = await teamOf(ctx, SUB_FORM_TEAMS[args.form]);
+    const team = await teamOf(ctx, SUB_FORM_JOBS[args.form]);
     const director =
       args.form === "finance" && form.directorApprovedBy
         ? await recipientsFor(ctx, await directorOf(ctx, event))

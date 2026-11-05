@@ -1,6 +1,4 @@
-export const FINANCE = "Finance";
 
-export const ADMIN_DEPARTMENTS = ["Data and IT"];
 
 export const ROLES = [
   "Staff",

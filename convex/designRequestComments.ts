@@ -39,7 +39,7 @@ export const add = mutation({
     if (!request) throw new ConvexError("Design request not found.");
     if (!(await accessTo(ctx, caller, request)).canComment) {
       throw new ConvexError(
-        "Only the requester and the Marketing team can comment on a design request."
+        "Only the requester and the design team can comment on a design request."
       );
     }
     const commentId = await ctx.db.insert("designRequestComments", {

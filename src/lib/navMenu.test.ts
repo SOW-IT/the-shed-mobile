@@ -59,9 +59,9 @@ describe("navViewer", () => {
     expect(navViewer(true, null).isStaff).toBe(false);
   });
 
-  test("admins and the Finance Head can open Admin", () => {
+  test("only admins can open Admin; the Finance Head's settings live in Reimbursements", () => {
     expect(admin.canAdmin).toBe(true);
-    expect(financeHead.canAdmin).toBe(true);
+    expect(financeHead.canAdmin).toBe(false);
     expect(staff.canAdmin).toBe(false);
   });
 
@@ -118,8 +118,8 @@ describe("drawerItems", () => {
     ]);
   });
 
-  test("admins and the Finance Head also get Admin, last; admins get Announcements before it, under Insights", () => {
-    const withAdmin = ["profile", "churches", "reimbursements", "eventRequests", "designRequests", "insights", "admin"];
+  test("admins also get Admin, last, with Announcements before it under Insights; the Finance Head doesn't", () => {
+    const staffItems = ["profile", "churches", "reimbursements", "eventRequests", "designRequests", "insights"];
     expect(drawerItems(admin)).toEqual([
       "profile",
       "churches",
@@ -131,7 +131,7 @@ describe("drawerItems", () => {
       "announcements",
       "admin",
     ]);
-    expect(drawerItems(financeHead)).toEqual(withAdmin);
+    expect(drawerItems(financeHead)).toEqual(staffItems);
   });
 
   test("mentors get Mentoring above Insights, without Announcements or Admin", () => {

@@ -23,7 +23,7 @@ _Avoid_: number, ticket number
 Everyone in the current staff year's grievance departments, Heads included.
 From 1 October to 31 December last year's members can still see and handle
 grievances (the rollover grace), but new ones go to this year's team, and
-they're asked to hand over what they're looking after. Admins choose the departments (People and Culture and Compliance to start);
+they're asked to hand over what they're looking after. The team itself chooses the departments in Grievances → Settings (People and Culture and Compliance to start);
 the team alone sees every grievance, takes them on, gives them to each other,
 closes them and edits the form's options. Admins outside those departments
 can't see grievances.

@@ -21,7 +21,7 @@ import {
 } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
 import { staffYearsOf } from "./attendanceMembers";
-import { currentStaffYear, optionalEmail, requireAdmin } from "./model";
+import { currentStaffYear, optionalEmail, requireProfile } from "./model";
 
 const MEMBER_PAGE = 500;
 const PAIRS_PER_WRITE = 10;
@@ -215,7 +215,7 @@ export const list = query({
   args: {},
   handler: async (ctx): Promise<MemberPairSuggestion[] | null> => {
     if ((await optionalEmail(ctx)) === null) return null;
-    await requireAdmin(ctx);
+    await requireProfile(ctx);
     const fields = await metadataFields(ctx);
     const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
     const rows = await ctx.db
@@ -247,7 +247,7 @@ export const list = query({
 export const dismiss = mutation({
   args: { memberA: v.id("attendanceMembers"), memberB: v.id("attendanceMembers") },
   handler: async (ctx, args) => {
-    const { email: actorEmail } = await requireAdmin(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     const [memberA, memberB] = orderPair(args.memberA, args.memberB);
     if (memberA === memberB) throw new ConvexError("Pick two different people.");
     const [a, b] = await Promise.all([ctx.db.get(memberA), ctx.db.get(memberB)]);

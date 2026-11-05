@@ -967,7 +967,7 @@ describe("comments", () => {
     await expect(add(EVA, " ")).rejects.toThrow(/Write a comment/);
     await expect(add(EVA, "x".repeat(2001))).rejects.toThrow(/too long/);
     await expect(add(MARY, "Hi")).rejects.toThrow(
-      "Only the requester's department and the Finance team can comment on this form."
+      "Only the requester's department and the team that reviews Finance forms can comment on this form."
     );
     await add(EVA, "Is the venue quote OK?");
     expect(await emailsTo(t, DAN)).toContain("New comment on the Finance form for [TEST] SAF27");

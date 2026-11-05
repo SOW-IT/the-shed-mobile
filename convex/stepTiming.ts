@@ -1,8 +1,9 @@
 import { v } from "convex/values";
 import { SUB_FORM_KINDS, SUB_FORM_LABELS, type SubFormKind } from "../shared/eventRequests";
-import { FINANCE, STEP_LABELS, type ApprovalStep } from "../shared/flow";
+import { isMemberOfDepartment, STEP_LABELS, type ApprovalStep } from "../shared/flow";
 import { query, type QueryCtx } from "./_generated/server";
-import { displayName, getApprovers, isAdminProfile, requireProfile } from "./model";
+import { displayName, financeApprovers, isAdminProfile, requireProfile } from "./model";
+import { teamsFor } from "./teamJobs";
 import { yearRequests } from "./requests";
 
 const EVENTS_LIMIT = 200;
@@ -186,9 +187,11 @@ export const summary = query({
   returns: v.union(v.array(sectionValidator), v.null()),
   handler: async (ctx, { year }) => {
     const caller = await requireProfile(ctx);
-    const finance = await getApprovers(ctx, year, FINANCE);
+    const finance = await financeApprovers(ctx, year);
     const allowed =
-      (await isAdminProfile(ctx, caller.profile)) || finance.financeHeadEmail === caller.email;
+      (await isAdminProfile(ctx, caller.profile)) ||
+      finance.financeHeadEmail === caller.email ||
+      isMemberOfDepartment(caller.profile, (await teamsFor(ctx, caller.year)).finance);
     if (!allowed) return null;
 
     const samples = new Samples();

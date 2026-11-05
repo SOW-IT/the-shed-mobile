@@ -59,6 +59,7 @@ export default function EditHomeScreen() {
   const router = useRouter();
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const view = useQuery(api.homeContent.view);
+  const me = useQuery(api.directory.me);
   const back = () => (router.canGoBack() ? router.back() : router.replace("/home"));
 
   if (view === undefined) return <LoadingState />;
@@ -69,7 +70,7 @@ export default function EditHomeScreen() {
         <EmptyState
           icon="lock-closed-outline"
           title="You can't edit Home"
-          message="Only admins, Marketing staff and the head of Engagement can edit the Home tab."
+          message={`Only admins, ${me?.teams?.design ?? "Marketing"} staff and the head of Engagement can edit the Home tab.`}
         />
       </Screen>
     );

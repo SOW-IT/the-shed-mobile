@@ -139,6 +139,7 @@ const EarlierRequests = ({
 export default function DesignRequestsScreen() {
   const router = useRouter();
   const me = useQuery(api.directory.me);
+  const designTeam = (me?.profile ? me.teams?.design : undefined) ?? "Marketing";
   const staff = !!me?.profile;
   const viewer = useQuery(api.designRequests.viewer, staff ? {} : "skip");
   const team = !!viewer?.canSeeQueue;
@@ -242,7 +243,7 @@ export default function DesignRequestsScreen() {
           empty={{
             title: earlierMine.groups.length > 0 ? "Nothing this year yet" : "No design requests",
             message:
-              "Ask the Marketing team to design something for a project. For an event, make an Event Request instead.",
+              `Ask the ${designTeam} team to design something for a project. For an event, make an Event Request instead.`,
           }}
         />
       ),
@@ -251,7 +252,7 @@ export default function DesignRequestsScreen() {
       ? [
           {
             key: "queue",
-            label: "Marketing",
+            label: designTeam,
             badge: badge(waitingOnMe),
             messageBadge: badge(unreadIn(queue)),
             render: () => (
@@ -303,7 +304,7 @@ export default function DesignRequestsScreen() {
           disabled={noHead}
           note={
             noHead
-              ? `There's no Marketing Head for ${me.year} yet, so design requests can't be submitted. Ask an admin to set one.`
+              ? `There's no ${designTeam} Head for ${me.year} yet, so design requests can't be submitted. Ask an admin to set one.`
               : null
           }
           onPress={() => router.push("/design-requests/new")}
