@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
+import type { Persona } from "../shared/actingAs";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
@@ -78,4 +79,24 @@ describe("finance settings access", () => {
     expect(await sam.query(api.admin.financeMembers, { year: YEAR })).toBeNull();
     expect(await sam.query(api.stepTiming.summary, { year: YEAR })).toBeNull();
   });
+
+  test("an admin acting as a role sees them only if that role would", async () => {
+    const { t, admin } = await setup();
+    const actAs = (persona: Persona | null) => admin.mutation(api.actingAs.set, { persona });
+    await actAs({ role: "staff", department: "Marketing" });
+    expect(await role(t, ADMIN)).toEqual({ canView: false, canEdit: false });
+    await actAs({ role: "head", department: "Compliance" });
+    expect(await role(t, ADMIN)).toEqual({ canView: false, canEdit: false });
+    await actAs({ role: "staff", department: "Finance" });
+    expect(await role(t, ADMIN)).toEqual({ canView: true, canEdit: true });
+    await actAs({ role: "budgetManager" });
+    expect(await role(t, ADMIN)).toEqual({ canView: true, canEdit: true });
+    await actAs({ role: "director" });
+    expect(await role(t, ADMIN)).toEqual({ canView: true, canEdit: true });
+    await actAs(null);
+    expect(await role(t, ADMIN)).toEqual({ canView: true, canEdit: true });
+    await admin.mutation(api.actingAs.set, { persona: { role: "staff", department: "Finance" } });
+    expect(await role(t, BELLA)).toEqual({ canView: true, canEdit: false });
+  });
 });
+
