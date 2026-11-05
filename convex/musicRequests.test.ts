@@ -70,6 +70,26 @@ const song = (
   ...overrides,
 });
 
+async function assignPraiseManager(
+  t: TestConvex<typeof schema>,
+  email = ADMIN,
+) {
+  await t.run(async (ctx) => {
+    const settings = await ctx.db
+      .query("yearSettings")
+      .withIndex("by_year", (q) => q.eq("year", YEAR))
+      .first();
+    if (settings) {
+      await ctx.db.patch(settings._id, { praiseManagerEmails: [email] });
+    } else {
+      await ctx.db.insert("yearSettings", {
+        year: YEAR,
+        praiseManagerEmails: [email],
+      });
+    }
+  });
+}
+
 describe("music request indexed duplicates", () => {
   test("prevents ordinary staff from approving requests", async () => {
     const t = await setup();
@@ -282,6 +302,25 @@ describe("music request indexed duplicates", () => {
     expect(result.possibleDuplicates).toBe(0);
   });
 
+  test("allows unrelated songs within a batch preview", async () => {
+    const t = await setup();
+    const user = asUser(t, STAFF);
+
+    const result = await user.mutation(api.musicRequests.previewBatch, {
+      songs: [
+        song(),
+        song({
+          title: "Completely Different Song",
+          artist: "Another Artist",
+          link: "https://www.youtube.com/watch?v=different123",
+        }),
+      ],
+    });
+
+    expect(result.exactDuplicates).toBe(0);
+    expect(result.possibleDuplicates).toBe(0);
+  });
+
   test("skips the second identical song in batch submission", async () => {
     const t = await setup();
     const user = asUser(t, STAFF);
@@ -484,5 +523,291 @@ describe("music request indexed duplicates", () => {
     // An invalid decline attempt must leave the request pending.
     const request = await t.run(async (ctx) => ctx.db.get(requestId));
     expect(request?.status).toBe("PENDING");
+  });
+
+  test("allows a Praise Manager to approve a pending request", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const staff = asUser(t, STAFF);
+    const manager = asUser(t, ADMIN);
+    const requestId = await staff.mutation(api.musicRequests.submit, {
+      ...song({
+        title: "Approval Success",
+        link: "https://example.com/approval-success",
+      }),
+    });
+
+    await manager.mutation(api.musicRequests.approve, { requestId });
+
+    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+    expect(request?.status).toBe("APPROVED");
+    expect(request?.reviewedByEmail).toBe(ADMIN);
+    expect(request?.reviewedTime).toBeDefined();
+  });
+
+  test("allows a Praise Manager to decline a pending request with a reason", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const staff = asUser(t, STAFF);
+    const manager = asUser(t, ADMIN);
+    const requestId = await staff.mutation(api.musicRequests.submit, {
+      ...song({
+        title: "Decline Success",
+        link: "https://example.com/decline-success",
+      }),
+    });
+
+    await manager.mutation(api.musicRequests.decline, {
+      requestId,
+      reason: "Not suitable for this playlist",
+    });
+
+    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+    expect(request?.status).toBe("DECLINED");
+    expect(request?.declineComment).toBe("Not suitable for this playlist");
+    expect(request?.reviewedByEmail).toBe(ADMIN);
+  });
+
+  test("allows a Praise Manager to edit an approved request", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const manager = asUser(t, ADMIN);
+    const requestId = await manager.mutation(api.musicRequests.submit, {
+      ...song({
+        title: "Original Approved",
+        link: "https://example.com/original-approved",
+      }),
+    });
+
+    await manager.mutation(api.musicRequests.update, {
+      requestId,
+      ...song({
+        title: "Edited Approved",
+        link: "https://example.com/edited-approved",
+      }),
+    });
+
+    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+    expect(request?.title).toBe("Edited Approved");
+    expect(request?.status).toBe("APPROVED");
+  });
+
+  test("allows an owner to delete their pending request", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const requestId = await staff.mutation(api.musicRequests.submit, {
+      ...song({
+        title: "Delete Pending",
+        link: "https://example.com/delete-pending",
+      }),
+    });
+
+    await staff.mutation(api.musicRequests.remove, { requestId });
+
+    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+    expect(request).toBeNull();
+  });
+
+  test("prevents ordinary staff from deleting approved requests", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const staff = asUser(t, STAFF);
+    const manager = asUser(t, ADMIN);
+    const requestId = await staff.mutation(api.musicRequests.submit, {
+      ...song({
+        title: "Protected Approved",
+        link: "https://example.com/protected-approved",
+      }),
+    });
+    await manager.mutation(api.musicRequests.approve, { requestId });
+
+    await expect(
+      staff.mutation(api.musicRequests.remove, { requestId }),
+    ).rejects.toThrow("You can only delete your own pending requests.");
+  });
+
+  test("allows Praise Managers to view pending and declined queues", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const staff = asUser(t, STAFF);
+    const manager = asUser(t, ADMIN);
+    const pendingId = await staff.mutation(api.musicRequests.submit, {
+      ...song({
+        title: "Pending Queue Song",
+        link: "https://example.com/pending-queue",
+      }),
+    });
+    const declinedId = await staff.mutation(api.musicRequests.submit, {
+      ...song({
+        title: "Declined Queue Song",
+        link: "https://example.com/declined-queue",
+      }),
+    });
+    await manager.mutation(api.musicRequests.decline, {
+      requestId: declinedId,
+    });
+
+    const pending = await manager.query(api.musicRequests.toReview, {});
+    const declined = await manager.query(api.musicRequests.declined, {});
+    expect(pending.some((request) => request._id === pendingId)).toBe(true);
+    expect(declined.some((request) => request._id === declinedId)).toBe(true);
+  });
+
+  test("allows staff to view approved music requests", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const manager = asUser(t, ADMIN);
+    const staff = asUser(t, STAFF);
+    const requestId = await manager.mutation(api.musicRequests.submit, {
+      ...song({
+        title: "Visible Approved",
+        link: "https://example.com/visible-approved",
+      }),
+    });
+
+    const approved = await staff.query(api.musicRequests.approved, {});
+    expect(approved.some((request) => request._id === requestId)).toBe(true);
+  });
+});
+
+describe("Praise Manager administration", () => {
+  test("admin can add and remove a Praise Manager", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    // Assign a Praise Manager using the actual mutation.
+    await admin.mutation(api.admin.addPraiseManager, {
+      year: YEAR,
+      email: STAFF,
+    });
+
+    // Verify the email was saved.
+    let settings = await t.run(async (ctx) =>
+      ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first(),
+    );
+
+    expect(settings?.praiseManagerEmails).toContain(STAFF);
+
+    // Remove the Praise Manager.
+    await admin.mutation(api.admin.removePraiseManager, {
+      year: YEAR,
+      email: STAFF,
+    });
+
+    // Verify the email was removed.
+    settings = await t.run(async (ctx) =>
+      ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first(),
+    );
+
+    expect(settings?.praiseManagerEmails ?? []).not.toContain(STAFF);
+  });
+
+  test("ordinary staff cannot assign or remove Praise Managers", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    await expect(
+      staff.mutation(api.admin.addPraiseManager, {
+        year: YEAR,
+        email: STAFF,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      staff.mutation(api.admin.removePraiseManager, {
+        year: YEAR,
+        email: STAFF,
+      }),
+    ).rejects.toThrow();
+  });
+});
+describe("Praise Manager directory recognition", () => {
+  test("recognizes Praise Managers regardless of email capitalization", async () => {
+    const t = await setup();
+
+    await t.run(async (ctx) => {
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+
+      if (settings) {
+        await ctx.db.patch(settings._id, {
+          praiseManagerEmails: ["MUSIC.STAFF@SOW.ORG.AU"],
+        });
+      } else {
+        await ctx.db.insert("yearSettings", {
+          year: YEAR,
+          praiseManagerEmails: ["MUSIC.STAFF@SOW.ORG.AU"],
+        });
+      }
+    });
+
+    const staff = asUser(t, STAFF);
+    const result = await staff.query(api.directory.me, {});
+    expect(result?.isPraiseManager).toBe(true);
+  });
+});
+test("handles malformed URLs during duplicate checking", async () => {
+  const t = await setup();
+  const user = asUser(t, STAFF);
+
+  await user.mutation(api.musicRequests.submit, song());
+
+  const duplicate = await user.query(
+    api.musicRequests.checkDuplicate,
+    song({
+      title: "Another Song",
+      artist: "Another Artist",
+      link: "not-a-valid-url",
+    }),
+  );
+
+  expect(duplicate).toBeNull();
+});
+describe("Praise Manager staff profile cleanup", () => {
+  test("removing a staff profile also removes Praise Manager access", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    // Assign the staff member as a Praise Manager.
+    await admin.mutation(api.admin.addPraiseManager, {
+      year: YEAR,
+      email: STAFF,
+    });
+
+    // Remove their staff profile.
+    await admin.mutation(api.admin.removeStaffProfile, {
+      year: YEAR,
+      email: STAFF,
+    });
+
+    // Check that their Praise Manager assignment was removed.
+    const settings = await t.run(async (ctx) =>
+      ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first(),
+    );
+
+    expect(settings?.praiseManagerEmails ?? []).not.toContain(STAFF);
+
+    // Check that their staff profile no longer exists.
+    const profile = await t.run(async (ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", STAFF).eq("year", YEAR),
+        )
+        .first(),
+    );
+
+    expect(profile).toBeNull();
   });
 });

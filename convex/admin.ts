@@ -446,15 +446,6 @@ const clearBudgetManagerIfNotFinance = async (
   }
 };
 
-const clearBudgetManager = async (ctx: MutationCtx, year: number) => {
-  const settings = await getYearSettings(ctx, year);
-  if (settings?.budgetManagerEmail) {
-    await ctx.db.patch("yearSettings", settings._id, {
-      budgetManagerEmail: undefined,
-    });
-  }
-};
-
 const directoryNamesByEmail = async (
   ctx: QueryCtx,
 ): Promise<Map<string, string | null>> => {
@@ -1490,9 +1481,6 @@ export const removeDepartment = mutation({
       (a) => a.department === args.name,
     );
     await assertNoTeamJobs(ctx, args.year, args.name);
-    if (args.name === (await teamsFor(ctx, args.year)).finance) {
-      await clearBudgetManager(ctx, args.year);
-    }
 
     await ctx.db.delete("departments", department._id);
     return null;
