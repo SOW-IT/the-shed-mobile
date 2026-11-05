@@ -27,6 +27,9 @@ import {
   profileForCurrentYear,
 } from "./model";
 import { appUrl, notify } from "./requests";
+import { personaDepartment } from "../shared/actingAs";
+import { lensFor } from "./actingAs";
+import { teamsFor } from "./teamJobs";
 
 type Ctx = QueryCtx | MutationCtx;
 type Grievance = Doc<"grievances">;
@@ -114,6 +117,20 @@ async function openHeldBy(ctx: Ctx, email: string): Promise<number> {
 }
 
 const HANDOVER_DEADLINE = "31 December";
+
+// The team's view, for screens and badges. An admin on the team who is acting
+// as a role outside it sees what that role would; handling still needs the team.
+async function viewingAsHandler(ctx: Ctx): Promise<string | null> {
+  const email = await handlerEmail(ctx);
+  const caller = email ? await optionalProfile(ctx) : null;
+  if (!email || !caller) return null;
+  const lens = await lensFor(ctx, caller);
+  if (lens.kind !== "as") return email;
+  const department = personaDepartment(lens.persona, await teamsFor(ctx, caller.year));
+  return department !== null && (await readSettings(ctx)).departments.includes(department)
+    ? email
+    : null;
+}
 
 async function requireHandler(ctx: Ctx): Promise<string> {
   const email = await handlerEmail(ctx);
@@ -419,7 +436,7 @@ export const viewer = query({
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
     if (!email) return null;
-    const isHandler = (await handlerEmail(ctx)) !== null;
+    const isHandler = (await viewingAsHandler(ctx)) !== null;
     const outgoing = isHandler && !(await grievanceTeam(ctx)).includes(email);
     return {
       email,
@@ -526,7 +543,7 @@ export const submitted = query({
 export const waitingOnMe = query({
   args: {},
   handler: async (ctx) => {
-    const email = await handlerEmail(ctx);
+    const email = await viewingAsHandler(ctx);
     if (!email) return 0;
     const waiting = await ctx.db
       .query("grievances")
@@ -557,7 +574,7 @@ export const get = query({
     const id = ctx.db.normalizeId("grievances", args.id);
     const g = id ? await ctx.db.get("grievances", id) : null;
     if (!g) return null;
-    const isHandler = (await handlerEmail(ctx)) !== null;
+    const isHandler = (await viewingAsHandler(ctx)) !== null;
     if (!isHandler && g.accountEmail !== email) return null;
     const open = isOpenGrievance(g.status);
     const { ref, ...rest } = g;

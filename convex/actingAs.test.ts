@@ -866,3 +866,92 @@ describe("acting as other roles", () => {
     expect((await me(t)).isAdmin).toBe(false);
   });
 });
+
+describe("a preview hides what the role can't see", () => {
+  const EVENTS_STAFF: Persona = { role: "staff", department: "Events" };
+
+  test("Review: a previewed role has no review history of its own", async () => {
+    const { t } = await setup();
+    const id = await adminHeadsDataAndIT(t);
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.requests.approve, { requestId: id, step: "hod" });
+    expect((await admin.query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
+    expect((await admin.query(api.requests.reviewed, {}))!.map((r) => r._id)).toEqual([id]);
+    await actAs(t, EVENTS_STAFF);
+    expect((await admin.query(api.requests.requestYears, {}))!.reviewedBefore).toBe(false);
+    expect(await admin.query(api.requests.reviewed, {})).toEqual([]);
+  });
+
+  test("Home: the editor shows only for a role that could edit it", async () => {
+    const { t } = await setup();
+    const canEdit = async () => (await asUser(t, ADMIN).query(api.homeContent.view, {})).canEdit;
+    expect(await canEdit()).toBe(true);
+    await actAs(t, EVENTS_STAFF);
+    expect(await canEdit()).toBe(false);
+    await actAs(t, MARKETING_STAFF);
+    expect(await canEdit()).toBe(true);
+    await actAs(t, { role: "director" });
+    expect(await canEdit()).toBe(true);
+    expect((await asUser(t, MARY).query(api.homeContent.view, {})).canEdit).toBe(true);
+  });
+
+  test("Calendar: other people's entries are editable only for an admin role", async () => {
+    const { t } = await setup();
+    const entry = {
+      dateStart: PINNED_NOW + DAY,
+      dateEnd: PINNED_NOW + DAY,
+      subgroups: ["SOW"],
+      category: "deadline" as const,
+      due: "time" as const,
+    };
+    await asUser(t, MARY).mutation(api.calendar.addEntry, { name: "Mary's", ...entry });
+    await asUser(t, ADMIN).mutation(api.calendar.addEntry, { name: "Admin's", ...entry });
+    const editable = async () =>
+      Object.fromEntries(
+        (await asUser(t, ADMIN).query(api.calendar.range, {
+          from: PINNED_NOW,
+          to: PINNED_NOW + 3 * DAY,
+        }))!
+          .filter((item) => item.kind === "entry")
+          .map((item) => [item.name, item.canEdit])
+      );
+    expect(await editable()).toEqual({ "Mary's": true, "Admin's": true });
+    await actAs(t, EVENTS_STAFF);
+    expect(await editable()).toEqual({ "Mary's": false, "Admin's": true });
+    await actAs(t, { role: "staff", department: "Data and IT" });
+    expect(await editable()).toEqual({ "Mary's": true, "Admin's": true });
+  });
+
+  test("Grievances: the team's view and badge follow the role, and never reach past the real team", async () => {
+    const { t } = await setup();
+    const admin = asUser(t, ADMIN);
+    const id = await asUser(t, EVA).mutation(api.grievances.submit, {
+      name: "Eva",
+      email: EVA,
+      category: "Something else",
+      details: "[TEST] Something to raise",
+    });
+    const P_AND_C: Persona = { role: "staff", department: "People and Culture" };
+    await actAs(t, P_AND_C);
+    expect((await admin.query(api.grievances.viewer, {}))!.isHandler).toBe(false);
+    expect(await admin.query(api.grievances.get, { id })).toBeNull();
+
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", ADMIN).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", profile!._id, {
+        assignments: [...(profile!.assignments ?? []), { role: "Staff", department: "People and Culture" }],
+      });
+    });
+    expect((await admin.query(api.grievances.viewer, {}))!.isHandler).toBe(true);
+    expect(await admin.query(api.grievances.waitingOnMe, {})).toBe(1);
+    await actAs(t, EVENTS_STAFF);
+    expect((await admin.query(api.grievances.viewer, {}))!.isHandler).toBe(false);
+    expect(await admin.query(api.grievances.waitingOnMe, {})).toBe(0);
+    expect(await admin.query(api.grievances.get, { id })).toBeNull();
+    await actAs(t, null);
+    expect((await admin.query(api.grievances.get, { id }))!.isHandler).toBe(true);
+  });
+});

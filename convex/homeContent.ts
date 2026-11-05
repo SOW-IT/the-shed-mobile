@@ -2,6 +2,8 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { homeBlockValidator } from "./homeData";
 import { DEFAULT_TEAMS } from "../shared/teams";
+import { personaInDepartment } from "../shared/actingAs";
+import { lensFor, personaIsAdmin } from "./actingAs";
 import { teamsFor } from "./teamJobs";
 import { displayName, divisionsHeadedBy, isAdminProfile, optionalProfile, type CallerContext } from "./model";
 import {
@@ -34,6 +36,15 @@ async function canEdit(ctx: QueryCtx | MutationCtx, caller: CallerContext | null
   return canEditHomeProfile(profile, await isAdminProfile(ctx, profile), headed, designTeam);
 }
 
+// An admin acting as a role gets the editor only if that role could edit Home.
+async function showsEditor(ctx: QueryCtx, caller: CallerContext | null) {
+  if (!caller || !(await canEdit(ctx, caller))) return false;
+  const lens = await lensFor(ctx, caller);
+  if (lens.kind !== "as") return true;
+  const teams = await teamsFor(ctx, caller.year);
+  return personaIsAdmin(lens.persona, teams) || personaInDepartment(lens.persona, teams.design, teams);
+}
+
 async function requireHomeEditor(ctx: MutationCtx): Promise<CallerContext> {
   const caller = await optionalProfile(ctx);
   if (!(await canEdit(ctx, caller))) {
@@ -61,7 +72,7 @@ export const view = query({
   returns: v.object({ canEdit: v.boolean(), tabs: v.array(tabViewValidator) }),
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
-    const editor = await canEdit(ctx, caller);
+    const editor = await showsEditor(ctx, caller);
     const tabs = await Promise.all(
       HOME_TABS.map(async ({ key, label }) => {
         const doc = await tabDoc(ctx, key);
