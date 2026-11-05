@@ -276,7 +276,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Director thresholds, approver delegation and step timing, opened from a
   "Finance settings" button at the top of the All tab in Reimbursements and
   Event Requests. The finance team sees them; the Finance Head, whoever
-  covers for them, and admins change them.
+  covers for them, and admins change them. An admin acting as a role sees
+  them only if that role would.
 - **Admins** (`convex/admins.ts`): the Director and everyone in the
   always-admin department (Data and IT by default, set in Admin → Teams) are
   always admins. Moving that job is refused when it would leave nobody who
