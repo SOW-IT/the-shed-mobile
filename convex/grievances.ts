@@ -502,7 +502,7 @@ export const mine = query({
 export const years = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await handlerEmail(ctx))) return null;
+    if (!(await viewingAsHandler(ctx))) return null;
     const years = new Set([currentStaffYear()]);
     let row = await ctx.db.query("grievances").withIndex("by_year").first();
     while (row) {
@@ -520,7 +520,7 @@ export const years = query({
 export const submitted = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
-    if (!(await handlerEmail(ctx))) return null;
+    if (!(await viewingAsHandler(ctx))) return null;
     const rows = await ctx.db
       .query("grievances")
       .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -556,7 +556,7 @@ export const waitingOnMe = query({
 export const team = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await handlerEmail(ctx))) return null;
+    if (!(await viewingAsHandler(ctx))) return null;
     return await Promise.all(
       (await grievanceTeam(ctx)).map(async (email) => ({
         email,
@@ -599,7 +599,7 @@ export const timeline = query({
   args: { id: v.id("grievances") },
   handler: async (ctx, args) => {
     const g = await ctx.db.get("grievances", args.id);
-    if (!g || !(await handlerEmail(ctx))) return null;
+    if (!g || !(await viewingAsHandler(ctx))) return null;
     const events = await ctx.db
       .query("grievanceEvents")
       .withIndex("by_grievance", (q) => q.eq("grievanceId", args.id))

@@ -126,8 +126,11 @@ const request = (over: Partial<Request>): Request => ({
   ...over,
 });
 
-async function setup() {
+// `before` runs first: creation times only go forward, so anything dated
+// earlier has to be written before the rest.
+async function setup(before?: (t: T) => Promise<unknown>) {
   const t = convexTest(schema, modules);
+  if (before) await before(t);
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
   await t.run(async (ctx) => {
     for (const [email, assignments] of PEOPLE) {
@@ -870,15 +873,34 @@ describe("acting as other roles", () => {
 describe("a preview hides what the role can't see", () => {
   const EVENTS_STAFF: Persona = { role: "staff", department: "Events" };
 
-  test("Review: a previewed role has no review history of its own", async () => {
-    const { t } = await setup();
+  test("Review: a previewed role has no review history of its own; Past stays the admin's", async () => {
+    const { t } = await setup(async (t) => {
+      vi.setSystemTime(staffYearStartMs(YEAR) - 10 * DAY);
+      await t.run((ctx) =>
+        ctx.db.insert(
+          "requests",
+          request({
+            requesterEmail: ADMIN,
+            department: "Data and IT",
+            approvedByHOD: "APPROVED",
+            approvedByBudgetManager: "APPROVED",
+            approvedByFinanceHead: "APPROVED",
+            paid: true,
+          })
+        )
+      );
+      vi.setSystemTime(PINNED_NOW);
+    });
     const id = await adminHeadsDataAndIT(t);
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.requests.approve, { requestId: id, step: "hod" });
     expect((await admin.query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
     expect((await admin.query(api.requests.reviewed, {}))!.map((r) => r._id)).toEqual([id]);
     await actAs(t, EVENTS_STAFF);
-    expect((await admin.query(api.requests.requestYears, {}))!.reviewedBefore).toBe(false);
+    expect(await admin.query(api.requests.requestYears, {})).toEqual({
+      reviewedBefore: false,
+      hasPast: true,
+    });
     expect(await admin.query(api.requests.reviewed, {})).toEqual([]);
   });
 
@@ -947,10 +969,21 @@ describe("a preview hides what the role can't see", () => {
     });
     expect((await admin.query(api.grievances.viewer, {}))!.isHandler).toBe(true);
     expect(await admin.query(api.grievances.waitingOnMe, {})).toBe(1);
+    expect(await admin.query(api.grievances.get, { id })).toMatchObject({ isHandler: true });
+    const teamReads = async () => ({
+      years: await admin.query(api.grievances.years, {}),
+      submitted: await admin.query(api.grievances.submitted, { year: YEAR }),
+      team: await admin.query(api.grievances.team, {}),
+      timeline: await admin.query(api.grievances.timeline, { id }),
+    });
+    const asTeam = await teamReads();
+    expect(asTeam.submitted!.map((g) => g._id)).toEqual([id]);
+    expect([asTeam.years, asTeam.team, asTeam.timeline].every((x) => x !== null)).toBe(true);
     await actAs(t, EVENTS_STAFF);
     expect((await admin.query(api.grievances.viewer, {}))!.isHandler).toBe(false);
     expect(await admin.query(api.grievances.waitingOnMe, {})).toBe(0);
     expect(await admin.query(api.grievances.get, { id })).toBeNull();
+    expect(await teamReads()).toEqual({ years: null, submitted: null, team: null, timeline: null });
     await actAs(t, null);
     expect((await admin.query(api.grievances.get, { id }))!.isHandler).toBe(true);
   });
