@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.31] - 2026-11-06
+
+### Fixed
+- **Acting as a role no longer shows Finance settings that role can't see.**
+  An admin acting as, say, Events staff or the Events Head saw a Finance
+  settings button on Reimbursements → Review. Finance settings now show only
+  when the role being previewed would see them: the finance team, the
+  Director or the always-admin department. Without acting as a role, admins
+  still see and change them as before.
+
 ## [2.10.30] - 2026-11-05
 
 ### Fixed

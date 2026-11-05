@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { personaInDepartment } from "../shared/actingAs";
 import type { Audience } from "../shared/announcements";
 import {
   Assignment,
@@ -37,6 +38,7 @@ import {
   query,
   QueryCtx,
 } from "./_generated/server";
+import { lensFor, personaIsAdmin } from "./actingAs";
 import { logAttendanceAction } from "./attendanceAudit";
 import { DESIGN_REQUEST_FIELDS } from "./designRequestForm";
 import { EVENT_FIELDS } from "./eventRequestForm";
@@ -1539,10 +1541,18 @@ export const financeSettingsRole = query({
     if ((await optionalEmail(ctx)) === null)
       return { canView: false, canEdit: false };
     const canEdit = (await financeSettingsAccess(ctx, args.year)) !== null;
-    return {
-      canView: canEdit || (await financeSettingsViewer(ctx, args.year)),
-      canEdit,
-    };
+    const canView = canEdit || (await financeSettingsViewer(ctx, args.year));
+    // An admin acting as a role sees them only if that role would.
+    const caller = await optionalProfile(ctx);
+    const lens = caller ? await lensFor(ctx, caller) : null;
+    if (caller && lens?.kind === "as") {
+      const teams = await teamsFor(ctx, caller.year);
+      const roleSees =
+        personaIsAdmin(lens.persona, teams) ||
+        personaInDepartment(lens.persona, teams.finance, teams);
+      return { canView: canView && roleSees, canEdit: canEdit && roleSees };
+    }
+    return { canView, canEdit };
   },
 });
 
