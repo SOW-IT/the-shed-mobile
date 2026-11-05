@@ -101,8 +101,8 @@ _Avoid_: combine, dedupe, delete (deleting throws the attendance away)
 A staff person in the current or next staff year who looks like a Member not
 yet linked to anyone's profile: a similar name (same, spaced or ordered
 differently, an added middle name, or a shortened first name) and no different
-campus. Possible duplicates (a button at the top of Attendance → Members)
-lists them while there are any, for anyone with a staff role (campus leaders
+campus. The "N may be the same person · Review" button at the top of
+Attendance → Members opens Possible duplicates, which lists them while there are any, for anyone with a staff role (campus leaders
 included); Merge opens the usual
 merge review, and "Not the same" stops that pair being suggested. Linking next
 year's staff here before October 1 keeps their history on one row.

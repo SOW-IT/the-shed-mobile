@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Audience } from "../shared/announcements";
-import { assertNoTeamJobs, copyTeams, renameTeamDepartment, teamsFor } from "./teamJobs";
+import { assertNoTeamJobs, renameTeamDepartment, settleTeamsAfterCopy, teamsFor } from "./teamJobs";
 import {
   Assignment,
   assignmentFor,
@@ -229,6 +229,17 @@ const renameScopeInProfiles = async (
     await ctx.db.patch("staffProfiles", profile._id, {
       assignments: remapScope(current, key, oldName, newName),
     });
+  }
+};
+
+// Saved acting-as choices are checked against the current year's departments,
+// so only a rename in the current year moves them.
+const renameActingAsDepartment = async (ctx: MutationCtx, oldName: string, newName: string) => {
+  for (const row of await ctx.db.query("actingAs").take(500)) {
+    const { persona } = row;
+    if ((persona.role === "staff" || persona.role === "head") && persona.department === oldName) {
+      await ctx.db.patch("actingAs", row._id, { persona: { ...persona, department: newName } });
+    }
   }
 };
 
@@ -1242,6 +1253,9 @@ export const updateDepartment = mutation({
       await renameInScheduledAnnouncements(ctx, args.year, "departments", oldName, newName);
       await renameGrievanceDepartment(ctx, args.year, oldName, newName);
       await renameTeamDepartment(ctx, args.year, oldName, newName);
+      if (args.year === currentStaffYear()) {
+        await renameActingAsDepartment(ctx, oldName, newName);
+      }
     } else {
       await ctx.db.patch("departments", existing._id, {
         division: args.division,
@@ -1636,7 +1650,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     await ctx.db.insert("yearSettings", { year: to, ...completion });
   }
 
-  await copyTeams(ctx, from, to);
+  await settleTeamsAfterCopy(ctx, to);
   return counts;
 };
 
@@ -1671,6 +1685,45 @@ export const copyYear = internalMutation({
 });
 
 const PREFILL_NOTIFY_EMAILS = ["info@sow.org.au", "it@sow.org.au"] as const;
+
+// Runs as the staff year changes on 1 October. The new year was prefilled a year
+// earlier, so a Budget Manager or threshold set since then may be missing from
+// it: fill any gap from the year that just ended, and never overwrite.
+export const carryFinanceSettingsForward = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const year = currentStaffYear();
+    const previous = await getYearSettings(ctx, year - 1);
+    if (!previous) return { carried: [] };
+    const settings = await getYearSettings(ctx, year);
+    const patch: {
+      budgetManagerEmail?: string;
+      directorApprovalThreshold?: number;
+      eventDirectorApprovalThreshold?: number;
+    } = {};
+    if (settings?.directorApprovalThreshold === undefined && previous.directorApprovalThreshold !== undefined) {
+      patch.directorApprovalThreshold = previous.directorApprovalThreshold;
+    }
+    if (
+      settings?.eventDirectorApprovalThreshold === undefined &&
+      previous.eventDirectorApprovalThreshold !== undefined
+    ) {
+      patch.eventDirectorApprovalThreshold = previous.eventDirectorApprovalThreshold;
+    }
+    if (!settings?.budgetManagerEmail && previous.budgetManagerEmail) {
+      const profile = await getProfile(ctx, previous.budgetManagerEmail, year);
+      if (profile && isMemberOfDepartment(profile, (await teamsFor(ctx, year)).finance)) {
+        patch.budgetManagerEmail = previous.budgetManagerEmail;
+      }
+    }
+    const carried = Object.keys(patch);
+    if (carried.length === 0) return { carried };
+    if (settings) await ctx.db.patch("yearSettings", settings._id, patch);
+    else await ctx.db.insert("yearSettings", { year, ...patch });
+    console.log(`carryFinanceSettingsForward: ${year} took ${carried.join(", ")} from ${year - 1}`);
+    return { carried };
+  },
+});
 
 const prefillNextStaffYearHandler = async (ctx: MutationCtx) => {
   const from = incomingStaffYear();

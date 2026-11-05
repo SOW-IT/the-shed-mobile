@@ -41,12 +41,19 @@ describe("canEditHomeProfile", () => {
     const finance = { assignments: [{ role: "Staff", department: "Finance" }] };
     const alumni = { assignments: [{ role: "Staff", department: "Alumni" }] };
     const divisionHead = { assignments: [{ role: "Head of Division", division: "Engagement" }] };
-    expect(canEditHomeProfile(marketing, false, [])).toBe(true);
-    expect(canEditHomeProfile(finance, false, [])).toBe(false);
-    expect(canEditHomeProfile(finance, true, [])).toBe(true);
-    expect(canEditHomeProfile(alumni, false, [])).toBe(false);
-    expect(canEditHomeProfile(divisionHead, false, ["Engagement"])).toBe(true);
-    expect(canEditHomeProfile(divisionHead, false, ["Operations"])).toBe(false);
+    expect(canEditHomeProfile(marketing, false, [], "Marketing")).toBe(true);
+    expect(canEditHomeProfile(finance, false, [], "Marketing")).toBe(false);
+    expect(canEditHomeProfile(finance, true, [], "Marketing")).toBe(true);
+    expect(canEditHomeProfile(alumni, false, [], "Marketing")).toBe(false);
+    expect(canEditHomeProfile(divisionHead, false, ["Engagement"], "Marketing")).toBe(true);
+    expect(canEditHomeProfile(divisionHead, false, ["Operations"], "Marketing")).toBe(false);
+  });
+
+  test("the design team edits it, whatever that department is called", () => {
+    const design = { assignments: [{ role: "Staff", department: "Design" }] };
+    const marketing = { assignments: [{ role: "Staff", department: "Marketing" }] };
+    expect(canEditHomeProfile(design, false, [], "Design")).toBe(true);
+    expect(canEditHomeProfile(marketing, false, [], "Design")).toBe(false);
   });
 });
 

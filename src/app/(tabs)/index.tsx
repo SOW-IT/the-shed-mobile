@@ -274,6 +274,7 @@ export default function RequestsScreen() {
       case "review":
         return (
           <ReadableColumn>
+            {me.isFinance ? null : <FinanceSettingsButton year={me.year} />}
             <ReviewList
               focusId={focusId}
               focusThread={focusThread}

@@ -1,14 +1,18 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query, type MutationCtx } from "./_generated/server";
-import { isMemberOfDepartment } from "../shared/flow";
+import { mutation, query } from "./_generated/server";
 import { TEAM_JOB_INFO, TEAM_JOBS } from "../shared/teams";
-import { teamJobValidator, teamsFor, writeJob } from "./teamJobs";
+import {
+  assertAdminsRemain,
+  clearBudgetManagerOutside,
+  ownJobs,
+  teamJobValidator,
+  teamsFor,
+  writeJob,
+} from "./teamJobs";
 import {
   assertManagedYear,
   currentStaffYear,
   getDepartment,
-  getProfile,
-  getYearSettings,
   isAdminProfile,
   nextStaffYear,
   optionalProfile,
@@ -16,15 +20,6 @@ import {
 } from "./model";
 
 const MAX_DEPARTMENTS = 200;
-
-async function clearBudgetManagerOutside(ctx: MutationCtx, year: number, department: string) {
-  const settings = await getYearSettings(ctx, year);
-  const email = settings?.budgetManagerEmail;
-  if (!settings || !email) return;
-  const profile = await getProfile(ctx, email, year);
-  if (profile && isMemberOfDepartment(profile, department)) return;
-  await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: undefined });
-}
 
 export const view = query({
   args: { year: v.number() },
@@ -79,8 +74,15 @@ export const set = mutation({
     if (!(await getDepartment(ctx, year, name))) {
       throw new ConvexError(`Department "${name}" doesn't exist in ${year}.`);
     }
+    if (job === "admin") await assertAdminsRemain(ctx, year, name);
     await writeJob(ctx, year, job, name);
-    if (job === "finance") await clearBudgetManagerOutside(ctx, year, name);
+    if (job === "finance") {
+      await clearBudgetManagerOutside(ctx, year, name);
+      // Next year follows this choice unless it has its own.
+      if (!(await ownJobs(ctx, year + 1)).has("finance")) {
+        await clearBudgetManagerOutside(ctx, year + 1, name);
+      }
+    }
     return null;
   },
 });

@@ -124,8 +124,8 @@ Department above them.
 Approves requests at or above the director threshold. At most one per year.
 
 **Admin**:
-Not a role — a permission. The Director and everyone in the Data and IT
-department are always admins; anyone else on staff this year is an admin when
+Not a role — a permission. The Director and everyone in the always-admin
+department (Data and IT unless the **Team job** is moved) are always admins; anyone else on staff this year is an admin when
 an admin has chosen them in Admin → Teams → Admins (the `admins` table, which
 carries over the October rollover; someone with no role in the current year is
 listed but isn't an admin until they have one). Campus leaders can't be chosen.
@@ -139,6 +139,8 @@ the Marketing, Risk and Finance forms, and the always-admin department
 (`teamJobs`, defaults Finance, Events, Marketing, Marketing, Compliance,
 Finance, Data and IT). Code reads the year's teams (`teamsFor`) instead of a
 department name, so renaming a department moves its jobs with it (ADR 0019).
+A year without its own choice for a job uses the latest earlier year's, so the
+rollover never empties or resets them.
 _Avoid_: hardcoded team, app-keyed department
 
 **All views**:

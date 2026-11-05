@@ -304,6 +304,10 @@ describe("suggested member pairs", () => {
       stranger.mutation(api.memberPairSuggestions.dismiss, { memberA: a, memberB: b })
     ).rejects.toThrow(/No role/);
     expect(Array.isArray(await s.leader.query(api.memberPairSuggestions.list, {}))).toBe(true);
+    await s.leader.mutation(api.memberPairSuggestions.dismiss, { memberA: a, memberB: b });
+    expect(await s.rows()).toEqual([
+      expect.objectContaining({ status: "dismissed", dismissedBy: LEADER }),
+    ]);
     await expect(
       s.admin.mutation(api.memberPairSuggestions.dismiss, { memberA: a, memberB: a })
     ).rejects.toThrow(/two different people/);

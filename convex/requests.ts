@@ -943,7 +943,7 @@ export async function reviewQueues(
 
     if (request.requesterEmail === email || requestCompleted(request)) continue;
     const step = currentStep(request);
-    if (step === null || (step === "hod" && request.department === requestYearApprovers.financeDepartment)) continue;
+    if (step === null) continue;
     const canAct =
       step === "director"
         ? (await callerRolesIn(reqYear)).includes(DIRECTOR) ||
@@ -1134,7 +1134,7 @@ async function authorizeStep(
 
   const stepChecks: Record<Step, { allowed: boolean; ready: boolean }> = {
     hod: {
-      allowed: matches((a) => a.hodEmail) && request.department !== approvers.financeDepartment,
+      allowed: matches((a) => a.hodEmail),
       ready: request.approvedByHOD === PENDING,
     },
     budgetManager: {

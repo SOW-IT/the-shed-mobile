@@ -379,6 +379,9 @@ export default function AdminScreen() {
     hasAccess ? { year: selectedYear } : "skip"
   );
   const lockedNames = useQuery(api.admin.lockedNames, hasAccess ? {} : "skip");
+  const teamView = useQuery(api.teams.view, hasAccess ? { year: selectedYear } : "skip");
+  const jobsOf = (department: string) =>
+    (teamView?.jobs ?? []).filter((job) => job.department === department).map((job) => job.title);
   const lockedDepartments = new Set(lockedNames?.departments ?? []);
   const lockedDivisions = new Set(lockedNames?.divisions ?? []);
   const holdersLoaded = profiles != null;
@@ -841,15 +844,24 @@ export default function AdminScreen() {
       </View>
     ) : null;
 
-  const renderDeleteButton = (name: string, holders: number, onPress: () => void) => {
-    const blocked = !holdersLoaded || holders > 0;
+  const renderDeleteButton = (
+    name: string,
+    holders: number,
+    onPress: () => void,
+    jobs: string[] = []
+  ) => {
+    const blocked = !holdersLoaded || holders > 0 || jobs.length > 0;
     return (
       <IconButton
         name="trash-outline"
         color={blocked ? t.faint : t.danger}
         disabled={blocked}
         accessibilityLabel={
-          holders > 0 ? `Delete ${name}, unavailable while ${peopleText(holders)} hold it` : `Delete ${name}`
+          holders > 0
+            ? `Delete ${name}, unavailable while ${peopleText(holders)} hold it`
+            : jobs.length > 0
+              ? `Delete ${name}, unavailable while it does ${jobs.join(", ")}`
+              : `Delete ${name}`
         }
         onPress={onPress}
       />
@@ -1453,6 +1465,7 @@ export default function AdminScreen() {
             const isEditingThis = editingDepartmentKey === department.name;
             const departmentLocked = lockedDepartments.has(department.name);
             const departmentHolders = holdersOf((a) => a.department === department.name);
+            const departmentJobs = jobsOf(department.name);
             return (
               <Card key={department.name}>
                 {isEditingThis ? (
@@ -1540,12 +1553,19 @@ export default function AdminScreen() {
                           </View>
                         )}
                         {renderHolderCount(departmentHolders)}
+                        {departmentJobs.length > 0 ? (
+                          <View style={styles.metaItem}>
+                            <Ionicons name="briefcase-outline" size={12} color={t.muted} />
+                            <Muted>{departmentJobs.join(", ")}</Muted>
+                          </View>
+                        ) : null}
                       </View>
                     </View>
                     {editable && (
                       <>
                         <IconButton
                           name="create-outline"
+                          accessibilityLabel={`Edit ${department.name}`}
                           onPress={() => {
                             setEditingDepartmentFormName(department.name);
                             setEditingDepartmentFormDivision(department.division);
@@ -1553,11 +1573,15 @@ export default function AdminScreen() {
                             setEditingDepartmentKey(department.name);
                           }}
                         />
-                        {renderDeleteButton(department.name, departmentHolders, () =>
-                          setDeleteConfirm({
-                            name: department.name,
-                            onConfirm: () => void run(() => removeDepartment({ year: selectedYear, name: department.name })),
-                          })
+                        {renderDeleteButton(
+                          department.name,
+                          departmentHolders,
+                          () =>
+                            setDeleteConfirm({
+                              name: department.name,
+                              onConfirm: () => void run(() => removeDepartment({ year: selectedYear, name: department.name })),
+                            }),
+                          departmentJobs
                         )}
                       </>
                     )}

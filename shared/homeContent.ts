@@ -1,6 +1,5 @@
 import { departmentsOf, type ProfileLike } from "./flow";
 
-const MARKETING_DEPARTMENT = "Marketing";
 const ENGAGEMENT_DIVISION = "Engagement";
 
 export const HOME_TABS = [
@@ -385,10 +384,11 @@ export const emptyHomeBlock = (type: HomeBlockType): HomeBlock => {
 export const canEditHomeProfile = (
   profile: ProfileLike,
   isAdmin: boolean,
-  headedDivisions: readonly string[]
+  headedDivisions: readonly string[],
+  designTeam: string
 ): boolean =>
   isAdmin ||
-  departmentsOf(profile).includes(MARKETING_DEPARTMENT) ||
+  departmentsOf(profile).includes(designTeam) ||
   headedDivisions.includes(ENGAGEMENT_DIVISION);
 
 export const MAX_HOME_BLOCKS = 60;

@@ -36,7 +36,8 @@ import { MARKETING_FIELDS } from "./eventRequestForm";
 import {
   accessTo,
   actsAs,
-  approverTitle,
+  approverTitleFor,
+  stepApproverTitle,
   emailInbox,
   eventSummary,
   eventUrl,
@@ -77,7 +78,7 @@ async function authorizeFill(
   if (!isSubFormEditable(form.status)) {
     throw new ConvexError(
       form.status === "PENDING"
-        ? `This form is waiting for approval. Ask ${approverTitle(await teamsFor(ctx, event.year), kind, form.step)} to request changes if something needs fixing.`
+        ? `This form is waiting for approval. Ask ${await stepApproverTitle(ctx, event, kind, form.step)} to request changes if something needs fixing.`
         : "This form is done. Reopen it to make changes."
     );
   }
@@ -240,7 +241,7 @@ async function approveStep(
     `${formName(kind)} for ${event.name} is approved`,
     "Form approved",
     auto
-      ? `It was approved automatically, as ${actorName} is ${approverTitle(await teamsFor(ctx, event.year), kind, form.step)}.`
+      ? `It was approved automatically, as ${actorName} is ${await stepApproverTitle(ctx, event, kind, form.step)}.`
       : `${actorName} approved it.`
   );
   await tell(ctx, event, [event.requesterEmail, form.submittedBy], note);
@@ -340,9 +341,10 @@ async function authorizeDecision(
   if (event.status !== "IN_PROGRESS" || form.status !== "PENDING") {
     throw new ConvexError("This form isn't waiting for approval.");
   }
-  if (!(await actsAs(ctx, caller, await stepApprover(ctx, event, kind, form.step)))) {
+  const approver = await stepApprover(ctx, event, kind, form.step);
+  if (!(await actsAs(ctx, caller, approver))) {
     throw new ConvexError(
-      `Only ${approverTitle(await teamsFor(ctx, event.year), kind, form.step)} can approve this form now.`
+      `Only ${await approverTitleFor(ctx, approver, kind, form.step)} can approve this form now.`
     );
   }
   if (form.submittedBy === caller.email) {

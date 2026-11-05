@@ -39,7 +39,7 @@ import { EVENT_FIELDS } from "./eventRequestForm";
 import {
   accessTo,
   actsAs,
-  approverTitle,
+  approverTitleFor,
   canCommentOn,
   emailInbox,
   eventSummary,
@@ -348,7 +348,6 @@ export const get = query({
     const forms = await subFormsOf(ctx, event._id);
     const nameOf = (email: string | undefined) =>
       email ? displayName(ctx, email, event.year) : Promise.resolve(null);
-    const eventTeams = await teamsFor(ctx, event.year);
     const open = event.status !== "CANCELLED";
     // A campus leader who is an admin can look through a lens, but every
     // event action still turns them away.
@@ -372,7 +371,7 @@ export const get = query({
         submittedByName: await nameOf(form.submittedBy),
         decidedByName: await nameOf(form.decidedBy),
         directorApprovedByName: await nameOf(form.directorApprovedBy),
-        approverTitle: approverTitle(eventTeams, kind, form.step),
+        approverTitle: await approverTitleFor(ctx, approver, kind, form.step),
         approverName: await nameOf(approver?.email),
         can: {
           fill:

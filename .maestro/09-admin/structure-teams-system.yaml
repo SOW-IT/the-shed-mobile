@@ -23,9 +23,8 @@ tags:
     text: ".*Always admins.*"
 - scrollUntilVisible:
     element:
-      text: ".*Finance team.*"
+      text: ".*Which department does each job.*"
     direction: DOWN
-    optional: true
 
 - tapOn: "System"
 

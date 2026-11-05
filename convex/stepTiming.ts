@@ -3,6 +3,7 @@ import { SUB_FORM_KINDS, SUB_FORM_LABELS, type SubFormKind } from "../shared/eve
 import { isMemberOfDepartment, STEP_LABELS, type ApprovalStep } from "../shared/flow";
 import { query, type QueryCtx } from "./_generated/server";
 import { displayName, financeApprovers, isAdminProfile, requireProfile } from "./model";
+import { teamsFor } from "./teamJobs";
 import { yearRequests } from "./requests";
 
 const EVENTS_LIMIT = 200;
@@ -190,7 +191,7 @@ export const summary = query({
     const allowed =
       (await isAdminProfile(ctx, caller.profile)) ||
       finance.financeHeadEmail === caller.email ||
-      isMemberOfDepartment(caller.profile, finance.financeDepartment);
+      isMemberOfDepartment(caller.profile, (await teamsFor(ctx, caller.year)).finance);
     if (!allowed) return null;
 
     const samples = new Samples();

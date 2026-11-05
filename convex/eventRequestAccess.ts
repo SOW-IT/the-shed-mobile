@@ -124,6 +124,21 @@ export const formName = (kind: SubFormKind) => `${SUB_FORM_LABELS[kind]} form`;
 export const approverTitle = (teams: Teams, kind: SubFormKind, step: FinanceStep | undefined) =>
   kind === "finance" && step === "director" ? "the Director" : `the ${subFormTeam(teams, kind)} Head`;
 
+// Named from the year the approver was found in, so the title matches the person.
+export const approverTitleFor = async (
+  ctx: Ctx,
+  approver: Approver | null,
+  kind: SubFormKind,
+  step: FinanceStep | undefined
+) => approverTitle(await teamsFor(ctx, approver?.year ?? currentStaffYear()), kind, step);
+
+export const stepApproverTitle = async (
+  ctx: Ctx,
+  event: Pick<EventRequest, "year">,
+  kind: SubFormKind,
+  step: FinanceStep | undefined
+) => approverTitleFor(ctx, await stepApprover(ctx, event, kind, step), kind, step);
+
 export interface ViewerScope {
   teams: Record<SubFormKind, boolean>;
   director: boolean;

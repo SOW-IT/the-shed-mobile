@@ -137,9 +137,24 @@ export const FinanceSettingsPanel = ({ currentYear }: { currentYear: number }) =
   const [delegationFrom, setDelegationFrom] = useState("");
   const [delegationTo, setDelegationTo] = useState("");
   const [removing, setRemoving] = useState<NonNullable<typeof delegations>[number] | null>(null);
+  const changeYear = (next: number) => {
+    setYear(next);
+    setBudgetManagerEmail(null);
+    setDelegationFrom("");
+    setDelegationTo("");
+  };
   if (access === undefined) return <LoadingState />;
   if (!canView) {
     return <Muted>Only the finance team and admins can see the finance settings.</Muted>;
+  }
+  const yearPicker = <YearPicker currentYear={currentYear} year={year} onChange={changeYear} />;
+  if (structure === undefined) {
+    return (
+      <View style={{ gap: spacing.lg }}>
+        {yearPicker}
+        <LoadingState />
+      </View>
+    );
   }
   const budgetManagerValue = budgetManagerEmail ?? structure?.budgetManagerEmail ?? "";
   const financeOptions = (financeMembers ?? []).map((person) => ({
@@ -154,7 +169,7 @@ export const FinanceSettingsPanel = ({ currentYear }: { currentYear: number }) =
   const nameOf = (email: string) => nameByEmail.get(email) ?? email;
   return (
     <View style={{ gap: spacing.lg, paddingBottom: spacing.xl }}>
-      <YearPicker currentYear={currentYear} year={year} onChange={setYear} />
+      {yearPicker}
       {editable ? null : (
         <Muted>Only the Finance Head, whoever covers for them, and admins can change these.</Muted>
       )}

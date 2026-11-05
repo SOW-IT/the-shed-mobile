@@ -34,7 +34,7 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   skipped. Reminder emails can be turned off on Profile. Home lists what is
   waiting on you (`convex/waitingOnMe.ts`); Review, the Marketing queue and
   To review say how long each item has waited and list the longest waiting
-  first. Admin, Other shows step timing (`convex/stepTiming.ts`): the typical
+  first. Finance settings shows step timing (`convex/stepTiming.ts`): the typical
   and longest wait at each step and who actioned it most, from the audit
   trail. Pushes carry the unread count as the app icon badge on iOS; Android
   syncs the count while the app is open, on launchers that show badges.
@@ -55,11 +55,12 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Budget Manager, Director for ≥ $5k, Finance head), and removing the Budget
   Manager's profile clears the assignment. Receipts/payments require
   positive amounts.
-- **Admins** = the **Data and IT** department plus every department in the
-  **Human Resources** division (People and Culture, Training and Development).
-  Only they can assign roles/departments (for the current and next year),
-  manage divisions/departments, and set the **Budget Manager** (who must be
-  from the Finance department). Users can never change their own role.
+- **Admins** = the Director, everyone in the always-admin department (Data
+  and IT unless an admin gives that job to another department in Admin →
+  Teams), and anyone admins choose. Only they can assign roles/departments
+  (for the current and next year) and manage divisions/departments. The
+  **Budget Manager** must be from the finance team's department. Users can
+  never change their own role.
 - **Acting as** (`convex/actingAs.ts`, `shared/actingAs.ts`, ADR 0017):
   admins see every role-gated view by default ("All views": the Marketing
   queue and every design request, every event request and every team's forms
@@ -262,16 +263,24 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   department. They start as Finance, Events, Marketing, Marketing, Compliance,
   Finance and Data and IT. Renaming a department keeps its jobs (Marketing
   renamed to Design still handles design requests and Marketing forms), a
-  department with a job can't be deleted until another takes it, and copying
-  a staff year copies them. Admin's tabs are Users, Structure, Teams and
+  department with a job can't be deleted until another takes it (the
+  Departments list shows each one's jobs), and a year keeps the year
+  before's choices until an admin changes them, so the October rollover
+  never resets them. Moving a job asks to confirm first. At 00:01 on
+  1 October the new year also takes any Budget Manager or Director
+  threshold it doesn't have from the year that just ended
+  (`admin.carryFinanceSettingsForward`; a Budget Manager only while still
+  on the finance team). Admin's tabs are Users, Structure, Teams and
   System (app errors, directory sync).
 - **Finance settings** (`/finance-settings`): the Budget Manager, both
   Director thresholds, approver delegation and step timing, opened from a
   "Finance settings" button at the top of the All tab in Reimbursements and
   Event Requests. The finance team sees them; the Finance Head, whoever
   covers for them, and admins change them.
-- **Admins** (`convex/admins.ts`): the Director and everyone in Data and IT
-  are always admins. Admins choose anyone else on staff this year (not campus
+- **Admins** (`convex/admins.ts`): the Director and everyone in the
+  always-admin department (Data and IT by default, set in Admin → Teams) are
+  always admins. Moving that job is refused when it would leave nobody who
+  is an admin. Admins choose anyone else on staff this year (not campus
   leaders) in Admin → Teams → Admins, searching by name or email, and remove
   them with a confirm. The list carries over the October rollover; a chosen
   person with no role in the current year shows as "not an admin right now".
@@ -370,7 +379,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   members before joining staff) with Merge or "Not the same" for each. Merging
   a staff person who has no member record yet just links their profile to the
   member.
-  Only admins (the Director, Data and IT, and anyone admins have chosen) can delete
+  Only admins (the Director, the always-admin department, and anyone admins have chosen) can delete
   a member; the sheet
   lists every event whose attendance goes with them and points to merging.
 - **Staff and leavers**: every person, staff included, has one member record
@@ -423,7 +432,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   downloaded.
 - **App errors**: a screen that crashes, or an unhandled error, is reported
   (`convex/appErrors.ts`) with the route, platform, version and who hit it,
-  grouped by fingerprint. Admins see the last seven days on Admin, Other and
+  grouped by fingerprint. Admins see the last seven days on Admin → System and
   clear them there. Not reported: network drops in unhandled rejections, the
   web's "Requiring unknown module" from Expo's synchronous first try at a
   route (it then loads the chunk), and a web tab from an older release that

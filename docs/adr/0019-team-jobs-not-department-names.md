@@ -21,7 +21,11 @@ What we weighed:
 - **Which year.** A department belongs to a staff year, so every check reads
   the teams of the year it is about: a reimbursement's year for its finance
   approvals, an event's approver years for its form heads, the caller's
-  profile year for membership. Copying a staff year copies its jobs.
+  profile year for membership. A year with no choice of its own for a job
+  uses the latest earlier year's, so a new staff year keeps last year's teams
+  and neither the 30 Sep prefill nor the 1 October rollover resets them. A
+  rename this year pins next year's inherited jobs to next year's own
+  department of the old name while it still has one.
 - **Renames and deletes.** Renaming a department moves its jobs with it,
   which is why the rename lock could go (Chaplaincy keeps its lock; nothing
   else reads its name). Deleting a department that still has a job is

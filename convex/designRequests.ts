@@ -522,10 +522,11 @@ export const submit = mutation({
     const caller = await requireProfile(ctx);
     const filed = checkedAnswers(args.answers);
     const { email, year } = caller;
+    const team = await designTeam(ctx, year);
     const head = await marketingHeadEmail(ctx, year);
     if (!head) {
       throw new ConvexError(
-        `Design requests can't be submitted yet: ${year} has no Head for the ${await designTeam(ctx, year)} department. Ask an admin to set one.`
+        `Design requests can't be submitted yet: ${year} has no Head for the ${team} department. Ask an admin to set one.`
       );
     }
     const autoApprove = head === email;
@@ -555,8 +556,8 @@ export const submit = mutation({
       subject: `${name} has been submitted`,
       pushTitle: "Design request submitted",
       body: autoApprove
-        ? `It's approved, as you're the design team's Head, and the design team has been told.\n\n${summary}`
-        : `It's been sent to the Marketing Head for approval. You'll be told when it moves on.\n\n${summary}`,
+        ? `It's approved, as you're the ${team} Head, and the ${team} team has been told.\n\n${summary}`
+        : `It's been sent to the ${team} Head for approval. You'll be told when it moves on.\n\n${summary}`,
     });
     const heads = autoApprove
       ? []
@@ -570,7 +571,7 @@ export const submit = mutation({
       actor: email,
       subject: `New ${name.replace(/^Design/, "design")}`,
       pushTitle: "New design request",
-      body: `${autoApprove ? "Approved by the Marketing Head." : "Waiting on the Marketing Head's approval."}\n\n${summary}`,
+      body: `${autoApprove ? `Approved by the ${team} Head.` : `Waiting on the ${team} Head's approval.`}\n\n${summary}`,
       skip: heads,
     });
     return id;
@@ -637,7 +638,7 @@ async function authorizeDecision(
     throw new ConvexError(
       access.isRequester
         ? "You can't approve or decline your own design request."
-        : "Only the Marketing Head can approve or decline design requests."
+        : `Only the ${await designTeam(ctx, request.year)} Head can approve or decline design requests.`
     );
   }
   if (request.status !== "PENDING") {
@@ -664,7 +665,7 @@ export const approve = mutation({
       actor: caller.email,
       subject: `${name} has been approved`,
       pushTitle: "Design request approved",
-      body: `${approver} approved it, and the design team has been told.\n\n${summary}`,
+      body: `${approver} approved it, and the ${await designTeam(ctx, request.year)} team has been told.\n\n${summary}`,
     });
     await tellTeam(ctx, request, {
       actor: caller.email,
@@ -722,7 +723,9 @@ export const complete = mutation({
     const caller = await requireProfile(ctx);
     const request = await requireRequest(ctx, args.id);
     if (!(await accessTo(ctx, caller, request)).canComplete) {
-      throw new ConvexError("Only the design team can mark design requests complete.");
+      throw new ConvexError(
+        `Only the ${await designTeam(ctx, request.year)} team can mark design requests complete.`
+      );
     }
     if (request.status !== "APPROVED") {
       throw new ConvexError("Only an approved design request can be marked complete.");

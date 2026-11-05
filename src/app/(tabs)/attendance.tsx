@@ -30,8 +30,8 @@ export default function AttendanceScreen() {
   const subgroups = useQuery(api.events.subgroups);
   const metadata = useQuery(api.attendanceMetadata.list, {});
   const tags = useQuery(api.attendanceTags.list, {});
-  const merges = useMergeSuggestions(!!me?.profile);
   const [active, setActive] = useState("events");
+  const merges = useMergeSuggestions(!!me?.profile && active === "members");
   const [subgroup, setSelectedSubgroup] = useAttendanceSubgroup(
     subgroups,
     me?.profile?.assignments

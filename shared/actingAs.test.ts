@@ -81,7 +81,7 @@ describe("reimbursement steps", () => {
 
   test("each step belongs to one role", () => {
     expect(personaHoldsStep({ role: "head", department: "Events" }, "hod", "Events", DEFAULT_TEAMS)).toBe(true);
-    expect(personaHoldsStep(FINANCE_HEAD, "hod", "Finance", DEFAULT_TEAMS)).toBe(false);
+    expect(personaHoldsStep(FINANCE_HEAD, "hod", "Events", DEFAULT_TEAMS)).toBe(false);
     expect(personaHoldsStep(BUDGET_MANAGER, "budgetManager", "Events", DEFAULT_TEAMS)).toBe(true);
     expect(personaHoldsStep(DIRECTOR, "director", "Events", DEFAULT_TEAMS)).toBe(true);
     expect(personaHoldsStep(FINANCE_HEAD, "financeHead", "Events", DEFAULT_TEAMS)).toBe(true);

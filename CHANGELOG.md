@@ -14,9 +14,16 @@ All notable changes to **The SHED** mobile app. This project follows
   Risk and Finance forms, and the department whose members are always
   admins, for each staff year. Nothing changes until someone picks a
   different department. Renaming a department keeps its jobs, so Marketing
-  renamed to Design still handles design requests and Marketing forms, and a
-  new staff year starts with last year's choices. A department that does a
-  job can't be deleted until another department takes it over.
+  renamed to Design still handles design requests and Marketing forms. A
+  department that does a job can't be deleted until another department takes
+  it over, and the Departments list shows which jobs each one does. Moving a
+  job asks first, and the always-admin job can't move somewhere that leaves
+  nobody an admin.
+- **The October rollover keeps these settings.** A staff year keeps the year
+  before's team jobs until an admin changes them, so 1 October changes
+  nothing. On 1 October the new year also takes any Budget Manager or
+  Director threshold it doesn't have yet from the year just ended (a Budget
+  Manager only while they're still on the finance team).
 
 ### Changed
 - **Admin is shorter: Users, Structure, Teams and System.** Teams has the
@@ -26,8 +33,9 @@ All notable changes to **The SHED** mobile app. This project follows
   button at the top of the All tab in Reimbursements and Event Requests opens
   the Budget Manager, both Director thresholds, approver delegation and step
   timing. Everyone in the finance team can see them; the Finance Head,
-  whoever covers for them, and admins can change them. The Finance Head no
-  longer has Admin in the menu.
+  whoever covers for them, and admins can change them. Someone covering the
+  Finance Head from another department finds the button on Review. The
+  Finance Head no longer has Admin in the menu.
 - **The grievance team picks its own departments.** It's under Grievances →
   Settings, for the people who handle grievances, instead of in Admin.
 - **Suggested merges are in Attendance.** While there are people who may be

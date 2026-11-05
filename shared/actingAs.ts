@@ -124,7 +124,7 @@ export const personaHoldsStep = (
 ): boolean => {
   switch (step) {
     case "hod":
-      return department !== teams.finance && personaHeads(persona, department);
+      return personaHeads(persona, department);
     case "budgetManager":
       return personaIsBudgetManager(persona);
     case "director":
