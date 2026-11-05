@@ -6,6 +6,75 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.30] - 2026-11-05
+
+### Fixed
+- **The automated checks no longer fail at random.** The design request,
+  grievance and reminder tests could end with an error after every test had
+  passed, which could turn CI red with nothing actually broken. They now
+  only call off emails that haven't started sending yet, so a run passes or
+  fails on the tests alone. The app itself is unchanged.
+
+## [2.10.29] - 2026-11-05
+
+### Changed
+- **"An update is ready" is now a popup in the middle of the screen.** When a
+  new version has downloaded, a card appears over the app with a big Restart
+  button, so it's hard to miss. If a sheet is open, it waits until the sheet
+  closes. Not now closes it, and the update is then picked up the next time
+  the app is opened from scratch.
+
+## [2.10.28] - 2026-11-05
+
+### Added
+- **Admins choose which department does each job.** Admin → Teams lists the
+  finance team, the events team, design requests, who reviews the Marketing,
+  Risk and Finance forms, and the department whose members are always
+  admins, for each staff year. Nothing changes until someone picks a
+  different department. Renaming a department keeps its jobs, so Marketing
+  renamed to Design still handles design requests and Marketing forms. A
+  department that does a job can't be deleted until another department takes
+  it over, and the Departments list shows which jobs each one does. Moving a
+  job asks first, and the always-admin job can't move somewhere that leaves
+  nobody an admin.
+- **The October rollover keeps these settings.** A staff year keeps the year
+  before's team jobs until an admin changes them, so 1 October changes
+  nothing. On 1 October the new year also takes any Budget Manager or
+  Director threshold it doesn't have yet from the year just ended (a Budget
+  Manager only while they're still on the finance team).
+
+### Changed
+- **Admin is shorter: Users, Structure, Teams and System.** Teams has the
+  admins and the department jobs; System has app errors and the directory
+  sync. Everything else moved to the screen it's about.
+- **Finance settings moved next to the requests.** A "Finance settings"
+  button at the top of the All tab in Reimbursements and Event Requests opens
+  the Budget Manager, both Director thresholds, approver delegation and step
+  timing. Everyone in the finance team can see them; the Finance Head,
+  whoever covers for them, and admins can change them. Someone covering the
+  Finance Head from another department finds the button on Review. The
+  Finance Head no longer has Admin in the menu.
+- **The grievance team picks its own departments.** It's under Grievances →
+  Settings, for the people who handle grievances, instead of in Admin.
+- **Suggested merges are in Attendance.** While there are people who may be
+  the same member, a button at the top of Attendance → Members opens them,
+  for anyone with a staff role, campus leaders included.
+
+## [2.10.27] - 2026-11-05
+
+### Changed
+- **Admins choose who else is an admin.** The Director and everyone in Data
+  and IT are always admins. Anyone else on staff this year is an admin only
+  once an admin adds them in Admin → Other → Admins, where you search by name
+  or email, and they can be removed again (with a confirm). Being in People
+  and Culture, Training and Development, or heading the Human Resources or
+  Governance division no longer makes someone an admin by itself. Someone
+  chosen stays an admin after 1 October as long as they're still on staff.
+- **Insights is only for staff and campus leaders.** Someone signed in
+  without a staff role (last year's staff and leaders, mostly) used to get an
+  Insights tab with the General totals; it's gone, and the Insights link
+  takes them Home.
+
 ## [2.10.25] - 2026-11-04
 
 ### Fixed

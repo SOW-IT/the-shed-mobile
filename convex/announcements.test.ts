@@ -54,6 +54,7 @@ afterEach(() => {
 async function setup() {
   const t = convexTest(schema, modules);
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  await t.mutation(internal.admins.add, { email: HR, addedBy: ADMIN });
   const people: [string, string, Assignment[]][] = [
     [HR, "Hannah", [{ role: "Staff", department: "People and Culture" }]],
     [IT_HEAD, "Ian", [{ role: "Head of Department", department: "Data and IT" }]],
@@ -110,7 +111,7 @@ const announcement = (t: T, id: Id<"announcements">) =>
   t.run((ctx) => ctx.db.get("announcements", id));
 
 describe("who can use announcements", () => {
-  test("admins and HR staff get the picker; other staff and guests get nothing", async () => {
+  test("admins, chosen ones included, get the picker; other staff and guests get nothing", async () => {
     const t = await setup();
     const options = await asUser(t, ADMIN).query(api.announcements.options, {});
     expect(options?.campuses).toContain(UNSW);

@@ -101,7 +101,9 @@ _Avoid_: combine, dedupe, delete (deleting throws the attendance away)
 A staff person in the current or next staff year who looks like a Member not
 yet linked to anyone's profile: a similar name (same, spaced or ordered
 differently, an added middle name, or a shortened first name) and no different
-campus. Admin → Merges lists them while there are any; Merge opens the usual
+campus. The "N may be the same person · Review" button at the top of
+Attendance → Members opens Possible duplicates, which lists them while there are any, for anyone with a staff role (campus leaders
+included); Merge opens the usual
 merge review, and "Not the same" stops that pair being suggested. Linking next
 year's staff here before October 1 keeps their history on one row.
 
@@ -110,7 +112,7 @@ Two plain Members who may be one person entered twice: a similar name (the
 Suggested merge rules, or one letter different on a name of two or more
 words), the same Home campus or both without one, never both signed in to the
 same event, and neither staff this staff year or last. Found by the Nightly
-rebuild and listed on Admin → Merges under "Members who may be the same
+rebuild and listed on Possible duplicates under "Members who may be the same
 person"; Merge opens the usual member merge review and "Not the same" stops
 that pair being suggested for good. A pair whose names or campuses no longer
 match drops off the list at once; two people at the same event are two people.

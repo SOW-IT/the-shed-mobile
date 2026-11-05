@@ -124,11 +124,24 @@ Department above them.
 Approves requests at or above the director threshold. At most one per year.
 
 **Admin**:
-Not a role — a derived permission. The Data and IT department, every
-department in the Human Resources division, the head of the Human Resources
-division, the head of the Governance division (not its other staff), and the
-Director. Only admins assign roles and manage
-structure, and nobody can change their own role.
+Not a role — a permission. The Director and everyone in the always-admin
+department (Data and IT unless the **Team job** is moved) are always admins; anyone else on staff this year is an admin when
+an admin has chosen them in Admin → Teams → Admins (the `admins` table, which
+carries over the October rollover; someone with no role in the current year is
+listed but isn't an admin until they have one). Campus leaders can't be chosen.
+Only admins assign roles and manage structure, and nobody can change their own
+role (ADR 0018).
+
+**Team job**:
+Something the app needs one department for, chosen per staff year in Admin →
+Teams: the finance team, the events team, design requests, the reviewers of
+the Marketing, Risk and Finance forms, and the always-admin department
+(`teamJobs`, defaults Finance, Events, Marketing, Marketing, Compliance,
+Finance, Data and IT). Code reads the year's teams (`teamsFor`) instead of a
+department name, so renaming a department moves its jobs with it (ADR 0019).
+A year without its own choice for a job uses the latest earlier year's, so the
+rollover never empties or resets them.
+_Avoid_: hardcoded team, app-keyed department
 
 **All views**:
 What an admin sees by default: every list, queue and form a role or

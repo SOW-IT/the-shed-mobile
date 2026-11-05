@@ -696,7 +696,7 @@ describe("acting as Marketing staff", () => {
     ).rejects.toThrow(/Only the Marketing team/);
     await expect(
       admin.mutation(api.designRequestComments.add, { id: design.pending, body: "Hi" })
-    ).rejects.toThrow(/Only the requester and the Marketing team/);
+    ).rejects.toThrow(/Only the requester and the design team/);
     await expect(
       admin.mutation(api.eventSubForms.saveMarketing, {
         id: events.marketingTeam,
@@ -856,12 +856,12 @@ describe("acting as other roles", () => {
     expect(await admin.query(api.eventRequests.earlierAll, firstPage)).toMatchObject({ page: [] });
   });
 
-  test("an admin department or division keeps the admin views", async () => {
+  test("only acting as Data and IT or the Director keeps the admin views", async () => {
     const { t } = await setup();
     await actAs(t, { role: "staff", department: "Data and IT" });
     expect((await me(t)).isAdmin).toBe(true);
     await actAs(t, { role: "staff", department: "People and Culture" });
-    expect((await me(t)).isAdmin).toBe(true);
+    expect((await me(t)).isAdmin).toBe(false);
     await actAs(t, { role: "staff", department: "Events" });
     expect((await me(t)).isAdmin).toBe(false);
   });

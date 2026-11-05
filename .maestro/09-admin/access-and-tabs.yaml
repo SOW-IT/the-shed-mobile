@@ -13,7 +13,8 @@ tags:
 
 - assertVisible: "Users"
 - assertVisible: "Structure"
-- assertVisible: "Other"
+- assertVisible: "Teams"
+- assertVisible: "System"
 
 - tapOn:
     text: "[0-9]{4}"

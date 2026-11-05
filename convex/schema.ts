@@ -1,6 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { TEAM_JOBS } from "../shared/teams";
 import { personaValidator } from "./actingAsData";
 import {
   announcementStatusValidator,
@@ -692,6 +693,18 @@ export default defineSchema({
     .index("by_status_and_year", ["status", "year"])
     .index("by_accountEmail", ["accountEmail"])
     .index("by_assigneeEmail_and_status", ["assigneeEmail", "status"]),
+
+  teamJobs: defineTable({
+    year: v.number(),
+    job: v.union(...TEAM_JOBS.map((job) => v.literal(job))),
+    department: v.string(),
+  }).index("by_year_and_job", ["year", "job"]),
+
+  admins: defineTable({
+    email: v.string(),
+    addedBy: v.string(),
+    addedAt: v.number(),
+  }).index("by_email", ["email"]),
 
   grievanceSettings: defineTable({
     departments: v.array(v.string()),

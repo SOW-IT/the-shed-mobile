@@ -595,7 +595,8 @@ function MyRequestCard({
 export const ToReviewTab = ({
   onEditRequest,
   onDeleteRequest,
-}: MusicRowActions = {}) => {
+  canManageRequests = false,
+}: MusicRowActions & { canManageRequests?: boolean } = {}) => {
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const [filter, setFilter] = useState<RequestFilter>("PENDING");
@@ -666,6 +667,7 @@ export const ToReviewTab = ({
             showingPending ? (
               <ReviewCard
                 request={item}
+                canManageRequests={canManageRequests}
                 actions={
                   onEditRequest || onDeleteRequest ? (
                     <MusicActionsMenu
@@ -688,9 +690,11 @@ export const ToReviewTab = ({
 function ReviewCard({
   request,
   actions,
+  canManageRequests,
 }: {
   request: MusicRequest;
   actions?: ReactNode;
+  canManageRequests: boolean;
 }) {
   const t = useAppTheme();
   const approve = useMutation(api.musicRequests.approve);
@@ -803,34 +807,36 @@ function ReviewCard({
           </View>
         ) : null}
         {!!request.link && <SongLink link={request.link} />}
-        <View style={styles.reviewActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Approve ${request.title}`}
-            disabled={busy}
-            onPress={() => void onApprove()}
-            style={[
-              styles.reviewActionButton,
-              { backgroundColor: t.success, opacity: busy ? 0.5 : 1 },
-            ]}
-          >
-            <Ionicons name="checkmark" size={18} color="#fff" />
-            <Text style={styles.reviewActionText}>Approve</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Decline ${request.title}`}
-            disabled={busy}
-            onPress={onDecline}
-            style={[
-              styles.reviewActionButton,
-              { backgroundColor: t.danger, opacity: busy ? 0.5 : 1 },
-            ]}
-          >
-            <Ionicons name="close" size={18} color="#fff" />
-            <Text style={styles.reviewActionText}>Decline</Text>
-          </Pressable>
-        </View>
+        {canManageRequests && (
+          <View style={styles.reviewActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Approve ${request.title}`}
+              disabled={busy}
+              onPress={() => void onApprove()}
+              style={[
+                styles.reviewActionButton,
+                { backgroundColor: t.success, opacity: busy ? 0.5 : 1 },
+              ]}
+            >
+              <Ionicons name="checkmark" size={18} color="#fff" />
+              <Text style={styles.reviewActionText}>Approve</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Decline ${request.title}`}
+              disabled={busy}
+              onPress={onDecline}
+              style={[
+                styles.reviewActionButton,
+                { backgroundColor: t.danger, opacity: busy ? 0.5 : 1 },
+              ]}
+            >
+              <Ionicons name="close" size={18} color="#fff" />
+              <Text style={styles.reviewActionText}>Decline</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     </Card>
   );

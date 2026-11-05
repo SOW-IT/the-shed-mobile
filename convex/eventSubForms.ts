@@ -1,6 +1,7 @@
+import { SUB_FORM_JOBS, subFormTeam } from "../shared/teams";
+import { teamsFor } from "./teamJobs";
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx } from "./_generated/server";
-import { MARKETING } from "../shared/designRequests";
 import {
   answersProblem,
   MAX_ANSWER_LENGTH,
@@ -20,7 +21,6 @@ import {
   normalizeRisk,
   riskDraftProblem,
   riskProblem,
-  SUB_FORM_TEAMS,
   type FinanceData,
   type FinanceStep,
   type RiskData,
@@ -36,12 +36,13 @@ import { MARKETING_FIELDS } from "./eventRequestForm";
 import {
   accessTo,
   actsAs,
-  approverTitle,
+  approverTitleFor,
+  stepApproverTitle,
   emailInbox,
   eventSummary,
   eventUrl,
   formName,
-  headOf,
+  teamHeadOf,
   logEvent,
   recipientsFor,
   requireEvent,
@@ -77,7 +78,7 @@ async function authorizeFill(
   if (!isSubFormEditable(form.status)) {
     throw new ConvexError(
       form.status === "PENDING"
-        ? `This form is waiting for approval. Ask ${approverTitle(kind, form.step)} to request changes if something needs fixing.`
+        ? `This form is waiting for approval. Ask ${await stepApproverTitle(ctx, event, kind, form.step)} to request changes if something needs fixing.`
         : "This form is done. Reopen it to make changes."
     );
   }
@@ -164,7 +165,7 @@ async function tellMarketingTeam(
   note: Message,
   skip: readonly string[]
 ) {
-  const team = (await teamOf(ctx, MARKETING)).filter((e) => !skip.includes(e));
+  const team = (await teamOf(ctx, "marketingForm")).filter((e) => !skip.includes(e));
   await tell(ctx, event, team, note, { email: false });
 }
 
@@ -240,7 +241,7 @@ async function approveStep(
     `${formName(kind)} for ${event.name} is approved`,
     "Form approved",
     auto
-      ? `It was approved automatically, as ${actorName} is ${approverTitle(kind, form.step)}.`
+      ? `It was approved automatically, as ${actorName} is ${await stepApproverTitle(ctx, event, kind, form.step)}.`
       : `${actorName} approved it.`
   );
   await tell(ctx, event, [event.requesterEmail, form.submittedBy], note);
@@ -280,10 +281,10 @@ async function submitForm(
       `${formName(kind)} for ${event.name}: not required`,
       `${formName(kind)} not required`,
       kind === "risk"
-        ? `${submitterName} said this event has no notable risks, so it doesn't need Compliance's approval. Have a look, and comment on the form if you disagree.`
-        : `It has no income or expenses, so it doesn't need Finance's approval. Have a look, and comment on the form if you disagree.`
+        ? `${submitterName} said this event has no notable risks, so it doesn't need ${(await teamsFor(ctx, event.year)).riskForm}'s approval. Have a look, and comment on the form if you disagree.`
+        : `It has no income or expenses, so it doesn't need ${(await teamsFor(ctx, event.year)).financeForm}'s approval. Have a look, and comment on the form if you disagree.`
     );
-    await tell(ctx, event, await recipientsFor(ctx, await headOf(ctx, event, SUB_FORM_TEAMS[kind])), note, {
+    await tell(ctx, event, await recipientsFor(ctx, await teamHeadOf(ctx, event, SUB_FORM_JOBS[kind])), note, {
       email: false,
     });
     await emailInbox(ctx, kind, note);
@@ -304,7 +305,7 @@ async function submitForm(
     throw new ConvexError(
       !approver && step === "director"
         ? `This budget needs the Director's approval, but no Director is set for ${event.year}. Ask an admin to set one.`
-        : `There's no Head of ${SUB_FORM_TEAMS[kind]} for ${event.year} to approve this form. Ask an admin to set one.`
+        : `There's no Head of ${subFormTeam(await teamsFor(ctx, event.year), kind)} for ${event.year} to approve this form. Ask an admin to set one.`
     );
   }
   await ctx.db.patch("eventSubForms", form._id, {
@@ -340,8 +341,11 @@ async function authorizeDecision(
   if (event.status !== "IN_PROGRESS" || form.status !== "PENDING") {
     throw new ConvexError("This form isn't waiting for approval.");
   }
-  if (!(await actsAs(ctx, caller, await stepApprover(ctx, event, kind, form.step)))) {
-    throw new ConvexError(`Only ${approverTitle(kind, form.step)} can approve this form now.`);
+  const approver = await stepApprover(ctx, event, kind, form.step);
+  if (!(await actsAs(ctx, caller, approver))) {
+    throw new ConvexError(
+      `Only ${await approverTitleFor(ctx, approver, kind, form.step)} can approve this form now.`
+    );
   }
   if (form.submittedBy === caller.email) {
     throw new ConvexError("You can't approve a form you submitted.");
@@ -424,7 +428,7 @@ export const reopen = mutation({
       "Form reopened",
       "The requester's side reopened it to make changes; it'll come back for approval."
     );
-    const head = await headOf(ctx, event, SUB_FORM_TEAMS[args.form]);
+    const head = await teamHeadOf(ctx, event, SUB_FORM_JOBS[args.form]);
     await tell(ctx, event, await recipientsFor(ctx, head), note, { email: false });
     await emailInbox(ctx, args.form, note);
     await settleEvent(ctx, event._id, caller.email);

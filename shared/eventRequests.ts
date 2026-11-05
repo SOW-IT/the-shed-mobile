@@ -1,11 +1,5 @@
-import { FINANCE } from "./flow";
 import { formatAmount, toCents } from "./money";
 import { isValidUrl, MAX_ANSWER_LENGTH } from "./forms";
-import { MARKETING } from "./designRequests";
-
-const COMPLIANCE = "Compliance";
-
-export const EVENTS = "Events";
 
 export const EARLIEST_EVENT_REQUEST_YEAR = 2023;
 
@@ -21,12 +15,6 @@ export const SUB_FORM_LABELS: Record<SubFormKind, string> = {
   marketing: "Marketing",
   risk: "Risk",
   finance: "Finance",
-};
-
-export const SUB_FORM_TEAMS: Record<SubFormKind, string> = {
-  marketing: MARKETING,
-  risk: COMPLIANCE,
-  finance: FINANCE,
 };
 
 export const SUB_FORM_INBOXES: Record<SubFormKind, string> = {

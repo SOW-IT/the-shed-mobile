@@ -1,3 +1,5 @@
+import { SUB_FORM_JOBS, subFormTeam, type TeamJob, type Teams } from "../shared/teams";
+import { teamsFor } from "./teamJobs";
 import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
@@ -7,13 +9,11 @@ import { syncEventRequestLinks } from "./eventRequestLinks";
 import { assignmentsOf, isMemberOfDepartment, roleNeedsUniversity } from "../shared/flow";
 import { formatDateTimeRange } from "../shared/forms";
 import {
-  EVENTS,
   eventRequestName,
   eventStatusFor,
   SUB_FORM_INBOXES,
   SUB_FORM_KINDS,
   SUB_FORM_LABELS,
-  SUB_FORM_TEAMS,
   type FinanceStep,
   type SubFormKind,
 } from "../shared/eventRequests";
@@ -73,6 +73,19 @@ export async function headOf(
   return null;
 }
 
+export async function teamHeadOf(
+  ctx: Ctx,
+  event: Pick<EventRequest, "year">,
+  job: TeamJob
+): Promise<Approver | null> {
+  for (const year of approverYears(event)) {
+    const department = (await teamsFor(ctx, year))[job];
+    const email = (await getDepartment(ctx, year, department))?.headEmail;
+    if (email) return { email, year };
+  }
+  return null;
+}
+
 export async function directorOf(
   ctx: Ctx,
   event: Pick<EventRequest, "year">
@@ -92,7 +105,7 @@ export const stepApprover = (
 ): Promise<Approver | null> =>
   kind === "finance" && step === "director"
     ? directorOf(ctx, event)
-    : headOf(ctx, event, SUB_FORM_TEAMS[kind]);
+    : teamHeadOf(ctx, event, SUB_FORM_JOBS[kind]);
 
 export const recipientsFor = async (ctx: Ctx, approver: Approver | null) =>
   approver ? await withDelegatesForYear(ctx, approver.year, approver.email) : [];
@@ -108,8 +121,23 @@ export async function actsAs(
 
 export const formName = (kind: SubFormKind) => `${SUB_FORM_LABELS[kind]} form`;
 
-export const approverTitle = (kind: SubFormKind, step: FinanceStep | undefined) =>
-  kind === "finance" && step === "director" ? "the Director" : `the ${SUB_FORM_TEAMS[kind]} Head`;
+export const approverTitle = (teams: Teams, kind: SubFormKind, step: FinanceStep | undefined) =>
+  kind === "finance" && step === "director" ? "the Director" : `the ${subFormTeam(teams, kind)} Head`;
+
+// Named from the year the approver was found in, so the title matches the person.
+export const approverTitleFor = async (
+  ctx: Ctx,
+  approver: Approver | null,
+  kind: SubFormKind,
+  step: FinanceStep | undefined
+) => approverTitle(await teamsFor(ctx, approver?.year ?? currentStaffYear()), kind, step);
+
+export const stepApproverTitle = async (
+  ctx: Ctx,
+  event: Pick<EventRequest, "year">,
+  kind: SubFormKind,
+  step: FinanceStep | undefined
+) => approverTitleFor(ctx, await stepApprover(ctx, event, kind, step), kind, step);
 
 export interface ViewerScope {
   teams: Record<SubFormKind, boolean>;
@@ -123,17 +151,17 @@ export async function viewerScope(
   caller: CallerContext,
   event: Pick<EventRequest, "year"> = { year: caller.year }
 ): Promise<ViewerScope> {
+  const callerTeams = await teamsFor(ctx, caller.profile.year);
   const teams = {} as Record<SubFormKind, boolean>;
   for (const kind of SUB_FORM_KINDS) {
-    const department = SUB_FORM_TEAMS[kind];
     teams[kind] =
-      isMemberOfDepartment(caller.profile, department) ||
-      (await actsAs(ctx, caller, await headOf(ctx, event, department)));
+      isMemberOfDepartment(caller.profile, subFormTeam(callerTeams, kind)) ||
+      (await actsAs(ctx, caller, await teamHeadOf(ctx, event, SUB_FORM_JOBS[kind])));
   }
   return {
     teams,
     director: await actsAs(ctx, caller, await directorOf(ctx, event)),
-    events: isMemberOfDepartment(caller.profile, EVENTS),
+    events: isMemberOfDepartment(caller.profile, callerTeams.events),
     admin: await isAdminProfile(ctx, caller.profile),
   };
 }
@@ -288,8 +316,9 @@ export async function emailInbox(
   });
 }
 
-export async function teamOf(ctx: Ctx, department: string): Promise<string[]> {
+export async function teamOf(ctx: Ctx, job: TeamJob): Promise<string[]> {
   const year = currentStaffYear();
+  const department = (await teamsFor(ctx, year))[job];
   const emails = new Set<string>();
   for await (const profile of ctx.db
     .query("staffProfiles")

@@ -1,4 +1,6 @@
 import { paginationOptsValidator } from "convex/server";
+import type { Teams } from "../shared/teams";
+import { teamsFor } from "./teamJobs";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
@@ -20,7 +22,6 @@ import {
   designRequestName,
   formatDesignAnswer,
   isOpenDesignStatus,
-  MARKETING,
   MARKETING_TEAM_EMAIL,
   MAX_ANSWER_LENGTH,
   normalizeDesignAnswers,
@@ -49,8 +50,10 @@ type DesignRequest = Doc<"designRequests">;
 const LIST_LIMIT = 300;
 const EVENTS_LIMIT = 200;
 
+const designTeam = async (ctx: Ctx, year: number) => (await teamsFor(ctx, year)).design;
+
 const marketingHeadEmail = async (ctx: Ctx, year: number) =>
-  (await getDepartment(ctx, year, MARKETING))?.headEmail;
+  (await getDepartment(ctx, year, await designTeam(ctx, year)))?.headEmail;
 
 async function actsAsMarketingHead(
   ctx: Ctx,
@@ -64,8 +67,8 @@ async function actsAsMarketingHead(
   return false;
 }
 
-const isMarketingStaff = (caller: CallerContext) =>
-  isMemberOfDepartment(caller.profile, MARKETING);
+const isMarketingStaff = async (ctx: Ctx, caller: CallerContext) =>
+  isMemberOfDepartment(caller.profile, await designTeam(ctx, caller.profile.year));
 
 export interface DesignRequestAccess {
   canView: boolean;
@@ -82,7 +85,7 @@ export async function accessTo(
 ): Promise<DesignRequestAccess> {
   const isRequester = request.requesterEmail === caller.email;
   const isHead = await actsAsMarketingHead(ctx, caller, request.year);
-  const isTeam = isHead || isMarketingStaff(caller);
+  const isTeam = isHead || (await isMarketingStaff(ctx, caller));
   // Only the requester and the Marketing team see a design request; being an
   // admin adds nothing.
   const canComment = isRequester || isTeam;
@@ -131,11 +134,12 @@ export async function headRecipients(ctx: Ctx, year: number): Promise<string[]> 
 
 export async function marketingTeam(ctx: Ctx): Promise<string[]> {
   const year = currentStaffYear();
+  const team = await designTeam(ctx, year);
   const emails = new Set<string>();
   for await (const profile of ctx.db
     .query("staffProfiles")
     .withIndex("by_year", (q) => q.eq("year", year))) {
-    if (isMemberOfDepartment(profile, MARKETING)) emails.add(profile.email);
+    if (isMemberOfDepartment(profile, team)) emails.add(profile.email);
   }
   const head = await marketingHeadEmail(ctx, year);
   if (head) emails.add(head);
@@ -258,13 +262,18 @@ async function withRequesterNames(ctx: Ctx, rows: DesignRequest[]) {
 
 // Only the Marketing team sees every design request.
 async function canSeeQueue(ctx: Ctx, caller: CallerContext) {
-  return isMarketingStaff(caller) || (await actsAsMarketingHead(ctx, caller, caller.year));
+  return (await isMarketingStaff(ctx, caller)) || (await actsAsMarketingHead(ctx, caller, caller.year));
 }
 
-const onMarketingTeam = (persona: Persona) => personaInDepartment(persona, MARKETING);
+const onMarketingTeam = (teams: Teams) => (persona: Persona) =>
+  personaInDepartment(persona, teams.design, teams);
 
-const seesQueue = (ctx: Ctx, caller: CallerContext, lens: Lens) =>
-  seesThrough(lens, () => canSeeQueue(ctx, caller), onMarketingTeam);
+const seesQueue = async (ctx: Ctx, caller: CallerContext, lens: Lens) =>
+  seesThrough(
+    lens,
+    () => canSeeQueue(ctx, caller),
+    onMarketingTeam(await teamsFor(ctx, caller.year))
+  );
 
 export async function viewableAccess(
   ctx: Ctx,
@@ -274,16 +283,22 @@ export async function viewableAccess(
   const access = await accessTo(ctx, caller, request);
   if (access.canView) return access;
   const lens = await lensFor(ctx, caller);
-  return (await seesThrough(lens, () => false, onMarketingTeam)) ? access : null;
+  const teams = await teamsFor(ctx, caller.year);
+  return (await seesThrough(lens, () => false, onMarketingTeam(teams))) ? access : null;
 }
 
 async function viewerRoles(ctx: Ctx, caller: CallerContext, lens: Lens) {
+  const teams = await teamsFor(ctx, caller.year);
   const isHead = await waitsThrough(
     lens,
     () => actsAsMarketingHead(ctx, caller, caller.year),
-    (persona) => personaHeads(persona, MARKETING)
+    (persona) => personaHeads(persona, teams.design)
   );
-  const isStaff = await waitsThrough(lens, () => isMarketingStaff(caller), onMarketingTeam);
+  const isStaff = await waitsThrough(
+    lens,
+    () => isMarketingStaff(ctx, caller),
+    onMarketingTeam(teams)
+  );
   return { isHead, isStaff };
 }
 
@@ -507,10 +522,11 @@ export const submit = mutation({
     const caller = await requireProfile(ctx);
     const filed = checkedAnswers(args.answers);
     const { email, year } = caller;
+    const team = await designTeam(ctx, year);
     const head = await marketingHeadEmail(ctx, year);
     if (!head) {
       throw new ConvexError(
-        `Design requests can't be submitted yet: ${year} has no Head for the ${MARKETING} department. Ask an admin to set one.`
+        `Design requests can't be submitted yet: ${year} has no Head for the ${team} department. Ask an admin to set one.`
       );
     }
     const autoApprove = head === email;
@@ -540,8 +556,8 @@ export const submit = mutation({
       subject: `${name} has been submitted`,
       pushTitle: "Design request submitted",
       body: autoApprove
-        ? `It's approved, as you're the Marketing Head, and the Marketing team has been told.\n\n${summary}`
-        : `It's been sent to the Marketing Head for approval. You'll be told when it moves on.\n\n${summary}`,
+        ? `It's approved, as you're the ${team} Head, and the ${team} team has been told.\n\n${summary}`
+        : `It's been sent to the ${team} Head for approval. You'll be told when it moves on.\n\n${summary}`,
     });
     const heads = autoApprove
       ? []
@@ -555,7 +571,7 @@ export const submit = mutation({
       actor: email,
       subject: `New ${name.replace(/^Design/, "design")}`,
       pushTitle: "New design request",
-      body: `${autoApprove ? "Approved by the Marketing Head." : "Waiting on the Marketing Head's approval."}\n\n${summary}`,
+      body: `${autoApprove ? `Approved by the ${team} Head.` : `Waiting on the ${team} Head's approval.`}\n\n${summary}`,
       skip: heads,
     });
     return id;
@@ -622,7 +638,7 @@ async function authorizeDecision(
     throw new ConvexError(
       access.isRequester
         ? "You can't approve or decline your own design request."
-        : "Only the Marketing Head can approve or decline design requests."
+        : `Only the ${await designTeam(ctx, request.year)} Head can approve or decline design requests.`
     );
   }
   if (request.status !== "PENDING") {
@@ -649,7 +665,7 @@ export const approve = mutation({
       actor: caller.email,
       subject: `${name} has been approved`,
       pushTitle: "Design request approved",
-      body: `${approver} approved it, and the Marketing team has been told.\n\n${summary}`,
+      body: `${approver} approved it, and the ${await designTeam(ctx, request.year)} team has been told.\n\n${summary}`,
     });
     await tellTeam(ctx, request, {
       actor: caller.email,
@@ -707,7 +723,9 @@ export const complete = mutation({
     const caller = await requireProfile(ctx);
     const request = await requireRequest(ctx, args.id);
     if (!(await accessTo(ctx, caller, request)).canComplete) {
-      throw new ConvexError("Only the Marketing team can mark design requests complete.");
+      throw new ConvexError(
+        `Only the ${await designTeam(ctx, request.year)} team can mark design requests complete.`
+      );
     }
     if (request.status !== "APPROVED") {
       throw new ConvexError("Only an approved design request can be marked complete.");

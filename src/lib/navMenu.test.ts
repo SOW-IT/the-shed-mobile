@@ -69,9 +69,9 @@ describe("navViewer", () => {
     expect(navViewer(true, null).isStaff).toBe(false);
   });
 
-  test("admins and the Finance Head can open Admin", () => {
+  test("only admins can open Admin; the Finance Head's settings live in Reimbursements", () => {
     expect(admin.canAdmin).toBe(true);
-    expect(financeHead.canAdmin).toBe(true);
+    expect(financeHead.canAdmin).toBe(false);
     expect(staff.canAdmin).toBe(false);
   });
 
@@ -121,7 +121,7 @@ describe("drawerItems", () => {
     expect(drawerItems(guest)).toEqual(["profile"]);
   });
 
-  test("staff get Profile, Churches, Reimbursements, Event Requests, Design Requests and, last, Insights (the Calendar is their tab)", () => {
+  test("staff get Profile, Praise List, Churches, Requests and, last, Insights (the Calendar is their tab)", () => {
     expect(drawerItems(staff)).toEqual([
       "profile",
       "music",
@@ -133,15 +133,15 @@ describe("drawerItems", () => {
     ]);
   });
 
-  test("admins and the Finance Head also get Admin, last; admins get Announcements before it, under Insights", () => {
-    const withAdmin = [
+  test("admins also get Admin, last, with Announcements before it under Insights; the Finance Head doesn't", () => {
+    const staffItems = [
       "profile",
+      "music",
       "churches",
       "reimbursements",
       "eventRequests",
       "designRequests",
       "insights",
-      "admin",
     ];
     expect(drawerItems(admin)).toEqual([
       "profile",
@@ -155,7 +155,7 @@ describe("drawerItems", () => {
       "announcements",
       "admin",
     ]);
-    expect(drawerItems(financeHead)).toEqual(withAdmin);
+    expect(drawerItems(financeHead)).toEqual(staffItems);
   });
 
   test("mentors get Mentoring above Insights, without Announcements or Admin", () => {
@@ -171,9 +171,10 @@ describe("drawerItems", () => {
     ]);
   });
 
-  test("campus leaders don't get Reimbursements, Event or Design Requests, but keep Admin", () => {
+  test("campus leaders keep Praise List but not Reimbursements, Event or Design Requests; only admins get Admin", () => {
     expect(drawerItems(campusLeader)).toEqual([
       "profile",
+      "music",
       "churches",
       "insights",
     ]);
@@ -199,14 +200,13 @@ describe("sidebarItems", () => {
     ]);
   });
 
-  test("guests add Profile and, last, Insights", () => {
+  test("guests add Profile, but no Insights", () => {
     expect(sidebarItems(guest)).toEqual([
       "home",
       "org",
       "churches",
       "grievances",
       "profile",
-      "insights",
     ]);
   });
 

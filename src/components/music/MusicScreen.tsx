@@ -16,7 +16,9 @@ export default function MusicScreen() {
   const me = useQuery(api.directory.me);
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
-  const canReview = me?.isPraiseManager === true;
+  const actingAsPraiseManager = me?.actingAs?.persona?.role === "praiseManager";
+  const canReview = me?.isPraiseManager === true || actingAsPraiseManager;
+  const canManageRequests = me?.isPraiseManager === true;
   const requestedTab =
     tab === "review" && canReview
       ? "toReview"
@@ -92,9 +94,11 @@ export default function MusicScreen() {
       render: () => (
         <ApprovedPlaylistTab
           onEditRequest={
-            canReview ? (request) => handleEdit(request, "approved") : undefined
+            canManageRequests
+              ? (request) => handleEdit(request, "approved")
+              : undefined
           }
-          onDeleteRequest={canReview ? handleDelete : undefined}
+          onDeleteRequest={canManageRequests ? handleDelete : undefined}
         />
       ),
     },
@@ -119,8 +123,13 @@ export default function MusicScreen() {
             label: "To Review",
             render: () => (
               <ToReviewTab
-                onEditRequest={(request) => handleEdit(request, "toReview")}
-                onDeleteRequest={handleDelete}
+                canManageRequests={canManageRequests}
+                onEditRequest={
+                  canManageRequests
+                    ? (request) => handleEdit(request, "toReview")
+                    : undefined
+                }
+                onDeleteRequest={canManageRequests ? handleDelete : undefined}
               />
             ),
           },
@@ -137,7 +146,7 @@ export default function MusicScreen() {
         footer={
           showMakeRequest ? (
             <FooterAction
-              title={canReview ? "+ Add to Playlist" : "+ Make Request"}
+              title={canManageRequests ? "+ Add to Playlist" : "+ Make Request"}
               onPress={openNewRequest}
               onInfo={() => setGuideOpen(true)}
             />

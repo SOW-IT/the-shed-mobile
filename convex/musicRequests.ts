@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
+import { lensFor } from "./actingAs";
 import {
   currentStaffYear,
   optionalProfile,
@@ -492,7 +493,13 @@ export const toReview = query({
   args: {},
   handler: async (ctx) => {
     const caller = await requireProfile(ctx);
-    if (!(await callerIsPraiseManager(ctx, caller.email))) {
+    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
+    const lens = await lensFor(ctx, caller);
+
+    const isPreviewingPraiseManager =
+      lens.kind === "as" && lens.persona.role === "praiseManager";
+
+    if (!isPraiseManager && !isPreviewingPraiseManager) {
       throw new ConvexError("Only Praise Managers can review music requests.");
     }
     const rows = await ctx.db
@@ -525,12 +532,16 @@ export const declined = query({
   args: {},
   handler: async (ctx) => {
     const caller = await requireProfile(ctx);
-    if (!(await callerIsPraiseManager(ctx, caller.email))) {
+    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
+    const lens = await lensFor(ctx, caller);
+    const isPreviewingPraiseManager =
+      lens.kind === "as" && lens.persona.role === "praiseManager";
+
+    if (!isPraiseManager && !isPreviewingPraiseManager) {
       throw new ConvexError(
         "Only Praise Managers can view declined music requests.",
       );
     }
-
     const rows = await ctx.db
       .query("musicRequests")
       .withIndex("by_status", (q) => q.eq("status", "DECLINED"))

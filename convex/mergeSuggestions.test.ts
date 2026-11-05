@@ -231,16 +231,17 @@ describe("suggested merges", () => {
     ]);
   });
 
-  test("only admins see or dismiss suggestions", async () => {
+  test("anyone with a staff role, campus leaders included, sees and dismisses suggestions", async () => {
     const s = await setup();
     const alex = await s.member("Alex Morgan");
     expect(await s.t.query(api.mergeSuggestions.list, {})).toBeNull();
-    await expect(s.leader.query(api.mergeSuggestions.list, {})).rejects.toThrow(
-      /Only admins/
-    );
+    const stranger = asUser(s.t, "nobody@sow.org.au");
+    await expect(stranger.query(api.mergeSuggestions.list, {})).rejects.toThrow(/No role/);
     await expect(
-      s.leader.mutation(api.mergeSuggestions.dismiss, { staffEmail: ALEX, memberId: alex })
-    ).rejects.toThrow(/Only admins/);
+      stranger.mutation(api.mergeSuggestions.dismiss, { staffEmail: ALEX, memberId: alex })
+    ).rejects.toThrow(/No role/);
+    expect(Array.isArray(await s.leader.query(api.mergeSuggestions.list, {}))).toBe(true);
+    await s.leader.mutation(api.mergeSuggestions.dismiss, { staffEmail: ALEX, memberId: alex });
   });
 
   test("dismissing needs a staff person and a member that still exist", async () => {

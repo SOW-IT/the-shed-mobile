@@ -5,6 +5,8 @@ import { View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { andList, type GrievanceStatus } from "@shared/grievances";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { staffYearForDate } from "@shared/flow";
+import { GrievanceTeamCard } from "@/components/grievances/GrievanceTeamCard";
 import { GrievanceOptionsSheet } from "@/components/grievances/GrievanceOptionsSheet";
 import { GrievanceRow, type GrievanceListRow } from "@/components/grievances/GrievanceRow";
 import {
@@ -206,6 +208,15 @@ export default function GrievancesScreen() {
                   message: `No grievances in ${year ?? "this year"}. Open ones from earlier years move here on 1 October.`,
                 }}
               />
+            ),
+          },
+          {
+            key: "settings",
+            label: "Settings",
+            render: () => (
+              <ReadableColumn>
+                <GrievanceTeamCard year={staffYearForDate(new Date())} />
+              </ReadableColumn>
             ),
           },
         ]

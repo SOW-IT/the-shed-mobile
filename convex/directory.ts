@@ -12,7 +12,6 @@ import {
   departmentsOf,
   DIRECTOR,
   divisionsOf,
-  FINANCE,
   HEAD_OF_DIVISION,
   isMemberOfDepartment,
   roleNeedsUniversity,
@@ -42,6 +41,7 @@ import {
   roleTitlesFrom,
 } from "./model";
 import { photoUrl } from "./photo";
+import { teamsFor } from "./teamJobs";
 
 export const me = query({
   args: {},
@@ -110,6 +110,7 @@ export const me = query({
       )
       .first();
     const isAdmin = await isAdminProfile(ctx, profile);
+    const teams = await teamsFor(ctx, year);
     const lens = await lensFor(ctx, { email, year, profile }, isAdmin);
     const persona = lens.kind === "as" ? lens.persona : null;
     const roleTitles = await roleTitlesForYear(ctx, year);
@@ -118,7 +119,7 @@ export const me = query({
       roleNeedsUniversity(a.role),
     );
     const isApprover =
-      headedDepartments.some((d) => d !== FINANCE) ||
+      headedDepartments.some((d) => d !== teams.finance) ||
       approvers.budgetManagerEmail === email ||
       isFinanceHead ||
       rolesOf(profile).includes(DIRECTOR) ||
@@ -136,11 +137,12 @@ export const me = query({
         departments: departmentsOf(profile),
         divisions: divisionsOf(profile),
       },
-      isAdmin: persona ? await personaIsAdmin(ctx, year, persona) : isAdmin,
+      isPraiseManager,
+      isAdmin: persona ? personaIsAdmin(persona, teams) : isAdmin,
       isFinance: await seesThrough(
         lens,
-        () => isMemberOfDepartment(profile, FINANCE),
-        (p) => personaInDepartment(p, FINANCE),
+        () => isMemberOfDepartment(profile, teams.finance),
+        (p) => personaInDepartment(p, teams.finance, teams),
       ),
       isDirector: persona
         ? personaIsDirector(persona)
@@ -148,7 +150,10 @@ export const me = query({
       isBudgetManager: persona
         ? personaIsBudgetManager(persona)
         : approvers.budgetManagerEmail === email,
-      isFinanceHead: persona ? personaHeads(persona, FINANCE) : isFinanceHead,
+      isFinanceHead: persona
+        ? personaHeads(persona, teams.finance)
+        : isFinanceHead,
+      teams,
       headedDepartments: persona
         ? persona.role === "head"
           ? [persona.department]

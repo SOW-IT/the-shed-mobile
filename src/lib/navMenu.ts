@@ -84,7 +84,7 @@ export const navViewer = (signedIn: boolean, me: MeForNav): NavViewer => {
     signedIn,
     isStaff,
     isCampusLeader: isStaff && !!me?.isCampusLeader,
-    canAdmin: signedIn && !!(me?.isAdmin || me?.isFinanceHead),
+    canAdmin: signedIn && !!me?.isAdmin,
     canAnnounce: isStaff && !!me?.isAdmin,
     canMentoring: isStaff && !!(me?.isAdmin || me?.isMentor),
   };
@@ -144,7 +144,7 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   items.push("org", "churches", "grievances");
   if (viewer.signedIn) items.push("profile");
   if (viewer.canMentoring) items.push("mentoring");
-  if (viewer.signedIn) items.push("insights");
+  if (viewer.isStaff) items.push("insights");
   if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
   return items;

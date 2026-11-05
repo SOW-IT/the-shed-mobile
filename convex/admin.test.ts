@@ -370,6 +370,12 @@ describe("removeDivision", () => {
       year: YEAR,
       assignments: [{ role: "Staff", department: "Finance" }],
     });
+    await expect(
+      admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Engagement" })
+    ).rejects.toThrow(`Marketing is the department for Design requests, Marketing form in ${YEAR}.`);
+    for (const job of ["design", "marketingForm"] as const) {
+      await admin.mutation(api.teams.set, { year: YEAR, job, department: "Events" });
+    }
     await admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Engagement" });
     structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.divisions.map((d) => d.name)).not.toContain("Engagement");
@@ -401,7 +407,7 @@ describe("removeDivision", () => {
     ).rejects.toThrow(/open requests/);
   });
 
-  test("clears the budget manager when a division containing Finance is deleted", async () => {
+  test("a division whose department does a team job stays until the job moves; moving it clears the budget manager", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "FinanceOnly" });
@@ -414,6 +420,12 @@ describe("removeDivision", () => {
       admin.mutation(api.admin.removeDivision, { year: YEAR, name: "FinanceOnly" })
     ).rejects.toThrow(/still assigned to fiona@sow\.org\.au, bella@sow\.org\.au/);
     await stripFinanceHolders(t);
+    await expect(
+      admin.mutation(api.admin.removeDivision, { year: YEAR, name: "FinanceOnly" })
+    ).rejects.toThrow(/Finance is the department for Finance team, Finance form/);
+    for (const job of ["finance", "financeForm"] as const) {
+      await admin.mutation(api.teams.set, { year: YEAR, job, department: "Compliance" });
+    }
     await admin.mutation(api.admin.removeDivision, { year: YEAR, name: "FinanceOnly" });
     const settings = await t.run((ctx) =>
       ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).unique()
@@ -440,7 +452,7 @@ describe("removeDepartment", () => {
   });
 
 
-  test("clears the budget manager when Finance is deleted", async () => {
+  test("Finance can't be deleted while it's the finance team; moving the job clears the budget manager", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
@@ -448,6 +460,11 @@ describe("removeDepartment", () => {
       admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Finance" })
     ).rejects.toThrow(`Finance is still assigned to fiona@sow.org.au, bella@sow.org.au in ${YEAR}. Reassign them first.`);
     await stripFinanceHolders(t);
+    await expect(
+      admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Finance" })
+    ).rejects.toThrow(/Finance is the department for Finance team, Finance form/);
+    await admin.mutation(api.teams.set, { year: YEAR, job: "finance", department: "Compliance" });
+    await admin.mutation(api.teams.set, { year: YEAR, job: "financeForm", department: "Compliance" });
     await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Finance" });
     const settings = await t.run((ctx) =>
       ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).unique()
@@ -2222,19 +2239,32 @@ describe("staff profiles and their attendance member", () => {
 });
 
 describe("names the app relies on", () => {
-  test("app-keyed departments and divisions can't be renamed; their heads and divisions still change", async () => {
+  test("renaming a team's department takes its jobs along", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const division = (await admin.query(api.directory.yearStructure, { year: YEAR }))!.departments.find(
+      (d) => d.name === "Marketing"
+    )!.division;
+    await admin.mutation(api.admin.updateDepartment, {
+      year: YEAR,
+      oldName: "Marketing",
+      newName: "Design",
+      division,
+    });
+    const view = (await admin.query(api.teams.view, { year: YEAR }))!;
+    const departmentFor = (job: string) => view.jobs.find((j) => j.job === job)?.department;
+    expect(departmentFor("design")).toBe("Design");
+    expect(departmentFor("marketingForm")).toBe("Design");
+    expect(departmentFor("finance")).toBe("Finance");
+    expect(view.jobs.every((j) => j.exists)).toBe(true);
+  });
+
+  test("only Chaplaincy is locked against renaming; heads and divisions still change", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const locked = await t.query(api.admin.lockedNames, {});
-    expect([...locked.departments].sort()).toEqual([
-      "Chaplaincy",
-      "Compliance",
-      "Data and IT",
-      "Events",
-      "Finance",
-      "Marketing",
-    ]);
-    expect([...locked.divisions].sort()).toEqual(["Governance", "Human Resources"]);
+    expect(locked.departments).toEqual(["Chaplaincy"]);
+    expect(locked.divisions).toEqual([]);
 
     const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     for (const name of locked.departments) {
