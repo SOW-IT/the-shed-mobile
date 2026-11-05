@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.29] - 2026-11-05
+
+### Changed
+- **"An update is ready" is now a popup in the middle of the screen.** When a
+  new version has downloaded, a card appears over the app with a big Restart
+  button, so it's hard to miss. If a sheet is open, it waits until the sheet
+  closes. Not now closes it, and the update is then picked up the next time
+  the app is opened from scratch.
+
 ## [2.10.28] - 2026-11-05
 
 ### Added

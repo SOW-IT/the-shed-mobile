@@ -1,8 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { requireOptionalNativeModule } from "expo";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAnyModalOpen } from "@/components/ui/modalPresence";
+import { FastModal } from "@/components/ui/primitives";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type UpdatesModule = typeof import("expo-updates");
@@ -15,81 +16,123 @@ const loadUpdates = (): UpdatesModule | null => {
 
 const updatesModule = loadUpdates();
 
+// iOS can't present a popup while a sheet is closing, and closing a sheet takes
+// down a popup shown over it, so wait until no sheet is open and the last has gone.
+const SHEET_CLOSE_MS = 400;
+
+const useNoSheetOpen = () => {
+  const sheetOpen = useAnyModalOpen();
+  const [settled, setSettled] = useState(true);
+  useEffect(() => {
+    if (sheetOpen) return () => setSettled(false);
+    const timer = setTimeout(() => setSettled(true), SHEET_CLOSE_MS);
+    return () => clearTimeout(timer);
+  }, [sheetOpen]);
+  return !sheetOpen && settled;
+};
+
 export function OtaUpdateBanner() {
-  return updatesModule?.isEnabled ? <PendingUpdateBanner updates={updatesModule} /> : null;
+  return updatesModule?.isEnabled ? <PendingUpdatePopup updates={updatesModule} /> : null;
 }
 
-function PendingUpdateBanner({ updates }: { updates: UpdatesModule }) {
+export function PendingUpdatePopup({
+  updates,
+}: {
+  updates: Pick<UpdatesModule, "useUpdates" | "reloadAsync">;
+}) {
   const t = useAppTheme();
-  const insets = useSafeAreaInsets();
   const { isUpdatePending } = updates.useUpdates();
   const [dismissed, setDismissed] = useState(false);
   const [restarting, setRestarting] = useState(false);
-  if (!isUpdatePending || dismissed) return null;
+  const noSheetOpen = useNoSheetOpen();
   const restart = () => {
     setRestarting(true);
     void updates.reloadAsync().catch(() => setRestarting(false));
   };
+  const dismiss = () => setDismissed(true);
   return (
-    <View
-      pointerEvents="box-none"
-      style={[styles.wrap, { bottom: insets.bottom + spacing.lg }]}
-    >
-      <View style={[styles.banner, t.shadowFloat, { backgroundColor: t.primary }]}>
-        <Ionicons name="sparkles-outline" size={18} color={t.onPrimary} />
-        <Text style={[typography.caption, styles.text, { color: t.onPrimary }]}>
-          An update is ready. Restart to get it.
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Restart The SHED"
-          onPress={restart}
-          disabled={restarting}
-          style={({ pressed }) => [
-            styles.restart,
-            { backgroundColor: t.onPrimary },
-            (pressed || restarting) && { opacity: 0.7 },
-          ]}
+    <FastModal visible={isUpdatePending && !dismissed && noSheetOpen} onRequestClose={dismiss}>
+      <View
+        style={[styles.backdrop, { backgroundColor: t.dark ? "rgba(0, 0, 0, 0.6)" : "rgba(15, 37, 35, 0.45)" }]}
+      >
+        <View
+          accessibilityViewIsModal
+          style={[styles.card, t.shadowFloat, { backgroundColor: t.card }]}
         >
-          <Text style={[typography.label, { color: t.primary }]}>
-            {restarting ? "Restarting" : "Restart"}
+          <View style={[styles.badge, { backgroundColor: t.primarySoft }]}>
+            <Ionicons name="sparkles" size={30} color={t.primary} />
+          </View>
+          <Text style={[typography.title, styles.center, { color: t.text }]}>An update is ready</Text>
+          <Text style={[typography.body, styles.center, { color: t.muted }]}>
+            Restart The SHED to get the latest version.
           </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Not now"
-          hitSlop={8}
-          onPress={() => setDismissed(true)}
-        >
-          <Ionicons name="close" size={18} color={t.onPrimary} />
-        </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Restart The SHED"
+            accessibilityState={{ busy: restarting, disabled: restarting }}
+            onPress={restart}
+            disabled={restarting}
+            style={({ pressed }) => [
+              styles.restart,
+              { backgroundColor: t.primary },
+              (pressed || restarting) && { opacity: 0.75 },
+            ]}
+          >
+            <Ionicons name="refresh" size={22} color={t.onPrimary} />
+            <Text style={[styles.restartText, { color: t.onPrimary }]}>
+              {restarting ? "Restarting" : "Restart"}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Not now"
+            hitSlop={8}
+            onPress={dismiss}
+            style={({ pressed }) => [styles.later, pressed && { opacity: 0.6 }]}
+          >
+            <Text style={[typography.label, { color: t.muted }]}>Not now</Text>
+          </Pressable>
+        </View>
       </View>
-    </View>
+    </FastModal>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
+  backdrop: {
+    flex: 1,
     alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 380,
+    alignItems: "center",
+    gap: spacing.md,
+    borderRadius: radius.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
   },
-  banner: {
+  badge: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  center: { textAlign: "center" },
+  restart: {
+    alignSelf: "stretch",
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: spacing.sm,
-    borderRadius: radius.full,
-    paddingVertical: spacing.sm,
-    paddingLeft: spacing.md,
-    paddingRight: spacing.md,
-    maxWidth: 520,
+    minHeight: 58,
+    marginTop: spacing.sm,
+    borderRadius: radius.md,
   },
-  text: { flexShrink: 1, fontWeight: "600" },
-  restart: {
-    borderRadius: radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
+  restartText: { fontSize: 18, fontWeight: "800", letterSpacing: -0.2 },
+  later: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
 });
