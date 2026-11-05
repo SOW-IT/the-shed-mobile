@@ -87,6 +87,8 @@ import type * as staffLeavers from "../staffLeavers.js";
 import type * as staffMembers from "../staffMembers.js";
 import type * as stepTiming from "../stepTiming.js";
 import type * as storageBackup from "../storageBackup.js";
+import type * as teamJobs from "../teamJobs.js";
+import type * as teams from "../teams.js";
 import type * as userLink from "../userLink.js";
 import type * as waitingOnMe from "../waitingOnMe.js";
 import type * as weeklyInsights from "../weeklyInsights.js";
@@ -178,6 +180,8 @@ declare const fullApi: ApiFromModules<{
   staffMembers: typeof staffMembers;
   stepTiming: typeof stepTiming;
   storageBackup: typeof storageBackup;
+  teamJobs: typeof teamJobs;
+  teams: typeof teams;
   userLink: typeof userLink;
   waitingOnMe: typeof waitingOnMe;
   weeklyInsights: typeof weeklyInsights;

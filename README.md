@@ -141,7 +141,7 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   the Compliance Head approves, or not required when there are no notable
   risks) and **Finance** (income and expense lines; the Finance Head
   approves, after the Director when expenses are over the event threshold set
-  in Admin → Other, or not required at $0). The event is approved once all
+  in Finance settings, or not required at $0). The event is approved once all
   three are approved or not required. The requester's department fills the
   forms in; reviewers can ask for changes; each form has its own comment
   thread. The Events department, the three teams, the Director and admins can
@@ -186,7 +186,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   happened); each email can send 3 an hour signed in and 3 signed out, and
   signed-out sending 30 an hour in all. Only the submitter and the
   **grievance team** can see it: this year's members of the departments
-  chosen in Admin → Other (People and Culture and Compliance to start);
+  chosen by the team itself in Grievances → Settings (People and Culture and
+  Compliance to start);
   other admins can't. From 1 October to 31 December last year's members
   keep access (the rollover grace), see a notice to hand over what they're
   looking after, and are reminded on 1 December. Nothing goes to a
@@ -253,9 +254,25 @@ changing anything seasonal, the October 1 staff-year rollover in particular
 - **Notifications** (the bell): everything sent to you, unread first, loading
   older ones as you scroll (`notifications.feed`, 30 a page). Opening the
   screen marks everything read.
+- **Teams** (`convex/teams.ts`, `shared/teams.ts`): which department does
+  each job, per staff year, set by admins in Admin → Teams: the finance team
+  (pays reimbursements, sees them all, holds the Finance Head and Budget
+  Manager), the events team (sees every event request), design requests, the
+  Marketing, Risk and Finance forms' reviewers, and the always-admin
+  department. They start as Finance, Events, Marketing, Marketing, Compliance,
+  Finance and Data and IT. Renaming a department keeps its jobs (Marketing
+  renamed to Design still handles design requests and Marketing forms), a
+  department with a job can't be deleted until another takes it, and copying
+  a staff year copies them. Admin's tabs are Users, Structure, Teams and
+  System (app errors, directory sync).
+- **Finance settings** (`/finance-settings`): the Budget Manager, both
+  Director thresholds, approver delegation and step timing, opened from a
+  "Finance settings" button at the top of the All tab in Reimbursements and
+  Event Requests. The finance team sees them; the Finance Head, whoever
+  covers for them, and admins change them.
 - **Admins** (`convex/admins.ts`): the Director and everyone in Data and IT
   are always admins. Admins choose anyone else on staff this year (not campus
-  leaders) in Admin → Other → Admins, searching by name or email, and remove
+  leaders) in Admin → Teams → Admins, searching by name or email, and remove
   them with a confirm. The list carries over the October rollover; a chosen
   person with no role in the current year shows as "not an admin right now".
 - **Navigation**: bottom tabs Home, Attendance and Calendar (staff, campus
@@ -265,8 +282,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   `/insights` goes to Home. On phones the top-left
   avatar, or a swipe from the left edge, opens a side menu with Profile,
   Churches (staff), Requests (staff other than campus leaders), Mentoring,
-  Insights (staff, just above Announcements), Announcements, Admin (admins and
-  the Finance Head) and Sign out. Announcements, Mentoring and Admin are
+  Insights (staff, just above Announcements), Announcements, Admin (admins)
+  and Sign out. Announcements, Mentoring and Admin are
   screens of their own like Insights, not pushed on top. Screens 700pt and wider
   (iPad, desktop web) swap the top bar, bottom tabs and drawer for one
   permanent sidebar holding all of them (`src/components/nav/`,
@@ -345,7 +362,9 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   is staff this year can't be merged away, and two people who were both staff
   in the same year can't merge. Typing a staff email onto a member points to
   merging instead of relabelling the record.
-  **Admin → Merges** (current and next staff year, shown only while there are
+  **Possible duplicates** (`/attendance/merges`, from a button at the top of
+  Attendance → Members; anyone with a staff role, campus leaders included;
+  current and next staff year, shown only while there are
   any) lists staff who look like a member not yet linked to anyone's profile
   (a similar name on the same campus, typically new leaders who signed in as
   members before joining staff) with Merge or "Not the same" for each. Merging

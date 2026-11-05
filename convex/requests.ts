@@ -1,3 +1,4 @@
+import { teamsFor } from "./teamJobs";
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { formatAmount, sumAmounts, toCents } from "../shared/money";
@@ -10,7 +11,6 @@ import {
   directorThresholdOr,
   EARLIEST_REQUEST_YEAR,
   eventStaffYear,
-  FINANCE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   isMemberOfDepartment,
@@ -50,6 +50,7 @@ import {
   delegatorsForYear,
   departmentsHeadedBy,
   displayName,
+  financeApprovers,
   getApprovers,
   getDepartment,
   getDivision,
@@ -225,7 +226,7 @@ export const involvedApproverEmails = (
   const emails: string[] = [];
   for (const [step, status, email] of steps) {
     if (status === undefined) continue;
-    if (step === "hod" && request.department === FINANCE) continue;
+    if (step === "hod" && request.department === approvers.financeDepartment) continue;
     if (email && statuses.includes(status)) emails.push(email);
   }
   return [...new Set(emails)].filter((e) => e !== request.requesterEmail);
@@ -269,9 +270,8 @@ export async function actionOwnerEmail(
   if (requestDeclined(request) || !requestFullyApproved(request)) return undefined;
   if (!request.receipt) return request.requesterEmail;
   if (request.paid === false) {
-    const finance = await getApprovers(ctx, reqYear, FINANCE);
-    const financeNow =
-      reqYear === year ? finance : await getApprovers(ctx, year, FINANCE);
+    const finance = await financeApprovers(ctx, reqYear);
+    const financeNow = reqYear === year ? finance : await financeApprovers(ctx, year);
     return finance.financeHeadEmail ?? financeNow.financeHeadEmail;
   }
   return undefined;
@@ -348,7 +348,7 @@ async function startingApprovals(
   let approvedByDirector: ApprovalStatus | undefined = needsDirector ? PENDING : undefined;
   let approvedByFinanceHead: ApprovalStatus = PENDING;
 
-  if (department === FINANCE) approvedByHOD = APPROVED;
+  if (department === approvers.financeDepartment) approvedByHOD = APPROVED;
   const divisionDoc = await getDivision(ctx, year, opts.division);
   if (
     approvers.hodEmail === email ||
@@ -481,7 +481,7 @@ export const submit = mutation({
       missing.push("Director");
     }
     if (approvedByFinanceHead === PENDING && !approvers.financeHeadEmail) {
-      missing.push(`Head for the ${FINANCE} department`);
+      missing.push(`Head for the ${approvers.financeDepartment} department`);
     }
     if (missing.length > 0) {
       throw new ConvexError(
@@ -604,10 +604,10 @@ async function canViewReceiptDetails(
 ): Promise<boolean> {
   if (!request.receipt) return true;
   if (request.requesterEmail === caller.email) return true;
-  if (isMemberOfDepartment(caller.profile, FINANCE)) return true;
+  if (await inFinanceTeam(ctx, caller)) return true;
 
   const reqYear = requestYear(request);
-  const requestYearFinance = await getApprovers(ctx, reqYear, FINANCE);
+  const requestYearFinance = await financeApprovers(ctx, reqYear);
   const actAsRequest = await actAsEmails(ctx, reqYear, caller.email);
   if (
     requestYearFinance.financeHeadEmail !== undefined &&
@@ -617,7 +617,7 @@ async function canViewReceiptDetails(
   }
   if (reqYear === caller.year) return false;
 
-  const currentFinance = await getApprovers(ctx, caller.year, FINANCE);
+  const currentFinance = await financeApprovers(ctx, caller.year);
   const actAsCurrent = await actAsEmails(ctx, caller.year, caller.email);
   return (
     currentFinance.financeHeadEmail !== undefined &&
@@ -633,7 +633,7 @@ export async function canSeeRequest(
   request: Doc<"requests">
 ): Promise<boolean> {
   if (request.requesterEmail === caller.email) return true;
-  if (isMemberOfDepartment(caller.profile, FINANCE)) return true;
+  if (await inFinanceTeam(ctx, caller)) return true;
   for (const year of new Set([requestYear(request), caller.year])) {
     const approvers = await getApprovers(ctx, year, request.department);
     const chain = involvedApproverEmails(request, approvers, CHAIN_STATUSES);
@@ -651,8 +651,9 @@ export async function viewsRequest(
   request: Doc<"requests">,
   lens: Lens
 ): Promise<boolean> {
+  const teams = await teamsFor(ctx, caller.year);
   return (
-    (await seesThrough(lens, () => false, (p) => personaSeesRequest(p, request))) ||
+    (await seesThrough(lens, () => false, (p) => personaSeesRequest(p, request, teams))) ||
     (await canSeeRequest(ctx, caller, request))
   );
 }
@@ -663,8 +664,9 @@ async function seesReceiptDetails(
   request: Doc<"requests">,
   lens: Lens
 ): Promise<boolean> {
+  const teams = await teamsFor(ctx, caller.year);
   return (
-    (await seesThrough(lens, () => false, (p) => personaInDepartment(p, FINANCE))) ||
+    (await seesThrough(lens, () => false, (p) => personaInDepartment(p, teams.finance, teams))) ||
     (await canViewReceiptDetails(ctx, caller, request))
   );
 }
@@ -679,12 +681,17 @@ async function requestForCaller(
   return { ...request, receipt: receiptSummary(request) };
 }
 
-const seesAllRequests = async (ctx: QueryCtx, caller: CallerContext) =>
-  await seesThrough(
+const inFinanceTeam = async (ctx: QueryCtx, caller: CallerContext) =>
+  isMemberOfDepartment(caller.profile, (await teamsFor(ctx, caller.profile.year)).finance);
+
+const seesAllRequests = async (ctx: QueryCtx, caller: CallerContext) => {
+  const teams = await teamsFor(ctx, caller.year);
+  return await seesThrough(
     await lensFor(ctx, caller),
-    () => isMemberOfDepartment(caller.profile, FINANCE),
-    (p) => personaInDepartment(p, FINANCE)
+    () => inFinanceTeam(ctx, caller),
+    (p) => personaInDepartment(p, teams.finance, teams)
   );
+};
 
 const MINE_PER_YEAR_LIMIT = 200;
 
@@ -892,6 +899,7 @@ export async function reviewQueues(
     return profileForYear ? rolesOf(profileForYear) : [];
   });
   const actAsIn = makeActAsResolver(ctx, email);
+  const teams = await teamsFor(ctx, year);
 
   const queues: Record<Step, ReviewRow[]> = {
     hod: [],
@@ -928,14 +936,14 @@ export async function reviewQueues(
 
     if (request.receipt !== undefined && request.paid === false) {
       const pays = matches((a) => a.financeHeadEmail);
-      if (await seesThrough(lens, () => pays, (p) => personaHeads(p, FINANCE))) {
+      if (await seesThrough(lens, () => pays, (p) => personaHeads(p, teams.finance))) {
         readyToPay.push(await row(request, pays));
       }
     }
 
     if (request.requesterEmail === email || requestCompleted(request)) continue;
     const step = currentStep(request);
-    if (step === null || (step === "hod" && request.department === FINANCE)) continue;
+    if (step === null || (step === "hod" && request.department === requestYearApprovers.financeDepartment)) continue;
     const canAct =
       step === "director"
         ? (await callerRolesIn(reqYear)).includes(DIRECTOR) ||
@@ -946,7 +954,7 @@ export async function reviewQueues(
       await seesThrough(
         lens,
         () => canAct,
-        (p) => personaHoldsStep(p, step, request.department)
+        (p) => personaHoldsStep(p, step, request.department, teams)
       )
     ) {
       queues[step].push(await row(request, canAct));
@@ -1126,7 +1134,7 @@ async function authorizeStep(
 
   const stepChecks: Record<Step, { allowed: boolean; ready: boolean }> = {
     hod: {
-      allowed: matches((a) => a.hodEmail) && request.department !== FINANCE,
+      allowed: matches((a) => a.hodEmail) && request.department !== approvers.financeDepartment,
       ready: request.approvedByHOD === PENDING,
     },
     budgetManager: {
@@ -1815,12 +1823,10 @@ export const submitReceipt = mutation({
       `$${formatAmount(totalAmount)}, ${args.recipients.length} recipient${args.recipients.length === 1 ? "" : "s"}`
     );
     const reqYear = requestYear(request);
-    const approvers = await getApprovers(ctx, reqYear, FINANCE);
+    const approvers = await financeApprovers(ctx, reqYear);
     const currentYear = currentStaffYear();
     const currentApprovers =
-      reqYear === currentYear
-        ? approvers
-        : await getApprovers(ctx, currentYear, FINANCE);
+      reqYear === currentYear ? approvers : await financeApprovers(ctx, currentYear);
     const requesterName = await displayName(ctx, request.requesterEmail, reqYear);
     const seen = new Set<string>();
     const headsByYear: Array<[number, string | undefined]> = [
@@ -1899,11 +1905,9 @@ export const pay = mutation({
     ) {
       throw new ConvexError("Request not found.");
     }
-    const approvers = await getApprovers(ctx, reqYear!, FINANCE);
+    const approvers = await financeApprovers(ctx, reqYear!);
     const currentApprovers =
-      reqYear === caller.year
-        ? approvers
-        : await getApprovers(ctx, caller.year, FINANCE);
+      reqYear === caller.year ? approvers : await financeApprovers(ctx, caller.year);
     const actAsRequest = await actAsEmails(ctx, reqYear!, caller.email);
     const actAsCurrent =
       reqYear === caller.year

@@ -17,6 +17,7 @@ import { BankTab } from "@/components/BankTab";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import { ExportRequestsCard } from "@/components/ExportRequestsCard";
 import { GuideSheet, MyRequests } from "@/components/MyRequests";
+import { FinanceSettingsButton } from "@/components/finance/FinanceSettings";
 import { type RequestPrefill } from "@/components/MyRequests";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { PastRequests } from "@/components/PastRequests";
@@ -256,6 +257,7 @@ export default function RequestsScreen() {
 
   const renderAll = () => (
     <>
+      <FinanceSettingsButton year={me.year} />
       <ExportRequestsCard currentYear={me.year} />
       <AllRequestsList
         loadMoreRef={loadMoreRef}

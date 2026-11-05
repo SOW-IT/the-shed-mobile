@@ -406,7 +406,7 @@ describe("approving, declining and completing", () => {
     await asUser(t, HENRY).mutation(api.designRequests.approve, { id });
     await expect(
       asUser(t, RACHEL).mutation(api.designRequests.complete, { id })
-    ).rejects.toThrow(/Only the Marketing team/);
+    ).rejects.toThrow(/Only the design team/);
     await expect(
       mary.mutation(api.designRequests.complete, { id, note: "x".repeat(5000) })
     ).rejects.toThrow(/at most/);

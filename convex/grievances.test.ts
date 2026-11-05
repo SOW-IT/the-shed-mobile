@@ -178,18 +178,19 @@ describe("submitting", () => {
 const DEFAULT_DEPARTMENTS = ["People and Culture", "Compliance"];
 
 describe("settings", () => {
-  test("admins choose the team's departments; the team picks up the change", async () => {
+  test("the grievance team chooses its departments; admins outside it can't", async () => {
     const t = await setup();
     expect((await t.query(api.grievances.settings, {})).departments).toEqual(DEFAULT_DEPARTMENTS);
     const setDepartments = (email: string, departments: string[], expected = DEFAULT_DEPARTMENTS) =>
       asUser(t, email).mutation(api.grievances.setDepartments, { departments, expected });
-    await expect(setDepartments(CARL, ["Marketing"])).rejects.toThrow("Only admins");
-    await expect(setDepartments(ADMIN, [" ", ""])).rejects.toThrow("Add at least one department.");
-    await expect(setDepartments(ADMIN, ["Alumni"])).rejects.toThrow(
+    await expect(setDepartments(TESS, ["Marketing"])).rejects.toThrow("Only the grievance team");
+    await expect(setDepartments(ADMIN, ["Marketing"])).rejects.toThrow("Only the grievance team");
+    await expect(setDepartments(HANA, [" ", ""])).rejects.toThrow("Add at least one department.");
+    await expect(setDepartments(HANA, ["Alumni"])).rejects.toThrow(
       `Nobody in Alumni has a role in ${YEAR}`
     );
     // A department with nobody in it is fine while another has people.
-    await setDepartments(ADMIN, [
+    await setDepartments(HANA, [
       "People and Culture",
       " Training and Development ",
       "people and culture",
@@ -200,7 +201,7 @@ describe("settings", () => {
       "Training and Development",
       "Alumni",
     ]);
-    await expect(setDepartments(ADMIN, ["Compliance"])).rejects.toThrow(
+    await expect(setDepartments(HANA, ["Compliance"])).rejects.toThrow(
       "Someone else changed this while you were editing."
     );
     expect(await asUser(t, TESS).query(api.grievances.viewer, {})).toMatchObject({ isHandler: true });

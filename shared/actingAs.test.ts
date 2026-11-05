@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { DEFAULT_TEAMS } from "./teams";
 import {
   ALL_VIEWS,
   countWaiting,
@@ -36,9 +37,9 @@ describe("personas", () => {
   });
 
   test("the Budget Manager sits in Finance and the Director in no department", () => {
-    expect(personaDepartment(MARKETING_HEAD)).toBe("Marketing");
-    expect(personaDepartment(BUDGET_MANAGER)).toBe("Finance");
-    expect(personaDepartment(DIRECTOR)).toBeNull();
+    expect(personaDepartment(MARKETING_HEAD, DEFAULT_TEAMS)).toBe("Marketing");
+    expect(personaDepartment(BUDGET_MANAGER, DEFAULT_TEAMS)).toBe("Finance");
+    expect(personaDepartment(DIRECTOR, DEFAULT_TEAMS)).toBeNull();
     expect(personaApproves(MARKETING_STAFF)).toBe(false);
     expect(personaApproves(MARKETING_HEAD)).toBe(true);
   });
@@ -52,17 +53,21 @@ describe("personas", () => {
   });
 
   test("highlights say what each choice opens up", () => {
-    expect(departmentHighlights("Marketing")).toEqual(["Design requests", "Marketing forms"]);
-    expect(departmentHighlights("Finance")).toEqual(["All reimbursements", "Finance forms"]);
-    expect(departmentHighlights("Compliance")).toEqual(["Risk forms"]);
-    expect(departmentHighlights("Events")).toEqual([]);
-    expect(personaHighlights(DIRECTOR)).toEqual(["Director approvals"]);
-    expect(personaHighlights(BUDGET_MANAGER)).toEqual([
+    expect(departmentHighlights("Marketing", DEFAULT_TEAMS)).toEqual(["Design requests", "Marketing forms"]);
+    expect(departmentHighlights("Finance", DEFAULT_TEAMS)).toEqual(["All reimbursements", "Finance forms"]);
+    expect(departmentHighlights("Compliance", DEFAULT_TEAMS)).toEqual(["Risk forms"]);
+    expect(departmentHighlights("Events", DEFAULT_TEAMS)).toEqual(["All event requests"]);
+    expect(departmentHighlights("Missions", DEFAULT_TEAMS)).toEqual([]);
+    expect(
+      departmentHighlights("Design", { ...DEFAULT_TEAMS, design: "Design", marketingForm: "Design" })
+    ).toEqual(["Design requests", "Marketing forms"]);
+    expect(personaHighlights(DIRECTOR, DEFAULT_TEAMS)).toEqual(["Director approvals"]);
+    expect(personaHighlights(BUDGET_MANAGER, DEFAULT_TEAMS)).toEqual([
       "Budget approvals",
       "All reimbursements",
       "Finance forms",
     ]);
-    expect(personaHighlights(MARKETING_HEAD)).toEqual(["Design requests", "Marketing forms"]);
+    expect(personaHighlights(MARKETING_HEAD, DEFAULT_TEAMS)).toEqual(["Design requests", "Marketing forms"]);
   });
 });
 
@@ -75,41 +80,41 @@ describe("reimbursement steps", () => {
   };
 
   test("each step belongs to one role", () => {
-    expect(personaHoldsStep({ role: "head", department: "Events" }, "hod", "Events")).toBe(true);
-    expect(personaHoldsStep(FINANCE_HEAD, "hod", "Finance")).toBe(false);
-    expect(personaHoldsStep(BUDGET_MANAGER, "budgetManager", "Events")).toBe(true);
-    expect(personaHoldsStep(DIRECTOR, "director", "Events")).toBe(true);
-    expect(personaHoldsStep(FINANCE_HEAD, "financeHead", "Events")).toBe(true);
-    expect(personaHoldsStep(MARKETING_HEAD, "financeHead", "Events")).toBe(false);
+    expect(personaHoldsStep({ role: "head", department: "Events" }, "hod", "Events", DEFAULT_TEAMS)).toBe(true);
+    expect(personaHoldsStep(FINANCE_HEAD, "hod", "Finance", DEFAULT_TEAMS)).toBe(false);
+    expect(personaHoldsStep(BUDGET_MANAGER, "budgetManager", "Events", DEFAULT_TEAMS)).toBe(true);
+    expect(personaHoldsStep(DIRECTOR, "director", "Events", DEFAULT_TEAMS)).toBe(true);
+    expect(personaHoldsStep(FINANCE_HEAD, "financeHead", "Events", DEFAULT_TEAMS)).toBe(true);
+    expect(personaHoldsStep(MARKETING_HEAD, "financeHead", "Events", DEFAULT_TEAMS)).toBe(false);
   });
 
   test("a request is seen by Finance and by whoever holds a step on it", () => {
-    expect(personaSeesRequest({ role: "staff", department: "Finance" }, request)).toBe(true);
-    expect(personaSeesRequest({ role: "head", department: "Events" }, request)).toBe(true);
-    expect(personaSeesRequest(MARKETING_HEAD, request)).toBe(false);
-    expect(personaSeesRequest(DIRECTOR, request)).toBe(false);
-    expect(personaSeesRequest(DIRECTOR, { ...request, approvedByDirector: "PENDING" })).toBe(true);
+    expect(personaSeesRequest({ role: "staff", department: "Finance" }, request, DEFAULT_TEAMS)).toBe(true);
+    expect(personaSeesRequest({ role: "head", department: "Events" }, request, DEFAULT_TEAMS)).toBe(true);
+    expect(personaSeesRequest(MARKETING_HEAD, request, DEFAULT_TEAMS)).toBe(false);
+    expect(personaSeesRequest(DIRECTOR, request, DEFAULT_TEAMS)).toBe(false);
+    expect(personaSeesRequest(DIRECTOR, { ...request, approvedByDirector: "PENDING" }, DEFAULT_TEAMS)).toBe(true);
   });
 });
 
 describe("event forms", () => {
   test("each team sees its own forms; the Director sees the Finance form at its step", () => {
-    expect(personaReviewsEvents(MARKETING_STAFF)).toBe(true);
-    expect(personaReviewsEvents(DIRECTOR)).toBe(true);
-    expect(personaReviewsEvents({ role: "staff", department: "Events" })).toBe(false);
-    expect(personaSeesAllEvents({ role: "staff", department: "Events" })).toBe(true);
-    expect(personaSeesAllEvents(MARKETING_STAFF)).toBe(true);
-    expect(personaSeesAllEvents(DIRECTOR)).toBe(true);
-    expect(personaSeesAllEvents({ role: "head", department: "Missions" })).toBe(false);
-    expect(personaSeesForm(MARKETING_STAFF, "marketing", undefined)).toBe(true);
-    expect(personaSeesForm(MARKETING_STAFF, "risk", undefined)).toBe(false);
-    expect(personaSeesForm(DIRECTOR, "finance", "director")).toBe(true);
-    expect(personaSeesForm(DIRECTOR, "finance", "financeHead")).toBe(false);
-    expect(personaSeesForm(BUDGET_MANAGER, "finance", "director")).toBe(true);
-    expect(personaApprovesForm(MARKETING_HEAD, "marketing", undefined)).toBe(true);
-    expect(personaApprovesForm(MARKETING_STAFF, "marketing", undefined)).toBe(false);
-    expect(personaApprovesForm(DIRECTOR, "finance", "director")).toBe(true);
-    expect(personaApprovesForm(FINANCE_HEAD, "finance", "director")).toBe(false);
+    expect(personaReviewsEvents(MARKETING_STAFF, DEFAULT_TEAMS)).toBe(true);
+    expect(personaReviewsEvents(DIRECTOR, DEFAULT_TEAMS)).toBe(true);
+    expect(personaReviewsEvents({ role: "staff", department: "Events" }, DEFAULT_TEAMS)).toBe(false);
+    expect(personaSeesAllEvents({ role: "staff", department: "Events" }, DEFAULT_TEAMS)).toBe(true);
+    expect(personaSeesAllEvents(MARKETING_STAFF, DEFAULT_TEAMS)).toBe(true);
+    expect(personaSeesAllEvents(DIRECTOR, DEFAULT_TEAMS)).toBe(true);
+    expect(personaSeesAllEvents({ role: "head", department: "Missions" }, DEFAULT_TEAMS)).toBe(false);
+    expect(personaSeesForm(MARKETING_STAFF, "marketing", undefined, DEFAULT_TEAMS)).toBe(true);
+    expect(personaSeesForm(MARKETING_STAFF, "risk", undefined, DEFAULT_TEAMS)).toBe(false);
+    expect(personaSeesForm(DIRECTOR, "finance", "director", DEFAULT_TEAMS)).toBe(true);
+    expect(personaSeesForm(DIRECTOR, "finance", "financeHead", DEFAULT_TEAMS)).toBe(false);
+    expect(personaSeesForm(BUDGET_MANAGER, "finance", "director", DEFAULT_TEAMS)).toBe(true);
+    expect(personaApprovesForm(MARKETING_HEAD, "marketing", undefined, DEFAULT_TEAMS)).toBe(true);
+    expect(personaApprovesForm(MARKETING_STAFF, "marketing", undefined, DEFAULT_TEAMS)).toBe(false);
+    expect(personaApprovesForm(DIRECTOR, "finance", "director", DEFAULT_TEAMS)).toBe(true);
+    expect(personaApprovesForm(FINANCE_HEAD, "finance", "director", DEFAULT_TEAMS)).toBe(false);
   });
 });
 
@@ -120,7 +125,7 @@ test("only rows waiting on you count towards a badge", () => {
 
 describe("lenses", () => {
   const as = { kind: "as" as const, persona: MARKETING_STAFF };
-  const inMarketing = (p: Persona) => personaDepartment(p) === "Marketing";
+  const inMarketing = (p: Persona) => personaDepartment(p, DEFAULT_TEAMS) === "Marketing";
 
   test("All views sees everything but waits only on what is really yours", async () => {
     expect(await seesThrough(ALL_VIEWS, () => false, inMarketing)).toBe(true);

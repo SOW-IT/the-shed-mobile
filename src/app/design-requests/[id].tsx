@@ -43,7 +43,7 @@ const when = sydneyDateTime;
 
 const EVENT_LABELS: Record<string, string> = {
   submitted: "Submitted",
-  "auto-approved": "Approved automatically (Marketing Head's own request)",
+  "auto-approved": "Approved automatically (the Head's own request)",
   approved: "Approved",
   declined: "Declined",
   edited: "Edited",
@@ -368,7 +368,7 @@ export default function DesignRequestScreen() {
           </View>
         }
       >
-        <Muted>The requester and the Marketing team will be told your reason.</Muted>
+        <Muted>The requester and the design team will be told your reason.</Muted>
         <LabelledField label="Reason" required value={reason} onChangeText={setReason} multiline />
         <ErrorBanner message={error} />
       </Sheet>
@@ -403,7 +403,7 @@ export default function DesignRequestScreen() {
       <ConfirmDialog
         visible={confirmCancel}
         title="Cancel this design request?"
-        message="The Marketing team will be told it's no longer needed. It stays in your list as cancelled."
+        message="The design team will be told it's no longer needed. It stays in your list as cancelled."
         confirmLabel="Cancel Request"
         cancelLabel="Keep It"
         onConfirm={() => void run(() => cancel({ id: request._id }))}

@@ -203,7 +203,7 @@ export const ActingAsPicker = ({
         <ChoiceRow
           key={persona.role}
           title={personaLabel(persona, titles)}
-          caption={personaHighlights(persona).join(" · ")}
+          caption={options ? personaHighlights(persona, options.teams).join(" · ") : ""}
           selected={samePersona(current, persona)}
           onPress={() => pick(persona)}
           disabled={busy}
@@ -214,7 +214,7 @@ export const ActingAsPicker = ({
       {(options?.departments ?? []).map((department) => {
         const staff: Persona = { role: "staff", department: department.name };
         const head: Persona = { role: "head", department: department.name };
-        const highlights = departmentHighlights(department.name);
+        const highlights = options ? departmentHighlights(department.name, options.teams) : [];
         return (
           <ChoiceRow
             key={department.name}

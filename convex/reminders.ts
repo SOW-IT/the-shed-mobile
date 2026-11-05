@@ -8,7 +8,6 @@ import { SUB_FORM_KINDS } from "../shared/eventRequests";
 import {
   currentStep,
   eventStaffYear,
-  FINANCE,
   requestCompleted,
   STEP_LABELS,
 } from "../shared/flow";
@@ -26,6 +25,7 @@ import {
   type ReminderKind,
 } from "../shared/reminders";
 import { internal } from "./_generated/api";
+import { teamsFor } from "./teamJobs";
 import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
 import {
@@ -131,8 +131,9 @@ async function collectRequests(ctx: MutationCtx, digest: Digest, now: number) {
       waitingOn = "waiting on your receipt";
       url = "/?tab=mine";
     } else if (request.paid === false) {
-      const finance = await getApprovers(reqYear, FINANCE);
-      const financeNow = reqYear === year ? finance : await getApprovers(year, FINANCE);
+      const finance = await getApprovers(reqYear, (await teamsFor(ctx, reqYear)).finance);
+      const financeNow =
+        reqYear === year ? finance : await getApprovers(year, (await teamsFor(ctx, year)).finance);
       const head = preferRequestYear(
         finance.financeHeadEmail,
         financeNow.financeHeadEmail,

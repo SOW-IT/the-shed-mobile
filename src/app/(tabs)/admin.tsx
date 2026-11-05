@@ -6,7 +6,6 @@ import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from
 import {
   type Assignment,
   DIRECTOR,
-  DIRECTOR_APPROVAL_THRESHOLD,
   formatAssignment,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
@@ -23,7 +22,6 @@ import {
   canonicalEmailKey,
   uniqueStaffByEmail,
 } from "@shared/rollcallImport";
-import { EVENT_DIRECTOR_APPROVAL_THRESHOLD } from "@shared/eventRequests";
 import { api } from "@convex/_generated/api";
 import {
   radius,
@@ -36,9 +34,7 @@ import {
   Btn,
   Card,
   ConfirmDialog,
-  currencyText,
   EmptyState,
-  formatAmount,
   ErrorBanner,
   InfoBanner,
   errorMessage,
@@ -62,9 +58,7 @@ import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { AppErrorsCard } from "@/components/admin/AppErrorsCard";
 import { AdminsCard } from "@/components/admin/AdminsCard";
-import { GrievanceTeamCard } from "@/components/admin/GrievanceTeamCard";
-import { StepTimingCard } from "@/components/admin/StepTimingCard";
-import { SuggestedMerges } from "@/components/admin/SuggestedMerges";
+import { TeamJobsCard } from "@/components/admin/TeamJobsCard";
 import { useAdminMutations } from "@/hooks/useAdminMutations";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
@@ -95,11 +89,12 @@ const CardGrid = ({
   );
 };
 
-type AdminTab = "users" | "structure" | "other" | "merges";
+type AdminTab = "users" | "structure" | "teams" | "system";
 const ADMIN_TABS = [
   { key: "users", label: "Users" },
   { key: "structure", label: "Structure" },
-  { key: "other", label: "Other" },
+  { key: "teams", label: "Teams" },
+  { key: "system", label: "System" },
 ];
 
 type StructureSubTab = "roles" | "divisions" | "departments" | "universities";
@@ -341,12 +336,11 @@ export default function AdminScreen() {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
   const isAdmin = !!me?.isAdmin;
-  const budgetManagerOnly = !isAdmin && !!me?.isFinanceHead;
-  const hasAccess = isAdmin || budgetManagerOnly;
+  const hasAccess = isAdmin;
   const years = useQuery(api.directory.availableYears, isAdmin ? {} : "skip");
   const currentYear = me?.year ?? new Date().getFullYear();
   const [year, setYear] = useState<number | null>(null);
-  const selectedYear = budgetManagerOnly ? currentYear : year ?? currentYear;
+  const selectedYear = year ?? currentYear;
   const editable = selectedYear === currentYear || selectedYear === currentYear + 1;
   const [tab, setTab] = useState<AdminTab>("users");
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
@@ -354,46 +348,18 @@ export default function AdminScreen() {
     if (
       tabParam === "users" ||
       tabParam === "structure" ||
-      tabParam === "other" ||
-      tabParam === "merges"
+      tabParam === "teams" ||
+      tabParam === "system"
     ) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link tab param
       setTab(tabParam);
     }
   }, [tabParam]);
-  const viewingCurrentYear = selectedYear === currentYear;
-  const mergeSuggestions = useQuery(
-    api.mergeSuggestions.list,
-    isAdmin && viewingCurrentYear ? {} : "skip"
-  );
-  const memberPairs = useQuery(
-    api.memberPairSuggestions.list,
-    isAdmin && viewingCurrentYear ? {} : "skip"
-  );
-  const mergeCount =
-    (mergeSuggestions ?? []).reduce((n, s) => n + s.candidates.length, 0) +
-    (memberPairs ?? []).length;
-  const mergesLoaded = mergeSuggestions !== undefined && memberPairs !== undefined;
-  const showMerges = isAdmin && viewingCurrentYear && mergeCount > 0;
-  useEffect(() => {
-    if (tab === "merges" && mergesLoaded && !showMerges) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- leave the tab once it empties
-      setTab("users");
-    }
-  }, [tab, mergesLoaded, showMerges]);
-  const activeTab: AdminTab = budgetManagerOnly
-    ? "other"
-    : tab === "merges" && !showMerges
-      ? "users"
-      : tab;
+  const activeTab: AdminTab = tab;
   const [structureSubTab, setStructureSubTab] = useState<StructureSubTab>("roles");
 
   const structure = useQuery(
     api.directory.yearStructure,
-    hasAccess ? { year: selectedYear } : "skip"
-  );
-  const financeMembers = useQuery(
-    api.admin.financeMembers,
     hasAccess ? { year: selectedYear } : "skip"
   );
   const profiles = useQuery(
@@ -451,16 +417,7 @@ export default function AdminScreen() {
     upsertRole,
     updateRole,
     removeRole,
-    setBudgetManager,
-    setDirectorThreshold,
-    setEventDirectorThreshold,
-    addDelegation,
-    removeDelegation,
   } = useAdminMutations();
-  const delegations = useQuery(
-    api.admin.listDelegations,
-    hasAccess ? { year: selectedYear } : "skip"
-  );
   const requestSync = useMutation(api.directorySync.requestSync);
   const syncState = useQuery(
     api.directorySync.list,
@@ -489,28 +446,6 @@ export default function AdminScreen() {
   const [departmentName, setDepartmentName] = useState("");
   const [departmentDivision, setDepartmentDivision] = useState("");
   const [departmentHead, setDepartmentHead] = useState("");
-  const [budgetManagerEmail, setBudgetManagerEmail] = useState<string | null>(null);
-  const budgetManagerValue =
-    budgetManagerEmail ?? structure?.budgetManagerEmail ?? "";
-  const [thresholdInput, setThresholdInput] = useState<string | null>(null);
-  const configuredThreshold = structure?.directorApprovalThreshold ?? null;
-  const thresholdValue =
-    thresholdInput ?? String(configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD);
-  const thresholdNumber = Number(thresholdValue);
-  const thresholdUnchanged =
-    thresholdNumber === (configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD) ||
-    thresholdValue.trim() === "";
-  const [eventThresholdInput, setEventThresholdInput] = useState<string | null>(null);
-  const configuredEventThreshold = structure?.eventDirectorApprovalThreshold ?? null;
-  const eventThresholdValue =
-    eventThresholdInput ??
-    String(configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD);
-  const eventThresholdNumber = Number(eventThresholdValue);
-  const eventThresholdUnchanged =
-    eventThresholdNumber === (configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD) ||
-    eventThresholdValue.trim() === "";
-  const [delegationFrom, setDelegationFrom] = useState("");
-  const [delegationTo, setDelegationTo] = useState("");
 
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
   const [editingAssignments, setEditingAssignments] = useState<AssignmentDraft[]>([emptyDraft()]);
@@ -536,9 +471,6 @@ export default function AdminScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
   const [removeProfileTarget, setRemoveProfileTarget] = useState<
     NonNullable<typeof profiles>[number] | null
-  >(null);
-  const [removeDelegationTarget, setRemoveDelegationTarget] = useState<
-    NonNullable<typeof delegations>[number] | null
   >(null);
 
   const startEditUser = (email: string) => {
@@ -927,9 +859,6 @@ export default function AdminScreen() {
   const onSelectYear = (y: number) => {
     setYear(y);
     setError(null);
-    setThresholdInput(null);
-    setEventThresholdInput(null);
-    setBudgetManagerEmail(null);
     setEditingUserEmail(null);
     setAssigningUserEmail(null);
     setEditingDivisionKey(null);
@@ -1106,16 +1035,6 @@ export default function AdminScreen() {
             </>
           )}
         </>
-      )}
-
-      {key === "merges" && mergeSuggestions && memberPairs && (
-        <SuggestedMerges
-          suggestions={mergeSuggestions}
-          memberPairs={memberPairs}
-          staffYear={currentYear}
-          run={run}
-          onMerged={(summary) => setToast({ text: summary })}
-        />
       )}
 
       {key === "structure" && (
@@ -1653,268 +1572,43 @@ export default function AdminScreen() {
         </>
       )}
 
-      {key === "other" && (
+      {key === "teams" && (
         <CardGrid>
-          <View style={{ gap: spacing.md }}>
-          <SectionTitle>Budget Manager · {selectedYear}</SectionTitle>
-          <Card>
-            {editable ? (
-              <>
-                <Select
-                  label="Budget Manager"
-                  value={budgetManagerValue}
-                  options={(financeMembers ?? []).map((person) => ({
-                    label: person.name ?? person.email,
-                    value: person.email,
-                  }))}
-                  onSelect={setBudgetManagerEmail}
-                  placeholder="Choose a Finance member…"
-                />
-                <Btn
-                  title="Set Budget Manager"
-                  disabled={
-                    !budgetManagerValue ||
-                    budgetManagerValue === (structure?.budgetManagerEmail ?? "")
-                  }
-                  onPress={() =>
-                    void run(() =>
-                      setBudgetManager({
-                        year: selectedYear,
-                        email: budgetManagerValue,
-                      })
-                    ).then((ok) => ok && setBudgetManagerEmail(null))
-                  }
-                />
-              </>
-            ) : (
-              <Select
-                label="Budget Manager"
-                value={structure?.budgetManagerEmail ?? ""}
-                options={(financeMembers ?? []).map((person) => ({
-                  label: person.name ?? person.email,
-                  value: person.email,
-                }))}
-                onSelect={() => {}}
-                disabled
-                placeholder="Not set"
-              />
-            )}
-          </Card>
-          </View>
+          <AdminsCard />
+          <TeamJobsCard year={selectedYear} />
+        </CardGrid>
+      )}
 
+      {key === "system" && (
+        <CardGrid>
+          <AppErrorsCard />
           <View style={{ gap: spacing.md }}>
-          <SectionTitle>Director approval threshold · {selectedYear}</SectionTitle>
-          <Card>
-            <Muted>
-              Requests at or above this amount also need the Director&apos;s
-              approval.
-              {configuredThreshold == null
-                ? ` Using the standard default of $${formatAmount(DIRECTOR_APPROVAL_THRESHOLD)}.`
-                : ""}{" "}
-              Only affects requests submitted from now on.
-            </Muted>
-            {editable ? (
-              <>
-                <Field
-                  label="Threshold ($)"
-                  value={thresholdValue}
-                  onChangeText={(text) => setThresholdInput(currencyText(text))}
-                  keyboardType="decimal-pad"
-                />
-                <Btn
-                  title="Set threshold"
-                  disabled={!(thresholdNumber > 0) || thresholdUnchanged}
-                  onPress={() =>
-                    void run(() =>
-                      setDirectorThreshold({
-                        year: selectedYear,
-                        amount: thresholdNumber,
-                      })
-                    ).then((ok) => ok && setThresholdInput(null))
-                  }
-                />
-              </>
-            ) : (
-              <Muted>
-                Threshold: $
-                {(
-                  configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD
-                ).toLocaleString("en-AU")}
-              </Muted>
-            )}
-          </Card>
-          </View>
-
-          <View style={{ gap: spacing.md }}>
-          <SectionTitle>Event Director approval threshold · {selectedYear}</SectionTitle>
-          <Card>
-            <Muted>
-              Event requests whose Finance form has total expenses over this amount
-              also need the Director&apos;s approval, before the Finance Head&apos;s.
-              {configuredEventThreshold == null
-                ? ` Using the standard default of $${formatAmount(EVENT_DIRECTOR_APPROVAL_THRESHOLD)}.`
-                : ""}{" "}
-              Only affects Finance forms submitted from now on.
-            </Muted>
-            {editable ? (
-              <>
-                <Field
-                  label="Threshold ($)"
-                  value={eventThresholdValue}
-                  onChangeText={(text) => setEventThresholdInput(currencyText(text))}
-                  keyboardType="decimal-pad"
-                />
-                <Btn
-                  title="Set event threshold"
-                  disabled={!(eventThresholdNumber > 0) || eventThresholdUnchanged}
-                  onPress={() =>
-                    void run(() =>
-                      setEventDirectorThreshold({
-                        year: selectedYear,
-                        amount: eventThresholdNumber,
-                      })
-                    ).then((ok) => ok && setEventThresholdInput(null))
-                  }
-                />
-              </>
-            ) : (
-              <Muted>
-                Threshold: $
-                {(
-                  configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD
-                ).toLocaleString("en-AU")}
-              </Muted>
-            )}
-          </Card>
-          </View>
-
-          {hasAccess && (
-            <View style={{ gap: spacing.md }}>
-              <SectionTitle>Approver delegation · {selectedYear}</SectionTitle>
-              <Card>
+            <SectionTitle>Directory sync</SectionTitle>
+            <Card>
+              {syncState?.syncedAt ? (
                 <Muted>
-                  A delegate can approve, decline and pay for their approver
-                  this staff year.
+                  Last synced: {sydneyDateTime(syncState.syncedAt)} · {syncState.status}
                 </Muted>
-                {(delegations ?? []).length === 0 ? (
-                  <Muted>No delegations set.</Muted>
-                ) : (
-                  (delegations ?? []).map((d) => (
-                    <Row key={d.id}>
-                      <Txt style={{ flexGrow: 1 }}>
-                        {(nameByEmail.get(d.fromEmail) ?? d.fromEmail) +
-                          "  →  " +
-                          (nameByEmail.get(d.toEmail) ?? d.toEmail)}
-                      </Txt>
-                      {editable && (
-                        <IconButton
-                          name="close"
-                          size={32}
-                          color={t.danger}
-                          accessibilityLabel="Remove delegation"
-                          onPress={() => setRemoveDelegationTarget(d)}
-                        />
-                      )}
-                    </Row>
-                  ))
-                )}
-                {editable && (
-                  <>
-                    <Select
-                      label="Approver (being covered)"
-                      value={delegationFrom}
-                      options={personOptions}
-                      onSelect={setDelegationFrom}
-                      placeholder="Choose the approver…"
-                    />
-                    <Select
-                      label="Delegate (acting on their behalf)"
-                      value={delegationTo}
-                      options={personOptions}
-                      onSelect={setDelegationTo}
-                      placeholder="Choose the stand-in…"
-                    />
-                    <Btn
-                      title="Add delegation"
-                      disabled={
-                        !delegationFrom ||
-                        !delegationTo ||
-                        delegationFrom === delegationTo
-                      }
-                      onPress={() =>
-                        void run(() =>
-                          addDelegation({
-                            year: selectedYear,
-                            fromEmail: delegationFrom,
-                            toEmail: delegationTo,
-                          })
-                        ).then((ok) => {
-                          if (ok) {
-                            setDelegationFrom("");
-                            setDelegationTo("");
-                          }
-                        })
-                      }
-                    />
-                  </>
-                )}
-              </Card>
-            </View>
-          )}
-
-          {hasAccess && <StepTimingCard year={selectedYear} />}
-
-          {isAdmin && <AdminsCard />}
-
-          {isAdmin && <GrievanceTeamCard year={currentYear} />}
-
-          {isAdmin && <AppErrorsCard />}
-
-          {isAdmin && (
-            <View style={{ gap: spacing.md }}>
-              <SectionTitle>Directory sync</SectionTitle>
-              <Card>
-                {syncState?.syncedAt ? (
-                  <Muted>
-                    Last synced:{" "}
-                    {sydneyDateTime(syncState.syncedAt)} ·{" "}
-                    {syncState.status}
-                  </Muted>
-                ) : (
-                  <Muted>Never synced.</Muted>
-                )}
-                <Btn
-                  title={syncing ? "Syncing…" : "Sync directory now"}
-                  loading={syncing}
-                  onPress={() => setSyncConfirm(true)}
-                />
-              </Card>
-            </View>
-          )}
+              ) : (
+                <Muted>Never synced.</Muted>
+              )}
+              <Btn
+                title={syncing ? "Syncing…" : "Sync directory now"}
+                loading={syncing}
+                onPress={() => setSyncConfirm(true)}
+              />
+            </Card>
+          </View>
         </CardGrid>
       )}
     </>
   );
 
-  const adminTabs: PagerTab[] = budgetManagerOnly
-    ? [{ key: "other", label: "Other", render: () => renderTabContent("other") }]
-    : [
-        ...ADMIN_TABS.map((tabDef) => ({
-          key: tabDef.key,
-          label: tabDef.label,
-          render: () => renderTabContent(tabDef.key as AdminTab),
-        })),
-        ...(showMerges
-          ? [
-              {
-                key: "merges",
-                label: "Merges",
-                badge: mergeCount,
-                render: () => renderTabContent("merges"),
-              },
-            ]
-          : []),
-      ];
+  const adminTabs: PagerTab[] = ADMIN_TABS.map((tabDef) => ({
+    key: tabDef.key,
+    label: tabDef.label,
+    render: () => renderTabContent(tabDef.key as AdminTab),
+  }));
 
   return (
     <>
@@ -1927,14 +1621,12 @@ export default function AdminScreen() {
           setError(null);
         }}
         floating={
-          budgetManagerOnly ? undefined : (
-            <FloatingYearPicker
-              year={selectedYear}
-              years={years ?? [currentYear, currentYear + 1]}
-              onSelect={onSelectYear}
-              formatLabel={yearLabel}
-            />
-          )
+          <FloatingYearPicker
+            year={selectedYear}
+            years={years ?? [currentYear, currentYear + 1]}
+            onSelect={onSelectYear}
+            formatLabel={yearLabel}
+          />
         }
       />
       <ConfirmDialog
@@ -1961,22 +1653,6 @@ export default function AdminScreen() {
           }
         }}
         onClose={() => setRemoveProfileTarget(null)}
-      />
-      <ConfirmDialog
-        visible={removeDelegationTarget !== null}
-        title="Remove delegation?"
-        message={
-          removeDelegationTarget
-            ? `${nameByEmail.get(removeDelegationTarget.fromEmail) ?? removeDelegationTarget.fromEmail} → ${nameByEmail.get(removeDelegationTarget.toEmail) ?? removeDelegationTarget.toEmail}: the delegate can no longer act for the approver in ${selectedYear}.`
-            : undefined
-        }
-        confirmLabel="Remove"
-        onConfirm={() => {
-          if (removeDelegationTarget) {
-            void run(() => removeDelegation({ id: removeDelegationTarget.id }));
-          }
-        }}
-        onClose={() => setRemoveDelegationTarget(null)}
       />
       <ConfirmDialog
         visible={syncConfirm}

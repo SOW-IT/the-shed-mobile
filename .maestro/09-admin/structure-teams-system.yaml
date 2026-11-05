@@ -18,13 +18,16 @@ tags:
     text: "Managed by the app — can't be renamed or deleted"
     optional: true
 
-- tapOn: "Other"
+- tapOn: "Teams"
 - assertVisible:
-    text: ".*Budget Manager.*"
-- assertVisible:
-    text: ".*(Director Threshold|Threshold).*"
-- assertVisible:
-    text: ".*(Delegation|delegations).*"
+    text: ".*Always admins.*"
+- scrollUntilVisible:
+    element:
+      text: ".*Finance team.*"
+    direction: DOWN
+    optional: true
+
+- tapOn: "System"
 
 - scrollUntilVisible:
     element:

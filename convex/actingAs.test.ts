@@ -693,10 +693,10 @@ describe("acting as Marketing staff", () => {
     const admin = asUser(t, ADMIN);
     await expect(
       admin.mutation(api.designRequests.complete, { id: design.approved })
-    ).rejects.toThrow(/Only the Marketing team/);
+    ).rejects.toThrow(/Only the design team/);
     await expect(
       admin.mutation(api.designRequestComments.add, { id: design.pending, body: "Hi" })
-    ).rejects.toThrow(/Only the requester and the Marketing team/);
+    ).rejects.toThrow(/Only the requester and the design team/);
     await expect(
       admin.mutation(api.eventSubForms.saveMarketing, {
         id: events.marketingTeam,

@@ -1,8 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Audience } from "../shared/announcements";
-import { EVENTS, SUB_FORM_TEAMS } from "../shared/eventRequests";
+import { assertNoTeamJobs, copyTeams, renameTeamDepartment, teamsFor } from "./teamJobs";
 import {
-  ADMIN_DEPARTMENTS,
   Assignment,
   assignmentFor,
   assignmentsOf,
@@ -10,7 +9,6 @@ import {
   dedupeAssignments,
   departmentsOf,
   DIRECTOR,
-  FINANCE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   isChaplainRole,
@@ -50,6 +48,7 @@ import {
   isOrgEmail,
   nextStaffYear,
   optionalEmail,
+  actAsEmails,
   optionalProfile,
   requireAdmin,
   requireEmail,
@@ -233,15 +232,7 @@ const renameScopeInProfiles = async (
   }
 };
 
-const APP_KEYED_DEPARTMENTS: readonly string[] = [
-  ...new Set([
-    ...ADMIN_DEPARTMENTS,
-    FINANCE,
-    CHAPLAINCY_DEPARTMENT,
-    EVENTS,
-    ...Object.values(SUB_FORM_TEAMS),
-  ]),
-];
+const APP_KEYED_DEPARTMENTS: readonly string[] = [CHAPLAINCY_DEPARTMENT];
 
 const APP_KEYED_DIVISIONS: readonly string[] = [];
 
@@ -377,16 +368,10 @@ const clearBudgetManagerIfNotFinance = async (
   email: string,
   assignments: Assignment[]
 ) => {
-  if (assignments.some((a) => a.department === FINANCE)) return;
+  const finance = (await teamsFor(ctx, year)).finance;
+  if (assignments.some((a) => a.department === finance)) return;
   const settings = await getYearSettings(ctx, year);
   if (settings?.budgetManagerEmail === email) {
-    await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: undefined });
-  }
-};
-
-const clearBudgetManager = async (ctx: MutationCtx, year: number) => {
-  const settings = await getYearSettings(ctx, year);
-  if (settings?.budgetManagerEmail) {
     await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: undefined });
   }
 };
@@ -928,7 +913,7 @@ export const removeDivision = mutation({
       (a) => a.division === args.name || deptNames.has(a.department ?? "")
     );
 
-    if (deptNames.has(FINANCE)) await clearBudgetManager(ctx, args.year);
+    for (const dept of divDepts) await assertNoTeamJobs(ctx, args.year, dept.name);
     for (const dept of divDepts) {
       await ctx.db.delete("departments", dept._id);
     }
@@ -1155,7 +1140,9 @@ export const people = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     if ((await optionalEmail(ctx)) === null) return null;
-    await requireFinanceSettingsAccess(ctx, args.year, "view people");
+    if (!(await financeSettingsViewer(ctx, args.year))) {
+      throw new ConvexError("Only admins and the finance team can view people.");
+    }
     const byEmail = new Map<
       string,
       {
@@ -1254,6 +1241,7 @@ export const updateDepartment = mutation({
       await renameDepartmentInFormRequests(ctx, args.year, oldName, newName);
       await renameInScheduledAnnouncements(ctx, args.year, "departments", oldName, newName);
       await renameGrievanceDepartment(ctx, args.year, oldName, newName);
+      await renameTeamDepartment(ctx, args.year, oldName, newName);
     } else {
       await ctx.db.patch("departments", existing._id, {
         division: args.division,
@@ -1282,7 +1270,7 @@ export const removeDepartment = mutation({
 
     await assertNoOpenRequests(ctx, args.year, args.name);
     await assertNobodyHolds(ctx, args.year, args.name, (a) => a.department === args.name);
-    if (args.name === FINANCE) await clearBudgetManager(ctx, args.year);
+    await assertNoTeamJobs(ctx, args.year, args.name);
 
     await ctx.db.delete("departments", department._id);
     return null;
@@ -1296,8 +1284,17 @@ const financeSettingsAccess = async (
   const callerEmail = await requireEmail(ctx);
   const caller = await optionalProfile(ctx);
   if (caller && (await isAdminProfile(ctx, caller.profile))) return callerEmail;
-  const financeDept = await getDepartment(ctx, year, FINANCE);
-  return financeDept?.headEmail === callerEmail ? callerEmail : null;
+  const financeDept = await getDepartment(ctx, year, (await teamsFor(ctx, year)).finance);
+  const head = financeDept?.headEmail;
+  return head && (await actAsEmails(ctx, year, callerEmail)).has(head) ? callerEmail : null;
+};
+
+const financeSettingsViewer = async (ctx: QueryCtx, year: number): Promise<boolean> => {
+  if (await financeSettingsAccess(ctx, year)) return true;
+  const caller = await optionalProfile(ctx);
+  return (
+    !!caller && isMemberOfDepartment(caller.profile, (await teamsFor(ctx, caller.year)).finance)
+  );
 };
 
 const requireFinanceSettingsAccess = async (
@@ -1312,6 +1309,16 @@ const requireFinanceSettingsAccess = async (
   return callerEmail;
 };
 
+export const financeSettingsRole = query({
+  args: { year: v.number() },
+  returns: v.object({ canView: v.boolean(), canEdit: v.boolean() }),
+  handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return { canView: false, canEdit: false };
+    const canEdit = (await financeSettingsAccess(ctx, args.year)) !== null;
+    return { canView: canEdit || (await financeSettingsViewer(ctx, args.year)), canEdit };
+  },
+});
+
 export const setBudgetManager = mutation({
   args: { year: v.number(), email: v.string() },
   handler: async (ctx, args) => {
@@ -1319,9 +1326,10 @@ export const setBudgetManager = mutation({
     assertManagedYear(args.year);
     const email = args.email.trim().toLowerCase();
     const profile = await getProfile(ctx, email, args.year);
-    if (!profile || !isMemberOfDepartment(profile, FINANCE)) {
+    const finance = (await teamsFor(ctx, args.year)).finance;
+    if (!profile || !isMemberOfDepartment(profile, finance)) {
       throw new ConvexError(
-        `The Budget Manager must be from the ${FINANCE} department in ${args.year}.`
+        `The Budget Manager must be from the ${finance} department in ${args.year}.`
       );
     }
     const settings = await getYearSettings(ctx, args.year);
@@ -1392,13 +1400,14 @@ export const financeMembers = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     if ((await optionalEmail(ctx)) === null) return null;
-    if (!(await financeSettingsAccess(ctx, args.year))) return null;
+    if (!(await financeSettingsViewer(ctx, args.year))) return null;
+    const finance = (await teamsFor(ctx, args.year)).finance;
     const profiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
     return profiles
-      .filter((p) => isMemberOfDepartment(p, FINANCE))
+      .filter((p) => isMemberOfDepartment(p, finance))
       .map((p) => ({ email: p.email, name: p.name ?? null }));
   },
 });
@@ -1407,7 +1416,9 @@ export const listDelegations = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     if ((await optionalEmail(ctx)) === null) return null;
-    await requireFinanceSettingsAccess(ctx, args.year, "view delegations");
+    if (!(await financeSettingsViewer(ctx, args.year))) {
+      throw new ConvexError("Only admins and the finance team can view delegations.");
+    }
     const rows = await ctx.db
       .query("approverDelegations")
       .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -1625,6 +1636,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     await ctx.db.insert("yearSettings", { year: to, ...completion });
   }
 
+  await copyTeams(ctx, from, to);
   return counts;
 };
 
@@ -1722,7 +1734,7 @@ export const prefillNextStaffYear = internalMutation({
 });
 
 const ORG_STRUCTURE: Record<string, string[]> = {
-  Governance: ["Data and IT", FINANCE, "Compliance"],
+  Governance: ["Data and IT", "Finance", "Compliance"],
   Engagement: ["Marketing", "Alumni"],
   "Human Resources": ["People and Culture", "Training and Development"],
   Operations: ["Events", "Missions", CHAPLAINCY_DEPARTMENT],

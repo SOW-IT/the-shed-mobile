@@ -15,7 +15,7 @@ import { mutation, query } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
 import { latestStaffProfile } from "./attendanceMembers";
 import { isAssigned } from "./staffMembers";
-import { currentStaffYear, optionalEmail, requireAdmin, rolesOf } from "./model";
+import { currentStaffYear, optionalEmail, requireProfile, rolesOf } from "./model";
 
 export type MergeCandidate = {
   memberId: Id<"attendanceMembers">;
@@ -40,7 +40,7 @@ export const list = query({
   args: {},
   handler: async (ctx): Promise<MergeSuggestion[] | null> => {
     if ((await optionalEmail(ctx)) === null) return null;
-    await requireAdmin(ctx);
+    await requireProfile(ctx);
     const year = currentStaffYear();
     const years = new Set([year, year + 1]);
 
@@ -130,7 +130,7 @@ export const list = query({
 export const dismiss = mutation({
   args: { staffEmail: v.string(), memberId: v.id("attendanceMembers") },
   handler: async (ctx, { staffEmail, memberId }) => {
-    const { email: actorEmail } = await requireAdmin(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     const profile = await latestStaffProfile(ctx, staffEmail);
     if (!profile) throw new ConvexError("Staff profile not found.");
     const staffKey = canonicalEmailKey(profile.email)!;

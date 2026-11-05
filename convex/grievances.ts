@@ -25,7 +25,6 @@ import {
   optionalEmail,
   optionalProfile,
   profileForCurrentYear,
-  requireAdmin,
 } from "./model";
 import { appUrl, notify } from "./requests";
 
@@ -235,7 +234,7 @@ export const setDepartments = mutation({
   // `expected` is the list the editor started from, so a stale edit can't undo someone else's.
   args: { departments: v.array(v.string()), expected: v.array(v.string()) },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requireHandler(ctx);
     const cleaned = cleanNameList(args.departments, {
       one: "department",
       max: MAX_GRIEVANCE_DEPARTMENTS,
