@@ -96,8 +96,9 @@ const clearOutbox = (t: T) =>
     for (const n of await ctx.db.query("notifications").collect()) {
       await ctx.db.delete("notifications", n._id);
     }
+    // Only pending jobs: cancelling one convex-test has already started fails it.
     for (const f of await ctx.db.system.query("_scheduled_functions").collect()) {
-      await ctx.scheduler.cancel(f._id);
+      if (f.state.kind === "pending") await ctx.scheduler.cancel(f._id);
     }
   });
 
