@@ -1,7 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { requireOptionalNativeModule } from "expo";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useAnyModalOpen } from "@/components/ui/modalPresence";
 import { FastModal } from "@/components/ui/primitives";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -14,6 +15,21 @@ const loadUpdates = (): UpdatesModule | null => {
 };
 
 const updatesModule = loadUpdates();
+
+// iOS can't present a popup while a sheet is closing, and closing a sheet takes
+// down a popup shown over it, so wait until no sheet is open and the last has gone.
+const SHEET_CLOSE_MS = 400;
+
+const useNoSheetOpen = () => {
+  const sheetOpen = useAnyModalOpen();
+  const [settled, setSettled] = useState(true);
+  useEffect(() => {
+    if (sheetOpen) return () => setSettled(false);
+    const timer = setTimeout(() => setSettled(true), SHEET_CLOSE_MS);
+    return () => clearTimeout(timer);
+  }, [sheetOpen]);
+  return !sheetOpen && settled;
+};
 
 export function OtaUpdateBanner() {
   return updatesModule?.isEnabled ? <PendingUpdatePopup updates={updatesModule} /> : null;
@@ -28,13 +44,14 @@ export function PendingUpdatePopup({
   const { isUpdatePending } = updates.useUpdates();
   const [dismissed, setDismissed] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const noSheetOpen = useNoSheetOpen();
   const restart = () => {
     setRestarting(true);
     void updates.reloadAsync().catch(() => setRestarting(false));
   };
   const dismiss = () => setDismissed(true);
   return (
-    <FastModal visible={isUpdatePending && !dismissed} onRequestClose={dismiss}>
+    <FastModal visible={isUpdatePending && !dismissed && noSheetOpen} onRequestClose={dismiss}>
       <View
         style={[styles.backdrop, { backgroundColor: t.dark ? "rgba(0, 0, 0, 0.6)" : "rgba(15, 37, 35, 0.45)" }]}
       >

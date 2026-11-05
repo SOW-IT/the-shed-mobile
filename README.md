@@ -401,7 +401,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **Over-the-air updates**: phone builds from 2.9.19 carry `expo-updates`
   with a fingerprint runtime, so a JavaScript-only change reaches them after
   a merge without a store build. Once an update has downloaded, a popup in the
-  middle of the screen offers a big Restart button (or Not now).
+  middle of the screen offers a big Restart button (or Not now), waiting until
+  any open sheet has closed.
 - **App errors**: a screen that crashes, or an unhandled error, is reported
   (`convex/appErrors.ts`) with the route, platform, version and who hit it,
   grouped by fingerprint. Admins see the last seven days on Admin, Other and
