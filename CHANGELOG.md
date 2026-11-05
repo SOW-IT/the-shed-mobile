@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.30] - 2026-11-05
+
+### Fixed
+- **The automated checks no longer fail at random.** The design request,
+  grievance and reminder tests could end with an error after every test had
+  passed, which could turn CI red with nothing actually broken. They now
+  only call off emails that haven't started sending yet, so a run passes or
+  fails on the tests alone. The app itself is unchanged.
+
 ## [2.10.29] - 2026-11-05
 
 ### Changed
