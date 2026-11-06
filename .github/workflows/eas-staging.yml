@@ -9,7 +9,7 @@ on:
         options: [both, ios, android]
         default: both
       force:
-        description: "Build even if main's native code matches the last store build"
+        description: "Build even if main's native code matches the last store build (otherwise it's sent over the air)"
         type: boolean
         default: false
 
@@ -50,6 +50,17 @@ jobs:
           PLATFORM_INPUT: ${{ inputs.platform || 'both' }}
           FORCE: ${{ inputs.force && 'true' || 'false' }}
         run: node scripts/eas-fingerprint-check.mjs staging
+
+      - name: Publish over the air instead of building
+        if: steps.fingerprint.outputs.update_platform != 'none'
+        env:
+          UPDATE_PLATFORM: ${{ steps.fingerprint.outputs.update_platform }}
+          CHANNEL: ${{ steps.fingerprint.outputs.channel }}
+          APP_VARIANT: staging
+          EXPO_PUBLIC_CONVEX_URL: https://successful-lynx-56.ap-southeast-2.convex.cloud
+        run: |
+          test -n "$EXPO_PUBLIC_CONVEX_URL"
+          eas update --channel "$CHANNEL" --environment preview --platform "$UPDATE_PLATFORM" --auto --non-interactive
 
       - name: Build & submit to staging
         if: steps.fingerprint.outputs.eas_platform != 'none'

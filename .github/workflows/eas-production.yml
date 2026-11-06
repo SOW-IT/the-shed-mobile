@@ -9,7 +9,7 @@ on:
         options: [both, ios, android]
         default: both
       force:
-        description: "Build even if main's native code matches the last store build"
+        description: "Build even if main's native code matches the last store build (otherwise it's sent over the air)"
         type: boolean
         default: false
 
@@ -51,6 +51,28 @@ jobs:
           FORCE: ${{ inputs.force && 'true' || 'false' }}
         run: node scripts/eas-fingerprint-check.mjs production
 
+      - name: Publish over the air instead of building
+        id: ota
+        if: steps.fingerprint.outputs.update_platform != 'none'
+        env:
+          UPDATE_PLATFORM: ${{ steps.fingerprint.outputs.update_platform }}
+          CHANNEL: ${{ steps.fingerprint.outputs.channel }}
+          EXPO_PUBLIC_CONVEX_URL: https://giant-bloodhound-191.ap-southeast-2.convex.cloud
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Only main is published over the air to production; this run is on ${GITHUB_REF_NAME}. Tick force to build instead."
+            exit 1
+          fi
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "$main_sha" != "$GITHUB_SHA" ]; then
+            echo "::notice::main is now ${main_sha}, so its own EAS Update run publishes the newer code; nothing published here."
+            exit 0
+          fi
+          test -n "$EXPO_PUBLIC_CONVEX_URL"
+          eas update --channel "$CHANNEL" --environment production --platform "$UPDATE_PLATFORM" --auto --non-interactive
+          echo "published=true" >> "$GITHUB_OUTPUT"
+
       - name: Build & submit to production
         if: steps.fingerprint.outputs.eas_platform != 'none'
         env:
@@ -64,6 +86,7 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           PLATFORM_INPUT: ${{ inputs.platform || 'both' }}
           EAS_PLATFORM: ${{ steps.fingerprint.outputs.eas_platform }}
+          UPDATE_PLATFORM: ${{ steps.ota.outputs.published == 'true' && steps.fingerprint.outputs.update_platform || 'none' }}
           ACTOR: ${{ github.triggering_actor }}
           REF_NAME: ${{ github.ref_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

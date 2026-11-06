@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.33] - 2026-11-07
+
+### Changed
+- **Starting an EAS store build sends an over-the-air update when that's
+  enough.** When EAS Production or EAS Staging is run and a platform's
+  native code is the same as its last store build, which reached the store,
+  the run now publishes the commit over the air with `eas update` instead of
+  making a new store build. Phones get the change in minutes and nobody
+  waits for store review. A platform whose native code changed still gets a
+  store build, and ticking **force** still builds anyway. Production only
+  sends `main` over the air. The app itself is unchanged.
+
 ## [2.10.32] - 2026-11-06
 
 ### Fixed

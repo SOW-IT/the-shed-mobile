@@ -8,6 +8,8 @@ import {
   submissionFinished,
   summaryMarkdown,
   updateCommit,
+  updateNotice,
+  updatePlatformArg,
 } from "./easFingerprintGate.mjs";
 
 const IOS_HASH = "b28ad57ce5dfff3678d5371fee3d496c62c6b297";
@@ -110,13 +112,27 @@ describe("decidePlatform", () => {
       lastLabel: "2.10.7 (build 59)",
       reason: "unchanged",
       build: false,
+      update: false,
     });
   });
 
   test("builds when force is ticked even though nothing changed", () => {
     expect(
       decidePlatform({ platform: "ios", current: IOS_HASH, lastBuild: build(IOS_HASH), ...live, force: true })
-    ).toMatchObject({ reason: "forced", build: true });
+    ).toMatchObject({ reason: "forced", build: true, update: false });
+  });
+
+  test("builds instead of publishing over the air when force is ticked", () => {
+    expect(
+      decidePlatform({
+        platform: "ios",
+        current: IOS_HASH,
+        lastBuild: build(IOS_HASH),
+        ...live,
+        publishedCommit: null,
+        force: true,
+      })
+    ).toMatchObject({ reason: "forced", build: true, update: false });
   });
 
   test("builds when the native code changed", () => {
@@ -134,13 +150,13 @@ describe("decidePlatform", () => {
   test.each([
     ["no update for this fingerprint yet", null],
     ["an update from an older commit", "0".repeat(40)],
-  ])("builds when there is %s", (_label, publishedCommit) => {
+  ])("publishes over the air instead of building when there is %s", (_label, publishedCommit) => {
     expect(
       decidePlatform({ platform: "ios", current: IOS_HASH, lastBuild: build(IOS_HASH), ...live, publishedCommit })
-    ).toMatchObject({ reason: "not-published", build: true });
+    ).toMatchObject({ reason: "not-published", build: false, update: true });
   });
 
-  test("builds when the commit being checked is unknown", () => {
+  test("publishes over the air when the commit being checked is unknown", () => {
     expect(
       decidePlatform({
         platform: "ios",
@@ -150,7 +166,7 @@ describe("decidePlatform", () => {
         commit: "",
         publishedCommit: "",
       })
-    ).toMatchObject({ reason: "not-published", build: true });
+    ).toMatchObject({ reason: "not-published", build: false, update: true });
   });
 
   test("builds when there is no finished store build yet", () => {
@@ -193,6 +209,23 @@ describe("easPlatformArg", () => {
   });
 });
 
+describe("updatePlatformArg", () => {
+  const decision = (platform, update) => ({ platform, build: !update, update });
+
+  test("is none when nothing goes over the air", () => {
+    expect(updatePlatformArg([decision("ios", false), decision("android", false)])).toBe("none");
+    expect(updatePlatformArg([])).toBe("none");
+  });
+
+  test("is the one platform published over the air", () => {
+    expect(updatePlatformArg([decision("ios", true), decision("android", false)])).toBe("ios");
+  });
+
+  test("is all when both are published over the air", () => {
+    expect(updatePlatformArg([decision("ios", true), decision("android", true)])).toBe("all");
+  });
+});
+
 describe("summaryMarkdown and skipNotice", () => {
   const unchanged = decidePlatform({ platform: "ios", current: IOS_HASH, lastBuild: build(IOS_HASH), ...live });
   const changed = decidePlatform({
@@ -229,8 +262,9 @@ describe("summaryMarkdown and skipNotice", () => {
     });
     const text = summaryMarkdown("staging", [unsubmitted, unpublished]);
     expect(text).toContain("no finished store submission, building again");
-    expect(text).toContain("isn't published over the air for it yet, building");
-    expect(text).not.toContain("force");
+    expect(text).toContain("Unchanged, publishing this commit over the air instead of building");
+    expect(text).toContain("Android has the same native code as the last store build, which reached the store, so this commit goes out over the air");
+    expect(text).not.toContain("iOS has the same native code");
   });
 
   test("says have when both are skipped", () => {
@@ -246,6 +280,27 @@ describe("summaryMarkdown and skipNotice", () => {
   test("shows a missing build as none", () => {
     expect(summaryMarkdown("staging", [fresh])).toContain(
       "| Android | `5687bad` | none | No finished store build to compare with, building |"
+    );
+  });
+
+  test("says have when both go over the air", () => {
+    const unpublished = (platform, hash) =>
+      decidePlatform({ platform, current: hash, lastBuild: build(hash), ...live, publishedCommit: null });
+    const text = summaryMarkdown("production", [unpublished("ios", IOS_HASH), unpublished("android", ANDROID_HASH)]);
+    expect(text).toContain("iOS and Android have the same native code as the last store build, which reached the store, so");
+    expect(text).not.toContain("is already published over the air");
+  });
+
+  test("names the build an over-the-air platform matches", () => {
+    const unpublished = decidePlatform({
+      platform: "ios",
+      current: IOS_HASH,
+      lastBuild: build(IOS_HASH),
+      ...live,
+      publishedCommit: null,
+    });
+    expect(updateNotice("staging", unpublished)).toBe(
+      "iOS staging not built: main's native fingerprint b28ad57 matches 2.10.7 (build 59), so this commit is published over the air to it instead. Tick force to build anyway."
     );
   });
 

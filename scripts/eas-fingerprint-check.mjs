@@ -11,6 +11,8 @@ import {
   submissionFinished,
   summaryMarkdown,
   updateCommit,
+  updateNotice,
+  updatePlatformArg,
 } from "./lib/easFingerprintGate.mjs";
 
 const profile = process.argv[2];
@@ -94,14 +96,21 @@ const run = () => {
   });
 
   const easPlatform = easPlatformArg(decisions);
+  const updatePlatform = updatePlatformArg(decisions);
   const summary = summaryMarkdown(profile, decisions);
   console.log(summary);
   appendLine(process.env.GITHUB_STEP_SUMMARY, summary);
-  for (const decision of decisions.filter((decision) => !decision.build)) {
-    console.log(`::notice title=${platformName(decision.platform)} skipped::${skipNotice(profile, decision)}`);
+  for (const decision of decisions) {
+    if (decision.update) {
+      console.log(`::notice title=${platformName(decision.platform)} over the air::${updateNotice(profile, decision)}`);
+    } else if (!decision.build) {
+      console.log(`::notice title=${platformName(decision.platform)} skipped::${skipNotice(profile, decision)}`);
+    }
   }
   appendLine(process.env.GITHUB_OUTPUT, `eas_platform=${easPlatform}`);
-  if (easPlatform === "none") {
+  appendLine(process.env.GITHUB_OUTPUT, `update_platform=${updatePlatform}`);
+  appendLine(process.env.GITHUB_OUTPUT, `channel=${channel}`);
+  if (easPlatform === "none" && updatePlatform === "none") {
     console.log(`::notice title=Nothing to build::No ${profile} store build needed. Run again with force ticked to build anyway.`);
   }
 };
