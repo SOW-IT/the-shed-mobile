@@ -40,17 +40,20 @@ case "${JOB_STATUS:-failure}" in
   *) outcome="failed" ;;
 esac
 
-case "${EAS_PLATFORM:-}" in
-  ios | android) built_platform="$EAS_PLATFORM" ;;
-  all) built_platform="both" ;;
-  *)
-    case "${UPDATE_PLATFORM:-}" in
-      ios | android) built_platform="$UPDATE_PLATFORM" ;;
-      all) built_platform="both" ;;
-      *) built_platform="${PLATFORM_INPUT:-both}" ;;
-    esac
-    ;;
-esac
+shipped=""
+for platform in "${EAS_PLATFORM:-none}" "${UPDATE_PLATFORM:-none}"; do
+  case "$platform" in
+    all) shipped="both" ;;
+    ios | android)
+      if [ -z "$shipped" ] || [ "$shipped" = "$platform" ]; then
+        shipped="$platform"
+      else
+        shipped="both"
+      fi
+      ;;
+  esac
+done
+built_platform="${shipped:-${PLATFORM_INPUT:-both}}"
 
 message_file="${RUNNER_TEMP:-/tmp}/eas-production-chat.json"
 jq -n \

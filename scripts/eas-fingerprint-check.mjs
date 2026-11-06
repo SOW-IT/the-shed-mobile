@@ -61,7 +61,7 @@ const run = () => {
       return group ? updateCommit(eas(["update:view", group]), platform) : null;
     } catch (error) {
       console.log(
-        `::warning::Couldn't read ${channel} updates for ${platformName(platform)}, so it will be built: ${
+        `::warning::Couldn't read ${channel} updates for ${platformName(platform)}, so the commit it already has is unknown and it is sent this one over the air if its native code matches: ${
           error instanceof Error ? error.message : String(error)
         }`
       );

@@ -611,8 +611,10 @@ over-the-air update for that fingerprint on the profile's channel was
 published from the same commit, the platform is skipped. Otherwise (a run
 before EAS Update has finished, or a staging run from another branch) the
 workflow runs `eas update` to that channel for it instead of building.
-Production only publishes `main`, and publishes nothing if `main` has moved on
-since the run started, since that newer merge's own EAS Update run sends it.
+Production only publishes `main`: from another branch it warns and sends
+nothing over the air, though any platform that needs a store build still
+builds. It also publishes nothing if `main` has moved on since the run
+started, since that newer merge's own EAS Update run sends it.
 A changed fingerprint, no earlier build, or a build whose submission failed
 still builds. The run's summary shows both fingerprints and the reason. Tick
 **force** to build anyway, for example to refresh the JavaScript bundled into
