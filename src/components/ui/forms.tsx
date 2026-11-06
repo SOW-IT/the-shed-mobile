@@ -1,7 +1,20 @@
+import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
-import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
+import {
+  Animated,
+  Easing,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  ViewStyle,
+} from "react-native";
 import { useRegisterModal } from "./modalPresence";
 import { FastModal, SowSpinner, Txt } from "./primitives";
 import { useRevealFocusedInput } from "./revealFocus";
@@ -25,7 +38,8 @@ export const Field = ({
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
-  keyboardType?: "default" | "numeric" | "decimal-pad" | "email-address" | "url";
+  keyboardType?:
+    "default" | "numeric" | "decimal-pad" | "email-address" | "url";
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   autoCorrect?: boolean;
   multiline?: boolean;
@@ -104,7 +118,13 @@ export const SearchField = ({
   const t = useAppTheme();
   const reveal = useRevealFocusedInput();
   return (
-    <View style={[styles.search, { backgroundColor: t.card, borderColor: t.border }, style]}>
+    <View
+      style={[
+        styles.search,
+        { backgroundColor: t.card, borderColor: t.border },
+        style,
+      ]}
+    >
       <Ionicons name="search-outline" size={18} color={t.faint} />
       <TextInput
         style={[styles.searchInput, { color: t.text }]}
@@ -144,7 +164,7 @@ type SelectOption =
 
 const normalizeOptions = (options: readonly SelectOption[]) =>
   options.map((option) =>
-    typeof option === "string" ? { label: option, value: option } : option
+    typeof option === "string" ? { label: option, value: option } : option,
   );
 
 export const OptionSheet = ({
@@ -181,7 +201,10 @@ export const OptionSheet = ({
   return (
     <FastModal visible={visible} onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
-        <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
+        <Pressable
+          style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]}
+          onPress={onClose}
+        />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={spacing.md}
@@ -218,9 +241,7 @@ export const OptionSheet = ({
               {retainedChildren}
             </ScrollView>
             {hasFooter ? (
-              <View style={styles.sheetFooter}>
-                {retainedFooter}
-              </View>
+              <View style={styles.sheetFooter}>{retainedFooter}</View>
             ) : null}
           </View>
         </KeyboardAvoidingView>
@@ -258,7 +279,14 @@ export const OptionRow = ({
       accessibilityState={{ checked: selected }}
       accessibilityLabel={badge ? `${label}, ${badge.toLowerCase()}` : label}
     >
-      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+      <View
+        style={{
+          flex: 1,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.sm,
+        }}
+      >
         {icon ? <Ionicons name={icon} size={18} color={t.text} /> : null}
         <Text
           numberOfLines={1}
@@ -279,7 +307,9 @@ export const OptionRow = ({
               paddingVertical: 2,
             }}
           >
-            <Text style={{ color: t.accent, fontSize: 11, fontWeight: "700" }}>{badge}</Text>
+            <Text style={{ color: t.accent, fontSize: 11, fontWeight: "700" }}>
+              {badge}
+            </Text>
           </View>
         ) : null}
       </View>
@@ -408,7 +438,10 @@ const SelectFace = ({
         {icon ? <Ionicons name={icon} size={18} color={t.text} /> : null}
         <Text
           numberOfLines={1}
-          style={[typography.body, { color: hasValue ? t.text : t.faint, flex: 1 }]}
+          style={[
+            typography.body,
+            { color: hasValue ? t.text : t.faint, flex: 1 },
+          ]}
         >
           {display}
         </Text>
@@ -429,6 +462,7 @@ export const Select = ({
   onSelect,
   placeholder,
   disabled,
+  searchable = false,
 }: {
   label: string;
   value: string;
@@ -436,11 +470,29 @@ export const Select = ({
   onSelect: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  searchable?: boolean;
 }) => {
+  const t = useAppTheme();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const normalized = normalizeOptions(options);
   const selected = normalized.find((option) => option.value === value);
   const selectedLabel = selected?.label ?? value;
+  const query = search.trim().toLowerCase();
+  const filteredOptions =
+    searchable && query
+      ? normalized.filter(
+          (option) =>
+            option.label.toLowerCase().includes(query) ||
+            option.value.toLowerCase().includes(query),
+        )
+      : normalized;
+
+  const close = () => {
+    setOpen(false);
+    setSearch("");
+  };
+
   return (
     <>
       <SelectFace
@@ -449,21 +501,45 @@ export const Select = ({
         hasValue={!!value}
         disabled={disabled}
         icon={selected?.icon}
-        onOpen={() => setOpen(true)}
+        onOpen={() => {
+          setSearch("");
+          setOpen(true);
+        }}
       />
-      <OptionSheet visible={open} title={label} onClose={() => setOpen(false)}>
-        {normalized.map((option) => (
-          <OptionRow
-            key={option.value || "(empty)"}
-            label={option.label}
-            icon={option.icon}
-            selected={option.value === value}
-            onPress={() => {
-              onSelect(option.value);
-              setOpen(false);
-            }}
+
+      <OptionSheet visible={open} title={label} onClose={close}>
+        {searchable && (
+          <SearchField
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search by name or email..."
           />
-        ))}
+        )}
+
+        {filteredOptions.length === 0 && searchable ? (
+          <Text
+            style={{
+              color: t.faint,
+              textAlign: "center",
+              paddingVertical: spacing.lg,
+            }}
+          >
+            No matching staff found.
+          </Text>
+        ) : (
+          filteredOptions.map((option) => (
+            <OptionRow
+              key={option.value || "(empty)"}
+              label={option.label}
+              icon={option.icon}
+              selected={option.value === value}
+              onPress={() => {
+                onSelect(option.value);
+                close();
+              }}
+            />
+          ))
+        )}
       </OptionSheet>
     </>
   );
@@ -489,7 +565,9 @@ export const MultiSelect = ({
     .join(", ");
   const toggle = (value: string) => {
     onSelect(
-      values.includes(value) ? values.filter((v) => v !== value) : [...values, value]
+      values.includes(value)
+        ? values.filter((v) => v !== value)
+        : [...values, value],
     );
   };
   return (
@@ -536,10 +614,12 @@ export const Segmented = ({
   const [slide] = useState(() => new Animated.Value(0));
   const activeIndex = Math.max(
     segments.findIndex((segment) => segment.key === active),
-    0
+    0,
   );
   const segmentWidth =
-    segments.length > 0 ? (trackWidth - 2 * styles.segmented.padding) / segments.length : 0;
+    segments.length > 0
+      ? (trackWidth - 2 * styles.segmented.padding) / segments.length
+      : 0;
   useEffect(() => {
     if (trackWidth === 0) return;
     Animated.timing(slide, {
@@ -586,7 +666,9 @@ export const Segmented = ({
               {segment.label}
             </Text>
             {segment.badge ? (
-              <View style={[styles.segmentBadge, { backgroundColor: t.warning }]}>
+              <View
+                style={[styles.segmentBadge, { backgroundColor: t.warning }]}
+              >
                 <Text style={styles.segmentBadgeText}>{segment.badge}</Text>
               </View>
             ) : null}
@@ -594,7 +676,11 @@ export const Segmented = ({
               <View
                 style={[
                   styles.segmentBadge,
-                  { backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#cccccc" },
+                  {
+                    backgroundColor: "#ffffff",
+                    borderWidth: 1,
+                    borderColor: "#cccccc",
+                  },
                 ]}
               >
                 <Text style={[styles.segmentBadgeText, { color: "#333333" }]}>
@@ -621,6 +707,11 @@ export const FloatingYearPicker = ({
   formatLabel?: (year: number) => string;
 }) => (
   <View pointerEvents="box-none" style={styles.floatingYearPicker}>
-    <YearPill year={year} years={years} onSelect={onSelect} formatLabel={formatLabel} />
+    <YearPill
+      year={year}
+      years={years}
+      onSelect={onSelect}
+      formatLabel={formatLabel}
+    />
   </View>
 );

@@ -1,21 +1,19 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { useConvexAuth, useQuery } from "convex/react";
-import { type Href, usePathname, useRouter } from "expo-router";
-import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { api } from "../../../convex/_generated/api";
-import { AppIcon, type AppIconName, Avatar, ConfirmDialog } from "@/components/ui";
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import { ActingAsControl } from "@/components/nav/ActingAs";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
+import {
+  AppIcon,
+  type AppIconName,
+  Avatar,
+  ConfirmDialog,
+} from "@/components/ui";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
 import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
 import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
-import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import { useNavGroupOpen } from "@/hooks/useNavGroupOpen";
 import { useSignOut } from "@/hooks/usePushRegistration";
+import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import {
   activeNavKey,
   badgeText,
@@ -23,36 +21,59 @@ import {
   NAV_GROUP_LABELS,
   NAV_HREFS,
   NAV_LABELS,
+  navEntries,
   type NavGroupKey,
   type NavKey,
-  navEntries,
   navViewer,
   roleLine,
   sidebarItems,
 } from "@/lib/navMenu";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useConvexAuth, useQuery } from "convex/react";
+import { type Href, usePathname, useRouter } from "expo-router";
+import { useState } from "react";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { api } from "../../../convex/_generated/api";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-const NAV_ICONS: Record<NavKey, { outline: AppIconName; filled: AppIconName }> = {
-  home: { outline: "home-outline", filled: "home" },
-  reimbursements: { outline: "receipt-outline", filled: "receipt" },
-  designRequests: { outline: "color-palette-outline", filled: "color-palette" },
-  eventRequests: EVENT_REQUEST_ICON,
-  attendance: { outline: "checkbox-outline", filled: "checkbox" },
-  calendar: { outline: "calendar-outline", filled: "calendar" },
-  insights: { outline: "stats-chart-outline", filled: "stats-chart" },
-  org: { outline: "people-outline", filled: "people" },
-  profile: { outline: "person-outline", filled: "person" },
-  churches: { outline: "business-outline", filled: "business" },
-  mentoring: { outline: "compass-outline", filled: "compass" },
-  announcements: { outline: "megaphone-outline", filled: "megaphone" },
-  grievances: { outline: "shield-checkmark-outline", filled: "shield-checkmark" },
-  admin: { outline: "settings-outline", filled: "settings" },
-};
+const NAV_ICONS: Record<NavKey, { outline: AppIconName; filled: AppIconName }> =
+  {
+    home: { outline: "home-outline", filled: "home" },
+    music: { outline: "musical-notes-outline", filled: "musical-notes" },
+    reimbursements: { outline: "receipt-outline", filled: "receipt" },
+    designRequests: {
+      outline: "color-palette-outline",
+      filled: "color-palette",
+    },
+    eventRequests: EVENT_REQUEST_ICON,
+    attendance: { outline: "checkbox-outline", filled: "checkbox" },
+    calendar: { outline: "calendar-outline", filled: "calendar" },
+    insights: { outline: "stats-chart-outline", filled: "stats-chart" },
+    org: { outline: "people-outline", filled: "people" },
+    profile: { outline: "person-outline", filled: "person" },
+    churches: { outline: "business-outline", filled: "business" },
+    mentoring: { outline: "compass-outline", filled: "compass" },
+    announcements: { outline: "megaphone-outline", filled: "megaphone" },
+    grievances: {
+      outline: "shield-checkmark-outline",
+      filled: "shield-checkmark",
+    },
+    admin: { outline: "settings-outline", filled: "settings" },
+  };
 
 const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "home",
+  "music",
   "reimbursements",
   "designRequests",
   "eventRequests",
@@ -68,7 +89,10 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "admin",
 ]);
 
-const GROUP_ICONS: Record<NavGroupKey, { outline: IconName; filled: IconName }> = {
+const GROUP_ICONS: Record<
+  NavGroupKey,
+  { outline: IconName; filled: IconName }
+> = {
   requests: { outline: "file-tray-full-outline", filled: "file-tray-full" },
 };
 
@@ -161,7 +185,9 @@ const NavGroupRows = ({
         onPress={toggle}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        accessibilityLabel={!open && total > 0 ? `${label}, ${total} to action` : label}
+        accessibilityLabel={
+          !open && total > 0 ? `${label}, ${total} to action` : label
+        }
         style={({ pressed }) => [
           styles.item,
           sidebar ? styles.itemSidebar : styles.itemDrawer,
@@ -170,7 +196,11 @@ const NavGroupRows = ({
         ]}
       >
         <Ionicons
-          name={!open && containsActive ? GROUP_ICONS[group].filled : GROUP_ICONS[group].outline}
+          name={
+            !open && containsActive
+              ? GROUP_ICONS[group].filled
+              : GROUP_ICONS[group].outline
+          }
           size={sidebar ? 24 : 26}
           color={t.text}
         />
@@ -186,7 +216,11 @@ const NavGroupRows = ({
         </Text>
         {open ? null : <CountBadge count={total} />}
         <View style={styles.chevron}>
-          <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={t.muted} />
+          <Ionicons
+            name={open ? "chevron-up" : "chevron-down"}
+            size={18}
+            color={t.muted}
+          />
         </View>
       </Pressable>
       {open
@@ -272,7 +306,11 @@ export const NavMenu = ({
           accessibilityLabel="Open your profile"
           style={({ pressed }) => pressed && { opacity: 0.7 }}
         >
-          <Avatar photo={me?.photo ?? null} name={me?.name ?? null} size={avatarSize} />
+          <Avatar
+            photo={me?.photo ?? null}
+            name={me?.name ?? null}
+            size={avatarSize}
+          />
         </Pressable>
         {sidebar && viewer.isStaff ? (
           <Pressable
@@ -304,12 +342,18 @@ export const NavMenu = ({
       >
         <Text
           numberOfLines={1}
-          style={[sidebar ? styles.nameSidebar : styles.name, { color: t.text }]}
+          style={[
+            sidebar ? styles.nameSidebar : styles.name,
+            { color: t.text },
+          ]}
         >
           {me?.name ?? me?.email ?? ""}
         </Text>
         {role ? (
-          <Text numberOfLines={2} style={[typography.caption, { color: t.muted }]}>
+          <Text
+            numberOfLines={2}
+            style={[typography.caption, { color: t.muted }]}
+          >
             {role}
           </Text>
         ) : null}
@@ -318,7 +362,10 @@ export const NavMenu = ({
     </View>
   ) : (
     <SignInMenu
-      anchor={{ top: insets.top + spacing.lg + avatarSize + 40, left: spacing.lg }}
+      anchor={{
+        top: insets.top + spacing.lg + avatarSize + 40,
+        left: spacing.lg,
+      }}
     >
       {(openSignIn) => (
         <Pressable
@@ -340,7 +387,12 @@ export const NavMenu = ({
           >
             <Ionicons name="person" size={avatarSize * 0.5} color={t.faint} />
           </View>
-          <Text style={[sidebar ? styles.nameSidebar : styles.name, { color: t.text }]}>
+          <Text
+            style={[
+              sidebar ? styles.nameSidebar : styles.name,
+              { color: t.text },
+            ]}
+          >
             Sign in
           </Text>
         </Pressable>
@@ -382,7 +434,7 @@ export const NavMenu = ({
               sidebar={sidebar}
               onPress={() => go(entry.key)}
             />
-          )
+          ),
         )}
       </View>
       {viewer.signedIn ? (
@@ -392,7 +444,11 @@ export const NavMenu = ({
             onPress={() => setConfirmingSignOut(true)}
             accessibilityRole="button"
             accessibilityLabel="Sign out"
-            style={({ pressed }) => [styles.item, styles.minorItem, pressed && { opacity: 0.6 }]}
+            style={({ pressed }) => [
+              styles.item,
+              styles.minorItem,
+              pressed && { opacity: 0.6 },
+            ]}
           >
             <Ionicons name="log-out-outline" size={22} color={t.text} />
             <Text style={[styles.minorLabel, { color: t.text }]}>Sign out</Text>
@@ -409,7 +465,7 @@ export const NavMenu = ({
                   Alert.alert(
                     "Sign-out failed",
                     "Something went wrong signing you out. Please try again.",
-                    [{ text: "OK" }]
+                    [{ text: "OK" }],
                   );
                 });
             }}
@@ -470,8 +526,18 @@ const styles = StyleSheet.create({
   },
   itemDrawer: { gap: spacing.xl, paddingVertical: spacing.md + 2 },
   itemSidebar: { gap: spacing.lg, paddingVertical: spacing.sm + 2 },
-  labelDrawer: { fontSize: 21, fontWeight: "700", letterSpacing: -0.4, flexShrink: 1 },
-  labelSidebar: { fontSize: 17, fontWeight: "600", letterSpacing: -0.3, flexShrink: 1 },
+  labelDrawer: {
+    fontSize: 21,
+    fontWeight: "700",
+    letterSpacing: -0.4,
+    flexShrink: 1,
+  },
+  labelSidebar: {
+    fontSize: 17,
+    fontWeight: "600",
+    letterSpacing: -0.3,
+    flexShrink: 1,
+  },
   labelSelected: { fontWeight: "800" },
   nestedDrawer: { paddingLeft: spacing.sm + spacing.xl },
   nestedSidebar: { paddingLeft: spacing.sm + spacing.lg },

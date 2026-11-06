@@ -1,7 +1,13 @@
-import { type Assignment, formatAssignment, roleLabel, type RoleTitles } from "../../shared/flow";
+import {
+  type Assignment,
+  formatAssignment,
+  roleLabel,
+  type RoleTitles,
+} from "../../shared/flow";
 
 export type NavKey =
   | "home"
+  | "music"
   | "reimbursements"
   | "designRequests"
   | "eventRequests"
@@ -18,6 +24,7 @@ export type NavKey =
 
 export const NAV_HREFS = {
   home: "/home",
+  music: "/music",
   reimbursements: "/",
   designRequests: "/design-requests",
   eventRequests: "/event-requests",
@@ -38,6 +45,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   reimbursements: "Reimbursements",
   designRequests: "Design Requests",
   eventRequests: "Event Requests",
+  music: "Praise List",
   attendance: "Attendance",
   calendar: "Calendar",
   insights: "Insights",
@@ -82,24 +90,32 @@ export const navViewer = (signedIn: boolean, me: MeForNav): NavViewer => {
   };
 };
 
-export const REQUEST_KEYS = ["reimbursements", "eventRequests", "designRequests"] as const;
+export const REQUEST_KEYS = [
+  "reimbursements",
+  "eventRequests",
+  "designRequests",
+] as const;
 
 export type NavGroupKey = "requests";
 
-export const NAV_GROUP_LABELS: Record<NavGroupKey, string> = { requests: "Requests" };
+export const NAV_GROUP_LABELS: Record<NavGroupKey, string> = {
+  requests: "Requests",
+};
 
 export type NavEntry =
   | { kind: "item"; key: NavKey }
   | { kind: "group"; key: NavGroupKey; items: NavKey[] };
 
-const isRequestKey = (key: NavKey) => (REQUEST_KEYS as readonly NavKey[]).includes(key);
+const isRequestKey = (key: NavKey) =>
+  (REQUEST_KEYS as readonly NavKey[]).includes(key);
 
 export const navEntries = (items: NavKey[]): NavEntry[] => {
   const requests = items.filter(isRequestKey);
   const entries: NavEntry[] = [];
   for (const key of items) {
     if (!isRequestKey(key)) entries.push({ kind: "item", key });
-    else if (key === requests[0]) entries.push({ kind: "group", key: "requests", items: requests });
+    else if (key === requests[0])
+      entries.push({ kind: "group", key: "requests", items: requests });
   }
   return entries;
 };
@@ -110,7 +126,7 @@ export const showsReimbursements = (viewer: NavViewer) =>
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = ["profile"];
-  if (viewer.isStaff) items.push("churches");
+  if (viewer.isStaff) items.push("music", "churches");
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.canMentoring) items.push("mentoring");
   // Staff have the Calendar as a bottom tab, so Insights moves in here.
@@ -123,6 +139,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
 export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
+  if (viewer.isStaff) items.push("music");
   if (viewer.isStaff) items.push("attendance", "calendar");
   items.push("org", "churches", "grievances");
   if (viewer.signedIn) items.push("profile");
@@ -138,10 +155,16 @@ export const activeNavKey = (pathname: string): NavKey | null => {
     return "reimbursements";
   }
   if (pathname.startsWith("/request/")) return "reimbursements";
-  if (pathname === "/design-requests" || pathname.startsWith("/design-requests/")) {
+  if (
+    pathname === "/design-requests" ||
+    pathname.startsWith("/design-requests/")
+  ) {
     return "designRequests";
   }
-  if (pathname === "/event-requests" || pathname.startsWith("/event-requests/")) {
+  if (
+    pathname === "/event-requests" ||
+    pathname.startsWith("/event-requests/")
+  ) {
     return "eventRequests";
   }
   if (pathname === "/home" || pathname === "/edit-home") return "home";
@@ -157,14 +180,21 @@ export const activeNavKey = (pathname: string): NavKey | null => {
     return "announcements";
   }
   if (pathname === "/mentoring") return "mentoring";
-  if (pathname === "/grievances" || pathname.startsWith("/grievances/")) return "grievances";
+  if (pathname === "/grievances" || pathname.startsWith("/grievances/"))
+    return "grievances";
   if (pathname === "/admin") return "admin";
+  if (pathname === "/music" || pathname.startsWith("/music/")) {
+    return "music";
+  }
   return null;
 };
 
 export const roleLine = (
-  profile: { roles: readonly string[]; assignments?: readonly Assignment[] } | null | undefined,
-  titles?: RoleTitles
+  profile:
+    | { roles: readonly string[]; assignments?: readonly Assignment[] }
+    | null
+    | undefined,
+  titles?: RoleTitles,
 ): string | null => {
   if (!profile) return null;
   const assignments = profile.assignments ?? [];
@@ -175,4 +205,5 @@ export const roleLine = (
   return text || null;
 };
 
-export const badgeText = (count: number) => (count > 99 ? "99+" : String(count));
+export const badgeText = (count: number) =>
+  count > 99 ? "99+" : String(count);

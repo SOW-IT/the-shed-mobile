@@ -1,4 +1,12 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { useWideLayout } from "@/components/nav/layout";
+import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
+import { useBadgeSync } from "@/hooks/useBadgeSync";
+import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
+import { usePushRegistration } from "@/hooks/usePushRegistration";
+import { useReportAppVersion } from "@/hooks/useReportAppVersion";
+import { useReportSeen } from "@/hooks/useReportSeen";
+import { BOTTOM_TAB_HEIGHT, radius, useAppTheme } from "@/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { Tabs } from "expo-router";
 import {
@@ -16,36 +24,49 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
-import { useWideLayout } from "@/components/nav/layout";
-import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
-import { usePushRegistration } from "@/hooks/usePushRegistration";
-import { useReportAppVersion } from "@/hooks/useReportAppVersion";
-import { useBadgeSync } from "@/hooks/useBadgeSync";
-import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
-import { useReportSeen } from "@/hooks/useReportSeen";
-import { BOTTOM_TAB_HEIGHT, radius, useAppTheme } from "@/theme";
 
-const TabPill = ({ focused, children }: { focused: boolean; children: React.ReactNode }) => {
+const TabPill = ({
+  focused,
+  children,
+}: {
+  focused: boolean;
+  children: React.ReactNode;
+}) => {
   const t = useAppTheme();
   return (
-    <View style={[styles.tabPill, focused && { backgroundColor: t.primarySoft }]}>{children}</View>
+    <View
+      style={[styles.tabPill, focused && { backgroundColor: t.primarySoft }]}
+    >
+      {children}
+    </View>
   );
 };
 
-const tabIcon =
-  (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) => {
-    const TabBarIcon = ({ color, focused }: { color: ColorValue; focused: boolean }) => (
-      <TabPill focused={focused}>
-        <Ionicons name={focused ? filled : outline} size={22} color={color as string} />
-      </TabPill>
-    );
-    return TabBarIcon;
-  };
+const tabIcon = (
+  outline: keyof typeof Ionicons.glyphMap,
+  filled: keyof typeof Ionicons.glyphMap,
+) => {
+  const TabBarIcon = ({
+    color,
+    focused,
+  }: {
+    color: ColorValue;
+    focused: boolean;
+  }) => (
+    <TabPill focused={focused}>
+      <Ionicons
+        name={focused ? filled : outline}
+        size={22}
+        color={color as string}
+      />
+    </TabPill>
+  );
+  return TabBarIcon;
+};
 
 type TabBarButtonProps = {
   children?:
-    | React.ReactNode
-    | ((state: PressableStateCallbackType) => React.ReactNode);
+    React.ReactNode | ((state: PressableStateCallbackType) => React.ReactNode);
   style?: StyleProp<ViewStyle>;
   href?: string | null;
   onPress?: ((e: GestureResponderEvent) => void) | null;
@@ -58,7 +79,11 @@ type TabBarButtonProps = {
   disabled?: boolean | null;
 };
 
-const inactivePressableState = { pressed: false, hovered: false, focused: false };
+const inactivePressableState = {
+  pressed: false,
+  hovered: false,
+  focused: false,
+};
 
 const sideMenuOnly = { tabBarItemStyle: { display: "none" as const } };
 
@@ -83,8 +108,7 @@ const AnimatedTabBarButton = ({
         shiftKey?: boolean;
         button?: number | null;
       };
-      const hasModifier =
-        we.metaKey || we.altKey || we.ctrlKey || we.shiftKey;
+      const hasModifier = we.metaKey || we.altKey || we.ctrlKey || we.shiftKey;
       const isLeftClick = we.button == null || we.button === 0;
       if (!hasModifier && isLeftClick) {
         we.preventDefault?.();
@@ -110,7 +134,9 @@ const AnimatedTabBarButton = ({
         onPressOut?.(e);
       }}
     >
-      <Animated.View style={[styles.tabButtonInner, { transform: [{ scale }] }]}>
+      <Animated.View
+        style={[styles.tabButtonInner, { transform: [{ scale }] }]}
+      >
         {typeof children === "function"
           ? children(inactivePressableState)
           : children}
@@ -125,7 +151,10 @@ export default function TabsLayout() {
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   const waitingForRole = isAuthenticated && me === undefined;
-  usePushRegistration({ navigationReady: !waitingForRole, signedInAs: me?.email ?? null });
+  usePushRegistration({
+    navigationReady: !waitingForRole,
+    signedInAs: me?.email ?? null,
+  });
   useReportAppVersion();
   useReportSeen();
   useBadgeSync(me === undefined ? undefined : !!me?.profile);
@@ -142,7 +171,9 @@ export default function TabsLayout() {
   return (
     <Tabs
       backBehavior="history"
-      tabBar={wide ? () => <View style={{ height: insets.bottom }} /> : undefined}
+      tabBar={
+        wide ? () => <View style={{ height: insets.bottom }} /> : undefined
+      }
       screenListeners={{ tabPress: () => hapticSelect() }}
       screenOptions={{
         headerShown: false,
@@ -189,7 +220,10 @@ export default function TabsLayout() {
         name="event-requests"
         options={{ title: "Event Requests", ...sideMenuOnly }}
       />
-      <Tabs.Screen name="profile" options={{ title: "Profile", ...sideMenuOnly }} />
+      <Tabs.Screen
+        name="profile"
+        options={{ title: "Profile", ...sideMenuOnly }}
+      />
       <Tabs.Screen
         name="attendance"
         options={{
@@ -208,12 +242,25 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon("calendar-outline", "calendar"),
         }}
       />
-      <Tabs.Screen name="insights" options={{ title: "Insights", ...sideMenuOnly }} />
       <Tabs.Screen
         name="org"
         options={{
           title: "Org Chart",
           tabBarIcon: tabIcon("people-outline", "people"),
+        }}
+      />
+      <Tabs.Screen
+        name="music"
+        options={{
+          title: "Praise List",
+          ...sideMenuOnly,
+        }}
+      />
+      <Tabs.Screen
+        name="insights"
+        options={{
+          title: "Insights",
+          ...sideMenuOnly,
         }}
       />
       <Tabs.Screen
@@ -232,8 +279,14 @@ export default function TabsLayout() {
           tabBarBadge: grievancesBadge > 0 ? grievancesBadge : undefined,
         }}
       />
-      <Tabs.Screen name="mentoring" options={{ title: "Mentoring", ...sideMenuOnly }} />
-      <Tabs.Screen name="announcements" options={{ title: "Announcements", ...sideMenuOnly }} />
+      <Tabs.Screen
+        name="mentoring"
+        options={{ title: "Mentoring", ...sideMenuOnly }}
+      />
+      <Tabs.Screen
+        name="announcements"
+        options={{ title: "Announcements", ...sideMenuOnly }}
+      />
       <Tabs.Screen
         name="admin"
         options={{

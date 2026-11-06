@@ -4,7 +4,6 @@ import {
   type FinanceStep,
   type SubFormKind,
 } from "./eventRequests";
-import { subFormTeam, type Teams } from "./teams";
 import {
   DIRECTOR,
   roleTitle,
@@ -13,21 +12,27 @@ import {
   type ApprovalStep,
   type RoleTitles,
 } from "./flow";
+import { subFormTeam, type Teams } from "./teams";
 
 export type Persona =
   | { role: "staff"; department: string }
   | { role: "head"; department: string }
   | { role: "director" }
-  | { role: "budgetManager" };
+  | { role: "budgetManager" }
+  | { role: "praiseManager" };
 
-export type Lens = { kind: "self" } | { kind: "all" } | { kind: "as"; persona: Persona };
+export type Lens =
+  { kind: "self" } | { kind: "all" } | { kind: "as"; persona: Persona };
 
 export const SELF_LENS: Lens = { kind: "self" };
 export const ALL_VIEWS: Lens = { kind: "all" };
 export const ALL_VIEWS_LABEL = "All views";
 export const BUDGET_MANAGER_LABEL = "Budget Manager";
 
-export const personaDepartment = (persona: Persona, teams: Teams): string | null => {
+export const personaDepartment = (
+  persona: Persona,
+  teams: Teams,
+): string | null => {
   switch (persona.role) {
     case "staff":
     case "head":
@@ -35,28 +40,33 @@ export const personaDepartment = (persona: Persona, teams: Teams): string | null
     case "budgetManager":
       return teams.finance;
     case "director":
+    case "praiseManager":
       return null;
   }
 };
 
 const ownDepartment = (persona: Persona): string | null =>
-  persona.role === "staff" || persona.role === "head" ? persona.department : null;
+  persona.role === "staff" || persona.role === "head"
+    ? persona.department
+    : null;
 
 export const personaInDepartment = (
   persona: Persona,
   department: string,
-  teams: Teams
+  teams: Teams,
 ): boolean => personaDepartment(persona, teams) === department;
 
 export const personaHeads = (persona: Persona, department: string): boolean =>
   persona.role === "head" && persona.department === department;
 
-export const personaIsDirector = (persona: Persona): boolean => persona.role === "director";
+export const personaIsDirector = (persona: Persona): boolean =>
+  persona.role === "director";
 
 export const personaIsBudgetManager = (persona: Persona): boolean =>
   persona.role === "budgetManager";
 
-export const personaApproves = (persona: Persona): boolean => persona.role !== "staff";
+export const personaApproves = (persona: Persona): boolean =>
+  persona.role !== "staff" && persona.role !== "praiseManager";
 
 export const samePersona = (a: Persona | null, b: Persona | null): boolean =>
   a === null || b === null
@@ -69,6 +79,8 @@ export const personaLabel = (persona: Persona, titles?: RoleTitles): string => {
       return roleTitle(DIRECTOR, titles);
     case "budgetManager":
       return BUDGET_MANAGER_LABEL;
+    case "praiseManager":
+      return "Praise Manager";
     case "head":
       return `${persona.department} Head`;
     case "staff":
@@ -76,13 +88,16 @@ export const personaLabel = (persona: Persona, titles?: RoleTitles): string => {
   }
 };
 
-export const departmentHighlights = (department: string, teams: Teams): string[] => [
+export const departmentHighlights = (
+  department: string,
+  teams: Teams,
+): string[] => [
   ...(department === teams.design ? ["Design requests"] : []),
   ...(department === teams.finance ? ["All reimbursements"] : []),
   ...(department === teams.events ? ["All event requests"] : []),
-  ...SUB_FORM_KINDS.filter((kind) => subFormTeam(teams, kind) === department).map(
-    (kind) => `${SUB_FORM_LABELS[kind]} forms`
-  ),
+  ...SUB_FORM_KINDS.filter(
+    (kind) => subFormTeam(teams, kind) === department,
+  ).map((kind) => `${SUB_FORM_LABELS[kind]} forms`),
 ];
 
 export const personaHighlights = (persona: Persona, teams: Teams): string[] => {
@@ -90,17 +105,23 @@ export const personaHighlights = (persona: Persona, teams: Teams): string[] => {
   return [
     ...(persona.role === "director" ? ["Director approvals"] : []),
     ...(persona.role === "budgetManager" ? ["Budget approvals"] : []),
+    ...(persona.role === "praiseManager"
+      ? ["Review music requests", "Manage approved songs"]
+      : []),
     ...(department === null ? [] : departmentHighlights(department, teams)),
   ];
 };
 
 export const countWaiting = (...lists: { waiting: boolean }[][]): number =>
-  lists.reduce((sum, rows) => sum + rows.filter((row) => row.waiting).length, 0);
+  lists.reduce(
+    (sum, rows) => sum + rows.filter((row) => row.waiting).length,
+    0,
+  );
 
 export async function seesThrough(
   lens: Lens,
   real: () => boolean | Promise<boolean>,
-  persona: (persona: Persona) => boolean
+  persona: (persona: Persona) => boolean,
 ): Promise<boolean> {
   if (lens.kind === "all") return true;
   if (lens.kind === "as") return persona(lens.persona);
@@ -110,7 +131,7 @@ export async function seesThrough(
 export async function waitsThrough(
   lens: Lens,
   real: () => boolean | Promise<boolean>,
-  persona: (persona: Persona) => boolean
+  persona: (persona: Persona) => boolean,
 ): Promise<boolean> {
   if (lens.kind === "as") return persona(lens.persona);
   return await real();
@@ -120,7 +141,7 @@ export const personaHoldsStep = (
   persona: Persona,
   step: ApprovalStep,
   department: string,
-  teams: Teams
+  teams: Teams,
 ): boolean => {
   switch (step) {
     case "hod":
@@ -137,21 +158,26 @@ export const personaHoldsStep = (
 export const personaSeesRequest = (
   persona: Persona,
   request: ApprovalState & { department: string },
-  teams: Teams
+  teams: Teams,
 ): boolean =>
   personaInDepartment(persona, teams.finance, teams) ||
   stepsForRequest(request).some((step) =>
-    personaHoldsStep(persona, step, request.department, teams)
+    personaHoldsStep(persona, step, request.department, teams),
   );
 
-export const personaOnTeam = (persona: Persona, kind: SubFormKind, teams: Teams): boolean =>
-  personaInDepartment(persona, subFormTeam(teams, kind), teams);
+export const personaOnTeam = (
+  persona: Persona,
+  kind: SubFormKind,
+  teams: Teams,
+): boolean => personaInDepartment(persona, subFormTeam(teams, kind), teams);
 
 export const personaReviewsEvents = (persona: Persona, teams: Teams): boolean =>
-  personaIsDirector(persona) || SUB_FORM_KINDS.some((kind) => personaOnTeam(persona, kind, teams));
+  personaIsDirector(persona) ||
+  SUB_FORM_KINDS.some((kind) => personaOnTeam(persona, kind, teams));
 
 export const personaSeesAllEvents = (persona: Persona, teams: Teams): boolean =>
-  personaInDepartment(persona, teams.events, teams) || personaReviewsEvents(persona, teams);
+  personaInDepartment(persona, teams.events, teams) ||
+  personaReviewsEvents(persona, teams);
 
 const directorStep = (kind: SubFormKind, step: FinanceStep | undefined) =>
   kind === "finance" && step === "director";
@@ -160,7 +186,7 @@ export const personaSeesForm = (
   persona: Persona,
   kind: SubFormKind,
   step: FinanceStep | undefined,
-  teams: Teams
+  teams: Teams,
 ): boolean =>
   directorStep(kind, step)
     ? personaIsDirector(persona) || personaOnTeam(persona, "finance", teams)
@@ -170,7 +196,7 @@ export const personaApprovesForm = (
   persona: Persona,
   kind: SubFormKind,
   step: FinanceStep | undefined,
-  teams: Teams
+  teams: Teams,
 ): boolean =>
   directorStep(kind, step)
     ? personaIsDirector(persona)

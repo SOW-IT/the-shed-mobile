@@ -1,3 +1,16 @@
+import { PagerCarousel } from "@/components/PagerCarousel";
+import { DrawerEdgeSwipe } from "@/components/nav/NavDrawer";
+import { TopBar } from "@/components/nav/TopBar";
+import { useWideLayout } from "@/components/nav/layout";
+import { FooterHeightContext, TabBar } from "@/components/ui";
+import { ScrollByContext } from "@/components/ui/scrollAnchor";
+import {
+  TOP_BAR_HEIGHT,
+  TopBarScrollProps,
+  useTopBarCollapse,
+} from "@/components/useTopBarCollapse";
+import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
+import { spacing, useAppTheme } from "@/theme";
 import { useQuery } from "convex/react";
 import {
   createContext,
@@ -15,26 +28,13 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
-  type ScrollViewInstance,
   StyleSheet,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
-import { spacing, useAppTheme } from "@/theme";
-import { PagerCarousel } from "@/components/PagerCarousel";
-import { DrawerEdgeSwipe } from "@/components/nav/NavDrawer";
-import { useWideLayout } from "@/components/nav/layout";
-import { TopBar } from "@/components/nav/TopBar";
-import { FooterHeightContext, TabBar } from "@/components/ui";
-import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
-import { ScrollByContext } from "@/components/ui/scrollAnchor";
-import {
-  TOP_BAR_HEIGHT,
-  TopBarScrollProps,
-  useTopBarCollapse,
-} from "@/components/useTopBarCollapse";
 
+type ScrollViewInstance = React.ElementRef<typeof Animated.ScrollView>;
 export type { TopBarScrollProps } from "@/components/useTopBarCollapse";
 
 export type PagerTab = {
@@ -44,6 +44,7 @@ export type PagerTab = {
   messageBadge?: number;
   render: (scrollProps?: TopBarScrollProps) => ReactNode;
   selfScrolling?: boolean;
+  stickyHeader?: ReactNode;
 };
 
 const NEAR_BOTTOM = 600;
@@ -63,7 +64,7 @@ export type PagerCarouselProps = {
   onScrollStateChange?: (
     state: PagerScrollState,
     scrollPos: number,
-    settledIndex?: number
+    settledIndex?: number,
   ) => void;
 };
 
@@ -76,7 +77,7 @@ const footerYForPosition = (
   pos: number,
   homeIndex: number,
   hasTabFooters: boolean,
-  hiddenOffset: number
+  hiddenOffset: number,
 ) => {
   if (!hasTabFooters) return 0;
   const dist = Math.abs(pos - homeIndex);
@@ -84,7 +85,8 @@ const footerYForPosition = (
 };
 
 const PagerFooterClearanceContext = createContext(FOOTER_MIN_CLEARANCE);
-export const usePagerFooterClearance = () => useContext(PagerFooterClearanceContext);
+export const usePagerFooterClearance = () =>
+  useContext(PagerFooterClearanceContext);
 
 const PagerTopBarInsetContext = createContext(TOP_BAR_HEIGHT);
 export const usePagerTopBarInset = () => useContext(PagerTopBarInsetContext);
@@ -119,7 +121,7 @@ export const PagerScreen = ({
   const insets = useSafeAreaInsets();
   const initialIndex = Math.max(
     tabs.findIndex((tab) => tab.key === activeKey),
-    0
+    0,
   );
   const [pagerPosition] = useState(() => new Animated.Value(initialIndex));
   const [tabBarHeight, setTabBarHeight] = useState(48);
@@ -129,7 +131,7 @@ export const PagerScreen = ({
     useTopBarCollapse();
   const lastScrollYByTab = useRef<Record<string, number>>({});
 
-  const footerPinned = !!(footer && !footerTabKey && !(footers?.length));
+  const footerPinned = !!(footer && !footerTabKey && !footers?.length);
 
   const footerItems: PagerTabFooter[] = useMemo(() => {
     if (footers && footers.length > 0) return footers;
@@ -143,35 +145,44 @@ export const PagerScreen = ({
       footerPinned
         ? new Set(tabs.map((tab) => tab.key))
         : new Set(footerItems.map((item) => item.tabKey)),
-    [footerPinned, footerItems, tabs]
+    [footerPinned, footerItems, tabs],
   );
 
   const activeIndex = Math.max(
     tabs.findIndex((tab) => tab.key === activeKey),
-    0
+    0,
   );
 
   const homeIndexFor = useCallback(
-    (tabKey: string) => Math.max(tabs.findIndex((tab) => tab.key === tabKey), 0),
-    [tabs]
+    (tabKey: string) =>
+      Math.max(
+        tabs.findIndex((tab) => tab.key === tabKey),
+        0,
+      ),
+    [tabs],
   );
 
-  const [footerHeights, setFooterHeights] = useState<Record<string, number>>({});
-  const footerHeightSetters = useRef<Record<string, (height: number) => void>>({});
+  const [footerHeights, setFooterHeights] = useState<Record<string, number>>(
+    {},
+  );
+  const footerHeightSetters = useRef<Record<string, (height: number) => void>>(
+    {},
+  );
   const footerHeightSetterFor = (tabKey: string) => {
     if (!footerHeightSetters.current[tabKey]) {
       footerHeightSetters.current[tabKey] = (height) =>
         setFooterHeights((prev) =>
-          prev[tabKey] === height ? prev : { ...prev, [tabKey]: height }
+          prev[tabKey] === height ? prev : { ...prev, [tabKey]: height },
         );
     }
     return footerHeightSetters.current[tabKey];
   };
   const footerHeightForPage = (tabKey: string) =>
-    footerHeights[footerPinned ? footerItems[0]?.tabKey ?? tabKey : tabKey] ?? 0;
+    footerHeights[footerPinned ? (footerItems[0]?.tabKey ?? tabKey) : tabKey] ??
+    0;
   const footerHiddenOffset = Math.max(
     FOOTER_HIDDEN_OFFSET,
-    ...Object.values(footerHeights).map((height) => height + spacing.sm)
+    ...Object.values(footerHeights).map((height) => height + spacing.sm),
   );
 
   const yForFooter = useCallback(
@@ -180,20 +191,17 @@ export const PagerScreen = ({
         pos,
         homeIndexFor(tabKey),
         footerItems.length > 0 && !footerPinned,
-        footerHiddenOffset
+        footerHiddenOffset,
       ),
-    [footerItems.length, footerPinned, homeIndexFor, footerHiddenOffset]
+    [footerItems.length, footerPinned, homeIndexFor, footerHiddenOffset],
   );
 
-  const ensureFooterAnim = useCallback(
-    (tabKey: string, initialY: number) => {
-      if (!footerAnimsRef.current[tabKey]) {
-        footerAnimsRef.current[tabKey] = new Animated.Value(initialY);
-      }
-      return footerAnimsRef.current[tabKey];
-    },
-    []
-  );
+  const ensureFooterAnim = useCallback((tabKey: string, initialY: number) => {
+    if (!footerAnimsRef.current[tabKey]) {
+      footerAnimsRef.current[tabKey] = new Animated.Value(initialY);
+    }
+    return footerAnimsRef.current[tabKey];
+  }, []);
 
   const setAllFooterPositions = useCallback(
     (pos: number, animate: boolean) => {
@@ -212,7 +220,7 @@ export const PagerScreen = ({
         }
       }
     },
-    [ensureFooterAnim, footerItems, yForFooter]
+    [ensureFooterAnim, footerItems, yForFooter],
   );
 
   useEffect(() => {
@@ -220,7 +228,13 @@ export const PagerScreen = ({
     if (footerItems.length === 0) return;
     if (footerScrollState.current === "dragging") return;
     setAllFooterPositions(activeIndex, true);
-  }, [activeIndex, activeKey, footerItems.length, setAllFooterPositions, syncToScrollY]);
+  }, [
+    activeIndex,
+    activeKey,
+    footerItems.length,
+    setAllFooterPositions,
+    syncToScrollY,
+  ]);
 
   useEffect(() => {
     if (footerItems.length === 0 || Platform.OS === "web") return;
@@ -241,7 +255,7 @@ export const PagerScreen = ({
         setAllFooterPositions(settledIndex, true);
       }
     },
-    [footerItems.length, setAllFooterPositions]
+    [footerItems.length, setAllFooterPositions],
   );
   const lastEndReachedHeight = useRef<Record<string, number>>({});
   const onEndReachedRef = useRef(onEndReached);
@@ -252,7 +266,10 @@ export const PagerScreen = ({
 
   const scrollSideEffectsRef = useRef(
     (tabKey: string, e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      lastScrollYByTab.current[tabKey] = Math.max(0, e.nativeEvent.contentOffset.y);
+      lastScrollYByTab.current[tabKey] = Math.max(
+        0,
+        e.nativeEvent.contentOffset.y,
+      );
       const endReached = onEndReachedRef.current;
       if (!endReached) return;
       const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -263,11 +280,14 @@ export const PagerScreen = ({
       const distanceToBottom =
         contentSize.height - (contentOffset.y + layoutMeasurement.height);
       const effectiveLast = lastEndReachedHeight.current[tabKey] ?? -1;
-      if (distanceToBottom < NEAR_BOTTOM && contentSize.height > effectiveLast) {
+      if (
+        distanceToBottom < NEAR_BOTTOM &&
+        contentSize.height > effectiveLast
+      ) {
         lastEndReachedHeight.current[tabKey] = contentSize.height;
         endReached(tabKey);
       }
-    }
+    },
   );
 
   const scrollHandlersRef = useRef<Record<string, TopBarScrollProps>>({});
@@ -275,12 +295,12 @@ export const PagerScreen = ({
     (tabKey: string): TopBarScrollProps => {
       if (!scrollHandlersRef.current[tabKey]) {
         scrollHandlersRef.current[tabKey] = makeScrollHandler((e) =>
-          scrollSideEffectsRef.current(tabKey, e)
+          scrollSideEffectsRef.current(tabKey, e),
         );
       }
       return scrollHandlersRef.current[tabKey];
     },
-    [makeScrollHandler]
+    [makeScrollHandler],
   );
 
   const pageScrollRefs = useRef<Record<string, ScrollViewInstance | null>>({});
@@ -298,46 +318,44 @@ export const PagerScreen = ({
 
   const renderPage = (tab: PagerTab) => {
     const tabScrollProps = scrollPropsForTab(tab.key);
-    return (
-      tab.selfScrolling ? (
-        <PagerFooterClearanceContext.Provider
-          value={
-            footerTabKeys.has(tab.key)
+
+    return tab.selfScrolling ? (
+      <PagerFooterClearanceContext.Provider
+        value={
+          footerTabKeys.has(tab.key)
+            ? footerClearance(footerHeightForPage(tab.key))
+            : FOOTER_MIN_CLEARANCE
+        }
+      >
+        {tab.render(tabScrollProps)}
+      </PagerFooterClearanceContext.Provider>
+    ) : (
+      <Animated.ScrollView
+        ref={(el) => {
+          pageScrollRefs.current[tab.key] = el;
+        }}
+        showsVerticalScrollIndicator={false}
+        automaticallyAdjustKeyboardInsets
+        keyboardShouldPersistTaps="handled"
+        style={{ backgroundColor: t.background }}
+        contentContainerStyle={[
+          styles.page,
+          { paddingTop: spacing.md + topBarInset },
+          fullWidth && wide && { maxWidth: "100%" as const },
+          {
+            paddingBottom: footerTabKeys.has(tab.key)
               ? footerClearance(footerHeightForPage(tab.key))
-              : FOOTER_MIN_CLEARANCE
-          }
-        >
+              : 48,
+          },
+        ]}
+        {...tabScrollProps}
+      >
+        <ScrollByContext.Provider value={scrollByFor(tab.key)}>
           {tab.render(tabScrollProps)}
-        </PagerFooterClearanceContext.Provider>
-      ) : (
-        <Animated.ScrollView
-          ref={(el: ScrollViewInstance | null) => {
-            pageScrollRefs.current[tab.key] = el;
-          }}
-          showsVerticalScrollIndicator={false}
-          automaticallyAdjustKeyboardInsets
-          keyboardShouldPersistTaps="handled"
-          style={{ backgroundColor: t.background }}
-          contentContainerStyle={[
-            styles.page,
-            { paddingTop: spacing.md + topBarInset },
-            fullWidth && wide && { maxWidth: "100%" as const },
-            {
-              paddingBottom: footerTabKeys.has(tab.key)
-                ? footerClearance(footerHeightForPage(tab.key))
-                : 48,
-            },
-          ]}
-          {...tabScrollProps}
-        >
-          <ScrollByContext.Provider value={scrollByFor(tab.key)}>
-            {tab.render(tabScrollProps)}
-          </ScrollByContext.Provider>
-        </Animated.ScrollView>
-      )
+        </ScrollByContext.Provider>
+      </Animated.ScrollView>
     );
   };
-
   return (
     <PagerTopBarInsetContext.Provider value={topBarInset}>
       <View style={[styles.screen, { backgroundColor: t.background }]}>
@@ -350,7 +368,10 @@ export const PagerScreen = ({
           position={pagerPosition}
           onScrollStateChange={onPagerScrollStateChange}
         />
-        <View style={[styles.chrome, { top: insets.top }]} pointerEvents="box-none">
+        <View
+          style={[styles.chrome, { top: insets.top }]}
+          pointerEvents="box-none"
+        >
           <Animated.View
             style={[
               styles.chromeGroup,
@@ -364,7 +385,9 @@ export const PagerScreen = ({
                 <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
               </Animated.View>
             )}
-            <View onLayout={(e) => setTabBarHeight(e.nativeEvent.layout.height)}>
+            <View
+              onLayout={(e) => setTabBarHeight(e.nativeEvent.layout.height)}
+            >
               <TabBar
                 segments={tabs}
                 active={activeKey}
@@ -376,7 +399,10 @@ export const PagerScreen = ({
         </View>
         {/* eslint-disable react-hooks/refs -- lazy Animated.Value cache (BankTab pattern) */}
         {footerItems.map((item) => {
-          const anim = ensureFooterAnim(item.tabKey, yForFooter(activeIndex, item.tabKey));
+          const anim = ensureFooterAnim(
+            item.tabKey,
+            yForFooter(activeIndex, item.tabKey),
+          );
           return (
             <Animated.View
               key={item.tabKey}
@@ -386,7 +412,9 @@ export const PagerScreen = ({
                 { transform: [{ translateY: anim }] },
               ]}
             >
-              <FooterHeightContext.Provider value={footerHeightSetterFor(item.tabKey)}>
+              <FooterHeightContext.Provider
+                value={footerHeightSetterFor(item.tabKey)}
+              >
                 {item.node}
               </FooterHeightContext.Provider>
             </Animated.View>

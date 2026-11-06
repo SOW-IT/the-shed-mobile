@@ -1,17 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMutation, useQuery } from "convex/react";
-import { useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { api } from "../../../convex/_generated/api";
-import {
-  ALL_VIEWS_LABEL,
-  departmentHighlights,
-  personaHighlights,
-  personaLabel,
-  samePersona,
-  type Persona,
-} from "@shared/actingAs";
-import type { RoleTitles } from "@shared/flow";
 import {
   ErrorBanner,
   errorMessage,
@@ -21,13 +7,30 @@ import {
   OptionSheet,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  ALL_VIEWS_LABEL,
+  departmentHighlights,
+  personaHighlights,
+  personaLabel,
+  samePersona,
+  type Persona,
+} from "@shared/actingAs";
+import type { RoleTitles } from "@shared/flow";
+import { useMutation, useQuery } from "convex/react";
+import { useState, type ReactNode } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { api } from "../../../convex/_generated/api";
 
 type ActingAs = { persona: Persona | null; label: string | null };
 
 const useActingAs = (): { actingAs: ActingAs | null; titles?: RoleTitles } => {
   const me = useQuery(api.directory.me);
   const actingAs = (me && "actingAs" in me ? me.actingAs : null) ?? null;
-  return { actingAs, titles: me && "roleTitles" in me ? me.roleTitles : undefined };
+  return {
+    actingAs,
+    titles: me && "roleTitles" in me ? me.roleTitles : undefined,
+  };
 };
 
 const useChoose = () => {
@@ -73,12 +76,19 @@ const ChoiceRow = ({
       <View style={styles.choiceText}>
         <Text
           numberOfLines={1}
-          style={[typography.body, { color: t.text }, selected && styles.selectedText]}
+          style={[
+            typography.body,
+            { color: t.text },
+            selected && styles.selectedText,
+          ]}
         >
           {title}
         </Text>
         {caption ? (
-          <Text numberOfLines={2} style={[typography.caption, { color: t.muted }]}>
+          <Text
+            numberOfLines={2}
+            style={[typography.caption, { color: t.muted }]}
+          >
             {caption}
           </Text>
         ) : null}
@@ -94,7 +104,14 @@ const ChoiceRow = ({
   );
   if (!onPress) {
     return (
-      <View style={[styles.choiceRow, selected && { backgroundColor: t.primarySoft }]}>{body}</View>
+      <View
+        style={[
+          styles.choiceRow,
+          selected && { backgroundColor: t.primarySoft },
+        ]}
+      >
+        {body}
+      </View>
     );
   }
   return (
@@ -147,7 +164,12 @@ const ChoiceChip = ({
         disabled && styles.disabled,
       ]}
     >
-      <Text style={[styles.choiceChipText, { color: selected ? t.onPrimary : t.text }]}>
+      <Text
+        style={[
+          styles.choiceChipText,
+          { color: selected ? t.onPrimary : t.text },
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -156,7 +178,9 @@ const ChoiceChip = ({
 
 const GroupLabel = ({ children }: { children: string }) => {
   const t = useAppTheme();
-  return <Text style={[styles.groupLabel, { color: t.muted }]}>{children}</Text>;
+  return (
+    <Text style={[styles.groupLabel, { color: t.muted }]}>{children}</Text>
+  );
 };
 
 export const ActingAsPicker = ({
@@ -177,7 +201,11 @@ export const ActingAsPicker = ({
       if (ok) onClose();
     });
   };
-  const roles: Persona[] = [{ role: "director" }, { role: "budgetManager" }];
+  const roles: Persona[] = [
+    { role: "director" },
+    { role: "budgetManager" },
+    { role: "praiseManager" },
+  ];
   return (
     <OptionSheet
       visible={visible}
@@ -187,8 +215,8 @@ export const ActingAsPicker = ({
     >
       <View style={styles.intro}>
         <Muted>
-          See the app the way someone in a role does. You can still only do what your own roles let
-          you do.
+          See the app the way someone in a role does. You can still only do what
+          your own roles let you do.
         </Muted>
       </View>
       <ChoiceRow
@@ -203,7 +231,9 @@ export const ActingAsPicker = ({
         <ChoiceRow
           key={persona.role}
           title={personaLabel(persona, titles)}
-          caption={options ? personaHighlights(persona, options.teams).join(" · ") : ""}
+          caption={
+            options ? personaHighlights(persona, options.teams).join(" · ") : ""
+          }
           selected={samePersona(current, persona)}
           onPress={() => pick(persona)}
           disabled={busy}
@@ -214,12 +244,18 @@ export const ActingAsPicker = ({
       {(options?.departments ?? []).map((department) => {
         const staff: Persona = { role: "staff", department: department.name };
         const head: Persona = { role: "head", department: department.name };
-        const highlights = options ? departmentHighlights(department.name, options.teams) : [];
+        const highlights = options
+          ? departmentHighlights(department.name, options.teams)
+          : [];
         return (
           <ChoiceRow
             key={department.name}
             title={department.name}
-            caption={highlights.length > 0 ? highlights.join(" · ") : department.division}
+            caption={
+              highlights.length > 0
+                ? highlights.join(" · ")
+                : department.division
+            }
             selected={samePersona(current, staff) || samePersona(current, head)}
           >
             <View style={styles.chips}>
@@ -274,11 +310,18 @@ export const ActingAsControl = () => {
           />
           <Text
             numberOfLines={2}
-            style={[styles.controlText, { color: acting ? t.accent : t.ghostText }]}
+            style={[
+              styles.controlText,
+              { color: acting ? t.accent : t.ghostText },
+            ]}
           >
             {label}
           </Text>
-          <Ionicons name="chevron-down" size={14} color={acting ? t.accent : t.muted} />
+          <Ionicons
+            name="chevron-down"
+            size={14}
+            color={acting ? t.accent : t.muted}
+          />
         </Pressable>
         {acting ? (
           <Pressable
@@ -299,7 +342,10 @@ export const ActingAsControl = () => {
         ) : null}
       </View>
       {error ? (
-        <Text accessibilityRole="alert" style={[typography.caption, { color: t.danger }]}>
+        <Text
+          accessibilityRole="alert"
+          style={[typography.caption, { color: t.danger }]}
+        >
           {`Couldn't go back to ${ALL_VIEWS_LABEL}. ${error}`}
         </Text>
       ) : null}
@@ -337,11 +383,19 @@ export const ActingAsChip = () => {
         busy && styles.disabled,
       ]}
     >
-      <Ionicons name={error ? "alert-circle" : "eye"} size={12} color={t.onPrimary} />
+      <Ionicons
+        name={error ? "alert-circle" : "eye"}
+        size={12}
+        color={t.onPrimary}
+      />
       <Text numberOfLines={1} style={[styles.chipText, { color: t.onPrimary }]}>
         {error ? "Couldn't reset, tap to retry" : label}
       </Text>
-      <Ionicons name={error ? "refresh" : "close"} size={12} color={t.onPrimary} />
+      <Ionicons
+        name={error ? "refresh" : "close"}
+        size={12}
+        color={t.onPrimary}
+      />
     </Pressable>
   );
 };
@@ -370,7 +424,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.full,
   },
-  controlText: { fontSize: 13, fontWeight: "700", letterSpacing: -0.1, flexShrink: 1 },
+  controlText: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: -0.1,
+    flexShrink: 1,
+  },
   reset: {
     width: 30,
     height: 30,
@@ -388,7 +447,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.full,
   },
-  chipText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.3, flexShrink: 1 },
+  chipText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+    flexShrink: 1,
+  },
   choiceRow: {
     flexDirection: "row",
     alignItems: "center",

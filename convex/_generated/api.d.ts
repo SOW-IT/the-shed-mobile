@@ -72,6 +72,8 @@ import type * as mentoring from "../mentoring.js";
 import type * as mergeSuggestions from "../mergeSuggestions.js";
 import type * as metricsData from "../metricsData.js";
 import type * as model from "../model.js";
+import type * as musicBackfill from "../musicBackfill.js";
+import type * as musicRequests from "../musicRequests.js";
 import type * as notifications from "../notifications.js";
 import type * as pagination from "../pagination.js";
 import type * as photo from "../photo.js";
@@ -82,7 +84,11 @@ import type * as reminders from "../reminders.js";
 import type * as requests from "../requests.js";
 import type * as rollCallOrder from "../rollCallOrder.js";
 import type * as rosterHistory from "../rosterHistory.js";
+import type * as shared_youtube from "../shared/youtube.js";
 import type * as sowInsights from "../sowInsights.js";
+import type * as spotify from "../spotify.js";
+import type * as spotifyConnections from "../spotifyConnections.js";
+import type * as spotifyCrypto from "../spotifyCrypto.js";
 import type * as staffLeavers from "../staffLeavers.js";
 import type * as staffMembers from "../staffMembers.js";
 import type * as stepTiming from "../stepTiming.js";
@@ -93,6 +99,7 @@ import type * as userLink from "../userLink.js";
 import type * as waitingOnMe from "../waitingOnMe.js";
 import type * as weeklyInsights from "../weeklyInsights.js";
 import type * as weeklyInsightsData from "../weeklyInsightsData.js";
+import type * as youtube from "../youtube.js";
 
 import type {
   ApiFromModules,
@@ -165,6 +172,8 @@ declare const fullApi: ApiFromModules<{
   mergeSuggestions: typeof mergeSuggestions;
   metricsData: typeof metricsData;
   model: typeof model;
+  musicBackfill: typeof musicBackfill;
+  musicRequests: typeof musicRequests;
   notifications: typeof notifications;
   pagination: typeof pagination;
   photo: typeof photo;
@@ -175,7 +184,11 @@ declare const fullApi: ApiFromModules<{
   requests: typeof requests;
   rollCallOrder: typeof rollCallOrder;
   rosterHistory: typeof rosterHistory;
+  "shared/youtube": typeof shared_youtube;
   sowInsights: typeof sowInsights;
+  spotify: typeof spotify;
+  spotifyConnections: typeof spotifyConnections;
+  spotifyCrypto: typeof spotifyCrypto;
   staffLeavers: typeof staffLeavers;
   staffMembers: typeof staffMembers;
   stepTiming: typeof stepTiming;
@@ -186,6 +199,7 @@ declare const fullApi: ApiFromModules<{
   waitingOnMe: typeof waitingOnMe;
   weeklyInsights: typeof weeklyInsights;
   weeklyInsightsData: typeof weeklyInsightsData;
+  youtube: typeof youtube;
 }>;
 
 /**
