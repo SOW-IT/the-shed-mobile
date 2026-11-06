@@ -91,6 +91,366 @@ async function assignPraiseManager(
 }
 
 describe("music request indexed duplicates", () => {
+  test("prevents approving an already-reviewed request", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+
+    const staff = asUser(t, STAFF);
+    const manager = asUser(t, ADMIN);
+
+    const requestId = await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Already Reviewed Song",
+        link: "https://example.com/already-reviewed",
+      }),
+    );
+
+    // Approve the request once.
+    await manager.mutation(api.musicRequests.approve, {
+      requestId,
+    });
+
+    // Attempt to approve the same request again.
+    await expect(
+      manager.mutation(api.musicRequests.approve, {
+        requestId,
+      }),
+    ).rejects.toThrow("This request has already been reviewed.");
+  });
+  test("prevents declining an already-reviewed request", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+
+    const staff = asUser(t, STAFF);
+    const manager = asUser(t, ADMIN);
+
+    const requestId = await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Already Declined Song",
+        link: "https://example.com/already-declined",
+      }),
+    );
+
+    // Decline the request once.
+    await manager.mutation(api.musicRequests.decline, {
+      requestId,
+      reason: "Not suitable",
+    });
+
+    // Attempt to decline the same request again.
+    await expect(
+      manager.mutation(api.musicRequests.decline, {
+        requestId,
+        reason: "Second attempt",
+      }),
+    ).rejects.toThrow("This request has already been reviewed.");
+  });
+  test("prevents editing a declined request", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+
+    const staff = asUser(t, STAFF);
+    const manager = asUser(t, ADMIN);
+
+    const requestId = await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Declined Edit Song",
+        link: "https://example.com/declined-edit",
+      }),
+    );
+
+    await manager.mutation(api.musicRequests.decline, {
+      requestId,
+      reason: "Not suitable",
+    });
+
+    await expect(
+      manager.mutation(api.musicRequests.update, {
+        requestId,
+        ...song({
+          title: "Edited Declined Song",
+          link: "https://example.com/edited-declined",
+        }),
+      }),
+    ).rejects.toThrow("This request cannot be edited.");
+  });
+  test("prevents deleting a declined request", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+
+    const staff = asUser(t, STAFF);
+    const manager = asUser(t, ADMIN);
+
+    const requestId = await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Declined Delete Song",
+        link: "https://example.com/declined-delete",
+      }),
+    );
+
+    await manager.mutation(api.musicRequests.decline, {
+      requestId,
+      reason: "Not suitable",
+    });
+
+    await expect(
+      manager.mutation(api.musicRequests.remove, {
+        requestId,
+      }),
+    ).rejects.toThrow("This request cannot be deleted.");
+  });
+  test("prevents approving a deleted request", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+
+    const staff = asUser(t, STAFF);
+    const manager = asUser(t, ADMIN);
+
+    const requestId = await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Deleted Approval Song",
+        link: "https://example.com/deleted-approval",
+      }),
+    );
+
+    // Delete the pending request.
+    await staff.mutation(api.musicRequests.remove, {
+      requestId,
+    });
+
+    // Attempt to approve the deleted request.
+    await expect(
+      manager.mutation(api.musicRequests.approve, {
+        requestId,
+      }),
+    ).rejects.toThrow("Request not found.");
+  });
+  test("prevents declining a deleted request", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+
+    const staff = asUser(t, STAFF);
+    const manager = asUser(t, ADMIN);
+
+    const requestId = await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Deleted Decline Song",
+        link: "https://example.com/deleted-decline",
+      }),
+    );
+
+    // Delete the pending request.
+    await staff.mutation(api.musicRequests.remove, {
+      requestId,
+    });
+
+    // Attempt to decline the deleted request.
+    await expect(
+      manager.mutation(api.musicRequests.decline, {
+        requestId,
+        reason: "Not suitable",
+      }),
+    ).rejects.toThrow("Request not found.");
+  });
+
+  test("rejects unconfirmed possible duplicates on submission", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Same Song",
+        artist: "Same Artist",
+        link: "https://example.com/version-one",
+      }),
+    );
+
+    const second = song({
+      title: "Same Song",
+      artist: "Same Artist",
+      link: "https://example.com/version-two",
+    });
+
+    await expect(
+      staff.mutation(api.musicRequests.submit, second),
+    ).rejects.toThrow("Possible duplicate");
+
+    await expect(
+      staff.mutation(api.musicRequests.submit, {
+        ...second,
+        allowPossibleDuplicate: true,
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  test("rejects empty and oversized music batches", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    const tooMany = Array.from({ length: 51 }, (_, i) =>
+      song({
+        title: `Song ${i}`,
+        link: `https://example.com/song-${i}`,
+      }),
+    );
+
+    for (const songs of [[], tooMany]) {
+      await expect(
+        staff.mutation(api.musicRequests.previewBatch, { songs }),
+      ).rejects.toThrow("Add between 1 and 50 songs.");
+
+      await expect(
+        staff.mutation(api.musicRequests.submitMany, { songs }),
+      ).rejects.toThrow("Add between 1 and 50 songs.");
+    }
+  });
+
+  test("skips unconfirmed possible duplicates in batch submissions", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Batch Duplicate",
+        artist: "Example Artist",
+        link: "https://example.com/original",
+      }),
+    );
+
+    const result = await staff.mutation(api.musicRequests.submitMany, {
+      songs: [
+        song({
+          title: "Batch Duplicate",
+          artist: "Example Artist",
+          link: "https://example.com/alternate",
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      added: 0,
+      skipped: 1,
+      possibleDuplicates: 1,
+    });
+  });
+
+  test("prevents ordinary staff from viewing declined requests", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    await expect(staff.query(api.musicRequests.declined, {})).rejects.toThrow(
+      "Only Praise Managers can view declined music requests.",
+    );
+  });
+
+  test("rejects editing and deleting missing requests", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    const requestId = await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Temporary Song",
+        link: "https://example.com/temporary",
+      }),
+    );
+
+    await staff.mutation(api.musicRequests.remove, { requestId });
+
+    await expect(
+      staff.mutation(api.musicRequests.update, {
+        requestId,
+        ...song({
+          title: "Updated Temporary Song",
+          link: "https://example.com/updated-temporary",
+        }),
+      }),
+    ).rejects.toThrow("Request not found.");
+
+    await expect(
+      staff.mutation(api.musicRequests.remove, { requestId }),
+    ).rejects.toThrow("Request not found.");
+  });
+
+  test("prevents staff from editing another person's request", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const admin = asUser(t, ADMIN);
+
+    const requestId = await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Private Song",
+        link: "https://example.com/private-song",
+      }),
+    );
+
+    await expect(
+      admin.mutation(api.musicRequests.update, {
+        requestId,
+        ...song({
+          title: "Unauthorized Edit",
+          link: "https://example.com/unauthorized-edit",
+        }),
+      }),
+    ).rejects.toThrow("You can only edit your own pending requests.");
+  });
+
+  test("rejects exact and unconfirmed possible duplicates when editing", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    const original = await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Original Recording",
+        artist: "Artist A",
+        link: SPOTIFY,
+      }),
+    );
+
+    const editable = await staff.mutation(
+      api.musicRequests.submit,
+      song({
+        title: "Editable Recording",
+        artist: "Artist B",
+        link: "https://example.com/editable-recording",
+      }),
+    );
+
+    await expect(
+      staff.mutation(api.musicRequests.update, {
+        requestId: editable,
+        ...song({
+          title: "Original Recording",
+          artist: "Artist A",
+          link: SPOTIFY,
+        }),
+      }),
+    ).rejects.toThrow("This recording has already been submitted.");
+
+    await expect(
+      staff.mutation(api.musicRequests.update, {
+        requestId: editable,
+        ...song({
+          title: "Original Recording",
+          artist: "Artist A",
+          link: "https://example.com/different-version",
+        }),
+      }),
+    ).rejects.toThrow("Possible duplicate");
+
+    expect(original).toBeDefined();
+  });
+
   test("prevents ordinary staff from approving requests", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
@@ -668,9 +1028,114 @@ describe("music request indexed duplicates", () => {
     const approved = await staff.query(api.musicRequests.approved, {});
     expect(approved.some((request) => request._id === requestId)).toBe(true);
   });
+  test("rejects missing song details and malformed music links", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    const invalidSongs = [
+      {
+        input: song({ title: "   " }),
+        error: "Every song needs a title, artist and link.",
+      },
+      {
+        input: song({ artist: "   " }),
+        error: "Every song needs a title, artist and link.",
+      },
+      {
+        input: song({ link: "   " }),
+        error: "Every song needs a title, artist and link.",
+      },
+      {
+        input: song({ link: "not-a-valid-url" }),
+        error: "Please enter a valid music link.",
+      },
+    ];
+
+    for (const { input, error } of invalidSongs) {
+      await expect(
+        staff.mutation(api.musicRequests.submit, input),
+      ).rejects.toThrow(error);
+    }
+  });
+  test("rejects invalid ISRCs and oversized song fields", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+
+    const invalidSongs = [
+      {
+        input: song({ isrc: "INVALID" }),
+        error: "Invalid ISRC format.",
+      },
+      {
+        input: song({ title: "A".repeat(201) }),
+        error: "Song title must be 200 characters or fewer.",
+      },
+      {
+        input: song({ artist: "A".repeat(201) }),
+        error: "Artist name must be 200 characters or fewer.",
+      },
+      {
+        input: song({ link: `https://example.com/${"a".repeat(2050)}` }),
+        error: "Music link must be 2048 characters or fewer.",
+      },
+    ];
+
+    for (const { input, error } of invalidSongs) {
+      await expect(
+        staff.mutation(api.musicRequests.submit, input),
+      ).rejects.toThrow(error);
+    }
+  });
 });
 
 describe("Praise Manager administration", () => {
+  test("rejects assigning a Praise Manager without a staff profile", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    await expect(
+      admin.mutation(api.admin.addPraiseManager, {
+        year: YEAR,
+        email: "missing.staff@sow.org.au",
+      }),
+    ).rejects.toThrow("has no staff profile");
+  });
+
+  test("updates existing year settings when assigning a Praise Manager", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    await t.run(async (ctx) => {
+      const existing = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+
+      if (!existing) {
+        await ctx.db.insert("yearSettings", {
+          year: YEAR,
+          praiseManagerEmails: [],
+        });
+      }
+    });
+
+    const result = await admin.mutation(api.admin.addPraiseManager, {
+      year: YEAR,
+      email: STAFF,
+    });
+
+    const settings = await t.run(async (ctx) =>
+      ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first(),
+    );
+
+    expect(settings).not.toBeNull();
+    expect(settings?.praiseManagerEmails).toContain(STAFF);
+    expect(result).toBe(settings?._id);
+  });
+
   test("admin can add and remove a Praise Manager", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
