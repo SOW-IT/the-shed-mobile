@@ -14,6 +14,7 @@ import { normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import { entryFields } from "./calendarData";
 import { openableEventRequest } from "./eventRequestAccess";
 import { calendarSyncConfigured } from "./googleCalendar";
+import { viewsAsAdmin } from "./actingAs";
 import { isAdminProfile, optionalProfile, requireProfile, type CallerContext } from "./model";
 
 const RANGE_LIMIT = 500;
@@ -128,7 +129,7 @@ export const range = query({
         tag ? [[tag._id, tag] as const] : []
       )
     );
-    const isAdmin = await isAdminProfile(ctx, caller.profile);
+    const isAdmin = await viewsAsAdmin(ctx, caller);
     const fromEvents = await Promise.all(events.map(async (event) => {
       const eventTags = (event.tagIds ?? []).flatMap((id) => {
         const tag = tags.get(id);

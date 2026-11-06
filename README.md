@@ -73,7 +73,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Mine still lists the admin's own); a
   chip at the top resets it. The choice is stored per admin on the server
   (`actingAs` table). It never grants an action, and grievances stay with the
-  grievance team.
+  grievance team. Everything a screen shows follows the role: Finance
+  settings, the Home editor, editing other people's calendar entries, the
+  Review tab's history and the grievance team's view only show when that
+  role would see them.
 - **Org structure** (seeded, editable per-year by admins): Governance (Data
   and IT, Finance, Compliance), Engagement (Marketing, Alumni), Human
   Resources (People and Culture, Training and Development), Operations

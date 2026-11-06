@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.32] - 2026-11-06
+
+### Fixed
+- **Acting as a role shows only what that role sees.** As with Finance
+  settings in 2.10.31, an admin acting as a role could still see things
+  from their own account: the Review tab with their own reviewed requests,
+  the Edit button on Home, Edit on other people's calendar entries, and the
+  grievance team's view and badge if they're on that team. These now
+  follow the role being previewed, so acting as Events staff looks like
+  Events staff. Without acting as a role, nothing changes.
+
 ## [2.10.31] - 2026-11-06
 
 ### Fixed
