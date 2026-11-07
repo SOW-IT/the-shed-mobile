@@ -7,8 +7,6 @@ import { api } from "../../../convex/_generated/api";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const clientId = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID ?? "";
-
 const redirectUri =
   Platform.OS === "web"
     ? __DEV__
@@ -22,9 +20,10 @@ const discovery = {
 };
 
 export function useSpotifyPlaylist() {
+  const clientId = useQuery(api.spotifyConnections.getClientId);
   const connect = async () => {
     if (!clientId) {
-      throw new Error("EXPO_PUBLIC_SPOTIFY_CLIENT_ID is missing.");
+      throw new Error("Spotify configuration is not ready.");
     }
 
     if (!request) {
@@ -72,7 +71,7 @@ export function useSpotifyPlaylist() {
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
-      clientId,
+      clientId: clientId ?? "",
       redirectUri,
       responseType: AuthSession.ResponseType.Code,
       scopes: ["playlist-read-private", "playlist-read-collaborative"],
