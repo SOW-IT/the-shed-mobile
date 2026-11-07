@@ -10,6 +10,13 @@ import {
 } from "./_generated/server";
 import { decryptSpotifyToken, encryptSpotifyToken } from "./spotifyCrypto";
 
+export const getClientId = query({
+  args: {},
+  handler: async () => {
+    return process.env.SPOTIFY_CLIENT_ID ?? "";
+  },
+});
+
 /**
  * Check whether the currently signed-in SHED user
  * has connected their Spotify account.
