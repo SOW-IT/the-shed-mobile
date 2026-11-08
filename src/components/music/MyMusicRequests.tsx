@@ -1,12 +1,11 @@
-import { Btn, Field, Row, Sheet } from "@/components/ui";
+import { Btn, errorMessage, Field, Row, Sheet } from "@/components/ui";
+import { confirmAction, showNotice } from "@/lib/notice";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  Alert,
   Image,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -117,6 +116,9 @@ const youtubePlaylistUrl = (value: string): string | null => {
   }
 };
 
+const songLinkKey = (value: string): string =>
+  spotifyTrackUrl(value) ?? youtubeVideoUrl(value) ?? value.trim();
+
 const MusicRequestSheetContent = ({
   visible,
   onClose,
@@ -152,25 +154,21 @@ const MusicRequestSheetContent = ({
   const duplicate = useQuery(
     api.musicRequests.checkDuplicate,
     visible && (duplicateLink || (title.trim() && artist.trim()))
-      ? { link: duplicateLink ?? link.trim(), title, artist, isrc }
+      ? {
+          link: duplicateLink ?? link.trim(),
+          title,
+          artist,
+          isrc,
+          // Editing: the request itself isn't a duplicate of itself.
+          excludeId: prefill?._id,
+        }
       : "skip",
   );
-  const duplicateIsSelf =
-    !!prefill &&
-    !!duplicateLink &&
-    spotifyTrackUrl(prefill.link) === duplicateLink;
-  const duplicateBlocked = !duplicateIsSelf && duplicate?.kind === "exact";
-  const possibleDuplicate = !duplicateIsSelf && duplicate?.kind === "possible";
+  const duplicateBlocked = duplicate?.kind === "exact";
+  const possibleDuplicate = duplicate?.kind === "possible";
   const getSpotifyTrack = useAction(api.spotify.getTrack);
   const importYouTubePlaylist = useAction(api.youtube.importPlaylist);
   const spotifyPlaylist = useSpotifyPlaylist();
-  const refreshSpotifyConnection = spotifyPlaylist.refreshConnection;
-
-  useEffect(() => {
-    if (visible) {
-      void refreshSpotifyConnection();
-    }
-  }, [visible, refreshSpotifyConnection]);
 
   const spotifyLinkType = detectSpotifyLink(spotifyLink);
   const youtubePlaylistLink = youtubePlaylistUrl(spotifyLink);
@@ -202,11 +200,11 @@ const MusicRequestSheetContent = ({
 
   const addSong = () => {
     if (!title.trim() || !artist.trim() || !link.trim()) {
-      Alert.alert("Incomplete song", "Enter a title, artist and link.");
+      showNotice("Incomplete song", "Enter a title, artist and link.");
       return;
     }
     if (duplicateBlocked || (!!duplicateLink && duplicate === undefined)) {
-      Alert.alert(
+      showNotice(
         "Duplicate",
         "Song already requested or still being checked.",
       );
@@ -219,22 +217,20 @@ const MusicRequestSheetContent = ({
           (spotifyTrackUrl(song.link) ?? song.link.toLowerCase()) === key,
       )
     ) {
-      Alert.alert("Already added", "Song is already on your list.");
+      showNotice("Already added", "Song is already on your list.");
       return;
     }
     if (songs.length >= 50) {
-      Alert.alert("List full", "You can submit up to 50 songs at once.");
+      showNotice("List full", "You can submit up to 50 songs at once.");
       return;
     }
     if (possibleDuplicate) {
-      Alert.alert(
-        "Possible duplicate",
-        `${duplicate?.title} by ${duplicate?.artist} has already been requested. Add this version anyway?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Add anyway", onPress: () => queueSong() },
-        ],
-      );
+      confirmAction({
+        title: "Possible duplicate",
+        message: `${duplicate?.title} by ${duplicate?.artist} has already been requested. Add this version anyway?`,
+        confirmText: "Add anyway",
+        onConfirm: queueSong,
+      });
       return;
     }
     queueSong();
@@ -253,7 +249,7 @@ const MusicRequestSheetContent = ({
     if (editingSongIndex === null) return;
 
     if (!editSongTitle.trim() || !editSongArtist.trim()) {
-      Alert.alert(
+      showNotice(
         "Incomplete song",
         "Please enter both the song title and artist.",
       );
@@ -295,7 +291,7 @@ const MusicRequestSheetContent = ({
   const importPlaylist = async () => {
     if (importingPlaylist || submitting) return;
     if (!spotifyPlaylist.connected) {
-      Alert.alert(
+      showNotice(
         "Spotify not connected",
         "Open your Profile page and connect Spotify to import playlists.",
       );
@@ -318,12 +314,12 @@ const MusicRequestSheetContent = ({
       });
       const toAdd = fresh.slice(0, available);
       setSongs((current) => [...current, ...toAdd]);
-      Alert.alert(
+      showNotice(
         "Playlist imported",
         `${toAdd.length} song(s) added from ${result.name}.${result.limited ? " Only the first 50 playlist entries were fetched." : ""}${fresh.length > available ? " The submission limit is 50 songs." : ""} Existing requests will be skipped when submitted.`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
 
       const accessDenied =
         /403|denied access to playlist songs|forbidden/i.test(message);
@@ -332,11 +328,7 @@ const MusicRequestSheetContent = ({
         ? "You don't have permission to import this playlist. Please use a Spotify playlist that you own or collaborate on."
         : "We couldn't import this playlist. Please check the Spotify link and try again.";
 
-      if (Platform.OS === "web") {
-        window.alert(friendlyMessage);
-      } else {
-        Alert.alert("Couldn't import playlist", friendlyMessage);
-      }
+      showNotice("Couldn't import playlist", friendlyMessage);
     } finally {
       setImportingPlaylist(false);
     }
@@ -386,7 +378,7 @@ const MusicRequestSheetContent = ({
 
       setSongs((current) => [...current, ...toAdd]);
 
-      Alert.alert(
+      showNotice(
         "YouTube playlist imported",
         `${toAdd.length} song(s) added.${
           result.limited
@@ -398,12 +390,10 @@ const MusicRequestSheetContent = ({
       );
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "Could not import YouTube playlist.";
+        errorMessage(error);
 
       setSpotifyError(message);
-      Alert.alert("Couldn't import playlist", message);
+      showNotice("Couldn't import playlist", message);
     } finally {
       setImportingPlaylist(false);
     }
@@ -433,9 +423,7 @@ const MusicRequestSheetContent = ({
       setManualExpanded(true);
     } catch (error) {
       setSpotifyError(
-        error instanceof Error
-          ? error.message
-          : "Could not retrieve Spotify information.",
+        errorMessage(error),
       );
     } finally {
       setFetchingSpotify(false);
@@ -478,9 +466,7 @@ const MusicRequestSheetContent = ({
       setManualExpanded(true);
     } catch (error) {
       setSpotifyError(
-        error instanceof Error
-          ? error.message
-          : "Could not retrieve YouTube information.",
+        errorMessage(error),
       );
     } finally {
       setFetchingSpotify(false);
@@ -502,14 +488,14 @@ const MusicRequestSheetContent = ({
       clearSong();
       setRequestComment("");
       onClose();
-      Alert.alert(
+      showNotice(
         "Songs submitted",
         `${result.added} song(s) submitted; ${result.skipped} duplicate(s) skipped.`,
       );
     } catch (error) {
-      Alert.alert(
+      showNotice(
         "Couldn't submit",
-        error instanceof Error ? error.message : "Please try again.",
+        errorMessage(error),
       );
     } finally {
       setSubmitting(false);
@@ -521,11 +507,11 @@ const MusicRequestSheetContent = ({
       const all = [...songs];
       if (title.trim() || artist.trim() || link.trim()) {
         if (!title.trim() || !artist.trim() || !link.trim()) {
-          Alert.alert("Incomplete song", "Complete or clear the current song.");
+          showNotice("Incomplete song", "Complete or clear the current song.");
           return;
         }
         if (duplicateBlocked || (!!duplicateLink && duplicate === undefined)) {
-          Alert.alert(
+          showNotice(
             "Duplicate",
             "Current song is a duplicate or still being checked.",
           );
@@ -544,25 +530,20 @@ const MusicRequestSheetContent = ({
         const preview = await previewBatch({ songs: all });
         if (preview.possibleDuplicates > 0) {
           setSubmitting(false);
-          Alert.alert(
-            "Possible duplicate songs",
-            `${preview.possibleDuplicates} song(s) may already have been requested in a different version. Submit these versions anyway? Exact duplicates will be skipped.`,
-            [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Request anyway",
-                onPress: () => void submitBatch(all, true),
-              },
-            ],
-          );
+          confirmAction({
+            title: "Possible duplicate songs",
+            message: `${preview.possibleDuplicates} song(s) may already have been requested in a different version. Submit these versions anyway? Exact duplicates will be skipped.`,
+            confirmText: "Request anyway",
+            onConfirm: () => void submitBatch(all, true),
+          });
           return;
         }
         await submitBatch(all, false);
         return;
       } catch (error) {
-        Alert.alert(
+        showNotice(
           "Couldn't check duplicates",
-          error instanceof Error ? error.message : "Please try again.",
+          errorMessage(error),
         );
       } finally {
         setSubmitting(false);
@@ -570,33 +551,31 @@ const MusicRequestSheetContent = ({
       return;
     }
     if (!title.trim()) {
-      Alert.alert("Song title required", "Please enter a song title.");
+      showNotice("Song title required", "Please enter a song title.");
       return;
     }
     if (!artist.trim()) {
-      Alert.alert("Artist name required", "Please enter an artist name.");
+      showNotice("Artist name required", "Please enter an artist name.");
       return;
     }
     if (!link.trim()) {
-      Alert.alert("Link required", "Please enter a song link.");
+      showNotice("Link required", "Please enter a song link.");
       return;
     }
     if (duplicateBlocked) {
-      Alert.alert(
+      showNotice(
         "Song already requested",
         "This Spotify track has already been submitted and cannot be requested again.",
       );
       return;
     }
     if (possibleDuplicate) {
-      Alert.alert(
-        "Possible duplicate",
-        `${duplicate?.title} by ${duplicate?.artist} has already been requested. Request this version anyway?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Request anyway", onPress: () => void saveSingle(true) },
-        ],
-      );
+      confirmAction({
+        title: "Possible duplicate",
+        message: `${duplicate?.title} by ${duplicate?.artist} has already been requested. Request this version anyway?`,
+        confirmText: "Request anyway",
+        onConfirm: () => void saveSingle(true),
+      });
       return;
     }
     await saveSingle(false);
@@ -627,16 +606,16 @@ const MusicRequestSheetContent = ({
       setIsrc(undefined);
       setSpotifyError(null);
       onClose();
-      Alert.alert(
+      showNotice(
         prefill ? "Song updated" : "Request sent",
         prefill
           ? "Your changes have been saved."
           : "A Praise Manager will review your song request soon.",
       );
     } catch (error: unknown) {
-      Alert.alert(
+      showNotice(
         prefill ? "Couldn't update song" : "Couldn't send request",
-        error instanceof Error ? error.message : "Please try again.",
+        errorMessage(error),
       );
     } finally {
       setSubmitting(false);
@@ -862,7 +841,7 @@ const MusicRequestSheetContent = ({
             </View>
           )}
 
-          {duplicate && !duplicateIsSelf ? (
+          {duplicate ? (
             <View
               style={{
                 flexDirection: "row",
@@ -943,8 +922,17 @@ const MusicRequestSheetContent = ({
           <Field
             label="Link"
             value={link}
-            onChangeText={setLink}
+            onChangeText={(value) => {
+              // A different song: the autofilled ISRC and artwork no longer apply.
+              if (songLinkKey(value) !== songLinkKey(link)) {
+                setIsrc(undefined);
+                setAlbumArtUrl(null);
+              }
+              setLink(value);
+            }}
             placeholder="Spotify or YouTube link"
+            autoCapitalize="none"
+            keyboardType="url"
           />
           <Btn
             title="Add song to list"

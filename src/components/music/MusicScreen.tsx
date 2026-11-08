@@ -1,10 +1,10 @@
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
-import { FooterAction } from "@/components/ui";
+import { errorMessage, FooterAction } from "@/components/ui";
+import { confirmAction, showNotice } from "@/lib/notice";
 import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Alert, Platform } from "react-native";
 import { ApprovedPlaylistTab, MyRequestsTab, ToReviewTab } from "./MusicTabs";
 import {
   MusicGuideSheet,
@@ -16,9 +16,9 @@ export default function MusicScreen() {
   const me = useQuery(api.directory.me);
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
-  const actingAsPraiseManager = me?.actingAs?.persona?.role === "praiseManager";
-  const canReview = me?.isPraiseManager === true || actingAsPraiseManager;
-  const canManageRequests = me?.isPraiseManager === true;
+  // Both follow the role an admin is acting as (directory.me).
+  const canReview = me?.isPraiseManager === true;
+  const canManageRequests = me?.canManagePraiseList === true;
   const requestedTab =
     tab === "review" && canReview
       ? "toReview"
@@ -52,28 +52,17 @@ export default function MusicScreen() {
       try {
         await removeRequest({ requestId: request._id });
       } catch (error) {
-        Alert.alert(
-          "Couldn't delete request",
-          error instanceof Error ? error.message : "Please try again.",
-        );
+        showNotice("Couldn't delete request", errorMessage(error));
       }
     };
 
-    if (Platform.OS === "web") {
-      if (window.confirm(`Delete "${request.title}"?`)) {
-        void deleteRequest();
-      }
-      return;
-    }
-
-    Alert.alert("Delete request?", request.title, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => void deleteRequest(),
-      },
-    ]);
+    confirmAction({
+      title: "Delete request?",
+      message: request.title,
+      confirmText: "Delete",
+      destructive: true,
+      onConfirm: () => void deleteRequest(),
+    });
   };
 
   // Open a blank music request form

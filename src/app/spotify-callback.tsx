@@ -1,10 +1,12 @@
 import * as WebBrowser from "expo-web-browser";
 import { useEffect } from "react";
 import { Text, View } from "react-native";
+import { useAppTheme } from "@/theme";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export default function SpotifyCallback() {
+  const t = useAppTheme();
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -45,7 +47,7 @@ export default function SpotifyCallback() {
         padding: 24,
       }}
     >
-      <Text style={{ color: "#FFFFFF", fontSize: 16 }}>
+      <Text style={{ color: t.text, fontSize: 16 }}>
         Completing Spotify connection...
       </Text>
     </View>

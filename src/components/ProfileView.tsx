@@ -1,4 +1,5 @@
 import { useMinuteTick } from "@/hooks/useMinuteTick";
+import { showNotice } from "@/lib/notice";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
 import { uploadLocalFileToUrl } from "@/lib/uploadLocalFile";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
@@ -71,7 +72,7 @@ function SpotifyConnectionCard() {
     try {
       await spotify.connect();
     } catch (e) {
-      Alert.alert("Spotify", errorMessage(e));
+      showNotice("Spotify", errorMessage(e));
     }
   };
 

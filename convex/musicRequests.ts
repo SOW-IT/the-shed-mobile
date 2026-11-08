@@ -2,9 +2,11 @@ import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
+import { seesThrough } from "../shared/actingAs";
 import { lensFor } from "./actingAs";
 import {
   currentStaffYear,
+  displayName,
   optionalProfile,
   requireProfile,
   resolveName,
@@ -34,6 +36,48 @@ async function callerIsPraiseManager(
   );
 }
 
+/**
+ * Whether the caller sees the review queue. Like every view, it follows the
+ * role an admin is acting as; approving and declining still need a real
+ * Praise Manager.
+ */
+async function seesReviewQueue(
+  ctx: MusicCtx,
+  caller: Awaited<ReturnType<typeof requireProfile>>,
+): Promise<boolean> {
+  return await seesThrough(
+    await lensFor(ctx, caller),
+    () => callerIsPraiseManager(ctx, caller.email),
+    (persona) => persona.role === "praiseManager",
+  );
+}
+
+/** Look up each email's name once per query. */
+function nameResolver(ctx: MusicCtx) {
+  const cache = new Map<string, Promise<string | null>>();
+  return (email: string) => {
+    let name = cache.get(email);
+    if (!name) {
+      name = resolveName(ctx, email, currentStaffYear());
+      cache.set(email, name);
+    }
+    return name;
+  };
+}
+
+async function withNames(ctx: MusicCtx, rows: MusicRequestRow[]) {
+  const nameOf = nameResolver(ctx);
+  return await Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      requesterName: await nameOf(row.requesterEmail),
+      reviewerName: row.reviewedByEmail
+        ? await nameOf(row.reviewedByEmail)
+        : null,
+    })),
+  );
+}
+
 /** Create in-app notifications. */
 async function notify(
   ctx: MutationCtx,
@@ -54,7 +98,7 @@ async function notify(
 }
 
 /** Extract a Spotify track ID, ignoring query parameters and regional URL prefixes. */
-function spotifyTrackId(value: string): string | null {
+export function spotifyTrackId(value: string): string | null {
   try {
     const url = new URL(value.trim());
     if (
@@ -84,7 +128,7 @@ function normalized(value: string): string {
     .trim();
 }
 
-function normalizedSongKey(title: string, artist: string): string {
+export function normalizedSongKey(title: string, artist: string): string {
   return JSON.stringify([normalized(title), normalized(artist)]);
 }
 
@@ -256,15 +300,21 @@ export const checkDuplicate = query({
     title: v.optional(v.string()),
     artist: v.optional(v.string()),
     isrc: v.optional(v.string()),
+    // The request being edited, so it doesn't match itself.
+    excludeId: v.optional(v.id("musicRequests")),
   },
   handler: async (ctx, args) => {
     await requireProfile(ctx);
-    const duplicate = await findIndexedDuplicate(ctx, {
-      link: args.link,
-      title: args.title ?? "",
-      artist: args.artist ?? "",
-      isrc: args.isrc,
-    });
+    const duplicate = await findIndexedDuplicate(
+      ctx,
+      {
+        link: args.link,
+        title: args.title ?? "",
+        artist: args.artist ?? "",
+        isrc: args.isrc,
+      },
+      args.excludeId,
+    );
     if (!duplicate) return null;
     return {
       title: duplicate.row.title,
@@ -324,7 +374,7 @@ export const submit = mutation({
         ctx,
         await praiseManagerEmailsForYear(ctx, currentStaffYear()),
         "New music request",
-        `${caller.email} requested "${song.title}"`,
+        `${await displayName(ctx, caller.email, currentStaffYear())} requested "${song.title}"`,
         "/music?tab=review",
       );
     }
@@ -450,7 +500,9 @@ export const submitMany = mutation({
         ctx,
         await praiseManagerEmailsForYear(ctx, currentStaffYear()),
         "New music requests",
-        `${caller.email} requested ${added.length} song(s).`,
+        `${await displayName(ctx, caller.email, currentStaffYear())} requested ${
+          added.length === 1 ? "1 song" : `${added.length} songs`
+        }.`,
         "/music?tab=review",
       );
     return { added: added.length, skipped, possibleDuplicates };
@@ -469,23 +521,7 @@ export const myRequests = query({
       .order("desc")
       .take(200);
 
-    return Promise.all(
-      rows.map(async (row) => {
-        const requesterName = await resolveName(
-          ctx,
-          row.requesterEmail,
-          currentStaffYear(),
-        );
-        const reviewerName = row.reviewedByEmail
-          ? await resolveName(ctx, row.reviewedByEmail, currentStaffYear())
-          : null;
-        return {
-          ...row,
-          requesterName,
-          reviewerName,
-        };
-      }),
-    );
+    return await withNames(ctx, rows);
   },
 });
 /** Get pending music requests. Praise Manager only. */
@@ -493,13 +529,7 @@ export const toReview = query({
   args: {},
   handler: async (ctx) => {
     const caller = await requireProfile(ctx);
-    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
-    const lens = await lensFor(ctx, caller);
-
-    const isPreviewingPraiseManager =
-      lens.kind === "as" && lens.persona.role === "praiseManager";
-
-    if (!isPraiseManager && !isPreviewingPraiseManager) {
+    if (!(await seesReviewQueue(ctx, caller))) {
       throw new ConvexError("Only Praise Managers can review music requests.");
     }
     const rows = await ctx.db
@@ -507,23 +537,7 @@ export const toReview = query({
       .withIndex("by_status", (q) => q.eq("status", "PENDING"))
       .order("desc")
       .take(200);
-    return Promise.all(
-      rows.map(async (row) => {
-        const requesterName = await resolveName(
-          ctx,
-          row.requesterEmail,
-          currentStaffYear(),
-        );
-        const reviewerName = row.reviewedByEmail
-          ? await resolveName(ctx, row.reviewedByEmail, currentStaffYear())
-          : null;
-        return {
-          ...row,
-          requesterName,
-          reviewerName,
-        };
-      }),
-    );
+    return await withNames(ctx, rows);
   },
 });
 
@@ -532,12 +546,7 @@ export const declined = query({
   args: {},
   handler: async (ctx) => {
     const caller = await requireProfile(ctx);
-    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
-    const lens = await lensFor(ctx, caller);
-    const isPreviewingPraiseManager =
-      lens.kind === "as" && lens.persona.role === "praiseManager";
-
-    if (!isPraiseManager && !isPreviewingPraiseManager) {
+    if (!(await seesReviewQueue(ctx, caller))) {
       throw new ConvexError(
         "Only Praise Managers can view declined music requests.",
       );
@@ -547,23 +556,7 @@ export const declined = query({
       .withIndex("by_status", (q) => q.eq("status", "DECLINED"))
       .order("desc")
       .take(200);
-    return Promise.all(
-      rows.map(async (row) => {
-        const requesterName = await resolveName(
-          ctx,
-          row.requesterEmail,
-          currentStaffYear(),
-        );
-        const reviewerName = row.reviewedByEmail
-          ? await resolveName(ctx, row.reviewedByEmail, currentStaffYear())
-          : null;
-        return {
-          ...row,
-          requesterName,
-          reviewerName,
-        };
-      }),
-    );
+    return await withNames(ctx, rows);
   },
 });
 /** Get approved music requests. */
@@ -577,23 +570,7 @@ export const approved = query({
       .withIndex("by_status", (q) => q.eq("status", "APPROVED"))
       .order("desc")
       .take(200);
-    return Promise.all(
-      rows.map(async (row) => {
-        const requesterName = await resolveName(
-          ctx,
-          row.requesterEmail,
-          currentStaffYear(),
-        );
-        const reviewerName = row.reviewedByEmail
-          ? await resolveName(ctx, row.reviewedByEmail, currentStaffYear())
-          : null;
-        return {
-          ...row,
-          requesterName,
-          reviewerName,
-        };
-      }),
-    );
+    return await withNames(ctx, rows);
   },
 });
 /** Approve a pending music request. */

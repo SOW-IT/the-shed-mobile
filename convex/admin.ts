@@ -1915,15 +1915,20 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
   const fromSettings = await getYearSettings(ctx, from);
   if (
     fromSettings?.budgetManagerEmail ||
+    fromSettings?.praiseManagerEmails?.length ||
     fromSettings?.directorApprovalThreshold !== undefined ||
     fromSettings?.eventDirectorApprovalThreshold !== undefined
   ) {
     const toSettings = await getYearSettings(ctx, to);
     const patch: {
       budgetManagerEmail?: string;
+      praiseManagerEmails?: string[];
       directorApprovalThreshold?: number;
       eventDirectorApprovalThreshold?: number;
     } = {};
+    if (fromSettings.praiseManagerEmails?.length) {
+      patch.praiseManagerEmails = fromSettings.praiseManagerEmails;
+    }
     if (fromSettings.eventDirectorApprovalThreshold !== undefined) {
       patch.eventDirectorApprovalThreshold =
         fromSettings.eventDirectorApprovalThreshold;
@@ -2001,7 +2006,7 @@ export const copyYear = internalMutation({
 const PREFILL_NOTIFY_EMAILS = ["info@sow.org.au", "it@sow.org.au"] as const;
 
 // Runs as the staff year changes on 1 October. The new year was prefilled a year
-// earlier, so a Budget Manager or threshold set since then may be missing from
+// earlier, so a Budget Manager, Praise Manager or threshold set since then may be missing from
 // it: fill any gap from the year that just ended, and never overwrite.
 export const carryFinanceSettingsForward = internalMutation({
   args: {},
@@ -2012,6 +2017,7 @@ export const carryFinanceSettingsForward = internalMutation({
     const settings = await getYearSettings(ctx, year);
     const patch: {
       budgetManagerEmail?: string;
+      praiseManagerEmails?: string[];
       directorApprovalThreshold?: number;
       eventDirectorApprovalThreshold?: number;
     } = {};
@@ -2036,6 +2042,14 @@ export const carryFinanceSettingsForward = internalMutation({
       ) {
         patch.budgetManagerEmail = previous.budgetManagerEmail;
       }
+    }
+    if (!settings?.praiseManagerEmails?.length && previous.praiseManagerEmails?.length) {
+      // Only those still on staff in the new year can review music requests.
+      const stillStaff: string[] = [];
+      for (const email of previous.praiseManagerEmails) {
+        if (await getProfile(ctx, email, year)) stillStaff.push(email);
+      }
+      if (stillStaff.length > 0) patch.praiseManagerEmails = stillStaff;
     }
     const carried = Object.keys(patch);
     if (carried.length === 0) return { carried };

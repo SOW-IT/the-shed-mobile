@@ -3,7 +3,8 @@ import {
   usePagerFooterClearance,
   usePagerTopBarInset,
 } from "@/components/PagerScreen";
-import { Card, LoadingState } from "@/components/ui";
+import { Card, errorMessage, LoadingState } from "@/components/ui";
+import { showNotice } from "@/lib/notice";
 import { radius, spacing, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
@@ -221,7 +222,8 @@ export const ApprovedPlaylistTab = ({
           <>
             <View style={styles.musicMetaRow}>
               <Text style={{ color: t.faint, fontSize: 12 }}>
-                {visibleSongs.length} SONGS
+                {visibleSongs.length}{" "}
+                {visibleSongs.length === 1 ? "SONG" : "SONGS"}
               </Text>
 
               <Text style={{ color: t.faint, fontSize: 12 }}>
@@ -706,10 +708,7 @@ function ReviewCard({
     try {
       await approve({ requestId: request._id });
     } catch (error) {
-      Alert.alert(
-        "Couldn't approve",
-        error instanceof Error ? error.message : "Please try again.",
-      );
+      showNotice("Couldn't approve", errorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -723,10 +722,7 @@ function ReviewCard({
         reason: reason?.trim() || undefined,
       });
     } catch (error) {
-      Alert.alert(
-        "Couldn't decline",
-        error instanceof Error ? error.message : "Please try again.",
-      );
+      showNotice("Couldn't decline", errorMessage(error));
     } finally {
       setBusy(false);
     }

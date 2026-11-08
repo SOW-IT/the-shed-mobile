@@ -40,7 +40,9 @@ export const parseYouTubeSong = (
   channelName: string,
 ): { title: string; artist: string } => {
   const cleaned = removeVideoLabels(videoTitle);
-  const channel = channelName.trim() || "Unknown artist";
+  // YouTube Music's auto-generated channels are named "<Artist> - Topic".
+  const channel =
+    channelName.trim().replace(/\s+-\s+Topic$/i, "") || "Unknown artist";
 
   const parts = cleaned
     .split(/\s+[-–—|]\s+/)

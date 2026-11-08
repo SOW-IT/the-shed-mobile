@@ -394,6 +394,43 @@ describe("the 1 October rollover", () => {
     expect(await budgetManager(t, YEAR + 1)).toBeUndefined();
   });
 
+  test("the Praise Managers carry into the prefilled year and into a new year that lost them", async () => {
+    const { t, admin } = await setup();
+    await admin.mutation(api.admin.addPraiseManager, { year: YEAR, email: EVAN });
+    await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
+    expect((await settingsOf(t, YEAR + 1))?.praiseManagerEmails).toEqual([EVAN]);
+
+    // Set after the prefill: the 1 October run fills the gap, keeping only current staff.
+    await admin.mutation(api.admin.addPraiseManager, { year: YEAR, email: MIA });
+    await t.run(async (ctx) => {
+      const next = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR + 1))
+        .first();
+      await ctx.db.patch("yearSettings", next!._id, { praiseManagerEmails: [] });
+      const mia = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", MIA).eq("year", YEAR + 1))
+        .first();
+      await ctx.db.delete("staffProfiles", mia!._id);
+    });
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(staffYearStartMs(YEAR + 1) + 60_000);
+    expect(await t.mutation(internal.admin.carryFinanceSettingsForward, {})).toEqual({
+      carried: ["praiseManagerEmails"],
+    });
+    expect((await settingsOf(t, YEAR + 1))?.praiseManagerEmails).toEqual([EVAN]);
+    expect(await t.mutation(internal.admin.carryFinanceSettingsForward, {})).toEqual({ carried: [] });
+  });
+
+  test("Praise Managers who all left staff aren't carried", async () => {
+    const { t, admin } = await setup();
+    await admin.mutation(api.admin.addPraiseManager, { year: YEAR, email: EVAN });
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(staffYearStartMs(YEAR + 1) + 60_000);
+    expect(await t.mutation(internal.admin.carryFinanceSettingsForward, {})).toEqual({ carried: [] });
+  });
+
   test("a new year with no settings yet gets last year's, and with none last year nothing is carried", async () => {
     const { t } = await setup();
     vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });

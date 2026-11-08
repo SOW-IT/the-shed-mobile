@@ -409,6 +409,30 @@ describe("account.wipe", () => {
     });
   });
 
+  test("deletes the user's saved Spotify connection", async () => {
+    const t = convexTest(schema, modules);
+    const { userId, other } = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: STAFF });
+      const other = await ctx.db.insert("users", { email: GUEST });
+      for (const id of [userId, other]) {
+        await ctx.db.insert("spotifyConnections", {
+          userId: id,
+          encryptedAccessToken: "a",
+          encryptedRefreshToken: "r",
+          expiresAt: 0,
+          connectedAt: 0,
+          updatedAt: 0,
+        });
+      }
+      return { userId, other };
+    });
+    await t.mutation(internal.account.wipe, { userId });
+    await t.run(async (ctx) => {
+      const left = await ctx.db.query("spotifyConnections").take(10);
+      expect(left.map((row) => row.userId)).toEqual([other]);
+    });
+  });
+
   test("clears long-lived sessions' refresh tokens in batches", async () => {
     vi.useFakeTimers();
     const t = convexTest(schema, modules);

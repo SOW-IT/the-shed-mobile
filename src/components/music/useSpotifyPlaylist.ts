@@ -3,6 +3,8 @@ import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
+import { errorMessage } from "@/components/ui";
+import { showNotice } from "@/lib/notice";
 import { api } from "../../../convex/_generated/api";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -61,7 +63,7 @@ export function useSpotifyPlaylist() {
           redirectUri,
         });
       } catch (error) {
-        console.warn("Spotify connection failed:", error);
+        showNotice("Couldn't connect Spotify", errorMessage(error));
       } finally {
         setConnecting(false);
       }
@@ -145,23 +147,11 @@ export function useSpotifyPlaylist() {
   }, [request, finishConnection]);
 
   const disconnect = async () => {
-    console.log("STEP 1: Disconnect function called");
-
-    try {
-      await disconnectSpotify();
-      console.log("STEP 2: Convex disconnect successful");
-    } catch (error) {
-      console.error("STEP 2: Convex disconnect failed", error);
-      throw error;
-    }
+    await disconnectSpotify();
   };
 
   const importPlaylist = async (link: string) => {
     return await importSpotifyPlaylist({ link });
-  };
-
-  const refreshConnection = async () => {
-    // Convex automatically keeps this query updated.
   };
 
   return {
@@ -171,6 +161,5 @@ export function useSpotifyPlaylist() {
     connect,
     disconnect,
     importPlaylist,
-    refreshConnection,
   };
 }

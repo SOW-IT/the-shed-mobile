@@ -6,6 +6,41 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.10.34] - 2026-11-08
+
+### Fixed
+- **Praise List works on the website.** Messages and questions on the
+  Praise List, such as "Possible duplicate: request this version anyway?",
+  "Request sent" and every error, showed only on phones. On the website the
+  button did nothing, so a song that looked like another could never be
+  sent. They now appear on the website as well.
+- **Editing a song no longer warns that it duplicates itself.** Editing a
+  request or approved song with a YouTube or typed-in link said the song had
+  "already been requested", because it matched its own entry.
+- **Error messages on the Praise List are readable.** They show only the
+  reason (for example "This recording was already requested") without the
+  server's technical prefix, and YouTube playlist errors now show their
+  reason on the live site, not "Server Error".
+- **Acting as a role shows that role's Praise List.** A Praise Manager acting
+  as, say, Music staff still saw To Review and the edit, delete and approve
+  buttons. They now see what that role sees. An admin acting as Praise
+  Manager still sees the queue, without the buttons.
+- **Praise Managers carry into the new staff year.** On 1 October the new
+  year starts with last year's Praise Managers who are still on staff, as
+  the Budget Manager already does. Before, the new year would have had none,
+  so no one could review requests.
+- **Deleting your account also removes your Spotify connection.**
+- **Notifications about new song requests show the requester's name**, not
+  their email, and say "1 song" or "3 songs".
+- **Changing a song's link clears the old artwork and recording code**, so
+  the new link isn't checked against the old song.
+- **Spotify playlists bring each song's recording code (ISRC)**, so the same
+  recording already requested from YouTube is caught.
+- **YouTube Music artists lose the " - Topic"** that YouTube adds to its
+  automatic channels.
+- **Only signed-in users can look up Spotify songs or YouTube playlists**
+  through The SHED's Spotify app and YouTube key.
+
 ## [2.10.33] - 2026-11-07
 
 ### Changed

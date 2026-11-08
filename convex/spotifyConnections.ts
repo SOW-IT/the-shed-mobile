@@ -236,6 +236,7 @@ type SpotifyTrack = {
   is_local?: boolean;
   artists?: Array<{ name: string }>;
   album?: { images?: Array<{ url: string }> };
+  external_ids?: { isrc?: string };
 };
 
 type PlaylistPage = {
@@ -406,6 +407,8 @@ export const importPlaylist = action({
           artist: (track.artists ?? []).map((artist) => artist.name).join(", "),
           link: `https://open.spotify.com/track/${track.id}`,
           albumArtUrl: track.album?.images?.[0]?.url,
+          // Lets duplicate detection match the same recording on YouTube.
+          isrc: track.external_ids?.isrc,
         },
       ];
     });

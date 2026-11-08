@@ -88,6 +88,7 @@ export const me = query({
         photo,
         profile: null,
         isPraiseManager: false,
+        canManagePraiseList: false,
       };
     }
     const approvers = await getApprovers(
@@ -137,7 +138,15 @@ export const me = query({
         departments: departmentsOf(profile),
         divisions: divisionsOf(profile),
       },
-      isPraiseManager,
+      // The Praise List's review tab follows the role being previewed; the
+      // buttons need a real Praise Manager as well, as the mutations check.
+      isPraiseManager: await seesThrough(
+        lens,
+        () => isPraiseManager,
+        (p) => p.role === "praiseManager",
+      ),
+      canManagePraiseList:
+        isPraiseManager && (persona === null || persona.role === "praiseManager"),
       isAdmin: persona ? personaIsAdmin(persona, teams) : isAdmin,
       isFinance: await seesThrough(
         lens,

@@ -206,6 +206,18 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   with push notifications. Each grievance has a random reference (a UUID)
   that only the team sees. The team edits the "What is it about?" options;
   grievances keep the wording they were raised with.
+- **Praise List** (`convex/musicRequests.ts`, `/music`, staff only): the
+  approved worship songs, searchable and sortable, plus song requests. Staff
+  paste a Spotify or YouTube song or playlist link to autofill (Spotify
+  playlists need Spotify connected from Profile, `convex/spotifyConnections.ts`,
+  tokens encrypted at rest and deleted with the account) or type one in, up
+  to 50 at a time. The same recording twice (Spotify track or ISRC) is
+  refused; the same title and artist asks first. **Praise Managers**
+  (Admin → System, per staff year, carried into the new year on 1 October)
+  get a To Review tab to approve or decline with a reason, and their own
+  songs go straight onto the list. An admin acting as Praise Manager sees
+  the queue without the buttons; a Praise Manager acting as another role
+  sees what that role sees.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on
@@ -270,10 +282,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Departments list shows each one's jobs), and a year keeps the year
   before's choices until an admin changes them, so the October rollover
   never resets them. Moving a job asks to confirm first. At 00:01 on
-  1 October the new year also takes any Budget Manager or Director
-  threshold it doesn't have from the year that just ended
+  1 October the new year also takes any Budget Manager, Director
+  threshold or Praise Managers it doesn't have from the year that just ended
   (`admin.carryFinanceSettingsForward`; a Budget Manager only while still
-  on the finance team). Admin's tabs are Users, Structure, Teams and
+  on the finance team, Praise Managers only while still on staff). Admin's tabs are Users, Structure, Teams and
   System (app errors, directory sync).
 - **Finance settings** (`/finance-settings`): the Budget Manager, both
   Director thresholds, approver delegation and step timing, opened from a
