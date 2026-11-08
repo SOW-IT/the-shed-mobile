@@ -24,14 +24,17 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Acting as a role shows that role's Praise List.** A Praise Manager acting
   as, say, Music staff still saw To Review and the edit, delete and approve
   buttons. They now see what that role sees. An admin acting as Praise
-  Manager still sees the queue, without the buttons.
+  Manager still sees the queue, without the buttons, and anyone who can't
+  review keeps a My Request tab for their own requests.
 - **Praise Managers carry into the new staff year.** On 1 October the new
   year starts with last year's Praise Managers who are still on staff, as
   the Budget Manager already does. Before, the new year would have had none,
-  so no one could review requests.
+  so no one could review requests. A new year whose list an admin emptied
+  stays empty.
 - **Deleting your account also removes your Spotify connection.**
 - **Notifications about new song requests show the requester's name**, not
-  their email, and say "1 song" or "3 songs".
+  their email, and say "1 song" or "3 songs". A Praise Manager adding a song
+  is told it's on the playlist, not that it awaits review.
 - **Changing a song's link clears the old artwork and recording code**, so
   the new link isn't checked against the old song.
 - **Spotify playlists bring each song's recording code (ISRC)**, so the same

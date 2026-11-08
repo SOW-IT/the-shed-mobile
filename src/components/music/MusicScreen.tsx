@@ -22,11 +22,9 @@ export default function MusicScreen() {
   const requestedTab =
     tab === "review" && canReview
       ? "toReview"
-      : tab === "my-requests" && me?.isPraiseManager === false
+      : tab === "my-requests" && me?.canManagePraiseList === false
         ? "myRequest"
         : "approvedPlaylist";
-
-  const active = selectedTab ?? requestedTab;
 
   // Request sheet state
   const [requestPrefill, setRequestPrefill] = useState<MusicRequest | null>(
@@ -91,7 +89,8 @@ export default function MusicScreen() {
         />
       ),
     },
-    ...(!canReview
+    // Anyone without the review buttons sees their own requests.
+    ...(!canManageRequests
       ? [
           {
             key: "myRequest",
@@ -125,6 +124,11 @@ export default function MusicScreen() {
         ]
       : []),
   ];
+  // A tab can disappear when the acting-as role changes.
+  const preferredTab = selectedTab ?? requestedTab;
+  const active = tabs.some((item) => item.key === preferredTab)
+    ? preferredTab
+    : "approvedPlaylist";
 
   return (
     <>
@@ -148,6 +152,7 @@ export default function MusicScreen() {
         onClose={() => setNewRequestOpen(false)}
         prefill={requestPrefill}
         hideRequestComment={hideRequestComment}
+        addsDirectly={canManageRequests}
       />
 
       <MusicGuideSheet

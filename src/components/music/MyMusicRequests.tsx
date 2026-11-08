@@ -124,11 +124,14 @@ const MusicRequestSheetContent = ({
   onClose,
   prefill,
   hideRequestComment = false,
+  addsDirectly = false,
 }: {
   visible: boolean;
   onClose: () => void;
   prefill: MusicRequest | null;
   hideRequestComment?: boolean;
+  /** A Praise Manager's songs go straight onto the playlist. */
+  addsDirectly?: boolean;
 }) => {
   const t = useAppTheme();
   const hideAutofill = prefill?.status === "APPROVED";
@@ -607,10 +610,12 @@ const MusicRequestSheetContent = ({
       setSpotifyError(null);
       onClose();
       showNotice(
-        prefill ? "Song updated" : "Request sent",
+        prefill ? "Song updated" : addsDirectly ? "Song added" : "Request sent",
         prefill
           ? "Your changes have been saved."
-          : "A Praise Manager will review your song request soon.",
+          : addsDirectly
+            ? "It's on the approved playlist."
+            : "A Praise Manager will review your song request soon.",
       );
     } catch (error: unknown) {
       showNotice(
@@ -1105,6 +1110,7 @@ export const NewMusicRequestSheet = (props: {
   onClose: () => void;
   prefill: MusicRequest | null;
   hideRequestComment?: boolean;
+  addsDirectly?: boolean;
 }) => {
   if (!props.visible) return null;
 

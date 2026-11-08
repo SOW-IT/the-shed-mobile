@@ -433,6 +433,26 @@ describe("account.wipe", () => {
     });
   });
 
+  test("a Spotify connection finishing after the account is deleted isn't saved", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: STAFF });
+      await ctx.db.delete("users", userId);
+      return userId;
+    });
+    expect(
+      await t.mutation(internal.spotifyConnections.saveConnection, {
+        userId,
+        encryptedAccessToken: "a",
+        encryptedRefreshToken: "r",
+        expiresAt: 0,
+      }),
+    ).toBeNull();
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("spotifyConnections").take(1)).toHaveLength(0);
+    });
+  });
+
   test("clears long-lived sessions' refresh tokens in batches", async () => {
     vi.useFakeTimers();
     const t = convexTest(schema, modules);

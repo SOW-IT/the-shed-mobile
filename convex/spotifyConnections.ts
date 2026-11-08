@@ -96,6 +96,9 @@ export const saveConnection = internalMutation({
     expiresAt: v.number(),
   },
   handler: async (ctx, args) => {
+    // The account may have been deleted while Spotify was answering.
+    if (!(await ctx.db.get(args.userId))) return null;
+
     const existing = await ctx.db
       .query("spotifyConnections")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))

@@ -2043,7 +2043,8 @@ export const carryFinanceSettingsForward = internalMutation({
         patch.budgetManagerEmail = previous.budgetManagerEmail;
       }
     }
-    if (!settings?.praiseManagerEmails?.length && previous.praiseManagerEmails?.length) {
+    // Only when the new year has never had a list: an emptied one stays empty.
+    if (settings?.praiseManagerEmails === undefined && previous.praiseManagerEmails?.length) {
       // Only those still on staff in the new year can review music requests.
       const stillStaff: string[] = [];
       for (const email of previous.praiseManagerEmails) {

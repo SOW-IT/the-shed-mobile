@@ -407,7 +407,7 @@ describe("the 1 October rollover", () => {
         .query("yearSettings")
         .withIndex("by_year", (q) => q.eq("year", YEAR + 1))
         .first();
-      await ctx.db.patch("yearSettings", next!._id, { praiseManagerEmails: [] });
+      await ctx.db.patch("yearSettings", next!._id, { praiseManagerEmails: undefined });
       const mia = await ctx.db
         .query("staffProfiles")
         .withIndex("by_email_and_year", (q) => q.eq("email", MIA).eq("year", YEAR + 1))
@@ -421,6 +421,11 @@ describe("the 1 October rollover", () => {
     });
     expect((await settingsOf(t, YEAR + 1))?.praiseManagerEmails).toEqual([EVAN]);
     expect(await t.mutation(internal.admin.carryFinanceSettingsForward, {})).toEqual({ carried: [] });
+
+    // An admin who empties the new year's list keeps it empty.
+    await admin.mutation(api.admin.removePraiseManager, { year: YEAR + 1, email: EVAN });
+    expect(await t.mutation(internal.admin.carryFinanceSettingsForward, {})).toEqual({ carried: [] });
+    expect((await settingsOf(t, YEAR + 1))?.praiseManagerEmails).toEqual([]);
   });
 
   test("Praise Managers who all left staff aren't carried", async () => {
