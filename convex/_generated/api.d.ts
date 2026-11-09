@@ -84,6 +84,7 @@ import type * as reminders from "../reminders.js";
 import type * as requests from "../requests.js";
 import type * as rollCallOrder from "../rollCallOrder.js";
 import type * as rosterHistory from "../rosterHistory.js";
+import type * as shared_musicLinks from "../shared/musicLinks.js";
 import type * as shared_youtube from "../shared/youtube.js";
 import type * as sowInsights from "../sowInsights.js";
 import type * as spotify from "../spotify.js";
@@ -184,6 +185,7 @@ declare const fullApi: ApiFromModules<{
   requests: typeof requests;
   rollCallOrder: typeof rollCallOrder;
   rosterHistory: typeof rosterHistory;
+  "shared/musicLinks": typeof shared_musicLinks;
   "shared/youtube": typeof shared_youtube;
   sowInsights: typeof sowInsights;
   spotify: typeof spotify;

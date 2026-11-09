@@ -1,18 +1,27 @@
-import { Btn, errorMessage, Field, Row, Sheet } from "@/components/ui";
-import { confirmAction, showNotice } from "@/lib/notice";
+import {
+  Btn,
+  ConfirmDialog,
+  ErrorBanner,
+  errorMessage,
+  Field,
+  InfoBanner,
+  Row,
+  Sheet,
+} from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useState } from "react";
-import {
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
+import {
+  songLinkKey,
+  spotifyTrackUrl,
+  youtubeThumbnailUrl,
+  youtubeVideoId,
+  youtubeVideoUrl,
+} from "../../../convex/shared/musicLinks";
 import { parseYouTubeSong } from "../../../convex/shared/youtube";
 import { useSpotifyPlaylist } from "./useSpotifyPlaylist";
 
@@ -37,58 +46,6 @@ const detectSpotifyLink = (value: string): "track" | "playlist" | null => {
     return null;
   }
 };
-const spotifyTrackUrl = (value: string): string | null => {
-  try {
-    const url = new URL(value.trim());
-    if (
-      url.hostname !== "open.spotify.com" &&
-      url.hostname !== "www.open.spotify.com"
-    )
-      return null;
-    const match = url.pathname.match(
-      /^\/(?:intl-[a-zA-Z-]+\/)?track\/([a-zA-Z0-9]+)\/?$/,
-    );
-    return match ? `https://open.spotify.com/track/${match[1]}` : null;
-  } catch {
-    return null;
-  }
-};
-
-const youtubeVideoUrl = (value: string): string | null => {
-  try {
-    const url = new URL(value.trim());
-    const host = url.hostname.toLowerCase();
-
-    let videoId: string | null = null;
-
-    if (host === "youtu.be" || host === "www.youtu.be") {
-      videoId = url.pathname.split("/")[1];
-    } else if (
-      [
-        "youtube.com",
-        "www.youtube.com",
-        "m.youtube.com",
-        "music.youtube.com",
-      ].includes(host)
-    ) {
-      if (url.pathname === "/watch") {
-        videoId = url.searchParams.get("v");
-      } else {
-        const match = url.pathname.match(
-          /^\/(?:shorts|live|embed)\/([a-zA-Z0-9_-]{11})/,
-        );
-        videoId = match?.[1] ?? null;
-      }
-    }
-
-    return videoId && /^[a-zA-Z0-9_-]{11}$/.test(videoId)
-      ? `https://www.youtube.com/watch?v=${videoId}`
-      : null;
-  } catch {
-    return null;
-  }
-};
-
 const youtubePlaylistUrl = (value: string): string | null => {
   try {
     const url = new URL(value.trim());
@@ -116,8 +73,15 @@ const youtubePlaylistUrl = (value: string): string | null => {
   }
 };
 
-const songLinkKey = (value: string): string =>
-  spotifyTrackUrl(value) ?? youtubeVideoUrl(value) ?? value.trim();
+const songCount = (count: number) =>
+  `${count} ${count === 1 ? "song" : "songs"}`;
+
+type PendingConfirm = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+};
 
 const MusicRequestSheetContent = ({
   visible,
@@ -125,6 +89,7 @@ const MusicRequestSheetContent = ({
   prefill,
   hideRequestComment = false,
   addsDirectly = false,
+  onSaved,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -132,6 +97,7 @@ const MusicRequestSheetContent = ({
   hideRequestComment?: boolean;
   /** A Praise Manager's songs go straight onto the playlist. */
   addsDirectly?: boolean;
+  onSaved: (message: string) => void;
 }) => {
   const t = useAppTheme();
   const hideAutofill = prefill?.status === "APPROVED";
@@ -151,6 +117,15 @@ const MusicRequestSheetContent = ({
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
   const [manualExpanded, setManualExpanded] = useState(!!prefill);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
+    null,
+  );
+  const editing = (setValue: (value: string) => void) => (value: string) => {
+    setError(null);
+    setValue(value);
+  };
   const duplicateLink = link.trim()
     ? spotifyTrackUrl(link)
     : spotifyTrackUrl(spotifyLink);
@@ -202,36 +177,31 @@ const MusicRequestSheetContent = ({
   };
 
   const addSong = () => {
+    setError(null);
     if (!title.trim() || !artist.trim() || !link.trim()) {
-      showNotice("Incomplete song", "Enter a title, artist and link.");
+      setError("Enter a title, artist and link.");
       return;
     }
     if (duplicateBlocked || (!!duplicateLink && duplicate === undefined)) {
-      showNotice(
-        "Duplicate",
-        "Song already requested or still being checked.",
+      setError(
+        "This song has already been requested, or is still being checked.",
       );
       return;
     }
-    const key = spotifyTrackUrl(link) ?? link.trim().toLowerCase();
-    if (
-      songs.some(
-        (song) =>
-          (spotifyTrackUrl(song.link) ?? song.link.toLowerCase()) === key,
-      )
-    ) {
-      showNotice("Already added", "Song is already on your list.");
+    const key = songLinkKey(link);
+    if (songs.some((song) => songLinkKey(song.link) === key)) {
+      setError("This song is already on your list.");
       return;
     }
     if (songs.length >= 50) {
-      showNotice("List full", "You can submit up to 50 songs at once.");
+      setError("You can submit up to 50 songs at once.");
       return;
     }
     if (possibleDuplicate) {
-      confirmAction({
+      setPendingConfirm({
         title: "Possible duplicate",
         message: `${duplicate?.title} by ${duplicate?.artist} has already been requested. Add this version anyway?`,
-        confirmText: "Add anyway",
+        confirmLabel: "Add anyway",
         onConfirm: queueSong,
       });
       return;
@@ -252,10 +222,7 @@ const MusicRequestSheetContent = ({
     if (editingSongIndex === null) return;
 
     if (!editSongTitle.trim() || !editSongArtist.trim()) {
-      showNotice(
-        "Incomplete song",
-        "Please enter both the song title and artist.",
-      );
+      setError("Enter both the song title and artist.");
       return;
     }
 
@@ -293,33 +260,28 @@ const MusicRequestSheetContent = ({
   };
   const importPlaylist = async () => {
     if (importingPlaylist || submitting) return;
+    setError(null);
+    setInfo(null);
     if (!spotifyPlaylist.connected) {
-      showNotice(
-        "Spotify not connected",
-        "Open your Profile page and connect Spotify to import playlists.",
-      );
+      setError("Connect Spotify from your Profile page to import playlists.");
       return;
     }
     setImportingPlaylist(true);
     try {
       const result = await spotifyPlaylist.importPlaylist(spotifyLink.trim());
-      const existing = new Set(
-        songs.map(
-          (song) => spotifyTrackUrl(song.link) ?? song.link.toLowerCase(),
-        ),
-      );
+      const existing = new Set(songs.map((song) => songLinkKey(song.link)));
       const available = Math.max(0, 50 - songs.length);
       const fresh = result.songs.filter((song: SpotifySong) => {
-        const key = spotifyTrackUrl(song.link) ?? song.link.toLowerCase();
+        const key = songLinkKey(song.link);
         if (existing.has(key)) return false;
         existing.add(key);
         return true;
       });
       const toAdd = fresh.slice(0, available);
       setSongs((current) => [...current, ...toAdd]);
-      showNotice(
-        "Playlist imported",
-        `${toAdd.length} song(s) added from ${result.name}.${result.limited ? " Only the first 50 playlist entries were fetched." : ""}${fresh.length > available ? " The submission limit is 50 songs." : ""} Existing requests will be skipped when submitted.`,
+      setSpotifyLink("");
+      setInfo(
+        `${songCount(toAdd.length)} added from ${result.name}.${result.limited ? " Only the first 50 playlist entries were fetched." : ""}${fresh.length > available ? " You can submit up to 50 songs at once." : ""} Songs already requested are skipped when you submit.`,
       );
     } catch (error) {
       const message = errorMessage(error);
@@ -331,7 +293,7 @@ const MusicRequestSheetContent = ({
         ? "You don't have permission to import this playlist. Please use a Spotify playlist that you own or collaborate on."
         : "We couldn't import this playlist. Please check the Spotify link and try again.";
 
-      showNotice("Couldn't import playlist", friendlyMessage);
+      setError(friendlyMessage);
     } finally {
       setImportingPlaylist(false);
     }
@@ -348,28 +310,20 @@ const MusicRequestSheetContent = ({
 
     setImportingPlaylist(true);
     setSpotifyError(null);
+    setError(null);
+    setInfo(null);
 
     try {
       const result = await importYouTubePlaylist({
         link: playlistUrl,
       });
 
-      const existing = new Set(
-        songs.map(
-          (song) =>
-            spotifyTrackUrl(song.link) ??
-            youtubeVideoUrl(song.link) ??
-            song.link.trim().toLowerCase(),
-        ),
-      );
+      const existing = new Set(songs.map((song) => songLinkKey(song.link)));
 
       const available = Math.max(0, 50 - songs.length);
 
       const fresh = result.songs.filter((song) => {
-        const key =
-          spotifyTrackUrl(song.link) ??
-          youtubeVideoUrl(song.link) ??
-          song.link.trim().toLowerCase();
+        const key = songLinkKey(song.link);
 
         if (existing.has(key)) return false;
 
@@ -380,23 +334,21 @@ const MusicRequestSheetContent = ({
       const toAdd = fresh.slice(0, available);
 
       setSongs((current) => [...current, ...toAdd]);
+      setSpotifyLink("");
 
-      showNotice(
-        "YouTube playlist imported",
-        `${toAdd.length} song(s) added.${
+      setInfo(
+        `${songCount(toAdd.length)} added from the YouTube playlist.${
           result.limited
             ? " Only the first 50 playlist entries were fetched."
             : ""
         }${
-          fresh.length > available ? " The submission limit is 50 songs." : ""
-        }`,
+          fresh.length > available
+            ? " You can submit up to 50 songs at once."
+            : ""
+        } Songs already requested are skipped when you submit.`,
       );
     } catch (error) {
-      const message =
-        errorMessage(error);
-
-      setSpotifyError(message);
-      showNotice("Couldn't import playlist", message);
+      setSpotifyError(errorMessage(error));
     } finally {
       setImportingPlaylist(false);
     }
@@ -409,7 +361,7 @@ const MusicRequestSheetContent = ({
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
     if (!cleanUrl) {
-      setSpotifyError("Please paste a valid Spotify or YouTube URL. ");
+      setSpotifyError("Paste a valid Spotify or YouTube link.");
       return;
     }
     setFetchingSpotify(true);
@@ -425,9 +377,7 @@ const MusicRequestSheetContent = ({
       setIsrc(track.isrc ?? undefined);
       setManualExpanded(true);
     } catch (error) {
-      setSpotifyError(
-        errorMessage(error),
-      );
+      setSpotifyError(errorMessage(error));
     } finally {
       setFetchingSpotify(false);
     }
@@ -456,7 +406,6 @@ const MusicRequestSheetContent = ({
       const data: {
         title: string;
         author_name: string;
-        thumbnail_url: string;
       } = await response.json();
 
       const { title, artist } = parseYouTubeSong(data.title, data.author_name);
@@ -464,13 +413,12 @@ const MusicRequestSheetContent = ({
       setTitle(title);
       setArtist(artist);
       setLink(cleanUrl);
-      setAlbumArtUrl(data.thumbnail_url);
+      const videoId = youtubeVideoId(cleanUrl);
+      setAlbumArtUrl(videoId ? youtubeThumbnailUrl(videoId) : null);
       setIsrc(undefined);
       setManualExpanded(true);
     } catch (error) {
-      setSpotifyError(
-        errorMessage(error),
-      );
+      setSpotifyError(errorMessage(error));
     } finally {
       setFetchingSpotify(false);
     }
@@ -481,6 +429,7 @@ const MusicRequestSheetContent = ({
     allowPossibleDuplicates: boolean,
   ) => {
     setSubmitting(true);
+    setError(null);
     try {
       const result = await submitMany({
         songs: all,
@@ -491,32 +440,31 @@ const MusicRequestSheetContent = ({
       clearSong();
       setRequestComment("");
       onClose();
-      showNotice(
-        "Songs submitted",
-        `${result.added} song(s) submitted; ${result.skipped} duplicate(s) skipped.`,
+      const done = addsDirectly
+        ? `${songCount(result.added)} added to the playlist`
+        : `${songCount(result.added)} sent for review`;
+      onSaved(
+        result.skipped ? `${done}, ${result.skipped} already requested` : done,
       );
     } catch (error) {
-      showNotice(
-        "Couldn't submit",
-        errorMessage(error),
-      );
+      setError(errorMessage(error));
     } finally {
       setSubmitting(false);
     }
   };
   const onSubmit = async () => {
     if (submitting) return;
+    setError(null);
     if (!prefill && songs.length > 0) {
       const all = [...songs];
       if (title.trim() || artist.trim() || link.trim()) {
         if (!title.trim() || !artist.trim() || !link.trim()) {
-          showNotice("Incomplete song", "Complete or clear the current song.");
+          setError("Complete or clear the song you're typing in.");
           return;
         }
         if (duplicateBlocked || (!!duplicateLink && duplicate === undefined)) {
-          showNotice(
-            "Duplicate",
-            "Current song is a duplicate or still being checked.",
+          setError(
+            "The song you're typing in has already been requested, or is still being checked.",
           );
           return;
         }
@@ -533,10 +481,10 @@ const MusicRequestSheetContent = ({
         const preview = await previewBatch({ songs: all });
         if (preview.possibleDuplicates > 0) {
           setSubmitting(false);
-          confirmAction({
-            title: "Possible duplicate songs",
-            message: `${preview.possibleDuplicates} song(s) may already have been requested in a different version. Submit these versions anyway? Exact duplicates will be skipped.`,
-            confirmText: "Request anyway",
+          setPendingConfirm({
+            title: "Possible duplicates",
+            message: `${songCount(preview.possibleDuplicates)} may already have been requested in a different version. Submit these versions anyway? Songs already requested are skipped.`,
+            confirmLabel: "Submit anyway",
             onConfirm: () => void submitBatch(all, true),
           });
           return;
@@ -544,39 +492,38 @@ const MusicRequestSheetContent = ({
         await submitBatch(all, false);
         return;
       } catch (error) {
-        showNotice(
-          "Couldn't check duplicates",
-          errorMessage(error),
-        );
+        setError(errorMessage(error));
       } finally {
         setSubmitting(false);
       }
       return;
     }
     if (!title.trim()) {
-      showNotice("Song title required", "Please enter a song title.");
+      setError("Enter a song title.");
+      setManualExpanded(true);
       return;
     }
     if (!artist.trim()) {
-      showNotice("Artist name required", "Please enter an artist name.");
+      setError("Enter the artist.");
+      setManualExpanded(true);
       return;
     }
     if (!link.trim()) {
-      showNotice("Link required", "Please enter a song link.");
+      setError("Enter a link to the song.");
+      setManualExpanded(true);
       return;
     }
     if (duplicateBlocked) {
-      showNotice(
-        "Song already requested",
-        "This Spotify track has already been submitted and cannot be requested again.",
+      setError(
+        "This recording has already been requested, so it can't be requested again.",
       );
       return;
     }
     if (possibleDuplicate) {
-      confirmAction({
+      setPendingConfirm({
         title: "Possible duplicate",
-        message: `${duplicate?.title} by ${duplicate?.artist} has already been requested. Request this version anyway?`,
-        confirmText: "Request anyway",
+        message: `${duplicate?.title} by ${duplicate?.artist} has already been requested. ${prefill ? "Use" : "Request"} this version anyway?`,
+        confirmLabel: prefill ? "Save anyway" : "Request anyway",
         onConfirm: () => void saveSingle(true),
       });
       return;
@@ -585,6 +532,7 @@ const MusicRequestSheetContent = ({
   };
   const saveSingle = async (allowPossibleDuplicate: boolean) => {
     setSubmitting(true);
+    setError(null);
     try {
       const values = {
         title: title.trim(),
@@ -609,51 +557,61 @@ const MusicRequestSheetContent = ({
       setIsrc(undefined);
       setSpotifyError(null);
       onClose();
-      showNotice(
-        prefill ? "Song updated" : addsDirectly ? "Song added" : "Request sent",
+      onSaved(
         prefill
-          ? "Your changes have been saved."
+          ? "Song updated"
           : addsDirectly
-            ? "It's on the approved playlist."
-            : "A Praise Manager will review your song request soon.",
+            ? "Song added to the playlist"
+            : "Request sent for review",
       );
     } catch (error: unknown) {
-      showNotice(
-        prefill ? "Couldn't update song" : "Couldn't send request",
-        errorMessage(error),
-      );
+      setError(errorMessage(error));
     } finally {
       setSubmitting(false);
     }
   };
+  const spotifyStatusColor = !spotifyPlaylist.ready
+    ? t.muted
+    : spotifyPlaylist.connected
+      ? t.success
+      : t.danger;
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
-      title={prefill ? "Edit song" : "Request a song"}
+      title={
+        prefill ? "Edit song" : addsDirectly ? "Add songs" : "Request a song"
+      }
       footer={
-        <Row spread>
-          <Btn title="Cancel" variant="ghost" onPress={onClose} />
-          <Btn
-            title={
-              submitting
-                ? prefill
-                  ? "Saving..."
-                  : "Submitting..."
-                : prefill
-                  ? "Save Changes"
-                  : "Submit Song"
-            }
-            onPress={onSubmit}
-            disabled={
-              submitting ||
-              fetchingSpotify ||
-              importingPlaylist ||
-              (songs.length === 0 && duplicateBlocked) ||
-              (songs.length === 0 && !!duplicateLink && duplicate === undefined)
-            }
-          />
-        </Row>
+        <View style={{ gap: spacing.sm }}>
+          <ErrorBanner message={error} />
+          <Row spread>
+            <Btn title="Cancel" variant="ghost" onPress={onClose} />
+            <Btn
+              title={
+                submitting
+                  ? prefill
+                    ? "Saving..."
+                    : "Submitting..."
+                  : prefill
+                    ? "Save Changes"
+                    : addsDirectly
+                      ? "Add to Playlist"
+                      : "Submit Request"
+              }
+              onPress={onSubmit}
+              disabled={
+                submitting ||
+                fetchingSpotify ||
+                importingPlaylist ||
+                (songs.length === 0 && duplicateBlocked) ||
+                (songs.length === 0 &&
+                  !!duplicateLink &&
+                  duplicate === undefined)
+              }
+            />
+          </Row>
+        </View>
       }
     >
       {!hideAutofill && (
@@ -677,12 +635,9 @@ const MusicRequestSheetContent = ({
             </Text>
           </View>
           <Text style={[typography.caption, { color: t.muted }]}>
-            Paste a Spotify or YouTube song or playlist link.
-          </Text>
-
-          <Text style={[typography.caption, { color: t.warning }]}>
-            Spotify playlists require access through your connected account.
-            Public YouTube playlists can be imported without signing in.
+            Paste a Spotify or YouTube song or playlist link. Spotify playlists
+            need Spotify connected on your Profile; public YouTube playlists
+            don&apos;t.
           </Text>
 
           <View style={{ position: "relative" }}>
@@ -692,11 +647,7 @@ const MusicRequestSheetContent = ({
               onChangeText={(value) => {
                 setSpotifyLink(value);
                 setSpotifyError(null);
-                setTitle("");
-                setArtist("");
-                setLink("");
-                setAlbumArtUrl(null);
-                setIsrc(undefined);
+                setError(null);
               }}
               placeholder="https://open.spotify.com/track/... or playlist/..."
               autoCapitalize="none"
@@ -706,7 +657,7 @@ const MusicRequestSheetContent = ({
               <Pressable
                 onPress={clearSpotifyLink}
                 accessibilityRole="button"
-                accessibilityLabel="Clear Spotify link"
+                accessibilityLabel="Clear music link"
                 hitSlop={8}
                 style={{
                   position: "absolute",
@@ -761,13 +712,6 @@ const MusicRequestSheetContent = ({
               Enter a valid Spotify or YouTube song or playlist URL.
             </Text>
           ) : null}
-          {spotifyLinkType === "playlist" &&
-          !spotifyPlaylist.connected &&
-          !prefill ? (
-            <Text style={[typography.caption, { color: t.muted }]}>
-              Connect Spotify from your Profile page to import playlists.
-            </Text>
-          ) : null}
           {spotifyError ? (
             <Text style={[typography.caption, { color: t.warning }]}>
               {spotifyError}
@@ -797,8 +741,8 @@ const MusicRequestSheetContent = ({
             </View>
           )}
 
-          {!prefill && (
-            <View style={{ marginTop: spacing.sm }}>
+          {!prefill && spotifyLinkType === "playlist" && (
+            <View style={{ gap: spacing.xs }}>
               <View
                 style={{
                   flexDirection: "row",
@@ -815,23 +759,13 @@ const MusicRequestSheetContent = ({
                         : "close-circle"
                   }
                   size={17}
-                  color={
-                    !spotifyPlaylist.ready
-                      ? t.muted
-                      : spotifyPlaylist.connected
-                        ? "#1DB954"
-                        : "#EF4444"
-                  }
+                  color={spotifyStatusColor}
                 />
                 <Text
                   style={[
                     typography.caption,
                     {
-                      color: !spotifyPlaylist.ready
-                        ? t.muted
-                        : spotifyPlaylist.connected
-                          ? "#1DB954"
-                          : "#EF4444",
+                      color: spotifyStatusColor,
                       fontWeight: "600",
                     },
                   ]}
@@ -843,44 +777,49 @@ const MusicRequestSheetContent = ({
                       : "Spotify not connected"}
                 </Text>
               </View>
+              {spotifyPlaylist.ready && !spotifyPlaylist.connected ? (
+                <Text style={[typography.caption, { color: t.muted }]}>
+                  Connect Spotify from your Profile page to import playlists.
+                </Text>
+              ) : null}
             </View>
           )}
-
-          {duplicate ? (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "flex-start",
-                gap: spacing.sm,
-                paddingVertical: spacing.sm,
-              }}
-            >
-              <Ionicons
-                name={"alert-circle-outline"}
-                size={20}
-                color={t.warning}
-              />
-              <View style={{ flex: 1, gap: 3 }}>
-                <Text style={{ color: t.text, fontWeight: "700" }}>
-                  {possibleDuplicate
-                    ? "Possible duplicate song"
-                    : duplicate.status === "APPROVED"
-                      ? "Already in the playlist"
-                      : duplicate.status === "PENDING"
-                        ? "This song has already been requested"
-                        : "This song was previously declined"}
-                </Text>
-                <Text style={[typography.caption, { color: t.muted }]}>
-                  {duplicate.title} by {duplicate.artist}
-                  {possibleDuplicate
-                    ? ". You can request this version anyway."
-                    : ". You can't submit another request for this recording."}
-                </Text>
-              </View>
-            </View>
-          ) : null}
         </View>
       )}
+      {info ? <InfoBanner message={info} /> : null}
+      {duplicate ? (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-start",
+            gap: spacing.sm,
+            paddingVertical: spacing.sm,
+          }}
+        >
+          <Ionicons name={"alert-circle-outline"} size={20} color={t.warning} />
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={{ color: t.text, fontWeight: "700" }}>
+              {possibleDuplicate
+                ? "Possible duplicate song"
+                : duplicate.status === "APPROVED"
+                  ? "Already in the playlist"
+                  : duplicate.status === "PENDING"
+                    ? "This song has already been requested"
+                    : "This song was previously declined"}
+            </Text>
+            <Text style={[typography.caption, { color: t.muted }]}>
+              {duplicate.title} by {duplicate.artist}
+              {possibleDuplicate
+                ? prefill
+                  ? ". You can still save this version."
+                  : ". You can request this version anyway."
+                : prefill
+                  ? ". Choose a different recording."
+                  : ". You can't submit another request for this recording."}
+            </Text>
+          </View>
+        </View>
+      ) : null}
       {albumArtUrl ? (
         <View style={styles.preview}>
           <Image
@@ -915,14 +854,16 @@ const MusicRequestSheetContent = ({
           <Field
             label="Song Title"
             value={title}
-            onChangeText={setTitle}
+            onChangeText={editing(setTitle)}
             placeholder="Enter song title"
+            autoCapitalize="words"
           />
           <Field
             label="Artist"
             value={artist}
-            onChangeText={setArtist}
+            onChangeText={editing(setArtist)}
             placeholder="Enter artist name"
+            autoCapitalize="words"
           />
           <Field
             label="Link"
@@ -934,25 +875,28 @@ const MusicRequestSheetContent = ({
                 setAlbumArtUrl(null);
               }
               setLink(value);
+              setError(null);
             }}
             placeholder="Spotify or YouTube link"
             autoCapitalize="none"
             keyboardType="url"
           />
-          <Btn
-            title="Add song to list"
-            icon="add-outline"
-            onPress={addSong}
-            disabled={
-              fetchingSpotify ||
-              duplicateBlocked ||
-              (!!duplicateLink && duplicate === undefined)
-            }
-          />
+          {!prefill && (
+            <Btn
+              title="Add song to list"
+              icon="add-outline"
+              onPress={addSong}
+              disabled={
+                fetchingSpotify ||
+                duplicateBlocked ||
+                (!!duplicateLink && duplicate === undefined)
+              }
+            />
+          )}
         </View>
       )}
 
-      {!prefill && (
+      {!prefill && songs.length > 0 && (
         <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
           <View
             style={{
@@ -975,7 +919,7 @@ const MusicRequestSheetContent = ({
               >
                 <Text
                   style={{
-                    color: "#dc2626",
+                    color: t.danger,
                     fontSize: 13,
                     fontWeight: "600",
                   }}
@@ -1061,6 +1005,7 @@ const MusicRequestSheetContent = ({
                     value={editSongTitle}
                     onChangeText={setEditSongTitle}
                     placeholder="Enter song title"
+                    autoCapitalize="words"
                   />
 
                   <Field
@@ -1068,6 +1013,7 @@ const MusicRequestSheetContent = ({
                     value={editSongArtist}
                     onChangeText={setEditSongArtist}
                     placeholder="Enter artist"
+                    autoCapitalize="words"
                   />
 
                   <Row spread>
@@ -1097,11 +1043,21 @@ const MusicRequestSheetContent = ({
         <Field
           label="Request Comment (Optional)"
           value={requestComment}
-          onChangeText={setRequestComment}
+          onChangeText={editing(setRequestComment)}
           placeholder="Why would you like to request this song?"
+          autoCapitalize="sentences"
           multiline
         />
       )}
+      <ConfirmDialog
+        visible={pendingConfirm !== null}
+        title={pendingConfirm?.title ?? ""}
+        message={pendingConfirm?.message}
+        confirmLabel={pendingConfirm?.confirmLabel}
+        destructive={false}
+        onConfirm={() => pendingConfirm?.onConfirm()}
+        onClose={() => setPendingConfirm(null)}
+      />
     </Sheet>
   );
 };
@@ -1111,6 +1067,7 @@ export const NewMusicRequestSheet = (props: {
   prefill: MusicRequest | null;
   hideRequestComment?: boolean;
   addsDirectly?: boolean;
+  onSaved: (message: string) => void;
 }) => {
   if (!props.visible) return null;
 
@@ -1123,13 +1080,19 @@ const buildGuideSteps = () => [
     icon: "create-outline" as const,
     title: "Submit your request",
     detail:
-      "Enter the song name, artist, link, and an optional comment explaining your request.",
+      "Paste a Spotify or YouTube link to fill in the song, or type the title, artist and link yourself. Add a few songs at once if you like, with an optional comment.",
   },
   {
     icon: "person-outline" as const,
-    title: "Praise Manger approval",
+    title: "Praise Manager approval",
     detail:
-      "A Praise Manager reviews your request and decides whether to approve it.",
+      "A Praise Manager approves or declines each song. Approved songs join the playlist that can be played at weeklies and events.",
+  },
+  {
+    icon: "list-outline" as const,
+    title: "Track it under Mine",
+    detail:
+      "Each request shows Pending, Approved or Declined (with the reason), and you get a notification when it's reviewed. You can edit or delete a request while it's pending.",
   },
 ];
 export const MusicGuideSheet = ({

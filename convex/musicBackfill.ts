@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
-import { normalizedSongKey, spotifyTrackId } from "./musicRequests";
+import { songKeys } from "./musicRequests";
+import { songArtworkUrl, youtubeVideoId } from "./shared/musicLinks";
 
 /** Fills the duplicate-detection keys with the same rules `submit` uses. */
 export const backfill = internalMutation({
@@ -16,17 +17,18 @@ export const backfill = internalMutation({
     let updated = 0;
 
     for (const row of page.page) {
-      const songKey = normalizedSongKey(row.title, row.artist);
-      const spotifyId = spotifyTrackId(row.link) ?? undefined;
+      const keys = songKeys(row);
+      const albumArtUrl = youtubeVideoId(row.link)
+        ? songArtworkUrl(row.link, row.albumArtUrl)
+        : row.albumArtUrl;
 
       if (
-        row.normalizedSongKey !== songKey ||
-        row.spotifyTrackId !== spotifyId
+        row.normalizedSongKey !== keys.normalizedSongKey ||
+        row.spotifyTrackId !== keys.spotifyTrackId ||
+        row.youtubeVideoId !== keys.youtubeVideoId ||
+        row.albumArtUrl !== albumArtUrl
       ) {
-        await ctx.db.patch(row._id, {
-          normalizedSongKey: songKey,
-          spotifyTrackId: spotifyId,
-        });
+        await ctx.db.patch("musicRequests", row._id, { ...keys, albumArtUrl });
         updated++;
       }
     }

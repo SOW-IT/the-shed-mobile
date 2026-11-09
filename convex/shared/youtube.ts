@@ -1,9 +1,10 @@
 const removeVideoLabels = (value: string): string =>
   value
     .replace(
-      /\s*[\[(]\s*(?:official\s+)?(?:music\s+video|lyric\s+video|lyrics?|audio|visualizer|live)\s*[\])]/gi,
+      /\s*[\[(]\s*(?:official\s+)?(?:music\s+video|lyric\s+video|video|lyrics?|audio|visualizer|live)\s*[\])]/gi,
       "",
     )
+    .replace(/\s*[\[(]\s*(?:4k|hd)?\s*remaster(?:ed)?\s*[\])]/gi, "")
     .replace(
       /\s*[-–—|]\s*(?:official\s+)?(?:music\s+video|lyric\s+video|lyrics?|audio|visualizer)\s*$/gi,
       "",

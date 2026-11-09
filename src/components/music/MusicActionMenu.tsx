@@ -1,5 +1,5 @@
 import { useAppTheme } from "@/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRef, useState } from "react";
 import type { View as RNView } from "react-native";
 import {
@@ -106,8 +106,8 @@ export function MusicActionsMenu({ onEdit, onDelete }: Props) {
                 onDelete();
               }}
             >
-              <Ionicons name="trash-outline" size={18} color="#dc2626" />
-              <Text style={[styles.optionText, { color: "#dc2626" }]}>
+              <Ionicons name="trash-outline" size={18} color={t.danger} />
+              <Text style={[styles.optionText, { color: t.danger }]}>
                 Delete
               </Text>
             </Pressable>

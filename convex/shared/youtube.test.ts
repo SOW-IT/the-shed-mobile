@@ -2,6 +2,19 @@ import { describe, expect, test } from "vitest";
 import { cleanYouTubeTitle, parseYouTubeSong } from "./youtube";
 
 describe("parseYouTubeSong", () => {
+  test("drops '(Official Video)' and '(4K Remaster)' labels", () => {
+    expect(
+      parseYouTubeSong(
+        "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)",
+        "Rick Astley",
+      ),
+    ).toEqual({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
+    expect(parseYouTubeSong("Morning Light [Remastered]", "Hana Doe")).toEqual({
+      title: "Morning Light",
+      artist: "Hana Doe",
+    });
+  });
+
   test("drops the ' - Topic' from YouTube Music's auto-generated channels", () => {
     expect(parseYouTubeSong("Morning Light", "Hana Doe - Topic")).toEqual({
       title: "Morning Light",

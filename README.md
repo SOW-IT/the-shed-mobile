@@ -211,13 +211,17 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   paste a Spotify or YouTube song or playlist link to autofill (Spotify
   playlists need Spotify connected from Profile, `convex/spotifyConnections.ts`,
   tokens encrypted at rest and deleted with the account) or type one in, up
-  to 50 at a time. The same recording twice (Spotify track or ISRC) is
-  refused; the same title and artist asks first. **Praise Managers**
+  to 50 at a time. The same recording twice (Spotify track, YouTube video or
+  ISRC) is refused; the same title and artist asks first. **Praise Managers**
   (Admin → System, per staff year, carried into the new year on 1 October)
-  get a To Review tab to approve or decline with a reason, and their own
-  songs go straight onto the list. An admin acting as Praise Manager sees
-  the queue without the buttons; a Praise Manager acting as another role
-  sees what that role sees.
+  get a To review tab to approve or decline with an optional reason, a count
+  of waiting songs in the side menu, and push notifications; their own songs
+  go straight onto the list. Requesters follow theirs under Mine and are
+  notified when they're reviewed. An admin acting as Praise Manager sees the
+  queue without the buttons; a Praise Manager acting as another role sees
+  what that role sees. After a change to the duplicate keys, run
+  `npx convex run musicBackfill:backfill` (pass `{"cursor": ...}` from each
+  result until `isDone`) so existing requests get them.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on

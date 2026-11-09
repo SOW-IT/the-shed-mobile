@@ -25,7 +25,7 @@ All notable changes to **The SHED** mobile app. This project follows
   as, say, Music staff still saw To Review and the edit, delete and approve
   buttons. They now see what that role sees. An admin acting as Praise
   Manager still sees the queue, without the buttons, and anyone who can't
-  review keeps a My Request tab for their own requests.
+  review keeps a Mine tab for their own requests.
 - **Praise Managers carry into the new staff year.** On 1 October the new
   year starts with last year's Praise Managers who are still on staff, as
   the Budget Manager already does. Before, the new year would have had none,
@@ -43,6 +43,45 @@ All notable changes to **The SHED** mobile app. This project follows
   automatic channels.
 - **Only signed-in users can look up Spotify songs or YouTube playlists**
   through The SHED's Spotify app and YouTube key.
+- **Editing a song no longer loses it.** "Add song to list" showed while
+  editing and emptied the form, so Save Changes then said the title was
+  missing. Typing in the Music Link box also emptied the title, artist and
+  link before anything was looked up. Both are fixed: the box only fills the
+  song in when you tap Autofill.
+- **A Praise Manager editing an approved song sees why Save is greyed out.**
+  The "already requested" warning lived inside the autofill box, which is
+  hidden for approved songs.
+- **The same YouTube video can't be requested twice**, whichever link form
+  it's pasted in (youtu.be, YouTube Music, Shorts) and whatever title it's
+  given, just like a Spotify track. Existing requests pick this up from
+  `musicBackfill:backfill`.
+- **YouTube songs keep their thumbnail** on the playlist and request cards.
+  Spotify artwork is kept only from Spotify's own image servers.
+- **YouTube titles lose "(Official Video)" and "(4K Remaster)"** when
+  autofilled.
+- "Praise Manger" in the guide is now "Praise Manager", and messages say
+  "1 song" or "3 songs" instead of "song(s)".
+
+### Changed
+- **Praise List works like the other request forms.** New requests and
+  approve or decline decisions also arrive as push notifications (no email).
+  The side menu shows how many songs wait for review, for Praise Managers
+  and an admin acting as one. The tabs are Approved Playlist, Mine and To
+  review.
+- **Declining a song asks for an optional reason on every platform** in a
+  sheet, like declining a reimbursement. Before, Android couldn't give a
+  reason and the website asked in two browser pop-ups. Declined songs show
+  who asked for them.
+- **Messages appear in the app, not as pop-ups.** Problems with a request
+  show above the form's buttons, "Request sent for review" and similar show
+  as a short toast, and deleting a request (or removing an approved song)
+  asks in the app's own dialog.
+- The request form is quieter: the Spotify connection status shows only for
+  Spotify playlists, the song list appears once a song is in it, and title
+  and artist start with capitals on phones. The guide explains autofill and
+  how to follow a request.
+- The Spotify card on Profile shows only for staff (only staff have the
+  Praise List) and says what it's for; disconnecting asks in the app.
 
 ## [2.10.33] - 2026-11-07
 

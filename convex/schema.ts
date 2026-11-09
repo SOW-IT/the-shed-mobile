@@ -884,6 +884,7 @@ export default defineSchema({
 
     // Normalized values for duplicate detection
     spotifyTrackId: v.optional(v.string()),
+    youtubeVideoId: v.optional(v.string()),
     normalizedSongKey: v.optional(v.string()),
 
     status: approvalStatus,
@@ -895,6 +896,7 @@ export default defineSchema({
     .index("by_requester", ["requesterEmail"])
     .index("by_status", ["status"])
     .index("by_spotify_track_id", ["spotifyTrackId"])
+    .index("by_youtube_video_id", ["youtubeVideoId"])
     .index("by_isrc", ["isrc"])
     .index("by_normalized_song_key", ["normalizedSongKey"]),
 

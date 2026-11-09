@@ -9,15 +9,7 @@ import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ReactNode, useState } from "react";
-import {
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { timeAgo } from "../../shared/datetime";
 import {
@@ -34,6 +26,7 @@ import { SignInPrompt } from "./SignInPrompt";
 import {
   Avatar,
   Card,
+  ConfirmDialog,
   ErrorBanner,
   errorMessage,
   FadeInView,
@@ -65,8 +58,9 @@ const ProfileFrame = ({
 function SpotifyConnectionCard() {
   const t = useAppTheme();
   const spotify = useSpotifyPlaylist();
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
 
-  const statusColor = spotify.connected ? "#1DB954" : "#EF4444";
+  const statusColor = spotify.connected ? t.success : t.danger;
 
   const handleConnect = async () => {
     try {
@@ -76,37 +70,11 @@ function SpotifyConnectionCard() {
     }
   };
 
-  const handleDisconnect = async () => {
-    if (Platform.OS === "web") {
-      const confirmed = window.confirm(
-        "Disconnect Spotify?\n\nYou will need to reconnect to import playlists.",
-      );
-
-      if (!confirmed) return;
-    } else {
-      Alert.alert(
-        "Disconnect Spotify",
-        "You will need to reconnect to import playlists.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Disconnect",
-            style: "destructive",
-            onPress: () => {
-              void spotify.disconnect().catch((e: unknown) => {
-                Alert.alert("Spotify", errorMessage(e));
-              });
-            },
-          },
-        ],
-      );
-      return;
-    }
-
+  const disconnect = async () => {
     try {
       await spotify.disconnect();
     } catch (e) {
-      window.alert(`Spotify disconnect failed: ${errorMessage(e)}`);
+      showNotice("Couldn't disconnect Spotify", errorMessage(e));
     }
   };
 
@@ -181,7 +149,9 @@ function SpotifyConnectionCard() {
           <Pressable
             disabled={spotify.connecting}
             onPress={
-              spotify.connected ? handleDisconnect : () => void handleConnect()
+              spotify.connected
+                ? () => setConfirmingDisconnect(true)
+                : () => void handleConnect()
             }
             style={{
               paddingHorizontal: spacing.md,
@@ -209,6 +179,17 @@ function SpotifyConnectionCard() {
           </Pressable>
         )}
       </View>
+      <Muted>
+        Lets you import your Spotify playlists into Praise List requests.
+      </Muted>
+      <ConfirmDialog
+        visible={confirmingDisconnect}
+        title="Disconnect Spotify?"
+        message="You'll need to connect again to import playlists."
+        confirmLabel="Disconnect"
+        onConfirm={() => void disconnect()}
+        onClose={() => setConfirmingDisconnect(false)}
+      />
     </Card>
   );
 }
@@ -227,6 +208,8 @@ export const ProfileView = ({
 }) => {
   const t = useAppTheme();
   const profile = useQuery(api.profile.get, email ? { email } : {});
+  const me = useQuery(api.directory.me);
+  const isStaff = me?.profile != null;
   useMinuteTick();
   const generateAvatarUploadUrl = useMutation(
     api.profile.generateAvatarUploadUrl,
@@ -505,7 +488,7 @@ export const ProfileView = ({
           </Card>
         </FadeInView>
       )}
-      {profile.isMe && (
+      {profile.isMe && isStaff && (
         <FadeInView delay={stagger(2)}>
           <SpotifyConnectionCard />
         </FadeInView>

@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
-import { seesThrough } from "../shared/actingAs";
+import { seesThrough, waitsThrough } from "../shared/actingAs";
 import { lensFor } from "./actingAs";
 import {
   currentStaffYear,
@@ -11,6 +11,14 @@ import {
   requireProfile,
   resolveName,
 } from "./model";
+import { notify as notifyPerson } from "./requests";
+import {
+  songArtworkUrl,
+  spotifyTrackId,
+  youtubeVideoId,
+} from "./shared/musicLinks";
+
+export { spotifyTrackId };
 
 /** Get Praise Manager emails for the active staff year. */
 async function praiseManagerEmailsForYear(
@@ -84,37 +92,18 @@ async function notify(
   emails: string[],
   title: string,
   body: string,
-  url?: string,
+  url: string,
+  actor?: string,
 ) {
-  for (const userEmail of new Set(emails)) {
-    await ctx.db.insert("notifications", {
-      userEmail,
-      title,
+  for (const to of new Set(emails.map((email) => email.toLowerCase()))) {
+    await notifyPerson(ctx, {
+      to,
+      actor,
+      subject: title,
       body,
       url,
-      read: false,
+      email: false,
     });
-  }
-}
-
-/** Extract a Spotify track ID, ignoring query parameters and regional URL prefixes. */
-export function spotifyTrackId(value: string): string | null {
-  try {
-    const url = new URL(value.trim());
-    if (
-      url.protocol !== "https:" ||
-      (url.hostname !== "open.spotify.com" &&
-        url.hostname !== "www.open.spotify.com")
-    ) {
-      return null;
-    }
-    return (
-      url.pathname.match(
-        /^\/(?:intl-[a-zA-Z-]+\/)?track\/([a-zA-Z0-9]+)\/?$/,
-      )?.[1] ?? null
-    );
-  } catch {
-    return null;
   }
 }
 
@@ -132,6 +121,18 @@ export function normalizedSongKey(title: string, artist: string): string {
   return JSON.stringify([normalized(title), normalized(artist)]);
 }
 
+export function songKeys(song: {
+  link: string;
+  title: string;
+  artist: string;
+}) {
+  return {
+    spotifyTrackId: spotifyTrackId(song.link) ?? undefined,
+    youtubeVideoId: youtubeVideoId(song.link) ?? undefined,
+    normalizedSongKey: normalizedSongKey(song.title, song.artist),
+  };
+}
+
 function duplicateKind(
   row: MusicRequestRow,
   song: { link: string; title: string; artist: string; isrc?: string },
@@ -139,6 +140,9 @@ function duplicateKind(
   const incomingId = spotifyTrackId(song.link);
   const existingId = spotifyTrackId(row.link);
   if (incomingId && existingId && incomingId === existingId) return "exact";
+  const incomingVideo = youtubeVideoId(song.link);
+  if (incomingVideo && incomingVideo === youtubeVideoId(row.link))
+    return "exact";
   if (
     song.isrc &&
     row.isrc &&
@@ -189,37 +193,53 @@ async function findIndexedDuplicate(
   excludeId?: string,
 ) {
   const trackId = spotifyTrackId(song.link);
+  const videoId = youtubeVideoId(song.link);
   const isrc = song.isrc?.trim().toUpperCase();
   const songKey = normalizedSongKey(song.title, song.artist);
 
-  const [spotifyMatches, isrcMatches, titleMatches] = await Promise.all([
-    trackId
-      ? ctx.db
-          .query("musicRequests")
-          .withIndex("by_spotify_track_id", (q) =>
-            q.eq("spotifyTrackId", trackId),
-          )
-          .collect()
-      : Promise.resolve([]),
+  const [spotifyMatches, videoMatches, isrcMatches, titleMatches] =
+    await Promise.all([
+      trackId
+        ? ctx.db
+            .query("musicRequests")
+            .withIndex("by_spotify_track_id", (q) =>
+              q.eq("spotifyTrackId", trackId),
+            )
+            .collect()
+        : Promise.resolve([]),
 
-    isrc
-      ? ctx.db
-          .query("musicRequests")
-          .withIndex("by_isrc", (q) => q.eq("isrc", isrc))
-          .collect()
-      : Promise.resolve([]),
+      videoId
+        ? ctx.db
+            .query("musicRequests")
+            .withIndex("by_youtube_video_id", (q) =>
+              q.eq("youtubeVideoId", videoId),
+            )
+            .collect()
+        : Promise.resolve([]),
 
-    ctx.db
-      .query("musicRequests")
-      .withIndex("by_normalized_song_key", (q) =>
-        q.eq("normalizedSongKey", songKey),
-      )
-      .collect(),
-  ]);
+      isrc
+        ? ctx.db
+            .query("musicRequests")
+            .withIndex("by_isrc", (q) => q.eq("isrc", isrc))
+            .collect()
+        : Promise.resolve([]),
+
+      ctx.db
+        .query("musicRequests")
+        .withIndex("by_normalized_song_key", (q) =>
+          q.eq("normalizedSongKey", songKey),
+        )
+        .collect(),
+    ]);
 
   const matches = new Map<string, MusicRequestRow>();
 
-  for (const row of [...spotifyMatches, ...isrcMatches, ...titleMatches]) {
+  for (const row of [
+    ...spotifyMatches,
+    ...videoMatches,
+    ...isrcMatches,
+    ...titleMatches,
+  ]) {
     matches.set(row._id, row);
   }
 
@@ -351,19 +371,13 @@ export const submit = mutation({
         "Possible duplicate: confirm that you want to request this version anyway.",
       );
 
-    const artwork = args.albumArtUrl?.trim();
-    const albumArtUrl =
-      spotifyTrackId(song.link) && artwork && /^https:\/\//i.test(artwork)
-        ? artwork
-        : undefined;
     const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
     const id = await ctx.db.insert("musicRequests", {
       requesterEmail: caller.email,
       ...song,
-      spotifyTrackId: spotifyTrackId(song.link) ?? undefined,
-      normalizedSongKey: normalizedSongKey(song.title, song.artist),
+      ...songKeys(song),
       requestComment,
-      albumArtUrl,
+      albumArtUrl: songArtworkUrl(song.link, args.albumArtUrl?.trim()),
       status: isPraiseManager ? "APPROVED" : "PENDING",
       ...(isPraiseManager
         ? { reviewedByEmail: caller.email, reviewedTime: Date.now() }
@@ -376,6 +390,7 @@ export const submit = mutation({
         "New music request",
         `${await displayName(ctx, caller.email, currentStaffYear())} requested "${song.title}"`,
         "/music?tab=review",
+        caller.email,
       );
     }
     return id;
@@ -477,16 +492,11 @@ export const submitMany = mutation({
         possibleDuplicates++;
         continue;
       }
-      const artwork = raw.albumArtUrl?.trim();
       const id = await ctx.db.insert("musicRequests", {
         requesterEmail: caller.email,
         ...song,
-        spotifyTrackId: spotifyTrackId(song.link) ?? undefined,
-        normalizedSongKey: normalizedSongKey(song.title, song.artist),
-        albumArtUrl:
-          spotifyTrackId(song.link) && artwork && /^https:\/\//i.test(artwork)
-            ? artwork
-            : undefined,
+        ...songKeys(song),
+        albumArtUrl: songArtworkUrl(song.link, raw.albumArtUrl?.trim()),
         requestComment,
         status: isPraiseManager ? "APPROVED" : "PENDING",
         ...(isPraiseManager
@@ -504,6 +514,7 @@ export const submitMany = mutation({
           added.length === 1 ? "1 song" : `${added.length} songs`
         }.`,
         "/music?tab=review",
+        caller.email,
       );
     return { added: added.length, skipped, possibleDuplicates };
   },
@@ -573,6 +584,24 @@ export const approved = query({
     return await withNames(ctx, rows);
   },
 });
+export const waitingOnMe = query({
+  args: {},
+  handler: async (ctx) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return 0;
+    const waits = await waitsThrough(
+      await lensFor(ctx, caller),
+      () => callerIsPraiseManager(ctx, caller.email),
+      (persona) => persona.role === "praiseManager",
+    );
+    if (!waits) return 0;
+    const pending = await ctx.db
+      .query("musicRequests")
+      .withIndex("by_status", (q) => q.eq("status", "PENDING"))
+      .take(100);
+    return pending.length;
+  },
+});
 /** Approve a pending music request. */
 export const approve = mutation({
   args: { requestId: v.id("musicRequests") },
@@ -604,6 +633,7 @@ export const approve = mutation({
       "Music request approved",
       `"${request.title}" was approved by ${reviewerName}`,
       "/music?tab=my-requests",
+      caller.email,
     );
   },
 });
@@ -643,6 +673,7 @@ export const decline = mutation({
         ? `"${request.title}" was declined: ${declineComment}`
         : `"${request.title}" was declined by ${reviewerName}`,
       "/music?tab=my-requests",
+      caller.email,
     );
   },
 });
@@ -683,20 +714,14 @@ export const update = mutation({
       throw new ConvexError(
         "Possible duplicate: confirm that you want to use this version.",
       );
-    const trackId = spotifyTrackId(link);
-    const artwork = args.albumArtUrl?.trim();
-    await ctx.db.patch(args.requestId, {
+    await ctx.db.patch("musicRequests", args.requestId, {
       title,
       artist,
       link,
       isrc: song.isrc,
       requestComment,
-      spotifyTrackId: spotifyTrackId(song.link) ?? undefined,
-      normalizedSongKey: normalizedSongKey(song.title, song.artist),
-      albumArtUrl:
-        trackId && artwork && /^https:\/\//i.test(artwork)
-          ? artwork
-          : undefined,
+      ...songKeys(song),
+      albumArtUrl: songArtworkUrl(link, args.albumArtUrl?.trim()),
     });
   },
 });

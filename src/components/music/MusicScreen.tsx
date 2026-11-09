@@ -1,6 +1,12 @@
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
-import { errorMessage, FooterAction } from "@/components/ui";
-import { confirmAction, showNotice } from "@/lib/notice";
+import {
+  ConfirmDialog,
+  errorMessage,
+  FooterAction,
+  Toast,
+  type ToastState,
+} from "@/components/ui";
+import { showNotice } from "@/lib/notice";
 import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
@@ -35,6 +41,8 @@ export default function MusicScreen() {
   const [guideOpen, setGuideOpen] = useState(false);
   const removeRequest = useMutation(api.musicRequests.remove);
   const [hideRequestComment, setHideRequestComment] = useState(false);
+  const [toast, setToast] = useState<ToastState>(null);
+  const [pendingDelete, setPendingDelete] = useState<MusicRequest | null>(null);
 
   const handleEdit = (
     request: MusicRequest,
@@ -45,22 +53,20 @@ export default function MusicScreen() {
     setNewRequestOpen(true);
   };
 
-  const handleDelete = (request: MusicRequest) => {
-    const deleteRequest = async () => {
-      try {
-        await removeRequest({ requestId: request._id });
-      } catch (error) {
-        showNotice("Couldn't delete request", errorMessage(error));
-      }
-    };
+  const handleDelete = (request: MusicRequest) => setPendingDelete(request);
 
-    confirmAction({
-      title: "Delete request?",
-      message: request.title,
-      confirmText: "Delete",
-      destructive: true,
-      onConfirm: () => void deleteRequest(),
-    });
+  const deleteRequest = async (request: MusicRequest) => {
+    try {
+      await removeRequest({ requestId: request._id });
+      setToast({
+        text:
+          request.status === "APPROVED"
+            ? "Removed from the playlist"
+            : "Request deleted",
+      });
+    } catch (error) {
+      showNotice("Couldn't delete", errorMessage(error));
+    }
   };
 
   // Open a blank music request form
@@ -94,7 +100,7 @@ export default function MusicScreen() {
       ? [
           {
             key: "myRequest",
-            label: "My Request",
+            label: "Mine",
             render: () => (
               <MyRequestsTab
                 onEditRequest={(request) => handleEdit(request, "myRequests")}
@@ -108,7 +114,7 @@ export default function MusicScreen() {
       ? [
           {
             key: "toReview",
-            label: "To Review",
+            label: "To review",
             render: () => (
               <ToReviewTab
                 canManageRequests={canManageRequests}
@@ -136,6 +142,8 @@ export default function MusicScreen() {
         tabs={tabs}
         activeKey={active}
         onActiveKeyChange={setSelectedTab}
+        floating={<Toast toast={toast} />}
+        floatingAboveFooter
         footer={
           showMakeRequest ? (
             <FooterAction
@@ -153,6 +161,28 @@ export default function MusicScreen() {
         prefill={requestPrefill}
         hideRequestComment={hideRequestComment}
         addsDirectly={canManageRequests}
+        onSaved={(text) => setToast({ text })}
+      />
+
+      <ConfirmDialog
+        visible={pendingDelete !== null}
+        title={
+          pendingDelete?.status === "APPROVED"
+            ? "Remove from the playlist?"
+            : "Delete request?"
+        }
+        message={
+          pendingDelete
+            ? `${pendingDelete.title} by ${pendingDelete.artist}`
+            : undefined
+        }
+        confirmLabel={
+          pendingDelete?.status === "APPROVED" ? "Remove" : "Delete"
+        }
+        onConfirm={() => {
+          if (pendingDelete) void deleteRequest(pendingDelete);
+        }}
+        onClose={() => setPendingDelete(null)}
       />
 
       <MusicGuideSheet
