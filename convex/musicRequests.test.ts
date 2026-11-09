@@ -1679,13 +1679,15 @@ describe("Praise List review follow-up", () => {
 
   test("the backfill carries on by itself past the first page", async () => {
     const t = await setup();
+    vi.useFakeTimers();
+    vi.setSystemTime(PINNED_NOW);
     await t.run(async (ctx) => {
       for (let i = 0; i < 101; i++) {
         await ctx.db.insert("musicRequests", {
           requesterEmail: STAFF,
           title: `Song ${i}`,
           artist: "Artist",
-          link: `https://youtu.be/abcdefghi${String(i).padStart(2, "0")}`,
+          link: `https://youtu.be/abcdefgh${String(i).padStart(3, "0")}`,
           status: "APPROVED",
         });
       }
@@ -1701,6 +1703,18 @@ describe("Praise List review follow-up", () => {
     expect(next.map((job) => job.args[0])).toEqual([
       { cursor: first.continueCursor },
     ]);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const rows = await t.run((ctx) => ctx.db.query("musicRequests").collect());
+    expect(rows).toHaveLength(101);
+    for (const row of rows) {
+      const videoId = row.link.slice(-11);
+      expect(row).toMatchObject({
+        youtubeVideoId: videoId,
+        normalizedSongKey: expect.any(String),
+        albumArtUrl: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+      });
+    }
   });
 
   test("after 1 October a Praise Manager needs this year's staff profile", async () => {

@@ -11,7 +11,7 @@ import {
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
@@ -120,6 +120,11 @@ const MusicRequestSheetContent = ({
     prefill?.isrc ?? undefined,
   );
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
+  const linkVersion = useRef(0);
+  const dropPendingLookup = () => {
+    linkVersion.current++;
+    setFetchingSpotify(false);
+  };
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
   const [manualExpanded, setManualExpanded] = useState(!!prefill);
   const [error, setError] = useState<string | null>(null);
@@ -180,6 +185,7 @@ const MusicRequestSheetContent = ({
     setIsrc(undefined);
     setSpotifyError(null);
     setAutofilledFrom(null);
+    dropPendingLookup();
   };
 
   const addSong = () => {
@@ -273,6 +279,7 @@ const MusicRequestSheetContent = ({
       return;
     }
     setImportingPlaylist(true);
+    const version = linkVersion.current;
     try {
       const result = await spotifyPlaylist.importPlaylist(musicLink);
       const existing = new Set(songs.map((song) => songLinkKey(song.link)));
@@ -285,7 +292,7 @@ const MusicRequestSheetContent = ({
       });
       const toAdd = fresh.slice(0, available);
       setSongs((current) => [...current, ...toAdd]);
-      setSpotifyLink("");
+      if (version === linkVersion.current) setSpotifyLink("");
       setInfo(
         `${songCount(toAdd.length)} added from ${result.name}.${result.limited ? " Only the first 50 playlist entries were fetched." : ""}${fresh.length > available ? " You can submit up to 50 songs at once." : ""} Songs already requested are skipped when you submit.`,
       );
@@ -318,6 +325,7 @@ const MusicRequestSheetContent = ({
     setSpotifyError(null);
     setError(null);
     setInfo(null);
+    const version = linkVersion.current;
 
     try {
       const result = await importYouTubePlaylist({
@@ -340,7 +348,7 @@ const MusicRequestSheetContent = ({
       const toAdd = fresh.slice(0, available);
 
       setSongs((current) => [...current, ...toAdd]);
-      setSpotifyLink("");
+      if (version === linkVersion.current) setSpotifyLink("");
 
       setInfo(
         `${songCount(toAdd.length)} added from the YouTube playlist.${
@@ -361,13 +369,12 @@ const MusicRequestSheetContent = ({
   };
 
   const changeMusicLink = (value: string) => {
+    const nextKey = songLinkKey(normalizeMusicLink(value));
+    if (nextKey !== songLinkKey(musicLink)) dropPendingLookup();
     setSpotifyLink(value);
     setSpotifyError(null);
     setError(null);
-    if (
-      autofilledFrom !== null &&
-      songLinkKey(normalizeMusicLink(value)) !== songLinkKey(autofilledFrom)
-    ) {
+    if (autofilledFrom !== null && nextKey !== songLinkKey(autofilledFrom)) {
       setTitle("");
       setArtist("");
       setLink("");
@@ -382,12 +389,14 @@ const MusicRequestSheetContent = ({
       setSpotifyError("Paste a valid Spotify or YouTube link.");
       return;
     }
+    const version = linkVersion.current;
     setFetchingSpotify(true);
     setSpotifyError(null);
     try {
       const track = await getSpotifyTrack({
         link: cleanUrl,
       });
+      if (version !== linkVersion.current) return;
       setTitle(track.title);
       setArtist(track.artist);
       setLink(track.link);
@@ -396,9 +405,9 @@ const MusicRequestSheetContent = ({
       setAutofilledFrom(musicLink);
       setManualExpanded(true);
     } catch (error) {
-      setSpotifyError(errorMessage(error));
+      if (version === linkVersion.current) setSpotifyError(errorMessage(error));
     } finally {
-      setFetchingSpotify(false);
+      if (version === linkVersion.current) setFetchingSpotify(false);
     }
   };
 
@@ -410,6 +419,7 @@ const MusicRequestSheetContent = ({
       return;
     }
 
+    const version = linkVersion.current;
     setFetchingSpotify(true);
     setSpotifyError(null);
 
@@ -426,6 +436,7 @@ const MusicRequestSheetContent = ({
         title: string;
         author_name: string;
       } = await response.json();
+      if (version !== linkVersion.current) return;
 
       const { title, artist } = parseYouTubeSong(data.title, data.author_name);
 
@@ -438,9 +449,9 @@ const MusicRequestSheetContent = ({
       setAutofilledFrom(musicLink);
       setManualExpanded(true);
     } catch (error) {
-      setSpotifyError(errorMessage(error));
+      if (version === linkVersion.current) setSpotifyError(errorMessage(error));
     } finally {
-      setFetchingSpotify(false);
+      if (version === linkVersion.current) setFetchingSpotify(false);
     }
   };
 

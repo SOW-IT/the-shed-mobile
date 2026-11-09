@@ -74,9 +74,8 @@ export const parseYouTubeSong = (
   }
 
   // Titles containing video labels often put the song first.
-  const songFirst = /(?:lyric|lyrics|music video|official (?:audio|video))/i.test(
-    videoTitle.split(/\s+[-–—|]\s+/)[0] ?? "",
-  );
+  const firstSegment = videoTitle.split(/\s+[-–—|]\s+/)[0]?.trim() ?? "";
+  const songFirst = removeVideoLabels(firstSegment) !== firstSegment;
 
   if (songFirst) {
     return { title: first, artist: second };

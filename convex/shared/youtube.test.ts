@@ -50,6 +50,22 @@ describe("parseYouTubeSong", () => {
     expect(
       parseYouTubeSong("Still Waters Lyric Video - Alex Morgan", "Some Channel"),
     ).toEqual({ title: "Still Waters", artist: "Alex Morgan" });
+    expect(
+      parseYouTubeSong("Still Waters (Video) - Alex Morgan", "Some Channel"),
+    ).toEqual({ title: "Still Waters", artist: "Alex Morgan" });
+    expect(
+      parseYouTubeSong("Alex Morgan - Still Waters (Official Video)", "Some Channel"),
+    ).toEqual({ title: "Still Waters", artist: "Alex Morgan" });
+  });
+
+  test("an artist whose name contains a label word stays the artist", () => {
+    expect(
+      parseYouTubeSong("Official Video Game Orchestra - Still Waters", "Some Channel"),
+    ).toEqual({ title: "Still Waters", artist: "Official Video Game Orchestra" });
+    expect(parseYouTubeSong("Lyrics Born - Still Waters", "Some Channel")).toEqual({
+      title: "Still Waters",
+      artist: "Lyrics Born",
+    });
   });
 
   test("keeps the whole title and the channel when the title has no single split", () => {
