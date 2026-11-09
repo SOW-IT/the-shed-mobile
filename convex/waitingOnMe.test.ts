@@ -7,6 +7,7 @@ import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { mayReviewReimbursements } from "./requests";
+import { SONGS_COUNTED } from "../shared/praiseList";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -203,6 +204,23 @@ describe("waitingOnMe.summary", () => {
 
     await asUser(t, ADMIN).mutation(api.admin.removePraiseManager, { year: YEAR, email: LEE });
     expect(await summaryFor(t, LEE)).toBeNull();
+  });
+
+  test("stops counting songs one past the cap, so Home can say over 100", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.addPraiseManager, { year: YEAR, email: MARY });
+    await t.run(async (ctx) => {
+      for (let i = 0; i < SONGS_COUNTED + 5; i++) {
+        await ctx.db.insert("musicRequests", {
+          requesterEmail: RACHEL,
+          title: `Song ${i}`,
+          artist: "Hillsong",
+          link: `https://example.com/song-${i}`,
+          status: "PENDING",
+        });
+      }
+    });
+    expect((await summaryFor(t, MARY))?.songs).toEqual({ toReview: SONGS_COUNTED + 1 });
   });
 });
 

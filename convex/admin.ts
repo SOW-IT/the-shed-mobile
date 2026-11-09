@@ -78,6 +78,9 @@ import {
   teamsFor,
 } from "./teamJobs";
 
+const sameEmail = (a: string, b: string): boolean =>
+  a.trim().toLowerCase() === b.trim().toLowerCase();
+
 const syncDirectorCacheAfterProfileChange = async (
   ctx: MutationCtx,
   year: number,
@@ -754,10 +757,14 @@ export const removeStaffProfile = mutation({
         budgetManagerEmail: undefined,
       });
     }
-    if (settings?.praiseManagerEmails?.includes(email)) {
+    if (
+      settings?.praiseManagerEmails?.some(
+        (managerEmail) => sameEmail(managerEmail, email),
+      )
+    ) {
       await ctx.db.patch("yearSettings", settings._id, {
         praiseManagerEmails: settings.praiseManagerEmails.filter(
-          (e) => e !== email,
+          (managerEmail) => !sameEmail(managerEmail, email),
         ),
       });
     }
@@ -1605,7 +1612,12 @@ export const addPraiseManager = mutation({
     const settings = await getYearSettings(ctx, args.year);
 
     const emails = [
-      ...new Set([...(settings?.praiseManagerEmails ?? []), email]),
+      ...new Set([
+        ...(settings?.praiseManagerEmails ?? []).map((managerEmail) =>
+          managerEmail.trim().toLowerCase(),
+        ),
+        email,
+      ]),
     ];
 
     if (settings) {
@@ -1638,7 +1650,7 @@ export const removePraiseManager = mutation({
 
     await ctx.db.patch("yearSettings", settings._id, {
       praiseManagerEmails: (settings.praiseManagerEmails ?? []).filter(
-        (e) => e !== email,
+        (managerEmail) => !sameEmail(managerEmail, email),
       ),
     });
 

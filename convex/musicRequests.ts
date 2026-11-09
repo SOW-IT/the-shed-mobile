@@ -3,6 +3,7 @@ import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { seesThrough, waitsThrough, type Lens } from "../shared/actingAs";
+import { SONGS_COUNTED } from "../shared/praiseList";
 import { lensFor } from "./actingAs";
 import {
   currentStaffYear,
@@ -346,25 +347,23 @@ export const checkDuplicate = query({
       isrc: args.isrc,
     };
     const rows = await indexedMatches(ctx, song, args.excludeId);
+    const describe = (row: MusicRequestRow) => ({
+      title: row.title,
+      artist: row.artist,
+      status: row.status,
+      albumArtUrl: row.albumArtUrl,
+    });
     const live = preferredDuplicate(
       rows.filter((row) => !isDeclined(row)),
       song,
     );
-    const declinedBefore = live
-      ? null
-      : preferredDuplicate(rows.filter(isDeclined), song);
-    const match =
-      live ??
-      (declinedBefore
-        ? { row: declinedBefore.row, kind: "declined" as const }
-        : null);
-    if (!match) return null;
+    if (live) return { ...describe(live.row), kind: live.kind };
+    const declined = preferredDuplicate(rows.filter(isDeclined), song);
+    if (!declined) return null;
     return {
-      title: match.row.title,
-      artist: match.row.artist,
-      status: match.row.status,
-      albumArtUrl: match.row.albumArtUrl,
-      kind: match.kind,
+      ...describe(declined.row),
+      kind: "declined" as const,
+      sameRecording: declined.kind === "exact",
     };
   },
 });
@@ -557,7 +556,15 @@ export const myRequests = query({
       .order("desc")
       .take(200);
 
-    return await withNames(ctx, rows);
+    const named = await withNames(ctx, rows);
+    return await Promise.all(
+      named.map(async (row) => ({
+        ...row,
+        canRequestAgain:
+          isDeclined(row) &&
+          (await findIndexedDuplicate(ctx, row, row._id))?.kind !== "exact",
+      })),
+    );
   },
 });
 /** Get pending music requests. Praise Manager only. */
@@ -623,7 +630,7 @@ export async function songsWaitingOn(
   const pending = await ctx.db
     .query("musicRequests")
     .withIndex("by_status", (q) => q.eq("status", "PENDING"))
-    .take(100);
+    .take(SONGS_COUNTED + 1);
   return pending.length;
 }
 

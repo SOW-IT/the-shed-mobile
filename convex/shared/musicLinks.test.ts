@@ -45,6 +45,9 @@ describe("music links", () => {
     expect(spotifyTrackId("http://open.spotify.com/track/abc123")).toBe(
       "abc123",
     );
+    expect(spotifyTrackId("https://www.open.spotify.com/track/abc123")).toBe(
+      "abc123",
+    );
     expect(spotifyTrackId("ftp://open.spotify.com/track/abc123")).toBeNull();
     expect(spotifyTrackId("https://open.spotify.com/album/abc123")).toBeNull();
   });

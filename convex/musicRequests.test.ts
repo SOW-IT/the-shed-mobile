@@ -793,10 +793,65 @@ describe("music request indexed duplicates", () => {
     ).toMatchObject({ kind: "exact", status: "PENDING" });
 
     const mine = await staff.query(api.musicRequests.myRequests, {});
-    expect(mine.map((row) => row.status).sort()).toEqual([
-      "DECLINED",
-      "PENDING",
+    expect(
+      mine.map((row) => [row.status, row.canRequestAgain]).sort(),
+    ).toEqual([
+      ["DECLINED", false],
+      ["PENDING", false],
     ]);
+  });
+
+  test("offers Request again only while no one else has the recording open", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const declinedId = await staff.mutation(api.musicRequests.submit, {
+      title: "Again Song",
+      artist: "Test Artist",
+      link: SPOTIFY,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(declinedId, { status: "DECLINED" });
+    });
+    const canRequestAgain = async () =>
+      (await staff.query(api.musicRequests.myRequests, {})).find(
+        (row) => row._id === declinedId,
+      )?.canRequestAgain;
+
+    expect(await canRequestAgain()).toBe(true);
+    await asUser(t, ADMIN).mutation(api.musicRequests.submit, {
+      title: "Again Song",
+      artist: "Test Artist",
+      link: SPOTIFY,
+    });
+    expect(await canRequestAgain()).toBe(false);
+  });
+
+  test("says when a declined match is only the same title and artist", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const declinedId = await staff.mutation(api.musicRequests.submit, {
+      title: "Version Song",
+      artist: "Test Artist",
+      link: SPOTIFY,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(declinedId, { status: "DECLINED" });
+    });
+
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, {
+        link: SPOTIFY,
+        title: "Version Song",
+        artist: "Test Artist",
+      }),
+    ).toMatchObject({ kind: "declined", sameRecording: true });
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, {
+        link: "https://example.com/version-song-live",
+        title: "Version Song",
+        artist: "Test Artist",
+      }),
+    ).toMatchObject({ kind: "declined", sameRecording: false });
   });
 
   test("a declined song doesn't block or flag a batch", async () => {
@@ -1229,6 +1284,65 @@ describe("Praise Manager administration", () => {
     );
 
     expect(settings?.praiseManagerEmails ?? []).not.toContain(STAFF);
+  });
+
+  test("removes and re-adds a Praise Manager whose email was stored with capitals", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const stored = "Music.Staff@SOW.org.au";
+    const settingsFor = () =>
+      t.run(async (ctx) =>
+        ctx.db
+          .query("yearSettings")
+          .withIndex("by_year", (q) => q.eq("year", YEAR))
+          .first(),
+      );
+    await t.run(async (ctx) => {
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+      if (settings) {
+        await ctx.db.patch(settings._id, { praiseManagerEmails: [stored] });
+      } else {
+        await ctx.db.insert("yearSettings", {
+          year: YEAR,
+          praiseManagerEmails: [stored],
+        });
+      }
+    });
+
+    await admin.mutation(api.admin.addPraiseManager, {
+      year: YEAR,
+      email: STAFF,
+    });
+    expect((await settingsFor())?.praiseManagerEmails).toEqual([STAFF]);
+
+    await t.run(async (ctx) => {
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+      await ctx.db.patch(settings!._id, { praiseManagerEmails: [stored] });
+    });
+    await admin.mutation(api.admin.removePraiseManager, {
+      year: YEAR,
+      email: STAFF,
+    });
+    expect((await settingsFor())?.praiseManagerEmails).toEqual([]);
+
+    await t.run(async (ctx) => {
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+      await ctx.db.patch(settings!._id, { praiseManagerEmails: [stored] });
+    });
+    await admin.mutation(api.admin.removeStaffProfile, {
+      year: YEAR,
+      email: STAFF,
+    });
+    expect((await settingsFor())?.praiseManagerEmails).toEqual([]);
   });
 
   test("ordinary staff cannot assign or remove Praise Managers", async () => {

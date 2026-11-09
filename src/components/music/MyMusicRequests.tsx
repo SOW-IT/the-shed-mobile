@@ -159,6 +159,8 @@ const MusicRequestSheetContent = ({
   const duplicateBlocked = duplicate?.kind === "exact";
   const possibleDuplicate = duplicate?.kind === "possible";
   const declinedBefore = duplicate?.kind === "declined";
+  const declinedVersion =
+    duplicate?.kind === "declined" && !duplicate.sameRecording;
   const getSpotifyTrack = useAction(api.spotify.getTrack);
   const importYouTubePlaylist = useAction(api.youtube.importPlaylist);
   const spotifyPlaylist = useSpotifyPlaylist();
@@ -843,27 +845,33 @@ const MusicRequestSheetContent = ({
           />
           <View style={{ flex: 1, gap: 3 }}>
             <Text style={{ color: t.text, fontWeight: "700" }}>
-              {declinedBefore
-                ? "This song was declined before"
-                : possibleDuplicate
-                  ? "Possible duplicate song"
-                  : duplicate.status === "APPROVED"
-                    ? "Already in the playlist"
-                    : "This song has already been requested"}
+              {declinedVersion
+                ? "A song like this was declined before"
+                : declinedBefore
+                  ? "This song was declined before"
+                  : possibleDuplicate
+                    ? "Possible duplicate song"
+                    : duplicate.status === "APPROVED"
+                      ? "Already in the playlist"
+                      : "This song has already been requested"}
             </Text>
             <Text style={[typography.caption, { color: t.muted }]}>
               {duplicate.title} by {duplicate.artist}
-              {declinedBefore
+              {declinedVersion
                 ? prefill
-                  ? ". You can still save it."
-                  : ". You can request it again."
-                : possibleDuplicate
+                  ? ", a different recording. You can still save this version."
+                  : ", a different recording. You can still request this version."
+                : declinedBefore
                   ? prefill
-                    ? ". You can still save this version."
-                    : ". You can request this version anyway."
-                  : prefill
-                    ? ". Choose a different recording."
-                    : ". You can't submit another request for this recording."}
+                    ? ". You can still save it."
+                    : ". You can request it again."
+                  : possibleDuplicate
+                    ? prefill
+                      ? ". You can still save this version."
+                      : ". You can request this version anyway."
+                    : prefill
+                      ? ". Choose a different recording."
+                      : ". You can't submit another request for this recording."}
             </Text>
           </View>
         </View>

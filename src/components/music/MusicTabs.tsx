@@ -32,7 +32,6 @@ import {
 } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
-import { songLinkKey } from "../../../convex/shared/musicLinks";
 
 export type MusicRowActions = {
   onEditRequest?: (request: Doc<"musicRequests">) => void;
@@ -486,15 +485,6 @@ export const MyRequestsTab = ({
       ),
     [myRequests, filter],
   );
-  const stillOpen = useMemo(
-    () =>
-      new Set(
-        (myRequests ?? [])
-          .filter((request) => request.status !== "DECLINED")
-          .map((request) => songLinkKey(request.link)),
-      ),
-    [myRequests],
-  );
   return (
     <View style={styles.section}>
       <FilterChips
@@ -529,9 +519,7 @@ export const MyRequestsTab = ({
                 ) : undefined
               }
               footer={
-                item.status === "DECLINED" &&
-                onRequestAgain &&
-                !stillOpen.has(songLinkKey(item.link)) ? (
+                item.canRequestAgain && onRequestAgain ? (
                   <View style={{ alignItems: "flex-start" }}>
                     <Btn
                       title="Request again"
