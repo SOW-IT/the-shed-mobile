@@ -7,6 +7,7 @@ import { designWaitingOnMe } from "./designRequests";
 import { isCampusLeader, subFormsOf } from "./eventRequestAccess";
 import { requesterSideOpenEvents, reviewForms, sideDepartments } from "./eventRequests";
 import { optionalProfile } from "./model";
+import { songsWaitingOn } from "./musicRequests";
 import {
   mayReviewReimbursements,
   mineTabRequests,
@@ -18,7 +19,14 @@ const counts = v.object({
   reimbursements: v.object({ toReview: v.number(), toPay: v.number(), receipts: v.number() }),
   design: v.object({ toApprove: v.number(), toFinish: v.number() }),
   events: v.object({ toReview: v.number(), toFill: v.number() }),
+  songs: v.object({ toReview: v.number() }),
 });
+
+const NOTHING_WAITING = {
+  reimbursements: { toReview: 0, toPay: 0, receipts: 0 },
+  design: { toApprove: 0, toFinish: 0 },
+  events: { toReview: 0, toFill: 0 },
+};
 
 export const summary = query({
   args: {},
@@ -27,7 +35,10 @@ export const summary = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const lens = await lensFor(ctx, caller);
-    if (lens.kind === "self" && isCampusLeader(caller)) return null;
+    const songs = { toReview: await songsWaitingOn(ctx, caller, lens) };
+    if (lens.kind === "self" && isCampusLeader(caller)) {
+      return songs.toReview > 0 ? { ...NOTHING_WAITING, songs } : null;
+    }
     const queues =
       lens.kind !== "self" || (await mayReviewReimbursements(ctx, caller.email, caller.year))
         ? await reviewQueues(ctx, caller, await openRequestsAcrossYears(ctx, caller.year), lens)
@@ -55,6 +66,7 @@ export const summary = query({
       },
       design,
       events: { toReview, toFill },
+      songs,
     };
   },
 });

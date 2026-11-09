@@ -32,6 +32,7 @@ import {
 } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
+import { songLinkKey } from "../../../convex/shared/musicLinks";
 
 export type MusicRowActions = {
   onEditRequest?: (request: Doc<"musicRequests">) => void;
@@ -467,7 +468,10 @@ function SongLink({ link }: { link: string }) {
 export const MyRequestsTab = ({
   onEditRequest,
   onDeleteRequest,
-}: MusicRowActions = {}) => {
+  onRequestAgain,
+}: MusicRowActions & {
+  onRequestAgain?: (request: Doc<"musicRequests">) => void;
+} = {}) => {
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const myRequests = useQuery(
@@ -481,6 +485,15 @@ export const MyRequestsTab = ({
         (request) => filter === "ALL" || request.status === filter,
       ),
     [myRequests, filter],
+  );
+  const stillOpen = useMemo(
+    () =>
+      new Set(
+        (myRequests ?? [])
+          .filter((request) => request.status !== "DECLINED")
+          .map((request) => songLinkKey(request.link)),
+      ),
+    [myRequests],
   );
   return (
     <View style={styles.section}>
@@ -515,6 +528,20 @@ export const MyRequestsTab = ({
                   />
                 ) : undefined
               }
+              footer={
+                item.status === "DECLINED" &&
+                onRequestAgain &&
+                !stillOpen.has(songLinkKey(item.link)) ? (
+                  <View style={{ alignItems: "flex-start" }}>
+                    <Btn
+                      title="Request again"
+                      icon="refresh-outline"
+                      variant="tonal"
+                      onPress={() => onRequestAgain(item)}
+                    />
+                  </View>
+                ) : undefined
+              }
             />
           )}
         />
@@ -525,10 +552,12 @@ export const MyRequestsTab = ({
 function MyRequestCard({
   request,
   actions,
+  footer,
   showRequester = false,
 }: {
   request: MusicRequest;
   actions?: ReactNode;
+  footer?: ReactNode;
   showRequester?: boolean;
 }) {
   const t = useAppTheme();
@@ -603,6 +632,7 @@ function MyRequestCard({
           </View>
         ) : null}
         {!!request.link && <SongLink link={request.link} />}
+        {footer}
       </View>
     </Card>
   );

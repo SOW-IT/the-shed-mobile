@@ -44,7 +44,6 @@ export type PagerTab = {
   messageBadge?: number;
   render: (scrollProps?: TopBarScrollProps) => ReactNode;
   selfScrolling?: boolean;
-  stickyHeader?: ReactNode;
 };
 
 const NEAR_BOTTOM = 600;

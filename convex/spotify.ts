@@ -1,22 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { action } from "./_generated/server";
-
-const spotifyId = (link: string, kind: "track"): string | null => {
-  try {
-    const url = new URL(link.trim());
-    if (!["open.spotify.com", "www.open.spotify.com"].includes(url.hostname))
-      return null;
-
-    const match = url.pathname.match(
-      new RegExp(`^/(?:intl-[a-zA-Z-]+/)?${kind}/([a-zA-Z0-9]+)/?$`),
-    );
-
-    return match?.[1] ?? null;
-  } catch {
-    return null;
-  }
-};
+import { spotifyTrackId } from "./shared/musicLinks";
 
 type SpotifyTrack = {
   id?: string;
@@ -58,7 +43,7 @@ export const getTrack = action({
     if (!(await getAuthUserId(ctx))) {
       throw new ConvexError("You must be signed in.");
     }
-    const id = spotifyId(args.link, "track");
+    const id = spotifyTrackId(args.link);
     if (!id) throw new ConvexError("Invalid Spotify track URL.");
     const token = await spotifyToken();
     const response = await fetch(`https://api.spotify.com/v1/tracks/${id}`, {

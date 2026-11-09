@@ -1,6 +1,7 @@
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { AdminsCard } from "@/components/admin/AdminsCard";
+import { PraiseManagersCard } from "@/components/admin/PraiseManagersCard";
 import { AppErrorsCard } from "@/components/admin/AppErrorsCard";
 import { TeamJobsCard } from "@/components/admin/TeamJobsCard";
 import {
@@ -479,8 +480,6 @@ export default function AdminScreen() {
     upsertRole,
     updateRole,
     removeRole,
-    addPraiseManager,
-    removePraiseManager,
   } = useAdminMutations();
   const requestSync = useMutation(api.directorySync.requestSync);
   const syncState = useQuery(
@@ -510,7 +509,6 @@ export default function AdminScreen() {
   const [departmentName, setDepartmentName] = useState("");
   const [departmentDivision, setDepartmentDivision] = useState("");
   const [departmentHead, setDepartmentHead] = useState("");
-  const [praiseManagerEmail, setPraiseManagerEmail] = useState("");
 
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
   const [editingAssignments, setEditingAssignments] = useState<
@@ -982,7 +980,6 @@ export default function AdminScreen() {
   const onSelectYear = (y: number) => {
     setYear(y);
     setError(null);
-    setPraiseManagerEmail("");
     setEditingUserEmail(null);
     setAssigningUserEmail(null);
     setEditingDivisionKey(null);
@@ -1873,94 +1870,22 @@ export default function AdminScreen() {
         <CardGrid>
           <AdminsCard />
           <TeamJobsCard key={selectedYear} year={selectedYear} />
+          <PraiseManagersCard
+            key={`praise-${selectedYear}`}
+            year={selectedYear}
+            emails={structure?.praiseManagerEmails ?? []}
+            staff={(profiles ?? []).map((profile) => ({
+              email: profile.email,
+              name: profile.name ?? profile.email,
+            }))}
+            editable={isAdmin && editable}
+          />
         </CardGrid>
       )}
 
       {key === "system" && (
         <CardGrid>
           <AppErrorsCard />
-          <View style={{ gap: spacing.md }}>
-            <SectionTitle>Praise Managers · {selectedYear}</SectionTitle>
-            <Card>
-              <Muted>
-                Praise Managers can approve, decline, edit and delete music
-                requests. Multiple staff members can be assigned.
-              </Muted>
-              {isAdmin && editable && (
-                <>
-                  <Select
-                    label="Add Praise Manager"
-                    value={praiseManagerEmail}
-                    options={personOptions.filter(
-                      (person) =>
-                        !(structure?.praiseManagerEmails ?? []).some(
-                          (email) =>
-                            email.toLowerCase() === person.value.toLowerCase(),
-                        ),
-                    )}
-                    onSelect={setPraiseManagerEmail}
-                    placeholder="Choose a staff member…"
-                    searchable
-                  />
-                  <Btn
-                    title="Add Praise Manager"
-                    disabled={!praiseManagerEmail}
-                    onPress={() =>
-                      void run(() =>
-                        addPraiseManager({
-                          year: selectedYear,
-                          email: praiseManagerEmail,
-                        }),
-                      ).then((ok) => {
-                        if (ok) {
-                          setPraiseManagerEmail("");
-                          setToast({ text: "Praise Manager added" });
-                        }
-                      })
-                    }
-                  />
-                </>
-              )}
-              {(structure?.praiseManagerEmails ?? []).length === 0 ? (
-                <Muted>No Praise Managers assigned.</Muted>
-              ) : (
-                (structure?.praiseManagerEmails ?? []).map((email) => (
-                  <Row key={email} spread>
-                    <View style={{ flex: 1 }}>
-                      <Txt style={{ fontWeight: "600" }}>
-                        {nameByEmail.get(email) ?? email}
-                      </Txt>
-                      <Muted>{email}</Muted>
-                    </View>
-                    {isAdmin && editable && (
-                      <IconButton
-                        name="trash-outline"
-                        color={t.danger}
-                        accessibilityLabel={`Remove ${email} as Praise Manager`}
-                        onPress={() =>
-                          setDeleteConfirm({
-                            name: "Remove Praise Manager",
-                            message: `Remove ${email} as a Praise Manager?`,
-                            onConfirm: () =>
-                              void run(() =>
-                                removePraiseManager({
-                                  year: selectedYear,
-                                  email,
-                                }),
-                              ).then((ok) => {
-                                if (ok) {
-                                  setToast({ text: "Praise Manager removed" });
-                                }
-                              }),
-                          })
-                        }
-                      />
-                    )}
-                  </Row>
-                ))
-              )}
-            </Card>
-          </View>
           <View style={{ gap: spacing.md }}>
             <SectionTitle>Directory sync</SectionTitle>
             <Card>

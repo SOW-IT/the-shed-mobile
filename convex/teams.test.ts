@@ -173,6 +173,11 @@ describe("what a team job changes", () => {
       [PAT, "People and Culture"],
     ]);
     expect((await asUser(t, ADMIN).query(api.directory.me, {}))?.isAdmin).toBe(false);
+    await expect(
+      asUser(t, ADMIN).mutation(api.admins.set, { emails: [], expected: [] })
+    ).rejects.toThrow(
+      "Only admins can do this: the Director, People and Culture, and the people they've made admins."
+    );
   });
 
   test("copying a staff year clears a budget manager who isn't in the copied finance team", async () => {

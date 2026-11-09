@@ -25,4 +25,13 @@ describe("staffOnlyMessage", () => {
       "Event requests are for SOW staff. Sign in with your SOW Google account to make one."
     );
   });
+
+  it("words the Praise List as a page to open, not a request to make", () => {
+    expect(staffOnlyMessage("Praise List", { email: "john@icloud.com", year: 2027, profile: null })).toBe(
+      "The Praise List is for SOW staff. Sign in with your SOW Google account to open it."
+    );
+    expect(staffOnlyMessage("Praise List", { email: "new@sow.org.au", year: 2027, profile: null })).toBe(
+      "The Praise List is for SOW staff. No role or department is assigned to new@sow.org.au for 2027 yet."
+    );
+  });
 });

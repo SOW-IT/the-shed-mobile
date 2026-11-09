@@ -24,6 +24,11 @@ Commands are in `README.md` / `package.json`. Checks need no backend
 `npm run test:coverage`. CI runs the same three with coverage thresholds, plus
 `EXPO_OFFLINE=1 npx expo install --check` and the web sweep.
 
+No formatter runs on this code, and `.prettierignore` turns Prettier off so an
+editor's format-on-save can't rewrite a whole file (the music-form merge
+reformatted about 20 files it didn't otherwise change). Keep the style of the
+file you're editing.
+
 Submitting a reimbursement request needs a Head for its department, a Finance
 Head, and a Budget Manager (Admin → "Other"; picker lists Finance members only).
 

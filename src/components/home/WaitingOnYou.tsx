@@ -63,6 +63,13 @@ const waitingRows = (
       count: summary.events.toFill,
       href: "/event-requests?tab=mine",
     },
+    {
+      key: "songsReview",
+      icon: "musical-notes-outline",
+      label: plural(summary.songs.toReview, "song") + " to review",
+      count: summary.songs.toReview,
+      href: "/music?tab=review",
+    },
   ];
   return rows.filter((row) => row.count > 0);
 };

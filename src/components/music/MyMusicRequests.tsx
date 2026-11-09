@@ -90,6 +90,7 @@ const MusicRequestSheetContent = ({
   visible,
   onClose,
   prefill,
+  again = null,
   hideRequestComment = false,
   addsDirectly = false,
   onSaved,
@@ -97,6 +98,7 @@ const MusicRequestSheetContent = ({
   visible: boolean;
   onClose: () => void;
   prefill: MusicRequest | null;
+  again?: MusicRequest | null;
   hideRequestComment?: boolean;
   /** A Praise Manager's songs go straight onto the playlist. */
   addsDirectly?: boolean;
@@ -104,9 +106,10 @@ const MusicRequestSheetContent = ({
 }) => {
   const t = useAppTheme();
   const hideAutofill = prefill?.status === "APPROVED";
-  const [title, setTitle] = useState(prefill?.title ?? "");
-  const [artist, setArtist] = useState(prefill?.artist ?? "");
-  const [link, setLink] = useState(prefill?.link ?? "");
+  const seed = prefill ?? again;
+  const [title, setTitle] = useState(seed?.title ?? "");
+  const [artist, setArtist] = useState(seed?.artist ?? "");
+  const [link, setLink] = useState(seed?.link ?? "");
   const [requestComment, setRequestComment] = useState(
     prefill?.requestComment ?? "",
   );
@@ -114,10 +117,10 @@ const MusicRequestSheetContent = ({
   const musicLink = normalizeMusicLink(spotifyLink);
   const [autofilledFrom, setAutofilledFrom] = useState<string | null>(null);
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(
-    prefill?.albumArtUrl ?? null,
+    seed?.albumArtUrl ?? null,
   );
   const [isrc, setIsrc] = useState<string | undefined>(
-    prefill?.isrc ?? undefined,
+    seed?.isrc ?? undefined,
   );
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const autofillVersion = useRef(0);
@@ -127,7 +130,7 @@ const MusicRequestSheetContent = ({
     setFetchingSpotify(false);
   };
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
-  const [manualExpanded, setManualExpanded] = useState(!!prefill);
+  const [manualExpanded, setManualExpanded] = useState(!!seed);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
@@ -155,6 +158,7 @@ const MusicRequestSheetContent = ({
   );
   const duplicateBlocked = duplicate?.kind === "exact";
   const possibleDuplicate = duplicate?.kind === "possible";
+  const declinedBefore = duplicate?.kind === "declined";
   const getSpotifyTrack = useAction(api.spotify.getTrack);
   const importYouTubePlaylist = useAction(api.youtube.importPlaylist);
   const spotifyPlaylist = useSpotifyPlaylist();
@@ -828,26 +832,38 @@ const MusicRequestSheetContent = ({
             paddingVertical: spacing.sm,
           }}
         >
-          <Ionicons name={"alert-circle-outline"} size={20} color={t.warning} />
+          <Ionicons
+            name={
+              declinedBefore
+                ? "information-circle-outline"
+                : "alert-circle-outline"
+            }
+            size={20}
+            color={declinedBefore ? t.muted : t.warning}
+          />
           <View style={{ flex: 1, gap: 3 }}>
             <Text style={{ color: t.text, fontWeight: "700" }}>
-              {possibleDuplicate
-                ? "Possible duplicate song"
-                : duplicate.status === "APPROVED"
-                  ? "Already in the playlist"
-                  : duplicate.status === "PENDING"
-                    ? "This song has already been requested"
-                    : "This song was previously declined"}
+              {declinedBefore
+                ? "This song was declined before"
+                : possibleDuplicate
+                  ? "Possible duplicate song"
+                  : duplicate.status === "APPROVED"
+                    ? "Already in the playlist"
+                    : "This song has already been requested"}
             </Text>
             <Text style={[typography.caption, { color: t.muted }]}>
               {duplicate.title} by {duplicate.artist}
-              {possibleDuplicate
+              {declinedBefore
                 ? prefill
-                  ? ". You can still save this version."
-                  : ". You can request this version anyway."
-                : prefill
-                  ? ". Choose a different recording."
-                  : ". You can't submit another request for this recording."}
+                  ? ". You can still save it."
+                  : ". You can request it again."
+                : possibleDuplicate
+                  ? prefill
+                    ? ". You can still save this version."
+                    : ". You can request this version anyway."
+                  : prefill
+                    ? ". Choose a different recording."
+                    : ". You can't submit another request for this recording."}
             </Text>
           </View>
         </View>
@@ -1099,6 +1115,7 @@ export const NewMusicRequestSheet = (props: {
   visible: boolean;
   onClose: () => void;
   prefill: MusicRequest | null;
+  again?: MusicRequest | null;
   hideRequestComment?: boolean;
   addsDirectly?: boolean;
   onSaved: (message: string) => void;
@@ -1106,7 +1123,12 @@ export const NewMusicRequestSheet = (props: {
   if (!props.visible) return null;
 
   return (
-    <MusicRequestSheetContent key={props.prefill?._id ?? "new"} {...props} />
+    <MusicRequestSheetContent
+      key={
+        props.prefill?._id ?? (props.again ? `again-${props.again._id}` : "new")
+      }
+      {...props}
+    />
   );
 };
 const buildGuideSteps = () => [
@@ -1126,7 +1148,7 @@ const buildGuideSteps = () => [
     icon: "list-outline" as const,
     title: "Track it under Mine",
     detail:
-      "Each request shows Pending, Approved or Declined (with the reason), and you get a notification when it's reviewed. You can edit or delete a request while it's pending.",
+      "Each request shows Pending, Approved or Declined (with the reason), and you get a notification when it's reviewed. You can edit or delete a request while it's pending, and request a declined song again.",
   },
 ];
 export const MusicGuideSheet = ({

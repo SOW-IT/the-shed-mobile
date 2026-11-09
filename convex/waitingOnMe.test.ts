@@ -103,6 +103,7 @@ const nothing = {
   reimbursements: { toReview: 0, toPay: 0, receipts: 0 },
   design: { toApprove: 0, toFinish: 0 },
   events: { toReview: 0, toFill: 0 },
+  songs: { toReview: 0 },
 };
 
 describe("waitingOnMe.summary", () => {
@@ -185,6 +186,23 @@ describe("waitingOnMe.summary", () => {
       ...nothing,
       reimbursements: { toReview: 0, toPay: 1, receipts: 0 },
     });
+  });
+
+  test("counts songs to review for Praise Managers, campus leaders included", async () => {
+    const t = await setup();
+    for (const email of [MARY, LEE]) {
+      await asUser(t, ADMIN).mutation(api.admin.addPraiseManager, { year: YEAR, email });
+    }
+    const song = (title: string) => ({ title, artist: "Hillsong", link: `https://example.com/${title}` });
+    await asUser(t, RACHEL).mutation(api.musicRequests.submit, song("one"));
+    await asUser(t, RACHEL).mutation(api.musicRequests.submit, song("two"));
+
+    expect(await summaryFor(t, MARY)).toEqual({ ...nothing, songs: { toReview: 2 } });
+    expect(await summaryFor(t, LEE)).toEqual({ ...nothing, songs: { toReview: 2 } });
+    expect(await summaryFor(t, RACHEL)).toEqual(nothing);
+
+    await asUser(t, ADMIN).mutation(api.admin.removePraiseManager, { year: YEAR, email: LEE });
+    expect(await summaryFor(t, LEE)).toBeNull();
   });
 });
 

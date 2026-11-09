@@ -535,6 +535,7 @@ describe("admins see every view by default", () => {
       reimbursements: { toReview: 0, toPay: 0, receipts: 0 },
       design: { toApprove: 0, toFinish: 0 },
       events: { toReview: 0, toFill: 3 },
+      songs: { toReview: 0 },
     });
   });
 
@@ -688,6 +689,7 @@ describe("acting as Marketing staff", () => {
       reimbursements: { toReview: 0, toPay: 0, receipts: 0 },
       design: { toApprove: 0, toFinish: 1 },
       events: { toReview: 0, toFill: 6 },
+      songs: { toReview: 0 },
     });
   });
 

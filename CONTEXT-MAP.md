@@ -1,13 +1,13 @@
 # Context Map
 
-THE SHED is one Expo + Convex codebase serving six bounded contexts. They
+THE SHED is one Expo + Convex codebase serving seven bounded contexts. They
 share a deployment, an auth session and a calendar, and almost nothing else:
 the approval chain's vocabulary (Budget Manager, receipt, Director threshold)
 never appears in Attendance, and Attendance's vocabulary (Member, sub-group,
 roll-call, snapshot) never appears in the chain.
 
-The contexts do not map to directories — `convex/`, `shared/` and `src/` each
-hold code for all six — so each context's glossary lives under
+The contexts do not map to directories (`convex/`, `shared/` and `src/` each
+hold code for all seven), so each context's glossary lives under
 `docs/context/` rather than beside its code.
 
 ## Contexts
@@ -25,6 +25,8 @@ hold code for all six — so each context's glossary lives under
 - [Grievances](./docs/context/grievances.md): a confidential complaint raised
   with SOW, from submitted to resolved, seen only by its submitter and the
   People and Culture and Compliance teams.
+- [Praise List](./docs/context/praise-list.md): the worship songs SOW plays,
+  from requested to approved or declined by a Praise Manager.
 
 ## Relationships
 
@@ -42,7 +44,9 @@ hold code for all six — so each context's glossary lives under
   one morning job (`convex/reminders.ts`) reads each context's open work and
   sends each person a single reminder, and Home's "Waiting on you"
   (`convex/waitingOnMe.ts`) and Admin's step timing (`convex/stepTiming.ts`)
-  read all three the same way. They read; they own nothing.
+  read all three the same way. They read; they own nothing. "Waiting on you"
+  also counts the Praise List's songs to review; the digest and step timing
+  leave the Praise List out.
 - **Org → Event Requests**: the Marketing, Compliance and Finance Heads, the
   Director and the event's lead department all come from Org, as do the
   event Director threshold (in `yearSettings`) and who can see every event.
@@ -56,9 +60,10 @@ hold code for all six — so each context's glossary lives under
   approver delegations, and follow a person's email when it changes. Its
   terms are in the Org glossary.
 - **Acting as belongs to Org**: an admin's All views, or the role they act
-  as, is read by Reimbursements, Design Requests, Event Requests and Home's
-  "Waiting on you" to decide what to list, never what may be done. It reads
-  the year's departments and stores one row per admin (`actingAs`).
+  as, is read by Reimbursements, Design Requests, Event Requests, the Praise
+  List and Home's "Waiting on you" to decide what to list, never what may be
+  done. It reads the year's departments and stores one row per admin
+  (`actingAs`).
   Grievances ignore it ([ADR 0017](./docs/adr/0017-admins-see-every-view-and-can-act-as-a-role.md)).
 - **Org → Grievances**: the grievance team is that year's members of the
   departments the team chooses in Grievances → Settings (People and Culture
@@ -66,6 +71,10 @@ hold code for all six — so each context's glossary lives under
   read from Org. Grievances shares the
   notification feed with the other contexts but no other table, and stays
   out of the daily digest and Home's "Waiting on you".
+- **Org → Praise List**: anyone with a `staffProfile` this year can request a
+  song; the Praise Managers are a per-year list in `yearSettings`, chosen in
+  Admin and carried over on October 1 like the Budget Manager. The Praise
+  List shares the notification feed (push only, no email) and no other table.
 - **Design Requests ↔ Event Requests**: an event's design and promotion is
   its Marketing form, never a design request. They share the server-driven
   form engine (`shared/forms.ts`) and the notification feed, but no table and
@@ -81,7 +90,7 @@ page exists in every supported app, and a release that adds a linked page
 raises the update policy's `minimum` (ADR 0007, superseded in 2.10.0). The
 web never hands `/checkin` to the app ([ADR 0012](./docs/adr/0012-check-in-links-open-the-app.md)).
 
-A weekly BigQuery copy of production Convex sits outside all six contexts.
+A weekly BigQuery copy of production Convex sits outside all seven contexts.
 It is a snapshot for SQL, not a source of truth, and the app does not read it.
 JSON tables live in `convex_production`; typed views and Looker/Sheets report
 views live in `convex_warehouse`. See [ADR 0004](./docs/adr/0004-convex-to-bigquery-snapshot.md),

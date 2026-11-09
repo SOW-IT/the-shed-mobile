@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
-import { seesThrough, waitsThrough } from "../shared/actingAs";
+import { seesThrough, waitsThrough, type Lens } from "../shared/actingAs";
 import { lensFor } from "./actingAs";
 import {
   currentStaffYear,
@@ -160,17 +160,18 @@ function duplicateKind(
   return null;
 }
 
+type Duplicate = { row: MusicRequestRow; kind: "exact" | "possible" };
+
 function preferredDuplicate(
   rows: MusicRequestRow[],
   song: { link: string; title: string; artist: string; isrc?: string },
   excludeId?: string,
-) {
+): Duplicate | null {
   const matches = rows
     .filter((row) => row._id !== excludeId)
     .map((row) => ({ row, kind: duplicateKind(row, song) }))
     .filter(
-      (entry): entry is { row: MusicRequestRow; kind: "exact" | "possible" } =>
-        entry.kind !== null,
+      (entry): entry is Duplicate => entry.kind !== null,
     );
   const statusRank = { APPROVED: 0, PENDING: 1, DECLINED: 2 };
   matches.sort(
@@ -190,7 +191,7 @@ type SongInput = {
   isrc?: string;
 };
 
-async function findIndexedDuplicate(
+async function indexedMatches(
   ctx: MusicCtx,
   song: SongInput,
   excludeId?: string,
@@ -246,11 +247,21 @@ async function findIndexedDuplicate(
     matches.set(row._id, row);
   }
 
-  const candidates = [...matches.values()].filter(
-    (row) => row._id !== excludeId,
-  );
+  return [...matches.values()].filter((row) => row._id !== excludeId);
+}
 
-  return preferredDuplicate(candidates, song);
+const isDeclined = (row: MusicRequestRow) => row.status === "DECLINED";
+
+async function findIndexedDuplicate(
+  ctx: MusicCtx,
+  song: SongInput,
+  excludeId?: string,
+) {
+  const rows = await indexedMatches(ctx, song, excludeId);
+  return preferredDuplicate(
+    rows.filter((row) => !isDeclined(row)),
+    song,
+  );
 }
 
 function validateSong(song: {
@@ -328,23 +339,32 @@ export const checkDuplicate = query({
   },
   handler: async (ctx, args) => {
     await requireProfile(ctx);
-    const duplicate = await findIndexedDuplicate(
-      ctx,
-      {
-        link: args.link,
-        title: args.title ?? "",
-        artist: args.artist ?? "",
-        isrc: args.isrc,
-      },
-      args.excludeId,
+    const song = {
+      link: args.link,
+      title: args.title ?? "",
+      artist: args.artist ?? "",
+      isrc: args.isrc,
+    };
+    const rows = await indexedMatches(ctx, song, args.excludeId);
+    const live = preferredDuplicate(
+      rows.filter((row) => !isDeclined(row)),
+      song,
     );
-    if (!duplicate) return null;
+    const declinedBefore = live
+      ? null
+      : preferredDuplicate(rows.filter(isDeclined), song);
+    const match =
+      live ??
+      (declinedBefore
+        ? { row: declinedBefore.row, kind: "declined" as const }
+        : null);
+    if (!match) return null;
     return {
-      title: duplicate.row.title,
-      artist: duplicate.row.artist,
-      status: duplicate.row.status,
-      albumArtUrl: duplicate.row.albumArtUrl,
-      kind: duplicate.kind,
+      title: match.row.title,
+      artist: match.row.artist,
+      status: match.row.status,
+      albumArtUrl: match.row.albumArtUrl,
+      kind: match.kind,
     };
   },
 });
@@ -589,22 +609,30 @@ export const approved = query({
     return await withNames(ctx, rows);
   },
 });
+export async function songsWaitingOn(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  lens: Lens,
+): Promise<number> {
+  const waits = await waitsThrough(
+    lens,
+    () => callerIsPraiseManager(ctx, caller),
+    (persona) => persona.role === "praiseManager",
+  );
+  if (!waits) return 0;
+  const pending = await ctx.db
+    .query("musicRequests")
+    .withIndex("by_status", (q) => q.eq("status", "PENDING"))
+    .take(100);
+  return pending.length;
+}
+
 export const waitingOnMe = query({
   args: {},
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return 0;
-    const waits = await waitsThrough(
-      await lensFor(ctx, caller),
-      () => callerIsPraiseManager(ctx, caller),
-      (persona) => persona.role === "praiseManager",
-    );
-    if (!waits) return 0;
-    const pending = await ctx.db
-      .query("musicRequests")
-      .withIndex("by_status", (q) => q.eq("status", "PENDING"))
-      .take(100);
-    return pending.length;
+    return await songsWaitingOn(ctx, caller, await lensFor(ctx, caller));
   },
 });
 /** Approve a pending music request. */

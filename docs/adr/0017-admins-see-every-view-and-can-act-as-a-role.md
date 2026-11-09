@@ -22,7 +22,10 @@ What we weighed (2026-11-04):
   person's own requests and history. A persona is a role, built from the
   year's real departments: the staff or Head of a department, the Director,
   or the Budget Manager (who is always Finance staff, so the persona is too).
-  The admin's identity stays theirs, so Mine is still their own.
+  The admin's identity stays theirs, so Mine is still their own. The Praise
+  Manager joined the personas with the Praise List (2.11.0): it belongs to no
+  department, so as a Praise Manager an admin sees the To review queue
+  read-only and no other team's views.
 - **Views, not actions.** Every mutation keeps checking the real roles
   (`accessTo`, `canSeeRequest`, `actsAs`), so acting as the Marketing Head
   can't approve anything. Queries that list or open things take a lens:

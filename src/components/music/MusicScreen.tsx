@@ -1,13 +1,21 @@
+import { ChromeScreen } from "@/components/ChromeScreen";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { SignInPrompt } from "@/components/SignInPrompt";
 import {
+  Card,
   ConfirmDialog,
   errorMessage,
   FooterAction,
+  LoadingState,
+  Muted,
+  Screen,
   Toast,
   type ToastState,
+  Txt,
 } from "@/components/ui";
-import { showNotice } from "@/lib/notice";
+import { typography } from "@/theme";
 import { api } from "@convex/_generated/api";
+import { staffOnlyMessage } from "@shared/staffOnly";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
@@ -37,6 +45,7 @@ export default function MusicScreen() {
   const [requestPrefill, setRequestPrefill] = useState<MusicRequest | null>(
     null,
   );
+  const [requestAgain, setRequestAgain] = useState<MusicRequest | null>(null);
 
   const [newRequestOpen, setNewRequestOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -50,7 +59,15 @@ export default function MusicScreen() {
     source: "approved" | "myRequests" | "toReview",
   ) => {
     setRequestPrefill(request);
+    setRequestAgain(null);
     setHideRequestComment(source !== "myRequests");
+    setNewRequestOpen(true);
+  };
+
+  const handleRequestAgain = (request: MusicRequest) => {
+    setRequestPrefill(null);
+    setRequestAgain(request);
+    setHideRequestComment(false);
     setNewRequestOpen(true);
   };
 
@@ -66,18 +83,17 @@ export default function MusicScreen() {
             : "Request deleted",
       });
     } catch (error) {
-      showNotice("Couldn't delete", errorMessage(error));
+      setToast({ text: `Couldn't delete: ${errorMessage(error)}` });
     }
   };
 
   // Open a blank music request form
   const openNewRequest = () => {
     setRequestPrefill(null);
+    setRequestAgain(null);
     setHideRequestComment(false);
     setNewRequestOpen(true);
   };
-
-  const showMakeRequest = me?.profile != null;
 
   // Music navigation tabs
   const tabs: PagerTab[] = [
@@ -106,6 +122,7 @@ export default function MusicScreen() {
               <MyRequestsTab
                 onEditRequest={(request) => handleEdit(request, "myRequests")}
                 onDeleteRequest={handleDelete}
+                onRequestAgain={handleRequestAgain}
               />
             ),
           },
@@ -137,6 +154,31 @@ export default function MusicScreen() {
     ? preferredTab
     : "approvedPlaylist";
 
+  if (me === undefined) {
+    return (
+      <Screen>
+        <LoadingState />
+      </Screen>
+    );
+  }
+  if (me === null) {
+    return (
+      <ChromeScreen>
+        <SignInPrompt what="page" />
+      </ChromeScreen>
+    );
+  }
+  if (me.profile === null) {
+    return (
+      <ChromeScreen>
+        <Card>
+          <Txt style={typography.section}>Praise List</Txt>
+          <Muted>{staffOnlyMessage("Praise List", me)}</Muted>
+        </Card>
+      </ChromeScreen>
+    );
+  }
+
   return (
     <>
       <PagerScreen
@@ -146,13 +188,11 @@ export default function MusicScreen() {
         floating={<Toast toast={toast} />}
         floatingAboveFooter
         footer={
-          showMakeRequest ? (
-            <FooterAction
-              title={addsDirectly ? "+ Add to Playlist" : "+ Make Request"}
-              onPress={openNewRequest}
-              onInfo={() => setGuideOpen(true)}
-            />
-          ) : undefined
+          <FooterAction
+            title={addsDirectly ? "+ Add to Playlist" : "+ Make Request"}
+            onPress={openNewRequest}
+            onInfo={() => setGuideOpen(true)}
+          />
         }
       />
 
@@ -160,6 +200,7 @@ export default function MusicScreen() {
         visible={newRequestOpen}
         onClose={() => setNewRequestOpen(false)}
         prefill={requestPrefill}
+        again={requestAgain}
         hideRequestComment={hideRequestComment}
         addsDirectly={addsDirectly}
         onSaved={(text) => setToast({ text })}

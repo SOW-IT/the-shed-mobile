@@ -742,7 +742,7 @@ describe("music request indexed duplicates", () => {
     expect(request?.reviewedTime).toBeDefined();
   });
 
-  test("prevents resubmission of declined songs", async () => {
+  test("lets a declined song be requested again", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
 
@@ -752,7 +752,6 @@ describe("music request indexed duplicates", () => {
       link: SPOTIFY,
     });
 
-    // Simulate a Praise Manager declining the request.
     await t.run(async (ctx) => {
       await ctx.db.patch(requestId, {
         status: "DECLINED",
@@ -762,14 +761,73 @@ describe("music request indexed duplicates", () => {
       });
     });
 
-    // Attempt to request the same recording again.
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, {
+        link: SPOTIFY,
+        title: "Declined Song Test",
+        artist: "Test Artist",
+      }),
+    ).toMatchObject({ kind: "declined", status: "DECLINED" });
+
+    const againId = await staff.mutation(api.musicRequests.submit, {
+      title: "Declined Song Test",
+      artist: "Test Artist",
+      link: SPOTIFY,
+      requestComment: "We sing it at every weekly now",
+    });
+    expect(againId).not.toBe(requestId);
+
     await expect(
       staff.mutation(api.musicRequests.submit, {
         title: "Declined Song Test",
         artist: "Test Artist",
         link: SPOTIFY,
       }),
-    ).rejects.toThrow("This recording was already requested (declined).");
+    ).rejects.toThrow("This recording was already requested (pending).");
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, {
+        link: SPOTIFY,
+        title: "Declined Song Test",
+        artist: "Test Artist",
+      }),
+    ).toMatchObject({ kind: "exact", status: "PENDING" });
+
+    const mine = await staff.query(api.musicRequests.myRequests, {});
+    expect(mine.map((row) => row.status).sort()).toEqual([
+      "DECLINED",
+      "PENDING",
+    ]);
+  });
+
+  test("a declined song doesn't block or flag a batch", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const declinedId = await staff.mutation(api.musicRequests.submit, {
+      title: "Batch Declined",
+      artist: "Test Artist",
+      link: SPOTIFY,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(declinedId, { status: "DECLINED" });
+    });
+    const songs = [
+      { title: "Batch Declined", artist: "Test Artist", link: SPOTIFY },
+      {
+        title: "Batch Declined",
+        artist: "Test Artist",
+        link: "https://example.com/batch-declined-live",
+      },
+    ];
+
+    expect(
+      await staff.mutation(api.musicRequests.previewBatch, { songs }),
+    ).toEqual({ exactDuplicates: 0, possibleDuplicates: 1 });
+    expect(
+      await staff.mutation(api.musicRequests.submitMany, {
+        songs,
+        allowPossibleDuplicates: true,
+      }),
+    ).toEqual({ added: 2, skipped: 0, possibleDuplicates: 0 });
   });
   test("rejects request comments longer than 2000 characters", async () => {
     const t = await setup();
@@ -1603,6 +1661,9 @@ describe("Praise List review follow-up", () => {
       persona: { role: "praiseManager" },
     });
     expect(await admin.query(api.musicRequests.waitingOnMe, {})).toBe(1);
+    expect(
+      (await admin.query(api.waitingOnMe.summary, {}))?.songs,
+    ).toEqual({ toReview: 1 });
   });
 
   test("the backfill fills YouTube video IDs and thumbnails", async () => {
