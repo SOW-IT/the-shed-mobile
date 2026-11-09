@@ -154,6 +154,23 @@ describe("Spotify connection", () => {
     expect(row.encryptedAccessToken).not.toContain("access-2");
     expect(await decryptSpotifyToken(row.encryptedRefreshToken)).toBe("refresh-2");
   });
+
+  test("connect fails if the account is deleted while Spotify answers", async () => {
+    const { t, userId, as } = await setup();
+    fetchMock.mockImplementationOnce(async () => {
+      await t.run((ctx) => ctx.db.delete("users", userId));
+      return json({ access_token: "a", refresh_token: "r", expires_in: 3600 });
+    });
+
+    await expect(
+      as.action(api.spotifyConnections.connect, {
+        code: "c",
+        codeVerifier: "v",
+        redirectUri: REDIRECT,
+      }),
+    ).rejects.toThrow("Your account was deleted, so Spotify wasn't connected.");
+    expect(await storedConnection(t, userId)).toBeNull();
+  });
 });
 
 describe("spotifyConnections.importPlaylist", () => {

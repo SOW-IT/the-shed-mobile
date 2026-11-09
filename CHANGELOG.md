@@ -61,6 +61,19 @@ All notable changes to **The SHED** mobile app. This project follows
   autofilled.
 - "Praise Manger" in the guide is now "Praise Manager", and messages say
   "1 song" or "3 songs" instead of "song(s)".
+- **Only this year's staff can review songs.** During the October grace a
+  Praise Manager without a staff profile for the new year can't approve,
+  decline or edit, as admins already work.
+- **Changing the Music Link after Autofill clears the old song**, so the
+  form can't send the previous song by mistake. Pasting the same song in a
+  different link form keeps it. `http://` Spotify links now autofill.
+- **A Praise Manager acting as another role is told the truth**: their songs
+  still go straight onto the playlist, so the form says so.
+- Declining one song and quickly opening another no longer lets the first
+  decision close or mark the second sheet.
+- A Spotify connection made while the account was being deleted now reports
+  an error instead of success. Former staff who are still connected keep the
+  Disconnect button on Profile.
 
 ### Changed
 - **Praise List works like the other request forms.** New requests and

@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { songKeys } from "./musicRequests";
 import { songArtworkUrl, youtubeVideoId } from "./shared/musicLinks";
@@ -8,7 +9,15 @@ export const backfill = internalMutation({
   args: {
     cursor: v.optional(v.union(v.string(), v.null())),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    checked: number;
+    updated: number;
+    isDone: boolean;
+    continueCursor: string;
+  }> => {
     const page = await ctx.db.query("musicRequests").paginate({
       cursor: args.cursor ?? null,
       numItems: 100,
@@ -31,6 +40,12 @@ export const backfill = internalMutation({
         await ctx.db.patch("musicRequests", row._id, { ...keys, albumArtUrl });
         updated++;
       }
+    }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.musicBackfill.backfill, {
+        cursor: page.continueCursor,
+      });
     }
 
     return {

@@ -45,7 +45,7 @@ export function youtubeVideoId(value: string): string | null {
       url.pathname === "/watch"
         ? url.searchParams.get("v")
         : (url.pathname.match(
-            /^\/(?:shorts|live|embed)\/([a-zA-Z0-9_-]{11})/,
+            /^\/(?:shorts|live|embed)\/([a-zA-Z0-9_-]{11})(?=\/|$)/,
           )?.[1] ?? null);
   }
   return videoId && YOUTUBE_VIDEO_ID.test(videoId) ? videoId : null;
@@ -67,7 +67,8 @@ export const youtubeThumbnailUrl = (videoId: string): string =>
 export const songLinkKey = (value: string): string =>
   spotifyTrackUrl(value) ??
   youtubeVideoUrl(value) ??
-  value.trim().toLowerCase();
+  parseUrl(value)?.href ??
+  value.trim();
 
 const SPOTIFY_ARTWORK_HOST = /(^|\.)scdn\.co$|(^|\.)spotifycdn\.com$/;
 

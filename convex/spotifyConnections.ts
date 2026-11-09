@@ -222,12 +222,20 @@ export const connect = action({
       tokens.refresh_token,
     );
 
-    await ctx.runMutation(internal.spotifyConnections.saveConnection, {
-      userId,
-      encryptedAccessToken,
-      encryptedRefreshToken,
-      expiresAt: Date.now() + tokens.expires_in * 1000,
-    });
+    const saved = await ctx.runMutation(
+      internal.spotifyConnections.saveConnection,
+      {
+        userId,
+        encryptedAccessToken,
+        encryptedRefreshToken,
+        expiresAt: Date.now() + tokens.expires_in * 1000,
+      },
+    );
+    if (!saved) {
+      throw new ConvexError(
+        "Your account was deleted, so Spotify wasn't connected.",
+      );
+    }
 
     return { success: true };
   },

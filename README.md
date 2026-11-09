@@ -219,9 +219,11 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   go straight onto the list. Requesters follow theirs under Mine and are
   notified when they're reviewed. An admin acting as Praise Manager sees the
   queue without the buttons; a Praise Manager acting as another role sees
-  what that role sees. After a change to the duplicate keys, run
-  `npx convex run musicBackfill:backfill` (pass `{"cursor": ...}` from each
-  result until `isDone`) so existing requests get them.
+  what that role sees. A Praise Manager needs a staff profile for the
+  current year, so during the October grace last year's staff can't review.
+  After a change to the duplicate keys, run
+  `npx convex run musicBackfill:backfill` once; it carries on through every
+  page by itself.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on

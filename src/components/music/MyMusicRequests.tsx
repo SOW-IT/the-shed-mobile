@@ -73,6 +73,9 @@ const youtubePlaylistUrl = (value: string): string | null => {
   }
 };
 
+const normalizeMusicLink = (value: string) =>
+  value.trim().replace(/^http:\/\//i, "https://");
+
 const songCount = (count: number) =>
   `${count} ${count === 1 ? "song" : "songs"}`;
 
@@ -108,6 +111,8 @@ const MusicRequestSheetContent = ({
     prefill?.requestComment ?? "",
   );
   const [spotifyLink, setSpotifyLink] = useState("");
+  const musicLink = normalizeMusicLink(spotifyLink);
+  const [autofilledFrom, setAutofilledFrom] = useState<string | null>(null);
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(
     prefill?.albumArtUrl ?? null,
   );
@@ -128,7 +133,7 @@ const MusicRequestSheetContent = ({
   };
   const duplicateLink = link.trim()
     ? spotifyTrackUrl(link)
-    : spotifyTrackUrl(spotifyLink);
+    : spotifyTrackUrl(musicLink);
   const duplicate = useQuery(
     api.musicRequests.checkDuplicate,
     visible && (duplicateLink || (title.trim() && artist.trim()))
@@ -148,9 +153,9 @@ const MusicRequestSheetContent = ({
   const importYouTubePlaylist = useAction(api.youtube.importPlaylist);
   const spotifyPlaylist = useSpotifyPlaylist();
 
-  const spotifyLinkType = detectSpotifyLink(spotifyLink);
-  const youtubePlaylistLink = youtubePlaylistUrl(spotifyLink);
-  const youtubeLink = youtubeVideoUrl(spotifyLink);
+  const spotifyLinkType = detectSpotifyLink(musicLink);
+  const youtubePlaylistLink = youtubePlaylistUrl(musicLink);
+  const youtubeLink = youtubeVideoUrl(musicLink);
 
   const isPlaylist = spotifyLinkType === "playlist" || !!youtubePlaylistLink;
 
@@ -174,6 +179,7 @@ const MusicRequestSheetContent = ({
     setAlbumArtUrl(null);
     setIsrc(undefined);
     setSpotifyError(null);
+    setAutofilledFrom(null);
   };
 
   const addSong = () => {
@@ -268,7 +274,7 @@ const MusicRequestSheetContent = ({
     }
     setImportingPlaylist(true);
     try {
-      const result = await spotifyPlaylist.importPlaylist(spotifyLink.trim());
+      const result = await spotifyPlaylist.importPlaylist(musicLink);
       const existing = new Set(songs.map((song) => songLinkKey(song.link)));
       const available = Math.max(0, 50 - songs.length);
       const fresh = result.songs.filter((song: SpotifySong) => {
@@ -302,7 +308,7 @@ const MusicRequestSheetContent = ({
   const importYouTube = async () => {
     if (importingPlaylist || submitting || prefill) return;
 
-    const playlistUrl = youtubePlaylistUrl(spotifyLink);
+    const playlistUrl = youtubePlaylistUrl(musicLink);
     if (!playlistUrl) {
       setSpotifyError("Please enter a valid YouTube playlist URL.");
       return;
@@ -359,7 +365,7 @@ const MusicRequestSheetContent = ({
     setSpotifyError(null);
   };
   const autofillSpotify = async () => {
-    const cleanUrl = spotifyTrackUrl(spotifyLink);
+    const cleanUrl = spotifyTrackUrl(musicLink);
     if (!cleanUrl) {
       setSpotifyError("Paste a valid Spotify or YouTube link.");
       return;
@@ -375,6 +381,7 @@ const MusicRequestSheetContent = ({
       setLink(track.link);
       setAlbumArtUrl(track.albumArtUrl);
       setIsrc(track.isrc ?? undefined);
+      setAutofilledFrom(musicLink);
       setManualExpanded(true);
     } catch (error) {
       setSpotifyError(errorMessage(error));
@@ -384,7 +391,7 @@ const MusicRequestSheetContent = ({
   };
 
   const autofillYouTube = async () => {
-    const cleanUrl = youtubeVideoUrl(spotifyLink);
+    const cleanUrl = youtubeVideoUrl(musicLink);
 
     if (!cleanUrl) {
       setSpotifyError("Please paste a valid YouTube video link.");
@@ -416,6 +423,7 @@ const MusicRequestSheetContent = ({
       const videoId = youtubeVideoId(cleanUrl);
       setAlbumArtUrl(videoId ? youtubeThumbnailUrl(videoId) : null);
       setIsrc(undefined);
+      setAutofilledFrom(musicLink);
       setManualExpanded(true);
     } catch (error) {
       setSpotifyError(errorMessage(error));
@@ -648,6 +656,18 @@ const MusicRequestSheetContent = ({
                 setSpotifyLink(value);
                 setSpotifyError(null);
                 setError(null);
+                if (
+                  autofilledFrom !== null &&
+                  songLinkKey(normalizeMusicLink(value)) !==
+                    songLinkKey(autofilledFrom)
+                ) {
+                  setTitle("");
+                  setArtist("");
+                  setLink("");
+                  setAlbumArtUrl(null);
+                  setIsrc(undefined);
+                  setAutofilledFrom(null);
+                }
               }}
               placeholder="https://open.spotify.com/track/... or playlist/..."
               autoCapitalize="none"

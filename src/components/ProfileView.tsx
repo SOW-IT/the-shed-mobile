@@ -210,6 +210,8 @@ export const ProfileView = ({
   const profile = useQuery(api.profile.get, email ? { email } : {});
   const me = useQuery(api.directory.me);
   const isStaff = me?.profile != null;
+  const spotifyConnected =
+    useQuery(api.spotifyConnections.getConnection)?.connected === true;
   useMinuteTick();
   const generateAvatarUploadUrl = useMutation(
     api.profile.generateAvatarUploadUrl,
@@ -488,7 +490,7 @@ export const ProfileView = ({
           </Card>
         </FadeInView>
       )}
-      {profile.isMe && isStaff && (
+      {profile.isMe && (isStaff || spotifyConnected) && (
         <FadeInView delay={stagger(2)}>
           <SpotifyConnectionCard />
         </FadeInView>

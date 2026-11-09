@@ -74,7 +74,7 @@ export const parseYouTubeSong = (
   }
 
   // Titles containing video labels often put the song first.
-  const songFirst = /(?:lyric|lyrics|music video|official audio)/i.test(
+  const songFirst = /(?:lyric|lyrics|music video|official (?:audio|video))/i.test(
     videoTitle.split(/\s+[-–—|]\s+/)[0] ?? "",
   );
 

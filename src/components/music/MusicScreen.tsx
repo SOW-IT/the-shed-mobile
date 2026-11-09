@@ -25,6 +25,7 @@ export default function MusicScreen() {
   // Both follow the role an admin is acting as (directory.me).
   const canReview = me?.isPraiseManager === true;
   const canManageRequests = me?.canManagePraiseList === true;
+  const addsDirectly = me?.songsSkipReview === true;
   const requestedTab =
     tab === "review" && canReview
       ? "toReview"
@@ -147,7 +148,7 @@ export default function MusicScreen() {
         footer={
           showMakeRequest ? (
             <FooterAction
-              title={canManageRequests ? "+ Add to Playlist" : "+ Make Request"}
+              title={addsDirectly ? "+ Add to Playlist" : "+ Make Request"}
               onPress={openNewRequest}
               onInfo={() => setGuideOpen(true)}
             />
@@ -160,7 +161,7 @@ export default function MusicScreen() {
         onClose={() => setNewRequestOpen(false)}
         prefill={requestPrefill}
         hideRequestComment={hideRequestComment}
-        addsDirectly={canManageRequests}
+        addsDirectly={addsDirectly}
         onSaved={(text) => setToast({ text })}
       />
 

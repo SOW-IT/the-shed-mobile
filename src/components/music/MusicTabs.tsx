@@ -18,7 +18,7 @@ import { radius, spacing, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Image,
@@ -721,26 +721,30 @@ function DeclineSheet({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [shownFor, setShownFor] = useState(request?._id);
+  const openFor = useRef(request?._id);
+  useEffect(() => {
+    openFor.current = request?._id;
+  }, [request?._id]);
   if (shownFor !== request?._id) {
     setShownFor(request?._id);
     setReason("");
     setError(null);
+    setSubmitting(false);
   }
 
   const handleDecline = async () => {
     if (!request || submitting) return;
+    const requestId = request._id;
+    const stillOpen = () => openFor.current === requestId;
     setError(null);
     setSubmitting(true);
     try {
-      await decline({
-        requestId: request._id,
-        reason: reason.trim() || undefined,
-      });
-      onClose();
+      await decline({ requestId, reason: reason.trim() || undefined });
+      if (stillOpen()) onClose();
     } catch (e) {
-      setError(errorMessage(e));
+      if (stillOpen()) setError(errorMessage(e));
     } finally {
-      setSubmitting(false);
+      if (stillOpen()) setSubmitting(false);
     }
   };
 

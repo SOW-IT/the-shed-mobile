@@ -10,6 +10,7 @@ import {
   optionalProfile,
   requireProfile,
   resolveName,
+  type CallerContext,
 } from "./model";
 import { notify as notifyPerson } from "./requests";
 import {
@@ -35,12 +36,14 @@ async function praiseManagerEmailsForYear(
 /** Check whether the caller is an assigned Praise Manager. */
 async function callerIsPraiseManager(
   ctx: MusicCtx,
-  email: string,
+  caller: CallerContext,
 ): Promise<boolean> {
-  const managers = await praiseManagerEmailsForYear(ctx, currentStaffYear());
+  const year = currentStaffYear();
+  if (caller.profile.year !== year) return false;
+  const managers = await praiseManagerEmailsForYear(ctx, year);
 
   return managers.some(
-    (managerEmail) => managerEmail.toLowerCase() === email.toLowerCase(),
+    (managerEmail) => managerEmail.toLowerCase() === caller.email.toLowerCase(),
   );
 }
 
@@ -55,7 +58,7 @@ async function seesReviewQueue(
 ): Promise<boolean> {
   return await seesThrough(
     await lensFor(ctx, caller),
-    () => callerIsPraiseManager(ctx, caller.email),
+    () => callerIsPraiseManager(ctx, caller),
     (persona) => persona.role === "praiseManager",
   );
 }
@@ -100,7 +103,7 @@ async function notify(
       to,
       actor,
       subject: title,
-      body,
+      body: body.replace(/\s+/g, " ").trim(),
       url,
       email: false,
     });
@@ -371,7 +374,7 @@ export const submit = mutation({
         "Possible duplicate: confirm that you want to request this version anyway.",
       );
 
-    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
+    const isPraiseManager = await callerIsPraiseManager(ctx, caller);
     const id = await ctx.db.insert("musicRequests", {
       requesterEmail: caller.email,
       ...song,
@@ -425,10 +428,12 @@ export const previewBatch = mutation({
       const song = validateSong(raw);
       // Reuse database results for identical inputs within this preview only.
       // Still compare against earlier entries in the batch on every iteration.
+      const keys = songKeys(song);
       const cacheKey = JSON.stringify([
-        spotifyTrackId(song.link),
+        keys.spotifyTrackId ?? null,
+        keys.youtubeVideoId ?? null,
         song.isrc ?? null,
-        normalizedSongKey(song.title, song.artist),
+        keys.normalizedSongKey,
       ]);
       let databaseDuplicate = databaseDuplicateCache.get(cacheKey);
       if (!databaseDuplicateCache.has(cacheKey)) {
@@ -476,7 +481,7 @@ export const submitMany = mutation({
     const requestComment = cleanComment(args.requestComment, "Request comment");
     if (!args.songs.length || args.songs.length > 50)
       throw new ConvexError("Add between 1 and 50 songs.");
-    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
+    const isPraiseManager = await callerIsPraiseManager(ctx, caller);
     const added: string[] = [];
     let skipped = 0;
     let possibleDuplicates = 0;
@@ -591,7 +596,7 @@ export const waitingOnMe = query({
     if (!caller) return 0;
     const waits = await waitsThrough(
       await lensFor(ctx, caller),
-      () => callerIsPraiseManager(ctx, caller.email),
+      () => callerIsPraiseManager(ctx, caller),
       (persona) => persona.role === "praiseManager",
     );
     if (!waits) return 0;
@@ -607,7 +612,7 @@ export const approve = mutation({
   args: { requestId: v.id("musicRequests") },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    if (!(await callerIsPraiseManager(ctx, caller.email))) {
+    if (!(await callerIsPraiseManager(ctx, caller))) {
       throw new ConvexError("Only Praise Managers can approve music requests.");
     }
     const request = await ctx.db.get(args.requestId);
@@ -645,7 +650,7 @@ export const decline = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    if (!(await callerIsPraiseManager(ctx, caller.email))) {
+    if (!(await callerIsPraiseManager(ctx, caller))) {
       throw new ConvexError("Only Praise Managers can decline music requests.");
     }
     const request = await ctx.db.get(args.requestId);
@@ -695,7 +700,7 @@ export const update = mutation({
     if (!request) {
       throw new ConvexError("Request not found.");
     }
-    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
+    const isPraiseManager = await callerIsPraiseManager(ctx, caller);
     const isOwner =
       request.requesterEmail.toLowerCase() === caller.email.toLowerCase();
     if (!isPraiseManager && (!isOwner || request.status !== "PENDING")) {
@@ -736,7 +741,7 @@ export const remove = mutation({
     if (!request) {
       throw new ConvexError("Request not found.");
     }
-    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
+    const isPraiseManager = await callerIsPraiseManager(ctx, caller);
     const isOwner =
       request.requesterEmail.toLowerCase() === caller.email.toLowerCase();
     if (!isPraiseManager && (!isOwner || request.status !== "PENDING")) {

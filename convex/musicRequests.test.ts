@@ -1296,6 +1296,7 @@ describe("Praise List while acting as a role", () => {
     expect(await admin.query(api.directory.me, {})).toMatchObject({
       isPraiseManager: false,
       canManagePraiseList: false,
+      songsSkipReview: true,
     });
     await expect(admin.query(api.musicRequests.toReview, {})).rejects.toThrow(
       "Only Praise Managers can review music requests.",
@@ -1634,5 +1635,111 @@ describe("Praise List review follow-up", () => {
         artist: "Unrelated",
       }),
     ).toMatchObject({ kind: "exact", title: "New" });
+  });
+
+  test("notifications keep a multi-line decline reason on one line", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const requestId = await asUser(t, STAFF).mutation(
+      api.musicRequests.submit,
+      song(),
+    );
+    await asUser(t, ADMIN).mutation(api.musicRequests.decline, {
+      requestId,
+      reason: "Wrong key.\nTry the acoustic version.",
+    });
+
+    const declined = await t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect()).find(
+        (row) => row.userEmail === STAFF,
+      ),
+    );
+    expect(declined?.body).toBe(
+      '"Test Song" was declined: Wrong key. Try the acoustic version.',
+    );
+  });
+
+  test("a batch preview tells apart two videos with the same title", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    await staff.mutation(
+      api.musicRequests.submit,
+      song({ link: "https://youtu.be/abcdefghijk" }),
+    );
+
+    expect(
+      await staff.mutation(api.musicRequests.previewBatch, {
+        songs: [
+          song({ link: "https://youtu.be/abcdefghijk" }),
+          song({ link: "https://youtu.be/bcdefghijkl" }),
+        ],
+      }),
+    ).toEqual({ exactDuplicates: 1, possibleDuplicates: 1 });
+  });
+
+  test("the backfill carries on by itself past the first page", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 101; i++) {
+        await ctx.db.insert("musicRequests", {
+          requesterEmail: STAFF,
+          title: `Song ${i}`,
+          artist: "Artist",
+          link: `https://youtu.be/abcdefghi${String(i).padStart(2, "0")}`,
+          status: "APPROVED",
+        });
+      }
+    });
+
+    const first = await t.mutation(internal.musicBackfill.backfill, {});
+    expect(first).toMatchObject({ checked: 100, isDone: false });
+    const next = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (job) => job.name === "musicBackfill:backfill",
+      ),
+    );
+    expect(next.map((job) => job.args[0])).toEqual([
+      { cursor: first.continueCursor },
+    ]);
+  });
+
+  test("after 1 October a Praise Manager needs this year's staff profile", async () => {
+    const t = await setup();
+    const requestId = await asUser(t, STAFF).mutation(
+      api.musicRequests.submit,
+      song(),
+    );
+    await t.run((ctx) =>
+      ctx.db.insert("yearSettings", {
+        year: YEAR + 1,
+        praiseManagerEmails: [STAFF],
+      }),
+    );
+    vi.setSystemTime(staffYearStartMs(YEAR + 1) + 10 * 86_400_000);
+    const staff = asUser(t, STAFF);
+
+    expect(await staff.query(api.directory.me, {})).toMatchObject({
+      isPraiseManager: false,
+      canManagePraiseList: false,
+    });
+    await expect(
+      staff.mutation(api.musicRequests.approve, { requestId }),
+    ).rejects.toThrow("Only Praise Managers can approve music requests.");
+
+    await t.run(async (ctx) => {
+      const current = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", STAFF).eq("year", YEAR),
+        )
+        .first();
+      const { _id, _creationTime, ...profile } = current!;
+      await ctx.db.insert("staffProfiles", { ...profile, year: YEAR + 1 });
+    });
+    expect(await staff.query(api.directory.me, {})).toMatchObject({
+      isPraiseManager: true,
+      canManagePraiseList: true,
+    });
+    await staff.mutation(api.musicRequests.approve, { requestId });
   });
 });

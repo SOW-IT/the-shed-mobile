@@ -17,6 +17,7 @@ describe("music links", () => {
       "https://www.youtube.com/shorts/abcdefghijk",
       "https://www.youtube.com/live/abcdefghijk",
       "https://www.youtube.com/embed/abcdefghijk",
+      "https://www.youtube.com/shorts/abcdefghijk/",
       " http://youtu.be/abcdefghijk ",
     ]) {
       expect(youtubeVideoId(link)).toBe("abcdefghijk");
@@ -27,6 +28,8 @@ describe("music links", () => {
     for (const link of [
       "https://www.youtube.com/playlist?list=PL1",
       "https://www.youtube.com/watch?v=short",
+      "https://www.youtube.com/shorts/abcdefghijkl",
+      "https://www.youtube.com/embed/abcdefghijk-x",
       "https://example.com/watch?v=abcdefghijk",
       "ftp://youtu.be/abcdefghijk",
       "not a link",
@@ -50,9 +53,13 @@ describe("music links", () => {
     expect(songLinkKey("https://open.spotify.com/track/abc?si=1")).toBe(
       songLinkKey("https://open.spotify.com/intl-fr/track/abc"),
     );
-    expect(songLinkKey(" https://Example.com/Song ")).toBe(
-      "https://example.com/song",
+    expect(songLinkKey(" https://Example.COM/Song?id=AbC ")).toBe(
+      "https://example.com/Song?id=AbC",
     );
+    expect(songLinkKey("https://example.com/Song")).not.toBe(
+      songLinkKey("https://example.com/song"),
+    );
+    expect(songLinkKey(" not a link ")).toBe("not a link");
   });
 
   test("keeps artwork only from the song's own service", () => {
