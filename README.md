@@ -222,8 +222,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   what that role sees. A Praise Manager needs a staff profile for the
   current year, so during the October grace last year's staff can't review.
   After a change to the duplicate keys, run
-  `npx convex run musicBackfill:backfill` once; it carries on through every
-  page by itself.
+  `npx convex run --prod musicBackfill:backfill '{}'` on prod (and without
+  `--prod` on dev) once; each run carries on through every page by itself.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on

@@ -12,6 +12,13 @@ describe("parseYouTubeSong", () => {
     expect(
       parseYouTubeSong("Morning Light (Official Video) - Hana Doe", "Some Channel"),
     ).toEqual({ title: "Morning Light", artist: "Hana Doe" });
+    expect(
+      parseYouTubeSong("Morning Light Official Video - Hana Doe", "Some Channel"),
+    ).toEqual({ title: "Morning Light", artist: "Hana Doe" });
+    expect(parseYouTubeSong("Morning Light Official Audio", "Hana Doe")).toEqual({
+      title: "Morning Light",
+      artist: "Hana Doe",
+    });
     expect(parseYouTubeSong("Morning Light [Remastered]", "Hana Doe")).toEqual({
       title: "Morning Light",
       artist: "Hana Doe",

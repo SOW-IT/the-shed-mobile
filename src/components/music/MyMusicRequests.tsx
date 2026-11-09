@@ -360,9 +360,21 @@ const MusicRequestSheetContent = ({
     }
   };
 
-  const clearSpotifyLink = () => {
-    setSpotifyLink("");
+  const changeMusicLink = (value: string) => {
+    setSpotifyLink(value);
     setSpotifyError(null);
+    setError(null);
+    if (
+      autofilledFrom !== null &&
+      songLinkKey(normalizeMusicLink(value)) !== songLinkKey(autofilledFrom)
+    ) {
+      setTitle("");
+      setArtist("");
+      setLink("");
+      setAlbumArtUrl(null);
+      setIsrc(undefined);
+      setAutofilledFrom(null);
+    }
   };
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(musicLink);
@@ -652,30 +664,14 @@ const MusicRequestSheetContent = ({
             <Field
               label="Music Link"
               value={spotifyLink}
-              onChangeText={(value) => {
-                setSpotifyLink(value);
-                setSpotifyError(null);
-                setError(null);
-                if (
-                  autofilledFrom !== null &&
-                  songLinkKey(normalizeMusicLink(value)) !==
-                    songLinkKey(autofilledFrom)
-                ) {
-                  setTitle("");
-                  setArtist("");
-                  setLink("");
-                  setAlbumArtUrl(null);
-                  setIsrc(undefined);
-                  setAutofilledFrom(null);
-                }
-              }}
+              onChangeText={changeMusicLink}
               placeholder="https://open.spotify.com/track/... or playlist/..."
               autoCapitalize="none"
             />
 
             {spotifyLink.length > 0 && (
               <Pressable
-                onPress={clearSpotifyLink}
+                onPress={() => changeMusicLink("")}
                 accessibilityRole="button"
                 accessibilityLabel="Clear music link"
                 hitSlop={8}

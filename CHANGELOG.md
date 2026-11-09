@@ -93,8 +93,9 @@ All notable changes to **The SHED** mobile app. This project follows
   Spotify playlists, the song list appears once a song is in it, and title
   and artist start with capitals on phones. The guide explains autofill and
   how to follow a request.
-- The Spotify card on Profile shows only for staff (only staff have the
-  Praise List) and says what it's for; disconnecting asks in the app.
+- The Spotify card on Profile shows for staff (only staff have the Praise
+  List) and for anyone still connected, so they can disconnect. It says
+  what it's for, and disconnecting asks in the app.
 
 ## [2.10.33] - 2026-11-07
 
