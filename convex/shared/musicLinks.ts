@@ -21,7 +21,7 @@ export function spotifyTrackId(value: string): string | null {
   const url = parseUrl(value);
   if (
     !url ||
-    url.protocol !== "https:" ||
+    !["https:", "http:"].includes(url.protocol) ||
     !SPOTIFY_HOSTS.includes(url.hostname)
   ) {
     return null;

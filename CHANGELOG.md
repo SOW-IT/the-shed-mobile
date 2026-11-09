@@ -37,8 +37,10 @@ All notable changes to **The SHED** mobile app. This project follows
   is told it's on the playlist, not that it awaits review.
 - **Changing a song's link clears the old artwork and recording code**, so
   the new link isn't checked against the old song.
-- **Spotify playlists bring each song's recording code (ISRC)**, so the same
-  recording already requested from YouTube is caught.
+- **Spotify playlists bring each song's recording code (ISRC)** when Spotify
+  has one, so the same recording on another Spotify release is refused.
+  YouTube songs have no recording code, so a song requested from both is only
+  flagged when the title and artist match.
 - **YouTube Music artists lose the " - Topic"** that YouTube adds to its
   automatic channels.
 - **Only signed-in users can look up Spotify songs or YouTube playlists**

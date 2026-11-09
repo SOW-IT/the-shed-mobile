@@ -2,7 +2,11 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { songKeys } from "./musicRequests";
-import { songArtworkUrl, youtubeVideoId } from "./shared/musicLinks";
+import {
+  songArtworkUrl,
+  spotifyTrackId,
+  youtubeVideoId,
+} from "./shared/musicLinks";
 
 /** Fills the duplicate-detection keys with the same rules `submit` uses. */
 export const backfill = internalMutation({
@@ -27,9 +31,10 @@ export const backfill = internalMutation({
 
     for (const row of page.page) {
       const keys = songKeys(row);
-      const albumArtUrl = youtubeVideoId(row.link)
-        ? songArtworkUrl(row.link, row.albumArtUrl)
-        : row.albumArtUrl;
+      const albumArtUrl =
+        youtubeVideoId(row.link) || spotifyTrackId(row.link)
+          ? songArtworkUrl(row.link, row.albumArtUrl)
+          : row.albumArtUrl;
 
       if (
         row.normalizedSongKey !== keys.normalizedSongKey ||

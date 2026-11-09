@@ -38,11 +38,14 @@ describe("music links", () => {
     }
   });
 
-  test("reads Spotify track IDs over https only", () => {
+  test("reads Spotify track IDs from http and https links", () => {
     expect(
       spotifyTrackId("https://open.spotify.com/intl-de/track/abc123?si=1"),
     ).toBe("abc123");
-    expect(spotifyTrackId("http://open.spotify.com/track/abc123")).toBeNull();
+    expect(spotifyTrackId("http://open.spotify.com/track/abc123")).toBe(
+      "abc123",
+    );
+    expect(spotifyTrackId("ftp://open.spotify.com/track/abc123")).toBeNull();
     expect(spotifyTrackId("https://open.spotify.com/album/abc123")).toBeNull();
   });
 
@@ -52,6 +55,9 @@ describe("music links", () => {
     );
     expect(songLinkKey("https://open.spotify.com/track/abc?si=1")).toBe(
       songLinkKey("https://open.spotify.com/intl-fr/track/abc"),
+    );
+    expect(songLinkKey("http://open.spotify.com/track/abc")).toBe(
+      songLinkKey("https://open.spotify.com/track/abc"),
     );
     expect(songLinkKey(" https://Example.COM/Song?id=AbC ")).toBe(
       "https://example.com/Song?id=AbC",

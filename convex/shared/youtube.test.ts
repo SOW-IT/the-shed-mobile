@@ -68,6 +68,29 @@ describe("parseYouTubeSong", () => {
     });
   });
 
+  test("a live or remastered version label doesn't put the song first", () => {
+    expect(
+      parseYouTubeSong("Hana Doe (Live) - Morning Light", "Some Channel"),
+    ).toEqual({ title: "Morning Light", artist: "Hana Doe" });
+    expect(
+      parseYouTubeSong("Hana Doe [Remastered] - Morning Light", "Some Channel"),
+    ).toEqual({ title: "Morning Light", artist: "Hana Doe" });
+    expect(
+      parseYouTubeSong("Morning Light (Official Video) (Live) - Hana Doe", "Some Channel"),
+    ).toEqual({ title: "Morning Light", artist: "Hana Doe" });
+  });
+
+  test("matches non-Latin channel names", () => {
+    expect(parseYouTubeSong("아침빛 (Official Audio) - 한나", "한나 - Topic")).toEqual({
+      title: "아침빛",
+      artist: "한나",
+    });
+    expect(parseYouTubeSong("한나 - 아침빛", "한나")).toEqual({
+      title: "아침빛",
+      artist: "한나",
+    });
+  });
+
   test("keeps the whole title and the channel when the title has no single split", () => {
     expect(parseYouTubeSong("Still Waters [Live]", "")).toEqual({
       title: "Still Waters",

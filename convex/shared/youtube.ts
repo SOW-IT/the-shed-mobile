@@ -1,10 +1,15 @@
-const removeVideoLabels = (value: string): string =>
+const removeVersionLabels = (value: string): string =>
+  value
+    .replace(/\s*[\[(]\s*(?:official\s+)?live\s*[\])]/gi, "")
+    .replace(/\s*[\[(]\s*(?:4k|hd)?\s*remaster(?:ed)?\s*[\])]/gi, "")
+    .trim();
+
+const removeSongLabels = (value: string): string =>
   value
     .replace(
-      /\s*[\[(]\s*(?:official\s+)?(?:music\s+video|lyric\s+video|video|lyrics?|audio|visualizer|live)\s*[\])]/gi,
+      /\s*[\[(]\s*(?:official\s+)?(?:music\s+video|lyric\s+video|video|lyrics?|audio|visualizer)\s*[\])]/gi,
       "",
     )
-    .replace(/\s*[\[(]\s*(?:4k|hd)?\s*remaster(?:ed)?\s*[\])]/gi, "")
     .replace(
       /\s*[-–—|]\s*(?:official\s+)?(?:music\s+video|lyric\s+video|lyrics?|audio|visualizer)\s*$/gi,
       "",
@@ -14,6 +19,9 @@ const removeVideoLabels = (value: string): string =>
       "",
     )
     .trim();
+
+const removeVideoLabels = (value: string): string =>
+  removeSongLabels(removeVersionLabels(value));
 
 export const cleanYouTubeTitle = (title: string, artist: string): string => {
   let cleaned = removeVideoLabels(title);
@@ -60,22 +68,24 @@ export const parseYouTubeSong = (
   const [first, second] = parts;
 
   const normalized = (value: string) =>
-    value.toLowerCase().replace(/[^a-z0-9]/g, "");
+    value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 
   const channelNormalized = normalized(channel);
 
   // If either side matches the channel, use that as the artist.
-  if (normalized(first) === channelNormalized) {
+  if (channelNormalized && normalized(first) === channelNormalized) {
     return { artist: first, title: second };
   }
 
-  if (normalized(second) === channelNormalized) {
+  if (channelNormalized && normalized(second) === channelNormalized) {
     return { artist: second, title: first };
   }
 
   // Titles containing video labels often put the song first.
-  const firstSegment = videoTitle.split(/\s+[-–—|]\s+/)[0]?.trim() ?? "";
-  const songFirst = removeVideoLabels(firstSegment) !== firstSegment;
+  const firstSegment = removeVersionLabels(
+    videoTitle.split(/\s+[-–—|]\s+/)[0] ?? "",
+  );
+  const songFirst = removeSongLabels(firstSegment) !== firstSegment;
 
   if (songFirst) {
     return { title: first, artist: second };

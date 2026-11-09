@@ -212,7 +212,9 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   playlists need Spotify connected from Profile, `convex/spotifyConnections.ts`,
   tokens encrypted at rest and deleted with the account) or type one in, up
   to 50 at a time. The same recording twice (Spotify track, YouTube video or
-  ISRC) is refused; the same title and artist asks first. **Praise Managers**
+  ISRC) is refused; the same title and artist asks first. YouTube songs carry
+  no ISRC, so one song from both services is only caught by its title and
+  artist. **Praise Managers**
   (Admin → System, per staff year, carried into the new year on 1 October)
   get a To review tab to approve or decline with an optional reason, a count
   of waiting songs in the side menu, and push notifications; their own songs

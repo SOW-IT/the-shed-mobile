@@ -120,9 +120,10 @@ const MusicRequestSheetContent = ({
     prefill?.isrc ?? undefined,
   );
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
-  const linkVersion = useRef(0);
-  const dropPendingLookup = () => {
-    linkVersion.current++;
+  const autofillVersion = useRef(0);
+  const musicLinkEdits = useRef(0);
+  const dropPendingAutofill = () => {
+    autofillVersion.current++;
     setFetchingSpotify(false);
   };
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
@@ -185,7 +186,8 @@ const MusicRequestSheetContent = ({
     setIsrc(undefined);
     setSpotifyError(null);
     setAutofilledFrom(null);
-    dropPendingLookup();
+    musicLinkEdits.current++;
+    dropPendingAutofill();
   };
 
   const addSong = () => {
@@ -279,7 +281,7 @@ const MusicRequestSheetContent = ({
       return;
     }
     setImportingPlaylist(true);
-    const version = linkVersion.current;
+    const edits = musicLinkEdits.current;
     try {
       const result = await spotifyPlaylist.importPlaylist(musicLink);
       const existing = new Set(songs.map((song) => songLinkKey(song.link)));
@@ -292,7 +294,7 @@ const MusicRequestSheetContent = ({
       });
       const toAdd = fresh.slice(0, available);
       setSongs((current) => [...current, ...toAdd]);
-      if (version === linkVersion.current) setSpotifyLink("");
+      if (edits === musicLinkEdits.current) setSpotifyLink("");
       setInfo(
         `${songCount(toAdd.length)} added from ${result.name}.${result.limited ? " Only the first 50 playlist entries were fetched." : ""}${fresh.length > available ? " You can submit up to 50 songs at once." : ""} Songs already requested are skipped when you submit.`,
       );
@@ -325,7 +327,7 @@ const MusicRequestSheetContent = ({
     setSpotifyError(null);
     setError(null);
     setInfo(null);
-    const version = linkVersion.current;
+    const edits = musicLinkEdits.current;
 
     try {
       const result = await importYouTubePlaylist({
@@ -348,7 +350,7 @@ const MusicRequestSheetContent = ({
       const toAdd = fresh.slice(0, available);
 
       setSongs((current) => [...current, ...toAdd]);
-      if (version === linkVersion.current) setSpotifyLink("");
+      if (edits === musicLinkEdits.current) setSpotifyLink("");
 
       setInfo(
         `${songCount(toAdd.length)} added from the YouTube playlist.${
@@ -369,8 +371,9 @@ const MusicRequestSheetContent = ({
   };
 
   const changeMusicLink = (value: string) => {
+    musicLinkEdits.current++;
     const nextKey = songLinkKey(normalizeMusicLink(value));
-    if (nextKey !== songLinkKey(musicLink)) dropPendingLookup();
+    if (nextKey !== songLinkKey(musicLink)) dropPendingAutofill();
     setSpotifyLink(value);
     setSpotifyError(null);
     setError(null);
@@ -389,14 +392,14 @@ const MusicRequestSheetContent = ({
       setSpotifyError("Paste a valid Spotify or YouTube link.");
       return;
     }
-    const version = linkVersion.current;
+    const version = autofillVersion.current;
     setFetchingSpotify(true);
     setSpotifyError(null);
     try {
       const track = await getSpotifyTrack({
         link: cleanUrl,
       });
-      if (version !== linkVersion.current) return;
+      if (version !== autofillVersion.current) return;
       setTitle(track.title);
       setArtist(track.artist);
       setLink(track.link);
@@ -405,9 +408,10 @@ const MusicRequestSheetContent = ({
       setAutofilledFrom(musicLink);
       setManualExpanded(true);
     } catch (error) {
-      if (version === linkVersion.current) setSpotifyError(errorMessage(error));
+      if (version === autofillVersion.current)
+        setSpotifyError(errorMessage(error));
     } finally {
-      if (version === linkVersion.current) setFetchingSpotify(false);
+      if (version === autofillVersion.current) setFetchingSpotify(false);
     }
   };
 
@@ -419,7 +423,7 @@ const MusicRequestSheetContent = ({
       return;
     }
 
-    const version = linkVersion.current;
+    const version = autofillVersion.current;
     setFetchingSpotify(true);
     setSpotifyError(null);
 
@@ -436,7 +440,7 @@ const MusicRequestSheetContent = ({
         title: string;
         author_name: string;
       } = await response.json();
-      if (version !== linkVersion.current) return;
+      if (version !== autofillVersion.current) return;
 
       const { title, artist } = parseYouTubeSong(data.title, data.author_name);
 
@@ -449,9 +453,10 @@ const MusicRequestSheetContent = ({
       setAutofilledFrom(musicLink);
       setManualExpanded(true);
     } catch (error) {
-      if (version === linkVersion.current) setSpotifyError(errorMessage(error));
+      if (version === autofillVersion.current)
+        setSpotifyError(errorMessage(error));
     } finally {
-      if (version === linkVersion.current) setFetchingSpotify(false);
+      if (version === autofillVersion.current) setFetchingSpotify(false);
     }
   };
 
@@ -898,6 +903,7 @@ const MusicRequestSheetContent = ({
             onChangeText={(value) => {
               // A different song: the autofilled ISRC and artwork no longer apply.
               if (songLinkKey(value) !== songLinkKey(link)) {
+                dropPendingAutofill();
                 setIsrc(undefined);
                 setAlbumArtUrl(null);
               }
@@ -915,6 +921,7 @@ const MusicRequestSheetContent = ({
               onPress={addSong}
               disabled={
                 fetchingSpotify ||
+                importingPlaylist ||
                 duplicateBlocked ||
                 (!!duplicateLink && duplicate === undefined)
               }

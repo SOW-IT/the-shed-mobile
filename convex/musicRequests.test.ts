@@ -1480,6 +1480,27 @@ describe("Praise List review follow-up", () => {
     ).toEqual({ added: 0, skipped: 1, possibleDuplicates: 0 });
   });
 
+  test("an http Spotify link is the same track as its https link", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    await staff.mutation(api.musicRequests.submit, song());
+
+    const httpLink = `http://open.spotify.com/track/${TRACK_ID}`;
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, {
+        link: httpLink,
+        title: "Anything",
+        artist: "Anyone",
+      }),
+    ).toMatchObject({ kind: "exact", title: "Test Song" });
+    await expect(
+      staff.mutation(
+        api.musicRequests.submit,
+        song({ title: "A different title", artist: "Someone else", link: httpLink }),
+      ),
+    ).rejects.toThrow("This recording was already requested (pending).");
+  });
+
   test("YouTube songs keep the video's thumbnail; Spotify artwork must come from Spotify", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
@@ -1607,6 +1628,37 @@ describe("Praise List review follow-up", () => {
         updated: 0,
       },
     );
+  });
+
+  test("the backfill drops artwork a Spotify song didn't get from Spotify", async () => {
+    const t = await setup();
+    const insert = (link: string, albumArtUrl: string) =>
+      t.run((ctx) =>
+        ctx.db.insert("musicRequests", {
+          requesterEmail: STAFF,
+          title: "Old",
+          artist: "Song",
+          link,
+          albumArtUrl,
+          status: "APPROVED",
+        }),
+      );
+    const youtubeArt = "https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg";
+    const spotifyArt = "https://i.scdn.co/image/abc";
+    const wrongArt = await insert(SPOTIFY, youtubeArt);
+    const rightArt = await insert(`https://open.spotify.com/track/${TRACK_ID}2`, spotifyArt);
+    const otherLink = await insert("https://example.com/song", youtubeArt);
+
+    await t.mutation(internal.musicBackfill.backfill, {});
+    const art = await t.run(async (ctx) =>
+      Promise.all(
+        [wrongArt, rightArt, otherLink].map(
+          async (id) =>
+            (await ctx.db.get("musicRequests", id))?.albumArtUrl ?? null,
+        ),
+      ),
+    );
+    expect(art).toEqual([null, spotifyArt, youtubeArt]);
   });
 
   test("editing a request moves its duplicate keys to the new song", async () => {
