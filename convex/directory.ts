@@ -66,9 +66,11 @@ export const me = query({
       .withIndex("by_year", (q) => q.eq("year", year))
       .first();
 
-    const isPraiseManager = (settings?.praiseManagerEmails ?? []).some(
-      (managerEmail) => managerEmail.toLowerCase() === email.toLowerCase(),
-    );
+    const isPraiseManager =
+      caller?.profile.year === currentStaffYear() &&
+      (settings?.praiseManagerEmails ?? []).some(
+        (managerEmail) => managerEmail.toLowerCase() === email.toLowerCase(),
+      );
     const user = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
@@ -88,6 +90,8 @@ export const me = query({
         photo,
         profile: null,
         isPraiseManager: false,
+        canManagePraiseList: false,
+        songsSkipReview: false,
       };
     }
     const approvers = await getApprovers(
@@ -137,7 +141,16 @@ export const me = query({
         departments: departmentsOf(profile),
         divisions: divisionsOf(profile),
       },
-      isPraiseManager,
+      // The Praise List's review tab follows the role being previewed; the
+      // buttons need a real Praise Manager as well, as the mutations check.
+      isPraiseManager: await seesThrough(
+        lens,
+        () => isPraiseManager,
+        (p) => p.role === "praiseManager",
+      ),
+      canManagePraiseList:
+        isPraiseManager && (persona === null || persona.role === "praiseManager"),
+      songsSkipReview: isPraiseManager,
       isAdmin: persona ? personaIsAdmin(persona, teams) : isAdmin,
       isFinance: await seesThrough(
         lens,

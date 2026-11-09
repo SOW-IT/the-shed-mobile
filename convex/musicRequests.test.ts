@@ -1276,3 +1276,536 @@ describe("Praise Manager staff profile cleanup", () => {
     expect(profile).toBeNull();
   });
 });
+
+describe("Praise List while acting as a role", () => {
+  const actAs = (
+    t: TestConvex<typeof schema>,
+    persona: { role: "praiseManager" } | { role: "staff"; department: string },
+  ) => asUser(t, ADMIN).mutation(api.actingAs.set, { persona });
+
+  test("a Praise Manager acting as staff sees the staff view and no review buttons", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const admin = asUser(t, ADMIN);
+    expect(await admin.query(api.directory.me, {})).toMatchObject({
+      isPraiseManager: true,
+      canManagePraiseList: true,
+    });
+
+    await actAs(t, { role: "staff", department: "Music" });
+    expect(await admin.query(api.directory.me, {})).toMatchObject({
+      isPraiseManager: false,
+      canManagePraiseList: false,
+      songsSkipReview: true,
+    });
+    await expect(admin.query(api.musicRequests.toReview, {})).rejects.toThrow(
+      "Only Praise Managers can review music requests.",
+    );
+    await expect(admin.query(api.musicRequests.declined, {})).rejects.toThrow(
+      "Only Praise Managers can view declined music requests.",
+    );
+  });
+
+  test("an admin acting as Praise Manager sees the queue but can't approve", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const requestId = await asUser(t, STAFF).mutation(
+      api.musicRequests.submit,
+      song({ link: "https://example.com/preview-queue" }),
+    );
+
+    await actAs(t, { role: "praiseManager" });
+    expect(await admin.query(api.directory.me, {})).toMatchObject({
+      isPraiseManager: true,
+      canManagePraiseList: false,
+    });
+    const queue = await admin.query(api.musicRequests.toReview, {});
+    expect(queue.map((row) => row._id)).toEqual([requestId]);
+    await expect(
+      admin.mutation(api.musicRequests.approve, { requestId }),
+    ).rejects.toThrow("Only Praise Managers can approve music requests.");
+  });
+});
+
+describe("Praise List details", () => {
+  test("the review queue and notifications name the requester", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", STAFF).eq("year", YEAR),
+        )
+        .first();
+      await ctx.db.patch(profile!._id, { name: "Hana Doe" });
+    });
+    const staff = asUser(t, STAFF);
+    await staff.mutation(api.musicRequests.submit, song());
+    await staff.mutation(api.musicRequests.submitMany, {
+      songs: [
+        song({ title: "Second", link: "https://example.com/second" }),
+        song({ title: "Third", link: "https://example.com/third" }),
+      ],
+    });
+    await staff.mutation(api.musicRequests.submitMany, {
+      songs: [song({ title: "Fourth", link: "https://example.com/fourth" })],
+    });
+
+    const queue = await asUser(t, ADMIN).query(api.musicRequests.toReview, {});
+    expect(queue.map((row) => row.requesterName)).toEqual([
+      "Hana Doe",
+      "Hana Doe",
+      "Hana Doe",
+      "Hana Doe",
+    ]);
+    const bodies = await t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect())
+        .filter((row) => row.userEmail === ADMIN)
+        .map((row) => row.body),
+    );
+    expect(bodies).toEqual([
+      'Hana Doe requested "Test Song"',
+      "Hana Doe requested 2 songs.",
+      "Hana Doe requested 1 song.",
+    ]);
+  });
+
+  test("checking duplicates while editing skips the request being edited", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const link = "https://www.youtube.com/watch?v=abcdefghijk";
+    const requestId = await staff.mutation(
+      api.musicRequests.submit,
+      song({ link }),
+    );
+    const check = { link, title: "Test Song", artist: "Test Artist" };
+
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, check),
+    ).toMatchObject({ kind: "exact" });
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, {
+        ...check,
+        excludeId: requestId,
+      }),
+    ).toBeNull();
+  });
+
+  test("Spotify and YouTube lookups need a signed-in user", async () => {
+    const t = await setup();
+    await expect(
+      t.action(api.spotify.getTrack, { link: SPOTIFY }),
+    ).rejects.toThrow("You must be signed in.");
+    await expect(
+      t.action(api.youtube.importPlaylist, {
+        link: "https://www.youtube.com/playlist?list=PL123",
+      }),
+    ).rejects.toThrow("You must be signed in.");
+  });
+
+  test("the backfill fills the duplicate keys with submit's rules", async () => {
+    const t = await setup();
+    const id = await t.run((ctx) =>
+      ctx.db.insert("musicRequests", {
+        requesterEmail: STAFF,
+        title: "Test  Song!",
+        artist: "TEST Artist",
+        link: SPOTIFY,
+        status: "APPROVED",
+      }),
+    );
+    expect(await t.mutation(internal.musicBackfill.backfill, {})).toMatchObject(
+      {
+        checked: 1,
+        updated: 1,
+        isDone: true,
+      },
+    );
+    const row = await t.run((ctx) => ctx.db.get(id));
+    expect(row).toMatchObject({
+      spotifyTrackId: TRACK_ID,
+      normalizedSongKey: JSON.stringify(["test song", "test artist"]),
+    });
+    expect(await t.mutation(internal.musicBackfill.backfill, {})).toMatchObject(
+      {
+        updated: 0,
+      },
+    );
+  });
+});
+
+describe("Praise List review follow-up", () => {
+  const scheduledPushes = (t: TestConvex<typeof schema>) =>
+    t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect())
+        .filter((job) => job.name === "push:send")
+        .map((job) => job.args[0] as { to: string; title: string }),
+    );
+
+  test("the same YouTube video is refused whatever its title or link form", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    await staff.mutation(
+      api.musicRequests.submit,
+      song({ link: "https://www.youtube.com/watch?v=abcdefghijk&t=30" }),
+    );
+
+    await expect(
+      staff.mutation(
+        api.musicRequests.submit,
+        song({
+          title: "A different title",
+          artist: "Someone else",
+          link: "https://youtu.be/abcdefghijk",
+        }),
+      ),
+    ).rejects.toThrow("This recording was already requested (pending).");
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, {
+        link: "https://music.youtube.com/watch?v=abcdefghijk",
+        title: "Anything",
+        artist: "Anyone",
+      }),
+    ).toMatchObject({ kind: "exact", title: "Test Song" });
+    expect(
+      await staff.mutation(api.musicRequests.submitMany, {
+        songs: [
+          song({
+            title: "Other",
+            link: "https://m.youtube.com/shorts/abcdefghijk",
+          }),
+        ],
+      }),
+    ).toEqual({ added: 0, skipped: 1, possibleDuplicates: 0 });
+  });
+
+  test("an http Spotify link is the same track as its https link", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    await staff.mutation(api.musicRequests.submit, song());
+
+    const httpLink = `http://open.spotify.com/track/${TRACK_ID}`;
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, {
+        link: httpLink,
+        title: "Anything",
+        artist: "Anyone",
+      }),
+    ).toMatchObject({ kind: "exact", title: "Test Song" });
+    await expect(
+      staff.mutation(
+        api.musicRequests.submit,
+        song({ title: "A different title", artist: "Someone else", link: httpLink }),
+      ),
+    ).rejects.toThrow("This recording was already requested (pending).");
+  });
+
+  test("YouTube songs keep the video's thumbnail; Spotify artwork must come from Spotify", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const youtubeId = await staff.mutation(api.musicRequests.submit, {
+      ...song({ link: "https://youtu.be/abcdefghijk" }),
+      albumArtUrl: "https://example.com/tracker.gif",
+    });
+    const spotifyId = await staff.mutation(api.musicRequests.submit, {
+      ...song({ title: "Spotify song" }),
+      albumArtUrl: "https://i.scdn.co/image/ab67616d",
+    });
+    const otherHostId = await staff.mutation(api.musicRequests.submit, {
+      ...song({
+        title: "Elsewhere",
+        link: "https://open.spotify.com/track/0000000000000000000000",
+      }),
+      albumArtUrl: "https://example.com/cover.jpg",
+    });
+    const typedId = await staff.mutation(api.musicRequests.submit, {
+      ...song({ title: "Typed", link: "https://example.com/song" }),
+      albumArtUrl: "https://i.scdn.co/image/ab67616d",
+    });
+
+    const rows = await t.run(async (ctx) =>
+      Promise.all(
+        [youtubeId, spotifyId, otherHostId, typedId].map((id) =>
+          ctx.db.get("musicRequests", id),
+        ),
+      ),
+    );
+    expect(rows.map((row) => row?.albumArtUrl)).toEqual([
+      "https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg",
+      "https://i.scdn.co/image/ab67616d",
+      undefined,
+      undefined,
+    ]);
+    expect(rows[0]?.youtubeVideoId).toBe("abcdefghijk");
+  });
+
+  test("requests, approvals and declines also go out as push notifications", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const staff = asUser(t, STAFF);
+    const first = await staff.mutation(api.musicRequests.submit, song());
+    const second = await staff.mutation(
+      api.musicRequests.submit,
+      song({ title: "Second", link: "https://example.com/second" }),
+    );
+    await asUser(t, ADMIN).mutation(api.musicRequests.approve, {
+      requestId: first,
+    });
+    await asUser(t, ADMIN).mutation(api.musicRequests.decline, {
+      requestId: second,
+      reason: "Not singable",
+    });
+
+    expect(await scheduledPushes(t)).toEqual([
+      expect.objectContaining({ to: ADMIN, title: "New music request" }),
+      expect.objectContaining({ to: ADMIN, title: "New music request" }),
+      expect.objectContaining({ to: STAFF, title: "Music request approved" }),
+      expect.objectContaining({ to: STAFF, title: "Music request declined" }),
+    ]);
+  });
+
+  test("a Praise Manager's own songs notify nobody", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    await asUser(t, ADMIN).mutation(api.musicRequests.submit, song());
+    expect(await scheduledPushes(t)).toEqual([]);
+  });
+
+  test("the side menu badge counts pending songs for whoever reviews them", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const staff = asUser(t, STAFF);
+    const admin = asUser(t, ADMIN);
+    await staff.mutation(api.musicRequests.submit, song());
+    await staff.mutation(
+      api.musicRequests.submit,
+      song({ title: "Second", link: "https://example.com/second" }),
+    );
+
+    expect(await admin.query(api.musicRequests.waitingOnMe, {})).toBe(2);
+    expect(await staff.query(api.musicRequests.waitingOnMe, {})).toBe(0);
+    expect(await t.query(api.musicRequests.waitingOnMe, {})).toBe(0);
+
+    await admin.mutation(api.actingAs.set, {
+      persona: { role: "staff", department: "Music" },
+    });
+    expect(await admin.query(api.musicRequests.waitingOnMe, {})).toBe(0);
+  });
+
+  test("an admin acting as Praise Manager sees the badge that role would see", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await asUser(t, STAFF).mutation(api.musicRequests.submit, song());
+
+    expect(await admin.query(api.musicRequests.waitingOnMe, {})).toBe(0);
+    await admin.mutation(api.actingAs.set, {
+      persona: { role: "praiseManager" },
+    });
+    expect(await admin.query(api.musicRequests.waitingOnMe, {})).toBe(1);
+  });
+
+  test("the backfill fills YouTube video IDs and thumbnails", async () => {
+    const t = await setup();
+    const id = await t.run((ctx) =>
+      ctx.db.insert("musicRequests", {
+        requesterEmail: STAFF,
+        title: "Old",
+        artist: "Song",
+        link: "https://youtu.be/abcdefghijk",
+        status: "APPROVED",
+      }),
+    );
+    await t.mutation(internal.musicBackfill.backfill, {});
+    expect(await t.run((ctx) => ctx.db.get("musicRequests", id))).toMatchObject(
+      {
+        youtubeVideoId: "abcdefghijk",
+        albumArtUrl: "https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg",
+      },
+    );
+    expect(await t.mutation(internal.musicBackfill.backfill, {})).toMatchObject(
+      {
+        updated: 0,
+      },
+    );
+  });
+
+  test("the backfill drops artwork a Spotify song didn't get from Spotify", async () => {
+    const t = await setup();
+    const insert = (link: string, albumArtUrl: string) =>
+      t.run((ctx) =>
+        ctx.db.insert("musicRequests", {
+          requesterEmail: STAFF,
+          title: "Old",
+          artist: "Song",
+          link,
+          albumArtUrl,
+          status: "APPROVED",
+        }),
+      );
+    const youtubeArt = "https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg";
+    const spotifyArt = "https://i.scdn.co/image/abc";
+    const wrongArt = await insert(SPOTIFY, youtubeArt);
+    const rightArt = await insert(`https://open.spotify.com/track/${TRACK_ID}2`, spotifyArt);
+    const otherLink = await insert("https://example.com/song", youtubeArt);
+
+    await t.mutation(internal.musicBackfill.backfill, {});
+    const art = await t.run(async (ctx) =>
+      Promise.all(
+        [wrongArt, rightArt, otherLink].map(
+          async (id) =>
+            (await ctx.db.get("musicRequests", id))?.albumArtUrl ?? null,
+        ),
+      ),
+    );
+    expect(art).toEqual([null, spotifyArt, youtubeArt]);
+  });
+
+  test("editing a request moves its duplicate keys to the new song", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const requestId = await staff.mutation(
+      api.musicRequests.submit,
+      song({ link: "https://youtu.be/abcdefghijk" }),
+    );
+    await staff.mutation(api.musicRequests.update, {
+      requestId,
+      ...song({ title: "New", link: "https://youtu.be/bcdefghijkl" }),
+    });
+
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, {
+        link: "https://youtu.be/abcdefghijk",
+        title: "Unrelated",
+        artist: "Unrelated",
+      }),
+    ).toBeNull();
+    expect(
+      await staff.query(api.musicRequests.checkDuplicate, {
+        link: "https://www.youtube.com/watch?v=bcdefghijkl",
+        title: "Unrelated",
+        artist: "Unrelated",
+      }),
+    ).toMatchObject({ kind: "exact", title: "New" });
+  });
+
+  test("notifications keep a multi-line decline reason on one line", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    const requestId = await asUser(t, STAFF).mutation(
+      api.musicRequests.submit,
+      song(),
+    );
+    await asUser(t, ADMIN).mutation(api.musicRequests.decline, {
+      requestId,
+      reason: "Wrong key.\nTry the acoustic version.",
+    });
+
+    const declined = await t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect()).find(
+        (row) => row.userEmail === STAFF,
+      ),
+    );
+    expect(declined?.body).toBe(
+      '"Test Song" was declined: Wrong key. Try the acoustic version.',
+    );
+  });
+
+  test("a batch preview tells apart two videos with the same title", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    await staff.mutation(
+      api.musicRequests.submit,
+      song({ link: "https://youtu.be/abcdefghijk" }),
+    );
+
+    expect(
+      await staff.mutation(api.musicRequests.previewBatch, {
+        songs: [
+          song({ link: "https://youtu.be/abcdefghijk" }),
+          song({ link: "https://youtu.be/bcdefghijkl" }),
+        ],
+      }),
+    ).toEqual({ exactDuplicates: 1, possibleDuplicates: 1 });
+  });
+
+  test("the backfill carries on by itself past the first page", async () => {
+    const t = await setup();
+    vi.useFakeTimers();
+    vi.setSystemTime(PINNED_NOW);
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 101; i++) {
+        await ctx.db.insert("musicRequests", {
+          requesterEmail: STAFF,
+          title: `Song ${i}`,
+          artist: "Artist",
+          link: `https://youtu.be/abcdefgh${String(i).padStart(3, "0")}`,
+          status: "APPROVED",
+        });
+      }
+    });
+
+    const first = await t.mutation(internal.musicBackfill.backfill, {});
+    expect(first).toMatchObject({ checked: 100, isDone: false });
+    const next = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (job) => job.name === "musicBackfill:backfill",
+      ),
+    );
+    expect(next.map((job) => job.args[0])).toEqual([
+      { cursor: first.continueCursor },
+    ]);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const rows = await t.run((ctx) => ctx.db.query("musicRequests").collect());
+    expect(rows).toHaveLength(101);
+    for (const row of rows) {
+      const videoId = row.link.slice(-11);
+      expect(row).toMatchObject({
+        youtubeVideoId: videoId,
+        normalizedSongKey: expect.any(String),
+        albumArtUrl: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+      });
+    }
+  });
+
+  test("after 1 October a Praise Manager needs this year's staff profile", async () => {
+    const t = await setup();
+    const requestId = await asUser(t, STAFF).mutation(
+      api.musicRequests.submit,
+      song(),
+    );
+    await t.run((ctx) =>
+      ctx.db.insert("yearSettings", {
+        year: YEAR + 1,
+        praiseManagerEmails: [STAFF],
+      }),
+    );
+    vi.setSystemTime(staffYearStartMs(YEAR + 1) + 10 * 86_400_000);
+    const staff = asUser(t, STAFF);
+
+    expect(await staff.query(api.directory.me, {})).toMatchObject({
+      isPraiseManager: false,
+      canManagePraiseList: false,
+    });
+    await expect(
+      staff.mutation(api.musicRequests.approve, { requestId }),
+    ).rejects.toThrow("Only Praise Managers can approve music requests.");
+
+    await t.run(async (ctx) => {
+      const current = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", STAFF).eq("year", YEAR),
+        )
+        .first();
+      const { _id, _creationTime, ...profile } = current!;
+      await ctx.db.insert("staffProfiles", { ...profile, year: YEAR + 1 });
+    });
+    expect(await staff.query(api.directory.me, {})).toMatchObject({
+      isPraiseManager: true,
+      canManagePraiseList: true,
+    });
+    await staff.mutation(api.musicRequests.approve, { requestId });
+  });
+});

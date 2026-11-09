@@ -1,4 +1,5 @@
-import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { ConvexError, v } from "convex/values";
 import { action } from "./_generated/server";
 import { parseYouTubeSong } from "./shared/youtube";
 
@@ -25,11 +26,15 @@ export const importPlaylist = action({
   args: {
     link: v.string(),
   },
-  handler: async (_ctx, { link }) => {
+  handler: async (ctx, { link }) => {
+    // Our YouTube API key's quota is for SHED users, not anyone with the URL.
+    if (!(await getAuthUserId(ctx))) {
+      throw new ConvexError("You must be signed in.");
+    }
     const apiKey = process.env.YOUTUBE_API_KEY;
 
     if (!apiKey) {
-      throw new Error("YouTube API key is not configured.");
+      throw new ConvexError("YouTube API key is not configured.");
     }
 
     // Validate and extract playlist ID.
@@ -51,11 +56,11 @@ export const importPlaylist = action({
 
       playlistId = url.searchParams.get("list");
     } catch {
-      throw new Error("Please enter a valid YouTube playlist URL.");
+      throw new ConvexError("Please enter a valid YouTube playlist URL.");
     }
 
     if (!playlistId || !/^[a-zA-Z0-9_-]+$/.test(playlistId)) {
-      throw new Error("Invalid YouTube playlist ID.");
+      throw new ConvexError("Invalid YouTube playlist ID.");
     }
 
     const endpoint = new URL(
@@ -71,12 +76,14 @@ export const importPlaylist = action({
 
     if (!response.ok) {
       if (response.status === 403 || response.status === 404) {
-        throw new Error(
+        throw new ConvexError(
           "This playlist is unavailable. Check that it is public and the YouTube API is enabled.",
         );
       }
 
-      throw new Error(`YouTube playlist request failed (${response.status}).`);
+      throw new ConvexError(
+        `YouTube playlist request failed (${response.status}).`,
+      );
     }
 
     const data: {
@@ -98,7 +105,6 @@ export const importPlaylist = action({
       .map((item) => {
         const snippet = item.snippet!;
         const videoId = snippet.resourceId!.videoId!;
-        const rawTitle = snippet.title ?? "Unknown song";
 
         const { title, artist } = parseYouTubeSong(
           snippet.title ?? "Unknown song",

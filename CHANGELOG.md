@@ -6,6 +6,99 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-11-09
+
+### Fixed
+- **Praise List works on the website.** Messages and questions on the
+  Praise List, such as "Possible duplicate: request this version anyway?",
+  "Request sent" and every error, showed only on phones. On the website the
+  button did nothing, so a song that looked like another could never be
+  sent. They now appear on the website as well.
+- **Editing a song no longer warns that it duplicates itself.** Editing a
+  request or approved song with a YouTube or typed-in link said the song had
+  "already been requested", because it matched its own entry.
+- **Error messages on the Praise List are readable.** They show only the
+  reason (for example "This recording was already requested") without the
+  server's technical prefix, and YouTube playlist errors now show their
+  reason on the live site, not "Server Error".
+- **Acting as a role shows that role's Praise List.** A Praise Manager acting
+  as, say, Music staff still saw To Review and the edit, delete and approve
+  buttons. They now see what that role sees. An admin acting as Praise
+  Manager still sees the queue, without the buttons, and anyone who can't
+  review keeps a Mine tab for their own requests.
+- **Praise Managers carry into the new staff year.** On 1 October the new
+  year starts with last year's Praise Managers who are still on staff, as
+  the Budget Manager already does. Before, the new year would have had none,
+  so no one could review requests. A new year whose list an admin emptied
+  stays empty.
+- **Deleting your account also removes your Spotify connection.**
+- **Notifications about new song requests show the requester's name**, not
+  their email, and say "1 song" or "3 songs". A Praise Manager adding a song
+  is told it's on the playlist, not that it awaits review.
+- **Changing a song's link clears the old artwork and recording code**, so
+  the new link isn't checked against the old song.
+- **Spotify playlists bring each song's recording code (ISRC)** when Spotify
+  has one, so the same recording on another Spotify release is refused.
+  YouTube songs have no recording code, so a song requested from both is only
+  flagged when the title and artist match.
+- **YouTube Music artists lose the " - Topic"** that YouTube adds to its
+  automatic channels.
+- **Only signed-in users can look up Spotify songs or YouTube playlists**
+  through The SHED's Spotify app and YouTube key.
+- **Editing a song no longer loses it.** "Add song to list" showed while
+  editing and emptied the form, so Save Changes then said the title was
+  missing. Typing in the Music Link box also emptied the title, artist and
+  link before anything was looked up. Both are fixed: the box only fills the
+  song in when you tap Autofill.
+- **A Praise Manager editing an approved song sees why Save is greyed out.**
+  The "already requested" warning lived inside the autofill box, which is
+  hidden for approved songs.
+- **The same YouTube video can't be requested twice**, whichever link form
+  it's pasted in (youtu.be, YouTube Music, Shorts) and whatever title it's
+  given, just like a Spotify track. Existing requests pick this up from
+  `musicBackfill:backfill`.
+- **YouTube songs keep their thumbnail** on the playlist and request cards.
+  Spotify artwork is kept only from Spotify's own image servers.
+- **YouTube titles lose "(Official Video)" and "(4K Remaster)"** when
+  autofilled.
+- "Praise Manger" in the guide is now "Praise Manager", and messages say
+  "1 song" or "3 songs" instead of "song(s)".
+- **Only this year's staff can review songs.** During the October grace a
+  Praise Manager without a staff profile for the new year can't approve,
+  decline or edit, as admins already work.
+- **Changing the Music Link after Autofill clears the old song**, so the
+  form can't send the previous song by mistake. Pasting the same song in a
+  different link form keeps it. `http://` Spotify links now autofill.
+- **A Praise Manager acting as another role is told the truth**: their songs
+  still go straight onto the playlist, so the form says so.
+- Declining one song and quickly opening another no longer lets the first
+  decision close or mark the second sheet.
+- A Spotify connection made while the account was being deleted now reports
+  an error instead of success. Former staff who are still connected keep the
+  Disconnect button on Profile.
+
+### Changed
+- **Praise List works like the other request forms.** New requests and
+  approve or decline decisions also arrive as push notifications (no email).
+  The side menu shows how many songs wait for review, for Praise Managers
+  and an admin acting as one. The tabs are Approved Playlist, Mine and To
+  review.
+- **Declining a song asks for an optional reason on every platform** in a
+  sheet, like declining a reimbursement. Before, Android couldn't give a
+  reason and the website asked in two browser pop-ups. Declined songs show
+  who asked for them.
+- **Messages appear in the app, not as pop-ups.** Problems with a request
+  show above the form's buttons, "Request sent for review" and similar show
+  as a short toast, and deleting a request (or removing an approved song)
+  asks in the app's own dialog.
+- The request form is quieter: the Spotify connection status shows only for
+  Spotify playlists, the song list appears once a song is in it, and title
+  and artist start with capitals on phones. The guide explains autofill and
+  how to follow a request.
+- The Spotify card on Profile shows for staff (only staff have the Praise
+  List) and for anyone still connected, so they can disconnect. It says
+  what it's for, and disconnecting asks in the app.
+
 ## [2.10.33] - 2026-11-07
 
 ### Changed

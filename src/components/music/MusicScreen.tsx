@@ -1,10 +1,16 @@
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
-import { FooterAction } from "@/components/ui";
+import {
+  ConfirmDialog,
+  errorMessage,
+  FooterAction,
+  Toast,
+  type ToastState,
+} from "@/components/ui";
+import { showNotice } from "@/lib/notice";
 import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Alert, Platform } from "react-native";
 import { ApprovedPlaylistTab, MyRequestsTab, ToReviewTab } from "./MusicTabs";
 import {
   MusicGuideSheet,
@@ -16,17 +22,16 @@ export default function MusicScreen() {
   const me = useQuery(api.directory.me);
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
-  const actingAsPraiseManager = me?.actingAs?.persona?.role === "praiseManager";
-  const canReview = me?.isPraiseManager === true || actingAsPraiseManager;
-  const canManageRequests = me?.isPraiseManager === true;
+  // Both follow the role an admin is acting as (directory.me).
+  const canReview = me?.isPraiseManager === true;
+  const canManageRequests = me?.canManagePraiseList === true;
+  const addsDirectly = me?.songsSkipReview === true;
   const requestedTab =
     tab === "review" && canReview
       ? "toReview"
-      : tab === "my-requests" && me?.isPraiseManager === false
+      : tab === "my-requests" && me?.canManagePraiseList === false
         ? "myRequest"
         : "approvedPlaylist";
-
-  const active = selectedTab ?? requestedTab;
 
   // Request sheet state
   const [requestPrefill, setRequestPrefill] = useState<MusicRequest | null>(
@@ -37,6 +42,8 @@ export default function MusicScreen() {
   const [guideOpen, setGuideOpen] = useState(false);
   const removeRequest = useMutation(api.musicRequests.remove);
   const [hideRequestComment, setHideRequestComment] = useState(false);
+  const [toast, setToast] = useState<ToastState>(null);
+  const [pendingDelete, setPendingDelete] = useState<MusicRequest | null>(null);
 
   const handleEdit = (
     request: MusicRequest,
@@ -47,33 +54,20 @@ export default function MusicScreen() {
     setNewRequestOpen(true);
   };
 
-  const handleDelete = (request: MusicRequest) => {
-    const deleteRequest = async () => {
-      try {
-        await removeRequest({ requestId: request._id });
-      } catch (error) {
-        Alert.alert(
-          "Couldn't delete request",
-          error instanceof Error ? error.message : "Please try again.",
-        );
-      }
-    };
+  const handleDelete = (request: MusicRequest) => setPendingDelete(request);
 
-    if (Platform.OS === "web") {
-      if (window.confirm(`Delete "${request.title}"?`)) {
-        void deleteRequest();
-      }
-      return;
+  const deleteRequest = async (request: MusicRequest) => {
+    try {
+      await removeRequest({ requestId: request._id });
+      setToast({
+        text:
+          request.status === "APPROVED"
+            ? "Removed from the playlist"
+            : "Request deleted",
+      });
+    } catch (error) {
+      showNotice("Couldn't delete", errorMessage(error));
     }
-
-    Alert.alert("Delete request?", request.title, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => void deleteRequest(),
-      },
-    ]);
   };
 
   // Open a blank music request form
@@ -102,11 +96,12 @@ export default function MusicScreen() {
         />
       ),
     },
-    ...(!canReview
+    // Anyone without the review buttons sees their own requests.
+    ...(!canManageRequests
       ? [
           {
             key: "myRequest",
-            label: "My Request",
+            label: "Mine",
             render: () => (
               <MyRequestsTab
                 onEditRequest={(request) => handleEdit(request, "myRequests")}
@@ -120,7 +115,7 @@ export default function MusicScreen() {
       ? [
           {
             key: "toReview",
-            label: "To Review",
+            label: "To review",
             render: () => (
               <ToReviewTab
                 canManageRequests={canManageRequests}
@@ -136,6 +131,11 @@ export default function MusicScreen() {
         ]
       : []),
   ];
+  // A tab can disappear when the acting-as role changes.
+  const preferredTab = selectedTab ?? requestedTab;
+  const active = tabs.some((item) => item.key === preferredTab)
+    ? preferredTab
+    : "approvedPlaylist";
 
   return (
     <>
@@ -143,10 +143,12 @@ export default function MusicScreen() {
         tabs={tabs}
         activeKey={active}
         onActiveKeyChange={setSelectedTab}
+        floating={<Toast toast={toast} />}
+        floatingAboveFooter
         footer={
           showMakeRequest ? (
             <FooterAction
-              title={canManageRequests ? "+ Add to Playlist" : "+ Make Request"}
+              title={addsDirectly ? "+ Add to Playlist" : "+ Make Request"}
               onPress={openNewRequest}
               onInfo={() => setGuideOpen(true)}
             />
@@ -159,6 +161,29 @@ export default function MusicScreen() {
         onClose={() => setNewRequestOpen(false)}
         prefill={requestPrefill}
         hideRequestComment={hideRequestComment}
+        addsDirectly={addsDirectly}
+        onSaved={(text) => setToast({ text })}
+      />
+
+      <ConfirmDialog
+        visible={pendingDelete !== null}
+        title={
+          pendingDelete?.status === "APPROVED"
+            ? "Remove from the playlist?"
+            : "Delete request?"
+        }
+        message={
+          pendingDelete
+            ? `${pendingDelete.title} by ${pendingDelete.artist}`
+            : undefined
+        }
+        confirmLabel={
+          pendingDelete?.status === "APPROVED" ? "Remove" : "Delete"
+        }
+        onConfirm={() => {
+          if (pendingDelete) void deleteRequest(pendingDelete);
+        }}
+        onClose={() => setPendingDelete(null)}
       />
 
       <MusicGuideSheet

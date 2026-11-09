@@ -3,18 +3,25 @@ import {
   usePagerFooterClearance,
   usePagerTopBarInset,
 } from "@/components/PagerScreen";
-import { Card, LoadingState } from "@/components/ui";
+import {
+  Btn,
+  Card,
+  ErrorBanner,
+  errorMessage,
+  Field,
+  LoadingState,
+  Muted,
+  Sheet,
+} from "@/components/ui";
+import { openExternalLink } from "@/lib/openExternalLink";
 import { radius, spacing, useAppTheme } from "@/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   FlatList,
   Image,
-  Linking,
-  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -221,7 +228,8 @@ export const ApprovedPlaylistTab = ({
           <>
             <View style={styles.musicMetaRow}>
               <Text style={{ color: t.faint, fontSize: 12 }}>
-                {visibleSongs.length} SONGS
+                {visibleSongs.length}{" "}
+                {visibleSongs.length === 1 ? "SONG" : "SONGS"}
               </Text>
 
               <Text style={{ color: t.faint, fontSize: 12 }}>
@@ -258,7 +266,7 @@ export const ApprovedPlaylistTab = ({
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Open ${item.title} by ${item.artist}`}
-                      onPress={() => item.link && Linking.openURL(item.link)}
+                      onPress={() => void openExternalLink(item.link)}
                       onLongPress={() => item.link && shareLink(item.link)}
                       style={({ pressed }) => [
                         styles.musicSongRow,
@@ -444,7 +452,7 @@ function SongLink({ link }: { link: string }) {
   return (
     <Pressable
       accessibilityRole="link"
-      onPress={() => void Linking.openURL(link)}
+      onPress={() => void openExternalLink(link)}
       onLongPress={() => void shareLink(link)}
       style={styles.songLink}
     >
@@ -517,9 +525,11 @@ export const MyRequestsTab = ({
 function MyRequestCard({
   request,
   actions,
+  showRequester = false,
 }: {
   request: MusicRequest;
   actions?: ReactNode;
+  showRequester?: boolean;
 }) {
   const t = useAppTheme();
   const date =
@@ -533,6 +543,11 @@ function MyRequestCard({
           </View>
           {actions}
         </View>
+        {showRequester ? (
+          <DetailLine icon="person-outline">
+            Requested by {request.requesterName ?? request.requesterEmail}
+          </DetailLine>
+        ) : null}
         <DetailLine icon="calendar-outline">
           {request.status === "PENDING"
             ? "Requested"
@@ -543,7 +558,8 @@ function MyRequestCard({
         </DetailLine>
         {request.status !== "PENDING" && request.reviewedByEmail ? (
           <DetailLine icon="person-outline">
-            Reviewed by {request.reviewerName ?? request.reviewedByEmail}
+            {request.status === "APPROVED" ? "Approved" : "Declined"} by{" "}
+            {request.reviewerName ?? request.reviewedByEmail}
           </DetailLine>
         ) : null}
         {request.requestComment?.trim() ? (
@@ -612,6 +628,7 @@ export const ToReviewTab = ({
 
   const showingPending = filter === "PENDING";
   const visibleRequests = showingPending ? toReview : declinedRequests;
+  const [declineTarget, setDeclineTarget] = useState<MusicRequest | null>(null);
 
   return (
     <View style={styles.section}>
@@ -621,15 +638,15 @@ export const ToReviewTab = ({
         options={["PENDING", "DECLINED"]}
       />
 
-      <View style={styles.requestSectionHeading}>
-        <Text style={{ color: t.faint, fontSize: 13 }}>
-          {visibleRequests
-            ? `${visibleRequests.length} ${
-                showingPending ? "pending" : "declined"
-              } song ${visibleRequests.length === 1 ? "request" : "requests"}`
-            : "Loading requests..."}
-        </Text>
-      </View>
+      {visibleRequests ? (
+        <View style={styles.requestSectionHeading}>
+          <Text style={{ color: t.faint, fontSize: 13 }}>
+            {`${visibleRequests.length} ${
+              showingPending ? "pending" : "declined"
+            } song ${visibleRequests.length === 1 ? "request" : "requests"}`}
+          </Text>
+        </View>
+      ) : null}
 
       {visibleRequests === undefined ? (
         <LoadingState />
@@ -668,6 +685,7 @@ export const ToReviewTab = ({
               <ReviewCard
                 request={item}
                 canManageRequests={canManageRequests}
+                onDecline={() => setDeclineTarget(item)}
                 actions={
                   onEditRequest || onDeleteRequest ? (
                     <MusicActionsMenu
@@ -678,90 +696,121 @@ export const ToReviewTab = ({
                 }
               />
             ) : (
-              <MyRequestCard request={item} />
+              <MyRequestCard request={item} showRequester />
             )
           }
         />
       )}
+      <DeclineSheet
+        request={declineTarget}
+        onClose={() => setDeclineTarget(null)}
+      />
     </View>
   );
 };
+
+function DeclineSheet({
+  request,
+  onClose,
+}: {
+  request: MusicRequest | null;
+  onClose: () => void;
+}) {
+  const decline = useMutation(api.musicRequests.decline);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [shownFor, setShownFor] = useState(request?._id);
+  const openFor = useRef(request?._id);
+  useEffect(() => {
+    openFor.current = request?._id;
+  }, [request?._id]);
+  if (shownFor !== request?._id) {
+    setShownFor(request?._id);
+    setReason("");
+    setError(null);
+    setSubmitting(false);
+  }
+
+  const handleDecline = async () => {
+    if (!request || submitting) return;
+    const requestId = request._id;
+    const stillOpen = () => openFor.current === requestId;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await decline({ requestId, reason: reason.trim() || undefined });
+      if (stillOpen()) onClose();
+    } catch (e) {
+      if (stillOpen()) setError(errorMessage(e));
+    } finally {
+      if (stillOpen()) setSubmitting(false);
+    }
+  };
+
+  return (
+    <Sheet
+      visible={request !== null}
+      onClose={onClose}
+      title="Decline song"
+      footer={
+        <View style={{ gap: spacing.sm }}>
+          <Btn
+            title="Decline"
+            variant="danger"
+            loading={submitting}
+            onPress={handleDecline}
+          />
+          <Btn title="Back" variant="ghost" onPress={onClose} />
+        </View>
+      }
+    >
+      {request ? (
+        <Muted>
+          {request.title} by {request.artist}, requested by{" "}
+          {request.requesterName ?? request.requesterEmail}. They&apos;ll see
+          your reason in the app.
+        </Muted>
+      ) : null}
+      <Field
+        label="Reason (optional)"
+        value={reason}
+        onChangeText={setReason}
+        placeholder="Why isn't this song a fit?"
+        autoCapitalize="sentences"
+        multiline
+      />
+      <ErrorBanner message={error} />
+    </Sheet>
+  );
+}
 
 function ReviewCard({
   request,
   actions,
   canManageRequests,
+  onDecline,
 }: {
   request: MusicRequest;
   actions?: ReactNode;
   canManageRequests: boolean;
+  onDecline: () => void;
 }) {
   const t = useAppTheme();
   const approve = useMutation(api.musicRequests.approve);
-  const decline = useMutation(api.musicRequests.decline);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const onApprove = async () => {
     if (busy) return;
     setBusy(true);
+    setError(null);
     try {
       await approve({ requestId: request._id });
-    } catch (error) {
-      Alert.alert(
-        "Couldn't approve",
-        error instanceof Error ? error.message : "Please try again.",
-      );
+    } catch (e) {
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
-  };
-  const runDecline = async (reason?: string) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await decline({
-        requestId: request._id,
-        reason: reason?.trim() || undefined,
-      });
-    } catch (error) {
-      Alert.alert(
-        "Couldn't decline",
-        error instanceof Error ? error.message : "Please try again.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-  const onDecline = () => {
-    if (busy) return;
-    if (Platform.OS === "web") {
-      if (typeof window === "undefined") return;
-      if (!window.confirm(`Decline "${request.title}"?`)) return;
-      const reason = window.prompt("(Optional) Reason for declining:");
-      if (reason === null) return;
-      void runDecline(reason);
-      return;
-    }
-    if (Platform.OS === "ios") {
-      Alert.prompt("Decline request", "(Optional) Reason for declining:", [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Decline",
-          style: "destructive",
-          onPress: (reason?: string) => {
-            void runDecline(reason);
-          },
-        },
-      ]);
-      return;
-    }
-    Alert.alert("Decline request?", request.title, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Decline",
-        style: "destructive",
-        onPress: () => void runDecline(),
-      },
-    ]);
   };
   return (
     <Card>
@@ -776,7 +825,7 @@ function ReviewCard({
           Requested by {request.requesterName ?? request.requesterEmail}
         </DetailLine>
         <DetailLine icon="calendar-outline">
-          {formatDate(request._creationTime)}
+          Requested {formatDate(request._creationTime)}
         </DetailLine>
         {request.requestComment?.trim() ? (
           <View
@@ -807,6 +856,7 @@ function ReviewCard({
           </View>
         ) : null}
         {!!request.link && <SongLink link={request.link} />}
+        <ErrorBanner message={error} />
         {canManageRequests && (
           <View style={styles.reviewActions}>
             <Pressable

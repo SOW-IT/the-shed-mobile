@@ -11,6 +11,7 @@ import {
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
 import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
 import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
+import { useMusicRequestsBadge } from "@/hooks/useMusicRequestsBadge";
 import { useNavGroupOpen } from "@/hooks/useNavGroupOpen";
 import { useSignOut } from "@/hooks/usePushRegistration";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
@@ -264,6 +265,7 @@ export const NavMenu = ({
   const designRequestsBadge = useDesignRequestsBadge();
   const eventRequestsBadge = useEventRequestsBadge();
   const grievancesBadge = useGrievancesBadge();
+  const musicRequestsBadge = useMusicRequestsBadge();
   const unread =
     useQuery(api.notifications.unreadCount, viewer.isStaff ? {} : "skip") ?? 0;
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
@@ -281,7 +283,9 @@ export const NavMenu = ({
           ? eventRequestsBadge
           : key === "grievances"
             ? grievancesBadge
-            : 0;
+            : key === "music"
+              ? musicRequestsBadge
+              : 0;
 
   const go = (key: NavKey) => {
     onNavigate?.();

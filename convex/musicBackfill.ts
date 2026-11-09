@@ -1,40 +1,27 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
+import { songKeys } from "./musicRequests";
+import {
+  songArtworkUrl,
+  spotifyTrackId,
+  youtubeVideoId,
+} from "./shared/musicLinks";
 
-function spotifyTrackId(value: string): string | undefined {
-  try {
-    const url = new URL(value.trim());
-
-    if (
-      url.protocol !== "https:" ||
-      !["open.spotify.com", "www.open.spotify.com"].includes(url.hostname)
-    ) {
-      return undefined;
-    }
-
-    return (
-      url.pathname.match(
-        /^\/(?:intl-[a-zA-Z-]+\/)?track\/([a-zA-Z0-9]+)\/?$/,
-      )?.[1] ?? undefined
-    );
-  } catch {
-    return undefined;
-  }
-}
-
-function normalized(value: string): string {
-  return value
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
-
+/** Fills the duplicate-detection keys with the same rules `submit` uses. */
 export const backfill = internalMutation({
   args: {
     cursor: v.optional(v.union(v.string(), v.null())),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    checked: number;
+    updated: number;
+    isDone: boolean;
+    continueCursor: string;
+  }> => {
     const page = await ctx.db.query("musicRequests").paginate({
       cursor: args.cursor ?? null,
       numItems: 100,
@@ -43,23 +30,27 @@ export const backfill = internalMutation({
     let updated = 0;
 
     for (const row of page.page) {
-      const normalizedSongKey = JSON.stringify([
-        normalized(row.title),
-        normalized(row.artist),
-      ]);
-
-      const spotifyId = spotifyTrackId(row.link);
+      const keys = songKeys(row);
+      const albumArtUrl =
+        youtubeVideoId(row.link) || spotifyTrackId(row.link)
+          ? songArtworkUrl(row.link, row.albumArtUrl)
+          : row.albumArtUrl;
 
       if (
-        row.normalizedSongKey !== normalizedSongKey ||
-        row.spotifyTrackId !== spotifyId
+        row.normalizedSongKey !== keys.normalizedSongKey ||
+        row.spotifyTrackId !== keys.spotifyTrackId ||
+        row.youtubeVideoId !== keys.youtubeVideoId ||
+        row.albumArtUrl !== albumArtUrl
       ) {
-        await ctx.db.patch(row._id, {
-          normalizedSongKey,
-          spotifyTrackId: spotifyId,
-        });
+        await ctx.db.patch("musicRequests", row._id, { ...keys, albumArtUrl });
         updated++;
       }
+    }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.musicBackfill.backfill, {
+        cursor: page.continueCursor,
+      });
     }
 
     return {

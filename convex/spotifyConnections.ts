@@ -96,6 +96,9 @@ export const saveConnection = internalMutation({
     expiresAt: v.number(),
   },
   handler: async (ctx, args) => {
+    // The account may have been deleted while Spotify was answering.
+    if (!(await ctx.db.get(args.userId))) return null;
+
     const existing = await ctx.db
       .query("spotifyConnections")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
@@ -219,12 +222,20 @@ export const connect = action({
       tokens.refresh_token,
     );
 
-    await ctx.runMutation(internal.spotifyConnections.saveConnection, {
-      userId,
-      encryptedAccessToken,
-      encryptedRefreshToken,
-      expiresAt: Date.now() + tokens.expires_in * 1000,
-    });
+    const saved = await ctx.runMutation(
+      internal.spotifyConnections.saveConnection,
+      {
+        userId,
+        encryptedAccessToken,
+        encryptedRefreshToken,
+        expiresAt: Date.now() + tokens.expires_in * 1000,
+      },
+    );
+    if (!saved) {
+      throw new ConvexError(
+        "Your account was deleted, so Spotify wasn't connected.",
+      );
+    }
 
     return { success: true };
   },
@@ -236,6 +247,7 @@ type SpotifyTrack = {
   is_local?: boolean;
   artists?: Array<{ name: string }>;
   album?: { images?: Array<{ url: string }> };
+  external_ids?: { isrc?: string };
 };
 
 type PlaylistPage = {
@@ -406,6 +418,8 @@ export const importPlaylist = action({
           artist: (track.artists ?? []).map((artist) => artist.name).join(", "),
           link: `https://open.spotify.com/track/${track.id}`,
           albumArtUrl: track.album?.images?.[0]?.url,
+          // Lets duplicate detection match the same recording on YouTube.
+          isrc: track.external_ids?.isrc,
         },
       ];
     });

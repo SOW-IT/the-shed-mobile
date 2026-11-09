@@ -1,7 +1,8 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { action } from "./_generated/server";
 
-const spotifyId = (link: string, kind: "track" | "playlist"): string | null => {
+const spotifyId = (link: string, kind: "track"): string | null => {
   try {
     const url = new URL(link.trim());
     if (!["open.spotify.com", "www.open.spotify.com"].includes(url.hostname))
@@ -28,15 +29,6 @@ type SpotifyTrack = {
   is_local?: boolean;
   type?: string;
 };
-type PlaylistResponse = {
-  name?: string;
-  tracks?: { total?: number };
-};
-type PlaylistItems = {
-  total: number;
-  next: string | null;
-  items: Array<{ track?: SpotifyTrack | null; item?: SpotifyTrack | null }>;
-};
 
 async function spotifyToken(): Promise<string> {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -61,7 +53,11 @@ async function spotifyToken(): Promise<string> {
 
 export const getTrack = action({
   args: { link: v.string() },
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
+    // Our Spotify app's quota is for SHED users, not anyone with the URL.
+    if (!(await getAuthUserId(ctx))) {
+      throw new ConvexError("You must be signed in.");
+    }
     const id = spotifyId(args.link, "track");
     if (!id) throw new ConvexError("Invalid Spotify track URL.");
     const token = await spotifyToken();
@@ -79,84 +75,6 @@ export const getTrack = action({
       albumArtUrl: track.album.images[0]?.url ?? null,
       link: `https://open.spotify.com/track/${id}`,
       isrc: track.external_ids?.isrc ?? null,
-    };
-  },
-});
-
-/** Import at most 50 tracks to match musicRequests.submitMany's batch limit. */
-export const getPlaylist = action({
-  args: { link: v.string() },
-  handler: async (_ctx, args) => {
-    const id = spotifyId(args.link, "playlist");
-    if (!id)
-      throw new ConvexError("Please paste a valid Spotify playlist URL.");
-    const token = await spotifyToken();
-    const headers = { Authorization: `Bearer ${token}` };
-    const playlistResponse = await fetch(
-      `https://api.spotify.com/v1/playlists/${id}?fields=name`,
-      { headers },
-    );
-    if (!playlistResponse.ok) {
-      if (playlistResponse.status === 403 || playlistResponse.status === 404)
-        throw new ConvexError(
-          "Spotify could not access this playlist. Check that it is accessible to your Spotify app.",
-        );
-      throw new ConvexError(
-        `Spotify playlist lookup failed (${playlistResponse.status}).`,
-      );
-    }
-    const playlist: PlaylistResponse = await playlistResponse.json();
-    // Spotify's current playlist-items endpoint supports pagination.
-    const response = await fetch(
-      `https://api.spotify.com/v1/playlists/${id}/tracks?limit=50&offset=0`,
-      { headers },
-    );
-
-    if (!response.ok) {
-      const details = await response.text();
-
-      console.error("Spotify playlist API error:", {
-        status: response.status,
-        details,
-      });
-
-      throw new ConvexError(
-        `Spotify playlist tracks lookup failed (${response.status}).`,
-      );
-    }
-    const page: PlaylistItems = await response.json();
-    const seen = new Set<string>();
-    const songs: Array<{
-      title: string;
-      artist: string;
-      link: string;
-      albumArtUrl?: string;
-      isrc?: string;
-    }> = [];
-    for (const entry of page.items ?? []) {
-      const track = entry.item ?? entry.track;
-      if (
-        !track?.id ||
-        !track.name ||
-        track.is_local ||
-        (track.type && track.type !== "track") ||
-        seen.has(track.id)
-      )
-        continue;
-      seen.add(track.id);
-      songs.push({
-        title: track.name,
-        artist: (track.artists ?? []).map((artist) => artist.name).join(", "),
-        link: `https://open.spotify.com/track/${track.id}`,
-        albumArtUrl: track.album?.images?.[0]?.url ?? undefined,
-        isrc: track.external_ids?.isrc ?? undefined,
-      });
-    }
-    return {
-      name: playlist.name ?? "Spotify playlist",
-      songs,
-      total: page.total,
-      limited: page.total > 50,
     };
   },
 });
