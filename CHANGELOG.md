@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.10.34] - 2026-11-08
+## [2.11.0] - 2026-11-09
 
 ### Fixed
 - **Praise List works on the website.** Messages and questions on the
