@@ -24,7 +24,9 @@ _Avoid_: playlist (alone), song list
 A Pending song and the person who asked for it. Requesters follow theirs under
 **Mine**, can edit or delete one while it's Pending, and are notified when it's
 reviewed. Requests from several songs at once (up to 50, or a pasted Spotify or
-YouTube playlist) are one request per song.
+YouTube playlist) are one request per song. Every Praise Manager hears about a
+request by push and by email, with the song's link and the requester's note; a
+batch is one push and one email listing every song.
 _Avoid_: submission, ticket
 
 **Praise Manager**:

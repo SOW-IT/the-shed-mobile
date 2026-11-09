@@ -1539,7 +1539,7 @@ describe("Praise List details", () => {
     expect(bodies).toEqual([
       'Hana Doe requested "Test Song"',
       "Hana Doe requested 2 songs.",
-      "Hana Doe requested 1 song.",
+      'Hana Doe requested "Fourth"',
     ]);
   });
 
@@ -1614,6 +1614,36 @@ describe("Praise List review follow-up", () => {
         .filter((job) => job.name === "push:send")
         .map((job) => job.args[0] as { to: string; title: string }),
     );
+
+  const scheduledEmails = (t: TestConvex<typeof schema>) =>
+    t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect())
+        .filter((job) => job.name === "emails:send")
+        .map(
+          (job) =>
+            job.args[0] as { to: string; subject: string; body: string },
+        ),
+    );
+
+  const nameStaff = (t: TestConvex<typeof schema>, name: string) =>
+    t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", STAFF).eq("year", YEAR),
+        )
+        .first();
+      await ctx.db.patch(profile!._id, { name });
+    });
+
+  const setPraiseManagers = (t: TestConvex<typeof schema>, emails: string[]) =>
+    t.run(async (ctx) => {
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+      await ctx.db.patch(settings!._id, { praiseManagerEmails: emails });
+    });
 
   test("the same YouTube video is refused whatever its title or link form", async () => {
     const t = await setup();
@@ -1742,6 +1772,96 @@ describe("Praise List review follow-up", () => {
     await assignPraiseManager(t);
     await asUser(t, ADMIN).mutation(api.musicRequests.submit, song());
     expect(await scheduledPushes(t)).toEqual([]);
+    expect(await scheduledEmails(t)).toEqual([]);
+  });
+
+  test("each Praise Manager is emailed the song and a link to To review", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    await setPraiseManagers(t, [ADMIN, " Second.Manager@sow.org.au "]);
+    await nameStaff(t, "Hana Doe");
+    await asUser(t, STAFF).mutation(api.musicRequests.submit, {
+      ...song({ title: "Way  Maker", artist: "Sinach" }),
+      requestComment: "For the Easter weekly",
+    });
+
+    const body = [
+      'Hana Doe requested "Way Maker"',
+      "",
+      "Title: Way Maker",
+      "Artist: Sinach",
+      `Link: ${SPOTIFY}`,
+      "",
+      `Requested by: Hana Doe (${STAFF})`,
+      "Note: For the Easter weekly",
+      "",
+      "Open in THE SHED: https://theshed.sow.org.au/music?tab=review",
+    ].join("\n");
+    expect(await scheduledEmails(t)).toEqual([
+      { to: ADMIN, subject: "New music request: Way Maker", body },
+      {
+        to: "second.manager@sow.org.au",
+        subject: "New music request: Way Maker",
+        body,
+      },
+    ]);
+    expect(await scheduledPushes(t)).toEqual([
+      expect.objectContaining({
+        to: ADMIN,
+        title: "New music request",
+        body: 'Hana Doe requested "Way Maker"',
+      }),
+      expect.objectContaining({
+        to: "second.manager@sow.org.au",
+        title: "New music request",
+      }),
+    ]);
+  });
+
+  test("a batch of songs is one email listing them all", async () => {
+    const t = await setup();
+    await assignPraiseManager(t);
+    await asUser(t, STAFF).mutation(api.musicRequests.submitMany, {
+      songs: [
+        song({ title: "First", link: "https://example.com/first" }),
+        song({ title: "Second", artist: "Band", link: "https://example.com/second" }),
+      ],
+    });
+
+    expect(await scheduledEmails(t)).toEqual([
+      {
+        to: ADMIN,
+        subject: "2 new music requests",
+        body: [
+          `${STAFF} requested 2 songs.`,
+          "",
+          '1. "First" by Test Artist',
+          "   https://example.com/first",
+          '2. "Second" by Band',
+          "   https://example.com/second",
+          "",
+          `Requested by: ${STAFF}`,
+          "",
+          "Open in THE SHED: https://theshed.sow.org.au/music?tab=review",
+        ].join("\n"),
+      },
+    ]);
+  });
+
+  test("a Praise Manager without a role this year isn't emailed their own song", async () => {
+    const t = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("yearSettings", {
+        year: YEAR + 1,
+        praiseManagerEmails: ["second.manager@sow.org.au", STAFF.toUpperCase()],
+      }),
+    );
+    vi.setSystemTime(staffYearStartMs(YEAR + 1) + 10 * 86_400_000);
+    await asUser(t, STAFF).mutation(api.musicRequests.submit, song());
+
+    expect((await scheduledEmails(t)).map((email) => email.to)).toEqual([
+      "second.manager@sow.org.au",
+    ]);
   });
 
   test("the side menu badge counts pending songs for whoever reviews them", async () => {

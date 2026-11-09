@@ -220,8 +220,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   artist. **Praise Managers**
   (Admin → Teams, per staff year, carried into the new year on 1 October)
   get a To review tab to approve or decline with an optional reason, a count
-  of waiting songs in the side menu and on Home's "Waiting on you", and push
-  notifications; their own songs go straight onto the list. Requesters follow theirs under Mine and are
+  of waiting songs in the side menu and on Home's "Waiting on you", and a
+  push and an email for each request (one for a batch, listing every song
+  with its link and the requester's note); their own songs go straight onto
+  the list. Requesters follow theirs under Mine and are
   notified when they're reviewed. An admin acting as Praise Manager sees the
   queue without the buttons; a Praise Manager acting as another role sees
   what that role sees. A Praise Manager needs a staff profile for the

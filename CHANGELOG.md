@@ -20,6 +20,11 @@ All notable changes to **The SHED** mobile app. This project follows
   one asks by name instead of by email.
 - **Home's "Waiting on you" counts songs to review** for Praise Managers, as
   the side menu already did.
+- **Praise Managers are emailed about each song request**, as well as the
+  push they already got. The email has the title, artist, link and the
+  requester's note, and a link to To review. Several songs sent together are
+  one email listing them all, and a push for a single song in a batch now
+  names it instead of saying "1 song".
 
 ### Fixed
 - **The app ships three icon fonts again, not nineteen.** 2.9.17 cut the

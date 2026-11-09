@@ -111,6 +111,60 @@ async function notify(
   }
 }
 
+const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
+
+async function tellPraiseManagers(
+  ctx: MutationCtx,
+  requesterEmail: string,
+  songs: { title: string; artist: string; link: string }[],
+  requestComment: string | undefined,
+) {
+  const year = currentStaffYear();
+  const requester = requesterEmail.toLowerCase();
+  const managers = new Set(
+    (await praiseManagerEmailsForYear(ctx, year))
+      .map((email) => email.trim().toLowerCase())
+      .filter((email) => email && email !== requester),
+  );
+  if (!managers.size) return;
+  const name = await displayName(ctx, requesterEmail, year);
+  const [first] = songs;
+  const single = songs.length === 1;
+  const lead = single
+    ? `${name} requested "${oneLine(first.title)}"`
+    : `${name} requested ${songs.length} songs.`;
+  const songLines = single
+    ? [
+        `Title: ${oneLine(first.title)}`,
+        `Artist: ${oneLine(first.artist)}`,
+        `Link: ${first.link}`,
+      ]
+    : songs.flatMap((song, i) => [
+        `${i + 1}. "${oneLine(song.title)}" by ${oneLine(song.artist)}`,
+        `   ${song.link}`,
+      ]);
+  const body = [
+    oneLine(lead),
+    "",
+    ...songLines,
+    "",
+    `Requested by: ${name === requesterEmail ? name : `${name} (${requesterEmail})`}`,
+    ...(requestComment ? [`Note: ${requestComment}`] : []),
+  ].join("\n");
+  for (const to of managers) {
+    await notifyPerson(ctx, {
+      to,
+      actor: requesterEmail,
+      subject: single
+        ? `New music request: ${oneLine(first.title)}`
+        : `${songs.length} new music requests`,
+      pushTitle: single ? "New music request" : "New music requests",
+      body,
+      url: "/music?tab=review",
+    });
+  }
+}
+
 type MusicRequestRow = Doc<"musicRequests">;
 /** Normalized song metadata is used only for a possible-duplicate warning. */
 function normalized(value: string): string {
@@ -405,16 +459,8 @@ export const submit = mutation({
         ? { reviewedByEmail: caller.email, reviewedTime: Date.now() }
         : {}),
     });
-    if (!isPraiseManager) {
-      await notify(
-        ctx,
-        await praiseManagerEmailsForYear(ctx, currentStaffYear()),
-        "New music request",
-        `${await displayName(ctx, caller.email, currentStaffYear())} requested "${song.title}"`,
-        "/music?tab=review",
-        caller.email,
-      );
-    }
+    if (!isPraiseManager)
+      await tellPraiseManagers(ctx, caller.email, [song], requestComment);
     return id;
   },
 });
@@ -501,7 +547,7 @@ export const submitMany = mutation({
     if (!args.songs.length || args.songs.length > 50)
       throw new ConvexError("Add between 1 and 50 songs.");
     const isPraiseManager = await callerIsPraiseManager(ctx, caller);
-    const added: string[] = [];
+    const added: ReturnType<typeof validateSong>[] = [];
     let skipped = 0;
     let possibleDuplicates = 0;
     for (const raw of args.songs) {
@@ -516,7 +562,7 @@ export const submitMany = mutation({
         possibleDuplicates++;
         continue;
       }
-      const id = await ctx.db.insert("musicRequests", {
+      await ctx.db.insert("musicRequests", {
         requesterEmail: caller.email,
         ...song,
         ...songKeys(song),
@@ -527,19 +573,10 @@ export const submitMany = mutation({
           ? { reviewedByEmail: caller.email, reviewedTime: Date.now() }
           : {}),
       });
-      added.push(id);
+      added.push(song);
     }
     if (!isPraiseManager && added.length)
-      await notify(
-        ctx,
-        await praiseManagerEmailsForYear(ctx, currentStaffYear()),
-        "New music requests",
-        `${await displayName(ctx, caller.email, currentStaffYear())} requested ${
-          added.length === 1 ? "1 song" : `${added.length} songs`
-        }.`,
-        "/music?tab=review",
-        caller.email,
-      );
+      await tellPraiseManagers(ctx, caller.email, added, requestComment);
     return { added: added.length, skipped, possibleDuplicates };
   },
 });
