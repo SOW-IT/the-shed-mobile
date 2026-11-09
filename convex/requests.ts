@@ -749,6 +749,8 @@ export const requestYears = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const hasPast = await hasPastRequests(ctx, caller.email, caller.year);
+    // A role being previewed has no review history of its own.
+    if ((await lensFor(ctx, caller)).kind === "as") return { reviewedBefore: false, hasPast };
     for (let y = currentStaffYear(); y >= EARLIEST_REQUEST_YEAR; y--) {
       if (await reviewedSomeIn(ctx, caller.email, y)) return { reviewedBefore: true, hasPast };
     }
@@ -990,8 +992,9 @@ export const reviewed = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const open = await openRequestsAcrossYears(ctx, caller.year);
     const lens = await lensFor(ctx, caller);
+    if (lens.kind === "as") return [];
+    const open = await openRequestsAcrossYears(ctx, caller.year);
     const queues = await reviewQueues(ctx, caller, open, lens);
     const seen = new Set<Id<"requests">>(
       Object.values(queues).flatMap((rows) => rows.filter((r) => r.canAct).map((r) => r._id))

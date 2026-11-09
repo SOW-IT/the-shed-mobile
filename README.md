@@ -73,7 +73,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Mine still lists the admin's own); a
   chip at the top resets it. The choice is stored per admin on the server
   (`actingAs` table). It never grants an action, and grievances stay with the
-  grievance team.
+  grievance team. Everything a screen shows follows the role: Finance
+  settings, the Home editor, editing other people's calendar entries, the
+  Review tab's history and the grievance team's view only show when that
+  role would see them.
 - **Org structure** (seeded, editable per-year by admins): Governance (Data
   and IT, Finance, Compliance), Engagement (Marketing, Alumni), Human
   Resources (People and Culture, Training and Development), Operations
@@ -203,6 +206,26 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   with push notifications. Each grievance has a random reference (a UUID)
   that only the team sees. The team edits the "What is it about?" options;
   grievances keep the wording they were raised with.
+- **Praise List** (`convex/musicRequests.ts`, `/music`, staff only): the
+  approved worship songs, searchable and sortable, plus song requests. Staff
+  paste a Spotify or YouTube song or playlist link to autofill (Spotify
+  playlists need Spotify connected from Profile, `convex/spotifyConnections.ts`,
+  tokens encrypted at rest and deleted with the account) or type one in, up
+  to 50 at a time. The same recording twice (Spotify track, YouTube video or
+  ISRC) is refused; the same title and artist asks first. YouTube songs carry
+  no ISRC, so one song from both services is only caught by its title and
+  artist. **Praise Managers**
+  (Admin → System, per staff year, carried into the new year on 1 October)
+  get a To review tab to approve or decline with an optional reason, a count
+  of waiting songs in the side menu, and push notifications; their own songs
+  go straight onto the list. Requesters follow theirs under Mine and are
+  notified when they're reviewed. An admin acting as Praise Manager sees the
+  queue without the buttons; a Praise Manager acting as another role sees
+  what that role sees. A Praise Manager needs a staff profile for the
+  current year, so during the October grace last year's staff can't review.
+  After a change to the duplicate keys, run
+  `npx convex run --prod musicBackfill:backfill '{}'` on prod (and without
+  `--prod` on dev) once; each run carries on through every page by itself.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on
@@ -267,16 +290,17 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Departments list shows each one's jobs), and a year keeps the year
   before's choices until an admin changes them, so the October rollover
   never resets them. Moving a job asks to confirm first. At 00:01 on
-  1 October the new year also takes any Budget Manager or Director
-  threshold it doesn't have from the year that just ended
+  1 October the new year also takes any Budget Manager, Director
+  threshold or Praise Managers it doesn't have from the year that just ended
   (`admin.carryFinanceSettingsForward`; a Budget Manager only while still
-  on the finance team). Admin's tabs are Users, Structure, Teams and
+  on the finance team, Praise Managers only while still on staff). Admin's tabs are Users, Structure, Teams and
   System (app errors, directory sync).
 - **Finance settings** (`/finance-settings`): the Budget Manager, both
   Director thresholds, approver delegation and step timing, opened from a
   "Finance settings" button at the top of the All tab in Reimbursements and
   Event Requests. The finance team sees them; the Finance Head, whoever
-  covers for them, and admins change them.
+  covers for them, and admins change them. An admin acting as a role sees
+  them only if that role would.
 - **Admins** (`convex/admins.ts`): the Director and everyone in the
   always-admin department (Data and IT by default, set in Admin → Teams) are
   always admins. Moving that job is refused when it would leave nobody who
@@ -593,22 +617,28 @@ Eight workflows, in `.github/workflows/`:
 | Backup Convex to GCS | `convex-backup.yml` | weekly, Sundays at 15:17 UTC (Monday 01:17 AEST / 02:17 AEDT), and by hand. Weekly because each export reads the whole prod database, about 9.5 MB of database bandwidth a run. Database export as a zip, then Convex file storage (receipts, event attachments, avatars) copied incrementally to `storage/files/<sha256>` in the same bucket: each file is downloaded once, on the first run after it exists, and `storage/manifest.json` records what is there and which files Convex has since deleted. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped. The BigQuery job then checks the warehouse against the previous run (`scripts/warehouse-checks.mjs`): a core table missing or empty, a table that shrank by more than a fifth, or a report view missing posts to Google Chat and fails the step |
 | EAS Update | `eas-update.yml` | after each successful Convex Deploy of `main` (and by hand) → publishes the JavaScript bundle over the air to the `production` and `staging` channels. Only builds whose native fingerprint matches receive it, so a change to native code waits for the next store build |
 | Convex usage check | `convex-usage.yml` | Sundays 22:00 UTC, Monday morning in Sydney (and by hand) → reads this billing period's usage and posts to Google Chat when database bandwidth or file storage passes 70% of the plan, or bandwidth is on track to exceed it (`scripts/convex-usage-alert.mjs`) |
-| EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app, skipping any platform whose native code hasn't changed since its last store build |
-| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app, skipping any platform whose native code hasn't changed since its last store build, then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
+| EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app. A platform whose native code hasn't changed since its last store build gets the commit over the air (`eas update`) instead, or is skipped if it already has it |
+| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app. A platform whose native code hasn't changed since its last store build gets the commit over the air (`eas update`, from `main` only) instead, or is skipped if it already has it. Then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
 
 Both EAS workflows take a **platform** input (`both` / `ios` / `android`,
 default `both`) and are never triggered by a PR or a merge. Before building,
 they compare the commit's native fingerprint (`eas fingerprint:generate` for
 the profile) with the last finished store build for that profile and platform
-(`scripts/eas-fingerprint-check.mjs`). A platform is skipped only when the
-fingerprints match, that build has a finished store submission, and the
-newest over-the-air update for that fingerprint on the profile's channel was
-published from the same commit, because phones on that build then already run
-it. Anything it can't confirm is built, so a failed submission is retried and
-a run from another branch, or before EAS Update has finished, still builds.
-The run's summary shows both fingerprints and the reason. Tick **force** to
-build anyway, for example to refresh the JavaScript bundled into the store
-download.
+(`scripts/eas-fingerprint-check.mjs`). A platform needs no store build when
+the fingerprints match and that build has a finished store submission, because
+phones on that build can take the commit over the air. If the newest
+over-the-air update for that fingerprint on the profile's channel was
+published from the same commit, the platform is skipped. Otherwise (a run
+before EAS Update has finished, or a staging run from another branch) the
+workflow runs `eas update` to that channel for it instead of building.
+Production only publishes `main`: from another branch it warns and sends
+nothing over the air, though any platform that needs a store build still
+builds. It also publishes nothing if `main` has moved on since the run
+started, since that newer merge's own EAS Update run sends it.
+A changed fingerprint, no earlier build, or a build whose submission failed
+still builds. The run's summary shows both fingerprints and the reason. Tick
+**force** to build anyway, for example to refresh the JavaScript bundled into
+the store download.
 
 The **prod web app** is published by Vercel's own git integration on merges to
 `main`, so it has no workflow of its own. The dev web app does need one,

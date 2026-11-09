@@ -126,8 +126,11 @@ const request = (over: Partial<Request>): Request => ({
   ...over,
 });
 
-async function setup() {
+// `before` runs first: creation times only go forward, so anything dated
+// earlier has to be written before the rest.
+async function setup(before?: (t: T) => Promise<unknown>) {
   const t = convexTest(schema, modules);
+  if (before) await before(t);
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
   await t.run(async (ctx) => {
     for (const [email, assignments] of PEOPLE) {
@@ -864,5 +867,124 @@ describe("acting as other roles", () => {
     expect((await me(t)).isAdmin).toBe(false);
     await actAs(t, { role: "staff", department: "Events" });
     expect((await me(t)).isAdmin).toBe(false);
+  });
+});
+
+describe("a preview hides what the role can't see", () => {
+  const EVENTS_STAFF: Persona = { role: "staff", department: "Events" };
+
+  test("Review: a previewed role has no review history of its own; Past stays the admin's", async () => {
+    const { t } = await setup(async (t) => {
+      vi.setSystemTime(staffYearStartMs(YEAR) - 10 * DAY);
+      await t.run((ctx) =>
+        ctx.db.insert(
+          "requests",
+          request({
+            requesterEmail: ADMIN,
+            department: "Data and IT",
+            approvedByHOD: "APPROVED",
+            approvedByBudgetManager: "APPROVED",
+            approvedByFinanceHead: "APPROVED",
+            paid: true,
+          })
+        )
+      );
+      vi.setSystemTime(PINNED_NOW);
+    });
+    const id = await adminHeadsDataAndIT(t);
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.requests.approve, { requestId: id, step: "hod" });
+    expect((await admin.query(api.requests.requestYears, {}))!.reviewedBefore).toBe(true);
+    expect((await admin.query(api.requests.reviewed, {}))!.map((r) => r._id)).toEqual([id]);
+    await actAs(t, EVENTS_STAFF);
+    expect(await admin.query(api.requests.requestYears, {})).toEqual({
+      reviewedBefore: false,
+      hasPast: true,
+    });
+    expect(await admin.query(api.requests.reviewed, {})).toEqual([]);
+  });
+
+  test("Home: the editor shows only for a role that could edit it", async () => {
+    const { t } = await setup();
+    const canEdit = async () => (await asUser(t, ADMIN).query(api.homeContent.view, {})).canEdit;
+    expect(await canEdit()).toBe(true);
+    await actAs(t, EVENTS_STAFF);
+    expect(await canEdit()).toBe(false);
+    await actAs(t, MARKETING_STAFF);
+    expect(await canEdit()).toBe(true);
+    await actAs(t, { role: "director" });
+    expect(await canEdit()).toBe(true);
+    expect((await asUser(t, MARY).query(api.homeContent.view, {})).canEdit).toBe(true);
+  });
+
+  test("Calendar: other people's entries are editable only for an admin role", async () => {
+    const { t } = await setup();
+    const entry = {
+      dateStart: PINNED_NOW + DAY,
+      dateEnd: PINNED_NOW + DAY,
+      subgroups: ["SOW"],
+      category: "deadline" as const,
+      due: "time" as const,
+    };
+    await asUser(t, MARY).mutation(api.calendar.addEntry, { name: "Mary's", ...entry });
+    await asUser(t, ADMIN).mutation(api.calendar.addEntry, { name: "Admin's", ...entry });
+    const editable = async () =>
+      Object.fromEntries(
+        (await asUser(t, ADMIN).query(api.calendar.range, {
+          from: PINNED_NOW,
+          to: PINNED_NOW + 3 * DAY,
+        }))!
+          .filter((item) => item.kind === "entry")
+          .map((item) => [item.name, item.canEdit])
+      );
+    expect(await editable()).toEqual({ "Mary's": true, "Admin's": true });
+    await actAs(t, EVENTS_STAFF);
+    expect(await editable()).toEqual({ "Mary's": false, "Admin's": true });
+    await actAs(t, { role: "staff", department: "Data and IT" });
+    expect(await editable()).toEqual({ "Mary's": true, "Admin's": true });
+  });
+
+  test("Grievances: the team's view and badge follow the role, and never reach past the real team", async () => {
+    const { t } = await setup();
+    const admin = asUser(t, ADMIN);
+    const id = await asUser(t, EVA).mutation(api.grievances.submit, {
+      name: "Eva",
+      email: EVA,
+      category: "Something else",
+      details: "[TEST] Something to raise",
+    });
+    const P_AND_C: Persona = { role: "staff", department: "People and Culture" };
+    await actAs(t, P_AND_C);
+    expect((await admin.query(api.grievances.viewer, {}))!.isHandler).toBe(false);
+    expect(await admin.query(api.grievances.get, { id })).toBeNull();
+
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", ADMIN).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", profile!._id, {
+        assignments: [...(profile!.assignments ?? []), { role: "Staff", department: "People and Culture" }],
+      });
+    });
+    expect((await admin.query(api.grievances.viewer, {}))!.isHandler).toBe(true);
+    expect(await admin.query(api.grievances.waitingOnMe, {})).toBe(1);
+    expect(await admin.query(api.grievances.get, { id })).toMatchObject({ isHandler: true });
+    const teamReads = async () => ({
+      years: await admin.query(api.grievances.years, {}),
+      submitted: await admin.query(api.grievances.submitted, { year: YEAR }),
+      team: await admin.query(api.grievances.team, {}),
+      timeline: await admin.query(api.grievances.timeline, { id }),
+    });
+    const asTeam = await teamReads();
+    expect(asTeam.submitted!.map((g) => g._id)).toEqual([id]);
+    expect([asTeam.years, asTeam.team, asTeam.timeline].every((x) => x !== null)).toBe(true);
+    await actAs(t, EVENTS_STAFF);
+    expect((await admin.query(api.grievances.viewer, {}))!.isHandler).toBe(false);
+    expect(await admin.query(api.grievances.waitingOnMe, {})).toBe(0);
+    expect(await admin.query(api.grievances.get, { id })).toBeNull();
+    expect(await teamReads()).toEqual({ years: null, submitted: null, team: null, timeline: null });
+    await actAs(t, null);
+    expect((await admin.query(api.grievances.get, { id }))!.isHandler).toBe(true);
   });
 });

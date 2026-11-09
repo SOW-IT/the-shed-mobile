@@ -18,9 +18,15 @@ const staffProfile = { roles: ["Staff"], assignments: [] };
 const signedOut = navViewer(false, undefined);
 const guest = navViewer(true, { profile: null });
 const staff = navViewer(true, { profile: staffProfile });
-const campusLeader = navViewer(true, { profile: staffProfile, isCampusLeader: true });
+const campusLeader = navViewer(true, {
+  profile: staffProfile,
+  isCampusLeader: true,
+});
 const admin = navViewer(true, { profile: staffProfile, isAdmin: true });
-const financeHead = navViewer(true, { profile: staffProfile, isFinanceHead: true });
+const financeHead = navViewer(true, {
+  profile: staffProfile,
+  isFinanceHead: true,
+});
 const mentor = navViewer(true, { profile: staffProfile, isMentor: true });
 const campusLeaderAdmin = navViewer(true, {
   profile: staffProfile,
@@ -39,7 +45,11 @@ describe("navViewer", () => {
       canMentoring: false,
     });
     expect(
-      navViewer(false, { profile: staffProfile, isCampusLeader: true, isAdmin: true })
+      navViewer(false, {
+        profile: staffProfile,
+        isCampusLeader: true,
+        isAdmin: true,
+      }),
     ).toEqual(signedOut);
   });
 
@@ -69,7 +79,9 @@ describe("navViewer", () => {
     expect(admin.canAnnounce).toBe(true);
     expect(financeHead.canAnnounce).toBe(false);
     expect(staff.canAnnounce).toBe(false);
-    expect(navViewer(true, { profile: null, isAdmin: true }).canAnnounce).toBe(false);
+    expect(navViewer(true, { profile: null, isAdmin: true }).canAnnounce).toBe(
+      false,
+    );
   });
 
   test("admins and this year's mentors open Mentoring; staff and guests don't", () => {
@@ -77,14 +89,16 @@ describe("navViewer", () => {
     expect(mentor.canMentoring).toBe(true);
     expect(staff.canMentoring).toBe(false);
     expect(financeHead.canMentoring).toBe(false);
-    expect(navViewer(true, { profile: null, isMentor: true }).canMentoring).toBe(false);
+    expect(
+      navViewer(true, { profile: null, isMentor: true }).canMentoring,
+    ).toBe(false);
   });
 
   test("the campus-leader flag only counts for staff", () => {
     expect(campusLeader.isCampusLeader).toBe(true);
-    expect(navViewer(true, { profile: null, isCampusLeader: true }).isCampusLeader).toBe(
-      false
-    );
+    expect(
+      navViewer(true, { profile: null, isCampusLeader: true }).isCampusLeader,
+    ).toBe(false);
   });
 });
 
@@ -107,9 +121,10 @@ describe("drawerItems", () => {
     expect(drawerItems(guest)).toEqual(["profile"]);
   });
 
-  test("staff get Profile, Churches, Reimbursements, Event Requests, Design Requests and, last, Insights (the Calendar is their tab)", () => {
+  test("staff get Profile, Praise List, Churches, Requests and, last, Insights (the Calendar is their tab)", () => {
     expect(drawerItems(staff)).toEqual([
       "profile",
+      "music",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -119,9 +134,18 @@ describe("drawerItems", () => {
   });
 
   test("admins also get Admin, last, with Announcements before it under Insights; the Finance Head doesn't", () => {
-    const staffItems = ["profile", "churches", "reimbursements", "eventRequests", "designRequests", "insights"];
+    const staffItems = [
+      "profile",
+      "music",
+      "churches",
+      "reimbursements",
+      "eventRequests",
+      "designRequests",
+      "insights",
+    ];
     expect(drawerItems(admin)).toEqual([
       "profile",
+      "music",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -137,6 +161,7 @@ describe("drawerItems", () => {
   test("mentors get Mentoring above Insights, without Announcements or Admin", () => {
     expect(drawerItems(mentor)).toEqual([
       "profile",
+      "music",
       "churches",
       "reimbursements",
       "eventRequests",
@@ -146,10 +171,16 @@ describe("drawerItems", () => {
     ]);
   });
 
-  test("campus leaders don't get Reimbursements, Event or Design Requests, but keep Admin", () => {
-    expect(drawerItems(campusLeader)).toEqual(["profile", "churches", "insights"]);
+  test("campus leaders keep Praise List but not Reimbursements, Event or Design Requests; only admins get Admin", () => {
+    expect(drawerItems(campusLeader)).toEqual([
+      "profile",
+      "music",
+      "churches",
+      "insights",
+    ]);
     expect(drawerItems(campusLeaderAdmin)).toEqual([
       "profile",
+      "music",
       "churches",
       "mentoring",
       "insights",
@@ -161,11 +192,22 @@ describe("drawerItems", () => {
 
 describe("sidebarItems", () => {
   test("signed-out people see the public pages, without Insights", () => {
-    expect(sidebarItems(signedOut)).toEqual(["home", "org", "churches", "grievances"]);
+    expect(sidebarItems(signedOut)).toEqual([
+      "home",
+      "org",
+      "churches",
+      "grievances",
+    ]);
   });
 
   test("guests add Profile, but no Insights", () => {
-    expect(sidebarItems(guest)).toEqual(["home", "org", "churches", "grievances", "profile"]);
+    expect(sidebarItems(guest)).toEqual([
+      "home",
+      "org",
+      "churches",
+      "grievances",
+      "profile",
+    ]);
   });
 
   test("staff see everything but Admin, with Insights last", () => {
@@ -174,6 +216,7 @@ describe("sidebarItems", () => {
       "reimbursements",
       "eventRequests",
       "designRequests",
+      "music",
       "attendance",
       "calendar",
       "org",
@@ -190,6 +233,7 @@ describe("sidebarItems", () => {
       "reimbursements",
       "eventRequests",
       "designRequests",
+      "music",
       "attendance",
       "calendar",
       "org",
@@ -206,6 +250,7 @@ describe("sidebarItems", () => {
   test("campus leaders keep Attendance but not Reimbursements", () => {
     expect(sidebarItems(campusLeader)).toEqual([
       "home",
+      "music",
       "attendance",
       "calendar",
       "org",
@@ -219,12 +264,26 @@ describe("sidebarItems", () => {
 
 describe("Insights in the menus", () => {
   test("sits at the bottom for everyone who has it there, with only Announcements and Admin below", () => {
-    const viewers = [guest, staff, campusLeader, admin, financeHead, mentor, campusLeaderAdmin];
-    for (const items of viewers.flatMap((viewer) => [drawerItems(viewer), sidebarItems(viewer)])) {
+    const viewers = [
+      guest,
+      staff,
+      campusLeader,
+      admin,
+      financeHead,
+      mentor,
+      campusLeaderAdmin,
+    ];
+    for (const items of viewers.flatMap((viewer) => [
+      drawerItems(viewer),
+      sidebarItems(viewer),
+    ])) {
       if (!items.includes("insights")) continue;
       const below = items.slice(items.indexOf("insights") + 1);
-      expect(below.filter((key) => key !== "announcements" && key !== "admin")).toEqual([]);
-      if (items.includes("announcements")) expect(below[0]).toBe("announcements");
+      expect(
+        below.filter((key) => key !== "announcements" && key !== "admin"),
+      ).toEqual([]);
+      if (items.includes("announcements"))
+        expect(below[0]).toBe("announcements");
     }
   });
 });
@@ -233,6 +292,7 @@ describe("navEntries", () => {
   test("folds the three request pages into one Requests group where the first sat", () => {
     expect(navEntries(drawerItems(admin))).toEqual([
       { kind: "item", key: "profile" },
+      { kind: "item", key: "music" },
       { kind: "item", key: "churches" },
       {
         kind: "group",
@@ -244,13 +304,14 @@ describe("navEntries", () => {
       { kind: "item", key: "announcements" },
       { kind: "item", key: "admin" },
     ]);
-    expect(navEntries(sidebarItems(staff)).slice(0, 3)).toEqual([
+    expect(navEntries(sidebarItems(staff)).slice(0, 4)).toEqual([
       { kind: "item", key: "home" },
       {
         kind: "group",
         key: "requests",
         items: ["reimbursements", "eventRequests", "designRequests"],
       },
+      { kind: "item", key: "music" },
       { kind: "item", key: "attendance" },
     ]);
     expect(NAV_GROUP_LABELS.requests).toBe("Requests");
@@ -259,6 +320,7 @@ describe("navEntries", () => {
   test("no group when there are no request pages", () => {
     expect(navEntries(drawerItems(campusLeader))).toEqual([
       { kind: "item", key: "profile" },
+      { kind: "item", key: "music" },
       { kind: "item", key: "churches" },
       { kind: "item", key: "insights" },
     ]);
@@ -302,7 +364,7 @@ describe("roleLine", () => {
       roleLine({
         roles: ["Head of Department"],
         assignments: [{ role: "Head of Department", department: "Finance" }],
-      })
+      }),
     ).toBe("HOD → Finance");
     expect(
       roleLine({
@@ -311,13 +373,15 @@ describe("roleLine", () => {
           { role: "Head of Department", department: "Finance" },
           { role: "Staff", department: "Data and IT" },
         ],
-      })
+      }),
     ).toBe("HOD → Finance  ·  Staff → Data and IT");
   });
 
   test("falls back to roles when there are no assignments", () => {
     expect(roleLine({ roles: ["Director"], assignments: [] })).toBe("Director");
-    expect(roleLine({ roles: ["Head of Department", "Staff"] })).toBe("HOD, Staff");
+    expect(roleLine({ roles: ["Head of Department", "Staff"] })).toBe(
+      "HOD, Staff",
+    );
   });
 
   test("is empty for guests and for staff with nothing assigned", () => {

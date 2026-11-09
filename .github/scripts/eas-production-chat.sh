@@ -24,21 +24,36 @@ fi
 
 case "${JOB_STATUS:-failure}" in
   success)
-    if [ "${EAS_PLATFORM:-}" = "none" ]; then
-      outcome="not built, no native changes since the last store build"
-    else
+    built=${EAS_PLATFORM:-none}
+    updated=${UPDATE_PLATFORM:-none}
+    if [ "$built" != "none" ] && [ "$updated" != "none" ]; then
+      outcome="built and sent to the stores, and published over the air"
+    elif [ "$built" != "none" ]; then
       outcome="built and sent to the stores"
+    elif [ "$updated" != "none" ]; then
+      outcome="published over the air, no native changes since the last store build"
+    else
+      outcome="not built, no native changes since the last store build"
     fi
     ;;
   cancelled) outcome="cancelled" ;;
   *) outcome="failed" ;;
 esac
 
-case "${EAS_PLATFORM:-}" in
-  ios | android) built_platform="$EAS_PLATFORM" ;;
-  all) built_platform="both" ;;
-  *) built_platform="${PLATFORM_INPUT:-both}" ;;
-esac
+shipped=""
+for platform in "${EAS_PLATFORM:-none}" "${UPDATE_PLATFORM:-none}"; do
+  case "$platform" in
+    all) shipped="both" ;;
+    ios | android)
+      if [ -z "$shipped" ] || [ "$shipped" = "$platform" ]; then
+        shipped="$platform"
+      else
+        shipped="both"
+      fi
+      ;;
+  esac
+done
+built_platform="${shipped:-${PLATFORM_INPUT:-both}}"
 
 message_file="${RUNNER_TEMP:-/tmp}/eas-production-chat.json"
 jq -n \

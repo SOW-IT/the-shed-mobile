@@ -3,20 +3,15 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { TEAM_JOBS } from "../shared/teams";
 import { personaValidator } from "./actingAsData";
-import { announcementStatusValidator, audienceValidator } from "./announcementData";
-import { metricsDataValidator, staffTrendsValidator } from "./metricsData";
 import {
-  personCategoryValidator,
-  termFactsFields,
-  weeklyCategoryValidator,
-  weeklyBlockValidator,
-  weeklyMarkValidator,
-  weeklySettingsFields,
-} from "./weeklyInsightsData";
-import { homeBlockValidator } from "./homeData";
+  announcementStatusValidator,
+  audienceValidator,
+} from "./announcementData";
 import { calendarCategoryValidator, entryFields } from "./calendarData";
-import { designAnswersValidator, designStatusValidator } from "./designRequestData";
-import { grievanceFields, grievanceStatusValidator } from "./grievanceData";
+import {
+  designAnswersValidator,
+  designStatusValidator,
+} from "./designRequestData";
 import {
   eventStatusValidator,
   financeDataValidator,
@@ -25,11 +20,22 @@ import {
   subFormKindValidator,
   subFormStatusValidator,
 } from "./eventRequestData";
+import { grievanceFields, grievanceStatusValidator } from "./grievanceData";
+import { homeBlockValidator } from "./homeData";
+import { metricsDataValidator, staffTrendsValidator } from "./metricsData";
+import {
+  personCategoryValidator,
+  termFactsFields,
+  weeklyBlockValidator,
+  weeklyCategoryValidator,
+  weeklyMarkValidator,
+  weeklySettingsFields,
+} from "./weeklyInsightsData";
 
 export const approvalStatus = v.union(
   v.literal("PENDING"),
   v.literal("APPROVED"),
-  v.literal("DECLINED")
+  v.literal("DECLINED"),
 );
 
 export default defineSchema({
@@ -54,7 +60,9 @@ export default defineSchema({
     name: v.string(),
     nameKey: v.string(),
     address: v.optional(v.string()),
-    services: v.optional(v.array(v.object({ day: v.number(), time: v.string() }))),
+    services: v.optional(
+      v.array(v.object({ day: v.number(), time: v.string() })),
+    ),
     website: v.optional(v.string()),
     instagram: v.optional(v.string()),
     addedBy: v.string(),
@@ -73,8 +81,8 @@ export default defineSchema({
           department: v.optional(v.string()),
           division: v.optional(v.string()),
           university: v.optional(v.string()),
-        })
-      )
+        }),
+      ),
     ),
     name: v.optional(v.string()),
     userId: v.optional(v.id("users")),
@@ -155,6 +163,7 @@ export default defineSchema({
   yearSettings: defineTable({
     year: v.number(),
     budgetManagerEmail: v.optional(v.string()),
+    praiseManagerEmails: v.optional(v.array(v.string())),
     directorEmail: v.optional(v.string()),
     directorApprovalThreshold: v.optional(v.number()),
     eventDirectorApprovalThreshold: v.optional(v.number()),
@@ -286,12 +295,12 @@ export default defineSchema({
                   storageId: v.id("_storage"),
                   name: v.string(),
                   deleted: v.optional(v.boolean()),
-                })
-              )
+                }),
+              ),
             ),
-          })
+          }),
         ),
-      })
+      }),
     ),
     paid: v.optional(v.boolean()),
     paidAmount: v.optional(v.number()),
@@ -321,9 +330,21 @@ export default defineSchema({
       "designRequestId",
       "read",
     ])
-    .index("by_user_and_eventRequest_and_read", ["userEmail", "eventRequestId", "read"])
-    .index("by_user_and_announcement_and_read", ["userEmail", "announcementId", "read"])
-    .index("by_user_and_grievance_and_read", ["userEmail", "grievanceId", "read"])
+    .index("by_user_and_eventRequest_and_read", [
+      "userEmail",
+      "eventRequestId",
+      "read",
+    ])
+    .index("by_user_and_announcement_and_read", [
+      "userEmail",
+      "announcementId",
+      "read",
+    ])
+    .index("by_user_and_grievance_and_read", [
+      "userEmail",
+      "grievanceId",
+      "read",
+    ])
     .index("by_announcement_and_read", ["announcementId", "read"])
     .index("by_request", ["requestId"]),
 
@@ -448,8 +469,7 @@ export default defineSchema({
     changesReason: v.optional(v.string()),
     lastReminderAt: v.optional(v.number()),
     reminderCount: v.optional(v.number()),
-  })
-    .index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
+  }).index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
 
   eventRequestEvents: defineTable({
     eventRequestId: v.id("eventRequests"),
@@ -465,7 +485,11 @@ export default defineSchema({
     authorEmail: v.string(),
     body: v.string(),
     postedAt: v.number(),
-  }).index("by_eventRequest_and_form_and_postedAt", ["eventRequestId", "form", "postedAt"]),
+  }).index("by_eventRequest_and_form_and_postedAt", [
+    "eventRequestId",
+    "form",
+    "postedAt",
+  ]),
 
   eventRequestCommentReads: defineTable({
     eventRequestId: v.id("eventRequests"),
@@ -474,7 +498,11 @@ export default defineSchema({
     lastReadAt: v.number(),
     // The newest unread comment the daily reminder has already mentioned.
     remindedAt: v.optional(v.number()),
-  }).index("by_eventRequest_and_form_and_user", ["eventRequestId", "form", "userEmail"]),
+  }).index("by_eventRequest_and_form_and_user", [
+    "eventRequestId",
+    "form",
+    "userEmail",
+  ]),
 
   requestNudges: defineTable({
     requestId: v.id("requests"),
@@ -495,7 +523,11 @@ export default defineSchema({
     // The approved event request this attendance event comes from.
     eventRequestId: v.optional(v.id("eventRequests")),
     checkIn: v.optional(
-      v.object({ token: v.string(), enabledAt: v.number(), enabledBy: v.string() })
+      v.object({
+        token: v.string(),
+        enabledAt: v.number(),
+        enabledBy: v.string(),
+      }),
     ),
   })
     .index("by_dateStart", ["dateStart"])
@@ -532,14 +564,22 @@ export default defineSchema({
     memberId: v.optional(v.id("attendanceMembers")),
     attendanceId: v.optional(v.id("attendance")),
     sameNameCount: v.optional(v.number()),
-    status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("dismissed")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("confirmed"),
+      v.literal("dismissed"),
+    ),
     requestedAt: v.number(),
     decidedAt: v.optional(v.number()),
     decidedBy: v.optional(v.string()),
   })
     .index("by_event_and_status", ["eventId", "status"])
     .index("by_event_and_clientKey_and_name", ["eventId", "clientKey", "name"])
-    .index("by_clientKey_and_status_and_forSomeoneElse", ["clientKey", "status", "forSomeoneElse"]),
+    .index("by_clientKey_and_status_and_forSomeoneElse", [
+      "clientKey",
+      "status",
+      "forSomeoneElse",
+    ]),
 
   attendanceAuditLog: defineTable({
     actorEmail: v.string(),
@@ -548,7 +588,7 @@ export default defineSchema({
       v.literal("member"),
       v.literal("tag"),
       v.literal("metadata"),
-      v.literal("attendance")
+      v.literal("attendance"),
     ),
     action: v.string(),
     summary: v.string(),
@@ -605,8 +645,18 @@ export default defineSchema({
     memberB: v.id("attendanceMembers"),
     status: v.union(v.literal("open"), v.literal("dismissed")),
     builtAt: v.number(),
-    statsA: v.optional(v.object({ signIns: v.number(), lastSignIn: v.union(v.number(), v.null()) })),
-    statsB: v.optional(v.object({ signIns: v.number(), lastSignIn: v.union(v.number(), v.null()) })),
+    statsA: v.optional(
+      v.object({
+        signIns: v.number(),
+        lastSignIn: v.union(v.number(), v.null()),
+      }),
+    ),
+    statsB: v.optional(
+      v.object({
+        signIns: v.number(),
+        lastSignIn: v.union(v.number(), v.null()),
+      }),
+    ),
     dismissedBy: v.optional(v.string()),
     dismissedAt: v.optional(v.number()),
   })
@@ -706,13 +756,12 @@ export default defineSchema({
     staffYear: v.number(),
     computedAt: v.number(),
     data: metricsDataValidator,
-  })
-    .index("by_subgroup_range_year", [
-      "subgroup",
-      "rangeWeeks",
-      "includeCollaborative",
-      "staffYear",
-    ]),
+  }).index("by_subgroup_range_year", [
+    "subgroup",
+    "rangeWeeks",
+    "includeCollaborative",
+    "staffYear",
+  ]),
 
   rosterHistorySnapshots: defineTable({
     year: v.number(),
@@ -726,15 +775,15 @@ export default defineSchema({
         subgroups: v.array(v.string()),
         weekly: v.optional(v.boolean()),
         count: v.optional(v.number()),
-      })
+      }),
     ),
     members: v.optional(
       v.array(
         v.object({
           memberId: v.id("attendanceMembers"),
           events: v.array(v.number()),
-        })
-      )
+        }),
+      ),
     ),
     memberIds: v.optional(v.array(v.id("attendanceMembers"))),
     memberEvents: v.optional(v.array(v.string())),
@@ -757,7 +806,7 @@ export default defineSchema({
     computedAt: v.number(),
     years: v.array(v.number()),
     campuses: v.array(
-      v.object({ campus: v.string(), averages: v.array(v.number()) })
+      v.object({ campus: v.string(), averages: v.array(v.number()) }),
     ),
   }),
 
@@ -766,10 +815,10 @@ export default defineSchema({
     version: v.number(),
   }),
 
-  weeklyTermFacts: defineTable(termFactsFields).index("by_subgroup_and_termKey", [
-    "subgroup",
-    "termKey",
-  ]),
+  weeklyTermFacts: defineTable(termFactsFields).index(
+    "by_subgroup_and_termKey",
+    ["subgroup", "termKey"],
+  ),
 
   weeklyInsightViews: defineTable({
     subgroup: v.string(),
@@ -789,10 +838,12 @@ export default defineSchema({
         short: v.optional(v.string()),
         kind: v.optional(v.union(v.literal("term"), v.literal("year"))),
         slot: v.optional(v.number()),
-      })
+      }),
     ),
     currentKey: v.union(v.string(), v.null()),
-    weeklies: v.array(v.object({ at: v.number(), count: v.number(), joint: v.boolean() })),
+    weeklies: v.array(
+      v.object({ at: v.number(), count: v.number(), joint: v.boolean() }),
+    ),
     settingsVersion: v.number(),
     viewVersion: v.optional(v.number()),
     auditSeen: v.number(),
@@ -821,4 +872,41 @@ export default defineSchema({
     updatedAt: v.number(),
     updatedBy: v.string(),
   }).index("by_key", ["key"]),
+
+  // A song request from any signed-in member, to be approved or declined by a Praise Manager.
+  musicRequests: defineTable({
+    albumArtUrl: v.optional(v.string()),
+    requesterEmail: v.string(),
+    title: v.string(),
+    artist: v.string(),
+    link: v.string(),
+    isrc: v.optional(v.string()),
+
+    // Normalized values for duplicate detection
+    spotifyTrackId: v.optional(v.string()),
+    youtubeVideoId: v.optional(v.string()),
+    normalizedSongKey: v.optional(v.string()),
+
+    status: approvalStatus,
+    reviewedByEmail: v.optional(v.string()),
+    reviewedTime: v.optional(v.number()),
+    requestComment: v.optional(v.string()),
+    declineComment: v.optional(v.string()),
+  })
+    .index("by_requester", ["requesterEmail"])
+    .index("by_status", ["status"])
+    .index("by_spotify_track_id", ["spotifyTrackId"])
+    .index("by_youtube_video_id", ["youtubeVideoId"])
+    .index("by_isrc", ["isrc"])
+    .index("by_normalized_song_key", ["normalizedSongKey"]),
+
+  // A Spotify connection for a user, to view their requested playlists for the Praise List.
+  spotifyConnections: defineTable({
+    userId: v.id("users"),
+    encryptedAccessToken: v.string(),
+    encryptedRefreshToken: v.string(),
+    expiresAt: v.number(),
+    connectedAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_userId", ["userId"]),
 });
