@@ -427,7 +427,7 @@ describe("account.wipe", () => {
     });
   });
 
-  test("deletes the user's saved Spotify connection", async () => {
+  test("deletes the user's saved Spotify connection and search count", async () => {
     const t = convexTest(schema, modules);
     const { userId, other } = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", { email: STAFF });
@@ -444,10 +444,17 @@ describe("account.wipe", () => {
       }
       return { userId, other };
     });
+    await t.run(async (ctx) => {
+      for (const id of [userId, other]) {
+        await ctx.db.insert("spotifySearchUsage", { userKey: id, windowStart: 0, count: 3 });
+      }
+    });
     await t.mutation(internal.account.wipe, { userId });
     await t.run(async (ctx) => {
       const left = await ctx.db.query("spotifyConnections").take(10);
       expect(left.map((row) => row.userId)).toEqual([other]);
+      const usage = await ctx.db.query("spotifySearchUsage").take(10);
+      expect(usage.map((row) => row.userKey)).toEqual([other]);
     });
   });
 

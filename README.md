@@ -218,11 +218,13 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   (`convex/musicReleaseDates.ts`); YouTube and other links have none and
   sort last. Mine and To review page the same way, and Mine lists this
   year's Praise Managers at the top. Staff search Spotify by name
-  (`spotify.searchTracks`, the app's client credentials, no Spotify sign-in)
+  (`spotify.searchTracks`, the app's client credentials, no Spotify sign-in,
+  30 searches a minute per person; the app token is kept encrypted in
+  `spotifyAppTokens` and reused until it nearly expires)
   or paste a Spotify or YouTube song or playlist link to autofill (Spotify
   playlists need Spotify connected from Profile, `convex/spotifyConnections.ts`,
   tokens encrypted at rest and deleted with the account) or type one in, up
-  to 50 at a time. The same recording twice (Spotify track, YouTube video or
+  to 50 at a time, each with its own note. The same recording twice (Spotify track, YouTube video or
   ISRC) is refused while it's pending or approved; the same title and artist
   asks first. A declined song can be requested again: the form says it was
   declined before, and the requester's declined song has a Request again

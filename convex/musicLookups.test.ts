@@ -179,6 +179,78 @@ describe("spotify.searchTracks", () => {
   });
 });
 
+describe("Spotify app token and search limit", () => {
+  const KEY = btoa(String.fromCharCode(...new Uint8Array(32).fill(7)));
+  const token = (name: string, expiresIn = 3600) => json({ access_token: name, expires_in: expiresIn });
+  const results = () => json({ tracks: { items: [] } });
+  const tokenCalls = () =>
+    fetchMock.mock.calls.filter((call) => String(call[0]).includes("accounts.spotify.com"));
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("searches and lookups share one app token until it's about to expire", async () => {
+    vi.stubEnv("SPOTIFY_TOKEN_ENCRYPTION_KEY", KEY);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_800_000_000_000);
+    const t = signedIn();
+    fetchMock
+      .mockResolvedValueOnce(token("first"))
+      .mockResolvedValueOnce(results())
+      .mockResolvedValueOnce(
+        json({ name: "Song", artists: [], album: { images: [] } }),
+      );
+    await t.action(api.spotify.searchTracks, { query: "morning" });
+    await t.action(api.spotify.getTrack, { link: TRACK });
+    expect(tokenCalls()).toHaveLength(1);
+    expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe("Bearer first");
+
+    vi.setSystemTime(1_800_000_000_000 + 3600_000 - 30_000);
+    fetchMock.mockResolvedValueOnce(token("second", 0)).mockResolvedValueOnce(results());
+    await t.action(api.spotify.searchTracks, { query: "morning" });
+    expect(tokenCalls()).toHaveLength(2);
+    fetchMock.mockResolvedValueOnce(token("third")).mockResolvedValueOnce(results());
+    await t.action(api.spotify.searchTracks, { query: "morning" });
+    expect(tokenCalls()).toHaveLength(3);
+    expect(fetchMock.mock.calls.at(-1)![1].headers.Authorization).toBe("Bearer third");
+  });
+
+  test("a token Spotify rejects is replaced once and the call retried", async () => {
+    vi.stubEnv("SPOTIFY_TOKEN_ENCRYPTION_KEY", KEY);
+    const t = signedIn();
+    fetchMock
+      .mockResolvedValueOnce(token("stale"))
+      .mockResolvedValueOnce(json({}, 401))
+      .mockResolvedValueOnce(token("fresh"))
+      .mockResolvedValueOnce(results());
+    expect(await t.action(api.spotify.searchTracks, { query: "morning" })).toEqual([]);
+    expect(tokenCalls()).toHaveLength(2);
+    expect(fetchMock.mock.calls[3][1].headers.Authorization).toBe("Bearer fresh");
+  });
+
+  test("each person can search 30 times a minute", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_800_000_000_000);
+    fetchMock.mockImplementation(async (url: string) =>
+      url.includes("accounts.spotify.com") ? token("t") : json({ tracks: { items: [] } }),
+    );
+    const t = convexTest(schema, modules);
+    const hana = t.withIdentity({ subject: "hana|s1", issuer: "test" });
+    const alex = t.withIdentity({ subject: "alex|s1", issuer: "test" });
+    for (let i = 0; i < 30; i++) {
+      await hana.action(api.spotify.searchTracks, { query: `song ${i}` });
+    }
+    await expect(hana.action(api.spotify.searchTracks, { query: "one more" })).rejects.toThrow(
+      "Too many Spotify searches. Wait a minute and try again.",
+    );
+    expect(await alex.action(api.spotify.searchTracks, { query: "someone else" })).toEqual([]);
+    expect(await hana.action(api.spotify.searchTracks, { query: "a" })).toEqual([]);
+    vi.setSystemTime(1_800_000_000_000 + 60_000);
+    expect(await hana.action(api.spotify.searchTracks, { query: "after a minute" })).toEqual([]);
+  });
+});
+
 describe("youtube.importPlaylist", () => {
   test("lists the playlist's public videos as songs", async () => {
     fetchMock.mockResolvedValueOnce(

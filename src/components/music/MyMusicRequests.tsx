@@ -35,6 +35,7 @@ type SpotifySong = {
   link: string;
   albumArtUrl?: string;
   isrc?: string;
+  requestComment?: string;
 };
 const detectSpotifyLink = (value: string): "track" | "playlist" | null => {
   try {
@@ -167,7 +168,7 @@ const MusicRequestSheetContent = ({
   const getSpotifyTrack = useAction(api.spotify.getTrack);
   const searchSpotify = useAction(api.spotify.searchTracks);
   const [spotifyQuery, setSpotifyQuery] = useState("");
-  const spotifySearchTerm = useDebouncedValue(spotifyQuery.trim(), 400);
+  const spotifySearchTerm = useDebouncedValue(spotifyQuery.trim(), 600);
   const [spotifySearch, setSpotifySearch] = useState<{
     query: string;
     results?: SpotifySearchResult[];
@@ -216,6 +217,7 @@ const MusicRequestSheetContent = ({
   const [editingSongIndex, setEditingSongIndex] = useState<number | null>(null);
   const [editSongTitle, setEditSongTitle] = useState("");
   const [editSongArtist, setEditSongArtist] = useState("");
+  const [editSongNote, setEditSongNote] = useState("");
   const clearSong = () => {
     setTitle("");
     setArtist("");
@@ -269,6 +271,7 @@ const MusicRequestSheetContent = ({
     setEditingSongIndex(index);
     setEditSongTitle(song.title);
     setEditSongArtist(song.artist);
+    setEditSongNote(song.requestComment ?? "");
   };
 
   const saveEditedSong = () => {
@@ -286,6 +289,7 @@ const MusicRequestSheetContent = ({
               ...song,
               title: editSongTitle.trim(),
               artist: editSongArtist.trim(),
+              requestComment: editSongNote.trim() || undefined,
             }
           : song,
       ),
@@ -307,9 +311,11 @@ const MusicRequestSheetContent = ({
         link: link.trim(),
         albumArtUrl: albumArtUrl ?? undefined,
         isrc,
+        requestComment: requestComment.trim() || undefined,
       },
     ]);
     clearSong();
+    setRequestComment("");
   };
   const importPlaylist = async () => {
     if (importingPlaylist || submitting) return;
@@ -526,7 +532,6 @@ const MusicRequestSheetContent = ({
     try {
       const result = await submitMany({
         songs: all,
-        requestComment: requestComment.trim() || undefined,
         allowPossibleDuplicates,
       });
       setSongs([]);
@@ -550,7 +555,14 @@ const MusicRequestSheetContent = ({
     setError(null);
     if (!prefill && songs.length > 0) {
       const all = [...songs];
-      if (title.trim() || artist.trim() || link.trim()) {
+      const typingSong = !!(title.trim() || artist.trim() || link.trim());
+      if (!typingSong && requestComment.trim()) {
+        setError(
+          "This note isn't attached to a song yet. Add the song it's for, or clear the note.",
+        );
+        return;
+      }
+      if (typingSong) {
         if (!title.trim() || !artist.trim() || !link.trim()) {
           setError("Complete or clear the song you're typing in.");
           return;
@@ -567,6 +579,7 @@ const MusicRequestSheetContent = ({
           link: link.trim(),
           albumArtUrl: albumArtUrl ?? undefined,
           isrc,
+          requestComment: requestComment.trim() || undefined,
         });
       }
       setSubmitting(true);
@@ -1047,20 +1060,35 @@ const MusicRequestSheetContent = ({
             autoCapitalize="none"
             keyboardType="url"
           />
-          {!prefill && (
-            <Btn
-              title="Add song to list"
-              icon="add-outline"
-              onPress={addSong}
-              disabled={
-                fetchingSpotify ||
-                importingPlaylist ||
-                duplicateBlocked ||
-                (!!duplicateLink && duplicate === undefined)
-              }
-            />
-          )}
         </View>
+      )}
+      {!hideRequestComment && (
+        <Field
+          label={
+            !prefill && songs.length > 0
+              ? "Note for this song (Optional)"
+              : "Request Comment (Optional)"
+          }
+          value={requestComment}
+          onChangeText={editing(setRequestComment)}
+          placeholder="Why would you like to request this song?"
+          autoCapitalize="sentences"
+          multiline
+        />
+      )}
+      {!prefill && (
+        <Btn
+          title="Add another song"
+          icon="add-outline"
+          variant="tonal"
+          onPress={addSong}
+          disabled={
+            fetchingSpotify ||
+            importingPlaylist ||
+            duplicateBlocked ||
+            (!!duplicateLink && duplicate === undefined)
+          }
+        />
       )}
 
       {!prefill && songs.length > 0 && (
@@ -1132,6 +1160,14 @@ const MusicRequestSheetContent = ({
                     {song.title}
                   </Text>
                   <Text style={{ color: t.muted }}>{song.artist}</Text>
+                  {song.requestComment ? (
+                    <Text
+                      numberOfLines={2}
+                      style={[typography.caption, { color: t.muted, fontStyle: "italic" }]}
+                    >
+                      Note: {song.requestComment}
+                    </Text>
+                  ) : null}
                 </View>
 
                 <Pressable
@@ -1183,6 +1219,17 @@ const MusicRequestSheetContent = ({
                     autoCapitalize="words"
                   />
 
+                  {!hideRequestComment && (
+                    <Field
+                      label="Note (Optional)"
+                      value={editSongNote}
+                      onChangeText={setEditSongNote}
+                      placeholder="Why would you like to request this song?"
+                      autoCapitalize="sentences"
+                      multiline
+                    />
+                  )}
+
                   <Row spread>
                     <Btn
                       title="Cancel"
@@ -1205,16 +1252,6 @@ const MusicRequestSheetContent = ({
             </View>
           ))}
         </View>
-      )}
-      {!hideRequestComment && (
-        <Field
-          label="Request Comment (Optional)"
-          value={requestComment}
-          onChangeText={editing(setRequestComment)}
-          placeholder="Why would you like to request this song?"
-          autoCapitalize="sentences"
-          multiline
-        />
       )}
       <ConfirmDialog
         visible={pendingConfirm !== null}

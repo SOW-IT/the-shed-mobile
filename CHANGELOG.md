@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.4] - 2026-11-10
+
+### Changed
+- **Each song in a request has its own note.** The note sits under the song
+  you're adding, and **Add another song** (was "Add song to list") is below
+  it, so you write a song's note, then move on to the next. Songs already in
+  your list show their note and can have it edited, including songs from an
+  imported playlist. Praise Managers' emails list each song's note under it.
+- **Spotify search waits a little longer after you stop typing** (0.6
+  seconds), and each person can search Spotify 30 times a minute. Past that,
+  the form says to wait a minute.
+- **The app asks Spotify for a new access key about once an hour** instead
+  of before every search, autofill or release date lookup.
+
 ## [2.11.3] - 2026-11-10
 
 ### Added
