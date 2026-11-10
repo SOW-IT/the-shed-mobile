@@ -5,8 +5,8 @@ import {
   subgroupMatches,
 } from "./rollcall";
 import { round1 } from "./numbers";
+import { DAY_MS } from "./datetime";
 
-export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
 
 export const METRICS_THRESHOLDS = {

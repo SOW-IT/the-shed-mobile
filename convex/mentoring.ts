@@ -16,6 +16,7 @@ import {
   currentStaffYear,
   findProfileForYear,
   isAdminProfile,
+  memoAsync,
   nextStaffYear,
   optionalEmail,
   requireAdmin,
@@ -74,18 +75,6 @@ async function personCard(ctx: QueryCtx, email: string, year: number) {
   };
 }
 
-const memo = <T>(load: (key: string) => Promise<T>) => {
-  const cache = new Map<string, Promise<T>>();
-  return (key: string): Promise<T> => {
-    let hit = cache.get(key);
-    if (!hit) {
-      hit = load(key);
-      cache.set(key, hit);
-    }
-    return hit;
-  };
-};
-
 type CardFor = (email: string) => ReturnType<typeof personCard>;
 
 const menteeWarning = (profile: Doc<"staffProfiles"> | null): string | null => {
@@ -140,9 +129,9 @@ export const pairings = query({
       .query("mentorships")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(MENTORING_LIMIT);
-    const cardFor = memo((email) => personCard(ctx, email, args.year));
+    const cardFor = memoAsync((email: string) => personCard(ctx, email, args.year));
     const titles = await roleTitlesForYear(ctx, args.year);
-    const editorName = memo(async (email) =>
+    const editorName = memoAsync(async (email: string) =>
       personName(ctx, email, await findProfileForYear(ctx, email, currentStaffYear()))
     );
     const pairs = await Promise.all(

@@ -4,8 +4,8 @@ import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
 import { currentStaffYear } from "./model";
 import { rankUpcomingEvents } from "./rollCallOrder";
+import { DAY_MS } from "../shared/datetime";
 
-const DAY_MS = 86_400_000;
 const SNAPSHOT_REACH_MS = 30 * DAY_MS;
 const SNAPSHOT_MS = LIKELIHOOD.windowDays * DAY_MS + SNAPSHOT_REACH_MS;
 const FULL_REBUILD_MS = 14 * DAY_MS;

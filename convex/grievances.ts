@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, MutationCtx, query } from "./_generated/server";
 import { isMemberOfDepartment, rolloverGraceEndMs, withinRolloverAuthGrace } from "../shared/flow";
 import {
   cleanNameList,
@@ -20,6 +20,7 @@ import {
 } from "../shared/grievances";
 import { grievanceFields } from "./grievanceData";
 import {
+  Ctx,
   currentStaffYear,
   displayName,
   optionalEmail,
@@ -31,7 +32,6 @@ import { personaDepartment } from "../shared/actingAs";
 import { lensFor } from "./actingAs";
 import { teamsFor } from "./teamJobs";
 
-type Ctx = QueryCtx | MutationCtx;
 type Grievance = Doc<"grievances">;
 
 const LIST_LIMIT = 500;

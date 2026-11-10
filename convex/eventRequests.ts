@@ -60,9 +60,15 @@ import {
   type SubForm,
   type ViewerScope,
 } from "./eventRequestAccess";
-import { displayName, getDepartment, getYearSettings, resolveName, type CallerContext } from "./model";
-
-type Ctx = QueryCtx | MutationCtx;
+import {
+  type CallerContext,
+  Ctx,
+  displayName,
+  getDepartment,
+  getYearSettings,
+  memoAsync,
+  resolveName,
+} from "./model";
 
 const LIST_LIMIT = 300;
 const EVENTS_LIMIT = 300;
@@ -70,15 +76,10 @@ const EVENTS_LIMIT = 300;
 type FormSummary = Pick<SubForm, "status" | "step">;
 
 async function withRows(ctx: Ctx, events: EventRequest[]) {
-  const names = new Map<string, Promise<string | null>>();
+  const nameOf = memoAsync((email: string, year: number) => resolveName(ctx, email, year));
   const rows = await Promise.all(
     events.map(async (event) => {
-      const key = `${event.requesterEmail} ${event.year}`;
-      let name = names.get(key);
-      if (!name) {
-        name = resolveName(ctx, event.requesterEmail, event.year);
-        names.set(key, name);
-      }
+      const name = nameOf(event.requesterEmail, event.year);
       const forms = await subFormsOf(ctx, event._id);
       const summary = Object.fromEntries(
         SUB_FORM_KINDS.map((k) => [k, { status: forms[k].status, step: forms[k].step }])

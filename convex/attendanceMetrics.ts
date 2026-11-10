@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import {
   assignmentsOf,
+  campusesLed,
   incomingStaffYear,
   roleNeedsUniversity,
   staffYearStartMs,
@@ -18,7 +19,6 @@ import {
 import { CAMPUS_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import {
   computeSubgroupMetrics,
-  METRICS_THRESHOLDS,
   RANGE_WEEKS,
   rangeStartFor,
   WEEK_MS,
@@ -286,7 +286,7 @@ async function resolvePersons(
     }
     const profile = matchProfile(memberKey, year);
     const roles = profile ? [...new Set(assignmentsOf(profile).map((a) => a.role))] : [];
-    const campuses = profile ? campusesOf(profile) : [];
+    const campuses = profile ? campusesLed(profile) : [];
     const user = latest.userId ? await ctx.db.get(latest.userId) : null;
     const breakdownByYear: Record<string, Record<string, string>> = {};
     const leaderByYear: Record<string, boolean> = {};
@@ -296,7 +296,7 @@ async function resolvePersons(
       const yearRoles = yearProfile
         ? [...new Set(assignmentsOf(yearProfile).map((a) => a.role))]
         : [];
-      const yearCampuses = yearProfile ? campusesOf(yearProfile) : [];
+      const yearCampuses = yearProfile ? campusesLed(yearProfile) : [];
       breakdownByYear[String(y)] = yearProfile
         ? buildBreakdown(yearRoles[0], yearCampuses[0])
         : buildBreakdown("Member", undefined);
@@ -320,16 +320,6 @@ async function resolvePersons(
     });
   }
   return persons;
-}
-
-function campusesOf(profile: Doc<"staffProfiles">): string[] {
-  return [
-    ...new Set(
-      assignmentsOf(profile).flatMap((a) =>
-        a.university && roleNeedsUniversity(a.role) ? [a.university] : []
-      )
-    ),
-  ];
 }
 
 function buildBreakdown(
@@ -476,4 +466,3 @@ export const rangeOptions = query({
   handler: async () => ATTENDANCE_RANGE_OPTIONS.map((o) => ({ ...o })),
 });
 
-export { METRICS_THRESHOLDS };

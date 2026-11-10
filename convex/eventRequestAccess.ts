@@ -3,11 +3,11 @@ import { teamsFor } from "./teamJobs";
 import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { MutationCtx, QueryCtx } from "./_generated/server";
+import { MutationCtx } from "./_generated/server";
 import { lensFor } from "./actingAs";
 import { lensIsCampusLeader } from "../shared/actingAs";
 import { syncEventRequestLinks } from "./eventRequestLinks";
-import { assignmentsOf, isMemberOfDepartment, roleNeedsUniversity } from "../shared/flow";
+import { isMemberOfDepartment } from "../shared/flow";
 import { formatDateTimeRange } from "../shared/forms";
 import {
   eventRequestName,
@@ -20,6 +20,8 @@ import {
 } from "../shared/eventRequests";
 import {
   actAsEmails,
+  type CallerContext,
+  Ctx,
   currentStaffYear,
   displayName,
   getApprovers,
@@ -28,17 +30,15 @@ import {
   optionalProfile,
   requireProfile,
   withDelegatesForYear,
-  type CallerContext,
 } from "./model";
 import { appUrl, notify } from "./requests";
+import { isCampusLeaderProfile } from "../shared/mentoring";
 
-type Ctx = QueryCtx | MutationCtx;
 export type EventRequest = Doc<"eventRequests">;
 export type SubForm = Doc<"eventSubForms">;
 export type SubForms = Record<SubFormKind, SubForm>;
 
-export const isCampusLeader = (caller: CallerContext) =>
-  assignmentsOf(caller.profile).some((a) => roleNeedsUniversity(a.role));
+export const isCampusLeader = (caller: CallerContext) => isCampusLeaderProfile(caller.profile);
 
 const seesStaffViews = async (ctx: Ctx, caller: CallerContext): Promise<boolean> =>
   !lensIsCampusLeader(await lensFor(ctx, caller), isCampusLeader(caller));

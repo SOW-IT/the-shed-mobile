@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { DAY_MS } from "./datetime";
 import {
   computeSubgroupMetrics,
-  DAY_MS,
   METRICS_THRESHOLDS as T,
   RANGE_WEEKS,
   rangeStartFor,

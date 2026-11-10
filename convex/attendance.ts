@@ -1,10 +1,10 @@
 import { ConvexError, v } from "convex/values";
 import {
   assignmentsOf,
+  campusesLed,
   eventStaffYear,
   roleNeedsUniversity,
   staffYearForDate,
-  staffYearStartMs,
   sydneyCalendarYear,
 } from "../shared/flow";
 import {
@@ -57,20 +57,12 @@ const NAME_LOOKUP_MEMBER_LIMIT = 10;
 
 type MetadataField = Doc<"attendanceMetadata">;
 
-const staffCampuses = (profile: Doc<"staffProfiles">): string[] => [
-  ...new Set(
-    assignmentsOf(profile).flatMap((a) =>
-      a.university && roleNeedsUniversity(a.role) ? [a.university] : []
-    )
-  ),
-];
-
 const staffUniversity = (
   profile: Doc<"staffProfiles">,
   fields: readonly MetadataField[],
   shadow: Doc<"attendanceMembers"> | null | undefined
 ): string | undefined => {
-  const campuses = staffCampuses(profile);
+  const campuses = campusesLed(profile);
   return campuses[0] ?? resolveUniversity(fields, shadow?.metadata, campuses);
 };
 
@@ -93,7 +85,7 @@ async function staffEntry(
     memberId: shadow?._id,
     name: staffDisplayName(profile, shadow?.name),
     roles,
-    campuses: staffCampuses(profile),
+    campuses: campusesLed(profile),
     university: staffUniversity(profile, fields, shadow),
     subtitle: subtitle || undefined,
     photo: await photoFor(ctx, user, profile.email),
@@ -194,7 +186,7 @@ async function likelyRoster(
     if (seen.has(key)) continue;
     seen.add(key);
     const place = profile
-      ? { university: staffUniversity(profile, fields, member), campuses: staffCampuses(profile) }
+      ? { university: staffUniversity(profile, fields, member), campuses: campusesLed(profile) }
       : { university: resolveUniversity(fields, member.metadata), campuses: [] };
     picked.push({
       key,
@@ -218,7 +210,7 @@ async function likelyRoster(
         name: staffDisplayName(profile, member?.name),
         likelihood: campusBonus({
           university: staffUniversity(profile, fields, member),
-          campuses: staffCampuses(profile),
+          campuses: campusesLed(profile),
         }),
         member,
         profile,
@@ -358,7 +350,7 @@ async function searchCandidates(
     const key = profile ? personKey({ email: profile.email }) : personKey({ memberId: member!._id });
     if (found.has(key)) return;
     const place = profile
-      ? { university: staffUniversity(profile, scope.fields, member), campuses: staffCampuses(profile) }
+      ? { university: staffUniversity(profile, scope.fields, member), campuses: campusesLed(profile) }
       : { university: resolveUniversity(scope.fields, member!.metadata), campuses: [] };
     const name = profile ? staffDisplayName(profile, member?.name) : member!.name;
     found.set(key, {
@@ -374,12 +366,12 @@ async function searchCandidates(
   // so a name match is never dropped for one that only matched a role or campus.
   const staffHits = scope.staff
     .filter(({ profile, name }) =>
-      searchHit(needle, name, profile.email, ...assignmentsOf(profile).map((a) => a.role), ...staffCampuses(profile))
+      searchHit(needle, name, profile.email, ...assignmentsOf(profile).map((a) => a.role), ...campusesLed(profile))
     )
     .map((hit) => ({
       ...hit,
       exact: searchHit(needle, hit.name, hit.profile.email),
-      likelihood: scope.likelihood(hit.profile.memberId, { campuses: staffCampuses(hit.profile) }),
+      likelihood: scope.likelihood(hit.profile.memberId, { campuses: campusesLed(hit.profile) }),
     }))
     .sort((a, b) => Number(b.exact) - Number(a.exact) || compareLikelihood(a.likelihood, b.likelihood, a.name, b.name))
     .slice(0, SEARCH_STAFF_LIMIT);

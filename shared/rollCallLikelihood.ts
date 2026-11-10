@@ -1,6 +1,6 @@
 import { normalizeSubgroups } from "./rollcall";
+import { DAY_MS } from "./datetime";
 
-const DAY_MS = 86_400_000;
 
 export const LIKELIHOOD = {
   windowDays: 180,

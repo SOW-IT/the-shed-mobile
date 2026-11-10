@@ -142,6 +142,10 @@ export const assignmentFor = (
 export const assignmentsOf = (p: ProfileLike): Assignment[] =>
   p.assignments ?? [];
 
+export const campusesLed = (p: ProfileLike): string[] => [
+  ...new Set(assignmentsOf(p).flatMap((a) => (a.university && roleNeedsUniversity(a.role) ? [a.university] : []))),
+];
+
 export const departmentsOf = (p: ProfileLike): string[] => [
   ...new Set(assignmentsOf(p).flatMap((a) => (a.department ? [a.department] : []))),
 ];

@@ -1,7 +1,8 @@
-import { pad2 } from "./datetime";
-import { acronym, SYDNEY_TIME_ZONE, sydneyYmd, universityColour } from "./flow";
+import { DAY_MS, pad2 } from "./datetime";
+import { acronym, SYDNEY_TIME_ZONE, universityColour } from "./flow";
 import { isOrgWideSubgroup, SOW_SUBGROUP, subgroupLabel, type TagList } from "./rollcall";
 import { sowModeOf } from "./sowInsights";
+import { sydneyToday } from "./forms";
 
 // Nothing is picked. An attendance event's comes from its tags (TWIG, PPN),
 // its term and week (Weekly) or where it's held (Campus or SOW event), so
@@ -99,12 +100,8 @@ export const parseDayKey = (value: unknown): string | null => {
   return keyOfUtc(Date.UTC(y, m - 1, d)) === value ? value : null;
 };
 
-export const sydneyDayKey = (ms: number): string => {
-  const { year, month, day } = sydneyYmd(new Date(ms));
-  return `${year}-${pad2(month)}-${pad2(day)}`;
-};
+export const sydneyDayKey = (ms: number): string => sydneyToday(new Date(ms));
 
-const DAY_MS = 86_400_000;
 const keyOfUtc = (ms: number) => {
   const d = new Date(ms);
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;

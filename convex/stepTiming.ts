@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { SUB_FORM_KINDS, SUB_FORM_LABELS, type SubFormKind } from "../shared/eventRequests";
 import { isMemberOfDepartment, STEP_LABELS, type ApprovalStep } from "../shared/flow";
 import { query, type QueryCtx } from "./_generated/server";
-import { displayName, financeApprovers, isAdminProfile, requireProfile } from "./model";
+import { displayName, financeApprovers, isAdminProfile, memoAsync, requireProfile } from "./model";
 import { teamsFor } from "./teamJobs";
 import { yearRequests } from "./requests";
 
@@ -199,15 +199,7 @@ export const summary = query({
     await designSamples(ctx, year, samples);
     await eventSamples(ctx, year, samples);
 
-    const names = new Map<string, Promise<string>>();
-    const nameOf = (email: string) => {
-      let name = names.get(email);
-      if (!name) {
-        name = displayName(ctx, email, year);
-        names.set(email, name);
-      }
-      return name;
-    };
+    const nameOf = memoAsync((email: string) => displayName(ctx, email, year));
 
     const steps = await Promise.all(
       samples.entries().map(async ({ key, label, samples: rows }) => {

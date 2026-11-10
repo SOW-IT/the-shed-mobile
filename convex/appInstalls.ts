@@ -1,9 +1,7 @@
 import { ConvexError, v } from "convex/values";
-import { internalMutation, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { compareVersions, isAppVersion, updateStatusFor } from "../shared/appLinks";
-import { optionalEmail } from "./model";
-
-type Ctx = QueryCtx | MutationCtx;
+import { Ctx, optionalEmail } from "./model";
 
 export const report = mutation({
   args: { platform: v.union(v.literal("ios"), v.literal("android")), version: v.string() },

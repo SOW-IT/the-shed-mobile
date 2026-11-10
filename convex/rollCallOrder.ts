@@ -9,8 +9,8 @@ import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
 import { historyBefore, type RosterHistory } from "./rosterHistory";
+import { DAY_MS } from "../shared/datetime";
 
-const DAY_MS = 86_400_000;
 const MAX_RANKED_MEMBERS = 150;
 const UPCOMING_MS = 7 * DAY_MS;
 const LONGEST_EVENT_MS = 14 * DAY_MS;

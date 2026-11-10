@@ -4,7 +4,7 @@ import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import schema from "./schema";
-import { checkInOpen, checkInPhase, checkInWindow } from "./checkIn";
+import { checkInOpen, checkInPhase, checkInWindow } from "../shared/checkInWindow";
 
 const modules = import.meta.glob("./**/*.ts");
 const HOUR = 3_600_000;

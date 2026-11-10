@@ -3,13 +3,14 @@ import { Id } from "./_generated/dataModel";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { lensFor } from "./actingAs";
 import {
+  type CallerContext,
   currentStaffYear,
   getApprovers,
+  memoAsync,
   optionalProfile,
   requireProfile,
   resolveName,
   withDelegatesForYear,
-  type CallerContext,
 } from "./model";
 import {
   actionOwnerEmail,
@@ -99,15 +100,7 @@ export const list = query({
     ).sort((a, b) => a._creationTime - b._creationTime);
 
     const threadYear = eventStaffYear(request._creationTime);
-    const nameByEmail = new Map<string, Promise<string | null>>();
-    const nameFor = (email: string): Promise<string | null> => {
-      let name = nameByEmail.get(email);
-      if (!name) {
-        name = resolveName(ctx, email, threadYear);
-        nameByEmail.set(email, name);
-      }
-      return name;
-    };
+    const nameFor = memoAsync((email: string) => resolveName(ctx, email, threadYear));
 
     const result = [];
     for (const comment of comments) {

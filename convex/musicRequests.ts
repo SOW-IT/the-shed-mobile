@@ -8,13 +8,14 @@ import { seesThrough, waitsThrough, type Lens } from "../shared/actingAs";
 import { SONGS_COUNTED } from "../shared/praiseList";
 import { lensFor, viewsAsAdmin } from "./actingAs";
 import {
+  type CallerContext,
   currentStaffYear,
   displayName,
   getProfile,
+  memoAsync,
   optionalProfile,
   requireProfile,
   resolveName,
-  type CallerContext,
 } from "./model";
 import { notify as notifyPerson } from "./requests";
 import {
@@ -22,8 +23,6 @@ import {
   spotifyTrackId,
   youtubeVideoId,
 } from "./shared/musicLinks";
-
-export { spotifyTrackId };
 
 /** Get Praise Manager emails for the active staff year. */
 async function praiseManagerEmailsForYear(
@@ -67,17 +66,8 @@ async function seesReviewQueue(
   );
 }
 
-/** Look up each email's name once per query. */
 function nameResolver(ctx: MusicCtx) {
-  const cache = new Map<string, Promise<string | null>>();
-  return (email: string) => {
-    let name = cache.get(email);
-    if (!name) {
-      name = resolveName(ctx, email, currentStaffYear());
-      cache.set(email, name);
-    }
-    return name;
-  };
+  return memoAsync((email: string) => resolveName(ctx, email, currentStaffYear()));
 }
 
 async function withNames(ctx: MusicCtx, rows: MusicRequestRow[]) {

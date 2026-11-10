@@ -23,27 +23,6 @@ const removeSongLabels = (value: string): string =>
 const removeVideoLabels = (value: string): string =>
   removeSongLabels(removeVersionLabels(value));
 
-export const cleanYouTubeTitle = (title: string, artist: string): string => {
-  let cleaned = removeVideoLabels(title);
-  const artistName = artist.trim();
-
-  if (!artistName) return cleaned;
-
-  const escapedArtist = artistName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-  cleaned = cleaned.replace(
-    new RegExp(`^${escapedArtist}\\s*[-–—|:]\\s*`, "i"),
-    "",
-  );
-
-  cleaned = cleaned.replace(
-    new RegExp(`\\s*[-–—|:]\\s*${escapedArtist}$`, "i"),
-    "",
-  );
-
-  return cleaned.trim() || removeVideoLabels(title);
-};
-
 export const parseYouTubeSong = (
   videoTitle: string,
   channelName: string,

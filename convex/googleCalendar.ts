@@ -17,6 +17,7 @@ import {
 } from "../shared/calendar";
 import { googleAccessToken, googleServiceAccountConfigured } from "./googleAuth";
 import { appUrl } from "./requests";
+import { DAY_MS } from "../shared/datetime";
 
 const EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const CALENDARS_SCOPE = "https://www.googleapis.com/auth/calendar";
@@ -24,7 +25,6 @@ const API = "https://www.googleapis.com/calendar/v3";
 const BACKFILL_PAGE = 100;
 // A write that dies leaves its lock behind; after this long the next one goes ahead.
 const LOCK_MS = 60_000;
-const DAY_MS = 86_400_000;
 const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 30 * 60_000];
 
 // The shared calendar's id: one made by createSharedCalendar below, or any

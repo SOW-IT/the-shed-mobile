@@ -28,7 +28,7 @@ const sameName = (a: string, b: string): boolean =>
   a.trim().replace(/\s+/g, " ").toLowerCase() ===
   b.trim().replace(/\s+/g, " ").toLowerCase();
 
-const sameEmail = (a: string, b: string): boolean =>
+export const sameEmail = (a: string, b: string): boolean =>
   a.trim().toLowerCase() === b.trim().toLowerCase();
 
 export function detectMergeConflicts(

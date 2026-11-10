@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import { mutation, MutationCtx, query } from "./_generated/server";
 import {
   calendarCategoryOf,
   entryCategory,
@@ -14,12 +14,10 @@ import { entryFields } from "./calendarData";
 import { openableEventRequest } from "./eventRequestAccess";
 import { calendarSyncConfigured } from "./googleCalendar";
 import { viewsAsAdmin } from "./actingAs";
-import { isAdminProfile, optionalProfile, requireProfile, type CallerContext } from "./model";
+import { type CallerContext, Ctx, isAdminProfile, optionalProfile, requireProfile } from "./model";
 
 const RANGE_LIMIT = 500;
 const LONGEST_EVENT_MS = MAX_SPAN_MS;
-
-type Ctx = QueryCtx | MutationCtx;
 
 const canEditEntry = async (ctx: Ctx, caller: CallerContext, entry: Doc<"calendarEntries">) =>
   entry.createdBy === caller.email || (await isAdminProfile(ctx, caller.profile));

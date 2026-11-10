@@ -86,7 +86,7 @@ export const timeAgo = (ms: number, now: number = Date.now()): string => {
 };
 
 const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
+export const DAY_MS = 24 * HOUR_MS;
 
 export const daysSince = (since: number, now: number = Date.now()): number =>
   Math.max(0, Math.floor((now - since) / DAY_MS));

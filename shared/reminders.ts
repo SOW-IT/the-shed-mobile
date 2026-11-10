@@ -1,7 +1,6 @@
-import { daysSince } from "./datetime";
+import { DAY_MS, daysSince } from "./datetime";
 import { formatDate, isValidDateString, isValidDateTimeString } from "./forms";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const reminderDelayMs = (count: number): number => {
   if (count === 0) return DAY_MS;

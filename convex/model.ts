@@ -16,7 +16,7 @@ import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
 
-type Ctx = QueryCtx | MutationCtx;
+export type Ctx = QueryCtx | MutationCtx;
 
 export const DELEGATION_QUERY_LIMIT = 500;
 
@@ -150,17 +150,26 @@ export async function displayName(
   return (await resolveName(ctx, email, year)) ?? email;
 }
 
+export const memoAsync = <A extends unknown[], V>(load: (...args: A) => Promise<V>) => {
+  const cache = new Map<string, Promise<V>>();
+  return (...args: A): Promise<V> => {
+    const key = JSON.stringify(args);
+    let cached = cache.get(key);
+    if (!cached) {
+      cached = load(...args);
+      cache.set(key, cached);
+    }
+    return cached;
+  };
+};
+
 export async function commentRows<
   T extends { _id: string; authorEmail: string; body: string; postedAt: number },
 >(ctx: Ctx, comments: T[], year: number, callerEmail: string) {
-  const names = new Map<string, Promise<string>>();
+  const nameOf = memoAsync((email: string) => displayName(ctx, email, year));
   return await Promise.all(
     comments.map(async (comment) => {
-      let name = names.get(comment.authorEmail);
-      if (!name) {
-        name = displayName(ctx, comment.authorEmail, year);
-        names.set(comment.authorEmail, name);
-      }
+      const name = nameOf(comment.authorEmail);
       return {
         id: comment._id,
         authorEmail: comment.authorEmail,

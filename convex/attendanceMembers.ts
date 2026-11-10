@@ -1,12 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import {
-  assignmentsOf,
-  roleNeedsUniversity,
-  rolesOfLike,
-  staffYearForDate,
-  sydneyCalendarYear,
-} from "../shared/flow";
+import { campusesLed, rolesOfLike, staffYearForDate, sydneyCalendarYear } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
@@ -33,7 +27,7 @@ import {
   type MergeSide,
 } from "../shared/memberMerge";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { currentStaffYear, getProfile, optionalProfile, requireAdmin, requireProfile } from "./model";
+import { Ctx, currentStaffYear, getProfile, optionalProfile, requireAdmin, requireProfile } from "./model";
 import {
   auditStamp,
   logAttendanceAction,
@@ -112,15 +106,8 @@ const staffRowOf = (
   { profile: p, shadow }: StaffSource
 ): MemberRow => {
   const metadata = staffLockedMetadata(fields, p, shadow?.metadata);
-  const assignments = assignmentsOf(p);
   const roles = rolesOfLike(p);
-  const campuses = [
-    ...new Set(
-      assignments.flatMap((a) =>
-        a.university && roleNeedsUniversity(a.role) ? [a.university] : []
-      )
-    ),
-  ];
+  const campuses = campusesLed(p);
   const metaSubtitle = metadataSubtitle(fields, metadata, viewingYear, [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY]);
   const subtitle = [staffSubtitle(roles), metaSubtitle].filter(Boolean).join(" · ");
   return {
@@ -814,8 +801,6 @@ export const deletePreview = query({
     return { total: signed.length, events };
   },
 });
-
-type Ctx = QueryCtx | MutationCtx;
 
 const mergeKeepValidator = v.union(
   v.object({ memberId: v.id("attendanceMembers") }),
