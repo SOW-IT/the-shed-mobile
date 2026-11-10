@@ -16,9 +16,25 @@ the requester. It is **Pending** until a Praise Manager reviews it, then
 _Avoid_: track, music request (in user-facing copy)
 
 **Praise List**:
-Every Approved song, searchable and sortable, under the Approved Playlist tab
-at `/music`. Only staff with a role this year open it.
+Every Approved song under the **Approved** tab at `/music`, 15 at a time with
+more loading as you scroll, searchable by title and artist and sortable by
+song name, artist, recently approved or release date. Only staff with a role
+this year open it.
 _Avoid_: playlist (alone), song list
+
+**Song history**:
+What tapping a song shows: who suggested it and when, then who approved or
+declined it and when (or that it's waiting), with a button to open the song.
+A Praise Manager's own song shows as added straight to the list. Edits aren't
+recorded. Everyone sees who suggested a song; the request note is only for
+Praise Managers, admins and the requester, and the server leaves it out for
+anyone else.
+_Avoid_: audit log (in user-facing copy)
+
+**Release date**:
+The release date of a Spotify song's album, looked up from Spotify after the
+song is saved, at the precision Spotify gives (year, month or day). YouTube
+and other links have none and sort after every dated song.
 
 **Request**:
 A Pending song and the person who asked for it. Requesters follow theirs under

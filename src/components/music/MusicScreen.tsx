@@ -57,6 +57,8 @@ export default function MusicScreen() {
   const [pendingDelete, setPendingDelete] = useState<MusicRequest | null>(null);
 
   const latestRequestAgainCheck = useRef(0);
+  const mineLoadMoreRef = useRef<(() => void) | null>(null);
+  const reviewLoadMoreRef = useRef<(() => void) | null>(null);
 
   const handleEdit = (
     request: MusicRequest,
@@ -122,7 +124,7 @@ export default function MusicScreen() {
   const tabs: PagerTab[] = [
     {
       key: "approvedPlaylist",
-      label: "Approved Playlist",
+      label: "Approved",
       selfScrolling: true,
       render: () => (
         <ApprovedPlaylistTab
@@ -143,6 +145,7 @@ export default function MusicScreen() {
             label: "Mine",
             render: () => (
               <MyRequestsTab
+                loadMoreRef={mineLoadMoreRef}
                 onEditRequest={(request) => handleEdit(request, "myRequests")}
                 onDeleteRequest={handleDelete}
                 onRequestAgain={(request) => void handleRequestAgain(request)}
@@ -158,6 +161,7 @@ export default function MusicScreen() {
             label: "To review",
             render: () => (
               <ToReviewTab
+                loadMoreRef={reviewLoadMoreRef}
                 canManageRequests={canManageRequests}
                 onEditRequest={
                   canManageRequests
@@ -217,6 +221,10 @@ export default function MusicScreen() {
         tabs={tabs}
         activeKey={active}
         onActiveKeyChange={setSelectedTab}
+        onEndReached={(key) => {
+          if (key === "myRequest") mineLoadMoreRef.current?.();
+          if (key === "toReview") reviewLoadMoreRef.current?.();
+        }}
         floating={<Toast toast={toast} />}
         floatingAboveFooter
         footer={

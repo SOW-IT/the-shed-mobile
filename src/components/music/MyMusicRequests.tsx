@@ -10,8 +10,10 @@ import {
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { useRef, useState } from "react";
+import type { FunctionReturnType } from "convex/server";
+import { useEffect, useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
@@ -26,6 +28,7 @@ import { parseYouTubeSong } from "../../../convex/shared/youtube";
 import { useSpotifyPlaylist } from "./useSpotifyPlaylist";
 
 export type MusicRequest = Doc<"musicRequests">;
+type SpotifySearchResult = FunctionReturnType<typeof api.spotify.searchTracks>[number];
 type SpotifySong = {
   title: string;
   artist: string;
@@ -162,6 +165,36 @@ const MusicRequestSheetContent = ({
   const declinedVersion =
     duplicate?.kind === "declined" && !duplicate.sameRecording;
   const getSpotifyTrack = useAction(api.spotify.getTrack);
+  const searchSpotify = useAction(api.spotify.searchTracks);
+  const [spotifyQuery, setSpotifyQuery] = useState("");
+  const spotifySearchTerm = useDebouncedValue(spotifyQuery.trim(), 400);
+  const [spotifySearch, setSpotifySearch] = useState<{
+    query: string;
+    results?: SpotifySearchResult[];
+    error?: string;
+  } | null>(null);
+  useEffect(() => {
+    if (spotifySearchTerm.length < 2) return;
+    let current = true;
+    searchSpotify({ query: spotifySearchTerm })
+      .then((results) => {
+        if (current) setSpotifySearch({ query: spotifySearchTerm, results });
+      })
+      .catch((searchError: unknown) => {
+        if (current) {
+          setSpotifySearch({ query: spotifySearchTerm, error: errorMessage(searchError) });
+        }
+      });
+    return () => {
+      current = false;
+    };
+  }, [spotifySearchTerm, searchSpotify]);
+  const searchShown =
+    spotifyQuery.trim().length >= 2 && spotifySearch?.query === spotifySearchTerm
+      ? spotifySearch
+      : null;
+  const searchingSpotify =
+    spotifyQuery.trim().length >= 2 && spotifySearch?.query !== spotifyQuery.trim();
   const importYouTubePlaylist = useAction(api.youtube.importPlaylist);
   const spotifyPlaylist = useSpotifyPlaylist();
 
@@ -394,6 +427,22 @@ const MusicRequestSheetContent = ({
       setAutofilledFrom(null);
     }
   };
+  const chooseSpotifyResult = (result: SpotifySearchResult) => {
+    musicLinkEdits.current++;
+    dropPendingAutofill();
+    setError(null);
+    setSpotifyError(null);
+    setTitle(result.title);
+    setArtist(result.artist);
+    setLink(result.link);
+    setAlbumArtUrl(result.albumArtUrl);
+    setIsrc(result.isrc ?? undefined);
+    setSpotifyLink("");
+    setAutofilledFrom(null);
+    setManualExpanded(true);
+    setSpotifyQuery("");
+  };
+
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(musicLink);
     if (!cleanUrl) {
@@ -679,10 +728,68 @@ const MusicRequestSheetContent = ({
             </Text>
           </View>
           <Text style={[typography.caption, { color: t.muted }]}>
-            Paste a Spotify or YouTube song or playlist link. Spotify playlists
-            need Spotify connected on your Profile; public YouTube playlists
-            don&apos;t.
+            Search Spotify, or paste a Spotify or YouTube song or playlist
+            link. Spotify playlists need Spotify connected on your Profile;
+            public YouTube playlists don&apos;t.
           </Text>
+
+          <Field
+            label="Search Spotify"
+            value={spotifyQuery}
+            onChangeText={setSpotifyQuery}
+            placeholder="Song title or artist"
+            autoCapitalize="none"
+          />
+          {searchingSpotify ? (
+            <Text style={[typography.caption, { color: t.muted }]}>
+              Searching Spotify...
+            </Text>
+          ) : null}
+          {searchShown?.error ? (
+            <Text style={[typography.caption, { color: t.warning }]}>
+              {searchShown.error}
+            </Text>
+          ) : null}
+          {searchShown?.results?.length === 0 ? (
+            <Text style={[typography.caption, { color: t.muted }]}>
+              No songs found on Spotify.
+            </Text>
+          ) : null}
+          {searchShown?.results?.map((result) => (
+            <Pressable
+              key={result.link}
+              accessibilityRole="button"
+              accessibilityLabel={`Use ${result.title} by ${result.artist}`}
+              onPress={() => chooseSpotifyResult(result)}
+              style={({ pressed }) => [
+                styles.searchResult,
+                { backgroundColor: t.inputBackground },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              {result.thumbnailUrl ? (
+                <Image
+                  source={{ uri: result.thumbnailUrl }}
+                  style={styles.searchResultArt}
+                />
+              ) : (
+                <View
+                  style={[styles.searchResultArt, { alignItems: "center", justifyContent: "center" }]}
+                >
+                  <Ionicons name="musical-notes-outline" size={18} color={t.faint} />
+                </View>
+              )}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ color: t.text, fontWeight: "600" }}>
+                  {result.title}
+                </Text>
+                <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
+                  {[result.artist, result.releaseDate?.slice(0, 4)].filter(Boolean).join(" · ")}
+                </Text>
+              </View>
+              <Ionicons name="add-circle-outline" size={22} color={t.primary} />
+            </Pressable>
+          ))}
 
           <View style={{ position: "relative" }}>
             <Field
@@ -1198,6 +1305,14 @@ export const MusicGuideSheet = ({
   );
 };
 const styles = StyleSheet.create({
+  searchResult: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+  },
+  searchResultArt: { width: 40, height: 40, borderRadius: radius.sm },
   spotifySection: {
     borderWidth: 1,
     borderRadius: radius.lg,

@@ -892,13 +892,24 @@ export default defineSchema({
     reviewedTime: v.optional(v.number()),
     requestComment: v.optional(v.string()),
     declineComment: v.optional(v.string()),
+
+    titleSort: v.optional(v.string()),
+    artistSort: v.optional(v.string()),
+    searchText: v.optional(v.string()),
+    releaseDate: v.optional(v.string()),
   })
     .index("by_requester", ["requesterEmail"])
+    .index("by_requester_and_status", ["requesterEmail", "status"])
     .index("by_status", ["status"])
+    .index("by_status_and_reviewed_time", ["status", "reviewedTime"])
+    .index("by_status_and_release_date", ["status", "releaseDate"])
+    .index("by_status_and_title_sort", ["status", "titleSort"])
+    .index("by_status_and_artist_sort", ["status", "artistSort"])
     .index("by_spotify_track_id", ["spotifyTrackId"])
     .index("by_youtube_video_id", ["youtubeVideoId"])
     .index("by_isrc", ["isrc"])
-    .index("by_normalized_song_key", ["normalizedSongKey"]),
+    .index("by_normalized_song_key", ["normalizedSongKey"])
+    .searchIndex("search_songs", { searchField: "searchText", filterFields: ["status"] }),
 
   // A Spotify connection for a user, to view their requested playlists for the Praise List.
   spotifyConnections: defineTable({

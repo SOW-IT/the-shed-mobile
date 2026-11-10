@@ -13,12 +13,15 @@ import {
   Muted,
   Sheet,
 } from "@/components/ui";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { releaseDateLabel, songServiceLabel } from "@shared/praiseList";
+import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { radius, spacing, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { MutableRefObject, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Image,
@@ -81,13 +84,24 @@ function SongArtwork({ url, size = 46 }: { url?: string; size?: number }) {
 }
 
 /* Approved Playlist */
-type SortOption = "title-asc" | "title-desc" | "artist-asc" | "artist-desc";
+type SortOption =
+  | "title-asc"
+  | "title-desc"
+  | "artist-asc"
+  | "artist-desc"
+  | "approved-desc"
+  | "release-desc";
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: "title-asc", label: "Song name (A–Z)" },
   { key: "title-desc", label: "Song name (Z–A)" },
   { key: "artist-asc", label: "Artist (A–Z)" },
   { key: "artist-desc", label: "Artist (Z–A)" },
+  { key: "approved-desc", label: "Recently approved" },
+  { key: "release-desc", label: "Release date (newest)" },
 ];
+
+const PAGE_SIZE = 15;
+const LOAD_AHEAD = 600;
 
 export const ApprovedPlaylistTab = ({
   onEditRequest,
@@ -98,36 +112,31 @@ export const ApprovedPlaylistTab = ({
   const footerClearance = usePagerFooterClearance();
   const { isAuthenticated, isLoading } = useConvexAuth();
 
-  const approvedList = useQuery(
-    api.musicRequests.approved,
-    !isLoading && isAuthenticated ? {} : "skip",
-  );
-
   const [search, setSearch] = useState("");
+  const searching = useDebouncedValue(search.trim(), 300);
   const [sortBy, setSortBy] = useState<SortOption>("title-asc");
   const [sortOpen, setSortOpen] = useState(false);
+  const [details, setDetails] = useState<MusicRequest | null>(null);
+  const ready = !isLoading && isAuthenticated;
 
-  const visibleSongs = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase();
-
-    return [...(approvedList ?? [])]
-      .filter((song) =>
-        [song.title, song.artist, song.requesterName, song.requesterEmail].some(
-          (value) => (value ?? "").toLocaleLowerCase().includes(q),
-        ),
-      )
-      .sort((a, b) => {
-        const byArtist = sortBy.startsWith("artist");
-        const first = byArtist ? a.artist : a.title;
-        const second = byArtist ? b.artist : b.title;
-
-        const order = (first ?? "").localeCompare(second ?? "", undefined, {
-          sensitivity: "base",
-        });
-
-        return sortBy.endsWith("desc") ? -order : order;
-      });
-  }, [approvedList, search, sortBy]);
+  const songs = usePagedQuery(api.musicRequests.approvedPage, {
+    args: (cursor) =>
+      ready
+        ? {
+            paginationOpts: { numItems: PAGE_SIZE, cursor },
+            sort: sortBy,
+            ...(searching ? { search: searching } : {}),
+          }
+        : "skip",
+    scopeKey: `${sortBy}|${searching}`,
+    rowsOf: (result) => result.page,
+    keyOf: (row) => row._id,
+    keepRowsWhileLoading: true,
+  });
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const loadAheadOf = (contentHeight: number, scrolled: number) => {
+    if (contentHeight - (scrolled + viewportHeight) < LOAD_AHEAD) songs.loadMore();
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: t.background }}>
@@ -221,31 +230,36 @@ export const ApprovedPlaylistTab = ({
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={100}
+        onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
+        onScroll={(e) =>
+          loadAheadOf(e.nativeEvent.contentSize.height, e.nativeEvent.contentOffset.y)
+        }
+        onContentSizeChange={(_width, height) => {
+          if (viewportHeight > 0 && height <= viewportHeight) songs.loadMore();
+        }}
       >
-        {approvedList === undefined ? (
+        {songs.loadingFirstPage ? (
           <LoadingState />
         ) : (
           <>
             <View style={styles.musicMetaRow}>
               <Text style={{ color: t.faint, fontSize: 12 }}>
-                {visibleSongs.length}{" "}
-                {visibleSongs.length === 1 ? "SONG" : "SONGS"}
-              </Text>
-
-              <Text style={{ color: t.faint, fontSize: 12 }}>
-                {SORT_OPTIONS.find((option) => option.key === sortBy)?.label}
+                {searching
+                  ? "BEST MATCHES"
+                  : SORT_OPTIONS.find((option) => option.key === sortBy)?.label.toUpperCase()}
               </Text>
             </View>
 
-            {visibleSongs.length === 0 ? (
+            {songs.rows.length === 0 ? (
               <Text style={{ color: t.faint }}>
-                {search.trim()
+                {searching
                   ? "No matching songs."
                   : "No songs approved yet."}
               </Text>
             ) : (
               <FlatList
-                data={visibleSongs}
+                data={songs.rows}
                 scrollEnabled={false}
                 keyExtractor={(song) => song._id}
                 ItemSeparatorComponent={() => (
@@ -265,8 +279,8 @@ export const ApprovedPlaylistTab = ({
                   >
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={`Open ${item.title} by ${item.artist}`}
-                      onPress={() => void openExternalLink(item.link)}
+                      accessibilityLabel={`${item.title} by ${item.artist}, details`}
+                      onPress={() => setDetails(item)}
                       onLongPress={() => item.link && shareLink(item.link)}
                       style={({ pressed }) => [
                         styles.musicSongRow,
@@ -298,13 +312,11 @@ export const ApprovedPlaylistTab = ({
                         </Text>
                       </View>
 
-                      {item.link ? (
-                        <Ionicons
-                          name="open-outline"
-                          size={19}
-                          color={t.faint}
-                        />
-                      ) : null}
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color={t.faint}
+                      />
                     </Pressable>
 
                     {(onEditRequest || onDeleteRequest) && (
@@ -317,9 +329,11 @@ export const ApprovedPlaylistTab = ({
                 )}
               />
             )}
+            {songs.loadingMore ? <LoadingState /> : null}
           </>
         )}
       </ScrollView>
+      <SongDetailsSheet request={details} onClose={() => setDetails(null)} />
     </View>
   );
 };
@@ -463,38 +477,212 @@ function SongLink({ link }: { link: string }) {
     </Pressable>
   );
 }
+
+const formatMoment = (timestamp?: number) =>
+  timestamp
+    ? new Date(timestamp).toLocaleString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "";
+
+function TrailStep({
+  icon,
+  title,
+  when,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  when?: string;
+}) {
+  const t = useAppTheme();
+  return (
+    <View style={styles.trailStep}>
+      <Ionicons name={icon} size={18} color={t.primary} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ color: t.text, fontSize: 14, fontWeight: "600" }}>
+          {title}
+        </Text>
+        {when ? (
+          <Text style={{ color: t.faint, fontSize: 12 }}>{when}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function SongDetailsSheet({
+  request,
+  onClose,
+}: {
+  request: MusicRequest | null;
+  onClose: () => void;
+}) {
+  const t = useAppTheme();
+  const [last, setLast] = useState<MusicRequest | null>(request);
+  if (request && request !== last) setLast(request);
+  const song = request ?? last;
+  const requester = song ? (song.requesterName ?? song.requesterEmail) : "";
+  const reviewer = song?.reviewedByEmail
+    ? (song.reviewerName ?? song.reviewedByEmail)
+    : null;
+  const addedDirectly =
+    !!song &&
+    song.status === "APPROVED" &&
+    song.reviewedByEmail?.toLowerCase() === song.requesterEmail.toLowerCase();
+  const released = releaseDateLabel(song?.releaseDate);
+  return (
+    <Sheet
+      visible={request !== null}
+      onClose={onClose}
+      title="Song details"
+      footer={
+        song?.link ? (
+          <View style={{ gap: spacing.sm }}>
+            <Btn
+              title={songServiceLabel(song.link)}
+              icon="open-outline"
+              onPress={() => void openExternalLink(song.link)}
+            />
+            <Btn
+              title="Share link"
+              icon="share-outline"
+              variant="ghost"
+              onPress={() => void shareLink(song.link)}
+            />
+          </View>
+        ) : undefined
+      }
+    >
+      {song ? (
+        <View style={{ gap: spacing.md }}>
+          <SongHeader request={song} status />
+          {released ? (
+            <DetailLine icon="disc-outline">Released {released}</DetailLine>
+          ) : null}
+          <View style={{ gap: spacing.sm }}>
+            <Text style={[styles.noteLabel, { color: t.faint }]}>HISTORY</Text>
+            <TrailStep
+              icon="add-circle-outline"
+              title={
+                addedDirectly
+                  ? `Added to the list by ${requester}`
+                  : `Suggested by ${requester}`
+              }
+              when={formatMoment(song._creationTime)}
+            />
+            {song.status === "PENDING" ? (
+              <TrailStep icon="time-outline" title="Waiting for a Praise Manager" />
+            ) : null}
+            {song.status !== "PENDING" && !addedDirectly ? (
+              <TrailStep
+                icon={
+                  song.status === "APPROVED"
+                    ? "checkmark-circle-outline"
+                    : "close-circle-outline"
+                }
+                title={`${song.status === "APPROVED" ? "Approved" : "Declined"}${
+                  reviewer ? ` by ${reviewer}` : ""
+                }`}
+                when={formatMoment(song.reviewedTime)}
+              />
+            ) : null}
+          </View>
+          {song.requestComment?.trim() ? (
+            <View style={{ gap: 5 }}>
+              <Text style={[styles.noteLabel, { color: t.faint }]}>
+                REQUEST NOTE
+              </Text>
+              <Text style={{ color: t.text, fontSize: 14, lineHeight: 21 }}>
+                {song.requestComment}
+              </Text>
+            </View>
+          ) : null}
+          {song.status === "DECLINED" && song.declineComment ? (
+            <View
+              style={[styles.commentBox, { backgroundColor: t.inputBackground }]}
+            >
+              <Text style={{ color: t.danger, fontSize: 12, fontWeight: "700" }}>
+                Decline reason
+              </Text>
+              <Text style={{ color: t.text, fontSize: 13 }}>
+                {song.declineComment}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+    </Sheet>
+  );
+}
 /* My Requests */
+function PraiseManagersLine({
+  managers,
+}: {
+  managers: { email: string; name: string }[] | null | undefined;
+}) {
+  const t = useAppTheme();
+  if (!managers) return null;
+  return (
+    <View style={[styles.managersBox, { backgroundColor: t.inputBackground }]}>
+      <Ionicons name="people-outline" size={18} color={t.primary} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ color: t.text, fontSize: 13, fontWeight: "700" }}>
+          Praise Managers
+        </Text>
+        <Text style={{ color: t.faint, fontSize: 13 }}>
+          {managers.length
+            ? `${managers.map((manager) => manager.name).join(", ")} review your requests.`
+            : "There are no Praise Managers this year yet, so requests wait until an admin chooses one."}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export const MyRequestsTab = ({
   onEditRequest,
   onDeleteRequest,
   onRequestAgain,
+  loadMoreRef,
 }: MusicRowActions & {
   onRequestAgain?: (request: Doc<"musicRequests">) => void;
+  loadMoreRef?: MutableRefObject<(() => void) | null>;
 } = {}) => {
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
-  const myRequests = useQuery(
-    api.musicRequests.myRequests,
-    !isLoading && isAuthenticated ? {} : "skip",
-  );
+  const ready = !isLoading && isAuthenticated;
   const [filter, setFilter] = useState<RequestFilter>("ALL");
-  const visible = useMemo(
-    () =>
-      (myRequests ?? []).filter(
-        (request) => filter === "ALL" || request.status === filter,
-      ),
-    [myRequests, filter],
-  );
+  const [details, setDetails] = useState<MusicRequest | null>(null);
+  const managers = useQuery(api.musicRequests.praiseManagers, ready ? {} : "skip");
+  const mine = usePagedQuery(api.musicRequests.myRequestsPage, {
+    args: (cursor) =>
+      ready
+        ? {
+            paginationOpts: { numItems: PAGE_SIZE, cursor },
+            ...(filter === "ALL" ? {} : { status: filter }),
+          }
+        : "skip",
+    scopeKey: filter,
+    rowsOf: (result) => result.page,
+    keyOf: (row) => row._id,
+    loadMoreRef,
+    keepRowsWhileLoading: true,
+  });
   return (
     <View style={styles.section}>
+      <PraiseManagersLine managers={managers} />
       <FilterChips
         value={filter}
         onChange={setFilter}
         options={["ALL", "PENDING", "APPROVED", "DECLINED"]}
       />
-      {myRequests === undefined ? (
+      {mine.loadingFirstPage ? (
         <LoadingState />
-      ) : visible.length === 0 ? (
+      ) : mine.rows.length === 0 ? (
         <Text style={{ color: t.faint, paddingVertical: spacing.md }}>
           {filter === "ALL"
             ? "You haven't requested any songs yet."
@@ -502,13 +690,14 @@ export const MyRequestsTab = ({
         </Text>
       ) : (
         <FlatList
-          data={visible}
+          data={mine.rows}
           scrollEnabled={false}
           keyExtractor={(item) => item._id}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           renderItem={({ item }) => (
             <MyRequestCard
               request={item}
+              onPress={() => setDetails(item)}
               actions={
                 item.status === "PENDING" &&
                 (onEditRequest || onDeleteRequest) ? (
@@ -534,6 +723,8 @@ export const MyRequestsTab = ({
           )}
         />
       )}
+      {mine.loadingMore ? <LoadingState /> : null}
+      <SongDetailsSheet request={details} onClose={() => setDetails(null)} />
     </View>
   );
 };
@@ -542,11 +733,13 @@ function MyRequestCard({
   actions,
   footer,
   showRequester = false,
+  onPress,
 }: {
   request: MusicRequest;
   actions?: ReactNode;
   footer?: ReactNode;
   showRequester?: boolean;
+  onPress?: () => void;
 }) {
   const t = useAppTheme();
   const date =
@@ -556,7 +749,9 @@ function MyRequestCard({
       <View style={styles.requestCardContent}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <View style={{ flex: 1 }}>
-            <SongHeader request={request} status />
+            <SongCardPress request={request} onPress={onPress}>
+              <SongHeader request={request} status />
+            </SongCardPress>
           </View>
           {actions}
         </View>
@@ -619,10 +814,60 @@ function MyRequestCard({
             </Text>
           </View>
         ) : null}
-        {!!request.link && <SongLink link={request.link} />}
+        <SongLinks link={request.link} onHistory={onPress} />
         {footer}
       </View>
     </Card>
+  );
+}
+
+function SongLinks({
+  link,
+  onHistory,
+}: {
+  link?: string;
+  onHistory?: () => void;
+}) {
+  const t = useAppTheme();
+  if (!link && !onHistory) return null;
+  return (
+    <View style={styles.songLinks}>
+      {link ? <SongLink link={link} /> : null}
+      {onHistory ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onHistory}
+          style={styles.songLink}
+        >
+          <Ionicons name="time-outline" size={15} color={t.primary} />
+          <Text style={{ color: t.primary, fontSize: 13, fontWeight: "700" }}>
+            History
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function SongCardPress({
+  request,
+  onPress,
+  children,
+}: {
+  request: MusicRequest;
+  onPress?: () => void;
+  children: ReactNode;
+}) {
+  if (!onPress) return <>{children}</>;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${request.title} by ${request.artist}, details`}
+      onPress={onPress}
+      style={({ pressed }) => pressed && { opacity: 0.8 }}
+    >
+      {children}
+    </Pressable>
   );
 }
 /* To Review */
@@ -630,23 +875,33 @@ export const ToReviewTab = ({
   onEditRequest,
   onDeleteRequest,
   canManageRequests = false,
-}: MusicRowActions & { canManageRequests?: boolean } = {}) => {
+  loadMoreRef,
+}: MusicRowActions & {
+  canManageRequests?: boolean;
+  loadMoreRef?: MutableRefObject<(() => void) | null>;
+} = {}) => {
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const [filter, setFilter] = useState<RequestFilter>("PENDING");
-  // Backend query and mutations enforce Praise Manager access.
-  const toReview = useQuery(
-    api.musicRequests.toReview,
-    !isLoading && isAuthenticated ? {} : "skip",
-  );
-  const declinedRequests = useQuery(
-    api.musicRequests.declined,
-    !isLoading && isAuthenticated && filter === "DECLINED" ? {} : "skip",
-  );
-
   const showingPending = filter === "PENDING";
-  const visibleRequests = showingPending ? toReview : declinedRequests;
+  // Backend query and mutations enforce Praise Manager access.
+  const review = usePagedQuery(api.musicRequests.reviewPage, {
+    args: (cursor) =>
+      !isLoading && isAuthenticated
+        ? {
+            paginationOpts: { numItems: PAGE_SIZE, cursor },
+            status: showingPending ? ("PENDING" as const) : ("DECLINED" as const),
+          }
+        : "skip",
+    scopeKey: filter,
+    rowsOf: (result) => result.page,
+    keyOf: (row) => row._id,
+    loadMoreRef,
+    keepRowsWhileLoading: true,
+  });
+  const visibleRequests = review.rows;
   const [declineTarget, setDeclineTarget] = useState<MusicRequest | null>(null);
+  const [details, setDetails] = useState<MusicRequest | null>(null);
 
   return (
     <View style={styles.section}>
@@ -656,17 +911,17 @@ export const ToReviewTab = ({
         options={["PENDING", "DECLINED"]}
       />
 
-      {visibleRequests ? (
+      {!review.loadingFirstPage ? (
         <View style={styles.requestSectionHeading}>
           <Text style={{ color: t.faint, fontSize: 13 }}>
-            {`${visibleRequests.length} ${
+            {`${visibleRequests.length}${review.hasMore ? "+" : ""} ${
               showingPending ? "pending" : "declined"
-            } song ${visibleRequests.length === 1 ? "request" : "requests"}`}
+            } song ${visibleRequests.length === 1 && !review.hasMore ? "request" : "requests"}`}
           </Text>
         </View>
       ) : null}
 
-      {visibleRequests === undefined ? (
+      {review.loadingFirstPage ? (
         <LoadingState />
       ) : visibleRequests.length === 0 ? (
         <View
@@ -704,6 +959,7 @@ export const ToReviewTab = ({
                 request={item}
                 canManageRequests={canManageRequests}
                 onDecline={() => setDeclineTarget(item)}
+                onPress={() => setDetails(item)}
                 actions={
                   onEditRequest || onDeleteRequest ? (
                     <MusicActionsMenu
@@ -714,15 +970,21 @@ export const ToReviewTab = ({
                 }
               />
             ) : (
-              <MyRequestCard request={item} showRequester />
+              <MyRequestCard
+                request={item}
+                showRequester
+                onPress={() => setDetails(item)}
+              />
             )
           }
         />
       )}
+      {review.loadingMore ? <LoadingState /> : null}
       <DeclineSheet
         request={declineTarget}
         onClose={() => setDeclineTarget(null)}
       />
+      <SongDetailsSheet request={details} onClose={() => setDetails(null)} />
     </View>
   );
 };
@@ -808,11 +1070,13 @@ function ReviewCard({
   actions,
   canManageRequests,
   onDecline,
+  onPress,
 }: {
   request: MusicRequest;
   actions?: ReactNode;
   canManageRequests: boolean;
   onDecline: () => void;
+  onPress?: () => void;
 }) {
   const t = useAppTheme();
   const approve = useMutation(api.musicRequests.approve);
@@ -835,7 +1099,9 @@ function ReviewCard({
       <View style={styles.requestCardContent}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <View style={{ flex: 1 }}>
-            <SongHeader request={request} />
+            <SongCardPress request={request} onPress={onPress}>
+              <SongHeader request={request} />
+            </SongCardPress>
           </View>
           {actions}
         </View>
@@ -873,7 +1139,7 @@ function ReviewCard({
             </Text>
           </View>
         ) : null}
-        {!!request.link && <SongLink link={request.link} />}
+        <SongLinks link={request.link} onHistory={onPress} />
         <ErrorBanner message={error} />
         {canManageRequests && (
           <View style={styles.reviewActions}>
@@ -938,6 +1204,16 @@ const styles = StyleSheet.create({
   },
   newStatusText: { fontSize: 10, fontWeight: "800" },
   detailLine: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  trailStep: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  songLinks: { flexDirection: "row", flexWrap: "wrap", gap: spacing.lg },
+  noteLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6 },
+  managersBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+  },
   commentBox: { padding: 12, borderRadius: radius.md, gap: 6 },
   songLink: {
     flexDirection: "row",

@@ -8,6 +8,8 @@ import {
   youtubeVideoId,
 } from "./shared/musicLinks";
 
+const RELEASE_DATE_SPACING_MS = 250;
+
 /** Fills the duplicate-detection keys with the same rules `submit` uses. */
 export const backfill = internalMutation({
   args: {
@@ -28,6 +30,7 @@ export const backfill = internalMutation({
     });
 
     let updated = 0;
+    let releaseDateLookups = 0;
 
     for (const row of page.page) {
       const keys = songKeys(row);
@@ -40,10 +43,21 @@ export const backfill = internalMutation({
         row.normalizedSongKey !== keys.normalizedSongKey ||
         row.spotifyTrackId !== keys.spotifyTrackId ||
         row.youtubeVideoId !== keys.youtubeVideoId ||
+        row.titleSort !== keys.titleSort ||
+        row.artistSort !== keys.artistSort ||
+        row.searchText !== keys.searchText ||
         row.albumArtUrl !== albumArtUrl
       ) {
         await ctx.db.patch("musicRequests", row._id, { ...keys, albumArtUrl });
         updated++;
+      }
+      if (keys.spotifyTrackId && !row.releaseDate) {
+        await ctx.scheduler.runAfter(
+          releaseDateLookups * RELEASE_DATE_SPACING_MS,
+          internal.musicReleaseDates.fill,
+          { requestId: row._id },
+        );
+        releaseDateLookups++;
       }
     }
 
