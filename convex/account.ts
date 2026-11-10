@@ -155,6 +155,11 @@ export const wipe = internalMutation({
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .take(20);
     for (const connection of spotify) await ctx.db.delete("spotifyConnections", connection._id);
+    const searchUsage = await ctx.db
+      .query("spotifySearchUsage")
+      .withIndex("by_userKey", (q) => q.eq("userKey", userId))
+      .take(20);
+    for (const usage of searchUsage) await ctx.db.delete("spotifySearchUsage", usage._id);
 
     const profiles = await ctx.db
       .query("staffProfiles")

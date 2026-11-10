@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
-import { spotifyToken, spotifyTrack } from "./spotify";
+import { spotifyTrack } from "./spotify";
 
 export const trackOf = internalQuery({
   args: { requestId: v.id("musicRequests") },
@@ -32,7 +32,7 @@ export const fill = internalAction({
     const spotifyTrackId = await ctx.runQuery(internal.musicReleaseDates.trackOf, { requestId });
     if (!spotifyTrackId) return null;
     try {
-      const track = await spotifyTrack(spotifyTrackId, await spotifyToken());
+      const track = await spotifyTrack(ctx, spotifyTrackId);
       const releaseDate = track.album.release_date;
       if (!releaseDate) return null;
       await ctx.runMutation(internal.musicReleaseDates.save, {

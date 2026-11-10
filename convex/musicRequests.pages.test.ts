@@ -221,6 +221,69 @@ describe("myRequestsPage and reviewPage", () => {
   });
 });
 
+describe("a note per song", () => {
+  test("each song in a batch keeps its own note, and the email lists them", async () => {
+    const t = await setup();
+    await asUser(t, STAFF).mutation(api.musicRequests.submitMany, {
+      songs: [
+        { title: "First", artist: "A", link: "https://example.com/first", requestComment: "Opener" },
+        { title: "Second", artist: "B", link: "https://example.com/second" },
+        { title: "Third", artist: "C", link: "https://example.com/third", requestComment: "  Closer \n song " },
+      ],
+    });
+    const notes = await t.run(async (ctx) =>
+      Object.fromEntries(
+        (await ctx.db.query("musicRequests").collect()).map((row) => [row.title, row.requestComment ?? null]),
+      ),
+    );
+    expect(notes).toEqual({ First: "Opener", Second: null, Third: "Closer \n song" });
+    const [email] = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect())
+        .filter((job) => job.name === "emails:send")
+        .map((job) => job.args[0] as { body: string }),
+    );
+    expect(email.body).toContain(
+      [
+        '1. "First" by A',
+        "   https://example.com/first",
+        "   Note: Opener",
+        '2. "Second" by B',
+        "   https://example.com/second",
+        '3. "Third" by C',
+        "   https://example.com/third",
+        "   Note: Closer song",
+      ].join("\n"),
+    );
+    expect(email.body).not.toMatch(/^Note:/m);
+  });
+
+  test("a note for the whole batch from an older app still lands on each song without one", async () => {
+    const t = await setup();
+    await asUser(t, STAFF).mutation(api.musicRequests.submitMany, {
+      songs: [
+        { title: "Own", artist: "A", link: "https://example.com/own", requestComment: "Mine" },
+        { title: "Shared", artist: "A", link: "https://example.com/shared" },
+        { title: "Blank", artist: "A", link: "https://example.com/blank", requestComment: "  " },
+      ],
+      requestComment: "For the weekly",
+    });
+    const notes = await t.run(async (ctx) =>
+      (await ctx.db.query("musicRequests").collect()).map((row) => row.requestComment),
+    );
+    expect(notes.sort()).toEqual(["For the weekly", "For the weekly", "Mine"]);
+    await expect(
+      asUser(t, STAFF).mutation(api.musicRequests.submitMany, {
+        songs: [{ title: "Long", artist: "A", link: "https://example.com/long", requestComment: "x".repeat(2001) }],
+      }),
+    ).rejects.toThrow("Request comment must be 2000 characters or fewer.");
+    expect(
+      await asUser(t, STAFF).mutation(api.musicRequests.previewBatch, {
+        songs: [{ title: "Preview", artist: "A", link: "https://example.com/preview", requestComment: "Hi" }],
+      }),
+    ).toEqual({ exactDuplicates: 0, possibleDuplicates: 0 });
+  });
+});
+
 describe("praiseManagers", () => {
   test("lists this year's Praise Managers who are on staff, by name", async () => {
     const t = await setup();

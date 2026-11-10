@@ -40,9 +40,9 @@ and other links have none and sort after every dated song.
 A Pending song and the person who asked for it. Requesters follow theirs under
 **Mine**, can edit or delete one while it's Pending, and are notified when it's
 reviewed. Requests from several songs at once (up to 50, or a pasted Spotify or
-YouTube playlist) are one request per song. Every Praise Manager hears about a
+YouTube playlist) are one request per song, each with its own note. Every Praise Manager hears about a
 request by push and by email, with the song's link and the requester's note; a
-batch is one push and one email listing every song.
+batch is one push and one email listing every song with its note.
 _Avoid_: submission, ticket
 
 **Praise Manager**:

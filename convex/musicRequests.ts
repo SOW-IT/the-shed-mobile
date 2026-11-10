@@ -119,8 +119,7 @@ const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
 async function tellPraiseManagers(
   ctx: MutationCtx,
   requesterEmail: string,
-  songs: { title: string; artist: string; link: string }[],
-  requestComment: string | undefined,
+  songs: { title: string; artist: string; link: string; requestComment?: string }[],
 ) {
   const year = currentStaffYear();
   const requester = requesterEmail.toLowerCase();
@@ -145,14 +144,16 @@ async function tellPraiseManagers(
     : songs.flatMap((song, i) => [
         `${i + 1}. "${oneLine(song.title)}" by ${oneLine(song.artist)}`,
         `   ${song.link}`,
+        ...(song.requestComment ? [`   Note: ${oneLine(song.requestComment)}`] : []),
       ]);
+  const singleNote = single ? first.requestComment : undefined;
   const body = [
     oneLine(lead),
     "",
     ...songLines,
     "",
     `Requested by: ${name === requesterEmail ? name : `${name} (${requesterEmail})`}`,
-    ...(requestComment ? [`Note: ${requestComment}`] : []),
+    ...(singleNote ? [`Note: ${oneLine(singleNote)}`] : []),
   ].join("\n");
   for (const to of managers) {
     await notifyPerson(ctx, {
@@ -477,7 +478,7 @@ export const submit = mutation({
     });
     await fetchReleaseDateLater(ctx, id, spotifyTrackId(song.link) ?? undefined);
     if (!isPraiseManager)
-      await tellPraiseManagers(ctx, caller.email, [song], requestComment);
+      await tellPraiseManagers(ctx, caller.email, [{ ...song, requestComment }]);
     return id;
   },
 });
@@ -492,6 +493,7 @@ export const previewBatch = mutation({
         link: v.string(),
         albumArtUrl: v.optional(v.string()),
         isrc: v.optional(v.string()),
+        requestComment: v.optional(v.string()),
       }),
     ),
   },
@@ -553,6 +555,7 @@ export const submitMany = mutation({
         link: v.string(),
         albumArtUrl: v.optional(v.string()),
         isrc: v.optional(v.string()),
+        requestComment: v.optional(v.string()),
       }),
     ),
     requestComment: v.optional(v.string()),
@@ -560,15 +563,19 @@ export const submitMany = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    const requestComment = cleanComment(args.requestComment, "Request comment");
     if (!args.songs.length || args.songs.length > 50)
       throw new ConvexError("Add between 1 and 50 songs.");
+    const batchNote = cleanComment(args.requestComment, "Request comment");
+    const notes = args.songs.map(
+      (raw) => cleanComment(raw.requestComment, "Request comment") ?? batchNote,
+    );
     const isPraiseManager = await callerIsPraiseManager(ctx, caller);
-    const added: ReturnType<typeof validateSong>[] = [];
+    const added: (ReturnType<typeof validateSong> & { requestComment?: string })[] = [];
     let skipped = 0;
     let possibleDuplicates = 0;
-    for (const raw of args.songs) {
+    for (const [index, raw] of args.songs.entries()) {
       const song = validateSong(raw);
+      const requestComment = notes[index];
       const duplicate = await findIndexedDuplicate(ctx, song);
       if (duplicate?.kind === "exact") {
         skipped++;
@@ -592,10 +599,10 @@ export const submitMany = mutation({
           : {}),
       });
       await fetchReleaseDateLater(ctx, id, keys.spotifyTrackId);
-      added.push(song);
+      added.push({ ...song, requestComment });
     }
     if (!isPraiseManager && added.length)
-      await tellPraiseManagers(ctx, caller.email, added, requestComment);
+      await tellPraiseManagers(ctx, caller.email, added);
     return { added: added.length, skipped, possibleDuplicates };
   },
 });

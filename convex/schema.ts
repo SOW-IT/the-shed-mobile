@@ -911,6 +911,17 @@ export default defineSchema({
     .index("by_normalized_song_key", ["normalizedSongKey"])
     .searchIndex("search_songs", { searchField: "searchText", filterFields: ["status"] }),
 
+  spotifyAppTokens: defineTable({
+    encryptedAccessToken: v.string(),
+    expiresAt: v.number(),
+  }),
+
+  spotifySearchUsage: defineTable({
+    userKey: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  }).index("by_userKey", ["userKey"]),
+
   // A Spotify connection for a user, to view their requested playlists for the Praise List.
   spotifyConnections: defineTable({
     userId: v.id("users"),
