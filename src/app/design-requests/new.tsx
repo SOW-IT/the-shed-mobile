@@ -15,11 +15,11 @@ import { SignInPrompt } from "@/components/SignInPrompt";
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
   answersFromDraft,
-  DesignRequestForm,
   draftFromAnswers,
   emptyDraft,
-  type DesignRequestDraft,
-} from "@/components/design/DesignRequestForm";
+  FormQuestions,
+  type FormDraft,
+} from "@/components/forms/FormQuestions";
 import { Text, View } from "react-native";
 import {
   Btn,
@@ -50,7 +50,7 @@ export default function DesignRequestFormScreen() {
   const fields = useQuery(api.designRequestForm.fields, me?.profile ? {} : "skip");
   const submit = useMutation(api.designRequests.submit);
   const update = useMutation(api.designRequests.update);
-  const [draft, setDraft] = useState<DesignRequestDraft | null>(null);
+  const [draft, setDraft] = useState<FormDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [problem, setProblem] = useState<{ key: string; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -176,7 +176,7 @@ export default function DesignRequestFormScreen() {
           </Card>
         )}
         <View style={{ height: spacing.md }} />
-        <DesignRequestForm
+        <FormQuestions
           fields={fields}
           draft={draft}
           onChange={(next) => {
