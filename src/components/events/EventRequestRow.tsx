@@ -12,7 +12,8 @@ import {
 } from "@shared/eventRequests";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { UnreadBubble, WaitingLine } from "@/components/design/DesignRequestRow";
-import { EventStatusPill, eventStatusColour, SUB_FORM_TONES, toneColour } from "./EventPills";
+import { toneColour } from "@/components/ui/StatusPill";
+import { EventStatusPill, eventStatusColour, SUB_FORM_TONES } from "./EventPills";
 
 export type EventRequestListRow = Doc<"eventRequests"> & {
   requesterName: string | null;
