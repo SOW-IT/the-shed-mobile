@@ -1,35 +1,23 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
-import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { describe, expect, test } from "vitest";
+import { api } from "./_generated/api";
+import {
+  type T,
+  YEAR,
+  ADMIN,
+  LEADER,
+  STAFF,
+  OUTSIDER,
+  USYD,
+  MACQ,
+  asUser,
+  pinClock,
+  seeded,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
-
-const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au";
-const STAFF = "staff@sow.org.au";
-const OUTSIDER = "outsider@sow.org.au";
-
-const USYD = "University of Sydney";
-const MACQ = "Macquarie University";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
+pinClock();
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: MACQ });
@@ -264,7 +252,7 @@ describe("attendance tags", () => {
 });
 
 describe("attendance tags in two lists", () => {
-  const listed = async (t: TestConvex<typeof schema>) =>
+  const listed = async (t: T) =>
     (await asUser(t, LEADER).query(api.attendanceTags.list, {})).map((tag) => `${tag.list ?? "-"}:${tag.name}`);
 
   test("new tags go in Other events unless they say Weeklies", async () => {
@@ -630,11 +618,11 @@ describe("attendance metadata", () => {
 
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Volunteer" });
     await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "Temp Uni" });
-    const seeded = await leader.query(api.attendanceMetadata.list, { });
-    expect(seeded.find((f) => f.key === "Role")!.lockedValues).toContain("Volunteer");
-    expect(seeded.find((f) => f.key === "Campus")!.lockedValues).toContain("Temp Uni");
+    const fields = await leader.query(api.attendanceMetadata.list, { });
+    expect(fields.find((f) => f.key === "Role")!.lockedValues).toContain("Volunteer");
+    expect(fields.find((f) => f.key === "Campus")!.lockedValues).toContain("Temp Uni");
     await leader.mutation(api.attendanceMetadata.saveAll, {
-      fields: seeded
+      fields: fields
         .filter((f) => f.key === "Role" || f.key === "Campus")
         .map((f) => ({
           id: f._id,

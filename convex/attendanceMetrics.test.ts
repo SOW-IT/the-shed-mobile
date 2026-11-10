@@ -1,34 +1,26 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { sydneyCalendarYear } from "../shared/flow";
 import { SOW_SUBGROUP, subgroupColour } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
 import type { MutationCtx } from "./_generated/server";
-import schema from "./schema";
+import {
+  type T,
+  type Caller,
+  DAY,
+  YEAR,
+  ADMIN,
+  LEADER,
+  STAFF,
+  USYD,
+  asUser,
+  pinClock,
+  seeded,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
-
-const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au";
-const STAFF = "staff@sow.org.au";
-const USYD = "University of Sydney";
-const DAY = 24 * 60 * 60 * 1000;
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
+pinClock();
 
 const snapshotOf = (
-  t: TestConvex<typeof schema>,
+  t: T,
   subgroup: string,
   rangeWeeks: number,
   includeCollaborative = true
@@ -47,8 +39,7 @@ const snapshotOf = (
   );
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   await admin.mutation(api.admin.setStaffProfile, {
@@ -630,7 +621,7 @@ const EMPTY_DATA = {
 };
 
 describe("campus weekly averages in the SOW view", () => {
-  const sowSnapshot = (t: TestConvex<typeof schema>, includeCollaborative: boolean) =>
+  const sowSnapshot = (t: T, includeCollaborative: boolean) =>
     t.mutation(internal.attendanceMetrics.writeSnapshots, {
       subgroup: SOW_SUBGROUP,
       staffYear: YEAR,
@@ -639,7 +630,7 @@ describe("campus weekly averages in the SOW view", () => {
     });
 
   const campusRows = async (
-    leader: ReturnType<typeof asUser>,
+    leader: Caller,
     includeCollaborative?: boolean
   ) => {
     const view = await leader.query(api.attendanceMetrics.view, {

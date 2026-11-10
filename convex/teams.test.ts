@@ -1,33 +1,24 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { staffYearStartMs } from "../shared/flow";
 import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { type T, DAY, YEAR, ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-const ADMIN = "admin@sow.org.au";
 const EVAN = "evan@sow.org.au";
 const MIA = "mia@sow.org.au";
 const FINN = "finn@sow.org.au";
 const PAT = "pat@sow.org.au";
 
-const DAY = 86_400_000;
 const NORA = "nora@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const budgetManager = async (t: TestConvex<typeof schema>, year: number) =>
+const budgetManager = async (t: T, year: number) =>
   (
     await t.run((ctx) =>
       ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", year)).first()
     )
   )?.budgetManagerEmail;
 
-const addAssignment = (t: TestConvex<typeof schema>, email: string, department: string) =>
+const addAssignment = (t: T, email: string, department: string) =>
   t.run(async (ctx) => {
     const profile = await ctx.db
       .query("staffProfiles")
@@ -38,7 +29,7 @@ const addAssignment = (t: TestConvex<typeof schema>, email: string, department: 
     });
   });
 
-const setHead = async (t: TestConvex<typeof schema>, department: string, headEmail: string) => {
+const setHead = async (t: T, department: string, headEmail: string) => {
   const admin = asUser(t, ADMIN);
   const division = (await admin.query(api.directory.yearStructure, { year: YEAR }))!.departments.find(
     (d) => d.name === department
@@ -53,8 +44,7 @@ const setHead = async (t: TestConvex<typeof schema>, department: string, headEma
 };
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   for (const [email, department] of [
     [EVAN, "Events"],
@@ -67,7 +57,7 @@ async function setup() {
   return { t, admin };
 }
 
-const departmentOf = async (t: TestConvex<typeof schema>, year: number, job: string) =>
+const departmentOf = async (t: T, year: number, job: string) =>
   (await asUser(t, ADMIN).query(api.teams.view, { year }))!.jobs.find((j) => j.job === job)!
     .department;
 
@@ -322,7 +312,7 @@ describe("the 1 October rollover", () => {
     vi.useRealTimers();
   });
 
-  const settingsOf = (t: TestConvex<typeof schema>, year: number) =>
+  const settingsOf = (t: T, year: number) =>
     t.run((ctx) => ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", year)).first());
 
   test("next year follows this year's team choices until it sets its own", async () => {

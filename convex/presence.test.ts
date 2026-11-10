@@ -1,20 +1,13 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
-import { api, internal } from "./_generated/api";
+import { api } from "./_generated/api";
 import { SEEN_WRITE_INTERVAL_MS } from "./presence";
-import schema from "./schema";
+import { ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const ADMIN = "admin@sow.org.au";
 const HANA = "hana.doe@sow.org.au";
 const NOW = new Date("2026-10-09T10:00:00+11:00").getTime();
 const MIN = 60_000;
 const YEAR = staffYearForDate(new Date(NOW));
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -26,8 +19,7 @@ afterEach(() => {
 });
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const seen = () => t.run((ctx) => ctx.db.query("lastSeen").collect());
   return { t, seen, admin: asUser(t, ADMIN) };
 }

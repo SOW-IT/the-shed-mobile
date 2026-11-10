@@ -1,37 +1,26 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
-import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { describe, expect, test } from "vitest";
+import { staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
+import { api } from "./_generated/api";
+import {
+  type T,
+  DAY,
+  PINNED_NOW,
+  YEAR,
+  ADMIN,
+  LEADER,
+  STAFF,
+  USYD,
+  MACQ,
+  asUser,
+  pinClock,
+  seeded,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
+pinClock();
 const CAL_YEAR = sydneyCalendarYear(new Date(PINNED_NOW));
 
-const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au";
-const STAFF = "staff@sow.org.au";
-
-const USYD = "University of Sydney";
-const MACQ = "Macquarie University";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const DAY = 24 * 60 * 60 * 1000;
-
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: MACQ });
@@ -58,7 +47,7 @@ async function setup() {
   return { t, leader };
 }
 
-async function memberOf(t: TestConvex<typeof schema>, email: string) {
+async function memberOf(t: T, email: string) {
   const profile = await t.run((ctx) =>
     ctx.db
       .query("staffProfiles")

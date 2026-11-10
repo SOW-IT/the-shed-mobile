@@ -1,37 +1,21 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
 import { linkUserProfiles } from "./userLink";
+import { type T, YEAR, ADMIN, newConvex, asUser, storedReceipt } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-
-const ADMIN = "admin@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
 const HENRY = "henry@sow.org.au";
 const BELLA = "bella@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 const DAN = "dan@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const storedReceipt = async (t: TestConvex<typeof schema>) => ({
-  storageId: await t.run((ctx) =>
-    ctx.storage.store(new Blob(["receipt"], { type: "application/pdf" }))
-  ),
-  name: "receipt.pdf",
-});
-
 const stale = () => {
   vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
   vi.setSystemTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
 };
 
-async function runSetup(t: TestConvex<typeof schema>) {
+async function runSetup(t: T) {
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
@@ -57,7 +41,7 @@ async function runSetup(t: TestConvex<typeof schema>) {
 }
 
 async function setup() {
-  const t = convexTest(schema, modules);
+  const t = newConvex();
   await runSetup(t);
   return t;
 }
@@ -155,7 +139,7 @@ describe("stepActors: most-recent event wins when a step has several", () => {
 describe("receiptAttachments: current-year Finance Head on a carried-over request", () => {
   test("this year's Finance Head can view a previous year's receipt", async () => {
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const requestId = await t.run((ctx) =>
       ctx.db.insert("requests", {
         requesterEmail: RACHEL,
@@ -251,7 +235,7 @@ describe("reminders: receipt and payment stages", () => {
 
   test("a carried-over request reminds the current year's officeholder", async () => {
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run((ctx) =>
       ctx.db.insert("departments", {
         year: YEAR - 1,
@@ -460,7 +444,7 @@ describe("reminders: director and finance-head stages", () => {
 
   test("a carried-over unpaid receipt reminds this year's Finance Head when last year's is gone", async () => {
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run((ctx) =>
       ctx.db.insert("departments", {
         year: YEAR - 1,

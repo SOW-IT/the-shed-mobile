@@ -1,25 +1,15 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { type T, YEAR, ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
 const PAST = YEAR - 7;
 
-const ADMIN = "admin@sow.org.au";
 const ANOJ = "anoj@sow.org.au";
 const JUNO = "juno@sow.org.au";
 const CARA = "cara@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   await t.run(async (ctx) => {
     await ctx.db.insert("divisions", { year: PAST, name: "Operations" });
     await ctx.db.insert("departments", {
@@ -40,7 +30,7 @@ async function setup() {
   return t;
 }
 
-const overseer = (t: TestConvex<typeof schema>) =>
+const overseer = (t: T) =>
   t.mutation(internal.history.setRoleTitle, {
     year: PAST,
     title: "Department Overseer",

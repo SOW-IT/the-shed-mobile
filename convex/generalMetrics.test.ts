@@ -1,7 +1,5 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { staffYearForDate } from "../shared/flow";
 import { DEFAULT_WEEKLY_SETTINGS } from "../shared/weeklyInsights";
 import { api, internal } from "./_generated/api";
 import {
@@ -13,25 +11,13 @@ import {
   tenureAtLeastPct,
   turnoverRate,
 } from "./generalMetrics";
-import schema from "./schema";
+import { type T, YEAR, newConvex, asUser, pinClock } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
+pinClock();
 const PREV = YEAR - 1;
 const NEXT = YEAR + 1;
 
 const CALLER = "caller@sow.org.au";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 type Assignment = { role: string; department?: string; university?: string };
 const profile = (
@@ -46,9 +32,9 @@ const profile = (
   ...extra,
 });
 
-const trendsOf = (t: TestConvex<typeof schema>) => t.run((ctx) => computeStaffTrends(ctx));
+const trendsOf = (t: T) => t.run((ctx) => computeStaffTrends(ctx));
 
-async function seed(t: TestConvex<typeof schema>) {
+async function seed(t: T) {
   await t.run(async (ctx) => {
     const rows = [
       profile(CALLER, YEAR, [{ role: "Staff", department: "Marketing" }]),
@@ -128,7 +114,7 @@ describe("turnover and tenure helpers", () => {
 
 describe("staff trends", () => {
   test("is public: anonymous and profile-less callers see the same org-wide trends", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seed(t);
     const staff = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: "all" });
     const stranger = await asUser(t, "stranger@sow.org.au").query(api.generalMetrics.view, {
@@ -143,7 +129,7 @@ describe("staff trends", () => {
   });
 
   test("aggregates head-count, staff vs student leaders, and by campus per year", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seed(t);
     const trends = await trendsOf(t);
 
@@ -160,7 +146,7 @@ describe("staff trends", () => {
   });
 
   test("reports year-over-year turnover, retention, and multi-year tenure", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seed(t);
     const trends = await trendsOf(t);
 
@@ -181,7 +167,7 @@ describe("staff trends", () => {
   });
 
   test("averages years served up to the picked year across every role, as in the worked example", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const leader = [{ role: "Student Leader", university: "USYD" }];
     const staff = [{ role: "Staff", department: "Ops" }];
     const careers: { email: string; from: number; roleIn: (year: number) => Assignment[] }[] = [
@@ -219,7 +205,7 @@ describe("staff trends", () => {
   });
 
   test("a student leader who becomes staff is retained, and keeps their leader years", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       await ctx.db.insert(
         "staffProfiles",
@@ -240,7 +226,7 @@ describe("staff trends", () => {
   });
 
   test("counts a leaver toward turnover and links a person across email renames", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       await ctx.db.insert(
         "staffProfiles",
@@ -284,7 +270,7 @@ describe("staff trends", () => {
   });
 
   test("partial importId backfill does not split one email into two people", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       await ctx.db.insert(
         "staffProfiles",
@@ -308,7 +294,7 @@ describe("staff trends", () => {
   });
 
   test("leaves outsourced people out of the staff numbers", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       await ctx.db.insert(
         "staffProfiles",
@@ -341,7 +327,7 @@ describe("staff trends", () => {
   });
 
   test("counts a leader with two campus roles once per campus, not twice", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       await ctx.db.insert(
         "staffProfiles",
@@ -375,7 +361,7 @@ describe("campus weekly attendance in General", () => {
   });
 
   async function weeklyMeeting(
-    t: TestConvex<typeof schema>,
+    t: T,
     opts: { campus: string; dateStart: number; count: number }
   ) {
     return t.run(async (ctx) => {
@@ -403,7 +389,7 @@ describe("campus weekly attendance in General", () => {
   }
 
   async function withStaffHistory() {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run((ctx) =>
       ctx.db.insert(
         "staffProfiles",
@@ -413,7 +399,7 @@ describe("campus weekly attendance in General", () => {
     return t;
   }
 
-  async function campusWeekly(t: TestConvex<typeof schema>) {
+  async function campusWeekly(t: T) {
     const { blocks } = await t.query(api.generalMetrics.view, { scope: "all" });
     const chart = blocks.find((b) => b.type === "multiBars" && b.title === "Weeklies average by campus");
     if (chart?.type !== "multiBars") return { years: [], campuses: [] };
@@ -595,7 +581,7 @@ describe("campus weekly attendance in General", () => {
 
 describe("view", () => {
   test("lays out General with the year list for the scope picker", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seed(t);
     const all = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: null });
     expect(all.years).toContain(YEAR);
@@ -618,7 +604,7 @@ describe("view", () => {
   });
 
   test("signed-out viewers always get the all-years view", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seed(t);
     const anon = await t.query(api.generalMetrics.view, { scope: YEAR });
     expect(anon.blocks.some((b) => b.type === "multiBars" && b.title === "Staff & student leaders")).toBe(true);

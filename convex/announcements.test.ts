@@ -1,31 +1,30 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { EVERYONE, type Audience } from "../shared/announcements";
-import { type Assignment, staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { type Assignment, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import schema from "./schema";
+import {
+  type T,
+  MINUTE,
+  HOUR,
+  DAY,
+  PINNED_NOW,
+  YEAR,
+  ADMIN,
+  USYD,
+  UNSW,
+  asUser,
+  seeded,
+  notificationsFor,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const MINUTE = 60_000;
-const HOUR = 60 * MINUTE;
-const DAY = 24 * HOUR;
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
 const aboutMs = (ms: number) => expect.closeTo(ms, -1);
 
-const ADMIN = "admin@sow.org.au";
 const HR = "hannah@sow.org.au";
 const IT_HEAD = "ian@sow.org.au";
 const FIN = "fiona@sow.org.au";
 const LEADER = "luke@sow.org.au";
 const PRES = "penny@sow.org.au";
-const UNSW = "University of New South Wales";
-const USYD = "University of Sydney";
-
-type T = TestConvex<typeof schema>;
-const asUser = (t: T, email: string) => t.withIdentity({ email, subject: email, issuer: "test" });
 
 const okFetch = () =>
   vi.fn().mockImplementation(() =>
@@ -52,8 +51,7 @@ afterEach(() => {
 });
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   await t.mutation(internal.admins.add, { email: HR, addedBy: ADMIN });
   const people: [string, string, Assignment[]][] = [
     [HR, "Hannah", [{ role: "Staff", department: "People and Culture" }]],
@@ -98,14 +96,6 @@ const draft = (over: Partial<{ title: string; message: string; sendEmail: boolea
   audience: EVERYONE,
   ...over,
 });
-
-const notificationsFor = (t: T, email: string) =>
-  t.run((ctx) =>
-    ctx.db
-      .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userEmail", email))
-      .collect()
-  );
 
 const announcement = (t: T, id: Id<"announcements">) =>
   t.run((ctx) => ctx.db.get("announcements", id));

@@ -1,30 +1,27 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs, SYDNEY_TIME_ZONE } from "../shared/flow";
+import { describe, expect, test, vi } from "vitest";
+import { SYDNEY_TIME_ZONE } from "../shared/flow";
 import { MARKETING_TEAM_EMAIL, sydneyToday, type DesignAnswers } from "../shared/designRequests";
 import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import schema from "./schema";
+import {
+  type T,
+  DAY,
+  PINNED_NOW,
+  YEAR,
+  ADMIN,
+  asUser,
+  pinClock,
+  seeded,
+  notificationsFor,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const DAY = 86_400_000;
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock();
 
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
 const DUE = sydneyToday(new Date(PINNED_NOW + 14 * DAY));
 const at = (days: number, hour = 18) =>
   sydneyDateTimeAnswer(PINNED_NOW + days * DAY).slice(0, 11) + `${String(hour).padStart(2, "0")}:00`;
 
-const ADMIN = "admin@sow.org.au";
 const HENRY = "henry@sow.org.au";
 const MARY = "mary@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
@@ -33,11 +30,6 @@ const CORA = "cora@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 const BELLA = "bella@sow.org.au";
 const SAM = "sam@sow.org.au";
-
-type T = TestConvex<typeof schema>;
-
-const asUser = (t: T, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 const PEOPLE: [string, { role: string; department?: string }[]][] = [
   [HENRY, [{ role: "Head of Department", department: "Marketing" }]],
@@ -58,8 +50,7 @@ const HEADS: Record<string, string> = {
 };
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   await t.run(async (ctx) => {
     for (const [email, assignments] of PEOPLE) {
       await ctx.db.insert("staffProfiles", { email, year: YEAR, assignments });
@@ -122,14 +113,6 @@ const submitRisk = (t: T, id: Id<"eventRequests">, email = RACHEL) =>
 const run = (t: T) => t.mutation(internal.reminders.remindStale, {});
 
 const atDay = (days: number) => vi.setSystemTime(PINNED_NOW + days * DAY);
-
-const notificationsFor = (t: T, email: string) =>
-  t.run((ctx) =>
-    ctx.db
-      .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userEmail", email))
-      .collect()
-  );
 
 const emails = (t: T) =>
   t.run(async (ctx) =>
@@ -568,7 +551,6 @@ describe("unread comment reminders", () => {
     }
     const maryMail = (await emailsTo(t, MARY)).map((m) => m.body).join("\n");
     expect(maryMail).not.toContain("unread comment");
-
 
     await asUser(t, RACHEL).mutation(api.designRequestComments.markRead, { id });
     atDay(1.2);

@@ -1,33 +1,21 @@
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { Persona } from "../shared/actingAs";
 import { sydneyToday, type DesignAnswers } from "../shared/designRequests";
 import type { FinanceData } from "../shared/eventRequests";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { staffYearStartMs } from "../shared/flow";
 import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import schema from "./schema";
 import { linkUserProfiles } from "./userLink";
+import { type T, DAY, PINNED_NOW, YEAR, ADMIN, newConvex, asUser, pinClock } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const DAY = 86_400_000;
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock();
 
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
 const DUE = sydneyToday(new Date(PINNED_NOW + 14 * DAY));
 const at = (days: number, hour = 18) =>
   sydneyDateTimeAnswer(PINNED_NOW + days * DAY).slice(0, 11) +
   `${String(hour).padStart(2, "0")}:00`;
 
-const ADMIN = "admin@sow.org.au";
 const EVA = "eva@sow.org.au";
 const EDDIE = "eddie@sow.org.au";
 const MIKE = "mike@sow.org.au";
@@ -43,11 +31,6 @@ const LEE = "lee@sow.org.au";
 const MARKETING_STAFF: Persona = { role: "staff", department: "Marketing" };
 const MARKETING_HEAD: Persona = { role: "head", department: "Marketing" };
 const FINANCE_HEAD: Persona = { role: "head", department: "Finance" };
-
-type T = TestConvex<typeof schema>;
-
-const asUser = (t: T, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 const PEOPLE: [string, { role: string; department?: string; university?: string }[]][] = [
   [EVA, [{ role: "Staff", department: "Events" }]],
@@ -129,7 +112,7 @@ const request = (over: Partial<Request>): Request => ({
 // `before` runs first: creation times only go forward, so anything dated
 // earlier has to be written before the rest.
 async function setup(before?: (t: T) => Promise<unknown>) {
-  const t = convexTest(schema, modules);
+  const t = newConvex();
   if (before) await before(t);
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
   await t.run(async (ctx) => {

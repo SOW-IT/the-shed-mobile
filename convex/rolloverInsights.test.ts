@@ -1,31 +1,18 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { RANGE_WEEKS } from "../shared/attendanceMetrics";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { SOW_SUBGROUP } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
 import { computeStaffTrends } from "./generalMetrics";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { type T, HOUR, DAY, ADMIN, LEADER, USYD, UNSW, asUser, seeded } from "../test/convexFixture";
 
 const ROLLOVER = staffYearStartMs(2027);
-const DAY = 24 * 60 * 60 * 1000;
-const HOUR = 60 * 60 * 1000;
 
-const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au";
 const LAPSED = "lapsed.staffer@sow.org.au";
-const USYD = "University of Sydney";
-const UNSW = "University of New South Wales";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 const at = (ms: number) => vi.setSystemTime(new Date(ms));
 
-const scheduledSubgroups = async (t: TestConvex<typeof schema>) =>
+const scheduledSubgroups = async (t: T) =>
   await t.run(async (ctx) => {
     const jobs = await ctx.db.system.query("_scheduled_functions").collect();
     return jobs
@@ -33,7 +20,7 @@ const scheduledSubgroups = async (t: TestConvex<typeof schema>) =>
       .map((j) => (j.args[0] as { subgroup: string }).subgroup);
   });
 
-const snap = (t: TestConvex<typeof schema>, subgroup = USYD, rangeWeeks = 4) => {
+const snap = (t: T, subgroup = USYD, rangeWeeks = 4) => {
   const staffYear = staffYearForDate(new Date());
   return t.run((ctx) =>
     ctx.db
@@ -49,9 +36,9 @@ const snap = (t: TestConvex<typeof schema>, subgroup = USYD, rangeWeeks = 4) => 
   );
 };
 
-const trendsOf = (t: TestConvex<typeof schema>) => t.run((ctx) => computeStaffTrends(ctx));
+const trendsOf = (t: T) => t.run((ctx) => computeStaffTrends(ctx));
 
-const campusWeekly = async (t: TestConvex<typeof schema>) => {
+const campusWeekly = async (t: T) => {
   const { blocks } = await t.query(api.generalMetrics.view, { scope: "all" });
   const chart = blocks.find((b) => b.type === "multiBars" && b.title === "Weeklies average by campus");
   if (chart?.type !== "multiBars") return { years: [], campuses: [] };
@@ -75,8 +62,7 @@ async function setupBeforeRollover() {
   vi.useFakeTimers({ toFake: ["Date"] });
   at(ROLLOVER - 14 * DAY);
 
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
 
   for (const year of [2026, 2027]) {

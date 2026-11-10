@@ -1,29 +1,13 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { staffYearForDate } from "../shared/flow";
-import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { api } from "./_generated/api";
+import { type T, YEAR, ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-const ADMIN = "admin@sow.org.au";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const signedIn = (t: TestConvex<typeof schema>, userId: string, email: string) =>
+const signedIn = (t: T, userId: string, email: string) =>
   t.withIdentity({ email, subject: `${userId}|session`, issuer: "test" });
-
-async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-  return t;
-}
 
 describe("profile.get", () => {
   test("null while auth attaches, and hides future (pre-provisioned) years", async () => {
-    const t = await setup();
+    const t = await seeded();
     expect(await t.query(api.profile.get, {})).toBeNull();
 
     const email = "fran@sow.org.au";
@@ -45,7 +29,7 @@ describe("profile.get", () => {
   });
 
   test("public person view (1.7.0): readable signed out with an email, private fields hidden", async () => {
-    const t = await setup();
+    const t = await seeded();
     const email = "pat@sow.org.au";
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
@@ -79,7 +63,7 @@ describe("profile.get", () => {
   });
 
   test("falls back to the directory name when no user row or profile name exists", async () => {
-    const t = await setup();
+    const t = await seeded();
     const email = "nav@sow.org.au";
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
@@ -94,7 +78,7 @@ describe("profile.get", () => {
   });
 
   test("your own profile says when Google last synced it; nobody else's does", async () => {
-    const t = await setup();
+    const t = await seeded();
     const email = "gia@sow.org.au";
     const signInAt = Date.UTC(2026, 9, 1);
     const directoryAt = Date.UTC(2026, 9, 5);
@@ -143,7 +127,7 @@ describe("profile.get", () => {
 
 describe("profile.get without an email", () => {
   test("your own Profile loads for an Apple account Apple gave no email", async () => {
-    const t = await setup();
+    const t = await seeded();
     const { userId, churchId } = await t.run(async (ctx) => {
       const churchId = await ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", addedBy: ADMIN });
       return { userId: await ctx.db.insert("users", { name: "Apple user" }), churchId };
@@ -169,7 +153,7 @@ describe("profile.get without an email", () => {
 
 describe("profile.setChurch", () => {
   test("sets and clears the church; requires a signed-in user", async () => {
-    const t = await setup();
+    const t = await seeded();
     const { userId, churchId } = await t.run(async (ctx) => ({
       userId: await ctx.db.insert("users", { email: "gita@sow.org.au", name: "Gita" }),
       churchId: await ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", addedBy: ADMIN }),
@@ -197,7 +181,7 @@ describe("profile.setChurch", () => {
 
 describe("profile avatars", () => {
   test("generates an upload URL and replaces a previous avatar", async () => {
-    const t = await setup();
+    const t = await seeded();
     const userId = await t.run((ctx) =>
       ctx.db.insert("users", { email: "ivy@sow.org.au", name: "Ivy" })
     );
@@ -225,7 +209,7 @@ describe("profile avatars", () => {
   });
 
   test("replaces an avatar whose old file is already gone", async () => {
-    const t = await setup();
+    const t = await seeded();
     const gone = await t.run(async (ctx) => {
       const id = await ctx.storage.store(new Blob(["a"], { type: "image/png" }));
       await ctx.storage.delete(id);

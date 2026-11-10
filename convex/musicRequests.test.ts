@@ -1,36 +1,20 @@
-/// <reference types="vite/client" />
 
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { describe, expect, test, vi } from "vitest";
+import { staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { type T, YEAR, ADMIN, newConvex, asUser, pinClock } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-
-const YEAR = staffYearForDate(new Date());
 const PINNED_NOW = staffYearStartMs(YEAR) + 150 * 86_400_000;
 
-const ADMIN = "admin@sow.org.au";
 const STAFF = "music.staff@sow.org.au";
 
 const TRACK_ID = "3cmaB3jaMbVLVbXwTkzaew";
 const SPOTIFY = `https://open.spotify.com/track/${TRACK_ID}?si=6a8ccfe7cd03456c`;
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock(PINNED_NOW);
 
 async function setup() {
-  const t = convexTest(schema, modules);
+  const t = newConvex();
 
   await t.mutation(internal.admin.seed, {
     adminEmail: ADMIN,
@@ -71,7 +55,7 @@ const song = (
 });
 
 async function assignPraiseManager(
-  t: TestConvex<typeof schema>,
+  t: T,
   email = ADMIN,
 ) {
   await t.run(async (ctx) => {
@@ -1452,7 +1436,7 @@ describe("Praise Manager staff profile cleanup", () => {
 
 describe("Praise List while acting as a role", () => {
   const actAs = (
-    t: TestConvex<typeof schema>,
+    t: T,
     persona: { role: "praiseManager" } | { role: "staff"; department: string },
   ) => asUser(t, ADMIN).mutation(api.actingAs.set, { persona });
 
@@ -1580,14 +1564,14 @@ describe("Praise List details", () => {
 });
 
 describe("Praise List review follow-up", () => {
-  const scheduledPushes = (t: TestConvex<typeof schema>) =>
+  const scheduledPushes = (t: T) =>
     t.run(async (ctx) =>
       (await ctx.db.system.query("_scheduled_functions").collect())
         .filter((job) => job.name === "push:send")
         .map((job) => job.args[0] as { to: string; title: string }),
     );
 
-  const scheduledEmails = (t: TestConvex<typeof schema>) =>
+  const scheduledEmails = (t: T) =>
     t.run(async (ctx) =>
       (await ctx.db.system.query("_scheduled_functions").collect())
         .filter((job) => job.name === "emails:send")
@@ -1597,7 +1581,7 @@ describe("Praise List review follow-up", () => {
         ),
     );
 
-  const nameStaff = (t: TestConvex<typeof schema>, name: string) =>
+  const nameStaff = (t: T, name: string) =>
     t.run(async (ctx) => {
       const profile = await ctx.db
         .query("staffProfiles")
@@ -1608,7 +1592,7 @@ describe("Praise List review follow-up", () => {
       await ctx.db.patch(profile!._id, { name });
     });
 
-  const setPraiseManagers = (t: TestConvex<typeof schema>, emails: string[]) =>
+  const setPraiseManagers = (t: T, emails: string[]) =>
     t.run(async (ctx) => {
       const settings = await ctx.db
         .query("yearSettings")

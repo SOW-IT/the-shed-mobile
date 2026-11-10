@@ -1,17 +1,13 @@
-/// <reference types="vite/client" />
 
-import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { newConvex } from "../test/convexFixture";
 
 const TRACK = "https://open.spotify.com/intl-en/track/3cmaB3jaMbVLVbXwTkzaew?si=x";
 const PLAYLIST = "https://www.youtube.com/playlist?list=PLabc_123-XYZ";
 
 const signedIn = () =>
-  convexTest(schema, modules).withIdentity({ subject: "user1|session1", issuer: "test" });
+  newConvex().withIdentity({ subject: "user1|session1", issuer: "test" });
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -170,7 +166,7 @@ describe("spotify.searchTracks", () => {
       "Search for 100 characters or fewer.",
     );
     await expect(
-      convexTest(schema, modules).action(api.spotify.searchTracks, { query: "morning" }),
+      newConvex().action(api.spotify.searchTracks, { query: "morning" }),
     ).rejects.toThrow("You must be signed in.");
     fetchMock.mockResolvedValueOnce(json({ access_token: "token" })).mockResolvedValueOnce(json({}, 429));
     await expect(t.action(api.spotify.searchTracks, { query: "morning" })).rejects.toThrow(
@@ -231,7 +227,7 @@ describe("Spotify app token and search limit", () => {
 
   test("a cached token that no longer decrypts is replaced", async () => {
     vi.stubEnv("SPOTIFY_TOKEN_ENCRYPTION_KEY", KEY);
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       await ctx.db.insert("spotifyAppTokens", {
         encryptedAccessToken: "not-a-token",
@@ -254,7 +250,7 @@ describe("Spotify app token and search limit", () => {
     fetchMock.mockImplementation(async (url: string) =>
       url.includes("accounts.spotify.com") ? token("t") : json({ tracks: { items: [] } }),
     );
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const hana = t.withIdentity({ subject: "hana|s1", issuer: "test" });
     const alex = t.withIdentity({ subject: "alex|s1", issuer: "test" });
     for (let i = 0; i < 30; i++) {

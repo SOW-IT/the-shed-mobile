@@ -1,16 +1,11 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { actionOwnerEmail } from "./requests";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
+import { type T, YEAR, ADMIN, newConvex, asUser } from "../test/convexFixture";
 
 const withScheduled = async (
-  t: TestConvex<typeof schema>,
+  t: T,
   action: () => Promise<unknown>
 ) => {
   vi.useFakeTimers();
@@ -22,24 +17,20 @@ const withScheduled = async (
   }
 };
 
-const ADMIN = "admin@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
 const HENRY = "henry@sow.org.au";
 const BELLA = "bella@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 const OSCAR = "oscar@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const file = async (t: TestConvex<typeof schema>) => ({
+const file = async (t: T) => ({
   storageId: await t.run((ctx) =>
     ctx.storage.store(new Blob(["r"], { type: "application/pdf" }))
   ),
   name: "r.pdf",
 });
 
-async function runSetup(t: TestConvex<typeof schema>) {
+async function runSetup(t: T) {
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
@@ -64,18 +55,18 @@ async function runSetup(t: TestConvex<typeof schema>) {
 }
 
 async function setup() {
-  const t = convexTest(schema, modules);
+  const t = newConvex();
   await runSetup(t);
   return t;
 }
 
-const submit = async (t: TestConvex<typeof schema>, amount = 100) => {
+const submit = async (t: T, amount = 100) => {
   await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount });
   const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
   return request._id;
 };
 
-const owner = (t: TestConvex<typeof schema>, requestId: string) =>
+const owner = (t: T, requestId: string) =>
   t.run(async (ctx) => {
     const request = await ctx.db.get("requests", requestId as never);
     return actionOwnerEmail(ctx, request!);
@@ -116,7 +107,7 @@ describe("actionOwnerEmail routing", () => {
 
   test("carried-over unpaid receipt → this year's Finance Head when last year's is gone", async () => {
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const id = await t.run((ctx) =>
       ctx.db.insert("requests", {
         requesterEmail: RACHEL,
@@ -432,7 +423,7 @@ describe("unreadCount + markRead", () => {
   });
 
   test("myUnreadTotal leaves out last year's completed requests, like the Mine list", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     vi.useFakeTimers({ toFake: ["Date"] });
     let paid: string;
     let open: string;

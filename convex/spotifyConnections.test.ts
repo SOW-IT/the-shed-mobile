@@ -1,13 +1,9 @@
-/// <reference types="vite/client" />
 
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import schema from "./schema";
 import { decryptSpotifyToken, encryptSpotifyToken } from "./spotifyCrypto";
-
-const modules = import.meta.glob("./**/*.ts");
+import { type T, newConvex } from "../test/convexFixture";
 
 const KEY = btoa(String.fromCharCode(...new Uint8Array(32).fill(7)));
 const PLAYLIST = "https://open.spotify.com/playlist/37i9dQZF1DX0XUsuxWHRQd?si=x";
@@ -32,13 +28,13 @@ afterEach(() => {
 });
 
 async function setup() {
-  const t = convexTest(schema, modules);
+  const t = newConvex();
   const userId = await t.run((ctx) => ctx.db.insert("users", { email: "hana@sow.org.au" }));
   const as = t.withIdentity({ subject: `${userId}|session`, issuer: "test" });
   return { t, userId, as };
 }
 
-const storedConnection = (t: TestConvex<typeof schema>, userId: Id<"users">) =>
+const storedConnection = (t: T, userId: Id<"users">) =>
   t.run((ctx) =>
     ctx.db
       .query("spotifyConnections")
@@ -47,7 +43,7 @@ const storedConnection = (t: TestConvex<typeof schema>, userId: Id<"users">) =>
   );
 
 async function connectWith(
-  t: TestConvex<typeof schema>,
+  t: T,
   userId: Id<"users">,
   expiresAt: number,
 ) {

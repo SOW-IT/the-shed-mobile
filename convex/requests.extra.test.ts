@@ -1,35 +1,18 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { appUrl, requestUrl } from "./requests";
-import schema from "./schema";
+import { type T, YEAR, ADMIN, newConvex, asUser, seeded, storedReceipt } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-
-const ADMIN = "admin@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
 const HENRY = "henry@sow.org.au";
 const BELLA = "bella@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 const DAN = "dan@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const storedReceipt = async (t: TestConvex<typeof schema>) => ({
-  storageId: await t.run((ctx) =>
-    ctx.storage.store(new Blob(["receipt"], { type: "application/pdf" }))
-  ),
-  name: "receipt.pdf",
-});
-
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
@@ -54,7 +37,7 @@ async function setup() {
   return t;
 }
 
-async function approvedRequest(t: TestConvex<typeof schema>, amount = 100) {
+async function approvedRequest(t: T, amount = 100) {
   await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount });
   const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
   await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
@@ -196,7 +179,7 @@ describe("allRequests authorization", () => {
 
 describe("requestsForExport", () => {
   const seed = async (
-    t: TestConvex<typeof schema>,
+    t: T,
     year: number,
     description: string
   ) => {
@@ -218,7 +201,7 @@ describe("requestsForExport", () => {
   };
 
   test("Finance gets the selected years, with out-of-range years filtered", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seed(t, YEAR - 1, "last year");
     await seed(t, YEAR, "this year");
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
@@ -334,7 +317,7 @@ describe("authorizeStep guards", () => {
 
   test("a missing/foreign-year request reports not found", async () => {
     vi.setSystemTime(staffYearStartMs(YEAR - 2) + 1);
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const requestId = await t.run((ctx) =>
       ctx.db.insert("requests", {
         requesterEmail: RACHEL,
@@ -597,7 +580,7 @@ describe("reviewed leaves out what is still waiting on the caller", () => {
 
 describe("auto-approved steps", () => {
   const submitAs = async (
-    t: TestConvex<typeof schema>,
+    t: T,
     email: string,
     amount: number,
     department?: string
@@ -764,7 +747,7 @@ describe("receiptAttachments", () => {
 describe("pay validation", () => {
   test("guards amount, not-found, payer identity and lifecycle state", async () => {
     vi.setSystemTime(staffYearStartMs(YEAR - 2) + 1);
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const foreignId = await t.run((ctx) =>
       ctx.db.insert("requests", {
         requesterEmail: RACHEL,
@@ -866,7 +849,7 @@ describe("generateReceiptUploadUrl", () => {
 });
 
 describe("deleteDeclined", () => {
-  async function declinedRequest(t: TestConvex<typeof schema>) {
+  async function declinedRequest(t: T) {
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.decline, {
@@ -931,7 +914,7 @@ describe("deleteDeclined", () => {
 });
 
 describe("cleanup.purgeOldReceiptFiles", () => {
-  async function paidRequestWithFile(t: TestConvex<typeof schema>) {
+  async function paidRequestWithFile(t: T) {
     const id = await approvedRequest(t);
     const file = await storedReceipt(t);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
@@ -1109,7 +1092,7 @@ describe("pay", () => {
 
 describe("browsing past years", () => {
   const seedPastRequest = async (
-    t: TestConvex<typeof schema>,
+    t: T,
     email: string,
     year: number,
     description: string,
@@ -1137,7 +1120,7 @@ describe("browsing past years", () => {
   async function setupWithHistory(
     seeds: { email: string; year: number; description: string; reviews?: Review[]; open?: boolean }[]
   ) {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const sorted = [...seeds].sort((a, b) => a.year - b.year);
     const reviews: (Review & { requestId: Id<"requests">; at: number })[] = [];
     for (const s of sorted) {

@@ -1,4 +1,3 @@
-import { convexTest, type TestConvex } from "convex-test";
 import { encode as encodeJpeg } from "jpeg-js";
 import { PNG } from "pngjs";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -12,9 +11,7 @@ import {
   shrinkAvatarBytes,
   shrinkPixels,
 } from "./avatars";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { type T, newConvex } from "../test/convexFixture";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -251,11 +248,11 @@ describe("shrinkAvatarBytes", () => {
   });
 });
 
-const signedIn = (t: TestConvex<typeof schema>, userId: Id<"users">) =>
+const signedIn = (t: T, userId: Id<"users">) =>
   t.withIdentity({ subject: `${userId}|s`, issuer: "test" });
 
 async function userWithUpload(bytes: Uint8Array, type = "image/jpeg") {
-  const t = convexTest(schema, modules);
+  const t = newConvex();
   const userId = await t.run((ctx) =>
     ctx.db.insert("users", { email: "ivy@sow.org.au", name: "Ivy" })
   );
@@ -265,7 +262,7 @@ async function userWithUpload(bytes: Uint8Array, type = "image/jpeg") {
   return { t, userId, storageId };
 }
 
-const avatarOf = (t: TestConvex<typeof schema>, userId: Id<"users">) =>
+const avatarOf = (t: T, userId: Id<"users">) =>
   t.run(async (ctx) => {
     const user = await ctx.db.get("users", userId);
     const file = user?.avatarId ? await ctx.db.system.get(user.avatarId) : null;

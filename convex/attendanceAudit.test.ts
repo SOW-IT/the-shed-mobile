@@ -1,35 +1,18 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { type T, ADMIN, STAFF, USYD, newConvex, asUser, pinClock, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
 const NOW = staffYearStartMs(staffYearForDate(new Date())) + 120 * 86_400_000;
 const YEAR = staffYearForDate(new Date(NOW));
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock(NOW);
 
-const ADMIN = "admin@sow.org.au";
-const STAFF = "staff@sow.org.au";
 const OTHER = "other@sow.org.au";
-
-const USYD = "University of Sydney";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 const window = () => ({ dateStart: Date.now(), dateEnd: Date.now() + 3600_000 });
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Ministry" });
@@ -54,7 +37,7 @@ async function setup() {
   return t;
 }
 
-const linkedMember = async (t: TestConvex<typeof schema>, email: string) => {
+const linkedMember = async (t: T, email: string) => {
   const profile = await t.run((ctx) =>
     ctx.db
       .query("staffProfiles")
@@ -64,7 +47,7 @@ const linkedMember = async (t: TestConvex<typeof schema>, email: string) => {
   return profile!.memberId!;
 };
 
-const allLogs = (t: TestConvex<typeof schema>) =>
+const allLogs = (t: T) =>
   t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
 
 describe("attendance audit logging", () => {
@@ -574,7 +557,7 @@ describe("attendance audit logging", () => {
 });
 
 describe("audit logging across attendance mutations", () => {
-  const actionsFor = async (t: TestConvex<typeof schema>) =>
+  const actionsFor = async (t: T) =>
     (await allLogs(t)).map((l) => l.action);
 
   test("event update logs real changes only; a no-op save logs nothing", async () => {
@@ -739,7 +722,7 @@ describe("audit logging across attendance mutations", () => {
   });
 
   test("assigning staff creates their member row once, and ensureForStaff reuses it without a log", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Ministry" });

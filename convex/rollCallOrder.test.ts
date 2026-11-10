@@ -1,32 +1,24 @@
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import schema from "./schema";
+import {
+  type T,
+  type Caller,
+  HOUR,
+  DAY,
+  PINNED_NOW,
+  YEAR,
+  ADMIN,
+  USYD,
+  asUser,
+  pinClock,
+  seeded,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
-const DAY = 86_400_000;
-const HOUR = 3_600_000;
-
-const ADMIN = "admin@sow.org.au";
-const USYD = "University of Sydney";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
+pinClock();
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   const ids = await t.run(async (ctx) => ({
@@ -56,7 +48,7 @@ async function setup() {
 }
 
 const createEvent = async (
-  admin: ReturnType<typeof asUser>,
+  admin: Caller,
   fields: { daysAhead?: number; tagIds?: Id<"attendanceTags">[] } = {}
 ) =>
   await admin.mutation(api.events.create, {
@@ -67,7 +59,7 @@ const createEvent = async (
     ...(fields.tagIds ? { tagIds: fields.tagIds } : {}),
   });
 
-const orderOf = (t: TestConvex<typeof schema>, eventId: Id<"events">) =>
+const orderOf = (t: T, eventId: Id<"events">) =>
   t.run((ctx) =>
     ctx.db
       .query("rollCallOrders")
@@ -75,12 +67,12 @@ const orderOf = (t: TestConvex<typeof schema>, eventId: Id<"events">) =>
       .unique()
   );
 
-const pendingRanks = async (t: TestConvex<typeof schema>) =>
+const pendingRanks = async (t: T) =>
   (await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).filter(
     (job) => job.name.includes("rollCallOrder") && job.state.kind === "pending"
   ).length;
 
-const rosterNames = async (t: TestConvex<typeof schema>, eventId: Id<"events">) =>
+const rosterNames = async (t: T, eventId: Id<"events">) =>
   (await asUser(t, ADMIN).query(api.attendance.roster, { year: YEAR, eventId }))
     .map((row) => row.name)
     .filter((name) => ["Ann", "Ben", "Cat"].includes(name));

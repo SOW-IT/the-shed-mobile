@@ -1,23 +1,9 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { staffYearForDate } from "../shared/flow";
-import { api, internal } from "./_generated/api";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-
-const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au";
-const USYD = "University of Sydney";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
+import { api } from "./_generated/api";
+import { type T, type Caller, YEAR, ADMIN, LEADER, USYD, asUser, seeded } from "../test/convexFixture";
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   await admin.mutation(api.admin.setStaffProfile, {
@@ -29,7 +15,7 @@ async function setup() {
   return { t, admin, leader: asUser(t, LEADER) };
 }
 
-const linkedMemberOf = (t: TestConvex<typeof schema>, email: string, year = YEAR) =>
+const linkedMemberOf = (t: T, email: string, year = YEAR) =>
   t.run(async (ctx) => {
     const profile = await ctx.db
       .query("staffProfiles")
@@ -38,7 +24,7 @@ const linkedMemberOf = (t: TestConvex<typeof schema>, email: string, year = YEAR
     return profile!.memberId!;
   });
 
-const listAll = (who: ReturnType<typeof asUser>, extra: { search?: string; year?: number } = {}) =>
+const listAll = (who: Caller, extra: { search?: string; year?: number } = {}) =>
   who.query(api.attendanceMembers.list, {
     year: extra.year ?? YEAR,
     search: extra.search,
@@ -147,7 +133,7 @@ describe("attendanceMembers.list: staff profile ↔ member linking", () => {
 
 describe("attendanceMembers.list: filters and sort", () => {
   const metadataField = async (
-    admin: ReturnType<typeof asUser>,
+    admin: Caller,
     key: string
   ) => {
     await admin.mutation(api.attendanceMetadata.ensureDefaults, {});
@@ -281,7 +267,7 @@ describe("attendanceMembers.create: name capitalization", () => {
   });
 });
 
-const defaultFields = async (who: ReturnType<typeof asUser>) => {
+const defaultFields = async (who: Caller) => {
   await who.mutation(api.attendanceMetadata.ensureDefaults, {});
   const fields = await who.query(api.attendanceMetadata.list, {});
   const byKey = (key: string) => fields.find((f) => f.key === key)!;
@@ -290,7 +276,7 @@ const defaultFields = async (who: ReturnType<typeof asUser>) => {
   return { campus: byKey("Campus"), role: byKey("Role"), year: byKey("Year"), optionFor };
 };
 
-const addChurch = (t: TestConvex<typeof schema>, name: string) =>
+const addChurch = (t: T, name: string) =>
   t.run((ctx) =>
     ctx.db.insert("churches", { name, nameKey: name.toLowerCase(), addedBy: ADMIN })
   );

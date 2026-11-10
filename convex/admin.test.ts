@@ -1,23 +1,13 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { type T, YEAR, ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-
-const ADMIN = "admin@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 const BELLA = "bella@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   const year = staffYearForDate(new Date());
   await admin.mutation(api.admin.upsertDepartment, {
@@ -35,7 +25,7 @@ async function setup() {
   return t;
 }
 
-const stripFinanceHolders = (t: TestConvex<typeof schema>) =>
+const stripFinanceHolders = (t: T) =>
   t.run(async (ctx) => {
     for (const profile of await ctx.db.query("staffProfiles").collect()) {
       if (profile.assignments?.some((a) => a.department === "Finance")) {
@@ -2591,7 +2581,7 @@ describe("staff profiles and their attendance member", () => {
   const NEWBIE = "new.bie@sow.org.au";
 
   const memberOf = (
-    t: TestConvex<typeof schema>,
+    t: T,
     email: string,
     year: number,
   ) =>
@@ -2606,13 +2596,13 @@ describe("staff profiles and their attendance member", () => {
             .unique()
         )?.memberId ?? null,
     );
-  const logs = (t: TestConvex<typeof schema>, action: string) =>
+  const logs = (t: T, action: string) =>
     t.run(async (ctx) =>
       (await ctx.db.query("attendanceAuditLog").collect()).filter(
         (l) => l.action === action,
       ),
     );
-  const financeIn = async (t: TestConvex<typeof schema>, year: number) => {
+  const financeIn = async (t: T, year: number) => {
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDivision, {
       year,

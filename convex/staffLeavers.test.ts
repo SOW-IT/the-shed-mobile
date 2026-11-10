@@ -1,31 +1,23 @@
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import schema from "./schema";
+import { ADMIN, USYD, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
 const NOW_YEAR = staffYearForDate(new Date());
 const YEAR = 2027;
 const LAST = YEAR - 1;
-const ADMIN = "admin@sow.org.au";
 const LEAVER = "lee.aver@sow.org.au";
 const STAYER = "stay.er@sow.org.au";
 const NEWBIE = "new.bie@sow.org.au";
-const USYD = "University of Sydney";
 const ROLLOVER_ACTOR = "system:staff-rollover";
 
 type ProfileFields = Partial<Omit<Doc<"staffProfiles">, "_id" | "_creationTime">>;
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
 afterEach(() => vi.useRealTimers());
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   await t.run(async (ctx) => {
     const adminRow = await ctx.db.insert("attendanceMembers", { name: "Admin" });
     for (const seeded of await ctx.db.query("staffProfiles").collect()) {

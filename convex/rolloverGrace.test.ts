@@ -1,11 +1,7 @@
-/// <reference types="vite/client" />
-import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearStartMs } from "../shared/flow";
 import { api } from "./_generated/api";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { newConvex } from "../test/convexFixture";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -17,7 +13,7 @@ describe("post-rollover auth grace", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(start + 2 * 24 * 60 * 60 * 1000));
 
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const email = "grace@sow.org.au";
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
@@ -52,7 +48,7 @@ describe("post-rollover auth grace", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(start + 8 * 24 * 60 * 60 * 1000));
 
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const email = "late@sow.org.au";
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
@@ -74,7 +70,7 @@ describe("post-rollover auth grace", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-12-31T13:00:00Z"));
 
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const email = "late@sow.org.au";
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {

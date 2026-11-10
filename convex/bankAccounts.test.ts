@@ -1,23 +1,13 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { staffYearForDate } from "../shared/flow";
-import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { api } from "./_generated/api";
+import { type T, YEAR, ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-
-const ADMIN = "admin@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
 const HENRY = "henry@sow.org.au";
 const BELLA = "bella@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const file = async (t: TestConvex<typeof schema>) => ({
+const file = async (t: T) => ({
   storageId: await t.run((ctx) =>
     ctx.storage.store(new Blob(["receipt"], { type: "application/pdf" }))
   ),
@@ -25,8 +15,7 @@ const file = async (t: TestConvex<typeof schema>) => ({
 });
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
@@ -50,7 +39,7 @@ async function setup() {
   return t;
 }
 
-async function approvedRequest(t: TestConvex<typeof schema>, amount = 100) {
+async function approvedRequest(t: T, amount = 100) {
   await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount });
   const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
   await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });

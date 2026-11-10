@@ -1,6 +1,4 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import {
@@ -10,41 +8,19 @@ import {
   nextApproverWithYear,
 } from "./requests";
 import { linkUserProfiles } from "./userLink";
-import schema from "./schema";
+import { YEAR, ADMIN, newConvex, asUser, pinClock, seeded, storedReceipt } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
 const FIRST_PAGE = { paginationOpts: { numItems: 50, cursor: null } };
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock();
 
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
-
-const ADMIN = "admin@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
 const HENRY = "henry@sow.org.au";
 const BELLA = "bella@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 const DAN = "dan@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const storedReceipt = async (t: TestConvex<typeof schema>) => ({
-  storageId: await t.run((ctx) =>
-    ctx.storage.store(new Blob(["receipt"], { type: "application/pdf" }))
-  ),
-  name: "receipt.pdf",
-});
-
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
@@ -1543,7 +1519,7 @@ describe("deadlock prevention and validation fixes", () => {
   });
 
   test("submit is rejected while the year has no Budget Manager", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDepartment, {
@@ -1833,7 +1809,7 @@ describe("deadlock prevention and validation fixes", () => {
 
   test("in-flight previous-year requests survive the rollover end to end", async () => {
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       await ctx.db.insert("divisions", { year: YEAR - 1, name: "Engagement" });
       await ctx.db.insert("departments", {

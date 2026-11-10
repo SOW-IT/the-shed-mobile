@@ -1,24 +1,14 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { type T, YEAR, ADMIN, asUser, seeded, storedReceipt } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-
-const ADMIN = "admin@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
 const HENRY = "henry@sow.org.au";
 const BELLA = "bella@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
 const canNudgeNow = async (
-  t: TestConvex<typeof schema>,
+  t: T,
   email: string,
   requestId: Awaited<ReturnType<typeof pendingRequest>>
 ) => {
@@ -26,21 +16,13 @@ const canNudgeNow = async (
   return s !== null && !s.onCooldown;
 };
 
-const storedReceipt = async (t: TestConvex<typeof schema>) => ({
-  storageId: await t.run((ctx) =>
-    ctx.storage.store(new Blob(["receipt"], { type: "application/pdf" }))
-  ),
-  name: "receipt.pdf",
-});
-
 const advanceDays = (days: number) => {
   vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
   vi.setSystemTime(Date.now() + days * 24 * 60 * 60 * 1000);
 };
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
@@ -64,7 +46,7 @@ async function setup() {
   return t;
 }
 
-async function pendingRequest(t: TestConvex<typeof schema>) {
+async function pendingRequest(t: T) {
   await asUser(t, RACHEL).mutation(api.requests.submit, {
     description: "test",
     amount: 100,
@@ -73,13 +55,13 @@ async function pendingRequest(t: TestConvex<typeof schema>) {
   return request._id;
 }
 
-async function approveRequest(t: TestConvex<typeof schema>, id: Awaited<ReturnType<typeof pendingRequest>>) {
+async function approveRequest(t: T, id: Awaited<ReturnType<typeof pendingRequest>>) {
   await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
   await asUser(t, BELLA).mutation(api.requests.approve, { requestId: id, step: "budgetManager" });
   await asUser(t, FIONA).mutation(api.requests.approve, { requestId: id, step: "financeHead" });
 }
 
-async function submitReceipt(t: TestConvex<typeof schema>, id: Awaited<ReturnType<typeof pendingRequest>>) {
+async function submitReceipt(t: T, id: Awaited<ReturnType<typeof pendingRequest>>) {
   const file = await storedReceipt(t);
   await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
     requestId: id,
@@ -89,12 +71,12 @@ async function submitReceipt(t: TestConvex<typeof schema>, id: Awaited<ReturnTyp
   });
 }
 
-async function completeRequest(t: TestConvex<typeof schema>, id: Awaited<ReturnType<typeof pendingRequest>>) {
+async function completeRequest(t: T, id: Awaited<ReturnType<typeof pendingRequest>>) {
   await submitReceipt(t, id);
   await asUser(t, FIONA).mutation(api.requests.pay, { requestId: id, paidAmount: 100 });
 }
 
-const notificationTitles = async (t: TestConvex<typeof schema>, email: string) =>
+const notificationTitles = async (t: T, email: string) =>
   (
     await t.run((ctx) =>
       ctx.db

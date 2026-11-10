@@ -1,17 +1,15 @@
 import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
 import { internal } from "./_generated/api";
-import schema from "./schema";
 import { DEFAULT_PAGE_SIZE } from "./storageBackup";
-
-const modules = import.meta.glob("./**/*.ts");
+import { newConvex } from "../test/convexFixture";
 
 const store = (t: ReturnType<typeof convexTest>, body: string, type?: string) =>
   t.run((ctx) => ctx.storage.store(new Blob([body], type ? { type } : undefined)));
 
 describe("storageBackup.listFiles", () => {
   test("returns every file's metadata and a download url, in pages", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const receipt = await store(t, "receipt", "application/pdf");
     const avatar = await store(t, "avatar", "image/jpeg");
     const untyped = await store(t, "plain");
@@ -40,7 +38,7 @@ describe("storageBackup.listFiles", () => {
   });
 
   test("defaults the page size and clamps a bad one", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await store(t, "one");
     await store(t, "two");
     const defaulted = await t.query(internal.storageBackup.listFiles, {});
@@ -60,7 +58,7 @@ describe("storageBackup.listFiles", () => {
   });
 
   test("an empty deployment is one finished empty page", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const page = await t.query(internal.storageBackup.listFiles, {});
     expect(page).toMatchObject({ files: [], isDone: true });
   });

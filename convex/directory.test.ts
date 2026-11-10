@@ -1,26 +1,15 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { YEAR, ADMIN, newConvex, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-
-const ADMIN = "admin@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
 const HENRY = "henry@sow.org.au";
 const BELLA = "bella@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 const DAN = "dan@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
@@ -173,7 +162,7 @@ describe("me", () => {
 
 describe("me without an email", () => {
   test("an Apple account Apple gave no email still gets its own name, not a missing account", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const userId = await t.run(async (ctx) => ctx.db.insert("users", { name: "Apple user" }));
     const me = await t.withIdentity({ subject: `${userId}|s`, issuer: "test" }).query(api.directory.me, {});
     expect(me).toEqual({ email: "", year: YEAR, name: "Apple user", photo: null, profile: null });

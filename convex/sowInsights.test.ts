@@ -1,40 +1,23 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { WeeklyBlock } from "../shared/weeklyInsightsView";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { ADMIN, USYD, UNSW, newConvex, asUser, pinClock, seeded } from "../test/convexFixture";
 
 const NOW = Date.UTC(2026, 10, 20, 2);
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock(NOW);
 
-const ADMIN = "admin@sow.org.au";
-const UNSW = "University of New South Wales";
-const USYD = "University of Sydney";
 const MQ = "Macquarie University";
 const UTS = "University of Technology, Sydney";
 const SOW = "SOW";
 const mon = (y: number, m: number, d: number) => Date.UTC(y, m - 1, d, 8);
-
-type T = TestConvex<typeof schema>;
-const asUser = (t: T, email: string) => t.withIdentity({ email, subject: email, issuer: "test" });
 
 type Block = WeeklyBlock;
 const pick = <K extends Block["type"]>(blocks: Block[], type: K) =>
   blocks.filter((b): b is Extract<Block, { type: K }> => b.type === type);
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   await t.run(async (ctx) => {
     const tag = (name: string, list: "events" | "weeklies") => ctx.db.insert("attendanceTags", { name, list });
     const twig = await tag("TWIG", "events");
@@ -257,7 +240,7 @@ describe("SOW TWIG and PPN Insights", () => {
   });
 
   test("a staff year with no roll taken yet says so", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     await t.run(async (ctx) => {
       const twig = await ctx.db.insert("attendanceTags", { name: "TWIG" });

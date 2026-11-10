@@ -1,21 +1,10 @@
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { type T, YEAR, newConvex, pinClock } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
+pinClock();
 
-const addProfile = (t: TestConvex<typeof schema>, email: string, year = YEAR) =>
+const addProfile = (t: T, email: string, year = YEAR) =>
   t.run((ctx) =>
     ctx.db.insert("staffProfiles", {
       email,
@@ -24,12 +13,12 @@ const addProfile = (t: TestConvex<typeof schema>, email: string, year = YEAR) =>
     })
   );
 
-const generalView = (t: TestConvex<typeof schema>) =>
+const generalView = (t: T) =>
   t.query(api.generalMetrics.view, { scope: "all" });
 
 describe("Insights staff trends snapshot", () => {
   test("the General view reads the snapshot until the next rebuild", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await addProfile(t, "ann@sow.org.au");
     await addProfile(t, "ann@sow.org.au", YEAR - 1);
     const before = await generalView(t);
@@ -43,7 +32,7 @@ describe("Insights staff trends snapshot", () => {
   });
 
   test("a snapshot from another staff year is ignored, and a rebuild leaves one row", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await addProfile(t, "ann@sow.org.au");
     await t.mutation(internal.generalMetrics.recomputeStaffTrends, {});
     const current = await t.run((ctx) => ctx.db.query("staffTrendsSnapshots").first());

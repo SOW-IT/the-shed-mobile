@@ -1,36 +1,17 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
-import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { api } from "./_generated/api";
 import { linkUserProfiles } from "./userLink";
+import { ADMIN, asUser, pinClock, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
 const PINNED_NOW = staffYearStartMs(2026) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock(PINNED_NOW);
 
 const YEAR = staffYearForDate(new Date(PINNED_NOW));
-const ADMIN = "admin@sow.org.au";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-  return t;
-}
 
 describe("email changes: the person stays the same", () => {
   test("sign-in with a new email claims imported years keyed by the old one", async () => {
-    const t = await setup();
+    const t = await seeded();
     const oldEmail = "jane.personal@gmail.com";
     const newEmail = "jane.doe@sow.org.au";
 
@@ -69,7 +50,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("first sign-in after the Workspace domain migration claims legacy-domain profiles", async () => {
-    const t = await setup();
+    const t = await seeded();
     const userId = await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email: "mia.cho@sowaustralia.com",
@@ -106,7 +87,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("a personal account with a matching local part does NOT claim legacy-domain profiles", async () => {
-    const t = await setup();
+    const t = await seeded();
     const { userId, legacyProfileId } = await t.run(async (ctx) => {
       const legacyProfileId = await ctx.db.insert("staffProfiles", {
         email: "mia.cho@sowaustralia.com",
@@ -133,7 +114,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("a legacy profile already bound to another user is NOT claimed by a matching local part", async () => {
-    const t = await setup();
+    const t = await seeded();
     const { newUserId, legacyProfileId, oldUserId } = await t.run(async (ctx) => {
       const oldUserId = await ctx.db.insert("users", {
         email: "sam@sowaustralia.com",
@@ -163,7 +144,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("people without an imported id get their user id as the person key", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const newcomer = "noah.new@sow.org.au";
 
@@ -218,7 +199,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("re-provisioning an imported person keeps their imported key", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const imported = "ivy.imported@sow.org.au";
     await t.run(async (ctx) => {
@@ -256,7 +237,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("re-keying never duplicates a (email, year) profile", async () => {
-    const t = await setup();
+    const t = await seeded();
     const oldEmail = "jay.old@gmail.com";
     const newEmail = "jay@sow.org.au";
 
@@ -290,7 +271,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("a re-key carries roles, saved accounts, song, design and event requests, grievances and notifications", async () => {
-    const t = await setup();
+    const t = await seeded();
     const OLD = "lee.old@sow.org.au";
     const NEW = "lee@sow.org.au";
     const OTHER = "pat@sow.org.au";
@@ -410,7 +391,7 @@ describe("email changes: the person stays the same", () => {
 
 describe("multi-headship: one person, several divisions/departments", () => {
   test("naming someone head of a second division keeps the first", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const sijin = "sijin@sow.org.au";
 
@@ -458,7 +439,7 @@ describe("multi-headship: one person, several divisions/departments", () => {
   });
 
   test("a department head keeps other departments when re-saved", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const henry = "henry@sow.org.au";
     await admin.mutation(api.admin.upsertDepartment, {
@@ -493,7 +474,7 @@ describe("multi-headship: one person, several divisions/departments", () => {
 
 describe("Student Leaders pick a university, not a department", () => {
   test("assignment requires one of the year's universities", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const leader = "lara.lee@sow.org.au";
 
@@ -529,7 +510,7 @@ describe("Student Leaders pick a university, not a department", () => {
   });
 
   test("all campus roles need a university; Member needs nothing", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
 
     await expect(
@@ -563,7 +544,7 @@ describe("Student Leaders pick a university, not a department", () => {
   });
 
   test("universities are data-driven per year; one still assigned can't be deleted", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
 
     const structure = (await admin.query(api.directory.yearStructure, {

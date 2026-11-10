@@ -1,44 +1,35 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { describe, expect, test } from "vitest";
 import {
   designRequestFiling,
   MARKETING_TEAM_EMAIL,
   sydneyToday,
   type DesignAnswers,
 } from "../shared/designRequests";
-import { api, internal } from "./_generated/api";
+import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { DESIGN_REQUEST_FIELDS } from "./designRequestForm";
 import { headRecipients } from "./designRequests";
-import schema from "./schema";
+import {
+  type T,
+  DAY,
+  PINNED_NOW,
+  YEAR,
+  ADMIN,
+  asUser,
+  pinClock,
+  seeded,
+  notificationsFor,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const DAY = 86_400_000;
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock();
 
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
 const DUE = sydneyToday(new Date(PINNED_NOW + 14 * DAY));
 
-const ADMIN = "admin@sow.org.au";
 const HENRY = "henry@sow.org.au";
 const MARY = "mary@sow.org.au";
 const DELIA = "delia@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
 const PAUL = "paul@sow.org.au";
-
-type T = TestConvex<typeof schema>;
-
-const asUser = (t: T, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 const answers = (over: DesignAnswers = {}): DesignAnswers => ({
   department: "Events",
@@ -55,8 +46,7 @@ const answers = (over: DesignAnswers = {}): DesignAnswers => ({
 });
 
 async function setup({ head = HENRY }: { head?: string | null } = {}) {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
@@ -82,14 +72,6 @@ const submit = (t: T, email: string, over: DesignAnswers = {}) =>
 
 const getRequest = (t: T, id: Id<"designRequests">) =>
   t.run(async (ctx) => (await ctx.db.get("designRequests", id))!);
-
-const notificationsFor = (t: T, email: string) =>
-  t.run((ctx) =>
-    ctx.db
-      .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userEmail", email))
-      .collect()
-  );
 
 const emailedTo = (t: T) =>
   t.run(async (ctx) =>

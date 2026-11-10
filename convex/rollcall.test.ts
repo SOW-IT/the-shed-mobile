@@ -1,37 +1,26 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { SOW_SUBGROUP } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import schema from "./schema";
+import {
+  type T,
+  YEAR,
+  ADMIN,
+  LEADER,
+  STAFF,
+  OUTSIDER,
+  USYD,
+  MACQ,
+  asUser,
+  pinClock,
+  seeded,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
-
-const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au";
-const STAFF = "staff@sow.org.au";
-const OUTSIDER = "outsider@sow.org.au";
-
-const USYD = "University of Sydney";
-const MACQ = "Macquarie University";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
+pinClock();
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: MACQ });
@@ -56,7 +45,7 @@ async function setup() {
   return t;
 }
 
-async function memberOf(t: TestConvex<typeof schema>, email: string, year = YEAR) {
+async function memberOf(t: T, email: string, year = YEAR) {
   const profile = await t.run((ctx) =>
     ctx.db
       .query("staffProfiles")
@@ -379,7 +368,7 @@ describe("roster (the shared member pool)", () => {
 });
 
 describe("events + roll-call", () => {
-  let t: TestConvex<typeof schema>;
+  let t: T;
   beforeEach(async () => {
     t = await setup();
   });
@@ -1024,7 +1013,7 @@ describe("new-event notifications", () => {
   const LEADER2 = "leader2@sow.org.au";
   const MACQ_LEADER = "macqleader@sow.org.au";
 
-  const notifsFor = (t: TestConvex<typeof schema>, email: string) =>
+  const notifsFor = (t: T, email: string) =>
     t.run((ctx) =>
       ctx.db
         .query("notifications")
@@ -1033,7 +1022,7 @@ describe("new-event notifications", () => {
     );
 
   const createAndDeliver = async (
-    t: TestConvex<typeof schema>,
+    t: T,
     creator: string,
     subgroups: string[]
   ) => {

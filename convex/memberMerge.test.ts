@@ -1,25 +1,13 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { staffYearForDate, sydneyCalendarYear } from "../shared/flow";
-import { api, internal } from "./_generated/api";
+import { sydneyCalendarYear } from "../shared/flow";
+import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import schema from "./schema";
+import { YEAR, ADMIN, LEADER, USYD, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-
-const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au";
 const OTHER_LEADER = "other.leader@sow.org.au";
-const USYD = "University of Sydney";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   for (const email of [LEADER, OTHER_LEADER]) {

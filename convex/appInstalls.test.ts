@@ -1,28 +1,14 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import { notify } from "./requests";
-import schema from "./schema";
+import { ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const ADMIN = "admin@sow.org.au";
 const EVA = "eva@sow.org.au";
 const EVENT = "/event-requests/abc/risk";
 
-type T = TestConvex<typeof schema>;
-const asUser = (t: T, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-  return t;
-}
-
 describe("app versions", () => {
   test("the app reports its version per kind of phone", async () => {
-    const t = await setup();
+    const t = await seeded();
     expect(await t.mutation(api.appInstalls.report, { platform: "ios", version: "2.3.1" })).toBeNull();
     await expect(
       asUser(t, EVA).mutation(api.appInstalls.report, { platform: "ios", version: "latest" })
@@ -34,7 +20,7 @@ describe("app versions", () => {
   });
 
   test("emailed and bell links point straight at the page, whatever app version reported in", async () => {
-    const t = await setup();
+    const t = await seeded();
     await asUser(t, ADMIN).mutation(api.appInstalls.report, { platform: "android", version: "2.9.25" });
     await t.run((ctx) => notify(ctx, { to: ADMIN, subject: "Hi", body: "Body", url: EVENT }));
     await t.run((ctx) => notify(ctx, { to: ADMIN, subject: "No link", body: "Body" }));
@@ -59,7 +45,7 @@ describe("app versions", () => {
 
 describe("update status", () => {
   test("names the newer of the recommended and minimum versions as the one to update to", async () => {
-    const t = await setup();
+    const t = await seeded();
     await t.mutation(internal.appInstalls.setUpdatePolicy, {
       platform: "android",
       recommended: "2.9.1",
