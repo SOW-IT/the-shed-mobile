@@ -69,6 +69,12 @@ What we weighed (2026-11-04):
   (reimbursements, event requests, Waiting on you) stay open; creating an
   event still checks the real roles, and `directory.me` reports
   `canRequestEvents` from them so the New Event Request button stays hidden.
+  An admin can also act as a campus leader: one generic role, not a
+  particular campus. They get the campus leader app (Home opens on
+  Attendance, no Requests, no Waiting on you, no links into event requests,
+  Attendance settings to manage) while every action keeps its real check.
+  The default campus on Attendance, Calendar and Insights still comes from
+  the admin's own roles, because the persona has no campus.
 
 Trade-offs: the server reads the admin's status and the `actingAs` row in
 each honouring query (a few indexed reads); a persona's Waiting on you can

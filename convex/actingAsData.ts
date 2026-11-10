@@ -6,4 +6,5 @@ export const personaValidator = v.union(
   v.object({ role: v.literal("director") }),
   v.object({ role: v.literal("budgetManager") }),
   v.object({ role: v.literal("praiseManager") }),
+  v.object({ role: v.literal("campusLeader") }),
 );

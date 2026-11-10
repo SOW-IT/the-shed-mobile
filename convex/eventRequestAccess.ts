@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
 import { lensFor } from "./actingAs";
+import { lensIsCampusLeader } from "../shared/actingAs";
 import { syncEventRequestLinks } from "./eventRequestLinks";
 import { assignmentsOf, isMemberOfDepartment, roleNeedsUniversity } from "../shared/flow";
 import { formatDateTimeRange } from "../shared/forms";
@@ -40,7 +41,7 @@ export const isCampusLeader = (caller: CallerContext) =>
   assignmentsOf(caller.profile).some((a) => roleNeedsUniversity(a.role));
 
 const seesStaffViews = async (ctx: Ctx, caller: CallerContext): Promise<boolean> =>
-  !isCampusLeader(caller) || (await lensFor(ctx, caller)).kind !== "self";
+  !lensIsCampusLeader(await lensFor(ctx, caller), isCampusLeader(caller));
 
 export async function optionalEventStaff(ctx: Ctx): Promise<CallerContext | null> {
   const caller = await optionalProfile(ctx);
@@ -215,7 +216,7 @@ export async function openableEventRequest(
   caller: CallerContext,
   id: Id<"eventRequests"> | undefined
 ): Promise<Id<"eventRequests"> | null> {
-  if (!id || isCampusLeader(caller)) return null;
+  if (!id || isCampusLeader(caller) || !(await seesStaffViews(ctx, caller))) return null;
   const event = await ctx.db.get("eventRequests", id);
   return event && (await accessTo(ctx, caller, event)).canView ? id : null;
 }

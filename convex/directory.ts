@@ -1,9 +1,11 @@
 import { v } from "convex/values";
 import {
+  lensIsCampusLeader,
   personaApproves,
   personaHeads,
   personaInDepartment,
   personaIsBudgetManager,
+  personaIsCampusLeader,
   personaIsDirector,
   seesThrough,
 } from "../shared/actingAs";
@@ -32,6 +34,7 @@ import {
   getApprovers,
   getProfile,
   isAdminProfile,
+  leadsACampus,
   nextStaffYear,
   optionalEmail,
   optionalProfile,
@@ -174,8 +177,11 @@ export const me = query({
         : headedDepartments,
       isDelegate,
       isApprover: await seesThrough(lens, () => isApprover, personaApproves),
-      isCampusLeader: lens.kind === "self" && isRealCampusLeader,
+      isCampusLeader: lensIsCampusLeader(lens, isRealCampusLeader),
       canRequestEvents: !isRealCampusLeader,
+      canManageAttendance: persona
+        ? personaIsAdmin(persona, teams) || personaIsCampusLeader(persona)
+        : isAdmin || leadsACampus(profile),
       roleTitles,
       isMentor: mentorship !== null,
       listsChurch: profile.year === year && assignmentsOf(profile).length > 0,

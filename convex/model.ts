@@ -223,15 +223,17 @@ export async function requireAdmin(ctx: Ctx): Promise<CallerContext> {
   return caller;
 }
 
+export const leadsACampus = (profile: Doc<"staffProfiles">): boolean =>
+  assignmentsOf(profile).some(
+    (assignment) =>
+      assignment.university !== undefined && roleNeedsUniversity(assignment.role)
+  );
+
 export async function isAttendanceManagerProfile(
   ctx: Ctx,
   profile: Doc<"staffProfiles">
 ): Promise<boolean> {
-  if (await isAdminProfile(ctx, profile)) return true;
-  return assignmentsOf(profile).some(
-    (assignment) =>
-      assignment.university !== undefined && roleNeedsUniversity(assignment.role)
-  );
+  return (await isAdminProfile(ctx, profile)) || leadsACampus(profile);
 }
 
 export async function requireAttendanceManager(ctx: Ctx): Promise<CallerContext> {

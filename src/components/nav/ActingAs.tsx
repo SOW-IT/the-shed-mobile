@@ -205,6 +205,7 @@ export const ActingAsPicker = ({
     { role: "director" },
     { role: "budgetManager" },
     { role: "praiseManager" },
+    { role: "campusLeader" },
   ];
   return (
     <OptionSheet

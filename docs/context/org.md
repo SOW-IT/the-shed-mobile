@@ -156,8 +156,9 @@ _Avoid_: god mode, superuser
 An admin's choice to see the app as one role instead of All views: the
 Director, the Budget Manager (who is Finance staff), a Praise Manager (who
 sees the Praise List's review queue and nothing else extra; see
-[Praise List](./praise-list.md)), or the staff or Head of one of this year's
-departments. Lists, tabs, queues and badges become that
+[Praise List](./praise-list.md)), a campus leader (any campus: Home opens on
+Attendance and the staff requests are hidden), or the staff or Head of one
+of this year's departments. Lists, tabs, queues and badges become that
 role's; the admin's own requests stay theirs. It changes what they see,
 never what they can do, and it is saved per admin on the server (`actingAs`),
 so it follows them across devices. A department that no longer exists falls

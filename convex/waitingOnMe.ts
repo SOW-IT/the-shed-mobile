@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { lensIsCampusLeader } from "../shared/actingAs";
 import { isSubFormEditable, SUB_FORM_KINDS } from "../shared/eventRequests";
 import { requestFullyApproved } from "../shared/flow";
 import { query } from "./_generated/server";
@@ -36,7 +37,7 @@ export const summary = query({
     if (!caller) return null;
     const lens = await lensFor(ctx, caller);
     const songs = { toReview: await songsWaitingOn(ctx, caller, lens) };
-    if (lens.kind === "self" && isCampusLeader(caller)) {
+    if (lensIsCampusLeader(lens, isCampusLeader(caller))) {
       return songs.toReview > 0 ? { ...NOTHING_WAITING, songs } : null;
     }
     const queues =
