@@ -154,6 +154,25 @@ export const updateRefreshedConnection = internalMutation({
   },
 });
 
+export const forgetRejectedConnection = internalMutation({
+  args: {
+    connectionId: v.id("spotifyConnections"),
+    encryptedAccessToken: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.get(args.connectionId);
+
+    if (connection?.encryptedAccessToken === args.encryptedAccessToken) {
+      await ctx.db.delete(connection._id);
+    }
+
+    return null;
+  },
+});
+
+const SPOTIFY_RECONNECT =
+  "Spotify access has ended. Connect Spotify again from your Profile page.";
+
 const allowedRedirectUris = new Set([
   "https://theshed.sow.org.au/spotify-callback",
   "http://localhost:8081/spotify-callback",
@@ -299,9 +318,16 @@ export const importPlaylist = action({
       throw new ConvexError("Connect your Spotify account first.");
     }
 
-    let accessToken = await decryptSpotifyToken(
-      connection.encryptedAccessToken,
-    );
+    let encryptedAccessToken = connection.encryptedAccessToken;
+    let accessToken = await decryptSpotifyToken(encryptedAccessToken);
+
+    const forgetConnection = async () => {
+      await ctx.runMutation(
+        internal.spotifyConnections.forgetRejectedConnection,
+        { connectionId: connection._id, encryptedAccessToken },
+      );
+      return new ConvexError(SPOTIFY_RECONNECT);
+    };
 
     if (connection.expiresAt <= Date.now() + 60_000) {
       const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -331,6 +357,10 @@ export const importPlaylist = action({
       );
 
       if (!refreshResponse.ok) {
+        const failure: { error?: string } | null = await refreshResponse
+          .json()
+          .catch(() => null);
+        if (failure?.error === "invalid_grant") throw await forgetConnection();
         throw new ConvexError(
           `Spotify token refresh failed (${refreshResponse.status}). Please reconnect Spotify if authorization has expired.`,
         );
@@ -343,15 +373,16 @@ export const importPlaylist = action({
       } = await refreshResponse.json();
 
       accessToken = refreshed.access_token;
+      const refreshedCiphertext = await encryptSpotifyToken(
+        refreshed.access_token,
+      );
 
       const updated = await ctx.runMutation(
         internal.spotifyConnections.updateRefreshedConnection,
         {
           connectionId: connection._id,
           expectedUpdatedAt: connection.updatedAt,
-          encryptedAccessToken: await encryptSpotifyToken(
-            refreshed.access_token,
-          ),
+          encryptedAccessToken: refreshedCiphertext,
           encryptedRefreshToken: await encryptSpotifyToken(
             refreshed.refresh_token ?? refreshToken,
           ),
@@ -364,6 +395,7 @@ export const importPlaylist = action({
           "Spotify connection changed during refresh. Please try again.",
         );
       }
+      encryptedAccessToken = refreshedCiphertext;
     }
 
     const headers = {
@@ -375,6 +407,7 @@ export const importPlaylist = action({
       { headers },
     );
 
+    if (metadataResponse.status === 401) throw await forgetConnection();
     if (!metadataResponse.ok) {
       throw new ConvexError(
         `Spotify playlist unavailable (${metadataResponse.status}).`,
@@ -388,6 +421,7 @@ export const importPlaylist = action({
       { headers },
     );
 
+    if (response.status === 401) throw await forgetConnection();
     if (!response.ok) {
       throw new ConvexError(
         `Spotify denied access to playlist songs (${response.status}).`,

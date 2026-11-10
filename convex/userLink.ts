@@ -53,10 +53,24 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
 
   const settings = await ctx.db.query("yearSettings").take(100);
   for (const setting of settings) {
-    if (setting.budgetManagerEmail === oldEmail) {
-      await ctx.db.patch("yearSettings", setting._id, {
-        budgetManagerEmail: newEmail,
-      });
+    const praiseManagers = setting.praiseManagerEmails ?? [];
+    const renamedPraiseManagers = praiseManagers.map((e) =>
+      e.toLowerCase() === oldEmail ? newEmail : e
+    );
+    const patch = {
+      ...(setting.budgetManagerEmail === oldEmail ? { budgetManagerEmail: newEmail } : {}),
+      ...(setting.directorEmail === oldEmail ? { directorEmail: newEmail } : {}),
+      ...(praiseManagers.some((e) => e.toLowerCase() === oldEmail)
+        ? {
+            praiseManagerEmails: renamedPraiseManagers.filter(
+              (e, i) =>
+                renamedPraiseManagers.findIndex((other) => other.toLowerCase() === e.toLowerCase()) === i
+            ),
+          }
+        : {}),
+    };
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch("yearSettings", setting._id, patch);
     }
   }
 
@@ -131,6 +145,106 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
       .unique();
     if (taken) await ctx.db.delete("actingAs", choice._id);
     else await ctx.db.patch("actingAs", choice._id, { email: newEmail });
+  }
+
+  const adminRows = await ctx.db
+    .query("admins")
+    .withIndex("by_email", (q) => q.eq("email", oldEmail))
+    .take(10);
+  for (const admin of adminRows) {
+    const taken = await ctx.db
+      .query("admins")
+      .withIndex("by_email", (q) => q.eq("email", newEmail))
+      .first();
+    if (taken) await ctx.db.delete("admins", admin._id);
+    else await ctx.db.patch("admins", admin._id, { email: newEmail });
+  }
+
+  const newHasPreferred = (
+    await ctx.db
+      .query("savedBankAccounts")
+      .withIndex("by_email", (q) => q.eq("email", newEmail))
+      .take(100)
+  ).some((account) => account.preferred === true);
+  const savedAccounts = await ctx.db
+    .query("savedBankAccounts")
+    .withIndex("by_email", (q) => q.eq("email", oldEmail))
+    .take(100);
+  for (const account of savedAccounts) {
+    const taken = await ctx.db
+      .query("savedBankAccounts")
+      .withIndex("by_email_bsb_accountNumber", (q) =>
+        q.eq("email", newEmail).eq("bsb", account.bsb).eq("accountNumber", account.accountNumber)
+      )
+      .first();
+    if (taken) {
+      await ctx.db.delete("savedBankAccounts", account._id);
+    } else {
+      await ctx.db.patch("savedBankAccounts", account._id, {
+        email: newEmail,
+        ...(newHasPreferred ? { preferred: undefined } : {}),
+      });
+    }
+  }
+
+  await inBatches(
+    () =>
+      ctx.db
+        .query("musicRequests")
+        .withIndex("by_requester", (q) => q.eq("requesterEmail", oldEmail))
+        .take(500),
+    (row) => ctx.db.patch("musicRequests", row._id, { requesterEmail: newEmail })
+  );
+  await inBatches(
+    () =>
+      ctx.db
+        .query("designRequests")
+        .withIndex("by_requester_and_year", (q) => q.eq("requesterEmail", oldEmail))
+        .take(500),
+    (row) => ctx.db.patch("designRequests", row._id, { requesterEmail: newEmail })
+  );
+  await inBatches(
+    () =>
+      ctx.db
+        .query("eventRequests")
+        .withIndex("by_requester_and_year", (q) => q.eq("requesterEmail", oldEmail))
+        .take(500),
+    (row) => ctx.db.patch("eventRequests", row._id, { requesterEmail: newEmail })
+  );
+  await inBatches(
+    () =>
+      ctx.db
+        .query("grievances")
+        .withIndex("by_accountEmail", (q) => q.eq("accountEmail", oldEmail))
+        .take(500),
+    (row) => ctx.db.patch("grievances", row._id, { accountEmail: newEmail })
+  );
+  await inBatches(
+    () =>
+      ctx.db
+        .query("grievances")
+        .withIndex("by_assigneeEmail_and_status", (q) => q.eq("assigneeEmail", oldEmail))
+        .take(500),
+    (row) => ctx.db.patch("grievances", row._id, { assigneeEmail: newEmail })
+  );
+  await inBatches(
+    () =>
+      ctx.db
+        .query("notifications")
+        .withIndex("by_user", (q) => q.eq("userEmail", oldEmail))
+        .take(500),
+    (row) => ctx.db.patch("notifications", row._id, { userEmail: newEmail })
+  );
+}
+
+async function inBatches<T>(
+  nextBatch: () => Promise<T[]>,
+  move: (row: T) => Promise<void>
+) {
+  for (;;) {
+    const rows = await nextBatch();
+    if (rows.length === 0) return;
+    for (const row of rows) await move(row);
   }
 }
 

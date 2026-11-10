@@ -58,6 +58,13 @@ async function seedAccount(
     await ctx.db.insert("lastSeen", { email, at: Date.now() });
     await ctx.db.insert("appInstalls", { email, platform: "ios", version: "2.7.0", seenAt: Date.now() });
     await ctx.db.insert("notifications", { userEmail: email, title: "Hi", body: "Hello", read: false });
+    await ctx.db.insert("savedBankAccounts", {
+      email,
+      accountName: "Sam Smith",
+      bsb: "062000",
+      accountNumber: "12345678",
+      lastUsedAt: Date.now(),
+    });
     return { userId, sessionId, avatarId };
   });
 }
@@ -79,6 +86,9 @@ const counts = async (t: T, email: string) =>
     ).length,
     notifications: (
       await ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", email)).take(10)
+    ).length,
+    savedBankAccounts: (
+      await ctx.db.query("savedBankAccounts").withIndex("by_email", (q) => q.eq("email", email)).take(10)
     ).length,
   }));
 
@@ -200,6 +210,7 @@ describe("account.deleteMine", () => {
       lastSeen: 0,
       appInstalls: 0,
       notifications: 1,
+      savedBankAccounts: 0,
     });
     await t.run(async (ctx) => {
       const [profile] = await ctx.db.query("staffProfiles").take(10);
@@ -396,6 +407,13 @@ describe("account.wipe", () => {
         await ctx.db.insert("lastSeen", { email: GUEST, at: i });
         await ctx.db.insert("appInstalls", { email: GUEST, platform: "ios", version: "2.7.0", seenAt: i });
         await ctx.db.insert("notifications", { userEmail: GUEST, title: "Hi", body: `${i}`, read: false });
+        await ctx.db.insert("savedBankAccounts", {
+          email: GUEST,
+          accountName: "Gina Guest",
+          bsb: "062000",
+          accountNumber: `${i}`,
+          lastUsedAt: i,
+        });
       }
       return userId;
     });

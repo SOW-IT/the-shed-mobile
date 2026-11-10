@@ -186,10 +186,8 @@ async function threadsOf(
   caller: CallerContext,
   requestIds: Id<"requests">[]
 ): Promise<Id<"requests">[]> {
-  const ids = [...new Set(requestIds)];
-  if ((await lensFor(ctx, caller)).kind === "self") return ids;
   const own: Id<"requests">[] = [];
-  for (const id of ids) {
+  for (const id of new Set(requestIds)) {
     const request = await ctx.db.get("requests", id);
     if (request && (await canSeeRequest(ctx, caller, request))) own.push(id);
   }
@@ -240,9 +238,11 @@ export const myUnreadTotal = query({
 export const markRead = mutation({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
-    const { email } = await requireProfile(ctx);
+    const caller = await requireProfile(ctx);
+    const { email } = caller;
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) throw new ConvexError("Request not found.");
+    if (!(await canSeeRequest(ctx, caller, request))) return null;
     const newest = await ctx.db
       .query("requestComments")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
@@ -271,13 +271,17 @@ export const markRead = mutation({
 export const toggleReaction = mutation({
   args: { commentId: v.id("requestComments"), emoji: v.string() },
   handler: async (ctx, args) => {
-    const { email } = await requireProfile(ctx);
+    const caller = await requireProfile(ctx);
+    const { email } = caller;
     const emoji = args.emoji.trim();
     if (!emoji || !ALLOWED_REACTIONS.has(emoji)) {
       throw new ConvexError("Pick a single emoji.");
     }
     const comment = await ctx.db.get("requestComments", args.commentId);
-    if (!comment) throw new ConvexError("Comment not found.");
+    const request = comment && (await ctx.db.get("requests", comment.requestId));
+    if (!request || !(await canSeeRequest(ctx, caller, request))) {
+      throw new ConvexError("Comment not found.");
+    }
     const existing = await ctx.db
       .query("commentReactions")
       .withIndex("by_comment_user_emoji", (q) =>

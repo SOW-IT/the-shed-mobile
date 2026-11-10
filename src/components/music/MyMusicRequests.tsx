@@ -310,9 +310,11 @@ const MusicRequestSheetContent = ({
       const accessDenied =
         /403|denied access to playlist songs|forbidden/i.test(message);
 
-      const friendlyMessage = accessDenied
-        ? "You don't have permission to import this playlist. Please use a Spotify playlist that you own or collaborate on."
-        : "We couldn't import this playlist. Please check the Spotify link and try again.";
+      const friendlyMessage = /connect spotify again/i.test(message)
+        ? message
+        : accessDenied
+          ? "You don't have permission to import this playlist. Please use a Spotify playlist that you own or collaborate on."
+          : "We couldn't import this playlist. Please check the Spotify link and try again.";
 
       setError(friendlyMessage);
     } finally {

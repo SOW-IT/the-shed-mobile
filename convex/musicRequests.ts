@@ -592,16 +592,7 @@ export const myRequests = query({
       .withIndex("by_requester", (q) => q.eq("requesterEmail", caller.email))
       .order("desc")
       .take(200);
-
-    const named = await withNames(ctx, rows);
-    return await Promise.all(
-      named.map(async (row) => ({
-        ...row,
-        canRequestAgain:
-          isDeclined(row) &&
-          (await findIndexedDuplicate(ctx, row, row._id))?.kind !== "exact",
-      })),
-    );
+    return await withNames(ctx, rows);
   },
 });
 /** Get pending music requests. Praise Manager only. */

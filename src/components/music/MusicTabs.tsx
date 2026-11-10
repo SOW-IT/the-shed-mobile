@@ -519,7 +519,7 @@ export const MyRequestsTab = ({
                 ) : undefined
               }
               footer={
-                item.canRequestAgain && onRequestAgain ? (
+                item.status === "DECLINED" && onRequestAgain ? (
                   <View style={{ alignItems: "flex-start" }}>
                     <Btn
                       title="Request again"

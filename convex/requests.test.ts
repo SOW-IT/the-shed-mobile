@@ -391,6 +391,37 @@ describe("approver delegation (out-of-office cover)", () => {
     expect(henryFeed![0].title).toMatch(/approval/i);
     expect(rachelFeed![0].title).toMatch(/approval/i);
   });
+
+  test("a delegate is nudged and told about a cancel along with the Head they cover", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: HENRY,
+      toEmail: RACHEL,
+    });
+    const JUSTIN = "justin@sow.org.au";
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: JUSTIN,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+    await asUser(t, JUSTIN).mutation(api.requests.submit, { description: "needs hod", amount: 50 });
+    const [req] = (await asUser(t, JUSTIN).query(api.requests.myRequests, {}))!;
+    const titles = async (email: string) =>
+      (await asUser(t, email).query(api.notifications.feed, FIRST_PAGE))!.page.map((n) => n.title);
+
+    await asUser(t, JUSTIN).mutation(api.requests.nudge, { requestId: req._id });
+    for (const email of [HENRY, RACHEL]) {
+      expect((await titles(email))[0]).toBe("You've been nudged");
+    }
+
+    await asUser(t, JUSTIN).mutation(api.requests.cancel, { requestId: req._id });
+    for (const email of [HENRY, RACHEL]) {
+      expect((await titles(email))[0]).toBe("Request cancelled");
+    }
+    expect(await titles(JUSTIN)).toEqual([]);
+  });
 });
 
 describe("in-app notifications", () => {

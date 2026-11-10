@@ -793,15 +793,10 @@ describe("music request indexed duplicates", () => {
     ).toMatchObject({ kind: "exact", status: "PENDING" });
 
     const mine = await staff.query(api.musicRequests.myRequests, {});
-    expect(
-      mine.map((row) => [row.status, row.canRequestAgain]).sort(),
-    ).toEqual([
-      ["DECLINED", false],
-      ["PENDING", false],
-    ]);
+    expect(mine.map((row) => row.status).sort()).toEqual(["DECLINED", "PENDING"]);
   });
 
-  test("offers Request again only while no one else has the recording open", async () => {
+  test("Request again's check finds the recording only once someone else has it open", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
     const declinedId = await staff.mutation(api.musicRequests.submit, {
@@ -812,18 +807,24 @@ describe("music request indexed duplicates", () => {
     await t.run(async (ctx) => {
       await ctx.db.patch(declinedId, { status: "DECLINED" });
     });
-    const canRequestAgain = async () =>
-      (await staff.query(api.musicRequests.myRequests, {})).find(
-        (row) => row._id === declinedId,
-      )?.canRequestAgain;
+    const [declined] = await staff.query(api.musicRequests.myRequests, {});
+    expect(declined).not.toHaveProperty("canRequestAgain");
+    const check = () =>
+      staff.query(api.musicRequests.checkDuplicate, {
+        link: declined.link,
+        title: declined.title,
+        artist: declined.artist,
+        isrc: declined.isrc,
+        excludeId: declined._id,
+      });
 
-    expect(await canRequestAgain()).toBe(true);
+    expect(await check()).toBeNull();
     await asUser(t, ADMIN).mutation(api.musicRequests.submit, {
       title: "Again Song",
       artist: "Test Artist",
       link: SPOTIFY,
     });
-    expect(await canRequestAgain()).toBe(false);
+    expect(await check()).toMatchObject({ kind: "exact" });
   });
 
   test("says when a declined match is only the same title and artist", async () => {

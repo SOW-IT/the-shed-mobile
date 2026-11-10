@@ -16,7 +16,7 @@ import {
 import { typography } from "@/theme";
 import { api } from "@convex/_generated/api";
 import { staffOnlyMessage } from "@shared/staffOnly";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { ApprovedPlaylistTab, MyRequestsTab, ToReviewTab } from "./MusicTabs";
@@ -27,6 +27,7 @@ import {
 } from "./MyMusicRequests";
 
 export default function MusicScreen() {
+  const convex = useConvex();
   const me = useQuery(api.directory.me);
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
@@ -64,7 +65,22 @@ export default function MusicScreen() {
     setNewRequestOpen(true);
   };
 
-  const handleRequestAgain = (request: MusicRequest) => {
+  const handleRequestAgain = async (request: MusicRequest) => {
+    const open = await convex
+      .query(api.musicRequests.checkDuplicate, {
+        link: request.link,
+        title: request.title,
+        artist: request.artist,
+        isrc: request.isrc,
+        excludeId: request._id,
+      })
+      .catch(() => null);
+    if (open?.kind === "exact") {
+      setToast({
+        text: `This recording was already requested (${open.status.toLowerCase()}).`,
+      });
+      return;
+    }
     setRequestPrefill(null);
     setRequestAgain(request);
     setHideRequestComment(false);
@@ -122,7 +138,7 @@ export default function MusicScreen() {
               <MyRequestsTab
                 onEditRequest={(request) => handleEdit(request, "myRequests")}
                 onDeleteRequest={handleDelete}
-                onRequestAgain={handleRequestAgain}
+                onRequestAgain={(request) => void handleRequestAgain(request)}
               />
             ),
           },

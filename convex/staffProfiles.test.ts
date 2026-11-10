@@ -288,6 +288,119 @@ describe("email changes: the person stays the same", () => {
       ]);
     });
   });
+
+  test("a re-key carries roles, saved accounts, song, design and event requests, grievances and notifications", async () => {
+    const t = await setup();
+    const OLD = "lee.old@sow.org.au";
+    const NEW = "lee@sow.org.au";
+    const OTHER = "pat@sow.org.au";
+    const userId = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: OLD,
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Data and IT" }],
+      });
+      await ctx.db.insert("admins", { email: OLD, addedBy: ADMIN, addedAt: 0 });
+      await ctx.db.insert("yearSettings", {
+        year: YEAR + 5,
+        directorEmail: OLD,
+        praiseManagerEmails: ["Lee.Old@sow.org.au", NEW, OTHER],
+      });
+      const accounts: [string, string, true | undefined][] = [
+        [OLD, "111", true],
+        [OLD, "222", undefined],
+        [NEW, "222", true],
+      ];
+      for (const [email, accountNumber, preferred] of accounts) {
+        await ctx.db.insert("savedBankAccounts", {
+          email,
+          accountName: "Lee",
+          bsb: "062000",
+          accountNumber,
+          lastUsedAt: 0,
+          preferred,
+        });
+      }
+      await ctx.db.insert("musicRequests", {
+        requesterEmail: OLD,
+        title: "Song",
+        artist: "Band",
+        link: "https://open.spotify.com/track/x",
+        status: "PENDING",
+      });
+      await ctx.db.insert("designRequests", {
+        year: YEAR,
+        number: 1,
+        requesterEmail: OLD,
+        submittedAt: 0,
+        answers: {},
+        department: "Data and IT",
+        dueDate: "2026-12-01",
+        title: "Poster",
+        status: "PENDING",
+      });
+      await ctx.db.insert("eventRequests", {
+        year: YEAR,
+        number: 1,
+        requesterEmail: OLD,
+        department: "Data and IT",
+        submittedAt: 0,
+        answers: {},
+        name: "Camp",
+        startsAt: "2026-12-01",
+        endsAt: "2026-12-02",
+        location: "Sydney",
+        status: "IN_PROGRESS",
+      });
+      await ctx.db.insert("grievances", {
+        ref: "G-1",
+        year: YEAR,
+        submittedAt: 0,
+        accountEmail: OLD,
+        name: "Lee",
+        email: OLD,
+        category: "Other",
+        details: "x",
+        status: "IN_PROGRESS",
+        assigneeEmail: OLD,
+      });
+      await ctx.db.insert("notifications", { userEmail: OLD, title: "Hi", body: "x", read: false });
+      return await ctx.db.insert("users", { email: OLD });
+    });
+
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
+    await t.run((ctx) => ctx.db.patch("users", userId, { email: NEW }));
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
+
+    await t.run(async (ctx) => {
+      const admins = await ctx.db.query("admins").take(10);
+      expect(admins.map((a) => a.email)).toEqual([NEW]);
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR + 5))
+        .unique();
+      expect(settings).toMatchObject({ directorEmail: NEW, praiseManagerEmails: [NEW, OTHER] });
+      const accounts = await ctx.db.query("savedBankAccounts").take(10);
+      expect(
+        accounts
+          .map((a) => ({ email: a.email, accountNumber: a.accountNumber, preferred: a.preferred }))
+          .sort((a, b) => a.accountNumber.localeCompare(b.accountNumber))
+      ).toEqual([
+        { email: NEW, accountNumber: "111", preferred: undefined },
+        { email: NEW, accountNumber: "222", preferred: true },
+      ]);
+      const [song] = await ctx.db.query("musicRequests").take(10);
+      expect(song.requesterEmail).toBe(NEW);
+      const [design] = await ctx.db.query("designRequests").take(10);
+      expect(design.requesterEmail).toBe(NEW);
+      const [event] = await ctx.db.query("eventRequests").take(10);
+      expect(event.requesterEmail).toBe(NEW);
+      const [grievance] = await ctx.db.query("grievances").take(10);
+      expect(grievance).toMatchObject({ accountEmail: NEW, assigneeEmail: NEW, email: OLD });
+      const [notification] = await ctx.db.query("notifications").take(10);
+      expect(notification.userEmail).toBe(NEW);
+    });
+  });
 });
 
 describe("multi-headship: one person, several divisions/departments", () => {

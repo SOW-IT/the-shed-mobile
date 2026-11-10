@@ -42,6 +42,24 @@ All notable changes to **The SHED** mobile app. This project follows
 - An admin action refused to someone who isn't an admin names the
   department that's always admin this year instead of always saying "Data
   and IT".
+- **Deleting your account deletes your saved bank accounts.** The account
+  name, BSB and number stayed behind and came back for the next sign-in
+  with that email.
+- **Only people who can see a request can react to its comments or mark
+  them read,** and unread comment counts only cover requests you can see.
+- **A changed sign-in email keeps everything that was yours.** Being an
+  admin, Director or Praise Manager, saved bank accounts, song, design and
+  event requests, grievances and notifications now move to the new email
+  with your staff profile and reimbursement requests.
+- **A delegate covering for a Head is nudged and told about cancellations**
+  as well as the Head, as they already were about new requests.
+- **Spotify asks you to reconnect after you remove The SHED's access.**
+  Importing a playlist said the link was wrong. It now disconnects Spotify
+  and asks you to connect it again from Profile.
+- **Mine loads faster with declined songs in it.** Whether a declined song
+  can be requested again is checked when you tap **Request again**, which
+  says so if someone else's request for that recording is pending or on the
+  Praise List.
 
 ## [2.11.0] - 2026-11-09
 
