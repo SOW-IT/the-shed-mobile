@@ -3,13 +3,14 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import {
+  designRequestFiling,
   MARKETING_TEAM_EMAIL,
   sydneyToday,
   type DesignAnswers,
 } from "../shared/designRequests";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { CLOSED_ON_IMPORT_NOTE } from "./designRequestImport";
+import { DESIGN_REQUEST_FIELDS } from "./designRequestForm";
 import { headRecipients } from "./designRequests";
 import schema from "./schema";
 
@@ -109,26 +110,31 @@ const clearOutbox = (t: T) =>
     }
   });
 
-const legacy = (over: Record<string, unknown> = {}) => ({
-  year: YEAR - 2,
-  id: "7",
-  userID: "uid-rachel",
-  userEmail: "Rachel@sow.org.au",
-  department: "Events",
-  type: { event: true, promotion: false, pr: "true", other: false },
-  details: "Missions Rally",
-  productType: { poster: true, facebookbanner: true, powerpointPresentation: true },
-  theme: "Blue",
-  example: "https://example.com",
-  message: "Go",
-  dueDate: Date.UTC(YEAR - 3, 11, 1),
-  multipleDrafts: "false",
-  runTheDesign: true,
-  submittedTime: Date.UTC(YEAR - 3, 10, 1),
-  approvedByHOD: "PENDING",
-  comments: [],
-  ...over,
-});
+const insertLegacy = (
+  t: T,
+  { year = YEAR - 2, number = 7, status = "PENDING" as const, completedAt }: {
+    year?: number;
+    number?: number;
+    status?: "PENDING" | "COMPLETED";
+    completedAt?: number;
+  } = {}
+) =>
+  t.run(async (ctx) => {
+    const legacyAnswers = answers({ dueDate: sydneyToday(new Date(Date.UTC(YEAR - 3, 11, 1))) });
+    const id = await ctx.db.insert("designRequests", {
+      year,
+      number,
+      requesterEmail: RACHEL,
+      submittedAt: Date.UTC(YEAR - 3, 10, 1),
+      answers: legacyAnswers,
+      ...designRequestFiling(DESIGN_REQUEST_FIELDS, legacyAnswers),
+      status,
+      completedAt,
+      legacyKey: `${year}/${number}`,
+    });
+    await ctx.db.insert("designRequestEvents", { designRequestId: id, action: "imported", actorEmail: RACHEL });
+    return id;
+  });
 
 describe("submitting", () => {
   test("needs a Marketing Head for the year", async () => {
@@ -242,22 +248,8 @@ describe("who sees what", () => {
 
   test("lists, the queue and earlier years", async () => {
     const t = await setup();
-    await t.mutation(internal.designRequestImport.importLegacy, {
-      requests: [
-        legacy({ id: "1" }),
-        legacy({ id: "2", completed: true, completedTime: Date.UTC(YEAR - 3, 11, 2) }),
-      ],
-    });
-    await t.run(async (ctx) => {
-      const row = await ctx.db
-        .query("designRequests")
-        .withIndex("by_legacyKey", (q) => q.eq("legacyKey", `${YEAR - 2}/1`))
-        .unique();
-      await ctx.db.patch("designRequests", row!._id, {
-        status: "PENDING",
-        completionNote: undefined,
-      });
-    });
+    await insertLegacy(t, { number: 1 });
+    await insertLegacy(t, { number: 2, status: "COMPLETED", completedAt: Date.UTC(YEAR - 3, 11, 2) });
     const mine = await submit(t, RACHEL);
     await submit(t, MARY);
     const rachel = asUser(t, RACHEL);
@@ -483,9 +475,7 @@ describe("editing and cancelling", () => {
 
   test("an unchanged past due date can stay; a new one can't be in the past", async () => {
     const t = await setup();
-    await t.mutation(internal.designRequestImport.importLegacy, {
-      requests: [legacy({ year: YEAR })],
-    });
+    await insertLegacy(t, { year: YEAR });
     const [old] = (await asUser(t, RACHEL).query(api.designRequests.mine, {}))!;
     const keep = answers({ dueDate: old.dueDate, keyMessage: "Updated" });
     await asUser(t, RACHEL).mutation(api.designRequests.update, { id: old._id, answers: keep });
@@ -544,9 +534,7 @@ describe("editing and cancelling", () => {
       division: "Engagement",
     });
     expect(await t.run((ctx) => headRecipients(ctx, YEAR - 2))).toEqual([]);
-    await t.mutation(internal.designRequestImport.importLegacy, {
-      requests: [legacy({ year: YEAR })],
-    });
+    await insertLegacy(t, { year: YEAR });
     const [old] = (await asUser(t, RACHEL).query(api.designRequests.mine, {}))!;
     await asUser(t, RACHEL).mutation(api.designRequests.cancel, { id: old._id });
     expect((await getRequest(t, old._id)).status).toBe("CANCELLED");
@@ -610,131 +598,5 @@ describe("comments", () => {
     await expect(rachel.mutation(api.designRequestComments.markRead, { id })).rejects.toThrow(
       /not found/
     );
-  });
-});
-
-describe("importing from the old web app", () => {
-  test("maps old answers, people and statuses, and is safe to re-run", async () => {
-    const t = await setup();
-    await t.run(async (ctx) => {
-      const profile = await ctx.db
-        .query("staffProfiles")
-        .withIndex("by_email_and_year", (q) => q.eq("email", MARY).eq("year", YEAR))
-        .unique();
-      await ctx.db.patch("staffProfiles", profile!._id, { importId: "uid-mary" });
-      await ctx.db.insert("staffProfiles", {
-        email: "henry@sowaustralia.com",
-        year: YEAR - 3,
-        importId: "uid-henry",
-      });
-    });
-    const batch = [
-      legacy({
-        id: "1",
-        type: { other: true, otherText: " Retreat " },
-        productType: { other: "true", otherText: "Banner", booklet: false, unknown: true },
-        detailsOfEventOrProject: "Promote widely",
-        extraInformation: " Thanks ",
-        approvedByHOD: "APPROVED",
-        approvedTime: Date.UTC(YEAR - 3, 10, 2),
-        comments: [
-          {
-            id: "c1",
-            userID: "uid-mary",
-            comment: "On it",
-            submittedTime: Date.UTC(YEAR - 3, 10, 3),
-          },
-          { id: "c2", userID: "uid-ghost", comment: "  ", submittedTime: 1 },
-        ],
-      }),
-      legacy({
-        id: "2",
-        userID: "uid-ghost",
-        userEmail: undefined,
-        type: undefined,
-        productType: undefined,
-        theme: undefined,
-        example: undefined,
-        message: undefined,
-        department: undefined,
-        dueDate: undefined,
-        approvedByHOD: "DECLINED",
-        declinedTime: Date.UTC(YEAR - 3, 10, 4),
-        reason: "No budget",
-      }),
-      legacy({ id: "3", userEmail: "outsider@example.com", completed: true }),
-      legacy({ id: "4", userID: "uid-henry", userEmail: undefined }),
-      legacy({ id: "5", userID: "uid-gone", userEmail: "Gone@sowaustralia.com" }),
-      legacy({ id: "6", year: YEAR, approvedByHOD: "APPROVED", approvedTime: 1 }),
-    ];
-    const first = await t.mutation(internal.designRequestImport.importLegacy, {
-      requests: batch,
-    });
-    expect(first).toEqual({ inserted: 6, updated: 0, skipped: 0, comments: 1 });
-
-    const rows = await t.run((ctx) => ctx.db.query("designRequests").collect());
-    const byNumber = Object.fromEntries(rows.map((r) => [r.number, r]));
-    expect(byNumber[1]).toMatchObject({
-      year: YEAR - 2,
-      requesterEmail: RACHEL,
-      department: "Events",
-      title: "Other: Banner",
-      status: "COMPLETED",
-      completionNote: CLOSED_ON_IMPORT_NOTE,
-      legacyKey: `${YEAR - 2}/1`,
-    });
-    expect(byNumber[1].completedAt).toBeUndefined();
-    expect(byNumber[4]).toMatchObject({ status: "COMPLETED", completionNote: CLOSED_ON_IMPORT_NOTE });
-    expect(byNumber[6]).toMatchObject({ year: YEAR, status: "APPROVED", decidedAt: 1 });
-    expect(byNumber[6].completionNote).toBeUndefined();
-    expect(byNumber[1].answers).toEqual({
-      department: "Events",
-      types: ["other"],
-      typesOther: "Retreat",
-      details: "Missions Rally\n\nDetails of the event/project to promote: Promote widely",
-      items: ["other"],
-      itemsOther: "Banner",
-      visualStyle: "Blue\n\nExamples: https://example.com",
-      keyMessage: "Go",
-      dueDate: byNumber[1].dueDate,
-      multipleDrafts: false,
-      runByYou: true,
-      otherInfo: "Thanks",
-    });
-    expect(byNumber[2]).toMatchObject({
-      requesterEmail: "uid-ghost@legacy.invalid",
-      department: "",
-      title: "",
-      status: "DECLINED",
-      declineReason: "No budget",
-    });
-    expect(byNumber[2].answers).toEqual({
-      dueDate: byNumber[2].dueDate,
-      details: "Missions Rally",
-      multipleDrafts: false,
-      runByYou: true,
-    });
-    expect(byNumber[2].dueDate).toBe(sydneyToday(new Date(byNumber[2].submittedAt)));
-    expect(byNumber[4].requesterEmail).toBe(HENRY);
-    expect(byNumber[5].requesterEmail).toBe("gone@sow.org.au");
-    expect(byNumber[3]).toMatchObject({
-      requesterEmail: "outsider@example.com",
-      status: "COMPLETED",
-      title: "Facebook banner, Poster, PowerPoint presentation",
-    });
-    const [comment] = await t.run((ctx) => ctx.db.query("designRequestComments").collect());
-    expect(comment).toMatchObject({ authorEmail: MARY, body: "On it" });
-    expect(
-      await asUser(t, RACHEL).query(api.designRequestComments.unreadCounts, {
-        ids: [byNumber[1]._id],
-      })
-    ).toEqual({});
-
-    await asUser(t, RACHEL).mutation(api.designRequests.cancel, { id: byNumber[6]._id });
-    const again = await t.mutation(internal.designRequestImport.importLegacy, {
-      requests: batch,
-    });
-    expect(again).toEqual({ inserted: 0, updated: 5, skipped: 1, comments: 0 });
-    expect((await getRequest(t, byNumber[6]._id)).status).toBe("CANCELLED");
   });
 });

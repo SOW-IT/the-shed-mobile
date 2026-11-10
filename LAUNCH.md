@@ -70,13 +70,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       `/github_subscribe SOW-IT/the-shed-mobile`. EAS Production's own Chat
       post already works.
 
-- [ ] **Copy the old web app's design requests into production**, unless it
-      has been done (imported rows have a `legacyKey`): `gcloud auth login`
-      (an account with access to `theshedsow`), then `node scripts/import-design-requests.mjs --dry-run`
-      and `node scripts/import-design-requests.mjs --prod`. It can be re-run
-      after anyone submits more on the old site; requests already acted on in
-      THE SHED are left alone.
-
 - [ ] **Add the 2025–26 and 2026–27 mentor lists** once 2.10.4 is live:
       `npx convex run --prod mentoring:setPairings` for 2026 and 2027, eight
       pairings each, from the lists given on 2026-10-23.

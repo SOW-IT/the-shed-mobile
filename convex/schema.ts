@@ -198,8 +198,7 @@ export default defineSchema({
     .index("by_year", ["year"])
     .index("by_menteeEmail_and_year", ["menteeEmail", "year"])
     .index("by_mentorEmail_and_year", ["mentorEmail", "year"])
-    .index("by_externalMentorId", ["externalMentorId"])
-    .index("by_legacyKey", ["legacyKey"]),
+    .index("by_externalMentorId", ["externalMentorId"]),
 
   externalMentors: defineTable({
     name: v.string(),
@@ -212,8 +211,7 @@ export default defineSchema({
     legacyKey: v.optional(v.string()),
   })
     .index("by_nameKey", ["nameKey"])
-    .index("by_email", ["email"])
-    .index("by_legacyKey", ["legacyKey"]),
+    .index("by_email", ["email"]),
 
   leavers: defineTable({
     year: v.number(),
@@ -393,8 +391,7 @@ export default defineSchema({
     .index("by_year_and_number", ["year", "number"])
     .index("by_requester_and_year", ["requesterEmail", "year"])
     .index("by_requester_and_status", ["requesterEmail", "status"])
-    .index("by_status", ["status"])
-    .index("by_legacyKey", ["legacyKey"]),
+    .index("by_status", ["status"]),
 
   designRequestEvents: defineTable({
     designRequestId: v.id("designRequests"),
@@ -410,8 +407,7 @@ export default defineSchema({
     postedAt: v.number(),
     legacyKey: v.optional(v.string()),
   })
-    .index("by_designRequest_and_postedAt", ["designRequestId", "postedAt"])
-    .index("by_legacyKey", ["legacyKey"]),
+    .index("by_designRequest_and_postedAt", ["designRequestId", "postedAt"]),
 
   designRequestCommentReads: defineTable({
     designRequestId: v.id("designRequests"),
