@@ -1177,7 +1177,6 @@ function ReviewCard({
 }
 const styles = StyleSheet.create({
   requestSectionHeading: { gap: 4, marginBottom: 4 },
-  requestSectionTitle: { fontSize: 20, fontWeight: "800" },
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1282,54 +1281,7 @@ const styles = StyleSheet.create({
   musicSongDetails: { flex: 1, gap: 3 },
   musicSongTitle: { fontSize: 14, fontWeight: "600" },
   musicDivider: { height: StyleSheet.hairlineWidth },
-  container: { padding: 16, gap: 16 },
-  heading: { fontSize: 28, fontWeight: "800" },
   section: { gap: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: "700" },
-  card: { borderRadius: 12, padding: 14, gap: 4 },
-  cardTitle: { fontSize: 15, fontWeight: "700" },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 8,
-  },
-  button: {
-    marginTop: 12,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  buttonText: { color: "#fff", fontWeight: "700" },
-  actionsRow: { flexDirection: "row", gap: 8, marginTop: 10 },
-  smallButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  smallButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  topSide: { flex: 1 },
-  statusPill: {
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    maxWidth: "60%",
-  },
-  statusPillText: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
-  bodyMeasure: { gap: spacing.sm + 2, paddingTop: spacing.sm + 2 },
   search: {
     flexDirection: "row",
     alignItems: "center",
@@ -1341,11 +1293,4 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   searchInput: { flex: 1, fontSize: 15 },
-  searchClear: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 });

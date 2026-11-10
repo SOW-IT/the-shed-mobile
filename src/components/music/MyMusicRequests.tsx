@@ -1378,10 +1378,6 @@ const styles = StyleSheet.create({
     height: 76,
     borderRadius: radius.sm,
   },
-  previewText: {
-    flex: 1,
-    gap: spacing.xs,
-  },
   guideStep: {
     flexDirection: "row",
     alignItems: "flex-start",
