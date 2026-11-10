@@ -4,22 +4,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "@convex/_generated/api";
+import { formatDayTime } from "@/components/dateTimeDisplay";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { Card, EmptyState, LoadingState, Muted, Screen, SectionTitle } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const STATUS_LABELS = { scheduled: "Scheduled", sent: "Sent", cancelled: "Cancelled" } as const;
 const NOT_SENT_LABEL = "Not sent";
-
-const dateText = (ms: number) =>
-  new Date(ms).toLocaleString("en-AU", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 
 export default function AnnouncementScreen() {
   const t = useAppTheme();
@@ -67,7 +58,7 @@ export default function AnnouncementScreen() {
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={[typography.title, { color: t.text }]}>{announcement.title}</Text>
               <Muted>
-                {announcement.senderName} · {dateText(announcement.at)}
+                {announcement.senderName} · {formatDayTime(announcement.at, { withYear: true })}
               </Muted>
             </View>
           </View>

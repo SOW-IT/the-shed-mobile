@@ -8,6 +8,16 @@ export const formatDateDisplay = (d: Date): string =>
     year: "numeric",
   });
 
+export const formatDayTime = (ms: number, { withYear = false } = {}): string =>
+  new Date(ms).toLocaleString("en-AU", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    ...(withYear ? { year: "numeric" as const } : {}),
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
 export const formatTimeDisplay = (d: Date): string =>
   d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
 
