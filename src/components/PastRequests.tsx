@@ -20,7 +20,7 @@ import {
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
-export const PAST_PAGE_SIZE = 10;
+const PAST_PAGE_SIZE = 10;
 
 type YearRun = { year: number; start: number; rows: Doc<"requests">[] };
 

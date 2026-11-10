@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { storedValue } from "@/lib/deviceStorage";
 
-export type CalendarView = "month" | "week";
+type CalendarView = "month" | "week";
 
 const store = storedValue<CalendarView>({
   key: "calendarView",

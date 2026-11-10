@@ -27,7 +27,7 @@ import {
 import { useAdminMutations } from "@/hooks/useAdminMutations";
 import { spacing, useAppTheme } from "@/theme";
 
-export const useFinanceSettingsAccess = (year: number | undefined) =>
+const useFinanceSettingsAccess = (year: number | undefined) =>
   useQuery(api.admin.financeSettingsRole, year === undefined ? "skip" : { year });
 
 const useRun = () => {

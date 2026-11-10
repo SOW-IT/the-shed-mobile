@@ -5,7 +5,7 @@ import { radius, spacing, useAppTheme } from "../theme";
 import { useWideLayout } from "./nav/layout";
 import { hapticSelect } from "./ui";
 
-export const PEOPLE = ["person", "people"] as const;
+const PEOPLE = ["person", "people"] as const;
 export const EVENTS = ["event", "events"] as const;
 
 const counted = (count: number, [one, many]: readonly [string, string]) =>
