@@ -1,73 +1,33 @@
-import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { Platform } from "react-native";
+import { storedValue } from "@/lib/deviceStorage";
 import type { NavGroupKey } from "@/lib/navMenu";
 
-const STORAGE_KEY = "navGroupsOpen";
+type OpenGroups = Partial<Record<NavGroupKey, boolean>>;
 
-const onWeb = () => Platform.OS === "web" && typeof window !== "undefined";
-
-let openGroups: Partial<Record<NavGroupKey, boolean>> = {};
-let loadState: "idle" | "loading" | "done" = "idle";
-let changedBeforeLoad = false;
-const listeners = new Set<() => void>();
-
-const notify = () => listeners.forEach((listener) => listener());
-
-const read = async (): Promise<string | null> => {
-  try {
-    return onWeb() ? window.localStorage.getItem(STORAGE_KEY) : await SecureStore.getItemAsync(STORAGE_KEY);
-  } catch {
-    return null;
-  }
-};
-
-const write = (value: string) => {
-  try {
-    if (onWeb()) window.localStorage.setItem(STORAGE_KEY, value);
-    else void SecureStore.setItemAsync(STORAGE_KEY, value).catch(() => {});
-  } catch {
-    return;
-  }
-};
-
-const load = () => {
-  if (loadState !== "idle") return;
-  loadState = "loading";
-  void read().then((saved) => {
-    loadState = "done";
-    if (changedBeforeLoad || !saved) return;
+const store = storedValue<OpenGroups>({
+  key: "navGroupsOpen",
+  initial: {},
+  restore: (saved, current) => {
     try {
-      openGroups = { ...JSON.parse(saved), ...openGroups };
-      notify();
+      return { ...JSON.parse(saved), ...current };
     } catch {
-      return;
+      return null;
     }
-  });
-};
+  },
+  serialize: (value) => JSON.stringify(value),
+});
 
 const setGroupOpen = (key: NavGroupKey, open: boolean) => {
-  if (openGroups[key] === open) return;
-  if (loadState !== "done") changedBeforeLoad = true;
-  openGroups = { ...openGroups, [key]: open };
-  write(JSON.stringify(openGroups));
-  notify();
-};
-
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  load();
-  return () => {
-    listeners.delete(listener);
-  };
+  if (store.get()[key] === open) return;
+  store.set({ ...store.get(), [key]: open });
 };
 
 export const useNavGroupOpen = (key: NavGroupKey, containsActive: boolean) => {
-  const isOpen = useCallback(() => openGroups[key] ?? false, [key]);
-  const open = useSyncExternalStore(subscribe, isOpen, isOpen);
+  const isOpen = useCallback(() => store.get()[key] ?? false, [key]);
+  const open = useSyncExternalStore(store.subscribe, isOpen, isOpen);
   useEffect(() => {
     if (containsActive) setGroupOpen(key, true);
   }, [containsActive, key]);
-  const toggle = useCallback(() => setGroupOpen(key, !(openGroups[key] ?? false)), [key]);
+  const toggle = useCallback(() => setGroupOpen(key, !(store.get()[key] ?? false)), [key]);
   return [open, toggle] as const;
 };
