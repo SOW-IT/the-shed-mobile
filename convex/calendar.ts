@@ -9,8 +9,7 @@ import {
   MAX_SPAN_MS,
   normalizeEntry,
 } from "../shared/calendar";
-import { eventStaffYear } from "../shared/flow";
-import { normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
+import { normalizeSubgroups } from "../shared/rollcall";
 import { entryFields } from "./calendarData";
 import { openableEventRequest } from "./eventRequestAccess";
 import { calendarSyncConfigured } from "./googleCalendar";

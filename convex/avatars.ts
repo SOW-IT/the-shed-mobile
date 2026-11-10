@@ -4,7 +4,6 @@ import { v } from "convex/values";
 import { decode as decodeJpeg, encode as encodeJpeg } from "jpeg-js";
 import { PNG } from "pngjs";
 import { internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
 
 export const AVATAR_MAX_EDGE = 256;
@@ -225,20 +224,5 @@ export const shrink = internalAction({
       to: shrunkId,
     });
     return null;
-  },
-});
-
-export const shrinkAll = internalAction({
-  args: {},
-  returns: v.number(),
-  handler: async (ctx) => {
-    const avatars: { userId: Id<"users">; storageId: Id<"_storage"> }[] = await ctx.runQuery(
-      internal.profile.avatarsToShrink,
-      {}
-    );
-    for (const avatar of avatars) {
-      await ctx.scheduler.runAfter(0, internal.avatars.shrink, avatar);
-    }
-    return avatars.length;
   },
 });

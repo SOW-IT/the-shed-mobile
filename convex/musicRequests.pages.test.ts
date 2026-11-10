@@ -334,7 +334,7 @@ describe("release dates", () => {
     expect(fetchMock.mock.calls.map((call) => call[0])).toContain("https://api.spotify.com/v1/tracks/d1");
   });
 
-  test("batches, edits and the backfill look release dates up too", async () => {
+  test("batches and edits look release dates up too", async () => {
     const t = await setup();
     stubSpotify();
     fetchMock.mockImplementation(async (url: string) =>
@@ -358,48 +358,12 @@ describe("release dates", () => {
       artist: "A",
       link: track("e2"),
     });
-    const legacy = await t.run((ctx) =>
-      ctx.db.insert("musicRequests", {
-        requesterEmail: STAFF,
-        title: "Old Row",
-        artist: "A",
-        link: track("o3"),
-        status: "APPROVED",
-      }),
-    );
-    expect(await t.mutation(internal.musicBackfill.backfill, {})).toMatchObject({ updated: 1 });
     await runScheduled(t);
     expect(await releaseDateOf(t, plain)).toBe("2001");
-    expect(await releaseDateOf(t, legacy)).toBe("2020-05");
-    const row = await t.run((ctx) => ctx.db.get("musicRequests", legacy));
-    expect(row).toMatchObject({ titleSort: "old row", artistSort: "a", searchText: "Old Row A" });
     const [batch] = await t.run((ctx) =>
       ctx.db.query("musicRequests").withIndex("by_spotify_track_id", (q) => q.eq("spotifyTrackId", "b1")).collect(),
     );
     expect(batch.releaseDate).toBe("2020-05");
-  });
-
-  test("the backfill's next page waits until this page's lookups are spaced out", async () => {
-    const t = await setup();
-    await t.run(async (ctx) => {
-      for (let i = 0; i < 101; i++) {
-        await ctx.db.insert("musicRequests", {
-          requesterEmail: STAFF,
-          title: `Old ${i}`,
-          artist: "A",
-          link: track(`old${i}`),
-          status: "APPROVED",
-        });
-      }
-    });
-    await t.mutation(internal.musicBackfill.backfill, {});
-    const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
-    const fills = jobs.filter((job) => job.name === "musicReleaseDates:fill");
-    const [nextPage] = jobs.filter((job) => job.name === "musicBackfill:backfill");
-    expect(fills).toHaveLength(100);
-    const times = fills.map((job) => job.scheduledTime);
-    expect(nextPage.scheduledTime).toBeGreaterThan(Math.max(...times));
-    expect(nextPage.scheduledTime - Math.min(...times)).toBe(100 * 250);
   });
 
   test("an edit to another recording drops the old date; an edit keeping it doesn't look again", async () => {

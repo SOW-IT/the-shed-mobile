@@ -2,14 +2,13 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import {
   internalMutation,
-  internalQuery,
   mutation,
   MutationCtx,
   query,
   QueryCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { Doc, Id } from "./_generated/dataModel";
+import { Doc } from "./_generated/dataModel";
 import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
 import {
   currentStaffYear,
@@ -205,21 +204,5 @@ export const replaceAvatar = internalMutation({
     await ctx.db.patch("users", userId, { avatarId: to });
     await ctx.storage.delete(from);
     return null;
-  },
-});
-
-export const avatarsToShrink = internalQuery({
-  args: {},
-  returns: v.array(v.object({ userId: v.id("users"), storageId: v.id("_storage") })),
-  handler: async (ctx) => {
-    const found: { userId: Id<"users">; storageId: Id<"_storage"> }[] = [];
-    for await (const user of ctx.db.query("users")) {
-      if (!user.avatarId) continue;
-      const file = await ctx.db.system.get(user.avatarId);
-      if (file && file.size > AVATAR_SMALL_ENOUGH_BYTES) {
-        found.push({ userId: user._id, storageId: user.avatarId });
-      }
-    }
-    return found;
   },
 });
