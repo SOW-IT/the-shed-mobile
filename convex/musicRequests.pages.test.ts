@@ -316,6 +316,29 @@ describe("release dates", () => {
     expect(batch.releaseDate).toBe("2020-05");
   });
 
+  test("the backfill's next page waits until this page's lookups are spaced out", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 101; i++) {
+        await ctx.db.insert("musicRequests", {
+          requesterEmail: STAFF,
+          title: `Old ${i}`,
+          artist: "A",
+          link: track(`old${i}`),
+          status: "APPROVED",
+        });
+      }
+    });
+    await t.mutation(internal.musicBackfill.backfill, {});
+    const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    const fills = jobs.filter((job) => job.name === "musicReleaseDates:fill");
+    const [nextPage] = jobs.filter((job) => job.name === "musicBackfill:backfill");
+    expect(fills).toHaveLength(100);
+    const times = fills.map((job) => job.scheduledTime);
+    expect(nextPage.scheduledTime).toBeGreaterThan(Math.max(...times));
+    expect(nextPage.scheduledTime - Math.min(...times)).toBe(100 * 250);
+  });
+
   test("an edit to another recording drops the old date; an edit keeping it doesn't look again", async () => {
     const t = await setup();
     const id = await asUser(t, STAFF).mutation(api.musicRequests.submit, {

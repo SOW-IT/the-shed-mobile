@@ -26,6 +26,8 @@ describe("songServiceLabel", () => {
     expect(songServiceLabel("https://www.youtube.com/watch?v=x")).toBe("Open in YouTube");
     expect(songServiceLabel("https://youtu.be/x")).toBe("Open in YouTube");
     expect(songServiceLabel("https://example.com/x")).toBe("Open link");
+    expect(songServiceLabel("https://spotify.com.example.net/x")).toBe("Open link");
+    expect(songServiceLabel("https://spotify.community/x")).toBe("Open link");
     expect(songServiceLabel("not a link")).toBe("Open link");
   });
 });

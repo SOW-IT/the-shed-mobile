@@ -62,9 +62,11 @@ export const backfill = internalMutation({
     }
 
     if (!page.isDone) {
-      await ctx.scheduler.runAfter(0, internal.musicBackfill.backfill, {
-        cursor: page.continueCursor,
-      });
+      await ctx.scheduler.runAfter(
+        releaseDateLookups * RELEASE_DATE_SPACING_MS,
+        internal.musicBackfill.backfill,
+        { cursor: page.continueCursor },
+      );
     }
 
     return {

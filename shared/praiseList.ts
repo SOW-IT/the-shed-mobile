@@ -18,7 +18,7 @@ export const releaseDateLabel = (releaseDate: string | undefined): string | null
 };
 
 export const songServiceLabel = (link: string): string =>
-  /(^|\.)spotify\.com/.test(safeHost(link))
+  /(^|\.)spotify\.com$/.test(safeHost(link))
     ? "Open in Spotify"
     : /(^|\.)(youtube\.com|youtu\.be)$/.test(safeHost(link))
       ? "Open in YouTube"
