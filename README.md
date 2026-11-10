@@ -12,487 +12,40 @@ The repo's domain vocabulary and the decisions behind it live in
 changing anything seasonal, the October 1 staff-year rollover in particular
 ([ADR 0003](docs/adr/0003-october-1-staff-year-rollover.md)).
 
-## What's implemented
+## What's in it
 
-- **Approval chain** enforced server-side in Convex: each step can only be
-  actioned by its approver, in order, never on your own request. Steps the
-  submitter would review themselves are auto-approved (HOD's own request,
-  Budget Manager's own, Director's own ≥ $5k, Finance Head's own; Finance
-  department requests have no HOD step).
-- **Reminders**: a morning job (`convex/reminders.ts`) chases whatever has
-  not moved, a day after the last movement, then three days later, then
-  weekly: reimbursement requests (the next approver, the requester's receipt,
-  Finance's payment), design requests (the Marketing Head's approval, the
-  team's unfinished work) and event forms (the requester's side for forms not
-  submitted, the requester's side and whoever submitted it for forms sent
-  back, the reviewer for forms waiting). A design or event request comment
-  still unread a day after it was posted goes in once, to the requester, the
-  form's submitter and approver (the Marketing Head for a design request) and
-  anyone else who has commented there and still can. Each person gets
-  one notification, push and email a morning listing everything waiting on
-  them; nobody with nothing waiting hears anything, and weekends are not
-  skipped. Reminder emails can be turned off on Profile. Home lists what is
-  waiting on you (`convex/waitingOnMe.ts`); Review, the Marketing queue and
-  To review say how long each item has waited and list the longest waiting
-  first. Finance settings shows step timing (`convex/stepTiming.ts`): the typical
-  and longest wait at each step and who actioned it most, from the audit
-  trail. Pushes carry the unread count as the app icon badge on iOS; Android
-  syncs the count while the app is open, on launchers that show badges.
-- **Per-year roles and departments** (`staffProfiles`, `departments`,
-  `divisions`, keyed by year). The staff year rolls over on **October 1**.
-  Admins prepare next year in advance; a 21:00 30 Sep prefill copies the
-  incoming year into the one after it so next is never blank. In-flight
-  requests **carry over** the rollover. They stay visible and are
-  approved/paid by the approvers of the request's own year. Receipt files
-  are kept for the current and previous staff years.
-  Roles: Staff, Head of Department, **Head of Division** (belongs directly to
-  a division rather than a department; no HOD above them), Director. Each
-  year keeps its own **role titles**: 2019 and 2020 show Head of Department
-  as "Department Overseer", and a future rename leaves earlier years as they
-  were (`history:setRoleTitle`, ADR 0015).
-- **Deadlock prevention**: submitting is rejected with a clear message while
-  the year is missing an approver the request would need (department head,
-  Budget Manager, Director for ≥ $5k, Finance head), and removing the Budget
-  Manager's profile clears the assignment. Receipts/payments require
-  positive amounts.
-- **Admins** = the Director, everyone in the always-admin department (Data
-  and IT unless an admin gives that job to another department in Admin →
-  Teams), and anyone admins choose. Only they can assign roles/departments
-  (for the current and next year) and manage divisions/departments. The
-  **Budget Manager** must be from the finance team's department. Users can
-  never change their own role.
-- **Acting as** (`convex/actingAs.ts`, `shared/actingAs.ts`, ADR 0017):
-  admins see every role-gated view by default ("All views": the Marketing
-  queue and every design request, every event request and every team's forms
-  to review, every reimbursement queue and Finance's All tab and export),
-  read-only unless the
-  work is really theirs. Under their name in the menu they can instead act
-  as the Director, the Budget Manager, a Praise Manager, a campus leader, or
-  the staff or Head of one of the year's departments, and see exactly that
-  role's tabs, queues and badges
-  (ordinary staff of a department see only its event requests, no All, and
-  Mine still lists the admin's own); a
-  chip at the top resets it. The choice is stored per admin on the server
-  (`actingAs` table). It never grants an action, and grievances stay with the
-  grievance team. Everything a screen shows follows the role: Finance
-  settings, the Home editor, editing other people's calendar entries,
-  editing Attendance's Tags and Metadata, the Review tab's history and the grievance
-  team's view only show when that role would see them.
-- **Org structure** (seeded, editable per-year by admins): Governance (Data
-  and IT, Finance, Compliance), Engagement (Marketing, Alumni), Human
-  Resources (People and Culture, Training and Development), Operations
-  (Events, Missions). A university, department, division or role that's still
-  assigned to someone can't be removed until they're reassigned.
-- **Pre-provisioning by email**: assign a role/department to someone who has
-  never signed in; it links up on their first Google sign-in. People who
-  were staff in an earlier year and are back in the Workspace directory
-  show as **Previously staff** on Admin → Users. Assigning them reuses the
-  old identity so they are not treated as a new person.
-  Admin → Users marks staff who have **never signed in** to The SHED, with a
-  count and a filter to list only them.
-- **Local church**: staff pick their church in Profile from a shared list
-  (`churches`) that any staff member can add to or fill in: each church has
-  where it meets (tap to open the map) and its service times, shown on their
-  profile to signed-in staff. Plain attendance members get one too, from the
-  same list in Edit member. The **Churches** page (side menu) lists every
-  church with the staff and members who go there.
-  Each person shows their role, leaders first, and a map pins every church
-  with an address (see [Church map](#church-map-optional)), each pin sized by
-  how many people go there and ringed in the colour of their main campus. Two rows of
-  filter chips narrow the page and the map: who (campus leaders, staff,
-  members) and which campus (plus "no campus"). Nothing picked shows everyone;
-  picking chips in a row shows only those, and each chip counts who it covers.
-  Only people with a staff profile this year add or edit churches.
-  `churches:remindToSetChurch` reminds this year's staff who haven't picked
-  one (in-app notification and push). Members (no staff assignment this year)
-  are only listed for staff and campus leaders, along with their emails and
-  member ids: anyone else, signed in or not, sees each church with the names,
-  roles, campuses and staff emails of the staff and campus leaders who go
-  there. The church pickers say who will see the church before it's set.
-- **Look**: one theme (`src/theme.ts`) in SOW's evergreen and cream, light and
-  dark. Titles, headings and big numbers use Familjen Grotesk (bundled in
-  `assets/fonts`, OFL, loaded in the root layout); everything else is the
-  system font. Resting surfaces are flat with a hairline edge
-  (`surfaceEdge`); only floating things (sheets, the footer button) get a
-  shadow.
-- **Last online**: someone else's profile shows when they last had The SHED
-  open (staff viewers only), or that they haven't signed in yet. The app
-  and website report it while open, at most every 5 minutes
-  (`convex/presence.ts`); before that, sign-in session refreshes and the
-  phone app's version check stand in.
-- **Design requests** to the Marketing team, from the side menu (staff who
-  aren't campus leaders). The questions are defined on the server
-  (`convex/designRequestForm.ts`) and rendered by the app as sent; answers
-  are checked against them server-side. Only the **Marketing Head** (or
-  their delegate) approves or declines; anyone in Marketing marks approved
-  requests complete. Requesters can edit or cancel until a request closes,
-  and everyone on it can comment. Only the requester, the Marketing team and
-  admins (read-only) see a request. Marketing staff get in-app/push
-  notifications and the team's emails go to marketing@sow.org.au. Lists:
-  Mine, the Marketing queue (open requests) and an All archive, each running
-  back through earlier staff years as you scroll; the Marketing Head opens on the queue when something waits on them.
-  Requests are named by what they ask for (no numbers). Each card is outlined
-  in its status's colour and says when it was submitted. A request's page
-  shows its progress as Submitted, Approved (or Declined) and Complete, with
-  who and when, and its history newest first, spaced by the time between
-  steps. Any request can be downloaded as a PDF (built on the device with
-  pdf-lib). Old requests from the web app are copied in with
-  `scripts/import-design-requests.mjs` (safe to re-run). Design requests
-  aren't for events: those go through Event Requests.
-- **Event requests**, from the side menu (staff who aren't campus leaders).
-  The event itself (`convex/eventRequestForm.ts`), then three forms, each
-  reviewed by its team: **Marketing** (design and promotion; the Marketing
-  Head approves), **Risk** (risks rated with SOW's Risk Management Standard;
-  the Compliance Head approves, or not required when there are no notable
-  risks) and **Finance** (income and expense lines; the Finance Head
-  approves, after the Director when expenses are over the event threshold set
-  in Finance settings, or not required at $0). The event is approved once all
-  three are approved or not required. The requester's department fills the
-  forms in; reviewers can ask for changes; each form has its own comment
-  thread. The Events department, the three teams, the Director and admins can
-  see every event (All); other staff see their own department's. Cards show
-  the event's name (no numbers), its status top right with the card outlined in that colour, and
-  Marketing, Risk and Finance across the bottom; history is newest first,
-  spaced by the time between steps. Team emails go to marketing@, compliance@ and
-  finance@sow.org.au. Any event downloads as a PDF whose Risk and Finance
-  pages follow the Governance Review Form. Once approved, an event goes on the
-  Calendar: as an SOW attendance event when "Take attendance at this event" is
-  ticked, otherwise as a calendar event. It links both ways and follows the
-  request's edits and cancelling (`convex/eventRequestLinks.ts`).
-- **Announcements** (`convex/announcements.ts`, rules in
-  `shared/announcements.ts`), from the side menu for admins. A title and message go to **all leaders**
-  (everyone with a staff profile this year) or to chosen campuses, divisions
-  and departments, narrowed by role. The screen shows a lock-screen preview
-  and how many people it reaches (and how many have the app), and asks for
-  confirmation with that count. Each recipient gets it in the bell, a push if
-  they have the app, and an email with a link into the app when "Also send as
-  an email" is ticked (Resend batch, replies to the sender). It can go now or
-  at a chosen time at least 5 minutes away; any admin can cancel a scheduled
-  one. Rate limits per
-  sender: 3 an hour, 10 a day, 10 waiting, and the same words twice within 10
-  minutes is refused. Tapping it opens `/announcements/[id]`.
-  Once it has gone out, admins see on that page how many of its recipients
-  have seen it (opened it, or opened their notifications since it arrived)
-  and can list who hasn't.
-- **Mentoring** (`convex/mentoring.ts`, rules in `shared/mentoring.ts`),
-  from the side menu for admins and
-  for anyone mentoring someone this year. Admins pair each **Campus leader**
-  with one mentor a year: a leader with a profile that year who isn't a
-  Campus leader, or an **external mentor** from a reusable list (name, email,
-  phone, notes). Pairings are per staff year, don't carry over, and only the
-  current and next year can change; the list flags a mentee or leader mentor
-  who no longer qualifies. A leader mentor sees just their own current-year
-  mentees. Pairings from the old app were copied in once, in 2.10.1. A list
-  of pairings for any year can be added from the command line
-  (`mentoring:setPairings`) under the same rules.
-- **Grievances** (`convex/grievances.ts`, rules in `shared/grievances.ts`),
-  the fifth bottom tab for everyone, signed in or not (and a card on the
-  Partner tab). Anyone can raise one (name, email, what it's about, what
-  happened); each email can send 3 an hour signed in and 3 signed out, and
-  signed-out sending 30 an hour in all. Only the submitter and the
-  **grievance team** can see it: this year's members of the departments
-  chosen by the team itself in Grievances → Settings (People and Culture and
-  Compliance to start);
-  other admins can't. From 1 October to 31 December last year's members
-  keep access (the rollover grace), see a notice to hand over what they're
-  looking after, and are reminded on 1 December. Nothing goes to a
-  team inbox: the team gets an in-app and push notification for each new
-  one and works on it under **Submitted**, listed by staff year (the current
-  year, plus earlier years that have grievances; open ones move to the new
-  year just after midnight on 1 October, and the current year lists them
-  even before that runs). Stages:
-  Submitted → In progress (someone has taken it on, or been given it) →
-  Resolved with an outcome note, or Not proceeding with a reason. The
-  submitter is emailed at each stage and, signed in, follows it under Mine
-  with push notifications. Each grievance has a random reference (a UUID)
-  that only the team sees. The team edits the "What is it about?" options;
-  grievances keep the wording they were raised with.
-- **Praise List** (`convex/musicRequests.ts`, `/music`, staff only): the
-  approved worship songs under the Approved tab, 15 at a time with the next
-  15 loading as you scroll, searchable (a Convex search index on title and
-  artist) and sortable by song name, artist, recently approved or release
-  date, plus song requests. Tapping a song shows its history (suggested by
-  whom and when, approved or declined by whom and when) with a button to
-  open it; everyone sees who suggested a song, and only Praise Managers,
-  admins and the requester see the request note (stripped on the server).
-  Release dates come from Spotify after a Spotify song is saved
-  (`convex/musicReleaseDates.ts`); YouTube and other links have none and
-  sort last. Mine and To review page the same way, and Mine lists this
-  year's Praise Managers at the top. Staff search Spotify by name
-  (`spotify.searchTracks`, the app's client credentials, no Spotify sign-in,
-  30 searches a minute per person; the app token is kept encrypted in
-  `spotifyAppTokens` and reused until it nearly expires)
-  or paste a Spotify or YouTube song or playlist link to autofill (Spotify
-  playlists need Spotify connected from Profile, `convex/spotifyConnections.ts`,
-  tokens encrypted at rest and deleted with the account) or type one in, up
-  to 50 at a time, each with its own note. The same recording twice (Spotify track, YouTube video or
-  ISRC) is refused while it's pending or approved; the same title and artist
-  asks first. A declined song can be requested again: the form says it was
-  declined before, and the requester's declined song has a Request again
-  button under Mine. YouTube songs carry
-  no ISRC, so one song from both services is only caught by its title and
-  artist. **Praise Managers**
-  (chosen by admins on the Praise List's Praise Managers tab, per staff year,
-  carried into the new year on 1 October)
-  get a To review tab to approve or decline with an optional reason, a count
-  of waiting songs in the side menu and on Home's "Waiting on you", and a
-  push and an email for each request (one for a batch, listing every song
-  with its link and the requester's note); their own songs go straight onto
-  the list. Requesters follow theirs under Mine and are
-  notified when they're reviewed. An admin acting as Praise Manager sees the
-  queue without the buttons; a Praise Manager acting as another role sees
-  what that role sees. A Praise Manager needs a staff profile for the
-  current year, so during the October grace last year's staff can't review.
-  After a change to the duplicate, sort or search keys, run
-  `npx convex run --prod musicBackfill:backfill '{}'` on prod (and without
-  `--prod` on dev) once; each run carries on through every page by itself,
-  and looks up release dates for Spotify songs that have none.
-- **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
-  collapsible **Requests** group that opens itself on those pages, shows
-  their combined count while closed, and remembers being open or closed on
-  the device.
-- **Editable Home tab**: Home, Resources, Connect and Partner are typed
-  blocks served by `homeContent.view` (one `homeTabs` row per edited tab,
-  else the built-in content in `shared/homeContent.ts`). Admins, anyone in
-  the **Marketing** department and the **Engagement** division head edit
-  them in the app via the Edit button.
-- **Google sign-in** via Convex Auth: "Sign in with your SOW account" is the
-  `google` provider, for `sow.org.au` staff accounts only (`hd` hint +
-  server-side domain check). Personal Google accounts can't sign in (the
-  `googlePersonal` provider was removed in 2.4.7); **guests** (accounts with
-  no staff profile) can sign in with Apple, which is offered on iOS only.
-  Name/email sync from the Google profile on each sign-in.
-- **Delete account** (`convex/account.ts`): from your own Profile, after
-  typing your name. A SOW account loses its sign-in, sessions, push tokens,
-  uploaded photo and church, and keeps its staff profiles and directory data
-  (signing in again relinks them). An Apple account is deleted entirely and
-  its Apple tokens are revoked (`convex/appleRevoke.ts`, needs
-  `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY`).
-- **Email notifications** via Resend: submitter confirmation, "needs your
-  approval" to the next approver at every step, declines (with reason),
-  receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget
-  Manager alert when the paid amount differs from the requested amount.
-- **Reimbursements** (opened from the side menu, at `/`): Mine (submit /
-  cancel / receipt, this staff year's requests plus last year's still open),
-  Past (your own requests from earlier staff years, shown once you have any),
-  Review (approve / decline / pay, shown to approvers and to anyone who has
-  reviewed a request before), All (Finance staff), Bank. Past loads ten at a
-  time and fetches the next ten as you near the end (`requests.earlierMine`),
-  newest first with a divider per staff year, ending on how many there are;
-  a declined one can be resubmitted from there. Review runs back through
-  everything you approved or declined, and All (under Completed) through
-  every completed request, as you scroll; a request sits under the year it
-  was made in. The New
-  Request sheet shows who the request will go to as you type
-  (`requests.approvalPreview`), including the Director from the threshold and
-  any step your own role skips; image receipts show a thumbnail before you
-  submit. An approver with requests waiting and nothing of their own to act on
-  opens on Review, and a request link opens the tab that holds it (Mine,
-  Past with the request on top, Review, or All for Finance staff). Each request's clock button opens its
-  timeline, newest first: every step from submitted to paid with who did it
-  and when, the gaps between steps (spaced by how long they were), what it is waiting on now and how many reminders have
-  gone out for that wait, and how long submitted-to-paid took.
-  A request, its timeline and its comments are visible only to the
-  requester, Finance staff, the approvers on its chain and their delegates
-  (in the request's staff year or the current one), and anyone who has
-  already acted on it (`canSeeRequest` in `convex/requests.ts`).
-- **Notifications** (the bell): everything sent to you, unread first, loading
-  older ones as you scroll (`notifications.feed`, 30 a page). Opening the
-  screen marks everything read.
-- **Teams** (`convex/teams.ts`, `shared/teams.ts`): which department does
-  each job, per staff year, set by admins in Admin → Teams: the finance team
-  (pays reimbursements, sees them all, holds the Finance Head and Budget
-  Manager), the events team (sees every event request), design requests, the
-  Marketing, Risk and Finance forms' reviewers, and the always-admin
-  department. They start as Finance, Events, Marketing, Marketing, Compliance,
-  Finance and Data and IT. Renaming a department keeps its jobs (Marketing
-  renamed to Design still handles design requests and Marketing forms), a
-  department with a job can't be deleted until another takes it (the
-  Departments list shows each one's jobs), and a year keeps the year
-  before's choices until an admin changes them, so the October rollover
-  never resets them. Moving a job asks to confirm first. At 00:01 on
-  1 October the new year also takes any Budget Manager, Director
-  threshold or Praise Managers it doesn't have from the year that just ended
-  (`admin.carryFinanceSettingsForward`; a Budget Manager only while still
-  on the finance team, Praise Managers only while still on staff). Admin's tabs are Users, Structure, Teams and
-  System (app errors, directory sync).
-- **Finance settings** (`/finance-settings`): the Budget Manager, both
-  Director thresholds, approver delegation and step timing, opened from a
-  "Finance settings" button at the top of the All tab in Reimbursements and
-  Event Requests. The finance team sees them; the Finance Head, whoever
-  covers for them, and admins change them. An admin acting as a role sees
-  them only if that role would.
-- **Admins** (`convex/admins.ts`): the Director and everyone in the
-  always-admin department (Data and IT by default, set in Admin → Teams) are
-  always admins. Moving that job is refused when it would leave nobody who
-  is an admin. Admins choose anyone else on staff this year (not campus
-  leaders) in Admin → Teams → Admins, searching by name or email, and remove
-  them with a confirm. The list carries over the October rollover; a chosen
-  person with no role in the current year shows as "not an admin right now".
-- **Navigation**: bottom tabs Home, Attendance and Calendar (staff, campus
-  leaders included), Org Chart, Churches (anyone not on staff) and
-  Grievances. Insights is only for staff and campus leaders; anyone else
-  (signed out, or signed in without a staff role) has no Insights, and
-  `/insights` goes to Home. On phones the top-left
-  avatar, or a swipe from the left edge, opens a side menu with Profile,
-  Churches (staff), Requests (staff other than campus leaders), Mentoring,
-  Insights (staff, just above Announcements), Announcements, Admin (admins)
-  and Sign out. Announcements, Mentoring and Admin are
-  screens of their own like Insights, not pushed on top. Screens 700pt and wider
-  (iPad, desktop web) swap the top bar, bottom tabs and drawer for one
-  permanent sidebar holding all of them (`src/components/nav/`,
-  rules in `src/lib/navMenu.ts`).
-- **Org chart** (`src/app/(tabs)/org.tsx`, rules in `shared/orgChart.ts`),
-  signed in or not: a year's Director, staff, divisions with their
-  departments, and campus leaders. A search box finds people by name, email
-  or role, or by the department, division or campus they sit in (a campus by
-  its full or short name); every word typed has to match. Below it, a chip
-  for Staff, each division and each campus counts the people it covers in
-  the search results. Picking any number shows only those parts of the
-  results; nothing picked shows every part (with no search, everyone).
-  "Show everyone" clears the search and the chips. On wide
-  screens the chips wrap instead of scrolling sideways, here and on Churches.
+Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
+`docs/context/`; what changed and when is in [CHANGELOG.md](CHANGELOG.md).
 
-### Attendance
-
-A second feature area (ported from *time-to-rollcall*) for running roll-call at
-SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
-`universities`) plus org-wide "SOW", all sharing one member pool.
-
-- **Calendar** (`convex/calendar.ts`, rules in `shared/calendar.ts`), a
-  bottom tab for staff and campus leaders: a month where each event is a
-  coloured bar across the days it runs (the start of its name), or a week
-  with the hours down the side like Google Calendar's (Month or Week is
-  remembered per device; `?view=week` opens the week; swiping the month or
-  week left or right goes to the next or previous one, like the arrows), then
-  the picked day's events in full below. It shows every attendance event,
-  wherever it was made, plus **calendar entries** (`calendarEntries`):
-  things that don't take attendance, with optional notes and no campus. "Add Event" adds an Event or
-  a **deadline** (a day and an optional time with no end, shown with a flag)
-  on the picked day, or the hour tapped on the week. Ticking "Take attendance"
-  asks where it's held and carries on in Attendance's event form (tags,
-  weekly, other campuses); an existing entry switched to take attendance is
-  replaced by the event (`events.create` `replacesEntryId`). Whoever added an
-  entry, or an admin, edits or deletes it. Nothing is picked: TWIG and PPN
-  come from an attendance event's tags, Weekly from its term and week, and
-  otherwise Campus or SOW event from where it's held; an entry is an Event or
-  a Deadline. A Weekly or Campus event at one campus takes that campus's
-  colour (in Google, the nearest of its colours). An approved **event
-  request** adds its own SOW attendance event (when it takes attendance) or
-  calendar event, and keeps it in step (`convex/eventRequestLinks.ts`). Chips
-  filter by category and campus, and `/calendar?day=`
-  opens a day. Everything is copied one way to a shared Google Calendar
-  (`convex/googleCalendar.ts`) once `GOOGLE_CALENDAR_ID` is set: see
-  [Shared Google Calendar](#shared-google-calendar-optional).
-- **Events & roll-call**: create events tagged with one or more sub-groups
-  (multi-sub-group = a *collaborative* event that appears under each), then sign
-  people in/out. Everyone signed in is a **member**; staff are members with
-  that year's staff profile on top.
-  An event can run over several days (a camp or conference); each person
-  signs in once for the whole event.
-  Post-event sign-ins can be reversed; sign-ins made during an event can't,
-  except within 10 minutes of being made.
-  "Not signed in" lists the 50 people most likely to come: a score from
-  the last 180 days of sign-ins (weight halving every 45 days, most for the
-  same campus's weeklies) plus a campus bonus, stored per event in
-  `rollCallOrders` (ADR 0014). Anyone else is found with the search, which
-  asks the server (`attendance.searchRoster`, ADR 0016).
-  The Events list filters by tag (any of the picked tags) and by host
-  (hosted here, or shared in by another campus). `events.listBySubgroup`
-  applies the filter while it pages, so it covers every event.
-- **Tags & metadata**: event tags in two lists, **Weeklies** (labels like BAM
-  or PPN) and **Other events**, plus the automatic **Weeklies** tag on every
-  weekly (a weekly is defined by its term and week, which drive the
-  weekly-meeting analytics), and configurable member metadata fields (Year,
-  Gender, Campus, Role, Other Information, …). **Role is worked out**, not
-  typed: a staff person's role from their profile, otherwise Regular,
-  Irregular, Newcomer or Visitor from last night's Insights build, else
-  Member. Leaders can still set Visitor or Alumni by hand. The edit sheet
-  shows it locked, with an info button that explains the rules
-  (`shared/memberRole.ts`). Notes about one event are kept on that sign-in
-  ("Notes for this event", exported as Event notes).
-- **Merge duplicates**: fold two records for one person into one, moving every
-  attendance record across (shared events collapse to one record). Someone who
-  is staff this year can't be merged away, and two people who were both staff
-  in the same year can't merge. Typing a staff email onto a member points to
-  merging instead of relabelling the record.
-  **Possible duplicates** (`/attendance/merges`, from a button at the top of
-  Attendance → Members; anyone with a staff role, campus leaders included;
-  current and next staff year, shown only while there are
-  any) lists staff who look like a member not yet linked to anyone's profile
-  (a similar name on the same campus, typically new leaders who signed in as
-  members before joining staff) with Merge or "Not the same" for each. Merging
-  a staff person who has no member record yet just links their profile to the
-  member.
-  Only admins (the Director, the always-admin department, and anyone admins have chosen) can delete
-  a member; the sheet
-  lists every event whose attendance goes with them and points to merging.
-- **Staff and leavers**: every person, staff included, has one member record
-  for good, and each year's staff profile points at it. Staff assigned for the
-  current year get their record when they're assigned; next year's staff get
-  theirs on October 1 unless they're already linked. Leaving staff moves
-  nothing: from October 1 they read as the plain member underneath, with an
-  empty Campus filled from their last role (their Role is worked out; leaders
-  set Alumni when someone graduates). A member's own email
-  can't be an SOW address or anyone's staff email.
-  Member names are capitalised as they're typed.
-- **Audit log**: an immutable trail of every attendance-area action (event /
-  member / tag / metadata edits, merges and deletes, and each
-  sign-in/edit/sign-out), read by the Attendance → Audit tab.
-- **CSV export**: export attendance.
-- **Insights** (staff and campus leaders only, from the side menu): for a campus, its **weekly meetings**
-  by term (T1–T3 / Sem 1–2) or calendar year: cards against the term before
-  (a year against last year), a
-  follow-up list (people who were coming but stopped, newcomers who haven't
-  come back) and a visitors list, charts, and everyone's attendance % and
-  category (Regular, Irregular, Newcomer, Visitor, Leader, Staff/alumni/guests)
-  with filters, sorting and search; tapping someone opens their attendance
-  page. For SOW, a Campuses / TWIG / PPN switcher: each campus's weekly
-  average with past week / month / year ranges, then TWIG (campus leaders
-  only) and PPN (everyone, as cards and charts) by staff year. Layout, charts,
-  wording and the SOW tabs come from the backend (`weeklyInsights.view`,
-  `generalMetrics.view`, `attendanceMetrics.view`, `sowInsights.tabs`,
-  `sowInsights.view`), so
-  they change with a Convex deploy rather than an app release. A nightly build
-  redoes only what changed since the night before, so roll-call changes show
-  the next morning (TWIG and PPN are live). See
-  [docs/weekly-insights.md](docs/weekly-insights.md),
-  [docs/sow-insights.md](docs/sow-insights.md) and
-  [docs/attendance-metrics.md](docs/attendance-metrics.md).
-- **Self check-in**: on an event, the QR button turns on a check-in page
-  (`/checkin/<token>`, `convex/checkIn.ts`) and shows its code. People scan
-  it and type their full name, and can add their university and year; the
-  page never shows the member list, and the phone remembers the details
-  (`src/lib/checkInDevice.ts`). A first check-in waits on the event until a
-  leader matches it: matched people come first with "Sign in all", the rest
-  show same and similar names (`shared/checkInMatch.ts`), Find member and New
-  member. After that, the same phone signs that person straight in. A leader
-  who opens the link in the app is signed in at once. Sign-ins keep the time
-  people checked in. The page works from two hours before the event until ten
-  minutes after it ends, and turning it off (after a confirm) kills the link.
-  The app takes check-in links (ADR 0012); the web never bounces them.
-- **Over-the-air updates**: phone builds from 2.9.19 carry `expo-updates`
-  with a fingerprint runtime, so a JavaScript-only change reaches them after
-  a merge without a store build. Once an update has downloaded, a popup in the
-  middle of the screen offers a big Restart button (or Not now), waiting until
-  any open sheet has closed.
-- **App errors**: a screen that crashes, or an unhandled error, is reported
-  (`convex/appErrors.ts`) with the route, platform, version and who hit it,
-  grouped by fingerprint. Admins see the last seven days on Admin → System and
-  clear them there. Not reported: network drops in unhandled rejections, the
-  web's "Requiring unknown module" from Expo's synchronous first try at a
-  route (it then loads the chunk), and a web tab from an older release that
-  can't load a screen's code and reloads itself once onto the new release
-  (`src/lib/staleRelease.ts`). That error is reported when the tab can't
-  reload (offline, or no session storage), or when it fails again within a
-  minute of the reload.
-- **Update prompt**: phones ask for the store version when it's older than the
-  server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
-  banner that can be dismissed; below `minimum`, a full screen with only the
-  store button. Nothing is asked until a policy is set:
-  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "minimum": "2.9.25", "recommended": "2.10.0"}'`
-  (`minimum`, and an optional `message` to replace the default text; `null`
-  clears one). Staging builds and the web are never asked.
+- **Reimbursements** (`convex/requests.ts`, rules in `shared/flow.ts`): submit,
+  approve in order (HOD, Budget Manager, Director for $5,000 or more, Finance
+  Head), receipt, payment. Steps the submitter would review themselves are
+  auto-approved, and submitting is refused while the year is missing an
+  approver the request needs. Finance settings at `/finance-settings`.
+- **Design requests** and **event requests** (`convex/designRequests.ts`,
+  `convex/eventRequests.ts`): asks of Marketing, and an event with its
+  Marketing, Risk and Finance forms, each with comments and a timeline.
+- **Grievances** (`convex/grievances.ts`): confidential, seen only by the
+  submitter and the People and Culture and Compliance teams.
+- **Praise List** (`convex/musicRequests.ts`, `/music`): songs requested and
+  approved or declined by a Praise Manager, with Spotify search.
+- **Attendance** (`convex/attendance*.ts`, rules in `shared/rollcall.ts`): events,
+  roll-call, self check-in by QR, members, tags and metadata, merging
+  duplicates, an audit log and CSV export. **Insights** builds per-campus
+  weekly metrics from it (`docs/weekly-insights.md`,
+  `docs/attendance-metrics.md`, `docs/sow-insights.md`).
+- **Calendar** (`convex/calendar.ts`), mirrored to a shared Google Calendar.
+- **Org**: per-year roles, departments and divisions (`staffProfiles`); the
+  staff year rolls over on October 1 (ADR 0003). Admins are the Director, the
+  always-admin department's team and anyone admins choose (ADR 0018), and can
+  act as another role to see the app as it does (ADR 0017). Org chart,
+  Teams, Mentoring, Announcements, Churches and an editable Home tab.
+- **Reminders** (`convex/reminders.ts`): one morning digest per person of
+  everything waiting on them, by push and email.
+- **Accounts**: Google and Apple sign-in through Convex Auth, delete account
+  from Profile, push notifications and the in-app bell.
+- **Releases**: over-the-air updates (`expo-updates`), an update prompt driven
+  by `appUpdatePolicy`, and app errors reported to the `appErrors` table.
 
 ## Getting started
 
@@ -818,15 +371,18 @@ the EAS Android keystore changes, add its SHA-256 fingerprint to
 ## Tests
 
 ```bash
-npm test
+npm run test:coverage
 ```
 
-The `convex-test` + shared-logic suite (run in CI with coverage thresholds)
-covers the reimbursement flow (the auto-approval matrix, approval ordering and
-authorization, decline behaviour, admin permissions, the Budget
-Manager-must-be-Finance rule, and the October 1 rollover) as well as the
-Attendance area: roll-call, events, members, tags, metadata, audit, and
-the Insights metrics precompute.
+`convex-test` runs the backend in memory, so the suite needs no deployment.
+CI fails below 100% line and function coverage of `convex/` and `shared/`.
+The **web sweep** in CI (`scripts/sweep-backend.sh`, `scripts/sweep.mjs`) opens
+every screen against a seeded local backend, signed out and as three roles.
+
+Signed-in testing uses the `e2e-auth` bypass: `src/app/e2e-auth.tsx` handles
+`/e2e-auth?email=…&secret=…` in dev builds (or with `EXPO_PUBLIC_E2E=1`), and
+the backend accepts it only when `E2E_AUTH_ENABLED` is `true` and the secret
+matches `E2E_AUTH_SECRET`. Never set either on prod.
 
 ## Not yet implemented
 
