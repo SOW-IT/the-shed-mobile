@@ -207,8 +207,19 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   that only the team sees. The team edits the "What is it about?" options;
   grievances keep the wording they were raised with.
 - **Praise List** (`convex/musicRequests.ts`, `/music`, staff only): the
-  approved worship songs, searchable and sortable, plus song requests. Staff
-  paste a Spotify or YouTube song or playlist link to autofill (Spotify
+  approved worship songs under the Approved tab, 15 at a time with the next
+  15 loading as you scroll, searchable (a Convex search index on title and
+  artist) and sortable by song name, artist, recently approved or release
+  date, plus song requests. Tapping a song shows its history (suggested by
+  whom and when, approved or declined by whom and when) with a button to
+  open it; everyone sees who suggested a song, and only Praise Managers,
+  admins and the requester see the request note (stripped on the server).
+  Release dates come from Spotify after a Spotify song is saved
+  (`convex/musicReleaseDates.ts`); YouTube and other links have none and
+  sort last. Mine and To review page the same way, and Mine lists this
+  year's Praise Managers at the top. Staff search Spotify by name
+  (`spotify.searchTracks`, the app's client credentials, no Spotify sign-in)
+  or paste a Spotify or YouTube song or playlist link to autofill (Spotify
   playlists need Spotify connected from Profile, `convex/spotifyConnections.ts`,
   tokens encrypted at rest and deleted with the account) or type one in, up
   to 50 at a time. The same recording twice (Spotify track, YouTube video or
@@ -229,9 +240,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   queue without the buttons; a Praise Manager acting as another role sees
   what that role sees. A Praise Manager needs a staff profile for the
   current year, so during the October grace last year's staff can't review.
-  After a change to the duplicate keys, run
+  After a change to the duplicate, sort or search keys, run
   `npx convex run --prod musicBackfill:backfill '{}'` on prod (and without
-  `--prod` on dev) once; each run carries on through every page by itself.
+  `--prod` on dev) once; each run carries on through every page by itself,
+  and looks up release dates for Spotify songs that have none.
 - **Side menu**: Reimbursements, Event Requests and Design Requests sit in a
   collapsible **Requests** group that opens itself on those pages, shows
   their combined count while closed, and remembers being open or closed on

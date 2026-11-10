@@ -99,6 +99,86 @@ describe("spotify.getTrack", () => {
   });
 });
 
+describe("spotify.searchTracks", () => {
+  test("lists matching Australian tracks with art, link, ISRC and release date", async () => {
+    fetchMock.mockResolvedValueOnce(json({ access_token: "token" })).mockResolvedValueOnce(
+      json({
+        tracks: {
+          items: [
+            {
+              id: "t1",
+              name: "Morning Light",
+              artists: [{ name: "Hana Doe" }, { name: "Alex Morgan" }],
+              album: {
+                release_date: "2021-04-09",
+                images: [
+                  { url: "https://i.scdn.co/image/big", width: 640 },
+                  { url: "https://i.scdn.co/image/small", width: 64 },
+                  { url: "https://i.scdn.co/image/mid", width: 300 },
+                ],
+              },
+              external_ids: { isrc: "USABC2400001" },
+            },
+            { id: "t2", name: "Bare", artists: [], album: { images: [] } },
+            { id: "t3", name: "Local", artists: [], album: { images: [] }, is_local: true },
+            { name: "No id", artists: [], album: { images: [] } },
+            null,
+          ],
+        },
+      }),
+    );
+    expect(await signedIn().action(api.spotify.searchTracks, { query: "  morning light " })).toEqual([
+      {
+        title: "Morning Light",
+        artist: "Hana Doe, Alex Morgan",
+        albumArtUrl: "https://i.scdn.co/image/big",
+        thumbnailUrl: "https://i.scdn.co/image/small",
+        link: "https://open.spotify.com/track/t1",
+        isrc: "USABC2400001",
+        releaseDate: "2021-04-09",
+      },
+      {
+        title: "Bare",
+        artist: "",
+        albumArtUrl: null,
+        thumbnailUrl: null,
+        link: "https://open.spotify.com/track/t2",
+        isrc: null,
+        releaseDate: null,
+      },
+    ]);
+    const url = new URL(fetchMock.mock.calls[1][0]);
+    expect(url.origin + url.pathname).toBe("https://api.spotify.com/v1/search");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      q: "morning light",
+      type: "track",
+      limit: "10",
+      market: "AU",
+    });
+  });
+
+  test("a short search returns nothing without calling Spotify", async () => {
+    expect(await signedIn().action(api.spotify.searchTracks, { query: " a " })).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("an empty response, a long search, signed out, or Spotify refusing", async () => {
+    const t = signedIn();
+    fetchMock.mockResolvedValueOnce(json({ access_token: "token" })).mockResolvedValueOnce(json({}));
+    expect(await t.action(api.spotify.searchTracks, { query: "nothing here" })).toEqual([]);
+    await expect(t.action(api.spotify.searchTracks, { query: "x".repeat(101) })).rejects.toThrow(
+      "Search for 100 characters or fewer.",
+    );
+    await expect(
+      convexTest(schema, modules).action(api.spotify.searchTracks, { query: "morning" }),
+    ).rejects.toThrow("You must be signed in.");
+    fetchMock.mockResolvedValueOnce(json({ access_token: "token" })).mockResolvedValueOnce(json({}, 429));
+    await expect(t.action(api.spotify.searchTracks, { query: "morning" })).rejects.toThrow(
+      "Spotify search failed (429).",
+    );
+  });
+});
+
 describe("youtube.importPlaylist", () => {
   test("lists the playlist's public videos as songs", async () => {
     fetchMock.mockResolvedValueOnce(

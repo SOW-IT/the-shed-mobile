@@ -6,6 +6,30 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.3] - 2026-11-10
+
+### Added
+- **Search Spotify when requesting a song.** Type a song or artist in the
+  request form and pick from Spotify's results, instead of finding the song
+  in Spotify and pasting its link. Picking one fills in the title, artist,
+  link and artwork, and the same duplicate checks run.
+- **Tap a song to see its history.** Who suggested it and when, who approved
+  or declined it and when, the release date when Spotify has one, and a
+  button to open it in Spotify or YouTube. It works on Approved, Mine and To
+  review.
+- **Sort the Praise List by recently approved or by release date**, as well
+  as by song name and artist.
+- **Mine shows this year's Praise Managers** at the top, so you know who
+  reviews your requests.
+
+### Changed
+- **The Approved Playlist tab is now Approved**, and it loads 15 songs at a
+  time, fetching the next 15 as you scroll. Search looks through the whole
+  list, not only the songs already loaded. Mine and To review load the same
+  way.
+- **Request notes are only shown to Praise Managers, admins and the person
+  who asked.** Everyone still sees who suggested each song.
+
 ## [2.11.2] - 2026-11-10
 
 ### Changed

@@ -1,13 +1,16 @@
-import { ConvexError, v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
+import { paginationOptsValidator, type PaginationOptions } from "convex/server";
+import { ConvexError, v, type Infer } from "convex/values";
+import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { seesThrough, waitsThrough, type Lens } from "../shared/actingAs";
 import { SONGS_COUNTED } from "../shared/praiseList";
-import { lensFor } from "./actingAs";
+import { lensFor, viewsAsAdmin } from "./actingAs";
 import {
   currentStaffYear,
   displayName,
+  getProfile,
   optionalProfile,
   requireProfile,
   resolveName,
@@ -188,7 +191,20 @@ export function songKeys(song: {
     spotifyTrackId: spotifyTrackId(song.link) ?? undefined,
     youtubeVideoId: youtubeVideoId(song.link) ?? undefined,
     normalizedSongKey: normalizedSongKey(song.title, song.artist),
+    titleSort: normalized(song.title),
+    artistSort: normalized(song.artist),
+    searchText: `${song.title} ${song.artist}`,
   };
+}
+
+async function fetchReleaseDateLater(
+  ctx: MutationCtx,
+  requestId: Id<"musicRequests">,
+  spotifyTrack: string | undefined,
+) {
+  if (spotifyTrack) {
+    await ctx.scheduler.runAfter(0, internal.musicReleaseDates.fill, { requestId });
+  }
 }
 
 function duplicateKind(
@@ -459,6 +475,7 @@ export const submit = mutation({
         ? { reviewedByEmail: caller.email, reviewedTime: Date.now() }
         : {}),
     });
+    await fetchReleaseDateLater(ctx, id, spotifyTrackId(song.link) ?? undefined);
     if (!isPraiseManager)
       await tellPraiseManagers(ctx, caller.email, [song], requestComment);
     return id;
@@ -562,10 +579,11 @@ export const submitMany = mutation({
         possibleDuplicates++;
         continue;
       }
-      await ctx.db.insert("musicRequests", {
+      const keys = songKeys(song);
+      const id = await ctx.db.insert("musicRequests", {
         requesterEmail: caller.email,
         ...song,
-        ...songKeys(song),
+        ...keys,
         albumArtUrl: songArtworkUrl(song.link, raw.albumArtUrl?.trim()),
         requestComment,
         status: isPraiseManager ? "APPROVED" : "PENDING",
@@ -573,6 +591,7 @@ export const submitMany = mutation({
           ? { reviewedByEmail: caller.email, reviewedTime: Date.now() }
           : {}),
       });
+      await fetchReleaseDateLater(ctx, id, keys.spotifyTrackId);
       added.push(song);
     }
     if (!isPraiseManager && added.length)
@@ -592,7 +611,7 @@ export const myRequests = query({
       .withIndex("by_requester", (q) => q.eq("requesterEmail", caller.email))
       .order("desc")
       .take(200);
-    return await withNames(ctx, rows);
+    return await forViewer(ctx, caller, rows);
   },
 });
 /** Get pending music requests. Praise Manager only. */
@@ -608,7 +627,7 @@ export const toReview = query({
       .withIndex("by_status", (q) => q.eq("status", "PENDING"))
       .order("desc")
       .take(200);
-    return await withNames(ctx, rows);
+    return await forViewer(ctx, caller, rows);
   },
 });
 
@@ -627,7 +646,7 @@ export const declined = query({
       .withIndex("by_status", (q) => q.eq("status", "DECLINED"))
       .order("desc")
       .take(200);
-    return await withNames(ctx, rows);
+    return await forViewer(ctx, caller, rows);
   },
 });
 /** Get approved music requests. */
@@ -641,7 +660,164 @@ export const approved = query({
       .withIndex("by_status", (q) => q.eq("status", "APPROVED"))
       .order("desc")
       .take(200);
-    return await withNames(ctx, rows);
+    return await forViewer(ctx, caller, rows);
+  },
+});
+
+const MAX_PAGE = 50;
+
+const capped = (opts: PaginationOptions): PaginationOptions => ({
+  ...opts,
+  numItems: Math.min(Math.max(opts.numItems, 1), MAX_PAGE),
+});
+
+async function seesRequestNotes(ctx: QueryCtx, caller: CallerContext) {
+  if (await seesReviewQueue(ctx, caller)) return true;
+  return await viewsAsAdmin(ctx, caller);
+}
+
+async function forViewer(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  rows: MusicRequestRow[],
+) {
+  const seesNotes = await seesRequestNotes(ctx, caller);
+  const me = caller.email.toLowerCase();
+  return (await withNames(ctx, rows)).map((row) =>
+    seesNotes || row.requesterEmail.toLowerCase() === me
+      ? row
+      : { ...row, requestComment: undefined, declineComment: undefined },
+  );
+}
+
+const requestStatus = v.union(
+  v.literal("PENDING"),
+  v.literal("APPROVED"),
+  v.literal("DECLINED"),
+);
+
+const approvedSort = v.union(
+  v.literal("title-asc"),
+  v.literal("title-desc"),
+  v.literal("artist-asc"),
+  v.literal("artist-desc"),
+  v.literal("approved-desc"),
+  v.literal("release-desc"),
+);
+
+const MAX_SEARCH_LENGTH = 100;
+
+async function approvedSongsPage(
+  ctx: QueryCtx,
+  sort: Infer<typeof approvedSort>,
+  opts: PaginationOptions,
+) {
+  const songs = ctx.db.query("musicRequests");
+  const ascending = sort.endsWith("-asc") ? "asc" : "desc";
+  if (sort === "title-asc" || sort === "title-desc") {
+    return await songs
+      .withIndex("by_status_and_title_sort", (q) => q.eq("status", "APPROVED"))
+      .order(ascending)
+      .paginate(opts);
+  }
+  if (sort === "artist-asc" || sort === "artist-desc") {
+    return await songs
+      .withIndex("by_status_and_artist_sort", (q) => q.eq("status", "APPROVED"))
+      .order(ascending)
+      .paginate(opts);
+  }
+  if (sort === "release-desc") {
+    return await songs
+      .withIndex("by_status_and_release_date", (q) => q.eq("status", "APPROVED"))
+      .order("desc")
+      .paginate(opts);
+  }
+  return await songs
+    .withIndex("by_status_and_reviewed_time", (q) => q.eq("status", "APPROVED"))
+    .order("desc")
+    .paginate(opts);
+}
+
+export const approvedPage = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    sort: approvedSort,
+    search: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const search = args.search?.trim().slice(0, MAX_SEARCH_LENGTH);
+    const opts = capped(args.paginationOpts);
+    const page = search
+      ? await ctx.db
+          .query("musicRequests")
+          .withSearchIndex("search_songs", (q) =>
+            q.search("searchText", search).eq("status", "APPROVED"),
+          )
+          .paginate(opts)
+      : await approvedSongsPage(ctx, args.sort, opts);
+    return { ...page, page: await forViewer(ctx, caller, page.page) };
+  },
+});
+
+export const myRequestsPage = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    status: v.optional(requestStatus),
+  },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const opts = capped(args.paginationOpts);
+    const { status } = args;
+    const page = status
+      ? await ctx.db
+          .query("musicRequests")
+          .withIndex("by_requester_and_status", (q) =>
+            q.eq("requesterEmail", caller.email).eq("status", status),
+          )
+          .order("desc")
+          .paginate(opts)
+      : await ctx.db
+          .query("musicRequests")
+          .withIndex("by_requester", (q) => q.eq("requesterEmail", caller.email))
+          .order("desc")
+          .paginate(opts);
+    return { ...page, page: await forViewer(ctx, caller, page.page) };
+  },
+});
+
+export const reviewPage = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    status: v.union(v.literal("PENDING"), v.literal("DECLINED")),
+  },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller || !(await seesReviewQueue(ctx, caller))) return null;
+    const page = await ctx.db
+      .query("musicRequests")
+      .withIndex("by_status", (q) => q.eq("status", args.status))
+      .order("desc")
+      .paginate(capped(args.paginationOpts));
+    return { ...page, page: await forViewer(ctx, caller, page.page) };
+  },
+});
+
+export const praiseManagers = query({
+  args: {},
+  handler: async (ctx) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const year = currentStaffYear();
+    const nameOf = nameResolver(ctx);
+    const people: { email: string; name: string }[] = [];
+    for (const email of await praiseManagerEmailsForYear(ctx, year)) {
+      if (!(await getProfile(ctx, email.trim().toLowerCase(), year))) continue;
+      people.push({ email, name: (await nameOf(email)) ?? email });
+    }
+    return people;
   },
 });
 export async function songsWaitingOn(
@@ -782,15 +958,21 @@ export const update = mutation({
       throw new ConvexError(
         "Possible duplicate: confirm that you want to use this version.",
       );
+    const keys = songKeys(song);
+    const recordingChanged = keys.spotifyTrackId !== request.spotifyTrackId;
     await ctx.db.patch("musicRequests", args.requestId, {
       title,
       artist,
       link,
       isrc: song.isrc,
       requestComment,
-      ...songKeys(song),
+      ...keys,
       albumArtUrl: songArtworkUrl(link, args.albumArtUrl?.trim()),
+      ...(recordingChanged ? { releaseDate: undefined } : {}),
     });
+    if (recordingChanged || !request.releaseDate) {
+      await fetchReleaseDateLater(ctx, args.requestId, keys.spotifyTrackId);
+    }
   },
 });
 /** Delete a music request. */
