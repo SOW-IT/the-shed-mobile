@@ -3,6 +3,7 @@ import {
   ALL_VIEWS,
   countWaiting,
   departmentHighlights,
+  lensIsCampusLeader,
   personaApproves,
   personaApprovesForm,
   personaDepartment,
@@ -26,6 +27,7 @@ const MARKETING_HEAD: Persona = { role: "head", department: "Marketing" };
 const FINANCE_HEAD: Persona = { role: "head", department: "Finance" };
 const DIRECTOR: Persona = { role: "director" };
 const BUDGET_MANAGER: Persona = { role: "budgetManager" };
+const CAMPUS_LEADER: Persona = { role: "campusLeader" };
 
 describe("personas", () => {
   test("labels use the year's title for the Director", () => {
@@ -37,6 +39,7 @@ describe("personas", () => {
       "Executive Director",
     );
     expect(personaLabel({ role: "praiseManager" })).toBe("Praise Manager");
+    expect(personaLabel(CAMPUS_LEADER)).toBe("Campus leader");
   });
 
   test("the Budget Manager sits in Finance and the Director in no department", () => {
@@ -45,6 +48,8 @@ describe("personas", () => {
     expect(personaDepartment(DIRECTOR, DEFAULT_TEAMS)).toBeNull();
     expect(personaApproves(MARKETING_STAFF)).toBe(false);
     expect(personaApproves(MARKETING_HEAD)).toBe(true);
+    expect(personaDepartment(CAMPUS_LEADER, DEFAULT_TEAMS)).toBeNull();
+    expect(personaApproves(CAMPUS_LEADER)).toBe(false);
   });
 
   test("the same choice matches whatever object it came in", () => {
@@ -94,6 +99,10 @@ describe("personas", () => {
     expect(personaHighlights(MARKETING_HEAD, DEFAULT_TEAMS)).toEqual([
       "Design requests",
       "Marketing forms",
+    ]);
+    expect(personaHighlights(CAMPUS_LEADER, DEFAULT_TEAMS)).toEqual([
+      "Opens on Attendance",
+      "No requests or approvals",
     ]);
   });
 });
@@ -269,4 +278,12 @@ describe("lenses", () => {
     );
     expect(await waitsThrough(SELF_LENS, () => true, inMarketing)).toBe(true);
   });
+});
+
+test("only the Campus leader lens, or a real campus leader with no lens, gets the campus leader app", () => {
+  expect(lensIsCampusLeader(SELF_LENS, true)).toBe(true);
+  expect(lensIsCampusLeader(SELF_LENS, false)).toBe(false);
+  expect(lensIsCampusLeader(ALL_VIEWS, true)).toBe(false);
+  expect(lensIsCampusLeader({ kind: "as", persona: CAMPUS_LEADER }, false)).toBe(true);
+  expect(lensIsCampusLeader({ kind: "as", persona: MARKETING_STAFF }, true)).toBe(false);
 });

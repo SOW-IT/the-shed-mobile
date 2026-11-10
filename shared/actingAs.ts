@@ -19,7 +19,8 @@ export type Persona =
   | { role: "head"; department: string }
   | { role: "director" }
   | { role: "budgetManager" }
-  | { role: "praiseManager" };
+  | { role: "praiseManager" }
+  | { role: "campusLeader" };
 
 export type Lens =
   { kind: "self" } | { kind: "all" } | { kind: "as"; persona: Persona };
@@ -28,6 +29,7 @@ export const SELF_LENS: Lens = { kind: "self" };
 export const ALL_VIEWS: Lens = { kind: "all" };
 export const ALL_VIEWS_LABEL = "All views";
 export const BUDGET_MANAGER_LABEL = "Budget Manager";
+export const CAMPUS_LEADER_LABEL = "Campus leader";
 
 export const personaDepartment = (
   persona: Persona,
@@ -41,6 +43,7 @@ export const personaDepartment = (
       return teams.finance;
     case "director":
     case "praiseManager":
+    case "campusLeader":
       return null;
   }
 };
@@ -65,8 +68,18 @@ export const personaIsDirector = (persona: Persona): boolean =>
 export const personaIsBudgetManager = (persona: Persona): boolean =>
   persona.role === "budgetManager";
 
+export const personaIsCampusLeader = (persona: Persona): boolean =>
+  persona.role === "campusLeader";
+
+export const lensIsCampusLeader = (lens: Lens, isCampusLeader: boolean): boolean =>
+  lens.kind === "self"
+    ? isCampusLeader
+    : lens.kind === "as" && personaIsCampusLeader(lens.persona);
+
 export const personaApproves = (persona: Persona): boolean =>
-  persona.role !== "staff" && persona.role !== "praiseManager";
+  persona.role !== "staff" &&
+  persona.role !== "praiseManager" &&
+  persona.role !== "campusLeader";
 
 export const samePersona = (a: Persona | null, b: Persona | null): boolean =>
   a === null || b === null
@@ -81,6 +94,8 @@ export const personaLabel = (persona: Persona, titles?: RoleTitles): string => {
       return BUDGET_MANAGER_LABEL;
     case "praiseManager":
       return "Praise Manager";
+    case "campusLeader":
+      return CAMPUS_LEADER_LABEL;
     case "head":
       return `${persona.department} Head`;
     case "staff":
@@ -107,6 +122,9 @@ export const personaHighlights = (persona: Persona, teams: Teams): string[] => {
     ...(persona.role === "budgetManager" ? ["Budget approvals"] : []),
     ...(persona.role === "praiseManager"
       ? ["Review music requests", "Manage approved songs"]
+      : []),
+    ...(persona.role === "campusLeader"
+      ? ["Opens on Attendance", "No requests or approvals"]
       : []),
     ...(department === null ? [] : departmentHighlights(department, teams)),
   ];

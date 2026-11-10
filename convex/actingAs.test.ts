@@ -427,6 +427,32 @@ describe("choosing who to act as", () => {
     ).rejects.toThrow(/not campus leaders/);
   });
 
+  test("acting as a campus leader shows the campus leader app but keeps the admin's own powers", async () => {
+    const { t, events } = await setup();
+    await actAs(t, { role: "campusLeader" });
+    expect(await me(t)).toMatchObject({
+      isCampusLeader: true,
+      canRequestEvents: true,
+      isAdmin: false,
+      isApprover: false,
+      isFinance: false,
+      isDirector: false,
+      headedDepartments: [],
+      actingAs: { persona: { role: "campusLeader" }, label: "Campus leader" },
+    });
+    expect(await asUser(t, ADMIN).query(api.eventRequests.viewer, {})).toBeNull();
+    expect(await asUser(t, ADMIN).query(api.eventRequests.get, { id: events.admin })).toBeNull();
+    expect(await asUser(t, ADMIN).query(api.waitingOnMe.summary, {})).toBeNull();
+    await expect(
+      asUser(t, ADMIN).mutation(api.eventRequests.create, {
+        answers: eventAnswers({ department: "Data and IT" }),
+      })
+    ).resolves.toBeDefined();
+    await actAs(t, null);
+    expect(await me(t)).toMatchObject({ isCampusLeader: false, isAdmin: true });
+    expect(await asUser(t, ADMIN).query(api.eventRequests.get, { id: events.admin })).not.toBeNull();
+  });
+
   test("deleting an account forgets the choice", async () => {
     const { t } = await setup();
     await actAs(t, MARKETING_STAFF);
@@ -630,7 +656,9 @@ describe("acting as Marketing staff", () => {
       isBudgetManager: false,
       isDirector: false,
       headedDepartments: [],
+      canManageAttendance: false,
     });
+    expect((await me(t, MARY)).canManageAttendance).toBe(false);
     expect(await admin.query(api.designRequests.viewer, {})).toMatchObject({
       isMarketingHead: false,
       isMarketingStaff: true,
@@ -869,6 +897,87 @@ describe("acting as other roles", () => {
     expect((await me(t)).isAdmin).toBe(false);
     await actAs(t, { role: "staff", department: "Events" });
     expect((await me(t)).isAdmin).toBe(false);
+  });
+});
+
+describe("acting as a campus leader", () => {
+  const settled = <V>(promise: Promise<V>) =>
+    promise.then(
+      (value) => ({ value }),
+      (error: Error) => ({ error: error.message })
+    );
+
+  const screens = async (t: T, email: string) => {
+    const user = asUser(t, email);
+    const profile = await me(t, email);
+    return {
+      nav: {
+        isCampusLeader: profile.isCampusLeader,
+        isAdmin: profile.isAdmin,
+        isFinance: profile.isFinance,
+        isApprover: profile.isApprover,
+        isDirector: profile.isDirector,
+        isBudgetManager: profile.isBudgetManager,
+        isFinanceHead: profile.isFinanceHead,
+        isPraiseManager: profile.isPraiseManager,
+        headedDepartments: profile.headedDepartments,
+        canManageAttendance: profile.canManageAttendance,
+      },
+      eventViewer: await user.query(api.eventRequests.viewer, {}),
+      eventReview: await user.query(api.eventRequests.review, {}),
+      eventAll: await user.query(api.eventRequests.all, { year: YEAR }),
+      designViewer: await user.query(api.designRequests.viewer, {}),
+      designQueue: await user.query(api.designRequests.queue, {}),
+      reimbursements: (await reimbursementQueues(t, email)).rows.map((row) => row._id),
+      allReimbursements: await settled(user.query(api.requests.allRequests, {})),
+      waiting: await user.query(api.waitingOnMe.summary, {}),
+      homeEditor: (await user.query(api.homeContent.view, {})).canEdit,
+      years: await user.query(api.directory.availableYears, {}),
+      nextYearOrg: (await user.query(api.directory.orgChart, { year: YEAR + 1 }))!.nextYear,
+      attendanceSettings: (await user.query(api.attendanceMetadata.list, {})) !== null,
+    };
+  };
+
+  test("every screen shows what a real campus leader sees", async () => {
+    const { t } = await setup();
+    await actAs(t, { role: "campusLeader" });
+    expect(await screens(t, ADMIN)).toEqual(await screens(t, LEE));
+  });
+
+  test("Calendar: other people's entries aren't editable and event requests don't link", async () => {
+    const { t, events } = await setup();
+    const entry = {
+      dateStart: PINNED_NOW + DAY,
+      dateEnd: PINNED_NOW + DAY,
+      subgroups: ["SOW"],
+      category: "deadline" as const,
+      due: "time" as const,
+    };
+    await asUser(t, MARY).mutation(api.calendar.addEntry, { name: "Mary's", ...entry });
+    await t.run((ctx) =>
+      ctx.db.insert("calendarEntries", {
+        name: "From a request",
+        ...entry,
+        createdBy: EVA,
+        eventRequestId: events.admin,
+      })
+    );
+    const calendar = async (email: string) =>
+      Object.fromEntries(
+        (await asUser(t, email).query(api.calendar.range, {
+          from: PINNED_NOW,
+          to: PINNED_NOW + 3 * DAY,
+        }))!
+          .filter((item) => item.kind === "entry")
+          .map((item) => [item.name, { canEdit: item.canEdit, opens: item.eventRequestId !== null }])
+      );
+    expect((await calendar(ADMIN))["From a request"].opens).toBe(true);
+    await actAs(t, { role: "campusLeader" });
+    expect(await calendar(ADMIN)).toEqual(await calendar(LEE));
+    expect(await calendar(ADMIN)).toEqual({
+      "Mary's": { canEdit: false, opens: false },
+      "From a request": { canEdit: false, opens: false },
+    });
   });
 });
 

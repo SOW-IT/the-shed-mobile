@@ -1,7 +1,7 @@
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "convex/react";
-import { roleNeedsUniversity, staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
+import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
 import { eventListFilterCount } from "../../../shared/rollcall";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -36,11 +36,7 @@ export default function AttendanceScreen() {
     subgroups,
     me?.profile?.assignments
   );
-  const canManage =
-    Boolean(me?.isAdmin) ||
-    (me?.profile?.assignments ?? []).some(
-      (assignment) => assignment.university !== undefined && roleNeedsUniversity(assignment.role)
-    );
+  const canManage = Boolean(me?.canManageAttendance);
   const [createEventOpen, setCreateEventOpen] = useState(false);
   const [eventFilterOpen, setEventFilterOpen] = useState(false);
   const [pickedEventFilter, setEventFilter] = useState<EventsFilter>(NO_EVENTS_FILTER);

@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.5] - 2026-11-11
+
+### Added
+- **Admins can act as a campus leader.** "Campus leader" is now under Roles
+  in Acting as. It shows the app the way a campus leader sees it: Home opens
+  on Attendance, there are no Reimbursements, Event or Design requests or
+  their badges, no Admin, and calendar items don't link into event requests.
+  As with every other role, it only changes what you see. Anything you can
+  really do, you still can.
+
+### Fixed
+- **Editing Attendance's Tags and Metadata follows the role you're acting
+  as.** An admin who also leads a campus could still edit them while acting
+  as a staff member who can't. They're now editable only when the role
+  you're looking through is an admin or a campus leader, and read-only
+  otherwise.
 ## [2.11.4] - 2026-11-10
 
 ### Changed

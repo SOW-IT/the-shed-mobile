@@ -67,16 +67,17 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   to review, every reimbursement queue and Finance's All tab and export),
   read-only unless the
   work is really theirs. Under their name in the menu they can instead act
-  as the Director, the Budget Manager, or the staff or Head of one of the
-  year's departments, and see exactly that role's tabs, queues and badges
+  as the Director, the Budget Manager, a Praise Manager, a campus leader, or
+  the staff or Head of one of the year's departments, and see exactly that
+  role's tabs, queues and badges
   (ordinary staff of a department see only its event requests, no All, and
   Mine still lists the admin's own); a
   chip at the top resets it. The choice is stored per admin on the server
   (`actingAs` table). It never grants an action, and grievances stay with the
   grievance team. Everything a screen shows follows the role: Finance
-  settings, the Home editor, editing other people's calendar entries, the
-  Review tab's history and the grievance team's view only show when that
-  role would see them.
+  settings, the Home editor, editing other people's calendar entries,
+  editing Attendance's Tags and Metadata, the Review tab's history and the grievance
+  team's view only show when that role would see them.
 - **Org structure** (seeded, editable per-year by admins): Governance (Data
   and IT, Finance, Compliance), Engagement (Marketing, Alumni), Human
   Resources (People and Culture, Training and Development), Operations
