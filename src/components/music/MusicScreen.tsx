@@ -175,7 +175,7 @@ export default function MusicScreen() {
           {
             key: "praiseManagers",
             label: "Praise Managers",
-            render: () => <PraiseManagersTab year={me.year} />,
+            render: () => <PraiseManagersTab currentYear={me.year} />,
           },
         ]
       : []),

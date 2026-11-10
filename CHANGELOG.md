@@ -10,8 +10,9 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Changed
 - **Praise Managers are chosen on the Praise List**, in a Praise Managers tab
-  after To review that admins see, instead of in Admin → Teams. It manages
-  this staff year's Praise Managers.
+  after To review that admins see, instead of in Admin → Teams. It opens on
+  this staff year, with a switch to next year's for getting them ready
+  before 1 October.
 
 ## [2.11.1] - 2026-11-10
 

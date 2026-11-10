@@ -15,6 +15,7 @@ import {
   runBusy,
   SearchField,
   SectionTitle,
+  Segmented,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
@@ -134,20 +135,35 @@ export const PraiseManagersCard = ({
   );
 };
 
-export const PraiseManagersTab = ({ year }: { year: number }) => {
+export const PraiseManagersTab = ({ currentYear }: { currentYear: number }) => {
+  const [year, setYear] = useState(currentYear);
   const structure = useQuery(api.directory.yearStructure, { year });
   const profiles = useQuery(api.admin.listStaffProfiles, { year });
-  if (structure === undefined || profiles === undefined) return <LoadingState />;
   return (
-    <PraiseManagersCard
-      year={year}
-      emails={structure?.praiseManagerEmails ?? []}
-      staff={(profiles ?? []).map((profile) => ({
-        email: profile.email,
-        name: profile.name ?? profile.email,
-      }))}
-      editable
-    />
+    <View style={{ gap: spacing.md }}>
+      <Segmented
+        segments={[currentYear, currentYear + 1].map((option) => ({
+          key: String(option),
+          label: option === currentYear ? `This year (${option})` : `Next year (${option})`,
+        }))}
+        active={String(year)}
+        onChange={(key) => setYear(Number(key))}
+      />
+      {structure === undefined || profiles === undefined ? (
+        <LoadingState />
+      ) : (
+        <PraiseManagersCard
+          key={year}
+          year={year}
+          emails={structure?.praiseManagerEmails ?? []}
+          staff={(profiles ?? []).map((profile) => ({
+            email: profile.email,
+            name: profile.name ?? profile.email,
+          }))}
+          editable
+        />
+      )}
+    </View>
   );
 };
 
