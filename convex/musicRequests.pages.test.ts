@@ -263,13 +263,14 @@ describe("a note per song", () => {
       songs: [
         { title: "Own", artist: "A", link: "https://example.com/own", requestComment: "Mine" },
         { title: "Shared", artist: "A", link: "https://example.com/shared" },
+        { title: "Blank", artist: "A", link: "https://example.com/blank", requestComment: "  " },
       ],
       requestComment: "For the weekly",
     });
     const notes = await t.run(async (ctx) =>
       (await ctx.db.query("musicRequests").collect()).map((row) => row.requestComment),
     );
-    expect(notes.sort()).toEqual(["For the weekly", "Mine"]);
+    expect(notes.sort()).toEqual(["For the weekly", "For the weekly", "Mine"]);
     await expect(
       asUser(t, STAFF).mutation(api.musicRequests.submitMany, {
         songs: [{ title: "Long", artist: "A", link: "https://example.com/long", requestComment: "x".repeat(2001) }],

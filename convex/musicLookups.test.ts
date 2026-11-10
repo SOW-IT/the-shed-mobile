@@ -229,6 +229,25 @@ describe("Spotify app token and search limit", () => {
     expect(fetchMock.mock.calls[3][1].headers.Authorization).toBe("Bearer fresh");
   });
 
+  test("a cached token that no longer decrypts is replaced", async () => {
+    vi.stubEnv("SPOTIFY_TOKEN_ENCRYPTION_KEY", KEY);
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("spotifyAppTokens", {
+        encryptedAccessToken: "not-a-token",
+        expiresAt: Date.now() + 3600_000,
+      });
+    });
+    fetchMock.mockResolvedValueOnce(token("fresh")).mockResolvedValueOnce(results());
+    const user = t.withIdentity({ subject: "user1|session1", issuer: "test" });
+    expect(await user.action(api.spotify.searchTracks, { query: "morning" })).toEqual([]);
+    expect(tokenCalls()).toHaveLength(1);
+    expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer fresh");
+    const rows = await t.run(async (ctx) => await ctx.db.query("spotifyAppTokens").collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].encryptedAccessToken).not.toBe("not-a-token");
+  });
+
   test("each person can search 30 times a minute", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(1_800_000_000_000);

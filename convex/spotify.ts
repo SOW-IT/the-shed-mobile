@@ -83,7 +83,8 @@ export async function spotifyToken(ctx: ActionCtx, fresh = false): Promise<strin
     throw new ConvexError("Spotify credentials are not configured.");
   if (!fresh && canCacheToken()) {
     const cached = await ctx.runQuery(internal.spotify.cachedAppToken, {});
-    if (cached) return await decryptSpotifyToken(cached);
+    const decrypted = cached ? await decryptSpotifyToken(cached).catch(() => null) : null;
+    if (decrypted) return decrypted;
   }
   const response = await fetch("https://accounts.spotify.com/api/token", {
     method: "POST",

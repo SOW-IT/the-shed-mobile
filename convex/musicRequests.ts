@@ -153,7 +153,7 @@ async function tellPraiseManagers(
     ...songLines,
     "",
     `Requested by: ${name === requesterEmail ? name : `${name} (${requesterEmail})`}`,
-    ...(singleNote ? [`Note: ${singleNote}`] : []),
+    ...(singleNote ? [`Note: ${oneLine(singleNote)}`] : []),
   ].join("\n");
   for (const to of managers) {
     await notifyPerson(ctx, {
@@ -565,8 +565,9 @@ export const submitMany = mutation({
     const caller = await requireProfile(ctx);
     if (!args.songs.length || args.songs.length > 50)
       throw new ConvexError("Add between 1 and 50 songs.");
-    const notes = args.songs.map((raw) =>
-      cleanComment(raw.requestComment ?? args.requestComment, "Request comment"),
+    const batchNote = cleanComment(args.requestComment, "Request comment");
+    const notes = args.songs.map(
+      (raw) => cleanComment(raw.requestComment, "Request comment") ?? batchNote,
     );
     const isPraiseManager = await callerIsPraiseManager(ctx, caller);
     const added: (ReturnType<typeof validateSong> & { requestComment?: string })[] = [];
