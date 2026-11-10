@@ -28,6 +28,7 @@ export const save = internalMutation({
 export const fill = internalAction({
   args: { requestId: v.id("musicRequests") },
   handler: async (ctx, { requestId }) => {
+    if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) return null;
     const spotifyTrackId = await ctx.runQuery(internal.musicReleaseDates.trackOf, { requestId });
     if (!spotifyTrackId) return null;
     try {

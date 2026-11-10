@@ -379,8 +379,12 @@ describe("release dates", () => {
       link: track("q1"),
     });
     await t.action(internal.musicReleaseDates.fill, { requestId: id });
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("No release date for q1"));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(console.warn).not.toHaveBeenCalled();
     stubSpotify();
+    fetchMock.mockResolvedValueOnce(json({}, 500));
+    await t.action(internal.musicReleaseDates.fill, { requestId: id });
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("No release date for q1"));
     fetchMock
       .mockResolvedValueOnce(json({ access_token: "token" }))
       .mockResolvedValueOnce(json({ album: { images: [] } }));
