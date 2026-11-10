@@ -441,7 +441,7 @@ export default function AdminScreen() {
   const lockedDivisions = new Set(lockedNames?.divisions ?? []);
   const holdersLoaded = profiles != null;
   const holdersOf = (holds: (a: Assignment) => boolean) =>
-    (profiles ?? []).filter((p) => (p.assignments ?? []).some(holds)).length;
+    (profiles ?? []).filter((p) => p.assignments.some(holds)).length;
   const personOptions = (people ?? []).map((person) => ({
     label: person.name ?? person.email,
     value: person.email,
@@ -617,7 +617,7 @@ export default function AdminScreen() {
   const assignableRoles =
     yearAssignableRoles.length > 0 ? yearAssignableRoles : STAFF_EDITABLE_ROLES;
   const directorExists = (profiles ?? []).some((p) =>
-    (p.assignments ?? []).some((a) => a.role === DIRECTOR),
+    p.assignments.some((a) => a.role === DIRECTOR),
   );
   const availableRoles = directorExists
     ? assignableRoles.filter((r) => r !== DIRECTOR)
@@ -784,10 +784,10 @@ export default function AdminScreen() {
     accentColour?: string | null,
   ) => {
     const isEditingThis = editingUserEmail === profile.email;
-    const lockedHeadAssignments = (profile.assignments ?? []).filter(
+    const lockedHeadAssignments = profile.assignments.filter(
       (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION,
     );
-    const savedAssignments: AssignmentDraft[] = (profile.assignments ?? [])
+    const savedAssignments: AssignmentDraft[] = profile.assignments
       .filter(
         (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION,
       )
@@ -801,7 +801,7 @@ export default function AdminScreen() {
       savedAssignments,
     );
     const savedRoles = [
-      ...new Set((profile.assignments ?? []).map((a) => a.role)),
+      ...new Set(profile.assignments.map((a) => a.role)),
     ];
     const canRemoveAssignment = (remaining: AssignmentDraft[]) =>
       lockedHeadAssignments.length > 0 ||
@@ -850,7 +850,7 @@ export default function AdminScreen() {
                 title="Save"
                 disabled={!assignmentsChanged}
                 onPress={() => {
-                  const isCurrentDirector = (profile.assignments ?? []).some(
+                  const isCurrentDirector = profile.assignments.some(
                     (a) => a.role === DIRECTOR,
                   );
                   if (
@@ -911,9 +911,9 @@ export default function AdminScreen() {
                 )}
               </View>
               {profile.name ? <Muted>{profile.email}</Muted> : null}
-              {(profile.assignments ?? []).length > 0 ? (
+              {profile.assignments.length > 0 ? (
                 <View style={{ marginTop: 2 }}>
-                  {(profile.assignments ?? []).map((a, i) => (
+                  {profile.assignments.map((a, i) => (
                     <Muted key={i}>
                       {formatAssignment(a, structure?.roleTitles)}
                     </Muted>
