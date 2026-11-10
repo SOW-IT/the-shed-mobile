@@ -281,6 +281,9 @@ describe("spotifyConnections.importPlaylist", () => {
     vi.stubEnv("SPOTIFY_CLIENT_ID", "client");
     fetchMock.mockResolvedValueOnce(json({}, 400));
     await expect(run()).rejects.toThrow("Spotify token refresh failed (400).");
+    fetchMock.mockResolvedValueOnce(new Response("Bad gateway", { status: 502 }));
+    await expect(run()).rejects.toThrow("Spotify token refresh failed (502).");
+    expect(await storedConnection(t, userId)).not.toBeNull();
 
     // Another import refreshed the token while this one waited.
     fetchMock.mockImplementationOnce(async () => {
@@ -300,5 +303,47 @@ describe("spotifyConnections.importPlaylist", () => {
     await expect(run()).rejects.toThrow("Spotify playlist unavailable (404).");
     fetchMock.mockResolvedValueOnce(json({ name: "x" })).mockResolvedValueOnce(json({}, 403));
     await expect(run()).rejects.toThrow("Spotify denied access to playlist songs (403).");
+  });
+
+  test("a token Spotify no longer accepts disconnects Spotify and asks to reconnect", async () => {
+    const { t, userId, as } = await setup();
+    const run = () => as.action(api.spotifyConnections.importPlaylist, { link: PLAYLIST });
+    const reconnect = "Spotify access has ended. Connect Spotify again from your Profile page.";
+
+    await connectWith(t, userId, Date.now() + 3_600_000);
+    fetchMock.mockResolvedValueOnce(json({ error: { status: 401 } }, 401));
+    await expect(run()).rejects.toThrow(reconnect);
+    expect(await storedConnection(t, userId)).toBeNull();
+    expect(await as.query(api.spotifyConnections.getConnection, {})).toEqual({ connected: false });
+
+    await connectWith(t, userId, Date.now() + 3_600_000);
+    fetchMock.mockResolvedValueOnce(json({ name: "x" })).mockResolvedValueOnce(json({}, 401));
+    await expect(run()).rejects.toThrow(reconnect);
+    expect(await storedConnection(t, userId)).toBeNull();
+
+    await connectWith(t, userId, Date.now());
+    fetchMock.mockResolvedValueOnce(json({ error: "invalid_grant" }, 400));
+    await expect(run()).rejects.toThrow(reconnect);
+    expect(await storedConnection(t, userId)).toBeNull();
+
+    await connectWith(t, userId, Date.now());
+    fetchMock
+      .mockResolvedValueOnce(json({ access_token: "access-2", expires_in: 3600 }))
+      .mockResolvedValueOnce(json({}, 401));
+    await expect(run()).rejects.toThrow(reconnect);
+    expect(await storedConnection(t, userId)).toBeNull();
+  });
+
+  test("reconnecting while an import is rejected keeps the new connection", async () => {
+    const { t, userId, as } = await setup();
+    await connectWith(t, userId, Date.now() + 3_600_000);
+    fetchMock.mockImplementationOnce(async () => {
+      await connectWith(t, userId, Date.now() + 3_600_000);
+      return json({}, 401);
+    });
+    await expect(
+      as.action(api.spotifyConnections.importPlaylist, { link: PLAYLIST }),
+    ).rejects.toThrow("Connect Spotify again");
+    expect(await storedConnection(t, userId)).not.toBeNull();
   });
 });

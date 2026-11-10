@@ -215,8 +215,9 @@ export const chosenAdmin = (ctx: Ctx, email: string) =>
 export async function requireAdmin(ctx: Ctx): Promise<CallerContext> {
   const caller = await requireProfile(ctx);
   if (!(await isAdminProfile(ctx, caller.profile))) {
+    const { admin } = await teamsFor(ctx, caller.profile.year);
     throw new ConvexError(
-      "Only admins can do this: the Director, Data and IT, and the people they've made admins."
+      `Only admins can do this: the Director, ${admin}, and the people they've made admins.`
     );
   }
   return caller;

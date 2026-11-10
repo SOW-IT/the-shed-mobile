@@ -7,6 +7,7 @@ import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { mayReviewReimbursements } from "./requests";
+import { SONGS_COUNTED } from "../shared/praiseList";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -103,6 +104,7 @@ const nothing = {
   reimbursements: { toReview: 0, toPay: 0, receipts: 0 },
   design: { toApprove: 0, toFinish: 0 },
   events: { toReview: 0, toFill: 0 },
+  songs: { toReview: 0 },
 };
 
 describe("waitingOnMe.summary", () => {
@@ -185,6 +187,40 @@ describe("waitingOnMe.summary", () => {
       ...nothing,
       reimbursements: { toReview: 0, toPay: 1, receipts: 0 },
     });
+  });
+
+  test("counts songs to review for Praise Managers, campus leaders included", async () => {
+    const t = await setup();
+    for (const email of [MARY, LEE]) {
+      await asUser(t, ADMIN).mutation(api.admin.addPraiseManager, { year: YEAR, email });
+    }
+    const song = (title: string) => ({ title, artist: "Hillsong", link: `https://example.com/${title}` });
+    await asUser(t, RACHEL).mutation(api.musicRequests.submit, song("one"));
+    await asUser(t, RACHEL).mutation(api.musicRequests.submit, song("two"));
+
+    expect(await summaryFor(t, MARY)).toEqual({ ...nothing, songs: { toReview: 2 } });
+    expect(await summaryFor(t, LEE)).toEqual({ ...nothing, songs: { toReview: 2 } });
+    expect(await summaryFor(t, RACHEL)).toEqual(nothing);
+
+    await asUser(t, ADMIN).mutation(api.admin.removePraiseManager, { year: YEAR, email: LEE });
+    expect(await summaryFor(t, LEE)).toBeNull();
+  });
+
+  test("stops counting songs one past the cap, so Home can say over 100", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.addPraiseManager, { year: YEAR, email: MARY });
+    await t.run(async (ctx) => {
+      for (let i = 0; i < SONGS_COUNTED + 5; i++) {
+        await ctx.db.insert("musicRequests", {
+          requesterEmail: RACHEL,
+          title: `Song ${i}`,
+          artist: "Hillsong",
+          link: `https://example.com/song-${i}`,
+          status: "PENDING",
+        });
+      }
+    });
+    expect((await summaryFor(t, MARY))?.songs).toEqual({ toReview: SONGS_COUNTED + 1 });
   });
 });
 

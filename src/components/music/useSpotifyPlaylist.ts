@@ -4,7 +4,6 @@ import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { errorMessage } from "@/components/ui";
-import { showNotice } from "@/lib/notice";
 import { api } from "../../../convex/_generated/api";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -33,6 +32,7 @@ export function useSpotifyPlaylist() {
     }
 
     setConnecting(true);
+    setError(null);
 
     try {
       await promptAsync();
@@ -49,6 +49,7 @@ export function useSpotifyPlaylist() {
   );
 
   const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const processedCodes = useRef(new Set<string>());
   const finishConnection = useCallback(
     async (code: string, codeVerifier: string) => {
@@ -63,7 +64,7 @@ export function useSpotifyPlaylist() {
           redirectUri,
         });
       } catch (error) {
-        showNotice("Couldn't connect Spotify", errorMessage(error));
+        setError(`Couldn't connect Spotify. ${errorMessage(error)}`);
       } finally {
         setConnecting(false);
       }
@@ -147,6 +148,7 @@ export function useSpotifyPlaylist() {
   }, [request, finishConnection]);
 
   const disconnect = async () => {
+    setError(null);
     await disconnectSpotify();
   };
 
@@ -158,6 +160,7 @@ export function useSpotifyPlaylist() {
     connected: connection?.connected ?? false,
     ready: connection !== undefined,
     connecting,
+    error,
     connect,
     disconnect,
     importPlaylist,

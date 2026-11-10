@@ -27,6 +27,7 @@ const RACHEL = "rachel@sow.org.au";
 const HENRY = "henry@sow.org.au";
 const BELLA = "bella@sow.org.au";
 const FIONA = "fiona@sow.org.au";
+const OSCAR = "oscar@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
@@ -394,6 +395,26 @@ describe("unreadCount + markRead", () => {
     ).toEqual({});
   });
 
+  test("someone outside a request gets no unread counts for it and leaves no read marker", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: OSCAR,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+    const id = await submit(t);
+    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "private" });
+    const oscar = asUser(t, OSCAR);
+    expect(await oscar.query(api.comments.unreadCount, { requestId: id })).toBeNull();
+    expect(await oscar.query(api.comments.unreadTotalForRequests, { requestIds: [id] })).toBe(0);
+    expect(await oscar.query(api.comments.unreadCountsForRequests, { requestIds: [id] })).toEqual({});
+    expect(await oscar.mutation(api.comments.markRead, { requestId: id })).toBeNull();
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("commentReads").take(10)).toHaveLength(0);
+    });
+  });
+
   test("myUnreadTotal counts unread comments on the caller's own requests", async () => {
     const t = await setup();
     expect(await asUser(t, RACHEL).query(api.comments.myUnreadTotal, {})).toBe(0);
@@ -479,6 +500,25 @@ describe("toggleReaction + list grouping", () => {
     list = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
     expect(list[0].reactions.find((r) => r.emoji === "👍")?.count).toBe(1);
     expect(list[0].reactions.find((r) => r.emoji === "👍")?.mine).toBe(false);
+  });
+
+  test("someone who can't see the request can't react to its comments", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: OSCAR,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+    const id = await submit(t);
+    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "hello" });
+    const [comment] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
+    await expect(
+      asUser(t, OSCAR).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "👍" })
+    ).rejects.toThrow(/Comment not found/);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("commentReactions").take(10)).toHaveLength(0);
+    });
   });
 
   test("rejects empty/oversized emoji and a missing comment", async () => {

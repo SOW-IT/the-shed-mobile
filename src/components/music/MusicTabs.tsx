@@ -467,7 +467,10 @@ function SongLink({ link }: { link: string }) {
 export const MyRequestsTab = ({
   onEditRequest,
   onDeleteRequest,
-}: MusicRowActions = {}) => {
+  onRequestAgain,
+}: MusicRowActions & {
+  onRequestAgain?: (request: Doc<"musicRequests">) => void;
+} = {}) => {
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const myRequests = useQuery(
@@ -515,6 +518,18 @@ export const MyRequestsTab = ({
                   />
                 ) : undefined
               }
+              footer={
+                item.status === "DECLINED" && onRequestAgain ? (
+                  <View style={{ alignItems: "flex-start" }}>
+                    <Btn
+                      title="Request again"
+                      icon="refresh-outline"
+                      variant="tonal"
+                      onPress={() => onRequestAgain(item)}
+                    />
+                  </View>
+                ) : undefined
+              }
             />
           )}
         />
@@ -525,10 +540,12 @@ export const MyRequestsTab = ({
 function MyRequestCard({
   request,
   actions,
+  footer,
   showRequester = false,
 }: {
   request: MusicRequest;
   actions?: ReactNode;
+  footer?: ReactNode;
   showRequester?: boolean;
 }) {
   const t = useAppTheme();
@@ -603,6 +620,7 @@ function MyRequestCard({
           </View>
         ) : null}
         {!!request.link && <SongLink link={request.link} />}
+        {footer}
       </View>
     </Card>
   );

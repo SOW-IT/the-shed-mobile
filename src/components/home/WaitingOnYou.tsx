@@ -3,8 +3,10 @@ import { useQuery } from "convex/react";
 import { type Href, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
+import { songsToReviewLabel } from "@shared/praiseList";
 import { plural } from "@shared/reminders";
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
+import { badgeText } from "@/lib/navMenu";
 import { AppIcon, type AppIconName, Card, FadeInView, Txt } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -63,6 +65,13 @@ const waitingRows = (
       count: summary.events.toFill,
       href: "/event-requests?tab=mine",
     },
+    {
+      key: "songsReview",
+      icon: "musical-notes-outline",
+      label: songsToReviewLabel(summary.songs.toReview),
+      count: summary.songs.toReview,
+      href: "/music?tab=review",
+    },
   ];
   return rows.filter((row) => row.count > 0);
 };
@@ -97,7 +106,7 @@ export const WaitingOnYou = () => {
             <Text style={[typography.body, { color: t.text, flex: 1 }]}>{row.label}</Text>
             <View style={[styles.count, { backgroundColor: t.accentSoft }]}>
               <Text style={[typography.caption, { color: t.accent, fontWeight: "800" }]}>
-                {row.count}
+                {badgeText(row.count)}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={t.faint} />

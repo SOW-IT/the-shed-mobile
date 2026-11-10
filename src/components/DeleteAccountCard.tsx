@@ -10,7 +10,7 @@ import { Btn, Card, ConfirmDialog, ErrorBanner, Muted } from "./ui";
 const WHAT_HAPPENS = {
   sow:
     "Your SOW Google account is unlinked from The SHED and every device is signed out. " +
-    "Your photo and church here are deleted and push notifications stop. " +
+    "Your photo, church and saved bank accounts here are deleted and push notifications stop. " +
     "Your staff profile and service history stay with SOW, and you can sign in again later.",
   apple:
     "Your SHED account is deleted for good: your name, email, photo, church, notifications " +

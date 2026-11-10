@@ -1,8 +1,8 @@
 import { useMinuteTick } from "@/hooks/useMinuteTick";
-import { showNotice } from "@/lib/notice";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
 import { uploadLocalFileToUrl } from "@/lib/uploadLocalFile";
-import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { isSowStaffAddress } from "@shared/rollcallImport";
 import { useMutation, useQuery } from "convex/react";
 import Constants from "expo-constants";
@@ -59,22 +59,25 @@ function SpotifyConnectionCard() {
   const t = useAppTheme();
   const spotify = useSpotifyPlaylist();
   const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const statusColor = spotify.connected ? t.success : t.danger;
 
   const handleConnect = async () => {
+    setError(null);
     try {
       await spotify.connect();
     } catch (e) {
-      showNotice("Spotify", errorMessage(e));
+      setError(`Couldn't connect Spotify. ${errorMessage(e)}`);
     }
   };
 
   const disconnect = async () => {
+    setError(null);
     try {
       await spotify.disconnect();
     } catch (e) {
-      showNotice("Couldn't disconnect Spotify", errorMessage(e));
+      setError(`Couldn't disconnect Spotify. ${errorMessage(e)}`);
     }
   };
 
@@ -182,6 +185,7 @@ function SpotifyConnectionCard() {
       <Muted>
         Lets you import your Spotify playlists into Praise List requests.
       </Muted>
+      <ErrorBanner message={error ?? spotify.error} />
       <ConfirmDialog
         visible={confirmingDisconnect}
         title="Disconnect Spotify?"

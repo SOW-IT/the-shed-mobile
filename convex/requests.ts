@@ -1345,10 +1345,11 @@ export const cancel = mutation({
       involvedApproverEmails(request, approvers, [APPROVED])
     );
     const step = currentStep(request);
-    if (step !== null) {
-      const pendingApprover = approverEmailFor(step, approvers);
-      if (pendingApprover && pendingApprover !== email) {
-        recipients.add(pendingApprover);
+    const pendingApprover = step === null ? undefined : approverEmailFor(step, approvers);
+    if (pendingApprover) {
+      const covering = await delegatesForOfficeholderYears(ctx, requestYear(request), pendingApprover);
+      for (const to of [pendingApprover, ...covering]) {
+        if (to !== email) recipients.add(to);
       }
     }
     for (const recipient of recipients) {
@@ -1461,15 +1462,19 @@ export const nudge = mutation({
     });
 
     const nudgerName = await displayName(ctx, caller.email, requestYear(request));
-    await notify(ctx, {
-      to,
-      actor: caller.email,
-      subject: `Nudge: a $${formatAmount(request.amount)} request is waiting on you`,
-      pushTitle: "You've been nudged",
-      body: `${nudgerName} is waiting on your action for a $${formatAmount(request.amount)} request.\n\n${requestSummary(request)}`,
-      url: requestUrl(to, request),
-      requestId: request._id,
-    });
+    const covering = await delegatesForOfficeholderYears(ctx, requestYear(request), to);
+    for (const recipient of [to, ...covering]) {
+      if (recipient === caller.email) continue;
+      await notify(ctx, {
+        to: recipient,
+        actor: caller.email,
+        subject: `Nudge: a $${formatAmount(request.amount)} request is waiting on you`,
+        pushTitle: "You've been nudged",
+        body: `${nudgerName} is waiting on your action for a $${formatAmount(request.amount)} request.\n\n${requestSummary(request)}`,
+        url: requestUrl(recipient, request),
+        requestId: request._id,
+      });
+    }
     return null;
   },
 });

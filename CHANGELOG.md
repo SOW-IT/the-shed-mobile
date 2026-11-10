@@ -6,7 +6,69 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.1] - 2026-11-10
+
+### Changed
+- **A declined song can be requested again.** Before, a song that had been
+  declined could never be asked for again, by anyone. Now the request form
+  says "This song was declined before" and sends it as a new request, and a
+  declined song under Mine has a **Request again** button. The declined
+  request stays as it was, with its reason. A song that's pending or already
+  on the Praise List still can't be requested twice.
+- **Praise Managers are chosen in Admin → Teams**, next to Admins, instead of
+  Admin → System. Adding one is a search like adding an admin, and removing
+  one asks by name instead of by email.
+- **Home's "Waiting on you" counts songs to review** for Praise Managers, as
+  the side menu already did.
+- **Praise Managers are emailed about each song request**, as well as the
+  push they already got. The email has the title, artist, link and the
+  requester's note, and a link to To review. Several songs sent together are
+  one email listing them all, and a push for a single song in a batch now
+  names it instead of saying "1 song".
+
+### Fixed
+- **The app ships three icon fonts again, not nineteen.** 2.9.17 cut the
+  icon fonts down to the ones the app uses, and the Praise List brought all
+  19 back. Fonts are now 1.9 MB instead of 4 MB, so downloads and updates
+  are about 2 MB smaller. The third font is for the Spotify logo on Profile.
+- **The Praise List page explains itself when you can't use it.** Signed out,
+  it asks you to sign in and brings you back; signed in without a role this
+  year, it says the Praise List is for SOW staff. Before, both saw empty tabs
+  with no explanation.
+- **Spotify and Praise List errors show in the app on the website too.**
+  Connecting or disconnecting Spotify on Profile, and a song that couldn't be
+  deleted, showed a browser pop-up on the website. They now show on the
+  Profile card and as a toast, as on phones.
+- An admin action refused to someone who isn't an admin names the
+  department that's always admin this year instead of always saying "Data
+  and IT".
+- **Deleting your account deletes your saved bank accounts.** The account
+  name, BSB and number stayed behind and came back for the next sign-in
+  with that email.
+- **Only people who can see a request can react to its comments or mark
+  them read,** and unread comment counts only cover requests you can see.
+- **A changed sign-in email keeps your roles and requests.** Being an
+  admin, Director or Praise Manager, saved bank accounts, song, design and
+  event requests, grievances and notifications now move to the new email
+  with your staff profile and reimbursement requests.
+- **A delegate covering for a Head is nudged and told about cancellations**
+  as well as the Head, as they already were about new requests.
+- **Spotify asks you to reconnect after you remove The SHED's access.**
+  Importing a playlist said the link was wrong. It now disconnects Spotify
+  and asks you to connect it again from Profile.
+- **Mine loads faster with declined songs in it.** Whether a declined song
+  can be requested again is checked when you tap **Request again**, which
+  says so if someone else's request for that recording is pending or on the
+  Praise List.
+
 ## [2.11.0] - 2026-11-09
+
+### Added
+- **Praise List** (`/music`, in the side menu for staff): the approved
+  worship songs, searchable and sortable, and requests to add more from a
+  Spotify or YouTube link or typed in, reviewed by Praise Managers chosen in
+  Admin. It went live on 6 and 8 November under 2.10.32's and 2.10.33's
+  version numbers without an entry of its own; the fixes below came after.
 
 ### Fixed
 - **Praise List works on the website.** Messages and questions on the
