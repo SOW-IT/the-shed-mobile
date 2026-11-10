@@ -7,7 +7,7 @@ import {
   announcementStatusValidator,
   audienceValidator,
 } from "./announcementData";
-import { calendarCategoryValidator, entryFields } from "./calendarData";
+import { entryFields } from "./calendarData";
 import {
   designAnswersValidator,
   designStatusValidator,
@@ -519,7 +519,6 @@ export default defineSchema({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(weeklyMarkValidator),
-    category: v.optional(calendarCategoryValidator),
     // The approved event request this attendance event comes from.
     eventRequestId: v.optional(v.id("eventRequests")),
     checkIn: v.optional(
@@ -544,6 +543,7 @@ export default defineSchema({
   // Calendar entries that don't take attendance; attendance events show on the calendar too.
   calendarEntries: defineTable({
     ...entryFields,
+    subgroups: v.optional(v.array(v.string())),
     createdBy: v.string(),
     // The approved event request this calendar event comes from.
     eventRequestId: v.optional(v.id("eventRequests")),

@@ -60,13 +60,10 @@ export const campusColourOf = (
     ? universityColour(subgroups[0])
     : undefined;
 
-// Calendar entries have no campus; `subgroups` is only checked when an
-// older version of the app still sends it.
 export type EntryInput = {
   name: string;
   dateStart: number;
   dateEnd: number;
-  subgroups?: string[];
   notes?: string;
   due?: Due;
 };
@@ -74,13 +71,12 @@ export type EntryInput = {
 export const normalizeEntry = <E extends EntryInput>(entry: E): E => ({
   ...entry,
   name: entry.name.trim(),
-  subgroups: [...new Set(entry.subgroups ?? [])],
   notes: entry.notes?.trim() || undefined,
   // Always present, so turning a deadline back into an event clears it.
   due: entry.due,
 });
 
-export const entryProblem = (entry: EntryInput, validSubgroups: string[]): string | null => {
+export const entryProblem = (entry: EntryInput): string | null => {
   if (!entry.name) return "Give it a name.";
   if (entry.name.length > MAX_ENTRY_NAME) return `The name can be at most ${MAX_ENTRY_NAME} characters.`;
   if (entry.due) {
@@ -90,8 +86,6 @@ export const entryProblem = (entry: EntryInput, validSubgroups: string[]): strin
   } else if (entry.dateEnd - entry.dateStart > MAX_SPAN_DAYS * DAY_MS) {
     return `It can run for at most ${MAX_SPAN_DAYS} days.`;
   }
-  const unknown = (entry.subgroups ?? []).find((s) => !validSubgroups.includes(s));
-  if (unknown) return `"${unknown}" isn't a campus this year.`;
   if ((entry.notes?.length ?? 0) > MAX_ENTRY_NOTES) {
     return `Notes can be at most ${MAX_ENTRY_NOTES} characters.`;
   }

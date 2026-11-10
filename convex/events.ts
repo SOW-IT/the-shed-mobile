@@ -49,7 +49,6 @@ import {
   startEventAttendanceCount,
 } from "./attendanceCounts";
 import { deleteRollCallOrder, rankingInputsChanged, scheduleRank } from "./rollCallOrder";
-import { calendarCategoryValidator } from "./calendarData";
 import { calendarSyncConfigured } from "./googleCalendar";
 
 const weeklyMarkArg = v.object({
@@ -375,7 +374,6 @@ type NewEvent = {
   subgroups: string[];
   tagIds?: Id<"attendanceTags">[];
   weekly?: WeeklyMark;
-  category?: Doc<"events">["category"];
 };
 
 // Creates an attendance event with everything that comes with one: its count,
@@ -383,13 +381,12 @@ type NewEvent = {
 export async function insertEvent(
   ctx: MutationCtx,
   actorEmail: string,
-  { category, ...fields }: NewEvent,
+  fields: NewEvent,
   eventRequestId?: Id<"eventRequests">
 ): Promise<Id<"events">> {
   const eventFields = await validateEventFields(ctx, fields);
   const eventId = await ctx.db.insert("events", {
     ...eventFields,
-    category,
     ...(eventRequestId ? { eventRequestId } : {}),
   });
   await startEventAttendanceCount(ctx, eventId);
@@ -414,7 +411,6 @@ export const create = mutation({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(weeklyMarkArg),
-    category: v.optional(calendarCategoryValidator),
     // A calendar entry this event replaces, when an entry starts taking attendance.
     replacesEntryId: v.optional(v.id("calendarEntries")),
   },
@@ -466,12 +462,12 @@ export const update = mutation({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     weekly: v.optional(v.union(v.null(), weeklyMarkArg)),
-    category: v.optional(v.union(v.null(), calendarCategoryValidator)),
+    category: v.optional(v.null()),
   },
   returns: v.null(),
   handler: async (
     ctx,
-    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly, category }
+    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly }
   ) => {
     const { email } = await requireProfile(ctx);
     const existing = await ctx.db.get(eventId);
@@ -490,8 +486,7 @@ export const update = mutation({
       tagIds,
       weekly: weekly === undefined ? existing.weekly : weekly,
     });
-    const nextCategory = category === undefined ? existing.category : (category ?? undefined);
-    await ctx.db.patch(eventId, { ...eventFields, category: nextCategory });
+    await ctx.db.patch(eventId, eventFields);
     if (rankingInputsChanged(existing, { ...existing, ...eventFields })) {
       await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
     }
@@ -505,7 +500,6 @@ export const update = mutation({
       changes.push("tags");
     if (JSON.stringify(existing.weekly ?? null) !== JSON.stringify(eventFields.weekly ?? null))
       changes.push("term and week");
-    if (existing.category !== nextCategory) changes.push("calendar category");
     await syncToGoogle(ctx, eventId);
     if (changes.length) {
       await logAttendanceAction(ctx, {
