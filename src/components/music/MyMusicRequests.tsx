@@ -26,6 +26,7 @@ import {
 } from "../../../convex/shared/musicLinks";
 import { parseYouTubeSong } from "../../../convex/shared/youtube";
 import { useSpotifyPlaylist } from "./useSpotifyPlaylist";
+import { GuideSheet } from "@/components/ui/GuideSheet";
 
 export type MusicRequest = Doc<"musicRequests">;
 type SpotifySearchResult = FunctionReturnType<typeof api.spotify.searchTracks>[number];
@@ -1311,36 +1312,14 @@ export const MusicGuideSheet = ({
 }: {
   visible: boolean;
   onClose: () => void;
-}) => {
-  const t = useAppTheme();
-  return (
-    <Sheet
-      visible={visible}
-      onClose={onClose}
-      title="How to submit a music request"
-    >
-      {buildGuideSteps().map((step, i) => (
-        <View key={i} style={styles.guideStep}>
-          <View
-            style={[styles.guideIconWrap, { backgroundColor: t.primarySoft }]}
-          >
-            <Ionicons name={step.icon} size={18} color={t.primary} />
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text
-              style={[typography.caption, { color: t.text, fontWeight: "700" }]}
-            >
-              {step.title}
-            </Text>
-            <Text style={[typography.caption, { color: t.muted }]}>
-              {step.detail}
-            </Text>
-          </View>
-        </View>
-      ))}
-    </Sheet>
-  );
-};
+}) => (
+  <GuideSheet
+    visible={visible}
+    onClose={onClose}
+    title="How to submit a music request"
+    steps={buildGuideSteps()}
+  />
+);
 const styles = StyleSheet.create({
   searchResult: {
     flexDirection: "row",
@@ -1377,18 +1356,5 @@ const styles = StyleSheet.create({
     width: 76,
     height: 76,
     borderRadius: radius.sm,
-  },
-  guideStep: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.md,
-  },
-  guideIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
   },
 });
