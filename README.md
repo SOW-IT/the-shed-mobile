@@ -218,7 +218,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   button under Mine. YouTube songs carry
   no ISRC, so one song from both services is only caught by its title and
   artist. **Praise Managers**
-  (Admin → Teams, per staff year, carried into the new year on 1 October)
+  (chosen by admins on the Praise List's Praise Managers tab, per staff year,
+  carried into the new year on 1 October)
   get a To review tab to approve or decline with an optional reason, a count
   of waiting songs in the side menu and on Home's "Waiting on you", and a
   push and an email for each request (one for a batch, listing every song

@@ -1,4 +1,4 @@
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
@@ -8,6 +8,7 @@ import {
   ConfirmDialog,
   ErrorBanner,
   IconButton,
+  LoadingState,
   Muted,
   OptionRow,
   OptionSheet,
@@ -130,6 +131,23 @@ export const PraiseManagersCard = ({
         onClose={() => setRemoving(null)}
       />
     </View>
+  );
+};
+
+export const PraiseManagersTab = ({ year }: { year: number }) => {
+  const structure = useQuery(api.directory.yearStructure, { year });
+  const profiles = useQuery(api.admin.listStaffProfiles, { year });
+  if (structure === undefined || profiles === undefined) return <LoadingState />;
+  return (
+    <PraiseManagersCard
+      year={year}
+      emails={structure?.praiseManagerEmails ?? []}
+      staff={(profiles ?? []).map((profile) => ({
+        email: profile.email,
+        name: profile.name ?? profile.email,
+      }))}
+      editable
+    />
   );
 };
 
