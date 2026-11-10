@@ -1,7 +1,6 @@
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { AdminsCard } from "@/components/admin/AdminsCard";
-import { PraiseManagersCard } from "@/components/admin/PraiseManagersCard";
 import { AppErrorsCard } from "@/components/admin/AppErrorsCard";
 import { TeamJobsCard } from "@/components/admin/TeamJobsCard";
 import {
@@ -1870,16 +1869,6 @@ export default function AdminScreen() {
         <CardGrid>
           <AdminsCard />
           <TeamJobsCard key={selectedYear} year={selectedYear} />
-          <PraiseManagersCard
-            key={`praise-${selectedYear}`}
-            year={selectedYear}
-            emails={structure?.praiseManagerEmails ?? []}
-            staff={(profiles ?? []).map((profile) => ({
-              email: profile.email,
-              name: profile.name ?? profile.email,
-            }))}
-            editable={isAdmin && editable}
-          />
         </CardGrid>
       )}
 

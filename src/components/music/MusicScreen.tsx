@@ -25,6 +25,7 @@ import {
   type MusicRequest,
   NewMusicRequestSheet,
 } from "./MyMusicRequests";
+import { PraiseManagersTab } from "./PraiseManagersCard";
 
 export default function MusicScreen() {
   const convex = useConvex();
@@ -166,6 +167,15 @@ export default function MusicScreen() {
                 onDeleteRequest={canManageRequests ? handleDelete : undefined}
               />
             ),
+          },
+        ]
+      : []),
+    ...(me?.isAdmin
+      ? [
+          {
+            key: "praiseManagers",
+            label: "Praise Managers",
+            render: () => <PraiseManagersTab currentYear={me.year} />,
           },
         ]
       : []),

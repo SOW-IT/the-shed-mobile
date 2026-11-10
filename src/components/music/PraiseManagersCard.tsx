@@ -1,4 +1,4 @@
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
@@ -8,12 +8,14 @@ import {
   ConfirmDialog,
   ErrorBanner,
   IconButton,
+  LoadingState,
   Muted,
   OptionRow,
   OptionSheet,
   runBusy,
   SearchField,
   SectionTitle,
+  Segmented,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
@@ -129,6 +131,38 @@ export const PraiseManagersCard = ({
         }}
         onClose={() => setRemoving(null)}
       />
+    </View>
+  );
+};
+
+export const PraiseManagersTab = ({ currentYear }: { currentYear: number }) => {
+  const [year, setYear] = useState(currentYear);
+  const structure = useQuery(api.directory.yearStructure, { year });
+  const profiles = useQuery(api.admin.listStaffProfiles, { year });
+  return (
+    <View style={{ gap: spacing.md }}>
+      <Segmented
+        segments={[currentYear, currentYear + 1].map((option) => ({
+          key: String(option),
+          label: option === currentYear ? `This year (${option})` : `Next year (${option})`,
+        }))}
+        active={String(year)}
+        onChange={(key) => setYear(Number(key))}
+      />
+      {structure === undefined || profiles === undefined ? (
+        <LoadingState />
+      ) : (
+        <PraiseManagersCard
+          key={year}
+          year={year}
+          emails={structure?.praiseManagerEmails ?? []}
+          staff={(profiles ?? []).map((profile) => ({
+            email: profile.email,
+            name: profile.name ?? profile.email,
+          }))}
+          editable
+        />
+      )}
     </View>
   );
 };

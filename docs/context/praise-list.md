@@ -30,7 +30,8 @@ batch is one push and one email listing every song.
 _Avoid_: submission, ticket
 
 **Praise Manager**:
-Someone an admin has chosen in Admin → Teams for one staff year
+Someone an admin has chosen on the Praise List's **Praise Managers** tab for
+one staff year
 (`yearSettings.praiseManagerEmails`, carried into the next year on 1 October
 while they're still on staff). They approve and decline under **To review**,
 edit and delete any Pending or Approved song, and their own songs go straight
