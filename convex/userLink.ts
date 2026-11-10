@@ -52,15 +52,14 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
   }
 
   const settings = await ctx.db.query("yearSettings").take(100);
+  const isOldEmail = (e: string | undefined) => e?.toLowerCase() === oldEmail.toLowerCase();
   for (const setting of settings) {
     const praiseManagers = setting.praiseManagerEmails ?? [];
-    const renamedPraiseManagers = praiseManagers.map((e) =>
-      e.toLowerCase() === oldEmail ? newEmail : e
-    );
+    const renamedPraiseManagers = praiseManagers.map((e) => (isOldEmail(e) ? newEmail : e));
     const patch = {
-      ...(setting.budgetManagerEmail === oldEmail ? { budgetManagerEmail: newEmail } : {}),
-      ...(setting.directorEmail === oldEmail ? { directorEmail: newEmail } : {}),
-      ...(praiseManagers.some((e) => e.toLowerCase() === oldEmail)
+      ...(isOldEmail(setting.budgetManagerEmail) ? { budgetManagerEmail: newEmail } : {}),
+      ...(isOldEmail(setting.directorEmail) ? { directorEmail: newEmail } : {}),
+      ...(praiseManagers.some(isOldEmail)
         ? {
             praiseManagerEmails: renamedPraiseManagers.filter(
               (e, i) =>

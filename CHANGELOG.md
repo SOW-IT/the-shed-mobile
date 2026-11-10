@@ -47,7 +47,7 @@ All notable changes to **The SHED** mobile app. This project follows
   with that email.
 - **Only people who can see a request can react to its comments or mark
   them read,** and unread comment counts only cover requests you can see.
-- **A changed sign-in email keeps everything that was yours.** Being an
+- **A changed sign-in email keeps your roles and requests.** Being an
   admin, Director or Praise Manager, saved bank accounts, song, design and
   event requests, grievances and notifications now move to the new email
   with your staff profile and reimbursement requests.

@@ -303,7 +303,8 @@ describe("email changes: the person stays the same", () => {
       await ctx.db.insert("admins", { email: OLD, addedBy: ADMIN, addedAt: 0 });
       await ctx.db.insert("yearSettings", {
         year: YEAR + 5,
-        directorEmail: OLD,
+        directorEmail: "LEE.OLD@sow.org.au",
+        budgetManagerEmail: "Lee.Old@SOW.org.au",
         praiseManagerEmails: ["Lee.Old@sow.org.au", NEW, OTHER],
       });
       const accounts: [string, string, true | undefined][] = [
@@ -379,7 +380,11 @@ describe("email changes: the person stays the same", () => {
         .query("yearSettings")
         .withIndex("by_year", (q) => q.eq("year", YEAR + 5))
         .unique();
-      expect(settings).toMatchObject({ directorEmail: NEW, praiseManagerEmails: [NEW, OTHER] });
+      expect(settings).toMatchObject({
+        directorEmail: NEW,
+        budgetManagerEmail: NEW,
+        praiseManagerEmails: [NEW, OTHER],
+      });
       const accounts = await ctx.db.query("savedBankAccounts").take(10);
       expect(
         accounts

@@ -18,7 +18,7 @@ import { api } from "@convex/_generated/api";
 import { staffOnlyMessage } from "@shared/staffOnly";
 import { useConvex, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ApprovedPlaylistTab, MyRequestsTab, ToReviewTab } from "./MusicTabs";
 import {
   MusicGuideSheet,
@@ -55,10 +55,13 @@ export default function MusicScreen() {
   const [toast, setToast] = useState<ToastState>(null);
   const [pendingDelete, setPendingDelete] = useState<MusicRequest | null>(null);
 
+  const latestRequestAgainCheck = useRef(0);
+
   const handleEdit = (
     request: MusicRequest,
     source: "approved" | "myRequests" | "toReview",
   ) => {
+    latestRequestAgainCheck.current++;
     setRequestPrefill(request);
     setRequestAgain(null);
     setHideRequestComment(source !== "myRequests");
@@ -66,6 +69,7 @@ export default function MusicScreen() {
   };
 
   const handleRequestAgain = async (request: MusicRequest) => {
+    const check = ++latestRequestAgainCheck.current;
     const open = await convex
       .query(api.musicRequests.checkDuplicate, {
         link: request.link,
@@ -75,6 +79,7 @@ export default function MusicScreen() {
         excludeId: request._id,
       })
       .catch(() => null);
+    if (check !== latestRequestAgainCheck.current) return;
     if (open?.kind === "exact") {
       setToast({
         text: `This recording was already requested (${open.status.toLowerCase()}).`,
@@ -105,6 +110,7 @@ export default function MusicScreen() {
 
   // Open a blank music request form
   const openNewRequest = () => {
+    latestRequestAgainCheck.current++;
     setRequestPrefill(null);
     setRequestAgain(null);
     setHideRequestComment(false);
