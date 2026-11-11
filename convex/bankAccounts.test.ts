@@ -1,11 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { api } from "./_generated/api";
-import { type T, YEAR, ADMIN, asUser, seeded } from "../test/convexFixture";
+import { type T, asUser } from "../test/convexFixture";
+import { HENRY, RACHEL, FIONA, BELLA, reimbursementSetup } from "../test/requestFlows";
 
-const RACHEL = "rachel@sow.org.au";
-const HENRY = "henry@sow.org.au";
-const BELLA = "bella@sow.org.au";
-const FIONA = "fiona@sow.org.au";
 
 const file = async (t: T) => ({
   storageId: await t.run((ctx) =>
@@ -13,31 +10,6 @@ const file = async (t: T) => ({
   ),
   name: "receipt.pdf",
 });
-
-async function setup() {
-  const t = await seeded();
-  const admin = asUser(t, ADMIN);
-  await admin.mutation(api.admin.upsertDepartment, {
-    year: YEAR,
-    name: "Marketing",
-    division: "Engagement",
-    headEmail: HENRY,
-  });
-  await admin.mutation(api.admin.upsertDepartment, {
-    year: YEAR,
-    name: "Finance",
-    division: "Governance",
-    headEmail: FIONA,
-  });
-  for (const a of [
-    { email: RACHEL, roles: ["Staff"], department: "Marketing" },
-    { email: BELLA, roles: ["Staff"], department: "Finance" },
-  ]) {
-    await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
-  }
-  await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-  return t;
-}
 
 async function approvedRequest(t: T, amount = 100) {
   await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount });
@@ -56,7 +28,7 @@ async function approvedRequest(t: T, amount = 100) {
 
 describe("listMine", () => {
   test("null while auth attaches, empty when nothing saved", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     expect(await t.query(api.bankAccounts.listMine, {})).toBeNull();
     expect(await asUser(t, RACHEL).query(api.bankAccounts.listMine, {})).toEqual([]);
   });
@@ -64,7 +36,7 @@ describe("listMine", () => {
 
 describe("auto-save on receipt submission", () => {
   test("remembers each recipient's account, deduped and most-recent-first", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await approvedRequest(t, 300);
     const attachment = await file(t);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
@@ -98,7 +70,7 @@ describe("auto-save on receipt submission", () => {
   });
 
   test("trims the account name before saving", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await approvedRequest(t);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id,
@@ -114,7 +86,7 @@ describe("auto-save on receipt submission", () => {
 
 describe("setPreferred", () => {
   test("marks one account preferred and clears the others, rejects non-owner", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id1 = await approvedRequest(t, 50);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id1,
@@ -144,7 +116,7 @@ describe("setPreferred", () => {
 
 describe("updateAccount", () => {
   test("edits name, BSB and account number of own account", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await approvedRequest(t);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id,
@@ -168,7 +140,7 @@ describe("updateAccount", () => {
   });
 
   test("rejects another user updating someone else's account", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await approvedRequest(t);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id,
@@ -188,7 +160,7 @@ describe("updateAccount", () => {
   });
 
   test("rejects changing to BSB/account-number already owned by another saved account", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id1 = await approvedRequest(t, 50);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id1,
@@ -212,7 +184,7 @@ describe("updateAccount", () => {
   });
 
   test("rejects blank fields", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await approvedRequest(t);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id,
@@ -250,7 +222,7 @@ describe("updateAccount", () => {
 
 describe("addAccount", () => {
   test("adds a new account, trims the name, and marks it preferred", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
       accountName: "  Rachel  ",
       bsb: "111111",
@@ -267,7 +239,7 @@ describe("addAccount", () => {
   });
 
   test("rejects an unauthenticated caller and blank fields", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     await expect(
       t.mutation(api.bankAccounts.addAccount, {
         accountName: "Rachel",
@@ -299,7 +271,7 @@ describe("addAccount", () => {
   });
 
   test("defaults to non-preferred; only re-prefers when makePreferred is set", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
       accountName: "X",
       bsb: "111111",
@@ -330,7 +302,7 @@ describe("addAccount", () => {
   });
 
   test("adding without opting in keeps the current (implicit) preferred account", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id1 = await approvedRequest(t, 50);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id1,
@@ -356,7 +328,7 @@ describe("addAccount", () => {
   });
 
   test("de-dupes onto an existing account by BSB + number and re-prefers it", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
       accountName: "X",
       bsb: "111111",
@@ -390,7 +362,7 @@ describe("addAccount", () => {
 
 describe("remove", () => {
   test("forgets the caller's own account but not someone else's", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await approvedRequest(t);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id,
@@ -414,7 +386,7 @@ describe("remove", () => {
   });
 
   test("deleting the preferred account promotes the next most-recently-used", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id1 = await approvedRequest(t, 50);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id1,

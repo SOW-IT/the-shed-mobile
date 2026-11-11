@@ -52,6 +52,18 @@ export async function flowSetup(extra: Person[] = [], convex?: T) {
   return t;
 }
 
+export async function reimbursementSetup(convex?: T, { director = false } = {}) {
+  const t = await seeded(convex);
+  const admin = asUser(t, ADMIN);
+  await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY });
+  await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA });
+  await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: RACHEL, roles: ["Staff"], department: "Marketing" });
+  await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: BELLA, roles: ["Staff"], department: "Finance" });
+  if (director) await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: DAN, roles: ["Director"] });
+  await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+  return t;
+}
+
 export const designAnswers = (over: DesignAnswers = {}): DesignAnswers => ({
   department: "Events",
   types: ["promotion"],

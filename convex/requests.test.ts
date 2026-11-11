@@ -21,45 +21,15 @@ import {
   newConvex,
   asUser,
   pinClock,
-  seeded,
   storedReceipt,
 } from "../test/convexFixture";
+import { HENRY, RACHEL, FIONA, BELLA, DAN, reimbursementSetup } from "../test/requestFlows";
 
 const FIRST_PAGE = { paginationOpts: { numItems: 50, cursor: null } };
 pinClock();
 
-const RACHEL = "rachel@sow.org.au";
-const HENRY = "henry@sow.org.au";
-const BELLA = "bella@sow.org.au";
-const FIONA = "fiona@sow.org.au";
-const DAN = "dan@sow.org.au";
 
-async function setup(convex?: T) {
-  const t = await seeded(convex);
-  const admin = asUser(t, ADMIN);
-  await admin.mutation(api.admin.upsertDepartment, {
-    year: YEAR,
-    name: "Marketing",
-    division: "Engagement",
-    headEmail: HENRY,
-  });
-  await admin.mutation(api.admin.upsertDepartment, {
-    year: YEAR,
-    name: "Finance",
-    division: "Governance",
-    headEmail: FIONA,
-  });
-  const assignments: { email: string; roles: string[]; department?: string }[] = [
-    { email: RACHEL, roles: ["Staff"], department: "Marketing" },
-    { email: BELLA, roles: ["Staff"], department: "Finance" },
-    { email: DAN, roles: ["Director"] },
-  ];
-  for (const a of assignments) {
-    await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: a.email, roles: a.roles, department: a.department });
-  }
-  await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-  return t;
-}
+const setup = (convex?: T) => reimbursementSetup(convex, { director: true });
 
 async function approveAll(t: T, requestId: Id<"requests">) {
   await asUser(t, HENRY).mutation(api.requests.approve, { requestId, step: "hod" });
