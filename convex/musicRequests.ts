@@ -34,7 +34,9 @@ async function praiseManagerEmailsForYear(
     .query("yearSettings")
     .withIndex("by_year", (q) => q.eq("year", year))
     .first();
-  return settings?.praiseManagerEmails ?? [];
+  return (settings?.praiseManagerEmails ?? [])
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 /** Check whether the caller is an assigned Praise Manager. */
@@ -94,9 +96,7 @@ async function tellPraiseManagers(
 ) {
   const year = currentStaffYear();
   const managers = new Set(
-    (await praiseManagerEmailsForYear(ctx, year))
-      .map((email) => email.trim().toLowerCase())
-      .filter((email) => email && email !== requesterEmail),
+    (await praiseManagerEmailsForYear(ctx, year)).filter((email) => email !== requesterEmail),
   );
   if (!managers.size) return;
   const name = await displayName(ctx, requesterEmail, year);
