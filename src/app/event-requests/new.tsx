@@ -5,13 +5,12 @@ import { Fragment, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { answersProblemAt, normalizeAnswers, questionNumber, sydneyToday } from "@shared/forms";
+import { sydneyToday } from "@shared/forms";
 import { SUB_FORM_KINDS, SUB_FORM_LABELS } from "@shared/eventRequests";
 import { staffOnlyMessage } from "@shared/staffOnly";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
-  answersFromDraft,
   draftFromAnswers,
   emptyDraft,
   FormQuestions,
@@ -19,7 +18,6 @@ import {
 } from "@/components/forms/FormQuestions";
 import {
   EmptyState,
-  errorMessage,
   FooterAction,
   LoadingState,
   ReadableColumn,
@@ -28,6 +26,7 @@ import {
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { backOr } from "@/lib/goBack";
+import { useFormSave } from "@/components/forms/useFormSave";
 
 const REQUEST_STEPS = ["Event", ...SUB_FORM_KINDS.map((kind) => SUB_FORM_LABELS[kind])];
 
@@ -82,9 +81,7 @@ export default function EventRequestFormScreen() {
   const create = useMutation(api.eventRequests.create);
   const update = useMutation(api.eventRequests.update);
   const [draft, setDraft] = useState<FormDraft | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [problem, setProblem] = useState<{ key: string; message: string } | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { error, problem, saving, save: saveForm, clear } = useFormSave();
   const [leadCutoff] = useState(() => sydneyToday(new Date(Date.now() + LEAD_DAYS * DAY)));
 
   const fields = forms?.event;
@@ -145,32 +142,22 @@ export default function EventRequestFormScreen() {
   const start = typeof draft.start === "string" ? draft.start.slice(0, 10) : "";
   const soon = start.length === 10 && start >= today && start < leadCutoff;
 
-  const save = async () => {
-    if (saving) return;
-    const answers = normalizeAnswers(fields, answersFromDraft(fields, draft));
-    const found = answersProblemAt(fields, answers, today, existing?.event.answers);
-    setProblem(found);
-    if (found) {
-      const number = questionNumber(fields, answers, found.key);
-      setError(number === undefined ? found.message : `Question ${number}: ${found.message}`);
-      return;
-    }
-    setError(null);
-    setSaving(true);
-    try {
-      if (existing) {
-        await update({ id: existing.event._id, answers });
-        goBack();
-      } else {
-        const id: Id<"eventRequests"> = await create({ answers });
-        router.replace(`/event-requests/${id}`);
-      }
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setSaving(false);
-    }
-  };
+  const save = () =>
+    saveForm({
+      fields,
+      draft,
+      today,
+      previous: existing?.event.answers,
+      persist: async (answers) => {
+        if (existing) {
+          await update({ id: existing.event._id, answers });
+          goBack();
+        } else {
+          const id: Id<"eventRequests"> = await create({ answers });
+          router.replace(`/event-requests/${id}`);
+        }
+      },
+    });
 
   return (
     <Screen
@@ -194,8 +181,7 @@ export default function EventRequestFormScreen() {
             draft={draft}
             onChange={(next) => {
               setDraft(next);
-              if (error) setError(null);
-              if (problem) setProblem(null);
+              clear();
             }}
             departments={departments}
             minDate={minDate}

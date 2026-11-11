@@ -3,18 +3,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import {
-  designAnswersProblemAt,
-  designRequestName,
-  normalizeDesignAnswers,
-  questionNumber,
-  sydneyToday,
-} from "@shared/designRequests";
+import { designRequestName, sydneyToday } from "@shared/designRequests";
 import { staffOnlyMessage } from "@shared/staffOnly";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
-  answersFromDraft,
   draftFromAnswers,
   emptyDraft,
   FormQuestions,
@@ -25,7 +18,6 @@ import {
   Btn,
   Card,
   EmptyState,
-  errorMessage,
   FooterAction,
   LoadingState,
   Muted,
@@ -35,6 +27,7 @@ import {
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { backOr } from "@/lib/goBack";
+import { useFormSave } from "@/components/forms/useFormSave";
 
 export default function DesignRequestFormScreen() {
   const t = useAppTheme();
@@ -52,9 +45,7 @@ export default function DesignRequestFormScreen() {
   const submit = useMutation(api.designRequests.submit);
   const update = useMutation(api.designRequests.update);
   const [draft, setDraft] = useState<FormDraft | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [problem, setProblem] = useState<{ key: string; message: string } | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { error, problem, saving, save: saveForm, clear } = useFormSave();
 
   const defaultDepartment = me?.profile?.department ?? "";
   useEffect(() => {
@@ -116,32 +107,22 @@ export default function DesignRequestFormScreen() {
     ...new Set([...(structure?.departments ?? []).map((d) => d.name), ...picked]),
   ].sort();
 
-  const save = async () => {
-    if (saving) return;
-    const answers = normalizeDesignAnswers(fields, answersFromDraft(fields, draft));
-    const found = designAnswersProblemAt(fields, answers, today, existing?.request.answers);
-    setProblem(found);
-    if (found) {
-      const number = questionNumber(fields, answers, found.key);
-      setError(number === undefined ? found.message : `Question ${number}: ${found.message}`);
-      return;
-    }
-    setError(null);
-    setSaving(true);
-    try {
-      if (existing) {
-        await update({ id: existing.request._id, answers });
-        goBack();
-      } else {
-        const id: Id<"designRequests"> = await submit({ answers });
-        router.replace(`/design-requests/${id}`);
-      }
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setSaving(false);
-    }
-  };
+  const save = () =>
+    saveForm({
+      fields,
+      draft,
+      today,
+      previous: existing?.request.answers,
+      persist: async (answers) => {
+        if (existing) {
+          await update({ id: existing.request._id, answers });
+          goBack();
+        } else {
+          const id: Id<"designRequests"> = await submit({ answers });
+          router.replace(`/design-requests/${id}`);
+        }
+      },
+    });
 
   return (
     <Screen
@@ -181,8 +162,7 @@ export default function DesignRequestFormScreen() {
           draft={draft}
           onChange={(next) => {
             setDraft(next);
-            if (error) setError(null);
-            if (problem) setProblem(null);
+            clear();
           }}
           departments={departments}
           minDate={minDate}
