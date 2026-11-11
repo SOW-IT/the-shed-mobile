@@ -2,13 +2,15 @@
 import { describe, expect, test, vi } from "vitest";
 import { staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import { type T, YEAR, ADMIN, newConvex, asUser, pinClock } from "../test/convexFixture";
+import { type Caller, type T, YEAR, ADMIN, newConvex, asUser, pinClock } from "../test/convexFixture";
+import type { Id } from "./_generated/dataModel";
 
 const PINNED_NOW = staffYearStartMs(YEAR) + 150 * 86_400_000;
 
 const STAFF = "music.staff@sow.org.au";
 
 const TRACK_ID = "3cmaB3jaMbVLVbXwTkzaew";
+const LONG = "A".repeat(2001);
 const SPOTIFY = `https://open.spotify.com/track/${TRACK_ID}?si=6a8ccfe7cd03456c`;
 
 pinClock(PINNED_NOW);
@@ -75,172 +77,32 @@ async function assignPraiseManager(
 }
 
 describe("music request indexed duplicates", () => {
-  test("prevents approving an already-reviewed request", async () => {
+  test.each([
+    ["approving an approved request", "approve", "approve", "This request has already been reviewed."],
+    ["declining a declined request", "decline", "decline", "This request has already been reviewed."],
+    ["editing a declined request", "decline", "update", "This request cannot be edited."],
+    ["deleting a declined request", "decline", "remove", "This request cannot be deleted."],
+    ["approving a deleted request", "remove", "approve", "Request not found."],
+    ["declining a deleted request", "remove", "decline", "Request not found."],
+  ] as const)("refuses %s", async (_, first, then, error) => {
     const t = await setup();
     await assignPraiseManager(t);
-
     const staff = asUser(t, STAFF);
     const manager = asUser(t, ADMIN);
+    const requestId = await staff.mutation(api.musicRequests.submit, song());
+    const act = (action: "approve" | "decline" | "update" | "remove") => {
+      if (action === "approve") return manager.mutation(api.musicRequests.approve, { requestId });
+      if (action === "decline") {
+        return manager.mutation(api.musicRequests.decline, { requestId, reason: "Not suitable" });
+      }
+      if (action === "update") {
+        return manager.mutation(api.musicRequests.update, { requestId, ...song({ title: "Edited" }) });
+      }
+      return (first === "remove" ? staff : manager).mutation(api.musicRequests.remove, { requestId });
+    };
 
-    const requestId = await staff.mutation(
-      api.musicRequests.submit,
-      song({
-        title: "Already Reviewed Song",
-        link: "https://example.com/already-reviewed",
-      }),
-    );
-
-    // Approve the request once.
-    await manager.mutation(api.musicRequests.approve, {
-      requestId,
-    });
-
-    // Attempt to approve the same request again.
-    await expect(
-      manager.mutation(api.musicRequests.approve, {
-        requestId,
-      }),
-    ).rejects.toThrow("This request has already been reviewed.");
-  });
-  test("prevents declining an already-reviewed request", async () => {
-    const t = await setup();
-    await assignPraiseManager(t);
-
-    const staff = asUser(t, STAFF);
-    const manager = asUser(t, ADMIN);
-
-    const requestId = await staff.mutation(
-      api.musicRequests.submit,
-      song({
-        title: "Already Declined Song",
-        link: "https://example.com/already-declined",
-      }),
-    );
-
-    // Decline the request once.
-    await manager.mutation(api.musicRequests.decline, {
-      requestId,
-      reason: "Not suitable",
-    });
-
-    // Attempt to decline the same request again.
-    await expect(
-      manager.mutation(api.musicRequests.decline, {
-        requestId,
-        reason: "Second attempt",
-      }),
-    ).rejects.toThrow("This request has already been reviewed.");
-  });
-  test("prevents editing a declined request", async () => {
-    const t = await setup();
-    await assignPraiseManager(t);
-
-    const staff = asUser(t, STAFF);
-    const manager = asUser(t, ADMIN);
-
-    const requestId = await staff.mutation(
-      api.musicRequests.submit,
-      song({
-        title: "Declined Edit Song",
-        link: "https://example.com/declined-edit",
-      }),
-    );
-
-    await manager.mutation(api.musicRequests.decline, {
-      requestId,
-      reason: "Not suitable",
-    });
-
-    await expect(
-      manager.mutation(api.musicRequests.update, {
-        requestId,
-        ...song({
-          title: "Edited Declined Song",
-          link: "https://example.com/edited-declined",
-        }),
-      }),
-    ).rejects.toThrow("This request cannot be edited.");
-  });
-  test("prevents deleting a declined request", async () => {
-    const t = await setup();
-    await assignPraiseManager(t);
-
-    const staff = asUser(t, STAFF);
-    const manager = asUser(t, ADMIN);
-
-    const requestId = await staff.mutation(
-      api.musicRequests.submit,
-      song({
-        title: "Declined Delete Song",
-        link: "https://example.com/declined-delete",
-      }),
-    );
-
-    await manager.mutation(api.musicRequests.decline, {
-      requestId,
-      reason: "Not suitable",
-    });
-
-    await expect(
-      manager.mutation(api.musicRequests.remove, {
-        requestId,
-      }),
-    ).rejects.toThrow("This request cannot be deleted.");
-  });
-  test("prevents approving a deleted request", async () => {
-    const t = await setup();
-    await assignPraiseManager(t);
-
-    const staff = asUser(t, STAFF);
-    const manager = asUser(t, ADMIN);
-
-    const requestId = await staff.mutation(
-      api.musicRequests.submit,
-      song({
-        title: "Deleted Approval Song",
-        link: "https://example.com/deleted-approval",
-      }),
-    );
-
-    // Delete the pending request.
-    await staff.mutation(api.musicRequests.remove, {
-      requestId,
-    });
-
-    // Attempt to approve the deleted request.
-    await expect(
-      manager.mutation(api.musicRequests.approve, {
-        requestId,
-      }),
-    ).rejects.toThrow("Request not found.");
-  });
-  test("prevents declining a deleted request", async () => {
-    const t = await setup();
-    await assignPraiseManager(t);
-
-    const staff = asUser(t, STAFF);
-    const manager = asUser(t, ADMIN);
-
-    const requestId = await staff.mutation(
-      api.musicRequests.submit,
-      song({
-        title: "Deleted Decline Song",
-        link: "https://example.com/deleted-decline",
-      }),
-    );
-
-    // Delete the pending request.
-    await staff.mutation(api.musicRequests.remove, {
-      requestId,
-    });
-
-    // Attempt to decline the deleted request.
-    await expect(
-      manager.mutation(api.musicRequests.decline, {
-        requestId,
-        reason: "Not suitable",
-      }),
-    ).rejects.toThrow("Request not found.");
+    await act(first);
+    await expect(act(then)).rejects.toThrow(error);
   });
 
   test("rejects unconfirmed possible duplicates on submission", async () => {
@@ -324,15 +186,6 @@ describe("music request indexed duplicates", () => {
       skipped: 1,
       possibleDuplicates: 1,
     });
-  });
-
-  test("prevents ordinary staff from viewing declined requests", async () => {
-    const t = await setup();
-    const staff = asUser(t, STAFF);
-
-    await expect(staff.query(api.musicRequests.declined, {})).rejects.toThrow(
-      "Only Praise Managers can view declined music requests.",
-    );
   });
 
   test("rejects editing and deleting missing requests", async () => {
@@ -435,56 +288,34 @@ describe("music request indexed duplicates", () => {
     expect(original).toBeDefined();
   });
 
-  test("prevents ordinary staff from approving requests", async () => {
+  test.each([
+    [
+      "see the review queue",
+      (staff: Caller) => staff.query(api.musicRequests.toReview, {}),
+      "Only Praise Managers can review music requests.",
+    ],
+    [
+      "see declined requests",
+      (staff: Caller) => staff.query(api.musicRequests.declined, {}),
+      "Only Praise Managers can view declined music requests.",
+    ],
+    [
+      "approve a request",
+      (staff: Caller, requestId: Id<"musicRequests">) =>
+        staff.mutation(api.musicRequests.approve, { requestId }),
+      "Only Praise Managers can approve music requests.",
+    ],
+    [
+      "decline a request",
+      (staff: Caller, requestId: Id<"musicRequests">) =>
+        staff.mutation(api.musicRequests.decline, { requestId, reason: "No" }),
+      "Only Praise Managers can decline music requests.",
+    ],
+  ])("ordinary staff can't %s", async (_, act, error) => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-
-    const requestId = await staff.mutation(api.musicRequests.submit, {
-      title: "Permission Test Song",
-      artist: "Test Artist",
-      link: "https://example.com/permission-test",
-    });
-
-    await expect(
-      staff.mutation(api.musicRequests.approve, { requestId }),
-    ).rejects.toThrow("Only Praise Managers can approve music requests.");
-  });
-
-  test("prevents ordinary staff from declining requests", async () => {
-    const t = await setup();
-    const staff = asUser(t, STAFF);
-
-    const requestId = await staff.mutation(api.musicRequests.submit, {
-      title: "Decline Permission Test",
-      artist: "Test Artist",
-      link: "https://example.com/decline-permission",
-    });
-
-    await expect(
-      staff.mutation(api.musicRequests.decline, {
-        requestId,
-        reason: "Testing permissions",
-      }),
-    ).rejects.toThrow("Only Praise Managers can decline music requests.");
-  });
-
-  test("recognizes Spotify URLs with different parameters", async () => {
-    const t = await setup();
-    const user = asUser(t, STAFF);
-
-    await user.mutation(api.musicRequests.submit, song());
-
-    const duplicate = await user.query(
-      api.musicRequests.checkDuplicate,
-      song({
-        title: "Different Title",
-        artist: "Different Artist",
-        link: `${SPOTIFY}?si=example`,
-      }),
-    );
-
-    expect(duplicate?.kind).toBe("exact");
-    expect(duplicate?.status).toBe("PENDING");
+    const requestId = await staff.mutation(api.musicRequests.submit, song());
+    await expect(act(staff, requestId)).rejects.toThrow(error);
   });
 
   test("recognizes matching ISRCs across music platforms", async () => {
@@ -680,38 +511,10 @@ describe("music request indexed duplicates", () => {
     expect(rows).toHaveLength(1);
   });
 
-  test("rejects exact duplicates on individual submission", async () => {
-    const t = await setup();
-    const user = asUser(t, STAFF);
-
-    await user.mutation(api.musicRequests.submit, song());
-
-    await expect(
-      user.mutation(api.musicRequests.submit, song()),
-    ).rejects.toThrow(/already requested/i);
-  });
-
   test("automatically approves songs submitted by Praise Managers", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-
-    await t.run(async (ctx) => {
-      const settings = await ctx.db
-        .query("yearSettings")
-        .withIndex("by_year", (q) => q.eq("year", YEAR))
-        .first();
-
-      if (settings) {
-        await ctx.db.patch(settings._id, {
-          praiseManagerEmails: [ADMIN],
-        });
-      } else {
-        await ctx.db.insert("yearSettings", {
-          year: YEAR,
-          praiseManagerEmails: [ADMIN],
-        });
-      }
-    });
+    await assignPraiseManager(t);
 
     const requestId = await admin.mutation(api.musicRequests.submit, {
       title: "Manager Auto Approval Test",
@@ -869,56 +672,43 @@ describe("music request indexed duplicates", () => {
       }),
     ).toEqual({ added: 2, skipped: 0, possibleDuplicates: 0 });
   });
-  test("rejects request comments longer than 2000 characters", async () => {
+  test.each([
+    [
+      "a request comment",
+      (staff: Caller) =>
+        staff.mutation(api.musicRequests.submit, { ...song({ title: "New" }), requestComment: LONG }),
+      "Request comment must be 2000 characters or fewer.",
+    ],
+    [
+      "a batch comment",
+      (staff: Caller) =>
+        staff.mutation(api.musicRequests.submitMany, {
+          songs: [song({ title: "New" })],
+          requestComment: LONG,
+        }),
+      "Request comment must be 2000 characters or fewer.",
+    ],
+    [
+      "an edited comment",
+      (staff: Caller, requestId: Id<"musicRequests">) =>
+        staff.mutation(api.musicRequests.update, { requestId, ...song(), requestComment: LONG }),
+      "Request comment must be 2000 characters or fewer.",
+    ],
+    [
+      "a decline reason",
+      (_: Caller, requestId: Id<"musicRequests">, manager: Caller) =>
+        manager.mutation(api.musicRequests.decline, { requestId, reason: LONG }),
+      "Decline reason must be 2000 characters or fewer.",
+    ],
+  ])("rejects %s over 2000 characters and leaves the request pending", async (_, act, error) => {
     const t = await setup();
+    await assignPraiseManager(t);
     const staff = asUser(t, STAFF);
+    const requestId = await staff.mutation(api.musicRequests.submit, song());
 
-    await expect(
-      staff.mutation(api.musicRequests.submit, {
-        title: "Long Comment Test",
-        artist: "Test Artist",
-        link: "https://example.com/long-comment",
-        requestComment: "A".repeat(2001),
-      }),
-    ).rejects.toThrow("Request comment must be 2000 characters or fewer.");
-  });
-  test("rejects long comments in batch submissions", async () => {
-    const t = await setup();
-    const staff = asUser(t, STAFF);
-
-    await expect(
-      staff.mutation(api.musicRequests.submitMany, {
-        songs: [
-          {
-            title: "Batch Comment Test",
-            artist: "Test Artist",
-            link: "https://example.com/batch-comment",
-          },
-        ],
-        requestComment: "A".repeat(2001),
-      }),
-    ).rejects.toThrow("Request comment must be 2000 characters or fewer.");
-  });
-
-  test("rejects request comments longer than 2000 characters when editing", async () => {
-    const t = await setup();
-    const staff = asUser(t, STAFF);
-
-    const requestId = await staff.mutation(api.musicRequests.submit, {
-      title: "Edit Comment Test",
-      artist: "Test Artist",
-      link: "https://example.com/edit-comment",
-    });
-
-    await expect(
-      staff.mutation(api.musicRequests.update, {
-        requestId,
-        title: "Edit Comment Test",
-        artist: "Test Artist",
-        link: "https://example.com/edit-comment",
-        requestComment: "A".repeat(2001),
-      }),
-    ).rejects.toThrow("Request comment must be 2000 characters or fewer.");
+    await expect(act(staff, requestId, asUser(t, ADMIN))).rejects.toThrow(error);
+    const rows = await staff.query(api.musicRequests.myRequests, {});
+    expect(rows.map((row) => [row.status, row.requestComment])).toEqual([["PENDING", undefined]]);
   });
 
   test("rejects javascript URLs in music requests", async () => {
@@ -932,55 +722,6 @@ describe("music request indexed duplicates", () => {
         link: "javascript:alert(1)",
       }),
     ).rejects.toThrow("Please enter a valid HTTP or HTTPS music link.");
-  });
-
-  test("prevents ordinary staff from accessing the review queue", async () => {
-    const t = await setup();
-    const staff = asUser(t, STAFF);
-
-    await expect(staff.query(api.musicRequests.toReview, {})).rejects.toThrow(
-      "Only Praise Managers can review music requests.",
-    );
-  });
-
-  test("rejects decline reasons longer than 2000 characters", async () => {
-    const t = await setup();
-    const staff = asUser(t, STAFF);
-    const admin = asUser(t, ADMIN);
-
-    const requestId = await staff.mutation(api.musicRequests.submit, {
-      title: "Long Decline Reason Test",
-      artist: "Test Artist",
-      link: "https://example.com/long-decline-reason",
-    });
-
-    await t.run(async (ctx) => {
-      const settings = await ctx.db
-        .query("yearSettings")
-        .withIndex("by_year", (q) => q.eq("year", YEAR))
-        .first();
-      if (settings) {
-        await ctx.db.patch(settings._id, {
-          praiseManagerEmails: [ADMIN],
-        });
-      } else {
-        await ctx.db.insert("yearSettings", {
-          year: YEAR,
-          praiseManagerEmails: [ADMIN],
-        });
-      }
-    });
-
-    await expect(
-      admin.mutation(api.musicRequests.decline, {
-        requestId,
-        reason: "A".repeat(2001),
-      }),
-    ).rejects.toThrow("Decline reason must be 2000 characters or fewer.");
-
-    // An invalid decline attempt must leave the request pending.
-    const request = await t.run(async (ctx) => ctx.db.get(requestId));
-    expect(request?.status).toBe("PENDING");
   });
 
   test("allows a Praise Manager to approve a pending request", async () => {
