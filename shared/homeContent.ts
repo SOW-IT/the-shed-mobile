@@ -1,3 +1,5 @@
+import type { Infer } from "convex/values";
+import type { homeBlockValidator } from "../convex/homeData";
 import { departmentsOf, type ProfileLike } from "./flow";
 
 const ENGAGEMENT_DIVISION = "Engagement";
@@ -14,47 +16,12 @@ export type HomeTabKey = (typeof HOME_TABS)[number]["key"];
 export const isHomeTabKey = (key: string): key is HomeTabKey =>
   HOME_TABS.some((tab) => tab.key === key);
 
-export type HomeButtonStyle = "primary" | "tonal" | "ghost";
-
-export type HomeButton = {
-  label: string;
-  url: string;
-  style: HomeButtonStyle;
-  icon?: string;
-};
-
-export type HomeLink = { name: string; url: string; note?: string };
-
-export type HomeSocial = { label: string; icon: string; url: string };
-
-export type HomeCampus = {
-  name: string;
-  short: string;
-  about: string;
-  meetingLabel: string;
-  meeting: string;
-  programs: string[];
-  instagram: string;
-};
-
-export type HomeBlock =
-  | { type: "hero"; eyebrow: string; text: string }
-  | { type: "heading"; text: string }
-  | { type: "text"; text: string }
-  | {
-      type: "card";
-      title: string;
-      body: string;
-      icon?: string;
-      dot?: boolean;
-      campus?: string;
-      tone?: "default" | "primary";
-      buttons: HomeButton[];
-    }
-  | { type: "links"; links: HomeLink[] }
-  | { type: "socials"; caption: string; links: HomeSocial[] }
-  | { type: "campuses"; campuses: HomeCampus[] }
-  | { type: "contact"; title: string; body: string };
+export type HomeBlock = Infer<typeof homeBlockValidator>;
+export type HomeButton = Extract<HomeBlock, { type: "card" }>["buttons"][number];
+export type HomeButtonStyle = HomeButton["style"];
+export type HomeLink = Extract<HomeBlock, { type: "links" }>["links"][number];
+export type HomeSocial = Extract<HomeBlock, { type: "socials" }>["links"][number];
+export type HomeCampus = Extract<HomeBlock, { type: "campuses" }>["campuses"][number];
 
 export type HomeBlockType = HomeBlock["type"];
 

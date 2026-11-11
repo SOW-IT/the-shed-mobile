@@ -19,6 +19,7 @@ import {
   type WeeklyBlock,
 } from "./weeklyInsightsView";
 import { round1 } from "./numbers";
+import { plural } from "./reminders";
 
 const THIS_COLOUR = "primary";
 const LAST_COLOUR = "#9CA3AFA6";
@@ -36,8 +37,6 @@ const REGULAR_FILTER = { key: "regular", label: "Regular", colour: "#16A34A" };
 const NOT_YET_FILTER = { key: "notYet", label: "Not yet", colour: "#DC2626" };
 
 const fullDate = (at: number) => `${dayLabel(at)} ${sydneyYmd(new Date(at)).year}`;
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 

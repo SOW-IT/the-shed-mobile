@@ -141,20 +141,6 @@ export const endDateAfterStartChange = (
   return addDaysToDateInputValue(nextStart, days) ?? nextStart;
 };
 
-export const formatEventDate = (dateStart: number): string => {
-  const d = new Date(dateStart);
-  const date = d.toLocaleDateString("en-AU", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-  const time = d.toLocaleTimeString("en-AU", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  return `${date} · ${time}`;
-};
-
 export const formatEventRange = (startMs: number, endMs: number): string => {
   const start = new Date(startMs);
   const end = new Date(endMs);

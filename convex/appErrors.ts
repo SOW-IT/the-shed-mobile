@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query, type QueryCtx } from "./_generated/server";
 import { isAdminProfile, optionalEmail, optionalProfile, requireAdmin } from "./model";
+import { DAY_MS } from "../shared/datetime";
 
 const MESSAGE_LIMIT = 500;
 const STACK_LIMIT = 4000;
@@ -13,7 +14,6 @@ const HOUR_MS = 60 * 60 * 1000;
 const REPEAT_WINDOW_MS = 5000;
 const RECENT_DAYS = 7;
 const RECENT_LIMIT = 50;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const isAdminCaller = async (ctx: QueryCtx): Promise<boolean> => {
   const caller = await optionalProfile(ctx);

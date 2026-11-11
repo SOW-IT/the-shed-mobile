@@ -11,10 +11,8 @@ import { logAttendanceAction } from "./attendanceAudit";
 import { withMarkedRole } from "../shared/memberRole";
 import { allMetadataFields, staffDisplayName } from "./attendanceMembers";
 import { insertMember } from "./memberCount";
-import { optionalEmail, optionalProfile, optionalUser, requireEmail, requireProfile } from "./model";
+import { Ctx, optionalEmail, optionalProfile, optionalUser, requireEmail, requireProfile } from "./model";
 import { assignedProfileForEmail, knownMemberId, personName, staffMemberForEmail } from "./staffMembers";
-
-export { checkInOpen, checkInPhase, checkInWindow };
 
 const NAME_MIN = 2;
 const NAME_MAX = 80;
@@ -23,8 +21,6 @@ const MATCH_PROBE = 5;
 const UNIVERSITY_LIMIT = 50;
 const DEVICE_PROBE = 20;
 export const SELF_CHECK_IN_ACTOR = "system:self-check-in";
-
-type Ctx = QueryCtx | MutationCtx;
 
 const eventForToken = async (ctx: Ctx, token: string) => {
   const trimmed = token.trim();

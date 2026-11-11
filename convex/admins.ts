@@ -1,10 +1,11 @@
 import { ConvexError, v } from "convex/values";
-import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { assignmentsOf, DIRECTOR, roleNeedsUniversity } from "../shared/flow";
+import { internalMutation, mutation, query } from "./_generated/server";
+import { DIRECTOR } from "../shared/flow";
 import type { Teams } from "../shared/teams";
 import { teamsFor } from "./teamJobs";
 import {
   chosenAdmin,
+  Ctx,
   currentStaffYear,
   displayName,
   isAdminProfile,
@@ -14,8 +15,7 @@ import {
   rolesOf,
 } from "./model";
 import type { Doc } from "./_generated/dataModel";
-
-type Ctx = QueryCtx | MutationCtx;
+import { isCampusLeaderProfile } from "../shared/mentoring";
 
 const MAX_CHOSEN_ADMINS = 50;
 const MAX_STORED_ROWS = 200;
@@ -31,9 +31,6 @@ const thisYearsProfiles = (ctx: Ctx) =>
     .take(MAX_PROFILES);
 
 const chosenRows = (ctx: Ctx) => ctx.db.query("admins").take(MAX_STORED_ROWS);
-
-const isCampusLeaderProfile = (profile: Doc<"staffProfiles">) =>
-  assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role));
 
 const fixedReason = (teams: Teams, profile: Doc<"staffProfiles">) =>
   rolesOf(profile).includes(DIRECTOR) ? "Director" : teams.admin;

@@ -4,7 +4,7 @@ import { teamsFor } from "./teamJobs";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import { mutation, MutationCtx, query } from "./_generated/server";
 import { isMemberOfDepartment } from "../shared/flow";
 import {
   personaHeads,
@@ -33,18 +33,19 @@ import { designAnswersValidator } from "./designRequestData";
 import { DESIGN_REQUEST_FIELDS } from "./designRequestForm";
 import {
   actAsEmails,
+  type CallerContext,
+  Ctx,
   currentStaffYear,
   displayName,
   getDepartment,
+  memoAsync,
   optionalProfile,
   requireProfile,
   resolveName,
   withDelegatesForYear,
-  type CallerContext,
 } from "./model";
 import { appUrl, notify } from "./requests";
 
-type Ctx = QueryCtx | MutationCtx;
 type DesignRequest = Doc<"designRequests">;
 
 const LIST_LIMIT = 300;
@@ -246,16 +247,10 @@ async function yearWithOpen(
 }
 
 async function withRequesterNames(ctx: Ctx, rows: DesignRequest[]) {
-  const names = new Map<string, Promise<string | null>>();
+  const nameOf = memoAsync((email: string, year: number) => resolveName(ctx, email, year));
   return await Promise.all(
     rows.map(async (r) => {
-      const key = `${r.requesterEmail} ${r.year}`;
-      let name = names.get(key);
-      if (!name) {
-        name = resolveName(ctx, r.requesterEmail, r.year);
-        names.set(key, name);
-      }
-      return { ...r, requesterName: await name };
+      return { ...r, requesterName: await nameOf(r.requesterEmail, r.year) };
     })
   );
 }

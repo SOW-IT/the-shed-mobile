@@ -77,9 +77,7 @@ import {
   settleTeamsAfterCopy,
   teamsFor,
 } from "./teamJobs";
-
-const sameEmail = (a: string, b: string): boolean =>
-  a.trim().toLowerCase() === b.trim().toLowerCase();
+import { sameEmail } from "../shared/memberMerge";
 
 const syncDirectorCacheAfterProfileChange = async (
   ctx: MutationCtx,

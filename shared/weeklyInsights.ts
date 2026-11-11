@@ -1,5 +1,4 @@
-import { DAY_MS } from "./attendanceMetrics";
-import { toDateInputValue, toTimeInputValue } from "./datetime";
+import { DAY_MS, toDateInputValue, toTimeInputValue } from "./datetime";
 import { eventStaffYear, sydneyYmd } from "./flow";
 import { subgroupMatches } from "./rollcall";
 import { round1 } from "./numbers";

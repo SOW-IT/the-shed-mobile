@@ -1,3 +1,13 @@
+import type { Infer } from "convex/values";
+import type {
+  breakdown,
+  compositionPoint,
+  followUp,
+  metricsDataValidator,
+  metricsSummary,
+  splitPoint,
+  trendPoint,
+} from "../convex/metricsData";
 import { eventStaffYear, sydneyYmd } from "./flow";
 import {
   eventIncludesSubgroup,
@@ -5,8 +15,8 @@ import {
   subgroupMatches,
 } from "./rollcall";
 import { round1 } from "./numbers";
+import { DAY_MS } from "./datetime";
 
-export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
 
 export const METRICS_THRESHOLDS = {
@@ -78,69 +88,14 @@ export type ComputeInput = {
   includeCollaborative: boolean;
 };
 
-export type TrendPoint = { at: number; label: string; value: number };
-export type SplitPoint = { at: number; label: string; fresh: number; returning: number };
-export type CompositionPoint = {
-  at: number;
-  label: string;
-  primary: number;
-  rest: number;
-};
-
-export type MetricsSummary = {
-  avgAttendance: number;
-  avgAttendancePrev: number | null;
-  changePct: number | null;
-  avgWeeklyAttendance: number | null;
-  avgWeeklyAttendancePrev: number | null;
-  weeklyChangePct: number | null;
-  eventsHeld: number;
-  uniqueAttendees: number;
-  newcomers: number;
-  followUpCount: number;
-  weeklyConsistency: number | null;
-  leaderShare?: number | null;
-  homeCampusShare?: number | null;
-};
-
-export type FollowUpReasonCode =
-  | "at_risk"
-  | "lapsed"
-  | "newcomer_no_return"
-  | "reengaged"
-  | "declining";
-
-export type FollowUpPerson = {
-  key: string;
-  name: string;
-  kind: PersonKind;
-  subtitle?: string;
-  photo?: string | null;
-  lastAttended: number | null;
-  recentCount: number;
-  reasonCode: FollowUpReasonCode;
-  reason: string;
-};
-
-export type MetricsBreakdown = {
-  field: string;
-  rows: { label: string; value: number }[];
-};
-
-export type SubgroupMetricsData = {
-  summary: MetricsSummary;
-  attendanceByEvent: TrendPoint[];
-  rollingAverage: TrendPoint[];
-  weeklyTrend: TrendPoint[];
-  uniqueByMonth: TrendPoint[];
-  newVsReturning: SplitPoint[];
-  leadersVsOthers?: CompositionPoint[];
-  campusMix?: CompositionPoint[];
-  followUps: FollowUpPerson[];
-  breakdowns: MetricsBreakdown[];
-  hasEnoughHistory: boolean;
-  hasWeeklyMeetings: boolean;
-};
+export type TrendPoint = Infer<typeof trendPoint>;
+export type SplitPoint = Infer<typeof splitPoint>;
+export type CompositionPoint = Infer<typeof compositionPoint>;
+export type MetricsSummary = Infer<typeof metricsSummary>;
+export type FollowUpPerson = Infer<typeof followUp>;
+export type FollowUpReasonCode = FollowUpPerson["reasonCode"];
+export type MetricsBreakdown = Infer<typeof breakdown>;
+export type SubgroupMetricsData = Infer<typeof metricsDataValidator>;
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",

@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { type RoleTitles } from "../shared/flow";
 import type { Teams } from "../shared/teams";
 import { teamsFor } from "./teamJobs";
@@ -13,14 +13,13 @@ import {
 } from "../shared/actingAs";
 import { personaValidator } from "./actingAsData";
 import {
+  type CallerContext,
+  Ctx,
   getDepartment,
   isAdminProfile,
   optionalProfile,
   requireAdmin,
-  type CallerContext,
 } from "./model";
-
-type Ctx = QueryCtx | MutationCtx;
 
 const DEPARTMENTS_LIMIT = 200;
 

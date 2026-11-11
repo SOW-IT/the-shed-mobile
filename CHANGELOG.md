@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.8] - 2026-11-11
+
+### Changed
+- **Backend tidy-up with no visible change.** Name lookups, comment checks
+  and a dozen small helpers that were written out several times now live
+  in one place, and the Insights and Home types come straight from the
+  checks the server already runs on them.
+
 ## [2.11.7] - 2026-11-11
 
 ### Removed

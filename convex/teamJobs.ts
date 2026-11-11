@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { assignmentsOf, departmentsOf, DIRECTOR, isMemberOfDepartment } from "../shared/flow";
 import {
   DEFAULT_TEAMS,
@@ -9,8 +9,7 @@ import {
   type TeamJob,
   type Teams,
 } from "../shared/teams";
-
-type Ctx = QueryCtx | MutationCtx;
+import type { Ctx } from "./model";
 
 export const teamJobValidator = v.union(...TEAM_JOBS.map((job) => v.literal(job)));
 

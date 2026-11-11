@@ -10,18 +10,10 @@ import {
 } from "../shared/mergeSuggestions";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import {
-  internalAction,
-  internalMutation,
-  internalQuery,
-  mutation,
-  query,
-  type MutationCtx,
-  type QueryCtx,
-} from "./_generated/server";
+import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
 import { staffYearsOf } from "./attendanceMembers";
-import { currentStaffYear, optionalEmail, requireProfile } from "./model";
+import { Ctx, currentStaffYear, optionalEmail, requireProfile } from "./model";
 
 const MEMBER_PAGE = 500;
 const PAIRS_PER_WRITE = 10;
@@ -31,7 +23,6 @@ const PRUNE_BATCH = 200;
 const MAX_DISMISSED = 1000;
 const MAX_FIELDS = 100;
 
-type Ctx = QueryCtx | MutationCtx;
 type MemberId = Id<"attendanceMembers">;
 type MetadataField = Doc<"attendanceMetadata">;
 

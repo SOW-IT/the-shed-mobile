@@ -10,19 +10,13 @@ import {
   scheduleError,
   sortRoles,
 } from "../shared/announcements";
-import { DAY_MS } from "../shared/attendanceMetrics";
 import { assignmentsOf } from "../shared/flow";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
-import {
-  internalMutation,
-  mutation,
-  MutationCtx,
-  query,
-  QueryCtx,
-} from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { audienceValidator } from "./announcementData";
 import {
+  Ctx,
   currentStaffYear,
   displayName,
   isAdminProfile,
@@ -31,8 +25,7 @@ import {
   requireAdmin,
 } from "./model";
 import { appUrl } from "./requests";
-
-type Ctx = QueryCtx | MutationCtx;
+import { DAY_MS } from "../shared/datetime";
 
 const MAX_PROFILES = 2000;
 const PUSH_BATCH = 100;

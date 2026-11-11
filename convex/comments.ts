@@ -3,13 +3,15 @@ import { Id } from "./_generated/dataModel";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { lensFor } from "./actingAs";
 import {
+  type CallerContext,
+  commentBody,
   currentStaffYear,
   getApprovers,
+  memoAsync,
   optionalProfile,
   requireProfile,
   resolveName,
   withDelegatesForYear,
-  type CallerContext,
 } from "./model";
 import {
   actionOwnerEmail,
@@ -28,9 +30,7 @@ export const add = mutation({
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
     const { email } = caller;
-    const body = args.body.trim();
-    if (!body) throw new ConvexError("Write a comment first.");
-    if (body.length > 2000) throw new ConvexError("That comment is too long.");
+    const body = commentBody(args.body);
     const request = await ctx.db.get("requests", args.requestId);
     if (!request || !(await canSeeRequest(ctx, caller, request))) {
       throw new ConvexError("Request not found.");
@@ -99,15 +99,7 @@ export const list = query({
     ).sort((a, b) => a._creationTime - b._creationTime);
 
     const threadYear = eventStaffYear(request._creationTime);
-    const nameByEmail = new Map<string, Promise<string | null>>();
-    const nameFor = (email: string): Promise<string | null> => {
-      let name = nameByEmail.get(email);
-      if (!name) {
-        name = resolveName(ctx, email, threadYear);
-        nameByEmail.set(email, name);
-      }
-      return name;
-    };
+    const nameFor = memoAsync((email: string) => resolveName(ctx, email, threadYear));
 
     const result = [];
     for (const comment of comments) {

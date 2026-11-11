@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { cleanYouTubeTitle, parseYouTubeSong } from "./youtube";
+import { parseYouTubeSong } from "./youtube";
 
 describe("parseYouTubeSong", () => {
   test("drops '(Official Video)' and '(4K Remaster)' labels", () => {
@@ -96,20 +96,5 @@ describe("parseYouTubeSong", () => {
       title: "Still Waters",
       artist: "Unknown artist",
     });
-  });
-});
-
-describe("cleanYouTubeTitle", () => {
-  test("removes video labels and the artist's name from either end", () => {
-    expect(cleanYouTubeTitle("Hana Doe - Morning Light (Audio)", "Hana Doe")).toBe(
-      "Morning Light",
-    );
-    expect(cleanYouTubeTitle("Morning Light | Hana Doe", "Hana Doe")).toBe(
-      "Morning Light",
-    );
-    expect(cleanYouTubeTitle("Morning Light - Official Music Video", "")).toBe(
-      "Morning Light",
-    );
-    expect(cleanYouTubeTitle("Hana Doe", "Hana Doe")).toBe("Hana Doe");
   });
 });

@@ -22,7 +22,6 @@ import {
   eventListFilterCount,
   eventMatchesListFilter,
   EVENT_HOST_LABEL,
-  formatEventDate,
   formatEventRange,
   formatSignInTime,
   isMultiDayEvent,
@@ -333,12 +332,6 @@ describe("memberMatchesEventCampus", () => {
 });
 
 describe("formatters", () => {
-  test("formatEventDate joins a date and a time with a separator", () => {
-    const label = formatEventDate(new Date(2026, 5, 24, 17, 0).getTime());
-    expect(label).toMatch(/^Wed,? 24 June? · 5:00\s?pm$/);
-    expect(label).toMatch(/\d/);
-  });
-
   test("formatSignInTime renders a clock time", () => {
     const label = formatSignInTime(new Date(2026, 5, 24, 17, 3).getTime());
     expect(label).toMatch(/^5:03\s?pm$/);

@@ -7,13 +7,12 @@ import { mergeNotes } from "../shared/memberMerge";
 import { capitalizeMemberName, personDisplayName } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
 import { recountEventAttendance } from "./attendanceCounts";
 import { insertMember } from "./memberCount";
-import { getProfile } from "./model";
+import { Ctx, getProfile } from "./model";
 
-type Ctx = QueryCtx | MutationCtx;
 type Profile = Doc<"staffProfiles">;
 type MemberId = Id<"attendanceMembers">;
 

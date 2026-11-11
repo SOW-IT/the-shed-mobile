@@ -8,13 +8,14 @@ import { seesThrough, waitsThrough, type Lens } from "../shared/actingAs";
 import { SONGS_COUNTED } from "../shared/praiseList";
 import { lensFor, viewsAsAdmin } from "./actingAs";
 import {
+  type CallerContext,
   currentStaffYear,
   displayName,
   getProfile,
+  memoAsync,
   optionalProfile,
   requireProfile,
   resolveName,
-  type CallerContext,
 } from "./model";
 import { notify as notifyPerson } from "./requests";
 import {
@@ -22,8 +23,7 @@ import {
   spotifyTrackId,
   youtubeVideoId,
 } from "./shared/musicLinks";
-
-export { spotifyTrackId };
+import { approvalStatus } from "./schema";
 
 /** Get Praise Manager emails for the active staff year. */
 async function praiseManagerEmailsForYear(
@@ -34,7 +34,9 @@ async function praiseManagerEmailsForYear(
     .query("yearSettings")
     .withIndex("by_year", (q) => q.eq("year", year))
     .first();
-  return settings?.praiseManagerEmails ?? [];
+  return (settings?.praiseManagerEmails ?? [])
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 /** Check whether the caller is an assigned Praise Manager. */
@@ -46,9 +48,7 @@ async function callerIsPraiseManager(
   if (caller.profile.year !== year) return false;
   const managers = await praiseManagerEmailsForYear(ctx, year);
 
-  return managers.some(
-    (managerEmail) => managerEmail.toLowerCase() === caller.email.toLowerCase(),
-  );
+  return managers.includes(caller.email);
 }
 
 /**
@@ -67,17 +67,8 @@ async function seesReviewQueue(
   );
 }
 
-/** Look up each email's name once per query. */
 function nameResolver(ctx: MusicCtx) {
-  const cache = new Map<string, Promise<string | null>>();
-  return (email: string) => {
-    let name = cache.get(email);
-    if (!name) {
-      name = resolveName(ctx, email, currentStaffYear());
-      cache.set(email, name);
-    }
-    return name;
-  };
+  return memoAsync((email: string) => resolveName(ctx, email, currentStaffYear()));
 }
 
 async function withNames(ctx: MusicCtx, rows: MusicRequestRow[]) {
@@ -93,28 +84,10 @@ async function withNames(ctx: MusicCtx, rows: MusicRequestRow[]) {
   );
 }
 
-/** Create in-app notifications. */
-async function notify(
-  ctx: MutationCtx,
-  emails: string[],
-  title: string,
-  body: string,
-  url: string,
-  actor?: string,
-) {
-  for (const to of new Set(emails.map((email) => email.toLowerCase()))) {
-    await notifyPerson(ctx, {
-      to,
-      actor,
-      subject: title,
-      body: body.replace(/\s+/g, " ").trim(),
-      url,
-      email: false,
-    });
-  }
-}
-
 const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
+
+const tellRequester = (ctx: MutationCtx, to: string, subject: string, body: string, actor: string) =>
+  notifyPerson(ctx, { to, actor, subject, body: oneLine(body), url: "/music?tab=my-requests", email: false });
 
 async function tellPraiseManagers(
   ctx: MutationCtx,
@@ -122,11 +95,8 @@ async function tellPraiseManagers(
   songs: { title: string; artist: string; link: string; requestComment?: string }[],
 ) {
   const year = currentStaffYear();
-  const requester = requesterEmail.toLowerCase();
   const managers = new Set(
-    (await praiseManagerEmailsForYear(ctx, year))
-      .map((email) => email.trim().toLowerCase())
-      .filter((email) => email && email !== requester),
+    (await praiseManagerEmailsForYear(ctx, year)).filter((email) => email !== requesterEmail),
   );
   if (!managers.size) return;
   const name = await displayName(ctx, requesterEmail, year);
@@ -689,19 +659,12 @@ async function forViewer(
   rows: MusicRequestRow[],
 ) {
   const seesNotes = await seesRequestNotes(ctx, caller);
-  const me = caller.email.toLowerCase();
   return (await withNames(ctx, rows)).map((row) =>
-    seesNotes || row.requesterEmail.toLowerCase() === me
+    seesNotes || row.requesterEmail === caller.email
       ? row
       : { ...row, requestComment: undefined, declineComment: undefined },
   );
 }
-
-const requestStatus = v.union(
-  v.literal("PENDING"),
-  v.literal("APPROVED"),
-  v.literal("DECLINED"),
-);
 
 const approvedSort = v.union(
   v.literal("title-asc"),
@@ -771,7 +734,7 @@ export const approvedPage = query({
 export const myRequestsPage = query({
   args: {
     paginationOpts: paginationOptsValidator,
-    status: v.optional(requestStatus),
+    status: v.optional(approvalStatus),
   },
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
@@ -821,7 +784,7 @@ export const praiseManagers = query({
     const nameOf = nameResolver(ctx);
     const people: { email: string; name: string }[] = [];
     for (const email of await praiseManagerEmailsForYear(ctx, year)) {
-      if (!(await getProfile(ctx, email.trim().toLowerCase(), year))) continue;
+      if (!(await getProfile(ctx, email, year))) continue;
       people.push({ email, name: (await nameOf(email)) ?? email });
     }
     return people;
@@ -878,12 +841,11 @@ export const approve = mutation({
       currentStaffYear(),
     );
 
-    await notify(
+    await tellRequester(
       ctx,
-      [request.requesterEmail],
+      request.requesterEmail,
       "Music request approved",
       `"${request.title}" was approved by ${reviewerName}`,
-      "/music?tab=my-requests",
       caller.email,
     );
   },
@@ -916,14 +878,13 @@ export const decline = mutation({
       reviewedTime: Date.now(),
       declineComment,
     });
-    await notify(
+    await tellRequester(
       ctx,
-      [request.requesterEmail],
+      request.requesterEmail,
       "Music request declined",
       declineComment
         ? `"${request.title}" was declined: ${declineComment}`
         : `"${request.title}" was declined by ${reviewerName}`,
-      "/music?tab=my-requests",
       caller.email,
     );
   },
@@ -947,8 +908,7 @@ export const update = mutation({
       throw new ConvexError("Request not found.");
     }
     const isPraiseManager = await callerIsPraiseManager(ctx, caller);
-    const isOwner =
-      request.requesterEmail.toLowerCase() === caller.email.toLowerCase();
+    const isOwner = request.requesterEmail === caller.email;
     if (!isPraiseManager && (!isOwner || request.status !== "PENDING")) {
       throw new ConvexError("You can only edit your own pending requests.");
     }
@@ -994,8 +954,7 @@ export const remove = mutation({
       throw new ConvexError("Request not found.");
     }
     const isPraiseManager = await callerIsPraiseManager(ctx, caller);
-    const isOwner =
-      request.requesterEmail.toLowerCase() === caller.email.toLowerCase();
+    const isOwner = request.requesterEmail === caller.email;
     if (!isPraiseManager && (!isOwner || request.status !== "PENDING")) {
       throw new ConvexError("You can only delete your own pending requests.");
     }

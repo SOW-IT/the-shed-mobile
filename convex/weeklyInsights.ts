@@ -1,7 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
-import { DAY_MS, rangeStartFor, WEEK_MS } from "../shared/attendanceMetrics";
+import { rangeStartFor, WEEK_MS } from "../shared/attendanceMetrics";
 import { churchPagePath } from "../shared/churches";
 import { markedRoleIn } from "../shared/memberRole";
 import { type ViewBlock } from "../shared/attendanceMetricsView";
@@ -74,6 +74,7 @@ import {
   weeklyMarkValidator,
   weeklySettingsFields,
 } from "./weeklyInsightsData";
+import { DAY_MS } from "../shared/datetime";
 
 const MAX_EVENTS = 5000;
 const EVENTS_PAGE = 1000;

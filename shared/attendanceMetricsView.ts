@@ -1,77 +1,14 @@
-import {
-  RANGE_LABELS,
-  RANGE_WEEKS,
-  type FollowUpPerson,
-  type SplitPoint,
-  type SubgroupMetricsData,
-  type TrendPoint,
-} from "./attendanceMetrics";
+import type { Infer } from "convex/values";
+import type { legendItem, segmentPoint, viewBlockValidator, viewCard } from "../convex/metricsData";
+import { RANGE_LABELS, RANGE_WEEKS, type SubgroupMetricsData } from "./attendanceMetrics";
 import { subgroupColour } from "./rollcall";
 
-export type ViewColour = "primary" | "success" | "accent";
-
 export type ViewPaint = string;
-
-export type ViewLegendItem = { key: string; colour: ViewPaint; label: string; shape?: "line" };
-
-export type ViewSegmentPoint = {
-  at: number;
-  label: string;
-  segments: { key: string; value: number; colour: ViewPaint }[];
-};
-
-export type ViewCard = {
-  label: string;
-  value: string;
-  delta?: { text: string; direction: "up" | "down" | "flat" };
-  hint?: string;
-  tone?: "default" | "positive";
-  info?: { title: string; body: string };
-};
-
-export type ViewBlock =
-  | { type: "updated"; computedAt: number }
-  | { type: "label"; text: string }
-  | { type: "heading"; text: string }
-  | { type: "caption"; text: string }
-  | { type: "cards"; cards: ViewCard[]; layout?: "row" | "grid" }
-  | {
-      type: "stacked";
-      title: string;
-      subtitle?: string;
-      legend: ViewLegendItem[];
-      labels: { fresh: string; returning: string };
-      points: SplitPoint[];
-    }
-  | {
-      type: "multiBars";
-      title: string;
-      subtitle?: string;
-      legend: ViewLegendItem[];
-      points: ViewSegmentPoint[];
-      stacked: boolean;
-      axisMax?: number;
-      keepZeros?: boolean;
-      line?: { key: string; colour: ViewPaint; values: (number | null)[] };
-      unit?: string;
-    }
-  | { type: "bars"; title: string; colour: ViewColour; points: TrendPoint[] }
-  | { type: "breakdown"; title: string; rows: { label: string; value: number; colour?: ViewPaint }[] }
-  | {
-      type: "followUps";
-      title: string;
-      people: FollowUpPerson[];
-      total: number;
-      preview: number;
-      emptyText: string;
-    }
-  | {
-      type: "empty";
-      icon: string;
-      title: string;
-      message: string;
-      action?: { label: string; period: string };
-    };
+export type ViewLegendItem = Infer<typeof legendItem>;
+export type ViewSegmentPoint = Infer<typeof segmentPoint>;
+export type ViewCard = Infer<typeof viewCard>;
+export type ViewBlock = Infer<typeof viewBlockValidator>;
+export type ViewColour = Extract<ViewBlock, { type: "bars" }>["colour"];
 
 export const FOLLOW_UP_PREVIEW = 5;
 export const FOLLOW_UP_MAX = 25;
