@@ -53,12 +53,12 @@ const checkInToken = run("checkIn:enable", { eventId }, SWEEP_PEOPLE.leader);
 const DAY = 24 * 60 * 60 * 1000;
 run(
   "calendar:addEntry",
-  { name: "Sweep deadline", dateStart: now + DAY, dateEnd: now + DAY, subgroups: ["SOW"], category: "deadline", due: "time" },
+  { name: "Sweep deadline", dateStart: now + DAY, dateEnd: now + DAY, due: "time" },
   SWEEP_PEOPLE.staff
 );
 run(
   "calendar:addEntry",
-  { name: "Sweep camp", dateStart: now, dateEnd: now + 2 * DAY, subgroups: [UNSW], category: "campus" },
+  { name: "Sweep camp", dateStart: now, dateEnd: now + 2 * DAY },
   SWEEP_PEOPLE.staff
 );
 
