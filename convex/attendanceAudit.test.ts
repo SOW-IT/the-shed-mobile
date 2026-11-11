@@ -133,8 +133,7 @@ describe("attendance audit logging", () => {
   test("an event deleted before the member still leaves a named line", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = eventWindow();
-    const eventId = await createEvent(staff, { name: "Gone", dateStart, dateEnd });
+    const eventId = await createEvent(staff, { name: "Gone" });
     const memberId = await staff.mutation(api.attendanceMembers.create, {
       name: "Sam Member",
     });
@@ -151,8 +150,7 @@ describe("attendance audit logging", () => {
   test("falls back to an ISO stamp where the runtime has no full ICU", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = eventWindow();
-    const eventId = await createEvent(staff, { name: "No ICU", dateStart, dateEnd });
+    const eventId = await createEvent(staff, { name: "No ICU" });
     const memberId = await staff.mutation(api.attendanceMembers.create, {
       name: "Sam Member",
     });
@@ -497,9 +495,8 @@ describe("audit logging across attendance mutations", () => {
   test("event delete notes removed attendance records only when present", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = eventWindow();
-    const empty = await createEvent(staff, { name: "Empty", dateStart, dateEnd });
-    const withPeople = await createEvent(staff, { name: "Busy", dateStart, dateEnd });
+    const empty = await createEvent(staff, { name: "Empty" });
+    const withPeople = await createEvent(staff, { name: "Busy" });
     const memberId = await staff.mutation(api.attendanceMembers.create, {
       name: "Sam",
     });
@@ -524,8 +521,7 @@ describe("audit logging across attendance mutations", () => {
   test("a corrupt sign-in time can't block an event delete, and can't be saved", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = eventWindow();
-    const eventId = await createEvent(staff, { name: "Corrupt", dateStart, dateEnd });
+    const eventId = await createEvent(staff, { name: "Corrupt" });
     const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
     const attendanceId = await staff.mutation(api.attendance.signIn, { eventId, memberId });
     for (const bad of [Number.NaN, 8.64e15 + 1]) {
@@ -542,8 +538,7 @@ describe("audit logging across attendance mutations", () => {
   test("event deletePreview names everyone who would lose attendance", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = eventWindow();
-    const eventId = await createEvent(staff, { name: "Busy", dateStart, dateEnd });
+    const eventId = await createEvent(staff, { name: "Busy" });
     const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
     await staff.mutation(api.attendance.signIn, { eventId, memberId });
     await staff.mutation(api.attendance.signIn, { eventId, email: OTHER });
@@ -857,8 +852,7 @@ describe("audit logging across attendance mutations", () => {
   test("malformed cursor is silently dropped and query restarts from newest", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = eventWindow();
-    const eventId = await createEvent(staff, { name: "Cursor Test Event", dateStart, dateEnd });
+    const eventId = await createEvent(staff, { name: "Cursor Test Event" });
     await staff.mutation(api.attendance.signIn, { eventId, email: STAFF });
     const result = await staff.query(api.attendanceAudit.list, {
       paginationOpts: { numItems: 10, cursor: "not-json{{" },
@@ -984,9 +978,8 @@ describe("audit entries say which campus and skip saves that change nothing", ()
     const t = await setup();
     await asUser(t, ADMIN).mutation(api.admin.upsertUniversity, { year: YEAR, name: UNSW });
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = eventWindow();
     for (const subgroup of [USYD, UNSW]) {
-      await createEvent(staff, { name: "S2W5", dateStart, dateEnd, subgroups: [subgroup] });
+      await createEvent(staff, { name: "S2W5", subgroups: [subgroup] });
     }
     const options = await staff.query(api.attendanceAudit.filterOptions, {});
     const labels = options.events.map((e) => e.label).sort();
@@ -1029,8 +1022,7 @@ describe("audit entries say which campus and skip saves that change nothing", ()
   test("a record edit that changes nothing writes nothing", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = eventWindow();
-    const eventId = await createEvent(staff, { name: "Night", dateStart, dateEnd });
+    const eventId = await createEvent(staff, { name: "Night" });
     const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
     const attendanceId = await staff.mutation(api.attendance.signIn, { eventId, memberId });
     const row = await t.run((ctx) => ctx.db.get(attendanceId));

@@ -969,17 +969,7 @@ describe("setBudgetManager (Finance Head path)", () => {
     expect(after.budgetManagerEmail).toBe("cara@sow.org.au");
   });
 
-  test("rejects a caller who is neither an admin nor the Finance Head", async () => {
-    const t = await setup();
-    await expect(
-      asUser(t, "ghost@sow.org.au").mutation(api.admin.setBudgetManager, {
-        year: YEAR,
-        email: BELLA,
-      }),
-    ).rejects.toThrow(/admins or the Finance Head/);
-  });
-
-  test("a non-admin, non-Finance-Head is rejected", async () => {
+  test("rejects callers who are neither an admin nor the Finance Head, profiled or not", async () => {
     const t = await setup();
     await asUser(t, ADMIN).mutation(api.admin.upsertDepartment, {
       year: YEAR,
@@ -992,12 +982,11 @@ describe("setBudgetManager (Finance Head path)", () => {
       roles: ["Staff"],
       department: "Marketing",
     });
-    await expect(
-      asUser(t, "marty@sow.org.au").mutation(api.admin.setBudgetManager, {
-        year: YEAR,
-        email: BELLA,
-      }),
-    ).rejects.toThrow(/Only admins or the Finance Head/);
+    for (const caller of ["ghost@sow.org.au", "marty@sow.org.au"]) {
+      await expect(
+        asUser(t, caller).mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA }),
+      ).rejects.toThrow(/Only admins or the Finance Head/);
+    }
   });
 });
 
@@ -1801,26 +1790,19 @@ describe("setStaffProfile with assignments path", () => {
     expect(p.assignments).toContainEqual({ role: "Director" });
   });
 
-  test("empty assignments array is rejected", async () => {
+  test.each([
+    [[], /at least one assignment/],
+    [[{ role: "Head of Department", department: "Finance" }], /Structure section/],
+    [[{ role: "Wizard" }], /Roles must be among/],
+    [[{ role: "Staff" }], /needs a department/],
+    [[{ role: "Staff", department: "NonExistent" }], /doesn't exist/],
+    [[{ role: "Student Leader", university: "Hogwarts" }], /university/i],
+    [[{ role: "Student Leader" }], /university/i],
+  ])("rejects assignments %j", async (assignments, error) => {
     const t = await setup();
     await expect(
-      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-        email: "x@sow.org.au",
-        year: YEAR,
-        assignments: [],
-      }),
-    ).rejects.toThrow(/at least one assignment/);
-  });
-
-  test("HOD/HODiv in assignments is rejected", async () => {
-    const t = await setup();
-    await expect(
-      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-        email: "x@sow.org.au",
-        year: YEAR,
-        assignments: [{ role: "Head of Department", department: "Finance" }],
-      }),
-    ).rejects.toThrow(/Structure section/);
+      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, { email: "x@sow.org.au", year: YEAR, assignments }),
+    ).rejects.toThrow(error);
   });
 
   test("assignments path preserves existing head links", async () => {
@@ -1882,28 +1864,6 @@ describe("setStaffProfile with assignments path", () => {
     });
   });
 
-  test("invalid role in assignments is rejected", async () => {
-    const t = await setup();
-    await expect(
-      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-        email: "x@sow.org.au",
-        year: YEAR,
-        assignments: [{ role: "Wizard" }],
-      }),
-    ).rejects.toThrow(/Roles must be among/);
-  });
-
-  test("Staff assignment without a department is rejected", async () => {
-    const t = await setup();
-    await expect(
-      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-        email: "x@sow.org.au",
-        year: YEAR,
-        assignments: [{ role: "Staff" }],
-      }),
-    ).rejects.toThrow(/needs a department/);
-  });
-
   test("duplicate Director via assignments path is rejected", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
@@ -1921,17 +1881,6 @@ describe("setStaffProfile with assignments path", () => {
     ).rejects.toThrow(/already the Director/);
   });
 
-  test("unknown department in assignments path is rejected", async () => {
-    const t = await setup();
-    await expect(
-      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-        email: "x@sow.org.au",
-        year: YEAR,
-        assignments: [{ role: "Staff", department: "NonExistent" }],
-      }),
-    ).rejects.toThrow(/doesn't exist/);
-  });
-
   test("chaplain assignment fails when Chaplaincy department is missing", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
@@ -1946,28 +1895,6 @@ describe("setStaffProfile with assignments path", () => {
         assignments: [{ role: "Senior Chaplain" }],
       }),
     ).rejects.toThrow(/Chaplaincy/);
-  });
-
-  test("campus role with unknown university in assignments path is rejected", async () => {
-    const t = await setup();
-    await expect(
-      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-        email: "x@sow.org.au",
-        year: YEAR,
-        assignments: [{ role: "Student Leader", university: "Hogwarts" }],
-      }),
-    ).rejects.toThrow(/university/i);
-  });
-
-  test("campus role without university in assignments path is rejected", async () => {
-    const t = await setup();
-    await expect(
-      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-        email: "x@sow.org.au",
-        year: YEAR,
-        assignments: [{ role: "Student Leader" }],
-      }),
-    ).rejects.toThrow(/university/i);
   });
 
   test("pure role reduction via assignments path is rejected for non-head users", async () => {
