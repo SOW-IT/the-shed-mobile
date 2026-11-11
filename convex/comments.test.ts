@@ -295,11 +295,29 @@ describe("add", () => {
     ).rejects.toThrow(/Request not found/);
   });
 
-  test("notification routing covers all three branches without throwing", async () => {
+  test("a comment reaches the owner, the requester and past approvers, never its author", async () => {
     const t = await setup();
+    const notified = async (requestId: Awaited<ReturnType<typeof submit>>) =>
+      (
+        await t.run((ctx) =>
+          ctx.db
+            .query("notifications")
+            .withIndex("by_request", (q) => q.eq("requestId", requestId))
+            .collect()
+        )
+      )
+        .filter((n) => n.title === "New comment")
+        .map((n) => n.userEmail)
+        .sort();
+
     const id = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "any update?" });
+    expect(await notified(id)).toEqual([HENRY]);
     await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "looking now" });
+    expect(await notified(id)).toEqual([HENRY, RACHEL]);
+    const thread = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
+    expect(thread.map((c) => c.body)).toEqual(["any update?", "looking now"]);
+
     const paid = await submit(t);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: paid, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: paid, step: "budgetManager" });
@@ -312,9 +330,7 @@ describe("add", () => {
     });
     await asUser(t, FIONA).mutation(api.requests.pay, { requestId: paid, paidAmount: 100 });
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: paid, body: "thanks!" });
-
-    const list = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
-    expect(list.map((c) => c.body)).toEqual(["any update?", "looking now"]);
+    expect(await notified(paid)).toEqual([BELLA, FIONA, HENRY].sort());
   });
 
   test("list and unreadCount are null while auth attaches / for a missing request", async () => {

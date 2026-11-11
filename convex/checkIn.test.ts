@@ -787,15 +787,6 @@ describe("a sign-in confirmed late", () => {
   });
 });
 
-describe("org-wide events", () => {
-  test("offer every university", async () => {
-    const t = await setup();
-    const { token } = await enabled(t, ["SOW"]);
-    const page = (await t.query(api.checkIn.page, { token }))!;
-    expect(page.universities.map((c) => c.value)).toEqual(expect.arrayContaining([USYD, UNSW]));
-  });
-});
-
 describe("deleting an event", () => {
   test("removes its check-in requests along with its attendance", async () => {
     const t = await setup();

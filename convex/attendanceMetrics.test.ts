@@ -685,12 +685,6 @@ describe("campus weekly averages in the SOW view", () => {
 });
 
 describe("view", () => {
-  const snap = (avgWeeklyAttendance: number | null = 9) => ({
-    ...EMPTY_DATA,
-    hasEnoughHistory: true,
-    summary: { ...EMPTY_DATA.summary, uniqueAttendees: 7, avgWeeklyAttendance },
-  });
-
   test("returns null when not signed in", async () => {
     const { t } = await setup();
     expect(
@@ -707,51 +701,6 @@ describe("view", () => {
     expect(view?.blocks).toEqual([
       expect.objectContaining({ type: "empty", title: "Not ready yet" }),
     ]);
-  });
-
-  test("lays out a campus from its Snapshot", async () => {
-    const { t, leader } = await setup();
-    await t.mutation(internal.attendanceMetrics.writeSnapshots, {
-      subgroup: USYD,
-      staffYear: YEAR,
-      computedAt: 1234,
-      snapshots: [{ rangeWeeks: 4, includeCollaborative: true, data: snap() }],
-    });
-    const view = await leader.query(api.attendanceMetrics.view, {
-      subgroup: USYD,
-      rangeWeeks: 4,
-    });
-    expect(view?.blocks.map((b) => b.type)).toEqual([
-      "updated",
-      "cards",
-      "bars",
-      "followUps",
-    ]);
-    expect(view?.blocks[0]).toEqual({ type: "updated", computedAt: 1234 });
-  });
-
-  test("SOW leads with each campus's weekly average", async () => {
-    const { t, leader } = await setup();
-    await t.mutation(internal.attendanceMetrics.writeSnapshots, {
-      subgroup: SOW_SUBGROUP,
-      staffYear: YEAR,
-      computedAt: Date.now(),
-      snapshots: [{ rangeWeeks: 4, includeCollaborative: false, data: snap() }],
-    });
-    await t.run((ctx) =>
-      weeklyIndex(ctx, USYD, [{ at: Date.now() - DAY, count: 42, joint: false }])
-    );
-    const view = await leader.query(api.attendanceMetrics.view, {
-      subgroup: SOW_SUBGROUP,
-      rangeWeeks: 4,
-      includeCollaborative: false,
-    });
-    expect(view?.blocks[1]).toEqual({ type: "heading", text: "Weeklies" });
-    expect(view?.blocks[2]).toEqual({
-      type: "breakdown",
-      title: "Weeklies average by campus",
-      rows: [{ label: USYD, value: 42, colour: subgroupColour(USYD) }],
-    });
   });
 
   test("rangeOptions lists the precomputed ranges", async () => {

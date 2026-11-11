@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
   assignmentFor,
-  assignmentsOf,
   CHAPLAINCY_DEPARTMENT,
   departmentsOf,
   isMemberOfDepartment,
@@ -13,21 +12,6 @@ const profileOf = async (t: T, email: string) =>
   (await asUser(t, ADMIN).query(api.admin.listStaffProfiles, { year: YEAR }))!.find(
     (p) => p.email === email
   )!;
-
-describe("assignmentsOf (pure)", () => {
-  test("returns the stored assignments unchanged", () => {
-    const stored = [
-      { role: "Head of Department", department: "Finance" },
-      { role: "Staff", department: "Marketing" },
-    ];
-    expect(assignmentsOf({ assignments: stored })).toEqual(stored);
-  });
-
-  test("returns an empty array when there are no assignments", () => {
-    expect(assignmentsOf({})).toEqual([]);
-    expect(assignmentsOf({ assignments: [] })).toEqual([]);
-  });
-});
 
 describe("assignmentFor (scope derivation)", () => {
   test("a department role keeps its department", () => {
@@ -67,34 +51,47 @@ describe("assignmentFor (scope derivation)", () => {
 });
 
 describe("heads of multiple scopes", () => {
-  test("one person heads two departments and two divisions at once", async () => {
+  test("one person heads two departments and two divisions, and re-saving one keeps the rest", async () => {
     const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "multi@sow.org.au";
+    const headDepartment = (name: string, division: string) =>
+      admin.mutation(api.admin.upsertDepartment, { year: YEAR, name, division, headEmail: email });
+    const headDivision = (name: string, headEmail?: string) =>
+      admin.mutation(api.admin.upsertDivision, { year: YEAR, name, headEmail });
 
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Marketing", division: "Engagement", headEmail: email,
-    });
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Alumni", division: "Engagement", headEmail: email,
-    });
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR, name: "Operations", headEmail: email,
-    });
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR, name: "Engagement", headEmail: email,
-    });
+    await headDepartment("Marketing", "Engagement");
+    await headDepartment("Alumni", "Engagement");
+    await headDivision("Operations", email);
+    await headDivision("Engagement", email);
+    await headDepartment("Marketing", "Engagement");
+    await headDivision("Engagement", email);
 
     const p = await profileOf(t, email);
     expect(departmentsOf(p).sort()).toEqual(["Alumni", "Marketing"]);
-    expect(p.assignments).toContainEqual({
-      role: "Head of Department", department: "Marketing",
-    });
-    expect(p.assignments).toContainEqual({
-      role: "Head of Department", department: "Alumni",
-    });
-    expect(p.assignments).toContainEqual({ role: "Head of Division", division: "Operations" });
-    expect(p.assignments).toContainEqual({ role: "Head of Division", division: "Engagement" });
+    expect([...p.roles].sort()).toEqual(["Head of Department", "Head of Division"]);
+    expect(p.assignments).toEqual(
+      expect.arrayContaining([
+        { role: "Head of Department", department: "Marketing" },
+        { role: "Head of Department", department: "Alumni" },
+        { role: "Head of Division", division: "Operations" },
+        { role: "Head of Division", division: "Engagement" },
+      ])
+    );
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    const headed = (rows: { name: string; headEmail?: string | null }[]) =>
+      rows.filter((row) => row.headEmail === email).map((row) => row.name).sort();
+    expect(headed(structure.departments)).toEqual(["Alumni", "Marketing"]);
+    expect(headed(structure.divisions)).toEqual(["Engagement", "Operations"]);
+    const chart = (await admin.query(api.directory.orgChart, { year: YEAR }))!;
+    expect(
+      chart.divisions.filter((d) => d.head?.email === email).map((d) => d.name).sort()
+    ).toEqual(["Engagement", "Operations"]);
+
+    await headDivision("Engagement");
+    await headDivision("Operations");
+    const vacated = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(headed(vacated.divisions)).toEqual([]);
   });
 
   test("the only-one-head rule still holds; moving a headship is per-scope", async () => {
