@@ -773,44 +773,54 @@ function BarTooltip({ year, rows, edge }: { year: string; rows: TooltipRow[]; ed
   );
 }
 
-export function BarChart({
-  points,
-  colour,
-  fullscreen = false,
-}: {
-  points: TrendPoint[];
-  colour?: string;
-  fullscreen?: boolean;
-}) {
-  const t = useAppTheme();
-  const bar = colour ?? t.primary;
-  const mode = useChartMode();
-  const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
-  const fit = useBarFit(points.length, chartHeight);
+const useBarSelection = () => {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  if (points.length === 0) return <EmptyChart />;
-  const dataMax = Math.max(1, ...points.map((p) => p.value));
-  const { max: axisMax, ticks } = niceAxis(dataMax, chartHeight);
-  const labelFor = (i: number) => points[i].label;
-  if (mode === "line") {
-    return (
-      <LineSeriesChart
-        labels={points.map((p) => p.label)}
-        series={[{ key: "", colour: bar, values: points.map((p) => p.value) }]}
-        max={dataMax}
-        fullscreen={fullscreen}
-        tooltipLabelFor={labelFor}
-      />
-    );
-  }
+  return { selectedIdx, setSelectedIdx, hoveredIdx, setHoveredIdx };
+};
+
+function BarFrame({
+  count,
+  fit,
+  chartHeight,
+  axis,
+  unit,
+  fullscreen,
+  selection,
+  raiseRow = false,
+  keyOf,
+  labelOf,
+  tooltipTitle,
+  tooltipRows,
+  valueOf,
+  renderBar,
+  children,
+}: {
+  count: number;
+  fit: ReturnType<typeof useBarFit>;
+  chartHeight: number;
+  axis: { max: number; ticks: number[] };
+  unit?: string;
+  fullscreen: boolean;
+  selection: ReturnType<typeof useBarSelection>;
+  raiseRow?: boolean;
+  keyOf: (i: number) => string;
+  labelOf: (i: number) => string;
+  tooltipTitle: (i: number) => string;
+  tooltipRows: (i: number) => TooltipRow[];
+  valueOf?: (i: number) => number;
+  renderBar: (i: number, selected: boolean) => ReactNode;
+  children?: ReactNode;
+}) {
+  const t = useAppTheme();
+  const { selectedIdx, setSelectedIdx, hoveredIdx, setHoveredIdx } = selection;
   return (
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={axisMax} chartHeight={chartHeight} ticks={ticks} />
+      <YAxis max={axis.max} chartHeight={chartHeight} ticks={axis.ticks} unit={unit} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
-        <ChartGrid max={axisMax} ticks={ticks} chartHeight={chartHeight} />
+        <ChartGrid max={axis.max} ticks={axis.ticks} chartHeight={chartHeight} />
         <View
           onLayout={fit.onLayout}
           style={[
@@ -818,18 +828,21 @@ export function BarChart({
             {
               justifyContent: fit.justify,
               height: chartContainerH(chartHeight),
+              ...(raiseRow
+                ? { zIndex: selectedIdx !== null || hoveredIdx !== null ? 2 : 0 }
+                : {}),
             },
           ]}
         >
           {fit.w === 0
             ? null
-            : points.map((p, i) => {
+            : Array.from({ length: count }, (_, i) => {
                 const selected =
                   fullscreen && (selectedIdx === i || hoveredIdx === i);
-                const isLast = i === points.length - 1;
+                const isLast = i === count - 1;
                 return (
                   <Pressable
-                    key={`${p.at}-${i}`}
+                    key={keyOf(i)}
                     onPress={
                       fullscreen
                         ? () => setSelectedIdx(selectedIdx === i ? null : i)
@@ -850,33 +863,81 @@ export function BarChart({
                   >
                     {selected ? (
                       <BarTooltip
-                        edge={edgeOf(i, points.length)}
-                        year={labelFor(i)}
-                        rows={[{ label: "", value: p.value }]}
+                        edge={edgeOf(i, count)}
+                        year={tooltipTitle(i)}
+                        rows={tooltipRows(i)}
                       />
-                    ) : fit.showValues ? (
+                    ) : fit.showValues && valueOf ? (
                       <Text style={[styles.barValue, { color: t.muted }]}>
-                        {p.value}
+                        {valueOf(i)}
                       </Text>
                     ) : null}
-                    <View
-                      style={{
-                        width: barInner(fit.barWidth),
-                        height: Math.max(
-                          BAR_MIN,
-                          (p.value / axisMax) * chartHeight,
-                        ),
-                        backgroundColor: selected ? t.accent : bar,
-                        borderRadius: radius.sm,
-                      }}
-                    />
-                    <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
+                    {renderBar(i, selected)}
+                    <BarLabel text={i % fit.labelStep === 0 ? labelOf(i) : ""} />
                   </Pressable>
                 );
               })}
         </View>
+        {children}
       </View>
     </View>
+  );
+}
+
+export function BarChart({
+  points,
+  colour,
+  fullscreen = false,
+}: {
+  points: TrendPoint[];
+  colour?: string;
+  fullscreen?: boolean;
+}) {
+  const t = useAppTheme();
+  const bar = colour ?? t.primary;
+  const mode = useChartMode();
+  const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
+  const fit = useBarFit(points.length, chartHeight);
+  const selection = useBarSelection();
+  if (points.length === 0) return <EmptyChart />;
+  const dataMax = Math.max(1, ...points.map((p) => p.value));
+  const { max: axisMax, ticks } = niceAxis(dataMax, chartHeight);
+  const labelFor = (i: number) => points[i].label;
+  if (mode === "line") {
+    return (
+      <LineSeriesChart
+        labels={points.map((p) => p.label)}
+        series={[{ key: "", colour: bar, values: points.map((p) => p.value) }]}
+        max={dataMax}
+        fullscreen={fullscreen}
+        tooltipLabelFor={labelFor}
+      />
+    );
+  }
+  return (
+    <BarFrame
+      count={points.length}
+      fit={fit}
+      chartHeight={chartHeight}
+      axis={{ max: axisMax, ticks }}
+      fullscreen={fullscreen}
+      selection={selection}
+      keyOf={(i) => `${points[i].at}-${i}`}
+      labelOf={(i) => points[i].label}
+      tooltipTitle={labelFor}
+      tooltipRows={(i) => [{ label: "", value: points[i].value }]}
+      valueOf={(i) => points[i].value}
+      renderBar={(i, selected) => (
+        <View
+          style={{
+            width: barInner(fit.barWidth),
+            height: Math.max(BAR_MIN, (points[i].value / axisMax) * chartHeight),
+            backgroundColor: selected ? t.accent : bar,
+            borderRadius: radius.sm,
+          }}
+        />
+      )}
+    />
   );
 }
 
@@ -896,8 +957,7 @@ export function StackedBarChart({
   const { selectedKey } = useChartSelection();
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
   const fit = useBarFit(points.length, chartHeight);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const selection = useBarSelection();
   if (points.length === 0) return <EmptyChart />;
   const stackedDataMax = Math.max(
     1,
@@ -905,7 +965,6 @@ export function StackedBarChart({
   );
   const { max: stackedMax, ticks } = niceAxis(stackedDataMax, chartHeight);
   const scale = (n: number) => (n / stackedMax) * chartHeight;
-  const labelStep = fit.labelStep;
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
@@ -948,109 +1007,59 @@ export function StackedBarChart({
           ...baseSegments.filter((s) => s.id === selectedKey),
         ]
       : baseSegments;
+  const segmentsAt = (i: number) => {
+    const values: Record<"fresh" | "returning", number> = {
+      fresh: points[i].fresh,
+      returning: points[i].returning,
+    };
+    return segmentOrder
+      .map((s) => ({ ...s, value: values[s.id] }))
+      .filter((s) => s.value > 0);
+  };
   return (
-    <View
-      style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
-    >
-      <YAxis max={stackedMax} chartHeight={chartHeight} ticks={ticks} />
-      <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
-        <ChartGrid max={stackedMax} ticks={ticks} chartHeight={chartHeight} />
-        <View
-          onLayout={fit.onLayout}
-          style={[
-            styles.barRow,
-            {
-              justifyContent: fit.justify,
-              height: chartContainerH(chartHeight),
-            },
-          ]}
-        >
-          {fit.w === 0
-            ? null
-            : points.map((p, i) => {
-                const total = p.fresh + p.returning;
-                const selected =
-                  fullscreen && (selectedIdx === i || hoveredIdx === i);
-                const values: Record<"fresh" | "returning", number> = {
-                  fresh: p.fresh,
-                  returning: p.returning,
-                };
-                const visible = segmentOrder
-                  .map((s) => ({ ...s, value: values[s.id] }))
-                  .filter((s) => s.value > 0);
-                const isLast = i === points.length - 1;
-                return (
-                  <Pressable
-                    key={`${p.at}-${i}`}
-                    onPress={
-                      fullscreen
-                        ? () => setSelectedIdx(selectedIdx === i ? null : i)
-                        : undefined
-                    }
-                    onHoverIn={fullscreen ? () => setHoveredIdx(i) : undefined}
-                    onHoverOut={
-                      fullscreen ? () => setHoveredIdx(null) : undefined
-                    }
-                    style={[
-                      styles.barSlot,
-                      {
-                        width: fit.barWidth,
-                        marginRight: isLast ? 0 : fit.gap,
-                        zIndex: selected ? 10 : 0,
-                      },
-                    ]}
-                  >
-                    {selected ? (
-                      <BarTooltip
-                        edge={edgeOf(i, points.length)}
-                        year={labelFor(i)}
-                        rows={[
-                          {
-                            label: labels.fresh,
-                            value: p.fresh,
-                            colour: t.accent,
-                          },
-                          {
-                            label: labels.returning,
-                            value: p.returning,
-                            colour: t.primary,
-                          },
-                        ]}
-                      />
-                    ) : fit.showValues ? (
-                      <Text style={[styles.barValue, { color: t.muted }]}>
-                        {total}
-                      </Text>
-                    ) : null}
-                    <View
-                      style={{
-                        width: barInner(fit.barWidth),
-                        opacity: selected ? 0.7 : 1,
-                      }}
-                    >
-                      {visible.map((seg, si) => (
-                        <View
-                          key={seg.id}
-                          style={{
-                            height: Math.max(BAR_MIN, scale(seg.value)),
-                            backgroundColor: seg.colour,
-                            borderTopLeftRadius: si === 0 ? radius.sm : 0,
-                            borderTopRightRadius: si === 0 ? radius.sm : 0,
-                            borderBottomLeftRadius:
-                              si === visible.length - 1 ? radius.sm : 0,
-                            borderBottomRightRadius:
-                              si === visible.length - 1 ? radius.sm : 0,
-                          }}
-                        />
-                      ))}
-                    </View>
-                    <BarLabel text={i % labelStep === 0 ? p.label : ""} />
-                  </Pressable>
-                );
-              })}
-        </View>
-      </View>
-    </View>
+    <BarFrame
+      count={points.length}
+      fit={fit}
+      chartHeight={chartHeight}
+      axis={{ max: stackedMax, ticks }}
+      fullscreen={fullscreen}
+      selection={selection}
+      keyOf={(i) => `${points[i].at}-${i}`}
+      labelOf={(i) => points[i].label}
+      tooltipTitle={labelFor}
+      tooltipRows={(i) => [
+        { label: labels.fresh, value: points[i].fresh, colour: t.accent },
+        { label: labels.returning, value: points[i].returning, colour: t.primary },
+      ]}
+      valueOf={(i) => points[i].fresh + points[i].returning}
+      renderBar={(i, selected) => {
+        const visible = segmentsAt(i);
+        return (
+          <View
+            style={{
+              width: barInner(fit.barWidth),
+              opacity: selected ? 0.7 : 1,
+            }}
+          >
+            {visible.map((seg, si) => (
+              <View
+                key={seg.id}
+                style={{
+                  height: Math.max(BAR_MIN, scale(seg.value)),
+                  backgroundColor: seg.colour,
+                  borderTopLeftRadius: si === 0 ? radius.sm : 0,
+                  borderTopRightRadius: si === 0 ? radius.sm : 0,
+                  borderBottomLeftRadius:
+                    si === visible.length - 1 ? radius.sm : 0,
+                  borderBottomRightRadius:
+                    si === visible.length - 1 ? radius.sm : 0,
+                }}
+              />
+            ))}
+          </View>
+        );
+      }}
+    />
   );
 }
 
@@ -1089,7 +1098,6 @@ export function MultiStackedBarChart({
   line?: OverlayLine;
   unit?: string;
 }) {
-  const t = useAppTheme();
   const mode = useChartMode();
   const { selectedKey } = useChartSelection();
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
@@ -1103,8 +1111,7 @@ export function MultiStackedBarChart({
     chartHeight,
     stacked ? BAR_MAX_W : groupedSlot
   );
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const selection = useBarSelection();
   if (points.length === 0) return <EmptyChart />;
   const totals = points.map((p) =>
     p.segments.reduce((s, seg) => s + seg.value, 0),
@@ -1155,183 +1162,137 @@ export function MultiStackedBarChart({
       />
     );
   }
+  const visibleAt = (i: number) => {
+    const p = points[i];
+    const filtered = keepZeros
+      ? p.segments
+      : p.segments.filter((seg) => seg.value > 0);
+    return stacked && selectedKey && filtered.some((s) => s.key === selectedKey)
+      ? [
+          ...filtered.filter((s) => s.key !== selectedKey),
+          ...filtered.filter((s) => s.key === selectedKey),
+        ]
+      : filtered;
+  };
+  const innerWidth = barInner(fit.barWidth);
+  const groupGaps = Math.max(0, seriesKeys.length - 1) * SEG_GAP;
+  const groupSegWidth = Math.max(1, (innerWidth - groupGaps) / Math.max(1, seriesKeys.length));
   return (
-    <View
-      style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
-    >
-      <YAxis max={axis.max} chartHeight={chartHeight} ticks={axis.ticks} unit={unit} />
-      <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
-        <ChartGrid
-          max={axis.max}
-          ticks={axis.ticks}
-          chartHeight={chartHeight}
-        />
-        <View
-          onLayout={fit.onLayout}
-          style={[
-            styles.barRow,
-            {
-              justifyContent: fit.justify,
-              height: chartContainerH(chartHeight),
-              zIndex: selectedIdx !== null || hoveredIdx !== null ? 2 : 0,
-            },
-          ]}
-        >
-          {fit.w === 0
-            ? null
-            : points.map((p, i) => {
-                const total = totals[i];
-                const filtered = keepZeros
-                  ? p.segments
-                  : p.segments.filter((seg) => seg.value > 0);
-                const visible =
-                  stacked && selectedKey && filtered.some((s) => s.key === selectedKey)
-                    ? [
-                        ...filtered.filter((s) => s.key !== selectedKey),
-                        ...filtered.filter((s) => s.key === selectedKey),
-                      ]
-                    : filtered;
-                const barHeight =
-                  total > 0 ? Math.max(BAR_MIN, scale(total)) : 0;
-                const gapCount = Math.max(0, visible.length - 1);
-                const gaps = Math.min(
-                  gapCount * SEG_GAP,
-                  Math.max(0, barHeight - BAR_MIN),
-                );
-                const perGap = gapCount > 0 ? gaps / gapCount : 0;
-                const fill = barHeight - gaps;
-                const selected =
-                  fullscreen && (selectedIdx === i || hoveredIdx === i);
-                const innerWidth = barInner(fit.barWidth);
-                const groupGaps = Math.max(0, seriesKeys.length - 1) * SEG_GAP;
-                const groupSegWidth = Math.max(1, (innerWidth - groupGaps) / Math.max(1, seriesKeys.length));
-                const isLast = i === points.length - 1;
+    <BarFrame
+      count={points.length}
+      fit={fit}
+      chartHeight={chartHeight}
+      axis={axis}
+      unit={unit}
+      fullscreen={fullscreen}
+      selection={selection}
+      raiseRow
+      keyOf={(i) => `${points[i].at}-${i}`}
+      labelOf={(i) => points[i].label}
+      tooltipTitle={labelFor}
+      tooltipRows={(i) => [
+        ...(line && line.values[i] !== null
+          ? [{ label: line.label, value: `${line.values[i]}${unit}`, shape: "line" as const }]
+          : []),
+        ...visibleAt(i).map((seg) => ({
+          label: seg.label ?? seg.key,
+          value: `${seg.value}${unit}`,
+          colour: seg.colour,
+        })),
+      ]}
+      valueOf={stacked ? (i) => totals[i] : undefined}
+      renderBar={(i, selected) => {
+        const total = totals[i];
+        const visible = visibleAt(i);
+        if (!stacked) {
+          return (
+            <View
+              style={{
+                width: innerWidth,
+                height: chartHeight,
+                flexDirection: "row",
+                alignItems: "flex-end",
+                opacity: selected ? 0.7 : 1,
+              }}
+            >
+              {seriesKeys.map((key, si) => {
+                const seg = visible.find((v) => v.key === key);
                 return (
-                  <Pressable
-                    key={`${p.at}-${i}`}
-                    onPress={
-                      fullscreen
-                        ? () => setSelectedIdx(selectedIdx === i ? null : i)
-                        : undefined
-                    }
-                    onHoverIn={fullscreen ? () => setHoveredIdx(i) : undefined}
-                    onHoverOut={
-                      fullscreen ? () => setHoveredIdx(null) : undefined
-                    }
-                    style={[
-                      styles.barSlot,
-                      {
-                        width: fit.barWidth,
-                        marginRight: isLast ? 0 : fit.gap,
-                        zIndex: selected ? 10 : 0,
-                      },
-                    ]}
-                  >
-                    {selected ? (
-                      <BarTooltip
-                        edge={edgeOf(i, points.length)}
-                        year={labelFor(i)}
-                        rows={[
-                          ...(line && line.values[i] !== null
-                            ? [{ label: line.label, value: `${line.values[i]}${unit}`, shape: "line" as const }]
-                            : []),
-                          ...visible.map((seg) => ({
-                            label: seg.label ?? seg.key,
-                            value: `${seg.value}${unit}`,
-                            colour: seg.colour,
-                          })),
-                        ]}
-                      />
-                    ) : fit.showValues && stacked ? (
-                      <Text style={[styles.barValue, { color: t.muted }]}>
-                        {total}
-                      </Text>
-                    ) : null}
-                    {stacked ? (
-                      <View
-                        style={{
-                          width: innerWidth,
-                          height: barHeight,
-                          justifyContent: "flex-end",
-                          opacity: selected ? 0.7 : 1,
-                        }}
-                      >
-                        {visible.map((seg, si) => (
-                          <View
-                            key={seg.key}
-                            style={{
-                              height: total > 0 ? (seg.value / total) * fill : 0,
-                              backgroundColor: seg.colour,
-                              marginTop: si === 0 ? 0 : perGap,
-                              borderTopLeftRadius: si === 0 ? radius.sm : 0,
-                              borderTopRightRadius: si === 0 ? radius.sm : 0,
-                              borderBottomLeftRadius:
-                                si === visible.length - 1 ? radius.sm : 0,
-                              borderBottomRightRadius:
-                                si === visible.length - 1 ? radius.sm : 0,
-                            }}
-                          />
-                        ))}
-                      </View>
-                    ) : (
-                      <View
-                        style={{
-                          width: innerWidth,
-                          height: chartHeight,
-                          flexDirection: "row",
-                          alignItems: "flex-end",
-                          opacity: selected ? 0.7 : 1,
-                        }}
-                      >
-                        {seriesKeys.map((key, si) => {
-                          const seg = visible.find((v) => v.key === key);
-                          return (
-                            <View
-                              key={key}
-                              style={{
-                                width: groupSegWidth,
-                                height:
-                                  !seg || seg.value <= 0
-                                    ? 0
-                                    : Math.max(BAR_MIN, scale(seg.value)),
-                                backgroundColor: seg?.colour ?? "transparent",
-                                marginLeft: si === 0 ? 0 : SEG_GAP,
-                                borderTopLeftRadius: radius.sm,
-                                borderTopRightRadius: radius.sm,
-                              }}
-                            />
-                          );
-                        })}
-                      </View>
-                    )}
-                    <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
-                  </Pressable>
+                  <View
+                    key={key}
+                    style={{
+                      width: groupSegWidth,
+                      height:
+                        !seg || seg.value <= 0
+                          ? 0
+                          : Math.max(BAR_MIN, scale(seg.value)),
+                      backgroundColor: seg?.colour ?? "transparent",
+                      marginLeft: si === 0 ? 0 : SEG_GAP,
+                      borderTopLeftRadius: radius.sm,
+                      borderTopRightRadius: radius.sm,
+                    }}
+                  />
                 );
               })}
-        </View>
-        {line && fit.w > 0 ? (
+            </View>
+          );
+        }
+        const barHeight = total > 0 ? Math.max(BAR_MIN, scale(total)) : 0;
+        const gapCount = Math.max(0, visible.length - 1);
+        const gaps = Math.min(gapCount * SEG_GAP, Math.max(0, barHeight - BAR_MIN));
+        const perGap = gapCount > 0 ? gaps / gapCount : 0;
+        const fill = barHeight - gaps;
+        return (
           <View
-            pointerEvents="none"
             style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              top: BAR_VALUE_H,
-              height: chartHeight,
-              zIndex: 1,
+              width: innerWidth,
+              height: barHeight,
+              justifyContent: "flex-end",
+              opacity: selected ? 0.7 : 1,
             }}
           >
-            <LinePath
-              colour={line.colour}
-              points={slotCentres(fit.w, points.length, fit.barWidth, fit.gap).map((x, i) => {
-                const v = line.values[i];
-                return v === null || v === undefined ? null : { x, y: yAt(v, axis.max, chartHeight) };
-              })}
-            />
+            {visible.map((seg, si) => (
+              <View
+                key={seg.key}
+                style={{
+                  height: total > 0 ? (seg.value / total) * fill : 0,
+                  backgroundColor: seg.colour,
+                  marginTop: si === 0 ? 0 : perGap,
+                  borderTopLeftRadius: si === 0 ? radius.sm : 0,
+                  borderTopRightRadius: si === 0 ? radius.sm : 0,
+                  borderBottomLeftRadius:
+                    si === visible.length - 1 ? radius.sm : 0,
+                  borderBottomRightRadius:
+                    si === visible.length - 1 ? radius.sm : 0,
+                }}
+              />
+            ))}
           </View>
-        ) : null}
-      </View>
-    </View>
+        );
+      }}
+    >
+      {line && fit.w > 0 ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: BAR_VALUE_H,
+            height: chartHeight,
+            zIndex: 1,
+          }}
+        >
+          <LinePath
+            colour={line.colour}
+            points={slotCentres(fit.w, points.length, fit.barWidth, fit.gap).map((x, i) => {
+              const v = line.values[i];
+              return v === null || v === undefined ? null : { x, y: yAt(v, axis.max, chartHeight) };
+            })}
+          />
+        </View>
+      ) : null}
+    </BarFrame>
   );
 }
 
