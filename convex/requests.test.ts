@@ -2299,22 +2299,7 @@ describe("requestsForExport", () => {
     const t = newConvex();
     await seed(t, YEAR - 1, "last year");
     await seed(t, YEAR, "this year");
-    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-    const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY,
-    });
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA,
-    });
-    for (const a of [
-      { email: RACHEL, roles: ["Staff"], department: "Marketing" },
-      { email: BELLA, roles: ["Staff"], department: "Finance" },
-      { email: DAN, roles: ["Director"], department: "Marketing" },
-    ]) {
-      await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
-    }
-    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    await setup(t);
 
     const bella = asUser(t, BELLA);
     const rows = (await bella.query(api.requests.requestsForExport, {
@@ -2912,22 +2897,7 @@ describe("pay validation", () => {
       })
     );
     vi.useRealTimers();
-    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-    const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY,
-    });
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA,
-    });
-    for (const a of [
-      { email: RACHEL, roles: ["Staff"], department: "Marketing" },
-      { email: BELLA, roles: ["Staff"], department: "Finance" },
-      { email: DAN, roles: ["Director"], department: "Marketing" },
-    ]) {
-      await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
-    }
-    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    await setup(t);
 
     const id = await approvedRequest(t);
 
@@ -2984,6 +2954,10 @@ describe("pay validation", () => {
     expect(doc?.paid).toBe(true);
     expect(doc?.paidAmount).toBe(80);
     expect(doc?.payComment).toBe("partial");
+    const bellaNotes = await t.run((ctx) =>
+      ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", BELLA)).collect()
+    );
+    expect(bellaNotes.some((n) => n.title === "Paid amount changed")).toBe(true);
   });
 });
 
@@ -3289,23 +3263,7 @@ describe("browsing past years", () => {
       );
       vi.useRealTimers();
     }
-    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-    const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY,
-    });
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA,
-    });
-    for (const a of [
-      { email: RACHEL, roles: ["Staff"], department: "Marketing" },
-      { email: BELLA, roles: ["Staff"], department: "Finance" },
-      { email: DAN, roles: ["Director"], department: "Marketing" },
-    ]) {
-      await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
-    }
-    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-    return t;
+    return setup(t);
   }
 
   test("myRequests shows this year's requests, not older years'", async () => {
