@@ -11,42 +11,15 @@ import {
   MACQ,
   asUser,
   pinClock,
-  seeded,
+  campusSetup,
+  createEvent,
 } from "../test/convexFixture";
 
 pinClock();
 
-async function setup() {
-  const t = await seeded();
-  const admin = asUser(t, ADMIN);
-  await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
-  await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: MACQ });
-  await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Ministry" });
-  await admin.mutation(api.admin.upsertDepartment, {
-    year: YEAR,
-    name: "Missions",
-    division: "Ministry",
-  });
-  await admin.mutation(api.admin.setStaffProfile, {
-    email: LEADER,
-    year: YEAR,
-    roles: ["Student Leader"],
-    university: USYD,
-  });
-  await admin.mutation(api.admin.setStaffProfile, {
-    email: STAFF,
-    year: YEAR,
-    roles: ["Staff"],
-    department: "Missions",
-  });
-  return t;
-}
-
-const window = () => ({ dateStart: Date.now(), dateEnd: Date.now() + 3600_000 });
-
 describe("Campus locked options across the staff-year rollover", () => {
   test("a university from the previous staff year stays locked", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     const UOW = "University of Wollongong";
     await t.run(async (ctx) => {
@@ -64,7 +37,7 @@ describe("Campus locked options across the staff-year rollover", () => {
   });
 
   test("a campus in neither year is a custom option, not a locked one", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.attendanceMetadata.ensureDefaults, {});
     const campus = (await admin.query(api.attendanceMetadata.list, {})).find(
@@ -94,7 +67,7 @@ describe("Campus locked options across the staff-year rollover", () => {
 
 describe("attendance tags (branch coverage)", () => {
   test("plain staff cannot manage shared attendance settings", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const staff = asUser(t, STAFF);
     await expect(
       staff.mutation(api.attendanceTags.saveAll, {
@@ -114,7 +87,7 @@ describe("attendance tags (branch coverage)", () => {
   });
 
   test("updating a tag with subgroups stores the normalised subgroup list", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Retreat", colour: "purple" }],
@@ -130,7 +103,7 @@ describe("attendance tags (branch coverage)", () => {
   });
 
   test("a weekly tag never applies to SOW, which has no weeklies", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [
@@ -154,7 +127,7 @@ describe("attendance tags (branch coverage)", () => {
   });
 
   test("deleteIds skips tags that don't exist", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Keep", colour: "blue" }],
@@ -176,7 +149,7 @@ describe("attendance tags (branch coverage)", () => {
 
 describe("attendance tags", () => {
   test("list is staff-only and sorted by name", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Zeta", colour: "blue" }, { name: "Alpha", colour: "red" }],
@@ -188,7 +161,7 @@ describe("attendance tags", () => {
   });
 
   test("saveAll updates, deletes, and validates names", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Social", colour: "green" }],
@@ -222,7 +195,7 @@ describe("attendance tags", () => {
   });
 
   test("inserting a name that already exists in the catalogue is rejected", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Retreat", colour: "purple" }],
@@ -256,7 +229,7 @@ describe("attendance tags in two lists", () => {
     (await asUser(t, LEADER).query(api.attendanceTags.list, {})).map((tag) => `${tag.list ?? "-"}:${tag.name}`);
 
   test("new tags go in Other events unless they say Weeklies", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Social" }, { name: "BAM", list: "weeklies" }, { name: "Retreat", list: "events" }],
@@ -266,7 +239,7 @@ describe("attendance tags in two lists", () => {
   });
 
   test("a name is unique within a list, but both lists can have it", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "PPN", list: "events" }, { name: "ppn", list: "weeklies" }],
@@ -291,7 +264,7 @@ describe("attendance tags in two lists", () => {
   });
 
   test("a saved tag sent without a list stays in its list", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Games Night", list: "weeklies" }, { name: "Games Night" }],
@@ -323,7 +296,7 @@ describe("attendance tags in two lists", () => {
   });
 
   test("a tag saved before lists existed counts as Other events", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const old = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Seasons" }));
     await expect(
@@ -336,7 +309,7 @@ describe("attendance tags in two lists", () => {
   });
 
   test("the Weeklies tag can't be renamed or deleted", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const weeklies = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Weeklies" }));
     await expect(
@@ -354,7 +327,7 @@ describe("attendance tags in two lists", () => {
   });
 
   test("a tag named Weekly Meeting is an ordinary tag", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const old = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Weekly Meeting" }));
     await leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: old, name: "Weekly Catch-up" }], deleteIds: [] });
@@ -364,7 +337,7 @@ describe("attendance tags in two lists", () => {
   });
 
   test("no other tag can take the Weeklies name, in either list", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const [, social] = await t.run(async (ctx) => [
       await ctx.db.insert("attendanceTags", { name: "Weeklies" }),
@@ -382,7 +355,7 @@ describe("attendance tags in two lists", () => {
   });
 
   test("a tag both saved and deleted is just deleted", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const id = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Gone", list: "events" }));
     await leader.mutation(api.attendanceTags.saveAll, { tags: [{ id, name: "Gone" }], deleteIds: [id] });
@@ -392,7 +365,7 @@ describe("attendance tags in two lists", () => {
 
 describe("attendance metadata", () => {
   test("ensureDefaults seeds Year/Gender/Campus/Role once", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     expect(await leader.mutation(api.attendanceMetadata.ensureDefaults, { })).toBe(
       4
@@ -410,7 +383,7 @@ describe("attendance metadata", () => {
   });
 
   test("ensureDefaults merges custom roles from the current staff year", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     await asUser(t, ADMIN).mutation(api.admin.upsertRole, {
       year: YEAR,
       name: "Volunteer",
@@ -426,7 +399,7 @@ describe("attendance metadata", () => {
   });
 
   test("list is staff-only and strips Gender Other but keeps Female", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     expect(await t.query(api.attendanceMetadata.list, { })).toEqual([]);
@@ -438,7 +411,7 @@ describe("attendance metadata", () => {
   });
 
   test("saveAll creates, patches, and guards locked values", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
@@ -611,7 +584,7 @@ describe("attendance metadata", () => {
   });
 
   test("Role/Campus locked values stay synced to the roles/universities tables", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
@@ -650,7 +623,7 @@ describe("attendance metadata", () => {
 
 describe("attendance members", () => {
   test("optionIdForLabel fallback: campus not in field values returns the label", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
@@ -669,7 +642,7 @@ describe("attendance members", () => {
   });
 
   test("staffLockedMetadata clears campus for staff with no campus assignment", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
@@ -693,7 +666,7 @@ describe("attendance members", () => {
   });
 
   test("list combines staff profiles with attendance-only members", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.create, {
@@ -715,7 +688,7 @@ describe("attendance members", () => {
   });
 
   test("dedupes an attendance-only member who later becomes staff, per year", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
@@ -779,7 +752,7 @@ describe("attendance members", () => {
   });
 
   test("list shows a member whose email has no profile this year as a plain member", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const ghostId = await t.run(async (ctx) =>
@@ -798,7 +771,7 @@ describe("attendance members", () => {
   });
 
   test("ensureForStaff reuses the member linked from last year's profile instead of duplicating", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const { memberId, profileId } = await t.run(async (ctx) => {
       const memberId = await ctx.db.insert("attendanceMembers", { name: "Returning Staff" });
@@ -827,7 +800,7 @@ describe("attendance members", () => {
   });
 
   test("ensureForStaff reuses a member linked from a profile with the same import id", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const memberId = await t.run(async (ctx) => {
       const memberId = await ctx.db.insert("attendanceMembers", { name: "Renamed Staff" });
@@ -854,7 +827,7 @@ describe("attendance members", () => {
   });
 
   test("update of a staffer from a year they weren't staff is a plain member edit", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
@@ -869,7 +842,7 @@ describe("attendance members", () => {
   });
 
   test("next year's staff still holding their staff email can have it cleared this year", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const NEXT = "next.leader@sow.org.au";
     const memberId = await t.run(async (ctx) => {
@@ -900,7 +873,7 @@ describe("attendance members", () => {
   });
 
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const memberId = await t.run((ctx) =>
       ctx.db.insert("attendanceMembers", { name: "Outside Person", email: OUTSIDER })
@@ -915,7 +888,7 @@ describe("attendance members", () => {
   });
 
   test("roster subtitle omits campus (shown by the chip) but keeps other metadata", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, {});
     const fields = await leader.query(api.attendanceMetadata.list, {});
@@ -939,7 +912,7 @@ describe("attendance members", () => {
   });
 
   test("search, filter, sort, and paginate", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await admin.mutation(api.admin.setStaffProfile, {
@@ -1208,7 +1181,7 @@ describe("attendance members", () => {
   });
 
   test("ensureForStaff, update, get, and remove", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
@@ -1243,13 +1216,7 @@ describe("attendance members", () => {
     });
     expect(await t.query(api.attendanceMembers.get, { memberId: guestId })).toBeNull();
 
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     await leader.mutation(api.attendance.signIn, { eventId, memberId: guestId });
     await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId: guestId });
     expect(await leader.query(api.attendanceMembers.get, { memberId: guestId })).toBeNull();
@@ -1288,7 +1255,7 @@ describe("attendance members", () => {
 
 describe("metadata saveAll edge cases", () => {
   test("deleting a locked field throws ConvexError", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
@@ -1302,7 +1269,7 @@ describe("metadata saveAll edge cases", () => {
   });
 
   test("deleting a custom field strips its value from members that have it", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     await leader.mutation(api.attendanceMetadata.saveAll, {
@@ -1324,7 +1291,7 @@ describe("metadata saveAll edge cases", () => {
   });
 
   test("saving a field with a locked value removed throws ConvexError", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     await leader.mutation(api.attendanceMetadata.saveAll, {
@@ -1361,7 +1328,7 @@ describe("metadata saveAll edge cases", () => {
 
 describe("attendanceMembers.byName", () => {
   test("matches case-insensitively, trims, and is staff-only", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
@@ -1399,7 +1366,7 @@ describe("attendanceMembers.byName", () => {
   });
 
   test("a different-case lookup returns only whole-name matches, not names that merely share words", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await t.run(async (ctx) => {
       for (const name of ["Jane Doe", "jane doe", "Jane Doering", "Janet Doe", "Doe Jane"]) {

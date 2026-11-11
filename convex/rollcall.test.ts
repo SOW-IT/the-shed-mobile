@@ -14,53 +14,17 @@ import {
   MACQ,
   asUser,
   pinClock,
-  seeded,
+  campusSetup,
+  memberOf,
+  eventWindow,
+  createEvent,
 } from "../test/convexFixture";
 
 pinClock();
 
-async function setup() {
-  const t = await seeded();
-  const admin = asUser(t, ADMIN);
-  await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
-  await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: MACQ });
-  await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Ministry" });
-  await admin.mutation(api.admin.upsertDepartment, {
-    year: YEAR,
-    name: "Missions",
-    division: "Ministry",
-  });
-  await admin.mutation(api.admin.setStaffProfile, {
-    email: LEADER,
-    year: YEAR,
-    roles: ["Student Leader"],
-    university: USYD,
-  });
-  await admin.mutation(api.admin.setStaffProfile, {
-    email: STAFF,
-    year: YEAR,
-    roles: ["Staff"],
-    department: "Missions",
-  });
-  return t;
-}
-
-async function memberOf(t: T, email: string, year = YEAR) {
-  const profile = await t.run((ctx) =>
-    ctx.db
-      .query("staffProfiles")
-      .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", year))
-      .first()
-  );
-  if (!profile?.memberId) throw new Error(`No member linked to ${email} in ${year}`);
-  return profile.memberId;
-}
-
-const window = () => ({ dateStart: Date.now(), dateEnd: Date.now() + 3600_000 });
-
 describe("subgroups", () => {
   test("lists ALL plus the year's campuses, sorted", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const subgroups = await asUser(t, LEADER).query(api.events.subgroups, {});
     expect(subgroups[0]).toBe(SOW_SUBGROUP);
     expect(subgroups).toContain(USYD);
@@ -70,14 +34,14 @@ describe("subgroups", () => {
   });
 
   test("returns [] for an unauthenticated caller", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     expect(await t.query(api.events.subgroups, {})).toEqual([]);
   });
 });
 
 describe("legacy import matching", () => {
   test("a member linked to that year's assigned profile is one staff entry, and an email alone links nothing", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await admin.mutation(api.admin.setStaffProfile, {
@@ -100,13 +64,7 @@ describe("legacy import matching", () => {
     expect(roster.some((m) => m.memberId === memberId && m.kind === "member")).toBe(false);
     expect(roster.find((m) => m.memberId === legacyId)?.kind).toBe("member");
 
-    const { dateStart, dateEnd } = window();
-    const eventId = await admin.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(admin);
     await admin.mutation(api.attendance.signIn, { eventId, memberId });
     await admin.mutation(api.attendance.signIn, { eventId, memberId: legacyId });
     const listed = await leader.query(api.attendance.listByEvent, { eventId });
@@ -122,7 +80,7 @@ describe("legacy import matching", () => {
   });
 
   test("an unmatched legacy member stays a plain attendance member", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await admin.mutation(api.attendanceMetadata.ensureDefaults, { });
@@ -131,13 +89,7 @@ describe("legacy import matching", () => {
     );
     const roster = await leader.query(api.attendance.roster, { year: YEAR });
     expect(roster.some((m) => m.name === "Ghost Person")).toBe(true);
-    const { dateStart, dateEnd } = window();
-    const eventId = await admin.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(admin);
     await admin.mutation(api.attendance.signIn, { eventId, memberId });
     const listed = await leader.query(api.attendance.listByEvent, { eventId });
     expect(listed[0].kind).toBe("member");
@@ -145,15 +97,9 @@ describe("legacy import matching", () => {
   });
 
   test("signing in with a non-existent member id throws", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
-    const { dateStart, dateEnd } = window();
-    const eventId = await admin.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(admin);
     const memberId = await t.run(async (ctx) => {
       const id = await ctx.db.insert("attendanceMembers", { name: "Gone" });
       await ctx.db.delete(id);
@@ -165,7 +111,7 @@ describe("legacy import matching", () => {
   });
 
   test("a member whose email has no matching profile shows as a plain member", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await t.run(async (ctx) => {
       await ctx.db.insert("attendanceMembers", {
@@ -181,7 +127,7 @@ describe("legacy import matching", () => {
 
 describe("staff year derivation for events", () => {
   test("a Sep–Dec attendee who was staff only in the calendar year shows as a plain member", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const eventId = await t.run(async (ctx) => {
       const dateStart = Date.UTC(2025, 10, 1, 9, 0, 0);
@@ -210,7 +156,7 @@ describe("staff year derivation for events", () => {
   });
 
   test("a Sep–Dec event shows the next staff year's roles/campus", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const dateStart = Date.UTC(2023, 9, 15, 9, 0, 0);
     const CAL = 2023;
@@ -257,7 +203,7 @@ describe("staff year derivation for events", () => {
   });
 
   test("a member who was staff in an earlier year is staff on that year's event and a plain member on a later one", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const earlierStart = staffYearStartMs(YEAR - 1) + 30 * 86_400_000;
     const laterStart = Date.now() - 86_400_000;
@@ -317,7 +263,7 @@ describe("staff year derivation for events", () => {
 
 describe("roster (the shared member pool)", () => {
   test("every campus shares one pool: all of the year's staff profiles", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const roster = await asUser(t, LEADER).query(api.attendance.roster, {
       year: YEAR,
     });
@@ -331,7 +277,7 @@ describe("roster (the shared member pool)", () => {
   });
 
   test("an unassigned profile is not staff: its linked member is a plain entry", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const memberId = await t.run(async (ctx) => {
       const memberId = await ctx.db.insert("attendanceMembers", { name: "Paused Pat" });
       await ctx.db.insert("staffProfiles", {
@@ -351,7 +297,7 @@ describe("roster (the shared member pool)", () => {
   });
 
   test("a staff profile with no member yet is still a staff entry, with no memberId", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     await t.run((ctx) =>
       ctx.db.insert("staffProfiles", {
         email: "new@sow.org.au",
@@ -370,18 +316,13 @@ describe("roster (the shared member pool)", () => {
 describe("events + roll-call", () => {
   let t: T;
   beforeEach(async () => {
-    t = await setup();
+    t = await campusSetup();
   });
 
   test("create → appears under its sub-group, not collaborative", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const id = await leader.mutation(api.events.create, {
-      name: "Wednesday Outreach",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const id = await createEvent(leader, { name: "Wednesday Outreach", dateStart, dateEnd });
     const list = await leader.query(api.events.listBySubgroup, { subgroup: USYD });
     expect(list.events).toHaveLength(1);
     expect(list.events[0]._id).toEqual(id);
@@ -394,7 +335,7 @@ describe("events + roll-call", () => {
 
   test("a legacy row storing 'ALL' alongside 'SOW' isn't read as collaborative", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     const id = await t.run((ctx) =>
       ctx.db.insert("events", {
         name: "Whole-org night",
@@ -426,18 +367,8 @@ describe("events + roll-call", () => {
 
   test("multiple events under a sub-group come back newest first", async () => {
     const leader = asUser(t, LEADER);
-    const older = await leader.mutation(api.events.create, {
-      name: "Older",
-      dateStart: Date.now() - 86_400_000,
-      dateEnd: Date.now() - 86_400_000 + 3600_000,
-      subgroups: [USYD],
-    });
-    const newer = await leader.mutation(api.events.create, {
-      name: "Newer",
-      dateStart: Date.now(),
-      dateEnd: Date.now() + 3600_000,
-      subgroups: [USYD],
-    });
+    const older = await createEvent(leader, { name: "Older", dateStart: Date.now() - 86_400_000 });
+    const newer = await createEvent(leader, { name: "Newer" });
     const list = await leader.query(api.events.listBySubgroup, { subgroup: USYD });
     expect(list.events.map((e) => e._id)).toEqual([newer, older]);
   });
@@ -445,30 +376,10 @@ describe("events + roll-call", () => {
   test("listBySubgroup paginates through interleaved non-matching events", async () => {
     const leader = asUser(t, LEADER);
     const base = Date.now();
-    const oldest = await leader.mutation(api.events.create, {
-      name: "Oldest",
-      dateStart: base - 86_400_000,
-      dateEnd: base - 86_400_000 + 3600_000,
-      subgroups: [USYD],
-    });
-    const older = await leader.mutation(api.events.create, {
-      name: "Older",
-      dateStart: base - 45_000,
-      dateEnd: base - 45_000 + 3600_000,
-      subgroups: [USYD],
-    });
-    await leader.mutation(api.events.create, {
-      name: "Other 2",
-      dateStart: base - 30_000,
-      dateEnd: base - 30_000 + 3600_000,
-      subgroups: [MACQ],
-    });
-    const newer = await leader.mutation(api.events.create, {
-      name: "Newer",
-      dateStart: base,
-      dateEnd: base + 3600_000,
-      subgroups: [USYD],
-    });
+    const oldest = await createEvent(leader, { name: "Oldest", dateStart: base - 86_400_000 });
+    const older = await createEvent(leader, { name: "Older", dateStart: base - 45_000 });
+    await createEvent(leader, { name: "Other 2", dateStart: base - 30_000, subgroups: [MACQ] });
+    const newer = await createEvent(leader, { name: "Newer", dateStart: base });
 
     const first = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
@@ -491,32 +402,12 @@ describe("events + roll-call", () => {
   test("listBySubgroup buffers sparse matches across tiny pages", async () => {
     const leader = asUser(t, LEADER);
     const base = Date.now();
-    const older = await leader.mutation(api.events.create, {
-      name: "Older",
-      dateStart: base - 20_000,
-      dateEnd: base - 20_000 + 3600_000,
-      subgroups: [USYD],
-    });
+    const older = await createEvent(leader, { name: "Older", dateStart: base - 20_000 });
     for (let i = 0; i < 12; i++) {
-      await leader.mutation(api.events.create, {
-        name: `Other ${i}`,
-        dateStart: base - 19_000 + i,
-        dateEnd: base - 19_000 + i + 3600_000,
-        subgroups: [MACQ],
-      });
+      await createEvent(leader, { name: `Other ${i}`, dateStart: base - 19_000 + i, subgroups: [MACQ] });
     }
-    const middle = await leader.mutation(api.events.create, {
-      name: "Middle",
-      dateStart: base - 10_000,
-      dateEnd: base - 10_000 + 3600_000,
-      subgroups: [USYD],
-    });
-    const newer = await leader.mutation(api.events.create, {
-      name: "Newer",
-      dateStart: base,
-      dateEnd: base + 3600_000,
-      subgroups: [USYD],
-    });
+    const middle = await createEvent(leader, { name: "Middle", dateStart: base - 10_000 });
+    const newer = await createEvent(leader, { name: "Newer", dateStart: base });
 
     const first = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
@@ -549,19 +440,9 @@ describe("events + roll-call", () => {
     const leader = asUser(t, LEADER);
     const base = Date.now();
     for (let i = 0; i < 1_001; i++) {
-      await leader.mutation(api.events.create, {
-        name: `Other ${i}`,
-        dateStart: base - i,
-        dateEnd: base - i + 3600_000,
-        subgroups: [MACQ],
-      });
+      await createEvent(leader, { name: `Other ${i}`, dateStart: base - i, subgroups: [MACQ] });
     }
-    const match = await leader.mutation(api.events.create, {
-      name: "Eventually matching",
-      dateStart: base - 120_000,
-      dateEnd: base - 120_000 + 3600_000,
-      subgroups: [USYD],
-    });
+    const match = await createEvent(leader, { name: "Eventually matching", dateStart: base - 120_000 });
 
     const first = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
@@ -584,24 +465,9 @@ describe("events + roll-call", () => {
   test("listBySubgroup accepts legacy and malformed cursors", async () => {
     const leader = asUser(t, LEADER);
     const base = Date.now();
-    const older = await leader.mutation(api.events.create, {
-      name: "Older",
-      dateStart: base - 20_000,
-      dateEnd: base - 20_000 + 3600_000,
-      subgroups: [USYD],
-    });
-    const other = await leader.mutation(api.events.create, {
-      name: "Other",
-      dateStart: base - 10_000,
-      dateEnd: base - 10_000 + 3600_000,
-      subgroups: [MACQ],
-    });
-    const newer = await leader.mutation(api.events.create, {
-      name: "Newer",
-      dateStart: base,
-      dateEnd: base + 3600_000,
-      subgroups: [USYD],
-    });
+    const older = await createEvent(leader, { name: "Older", dateStart: base - 20_000 });
+    const other = await createEvent(leader, { name: "Other", dateStart: base - 10_000, subgroups: [MACQ] });
+    const newer = await createEvent(leader, { name: "Newer", dateStart: base });
 
     const malformed = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
@@ -714,19 +580,8 @@ describe("events + roll-call", () => {
     const leader = asUser(t, LEADER);
     const base = Date.now();
     const twig = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "TWIG" }));
-    const hosted = await leader.mutation(api.events.create, {
-      name: "Hosted",
-      dateStart: base,
-      dateEnd: base + 3600_000,
-      subgroups: [USYD, MACQ],
-      tagIds: [twig],
-    });
-    const sharedIn = await leader.mutation(api.events.create, {
-      name: "Shared in",
-      dateStart: base - 10_000,
-      dateEnd: base - 10_000 + 3600_000,
-      subgroups: [MACQ, USYD],
-    });
+    const hosted = await createEvent(leader, { name: "Hosted", dateStart: base, subgroups: [USYD, MACQ], tagIds: [twig] });
+    const sharedIn = await createEvent(leader, { name: "Shared in", dateStart: base - 10_000, subgroups: [MACQ, USYD] });
 
     const here = await leader.query(api.events.listBySubgroup, { subgroup: USYD, host: "here" });
     expect(here.events.map((e) => e._id)).toEqual([hosted]);
@@ -751,13 +606,8 @@ describe("events + roll-call", () => {
 
   test("sign in is idempotent; sign out removes; counts track", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Event",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(leader, { name: "Event", dateStart, dateEnd });
     await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
     await leader.mutation(api.attendance.signIn, { eventId, email: STAFF });
     await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
@@ -778,13 +628,8 @@ describe("events + roll-call", () => {
 
   test("email is normalised to lowercase on sign-in", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Event",
-      dateStart,
-      dateEnd,
-      subgroups: [SOW_SUBGROUP],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(leader, { name: "Event", dateStart, dateEnd, subgroups: [SOW_SUBGROUP] });
     await leader.mutation(api.attendance.signIn, {
       eventId,
       email: "Leader@SOW.org.au",
@@ -875,13 +720,8 @@ describe("events + roll-call", () => {
 
   test("ongoing event: an attendee can be signed out normally", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Live",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(leader, { name: "Live", dateStart, dateEnd });
     await leader.mutation(api.attendance.signIn, { eventId, email: STAFF });
     await leader.mutation(api.attendance.signOut, { eventId, email: STAFF });
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
@@ -890,13 +730,8 @@ describe("events + roll-call", () => {
 
   test("notes are stored per event attendance row", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Notes event",
-      dateStart,
-      dateEnd,
-      subgroups: [SOW_SUBGROUP],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(leader, { name: "Notes event", dateStart, dateEnd, subgroups: [SOW_SUBGROUP] });
     await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
     const [row] = await leader.query(api.attendance.listByEvent, { eventId });
     expect(row.notes).toBeUndefined();
@@ -930,13 +765,8 @@ describe("events + roll-call", () => {
 
   test("duplicate sub-groups are de-duped (not falsely collaborative)", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const id = await leader.mutation(api.events.create, {
-      name: "Dup",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD, USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const id = await createEvent(leader, { name: "Dup", dateStart, dateEnd, subgroups: [USYD, USYD] });
     const got = await leader.query(api.events.get, { eventId: id });
     expect(got!.subgroups).toEqual([USYD]);
     expect(got!.collaborative).toBe(false);
@@ -944,13 +774,8 @@ describe("events + roll-call", () => {
 
   test("collaborative event (2+ sub-groups) shows under each", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const id = await leader.mutation(api.events.create, {
-      name: "Joint Outreach",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD, MACQ],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const id = await createEvent(leader, { name: "Joint Outreach", dateStart, dateEnd, subgroups: [USYD, MACQ] });
     for (const subgroup of [USYD, MACQ]) {
       const list = await leader.query(api.events.listBySubgroup, { subgroup });
       expect(list.events.map((e) => e._id)).toContain(id);
@@ -963,13 +788,8 @@ describe("events + roll-call", () => {
 
   test("campus event collaborating with org-wide SOW appears under SOW", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const id = await leader.mutation(api.events.create, {
-      name: "SEASONS",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD, SOW_SUBGROUP],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const id = await createEvent(leader, { name: "SEASONS", dateStart, dateEnd, subgroups: [USYD, SOW_SUBGROUP] });
     const usyd = await leader.query(api.events.listBySubgroup, { subgroup: USYD });
     const sow = await leader.query(api.events.listBySubgroup, { subgroup: SOW_SUBGROUP });
     expect(usyd.events.map((e) => e._id)).toContain(id);
@@ -978,13 +798,8 @@ describe("events + roll-call", () => {
 
   test("legacy ALL collaboration values still match the SOW list", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const id = await leader.mutation(api.events.create, {
-      name: "Legacy collab",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD, "ALL"],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const id = await createEvent(leader, { name: "Legacy collab", dateStart, dateEnd, subgroups: [USYD, "ALL"] });
     const sow = await leader.query(api.events.listBySubgroup, { subgroup: SOW_SUBGROUP });
     expect(sow.events.map((e) => e._id)).toContain(id);
     const got = await leader.query(api.events.get, { eventId: id });
@@ -993,13 +808,8 @@ describe("events + roll-call", () => {
 
   test("remove deletes the event and its attendance", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Event",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(leader, { name: "Event", dateStart, dateEnd });
     await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
     await leader.mutation(api.events.remove, { eventId });
     expect(await leader.query(api.events.get, { eventId })).toBeNull();
@@ -1026,7 +836,7 @@ describe("new-event notifications", () => {
     creator: string,
     subgroups: string[]
   ) => {
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     const eventId = await asUser(t, creator).mutation(api.events.create, {
       name: "Outreach",
       dateStart,
@@ -1037,7 +847,7 @@ describe("new-event notifications", () => {
   };
 
   test("a campus event notifies that campus's staff — not other campuses or the creator", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.setStaffProfile, {
       email: LEADER2, year: YEAR, roles: ["Student Leader"], university: USYD,
@@ -1058,7 +868,7 @@ describe("new-event notifications", () => {
   });
 
   test("an org-wide (SOW) event notifies all staff except the creator", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     await createAndDeliver(t, LEADER, [SOW_SUBGROUP]);
     expect(await notifsFor(t, STAFF)).toHaveLength(1);
     expect(await notifsFor(t, LEADER)).toHaveLength(0);
@@ -1067,46 +877,26 @@ describe("new-event notifications", () => {
 
 describe("validation + permissions", () => {
   test("create rejects empty name, no sub-groups, bad dates, unknown sub-group", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     await expect(
-      leader.mutation(api.events.create, {
-        name: "  ",
-        dateStart,
-        dateEnd,
-        subgroups: [USYD],
-      })
+      createEvent(leader, { name: "  ", dateStart, dateEnd })
     ).rejects.toThrow(/name/i);
     await expect(
-      leader.mutation(api.events.create, {
-        name: "X",
-        dateStart,
-        dateEnd,
-        subgroups: [],
-      })
+      createEvent(leader, { name: "X", dateStart, dateEnd, subgroups: [] })
     ).rejects.toThrow(/at least one sub-group/i);
     await expect(
-      leader.mutation(api.events.create, {
-        name: "X",
-        dateStart: dateEnd,
-        dateEnd: dateStart,
-        subgroups: [USYD],
-      })
+      createEvent(leader, { name: "X", dateStart: dateEnd, dateEnd: dateStart })
     ).rejects.toThrow(/can't be before/i);
     await expect(
-      leader.mutation(api.events.create, {
-        name: "X",
-        dateStart,
-        dateEnd,
-        subgroups: ["Hogwarts"],
-      })
+      createEvent(leader, { name: "X", dateStart, dateEnd, subgroups: ["Hogwarts"] })
     ).rejects.toThrow(/Unknown sub-group/i);
   });
 
   test("a signed-in non-staff user can't create events", async () => {
-    const t = await setup();
-    const { dateStart, dateEnd } = window();
+    const t = await campusSetup();
+    const { dateStart, dateEnd } = eventWindow();
     await expect(
       asUser(t, OUTSIDER).mutation(api.events.create, {
         name: "X",
@@ -1118,9 +908,9 @@ describe("validation + permissions", () => {
   });
 
   test("an outsider (no staff profile) can't read roll-call data", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const outsider = asUser(t, OUTSIDER);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     const eventId = await asUser(t, LEADER).mutation(api.events.create, {
       name: "E",
       dateStart,
@@ -1141,15 +931,9 @@ describe("validation + permissions", () => {
   });
 
   test("signIn rejects a blank email", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     await expect(
       leader.mutation(api.attendance.signIn, { eventId, email: "   " })
     ).rejects.toThrow(/email is required/i);
@@ -1159,31 +943,19 @@ describe("validation + permissions", () => {
   });
 
   test("create rejects invalid tags and accepts valid ones", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Social", colour: "blue" }],
       deleteIds: [],
     });
     const [tag] = await leader.query(api.attendanceTags.list, {});
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Tagged",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-      tagIds: [tag._id],
-    });
+    const eventId = await createEvent(leader, { name: "Tagged", dateStart, dateEnd, tagIds: [tag._id] });
     const got = await leader.query(api.events.get, { eventId });
     expect(got?.tags?.[0]?.name).toBe("Social");
     await expect(
-      leader.mutation(api.events.create, {
-        name: "Bad tag",
-        dateStart,
-        dateEnd,
-        subgroups: [USYD],
-        tagIds: [tag._id, tag._id],
-      })
+      createEvent(leader, { name: "Bad tag", dateStart, dateEnd, tagIds: [tag._id, tag._id] })
     ).resolves.toBeTruthy();
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Temp", colour: "red" }],
@@ -1197,21 +969,15 @@ describe("validation + permissions", () => {
       deleteIds: [temp._id],
     });
     await expect(
-      leader.mutation(api.events.create, {
-        name: "Deleted tag",
-        dateStart,
-        dateEnd,
-        subgroups: [USYD],
-        tagIds: [temp._id],
-      })
+      createEvent(leader, { name: "Deleted tag", dateStart, dateEnd, tagIds: [temp._id] })
     ).rejects.toThrow(/no longer exist/i);
   });
 });
 
 describe("guards + edge cases", () => {
   test("queries return empty / null for an unauthenticated caller", async () => {
-    const t = await setup();
-    const { dateStart, dateEnd } = window();
+    const t = await campusSetup();
+    const { dateStart, dateEnd } = eventWindow();
     const eventId = await asUser(t, LEADER).mutation(api.events.create, {
       name: "E",
       dateStart,
@@ -1228,15 +994,9 @@ describe("guards + edge cases", () => {
   });
 
   test("get / remove / signIn handle a missing event gracefully", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     await leader.mutation(api.events.remove, { eventId });
     expect(await leader.query(api.events.get, { eventId })).toBeNull();
     await expect(
@@ -1248,15 +1008,9 @@ describe("guards + edge cases", () => {
   });
 
   test("signing out someone who isn't signed in is a no-op", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
     ).resolves.toBeNull();
@@ -1271,15 +1025,9 @@ describe("guards + edge cases", () => {
   });
 
   test("signOut requires exactly one identifier", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.create, { name: "G" });
     await expect(
@@ -1291,19 +1039,13 @@ describe("guards + edge cases", () => {
   });
 
   test("signIn and signOut by memberId", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.create, {
       name: "Guest",
     });
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     const attendanceId = await leader.mutation(api.attendance.signIn, {
       eventId,
       memberId,
@@ -1321,20 +1063,15 @@ describe("guards + edge cases", () => {
   });
 
   test("events.update patches name, dates, subgroups, and tags", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Social", colour: "blue" }],
       deleteIds: [],
     });
     const [tag] = await leader.query(api.attendanceTags.list, {});
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Original",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader, { name: "Original", dateStart, dateEnd });
     await leader.mutation(api.events.update, {
       eventId,
       name: "Updated",
@@ -1347,12 +1084,7 @@ describe("guards + edge cases", () => {
     expect(got?.name).toBe("Updated");
     expect(got?.collaborative).toBe(true);
     expect(got?.tags?.[0]?.name).toBe("Social");
-    const staleId = await leader.mutation(api.events.create, {
-      name: "Stale",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const staleId = await createEvent(leader, { name: "Stale", dateStart, dateEnd });
     await leader.mutation(api.events.remove, { eventId: staleId });
     await expect(
       leader.mutation(api.events.update, {
@@ -1366,21 +1098,15 @@ describe("guards + edge cases", () => {
   });
 
   test("deleting a tag removes it from any events that reference it", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Outreach", colour: "red" }],
       deleteIds: [],
     });
     const [tag] = await leader.query(api.attendanceTags.list, {});
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Tagged Event",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-      tagIds: [tag._id],
-    });
+    const eventId = await createEvent(leader, { name: "Tagged Event", dateStart, dateEnd, tagIds: [tag._id] });
     expect((await leader.query(api.events.get, { eventId }))?.tags?.[0]?.name).toBe("Outreach");
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [],
@@ -1391,9 +1117,9 @@ describe("guards + edge cases", () => {
   });
 
   test("roster with eventId ranks members by attendance history and tag matches", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
 
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Outreach", colour: "orange" }],
@@ -1401,22 +1127,10 @@ describe("guards + edge cases", () => {
     });
     const [tag] = await leader.query(api.attendanceTags.list, {});
 
-    const pastId = await leader.mutation(api.events.create, {
-      name: "Past",
-      dateStart: dateStart - 86_400_000,
-      dateEnd: dateEnd - 86_400_000,
-      subgroups: [USYD],
-      tagIds: [tag._id],
-    });
+    const pastId = await createEvent(leader, { name: "Past", dateStart: dateStart - 86_400_000, dateEnd: dateEnd - 86_400_000, tagIds: [tag._id] });
     await leader.mutation(api.attendance.signIn, { eventId: pastId, email: LEADER });
 
-    const targetId = await leader.mutation(api.events.create, {
-      name: "Target",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-      tagIds: [tag._id],
-    });
+    const targetId = await createEvent(leader, { name: "Target", dateStart, dateEnd, tagIds: [tag._id] });
 
     const roster = await leader.query(api.attendance.roster, { year: YEAR, eventId: targetId });
     expect(roster.length).toBeGreaterThan(0);
@@ -1424,7 +1138,7 @@ describe("guards + edge cases", () => {
   });
 
   test("listByEvent formats member metadata in subtitle", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
@@ -1435,13 +1149,7 @@ describe("guards + edge cases", () => {
       name: "Test Member",
       metadata: { [genderField._id]: maleId, [campusField._id]: USYD },
     });
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     await leader.mutation(api.attendance.signIn, { eventId, memberId });
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
     const row = rows.find((r) => r.name === "Test Member");
@@ -1462,7 +1170,7 @@ describe("guards + edge cases", () => {
   });
 
   test("a campus roll call works out Roles from that campus's weeklies only", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const memberId = await leader.mutation(api.attendanceMembers.create, { name: "Two Campus" });
     await t.run(async (ctx) => {
@@ -1477,9 +1185,9 @@ describe("guards + edge cases", () => {
         people: [{ key: `member:${memberId}`, category: "regular" }],
       });
     });
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     const create = (subgroups: string[]) =>
-      leader.mutation(api.events.create, { name: "E", dateStart, dateEnd, subgroups });
+      createEvent(leader, { dateStart, dateEnd, subgroups });
     const usydEvent = await create([USYD]);
     const jointEvent = await create([USYD, MACQ]);
     await leader.mutation(api.attendance.signIn, { eventId: usydEvent, memberId });
@@ -1500,7 +1208,7 @@ describe("guards + edge cases", () => {
   });
 
   test("an org-wide roll call works out Roles from every campus", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const memberId = await leader.mutation(api.attendanceMembers.create, { name: "Macq Regular" });
     await t.run((ctx) =>
@@ -1510,19 +1218,14 @@ describe("guards + edge cases", () => {
         people: [{ key: `member:${memberId}`, category: "regular" }],
       })
     );
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Conference",
-      dateStart,
-      dateEnd,
-      subgroups: [SOW_SUBGROUP],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(leader, { name: "Conference", dateStart, dateEnd, subgroups: [SOW_SUBGROUP] });
     const roster = await leader.query(api.attendance.roster, { year: YEAR, eventId });
     expect(roster.find((r) => r.name === "Macq Regular")?.subtitle).toBe("Regular");
   });
 
   test("roster enriches staff shadows and listByEvent handles edge rows", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
@@ -1539,13 +1242,7 @@ describe("guards + edge cases", () => {
     const leaderRow = roster.find((r) => r.email === LEADER);
     expect(leaderRow?.subtitle).toContain("1");
 
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     await t.run(async (ctx) => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
       await ctx.db.delete(gone);
@@ -1562,20 +1259,14 @@ describe("guards + edge cases", () => {
 
 describe("listByEvent de-duplicates one person signed in twice", () => {
   test("an email and a memberId sign-in for the same staff person collapse to one row", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
     });
-    const { dateStart, dateEnd } = window();
-    const eventId = await admin.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(admin);
     await admin.mutation(api.attendance.signIn, { eventId, email: LEADER });
     await admin.mutation(api.attendance.signIn, { eventId, memberId });
     const listed = await leader.query(api.attendance.listByEvent, { eventId });
@@ -1587,7 +1278,7 @@ describe("listByEvent de-duplicates one person signed in twice", () => {
 
 describe("collaborative events surface every sub-group's metadata", () => {
   test("a field scoped to a collaborator shows on the roll-call; a single-group event hides it", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
@@ -1603,14 +1294,9 @@ describe("collaborative events surface every sub-group's metadata", () => {
       name: "Houserson",
       metadata: { [houseFieldId]: "Red" },
     });
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
 
-    const collab = await admin.mutation(api.events.create, {
-      name: "Collab",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD, MACQ],
-    });
+    const collab = await createEvent(admin, { name: "Collab", dateStart, dateEnd, subgroups: [USYD, MACQ] });
     await admin.mutation(api.attendance.signIn, { eventId: collab, memberId });
     const collabRows = await leader.query(api.attendance.listByEvent, {
       eventId: collab,
@@ -1627,12 +1313,7 @@ describe("collaborative events surface every sub-group's metadata", () => {
       collabRoster.find((r) => r.name === "Houserson")?.subtitle ?? ""
     ).toContain("Red");
 
-    const usydOnly = await admin.mutation(api.events.create, {
-      name: "USYD only",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const usydOnly = await createEvent(admin, { name: "USYD only", dateStart, dateEnd });
     await admin.mutation(api.attendance.signIn, { eventId: usydOnly, memberId });
     const usydRows = await leader.query(api.attendance.listByEvent, {
       eventId: usydOnly,
@@ -1645,7 +1326,7 @@ describe("collaborative events surface every sub-group's metadata", () => {
 
 describe("roster without an event scopes metadata to the asked-for sub-group", () => {
   test("a sub-group-scoped field shows only for that sub-group", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
@@ -1680,21 +1361,11 @@ describe("roster without an event scopes metadata to the asked-for sub-group", (
 
 describe("staff sign-in and sign-out by email", () => {
   test("signing in a staff email with no member creates and links one, then reuses it", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
-    const otherId = await leader.mutation(api.events.create, {
-      name: "Other",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(leader, { dateStart, dateEnd });
+    const otherId = await createEvent(leader, { name: "Other", dateStart, dateEnd });
     const profileId = await t.run((ctx) =>
       ctx.db.insert("staffProfiles", {
         email: "fresh@sow.org.au",
@@ -1735,16 +1406,10 @@ describe("staff sign-in and sign-out by email", () => {
   });
 
   test("signing in a staff email reuses the member already linked to the profile", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     const staffMemberId = await memberOf(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     const membersBefore = await t.run(async (ctx) => (await ctx.db.query("attendanceMembers").collect()).length);
     const id = await leader.mutation(api.attendance.signIn, { eventId, email: STAFF });
     expect((await t.run((ctx) => ctx.db.get(id)))?.memberId).toBe(staffMemberId);
@@ -1756,15 +1421,9 @@ describe("staff sign-in and sign-out by email", () => {
   });
 
   test("signing in an email with no assigned profile in the event's staff year throws", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", { email: "idle@sow.org.au", year: YEAR, assignments: [] });
       await ctx.db.insert("staffProfiles", {
@@ -1782,15 +1441,9 @@ describe("staff sign-in and sign-out by email", () => {
   });
 
   test("signing out an email with no linked member, or no profile, is a no-op", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     await t.run((ctx) =>
       ctx.db.insert("staffProfiles", {
         email: "unlinked@sow.org.au",
@@ -1811,15 +1464,10 @@ describe("staff sign-in and sign-out by email", () => {
   });
 
   test("signing out by email removes the linked member's row and names them in the audit", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Live",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(leader, { name: "Live", dateStart, dateEnd });
     const staffMemberId = await memberOf(t, STAFF);
     await leader.mutation(api.attendance.signIn, { eventId, memberId: staffMemberId });
     await leader.mutation(api.attendance.signOut, { eventId, email: "STAFF@sowaustralia.com" });
@@ -1835,15 +1483,10 @@ describe("staff sign-in and sign-out by email", () => {
 
 describe("listByEvent identity", () => {
   test("two rows for one member collapse to the earliest sign-in; an orphaned row stays separate as Unknown", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(leader, { dateStart, dateEnd });
     const staffMemberId = await memberOf(t, STAFF);
     const { early } = await t.run(async (ctx) => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
@@ -1871,16 +1514,10 @@ describe("listByEvent identity", () => {
   });
 
   test("an invalid or missing event id lists nothing", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
     expect(await leader.query(api.attendance.listByEvent, { eventId: "not-an-id" })).toEqual([]);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader);
     await leader.mutation(api.events.remove, { eventId });
     expect(await leader.query(api.attendance.listByEvent, { eventId })).toEqual([]);
   });
@@ -1888,27 +1525,17 @@ describe("listByEvent identity", () => {
 
 describe("roster ranking history", () => {
   test("scores history by member, staff and plain alike", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     const staffMemberId = await memberOf(t, STAFF);
     const guestId = await t.run((ctx) => ctx.db.insert("attendanceMembers", { name: "Zz Guest" }));
-    const pastId = await leader.mutation(api.events.create, {
-      name: "Past",
-      dateStart: dateStart - 86_400_000,
-      dateEnd: dateEnd - 86_400_000,
-      subgroups: [USYD],
-    });
+    const pastId = await createEvent(leader, { name: "Past", dateStart: dateStart - 86_400_000, dateEnd: dateEnd - 86_400_000 });
     await t.run(async (ctx) => {
       await ctx.db.insert("attendance", { eventId: pastId, memberId: staffMemberId, signInTime: dateStart - 86_400_000 });
       await ctx.db.insert("attendance", { eventId: pastId, memberId: guestId, signInTime: dateStart - 86_400_000 });
     });
-    const targetId = await leader.mutation(api.events.create, {
-      name: "Target",
-      dateStart,
-      dateEnd,
-      subgroups: [MACQ],
-    });
+    const targetId = await createEvent(leader, { name: "Target", dateStart, dateEnd, subgroups: [MACQ] });
     await t.mutation(internal.rosterHistory.rebuild, {});
     const roster = await leader.query(api.attendance.roster, { year: YEAR, eventId: targetId });
     const ranked = roster.slice(0, 2).map((r) => r.memberId).sort();
@@ -1919,12 +1546,12 @@ describe("roster ranking history", () => {
 
 describe("event lookups skip ids that no longer resolve", () => {
   test("get with a malformed id is null, and a buffered cursor skips a deleted event", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     expect(await leader.query(api.events.get, { eventId: "not-an-id" })).toBeNull();
-    const kept = await leader.mutation(api.events.create, { name: "Kept", dateStart, dateEnd, subgroups: [USYD] });
-    const removed = await leader.mutation(api.events.create, { name: "Removed", dateStart, dateEnd, subgroups: [USYD] });
+    const kept = await createEvent(leader, { name: "Kept", dateStart, dateEnd });
+    const removed = await createEvent(leader, { name: "Removed", dateStart, dateEnd });
     await leader.mutation(api.events.remove, { eventId: removed });
     const page = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
@@ -1937,15 +1564,10 @@ describe("event lookups skip ids that no longer resolve", () => {
 
 describe("a staff person's name follows one rule in every list", () => {
   test("profile name, then the member row's own name, never an email", async () => {
-    const t = await setup();
+    const t = await campusSetup();
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Night",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(leader, { name: "Night", dateStart, dateEnd });
     const staffMember = await memberOf(t, STAFF);
     const leaderMember = await memberOf(t, LEADER);
     await t.run(async (ctx) => {

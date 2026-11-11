@@ -1,15 +1,25 @@
 import { describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import { type T, ADMIN, STAFF, USYD, newConvex, asUser, pinClock, seeded } from "../test/convexFixture";
+import {
+  type T,
+  ADMIN,
+  STAFF,
+  USYD,
+  newConvex,
+  asUser,
+  pinClock,
+  seeded,
+  memberOf,
+  eventWindow,
+  createEvent,
+} from "../test/convexFixture";
 
 const NOW = staffYearStartMs(staffYearForDate(new Date())) + 120 * 86_400_000;
 const YEAR = staffYearForDate(new Date(NOW));
 pinClock(NOW);
 
 const OTHER = "other@sow.org.au";
-
-const window = () => ({ dateStart: Date.now(), dateEnd: Date.now() + 3600_000 });
 
 async function setup() {
   const t = await seeded();
@@ -37,23 +47,13 @@ async function setup() {
   return t;
 }
 
-const linkedMember = async (t: T, email: string) => {
-  const profile = await t.run((ctx) =>
-    ctx.db
-      .query("staffProfiles")
-      .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", YEAR))
-      .first()
-  );
-  return profile!.memberId!;
-};
-
 const allLogs = (t: T) =>
   t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
 
 describe("attendance audit logging", () => {
   test("creating an event writes one audit row with actor + action + eventId", async () => {
     const t = await setup();
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     const eventId = await asUser(t, STAFF).mutation(api.events.create, {
       name: "Weekly Meeting",
       dateStart,
@@ -75,13 +75,7 @@ describe("attendance audit logging", () => {
   test("sign-in logs once and is idempotent on repeat", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(staff);
     const memberId = await staff.mutation(api.attendanceMembers.create, {
       name: "Sam Member",
     });
@@ -100,19 +94,9 @@ describe("attendance audit logging", () => {
   test("deleting a member records every attendance it removed, with event and time", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const first = await staff.mutation(api.events.create, {
-      name: "Weekly Meeting",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
-    const second = await staff.mutation(api.events.create, {
-      name: "Camp",
-      dateStart: dateStart + 86_400_000,
-      dateEnd: dateEnd + 86_400_000,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const first = await createEvent(staff, { name: "Weekly Meeting", dateStart, dateEnd });
+    const second = await createEvent(staff, { name: "Camp", dateStart: dateStart + 86_400_000, dateEnd: dateEnd + 86_400_000 });
     const memberId = await staff.mutation(api.attendanceMembers.create, {
       name: "Sam Member",
     });
@@ -149,13 +133,8 @@ describe("attendance audit logging", () => {
   test("an event deleted before the member still leaves a named line", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "Gone",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "Gone", dateStart, dateEnd });
     const memberId = await staff.mutation(api.attendanceMembers.create, {
       name: "Sam Member",
     });
@@ -175,14 +154,9 @@ describe("attendance audit logging", () => {
     const memberId = await staff.mutation(api.attendanceMembers.create, {
       name: "Long Serving",
     });
-    const base = window();
+    const base = eventWindow();
     for (let i = 0; i < 105; i++) {
-      const eventId = await staff.mutation(api.events.create, {
-        name: `Event ${i}`,
-        dateStart: base.dateStart + i * 60_000,
-        dateEnd: base.dateEnd + i * 60_000,
-        subgroups: [USYD],
-      });
+      const eventId = await createEvent(staff, { name: `Event ${i}`, dateStart: base.dateStart + i * 60_000, dateEnd: base.dateEnd + i * 60_000 });
       await staff.mutation(api.attendance.signIn, { eventId, memberId });
     }
 
@@ -198,13 +172,8 @@ describe("attendance audit logging", () => {
   test("falls back to an ISO stamp where the runtime has no full ICU", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "No ICU",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "No ICU", dateStart, dateEnd });
     const memberId = await staff.mutation(api.attendanceMembers.create, {
       name: "Sam Member",
     });
@@ -231,13 +200,7 @@ describe("attendance audit logging", () => {
   test("sign-out logs only when a record actually existed", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(staff);
     const memberId = await staff.mutation(api.attendanceMembers.create, {
       name: "Sam Member",
     });
@@ -256,7 +219,7 @@ describe("attendance audit logging", () => {
 
   test("list filters by event and by actor, and search matches the summary", async () => {
     const t = await setup();
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     const eventA = await asUser(t, STAFF).mutation(api.events.create, {
       name: "Alpha Camp",
       dateStart,
@@ -323,13 +286,7 @@ describe("attendance audit logging", () => {
   test("list filters by entity type", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    await staff.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    await createEvent(staff);
     await staff.mutation(api.attendanceMembers.create, { name: "A Member" });
 
     const opts = { numItems: 50, cursor: null };
@@ -379,7 +336,7 @@ describe("attendance audit logging", () => {
 
   test("search matches the subject's email, not just summary and actor", async () => {
     const t = await setup();
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     const eventId = await asUser(t, STAFF).mutation(api.events.create, {
       name: "Alpha Camp",
       dateStart,
@@ -403,14 +360,9 @@ describe("attendance audit logging", () => {
   test("search paginates across pages", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     for (const n of [1, 2, 3]) {
-      await staff.mutation(api.events.create, {
-        name: `Sprint Camp ${n}`,
-        dateStart,
-        dateEnd,
-        subgroups: [USYD],
-      });
+      await createEvent(staff, { name: `Sprint Camp ${n}`, dateStart, dateEnd });
     }
 
     const first = await staff.query(api.attendanceAudit.list, {
@@ -432,20 +384,10 @@ describe("attendance audit logging", () => {
   test("a sparse filter scans several internal pages in one call", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    await staff.mutation(api.events.create, {
-      name: "Unicorn Gala",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    await createEvent(staff, { name: "Unicorn Gala", dateStart, dateEnd });
     for (let i = 0; i < 8; i++) {
-      await staff.mutation(api.events.create, {
-        name: `Filler ${i}`,
-        dateStart: dateStart + i + 1,
-        dateEnd,
-        subgroups: [USYD],
-      });
+      await createEvent(staff, { name: `Filler ${i}`, dateStart: dateStart + i + 1, dateEnd });
     }
 
     const res = await staff.query(api.attendanceAudit.list, {
@@ -460,19 +402,9 @@ describe("attendance audit logging", () => {
   test("filterOptions lists distinct actors and recent events, dropping deleted ones", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const liveEvent = await staff.mutation(api.events.create, {
-      name: "Live Event",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
-    const laterEvent = await staff.mutation(api.events.create, {
-      name: "Later Event",
-      dateStart: dateStart + 1000,
-      dateEnd: dateEnd + 1000,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const liveEvent = await createEvent(staff, { name: "Live Event", dateStart, dateEnd });
+    const laterEvent = await createEvent(staff, { name: "Later Event", dateStart: dateStart + 1000, dateEnd: dateEnd + 1000 });
     const goneEvent = await asUser(t, OTHER).mutation(api.events.create, {
       name: "Gone Event",
       dateStart,
@@ -502,7 +434,7 @@ describe("attendance audit logging", () => {
   test("filterOptions reads only the newest audit rows, and still offers events that have started", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     const quietEvent = await t.run((ctx) =>
       ctx.db.insert("events", {
         name: "Quiet Event",
@@ -511,12 +443,7 @@ describe("attendance audit logging", () => {
         subgroups: [USYD],
       })
     );
-    const busyEvent = await staff.mutation(api.events.create, {
-      name: "Busy Event",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const busyEvent = await createEvent(staff, { name: "Busy Event", dateStart, dateEnd });
     await t.run(async (ctx) => {
       await ctx.db.insert("attendanceAuditLog", {
         actorEmail: "long-ago@sow.org.au",
@@ -563,13 +490,8 @@ describe("audit logging across attendance mutations", () => {
   test("event update logs real changes only; a no-op save logs nothing", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "Orig",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "Orig", dateStart, dateEnd });
 
     await staff.mutation(api.events.update, {
       eventId,
@@ -596,19 +518,9 @@ describe("audit logging across attendance mutations", () => {
   test("event delete notes removed attendance records only when present", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const empty = await staff.mutation(api.events.create, {
-      name: "Empty",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
-    const withPeople = await staff.mutation(api.events.create, {
-      name: "Busy",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const empty = await createEvent(staff, { name: "Empty", dateStart, dateEnd });
+    const withPeople = await createEvent(staff, { name: "Busy", dateStart, dateEnd });
     const memberId = await staff.mutation(api.attendanceMembers.create, {
       name: "Sam",
     });
@@ -633,13 +545,8 @@ describe("audit logging across attendance mutations", () => {
   test("a corrupt sign-in time can't block an event delete, and can't be saved", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "Corrupt",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "Corrupt", dateStart, dateEnd });
     const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
     const attendanceId = await staff.mutation(api.attendance.signIn, { eventId, memberId });
     for (const bad of [Number.NaN, 8.64e15 + 1]) {
@@ -656,13 +563,8 @@ describe("audit logging across attendance mutations", () => {
   test("event deletePreview names everyone who would lose attendance", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "Busy",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "Busy", dateStart, dateEnd });
     const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
     await staff.mutation(api.attendance.signIn, { eventId, memberId });
     await staff.mutation(api.attendance.signIn, { eventId, email: OTHER });
@@ -703,20 +605,14 @@ describe("audit logging across attendance mutations", () => {
       staffYear: YEAR,
     });
 
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(staff);
     await staff.mutation(api.attendance.signIn, { eventId, memberId: plain });
     await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId: plain });
 
     const actions = await actionsFor(t);
     expect(actions.filter((a) => a === "member.update")).toHaveLength(2);
     expect(actions.filter((a) => a === "member.create")).toHaveLength(1);
-    expect(overlay).toBe(await linkedMember(t, STAFF));
+    expect(overlay).toBe(await memberOf(t, STAFF));
     const del = (await allLogs(t)).find((l) => l.action === "member.delete");
     expect(del?.detail).toContain("attendance record");
   });
@@ -733,7 +629,7 @@ describe("audit logging across attendance mutations", () => {
       roles: ["Staff"],
       department: "Missions",
     });
-    const linked = await linkedMember(t, STAFF);
+    const linked = await memberOf(t, STAFF);
     const created = (await allLogs(t)).filter(
       (l) => l.action === "member.create" && l.memberId === linked
     );
@@ -982,13 +878,8 @@ describe("audit logging across attendance mutations", () => {
   test("malformed cursor is silently dropped and query restarts from newest", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "Cursor Test Event",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "Cursor Test Event", dateStart, dateEnd });
     await staff.mutation(api.attendance.signIn, { eventId, email: STAFF });
     const result = await staff.query(api.attendanceAudit.list, {
       paginationOpts: { numItems: 10, cursor: "not-json{{" },
@@ -1000,13 +891,8 @@ describe("audit logging across attendance mutations", () => {
   test("roll-call by email logs sign-in, record edit and sign-out", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "Email Event",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "Email Event", dateStart, dateEnd });
 
     const attendanceId = await staff.mutation(api.attendance.signIn, {
       eventId,
@@ -1033,18 +919,13 @@ describe("attendance audit names the person by member", () => {
   test("record edits name staff by their profile and plain members by their row", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "Night",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "Night", dateStart, dateEnd });
     const plainId = await staff.mutation(api.attendanceMembers.create, { name: "Pia Plain" });
     const plainRow = await staff.mutation(api.attendance.signIn, { eventId, memberId: plainId });
     const staffRow = await staff.mutation(api.attendance.signIn, {
       eventId,
-      memberId: await linkedMember(t, OTHER),
+      memberId: await memberOf(t, OTHER),
     });
     await staff.mutation(api.attendance.updateRecord, { attendanceId: plainRow, notes: "hi" });
     await staff.mutation(api.attendance.updateRecord, { attendanceId: staffRow, signInTime: dateStart + 1_000 });
@@ -1064,14 +945,9 @@ describe("attendance audit names the person by member", () => {
   test("edits and sign-outs on rows whose event or member is gone still log", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "Doomed",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
-    const otherMember = await linkedMember(t, OTHER);
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "Doomed", dateStart, dateEnd });
+    const otherMember = await memberOf(t, OTHER);
     const ids = await t.run(async (ctx) => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
       await ctx.db.delete(gone);
@@ -1108,13 +984,8 @@ describe("attendance audit names the person by member", () => {
   test("editing a record that no longer exists throws", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "E",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { dateStart, dateEnd });
     const attendanceId = await t.run(async (ctx) => {
       const memberId = await ctx.db.insert("attendanceMembers", { name: "Brief" });
       const id = await ctx.db.insert("attendance", { eventId, memberId, signInTime: dateStart });
@@ -1134,14 +1005,9 @@ describe("audit entries say which campus and skip saves that change nothing", ()
     const t = await setup();
     await asUser(t, ADMIN).mutation(api.admin.upsertUniversity, { year: YEAR, name: UNSW });
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
+    const { dateStart, dateEnd } = eventWindow();
     for (const subgroup of [USYD, UNSW]) {
-      await staff.mutation(api.events.create, {
-        name: "S2W5",
-        dateStart,
-        dateEnd,
-        subgroups: [subgroup],
-      });
+      await createEvent(staff, { name: "S2W5", dateStart, dateEnd, subgroups: [subgroup] });
     }
     const options = await staff.query(api.attendanceAudit.filterOptions, {});
     const labels = options.events.map((e) => e.label).sort();
@@ -1155,13 +1021,8 @@ describe("audit entries say which campus and skip saves that change nothing", ()
   test("sign-in, sign-out, record edits and event changes name the campus", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "S2W5",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "S2W5", dateStart, dateEnd });
     const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
     const attendanceId = await staff.mutation(api.attendance.signIn, { eventId, memberId });
     await staff.mutation(api.attendance.updateRecord, { attendanceId, notes: "late" });
@@ -1189,13 +1050,8 @@ describe("audit entries say which campus and skip saves that change nothing", ()
   test("a record edit that changes nothing writes nothing", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const { dateStart, dateEnd } = window();
-    const eventId = await staff.mutation(api.events.create, {
-      name: "Night",
-      dateStart,
-      dateEnd,
-      subgroups: [USYD],
-    });
+    const { dateStart, dateEnd } = eventWindow();
+    const eventId = await createEvent(staff, { name: "Night", dateStart, dateEnd });
     const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
     const attendanceId = await staff.mutation(api.attendance.signIn, { eventId, memberId });
     const row = await t.run((ctx) => ctx.db.get(attendanceId));

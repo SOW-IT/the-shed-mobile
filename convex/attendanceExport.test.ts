@@ -2,59 +2,27 @@ import { describe, expect, test } from "vitest";
 import { staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
 import { api } from "./_generated/api";
 import {
-  type T,
   DAY,
   PINNED_NOW,
   YEAR,
-  ADMIN,
   LEADER,
   STAFF,
   USYD,
   MACQ,
   asUser,
   pinClock,
-  seeded,
+  campusSetup,
+  memberOf,
 } from "../test/convexFixture";
 
 pinClock();
 const CAL_YEAR = sydneyCalendarYear(new Date(PINNED_NOW));
 
 async function setup() {
-  const t = await seeded();
-  const admin = asUser(t, ADMIN);
-  await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
-  await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: MACQ });
-  await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Ministry" });
-  await admin.mutation(api.admin.upsertDepartment, {
-    year: YEAR,
-    name: "Missions",
-    division: "Ministry",
-  });
-  await admin.mutation(api.admin.setStaffProfile, {
-    email: LEADER,
-    year: YEAR,
-    roles: ["Student Leader"],
-    university: USYD,
-  });
-  await admin.mutation(api.admin.setStaffProfile, {
-    email: STAFF,
-    year: YEAR,
-    roles: ["Staff"],
-    department: "Missions",
-  });
+  const t = await campusSetup();
   const leader = asUser(t, LEADER);
   await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
   return { t, leader };
-}
-
-async function memberOf(t: T, email: string) {
-  const profile = await t.run((ctx) =>
-    ctx.db
-      .query("staffProfiles")
-      .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", YEAR))
-      .first()
-  );
-  return profile!.memberId!;
 }
 
 const window = (offsetDays = 0) => {
