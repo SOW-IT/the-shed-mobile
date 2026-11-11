@@ -37,6 +37,7 @@ import {
   stagger,
   Txt,
 } from "./ui";
+import { backOr } from "@/lib/goBack";
 
 const ProfileFrame = ({
   asTab,
@@ -227,8 +228,7 @@ export const ProfileView = ({
   const [uploading, setUploading] = useState(false);
 
   const router = useRouter();
-  const goBack = () =>
-    router.canGoBack() ? router.back() : router.replace("/org");
+  const goBack = () => backOr(router, "/org");
 
   if (profile === undefined) {
     return (

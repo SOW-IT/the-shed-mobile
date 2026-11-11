@@ -90,7 +90,7 @@ export const navViewer = (signedIn: boolean, me: MeForNav): NavViewer => {
   };
 };
 
-export const REQUEST_KEYS = [
+const REQUEST_KEYS = [
   "reimbursements",
   "eventRequests",
   "designRequests",

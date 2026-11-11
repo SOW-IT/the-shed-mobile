@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import {
@@ -15,12 +15,15 @@ import {
   scheduleError,
   TITLE_MAX,
 } from "@shared/announcements";
-import { parseDateTimeInputValues, toDateInputValue, toTimeInputValue } from "@shared/datetime";
+import {
+  parseDateTimeInputValues,
+  toDateInputValue,
+  toTimeInputValue,
+} from "@shared/datetime";
 import { acronym } from "@shared/flow";
 import { PushPreview } from "@/components/announcements/PushPreview";
 import { ChromeScreen } from "@/components/ChromeScreen";
-import { NativeDateInput, NativeTimeInput } from "@/components/NativeDateTimeField";
-import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
+import { DateInput, TimeInput } from "@/components/DateInputs";
 import {
   Btn,
   Card,
@@ -42,19 +45,11 @@ import {
   WarningBanner,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { formatDayTime } from "@/components/dateTimeDisplay";
 import { SignInPrompt } from "@/components/SignInPrompt";
 
 type Reach = "everyone" | "groups";
 type When = "now" | "later";
-
-const whenText = (ms: number) =>
-  new Date(ms).toLocaleString("en-AU", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 
 const defaultSendAt = () => {
   const d = new Date(Date.now() + 30 * 60_000);
@@ -190,7 +185,7 @@ export default function AnnouncementsScreen() {
       showToast(
         when === "now"
           ? `Sending to ${people(result.people)}`
-          : `Scheduled for ${whenText(result.sendAt)}`
+          : `Scheduled for ${formatDayTime(result.sendAt)}`
       );
       setTitle("");
       setMessage("");
@@ -205,7 +200,7 @@ export default function AnnouncementsScreen() {
 
   const confirmMessage = () => {
     if (!size) return undefined;
-    const whenPart = when === "now" ? "now" : sendAt ? `on ${whenText(sendAt)}` : "";
+    const whenPart = when === "now" ? "now" : sendAt ? `on ${formatDayTime(sendAt)}` : "";
     const email = sendEmail ? "; all get an email" : "";
     return `"${title.trim()}" goes to ${people(size.people)} (${audienceSummary(audience)}) ${whenPart}. ${size.withApp} by push${email}.`;
   };
@@ -315,27 +310,13 @@ export default function AnnouncementsScreen() {
           />
           {when === "later" ? (
             <View style={styles.dateRow}>
-              {Platform.OS === "web" ? (
-                <>
-                  <WebDateInput
-                    label="Date"
-                    value={date}
-                    min={toDateInputValue(new Date())}
-                    onChange={setDate}
-                  />
-                  <WebTimeInput label="Time" value={time} onChange={setTime} />
-                </>
-              ) : (
-                <>
-                  <NativeDateInput
-                    label="Date"
-                    value={date}
-                    min={toDateInputValue(new Date())}
-                    onChange={setDate}
-                  />
-                  <NativeTimeInput label="Time" value={time} onChange={setTime} />
-                </>
-              )}
+              <DateInput
+                label="Date"
+                value={date}
+                min={toDateInputValue(new Date())}
+                onChange={setDate}
+              />
+              <TimeInput label="Time" value={time} onChange={setTime} />
             </View>
           ) : null}
           <WarningBanner message={problem.schedule} />
@@ -373,7 +354,7 @@ export default function AnnouncementsScreen() {
                 {a.message}
               </Text>
               <Muted>
-                {whenText(a.sendAt)} · {a.audience}
+                {formatDayTime(a.sendAt)} · {a.audience}
                 {a.sendEmail ? " · with email" : ""} · by {a.senderName}
               </Muted>
               <Btn
@@ -407,7 +388,7 @@ export default function AnnouncementsScreen() {
                 <View style={{ flex: 1, gap: 2 }}>
                   <Txt style={{ fontWeight: "700" }}>{a.title}</Txt>
                   <Muted>
-                    Due {whenText(a.sendAt)} · {a.audience} · by {a.senderName}
+                    Due {formatDayTime(a.sendAt)} · {a.audience} · by {a.senderName}
                   </Muted>
                   <Text style={[typography.caption, { color: t.warning }]}>{a.notSentReason}</Text>
                 </View>
@@ -437,7 +418,7 @@ export default function AnnouncementsScreen() {
             <View style={{ flex: 1, gap: 2 }}>
               <Txt style={{ fontWeight: "700" }}>{a.title}</Txt>
               <Muted>
-                {whenText(a.sentAt ?? a.sendAt)} · {a.audience} · {people(a.people ?? 0)}
+                {formatDayTime(a.sentAt ?? a.sendAt)} · {a.audience} · {people(a.people ?? 0)}
                 {a.sendEmail ? " · emailed" : ""}
               </Muted>
               <Muted>by {a.senderName}</Muted>

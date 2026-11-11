@@ -16,7 +16,7 @@ import { AllRequestsList } from "@/components/AllRequestsList";
 import { BankTab } from "@/components/BankTab";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import { ExportRequestsCard } from "@/components/ExportRequestsCard";
-import { GuideSheet, MyRequests } from "@/components/MyRequests";
+import { MyRequests, RequestGuideSheet } from "@/components/MyRequests";
 import { FinanceSettingsButton } from "@/components/finance/FinanceSettings";
 import { type RequestPrefill } from "@/components/MyRequests";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
@@ -359,7 +359,7 @@ export default function RequestsScreen() {
         }
         footerTabKey="mine"
       />
-      <GuideSheet
+      <RequestGuideSheet
         visible={guideOpen}
         onClose={() => setGuideOpen(false)}
         directorThreshold={directorThreshold}

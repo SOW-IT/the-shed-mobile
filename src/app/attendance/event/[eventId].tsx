@@ -56,6 +56,7 @@ import {
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { useHeldValue } from "@/hooks/useHeldValue";
+import { backOr } from "@/lib/goBack";
 
 type RosterEntry = FunctionReturnType<typeof api.attendance.roster>[number];
 type AttendanceRow = FunctionReturnType<typeof api.attendance.listByEvent>[number];
@@ -853,7 +854,7 @@ export default function EventAttendanceScreen() {
     return (
       <Screen
         title="Event"
-        onBack={() => (router.canGoBack() ? router.back() : router.replace("/attendance"))}
+        onBack={() => backOr(router, "/attendance")}
       >
         {isAuthenticated ? (
           <EmptyState icon="lock-closed-outline" title="Event not found" />

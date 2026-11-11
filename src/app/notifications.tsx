@@ -20,6 +20,7 @@ import {
   stagger,
   Txt,
 } from "@/components/ui";
+import { backOr } from "@/lib/goBack";
 
 const PAGE_SIZE = 30;
 
@@ -58,7 +59,7 @@ export default function NotificationsScreen() {
   const markAllRead = useMutation(api.notifications.markAllRead);
   const reopenCounter = useRef(0);
   const [unreadThisVisit, setUnreadThisVisit] = useState<ReadonlySet<string> | null>(null);
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/home"));
+  const goBack = () => backOr(router, "/home");
 
   useFocusEffect(useCallback(() => () => setUnreadThisVisit(null), []));
 

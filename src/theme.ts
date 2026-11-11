@@ -45,7 +45,6 @@ export const typography = {
   caption: { fontSize: 13, letterSpacing: -0.05, lineHeight: 18 } as TextStyle,
   label: { fontSize: 13, fontWeight: "600", letterSpacing: -0.05 } as TextStyle,
   amount: { fontFamily: fonts.display, fontSize: 28, lineHeight: 32, letterSpacing: -0.6 } as TextStyle,
-  stat: { fontFamily: fonts.display, fontSize: 34, lineHeight: 38, letterSpacing: -0.8 } as TextStyle,
 } as const;
 
 export interface AppTheme {

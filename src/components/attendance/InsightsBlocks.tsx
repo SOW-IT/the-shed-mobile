@@ -10,6 +10,7 @@ import {
   type ViewPaint,
 } from "../../../shared/attendanceMetricsView";
 import { type WeeklyBlock } from "../../../shared/weeklyInsightsView";
+import { timeAgo as sharedTimeAgo } from "@shared/datetime";
 import {
   BarChart,
   BreakdownBars,
@@ -23,14 +24,11 @@ import { renderWeeklyBlock } from "@/components/attendance/WeeklyBlocks";
 import { EmptyState, FadeInView, ReadableColumn, Sheet, stagger } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 const timeAgo = (ms: number): string => {
-  const diff = Date.now() - ms;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  const days = Math.floor((Date.now() - ms) / DAY_MS);
+  return days < 7 ? sharedTimeAgo(ms) : `${days}d ago`;
 };
 
 const CHART_TYPES = new Set(["bars", "breakdown", "stacked", "multiBars"]);

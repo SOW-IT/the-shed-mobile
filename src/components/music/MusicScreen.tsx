@@ -19,7 +19,9 @@ import { staffOnlyMessage } from "@shared/staffOnly";
 import { useConvex, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { useRef, useState } from "react";
-import { ApprovedPlaylistTab, MyRequestsTab, ToReviewTab } from "./MusicTabs";
+import { ApprovedPlaylistTab } from "./ApprovedPlaylistTab";
+import { MyRequestsTab } from "./MyRequestsTab";
+import { ToReviewTab } from "./ToReviewTab";
 import {
   MusicGuideSheet,
   type MusicRequest,

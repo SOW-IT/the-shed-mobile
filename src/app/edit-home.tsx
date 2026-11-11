@@ -37,6 +37,7 @@ import {
   Select,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 type Keyed = { id: number; block: HomeBlock };
 
@@ -60,7 +61,7 @@ export default function EditHomeScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const view = useQuery(api.homeContent.view);
   const me = useQuery(api.directory.me);
-  const back = () => (router.canGoBack() ? router.back() : router.replace("/home"));
+  const back = () => backOr(router, "/home");
 
   if (view === undefined) return <LoadingState />;
   const current = view.tabs.find((t) => t.key === tab) ?? view.tabs[0];

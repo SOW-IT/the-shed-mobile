@@ -9,6 +9,7 @@ import { isOrgWideSubgroup, subgroupLabel } from "@shared/rollcall";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { InsightsBlocks } from "@/components/attendance/InsightsBlocks";
 import { EmptyState, LoadingState, Screen } from "@/components/ui";
+import { backOr } from "@/lib/goBack";
 
 export default function MemberInsightsScreen() {
   const { key, subgroup } = useLocalSearchParams<{ key: string; subgroup?: string }>();
@@ -22,7 +23,7 @@ export default function MemberInsightsScreen() {
   );
   const [editing, setEditing] = useState<Id<"attendanceMembers"> | null>(null);
   const [width, setWidth] = useState(0);
-  const back = () => (router.canGoBack() ? router.back() : router.replace("/insights"));
+  const back = () => backOr(router, "/insights");
 
   if (page === undefined || metadata === undefined) return <LoadingState />;
   if (page === null) {

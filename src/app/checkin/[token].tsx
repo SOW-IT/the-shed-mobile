@@ -17,6 +17,7 @@ import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { forgetCheckInDetails, loadCheckInDetails, loadDeviceKey, saveCheckInDetails } from "@/lib/checkInDevice";
 import { Btn, Card, EmptyState, ErrorBanner, errorMessage, Field, LoadingState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 type Device = { clientKey: string; details: CheckInDetails | null };
 
@@ -219,7 +220,7 @@ function CheckInBody({ token }: { token: string | undefined }) {
 
   if (page === undefined || !device || autoMode) return <LoadingState />;
   const onBack =
-    Platform.OS === "web" ? undefined : () => (router.canGoBack() ? router.back() : router.replace("/home"));
+    Platform.OS === "web" ? undefined : () => backOr(router, "/home");
   if (page === null) {
     return (
       <Screen title="Check in" maxWidth={520} onBack={onBack}>

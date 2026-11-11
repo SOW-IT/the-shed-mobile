@@ -15,6 +15,7 @@ import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
+import { GuideSheet } from "@/components/ui/GuideSheet";
 import {
   getLocalFileSizeBytes,
   uploadLocalFileToUrl,
@@ -91,7 +92,7 @@ const buildGuideSteps = (directorThreshold: number) => [
   },
 ];
 
-export const GuideSheet = ({
+export const RequestGuideSheet = ({
   visible,
   onClose,
   directorThreshold = DIRECTOR_APPROVAL_THRESHOLD,
@@ -99,26 +100,14 @@ export const GuideSheet = ({
   visible: boolean;
   onClose: () => void;
   directorThreshold?: number;
-}) => {
-  const t = useAppTheme();
-  return (
-    <Sheet visible={visible} onClose={onClose} title="How to submit a request">
-      {buildGuideSteps(directorThreshold).map((step, i) => (
-        <View key={i} style={styles.guideStep}>
-          <View style={[styles.guideIconWrap, { backgroundColor: t.primarySoft }]}>
-            <Ionicons name={step.icon} size={18} color={t.primary} />
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>
-              {step.title}
-            </Text>
-            <Text style={[typography.caption, { color: t.muted }]}>{step.detail}</Text>
-          </View>
-        </View>
-      ))}
-    </Sheet>
-  );
-};
+}) => (
+  <GuideSheet
+    visible={visible}
+    onClose={onClose}
+    title="How to submit a request"
+    steps={buildGuideSteps(directorThreshold)}
+  />
+);
 
 const NewRequestSheet = ({
   visible,
@@ -1012,19 +1001,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: radius.md,
     maxWidth: 150,
-  },
-  guideStep: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.md,
-  },
-  guideIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
   },
   savedRow: {
     flexDirection: "row",

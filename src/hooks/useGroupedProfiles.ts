@@ -27,7 +27,7 @@ export const useGroupedProfiles = (
       const divisionHead =
         (div.headEmail ? profileByEmail.get(div.headEmail) : undefined) ??
         (profiles ?? []).find((p) =>
-          (p.assignments ?? []).some(
+          p.assignments.some(
             (a) => a.role === HEAD_OF_DIVISION && a.division === div.name
           )
         ) ??
@@ -41,7 +41,7 @@ export const useGroupedProfiles = (
             const head =
               (dept.headEmail ? profileByEmail.get(dept.headEmail) : undefined) ??
               (profiles ?? []).find((p) =>
-                (p.assignments ?? []).some(
+                p.assignments.some(
                   (a) =>
                     a.role === HEAD_OF_DEPARTMENT && a.department === dept.name
                 )
@@ -49,7 +49,7 @@ export const useGroupedProfiles = (
               null;
             const members = (profiles ?? []).filter((p) => {
               if (p.email === head?.email) return false;
-              return (p.assignments ?? []).some((a) => a.department === dept.name);
+              return p.assignments.some((a) => a.department === dept.name);
             });
 
             return {
@@ -82,7 +82,7 @@ export const useGroupedProfiles = (
 
     const director =
       (profiles ?? []).find((p) =>
-        (p.assignments ?? []).some((a) => a.role === DIRECTOR)
+        p.assignments.some((a) => a.role === DIRECTOR)
       ) ?? null;
 
     const groupedProfilesWithoutDirector = director
@@ -105,18 +105,18 @@ export const useGroupedProfiles = (
     const campusProfiles = (profiles ?? []).filter(
       (p) =>
         p.email !== director?.email &&
-        (p.assignments ?? []).some((a) => a.university)
+        p.assignments.some((a) => a.university)
     );
     const nonCampusOtherProfiles = otherProfiles.filter(
       (p) =>
         p.email !== director?.email &&
-        !(p.assignments ?? []).some((a) => a.university)
+        !p.assignments.some((a) => a.university)
     );
     const structureUnis = structure?.universities ?? [];
     const extraUnis = [
       ...new Set(
         campusProfiles.flatMap((p) =>
-          (p.assignments ?? []).flatMap((a) => (a.university ? [a.university] : []))
+          p.assignments.flatMap((a) => (a.university ? [a.university] : []))
         )
       ),
     ].filter((u) => !structureUnis.includes(u));
@@ -134,13 +134,13 @@ export const useGroupedProfiles = (
         profiles: campusProfiles
           .filter((p) => {
             if (seenInCampus.has(p.email)) return false;
-            const match = (p.assignments ?? []).some((a) => a.university === uni);
+            const match = p.assignments.some((a) => a.university === uni);
             if (match) seenInCampus.add(p.email);
             return match;
           })
           .sort((a, b) => {
             const rank = (profile: (typeof campusProfiles)[number]) => {
-              const roles = (profile.assignments ?? [])
+              const roles = profile.assignments
                 .filter((assignment) => assignment.university === uni)
                 .map((assignment) => assignment.role);
               const indices = roles

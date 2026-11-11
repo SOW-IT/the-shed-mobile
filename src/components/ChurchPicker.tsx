@@ -14,9 +14,8 @@ import {
 import { mapsLink } from "@/lib/externalLinks";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { durations, radius, spacing, typography, useAppTheme } from "../theme";
-import { NativeTimeInput } from "./NativeDateTimeField";
+import { TimeInput } from "./DateInputs";
 import { Btn, ErrorBanner, errorMessage, Field, OptionSheet, Select, Sheet } from "./ui";
-import { WebTimeInput } from "./WebDateTimeInput";
 
 export type Church = {
   _id: Id<"churches">;
@@ -108,7 +107,6 @@ export function ChurchDetails({ church, onEdit, bare }: { church: Church; onEdit
 }
 
 const DAY_OPTIONS = WEEKDAYS.map((day, index) => ({ label: day, value: String(index) }));
-const TimeInput = Platform.OS === "web" ? WebTimeInput : NativeTimeInput;
 
 function ServiceTimesField({
   services,

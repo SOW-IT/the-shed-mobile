@@ -10,10 +10,8 @@ import {
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAction, useMutation, useQuery } from "convex/react";
-import type { FunctionReturnType } from "convex/server";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
@@ -26,9 +24,10 @@ import {
 } from "../../../convex/shared/musicLinks";
 import { parseYouTubeSong } from "../../../convex/shared/youtube";
 import { useSpotifyPlaylist } from "./useSpotifyPlaylist";
+import { type SpotifySearchResult, useSpotifySearch } from "./useSpotifySearch";
+import { GuideSheet } from "@/components/ui/GuideSheet";
 
 export type MusicRequest = Doc<"musicRequests">;
-type SpotifySearchResult = FunctionReturnType<typeof api.spotify.searchTracks>[number];
 type SpotifySong = {
   title: string;
   artist: string;
@@ -166,36 +165,7 @@ const MusicRequestSheetContent = ({
   const declinedVersion =
     duplicate?.kind === "declined" && !duplicate.sameRecording;
   const getSpotifyTrack = useAction(api.spotify.getTrack);
-  const searchSpotify = useAction(api.spotify.searchTracks);
-  const [spotifyQuery, setSpotifyQuery] = useState("");
-  const spotifySearchTerm = useDebouncedValue(spotifyQuery.trim(), 600);
-  const [spotifySearch, setSpotifySearch] = useState<{
-    query: string;
-    results?: SpotifySearchResult[];
-    error?: string;
-  } | null>(null);
-  useEffect(() => {
-    if (spotifySearchTerm.length < 2) return;
-    let current = true;
-    searchSpotify({ query: spotifySearchTerm })
-      .then((results) => {
-        if (current) setSpotifySearch({ query: spotifySearchTerm, results });
-      })
-      .catch((searchError: unknown) => {
-        if (current) {
-          setSpotifySearch({ query: spotifySearchTerm, error: errorMessage(searchError) });
-        }
-      });
-    return () => {
-      current = false;
-    };
-  }, [spotifySearchTerm, searchSpotify]);
-  const searchShown =
-    spotifyQuery.trim().length >= 2 && spotifySearch?.query === spotifySearchTerm
-      ? spotifySearch
-      : null;
-  const searchingSpotify =
-    spotifyQuery.trim().length >= 2 && spotifySearch?.query !== spotifyQuery.trim();
+  const spotifySearch = useSpotifySearch();
   const importYouTubePlaylist = useAction(api.youtube.importPlaylist);
   const spotifyPlaylist = useSpotifyPlaylist();
 
@@ -446,7 +416,7 @@ const MusicRequestSheetContent = ({
     setSpotifyLink("");
     setAutofilledFrom(null);
     setManualExpanded(true);
-    setSpotifyQuery("");
+    spotifySearch.setQuery("");
   };
 
   const autofillSpotify = async () => {
@@ -748,27 +718,27 @@ const MusicRequestSheetContent = ({
 
           <Field
             label="Search Spotify"
-            value={spotifyQuery}
-            onChangeText={setSpotifyQuery}
+            value={spotifySearch.query}
+            onChangeText={spotifySearch.setQuery}
             placeholder="Song title or artist"
             autoCapitalize="none"
           />
-          {searchingSpotify ? (
+          {spotifySearch.searching ? (
             <Text style={[typography.caption, { color: t.muted }]}>
               Searching Spotify...
             </Text>
           ) : null}
-          {searchShown?.error ? (
+          {spotifySearch.shown?.error ? (
             <Text style={[typography.caption, { color: t.warning }]}>
-              {searchShown.error}
+              {spotifySearch.shown.error}
             </Text>
           ) : null}
-          {searchShown?.results?.length === 0 ? (
+          {spotifySearch.shown?.results?.length === 0 ? (
             <Text style={[typography.caption, { color: t.muted }]}>
               No songs found on Spotify.
             </Text>
           ) : null}
-          {searchShown?.results?.map((result) => (
+          {spotifySearch.shown?.results?.map((result) => (
             <Pressable
               key={result.link}
               accessibilityRole="button"
@@ -1311,36 +1281,14 @@ export const MusicGuideSheet = ({
 }: {
   visible: boolean;
   onClose: () => void;
-}) => {
-  const t = useAppTheme();
-  return (
-    <Sheet
-      visible={visible}
-      onClose={onClose}
-      title="How to submit a music request"
-    >
-      {buildGuideSteps().map((step, i) => (
-        <View key={i} style={styles.guideStep}>
-          <View
-            style={[styles.guideIconWrap, { backgroundColor: t.primarySoft }]}
-          >
-            <Ionicons name={step.icon} size={18} color={t.primary} />
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text
-              style={[typography.caption, { color: t.text, fontWeight: "700" }]}
-            >
-              {step.title}
-            </Text>
-            <Text style={[typography.caption, { color: t.muted }]}>
-              {step.detail}
-            </Text>
-          </View>
-        </View>
-      ))}
-    </Sheet>
-  );
-};
+}) => (
+  <GuideSheet
+    visible={visible}
+    onClose={onClose}
+    title="How to submit a music request"
+    steps={buildGuideSteps()}
+  />
+);
 const styles = StyleSheet.create({
   searchResult: {
     flexDirection: "row",
@@ -1377,22 +1325,5 @@ const styles = StyleSheet.create({
     width: 76,
     height: 76,
     borderRadius: radius.sm,
-  },
-  previewText: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  guideStep: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.md,
-  },
-  guideIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
   },
 });

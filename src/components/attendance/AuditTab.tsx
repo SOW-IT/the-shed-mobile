@@ -11,6 +11,7 @@ import {
 import { Animated, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
+import { timeAgo as sharedTimeAgo } from "@shared/datetime";
 import {
   Btn,
   EmptyState,
@@ -55,20 +56,15 @@ const ENTITY_LABEL: Record<AuditEntityType, string> = {
   attendance: "Roll-call",
 };
 
-const timeAgo = (ms: number): string => {
-  const secs = Math.floor((Date.now() - ms) / 1000);
-  if (secs < 60) return "just now";
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(ms).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-  });
-};
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+const timeAgo = (ms: number): string =>
+  Date.now() - ms < WEEK_MS
+    ? sharedTimeAgo(ms)
+    : new Date(ms).toLocaleDateString("en-AU", {
+        day: "numeric",
+        month: "short",
+      });
 
 export function AuditTab({
   scrollProps,

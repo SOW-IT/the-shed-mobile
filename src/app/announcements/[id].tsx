@@ -4,22 +4,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "@convex/_generated/api";
+import { formatDayTime } from "@/components/dateTimeDisplay";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { Card, EmptyState, LoadingState, Muted, Screen, SectionTitle } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 const STATUS_LABELS = { scheduled: "Scheduled", sent: "Sent", cancelled: "Cancelled" } as const;
 const NOT_SENT_LABEL = "Not sent";
-
-const dateText = (ms: number) =>
-  new Date(ms).toLocaleString("en-AU", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 
 export default function AnnouncementScreen() {
   const t = useAppTheme();
@@ -29,10 +21,7 @@ export default function AnnouncementScreen() {
   const announcement = useQuery(api.announcements.get, id ? { id } : "skip");
   const markRead = useMutation(api.notifications.markReadForAnnouncement);
   const [showNotSeen, setShowNotSeen] = useState(false);
-  const back = () =>
-    router.canGoBack()
-      ? router.back()
-      : router.replace(announcement?.details ? "/announcements" : "/home");
+  const back = () => backOr(router, announcement?.details ? "/announcements" : "/home");
 
   const loadedId = announcement?.id;
   useEffect(() => {
@@ -67,7 +56,7 @@ export default function AnnouncementScreen() {
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={[typography.title, { color: t.text }]}>{announcement.title}</Text>
               <Muted>
-                {announcement.senderName} · {dateText(announcement.at)}
+                {announcement.senderName} · {formatDayTime(announcement.at, { withYear: true })}
               </Muted>
             </View>
           </View>

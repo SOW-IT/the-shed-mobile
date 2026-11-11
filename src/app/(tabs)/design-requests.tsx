@@ -1,12 +1,16 @@
 import { useQuery } from "convex/react";
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { Redirect, useRouter } from "expo-router";
+import { ReactNode, useRef } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { type DesignRequestStatus } from "@shared/designRequests";
 import { ChromeScreen } from "@/components/ChromeScreen";
-import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
+import { useEarlierYears } from "@/components/EarlierYears";
+import {
+  EarlierRows,
+  GroupedList,
+  type StatusGroup,
+} from "@/components/GroupedList";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import {
   DesignRequestRow,
@@ -14,21 +18,17 @@ import {
 } from "@/components/design/DesignRequestRow";
 import {
   Card,
-  EmptyState,
-  FadeInView,
   FooterAction,
   LoadingState,
   Muted,
-  ReadableColumn,
   Screen,
-  SectionTitle,
-  stagger,
   Txt,
 } from "@/components/ui";
-import { spacing, typography } from "@/theme";
+import { useLandingTab } from "@/hooks/useLandingTab";
+import { typography } from "@/theme";
 import { staffOnlyMessage } from "@shared/staffOnly";
 
-type Group = { title: string; statuses: DesignRequestStatus[] };
+type Group = StatusGroup<DesignRequestStatus>;
 
 const MINE_GROUPS: Group[] = [
   { title: "Open", statuses: ["PENDING", "APPROVED"] },
@@ -63,45 +63,34 @@ const RequestList = ({
   unread: Record<string, number>;
   empty: { title: string; message: string; action?: { label: string; onPress: () => void } };
   footer?: ReactNode;
+}) => (
+  <GroupedList
+    rows={rows}
+    groups={groups}
+    icon="color-palette-outline"
+    empty={empty}
+    footer={footer}
+    renderRow={(request) => <DesignRow request={request} showRequester={showRequester} unread={unread} />}
+  />
+);
+
+const DesignRow = ({
+  request,
+  showRequester,
+  unread,
+}: {
+  request: DesignRequestListRow;
+  showRequester: boolean;
+  unread: Record<string, number>;
 }) => {
   const router = useRouter();
-  let index = 0;
   return (
-    <ReadableColumn>
-      <View style={{ gap: spacing.sm }}>
-        {rows === undefined ? <LoadingState /> : null}
-        {rows !== undefined && (rows === null || rows.length === 0) ? (
-          <EmptyState
-            icon="color-palette-outline"
-            title={empty.title}
-            message={empty.message}
-            action={empty.action}
-          />
-        ) : null}
-        {groups.map((group) => {
-          const inGroup = (rows ?? []).filter((r) => group.statuses.includes(r.status));
-          if (inGroup.length === 0) return null;
-          return (
-            <View key={group.title} style={{ gap: spacing.sm }}>
-              <SectionTitle>
-                {group.title} · {inGroup.length}
-              </SectionTitle>
-              {inGroup.map((request) => (
-                <FadeInView key={request._id} delay={stagger(index++)}>
-                  <DesignRequestRow
-                    request={request}
-                    showRequester={showRequester}
-                    unread={unread[request._id] ?? 0}
-                    onPress={() => router.push(`/design-requests/${request._id}`)}
-                  />
-                </FadeInView>
-              ))}
-            </View>
-          );
-        })}
-        {footer}
-      </View>
-    </ReadableColumn>
+    <DesignRequestRow
+      request={request}
+      showRequester={showRequester}
+      unread={unread[request._id] ?? 0}
+      onPress={() => router.push(`/design-requests/${request._id}`)}
+    />
   );
 };
 
@@ -113,28 +102,12 @@ const EarlierRequests = ({
   history: ReturnType<typeof useEarlierYears<DesignRequestListRow>>;
   showRequester: boolean;
   unread: Record<string, number>;
-}) => {
-  const router = useRouter();
-  return (
-    <EarlierYears
-      groups={history.groups}
-      hasMore={history.hasMore}
-      loadingMore={history.loadingMore}
-      onLoadMore={history.loadMore}
-      renderRows={(rows) =>
-        rows.map((request) => (
-          <DesignRequestRow
-            key={request._id}
-            request={request}
-            showRequester={showRequester}
-            unread={unread[request._id] ?? 0}
-            onPress={() => router.push(`/design-requests/${request._id}`)}
-          />
-        ))
-      }
-    />
-  );
-};
+}) => (
+  <EarlierRows
+    history={history}
+    renderRow={(request) => <DesignRow request={request} showRequester={showRequester} unread={unread} />}
+  />
+);
 
 export default function DesignRequestsScreen() {
   const router = useRouter();
@@ -177,25 +150,11 @@ export default function DesignRequestsScreen() {
     useQuery(api.designRequestComments.unreadCounts, ids.length > 0 ? { ids } : "skip") ??
     {};
 
-  const { tab } = useLocalSearchParams<{ tab?: string }>();
-  const [active, setActive] = useState<string | null>(null);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
-    if (typeof tab === "string") setActive(tab);
-  }, [tab]);
   const landingKnown =
     mine !== undefined && viewer !== undefined && (!team || waitingOnMeRaw !== undefined);
-  const landing = landingKnown
-    ? waitingOnMe > 0 && (mine ?? []).length === 0
-      ? "queue"
-      : "mine"
-    : null;
-  useEffect(() => {
-    if (active !== null || landing === null || typeof tab === "string") return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActive(landing);
-  }, [active, landing, tab]);
-  const wanted = active ?? landing;
+  const [wanted, setActive] = useLandingTab(
+    landingKnown ? (waitingOnMe > 0 && (mine ?? []).length === 0 ? "queue" : "mine") : null
+  );
 
   if (me === undefined) {
     return (

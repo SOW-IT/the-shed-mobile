@@ -30,7 +30,7 @@ const matches = (person: Person, search: string) => {
   return !needle || person.name.toLowerCase().includes(needle) || person.email.includes(needle);
 };
 
-export const PraiseManagersCard = ({
+const PraiseManagersCard = ({
   year,
   emails,
   staff,

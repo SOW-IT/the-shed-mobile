@@ -183,7 +183,7 @@ const GroupLabel = ({ children }: { children: string }) => {
   );
 };
 
-export const ActingAsPicker = ({
+const ActingAsPicker = ({
   visible,
   onClose,
   current,

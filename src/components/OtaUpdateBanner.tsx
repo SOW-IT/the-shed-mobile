@@ -35,7 +35,7 @@ export function OtaUpdateBanner() {
   return updatesModule?.isEnabled ? <PendingUpdatePopup updates={updatesModule} /> : null;
 }
 
-export function PendingUpdatePopup({
+function PendingUpdatePopup({
   updates,
 }: {
   updates: Pick<UpdatesModule, "useUpdates" | "reloadAsync">;

@@ -65,6 +65,7 @@ import {
   type ToastState,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 type Drafts = { marketing?: FormDraft; risk?: RiskDraft; finance?: FinanceDraft };
 
@@ -152,8 +153,7 @@ export default function EventSubFormScreen() {
     setDrafts((d) => ({ ...d, ...seeded }));
   }, [kind, current, canFill, drafts, forms]);
 
-  const goBack = () =>
-    router.canGoBack() ? router.back() : router.replace(id ? `/event-requests/${id}` : "/event-requests");
+  const goBack = () => backOr(router, id ? `/event-requests/${id}` : "/event-requests");
 
   if (!authLoading && !isAuthenticated) {
     return (

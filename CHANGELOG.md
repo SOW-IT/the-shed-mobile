@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.10] - 2026-11-11
+
+### Changed
+- **Screens are tidied up with no visible change.** Admin's Roles,
+  Divisions, Departments and Universities editors, the status pills, the
+  "How it works" guides, the date and time pickers and the Insights charts
+  each share one implementation instead of several copies. The Praise List
+  tabs are in separate files, and unused styles, an unused icon and
+  duplicate date formatters are gone. Screens look and behave as before.
+
 ## [2.11.9] - 2026-11-11
 
 ### Changed

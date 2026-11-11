@@ -36,7 +36,7 @@ export type MentorChoice =
   | { kind: "leader"; email: string }
   | { kind: "external"; id: Id<"externalMentors"> };
 
-export const Tag = ({ text, tone }: { text: string; tone: "neutral" | "warning" }) => {
+const Tag = ({ text, tone }: { text: string; tone: "neutral" | "warning" }) => {
   const t = useAppTheme();
   return (
     <View
@@ -271,7 +271,7 @@ export const MentorPicker = ({
 
 const emptyDraft: ExternalMentorDraft = { name: "", email: "", phone: "", notes: "" };
 
-export const draftOf = (mentor: ExternalMentor | null): ExternalMentorDraft =>
+const draftOf = (mentor: ExternalMentor | null): ExternalMentorDraft =>
   mentor
     ? {
         name: mentor.name,
