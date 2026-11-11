@@ -413,7 +413,7 @@ describe("event form reminders", () => {
     }
   });
 
-  test("a reviewer who submitted the form is not asked to approve it, and nobody is reminded once it is approved", async () => {
+  test("a reviewer who submitted the form is not asked to approve it", async () => {
     const t = await setup();
     const id = await createEvent(t, CORA, { department: "Compliance" });
     await submitRisk(t, id, CORA);
