@@ -212,7 +212,7 @@ describe("after a team job moves", () => {
   });
 
   test("a rename in the current year moves an admin's saved acting-as choice", async () => {
-    const { t, admin } = await setup();
+    const { admin } = await setup();
     await admin.mutation(api.actingAs.set, { persona: { role: "staff", department: "Marketing" } });
     const division = (await admin.query(api.directory.yearStructure, { year: YEAR }))!.departments.find(
       (d) => d.name === "Marketing"

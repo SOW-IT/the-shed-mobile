@@ -15,6 +15,7 @@ import {
   asUser,
   pinClock,
   seeded,
+  createEvent,
 } from "../test/convexFixture";
 
 pinClock();
@@ -109,16 +110,8 @@ describe("attendanceMetrics", () => {
     const { t, leader } = await setup();
     expect(await snapshotOf(t, USYD, 4)).toBeNull();
 
-    const e1 = await leader.mutation(api.events.create, {
-      name: "Meeting 1",
-      ...window(3),
-      subgroups: [USYD],
-    });
-    const e2 = await leader.mutation(api.events.create, {
-      name: "Meeting 2",
-      ...window(1),
-      subgroups: [USYD],
-    });
+    const e1 = await createEvent(leader, { name: "Meeting 1", ...window(3) });
+    const e2 = await createEvent(leader, { name: "Meeting 2", ...window(1) });
     await leader.mutation(api.attendance.signIn, { eventId: e1, email: LEADER });
     await leader.mutation(api.attendance.signIn, { eventId: e1, email: STAFF });
     await leader.mutation(api.attendance.signIn, { eventId: e2, email: LEADER });
@@ -137,11 +130,7 @@ describe("attendanceMetrics", () => {
 
   test("recompute writes every range + collaborative variant", async () => {
     const { t, leader } = await setup();
-    const e = await leader.mutation(api.events.create, {
-      name: "Meeting",
-      ...window(2),
-      subgroups: [USYD],
-    });
+    const e = await createEvent(leader, { name: "Meeting", ...window(2) });
     await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
@@ -258,11 +247,7 @@ describe("attendanceMetrics", () => {
     const memberId = await t.run((ctx) =>
       ctx.db.insert("attendanceMembers", { name: "Pat Member" })
     );
-    const e = await leader.mutation(api.events.create, {
-      name: "Members welcome",
-      ...window(2),
-      subgroups: [USYD],
-    });
+    const e = await createEvent(leader, { name: "Members welcome", ...window(2) });
     await leader.mutation(api.attendance.signIn, { eventId: e, memberId });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
@@ -307,11 +292,7 @@ describe("attendanceMetrics", () => {
       metadata: { [roleField._id]: slOptionId },
     });
 
-    const e = await leader.mutation(api.events.create, {
-      name: "Campus night",
-      ...window(2),
-      subgroups: [USYD],
-    });
+    const e = await createEvent(leader, { name: "Campus night", ...window(2) });
     for (const email of [LEADER, "visitor@sow.org.au", "director@sow.org.au"]) {
       await leader.mutation(api.attendance.signIn, { eventId: e, email });
     }
@@ -341,11 +322,7 @@ describe("attendanceMetrics", () => {
 
   test("a member whose only staff profile is outside the window is a Member", async () => {
     const { t, leader } = await setup();
-    const e = await leader.mutation(api.events.create, {
-      name: "Guest visit",
-      ...window(2),
-      subgroups: [USYD],
-    });
+    const e = await createEvent(leader, { name: "Guest visit", ...window(2) });
     const ghost = await t.run(async (ctx) => {
       const memberId = await ctx.db.insert("attendanceMembers", { name: "Ghost Member" });
       await ctx.db.insert("staffProfiles", {
@@ -426,11 +403,7 @@ describe("attendanceMetrics", () => {
       });
       return memberId;
     });
-    const e = await leader.mutation(api.events.create, {
-      name: "Gathering",
-      ...window(2),
-      subgroups: [USYD],
-    });
+    const e = await createEvent(leader, { name: "Gathering", ...window(2) });
     await leader.mutation(api.attendance.signIn, { eventId: e, memberId: former });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
@@ -475,11 +448,7 @@ describe("attendanceMetrics", () => {
 
   test("re-running recompute patches the existing snapshot in place", async () => {
     const { t, leader } = await setup();
-    const e = await leader.mutation(api.events.create, {
-      name: "Once",
-      ...window(2),
-      subgroups: [USYD],
-    });
+    const e = await createEvent(leader, { name: "Once", ...window(2) });
     await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,

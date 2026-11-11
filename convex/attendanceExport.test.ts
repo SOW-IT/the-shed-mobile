@@ -13,6 +13,7 @@ import {
   pinClock,
   campusSetup,
   memberOf,
+  createEvent,
 } from "../test/convexFixture";
 
 pinClock();
@@ -40,11 +41,7 @@ describe("attendanceExport", () => {
 
   test("exports events for a sub-group with resolved staff + member metadata", async () => {
     const { t, leader } = await setup();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Weekly Meeting",
-      ...window(),
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader, { name: "Weekly Meeting", ...window() });
 
     await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
@@ -96,11 +93,7 @@ describe("attendanceExport", () => {
 
   test("a staff attendee exports Campus and Role from their profile, not their member row", async () => {
     const { t, leader } = await setup();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Locked",
-      ...window(),
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader, { name: "Locked", ...window() });
     await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
     const data = await leader.query(api.attendanceExport.eventForExport, { eventId, subgroup: USYD });
     const row = data!.event.rows[0];
@@ -111,11 +104,7 @@ describe("attendanceExport", () => {
 
   test("a member linked to an assigned profile exports as staff; an email alone does not make staff", async () => {
     const { t, leader } = await setup();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Mixed",
-      ...window(),
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader, { name: "Mixed", ...window() });
     const staffMemberId = await memberOf(t, STAFF);
     const { lookalike, unassigned } = await t.run(async (ctx) => {
       await ctx.db.patch(staffMemberId, { name: "Member Row Name", email: "personal@example.com" });
@@ -172,7 +161,7 @@ describe("attendanceExport", () => {
       await ctx.db.insert("attendance", { eventId: earlier, memberId, signInTime: earlierStart });
       return memberId;
     });
-    const later = await leader.mutation(api.events.create, { name: "Later", ...window(), subgroups: [USYD] });
+    const later = await createEvent(leader, { name: "Later", ...window() });
     await leader.mutation(api.attendance.signIn, { eventId: later, memberId });
 
     const data = await leader.query(api.attendanceExport.eventsForExport, { subgroup: USYD });
@@ -184,7 +173,7 @@ describe("attendanceExport", () => {
 
   test("a row whose member was deleted exports as Unknown on its own line", async () => {
     const { t, leader } = await setup();
-    const eventId = await leader.mutation(api.events.create, { name: "Gone", ...window(), subgroups: [USYD] });
+    const eventId = await createEvent(leader, { name: "Gone", ...window() });
     const rowIds = await t.run(async (ctx) => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
       await ctx.db.delete(gone);
@@ -209,27 +198,14 @@ describe("attendanceExport", () => {
     const tags = await leader.query(api.attendanceTags.list, {});
     const weekly = tags.find((t) => t.name === "Weekly")!._id;
 
-    const recent = await leader.mutation(api.events.create, {
-      name: "Recent Tagged",
-      ...window(0),
-      subgroups: [USYD],
-      tagIds: [weekly],
-    });
+    const recent = await createEvent(leader, { name: "Recent Tagged", ...window(0), tagIds: [weekly] });
     await leader.mutation(api.attendance.signIn, {
       eventId: recent,
       email: LEADER,
     });
-    const old = await leader.mutation(api.events.create, {
-      name: "Old Untagged",
-      ...window(10),
-      subgroups: [USYD],
-    });
+    const old = await createEvent(leader, { name: "Old Untagged", ...window(10) });
     await leader.mutation(api.attendance.signIn, { eventId: old, email: STAFF });
-    await leader.mutation(api.events.create, {
-      name: "Collab",
-      ...window(1),
-      subgroups: [USYD, MACQ],
-    });
+    await createEvent(leader, { name: "Collab", ...window(1), subgroups: [USYD, MACQ] });
 
     const all = await leader.query(api.attendanceExport.eventsForExport, {
       subgroup: USYD,
@@ -304,20 +280,12 @@ describe("attendanceExport", () => {
       metadata: { [house._id]: "1" },
     });
 
-    const usydEvent = await leader.mutation(api.events.create, {
-      name: "USYD Night",
-      ...window(),
-      subgroups: [USYD],
-    });
+    const usydEvent = await createEvent(leader, { name: "USYD Night", ...window() });
     await leader.mutation(api.attendance.signIn, {
       eventId: usydEvent,
       memberId,
     });
-    const macqEvent = await leader.mutation(api.events.create, {
-      name: "MACQ Night",
-      ...window(),
-      subgroups: [MACQ],
-    });
+    const macqEvent = await createEvent(leader, { name: "MACQ Night", ...window(), subgroups: [MACQ] });
     await leader.mutation(api.attendance.signIn, {
       eventId: macqEvent,
       memberId,
@@ -336,11 +304,7 @@ describe("attendanceExport", () => {
 
   test("eventForExport: single event, missing event, and empty-subgroup fallback", async () => {
     const { t, leader } = await setup();
-    const someEvent = await leader.mutation(api.events.create, {
-      name: "Solo",
-      ...window(),
-      subgroups: [USYD],
-    });
+    const someEvent = await createEvent(leader, { name: "Solo", ...window() });
     expect(
       await t.query(api.attendanceExport.eventForExport, { eventId: someEvent })
     ).toBeNull();
@@ -388,11 +352,7 @@ describe("attendanceExport", () => {
 describe("attendanceExport de-duplication", () => {
   test("a person signed in by both email and memberId exports as one row", async () => {
     const { leader } = await setup();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Weekly Meeting",
-      ...window(),
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader, { name: "Weekly Meeting", ...window() });
     const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
     });
@@ -410,11 +370,7 @@ describe("attendanceExport de-duplication", () => {
 
   test("merging two rows for one person keeps the earliest sign-in", async () => {
     const { t, leader } = await setup();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Weekly Meeting",
-      ...window(),
-      subgroups: [USYD],
-    });
+    const eventId = await createEvent(leader, { name: "Weekly Meeting", ...window() });
     const memberId = await memberOf(t, LEADER);
     await t.run(async (ctx) => {
       await ctx.db.insert("attendance", { eventId, memberId, signInTime: 2000, notes: "later" });
