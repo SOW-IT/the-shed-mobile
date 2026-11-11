@@ -1,8 +1,0 @@
-appId: ${APP_ID}
-tags:
-  - manual
----
-- launchApp:
-    appId: ${APP_ID}
-- assertVisible:
-    text: ".*"

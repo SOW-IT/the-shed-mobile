@@ -1,2 +1,0 @@
-# Local secrets for the E2E suite — never commit real credentials.
-.env

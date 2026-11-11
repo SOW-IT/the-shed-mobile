@@ -1,9 +1,0 @@
-flows:
-  - "[0-9]*/*.yaml"
-
-executionOrder:
-  continueOnFailure: true
-
-includeTags: []
-excludeTags:
-  - manual

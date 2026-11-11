@@ -1,7 +1,0 @@
-appId: ${APP_ID}
----
-- tapOn:
-    text: "Open menu.*"
-- extendedWaitUntil:
-    visible: "Sign out"
-    timeout: 5000

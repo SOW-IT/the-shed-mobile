@@ -28,7 +28,7 @@ skipped with a written reason). CI alone is not enough — this Mac has baguette
 - Working tree should contain only changes that belong in this PR. If there
   are unrelated modifications, ask the user what to include.
 - Prefer the **current worktree** for the change under review. Do not assume
-  the main checkout at `/Users/xtectra/GitHub/the-shed-mobile` is the branch
+  the main checkout at `~/GitHub/the-shed-mobile` is the branch
   being shipped — base Metro / emulator / verification on this worktree.
 
 ## 1. Bump the patch version
@@ -66,16 +66,14 @@ Format follows the existing file exactly:
 The docs drift because nothing checks them. These four claims go stale every
 time we ship, so re-read them against **this** change before moving on:
 
-- **`README.md` → "What's implemented"** — did this PR add, remove or change a
-  user-visible capability? A feature that ships without a line here is
-  invisible to the next reader.
+- **`README.md` → "What's in it"** — did this PR add or remove a whole area?
+  Smaller changes belong in `CHANGELOG.md`, not here.
 - **`README.md` → CI/CD table** — did this PR add, rename or delete anything in
   `.github/workflows/`? The table names files; a rename makes it a lie. Check
   with `ls .github/workflows/`.
 - **`LAUNCH.md`** — did this PR finish something listed under "Still
-  outstanding", or newly require a credential, env var or dashboard step? Move
-  completed items into "Already done" *with the evidence that proves it*, not
-  just a tick.
+  outstanding", or newly require a credential, env var or dashboard step? Delete
+  completed items and put the evidence that proves them in the PR body.
 - **`CONTEXT-MAP.md` and `docs/context/*.md`** — did this PR introduce a domain
   term, or use an existing one in a new way? New vocabulary belongs in the
   glossary for its context while it is still fresh. If the change is a decision
@@ -124,7 +122,7 @@ npx expo start --web --port 8082
 
 ### 4b. Native — baguette + simulator
 
-- Prefer **baguette** over `idb` (see `.maestro/README.md`).
+- Prefer **baguette** over `idb`.
 - `baguette list` → use the `Booted` sim (The SHED: `au.org.sow.theshed`).
 - Tap API needs screen points + size, e.g.:
 
@@ -150,7 +148,7 @@ npx --yes playwright screenshot --wait-for-timeout=8000 \
 ```
 
 - Optional signed-in smoke: e2e-auth when `E2E_AUTH_ENABLED` is set on the
-  deployment — see `.maestro/README.md`. Never enable that bypass on prod.
+  deployment (README → Tests). Never enable that bypass on prod.
 - Do **not** print `E2E_AUTH_SECRET` or Netlify tokens in chat or HTML.
 
 ### 4d. What to record
@@ -160,7 +158,7 @@ In the PR body (and Netlify explain page), be honest:
 | Bucket | Examples |
 | --- | --- |
 | **Verified** | lint/typecheck/coverage; baguette screens hit; web screenshot; specific behavior observed |
-| **Not verified** | Oct 1 cron dry-run, Maestro suite, paths you did not open |
+| **Not verified** | Oct 1 cron dry-run, paths you did not open |
 | **Ops notes** | deploy footguns, known gaps |
 
 Only skip baguette/web when the PR is pure docs/CI/deps with **no** runtime UI

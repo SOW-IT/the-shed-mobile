@@ -51,8 +51,8 @@ Head, and a Budget Manager (Admin → "Other"; picker lists Finance members only
   (`successful-lynx-56`). Don't use `CONVEX_AGENT_MODE=anonymous` unless the
   user wants an isolated empty backend — it replaces `.env.local`.
 - Metro on `http://localhost:8081` — confirm it serves the **current
-  worktree**. Worktrees live under `/Users/xtectra/GitHub/worktrees/`.
+  worktree**. Worktrees live under `~/GitHub/worktrees/`.
 - iOS Simulator app `au.org.sow.theshed`: drive with **baguette** (not `idb`).
 - `NETLIFY_AUTH_TOKEN` is in `~/.hermes/.env`.
 - Sign-in: Google OAuth, or the dev-only `e2e-auth` bypass when
-  `E2E_AUTH_ENABLED` is set (`.maestro/README.md`). Never enable on prod.
+  `E2E_AUTH_ENABLED` is set (README → Tests). Never enable on prod.

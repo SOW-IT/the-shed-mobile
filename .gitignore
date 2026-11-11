@@ -64,7 +64,6 @@ the-shed-prod-snapshot.zip
 *-snapshot.zip
 
 # Generated App Store screenshots (regenerable; contain real account data)
-/app-store-screenshots/
 convex/devE2E.ts
 convex/devE2E.test.ts
 

@@ -32,14 +32,14 @@ coding. For Convex API patterns, read `convex/_generated/ai/guidelines.md` first
 ## 1. Branch / worktree
 
 Never implement on `main`. Prefer an isolated worktree under
-`/Users/xtectra/GitHub/worktrees/`:
+`~/GitHub/worktrees/`:
 
 ```bash
 git fetch origin main --prune
 git worktree add -b feat/<slug> \
-  /Users/xtectra/GitHub/worktrees/the-shed-mobile-<slug> \
+  ~/GitHub/worktrees/the-shed-mobile-<slug> \
   origin/main
-cd /Users/xtectra/GitHub/worktrees/the-shed-mobile-<slug>
+cd ~/GitHub/worktrees/the-shed-mobile-<slug>
 npm install   # if node_modules missing
 ```
 
@@ -47,7 +47,7 @@ Branch names: `feat/<slug>`, `fix/<slug>`, optionally with version
 (`feat/1.8.9-whatever`). Keep unrelated WIP out of the branch.
 
 If already inside a feature worktree, stay there — do not bounce to the main
-checkout at `/Users/xtectra/GitHub/the-shed-mobile`.
+checkout at `~/GitHub/the-shed-mobile`.
 
 ## 2. Implement
 
@@ -77,8 +77,8 @@ npm test                 # or npm run test:coverage before PR
 3. Web: `npx expo start --web --port 8082` and/or Playwright screenshots
    (prefer Playwright over headless Chrome `--screenshot` for RN-web).
 4. Optional signed-in smoke without Google: e2e-auth bypass when
-   `E2E_AUTH_ENABLED` is set on the deployment — see `.maestro/README.md` and
-   `AGENTS.md` (Mac section). Never enable that bypass on prod.
+   `E2E_AUTH_ENABLED` is set on the deployment (README → Tests and
+   `AGENTS.md`). Never enable that bypass on prod.
 
 ## 4. Ship
 
