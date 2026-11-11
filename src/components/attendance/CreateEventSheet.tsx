@@ -1,10 +1,6 @@
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CampusMark } from "@/components/CampusMark";
 import {
-  NativeDateInput,
-  NativeTimeInput,
-} from "@/components/NativeDateTimeField";
-import {
   Btn,
   CannotUndo,
   Checkbox,
@@ -18,13 +14,13 @@ import {
   Sheet,
   Txt,
 } from "@/components/ui";
-import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
+import { DateInput, TimeInput } from "@/components/DateInputs";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import { typedMatches } from "../../../shared/typedConfirm";
 import { api } from "../../../convex/_generated/api";
@@ -517,8 +513,6 @@ export function CreateEventSheet({
   const system = suggestion?.system ?? termSystemFor(ownerGroup, DEFAULT_WEEKLY_SETTINGS);
   const termNoun = system === "terms" ? "Term" : "Semester";
   const otherGroups = subgroups.filter((sg) => sg !== ownerGroup);
-  const DateInput = Platform.OS === "web" ? WebDateInput : NativeDateInput;
-  const TimeInput = Platform.OS === "web" ? WebTimeInput : NativeTimeInput;
 
   return (
     <Sheet

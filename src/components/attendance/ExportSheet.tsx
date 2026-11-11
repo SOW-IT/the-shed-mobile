@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvex, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -19,8 +19,7 @@ import {
   type ExportEventForCsv,
 } from "@/lib/attendanceCsv";
 import { downloadCsv } from "@/lib/csvDownload";
-import { NativeDateInput } from "@/components/NativeDateTimeField";
-import { WebDateInput } from "@/components/WebDateTimeInput";
+import { DateInput } from "@/components/DateInputs";
 import {
   Btn,
   ErrorBanner,
@@ -299,47 +298,23 @@ export function ExportSheet({
             Time range
           </Txt>
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            {Platform.OS === "web" ? (
-              <>
-                <WebDateInput
-                  label="From"
-                  value={fromMs ? toInputDate(fromMs) : ""}
-                  min={toInputDate(MIN_DATE.getTime())}
-                  max={toInputDate(toMs ?? nowMs)}
-                  onChange={(s) => setFromMs(fromInputDate(s))}
-                  needed
-                />
-                <WebDateInput
-                  label="To"
-                  value={toMs ? toInputDate(toMs) : ""}
-                  min={toInputDate(fromMs ?? MIN_DATE.getTime())}
-                  max={toInputDate(nowMs)}
-                  placeholder="Today"
-                  onChange={(s) => setToMs(fromInputDate(s))}
-                  onClear={() => setToMs(undefined)}
-                />
-              </>
-            ) : (
-              <>
-                <NativeDateInput
-                  label="From"
-                  value={fromMs ? toInputDate(fromMs) : ""}
-                  min={toInputDate(MIN_DATE.getTime())}
-                  max={toInputDate(toMs ?? nowMs)}
-                  onChange={(s) => setFromMs(fromInputDate(s))}
-                  needed
-                />
-                <NativeDateInput
-                  label="To"
-                  value={toMs ? toInputDate(toMs) : ""}
-                  min={toInputDate(fromMs ?? MIN_DATE.getTime())}
-                  max={toInputDate(nowMs)}
-                  placeholder="Today"
-                  onChange={(s) => setToMs(fromInputDate(s))}
-                  onClear={() => setToMs(undefined)}
-                />
-              </>
-            )}
+            <DateInput
+              label="From"
+              value={fromMs ? toInputDate(fromMs) : ""}
+              min={toInputDate(MIN_DATE.getTime())}
+              max={toInputDate(toMs ?? nowMs)}
+              onChange={(s) => setFromMs(fromInputDate(s))}
+              needed
+            />
+            <DateInput
+              label="To"
+              value={toMs ? toInputDate(toMs) : ""}
+              min={toInputDate(fromMs ?? MIN_DATE.getTime())}
+              max={toInputDate(nowMs)}
+              placeholder="Today"
+              onChange={(s) => setToMs(fromInputDate(s))}
+              onClear={() => setToMs(undefined)}
+            />
           </View>
           <View style={{ height: spacing.md }} />
           <MultiSelect

@@ -1,9 +1,14 @@
 import { useMutation } from "convex/react";
 import { useEffect, useState } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { hourAfter, MAX_ENTRY_NAME, MAX_ENTRY_NOTES, type Due } from "@shared/calendar";
+import {
+  hourAfter,
+  MAX_ENTRY_NAME,
+  MAX_ENTRY_NOTES,
+  type Due,
+} from "@shared/calendar";
 import {
   addDaysToDateInputValue,
   minuteAfterTime,
@@ -13,8 +18,7 @@ import {
 } from "@shared/datetime";
 import { eventWindowFromInputs, subgroupLabel } from "@shared/rollcall";
 import type { AttendanceDraft } from "@/components/attendance/CreateEventSheet";
-import { NativeDateInput, NativeTimeInput } from "@/components/NativeDateTimeField";
-import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
+import { DateInput, TimeInput } from "@/components/DateInputs";
 import {
   Btn,
   Checkbox,
@@ -126,8 +130,6 @@ export const CalendarEntrySheet = ({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [visible, entry, day, time, defaultSubgroup]);
 
-  const DateInput = Platform.OS === "web" ? WebDateInput : NativeDateInput;
-  const TimeInput = Platform.OS === "web" ? WebTimeInput : NativeTimeInput;
   const takingAttendance = attendance && !deadline;
 
   const eventWindow = () => {

@@ -11,8 +11,7 @@ import {
 } from "@shared/forms";
 import { addDaysToDateInputValue, minuteAfterTime } from "@shared/datetime";
 import { type EventSize } from "@shared/eventRequests";
-import { NativeDateInput, NativeTimeInput } from "@/components/NativeDateTimeField";
-import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
+import { DateInput, TimeInput } from "@/components/DateInputs";
 import {
   Card,
   currencyText,
@@ -133,19 +132,19 @@ const DateTimeInput = ({
     <View style={{ flexDirection: "row", gap: spacing.sm }}>
       {Platform.OS === "web" ? (
         <>
-          <WebDateInput
+          <DateInput
             label="Date"
             value={date}
             min={min}
             onChange={(d) => set(d, time)}
             onClear={field.required ? undefined : () => onChange("")}
           />
-          <WebTimeInput label="Time" value={time} min={minTime} onChange={(tm) => set(date, tm)} />
+          <TimeInput label="Time" value={time} min={minTime} onChange={(tm) => set(date, tm)} />
         </>
       ) : (
         <>
           <View style={{ flex: 1 }}>
-            <NativeDateInput
+            <DateInput
               label="Date"
               value={date}
               min={min}
@@ -154,7 +153,7 @@ const DateTimeInput = ({
             />
           </View>
           <View style={{ flex: 1 }}>
-            <NativeTimeInput label="Time" value={time} min={minTime} onChange={(tm) => set(date, tm)} />
+            <TimeInput label="Time" value={time} min={minTime} onChange={(tm) => set(date, tm)} />
           </View>
         </>
       )}
@@ -258,16 +257,8 @@ const FieldInput = ({
         />
       );
     case "date":
-      return Platform.OS === "web" ? (
-        <WebDateInput
-          label={field.shortLabel}
-          value={text}
-          min={field.notInPast ? minDate : undefined}
-          onChange={(v) => set(field.key, v)}
-          onClear={field.required ? undefined : () => set(field.key, "")}
-        />
-      ) : (
-        <NativeDateInput
+      return (
+        <DateInput
           label={field.shortLabel}
           value={text}
           min={field.notInPast ? minDate : undefined}

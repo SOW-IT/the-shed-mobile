@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import {
@@ -15,12 +15,15 @@ import {
   scheduleError,
   TITLE_MAX,
 } from "@shared/announcements";
-import { parseDateTimeInputValues, toDateInputValue, toTimeInputValue } from "@shared/datetime";
+import {
+  parseDateTimeInputValues,
+  toDateInputValue,
+  toTimeInputValue,
+} from "@shared/datetime";
 import { acronym } from "@shared/flow";
 import { PushPreview } from "@/components/announcements/PushPreview";
 import { ChromeScreen } from "@/components/ChromeScreen";
-import { NativeDateInput, NativeTimeInput } from "@/components/NativeDateTimeField";
-import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
+import { DateInput, TimeInput } from "@/components/DateInputs";
 import {
   Btn,
   Card,
@@ -307,27 +310,13 @@ export default function AnnouncementsScreen() {
           />
           {when === "later" ? (
             <View style={styles.dateRow}>
-              {Platform.OS === "web" ? (
-                <>
-                  <WebDateInput
-                    label="Date"
-                    value={date}
-                    min={toDateInputValue(new Date())}
-                    onChange={setDate}
-                  />
-                  <WebTimeInput label="Time" value={time} onChange={setTime} />
-                </>
-              ) : (
-                <>
-                  <NativeDateInput
-                    label="Date"
-                    value={date}
-                    min={toDateInputValue(new Date())}
-                    onChange={setDate}
-                  />
-                  <NativeTimeInput label="Time" value={time} onChange={setTime} />
-                </>
-              )}
+              <DateInput
+                label="Date"
+                value={date}
+                min={toDateInputValue(new Date())}
+                onChange={setDate}
+              />
+              <TimeInput label="Time" value={time} onChange={setTime} />
             </View>
           ) : null}
           <WarningBanner message={problem.schedule} />
