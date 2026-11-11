@@ -252,24 +252,14 @@ describe("approval predicates", () => {
 });
 
 describe("requestDisplayStatus covers every lifecycle branch", () => {
-  test("DECLINED wins over everything", () => {
-    expect(requestDisplayStatus(approvedAll({ approvedByHOD: DECLINED, paid: true }))).toBe(
-      "DECLINED"
-    );
-  });
-  test("PAID once paid", () => {
-    expect(requestDisplayStatus(approvedAll({ paid: true, receipt: {} }))).toBe("PAID");
-  });
-  test("AWAITING APPROVAL while not fully approved", () => {
-    expect(requestDisplayStatus(base())).toBe("AWAITING APPROVAL");
-  });
-  test("AWAITING RECEIPT once approved but no receipt", () => {
-    expect(requestDisplayStatus(approvedAll())).toBe("AWAITING RECEIPT");
-  });
-  test("AWAITING PAYMENT once a receipt is in but unpaid", () => {
-    expect(requestDisplayStatus(approvedAll({ receipt: {}, paid: false }))).toBe(
-      "AWAITING PAYMENT"
-    );
+  test.each([
+    ["DECLINED", approvedAll({ approvedByHOD: DECLINED, paid: true })],
+    ["PAID", approvedAll({ paid: true, receipt: {} })],
+    ["AWAITING APPROVAL", base()],
+    ["AWAITING RECEIPT", approvedAll()],
+    ["AWAITING PAYMENT", approvedAll({ receipt: {}, paid: false })],
+  ])("%s", (status, request) => {
+    expect(requestDisplayStatus(request)).toBe(status);
   });
 });
 

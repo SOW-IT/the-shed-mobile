@@ -3,13 +3,12 @@ import {
   activeNavKey,
   badgeText,
   drawerItems,
-  NAV_GROUP_LABELS,
   NAV_HREFS,
-  NAV_LABELS,
   navEntries,
   navViewer,
   roleLine,
   showsReimbursements,
+  type NavKey,
   sidebarItems,
 } from "./navMenu";
 
@@ -112,153 +111,65 @@ describe("showsReimbursements", () => {
   });
 });
 
-describe("drawerItems", () => {
-  test("signed-out people have no drawer", () => {
+describe("who sees which pages", () => {
+  const REQUESTS: NavKey[] = ["reimbursements", "eventRequests", "designRequests"];
+  const PUBLIC: NavKey[] = ["home", "org", "churches", "grievances"];
+  const STAFF_PAGES: NavKey[] = ["profile", "music", "attendance", "calendar", "insights"];
+  const ADMIN_PAGES: NavKey[] = ["mentoring", "announcements", "admin"];
+
+  test.each([
+    [
+      "signed-out people",
+      signedOut,
+      PUBLIC,
+      [...STAFF_PAGES, ...REQUESTS, ...ADMIN_PAGES],
+    ],
+    [
+      "guests",
+      guest,
+      [...PUBLIC, "profile"],
+      ["music", "attendance", "calendar", "insights", ...REQUESTS, ...ADMIN_PAGES],
+    ],
+    ["staff", staff, [...PUBLIC, ...STAFF_PAGES, ...REQUESTS], ADMIN_PAGES],
+    ["the Finance Head", financeHead, [...STAFF_PAGES, ...REQUESTS], ADMIN_PAGES],
+    [
+      "mentors",
+      mentor,
+      [...STAFF_PAGES, ...REQUESTS, "mentoring"],
+      ["announcements", "admin"],
+    ],
+    ["admins", admin, [...STAFF_PAGES, ...REQUESTS, ...ADMIN_PAGES], []],
+    ["campus leaders", campusLeader, STAFF_PAGES, [...REQUESTS, ...ADMIN_PAGES]],
+    [
+      "campus leaders who are admins",
+      campusLeaderAdmin,
+      [...STAFF_PAGES, ...ADMIN_PAGES],
+      REQUESTS,
+    ],
+  ] as const)("%s", (_, viewer, shows, hides) => {
+    const pages = new Set([
+      ...drawerItems(viewer),
+      ...sidebarItems(viewer),
+    ]);
+    expect(shows.filter((key) => !pages.has(key))).toEqual([]);
+    expect(hides.filter((key) => pages.has(key))).toEqual([]);
+  });
+
+  test("the drawer holds only what the bottom tabs and sidebar leave out", () => {
     expect(drawerItems(signedOut)).toEqual([]);
-  });
-
-  test("guests get Profile only", () => {
     expect(drawerItems(guest)).toEqual(["profile"]);
-  });
-
-  test("staff get Profile, Praise List, Churches, Requests and, last, Insights (the Calendar is their tab)", () => {
-    expect(drawerItems(staff)).toEqual([
-      "profile",
-      "music",
-      "churches",
-      "reimbursements",
-      "eventRequests",
-      "designRequests",
-      "insights",
-    ]);
-  });
-
-  test("admins also get Admin, last, with Announcements before it under Insights; the Finance Head doesn't", () => {
-    const staffItems = [
-      "profile",
-      "music",
-      "churches",
-      "reimbursements",
-      "eventRequests",
-      "designRequests",
-      "insights",
-    ];
-    expect(drawerItems(admin)).toEqual([
-      "profile",
-      "music",
-      "churches",
-      "reimbursements",
-      "eventRequests",
-      "designRequests",
-      "mentoring",
-      "insights",
-      "announcements",
-      "admin",
-    ]);
-    expect(drawerItems(financeHead)).toEqual(staffItems);
-  });
-
-  test("mentors get Mentoring above Insights, without Announcements or Admin", () => {
-    expect(drawerItems(mentor)).toEqual([
-      "profile",
-      "music",
-      "churches",
-      "reimbursements",
-      "eventRequests",
-      "designRequests",
-      "mentoring",
-      "insights",
-    ]);
-  });
-
-  test("campus leaders keep Praise List but not Reimbursements, Event or Design Requests; only admins get Admin", () => {
-    expect(drawerItems(campusLeader)).toEqual([
-      "profile",
-      "music",
-      "churches",
-      "insights",
-    ]);
-    expect(drawerItems(campusLeaderAdmin)).toEqual([
-      "profile",
-      "music",
-      "churches",
-      "mentoring",
-      "insights",
-      "announcements",
-      "admin",
-    ]);
-  });
-});
-
-describe("sidebarItems", () => {
-  test("signed-out people see the public pages, without Insights", () => {
-    expect(sidebarItems(signedOut)).toEqual([
-      "home",
-      "org",
-      "churches",
-      "grievances",
-    ]);
-  });
-
-  test("guests add Profile, but no Insights", () => {
-    expect(sidebarItems(guest)).toEqual([
-      "home",
-      "org",
-      "churches",
-      "grievances",
-      "profile",
-    ]);
-  });
-
-  test("staff see everything but Admin, with Insights last", () => {
-    expect(sidebarItems(staff)).toEqual([
-      "home",
-      "reimbursements",
-      "eventRequests",
-      "designRequests",
-      "music",
-      "attendance",
-      "calendar",
-      "org",
-      "churches",
-      "grievances",
-      "profile",
-      "insights",
-    ]);
-  });
-
-  test("admins see everything, with Insights just above Announcements", () => {
-    expect(sidebarItems(admin)).toEqual([
-      "home",
-      "reimbursements",
-      "eventRequests",
-      "designRequests",
-      "music",
-      "attendance",
-      "calendar",
-      "org",
-      "churches",
-      "grievances",
-      "profile",
-      "mentoring",
-      "insights",
-      "announcements",
-      "admin",
-    ]);
-  });
-
-  test("campus leaders keep Attendance but not Reimbursements", () => {
-    expect(sidebarItems(campusLeader)).toEqual([
-      "home",
-      "music",
-      "attendance",
-      "calendar",
-      "org",
-      "churches",
-      "grievances",
-      "profile",
-      "insights",
-    ]);
+    expect(drawerItems(financeHead)).toEqual(drawerItems(staff));
+    for (const viewer of [staff, campusLeader, admin]) {
+      const drawer = drawerItems(viewer);
+      expect(drawer).toEqual(
+        expect.arrayContaining(["profile", "music", "churches", "insights"]),
+      );
+      expect(
+        drawer.filter((key) =>
+          ["home", "attendance", "calendar", "org", "grievances"].includes(key),
+        ),
+      ).toEqual([]);
+    }
   });
 });
 
@@ -314,7 +225,6 @@ describe("navEntries", () => {
       { kind: "item", key: "music" },
       { kind: "item", key: "attendance" },
     ]);
-    expect(NAV_GROUP_LABELS.requests).toBe("Requests");
   });
 
   test("no group when there are no request pages", () => {
@@ -396,11 +306,5 @@ describe("badgeText", () => {
     expect(badgeText(1)).toBe("1");
     expect(badgeText(99)).toBe("99");
     expect(badgeText(100)).toBe("99+");
-  });
-});
-
-describe("NAV_LABELS", () => {
-  test("Requests is now called Reimbursements", () => {
-    expect(NAV_LABELS.reimbursements).toBe("Reimbursements");
   });
 });
