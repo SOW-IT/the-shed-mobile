@@ -1115,6 +1115,10 @@ describe("Praise Manager directory recognition", () => {
     const staff = asUser(t, STAFF);
     const result = await staff.query(api.directory.me, {});
     expect(result?.isPraiseManager).toBe(true);
+    await expect(staff.query(api.musicRequests.toReview, {})).resolves.toEqual([]);
+    expect(await staff.query(api.musicRequests.praiseManagers, {})).toEqual([
+      expect.objectContaining({ email: STAFF }),
+    ]);
   });
 });
 test("handles malformed URLs during duplicate checking", async () => {
