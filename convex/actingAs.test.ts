@@ -949,8 +949,6 @@ describe("acting as a campus leader", () => {
     const entry = {
       dateStart: PINNED_NOW + DAY,
       dateEnd: PINNED_NOW + DAY,
-      subgroups: ["SOW"],
-      category: "deadline" as const,
       due: "time" as const,
     };
     await asUser(t, MARY).mutation(api.calendar.addEntry, { name: "Mary's", ...entry });
@@ -1033,8 +1031,6 @@ describe("a preview hides what the role can't see", () => {
     const entry = {
       dateStart: PINNED_NOW + DAY,
       dateEnd: PINNED_NOW + DAY,
-      subgroups: ["SOW"],
-      category: "deadline" as const,
       due: "time" as const,
     };
     await asUser(t, MARY).mutation(api.calendar.addEntry, { name: "Mary's", ...entry });

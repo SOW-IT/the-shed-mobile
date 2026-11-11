@@ -70,13 +70,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       `/github_subscribe SOW-IT/the-shed-mobile`. EAS Production's own Chat
       post already works.
 
-- [ ] **Copy the old web app's design requests into production**, unless it
-      has been done (imported rows have a `legacyKey`): `gcloud auth login`
-      (an account with access to `theshedsow`), then `node scripts/import-design-requests.mjs --dry-run`
-      and `node scripts/import-design-requests.mjs --prod`. It can be re-run
-      after anyone submits more on the old site; requests already acted on in
-      THE SHED are left alone.
-
 - [ ] **Add the 2025–26 and 2026–27 mentor lists** once 2.10.4 is live:
       `npx convex run --prod mentoring:setPairings` for 2026 and 2027, eight
       pairings each, from the lists given on 2026-10-23.
@@ -98,56 +91,3 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       `au.org.sow.theshed.staging`, so staging builds omit `googleServicesFile`
       and staging push does not work. Production and preview are unaffected.
 
----
-
-## Praise List — Indexed Duplicate Detection Migration
-
-The Praise List uses indexed fields (`spotifyTrackId`, `normalizedSongKey`, and `isrc`) to detect duplicate music requests.
-
-Existing music requests created before these fields were introduced must be backfilled after deploying the updated Convex schema and functions.
-
-### Development
-
-The development deployment was previously backfilled for 106 existing requests. Recheck the migration if necessary.
-
-Run:
-
-```bash
-npx convex run musicBackfill:backfill '{}'
-```
-
-If `isDone` is `false`, repeat the command using the returned `continueCursor` value:
-
-```bash
-npx convex run musicBackfill:backfill '{"cursor":"PASTE_CONTINUE_CURSOR_HERE"}'
-```
-
-Continue until `isDone` is `true`.
-
-### Production
-
-**Do not run the migration against production until the updated schema and functions have been deployed and the production deployment has been confirmed.**
-
-Once the production deployment is ready, run:
-
-```bash
-npx convex run --prod musicBackfill:backfill '{}'
-```
-
-If `isDone` is `false`, repeat using the returned cursor:
-
-```bash
-npx convex run --prod musicBackfill:backfill '{"cursor":"PASTE_CONTINUE_CURSOR_HERE"}'
-```
-
-Continue until `isDone` is `true`.
-
-### Verification
-
-- Confirm that all pages have been processed.
-- Confirm the final response reports `isDone: true`.
-- Verify that a previously existing Spotify song is detected as a duplicate.
-- Check that approved songs remain visible and unchanged.
-- Keep the backfill function internal-only.
-
-**Important:** `checked` and `updated` are per-page counts, not totals across the migration. Record the results for each page when verifying the migration.

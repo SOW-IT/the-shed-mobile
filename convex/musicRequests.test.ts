@@ -1577,35 +1577,6 @@ describe("Praise List details", () => {
     ).rejects.toThrow("You must be signed in.");
   });
 
-  test("the backfill fills the duplicate keys with submit's rules", async () => {
-    const t = await setup();
-    const id = await t.run((ctx) =>
-      ctx.db.insert("musicRequests", {
-        requesterEmail: STAFF,
-        title: "Test  Song!",
-        artist: "TEST Artist",
-        link: SPOTIFY,
-        status: "APPROVED",
-      }),
-    );
-    expect(await t.mutation(internal.musicBackfill.backfill, {})).toMatchObject(
-      {
-        checked: 1,
-        updated: 1,
-        isDone: true,
-      },
-    );
-    const row = await t.run((ctx) => ctx.db.get(id));
-    expect(row).toMatchObject({
-      spotifyTrackId: TRACK_ID,
-      normalizedSongKey: JSON.stringify(["test song", "test artist"]),
-    });
-    expect(await t.mutation(internal.musicBackfill.backfill, {})).toMatchObject(
-      {
-        updated: 0,
-      },
-    );
-  });
 });
 
 describe("Praise List review follow-up", () => {
@@ -1901,62 +1872,6 @@ describe("Praise List review follow-up", () => {
     ).toEqual({ toReview: 1 });
   });
 
-  test("the backfill fills YouTube video IDs and thumbnails", async () => {
-    const t = await setup();
-    const id = await t.run((ctx) =>
-      ctx.db.insert("musicRequests", {
-        requesterEmail: STAFF,
-        title: "Old",
-        artist: "Song",
-        link: "https://youtu.be/abcdefghijk",
-        status: "APPROVED",
-      }),
-    );
-    await t.mutation(internal.musicBackfill.backfill, {});
-    expect(await t.run((ctx) => ctx.db.get("musicRequests", id))).toMatchObject(
-      {
-        youtubeVideoId: "abcdefghijk",
-        albumArtUrl: "https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg",
-      },
-    );
-    expect(await t.mutation(internal.musicBackfill.backfill, {})).toMatchObject(
-      {
-        updated: 0,
-      },
-    );
-  });
-
-  test("the backfill drops artwork a Spotify song didn't get from Spotify", async () => {
-    const t = await setup();
-    const insert = (link: string, albumArtUrl: string) =>
-      t.run((ctx) =>
-        ctx.db.insert("musicRequests", {
-          requesterEmail: STAFF,
-          title: "Old",
-          artist: "Song",
-          link,
-          albumArtUrl,
-          status: "APPROVED",
-        }),
-      );
-    const youtubeArt = "https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg";
-    const spotifyArt = "https://i.scdn.co/image/abc";
-    const wrongArt = await insert(SPOTIFY, youtubeArt);
-    const rightArt = await insert(`https://open.spotify.com/track/${TRACK_ID}2`, spotifyArt);
-    const otherLink = await insert("https://example.com/song", youtubeArt);
-
-    await t.mutation(internal.musicBackfill.backfill, {});
-    const art = await t.run(async (ctx) =>
-      Promise.all(
-        [wrongArt, rightArt, otherLink].map(
-          async (id) =>
-            (await ctx.db.get("musicRequests", id))?.albumArtUrl ?? null,
-        ),
-      ),
-    );
-    expect(art).toEqual([null, spotifyArt, youtubeArt]);
-  });
-
   test("editing a request moves its duplicate keys to the new song", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
@@ -2023,46 +1938,6 @@ describe("Praise List review follow-up", () => {
         ],
       }),
     ).toEqual({ exactDuplicates: 1, possibleDuplicates: 1 });
-  });
-
-  test("the backfill carries on by itself past the first page", async () => {
-    const t = await setup();
-    vi.useFakeTimers();
-    vi.setSystemTime(PINNED_NOW);
-    await t.run(async (ctx) => {
-      for (let i = 0; i < 101; i++) {
-        await ctx.db.insert("musicRequests", {
-          requesterEmail: STAFF,
-          title: `Song ${i}`,
-          artist: "Artist",
-          link: `https://youtu.be/abcdefgh${String(i).padStart(3, "0")}`,
-          status: "APPROVED",
-        });
-      }
-    });
-
-    const first = await t.mutation(internal.musicBackfill.backfill, {});
-    expect(first).toMatchObject({ checked: 100, isDone: false });
-    const next = await t.run(async (ctx) =>
-      (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-        (job) => job.name === "musicBackfill:backfill",
-      ),
-    );
-    expect(next.map((job) => job.args[0])).toEqual([
-      { cursor: first.continueCursor },
-    ]);
-
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-    const rows = await t.run((ctx) => ctx.db.query("musicRequests").collect());
-    expect(rows).toHaveLength(101);
-    for (const row of rows) {
-      const videoId = row.link.slice(-11);
-      expect(row).toMatchObject({
-        youtubeVideoId: videoId,
-        normalizedSongKey: expect.any(String),
-        albumArtUrl: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
-      });
-    }
   });
 
   test("after 1 October a Praise Manager needs this year's staff profile", async () => {

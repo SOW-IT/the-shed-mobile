@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.7] - 2026-11-11
+
+### Removed
+- **One-off tools that have done their job.** The Praise List backfill, the
+  avatar shrink-all job, the member repair tools and the import from the old
+  web app's design requests. Each was checked against production first: the
+  backfill would change none of the 32 songs, no avatar is left to shrink, and
+  the 15 imported design requests are all in. Nothing changes in the app.
+- **Calendar categories from before 2.10.14.** Older apps already show the
+  update screen, and no event or calendar entry still has one.
+
 ## [2.11.6] - 2026-11-11
 
 ### Removed

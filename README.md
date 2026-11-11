@@ -138,8 +138,8 @@ Workspace directory photo, the picture Google sent at their last sign-in,
 then their initials. The app resizes a picked photo to 512 px before it
 uploads it (a JPEG, or a PNG when the picked file is one, so see-through
 areas stay see-through until the server puts them on white). An uploaded photo
-over 64 KB is shrunk on the server to a 256 px JPEG a moment after upload
-(`avatars:shrinkAll` does older ones), skipping any too big to decode in an
+over 64 KB is shrunk on the server to a 256 px JPEG a moment after upload,
+skipping any too big to decode in an
 action's memory: JPEGs over 16 million colour samples (about 10 MP for a
 typical phone photo, 5 MP for a full-colour one) and PNGs over 10 MP. Phones
 keep each photo in the app's cache folder after the first download,

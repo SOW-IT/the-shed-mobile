@@ -9,8 +9,7 @@ import {
   MAX_SPAN_MS,
   normalizeEntry,
 } from "../shared/calendar";
-import { eventStaffYear } from "../shared/flow";
-import { normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
+import { normalizeSubgroups } from "../shared/rollcall";
 import { entryFields } from "./calendarData";
 import { openableEventRequest } from "./eventRequestAccess";
 import { calendarSyncConfigured } from "./googleCalendar";
@@ -22,20 +21,12 @@ const LONGEST_EVENT_MS = MAX_SPAN_MS;
 
 type Ctx = QueryCtx | MutationCtx;
 
-async function validSubgroups(ctx: Ctx, dateStart: number): Promise<string[]> {
-  const universities = await ctx.db
-    .query("universities")
-    .withIndex("by_year_and_name", (q) => q.eq("year", eventStaffYear(dateStart)))
-    .collect();
-  return [SOW_SUBGROUP, ...universities.map((u) => u.name)];
-}
-
 const canEditEntry = async (ctx: Ctx, caller: CallerContext, entry: Doc<"calendarEntries">) =>
   entry.createdBy === caller.email || (await isAdminProfile(ctx, caller.profile));
 
 async function checkedEntry(ctx: Ctx, args: Omit<Doc<"calendarEntries">, "_id" | "_creationTime" | "createdBy">) {
   const entry = normalizeEntry(args);
-  const problem = entryProblem(entry, await validSubgroups(ctx, entry.dateStart));
+  const problem = entryProblem(entry);
   if (problem) throw new ConvexError(problem);
   return entry;
 }
@@ -157,7 +148,7 @@ export const range = query({
       name: entry.name,
       dateStart: entry.dateStart,
       dateEnd: entry.dateEnd,
-      subgroups: normalizeSubgroups(entry.subgroups ?? []),
+      subgroups: [] as string[],
       category: entryCategory(entry),
       tags: [],
       notes: entry.notes ?? null,

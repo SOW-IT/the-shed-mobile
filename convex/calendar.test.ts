@@ -98,8 +98,6 @@ describe("calendar.range", () => {
     await create(t, { name: "PPN", tagIds: [twig, ppn] });
     await create(t, { name: "Leaders' retreat", subgroups: ["SOW"] });
     await create(t, { name: "Welcome week stall" });
-    // A category picked on an attendance event before 2.10.14 is ignored.
-    await create(t, { name: "Camp posters due", category: "deadline", ...at(2) });
     await create(t, { name: "Camp", ...at(-3, 5 * 24) });
     await create(t, { name: "Long gone", ...at(-20) });
     await create(t, { name: "Next month", ...at(40) });
@@ -114,7 +112,6 @@ describe("calendar.range", () => {
       ["PPN", "ppn"],
       ["Leaders' retreat", "sow"],
       ["Welcome week stall", "campus"],
-      ["Camp posters due", "campus"],
     ]);
     expect(rows![0].subgroups).toEqual([USYD]);
     expect(rows![1].tags).toEqual([{ name: "TWIG", colour: "#123456" }]);
@@ -127,47 +124,6 @@ describe("calendar.range", () => {
     await t.run((ctx) => ctx.db.delete("attendanceTags", twig));
     const [row] = (await asUser(t, ADMIN).query(api.calendar.range, { from: NOW, to: NOW + 9 * DAY }))!;
     expect(row).toMatchObject({ category: "campus", tags: [] });
-  });
-});
-
-describe("events keep their calendar category", () => {
-  test("update sets, keeps and clears it, and says so in the audit log", async () => {
-    const { t } = await setup();
-    const eventId = await create(t, { name: "Reel shoot", category: "marketing" });
-    const base = { eventId, name: "Reel shoot", subgroups: [USYD], ...at(1) };
-    await asUser(t, ADMIN).mutation(api.events.update, base);
-    expect((await t.run((ctx) => ctx.db.get("events", eventId)))!.category).toBe("marketing");
-    await asUser(t, ADMIN).mutation(api.events.update, { ...base, category: "other" });
-    expect((await t.run((ctx) => ctx.db.get("events", eventId)))!.category).toBe("other");
-    await asUser(t, ADMIN).mutation(api.events.update, { ...base, category: null });
-    expect((await t.run((ctx) => ctx.db.get("events", eventId)))!.category).toBeUndefined();
-    const audit = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
-    expect(audit.filter((a) => a.action === "event.update").map((a) => a.detail)).toEqual([
-      "Changed: calendar category",
-      "Changed: calendar category",
-    ]);
-  });
-
-  test("changes are queued for Google only once a calendar is set up", async () => {
-    const { t } = await setup();
-    const first = await create(t, { name: "Before setup" });
-    expect(await scheduledSyncs(t)).toHaveLength(0);
-
-    await configureGoogle();
-    googleFetch([]);
-    const eventId = await create(t, { name: "After setup" });
-    await asUser(t, ADMIN).mutation(api.events.update, {
-      eventId,
-      name: "After setup (moved)",
-      subgroups: [USYD],
-      ...at(2),
-    });
-    await asUser(t, ADMIN).mutation(api.events.remove, { eventId: first });
-    expect((await scheduledSyncs(t)).map((f) => f.args[0])).toEqual([
-      { eventId },
-      { eventId },
-      { eventId: first },
-    ]);
   });
 });
 
@@ -284,8 +240,6 @@ async function setupWithStaff() {
 const entry = (over: Record<string, unknown> = {}) => ({
   name: "Camp posters due",
   ...at(3),
-  subgroups: ["SOW"],
-  category: "deadline" as const,
   ...over,
 });
 
@@ -296,18 +250,15 @@ describe("calendar entries", () => {
     const add = (over: Record<string, unknown>) => asUser(t, STAFF).mutation(api.calendar.addEntry, entry(over));
     await expect(add({ name: "  " })).rejects.toThrow("Give it a name.");
     await expect(add({ dateEnd: NOW + 3 * DAY })).rejects.toThrow("It has to end after it starts.");
-    await expect(add({ subgroups: ["Hogwarts"] })).rejects.toThrow('"Hogwarts" isn\'t a campus this year.');
-    const id = await add({ name: " Camp posters due ", notes: " Print 200 ", subgroups: ["SOW", USYD, "SOW"] });
+    const id = await add({ name: " Camp posters due ", notes: " Print 200 " });
     expect(await t.run((ctx) => ctx.db.get("calendarEntries", id))).toMatchObject({
       name: "Camp posters due",
       notes: "Print 200",
-      subgroups: ["SOW", USYD],
       createdBy: STAFF,
     });
 
     const window = { from: NOW, to: NOW + 10 * DAY };
     const mine = await asUser(t, STAFF).query(api.calendar.range, window);
-    // An entry is an Event unless it's due; the category an older app sent is ignored.
     expect(mine).toEqual([
       expect.objectContaining({ kind: "entry", id, category: "event", notes: "Print 200", canEdit: true }),
     ]);
@@ -321,11 +272,9 @@ describe("calendar entries", () => {
     await expect(
       asUser(t, OTHER).mutation(api.calendar.updateEntry, { id, ...entry({ name: "Mine now" }) })
     ).rejects.toThrow("Only whoever added it, or an admin");
-    await asUser(t, STAFF).mutation(api.calendar.updateEntry, { id, ...entry({ category: "marketing" }) });
     await asUser(t, ADMIN).mutation(api.calendar.updateEntry, { id, ...entry({ name: "Posters due" }) });
     expect(await t.run((ctx) => ctx.db.get("calendarEntries", id))).toMatchObject({
       name: "Posters due",
-      category: "deadline",
     });
     await expect(asUser(t, OTHER).mutation(api.calendar.removeEntry, { id })).rejects.toThrow("Only whoever");
     await asUser(t, STAFF).mutation(api.calendar.removeEntry, { id });
@@ -357,8 +306,7 @@ describe("calendar entries", () => {
 
   test("an entry needs no campus", async () => {
     const { t } = await setupWithStaff();
-    const { subgroups: _subgroups, category: _category, ...noWhere } = entry();
-    const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, noWhere);
+    const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, entry());
     const [row] = (await asUser(t, STAFF).query(api.calendar.range, { from: NOW, to: NOW + 10 * DAY }))!;
     expect(row).toMatchObject({ id, subgroups: [], category: "event" });
   });

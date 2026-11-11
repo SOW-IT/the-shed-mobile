@@ -340,26 +340,4 @@ describe("avatar shrinking", () => {
     );
   });
 
-  test("shrinkAll queues only the avatars that are too big", async () => {
-    vi.useFakeTimers();
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const big = await ctx.storage.store(new Blob([bigJpeg() as BlobPart]));
-      const small = await ctx.storage.store(new Blob([tiny as BlobPart]));
-      const gone = await ctx.storage.store(new Blob([bigJpeg() as BlobPart]));
-      await ctx.storage.delete(gone);
-      return {
-        bigUser: await ctx.db.insert("users", { email: "a@sow.org.au", avatarId: big }),
-        smallUser: await ctx.db.insert("users", { email: "b@sow.org.au", avatarId: small }),
-        goneUser: await ctx.db.insert("users", { email: "c@sow.org.au", avatarId: gone }),
-        noAvatar: await ctx.db.insert("users", { email: "d@sow.org.au" }),
-        big,
-        small,
-      };
-    });
-    expect(await t.action(internal.avatars.shrinkAll, {})).toBe(1);
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-    expect((await avatarOf(t, ids.bigUser)).avatarId).not.toBe(ids.big);
-    expect((await avatarOf(t, ids.smallUser)).avatarId).toBe(ids.small);
-  });
 });

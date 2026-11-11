@@ -342,10 +342,9 @@ describe("Google", () => {
 });
 
 describe("calendar entries", () => {
-  const valid = ["SOW", "UNSW"];
-  const base = { name: "Posters due", dateStart: 1_000, dateEnd: 2_000, subgroups: ["SOW"] };
-  test("normalizeEntry trims and drops repeats", () => {
-    expect(normalizeEntry({ ...base, name: " Posters ", subgroups: ["SOW", "SOW"], notes: "  " })).toEqual({
+  const base = { name: "Posters due", dateStart: 1_000, dateEnd: 2_000 };
+  test("normalizeEntry trims", () => {
+    expect(normalizeEntry({ ...base, name: " Posters ", notes: "  " })).toEqual({
       ...base,
       name: "Posters",
       notes: undefined,
@@ -359,21 +358,15 @@ describe("calendar entries", () => {
     [{ name: "x".repeat(121) }, "at most 120 characters"],
     [{ dateEnd: 1_000 }, "It has to end after it starts."],
     [{ dateEnd: 1_000 + 32 * 86_400_000 }, "at most 31 days"],
-    [{ subgroups: ["Hogwarts"] }, "isn't a campus this year"],
     [{ notes: "x".repeat(1001) }, "Notes can be at most 1000 characters."],
     [{ due: "time" as const }, "A deadline is one moment, with no end."],
   ])("%o → %s", (over, message) => {
-    expect(entryProblem({ ...base, ...over }, valid)).toContain(message);
+    expect(entryProblem({ ...base, ...over })).toContain(message);
   });
   test("a good one passes", () => {
-    expect(entryProblem({ ...base, subgroups: ["UNSW"], notes: "Print 200" }, valid)).toBeNull();
-    expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "day" }, valid)).toBeNull();
-    expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "time" }, valid)).toBeNull();
-  });
-  test("an entry needs no campus; one sent by an older app is still checked", () => {
-    const noWhere = { name: "Team lunch", dateStart: 1_000, dateEnd: 2_000 };
-    expect(entryProblem(noWhere, valid)).toBeNull();
-    expect(normalizeEntry(noWhere)).toMatchObject({ subgroups: [] });
+    expect(entryProblem({ ...base, notes: "Print 200" })).toBeNull();
+    expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "day" })).toBeNull();
+    expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "time" })).toBeNull();
   });
   test("parseDayKey only accepts real days", () => {
     expect(parseDayKey("2026-11-20")).toBe("2026-11-20");
