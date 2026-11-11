@@ -3111,7 +3111,7 @@ describe("cleanup.purgeOldReceiptFiles", () => {
     expect(request.receipt!.recipients[0].attachments![0].deleted).toBeUndefined();
   });
 
-  test("is idempotent — a second run does not error on already-purged files", async () => {
+  test("is idempotent: a second run does not error on already-purged files", async () => {
     const t = await setup();
     const { id } = await paidRequestWithFile(t);
     const created = (await t.run((ctx) => ctx.db.get("requests", id)))!._creationTime;
