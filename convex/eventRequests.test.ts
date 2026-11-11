@@ -14,26 +14,20 @@ import {
   seeded,
   notificationsFor,
 } from "../test/convexFixture";
+import { MARY, EDDIE, CORA, FIONA, DAN, type Person, at, seedStaff } from "../test/requestFlows";
 
 pinClock();
 
-const at = (days: number, hour = 18) =>
-  sydneyDateTimeAnswer(PINNED_NOW + days * DAY).slice(0, 11) + `${String(hour).padStart(2, "0")}:00`;
 
 const EVA = "eva@sow.org.au";
 const ELLA = "ella@sow.org.au";
-const EDDIE = "eddie@sow.org.au";
 const MIKE = "mike@sow.org.au";
-const MARY = "mary@sow.org.au";
-const CORA = "cora@sow.org.au";
 const CARL = "carl@sow.org.au";
-const FIONA = "fiona@sow.org.au";
 const FRED = "fred@sow.org.au";
-const DAN = "dan@sow.org.au";
 const OLLIE = "ollie@sow.org.au";
 const LEE = "lee@sow.org.au";
 
-const PEOPLE: [string, { role: string; department?: string; university?: string }[]][] = [
+const PEOPLE: Person[] = [
   [EVA, [{ role: "Staff", department: "Events" }]],
   [ELLA, [{ role: "Staff", department: "Events" }]],
   [EDDIE, [{ role: "Head of Department", department: "Events" }]],
@@ -57,16 +51,7 @@ const HEADS: Record<string, string | undefined> = {
 
 async function setup({ heads = HEADS }: { heads?: Record<string, string | undefined> } = {}) {
   const t = await seeded();
-  await t.run(async (ctx) => {
-    for (const [email, assignments] of PEOPLE) {
-      await ctx.db.insert("staffProfiles", { email, year: YEAR, assignments });
-    }
-    for (const department of await ctx.db.query("departments").collect()) {
-      if (department.name in heads) {
-        await ctx.db.patch("departments", department._id, { headEmail: heads[department.name] });
-      }
-    }
-  });
+  await seedStaff(t, PEOPLE, heads);
   return t;
 }
 

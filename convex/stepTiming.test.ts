@@ -1,90 +1,28 @@
-import { describe, expect, test, vi } from "vitest";
-import { sydneyToday, type DesignAnswers } from "../shared/designRequests";
-import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
+import { describe, expect, test } from "vitest";
+import { type FormAnswers } from "../shared/forms";
 import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { median } from "./stepTiming";
-import { type T, DAY, PINNED_NOW, YEAR, ADMIN, asUser, pinClock, seeded } from "../test/convexFixture";
+import { type T, DAY, YEAR, ADMIN, asUser, pinClock } from "../test/convexFixture";
+import {
+  HENRY,
+  MARY,
+  RACHEL,
+  EDDIE,
+  CORA,
+  FIONA,
+  BELLA,
+  DAN,
+  at,
+  atDay,
+  flowSetup,
+  designAnswers,
+  eventAnswers,
+  RISK,
+} from "../test/requestFlows";
 
 pinClock();
 
-const at = (days: number, hour = 18) =>
-  sydneyDateTimeAnswer(PINNED_NOW + days * DAY).slice(0, 11) + `${String(hour).padStart(2, "0")}:00`;
-const atDay = (days: number) => vi.setSystemTime(PINNED_NOW + days * DAY);
-
-const HENRY = "henry@sow.org.au";
-const MARY = "mary@sow.org.au";
-const RACHEL = "rachel@sow.org.au";
-const EDDIE = "eddie@sow.org.au";
-const CORA = "cora@sow.org.au";
-const FIONA = "fiona@sow.org.au";
-const BELLA = "bella@sow.org.au";
-const DAN = "dan@sow.org.au";
-
-const PEOPLE: [string, { role: string; department?: string }[]][] = [
-  [HENRY, [{ role: "Head of Department", department: "Marketing" }]],
-  [MARY, [{ role: "Staff", department: "Marketing" }]],
-  [RACHEL, [{ role: "Staff", department: "Events" }]],
-  [EDDIE, [{ role: "Head of Department", department: "Events" }]],
-  [CORA, [{ role: "Head of Department", department: "Compliance" }]],
-  [FIONA, [{ role: "Head of Department", department: "Finance" }]],
-  [BELLA, [{ role: "Staff", department: "Finance" }]],
-];
-const HEADS: Record<string, string> = {
-  Marketing: HENRY,
-  Events: EDDIE,
-  Compliance: CORA,
-  Finance: FIONA,
-};
-
-async function setup() {
-  const t = await seeded();
-  await t.run(async (ctx) => {
-    for (const [email, assignments] of PEOPLE) {
-      await ctx.db.insert("staffProfiles", { email, year: YEAR, assignments });
-    }
-    for (const department of await ctx.db.query("departments").collect()) {
-      if (department.name in HEADS) {
-        await ctx.db.patch("departments", department._id, { headEmail: HEADS[department.name] });
-      }
-    }
-  });
-  await asUser(t, ADMIN).mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-  return t;
-}
-
-const designAnswers = (over: DesignAnswers = {}): DesignAnswers => ({
-  department: "Events",
-  types: ["promotion"],
-  details: "Hoodies",
-  items: ["poster"],
-  visualStyle: "Earthy",
-  keyMessage: "Come along",
-  promoBudget: 100,
-  dueDate: sydneyToday(new Date(PINNED_NOW + 30 * DAY)),
-  multipleDrafts: false,
-  runByYou: true,
-  ...over,
-});
-
-const eventAnswers = (): FormAnswers => ({
-  name: "Winter Camp",
-  department: "Events",
-  purpose: "Retreat",
-  goals: "Rest",
-  location: "Camp site",
-  registrationGoal: 40,
-  audience: "all",
-  start: at(60, 9),
-  end: at(60, 17),
-});
-
-const risk = {
-  noRisks: false,
-  risks: [
-    { description: "Rain", category: "safety" as const, consequence: 2, likelihood: 3, mitigation: "Tents" },
-  ],
-};
 
 const marketing = (): FormAnswers => ({
   keyMessage: "Come",
@@ -115,14 +53,14 @@ describe("median", () => {
 
 describe("stepTiming.summary", () => {
   test("only admins and the Finance Head can see it", async () => {
-    const t = await setup();
+    const t = await flowSetup();
     expect(await summary(t, MARY)).toBeNull();
     expect(await summary(t, FIONA)).not.toBeNull();
     expect(await summary(t, ADMIN)).not.toBeNull();
   });
 
   test("measures each step from when it started waiting, per person, leaving auto-approvals out", async () => {
-    const t = await setup();
+    const t = await flowSetup();
     await asUser(t, MARY).mutation(api.requests.submit, { description: "Paint", amount: 40 });
     const paint = await myRequestId(t, MARY);
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "Rope", amount: 20 });
@@ -186,7 +124,7 @@ describe("stepTiming.summary", () => {
   });
 
   test("times design approval and completion, skipping the Marketing Head's own auto-approval", async () => {
-    const t = await setup();
+    const t = await flowSetup();
     const hoodies = await asUser(t, RACHEL).mutation(api.designRequests.submit, {
       answers: designAnswers(),
     });
@@ -211,12 +149,12 @@ describe("stepTiming.summary", () => {
   });
 
   test("times each event form's filling in, review and Director step", async () => {
-    const t = await setup();
+    const t = await flowSetup();
     const id = await asUser(t, RACHEL).mutation(api.eventRequests.create, {
       answers: eventAnswers(),
     });
     atDay(1);
-    await asUser(t, RACHEL).mutation(api.eventSubForms.saveRisk, { id, risk, submit: true });
+    await asUser(t, RACHEL).mutation(api.eventSubForms.saveRisk, { id, risk: RISK, submit: true });
     await asUser(t, RACHEL).mutation(api.eventSubForms.saveFinance, {
       id,
       finance: { income: [], expenses: [] },
@@ -234,7 +172,7 @@ describe("stepTiming.summary", () => {
       submit: true,
     });
     atDay(3);
-    await asUser(t, RACHEL).mutation(api.eventSubForms.saveRisk, { id, risk, submit: true });
+    await asUser(t, RACHEL).mutation(api.eventSubForms.saveRisk, { id, risk: RISK, submit: true });
     await asUser(t, HENRY).mutation(api.eventSubForms.approve, { id, form: "marketing" });
     atDay(4);
     await asUser(t, CORA).mutation(api.eventSubForms.approve, { id, form: "risk" });
@@ -267,7 +205,7 @@ describe("stepTiming.summary", () => {
     const own = await asUser(t, CORA).mutation(api.eventRequests.create, {
       answers: { ...eventAnswers(), name: "Audit day", department: "Compliance" },
     });
-    await asUser(t, CORA).mutation(api.eventSubForms.saveRisk, { id: own, risk, submit: true });
+    await asUser(t, CORA).mutation(api.eventSubForms.saveRisk, { id: own, risk: RISK, submit: true });
 
     const sections = (await summary(t, ADMIN))!;
     const events = stepsOf(sections, "events");
