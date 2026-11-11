@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.6] - 2026-11-11
+
+### Removed
+- **Unused tooling and the Maestro suite are gone.** The Maestro flows never
+  ran in CI and needed a setup file that isn't in the repo; the web sweep in
+  CI opens every screen instead. Also gone: the copy of the Convex agent
+  skills under `.agents/`, two scripts nothing called, and the done list in
+  `LAUNCH.md`. Nothing changes in the app.
+
+### Changed
+- **The README says what's in the app in a page, not seven.** The detail
+  lives in `CHANGELOG.md` and `docs/context/`, and the Tests section now
+  covers the web sweep and the `e2e-auth` sign-in.
+
 ## [2.11.5] - 2026-11-11
 
 ### Added
