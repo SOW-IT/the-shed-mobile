@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.9] - 2026-11-11
+
+### Changed
+- **The test suite is about 3,000 lines shorter and checks the same things.**
+  Tests share one setup instead of each file building its own, near-identical
+  tests became tables, and duplicates went. A few tests that only checked a
+  reminder time was set now check who gets reminded. Coverage is unchanged.
+  Nothing changes in the app.
+
 ## [2.11.8] - 2026-11-11
 
 ### Changed
