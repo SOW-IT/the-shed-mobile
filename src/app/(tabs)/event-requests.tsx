@@ -1,33 +1,36 @@
 import { useQuery } from "convex/react";
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { Redirect, useRouter } from "expo-router";
+import { ReactNode, useRef } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { EventRequestStatus } from "@shared/eventRequests";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import { FinanceSettingsButton } from "@/components/finance/FinanceSettings";
-import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
+import { useEarlierYears } from "@/components/EarlierYears";
+import {
+  EarlierRows,
+  GroupedList,
+  type StatusGroup,
+} from "@/components/GroupedList";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
-import { EventRequestRow, type EventRequestListRow } from "@/components/events/EventRequestRow";
+import {
+  EventRequestRow,
+  type EventRequestListRow,
+} from "@/components/events/EventRequestRow";
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
   Card,
-  EmptyState,
-  FadeInView,
   FooterAction,
   LoadingState,
   Muted,
-  ReadableColumn,
   Screen,
-  SectionTitle,
-  stagger,
   Txt,
 } from "@/components/ui";
-import { spacing, typography } from "@/theme";
+import { useLandingTab } from "@/hooks/useLandingTab";
+import { typography } from "@/theme";
 import { staffOnlyMessage } from "@shared/staffOnly";
 
-type Group = { title: string; statuses: EventRequestStatus[] };
+type Group = StatusGroup<EventRequestStatus>;
 
 const GROUPS: Group[] = [
   { title: "In progress", statuses: ["IN_PROGRESS"] },
@@ -56,45 +59,26 @@ const EventList = ({
   empty: { title: string; message: string; action?: { label: string; onPress: () => void } };
   header?: ReactNode;
   footer?: ReactNode;
-}) => {
+}) => (
+  <GroupedList
+    rows={rows}
+    groups={groups}
+    icon={EVENT_REQUEST_ICON.outline}
+    empty={empty}
+    header={header}
+    footer={footer}
+    renderRow={(event) => <EventRow event={event} unread={unread} />}
+  />
+);
+
+const EventRow = ({ event, unread }: { event: EventRequestListRow; unread: Unread }) => {
   const router = useRouter();
-  let index = 0;
   return (
-    <ReadableColumn>
-      <View style={{ gap: spacing.sm }}>
-        {header}
-        {rows === undefined ? <LoadingState /> : null}
-        {rows !== undefined && (rows === null || rows.length === 0) ? (
-          <EmptyState
-            icon={EVENT_REQUEST_ICON.outline}
-            title={empty.title}
-            message={empty.message}
-            action={empty.action}
-          />
-        ) : null}
-        {groups.map((group) => {
-          const inGroup = (rows ?? []).filter((r) => group.statuses.includes(r.status));
-          if (inGroup.length === 0) return null;
-          return (
-            <View key={group.title} style={{ gap: spacing.sm }}>
-              <SectionTitle>
-                {group.title} · {inGroup.length}
-              </SectionTitle>
-              {inGroup.map((event) => (
-                <FadeInView key={event._id} delay={stagger(index++)}>
-                  <EventRequestRow
-                    event={event}
-                    unread={unreadFor(unread, event._id)}
-                    onPress={() => router.push(`/event-requests/${event._id}`)}
-                  />
-                </FadeInView>
-              ))}
-            </View>
-          );
-        })}
-        {footer}
-      </View>
-    </ReadableColumn>
+    <EventRequestRow
+      event={event}
+      unread={unreadFor(unread, event._id)}
+      onPress={() => router.push(`/event-requests/${event._id}`)}
+    />
   );
 };
 
@@ -104,27 +88,7 @@ const EarlierEvents = ({
 }: {
   history: ReturnType<typeof useEarlierYears<EventRequestListRow>>;
   unread: Unread;
-}) => {
-  const router = useRouter();
-  return (
-    <EarlierYears
-      groups={history.groups}
-      hasMore={history.hasMore}
-      loadingMore={history.loadingMore}
-      onLoadMore={history.loadMore}
-      renderRows={(rows) =>
-        rows.map((event) => (
-          <EventRequestRow
-            key={event._id}
-            event={event}
-            unread={unreadFor(unread, event._id)}
-            onPress={() => router.push(`/event-requests/${event._id}`)}
-          />
-        ))
-      }
-    />
-  );
-};
+}) => <EarlierRows history={history} renderRow={(event) => <EventRow event={event} unread={unread} />} />;
 
 export default function EventRequestsScreen() {
   const router = useRouter();
@@ -162,12 +126,7 @@ export default function EventRequestsScreen() {
   const unread =
     useQuery(api.eventRequestComments.unreadCounts, ids.length > 0 ? { ids } : "skip") ?? {};
 
-  const { tab } = useLocalSearchParams<{ tab?: string }>();
-  const [active, setActive] = useState("mine");
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
-    if (typeof tab === "string") setActive(tab);
-  }, [tab]);
+  const [active, setActive] = useLandingTab("mine");
 
   if (me === undefined) {
     return (

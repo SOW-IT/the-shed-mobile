@@ -1,19 +1,23 @@
 import { useConvexAuth, useQuery } from "convex/react";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import { ReactNode, useState } from "react";
 import { View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { andList, type GrievanceStatus } from "@shared/grievances";
+import { GroupedList, type StatusGroup } from "@/components/GroupedList";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { staffYearForDate } from "@shared/flow";
 import { GrievanceTeamCard } from "@/components/grievances/GrievanceTeamCard";
-import { GrievanceOptionsSheet } from "@/components/grievances/GrievanceOptionsSheet";
-import { GrievanceRow, type GrievanceListRow } from "@/components/grievances/GrievanceRow";
+import {
+  GrievanceOptionsSheet,
+} from "@/components/grievances/GrievanceOptionsSheet";
+import {
+  GrievanceRow,
+  type GrievanceListRow,
+} from "@/components/grievances/GrievanceRow";
 import {
   Btn,
   Card,
-  EmptyState,
-  FadeInView,
   FloatingYearPicker,
   FooterAction,
   LoadingState,
@@ -21,14 +25,13 @@ import {
   ReadableColumn,
   Row,
   Screen,
-  SectionTitle,
-  stagger,
   Txt,
   WarningBanner,
 } from "@/components/ui";
+import { useLandingTab } from "@/hooks/useLandingTab";
 import { spacing, typography } from "@/theme";
 
-type Group = { title: string; statuses: GrievanceStatus[] };
+type Group = StatusGroup<GrievanceStatus>;
 
 const MINE_GROUPS: Group[] = [
   { title: "Open", statuses: ["SUBMITTED", "IN_PROGRESS"] },
@@ -74,36 +77,20 @@ const GrievanceList = ({
   empty: { title: string; message: string };
 }) => {
   const router = useRouter();
-  let index = 0;
   return (
-    <ReadableColumn>
-      <View style={{ gap: spacing.sm }}>
-        {header}
-        {rows === undefined ? <LoadingState /> : null}
-        {rows !== undefined && (rows === null || rows.length === 0) ? (
-          <EmptyState icon="shield-checkmark-outline" title={empty.title} message={empty.message} />
-        ) : null}
-        {groups.map((group) => {
-          const inGroup = (rows ?? []).filter((g) => group.statuses.includes(g.status));
-          if (inGroup.length === 0) return null;
-          return (
-            <View key={group.title} style={{ gap: spacing.sm }}>
-              <SectionTitle>
-                {group.title} · {inGroup.length}
-              </SectionTitle>
-              {inGroup.map((grievance) => (
-                <FadeInView key={grievance._id} delay={stagger(index++)}>
-                  <GrievanceRow
-                    grievance={grievance}
-                    onPress={() => router.push(`/grievances/${grievance._id}`)}
-                  />
-                </FadeInView>
-              ))}
-            </View>
-          );
-        })}
-      </View>
-    </ReadableColumn>
+    <GroupedList
+      rows={rows}
+      groups={groups}
+      icon="shield-checkmark-outline"
+      empty={empty}
+      header={header}
+      renderRow={(grievance) => (
+        <GrievanceRow
+          grievance={grievance}
+          onPress={() => router.push(`/grievances/${grievance._id}`)}
+        />
+      )}
+    />
   );
 };
 
@@ -122,22 +109,12 @@ export default function GrievancesScreen() {
   const waiting = waitingRaw ?? 0;
   const [editingOptions, setEditingOptions] = useState(false);
 
-  const { tab } = useLocalSearchParams<{ tab?: string }>();
-  const [active, setActive] = useState<string | null>(null);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
-    if (typeof tab === "string") setActive(tab);
-  }, [tab]);
   const landingKnown =
     !isAuthenticated ||
     (viewer !== undefined && mine !== undefined && (!team || waitingRaw !== undefined));
   const landing = team && waiting > 0 && (mine ?? []).length === 0 ? "submitted" : "mine";
-  useEffect(() => {
-    if (active !== null || !landingKnown || typeof tab === "string") return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActive(landing);
-  }, [active, landing, landingKnown, tab]);
-  const wanted = active ?? landing;
+  const [picked, setActive] = useLandingTab(landingKnown ? landing : null);
+  const wanted = picked ?? landing;
 
   if (!landingKnown) {
     return (
