@@ -1,4 +1,6 @@
-import { type ViewBlock, type ViewCard } from "./attendanceMetricsView";
+import type { Infer } from "convex/values";
+import type { followRow, peopleRow, pill as pillValidator, weeklyBlockValidator } from "../convex/weeklyInsightsData";
+import { type ViewCard } from "./attendanceMetricsView";
 import { sydneyYmd } from "./flow";
 import { subgroupLabel } from "./rollcall";
 import {
@@ -18,84 +20,11 @@ import {
   type YearResult,
 } from "./weeklyInsights";
 
-export type Pill = { label: string; colour: string };
-
-export type PeopleSortKey = "pct" | "name" | "last";
-
-export type PeopleRow = {
-  key: string;
-  name: string;
-  photo?: string | null;
-  section: string;
-  tags: string[];
-  category: Pill;
-  primary: string;
-  secondary: string;
-  warning?: string;
-  badge?: Pill;
-  dimmed?: boolean;
-  subgroup?: string;
-  pct: number;
-  last: number;
-};
-
-export type FollowRow = {
-  key: string;
-  name: string;
-  photo?: string | null;
-  category: Pill;
-  reason: string;
-  secondary: string;
-  subgroup?: string;
-};
-
-export type WeeklyBlock =
-  | ViewBlock
-  | {
-      type: "people";
-      title: string;
-      subtitle?: string;
-      sections: { key: string; label: string }[];
-      filters: { key: string; label: string; colour?: string }[];
-      sorts: { key: PeopleSortKey; label: string }[];
-      rows: PeopleRow[];
-      emptyText: string;
-    }
-  | {
-      type: "followUpGroups";
-      title: string;
-      icon: string;
-      groups: { key: string; title: string; people: FollowRow[] }[];
-      preview: number;
-      emptyText: string;
-    }
-  | {
-      type: "memberHeader";
-      name: string;
-      photo?: string | null;
-      lines: string[];
-      category?: Pill;
-      reason?: string;
-      memberId?: string | null;
-    }
-  | { type: "keyValues"; title: string; rows: { label: string; value: string; link?: string }[] }
-  | {
-      type: "termHistory";
-      title: string;
-      rows: { key: string; label: string; primary: string; category: Pill }[];
-    }
-  | {
-      type: "weekGrid";
-      title: string;
-      subtitle?: string;
-      weeks: { label: string; came: boolean }[];
-    }
-  | {
-      type: "eventList";
-      title: string;
-      rows: { title: string; subtitle: string; tag?: string }[];
-      emptyText: string;
-    };
+export type Pill = Infer<typeof pillValidator>;
+export type PeopleRow = Infer<typeof peopleRow>;
+export type FollowRow = Infer<typeof followRow>;
+export type WeeklyBlock = Infer<typeof weeklyBlockValidator>;
+export type PeopleSortKey = Extract<WeeklyBlock, { type: "people" }>["sorts"][number]["key"];
 
 type WeeklyPeriod = {
   key: string;

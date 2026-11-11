@@ -20,10 +20,9 @@ import {
   teamOf,
   tell,
 } from "./eventRequestAccess";
-import { commentRows, displayName } from "./model";
+import { commentBody, commentRows, displayName } from "./model";
 
 const COMMENTS_LIMIT = 500;
-const MAX_COMMENT_LENGTH = 2000;
 
 const commentsFor = (
   ctx: QueryCtx,
@@ -53,9 +52,7 @@ export const add = mutation({
   args: { id: v.id("eventRequests"), form: subFormKindValidator, body: v.string() },
   handler: async (ctx, args) => {
     const caller = await requireEventStaff(ctx);
-    const body = args.body.trim();
-    if (!body) throw new ConvexError("Write a comment first.");
-    if (body.length > MAX_COMMENT_LENGTH) throw new ConvexError("That comment is too long.");
+    const body = commentBody(args.body);
     const event = await requireEvent(ctx, args.id);
     if (!canCommentOn(await accessTo(ctx, caller, event), args.form)) {
       throw new ConvexError(

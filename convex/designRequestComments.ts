@@ -4,10 +4,9 @@ import { mutation, query, QueryCtx } from "./_generated/server";
 import { designRequestName } from "../shared/designRequests";
 import { lensFor } from "./actingAs";
 import { accessTo, tellRequester, tellTeam, viewableAccess } from "./designRequests";
-import { commentRows, displayName, optionalProfile, requireProfile } from "./model";
+import { commentBody, commentRows, displayName, optionalProfile, requireProfile } from "./model";
 
 const COMMENTS_LIMIT = 500;
-const MAX_COMMENT_LENGTH = 2000;
 
 const commentsFor = (ctx: QueryCtx, id: Id<"designRequests">, after = -1) =>
   ctx.db
@@ -32,9 +31,7 @@ export const add = mutation({
   args: { id: v.id("designRequests"), body: v.string() },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    const body = args.body.trim();
-    if (!body) throw new ConvexError("Write a comment first.");
-    if (body.length > MAX_COMMENT_LENGTH) throw new ConvexError("That comment is too long.");
+    const body = commentBody(args.body);
     const request = await ctx.db.get("designRequests", args.id);
     if (!request) throw new ConvexError("Design request not found.");
     if (!(await accessTo(ctx, caller, request)).canComment) {

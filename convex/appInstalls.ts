@@ -1,10 +1,12 @@
-import { ConvexError, v } from "convex/values";
+import { ConvexError, type Infer, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { compareVersions, isAppVersion, updateStatusFor } from "../shared/appLinks";
 import { Ctx, optionalEmail } from "./model";
 
+const platformValidator = v.union(v.literal("ios"), v.literal("android"));
+
 export const report = mutation({
-  args: { platform: v.union(v.literal("ios"), v.literal("android")), version: v.string() },
+  args: { platform: platformValidator, version: v.string() },
   handler: async (ctx, args) => {
     const email = await optionalEmail(ctx);
     if (!email) return null;
@@ -25,9 +27,7 @@ export const report = mutation({
   },
 });
 
-const platformValidator = v.union(v.literal("ios"), v.literal("android"));
-
-const policyFor = (ctx: Ctx, platform: "ios" | "android") =>
+const policyFor = (ctx: Ctx, platform: Infer<typeof platformValidator>) =>
   ctx.db
     .query("appUpdatePolicy")
     .withIndex("by_platform", (q) => q.eq("platform", platform))

@@ -13,7 +13,7 @@ export const splitPoint = v.object({
   returning: v.number(),
 });
 
-const compositionPoint = v.object({
+export const compositionPoint = v.object({
   at: v.number(),
   label: v.string(),
   primary: v.number(),
@@ -38,12 +38,12 @@ export const followUp = v.object({
   reason: v.string(),
 });
 
-const breakdown = v.object({
+export const breakdown = v.object({
   field: v.string(),
   rows: v.array(v.object({ label: v.string(), value: v.number() })),
 });
 
-const summary = v.object({
+export const metricsSummary = v.object({
   avgAttendance: v.number(),
   avgAttendancePrev: v.union(v.number(), v.null()),
   changePct: v.union(v.number(), v.null()),
@@ -60,7 +60,7 @@ const summary = v.object({
 });
 
 export const metricsDataValidator = v.object({
-  summary,
+  summary: metricsSummary,
   attendanceByEvent: v.array(trendPoint),
   rollingAverage: v.array(trendPoint),
   weeklyTrend: v.array(trendPoint),
@@ -74,7 +74,7 @@ export const metricsDataValidator = v.object({
   hasWeeklyMeetings: v.boolean(),
 });
 
-const viewCard = v.object({
+export const viewCard = v.object({
   label: v.string(),
   value: v.string(),
   delta: v.optional(
@@ -88,14 +88,14 @@ const viewCard = v.object({
   info: v.optional(v.object({ title: v.string(), body: v.string() })),
 });
 
-const legendItem = v.object({
+export const legendItem = v.object({
   key: v.string(),
   colour: v.string(),
   label: v.string(),
   shape: v.optional(v.literal("line")),
 });
 
-const segmentPoint = v.object({
+export const segmentPoint = v.object({
   at: v.number(),
   label: v.string(),
   segments: v.array(v.object({ key: v.string(), value: v.number(), colour: v.string() })),
@@ -161,19 +161,7 @@ export const viewBlockValidator = v.union(
   })
 );
 
-const rateSeries = v.object({
-  overall: v.array(v.union(v.number(), v.null())),
-  staff: v.array(v.union(v.number(), v.null())),
-  studentLeaders: v.array(v.union(v.number(), v.null())),
-});
-
-const pctSeries = v.object({
-  overall: v.array(v.union(v.number(), v.null())),
-  staff: v.array(v.union(v.number(), v.null())),
-  studentLeaders: v.array(v.union(v.number(), v.null())),
-});
-
-const avgYearsSeries = v.object({
+const seriesByGroup = v.object({
   overall: v.array(v.union(v.number(), v.null())),
   staff: v.array(v.union(v.number(), v.null())),
   studentLeaders: v.array(v.union(v.number(), v.null())),
@@ -189,8 +177,8 @@ export const staffTrendsValidator = v.object({
   studentLeadersByCampus: v.array(
     v.object({ campus: v.string(), counts: v.array(v.number()) })
   ),
-  turnover: rateSeries,
-  retention: rateSeries,
-  tenure2Plus: pctSeries,
-  avgTenureYears: avgYearsSeries,
+  turnover: seriesByGroup,
+  retention: seriesByGroup,
+  tenure2Plus: seriesByGroup,
+  avgTenureYears: seriesByGroup,
 });

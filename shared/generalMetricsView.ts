@@ -1,3 +1,5 @@
+import type { Infer } from "convex/values";
+import type { staffTrendsValidator } from "../convex/metricsData";
 import { GENERAL_RECENT_YEARS } from "./attendanceMetrics";
 import { subgroupColour } from "./rollcall";
 import {
@@ -7,24 +9,8 @@ import {
   type ViewSegmentPoint,
 } from "./attendanceMetricsView";
 
-type Series = {
-  overall: (number | null)[];
-  staff: (number | null)[];
-  studentLeaders: (number | null)[];
-};
-
-export type StaffTrendsData = {
-  years: number[];
-  allStaff: number[];
-  staff: number[];
-  studentLeaders: number[];
-  campuses: string[];
-  studentLeadersByCampus: { campus: string; counts: number[] }[];
-  turnover: Series;
-  retention: Series;
-  tenure2Plus: Series;
-  avgTenureYears: Series;
-};
+export type StaffTrendsData = Omit<Infer<typeof staffTrendsValidator>, "computedAt">;
+type Series = StaffTrendsData["turnover"];
 
 type CampusAttendanceData = {
   years: number[];

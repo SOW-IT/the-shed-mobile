@@ -4,6 +4,7 @@ import { mutation, query, QueryCtx } from "./_generated/server";
 import { lensFor } from "./actingAs";
 import {
   type CallerContext,
+  commentBody,
   currentStaffYear,
   getApprovers,
   memoAsync,
@@ -29,9 +30,7 @@ export const add = mutation({
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
     const { email } = caller;
-    const body = args.body.trim();
-    if (!body) throw new ConvexError("Write a comment first.");
-    if (body.length > 2000) throw new ConvexError("That comment is too long.");
+    const body = commentBody(args.body);
     const request = await ctx.db.get("requests", args.requestId);
     if (!request || !(await canSeeRequest(ctx, caller, request))) {
       throw new ConvexError("Request not found.");

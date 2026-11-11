@@ -1,9 +1,9 @@
 import { v } from "convex/values";
 import { viewBlockValidator } from "./metricsData";
 
-const pill = v.object({ label: v.string(), colour: v.string() });
+export const pill = v.object({ label: v.string(), colour: v.string() });
 
-const peopleRow = v.object({
+export const peopleRow = v.object({
   key: v.string(),
   name: v.string(),
   photo: v.optional(v.union(v.string(), v.null())),
@@ -20,7 +20,7 @@ const peopleRow = v.object({
   last: v.number(),
 });
 
-const followRow = v.object({
+export const followRow = v.object({
   key: v.string(),
   name: v.string(),
   photo: v.optional(v.union(v.string(), v.null())),

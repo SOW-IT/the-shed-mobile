@@ -150,6 +150,13 @@ export async function displayName(
   return (await resolveName(ctx, email, year)) ?? email;
 }
 
+export const commentBody = (raw: string): string => {
+  const body = raw.trim();
+  if (!body) throw new ConvexError("Write a comment first.");
+  if (body.length > 2000) throw new ConvexError("That comment is too long.");
+  return body;
+};
+
 export const memoAsync = <A extends unknown[], V>(load: (...args: A) => Promise<V>) => {
   const cache = new Map<string, Promise<V>>();
   return (...args: A): Promise<V> => {
