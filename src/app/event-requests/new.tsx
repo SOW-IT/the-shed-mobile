@@ -27,6 +27,7 @@ import {
   WarningBanner,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 const REQUEST_STEPS = ["Event", ...SUB_FORM_KINDS.map((kind) => SUB_FORM_LABELS[kind])];
 
@@ -98,10 +99,7 @@ export default function EventRequestFormScreen() {
     }
   }, [draft, fields, editId, existing, ownDepartments]);
 
-  const goBack = () =>
-    router.canGoBack()
-      ? router.back()
-      : router.replace(editId ? `/event-requests/${editId}` : "/event-requests");
+  const goBack = () => backOr(router, editId ? `/event-requests/${editId}` : "/event-requests");
   const title = existing ? `Edit ${existing.event.name}` : "New Event Request";
 
   if (!authLoading && !isAuthenticated) {

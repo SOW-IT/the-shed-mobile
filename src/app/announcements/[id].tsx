@@ -8,6 +8,7 @@ import { formatDayTime } from "@/components/dateTimeDisplay";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { Card, EmptyState, LoadingState, Muted, Screen, SectionTitle } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 const STATUS_LABELS = { scheduled: "Scheduled", sent: "Sent", cancelled: "Cancelled" } as const;
 const NOT_SENT_LABEL = "Not sent";
@@ -20,10 +21,7 @@ export default function AnnouncementScreen() {
   const announcement = useQuery(api.announcements.get, id ? { id } : "skip");
   const markRead = useMutation(api.notifications.markReadForAnnouncement);
   const [showNotSeen, setShowNotSeen] = useState(false);
-  const back = () =>
-    router.canGoBack()
-      ? router.back()
-      : router.replace(announcement?.details ? "/announcements" : "/home");
+  const back = () => backOr(router, announcement?.details ? "/announcements" : "/home");
 
   const loadedId = announcement?.id;
   useEffect(() => {

@@ -38,6 +38,7 @@ import {
   Sheet,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 const when = sydneyDateTime;
 
@@ -183,8 +184,7 @@ export default function DesignRequestScreen() {
     }
   }, [threadLink, openedThreadLink]);
 
-  const goBack = () =>
-    router.canGoBack() ? router.back() : router.replace("/design-requests");
+  const goBack = () => backOr(router, "/design-requests");
 
   if (!authLoading && !isAuthenticated) {
     return (

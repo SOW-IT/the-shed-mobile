@@ -3,11 +3,12 @@ import { useRouter } from "expo-router";
 import { api } from "@convex/_generated/api";
 import { MergesTab } from "@/components/attendance/MergesTab";
 import { LoadingState, Muted, Screen } from "@/components/ui";
+import { backOr } from "@/lib/goBack";
 
 export default function MergesScreen() {
   const router = useRouter();
   const me = useQuery(api.directory.me);
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/attendance"));
+  const goBack = () => backOr(router, "/attendance");
   return (
     <Screen title="Possible duplicates" onBack={goBack}>
       {me === undefined ? (

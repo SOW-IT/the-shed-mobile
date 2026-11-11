@@ -23,6 +23,7 @@ import {
   Txt,
 } from "@/components/ui";
 import { spacing, typography } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 const EMPTY: GrievanceInput = {
   name: "",
@@ -56,7 +57,7 @@ export default function NewGrievanceScreen() {
     setDraft((d) => ({ ...d, email: accountEmail, name: d.name || (accountName ?? "") }));
   }, [accountEmail, accountName]);
 
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/grievances"));
+  const goBack = () => backOr(router, "/grievances");
   const set = (key: keyof GrievanceInput) => (value: string) => {
     setDraft((d) => ({ ...d, [key]: value }));
     if (error) setError(null);

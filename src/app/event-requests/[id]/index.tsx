@@ -35,6 +35,7 @@ import {
   Sheet,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 type EventData = NonNullable<ReturnType<typeof useEventRequest>>;
 const useEventRequest = (id: string | undefined) =>
@@ -137,7 +138,7 @@ export default function EventRequestScreen() {
     if (eventId) void markNotificationsRead({ eventRequestId: eventId }).catch(() => {});
   }, [eventId, markNotificationsRead]);
 
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/event-requests"));
+  const goBack = () => backOr(router, "/event-requests");
 
   if (!authLoading && !isAuthenticated) {
     return (

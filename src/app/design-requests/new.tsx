@@ -34,6 +34,7 @@ import {
   Screen,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 export default function DesignRequestFormScreen() {
   const t = useAppTheme();
@@ -66,8 +67,7 @@ export default function DesignRequestFormScreen() {
     }
   }, [draft, fields, editId, existing, defaultDepartment]);
 
-  const goBack = () =>
-    router.canGoBack() ? router.back() : router.replace("/design-requests");
+  const goBack = () => backOr(router, "/design-requests");
   const title = existing
     ? `Edit ${designRequestName(existing.request).replace(/^Design/, "design")}`
     : "New Design Request";

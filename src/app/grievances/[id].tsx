@@ -34,6 +34,7 @@ import {
   Sheet,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
+import { backOr } from "@/lib/goBack";
 
 const EVENT_LABELS: Record<string, string> = {
   submitted: "Raised",
@@ -121,7 +122,7 @@ export default function GrievanceScreen() {
     if (grievanceId) void markRead({ grievanceId }).catch(() => {});
   }, [grievanceId, markRead]);
 
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/grievances"));
+  const goBack = () => backOr(router, "/grievances");
 
   if (!authLoading && !isAuthenticated) {
     return (
