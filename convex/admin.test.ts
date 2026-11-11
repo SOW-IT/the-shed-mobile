@@ -243,6 +243,15 @@ describe("setStaffProfile validation", () => {
     expect(settings?.directorEmail).toBe("");
   });
 
+  test("removing a division head's profile clears the division's head", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Engagement", headEmail: "deva@sow.org.au" });
+    await admin.mutation(api.admin.removeStaffProfile, { email: "deva@sow.org.au", year: YEAR });
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.divisions.find((d) => d.name === "Engagement")?.headEmail).toBeNull();
+  });
+
   test("getApprovers scans profiles when the Director cache is unset", async () => {
     const { getApprovers } = await import("./model");
     const t = await setup();

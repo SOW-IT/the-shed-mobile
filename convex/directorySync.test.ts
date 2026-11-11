@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
-import { YEAR, ADMIN, newConvex, asUser } from "../test/convexFixture";
+import { YEAR, ADMIN, newConvex, asUser, seeded } from "../test/convexFixture";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -338,6 +338,27 @@ describe("directorySync.requestSync", () => {
 });
 
 describe("directorySync.store + list", () => {
+  test("list is admin-only, empty before the first sync, and marks who has a profile this year", async () => {
+    const t = await seeded();
+    const admin = asUser(t, ADMIN);
+    const STAFF = "staff@sow.org.au";
+    await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Marketing", division: "Engagement" });
+    await admin.mutation(api.admin.setStaffProfile, { email: STAFF, year: YEAR, roles: ["Staff"], department: "Marketing" });
+    expect(await admin.query(api.directorySync.list, { year: YEAR })).toMatchObject({
+      syncedAt: null,
+      status: null,
+      users: [],
+    });
+
+    await t.mutation(internal.directorySync.store, { users: [{ email: STAFF }, { email: "newbie@sow.org.au" }] });
+    const listed = (await admin.query(api.directorySync.list, { year: YEAR }))!;
+    expect(listed.users.map((u) => [u.email, u.hasProfile])).toEqual([
+      [STAFF, true],
+      ["newbie@sow.org.au", false],
+    ]);
+    await expect(asUser(t, STAFF).query(api.directorySync.list, { year: YEAR })).rejects.toThrow(/Only admins/);
+  });
+
   test("a second store replaces the whole list and updates the synced timestamp", async () => {
     const t = newConvex();
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });

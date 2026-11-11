@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api } from "./_generated/api";
 import { linkUserProfiles } from "./userLink";
-import { ADMIN, asUser, pinClock, seeded } from "../test/convexFixture";
+import { type T, ADMIN, asUser, pinClock, seeded } from "../test/convexFixture";
 
 const PINNED_NOW = staffYearStartMs(2026) + 150 * 86_400_000;
 pinClock(PINNED_NOW);
@@ -386,6 +386,76 @@ describe("email changes: the person stays the same", () => {
       const [notification] = await ctx.db.query("notifications").take(10);
       expect(notification.userEmail).toBe(NEW);
     });
+  });
+
+  describe("an approver's rename", () => {
+    const HENRY = "henry@sow.org.au";
+    const NEW = "henry.new@sow.org.au";
+    const FIONA = "fiona@sow.org.au";
+    const BELLA = "bella@sow.org.au";
+
+    const rename = async (t: T) => {
+      const userId = await t.run((ctx) => ctx.db.insert("users", { email: HENRY }));
+      await t.run((ctx) => linkUserProfiles(ctx, userId));
+      await t.run((ctx) => ctx.db.patch("users", userId, { email: NEW }));
+      await t.run((ctx) => linkUserProfiles(ctx, userId));
+    };
+    const delegations = async (t: T) =>
+      (await asUser(t, ADMIN).query(api.admin.listDelegations, { year: YEAR }))!.map((d) => [d.fromEmail, d.toEmail]);
+
+    test("carries their division headship and Budget Manager role", async () => {
+      const t = await seeded();
+      await asUser(t, ADMIN).mutation(api.admin.upsertDivision, { year: YEAR, name: "Engagement", headEmail: HENRY });
+      await t.run((ctx) => ctx.db.insert("yearSettings", { year: YEAR + 5, budgetManagerEmail: HENRY }));
+      await rename(t);
+      await t.run(async (ctx) => {
+        const division = await ctx.db
+          .query("divisions")
+          .withIndex("by_year_and_name", (q) => q.eq("year", YEAR).eq("name", "Engagement"))
+          .unique();
+        expect(division?.headEmail).toBe(NEW);
+        const settings = await ctx.db
+          .query("yearSettings")
+          .withIndex("by_year", (q) => q.eq("year", YEAR + 5))
+          .unique();
+        expect(settings?.budgetManagerEmail).toBe(NEW);
+      });
+    });
+
+    test("carries their delegations both ways, dropping one the new email already has", async () => {
+      const t = await seeded();
+      const admin = asUser(t, ADMIN);
+      await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY });
+      await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA });
+      await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: BELLA, roles: ["Staff"], department: "Finance" });
+      await t.run((ctx) => ctx.db.insert("approverDelegations", { year: YEAR, fromEmail: NEW, toEmail: BELLA }));
+      for (const [fromEmail, toEmail] of [
+        [FIONA, HENRY],
+        [HENRY, BELLA],
+      ]) {
+        await admin.mutation(api.admin.addDelegation, { year: YEAR, fromEmail, toEmail });
+      }
+      await rename(t);
+      expect((await delegations(t)).sort()).toEqual([
+        [FIONA, NEW],
+        [NEW, BELLA],
+      ]);
+    });
+  });
+
+  test("a user row with no email, or a new email with no profiles anywhere, binds nothing", async () => {
+    const t = await seeded();
+    for (const fields of [{}, { email: "fresh.face@sow.org.au" }]) {
+      const userId = await t.run((ctx) => ctx.db.insert("users", fields));
+      await t.run((ctx) => linkUserProfiles(ctx, userId));
+      const bound = await t.run((ctx) =>
+        ctx.db
+          .query("staffProfiles")
+          .withIndex("by_userId", (q) => q.eq("userId", userId))
+          .collect()
+      );
+      expect(bound).toEqual([]);
+    }
   });
 });
 

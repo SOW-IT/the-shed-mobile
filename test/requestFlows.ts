@@ -45,8 +45,8 @@ export const FLOW_PEOPLE: Person[] = [
 
 export const FLOW_HEADS = { Marketing: HENRY, Events: EDDIE, Compliance: CORA, Finance: FIONA };
 
-export async function flowSetup(extra: Person[] = []) {
-  const t = await seeded();
+export async function flowSetup(extra: Person[] = [], convex?: T) {
+  const t = await seeded(convex);
   await seedStaff(t, [...FLOW_PEOPLE, ...extra], FLOW_HEADS);
   await asUser(t, ADMIN).mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
   return t;

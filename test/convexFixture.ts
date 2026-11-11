@@ -46,9 +46,8 @@ export function pinClock(now = PINNED_NOW) {
   });
 }
 
-export async function seeded(adminEmail = ADMIN) {
-  const t = newConvex();
-  await t.mutation(internal.admin.seed, { adminEmail });
+export async function seeded(t = newConvex()) {
+  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
   return t;
 }
 
