@@ -1,16 +1,12 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { actionOwnerEmail } from "./requests";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
+import { type T, YEAR, ADMIN, newConvex, asUser } from "../test/convexFixture";
+import { HENRY, RACHEL, FIONA, BELLA, reimbursementSetup } from "../test/requestFlows";
 
 const withScheduled = async (
-  t: TestConvex<typeof schema>,
+  t: T,
   action: () => Promise<unknown>
 ) => {
   vi.useFakeTimers();
@@ -22,60 +18,22 @@ const withScheduled = async (
   }
 };
 
-const ADMIN = "admin@sow.org.au";
-const RACHEL = "rachel@sow.org.au";
-const HENRY = "henry@sow.org.au";
-const BELLA = "bella@sow.org.au";
-const FIONA = "fiona@sow.org.au";
 const OSCAR = "oscar@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const file = async (t: TestConvex<typeof schema>) => ({
+const file = async (t: T) => ({
   storageId: await t.run((ctx) =>
     ctx.storage.store(new Blob(["r"], { type: "application/pdf" }))
   ),
   name: "r.pdf",
 });
 
-async function runSetup(t: TestConvex<typeof schema>) {
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-  const admin = asUser(t, ADMIN);
-  await admin.mutation(api.admin.upsertDepartment, {
-    year: YEAR,
-    name: "Marketing",
-    division: "Engagement",
-    headEmail: HENRY,
-  });
-  await admin.mutation(api.admin.upsertDepartment, {
-    year: YEAR,
-    name: "Finance",
-    division: "Governance",
-    headEmail: FIONA,
-  });
-  for (const a of [
-    { email: RACHEL, roles: ["Staff"], department: "Marketing" },
-    { email: BELLA, roles: ["Staff"], department: "Finance" },
-  ]) {
-    await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
-  }
-  await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-}
-
-async function setup() {
-  const t = convexTest(schema, modules);
-  await runSetup(t);
-  return t;
-}
-
-const submit = async (t: TestConvex<typeof schema>, amount = 100) => {
+const submit = async (t: T, amount = 100) => {
   await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount });
   const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
   return request._id;
 };
 
-const owner = (t: TestConvex<typeof schema>, requestId: string) =>
+const owner = (t: T, requestId: string) =>
   t.run(async (ctx) => {
     const request = await ctx.db.get("requests", requestId as never);
     return actionOwnerEmail(ctx, request!);
@@ -83,7 +41,7 @@ const owner = (t: TestConvex<typeof schema>, requestId: string) =>
 
 describe("actionOwnerEmail routing", () => {
   test("pending request → the approver of the current step", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     expect(await owner(t, id)).toBe(HENRY);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
@@ -91,7 +49,7 @@ describe("actionOwnerEmail routing", () => {
   });
 
   test("fully approved but no receipt → the requester", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: id, step: "budgetManager" });
@@ -100,7 +58,7 @@ describe("actionOwnerEmail routing", () => {
   });
 
   test("receipt submitted but unpaid → the Finance Head", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: id, step: "budgetManager" });
@@ -116,7 +74,7 @@ describe("actionOwnerEmail routing", () => {
 
   test("carried-over unpaid receipt → this year's Finance Head when last year's is gone", async () => {
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const id = await t.run((ctx) =>
       ctx.db.insert("requests", {
         requesterEmail: RACHEL,
@@ -134,12 +92,12 @@ describe("actionOwnerEmail routing", () => {
       })
     );
     vi.useRealTimers();
-    await runSetup(t);
+    await reimbursementSetup(t);
     expect(await owner(t, id)).toBe(FIONA);
   });
 
   test("paid → nobody; declined → nobody", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: id, step: "budgetManager" });
@@ -165,7 +123,7 @@ describe("actionOwnerEmail routing", () => {
 
 describe("add", () => {
   test("validates body and request, and stores the comment", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await expect(
       asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "   " })
@@ -194,7 +152,7 @@ describe("add", () => {
   });
 
   test("comment notifications name the commenter rather than their email", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await t.run(async (ctx) => {
       const profile = await ctx.db
@@ -233,7 +191,7 @@ describe("add", () => {
   });
 
   test("a comment notifies previous approvers, not just the current owner", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
     await t.run((ctx) =>
@@ -271,7 +229,7 @@ describe("add", () => {
   });
 
   test("an earlier approver's comment still reaches the requester, once", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
     const commentNotes = (email: string) =>
@@ -296,7 +254,7 @@ describe("add", () => {
   });
 
   test("rejects a comment on a missing request", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: id });
     await expect(
@@ -304,11 +262,29 @@ describe("add", () => {
     ).rejects.toThrow(/Request not found/);
   });
 
-  test("notification routing covers all three branches without throwing", async () => {
-    const t = await setup();
+  test("a comment reaches the owner, the requester and past approvers, never its author", async () => {
+    const t = await reimbursementSetup();
+    const notified = async (requestId: Awaited<ReturnType<typeof submit>>) =>
+      (
+        await t.run((ctx) =>
+          ctx.db
+            .query("notifications")
+            .withIndex("by_request", (q) => q.eq("requestId", requestId))
+            .collect()
+        )
+      )
+        .filter((n) => n.title === "New comment")
+        .map((n) => n.userEmail)
+        .sort();
+
     const id = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "any update?" });
+    expect(await notified(id)).toEqual([HENRY]);
     await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "looking now" });
+    expect(await notified(id)).toEqual([HENRY, RACHEL]);
+    const thread = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
+    expect(thread.map((c) => c.body)).toEqual(["any update?", "looking now"]);
+
     const paid = await submit(t);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: paid, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: paid, step: "budgetManager" });
@@ -321,13 +297,11 @@ describe("add", () => {
     });
     await asUser(t, FIONA).mutation(api.requests.pay, { requestId: paid, paidAmount: 100 });
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: paid, body: "thanks!" });
-
-    const list = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
-    expect(list.map((c) => c.body)).toEqual(["any update?", "looking now"]);
+    expect(await notified(paid)).toEqual([BELLA, FIONA, HENRY].sort());
   });
 
   test("list and unreadCount are null while auth attaches / for a missing request", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     expect(await t.query(api.comments.list, { requestId: id })).toBeNull();
     expect(await t.query(api.comments.unreadCount, { requestId: id })).toBeNull();
@@ -338,7 +312,7 @@ describe("add", () => {
 
 describe("unreadCount + markRead", () => {
   test("counts others' new comments, excludes own, and resets on read", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     expect(await asUser(t, HENRY).query(api.comments.unreadCount, { requestId: id })).toBe(0);
 
@@ -357,7 +331,7 @@ describe("unreadCount + markRead", () => {
   });
 
   test("unreadTotalForRequests sums across requests, deduped, excluding own", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id1 = await submit(t);
     const id2 = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id1, body: "a" });
@@ -379,7 +353,7 @@ describe("unreadCount + markRead", () => {
   });
 
   test("unreadCountsForRequests maps per-request counts, omitting zeros", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id1 = await submit(t);
     const id2 = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id1, body: "a" });
@@ -396,7 +370,7 @@ describe("unreadCount + markRead", () => {
   });
 
   test("someone outside a request gets no unread counts for it and leaves no read marker", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
       year: YEAR,
       email: OSCAR,
@@ -416,7 +390,7 @@ describe("unreadCount + markRead", () => {
   });
 
   test("myUnreadTotal counts unread comments on the caller's own requests", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     expect(await asUser(t, RACHEL).query(api.comments.myUnreadTotal, {})).toBe(0);
     expect(await t.query(api.comments.myUnreadTotal, {})).toBe(0);
 
@@ -432,7 +406,7 @@ describe("unreadCount + markRead", () => {
   });
 
   test("myUnreadTotal leaves out last year's completed requests, like the Mine list", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     vi.useFakeTimers({ toFake: ["Date"] });
     let paid: string;
     let open: string;
@@ -458,7 +432,7 @@ describe("unreadCount + markRead", () => {
     } finally {
       vi.useRealTimers();
     }
-    await runSetup(t);
+    await reimbursementSetup(t);
 
     const listed = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     expect(listed.map((r) => r._id)).toEqual([open]);
@@ -469,7 +443,7 @@ describe("unreadCount + markRead", () => {
 
 describe("toggleReaction + list grouping", () => {
   test("adds, toggles off, and groups reactions per emoji with a mine flag", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "hello" });
     const [comment] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
@@ -503,7 +477,7 @@ describe("toggleReaction + list grouping", () => {
   });
 
   test("someone who can't see the request can't react to its comments", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
       year: YEAR,
       email: OSCAR,
@@ -522,7 +496,7 @@ describe("toggleReaction + list grouping", () => {
   });
 
   test("rejects empty/oversized emoji and a missing comment", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "hello" });
     const [comment] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
@@ -546,7 +520,7 @@ describe("toggleReaction + list grouping", () => {
 
 describe("cancel cleans up the comment thread", () => {
   test("comments, reactions and read markers go with the request", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "hello" });
     const [comment] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
@@ -579,7 +553,7 @@ describe("cancel cleans up the comment thread", () => {
   });
 
   test("reactions spread over many comments share one budget per pass", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await t.run(async (ctx) => {
       for (let c = 0; c < 3; c++) {
@@ -614,7 +588,7 @@ describe("cancel cleans up the comment thread", () => {
   });
 
   test("a long thread is purged across several batched passes", async () => {
-    const t = await setup();
+    const t = await reimbursementSetup();
     const id = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "hello" });
     const [comment] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;

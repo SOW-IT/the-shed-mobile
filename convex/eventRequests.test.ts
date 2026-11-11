@@ -1,48 +1,33 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { describe, expect, test, vi } from "vitest";
 import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
 import { SUB_FORM_INBOXES, type FinanceData, type RiskData } from "../shared/eventRequests";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import schema from "./schema";
+import {
+  type T,
+  DAY,
+  PINNED_NOW,
+  YEAR,
+  ADMIN,
+  asUser,
+  pinClock,
+  seeded,
+  notificationsFor,
+} from "../test/convexFixture";
+import { MARY, EDDIE, CORA, FIONA, DAN, type Person, at, seedStaff } from "../test/requestFlows";
 
-const modules = import.meta.glob("./**/*.ts");
-const DAY = 86_400_000;
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock();
 
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
-const at = (days: number, hour = 18) =>
-  sydneyDateTimeAnswer(PINNED_NOW + days * DAY).slice(0, 11) + `${String(hour).padStart(2, "0")}:00`;
 
-const ADMIN = "admin@sow.org.au";
 const EVA = "eva@sow.org.au";
 const ELLA = "ella@sow.org.au";
-const EDDIE = "eddie@sow.org.au";
 const MIKE = "mike@sow.org.au";
-const MARY = "mary@sow.org.au";
-const CORA = "cora@sow.org.au";
 const CARL = "carl@sow.org.au";
-const FIONA = "fiona@sow.org.au";
 const FRED = "fred@sow.org.au";
-const DAN = "dan@sow.org.au";
 const OLLIE = "ollie@sow.org.au";
 const LEE = "lee@sow.org.au";
 
-type T = TestConvex<typeof schema>;
-
-const asUser = (t: T, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const PEOPLE: [string, { role: string; department?: string; university?: string }[]][] = [
+const PEOPLE: Person[] = [
   [EVA, [{ role: "Staff", department: "Events" }]],
   [ELLA, [{ role: "Staff", department: "Events" }]],
   [EDDIE, [{ role: "Head of Department", department: "Events" }]],
@@ -65,18 +50,8 @@ const HEADS: Record<string, string | undefined> = {
 };
 
 async function setup({ heads = HEADS }: { heads?: Record<string, string | undefined> } = {}) {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-  await t.run(async (ctx) => {
-    for (const [email, assignments] of PEOPLE) {
-      await ctx.db.insert("staffProfiles", { email, year: YEAR, assignments });
-    }
-    for (const department of await ctx.db.query("departments").collect()) {
-      if (department.name in heads) {
-        await ctx.db.patch("departments", department._id, { headEmail: heads[department.name] });
-      }
-    }
-  });
+  const t = await seeded();
+  await seedStaff(t, PEOPLE, heads);
   return t;
 }
 
@@ -142,14 +117,6 @@ const submitFinance = (t: T, id: Id<"eventRequests">, data = budget(800), email 
   asUser(t, email).mutation(api.eventSubForms.saveFinance, { id, finance: data, submit: true });
 const approve = (t: T, id: Id<"eventRequests">, form: "marketing" | "risk" | "finance", email: string) =>
   asUser(t, email).mutation(api.eventSubForms.approve, { id, form });
-
-const notificationsFor = (t: T, email: string) =>
-  t.run((ctx) =>
-    ctx.db
-      .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userEmail", email))
-      .collect()
-  );
 
 const emails = (t: T) =>
   t.run(async (ctx) =>

@@ -1,25 +1,15 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { YEAR, ADMIN, LEADER, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-const ADMIN = "admin@sow.org.au";
 const DIRECTOR = "director@sow.org.au";
 const PAT = "pat@sow.org.au";
 const SAM = "sam@sow.org.au";
-const LEADER = "leader@sow.org.au";
 const GONE = "gone@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   for (const profile of [
     { email: DIRECTOR, roles: ["Director"] },

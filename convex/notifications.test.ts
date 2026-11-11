@@ -1,4 +1,3 @@
-/// <reference types="vite/client" />
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
@@ -10,9 +9,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { designRequestUrl } from "./designRequests";
 import { requestUrl } from "./requests";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { newConvex } from "../test/convexFixture";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -22,7 +19,7 @@ afterEach(() => {
 
 describe("emails.send (Resend action)", () => {
   test("no-ops without API credentials", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     vi.stubEnv("RESEND_API_KEY", "");
     vi.stubEnv("RESEND_FROM_EMAIL", "");
     const fetchMock = vi.fn();
@@ -40,7 +37,7 @@ describe("emails.send (Resend action)", () => {
   });
 
   test("POSTs to Resend when configured", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("RESEND_FROM_EMAIL", "noreply@sow.org.au");
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
@@ -65,7 +62,7 @@ describe("emails.send (Resend action)", () => {
   });
 
   test("throws on a non-ok Resend response so scheduled sends surface as failed", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("RESEND_FROM_EMAIL", "noreply@sow.org.au");
     vi.stubGlobal(
@@ -93,7 +90,7 @@ describe("emails.sendBatch (Resend batch action)", () => {
   ];
 
   test("no-ops without API credentials", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     vi.stubEnv("RESEND_API_KEY", "");
     vi.stubEnv("RESEND_FROM_EMAIL", "");
     const fetchMock = vi.fn();
@@ -109,7 +106,7 @@ describe("emails.sendBatch (Resend batch action)", () => {
   });
 
   test("POSTs every email in one request, with the reply-to when given", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("RESEND_FROM_EMAIL", "noreply@sow.org.au");
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
@@ -127,7 +124,7 @@ describe("emails.sendBatch (Resend batch action)", () => {
   });
 
   test("throws on a non-ok Resend response", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("RESEND_FROM_EMAIL", "noreply@sow.org.au");
     vi.stubGlobal(
@@ -142,7 +139,7 @@ describe("emails.sendBatch (Resend batch action)", () => {
 
 describe("push.sendMany (one push to many people)", () => {
   test("pushes to every device of everyone listed, 100 messages a request", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       await ctx.db.insert("pushTokens", { email: "a@sow.org.au", token: "ExponentPushToken[a1]" });
       await ctx.db.insert("pushTokens", { email: "a@sow.org.au", token: "ExponentPushToken[a2]" });
@@ -172,7 +169,7 @@ describe("push.sendMany (one push to many people)", () => {
   });
 
   test("each person's badge is their own unread count", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       await ctx.db.insert("pushTokens", { email: "a@sow.org.au", token: "ExponentPushToken[a]" });
       await ctx.db.insert("pushTokens", { email: "b@sow.org.au", token: "ExponentPushToken[b]" });
@@ -194,7 +191,7 @@ describe("push.sendMany (one push to many people)", () => {
   test("a batch that fails doesn't stop the next one or its receipt check", async () => {
     vi.useFakeTimers();
     try {
-      const t = convexTest(schema, modules);
+      const t = newConvex();
       const emails: string[] = [];
       await t.run(async (ctx) => {
         for (let i = 0; i < 101; i++) {
@@ -226,7 +223,7 @@ describe("push.sendMany (one push to many people)", () => {
   });
 
   test("an unreadable push response is logged and skipped", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run((ctx) => ctx.db.insert("pushTokens", { email: "a@sow.org.au", token: "ExponentPushToken[1]" }));
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal(
@@ -238,7 +235,7 @@ describe("push.sendMany (one push to many people)", () => {
   });
 
   test("splits more than 100 devices across requests, and sends nothing for nobody", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const emails: string[] = [];
     await t.run(async (ctx) => {
       for (let i = 0; i < 101; i++) {
@@ -269,7 +266,7 @@ describe("push.send (Expo push action)", () => {
     t.run((ctx) => ctx.db.insert("pushTokens", { email, token }));
 
   test("no devices registered -> no fetch", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const result = await t.action(internal.push.send, {
@@ -282,7 +279,7 @@ describe("push.send (Expo push action)", () => {
   });
 
   test("sends one message per device and includes the deep-link url", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[2]");
     const fetchMock = vi.fn().mockResolvedValue({
@@ -304,7 +301,7 @@ describe("push.send (Expo push action)", () => {
   });
 
   test("carries the recipient's unread count as the badge", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
     await t.run(async (ctx) => {
       for (const read of [false, false, true]) {
@@ -326,7 +323,7 @@ describe("push.send (Expo push action)", () => {
   });
 
   test("omits data when no url is given", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -339,7 +336,7 @@ describe("push.send (Expo push action)", () => {
   });
 
   test("logs and stops on a non-ok push response", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
     vi.stubGlobal(
       "fetch",
@@ -360,7 +357,7 @@ describe("push.send (Expo push action)", () => {
   });
 
   test("prunes tokens reported as DeviceNotRegistered, keeps the rest", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[dead]");
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[live]");
     vi.stubGlobal(
@@ -384,7 +381,7 @@ describe("push.send (Expo push action)", () => {
   });
 
   test("missing data array is tolerated (no pruning)", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
     vi.stubGlobal(
       "fetch",
@@ -398,7 +395,7 @@ describe("push.send (Expo push action)", () => {
   test("ok tickets schedule a receipt check that prunes DeviceNotRegistered", async () => {
     vi.useFakeTimers();
     try {
-      const t = convexTest(schema, modules);
+      const t = newConvex();
       await seedToken(t, "a@sow.org.au", "ExponentPushToken[dead]");
       await seedToken(t, "a@sow.org.au", "ExponentPushToken[live]");
       const fetchMock = vi
@@ -441,7 +438,7 @@ describe("push.send (Expo push action)", () => {
   });
 
   test("checkReceipts tolerates a rejected fetch (network error)", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNRESET")));
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -456,7 +453,7 @@ describe("push.send (Expo push action)", () => {
   });
 
   test("checkReceipts tolerates a non-ok response and missing receipts", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
     vi.stubGlobal(
       "fetch",

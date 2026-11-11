@@ -1,29 +1,17 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { MutationCtx } from "./_generated/server";
-import schema from "./schema";
 import { linkUserProfiles } from "./userLink";
+import { type T, YEAR, ADMIN, MACQ, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-const MACQ = "Macquarie University";
-
-const ADMIN = "admin@sow.org.au";
 const HANA = "hana@sow.org.au";
 const CARA = "cara@sow.org.au";
 const COLIN = "colin@sow.org.au";
 const SAM = "sam@sow.org.au";
 const SID = "sid@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   for (const profile of [
     { email: HANA, roles: ["Staff"], department: "People and Culture" },
@@ -243,7 +231,7 @@ describe("setMentor", () => {
 describe("setPairings", () => {
   const PAST = YEAR - 1;
 
-  const addPastProfiles = (t: TestConvex<typeof schema>) =>
+  const addPastProfiles = (t: T) =>
     t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email: CARA,

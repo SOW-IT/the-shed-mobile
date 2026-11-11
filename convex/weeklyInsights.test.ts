@@ -1,34 +1,16 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { WeeklyBlock } from "../shared/weeklyInsightsView";
 import type { WeeklyMark } from "../shared/weeklyInsights";
 import type { Id } from "./_generated/dataModel";
-import schema from "./schema";
 import { readCampusWeeklyAverages } from "./weeklyInsights";
-
-const modules = import.meta.glob("./**/*.ts");
+import { type T, DAY, ADMIN, LEADER, USYD, UNSW, asUser, pinClock, seeded } from "../test/convexFixture";
 
 const NOW = Date.UTC(2026, 6, 30, 2);
-const DAY = 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock(NOW);
 
-const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au";
-const UNSW = "University of New South Wales";
-const USYD = "University of Sydney";
 const MQ = "Macquarie University";
 const wed = (y: number, m: number, d: number) => Date.UTC(y, m - 1, d, 7);
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 const T2_2025 = [wed(2025, 6, 4), wed(2025, 6, 11), wed(2025, 6, 18)];
 const T1_2026 = [wed(2026, 2, 18), wed(2026, 2, 25), wed(2026, 3, 4), wed(2026, 3, 11)];
@@ -36,8 +18,7 @@ const T2_2026 = [wed(2026, 6, 3), wed(2026, 6, 10), wed(2026, 6, 17), wed(2026, 
 const T2_2026_WEEKS = [1, 2, 3, 4, 5, 8, 9];
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   for (const name of [UNSW, USYD, MQ]) await admin.mutation(api.admin.upsertUniversity, { year: 2026, name });
   await admin.mutation(api.admin.setStaffProfile, {
@@ -123,22 +104,22 @@ async function setup() {
   return { t, admin, leader: asUser(t, LEADER), ids };
 }
 
-const rebuild = (t: TestConvex<typeof schema>, subgroup = UNSW, force?: boolean) =>
+const rebuild = (t: T, subgroup = UNSW, force?: boolean) =>
   t.action(internal.weeklyInsights.rebuild, { subgroup, ...(force ? { force } : {}) });
 
-const viewDocs = (t: TestConvex<typeof schema>) =>
+const viewDocs = (t: T) =>
   t.run(async (ctx) =>
     Object.fromEntries(
       (await ctx.db.query("weeklyInsightViews").collect()).map((v) => [`${v.subgroup}|${v.periodKey}`, v])
     )
   );
 
-const factDocs = (t: TestConvex<typeof schema>) =>
+const factDocs = (t: T) =>
   t.run(async (ctx) =>
     Object.fromEntries((await ctx.db.query("weeklyTermFacts").collect()).map((f) => [`${f.subgroup}|${f.termKey}`, f]))
   );
 
-const indexDoc = (t: TestConvex<typeof schema>, subgroup = UNSW) =>
+const indexDoc = (t: T, subgroup = UNSW) =>
   t.run((ctx) =>
     ctx.db
       .query("weeklyInsightIndex")
@@ -869,8 +850,8 @@ describe("creating an event as a Weekly", () => {
 
 describe("the Weeklies tag on events", () => {
   const base = { name: "T2W11", dateStart: wed(2026, 8, 12), dateEnd: wed(2026, 8, 12) + 7_200_000, subgroups: [UNSW] };
-  const saved = (t: TestConvex<typeof schema>, id: Id<"events">) => t.run(async (ctx) => (await ctx.db.get(id))!);
-  const tagNames = (t: TestConvex<typeof schema>) =>
+  const saved = (t: T, id: Id<"events">) => t.run(async (ctx) => (await ctx.db.get(id))!);
+  const tagNames = (t: T) =>
     t.run(async (ctx) => (await ctx.db.query("attendanceTags").collect()).map((tag) => tag.name));
 
   test("the Weeklies tag is reused, not duplicated, and goes first", async () => {

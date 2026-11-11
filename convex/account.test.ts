@@ -1,22 +1,15 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { exportPKCS8, generateKeyPair, SignJWT } from "jose";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { sameName, WIPE_BATCH } from "./account";
-import schema from "./schema";
 import { linkUserProfiles } from "./userLink";
+import { type T, YEAR, newConvex } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
 const STAFF = "sam@sow.org.au";
 const GUEST = "guest@privaterelay.appleid.com";
 const APPLE_SUB = "001234.apple-sub";
 const BUNDLE = "au.org.sow.theshed";
-
-type T = TestConvex<typeof schema>;
 
 const as = (t: T, userId: Id<"users">, sessionId: Id<"authSessions">) =>
   t.withIdentity({ subject: `${userId}|${sessionId}`, issuer: "test" });
@@ -146,7 +139,7 @@ describe("sameName", () => {
 
 describe("account.get", () => {
   test("null signed out or with a missing user; kind and name otherwise", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     expect(await t.query(api.account.get, {})).toBeNull();
 
     const staff = await seedAccount(t, { email: STAFF, name: " Sam Smith ", provider: "google", providerAccountId: "g-1" });
@@ -177,7 +170,7 @@ describe("account.get", () => {
 
 describe("account.deleteMine", () => {
   test("refuses signed out and a name that doesn't match", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await expect(t.action(api.account.deleteMine, { confirmName: "x" })).rejects.toThrow(
       "You must be signed in."
     );
@@ -190,7 +183,7 @@ describe("account.deleteMine", () => {
 
   test("a SOW account loses its login and sessions but keeps its staff profile and Google sync data", async () => {
     vi.useFakeTimers();
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const staff = await seedAccount(t, { email: STAFF, name: "Sam Smith", provider: "google", providerAccountId: "g-1" });
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", { email: STAFF, year: YEAR, name: "Sam Smith", userId: staff.userId, importId: "p-1" });
@@ -232,7 +225,7 @@ describe("account.deleteMine", () => {
     vi.useFakeTimers();
     withAppleKey();
     const fetchMock = appleFetch({ id_token: await idToken(APPLE_SUB), refresh_token: "rt-1", access_token: "at-1" });
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const guest = await seedAccount(t, { email: GUEST, name: "Gina Guest", provider: "apple", providerAccountId: APPLE_SUB });
 
     await as(t, guest.userId, guest.sessionId).action(api.account.deleteMine, {
@@ -258,7 +251,7 @@ describe("account.deleteMine", () => {
   test("revokes the access token when Apple returns no refresh token", async () => {
     withAppleKey();
     const fetchMock = appleFetch({ id_token: await idToken(APPLE_SUB), access_token: "at-1" });
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const guest = await seedAccount(t, { email: GUEST, name: "Gina Guest", provider: "apple", providerAccountId: APPLE_SUB });
     await as(t, guest.userId, guest.sessionId).action(api.account.deleteMine, {
       confirmName: "Gina Guest",
@@ -278,7 +271,7 @@ describe("account.deleteMine", () => {
   });
 
   test("still deletes when Apple can't be reached or no key is set", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -317,7 +310,7 @@ describe("account.deleteMine", () => {
 
   test("keeps the account when the Apple ID or app doesn't match", async () => {
     withAppleKey();
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const guest = await seedAccount(t, { email: GUEST, name: "Gina Guest", provider: "apple", providerAccountId: APPLE_SUB });
 
     appleFetch({ id_token: await idToken("someone-else"), refresh_token: "rt" });
@@ -348,7 +341,7 @@ describe("account.deleteMine", () => {
 
 describe("account.fillFromApple", () => {
   test("fills a missing email and the fallback name, never overwrites, skips an email someone else has", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const ids = await t.run(async (ctx) => ({
       bare: await ctx.db.insert("users", { name: "Apple user" }),
       named: await ctx.db.insert("users", { name: "Gina Guest", email: "gina@icloud.com" }),
@@ -378,7 +371,7 @@ describe("account.fillFromApple", () => {
 
 describe("account.wipe", () => {
   test("a user already gone, no email, or an avatar file already deleted", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const ids = await t.run(async (ctx) => {
       const avatarId = await ctx.storage.store(new Blob(["x"]));
       const gone = await ctx.db.insert("users", {});
@@ -396,7 +389,7 @@ describe("account.wipe", () => {
 
   test("keeps going until every session and email-keyed row is gone, then deletes the user", async () => {
     vi.useFakeTimers();
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const over = WIPE_BATCH + 1;
     const userId = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", { email: GUEST, name: "Gina Guest" });
@@ -428,7 +421,7 @@ describe("account.wipe", () => {
   });
 
   test("deletes the user's saved Spotify connection and search count", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const { userId, other } = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", { email: STAFF });
       const other = await ctx.db.insert("users", { email: GUEST });
@@ -459,7 +452,7 @@ describe("account.wipe", () => {
   });
 
   test("a Spotify connection finishing after the account is deleted isn't saved", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const userId = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", { email: STAFF });
       await ctx.db.delete("users", userId);
@@ -480,7 +473,7 @@ describe("account.wipe", () => {
 
   test("clears long-lived sessions' refresh tokens in batches", async () => {
     vi.useFakeTimers();
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const { userId } = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", { email: STAFF });
       for (const size of [700, 500, 3]) {

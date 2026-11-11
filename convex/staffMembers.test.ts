@@ -1,8 +1,6 @@
-import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { Doc, Id } from "./_generated/dataModel";
-import schema from "./schema";
 import {
   assignedProfileForEmail,
   attachMember,
@@ -15,17 +13,16 @@ import {
   staffMemberForEmail,
   staffProfileOfMember,
 } from "./staffMembers";
+import { USYD, newConvex } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
 const NOW = staffYearForDate(new Date());
 const ACTOR = "admin@sow.org.au";
-const USYD = "University of Sydney";
 const LEADER = [{ role: "Student Leader", university: USYD }];
 
 type ProfileFields = Partial<Omit<Doc<"staffProfiles">, "_id" | "_creationTime">>;
 
 function setup() {
-  const t = convexTest(schema, modules);
+  const t = newConvex();
   const member = (name: string, metadata?: Record<string, string>) =>
     t.run((ctx) => ctx.db.insert("attendanceMembers", { name, metadata }));
   const profile = (email: string, year: number, fields: ProfileFields = {}) =>

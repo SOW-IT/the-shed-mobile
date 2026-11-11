@@ -1,16 +1,6 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-const ADMIN = "admin@sow.org.au";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
+import { YEAR, ADMIN, newConvex, asUser, seeded } from "../test/convexFixture";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -38,7 +28,7 @@ const configureServiceAccount = (privateKey: string) => {
 
 describe("directorySync.run", () => {
   test("records a failure when service-account env vars are missing", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     vi.stubEnv("GOOGLE_SA_CLIENT_EMAIL", "");
     vi.stubEnv("GOOGLE_SA_PRIVATE_KEY", "");
     vi.stubEnv("GOOGLE_ADMIN_IMPERSONATE", "");
@@ -58,7 +48,7 @@ describe("directorySync.run", () => {
   });
 
   test("records a failure when the token exchange fails", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     configureServiceAccount(await generatePrivateKeyPem());
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal(
@@ -77,7 +67,7 @@ describe("directorySync.run", () => {
   });
 
   test("records a failure when the directory API errors", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     configureServiceAccount(await generatePrivateKeyPem());
     vi.spyOn(console, "error").mockImplementation(() => {});
     const fetchMock = vi
@@ -97,7 +87,7 @@ describe("directorySync.run", () => {
   });
 
   test("paginates, filters suspended users, lower-cases emails, and stores the list", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     configureServiceAccount(await generatePrivateKeyPem());
     const fetchMock = vi
       .fn()
@@ -139,7 +129,7 @@ describe("directorySync.run", () => {
   });
 
   test("caches a staff member's thumbnail and skips the re-fetch when unchanged", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     configureServiceAccount(await generatePrivateKeyPem());
     await t.run((ctx) =>
       ctx.db.insert("staffProfiles", { email: "alice@sow.org.au", year: YEAR })
@@ -211,7 +201,7 @@ describe("directorySync.run", () => {
   });
 
   test("a 404 from the photo endpoint just means no thumbnail (sync still succeeds)", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     configureServiceAccount(await generatePrivateKeyPem());
     await t.run((ctx) =>
       ctx.db.insert("staffProfiles", { email: "alice@sow.org.au", year: YEAR })
@@ -246,7 +236,7 @@ describe("directorySync.run", () => {
   });
 
   test("a non-404 photo error fails the sync and deletes already-uploaded thumbnails", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     configureServiceAccount(await generatePrivateKeyPem());
     vi.spyOn(console, "error").mockImplementation(() => {});
     for (const email of ["alice@sow.org.au", "carol@sow.org.au"]) {
@@ -283,7 +273,7 @@ describe("directorySync.run", () => {
 
 describe("directorySync sync state", () => {
   test("a failed sync keeps the time of the last successful one", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const readState = () =>
       t.run((ctx) =>
         ctx.db.query("syncState").withIndex("by_key", (q) => q.eq("key", "directory")).unique()
@@ -303,7 +293,7 @@ describe("directorySync sync state", () => {
 
 describe("directorySync.store photo cleanup", () => {
   test("deletes replaced and removed thumbnails from storage", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const [blob1, blob2] = await t.run(async (ctx) => [
       await ctx.storage.store(new Blob(["one"], { type: "image/png" })),
       await ctx.storage.store(new Blob(["two"], { type: "image/png" })),
@@ -320,7 +310,7 @@ describe("directorySync.store photo cleanup", () => {
 
 describe("directorySync.requestSync", () => {
   test("admins can kick off a sync (schedules the weekly run)", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     await expect(
       asUser(t, ADMIN).mutation(api.directorySync.requestSync, {})
@@ -328,7 +318,7 @@ describe("directorySync.requestSync", () => {
   });
 
   test("non-admins cannot trigger a sync", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     await asUser(t, ADMIN).mutation(api.admin.upsertDepartment, {
       year: YEAR,
@@ -348,8 +338,29 @@ describe("directorySync.requestSync", () => {
 });
 
 describe("directorySync.store + list", () => {
+  test("list is admin-only, empty before the first sync, and marks who has a profile this year", async () => {
+    const t = await seeded();
+    const admin = asUser(t, ADMIN);
+    const STAFF = "staff@sow.org.au";
+    await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Marketing", division: "Engagement" });
+    await admin.mutation(api.admin.setStaffProfile, { email: STAFF, year: YEAR, roles: ["Staff"], department: "Marketing" });
+    expect(await admin.query(api.directorySync.list, { year: YEAR })).toMatchObject({
+      syncedAt: null,
+      status: null,
+      users: [],
+    });
+
+    await t.mutation(internal.directorySync.store, { users: [{ email: STAFF }, { email: "newbie@sow.org.au" }] });
+    const listed = (await admin.query(api.directorySync.list, { year: YEAR }))!;
+    expect(listed.users.map((u) => [u.email, u.hasProfile])).toEqual([
+      [STAFF, true],
+      ["newbie@sow.org.au", false],
+    ]);
+    await expect(asUser(t, STAFF).query(api.directorySync.list, { year: YEAR })).rejects.toThrow(/Only admins/);
+  });
+
   test("a second store replaces the whole list and updates the synced timestamp", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     await t.mutation(internal.directorySync.store, {
       users: [{ email: "one@sow.org.au", name: "One" }, { email: "two@sow.org.au" }],
@@ -364,7 +375,7 @@ describe("directorySync.store + list", () => {
   });
 
   test("store upserts existing users: updates changed names, preserves unchanged ones, removes absent users", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     await t.mutation(internal.directorySync.store, {
       users: [
@@ -396,7 +407,7 @@ describe("directorySync.store + list", () => {
   });
 
   test("list marks a directory email that matches a previous staff year", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     await t.mutation(internal.directorySync.store, {
       users: [

@@ -1,102 +1,26 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
-import { sydneyToday, type DesignAnswers } from "../shared/designRequests";
-import { sydneyDateTimeAnswer, type FormAnswers } from "../shared/forms";
-import { api, internal } from "./_generated/api";
+import { describe, expect, test } from "vitest";
+import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { mayReviewReimbursements } from "./requests";
 import { SONGS_COUNTED } from "../shared/praiseList";
-import schema from "./schema";
+import { type T, YEAR, ADMIN, asUser, pinClock } from "../test/convexFixture";
+import {
+  HENRY,
+  MARY,
+  RACHEL,
+  EDDIE,
+  CORA,
+  FIONA,
+  BELLA,
+  flowSetup,
+  designAnswers,
+  eventAnswers,
+} from "../test/requestFlows";
 
-const modules = import.meta.glob("./**/*.ts");
-const DAY = 86_400_000;
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock();
 
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
-const at = (days: number, hour = 18) =>
-  sydneyDateTimeAnswer(PINNED_NOW + days * DAY).slice(0, 11) + `${String(hour).padStart(2, "0")}:00`;
-
-const ADMIN = "admin@sow.org.au";
-const HENRY = "henry@sow.org.au";
-const MARY = "mary@sow.org.au";
-const RACHEL = "rachel@sow.org.au";
-const EDDIE = "eddie@sow.org.au";
-const CORA = "cora@sow.org.au";
-const FIONA = "fiona@sow.org.au";
-const BELLA = "bella@sow.org.au";
 const LEE = "lee@sow.org.au";
-
-type T = TestConvex<typeof schema>;
-const asUser = (t: T, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const PEOPLE: [string, { role: string; department?: string; university?: string }[]][] = [
-  [HENRY, [{ role: "Head of Department", department: "Marketing" }]],
-  [MARY, [{ role: "Staff", department: "Marketing" }]],
-  [RACHEL, [{ role: "Staff", department: "Events" }]],
-  [EDDIE, [{ role: "Head of Department", department: "Events" }]],
-  [CORA, [{ role: "Head of Department", department: "Compliance" }]],
-  [FIONA, [{ role: "Head of Department", department: "Finance" }]],
-  [BELLA, [{ role: "Staff", department: "Finance" }]],
-  [LEE, [{ role: "Student Leader", university: "UNSW" }]],
-];
-const HEADS: Record<string, string> = {
-  Marketing: HENRY,
-  Events: EDDIE,
-  Compliance: CORA,
-  Finance: FIONA,
-};
-
-async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-  await t.run(async (ctx) => {
-    for (const [email, assignments] of PEOPLE) {
-      await ctx.db.insert("staffProfiles", { email, year: YEAR, assignments });
-    }
-    for (const department of await ctx.db.query("departments").collect()) {
-      if (department.name in HEADS) {
-        await ctx.db.patch("departments", department._id, { headEmail: HEADS[department.name] });
-      }
-    }
-  });
-  await asUser(t, ADMIN).mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-  return t;
-}
-
-const designAnswers = (): DesignAnswers => ({
-  department: "Events",
-  types: ["promotion"],
-  details: "Hoodies",
-  items: ["poster"],
-  visualStyle: "Earthy",
-  keyMessage: "Come along",
-  promoBudget: 100,
-  dueDate: sydneyToday(new Date(PINNED_NOW + 14 * DAY)),
-  multipleDrafts: false,
-  runByYou: true,
-});
-
-const eventAnswers = (): FormAnswers => ({
-  name: "Winter Camp",
-  department: "Events",
-  purpose: "Retreat",
-  goals: "Rest",
-  location: "Camp site",
-  registrationGoal: 40,
-  audience: "all",
-  start: at(40, 9),
-  end: at(40, 17),
-});
+const setup = () => flowSetup([[LEE, [{ role: "Student Leader", university: "UNSW" }]]]);
 
 const summaryFor = (t: T, email: string) => asUser(t, email).query(api.waitingOnMe.summary, {});
 

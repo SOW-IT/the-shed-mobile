@@ -1,33 +1,24 @@
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
-import { api, internal } from "./_generated/api";
+import { describe, expect, test, vi } from "vitest";
+import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import schema from "./schema";
 import { checkInOpen, checkInPhase, checkInWindow } from "../shared/checkInWindow";
+import {
+  type T,
+  HOUR,
+  PINNED_NOW,
+  YEAR,
+  ADMIN,
+  USYD,
+  UNSW,
+  asUser,
+  pinClock,
+  seeded,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const HOUR = 3_600_000;
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
-
-const ADMIN = "admin@sow.org.au";
-const USYD = "University of Sydney";
-const UNSW = "University of New South Wales";
-
-type T = TestConvex<typeof schema>;
-const asUser = (t: T, email: string) => t.withIdentity({ email, subject: email, issuer: "test" });
+pinClock();
 
 async function setup(withCampusField = true) {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   await asUser(t, ADMIN).mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   await asUser(t, ADMIN).mutation(api.admin.upsertUniversity, { year: YEAR, name: UNSW });
   if (withCampusField) {
@@ -793,15 +784,6 @@ describe("a sign-in confirmed late", () => {
     expect((await signInTimes(t, eventId))[memberId]).toBeLessThan(PINNED_NOW + HOUR);
     await asUser(t, ADMIN).mutation(api.attendance.signOut, { eventId, memberId });
     expect(await signedInIds(t, eventId)).toEqual([]);
-  });
-});
-
-describe("org-wide events", () => {
-  test("offer every university", async () => {
-    const t = await setup();
-    const { token } = await enabled(t, ["SOW"]);
-    const page = (await t.query(api.checkIn.page, { token }))!;
-    expect(page.universities.map((c) => c.value)).toEqual(expect.arrayContaining([USYD, UNSW]));
   });
 });
 

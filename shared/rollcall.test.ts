@@ -37,166 +37,89 @@ import {
   tagListOf,
   WEEKLIES_TAG_NAME,
 } from "./rollcall";
+import { UNIVERSITY_COLOURS } from "./flow";
 
-describe("capitalizeMemberName", () => {
-  test("capitalizes the first letter and the letter after each space", () => {
-    expect(capitalizeMemberName("jane doe")).toBe("Jane Doe");
-    expect(capitalizeMemberName("jane")).toBe("Jane");
-    expect(capitalizeMemberName(" jane  smith")).toBe(" Jane  Smith");
+describe("names", () => {
+  test.each([
+    ["jane doe", "Jane Doe"],
+    ["jane", "Jane"],
+    [" jane  smith", " Jane  Smith"],
+    ["Jane Doe", "Jane Doe"],
+    ["JANE DOE", "JANE DOE"],
+    ["McDonald", "McDonald"],
+    ["mary-jane smith", "Mary-jane Smith"],
+    ["", ""],
+  ])("capitalizeMemberName(%j) is %j", (input, expected) => {
+    expect(capitalizeMemberName(input)).toBe(expected);
   });
 
-  test("leaves already-capital letters and the rest of each word as typed", () => {
-    expect(capitalizeMemberName("Jane Doe")).toBe("Jane Doe");
-    expect(capitalizeMemberName("JANE DOE")).toBe("JANE DOE");
-    expect(capitalizeMemberName("McDonald")).toBe("McDonald");
-    expect(capitalizeMemberName("mary-jane smith")).toBe("Mary-jane Smith");
+  test.each([
+    ["first.last@sow.org.au", "First Last"],
+    ["JANE.DOE@sow.org.au", "Jane Doe"],
+    ["mary_anne-smith@sow.org.au", "Mary Anne Smith"],
+    ["u12345@sow.org.au", null],
+    ["admin@sow.org.au", null],
+    ["", null],
+  ])("displayNameFromEmail(%j) is %j", (email, expected) => {
+    expect(displayNameFromEmail(email)).toBe(expected);
   });
 
-  test("returns an empty string unchanged", () => {
-    expect(capitalizeMemberName("")).toBe("");
-  });
-});
-
-describe("displayNameFromEmail", () => {
-  test("title-cases a first.last local part", () => {
-    expect(displayNameFromEmail("first.last@sow.org.au")).toBe("First Last");
-    expect(displayNameFromEmail("JANE.DOE@sow.org.au")).toBe("Jane Doe");
-    expect(displayNameFromEmail("mary_anne-smith@sow.org.au")).toBe("Mary Anne Smith");
-  });
-
-  test("returns null for non-name-shaped addresses", () => {
-    expect(displayNameFromEmail("u12345@sow.org.au")).toBeNull();
-    expect(displayNameFromEmail("admin@sow.org.au")).toBeNull();
-    expect(displayNameFromEmail("")).toBeNull();
-  });
-});
-
-describe("personKey", () => {
-  test("keys staff by email, lowercased so casing can't split one person", () => {
-    expect(personKey({ email: "First.Last@SOW.org.au" })).toBe(
-      "staff:first.last@sow.org.au"
-    );
-    expect(personKey({ email: "First.Last@SOW.org.au" })).toBe(
-      personKey({ email: "first.last@sow.org.au" })
-    );
-  });
-
-  test("keys an attendance-only member by member id", () => {
-    expect(personKey({ memberId: "abc123" })).toBe("member:abc123");
-  });
-
-  test("prefers email over member id when both are present", () => {
-    expect(personKey({ email: "a@b.co", memberId: "abc123" })).toBe("staff:a@b.co");
-  });
-
-  test("returns an empty string when neither is set", () => {
-    expect(personKey({})).toBe("");
-    expect(personKey({ email: null, memberId: null })).toBe("");
-  });
-});
-
-describe("personDisplayName", () => {
-  test("keeps a real stored name", () => {
-    expect(personDisplayName("Jane Doe", "first.last@sow.org.au")).toBe("Jane Doe");
-  });
-
-  test("derives a name when the stored name is the email", () => {
-    expect(personDisplayName("first.last@sow.org.au", "first.last@sow.org.au")).toBe(
-      "First Last"
-    );
-    expect(personDisplayName(null, "first.last@sow.org.au")).toBe("First Last");
-    expect(personDisplayName(undefined, "first.last@sow.org.au")).toBe("First Last");
-  });
-
-  test("falls back to the raw email when no name can be derived", () => {
-    expect(personDisplayName(null, "u12345@sow.org.au")).toBe("u12345@sow.org.au");
-  });
-
-  test("returns an empty string when there is neither a name nor an email", () => {
-    expect(personDisplayName(null, null)).toBe("");
-    expect(personDisplayName("", undefined)).toBe("");
+  test.each([
+    ["Jane Doe", "first.last@sow.org.au", "Jane Doe"],
+    ["first.last@sow.org.au", "first.last@sow.org.au", "First Last"],
+    [null, "first.last@sow.org.au", "First Last"],
+    [undefined, "first.last@sow.org.au", "First Last"],
+    [null, "u12345@sow.org.au", "u12345@sow.org.au"],
+    [null, null, ""],
+    ["", undefined, ""],
+  ])("personDisplayName(%j, %j) is %j", (name, email, expected) => {
+    expect(personDisplayName(name, email)).toBe(expected);
   });
 });
 
 describe("personKey", () => {
-  test("folds the legacy staff domain into one identity", () => {
-    expect(personKey({ email: "Jane.Doe@sowaustralia.com" })).toBe(
-      "staff:jane.doe@sow.org.au"
-    );
-    expect(personKey({ email: " jane.doe@sow.org.au " })).toBe(
-      "staff:jane.doe@sow.org.au"
-    );
-    expect(personKey({ email: "not-an-email", memberId: "m1" })).toBe("member:m1");
+  test.each([
+    [{ email: "First.Last@SOW.org.au" }, "staff:first.last@sow.org.au"],
+    [{ email: "Jane.Doe@sowaustralia.com" }, "staff:jane.doe@sow.org.au"],
+    [{ email: " jane.doe@sow.org.au " }, "staff:jane.doe@sow.org.au"],
+    [{ memberId: "abc123" }, "member:abc123"],
+    [{ email: "a@b.co", memberId: "abc123" }, "staff:a@b.co"],
+    [{ email: "not-an-email", memberId: "m1" }, "member:m1"],
+    [{}, ""],
+    [{ email: null, memberId: null }, ""],
+  ])("%j keys as %j", (person, expected) => {
+    expect(personKey(person)).toBe(expected);
   });
 });
 
-describe("subgroupMatches", () => {
-  test("same canonical form matches", () => {
-    expect(subgroupMatches("SOW", "ALL")).toBe(true);
-    expect(subgroupMatches("University of Sydney", "University of Sydney")).toBe(true);
-    expect(subgroupMatches("University of Sydney", "Macquarie University")).toBe(false);
-  });
-});
-
-describe("canonicalSubgroup", () => {
-  test("folds legacy ALL to SOW", () => {
+describe("subgroups", () => {
+  test("legacy ALL folds into SOW wherever a sub-group is compared", () => {
     expect(canonicalSubgroup("ALL")).toBe(SOW_SUBGROUP);
     expect(canonicalSubgroup("SOW")).toBe(SOW_SUBGROUP);
     expect(canonicalSubgroup("University of Sydney")).toBe("University of Sydney");
-  });
-});
-
-describe("eventIncludesSubgroup", () => {
-  test("matches org-wide events whether stored as SOW or ALL", () => {
-    expect(eventIncludesSubgroup(["University of Sydney", "SOW"], SOW_SUBGROUP)).toBe(
-      true
-    );
-    expect(eventIncludesSubgroup(["University of Sydney", "ALL"], SOW_SUBGROUP)).toBe(
-      true
-    );
+    expect(subgroupMatches("SOW", "ALL")).toBe(true);
+    expect(subgroupMatches("University of Sydney", "University of Sydney")).toBe(true);
+    expect(subgroupMatches("University of Sydney", "Macquarie University")).toBe(false);
+    expect(eventIncludesSubgroup(["University of Sydney", "SOW"], SOW_SUBGROUP)).toBe(true);
+    expect(eventIncludesSubgroup(["University of Sydney", "ALL"], SOW_SUBGROUP)).toBe(true);
     expect(eventIncludesSubgroup(["University of Sydney"], SOW_SUBGROUP)).toBe(false);
-  });
-});
-
-describe("normalizeSubgroups", () => {
-  test("dedupes and canonicalizes", () => {
-    expect(
-      normalizeSubgroups(["SOW", "ALL", "University of Sydney", "SOW"])
-    ).toEqual([SOW_SUBGROUP, "University of Sydney"]);
-  });
-});
-
-describe("subgroupLabel", () => {
-  test("the synthetic ALL sub-group displays as SOW", () => {
-    expect(subgroupLabel(SOW_SUBGROUP)).toBe("SOW");
-    expect(subgroupLabel("ALL")).toBe("SOW");
+    expect(normalizeSubgroups(["SOW", "ALL", "University of Sydney", "SOW"])).toEqual([
+      SOW_SUBGROUP,
+      "University of Sydney",
+    ]);
   });
 
-  test("a known campus collapses to its acronym", () => {
-    expect(subgroupLabel("University of Sydney")).toBe("USYD");
-    expect(subgroupLabel("Macquarie University")).toBe("MACQ");
-  });
-
-  test("an unknown name passes through verbatim", () => {
-    expect(subgroupLabel("Some Other College")).toBe("Some Other College");
-  });
-});
-
-describe("subgroupColour", () => {
-  test("SOW uses the whole-org colour", () => {
-    expect(subgroupColour(SOW_SUBGROUP)).toBe("#000000");
-    expect(subgroupColour("ALL")).toBe("#000000");
-  });
-
-  test("a known campus uses its brand colour", () => {
-    expect(subgroupColour("University of Sydney")).toBe("#B5403D");
-    expect(subgroupColour("University of New South Wales")).toBe("#619445");
-    expect(subgroupColour("Western Sydney University")).toBe("#A60F2D");
-    expect(subgroupColour("WSU")).toBe("#A60F2D");
-  });
-
-  test("an unknown campus falls back to slate", () => {
-    expect(subgroupColour("Unknown Uni")).toBe("#64748b");
+  test.each([
+    [SOW_SUBGROUP, "SOW", UNIVERSITY_COLOURS.SOW],
+    ["ALL", "SOW", UNIVERSITY_COLOURS.SOW],
+    ["University of Sydney", "USYD", UNIVERSITY_COLOURS.USYD],
+    ["Macquarie University", "MACQ", UNIVERSITY_COLOURS.MACQ],
+    ["Western Sydney University", "WSU", UNIVERSITY_COLOURS.WSU],
+    ["WSU", "WSU", UNIVERSITY_COLOURS.WSU],
+    ["Some Other College", "Some Other College", "#64748b"],
+  ])("%j is labelled %j in its campus colour", (subgroup, label, colour) => {
+    expect(subgroupLabel(subgroup)).toBe(label);
+    expect(subgroupColour(subgroup)).toBe(colour);
   });
 });
 

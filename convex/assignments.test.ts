@@ -1,50 +1,17 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
 import {
   assignmentFor,
-  assignmentsOf,
   CHAPLAINCY_DEPARTMENT,
   departmentsOf,
   isMemberOfDepartment,
-  staffYearForDate,
 } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { type T, YEAR, ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-
-const ADMIN = "admin@sow.org.au";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-  return t;
-}
-
-const profileOf = async (t: TestConvex<typeof schema>, email: string) =>
+const profileOf = async (t: T, email: string) =>
   (await asUser(t, ADMIN).query(api.admin.listStaffProfiles, { year: YEAR }))!.find(
     (p) => p.email === email
   )!;
-
-describe("assignmentsOf (pure)", () => {
-  test("returns the stored assignments unchanged", () => {
-    const stored = [
-      { role: "Head of Department", department: "Finance" },
-      { role: "Staff", department: "Marketing" },
-    ];
-    expect(assignmentsOf({ assignments: stored })).toEqual(stored);
-  });
-
-  test("returns an empty array when there are no assignments", () => {
-    expect(assignmentsOf({})).toEqual([]);
-    expect(assignmentsOf({ assignments: [] })).toEqual([]);
-  });
-});
 
 describe("assignmentFor (scope derivation)", () => {
   test("a department role keeps its department", () => {
@@ -84,38 +51,51 @@ describe("assignmentFor (scope derivation)", () => {
 });
 
 describe("heads of multiple scopes", () => {
-  test("one person heads two departments and two divisions at once", async () => {
-    const t = await setup();
+  test("one person heads two departments and two divisions, and re-saving one keeps the rest", async () => {
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "multi@sow.org.au";
+    const headDepartment = (name: string, division: string) =>
+      admin.mutation(api.admin.upsertDepartment, { year: YEAR, name, division, headEmail: email });
+    const headDivision = (name: string, headEmail?: string) =>
+      admin.mutation(api.admin.upsertDivision, { year: YEAR, name, headEmail });
 
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Marketing", division: "Engagement", headEmail: email,
-    });
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Alumni", division: "Engagement", headEmail: email,
-    });
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR, name: "Operations", headEmail: email,
-    });
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR, name: "Engagement", headEmail: email,
-    });
+    await headDepartment("Marketing", "Engagement");
+    await headDepartment("Alumni", "Engagement");
+    await headDivision("Operations", email);
+    await headDivision("Engagement", email);
+    await headDepartment("Marketing", "Engagement");
+    await headDivision("Engagement", email);
 
     const p = await profileOf(t, email);
     expect(departmentsOf(p).sort()).toEqual(["Alumni", "Marketing"]);
-    expect(p.assignments).toContainEqual({
-      role: "Head of Department", department: "Marketing",
-    });
-    expect(p.assignments).toContainEqual({
-      role: "Head of Department", department: "Alumni",
-    });
-    expect(p.assignments).toContainEqual({ role: "Head of Division", division: "Operations" });
-    expect(p.assignments).toContainEqual({ role: "Head of Division", division: "Engagement" });
+    expect([...p.roles].sort()).toEqual(["Head of Department", "Head of Division"]);
+    expect(p.assignments).toEqual(
+      expect.arrayContaining([
+        { role: "Head of Department", department: "Marketing" },
+        { role: "Head of Department", department: "Alumni" },
+        { role: "Head of Division", division: "Operations" },
+        { role: "Head of Division", division: "Engagement" },
+      ])
+    );
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    const headed = (rows: { name: string; headEmail?: string | null }[]) =>
+      rows.filter((row) => row.headEmail === email).map((row) => row.name).sort();
+    expect(headed(structure.departments)).toEqual(["Alumni", "Marketing"]);
+    expect(headed(structure.divisions)).toEqual(["Engagement", "Operations"]);
+    const chart = (await admin.query(api.directory.orgChart, { year: YEAR }))!;
+    expect(
+      chart.divisions.filter((d) => d.head?.email === email).map((d) => d.name).sort()
+    ).toEqual(["Engagement", "Operations"]);
+
+    await headDivision("Engagement");
+    await headDivision("Operations");
+    const vacated = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(headed(vacated.divisions)).toEqual([]);
   });
 
   test("the only-one-head rule still holds; moving a headship is per-scope", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const first = "first@sow.org.au";
     const second = "second@sow.org.au";
@@ -150,7 +130,7 @@ describe("heads of multiple scopes", () => {
 
 describe("mixed person in the org chart", () => {
   test("HOD of A + Staff of B + HODiv of C appears in all three", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "mixed@sow.org.au";
 
@@ -183,7 +163,7 @@ describe("mixed person in the org chart", () => {
 
 describe("chaplaincy roles", () => {
   test("a chaplain is fixed to the Chaplaincy department and may carry a campus", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "chaplain@sow.org.au";
     await admin.mutation(api.admin.setStaffProfile, {
@@ -207,7 +187,7 @@ describe("chaplaincy roles", () => {
   });
 
   test("assigning a chaplain fails when the Chaplaincy department is missing", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.removeDepartment, {
       year: YEAR, name: CHAPLAINCY_DEPARTMENT,
@@ -222,7 +202,7 @@ describe("chaplaincy roles", () => {
 
 describe("admin via division headship", () => {
   test("heading a division no longer makes someone an admin", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "hrhead@sow.org.au";
     await admin.mutation(api.admin.upsertDivision, {
@@ -235,7 +215,7 @@ describe("admin via division headship", () => {
 
 describe("request submit with multiple departments", () => {
   test("defaults to the HOD department, else first assignment department", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "req@sow.org.au";
     await admin.mutation(api.admin.setStaffProfile, {
@@ -253,7 +233,7 @@ describe("request submit with multiple departments", () => {
   });
 
   test("HODiv of two divisions auto-skips HOD for requests in both", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "hodiv2@sow.org.au";
     await admin.mutation(api.admin.upsertDepartment, {
@@ -288,7 +268,7 @@ describe("request submit with multiple departments", () => {
 
 describe("structural deletes are refused while staff hold them", () => {
   test("removeDepartment is refused while someone is assigned to it", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "m@sow.org.au";
     await admin.mutation(api.admin.setStaffProfile, {
@@ -303,7 +283,7 @@ describe("structural deletes are refused while staff hold them", () => {
   });
 
   test("removeUniversity is refused while a leader is assigned to it", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "sl@sow.org.au";
     await admin.mutation(api.admin.setStaffProfile, {
@@ -325,7 +305,7 @@ describe("structural deletes are refused while staff hold them", () => {
 
 describe("finance access via membership", () => {
   test("a Finance member who also heads another dept can be Budget Manager", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "fin@sow.org.au";
     await admin.mutation(api.admin.upsertDepartment, {
@@ -350,7 +330,7 @@ describe("finance access via membership", () => {
 
 describe("copyYear", () => {
   test("copies assignments and division headEmail to the next year", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const email = "carry@sow.org.au";
     await admin.mutation(api.admin.upsertDepartment, {

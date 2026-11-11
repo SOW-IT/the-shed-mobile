@@ -1,36 +1,17 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
-import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { api } from "./_generated/api";
 import { linkUserProfiles } from "./userLink";
+import { type T, ADMIN, asUser, pinClock, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
 const PINNED_NOW = staffYearStartMs(2026) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock(PINNED_NOW);
 
 const YEAR = staffYearForDate(new Date(PINNED_NOW));
-const ADMIN = "admin@sow.org.au";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
-  return t;
-}
 
 describe("email changes: the person stays the same", () => {
   test("sign-in with a new email claims imported years keyed by the old one", async () => {
-    const t = await setup();
+    const t = await seeded();
     const oldEmail = "jane.personal@gmail.com";
     const newEmail = "jane.doe@sow.org.au";
 
@@ -69,7 +50,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("first sign-in after the Workspace domain migration claims legacy-domain profiles", async () => {
-    const t = await setup();
+    const t = await seeded();
     const userId = await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email: "mia.cho@sowaustralia.com",
@@ -106,7 +87,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("a personal account with a matching local part does NOT claim legacy-domain profiles", async () => {
-    const t = await setup();
+    const t = await seeded();
     const { userId, legacyProfileId } = await t.run(async (ctx) => {
       const legacyProfileId = await ctx.db.insert("staffProfiles", {
         email: "mia.cho@sowaustralia.com",
@@ -133,7 +114,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("a legacy profile already bound to another user is NOT claimed by a matching local part", async () => {
-    const t = await setup();
+    const t = await seeded();
     const { newUserId, legacyProfileId, oldUserId } = await t.run(async (ctx) => {
       const oldUserId = await ctx.db.insert("users", {
         email: "sam@sowaustralia.com",
@@ -163,7 +144,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("people without an imported id get their user id as the person key", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const newcomer = "noah.new@sow.org.au";
 
@@ -218,7 +199,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("re-provisioning an imported person keeps their imported key", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const imported = "ivy.imported@sow.org.au";
     await t.run(async (ctx) => {
@@ -256,7 +237,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("re-keying never duplicates a (email, year) profile", async () => {
-    const t = await setup();
+    const t = await seeded();
     const oldEmail = "jay.old@gmail.com";
     const newEmail = "jay@sow.org.au";
 
@@ -290,7 +271,7 @@ describe("email changes: the person stays the same", () => {
   });
 
   test("a re-key carries roles, saved accounts, song, design and event requests, grievances and notifications", async () => {
-    const t = await setup();
+    const t = await seeded();
     const OLD = "lee.old@sow.org.au";
     const NEW = "lee@sow.org.au";
     const OTHER = "pat@sow.org.au";
@@ -406,94 +387,81 @@ describe("email changes: the person stays the same", () => {
       expect(notification.userEmail).toBe(NEW);
     });
   });
-});
 
-describe("multi-headship: one person, several divisions/departments", () => {
-  test("naming someone head of a second division keeps the first", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    const sijin = "sijin@sow.org.au";
+  describe("an approver's rename", () => {
+    const HENRY = "henry@sow.org.au";
+    const NEW = "henry.new@sow.org.au";
+    const FIONA = "fiona@sow.org.au";
+    const BELLA = "bella@sow.org.au";
 
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR,
-      name: "Engagement",
-      headEmail: sijin,
+    const rename = async (t: T) => {
+      const userId = await t.run((ctx) => ctx.db.insert("users", { email: HENRY }));
+      await t.run((ctx) => linkUserProfiles(ctx, userId));
+      await t.run((ctx) => ctx.db.patch("users", userId, { email: NEW }));
+      await t.run((ctx) => linkUserProfiles(ctx, userId));
+    };
+    const delegations = async (t: T) =>
+      (await asUser(t, ADMIN).query(api.admin.listDelegations, { year: YEAR }))!.map((d) => [d.fromEmail, d.toEmail]);
+
+    test("carries their division headship and Budget Manager role", async () => {
+      const t = await seeded();
+      await asUser(t, ADMIN).mutation(api.admin.upsertDivision, { year: YEAR, name: "Engagement", headEmail: HENRY });
+      await t.run((ctx) => ctx.db.insert("yearSettings", { year: YEAR + 5, budgetManagerEmail: HENRY }));
+      await rename(t);
+      await t.run(async (ctx) => {
+        const division = await ctx.db
+          .query("divisions")
+          .withIndex("by_year_and_name", (q) => q.eq("year", YEAR).eq("name", "Engagement"))
+          .unique();
+        expect(division?.headEmail).toBe(NEW);
+        const settings = await ctx.db
+          .query("yearSettings")
+          .withIndex("by_year", (q) => q.eq("year", YEAR + 5))
+          .unique();
+        expect(settings?.budgetManagerEmail).toBe(NEW);
+      });
     });
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR,
-      name: "Operations",
-      headEmail: sijin,
+
+    test("carries their delegations both ways, dropping one the new email already has", async () => {
+      const t = await seeded();
+      const admin = asUser(t, ADMIN);
+      await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY });
+      await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA });
+      await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: BELLA, roles: ["Staff"], department: "Finance" });
+      await t.run((ctx) => ctx.db.insert("approverDelegations", { year: YEAR, fromEmail: NEW, toEmail: BELLA }));
+      for (const [fromEmail, toEmail] of [
+        [FIONA, HENRY],
+        [HENRY, BELLA],
+      ]) {
+        await admin.mutation(api.admin.addDelegation, { year: YEAR, fromEmail, toEmail });
+      }
+      await rename(t);
+      expect((await delegations(t)).sort()).toEqual([
+        [FIONA, NEW],
+        [NEW, BELLA],
+      ]);
     });
-
-    const structure = (await admin.query(api.directory.yearStructure, {
-      year: YEAR,
-    }))!;
-    const headed = structure.divisions.filter((d) => d.headEmail === sijin);
-    expect(headed.map((d) => d.name).sort()).toEqual(["Engagement", "Operations"]);
-
-    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    const profile = profiles.find((p) => p.email === sijin)!;
-    expect(profile.roles).toEqual(["Head of Division"]);
-    expect(profile.assignments?.some((a) => a.division === "Engagement")).toBe(true);
-
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR,
-      name: "Engagement",
-      headEmail: sijin,
-    });
-    const after = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
-    expect(
-      after.divisions.filter((d) => d.headEmail === sijin).map((d) => d.name).sort()
-    ).toEqual(["Engagement", "Operations"]);
-
-    const chart = (await admin.query(api.directory.orgChart, { year: YEAR }))!;
-    expect(
-      chart.divisions.filter((d) => d.head?.email === sijin).map((d) => d.name).sort()
-    ).toEqual(["Engagement", "Operations"]);
-
-    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Engagement" });
-    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Operations" });
-    const vacated = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
-    expect(vacated.divisions.some((d) => d.headEmail === sijin)).toBe(false);
   });
 
-  test("a department head keeps other departments when re-saved", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    const henry = "henry@sow.org.au";
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR,
-      name: "Marketing",
-      division: "Engagement",
-      headEmail: henry,
-    });
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR,
-      name: "Events",
-      division: "Operations",
-      headEmail: henry,
-    });
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR,
-      name: "Marketing",
-      division: "Engagement",
-      headEmail: henry,
-    });
-    const structure = (await admin.query(api.directory.yearStructure, {
-      year: YEAR,
-    }))!;
-    expect(
-      structure.departments
-        .filter((d) => d.headEmail === henry)
-        .map((d) => d.name)
-        .sort()
-    ).toEqual(["Events", "Marketing"]);
+  test("a user row with no email, or a new email with no profiles anywhere, binds nothing", async () => {
+    const t = await seeded();
+    for (const fields of [{}, { email: "fresh.face@sow.org.au" }]) {
+      const userId = await t.run((ctx) => ctx.db.insert("users", fields));
+      await t.run((ctx) => linkUserProfiles(ctx, userId));
+      const bound = await t.run((ctx) =>
+        ctx.db
+          .query("staffProfiles")
+          .withIndex("by_userId", (q) => q.eq("userId", userId))
+          .collect()
+      );
+      expect(bound).toEqual([]);
+    }
   });
 });
 
 describe("Student Leaders pick a university, not a department", () => {
   test("assignment requires one of the year's universities", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
     const leader = "lara.lee@sow.org.au";
 
@@ -529,7 +497,7 @@ describe("Student Leaders pick a university, not a department", () => {
   });
 
   test("all campus roles need a university; Member needs nothing", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
 
     await expect(
@@ -563,7 +531,7 @@ describe("Student Leaders pick a university, not a department", () => {
   });
 
   test("universities are data-driven per year; one still assigned can't be deleted", async () => {
-    const t = await setup();
+    const t = await seeded();
     const admin = asUser(t, ADMIN);
 
     const structure = (await admin.query(api.directory.yearStructure, {

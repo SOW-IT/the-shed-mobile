@@ -1,9 +1,6 @@
 import { beforeAll, describe, expect, test } from "vitest";
-import { convexTest } from "convex-test";
-import schema from "./schema";
 import { api } from "./_generated/api";
-
-const modules = import.meta.glob("./**/*.ts");
+import { newConvex } from "../test/convexFixture";
 
 const EMAIL_A = "alice@example.com";
 const EMAIL_B = "bob@example.com";
@@ -15,7 +12,7 @@ describe("contact.submit rate limiting", () => {
   });
 
   test("accepts a valid public contact message", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     const res = await t.mutation(api.contact.submit, {
       email: EMAIL_A,
       message: "Hello from SOW",
@@ -24,7 +21,7 @@ describe("contact.submit rate limiting", () => {
   });
 
   test("rejects invalid emails", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await expect(
       t.mutation(api.contact.submit, {
         email: "not-an-email",
@@ -34,7 +31,7 @@ describe("contact.submit rate limiting", () => {
   });
 
   test("rejects short/long messages", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await expect(
       t.mutation(api.contact.submit, { email: EMAIL_A, message: "x" })
     ).rejects.toThrow("message");
@@ -48,7 +45,7 @@ describe("contact.submit rate limiting", () => {
   });
 
   test("blocks a fourth submission in the same hour", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     for (const idx of [0, 1, 2]) {
       await t.mutation(api.contact.submit, {
         email: EMAIL_B,
@@ -65,7 +62,7 @@ describe("contact.submit rate limiting", () => {
   });
 
   test("rate limit is per-email, not global", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     for (const idx of [0, 1, 2]) {
       await t.mutation(api.contact.submit, {
         email: EMAIL_A,
@@ -82,7 +79,7 @@ describe("contact.submit rate limiting", () => {
   });
 
   test("global cap blocks a flood even when every sender address is different", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       const now = Date.now();
       for (let i = 0; i < 30; i++) {
@@ -101,7 +98,7 @@ describe("contact.submit rate limiting", () => {
   });
 
   test("stale rate-limit rows are pruned on submit", async () => {
-    const t = convexTest(schema, modules);
+    const t = newConvex();
     await t.run(async (ctx) => {
       await ctx.db.insert("contactRateLimit", {
         fromEmail: "old@example.com",

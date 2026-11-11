@@ -1,10 +1,7 @@
-/// <reference types="vite/client" />
-import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
 import { photoFor } from "./photo";
-import schema from "./schema";
+import { newConvex } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
 const EMAIL = "brandon@sow.org.au";
 const GOOGLE_IMAGE = "https://lh3.googleusercontent.com/a/monogram";
 
@@ -17,7 +14,7 @@ async function seed({
   directoryPhoto?: boolean;
   googleImage?: boolean;
 }) {
-  const t = convexTest(schema, modules);
+  const t = newConvex();
   const ids = await t.run(async (ctx) => {
     const avatarId = avatar
       ? await ctx.storage.store(new Blob(["avatar"], { type: "image/png" }))

@@ -1,38 +1,30 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { describe, expect, test, vi } from "vitest";
+import { staffYearStartMs } from "../shared/flow";
 import { DEFAULT_GRIEVANCE_CATEGORIES, type GrievanceInput } from "../shared/grievances";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import schema from "./schema";
+import {
+  type T,
+  DAY,
+  PINNED_NOW,
+  YEAR,
+  ADMIN,
+  asUser,
+  pinClock,
+  seeded,
+  notificationsFor,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const DAY = 86_400_000;
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * DAY;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
+pinClock();
 
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
 const CONDUCT = DEFAULT_GRIEVANCE_CATEGORIES[0];
 
-const ADMIN = "admin@sow.org.au";
 const HANA = "hana@sow.org.au"; // People and Culture
 const CARL = "carl@sow.org.au"; // Compliance
 const PIA = "pia@sow.org.au"; // Head of People and Culture
 const TESS = "tess@sow.org.au"; // Training and Development
 const LEO = "leo@sow.org.au"; // campus leader
 const MEMBER = "member@gmail.com"; // signed in, no profile
-
-type T = TestConvex<typeof schema>;
-
-const asUser = (t: T, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 const input = (over: Partial<GrievanceInput> = {}): GrievanceInput => ({
   name: "Alex Morgan",
@@ -43,8 +35,7 @@ const input = (over: Partial<GrievanceInput> = {}): GrievanceInput => ({
 });
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
@@ -74,14 +65,6 @@ const emails = (t: T) =>
       .filter((f) => f.state.kind === "pending")
       .map((f) => f.args[0] as { to: string; subject?: string; body?: string })
       .filter((a) => a.subject !== undefined && a.body !== undefined)
-  );
-
-const notificationsFor = (t: T, email: string) =>
-  t.run((ctx) =>
-    ctx.db
-      .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userEmail", email))
-      .collect()
   );
 
 const pushesTo = (t: T, email: string) =>

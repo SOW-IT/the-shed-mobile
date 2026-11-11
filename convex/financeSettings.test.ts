@@ -1,25 +1,15 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
 import type { Persona } from "../shared/actingAs";
-import { staffYearForDate } from "../shared/flow";
-import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { api } from "./_generated/api";
+import { type T, YEAR, ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-const ADMIN = "admin@sow.org.au";
 const FIONA = "fiona@sow.org.au";
 const BELLA = "bella@sow.org.au";
 const COVER = "cover@sow.org.au";
 const SAM = "sam@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
@@ -38,7 +28,7 @@ async function setup() {
   return { t, admin };
 }
 
-const role = (t: TestConvex<typeof schema>, email: string | null) =>
+const role = (t: T, email: string | null) =>
   (email ? asUser(t, email) : t).query(api.admin.financeSettingsRole, { year: YEAR });
 
 describe("finance settings access", () => {

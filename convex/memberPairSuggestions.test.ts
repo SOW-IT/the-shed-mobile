@@ -1,26 +1,12 @@
-import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-
-const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au";
-const USYD = "University of Sydney";
-const UNSW = "University of New South Wales";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
+import { YEAR, ADMIN, LEADER, USYD, UNSW, asUser, seeded } from "../test/convexFixture";
 
 type MemberId = Id<"attendanceMembers">;
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const { campusField, roleField } = await t.run(async (ctx) => {
     await ctx.db.insert("staffProfiles", {
       email: LEADER,

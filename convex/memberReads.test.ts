@@ -1,38 +1,36 @@
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import schema from "./schema";
+import {
+  type T,
+  type Caller,
+  HOUR,
+  YEAR,
+  ADMIN,
+  LEADER,
+  STAFF,
+  USYD,
+  UNSW,
+  asUser,
+  seeded,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
 const sources = import.meta.glob(["./**/*.ts", "!./**/*.test.ts", "!./_generated/**"], {
   query: "?raw",
   import: "default",
   eager: true,
 }) as Record<string, string>;
 
-const YEAR = staffYearForDate(new Date());
-const HOUR = 3_600_000;
-const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au";
-const STAFF = "staff@sow.org.au";
 const NO_SHADOW = "noshadow@sow.org.au";
-const USYD = "University of Sydney";
-const UNSW = "University of New South Wales";
 
-type T = TestConvex<typeof schema>;
 type Category = Doc<"weeklyCategoryPeople">["category"];
-
-const asUser = (t: T, email: string) => t.withIdentity({ email, subject: email, issuer: "test" });
 
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: UNSW });
@@ -417,7 +415,7 @@ async function membersWorld() {
 }
 
 const pageAll = async (
-  who: ReturnType<typeof asUser>,
+  who: Caller,
   args: { sortAsc?: boolean; numItems: number }
 ) => {
   const rows: { key: string }[] = [];

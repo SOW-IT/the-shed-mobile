@@ -1,32 +1,24 @@
-import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { describe, expect, test, vi } from "vitest";
+import { staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import schema from "./schema";
+import {
+  type T,
+  DAY,
+  PINNED_NOW,
+  YEAR,
+  ADMIN,
+  USYD,
+  MACQ,
+  asUser,
+  pinClock,
+  seeded,
+} from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(PINNED_NOW);
-});
-afterEach(() => {
-  vi.useRealTimers();
-});
-const YEAR = staffYearForDate(new Date(PINNED_NOW));
-const DAY = 86_400_000;
-
-const ADMIN = "admin@sow.org.au";
-const USYD = "University of Sydney";
-const MACQ = "Macquarie University";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
+pinClock();
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: MACQ });
@@ -60,7 +52,6 @@ async function setup() {
   return { t, ...ids };
 }
 
-
 type Snapshot = Doc<"rosterHistorySnapshots">;
 const eventsOf = (snapshot: Snapshot, memberId: Id<"attendanceMembers">) => {
   const i = snapshot.memberIds!.indexOf(memberId);
@@ -71,7 +62,7 @@ const attendeesAt = (snapshot: Snapshot, eventId: Id<"events">) => {
   return snapshot.memberIds!.filter((memberId) => eventsOf(snapshot, memberId).includes(index));
 };
 
-const rosterNames = async (t: TestConvex<typeof schema>, eventId: Id<"events">, year = YEAR) =>
+const rosterNames = async (t: T, eventId: Id<"events">, year = YEAR) =>
   (await asUser(t, ADMIN).query(api.attendance.roster, { year, eventId }))
     .map((row) => row.name)
     .filter((name) => ["Ann", "Ben", "Cat"].includes(name));

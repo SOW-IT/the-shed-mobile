@@ -1,15 +1,11 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import type { FunctionArgs } from "convex/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { googleEventId } from "../shared/calendar";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import schema from "./schema";
+import { type T, DAY, ADMIN, STAFF, USYD, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const DAY = 86_400_000;
 const NOW = staffYearStartMs(staffYearForDate(new Date())) + 120 * DAY;
 const YEAR = staffYearForDate(new Date(NOW));
 beforeEach(() => {
@@ -22,16 +18,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const ADMIN = "admin@sow.org.au";
-const USYD = "University of Sydney";
 const CALENDAR = "sow-calendar@group.calendar.google.com";
 
-type T = TestConvex<typeof schema>;
-const asUser = (t: T, email: string) => t.withIdentity({ email, subject: email, issuer: "test" });
-
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   await asUser(t, ADMIN).mutation(api.admin.upsertUniversity, { year: YEAR, name: USYD });
   const [twig, ppn] = await t.run(async (ctx) => [
     await ctx.db.insert("attendanceTags", { name: "TWIG", colour: "#123456" }),
@@ -221,7 +211,6 @@ describe("googleCalendar.backfill", () => {
   });
 });
 
-const STAFF = "staff@sow.org.au";
 const OTHER = "other@sow.org.au";
 
 async function setupWithStaff() {

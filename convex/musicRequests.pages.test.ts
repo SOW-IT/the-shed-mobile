@@ -1,25 +1,16 @@
-/// <reference types="vite/client" />
 
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate, staffYearStartMs } from "../shared/flow";
+import { staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import schema from "./schema";
+import { type T, YEAR, ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-
-const YEAR = staffYearForDate(new Date());
 const PINNED_NOW = staffYearStartMs(YEAR) + 150 * 86_400_000;
 
-const ADMIN = "admin@sow.org.au";
 const MANAGER = "music.manager@sow.org.au";
 const STAFF = "music.staff@sow.org.au";
 const OTHER = "music.other@sow.org.au";
 const LEFT = "music.left@sow.org.au";
-
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -44,8 +35,7 @@ afterEach(() => {
 });
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
@@ -70,7 +60,7 @@ async function setup() {
 const track = (id: string) => `https://open.spotify.com/track/${id}`;
 
 async function addApproved(
-  t: TestConvex<typeof schema>,
+  t: T,
   title: string,
   artist: string,
   link: string,
@@ -308,10 +298,10 @@ describe("release dates", () => {
     vi.setSystemTime(PINNED_NOW);
   });
 
-  const runScheduled = (t: TestConvex<typeof schema>) =>
+  const runScheduled = (t: T) =>
     t.finishAllScheduledFunctions(vi.runAllTimers);
 
-  const releaseDateOf = (t: TestConvex<typeof schema>, id: Id<"musicRequests">) =>
+  const releaseDateOf = (t: T, id: Id<"musicRequests">) =>
     t.run(async (ctx) => (await ctx.db.get("musicRequests", id))?.releaseDate ?? null);
 
   test("a Spotify song gets its album's release date after it's saved", async () => {

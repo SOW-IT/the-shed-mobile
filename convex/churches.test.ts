@@ -1,26 +1,16 @@
-/// <reference types="vite/client" />
-import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { leadingRole, roleRank } from "./churches";
-import schema from "./schema";
+import { type T, YEAR, ADMIN, asUser, seeded } from "../test/convexFixture";
 
-const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
-const ADMIN = "admin@sow.org.au";
 const STAFF = "sam.staff@sow.org.au";
 
-const asUser = (t: TestConvex<typeof schema>, email: string) =>
-  t.withIdentity({ email, subject: email, issuer: "test" });
-
-const signedIn = (t: TestConvex<typeof schema>, userId: string, email: string) =>
+const signedIn = (t: T, userId: string, email: string) =>
   t.withIdentity({ email, subject: `${userId}|session`, issuer: "test" });
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  const t = await seeded();
   await t.run((ctx) =>
     ctx.db.insert("staffProfiles", { email: STAFF, year: YEAR, assignments: [{ role: "Staff" }] })
   );
@@ -367,7 +357,7 @@ describe("the map", () => {
     json: () => Promise.resolve({ status: "OK", results: [{ geometry: { location: { lat, lng } } }] }),
   });
   const reply = (body: object, status = 200) => ({ ok: status === 200, status, json: () => Promise.resolve(body) });
-  const located = async (t: TestConvex<typeof schema>, name: string) =>
+  const located = async (t: T, name: string) =>
     (await t.run((ctx) => ctx.db.query("churches").collect())).find((c) => c.name === name)!;
 
   beforeEach(() => {
