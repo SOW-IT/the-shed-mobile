@@ -1,6 +1,20 @@
 import { describe, expect, test } from "vitest";
 import { api } from "./_generated/api";
-import { type T, type Caller, YEAR, ADMIN, LEADER, USYD, asUser, seeded } from "../test/convexFixture";
+import {
+  type T,
+  type Caller,
+  YEAR,
+  ADMIN,
+  LEADER,
+  STAFF,
+  OUTSIDER,
+  USYD,
+  asUser,
+  pinClock,
+  seeded,
+  campusSetup,
+  createEvent,
+} from "../test/convexFixture";
 
 async function setup() {
   const t = await seeded();
@@ -30,6 +44,12 @@ const listAll = (who: Caller, extra: { search?: string; year?: number } = {}) =>
     search: extra.search,
     paginationOpts: { numItems: 100, cursor: null },
   });
+
+async function campusWithDefaults() {
+  const t = await campusSetup();
+  await asUser(t, LEADER).mutation(api.attendanceMetadata.ensureDefaults, {});
+  return t;
+}
 
 describe("attendanceMembers.list: staff vs member classification", () => {
   test("a linked profile with no assignment this year leaves the person a Member", async () => {
@@ -79,17 +99,22 @@ describe("attendanceMembers.list: staff profile ↔ member linking", () => {
     expect(found.page.map((r) => r.email)).toEqual([LEADER]);
   });
 
-  test("a member row holding a staff email isn't linked by it", async () => {
+  test("a member row holding a staff email, or an SOW email nobody has, isn't linked by it", async () => {
     const { t, leader } = await setup();
     const linked = await linkedMemberOf(t, LEADER);
     const legacy = await t.run((ctx) =>
       ctx.db.insert("attendanceMembers", { name: "Leader Alias", email: LEADER })
     );
 
+    const ghost = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Ghost", email: "ghost@sow.org.au" })
+    );
+
     const { page } = await listAll(leader);
 
     expect(page.find((r) => r.key === `staff:${LEADER}`)?.memberId).toBe(linked);
     expect(page.find((r) => r.memberId === legacy)?.kind).toBe("member");
+    expect(page.find((r) => r.memberId === ghost)).toMatchObject({ kind: "member", name: "Ghost" });
   });
 
   test("ensureForStaff finds the staff person across the two SOW staff domains", async () => {
@@ -761,5 +786,652 @@ describe("Role is worked out", () => {
       metadata: { [roleId]: "Student Leader" },
     });
     expect((await t.run((ctx) => ctx.db.get(created)))?.metadata).toEqual({});
+  });
+});
+
+describe("attendance members on a campus", () => {
+  pinClock();
+
+  test("optionIdForLabel fallback: campus not in field values returns the label", async () => {
+    const t = await campusWithDefaults();
+    const admin = asUser(t, ADMIN);
+    const leader = asUser(t, LEADER);
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "Late Uni" });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: OUTSIDER,
+      year: YEAR,
+      roles: ["Student Leader"],
+      university: "Late Uni",
+    });
+    const page = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+    expect(page.page.some((r) => r.email === OUTSIDER)).toBe(true);
+  });
+
+  test("staffLockedMetadata clears campus for staff with no campus assignment", async () => {
+    const t = await campusWithDefaults();
+    const leader = asUser(t, LEADER);
+    const fields = await leader.query(api.attendanceMetadata.list, { });
+    const campusField = fields.find((f) => f.key === "Campus")!;
+    const usydId = Object.entries(campusField.values ?? {}).find(
+      ([, label]) => label === USYD
+    )![0];
+    const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: STAFF,
+    });
+    await t.run((ctx) =>
+      ctx.db.patch(shadowId, { metadata: { [campusField._id]: usydId } })
+    );
+    const page = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+    const row = page.page.find((r) => r.email === STAFF);
+    expect(row?.memberId).toBe(shadowId);
+    expect(row?.metadata[campusField._id]).toBeUndefined();
+  });
+
+  test("list combines staff profiles with attendance-only members", async () => {
+    const t = await campusWithDefaults();
+    const leader = asUser(t, LEADER);
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Guest Member",
+      email: "guest@example.com",
+    });
+    const page = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(page.page.some((r) => r.key === `member:${memberId}`)).toBe(true);
+    expect(page.page.some((r) => r.key === `staff:${LEADER}`)).toBe(true);
+    expect(
+      await t.query(api.attendanceMembers.list, {
+        year: YEAR,
+        paginationOpts: { numItems: 10, cursor: null },
+      })
+    ).toEqual({ page: [], isDone: true, continueCursor: "", total: 0 });
+  });
+
+  test("dedupes an attendance-only member who later becomes staff, per year", async () => {
+    const t = await campusWithDefaults();
+    const leader = asUser(t, LEADER);
+    const fields = await leader.query(api.attendanceMetadata.list, { });
+    const yearField = fields.find((f) => f.key === "Year")!;
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Future Leader",
+      email: "future@gmail.com",
+    });
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: OUTSIDER,
+        year: YEAR,
+        name: "Future Leader",
+        assignments: [{ role: "Student Leader", university: USYD }],
+        memberId,
+      })
+    );
+
+    const thisYear = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    const staffRow = thisYear.page.find((r) => r.key === `staff:${OUTSIDER}`);
+    expect(staffRow?.memberId).toBe(memberId);
+    expect(staffRow?.personalEmail).toBe("future@gmail.com");
+    expect(thisYear.page.some((r) => r.key === `member:${memberId}`)).toBe(false);
+
+    const merged = await leader.query(api.attendanceMembers.get, {
+      memberId,
+      staffYear: YEAR,
+    });
+    expect(merged?.isStaffOverlay).toBe(true);
+    expect(merged?.email).toBe(OUTSIDER);
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: "Edited Name",
+      email: "ignored@example.com",
+      personalEmail: "edited@example.com",
+      metadata: { [yearField._id]: String(YEAR - 2) },
+      staffYear: YEAR,
+    });
+    const updated = await leader.query(api.attendanceMembers.get, {
+      memberId,
+      staffYear: YEAR,
+    });
+    if (!updated) throw new Error("Expected merged attendance member");
+    expect(updated.isStaffOverlay).toBe(true);
+    expect(updated.email).toBe(OUTSIDER);
+    expect(updated.personalEmail).toBe("edited@example.com");
+    expect(updated.name).toBe("Future Leader");
+    expect(updated.metadata?.[yearField._id]).toBe(String(YEAR - 2));
+
+    const pastYear = await leader.query(api.attendanceMembers.list, {
+      year: YEAR - 5,
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(pastYear.page.find((r) => r.key === `member:${memberId}`)?.email).toBe(
+      "edited@example.com"
+    );
+    expect(pastYear.page.some((r) => r.key === `staff:${OUTSIDER}`)).toBe(false);
+  });
+
+  test("ensureForStaff reuses the member linked from last year's profile instead of duplicating", async () => {
+    const t = await campusSetup();
+    const leader = asUser(t, LEADER);
+    const { memberId, profileId } = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Returning Staff" });
+      await ctx.db.insert("staffProfiles", {
+        email: "returning@sowaustralia.com",
+        year: YEAR - 1,
+        assignments: [{ role: "Staff", department: "Missions" }],
+        memberId,
+      });
+      const profileId = await ctx.db.insert("staffProfiles", {
+        email: "returning@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+      return { memberId, profileId };
+    });
+    const before = await t.run((ctx) => ctx.db.query("attendanceMembers").collect());
+    const ensured = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: "returning@sow.org.au",
+    });
+    expect(ensured).toBe(memberId);
+    expect(await t.run((ctx) => ctx.db.query("attendanceMembers").collect())).toHaveLength(
+      before.length
+    );
+    expect((await t.run((ctx) => ctx.db.get(profileId)))?.memberId).toBe(memberId);
+  });
+
+  test("ensureForStaff reuses a member linked from a profile with the same import id", async () => {
+    const t = await campusSetup();
+    const leader = asUser(t, LEADER);
+    const memberId = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Renamed Staff" });
+      await ctx.db.insert("staffProfiles", {
+        email: "maiden.name@sow.org.au",
+        year: YEAR - 1,
+        importId: "import-7",
+        assignments: [{ role: "Staff", department: "Missions" }],
+        memberId,
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: "married.name@sow.org.au",
+        year: YEAR,
+        importId: "import-7",
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+      return memberId;
+    });
+    expect(
+      await leader.mutation(api.attendanceMembers.ensureForStaff, {
+        staffEmail: "married.name@sow.org.au",
+      })
+    ).toBe(memberId);
+  });
+
+  test("next year's staff still holding their staff email can have it cleared this year", async () => {
+    const t = await campusSetup();
+    const leader = asUser(t, LEADER);
+    const NEXT = "next.leader@sow.org.au";
+    const memberId = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: NEXT,
+        year: YEAR + 1,
+        name: "Next Leader",
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      return await ctx.db.insert("attendanceMembers", { name: "Next Leader", email: NEXT });
+    });
+    const shown = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR });
+    expect(shown?.isStaffOverlay).toBe(false);
+    await expect(
+      leader.mutation(api.attendanceMembers.update, {
+        memberId,
+        name: "Next Leader",
+        email: NEXT,
+        staffYear: YEAR,
+      })
+    ).rejects.toThrow(/staff email/);
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: "Next Leader",
+      staffYear: YEAR,
+    });
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.email).toBeUndefined();
+  });
+
+  test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {
+    const t = await campusSetup();
+    const leader = asUser(t, LEADER);
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Outside Person", email: OUTSIDER })
+    );
+    await expect(
+      leader.mutation(api.attendanceMembers.ensureForStaff, {
+        staffEmail: OUTSIDER,
+      })
+    ).rejects.toThrow(/not found/i);
+    const row = await t.run((ctx) => ctx.db.get(memberId));
+    expect(row?.email).toBe(OUTSIDER);
+  });
+
+  test("roster subtitle omits campus (shown by the chip) but keeps other metadata", async () => {
+    const t = await campusWithDefaults();
+    const leader = asUser(t, LEADER);
+    const fields = await leader.query(api.attendanceMetadata.list, {});
+    const campusField = fields.find((f) => f.key === "Campus")!;
+    const genderField = fields.find((f) => f.key === "Gender")!;
+    const usydId = Object.entries(campusField.values ?? {}).find(
+      ([, label]) => label === USYD
+    )?.[0]!;
+    const maleId = Object.entries(genderField.values ?? {}).find(
+      ([, label]) => label === "Male"
+    )?.[0]!;
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Campus Guest",
+      metadata: { [campusField._id]: usydId, [genderField._id]: maleId },
+    });
+    const roster = await leader.query(api.attendance.roster, { year: YEAR });
+    const row = roster.find((r) => r.name === "Campus Guest")!;
+    expect(row.university).toBe(USYD);
+    expect(row.subtitle ?? "").not.toContain(USYD);
+    expect(row.subtitle).toContain("Male");
+  });
+
+  test("search, filter, sort, and paginate", async () => {
+    const t = await campusSetup();
+    const admin = asUser(t, ADMIN);
+    const leader = asUser(t, LEADER);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "president@sow.org.au",
+      year: YEAR,
+      roles: ["President"],
+      university: USYD,
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "outsource@sow.org.au",
+      year: YEAR,
+      roles: ["Outsource"],
+      department: "Missions",
+    });
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    const fields = await leader.query(api.attendanceMetadata.list, { });
+    const yearField = fields.find((f) => f.key === "Year")!;
+    const year3Id = Object.entries(yearField.values ?? {}).find(
+      ([, label]) => label === "3"
+    )?.[0]!;
+
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Zara Alpha",
+      metadata: { [yearField._id]: String(YEAR - 2) },
+    });
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Beta Guest",
+      metadata: { [yearField._id]: String(YEAR - 1) },
+    });
+
+    const searched = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      search: "zara",
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+    expect(searched.page.every((r) => r.name.toLowerCase().includes("zara"))).toBe(
+      true
+    );
+
+    const genderField = fields.find((f) => f.key === "Gender")!;
+    const genderMaleId = Object.entries(genderField.values ?? {}).find(
+      ([, label]) => label === "Male"
+    )?.[0]!;
+    const genderFemaleId = Object.entries(genderField.values ?? {}).find(
+      ([, label]) => label === "Female"
+    )?.[0]!;
+
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Meta Guest",
+      metadata: { [genderField._id]: genderMaleId },
+    });
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Multi Filter Guest",
+      metadata: { [genderField._id]: genderFemaleId },
+    });
+    const roster = await leader.query(api.attendance.roster, { year: YEAR });
+    expect(roster.some((r) => r.name === "Meta Guest" && r.subtitle?.includes("Male"))).toBe(
+      true
+    );
+
+    const filtered = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [yearField._id]: year3Id },
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+    expect(filtered.page.some((r) => r.name === "Zara Alpha")).toBe(true);
+    expect(filtered.page.some((r) => r.name === "Beta Guest")).toBe(false);
+
+    const byGender = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [genderField._id]: genderMaleId },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byGender.page.some((r) => r.name === "Meta Guest")).toBe(true);
+
+    const byMultipleGenders = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [genderField._id]: [genderMaleId, genderFemaleId] },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byMultipleGenders.page.map((r) => r.name)).toEqual(
+      expect.arrayContaining(["Meta Guest", "Multi Filter Guest"])
+    );
+
+    const byMetaSort = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      sortKey: genderField._id,
+      sortAsc: true,
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byMetaSort.page.length).toBeGreaterThan(0);
+
+    const campusField = fields.find((f) => f.key === "Campus")!;
+    const roleField = fields.find((f) => f.key === "Role")!;
+    await leader.mutation(api.attendanceMetadata.saveAll, {
+      fields: [
+        {
+          id: campusField._id,
+          key: "Campus",
+          type: "select",
+          order: campusField.order,
+          values: { ...campusField.values, "99": "Other" },
+          lockedValues: campusField.lockedValues,
+        },
+        {
+          id: roleField._id,
+          key: "Role",
+          type: "select",
+          order: roleField.order,
+          values: {
+            ...roleField.values,
+            "97": "Alumni",
+            "98": "Newcomer",
+          },
+          lockedValues: roleField.lockedValues,
+        },
+      ],
+      deleteIds: [],
+    });
+    const otherId = "99";
+    const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    const refreshedFields = await leader.query(api.attendanceMetadata.list, { });
+    const refreshedCampus = refreshedFields.find((f) => f.key === "Campus")!;
+    const refreshedRole = refreshedFields.find((f) => f.key === "Role")!;
+    const usydId = Object.entries(refreshedCampus.values ?? {}).find(
+      ([, label]) => label === USYD
+    )?.[0]!;
+    const leaderRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Student Leader"
+    )?.[0]!;
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId: shadowId,
+      name: "ignored",
+      metadata: { [refreshedCampus._id]: otherId, [roleField._id]: "Member" },
+    });
+    const listed = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    const staffRow = listed.page.find((r) => r.email === LEADER);
+    expect(staffRow?.university).toBe(USYD);
+    expect(staffRow?.metadata[refreshedCampus._id]).toBe(usydId);
+    expect(staffRow?.metadata[refreshedRole._id]).toBe(leaderRoleId);
+
+    const staffRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Staff"
+    )?.[0]!;
+    const studentLeaderRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Student Leader"
+    )?.[0]!;
+    const memberRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Member"
+    )?.[0]!;
+    const newcomerRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Newcomer"
+    )?.[0]!;
+    const alumniRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Alumni"
+    )?.[0]!;
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Member Role Guest",
+      metadata: { [refreshedRole._id]: memberRoleId },
+    });
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Newcomer Role Guest",
+      metadata: { [refreshedRole._id]: newcomerRoleId },
+    });
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Alumni Role Guest",
+      metadata: { [refreshedRole._id]: alumniRoleId },
+    });
+    const byStaffRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: staffRoleId },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byStaffRole.page.some((r) => r.email === STAFF)).toBe(true);
+    expect(byStaffRole.page.some((r) => r.email === "outsource@sow.org.au")).toBe(
+      true
+    );
+    expect(byStaffRole.page.some((r) => r.email === LEADER)).toBe(false);
+    expect(byStaffRole.page.some((r) => r.email === "president@sow.org.au")).toBe(
+      false
+    );
+    expect(byStaffRole.page.some((r) => r.name === "Member Role Guest")).toBe(false);
+    expect(byStaffRole.page.some((r) => r.name === "Newcomer Role Guest")).toBe(
+      false
+    );
+    expect(byStaffRole.page.some((r) => r.name === "Alumni Role Guest")).toBe(false);
+
+    const byStudentLeaderRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: studentLeaderRoleId },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byStudentLeaderRole.page.some((r) => r.email === LEADER)).toBe(true);
+    expect(
+      byStudentLeaderRole.page.some((r) => r.email === "president@sow.org.au")
+    ).toBe(true);
+    expect(byStudentLeaderRole.page.some((r) => r.email === STAFF)).toBe(false);
+
+    const byNewcomerRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: newcomerRoleId },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byNewcomerRole.page.map((r) => r.name)).not.toContain("Newcomer Role Guest");
+    expect(byNewcomerRole.page.some((r) => r.email === STAFF)).toBe(false);
+    const byMemberRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: "Member" },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byMemberRole.page.map((r) => r.name)).toEqual(
+      expect.arrayContaining(["Member Role Guest", "Newcomer Role Guest"])
+    );
+    expect(byMemberRole.page.some((r) => r.kind === "staff")).toBe(false);
+    const byAlumniRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: "Alumni" },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byAlumniRole.page.map((r) => r.name)).toEqual(["Alumni Role Guest"]);
+    expect(byAlumniRole.page[0].subtitle).toBe("Alumni");
+
+    const unset = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [yearField._id]: "unset" },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(unset.page.every((r) => !r.metadata[yearField._id])).toBe(true);
+
+    const byYearSort = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      sortKey: yearField._id,
+      sortAsc: false,
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byYearSort.page.length).toBeGreaterThan(0);
+
+    const sorted = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      sortKey: "name",
+      sortAsc: true,
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+    const guestNames = sorted.page
+      .filter((r) => r.kind === "member")
+      .map((r) => r.name);
+    expect(guestNames.indexOf("Beta Guest")).toBeLessThan(
+      guestNames.indexOf("Zara Alpha")
+    );
+
+    const page1 = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 2, cursor: null },
+    });
+    expect(page1.isDone).toBe(false);
+    const page2 = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 2, cursor: page1.continueCursor },
+    });
+    expect(page2.page.length).toBeGreaterThan(0);
+  });
+
+  test("ensureForStaff, update, get, and remove", async () => {
+    const t = await campusWithDefaults();
+    const leader = asUser(t, LEADER);
+    const fields = await leader.query(api.attendanceMetadata.list, { });
+    const yearField = fields.find((f) => f.key === "Year")!;
+
+    const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    expect(
+      await leader.mutation(api.attendanceMembers.ensureForStaff, {
+        staffEmail: LEADER,
+      })
+    ).toBe(shadowId);
+
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId: shadowId,
+      name: "ignored",
+      metadata: { [yearField._id]: String(YEAR) },
+    });
+    const shadow = await leader.query(api.attendanceMembers.get, {
+      memberId: shadowId,
+    });
+    expect(shadow?.metadata?.[yearField._id]).toBe(String(YEAR));
+
+    const guestId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Guest",
+    });
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId: guestId,
+      name: "Guest Renamed",
+      email: "guest@test.org",
+    });
+    expect(await t.query(api.attendanceMembers.get, { memberId: guestId })).toBeNull();
+
+    const eventId = await createEvent(leader);
+    await leader.mutation(api.attendance.signIn, { eventId, memberId: guestId });
+    await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId: guestId });
+    expect(await leader.query(api.attendanceMembers.get, { memberId: guestId })).toBeNull();
+    expect(await leader.query(api.attendance.listByEvent, { eventId })).toEqual([]);
+
+    await expect(
+      leader.mutation(api.attendanceMembers.ensureForStaff, {
+        staffEmail: "   ",
+      })
+    ).rejects.toThrow(/email is required/i);
+    await expect(
+      leader.mutation(api.attendanceMembers.ensureForStaff, {
+        staffEmail: OUTSIDER,
+      })
+    ).rejects.toThrow(/not found/i);
+    await expect(
+      leader.mutation(api.attendanceMembers.create, { name: "  " })
+    ).rejects.toThrow(/Name is required/i);
+    const guest2 = await leader.mutation(api.attendanceMembers.create, {
+      name: "Guest Two",
+    });
+    await expect(
+      leader.mutation(api.attendanceMembers.update, {
+        memberId: guest2,
+        name: " ",
+      })
+    ).rejects.toThrow(/Name is required/i);
+    await expect(
+      leader.mutation(api.attendanceMembers.update, {
+        memberId: guestId,
+        name: "Ghost",
+      })
+    ).rejects.toThrow(/Member not found/i);
+  });
+});
+
+describe("attendanceMembers.byName", () => {
+  pinClock();
+
+  test("matches case-insensitively, trims, and is staff-only", async () => {
+    const t = await campusWithDefaults();
+    const leader = asUser(t, LEADER);
+    const fields = await leader.query(api.attendanceMetadata.list, { });
+    const campus = fields.find((f) => f.key === "Campus")!;
+    const usydId = Object.entries(campus.values ?? {}).find(
+      ([, label]) => label === USYD
+    )![0];
+
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Jane Doe",
+      email: "jane@example.com",
+      metadata: { [campus._id]: usydId },
+    });
+    await leader.mutation(api.attendanceMembers.create, { name: "Jane Doe" });
+    await leader.mutation(api.attendanceMembers.create, { name: "Someone Else" });
+
+    expect(await t.query(api.attendanceMembers.byName, { name: "Jane Doe" })).toEqual(
+      []
+    );
+    expect(await leader.query(api.attendanceMembers.byName, { name: "  " })).toEqual(
+      []
+    );
+
+    const matches = await leader.query(api.attendanceMembers.byName, {
+      name: "  jane DOE ",
+    });
+    expect(matches).toHaveLength(2);
+    expect(matches.map((m) => m.name).sort()).toEqual(["Jane Doe", "Jane Doe"]);
+    const withCampus = matches.find((m) => m.email === "jane@example.com")!;
+    expect(withCampus.metadata[campus._id]).toBe(usydId);
+
+    expect(
+      await leader.query(api.attendanceMembers.byName, { name: "nobody" })
+    ).toEqual([]);
+  });
+
+  test("a different-case lookup returns only whole-name matches, not names that merely share words", async () => {
+    const t = await campusSetup();
+    const leader = asUser(t, LEADER);
+    await t.run(async (ctx) => {
+      for (const name of ["Jane Doe", "jane doe", "Jane Doering", "Janet Doe", "Doe Jane"]) {
+        await ctx.db.insert("attendanceMembers", { name });
+      }
+    });
+    const matches = await leader.query(api.attendanceMembers.byName, { name: "JANE DOE" });
+    expect(matches.map((m) => m.name).sort()).toEqual(["Jane Doe", "jane doe"]);
   });
 });

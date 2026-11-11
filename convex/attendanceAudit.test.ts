@@ -148,27 +148,6 @@ describe("attendance audit logging", () => {
     expect(deletion!.detail).toContain("Removed 1 attendance record:");
   });
 
-  test("a long history is capped at 100 lines but still counted in full", async () => {
-    const t = await setup();
-    const staff = asUser(t, STAFF);
-    const memberId = await staff.mutation(api.attendanceMembers.create, {
-      name: "Long Serving",
-    });
-    const base = eventWindow();
-    for (let i = 0; i < 105; i++) {
-      const eventId = await createEvent(staff, { name: `Event ${i}`, dateStart: base.dateStart + i * 60_000, dateEnd: base.dateEnd + i * 60_000 });
-      await staff.mutation(api.attendance.signIn, { eventId, memberId });
-    }
-
-    await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId });
-
-    const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
-    const lines = (deletion!.detail ?? "").split("\n");
-    expect(lines[0]).toBe("Removed 105 attendance records:");
-    expect(lines[lines.length - 1]).toBe("and 5 more");
-    expect(lines).toHaveLength(102);
-  });
-
   test("falls back to an ISO stamp where the runtime has no full ICU", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
