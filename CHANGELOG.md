@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.11] - 2026-11-13
+
+### Fixed
+- **A broken or mistyped event link says "Event not found" again.** Opening
+  an attendance event whose link isn't a real event id showed "Something went
+  wrong" and a server error. The check-in list on that screen refused the
+  link before the screen could say the event doesn't exist; it now treats it
+  as an event with nobody waiting, so the screen shows "Event not found".
+
 ## [2.11.10] - 2026-11-11
 
 ### Changed
