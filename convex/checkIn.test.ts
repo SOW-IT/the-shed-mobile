@@ -108,6 +108,12 @@ describe("turning check-in on and off", () => {
     expect(await t.query(api.checkIn.pending, { eventId })).toBeNull();
   });
 
+  test("a link with an id that isn't an event shows nobody waiting instead of failing", async () => {
+    const t = await setup();
+    await createEvent(t);
+    expect(await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: "does-not-exist" })).toBeNull();
+  });
+
   test("a missing event is reported", async () => {
     const t = await setup();
     const eventId = await createEvent(t);

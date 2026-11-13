@@ -373,19 +373,22 @@ export const disable = mutation({
 });
 
 export const pending = query({
-  args: { eventId: v.id("events") },
-  handler: async (ctx, args) => {
+  // A string, not v.id: the event screen asks before it knows the link's id is real.
+  args: { eventId: v.string() },
+  handler: async (ctx, { eventId: rawEventId }) => {
     if (!(await optionalProfile(ctx))) return null;
+    const eventId = ctx.db.normalizeId("events", rawEventId);
+    if (!eventId) return null;
     const rows = await ctx.db
       .query("checkInRequests")
-      .withIndex("by_event_and_status", (q) => q.eq("eventId", args.eventId).eq("status", "pending"))
+      .withIndex("by_event_and_status", (q) => q.eq("eventId", eventId).eq("status", "pending"))
       .take(PENDING_LIMIT);
     rows.sort((a, b) => a.requestedAt - b.requestedAt);
     const fields = await ctx.db.query("attendanceMetadata").take(200);
     return await Promise.all(
       rows.map(async (row) => {
         const member = row.memberId ? await ctx.db.get("attendanceMembers", row.memberId) : null;
-        const signedIn = member ? (await attendanceOf(ctx, args.eventId, member._id)) !== null : false;
+        const signedIn = member ? (await attendanceOf(ctx, eventId, member._id)) !== null : false;
         const choices =
           !member && (row.sameNameCount ?? 0) > 0
             ? (
