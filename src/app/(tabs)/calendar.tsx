@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import {
   CALENDAR_CATEGORIES,
@@ -180,8 +181,11 @@ export default function CalendarScreen() {
   const handoff = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useFocusEffect(useCallback(() => () => clearTimeout(handoff.current), []));
   const wide = useWideLayout();
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollViewInstance>(null);
-  const gridBottom = useRef(0);
+  // Where the day's heading sits in the scroll: the column's top plus its place in the column.
+  const columnTop = useRef(0);
+  const dayHeading = useRef(0);
   // `at` makes a link to the day already shown move back to it.
   const { day, view: linkedView, at } = useLocalSearchParams<{ day?: string; view?: string; at?: string }>();
   useEffect(() => {
@@ -295,24 +299,53 @@ export default function CalendarScreen() {
               })
           : undefined;
 
-  const floating = subgroup ? (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Add an event on ${dayTitle(selected)}`}
-      onPress={() => {
-        setAddTime(undefined);
-        setAdding(true);
-      }}
-      style={({ pressed }) => [
-        styles.fab,
-        t.surfaceEdge,
-        { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
-      ]}
-    >
-      <Ionicons name="add" size={18} color={t.onPrimary} />
-      <Text style={[typography.caption, { color: t.onPrimary, fontWeight: "800" }]}>Add Event</Text>
-    </Pressable>
-  ) : null;
+  const title = view === "week" ? weekTitle(week) : monthTitle(year, month);
+  // Today on the left, Month/Week in the middle and add on the right, over the bottom of the screen.
+  const floating = (
+    <View style={styles.bottomBarWrap} pointerEvents="box-none">
+      <View style={styles.bottomBar} pointerEvents="box-none">
+        <Pressable
+          onPress={showToday}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.todayButton,
+            t.surfaceEdge,
+            { backgroundColor: t.card, opacity: pressed ? 0.85 : 1 },
+          ]}
+        >
+          <Text style={[typography.caption, { color: t.text, fontWeight: "800" }]}>Today</Text>
+        </Pressable>
+        <View style={[styles.viewToggle, t.surfaceEdge, { backgroundColor: t.card }]}>
+          <Segmented
+            segments={VIEWS}
+            active={view}
+            onChange={(key) => {
+              setView(key as typeof view);
+              // Keep a `?view=` link in step, so reloading doesn't switch back.
+              router.setParams({ view: key });
+            }}
+          />
+        </View>
+        {subgroup ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Add an event on ${dayTitle(selected)}`}
+            onPress={() => {
+              setAddTime(undefined);
+              setAdding(true);
+            }}
+            style={({ pressed }) => [
+              styles.addButton,
+              t.surfaceEdge,
+              { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <Ionicons name="add" size={26} color={t.onPrimary} />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
 
   // The month or week `by` periods away, as it'll be once it's landed on.
   const renderPeriod = (by: -1 | 0 | 1): ReactNode => {
@@ -369,9 +402,11 @@ export default function CalendarScreen() {
                     key={day.key}
                     onPress={() => {
                       setSelected(day.key);
-                      // On a phone the day's events sit below the month; bring them into view.
+                      // On a phone the day's events sit below the month; bring them into view,
+                      // leaving the bottom of the month showing above them.
                       if (!wide) {
-                        scrollRef.current?.scrollTo({ y: Math.max(0, gridBottom.current - 160), animated: true });
+                        const y = columnTop.current + dayHeading.current - insets.top - 120;
+                        scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
                       }
                     }}
                     accessibilityRole="button"
@@ -433,58 +468,15 @@ export default function CalendarScreen() {
 
   return (
     <>
-      <ChromeScreen floating={floating} scrollRef={scrollRef}>
-        <ReadableColumn>
-          <View style={{ gap: spacing.md, paddingBottom: 72 }}>
-            <View style={styles.monthBar}>
-              <Pressable
-                onPress={() => period.current?.slide(-1)}
-                accessibilityRole="button"
-                accessibilityLabel={view === "week" ? "Previous week" : "Previous month"}
-                hitSlop={8}
-                style={styles.arrow}
-              >
-                <Ionicons name="chevron-back" size={22} color={t.text} />
-              </Pressable>
-              <Text style={[typography.title, { color: t.text, flex: 1, textAlign: "center" }]}>
-                {view === "week" ? weekTitle(week) : monthTitle(year, month)}
-              </Text>
-              <Pressable
-                onPress={() => period.current?.slide(1)}
-                accessibilityRole="button"
-                accessibilityLabel={view === "week" ? "Next week" : "Next month"}
-                hitSlop={8}
-                style={styles.arrow}
-              >
-                <Ionicons name="chevron-forward" size={22} color={t.text} />
-              </Pressable>
-            </View>
-            {selected !== today ? (
-              <Pressable
-                onPress={showToday}
-                accessibilityRole="button"
-                style={[styles.todayButton, { backgroundColor: t.primarySoft }]}
-              >
-                <Text style={[typography.caption, { color: t.dark ? t.text : t.primary, fontWeight: "800" }]}>
-                  Today
+      <ChromeScreen floating={floating} scrollRef={scrollRef} title={title}>
+        <View onLayout={(e) => (columnTop.current = e.nativeEvent.layout.y)}>
+          <ReadableColumn>
+            <View style={{ gap: spacing.md, paddingBottom: 72 }}>
+              {wide ? (
+                <Text accessibilityRole="header" style={[typography.title, { color: t.text, textAlign: "center" }]}>
+                  {title}
                 </Text>
-              </Pressable>
-            ) : null}
-            <Segmented
-              segments={VIEWS}
-              active={view}
-              onChange={(key) => {
-                setView(key as typeof view);
-                // Keep a `?view=` link in step, so reloading doesn't switch back.
-                router.setParams({ view: key });
-              }}
-            />
-
-            <View
-              onLayout={(e) => {
-                gridBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
-              }}
-            >
+              ) : null}
               <SwipePeriod
                 key={view}
                 ref={period}
@@ -493,68 +485,73 @@ export default function CalendarScreen() {
                 renderPage={renderPeriod}
                 style={wide ? undefined : styles.fullBleed}
               />
+
+              <Text
+                onLayout={(e) => (dayHeading.current = e.nativeEvent.layout.y)}
+                style={[typography.section, { color: t.text }]}
+              >
+                {dayTitle(selected)}
+              </Text>
+              {events === undefined ? (
+                <LoadingState />
+              ) : dayEvents.length === 0 ? (
+                <EmptyState
+                  icon="calendar-outline"
+                  title="Nothing on"
+                  message={
+                    shown.length < all.length
+                      ? "Nothing that matches the filters on this day."
+                      : "Add something with the button below."
+                  }
+                />
+              ) : (
+                <Card>
+                  {dayEvents.map((event) => (
+                    <EventRow
+                      key={event.id}
+                      event={event}
+                      onPress={openerFor(event)}
+                    />
+                  ))}
+                </Card>
+              )}
+              {presentCategories.length > 0 ? (
+                <FilterRow title="What">
+                  {presentCategories.map((c) => (
+                    <FilterChip
+                      key={c.key}
+                      on={categories.includes(c.key)}
+                      label={c.label}
+                      colour={CATEGORY_COLOURS[c.key]}
+                      count={inView(all.filter((e) => e.category === c.key))}
+                      counting={EVENTS}
+                      onPress={() => setCategories((prev) => toggle(prev, c.key))}
+                    />
+                  ))}
+                </FilterRow>
+              ) : null}
+              {presentCampuses.length > 1 ? (
+                <FilterRow title="Where">
+                  {presentCampuses.map((s) => (
+                    <FilterChip
+                      key={s}
+                      on={campuses.includes(s)}
+                      label={subgroupLabel(s)}
+                      colour={universityColour(s)}
+                      count={inView(all.filter((e) => e.subgroups.includes(s)))}
+                      counting={EVENTS}
+                      onPress={() => setCampuses((prev) => toggle(prev, s))}
+                    />
+                  ))}
+                </FilterRow>
+              ) : null}
+
+              {events && events.length >= 500 ? (
+                <Muted>Showing the first 500 events this month.</Muted>
+              ) : null}
             </View>
-
-            <Text style={[typography.section, { color: t.text }]}>{dayTitle(selected)}</Text>
-            {events === undefined ? (
-              <LoadingState />
-            ) : dayEvents.length === 0 ? (
-              <EmptyState
-                icon="calendar-outline"
-                title="Nothing on"
-                message={
-                  shown.length < all.length
-                    ? "Nothing that matches the filters on this day."
-                    : "Add something with the button below."
-                }
-              />
-            ) : (
-              <Card>
-                {dayEvents.map((event) => (
-                  <EventRow
-                    key={event.id}
-                    event={event}
-                    onPress={openerFor(event)}
-                  />
-                ))}
-              </Card>
-            )}
-            {presentCategories.length > 0 ? (
-              <FilterRow title="What">
-                {presentCategories.map((c) => (
-                  <FilterChip
-                    key={c.key}
-                    on={categories.includes(c.key)}
-                    label={c.label}
-                    colour={CATEGORY_COLOURS[c.key]}
-                    count={inView(all.filter((e) => e.category === c.key))}
-                    counting={EVENTS}
-                    onPress={() => setCategories((prev) => toggle(prev, c.key))}
-                  />
-                ))}
-              </FilterRow>
-            ) : null}
-            {presentCampuses.length > 1 ? (
-              <FilterRow title="Where">
-                {presentCampuses.map((s) => (
-                  <FilterChip
-                    key={s}
-                    on={campuses.includes(s)}
-                    label={subgroupLabel(s)}
-                    colour={universityColour(s)}
-                    count={inView(all.filter((e) => e.subgroups.includes(s)))}
-                    counting={EVENTS}
-                    onPress={() => setCampuses((prev) => toggle(prev, s))}
-                  />
-                ))}
-              </FilterRow>
-            ) : null}
-
-            {events && events.length >= 500 ? (
-              <Muted>Showing the first 500 events this month.</Muted>
-            ) : null}
-          </View>
-        </ReadableColumn>
+          </ReadableColumn>
+        </View>
       </ChromeScreen>
       {subgroup && subgroups ? (
         <CalendarEntrySheet
@@ -594,15 +591,34 @@ export default function CalendarScreen() {
 }
 
 const styles = StyleSheet.create({
-  monthBar: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  arrow: { padding: spacing.xs },
-  todayButton: {
-    alignSelf: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    marginTop: -spacing.sm,
+  // As wide as the calendar, so on a big screen it doesn't run out to the sidebar.
+  bottomBarWrap: {
+    position: "absolute",
+    bottom: spacing.md,
+    left: spacing.lg,
+    right: spacing.lg,
+    alignItems: "center",
+    zIndex: 20,
   },
+  bottomBar: {
+    width: "100%",
+    maxWidth: 720,
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  todayButton: { height: 44, paddingHorizontal: 18, justifyContent: "center", borderRadius: radius.full },
+  // In the middle whatever's either side of it.
+  viewToggle: {
+    position: "absolute",
+    left: "50%",
+    width: 180,
+    marginLeft: -90,
+    borderRadius: radius.full,
+    overflow: "hidden",
+  },
+  addButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
   // On a phone the calendar runs edge to edge, so each day gets as much room as it can.
   fullBleed: { marginHorizontal: -spacing.lg },
   fullBleedCard: {
@@ -636,16 +652,4 @@ const styles = StyleSheet.create({
   slot: { position: "absolute", paddingHorizontal: 2 },
   eventRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
   eventBar: { width: 4, alignSelf: "stretch", borderRadius: 2 },
-  fab: {
-    position: "absolute",
-    bottom: spacing.md,
-    right: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    borderRadius: radius.full,
-    zIndex: 20,
-  },
 });

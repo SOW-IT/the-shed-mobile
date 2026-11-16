@@ -23,9 +23,12 @@ const EDGE_CONTROLS_WIDTH = 60;
 export const TopBar = ({
   photo,
   name,
+  title,
 }: {
   photo: string | null;
   name: string | null;
+  // Shown in the middle, e.g. the month the calendar is on.
+  title?: string;
 }) => {
   const t = useAppTheme();
   const router = useRouter();
@@ -46,6 +49,15 @@ export const TopBar = ({
   return (
     <View style={styles.topBar}>
       <View style={styles.center} pointerEvents="box-none">
+        {title ? (
+          <Text
+            accessibilityRole="header"
+            numberOfLines={1}
+            style={[typography.headline, { color: t.text, fontWeight: "800" }]}
+          >
+            {title}
+          </Text>
+        ) : null}
         <View style={styles.chipRow} pointerEvents="box-none">
           <TestEnvironmentChip />
           <ActingAsChip />
