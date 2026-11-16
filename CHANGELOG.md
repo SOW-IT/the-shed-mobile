@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.12] - 2026-11-16
+
+### Changed
+- **Swiping the calendar slides the next month or week in under your
+  finger.** Like moving between tabs, the month (or week) beside the one
+  you're on follows your finger into view, already showing its events, and
+  settles into place when you let go; a short swipe springs back. The ‹ ›
+  arrows slide the same way, and Today slides when it's next door and jumps
+  when it's further away. Before, a swipe nudged the calendar a little and
+  faded the new month in. With Reduce Motion on, it changes straight over.
+
 ## [2.11.11] - 2026-11-13
 
 ### Fixed

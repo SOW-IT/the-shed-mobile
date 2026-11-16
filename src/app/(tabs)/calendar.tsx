@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import {
@@ -11,12 +11,14 @@ import {
   daysOf,
   eventsByDay,
   monthGrid,
+  monthNumber,
   monthWindow,
   parseDayKey,
   shiftDay,
   shiftMonth,
   sydneyDayKey,
   weekLayout,
+  weekNumber,
   weekOf,
   type CalendarCategory,
 } from "@shared/calendar";
@@ -30,7 +32,7 @@ import { CalendarEntrySheet, type EditableEntry } from "@/components/calendar/Ca
 import { CATEGORY_COLOURS } from "@/components/calendar/categoryColours";
 import { dayTitle } from "@/components/calendar/dayTitle";
 import { BAR_ROW, barColumn, EventBar, MoreLabel } from "@/components/calendar/EventBar";
-import { SwipePeriod } from "@/components/calendar/SwipePeriod";
+import { SwipePeriod, type SwipePeriodHandle } from "@/components/calendar/SwipePeriod";
 import { WeekView } from "@/components/calendar/WeekView";
 import { EVENTS, FilterChip, FilterRow } from "@/components/FilterChips";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
@@ -195,6 +197,14 @@ export default function CalendarScreen() {
     if (linkedView === "week" || linkedView === "month") setView(linkedView);
   }, [linkedView, setView]);
   const events = useRange(monthWindow(year, month), !staff);
+  // The months either side, so the one sliding in already has its events.
+  const before = shiftMonth(year, month, -1);
+  const after = shiftMonth(year, month, 1);
+  const eventsBefore = useRange(monthWindow(before.year, before.month), !staff);
+  const eventsAfter = useRange(monthWindow(after.year, after.month), !staff);
+  const period = useRef<SwipePeriodHandle>(null);
+  // What to land on instead of the usual day when a slide finishes (Today).
+  const landOn = useRef<(() => void) | null>(null);
   const subgroups = useQuery(api.events.subgroups, staff ? {} : "skip");
   const [subgroup] = useAttendanceSubgroup(subgroups, me?.profile?.assignments);
 
@@ -207,17 +217,20 @@ export default function CalendarScreen() {
   }
   if (!staff) return <Redirect href={me === null ? "/home" : "/org"} />;
 
-  const grid = monthGrid(year, month);
-  const monthKeys = new Set(grid.flat().filter((d) => d.inMonth).map((d) => d.key));
+  const monthKeys = new Set(
+    monthGrid(year, month)
+      .flat()
+      .filter((d) => d.inMonth)
+      .map((d) => d.key)
+  );
   const all = events ?? [];
   // A chip picked in another month only applies where it has events.
   const pickedCategories = categories.filter((c) => all.some((e) => e.category === c));
   const pickedCampuses = campuses.filter((s) => all.some((e) => e.subgroups.includes(s)));
-  const shown = all.filter(
-    (e) =>
-      (pickedCategories.length === 0 || pickedCategories.includes(e.category)) &&
-      (pickedCampuses.length === 0 || e.subgroups.some((s) => pickedCampuses.includes(s)))
-  );
+  const matches = (e: CalendarEvent) =>
+    (pickedCategories.length === 0 || pickedCategories.includes(e.category)) &&
+    (pickedCampuses.length === 0 || e.subgroups.some((s) => pickedCampuses.includes(s)));
+  const shown = all.filter(matches);
   const byDay = eventsByDay(shown);
   const week = weekOf(selected);
   const visibleKeys = view === "week" ? new Set(week) : monthKeys;
@@ -233,20 +246,39 @@ export default function CalendarScreen() {
   );
   const dayEvents = byDay.get(selected) ?? [];
 
-  const go = (by: number) => {
+  // Where paging `by` periods lands: the same weekday a week on, or the 1st (today in this month).
+  const landing = (by: number) => {
     if (view === "week") {
-      const next = shiftDay(selected, 7 * by);
-      const [y, m] = next.split("-").map(Number);
-      setSelected(next);
-      setMonth({ year: y, month: m });
-      return;
+      const day = shiftDay(selected, 7 * by);
+      const [y, m] = day.split("-").map(Number);
+      return { year: y, month: m, selected: day };
     }
     const next = shiftMonth(year, month, by);
-    setMonth(next);
-    setSelected(
-      next.year === ty && next.month === tm ? today : `${next.year}-${String(next.month).padStart(2, "0")}-01`
-    );
+    const first = `${next.year}-${String(next.month).padStart(2, "0")}-01`;
+    return { ...next, selected: next.year === ty && next.month === tm ? today : first };
   };
+  const onPage = (by: number) => {
+    const land = landOn.current;
+    landOn.current = null;
+    if (land) return land();
+    const next = landing(by);
+    setMonth({ year: next.year, month: next.month });
+    setSelected(next.selected);
+  };
+  const goToday = () => {
+    setMonth({ year: ty, month: tm });
+    setSelected(today);
+  };
+  // Next door slides there like the arrows; further away jumps.
+  const showToday = () => {
+    const by =
+      view === "week" ? weekNumber(today) - weekNumber(selected) : monthNumber(ty, tm) - monthNumber(year, month);
+    if (by !== 1 && by !== -1) return goToday();
+    landOn.current = goToday;
+    if (!period.current?.slide(by)) landOn.current = null;
+  };
+  const loadedMonth = (y: number, m: number) =>
+    [eventsBefore, events, eventsAfter][monthNumber(y, m) - monthNumber(year, month) + 1];
 
   const openerFor = (event: CalendarEvent) =>
     event.kind === "attendance"
@@ -284,6 +316,122 @@ export default function CalendarScreen() {
     </Pressable>
   ) : null;
 
+  // The month or week `by` periods away, as it'll be once it's landed on.
+  const renderPeriod = (by: -1 | 0 | 1): ReactNode => {
+    const at = by === 0 ? { year, month, selected } : landing(by);
+    const days = by === 0 ? byDay : eventsByDay((loadedMonth(at.year, at.month) ?? []).filter(matches));
+    if (view === "week") {
+      return (
+        <Card style={wide ? undefined : styles.fullBleedCard}>
+          <WeekView
+            week={weekOf(at.selected)}
+            byDay={days}
+            today={today}
+            selected={at.selected}
+            now={now}
+            onSelectDay={setSelected}
+            onOpen={(event, day) => (openerFor(event) ?? (() => setSelected(day)))()}
+            onAddAt={
+              subgroup
+                ? (day, hour) => {
+                    setSelected(day);
+                    setAddTime(`${String(hour).padStart(2, "0")}:00`);
+                    setAdding(true);
+                  }
+                : undefined
+            }
+          />
+        </Card>
+      );
+    }
+    return (
+      <Card style={wide ? undefined : styles.fullBleedCard}>
+        <View style={styles.week}>
+          {WEEKDAYS.map((d, i) => (
+            <Text key={i} style={[styles.weekday, typography.caption, { color: t.faint }]}>
+              {d}
+            </Text>
+          ))}
+        </View>
+        {monthGrid(at.year, at.month).map((gridWeek) => {
+          const { bars, more } = weekLayout(
+            gridWeek.map((d) => d.key),
+            days,
+            MAX_ROWS
+          );
+          return (
+            <View key={gridWeek[0].key} style={styles.week}>
+              {gridWeek.map((day) => {
+                const evs = days.get(day.key) ?? [];
+                const isSelected = day.key === at.selected;
+                const isToday = day.key === today;
+                return (
+                  <Pressable
+                    key={day.key}
+                    onPress={() => {
+                      setSelected(day.key);
+                      // On a phone the day's events sit below the month; bring them into view.
+                      if (!wide) {
+                        scrollRef.current?.scrollTo({ y: Math.max(0, gridBottom.current - 160), animated: true });
+                      }
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={`${dayTitle(day.key)}, ${evs.length} event${evs.length === 1 ? "" : "s"}`}
+                    style={[
+                      styles.cell,
+                      isSelected && { backgroundColor: t.primarySoft },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.dayNumber,
+                        isToday && { borderColor: t.primary, borderWidth: 2 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          typography.body,
+                          {
+                            color: day.inMonth ? t.text : t.faint,
+                            fontWeight: isSelected || isToday ? "800" : "500",
+                          },
+                        ]}
+                      >
+                        {day.day}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+              {/* Over the days, so a camp is one bar; taps fall through to the day. */}
+              <View pointerEvents="none" style={styles.bars}>
+                {bars.map((bar) => (
+                  <View
+                    key={bar.event.id}
+                    style={[styles.slot, barColumn(bar.start, bar.span), { top: bar.row * BAR_ROW }]}
+                  >
+                    <EventBar event={bar.event} fromBefore={bar.fromBefore} toAfter={bar.toAfter} />
+                  </View>
+                ))}
+                {more.map((count, col) =>
+                  count > 0 ? (
+                    <View
+                      key={col}
+                      style={[styles.slot, barColumn(col), { top: (MAX_ROWS - 1) * BAR_ROW }]}
+                    >
+                      <MoreLabel count={count} />
+                    </View>
+                  ) : null
+                )}
+              </View>
+            </View>
+          );
+        })}
+      </Card>
+    );
+  };
+
   return (
     <>
       <ChromeScreen floating={floating} scrollRef={scrollRef}>
@@ -291,7 +439,7 @@ export default function CalendarScreen() {
           <View style={{ gap: spacing.md, paddingBottom: 72 }}>
             <View style={styles.monthBar}>
               <Pressable
-                onPress={() => go(-1)}
+                onPress={() => period.current?.slide(-1)}
                 accessibilityRole="button"
                 accessibilityLabel={view === "week" ? "Previous week" : "Previous month"}
                 hitSlop={8}
@@ -303,7 +451,7 @@ export default function CalendarScreen() {
                 {view === "week" ? weekTitle(week) : monthTitle(year, month)}
               </Text>
               <Pressable
-                onPress={() => go(1)}
+                onPress={() => period.current?.slide(1)}
                 accessibilityRole="button"
                 accessibilityLabel={view === "week" ? "Next week" : "Next month"}
                 hitSlop={8}
@@ -314,10 +462,7 @@ export default function CalendarScreen() {
             </View>
             {selected !== today ? (
               <Pressable
-                onPress={() => {
-                  setMonth({ year: ty, month: tm });
-                  setSelected(today);
-                }}
+                onPress={showToday}
                 accessibilityRole="button"
                 style={[styles.todayButton, { backgroundColor: t.primarySoft }]}
               >
@@ -341,115 +486,14 @@ export default function CalendarScreen() {
                 gridBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
               }}
             >
-              <SwipePeriod periodKey={view === "week" ? `week:${week[0]}` : `month:${year}-${month}`} onPage={go}>
-                {view === "week" ? (
-                  <Card style={wide ? undefined : styles.fullBleed}>
-                    <WeekView
-                      week={week}
-                      byDay={byDay}
-                      today={today}
-                      selected={selected}
-                      now={now}
-                      onSelectDay={setSelected}
-                      onOpen={(event, day) => (openerFor(event) ?? (() => setSelected(day)))()}
-                      onAddAt={
-                        subgroup
-                          ? (day, hour) => {
-                              setSelected(day);
-                              setAddTime(`${String(hour).padStart(2, "0")}:00`);
-                              setAdding(true);
-                            }
-                          : undefined
-                      }
-                    />
-                  </Card>
-                ) : (
-                  <Card style={wide ? undefined : styles.fullBleed}>
-                    <View style={styles.week}>
-                      {WEEKDAYS.map((d, i) => (
-                        <Text key={i} style={[styles.weekday, typography.caption, { color: t.faint }]}>
-                          {d}
-                        </Text>
-                      ))}
-                    </View>
-                    {grid.map((gridWeek) => {
-                      const { bars, more } = weekLayout(
-                        gridWeek.map((d) => d.key),
-                        byDay,
-                        MAX_ROWS
-                      );
-                      return (
-                        <View key={gridWeek[0].key} style={styles.week}>
-                          {gridWeek.map((day) => {
-                            const evs = byDay.get(day.key) ?? [];
-                            const isSelected = day.key === selected;
-                            const isToday = day.key === today;
-                            return (
-                              <Pressable
-                                key={day.key}
-                                onPress={() => {
-                                  setSelected(day.key);
-                                  // On a phone the day's events sit below the month; bring them into view.
-                                  if (!wide) {
-                                    scrollRef.current?.scrollTo({ y: Math.max(0, gridBottom.current - 160), animated: true });
-                                  }
-                                }}
-                                accessibilityRole="button"
-                                accessibilityState={{ selected: isSelected }}
-                                accessibilityLabel={`${dayTitle(day.key)}, ${evs.length} event${evs.length === 1 ? "" : "s"}`}
-                                style={[
-                                  styles.cell,
-                                  isSelected && { backgroundColor: t.primarySoft },
-                                ]}
-                              >
-                                <View
-                                  style={[
-                                    styles.dayNumber,
-                                    isToday && { borderColor: t.primary, borderWidth: 2 },
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      typography.body,
-                                      {
-                                        color: day.inMonth ? t.text : t.faint,
-                                        fontWeight: isSelected || isToday ? "800" : "500",
-                                      },
-                                    ]}
-                                  >
-                                    {day.day}
-                                  </Text>
-                                </View>
-                              </Pressable>
-                            );
-                          })}
-                          {/* Over the days, so a camp is one bar; taps fall through to the day. */}
-                          <View pointerEvents="none" style={styles.bars}>
-                            {bars.map((bar) => (
-                              <View
-                                key={bar.event.id}
-                                style={[styles.slot, barColumn(bar.start, bar.span), { top: bar.row * BAR_ROW }]}
-                              >
-                                <EventBar event={bar.event} fromBefore={bar.fromBefore} toAfter={bar.toAfter} />
-                              </View>
-                            ))}
-                            {more.map((count, col) =>
-                              count > 0 ? (
-                                <View
-                                  key={col}
-                                  style={[styles.slot, barColumn(col), { top: (MAX_ROWS - 1) * BAR_ROW }]}
-                                >
-                                  <MoreLabel count={count} />
-                                </View>
-                              ) : null
-                            )}
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </Card>
-                )}
-              </SwipePeriod>
+              <SwipePeriod
+                key={view}
+                ref={period}
+                index={view === "week" ? weekNumber(selected) : monthNumber(year, month)}
+                onPage={onPage}
+                renderPage={renderPeriod}
+                style={wide ? undefined : styles.fullBleed}
+              />
             </View>
 
             <Text style={[typography.section, { color: t.text }]}>{dayTitle(selected)}</Text>
@@ -561,8 +605,8 @@ const styles = StyleSheet.create({
     marginTop: -spacing.sm,
   },
   // On a phone the calendar runs edge to edge, so each day gets as much room as it can.
-  fullBleed: {
-    marginHorizontal: -spacing.lg,
+  fullBleed: { marginHorizontal: -spacing.lg },
+  fullBleedCard: {
     paddingHorizontal: 0,
     paddingVertical: spacing.sm,
     borderRadius: 0,

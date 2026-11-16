@@ -19,10 +19,12 @@ import {
   monthGrid,
   monthWindow,
   shiftDay,
+  monthNumber,
   shiftMonth,
   sydneyDayKey,
   sydneyMinutes,
   weekLayout,
+  weekNumber,
   weekOf,
 } from "./calendar";
 
@@ -120,6 +122,16 @@ describe("days", () => {
 });
 
 describe("week view", () => {
+  test("monthNumber and weekNumber count on by one, across years", () => {
+    expect(monthNumber(2027, 1) - monthNumber(2026, 12)).toBe(1);
+    const { year, month } = shiftMonth(2026, 11, 5);
+    expect(monthNumber(year, month) - monthNumber(2026, 11)).toBe(5);
+    expect(weekNumber("2026-11-08")).toBe(weekNumber("2026-11-02"));
+    expect(weekNumber("2026-11-09") - weekNumber("2026-11-08")).toBe(1);
+    expect(weekNumber("2027-01-04") - weekNumber("2026-12-28")).toBe(1);
+    expect(weekNumber("1970-01-04")).toBe(-1);
+  });
+
   test("weekOf is Monday to Sunday, across months and years", () => {
     expect(weekOf("2026-11-04")).toEqual(monthGrid(2026, 11)[1].map((d) => d.key));
     expect(weekOf("2026-11-08")[0]).toBe("2026-11-02");
