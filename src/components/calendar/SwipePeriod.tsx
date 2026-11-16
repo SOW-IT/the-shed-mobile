@@ -18,8 +18,10 @@ const EASE = Easing.out(Easing.cubic);
 const SIDES = [-1, 0, 1] as const;
 
 export type SwipePeriodHandle = {
-  // Slides to the next (1) or previous (-1) period; false if it's already moving.
-  slide: (by: -1 | 1) => boolean;
+  // Slides to the next (1) or previous (-1) period; false if it's already
+  // moving. `land` replaces onPage for this slide (Today lands on today); it
+  // goes with the slide, so a slide that never finishes never calls it.
+  slide: (by: -1 | 1, land?: () => void) => boolean;
 };
 
 type Props = {
@@ -43,15 +45,21 @@ export const SwipePeriod = ({ onPage, ...props }: Props) => {
     <Pager
       key={shown.generation}
       {...props}
-      onPage={(by) => {
+      onLand={(by, land) => {
         setShown((s) => ({ ...s, index: props.index + by }));
-        onPage(by);
+        if (land) land();
+        else onPage(by);
       }}
     />
   );
 };
 
-const Pager = ({ index, onPage, renderPage, style, ref }: Props) => {
+type PagerProps = Omit<Props, "onPage"> & {
+  // A slide has finished, with the `land` its slide() was given, if any.
+  onLand: (by: -1 | 1, land?: () => void) => void;
+};
+
+const Pager = ({ index, onLand, renderPage, style, ref }: PagerProps) => {
   const reduceMotion = useReducedMotion();
   // Each page sits `index - origin` widths along the strip, so the strip is
   // already in place when a slide finishes and the pages move round it.
@@ -72,8 +80,8 @@ const Pager = ({ index, onPage, renderPage, style, ref }: Props) => {
     },
     [live]
   );
-  const finish = (by: -1 | 1) => {
-    if (live.get()) onPage(by);
+  const finish = (by: -1 | 1, land?: () => void) => {
+    if (live.get()) onLand(by, land);
   };
   // On web a mouse drag still ends in a click, which would pick (and scroll to)
   // the day under the pointer; swallow the click that follows a drag.
@@ -98,18 +106,19 @@ const Pager = ({ index, onPage, renderPage, style, ref }: Props) => {
   }, [dragged]);
 
   useImperativeHandle(ref, () => ({
-    slide: (by) => {
+    slide: (by, land) => {
       if (moving.get()) return false;
       moving.set(true);
       if (reduceMotion || width === 0) {
         pos.set(at + by);
-        onPage(by);
+        finish(by, land);
         return true;
       }
+      const settle = () => finish(by, land);
       pos.set(
         withTiming(at + by, { duration: PAGE_MS, easing: EASE }, (done) => {
           "worklet";
-          if (done) runOnJS(finish)(by);
+          if (done) runOnJS(settle)();
         })
       );
       return true;
@@ -168,6 +177,10 @@ const Pager = ({ index, onPage, renderPage, style, ref }: Props) => {
                 <View
                   key={index + by}
                   aria-hidden={by !== 0}
+                // aria-hidden doesn't stop Tab reaching the dates off screen; inert does.
+                ref={(node) => {
+                  if (Platform.OS === "web" && node) (node as unknown as HTMLElement).inert = by !== 0;
+                }}
                   style={[by !== 0 && styles.aside, width > 0 && { width, left: page * width }]}
                   onLayout={(e) => {
                     const height = e.nativeEvent.layout.height;

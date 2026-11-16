@@ -203,8 +203,6 @@ export default function CalendarScreen() {
   const eventsBefore = useRange(monthWindow(before.year, before.month), !staff);
   const eventsAfter = useRange(monthWindow(after.year, after.month), !staff);
   const period = useRef<SwipePeriodHandle>(null);
-  // What to land on instead of the usual day when a slide finishes (Today).
-  const landOn = useRef<(() => void) | null>(null);
   const subgroups = useQuery(api.events.subgroups, staff ? {} : "skip");
   const [subgroup] = useAttendanceSubgroup(subgroups, me?.profile?.assignments);
 
@@ -225,12 +223,16 @@ export default function CalendarScreen() {
   );
   const all = events ?? [];
   // A chip picked in another month only applies where it has events.
-  const pickedCategories = categories.filter((c) => all.some((e) => e.category === c));
-  const pickedCampuses = campuses.filter((s) => all.some((e) => e.subgroups.includes(s)));
-  const matches = (e: CalendarEvent) =>
-    (pickedCategories.length === 0 || pickedCategories.includes(e.category)) &&
-    (pickedCampuses.length === 0 || e.subgroups.some((s) => pickedCampuses.includes(s)));
-  const shown = all.filter(matches);
+  // The filters as they apply to one month's events, so a month sliding in
+  // shows what it will once it's landed on.
+  const filtersFor = (list: CalendarEvent[]) => {
+    const cats = categories.filter((c) => list.some((e) => e.category === c));
+    const where = campuses.filter((s) => list.some((e) => e.subgroups.includes(s)));
+    return (e: CalendarEvent) =>
+      (cats.length === 0 || cats.includes(e.category)) &&
+      (where.length === 0 || e.subgroups.some((s) => where.includes(s)));
+  };
+  const shown = all.filter(filtersFor(all));
   const byDay = eventsByDay(shown);
   const week = weekOf(selected);
   const visibleKeys = view === "week" ? new Set(week) : monthKeys;
@@ -258,9 +260,6 @@ export default function CalendarScreen() {
     return { ...next, selected: next.year === ty && next.month === tm ? today : first };
   };
   const onPage = (by: number) => {
-    const land = landOn.current;
-    landOn.current = null;
-    if (land) return land();
     const next = landing(by);
     setMonth({ year: next.year, month: next.month });
     setSelected(next.selected);
@@ -274,8 +273,7 @@ export default function CalendarScreen() {
     const by =
       view === "week" ? weekNumber(today) - weekNumber(selected) : monthNumber(ty, tm) - monthNumber(year, month);
     if (by !== 1 && by !== -1) return goToday();
-    landOn.current = goToday;
-    if (!period.current?.slide(by)) landOn.current = null;
+    period.current?.slide(by, goToday);
   };
   const loadedMonth = (y: number, m: number) =>
     [eventsBefore, events, eventsAfter][monthNumber(y, m) - monthNumber(year, month) + 1];
@@ -319,7 +317,8 @@ export default function CalendarScreen() {
   // The month or week `by` periods away, as it'll be once it's landed on.
   const renderPeriod = (by: -1 | 0 | 1): ReactNode => {
     const at = by === 0 ? { year, month, selected } : landing(by);
-    const days = by === 0 ? byDay : eventsByDay((loadedMonth(at.year, at.month) ?? []).filter(matches));
+    const list = by === 0 ? all : (loadedMonth(at.year, at.month) ?? []);
+    const days = by === 0 ? byDay : eventsByDay(list.filter(filtersFor(list)));
     if (view === "week") {
       return (
         <Card style={wide ? undefined : styles.fullBleedCard}>
