@@ -157,6 +157,15 @@ export const shiftMonth = (year: number, month: number, by: number) => {
   return { year: Math.floor(index / 12), month: (index % 12) + 1 };
 };
 
+// Months and Monday-to-Sunday weeks counted from a fixed start, so the next one is +1.
+export const monthNumber = (year: number, month: number): number => year * 12 + month - 1;
+
+const FIRST_MONDAY = Date.UTC(1970, 0, 5);
+export const weekNumber = (key: string): number => {
+  const [y, m, d] = key.split("-").map(Number);
+  return Math.floor((Date.UTC(y, m - 1, d) - FIRST_MONDAY) / (7 * DAY_MS));
+};
+
 const MAX_SPAN_DAYS = 31;
 // Only guards against a runaway loop: attendance events have no length limit.
 const MAX_DAYS_SHOWN = 366;
