@@ -2,7 +2,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import {
   CALENDAR_CATEGORIES,
@@ -82,6 +83,36 @@ const shortDay = (ms: number) =>
     month: "short",
     timeZone: "Australia/Sydney",
   }).format(new Date(ms));
+
+// The month or week showing. Swiping is the way along, so a screen reader can
+// step it like a slider, and on web the ← → keys do (see the screen).
+const PeriodTitle = ({ label, unit, step, wide }: { label: string; unit: string; step: (by: -1 | 1) => void; wide: boolean }) => {
+  const t = useAppTheme();
+  const native = Platform.OS !== "web";
+  return (
+    <View
+      accessible
+      accessibilityRole={native ? "adjustable" : "header"}
+      accessibilityLabel={label}
+      accessibilityHint={native ? `Swipe up or down for the next or previous ${unit}` : `Left and right arrow keys change the ${unit}`}
+      accessibilityActions={[
+        { name: "increment", label: `Next ${unit}` },
+        { name: "decrement", label: `Previous ${unit}` },
+      ]}
+      onAccessibilityAction={(e) => step(e.nativeEvent.actionName === "increment" ? 1 : -1)}
+    >
+      <Text
+        numberOfLines={1}
+        style={[
+          wide ? typography.title : typography.headline,
+          { color: t.text, fontWeight: "800", textAlign: "center" },
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+};
 
 const toggle = <T,>(list: T[], value: T) =>
   list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -180,8 +211,11 @@ export default function CalendarScreen() {
   const handoff = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useFocusEffect(useCallback(() => () => clearTimeout(handoff.current), []));
   const wide = useWideLayout();
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollViewInstance>(null);
-  const gridBottom = useRef(0);
+  // Where the day's heading sits in the scroll: the column's top plus its place in the column.
+  const columnTop = useRef(0);
+  const dayHeading = useRef(0);
   // `at` makes a link to the day already shown move back to it.
   const { day, view: linkedView, at } = useLocalSearchParams<{ day?: string; view?: string; at?: string }>();
   useEffect(() => {
@@ -203,6 +237,22 @@ export default function CalendarScreen() {
   const eventsBefore = useRange(monthWindow(before.year, before.month), !staff);
   const eventsAfter = useRange(monthWindow(after.year, after.month), !staff);
   const period = useRef<SwipePeriodHandle>(null);
+  // On web ← and → page like a swipe, unless something else has the keys.
+  const sheetOpen = adding || editing !== null || attendanceDraft !== null;
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "web" || sheetOpen) return;
+      const onKey = (e: KeyboardEvent) => {
+        if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const target = e.target as HTMLElement | null;
+        if (target?.closest?.("input, textarea, select, [contenteditable], [role=dialog]")) return;
+        if (period.current?.slide(e.key === "ArrowRight" ? 1 : -1)) e.preventDefault();
+      };
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }, [sheetOpen])
+  );
   const subgroups = useQuery(api.events.subgroups, staff ? {} : "skip");
   const [subgroup] = useAttendanceSubgroup(subgroups, me?.profile?.assignments);
 
@@ -295,24 +345,64 @@ export default function CalendarScreen() {
               })
           : undefined;
 
-  const floating = subgroup ? (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Add an event on ${dayTitle(selected)}`}
-      onPress={() => {
-        setAddTime(undefined);
-        setAdding(true);
-      }}
-      style={({ pressed }) => [
-        styles.fab,
-        t.surfaceEdge,
-        { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
-      ]}
-    >
-      <Ionicons name="add" size={18} color={t.onPrimary} />
-      <Text style={[typography.caption, { color: t.onPrimary, fontWeight: "800" }]}>Add Event</Text>
-    </Pressable>
-  ) : null;
+  const title = (
+    <PeriodTitle
+      label={view === "week" ? weekTitle(week) : monthTitle(year, month)}
+      unit={view}
+      step={(by) => period.current?.slide(by)}
+      wide={wide}
+    />
+  );
+  // Today on the left, Month/Week in the middle and add on the right, over the bottom of the screen.
+  const floating = (
+    <View style={styles.bottomBarWrap} pointerEvents="box-none">
+      <View style={styles.bottomBar} pointerEvents="box-none">
+        <View style={styles.side} pointerEvents="box-none">
+          <Pressable
+            onPress={showToday}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.todayButton,
+              t.surfaceEdge,
+              { backgroundColor: t.card, opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <Text style={[typography.caption, { color: t.text, fontWeight: "800" }]}>Today</Text>
+          </Pressable>
+        </View>
+        <View style={[styles.viewToggle, t.surfaceEdge, { backgroundColor: t.card }]}>
+          <Segmented
+            segments={VIEWS}
+            active={view}
+            onChange={(key) => {
+              setView(key as typeof view);
+              // Keep a `?view=` link in step, so reloading doesn't switch back.
+              router.setParams({ view: key });
+            }}
+          />
+        </View>
+        <View style={[styles.side, { alignItems: "flex-end" }]} pointerEvents="box-none">
+          {subgroup ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Add an event on ${dayTitle(selected)}`}
+              onPress={() => {
+                setAddTime(undefined);
+                setAdding(true);
+              }}
+              style={({ pressed }) => [
+                styles.addButton,
+                t.surfaceEdge,
+                { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Ionicons name="add" size={26} color={t.onPrimary} />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
 
   // The month or week `by` periods away, as it'll be once it's landed on.
   const renderPeriod = (by: -1 | 0 | 1): ReactNode => {
@@ -369,9 +459,11 @@ export default function CalendarScreen() {
                     key={day.key}
                     onPress={() => {
                       setSelected(day.key);
-                      // On a phone the day's events sit below the month; bring them into view.
+                      // On a phone the day's events sit below the month; bring them into view,
+                      // leaving the bottom of the month showing above them.
                       if (!wide) {
-                        scrollRef.current?.scrollTo({ y: Math.max(0, gridBottom.current - 160), animated: true });
+                        const y = columnTop.current + dayHeading.current - insets.top - 120;
+                        scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
                       }
                     }}
                     accessibilityRole="button"
@@ -433,58 +525,11 @@ export default function CalendarScreen() {
 
   return (
     <>
-      <ChromeScreen floating={floating} scrollRef={scrollRef}>
-        <ReadableColumn>
-          <View style={{ gap: spacing.md, paddingBottom: 72 }}>
-            <View style={styles.monthBar}>
-              <Pressable
-                onPress={() => period.current?.slide(-1)}
-                accessibilityRole="button"
-                accessibilityLabel={view === "week" ? "Previous week" : "Previous month"}
-                hitSlop={8}
-                style={styles.arrow}
-              >
-                <Ionicons name="chevron-back" size={22} color={t.text} />
-              </Pressable>
-              <Text style={[typography.title, { color: t.text, flex: 1, textAlign: "center" }]}>
-                {view === "week" ? weekTitle(week) : monthTitle(year, month)}
-              </Text>
-              <Pressable
-                onPress={() => period.current?.slide(1)}
-                accessibilityRole="button"
-                accessibilityLabel={view === "week" ? "Next week" : "Next month"}
-                hitSlop={8}
-                style={styles.arrow}
-              >
-                <Ionicons name="chevron-forward" size={22} color={t.text} />
-              </Pressable>
-            </View>
-            {selected !== today ? (
-              <Pressable
-                onPress={showToday}
-                accessibilityRole="button"
-                style={[styles.todayButton, { backgroundColor: t.primarySoft }]}
-              >
-                <Text style={[typography.caption, { color: t.dark ? t.text : t.primary, fontWeight: "800" }]}>
-                  Today
-                </Text>
-              </Pressable>
-            ) : null}
-            <Segmented
-              segments={VIEWS}
-              active={view}
-              onChange={(key) => {
-                setView(key as typeof view);
-                // Keep a `?view=` link in step, so reloading doesn't switch back.
-                router.setParams({ view: key });
-              }}
-            />
-
-            <View
-              onLayout={(e) => {
-                gridBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
-              }}
-            >
+      <ChromeScreen floating={floating} scrollRef={scrollRef} title={title}>
+        <View onLayout={(e) => (columnTop.current = e.nativeEvent.layout.y)}>
+          <ReadableColumn>
+            <View style={{ gap: spacing.md, paddingBottom: 72 }}>
+              {wide ? title : null}
               <SwipePeriod
                 key={view}
                 ref={period}
@@ -493,68 +538,73 @@ export default function CalendarScreen() {
                 renderPage={renderPeriod}
                 style={wide ? undefined : styles.fullBleed}
               />
+
+              <Text
+                onLayout={(e) => (dayHeading.current = e.nativeEvent.layout.y)}
+                style={[typography.section, { color: t.text }]}
+              >
+                {dayTitle(selected)}
+              </Text>
+              {events === undefined ? (
+                <LoadingState />
+              ) : dayEvents.length === 0 ? (
+                <EmptyState
+                  icon="calendar-outline"
+                  title="Nothing on"
+                  message={
+                    shown.length < all.length
+                      ? "Nothing that matches the filters on this day."
+                      : "Add something with the button below."
+                  }
+                />
+              ) : (
+                <Card>
+                  {dayEvents.map((event) => (
+                    <EventRow
+                      key={event.id}
+                      event={event}
+                      onPress={openerFor(event)}
+                    />
+                  ))}
+                </Card>
+              )}
+              {presentCategories.length > 0 ? (
+                <FilterRow title="What">
+                  {presentCategories.map((c) => (
+                    <FilterChip
+                      key={c.key}
+                      on={categories.includes(c.key)}
+                      label={c.label}
+                      colour={CATEGORY_COLOURS[c.key]}
+                      count={inView(all.filter((e) => e.category === c.key))}
+                      counting={EVENTS}
+                      onPress={() => setCategories((prev) => toggle(prev, c.key))}
+                    />
+                  ))}
+                </FilterRow>
+              ) : null}
+              {presentCampuses.length > 1 ? (
+                <FilterRow title="Where">
+                  {presentCampuses.map((s) => (
+                    <FilterChip
+                      key={s}
+                      on={campuses.includes(s)}
+                      label={subgroupLabel(s)}
+                      colour={universityColour(s)}
+                      count={inView(all.filter((e) => e.subgroups.includes(s)))}
+                      counting={EVENTS}
+                      onPress={() => setCampuses((prev) => toggle(prev, s))}
+                    />
+                  ))}
+                </FilterRow>
+              ) : null}
+
+              {events && events.length >= 500 ? (
+                <Muted>Showing the first 500 events this month.</Muted>
+              ) : null}
             </View>
-
-            <Text style={[typography.section, { color: t.text }]}>{dayTitle(selected)}</Text>
-            {events === undefined ? (
-              <LoadingState />
-            ) : dayEvents.length === 0 ? (
-              <EmptyState
-                icon="calendar-outline"
-                title="Nothing on"
-                message={
-                  shown.length < all.length
-                    ? "Nothing that matches the filters on this day."
-                    : "Add something with the button below."
-                }
-              />
-            ) : (
-              <Card>
-                {dayEvents.map((event) => (
-                  <EventRow
-                    key={event.id}
-                    event={event}
-                    onPress={openerFor(event)}
-                  />
-                ))}
-              </Card>
-            )}
-            {presentCategories.length > 0 ? (
-              <FilterRow title="What">
-                {presentCategories.map((c) => (
-                  <FilterChip
-                    key={c.key}
-                    on={categories.includes(c.key)}
-                    label={c.label}
-                    colour={CATEGORY_COLOURS[c.key]}
-                    count={inView(all.filter((e) => e.category === c.key))}
-                    counting={EVENTS}
-                    onPress={() => setCategories((prev) => toggle(prev, c.key))}
-                  />
-                ))}
-              </FilterRow>
-            ) : null}
-            {presentCampuses.length > 1 ? (
-              <FilterRow title="Where">
-                {presentCampuses.map((s) => (
-                  <FilterChip
-                    key={s}
-                    on={campuses.includes(s)}
-                    label={subgroupLabel(s)}
-                    colour={universityColour(s)}
-                    count={inView(all.filter((e) => e.subgroups.includes(s)))}
-                    counting={EVENTS}
-                    onPress={() => setCampuses((prev) => toggle(prev, s))}
-                  />
-                ))}
-              </FilterRow>
-            ) : null}
-
-            {events && events.length >= 500 ? (
-              <Muted>Showing the first 500 events this month.</Muted>
-            ) : null}
-          </View>
-        </ReadableColumn>
+          </ReadableColumn>
+        </View>
       </ChromeScreen>
       {subgroup && subgroups ? (
         <CalendarEntrySheet
@@ -594,15 +644,35 @@ export default function CalendarScreen() {
 }
 
 const styles = StyleSheet.create({
-  monthBar: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  arrow: { padding: spacing.xs },
-  todayButton: {
-    alignSelf: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    marginTop: -spacing.sm,
+  // As wide as the calendar, so on a big screen it doesn't run out to the sidebar.
+  bottomBarWrap: {
+    position: "absolute",
+    bottom: spacing.md,
+    left: spacing.lg,
+    right: spacing.lg,
+    alignItems: "center",
+    zIndex: 20,
   },
+  bottomBar: {
+    width: "100%",
+    maxWidth: 720,
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  todayButton: { height: 44, paddingHorizontal: 14, justifyContent: "center", borderRadius: radius.full },
+  // The same width either side, so the toggle sits in the middle and shrinks
+  // to fit between them on a narrow phone.
+  side: { flexGrow: 1, flexBasis: 72, alignItems: "flex-start" },
+  viewToggle: {
+    width: 180,
+    flexShrink: 1,
+    marginHorizontal: spacing.xs,
+    borderRadius: radius.full,
+    overflow: "hidden",
+  },
+  addButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
   // On a phone the calendar runs edge to edge, so each day gets as much room as it can.
   fullBleed: { marginHorizontal: -spacing.lg },
   fullBleedCard: {
@@ -636,16 +706,4 @@ const styles = StyleSheet.create({
   slot: { position: "absolute", paddingHorizontal: 2 },
   eventRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
   eventBar: { width: 4, alignSelf: "stretch", borderRadius: 2 },
-  fab: {
-    position: "absolute",
-    bottom: spacing.md,
-    right: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    borderRadius: radius.full,
-    zIndex: 20,
-  },
 });

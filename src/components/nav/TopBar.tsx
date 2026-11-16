@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
+import type { ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
@@ -23,9 +24,12 @@ const EDGE_CONTROLS_WIDTH = 60;
 export const TopBar = ({
   photo,
   name,
+  title,
 }: {
   photo: string | null;
   name: string | null;
+  // Shown in the middle, e.g. the month the calendar is on.
+  title?: ReactNode;
 }) => {
   const t = useAppTheme();
   const router = useRouter();
@@ -46,6 +50,7 @@ export const TopBar = ({
   return (
     <View style={styles.topBar}>
       <View style={styles.center} pointerEvents="box-none">
+        {title}
         <View style={styles.chipRow} pointerEvents="box-none">
           <TestEnvironmentChip />
           <ActingAsChip />
