@@ -13,7 +13,9 @@ All notable changes to **The SHED** mobile app. This project follows
   you're looking at is named in the top bar, and the calendar starts right
   under it; swipe to move between months. A bar along the bottom stays put
   as you scroll: Today on the left, always there, the Month/Week switch in
-  the middle, and a + to add an event on the right. The ‹ › arrows are gone.
+  the middle, and a + to add an event on the right. The ‹ › arrows are gone;
+  with a screen reader, swipe up or down on the month's name to change it,
+  and on the web the ← → keys move between months or weeks.
 
 ### Fixed
 - **Tapping a day scrolls down to its events again.** On a phone, the list

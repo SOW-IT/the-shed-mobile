@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import {
@@ -83,6 +83,36 @@ const shortDay = (ms: number) =>
     month: "short",
     timeZone: "Australia/Sydney",
   }).format(new Date(ms));
+
+// The month or week showing. Swiping is the way along, so a screen reader can
+// step it like a slider, and on web the ← → keys do (see the screen).
+const PeriodTitle = ({ label, unit, step, wide }: { label: string; unit: string; step: (by: -1 | 1) => void; wide: boolean }) => {
+  const t = useAppTheme();
+  const native = Platform.OS !== "web";
+  return (
+    <View
+      accessible
+      accessibilityRole={native ? "adjustable" : "header"}
+      accessibilityLabel={label}
+      accessibilityHint={native ? `Swipe up or down for the next or previous ${unit}` : `Left and right arrow keys change the ${unit}`}
+      accessibilityActions={[
+        { name: "increment", label: `Next ${unit}` },
+        { name: "decrement", label: `Previous ${unit}` },
+      ]}
+      onAccessibilityAction={(e) => step(e.nativeEvent.actionName === "increment" ? 1 : -1)}
+    >
+      <Text
+        numberOfLines={1}
+        style={[
+          wide ? typography.title : typography.headline,
+          { color: t.text, fontWeight: "800", textAlign: "center" },
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+};
 
 const toggle = <T,>(list: T[], value: T) =>
   list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -207,6 +237,22 @@ export default function CalendarScreen() {
   const eventsBefore = useRange(monthWindow(before.year, before.month), !staff);
   const eventsAfter = useRange(monthWindow(after.year, after.month), !staff);
   const period = useRef<SwipePeriodHandle>(null);
+  // On web ← and → page like a swipe, unless something else has the keys.
+  const sheetOpen = adding || editing !== null || attendanceDraft !== null;
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "web" || sheetOpen) return;
+      const onKey = (e: KeyboardEvent) => {
+        if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const target = e.target as HTMLElement | null;
+        if (target?.closest?.("input, textarea, select, [contenteditable], [role=dialog]")) return;
+        if (period.current?.slide(e.key === "ArrowRight" ? 1 : -1)) e.preventDefault();
+      };
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }, [sheetOpen])
+  );
   const subgroups = useQuery(api.events.subgroups, staff ? {} : "skip");
   const [subgroup] = useAttendanceSubgroup(subgroups, me?.profile?.assignments);
 
@@ -299,22 +345,31 @@ export default function CalendarScreen() {
               })
           : undefined;
 
-  const title = view === "week" ? weekTitle(week) : monthTitle(year, month);
+  const title = (
+    <PeriodTitle
+      label={view === "week" ? weekTitle(week) : monthTitle(year, month)}
+      unit={view}
+      step={(by) => period.current?.slide(by)}
+      wide={wide}
+    />
+  );
   // Today on the left, Month/Week in the middle and add on the right, over the bottom of the screen.
   const floating = (
     <View style={styles.bottomBarWrap} pointerEvents="box-none">
       <View style={styles.bottomBar} pointerEvents="box-none">
-        <Pressable
-          onPress={showToday}
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.todayButton,
-            t.surfaceEdge,
-            { backgroundColor: t.card, opacity: pressed ? 0.85 : 1 },
-          ]}
-        >
-          <Text style={[typography.caption, { color: t.text, fontWeight: "800" }]}>Today</Text>
-        </Pressable>
+        <View style={styles.side} pointerEvents="box-none">
+          <Pressable
+            onPress={showToday}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.todayButton,
+              t.surfaceEdge,
+              { backgroundColor: t.card, opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <Text style={[typography.caption, { color: t.text, fontWeight: "800" }]}>Today</Text>
+          </Pressable>
+        </View>
         <View style={[styles.viewToggle, t.surfaceEdge, { backgroundColor: t.card }]}>
           <Segmented
             segments={VIEWS}
@@ -326,23 +381,25 @@ export default function CalendarScreen() {
             }}
           />
         </View>
-        {subgroup ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Add an event on ${dayTitle(selected)}`}
-            onPress={() => {
-              setAddTime(undefined);
-              setAdding(true);
-            }}
-            style={({ pressed }) => [
-              styles.addButton,
-              t.surfaceEdge,
-              { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
-            ]}
-          >
-            <Ionicons name="add" size={26} color={t.onPrimary} />
-          </Pressable>
-        ) : null}
+        <View style={[styles.side, { alignItems: "flex-end" }]} pointerEvents="box-none">
+          {subgroup ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Add an event on ${dayTitle(selected)}`}
+              onPress={() => {
+                setAddTime(undefined);
+                setAdding(true);
+              }}
+              style={({ pressed }) => [
+                styles.addButton,
+                t.surfaceEdge,
+                { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Ionicons name="add" size={26} color={t.onPrimary} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -472,11 +529,7 @@ export default function CalendarScreen() {
         <View onLayout={(e) => (columnTop.current = e.nativeEvent.layout.y)}>
           <ReadableColumn>
             <View style={{ gap: spacing.md, paddingBottom: 72 }}>
-              {wide ? (
-                <Text accessibilityRole="header" style={[typography.title, { color: t.text, textAlign: "center" }]}>
-                  {title}
-                </Text>
-              ) : null}
+              {wide ? title : null}
               <SwipePeriod
                 key={view}
                 ref={period}
@@ -606,15 +659,16 @@ const styles = StyleSheet.create({
     height: 48,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
   },
-  todayButton: { height: 44, paddingHorizontal: 18, justifyContent: "center", borderRadius: radius.full },
-  // In the middle whatever's either side of it.
+  todayButton: { height: 44, paddingHorizontal: 14, justifyContent: "center", borderRadius: radius.full },
+  // The same width either side, so the toggle sits in the middle and shrinks
+  // to fit between them on a narrow phone.
+  side: { flexGrow: 1, flexBasis: 72, alignItems: "flex-start" },
   viewToggle: {
-    position: "absolute",
-    left: "50%",
     width: 180,
-    marginLeft: -90,
+    flexShrink: 1,
+    marginHorizontal: spacing.xs,
     borderRadius: radius.full,
     overflow: "hidden",
   },
