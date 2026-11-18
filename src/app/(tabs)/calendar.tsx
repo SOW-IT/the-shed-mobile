@@ -39,7 +39,7 @@ import { EVENTS, FilterChip, FilterRow } from "@/components/FilterChips";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 import { useCalendarView } from "@/hooks/useCalendarView";
 import { sydneyTime } from "@/lib/sydneyTime";
-import { Card, EmptyState, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts } from "@/components/ui";
+import { Card, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
 
 type CalendarEvent = NonNullable<ReturnType<typeof useRange>>[number];
@@ -47,7 +47,14 @@ const useRange = (window: { from: number; to: number }, skip: boolean) =>
   useQuery(api.calendar.range, skip ? "skip" : window);
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
-const MAX_ROWS = 3;
+// Two rows of bars keep the month short, so the day's events show below it.
+const MAX_ROWS = 2;
+// A day in the month, and the space between weeks.
+const CELL_HEIGHT = 66;
+const WEEK_GAP = 2;
+// The month's height: the weekday letters, then its weeks. The week view is as tall.
+const monthHeight = (year: number, month: number) =>
+  (typography.caption.lineHeight ?? 0) + monthGrid(year, month).length * (CELL_HEIGHT + WEEK_GAP);
 const VIEWS = [
   { key: "month", label: "Month" },
   { key: "week", label: "Week" },
@@ -225,9 +232,9 @@ export default function CalendarScreen() {
   const wide = useWideLayout();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollViewInstance>(null);
-  // Where the day's heading sits in the scroll: the column's top plus its place in the column.
+  // Where the day's events sit in the scroll: the column's top plus their place in the column.
   const columnTop = useRef(0);
-  const dayHeading = useRef(0);
+  const dayEventsTop = useRef(0);
   // `at` makes a link to the day already shown move back to it.
   const { day, view: linkedView, at } = useLocalSearchParams<{ day?: string; view?: string; at?: string }>();
   useEffect(() => {
@@ -384,6 +391,7 @@ export default function CalendarScreen() {
         </View>
         <View style={[styles.viewToggle, t.surfaceEdge, { backgroundColor: t.card }]}>
           <Segmented
+            pill
             segments={VIEWS}
             active={view}
             onChange={(key) => {
@@ -425,6 +433,7 @@ export default function CalendarScreen() {
       return (
         <Card style={wide ? undefined : styles.fullBleedCard}>
           <WeekView
+            height={monthHeight(at.year, at.month)}
             week={weekOf(at.selected)}
             byDay={days}
             today={today}
@@ -446,7 +455,7 @@ export default function CalendarScreen() {
       );
     }
     return (
-      <Card style={wide ? undefined : styles.fullBleedCard}>
+      <Card style={[styles.monthCard, wide ? undefined : styles.fullBleedCard]}>
         <View style={styles.week}>
           {WEEKDAYS.map((d, i) => (
             <Text key={i} style={[styles.weekday, typography.caption, { color: t.faint }]}>
@@ -474,7 +483,7 @@ export default function CalendarScreen() {
                       // On a phone the day's events sit below the month; bring them into view,
                       // leaving the bottom of the month showing above them.
                       if (!wide) {
-                        const y = columnTop.current + dayHeading.current - insets.top - 120;
+                        const y = columnTop.current + dayEventsTop.current - insets.top - 120;
                         scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
                       }
                     }}
@@ -551,35 +560,28 @@ export default function CalendarScreen() {
                 style={wide ? undefined : styles.fullBleed}
               />
 
-              <Text
-                onLayout={(e) => (dayHeading.current = e.nativeEvent.layout.y)}
-                style={[typography.section, { color: t.text }]}
-              >
-                {dayTitle(selected)}
-              </Text>
-              {events === undefined ? (
-                <LoadingState />
-              ) : dayEvents.length === 0 ? (
-                <EmptyState
-                  icon="calendar-outline"
-                  title="Nothing on"
-                  message={
-                    shown.length < all.length
+              <View onLayout={(e) => (dayEventsTop.current = e.nativeEvent.layout.y)}>
+                {events === undefined ? (
+                  <LoadingState />
+                ) : dayEvents.length === 0 ? (
+                  // One line, so it doesn't push the filters down.
+                  <Muted>
+                    {shown.length < all.length
                       ? "Nothing that matches the filters on this day."
-                      : "Add something with the button below."
-                  }
-                />
-              ) : (
-                <Card>
-                  {dayEvents.map((event) => (
-                    <EventRow
-                      key={event.id}
-                      event={event}
-                      onPress={openerFor(event)}
-                    />
-                  ))}
-                </Card>
-              )}
+                      : "Nothing on this day."}
+                  </Muted>
+                ) : (
+                  <Card>
+                    {dayEvents.map((event) => (
+                      <EventRow
+                        key={event.id}
+                        event={event}
+                        onPress={openerFor(event)}
+                      />
+                    ))}
+                  </Card>
+                )}
+              </View>
               {presentCategories.length > 0 ? (
                 <FilterRow title="What">
                   {presentCategories.map((c) => (
@@ -694,27 +696,30 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderRightWidth: 0,
   },
+  // The weeks sit close together, so the month takes less of the screen.
+  monthCard: { gap: WEEK_GAP },
   week: { flexDirection: "row" },
   weekday: { flex: 1, textAlign: "center", fontWeight: "700" },
   cell: {
     flex: 1,
     minWidth: 0,
     alignItems: "center",
-    paddingVertical: 4,
+    paddingTop: 2,
+    paddingBottom: 4,
     paddingHorizontal: 2,
     borderRadius: radius.md,
-    minHeight: 92,
+    minHeight: CELL_HEIGHT,
     gap: 2,
   },
   dayNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   // Below the day number: the cell's top padding, the number and the gap.
-  bars: { position: "absolute", top: 38, left: 0, right: 0, bottom: 0 },
+  bars: { position: "absolute", top: 32, left: 0, right: 0, bottom: 0 },
   slot: { position: "absolute", paddingHorizontal: 2 },
   eventRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
   eventBar: { width: 4, alignSelf: "stretch", borderRadius: 2 },
