@@ -2,13 +2,11 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { Platform, Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import {
   CALENDAR_CATEGORIES,
   calendarCategoryLabel,
-  campusColourOf,
   daysOf,
   eventsByDay,
   monthGrid,
@@ -30,7 +28,7 @@ import { useWideLayout } from "@/components/nav/layout";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { type AttendanceDraft, CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { CalendarEntrySheet, type EditableEntry } from "@/components/calendar/CalendarEntrySheet";
-import { CATEGORY_COLOURS } from "@/components/calendar/categoryColours";
+import { CATEGORY_COLOURS, eventColour } from "@/components/calendar/categoryColours";
 import { dayTitle } from "@/components/calendar/dayTitle";
 import { BAR_ROW, barColumn, EventBar, MoreLabel } from "@/components/calendar/EventBar";
 import { SwipePeriod, type SwipePeriodHandle } from "@/components/calendar/SwipePeriod";
@@ -126,8 +124,9 @@ const toggle = <T,>(list: T[], value: T) =>
 
 const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => void }) => {
   const t = useAppTheme();
-  const campusColour = campusColourOf(event.category, event.subgroups);
-  const colour = campusColour ?? CATEGORY_COLOURS[event.category];
+  const colour = eventColour(event);
+  // Campus and picked colours aren't all legible as text on both themes.
+  const ownColour = colour !== CATEGORY_COLOURS[event.category];
   // Calendar entries have no campus; attendance events always do.
   const where = event.subgroups.map(subgroupLabel).join(", ");
   const multiDay = daysOf(event.dateStart, event.dateEnd).length > 1;
@@ -155,10 +154,9 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
         </Text>
         <Text style={[typography.caption, { color: t.muted }]}>{when}</Text>
         <View style={styles.eventFacts}>
-          {/* Campus colours aren't all legible as text on both themes. */}
           <Text
             numberOfLines={1}
-            style={[typography.caption, { color: campusColour ? t.text : colour, fontWeight: "800" }]}
+            style={[typography.caption, { color: ownColour ? t.text : colour, fontWeight: "800" }]}
           >
             {calendarCategoryLabel(event.category)}
           </Text>
@@ -230,11 +228,6 @@ export default function CalendarScreen() {
   const handoff = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useFocusEffect(useCallback(() => () => clearTimeout(handoff.current), []));
   const wide = useWideLayout();
-  const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollViewInstance>(null);
-  // Where the day's events sit in the scroll: the column's top plus their place in the column.
-  const columnTop = useRef(0);
-  const dayEventsTop = useRef(0);
   // `at` makes a link to the day already shown move back to it.
   const { day, view: linkedView, at } = useLocalSearchParams<{ day?: string; view?: string; at?: string }>();
   useEffect(() => {
@@ -361,6 +354,7 @@ export default function CalendarScreen() {
                 dateEnd: event.dateEnd,
                 notes: event.notes,
                 due: event.due,
+                colour: event.colour,
               })
           : undefined;
 
@@ -478,15 +472,8 @@ export default function CalendarScreen() {
                 return (
                   <Pressable
                     key={day.key}
-                    onPress={() => {
-                      setSelected(day.key);
-                      // On a phone the day's events sit below the month; bring them into view,
-                      // leaving the bottom of the month showing above them.
-                      if (!wide) {
-                        const y = columnTop.current + dayEventsTop.current - insets.top - 120;
-                        scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
-                      }
-                    }}
+                    // The screen stays where it is; the day's events are just below the month.
+                    onPress={() => setSelected(day.key)}
                     accessibilityRole="button"
                     accessibilityState={{ selected: isSelected }}
                     accessibilityLabel={`${dayTitle(day.key)}, ${evs.length} event${evs.length === 1 ? "" : "s"}`}
@@ -546,79 +533,75 @@ export default function CalendarScreen() {
 
   return (
     <>
-      <ChromeScreen floating={floating} scrollRef={scrollRef} title={title}>
-        <View onLayout={(e) => (columnTop.current = e.nativeEvent.layout.y)}>
-          <ReadableColumn>
-            <View style={{ gap: spacing.md, paddingBottom: 72 }}>
-              {wide ? title : null}
-              <SwipePeriod
-                key={view}
-                ref={period}
-                index={view === "week" ? weekNumber(selected) : monthNumber(year, month)}
-                onPage={onPage}
-                renderPage={renderPeriod}
-                style={wide ? undefined : styles.fullBleed}
-              />
+      <ChromeScreen floating={floating} title={title}>
+        <ReadableColumn>
+          <View style={{ gap: spacing.md, paddingBottom: 72 }}>
+            {wide ? title : null}
+            <SwipePeriod
+              key={view}
+              ref={period}
+              index={view === "week" ? weekNumber(selected) : monthNumber(year, month)}
+              onPage={onPage}
+              renderPage={renderPeriod}
+              style={wide ? undefined : styles.fullBleed}
+            />
 
-              <View onLayout={(e) => (dayEventsTop.current = e.nativeEvent.layout.y)}>
-                {events === undefined ? (
-                  <LoadingState />
-                ) : dayEvents.length === 0 ? (
-                  // One line, so it doesn't push the filters down.
-                  <Muted>
-                    {shown.length < all.length
-                      ? "Nothing that matches the filters on this day."
-                      : "Nothing on this day."}
-                  </Muted>
-                ) : (
-                  <Card>
-                    {dayEvents.map((event) => (
-                      <EventRow
-                        key={event.id}
-                        event={event}
-                        onPress={openerFor(event)}
-                      />
-                    ))}
-                  </Card>
-                )}
-              </View>
-              {presentCategories.length > 0 ? (
-                <FilterRow title="What">
-                  {presentCategories.map((c) => (
-                    <FilterChip
-                      key={c.key}
-                      on={categories.includes(c.key)}
-                      label={c.label}
-                      colour={CATEGORY_COLOURS[c.key]}
-                      count={inView(all.filter((e) => e.category === c.key))}
-                      counting={EVENTS}
-                      onPress={() => setCategories((prev) => toggle(prev, c.key))}
-                    />
-                  ))}
-                </FilterRow>
-              ) : null}
-              {presentCampuses.length > 1 ? (
-                <FilterRow title="Where">
-                  {presentCampuses.map((s) => (
-                    <FilterChip
-                      key={s}
-                      on={campuses.includes(s)}
-                      label={subgroupLabel(s)}
-                      colour={universityColour(s)}
-                      count={inView(all.filter((e) => e.subgroups.includes(s)))}
-                      counting={EVENTS}
-                      onPress={() => setCampuses((prev) => toggle(prev, s))}
-                    />
-                  ))}
-                </FilterRow>
-              ) : null}
+            {events === undefined ? (
+              <LoadingState />
+            ) : dayEvents.length === 0 ? (
+              // One line, so it doesn't push the filters down.
+              <Muted>
+                {shown.length < all.length
+                  ? "Nothing that matches the filters on this day."
+                  : "Nothing on this day."}
+              </Muted>
+            ) : (
+              <Card>
+                {dayEvents.map((event) => (
+                  <EventRow
+                    key={event.id}
+                    event={event}
+                    onPress={openerFor(event)}
+                  />
+                ))}
+              </Card>
+            )}
+            {presentCategories.length > 0 ? (
+              <FilterRow title="What">
+                {presentCategories.map((c) => (
+                  <FilterChip
+                    key={c.key}
+                    on={categories.includes(c.key)}
+                    label={c.label}
+                    colour={CATEGORY_COLOURS[c.key]}
+                    count={inView(all.filter((e) => e.category === c.key))}
+                    counting={EVENTS}
+                    onPress={() => setCategories((prev) => toggle(prev, c.key))}
+                  />
+                ))}
+              </FilterRow>
+            ) : null}
+            {presentCampuses.length > 1 ? (
+              <FilterRow title="Where">
+                {presentCampuses.map((s) => (
+                  <FilterChip
+                    key={s}
+                    on={campuses.includes(s)}
+                    label={subgroupLabel(s)}
+                    colour={universityColour(s)}
+                    count={inView(all.filter((e) => e.subgroups.includes(s)))}
+                    counting={EVENTS}
+                    onPress={() => setCampuses((prev) => toggle(prev, s))}
+                  />
+                ))}
+              </FilterRow>
+            ) : null}
 
-              {events && events.length >= 500 ? (
-                <Muted>Showing the first 500 events this month.</Muted>
-              ) : null}
-            </View>
-          </ReadableColumn>
-        </View>
+            {events && events.length >= 500 ? (
+              <Muted>Showing the first 500 events this month.</Muted>
+            ) : null}
+          </View>
+        </ReadableColumn>
       </ChromeScreen>
       {subgroup && subgroups ? (
         <CalendarEntrySheet

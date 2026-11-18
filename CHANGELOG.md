@@ -6,6 +6,33 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.17] - 2026-11-19
+
+### Added
+- **Raise a Grievance has a "How it works" button,** like Make Request on
+  Finance. It walks through the form, who sees it (only the grievance team's
+  departments), the emails that follow, being looked after, how it's closed,
+  and following along when signed in.
+- **Send Reminder on an event form that hasn't been submitted.** Whoever
+  reviews event forms, and the Head of the event's department, can chase a
+  Marketing, Risk or Finance form still being filled in, or sent back for
+  changes. The requester (and whoever submitted it before it was sent back)
+  gets a push and an email straight away, with how far off the event is and
+  any changes asked for. Once a day per form; the button says who last sent
+  one and when. The morning digest's reminders carry on as before.
+- **A calendar entry can have its own colour.** Adding or editing an event or
+  deadline on the Calendar offers the full palette, or its usual grey or red.
+  It shows in the month, the week and the day's list, and Google Calendar
+  gets the nearest of its colours.
+
+### Changed
+- **Attendance tags have 30 colours to choose from,** up from 17: slate,
+  stone, brown, maroon, crimson, coral, gold, olive, forest, sky, navy,
+  lavender and plum join the rest. They're picked from a grid of swatches
+  instead of a long list.
+- **Tapping a day on the Calendar no longer scrolls down to its events.** The
+  screen stays where it is; the day's events are just below the month.
+
 ## [2.11.16] - 2026-11-18
 
 ### Changed
