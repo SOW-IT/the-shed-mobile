@@ -84,7 +84,7 @@ describe("service times", () => {
         { day: 0, time: "18:00" },
         { day: 6, time: "18:30" },
       ])
-    ).toBe("Sunday 9am, 11am and 6pm · Saturday 6:30pm");
+    ).toBe("Sunday 9am, 11am and 6pm; Saturday 6:30pm");
   });
 });
 

@@ -23,7 +23,7 @@ import { ChurchMap, churchMapAvailable, type ChurchPin } from "./ChurchMap";
 import { type Church, ChurchDetails, ChurchForm, useCanEditChurches } from "./ChurchPicker";
 import { FilterChip, FilterRow } from "./FilterChips";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { Btn, Card, EmptyState, FadeInView, LoadingState, ScrollCap, SearchField, stagger } from "./ui";
+import { Btn, Card, EmptyState, FadeInView, LoadingState, ScrollCap, SearchField, stagger, Facts } from "./ui";
 
 type Entry = NonNullable<ReturnType<typeof useQuery<typeof api.churches.directory>>>[number] & {
   everyone: number;
@@ -272,9 +272,11 @@ export function ChurchesView() {
             ) : null}
           </View>
           <View style={[styles.summary, { borderTopColor: t.separator }]}>
-            <Text style={[typography.caption, { color: t.muted, flex: 1 }]} accessibilityLiveRegion="polite">
-              {plural(shown.length, "church", "churches")} · {plural(shownPeople, "person", "people")}
-            </Text>
+            <View style={{ flex: 1 }} accessibilityLiveRegion="polite">
+              <Facts
+                parts={[plural(shown.length, "church", "churches"), plural(shownPeople, "person", "people")]}
+              />
+            </View>
             {filtering ? (
               <Pressable
                 accessibilityRole="button"

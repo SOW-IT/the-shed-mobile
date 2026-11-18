@@ -188,7 +188,7 @@ export const formatAssignment = (a: Assignment, titles?: RoleTitles): string => 
   const scope = [department, a.division, a.university]
     .filter((s): s is string => !!s)
     .map(acronym)
-    .join(" · ");
+    .join(", ");
   const label = roleLabel(a.role, titles);
   return scope ? `${label} → ${scope}` : label;
 };

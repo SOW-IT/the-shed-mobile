@@ -197,7 +197,7 @@ export function MembersTab({
       {mergeCount > 0 ? (
         <View style={styles.mergesRow}>
           <Btn
-            title={`${mergeCount} may be the same person · Review`}
+            title={`Review ${mergeCount} who may be the same person`}
             variant="tonal"
             icon="git-merge-outline"
             onPress={() => router.push("/attendance/merges" as never)}

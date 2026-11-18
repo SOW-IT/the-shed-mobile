@@ -123,7 +123,7 @@ export function EditMemberSheet({
     metadataFields
       .map((f) => formatMetadataFieldValue(f.key, meta[f._id] ?? "", year, f.values))
       .filter(Boolean)
-      .join(" · ");
+      .join(", ");
 
   useEffect(() => {
     if (!visible) return;

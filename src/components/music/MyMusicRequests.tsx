@@ -767,7 +767,7 @@ const MusicRequestSheetContent = ({
                   {result.title}
                 </Text>
                 <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
-                  {[result.artist, result.releaseDate?.slice(0, 4)].filter(Boolean).join(" · ")}
+                  {[result.artist, result.releaseDate?.slice(0, 4)].filter(Boolean).join(", ")}
                 </Text>
               </View>
               <Ionicons name="add-circle-outline" size={22} color={t.primary} />

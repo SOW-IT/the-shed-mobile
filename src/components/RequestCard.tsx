@@ -27,6 +27,7 @@ import {
   Muted,
   Sheet,
   Txt,
+  Facts,
 } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
 import { daysSince, timeAgo, waitingLabel } from "@shared/datetime";
@@ -111,10 +112,7 @@ const StepInfoModal = ({
                 <Text style={[typography.caption, { color: t.text, fontWeight: "600" }]}>
                   {eventLabel(event.action)}
                 </Text>
-                <Muted>
-                  {sydneyDateTime(event.at)}
-                  {event.detail ? ` · ${event.detail}` : ""}
-                </Muted>
+                <Facts parts={[sydneyDateTime(event.at), event.detail]} />
               </View>
             ))
           )}
@@ -397,15 +395,20 @@ export const RequestCard = ({
           </Text>
         </View>
       </View>
-      <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
-        {request.department}
-        {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""}{" · "}
-        {new Date(request._creationTime).toLocaleDateString("en-AU", {
-          day: "numeric",
-          month: "short",
-        })}{" · "}
-        {timeAgo(request._creationTime)}
-      </Text>
+      <View style={{ marginTop: -6 }}>
+        <Facts
+          style={{ color: t.faint }}
+          parts={[
+            request.department,
+            showRequester ? requesterName ?? request.requesterEmail : null,
+            new Date(request._creationTime).toLocaleDateString("en-AU", {
+              day: "numeric",
+              month: "short",
+            }),
+            timeAgo(request._creationTime),
+          ]}
+        />
+      </View>
       {waitingSince !== undefined ? (
         <Text
           style={[
@@ -439,10 +442,12 @@ export const RequestCard = ({
       {request.paid && request.paidAmount !== undefined ? (
         <View style={[styles.paidBox, { backgroundColor: t.successSoft }]}>
           <Ionicons name="checkmark-circle" size={15} color={t.success} />
-          <Text style={[typography.caption, { color: t.success, flex: 1, fontWeight: "600" }]}>
-            Paid ${formatAmount(request.paidAmount)}
-            {request.payComment ? ` · ${request.payComment}` : ""}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Facts
+              style={{ color: t.success, fontWeight: "600" }}
+              parts={[`Paid $${formatAmount(request.paidAmount)}`, request.payComment]}
+            />
+          </View>
         </View>
       ) : null}
       {showHistory ? <RequestTimeline request={request} /> : null}

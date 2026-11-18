@@ -42,7 +42,7 @@ type History = { events: number; lastAttended: number | null };
 const historyLine = (h: History) =>
   h.events === 0
     ? "Not signed in to any events"
-    : `${plural(h.events, "event")} · last ${sydneyDay(h.lastAttended!)}`;
+    : `${plural(h.events, "event")}, last ${sydneyDay(h.lastAttended!)}`;
 
 export function MergeMemberSheet({
   visible,

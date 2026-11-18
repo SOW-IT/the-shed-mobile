@@ -197,9 +197,7 @@ export const StructureEditor = ({
 
   return (
     <>
-      <SectionTitle>
-        {title} · {year}
-      </SectionTitle>
+      <SectionTitle chip={year}>{title}</SectionTitle>
       <CardGrid>
         {editable && (
           <Card>

@@ -284,7 +284,7 @@ describe("roleLine", () => {
           { role: "Staff", department: "Data and IT" },
         ],
       }),
-    ).toBe("HOD → Finance  ·  Staff → Data and IT");
+    ).toBe("HOD → Finance, Staff → Data and IT");
   });
 
   test("falls back to roles when there are no assignments", () => {

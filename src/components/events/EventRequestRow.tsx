@@ -12,6 +12,7 @@ import {
 } from "@shared/eventRequests";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { UnreadBubble, WaitingLine } from "@/components/design/DesignRequestRow";
+import { Facts } from "@/components/ui/primitives";
 import { toneColour } from "@/components/ui/StatusPill";
 import { EventStatusPill, eventStatusColour, SUB_FORM_TONES } from "./EventPills";
 
@@ -92,9 +93,7 @@ export const EventRequestRow = ({
         <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
           {formatDateTimeRange(event.startsAt, event.endsAt)}
         </Text>
-        <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
-          {event.location} · {who} ({event.department})
-        </Text>
+        <Facts parts={[event.location, `${who} (${event.department})`]} numberOfLines={1} />
         <FormSteps forms={event.forms} />
         <WaitingLine since={event.waitingSince} />
       </View>

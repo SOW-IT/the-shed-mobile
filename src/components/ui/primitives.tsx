@@ -1,5 +1,5 @@
 import { Children, ReactNode, useEffect, useState } from "react";
-import { Animated, Easing, Image, Modal, Platform, StyleProp, Text, TextProps, View, ViewStyle } from "react-native";
+import { Animated, Easing, Image, Modal, Platform, StyleProp, Text, TextProps, TextStyle, View, ViewStyle } from "react-native";
 import Reanimated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing as ReanimatedEasing } from "react-native-reanimated";
 import { USE_NATIVE_DRIVER, durations, typography, useAppTheme } from "@/theme";
 import { styles } from "./styles";
@@ -102,12 +102,70 @@ export const Card = ({
   );
 };
 
-export const SectionTitle = ({ children }: { children: ReactNode }) => {
+export const Chip = ({ children }: { children: string | number }) => {
   const t = useAppTheme();
   return (
-    <Text accessibilityRole="header" style={[typography.section, styles.sectionTitle, { color: t.text }]}>
+    <View style={[styles.chip, { backgroundColor: t.ghost }]}>
+      <Text numberOfLines={1} style={[styles.chipText, { color: t.muted }]}>
+        {children}
+      </Text>
+    </View>
+  );
+};
+
+export const SectionTitle = ({
+  children,
+  chip,
+}: {
+  children: ReactNode;
+  chip?: string | number;
+}) => {
+  const t = useAppTheme();
+  const title = (
+    <Text
+      accessibilityRole="header"
+      style={[
+        typography.section,
+        chip === undefined ? styles.sectionTitle : styles.sectionTitleText,
+        { color: t.text },
+      ]}
+    >
       {children}
     </Text>
+  );
+  if (chip === undefined) return title;
+  return (
+    <View style={[styles.sectionTitle, styles.sectionTitleRow]}>
+      {title}
+      <Chip>{chip}</Chip>
+    </View>
+  );
+};
+
+export const Facts = ({
+  parts,
+  style,
+  numberOfLines,
+}: {
+  parts: (string | number | null | undefined | false)[];
+  style?: StyleProp<TextStyle>;
+  numberOfLines?: number;
+}) => {
+  const t = useAppTheme();
+  const shown = parts.filter((part): part is string | number => part !== null && part !== undefined && part !== false && part !== "");
+  if (shown.length === 0) return null;
+  return (
+    <View style={styles.facts}>
+      {shown.map((part, index) => (
+        <Text
+          key={index}
+          numberOfLines={numberOfLines}
+          style={[typography.caption, { color: t.muted }, style, styles.fact]}
+        >
+          {part}
+        </Text>
+      ))}
+    </View>
   );
 };
 

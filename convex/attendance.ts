@@ -47,7 +47,7 @@ export type RosterEntry = {
 };
 
 const memberSubtitle = (role: string | undefined, details: string): string | undefined =>
-  [role, details].filter(Boolean).join(" · ") || undefined;
+  [role, details].filter(Boolean).join(", ") || undefined;
 
 export const ROSTER_LIMIT_MAX = 200;
 const SEARCH_MEMBER_LIMIT = 25;
@@ -74,9 +74,9 @@ async function staffEntry(
   memberYear: number
 ): Promise<RosterEntry> {
   const roles = [...new Set(assignmentsOf(profile).map((a) => a.role))];
-  const orgSubtitle = roles.length > 0 ? roles.join(" · ") : "";
+  const orgSubtitle = roles.length > 0 ? roles.join(", ") : "";
   const metaSubtitle = metadataSubtitle(fields, shadow?.metadata, memberYear, [ROLE_FIELD_KEY, CAMPUS_FIELD_KEY]);
-  const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
+  const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(", ");
   const user = profile.userId ? await ctx.db.get(profile.userId) : null;
   return {
     key: personKey({ email: profile.email }),

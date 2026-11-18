@@ -53,9 +53,9 @@ export const audienceSummary = (audience: Audience): string => {
     ...audience.departments,
   ];
   const where = groups.length > 0 ? groups.join(", ") : "All leaders";
-  return audience.roles.length > 0
-    ? `${where} · ${audience.roles.map(acronym).join(", ")}`
-    : where;
+  if (audience.roles.length === 0) return where;
+  const roles = audience.roles.map(acronym).join(", ");
+  return groups.length > 0 ? `${roles} in ${where}` : roles;
 };
 
 export const sortRoles = (roles: Iterable<string>): string[] => {

@@ -56,7 +56,7 @@ test("audienceSummary names the groups, then the roles", () => {
     })
   ).toBe("UNSW, Governance, Events");
   expect(audienceSummary({ ...EVERYONE, roles: ["Head of Department", "Staff"] })).toBe(
-    "All leaders · HOD, Staff"
+    "HOD, Staff"
   );
 });
 

@@ -85,7 +85,8 @@ export const AdminsCard = () => {
         {shown.map((person) => (
           <OptionRow
             key={person.email}
-            label={person.name === person.email ? person.email : `${person.name} · ${person.email}`}
+            label={person.name}
+            detail={person.name === person.email ? undefined : person.email}
             selected={false}
             onPress={() => {
               closePicker();

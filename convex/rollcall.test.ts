@@ -1118,7 +1118,7 @@ describe("guards + edge cases", () => {
     await leader.mutation(api.attendance.signIn, { eventId, memberId });
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
     const row = rows.find((r) => r.name === "Test Member");
-    expect(row?.subtitle).toBe("Member · Male");
+    expect(row?.subtitle).toBe("Member, Male");
     expect(row?.university).toBe(USYD);
 
     await t.run((ctx) =>
@@ -1129,9 +1129,9 @@ describe("guards + edge cases", () => {
       })
     );
     const after = await leader.query(api.attendance.listByEvent, { eventId });
-    expect(after.find((r) => r.name === "Test Member")?.subtitle).toBe("Newcomer · Male");
+    expect(after.find((r) => r.name === "Test Member")?.subtitle).toBe("Newcomer, Male");
     const roster = await leader.query(api.attendance.roster, { year: YEAR });
-    expect(roster.find((r) => r.name === "Test Member")?.subtitle).toBe("Newcomer · Male");
+    expect(roster.find((r) => r.name === "Test Member")?.subtitle).toBe("Newcomer, Male");
   });
 
   test("a campus roll call works out Roles from that campus's weeklies only", async () => {

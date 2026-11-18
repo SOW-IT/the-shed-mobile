@@ -387,7 +387,7 @@ export const googleEventBody = (
   notes?: string
 ) => ({
   summary:
-    event.due === "time" ? `${event.name} · ${clockTime(sydneyMinutes(event.dateStart))}` : event.name,
+    event.due === "time" ? `${event.name} at ${clockTime(sydneyMinutes(event.dateStart))}` : event.name,
   description: [
     calendarCategoryLabel(category),
     (event.subgroups ?? []).map(subgroupLabel).join(", "),

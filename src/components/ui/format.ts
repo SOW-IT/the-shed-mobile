@@ -62,7 +62,7 @@ export const BSB_LENGTH = 6;
 export const ACCOUNT_NUMBER_MAX_LENGTH = 10;
 
 export const maskAccount = (accountNumber: string): string =>
-  accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
+  accountNumber.length > 4 ? `ending ${accountNumber.slice(-4)}` : accountNumber;
 
 export { currencyText, formatAmount, sumAmounts, toCents } from "@shared/money";
 

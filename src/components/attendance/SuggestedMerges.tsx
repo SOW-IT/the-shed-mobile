@@ -40,7 +40,7 @@ const MATCH_LABELS: Record<NameMatch, string> = {
 const signInLine = (c: { signIns: number; lastSignIn: number | null }) =>
   c.signIns === 0
     ? "No sign-ins"
-    : `${c.signIns} sign-in${c.signIns === 1 ? "" : "s"} · last ${sydneyDay(c.lastSignIn!)}`;
+    : `${c.signIns} sign-in${c.signIns === 1 ? "" : "s"}, last ${sydneyDay(c.lastSignIn!)}`;
 
 type MergeTarget = {
   memberId: Id<"attendanceMembers">;
@@ -99,7 +99,7 @@ export function SuggestedMerges({
               <Card key={s.staffEmail}>
                 <Text style={[typography.label, { color: t.muted }]}>Staff</Text>
                 <Txt style={{ fontWeight: "600" }}>{s.staffName}</Txt>
-                <Muted>{[...s.roles, ...s.universities].join(" · ") || "Staff"}</Muted>
+                <Muted>{[...s.roles, ...s.universities].join(", ") || "Staff"}</Muted>
                 <Muted>{s.staffEmail}</Muted>
                 {s.candidates.map((c, i) => (
                   <View
@@ -116,7 +116,7 @@ export function SuggestedMerges({
                     <View>
                       <Txt style={{ fontWeight: "600" }}>{c.name}</Txt>
                       <Muted>
-                        {[c.campus, c.role, MATCH_LABELS[c.match]].filter(Boolean).join(" · ")}
+                        {[c.campus, c.role, MATCH_LABELS[c.match]].filter(Boolean).join(", ")}
                       </Muted>
                       <Muted>{signInLine(c)}</Muted>
                     </View>
@@ -166,7 +166,7 @@ export function SuggestedMerges({
                     style={i === 0 ? undefined : [styles.candidate, { borderTopColor: t.separator }]}
                   >
                     <Txt style={{ fontWeight: "600" }}>{m.name}</Txt>
-                    <Muted>{[m.campus, m.role].filter(Boolean).join(" · ") || "No campus"}</Muted>
+                    <Muted>{[m.campus, m.role].filter(Boolean).join(", ") || "No campus"}</Muted>
                     {m.email ? <Muted>{m.email}</Muted> : null}
                     <Muted>{signInLine(m)}</Muted>
                   </View>

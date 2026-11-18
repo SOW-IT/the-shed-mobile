@@ -98,7 +98,7 @@ export default function OrgChartScreen() {
             years={chart.availableYears}
             onSelect={setSelectedYear}
             formatLabel={(y) =>
-              y === chart.nextYear ? `${y} · Next year` : String(y)
+              y === chart.nextYear ? `${y} (next year)` : String(y)
             }
           />
         ) : undefined

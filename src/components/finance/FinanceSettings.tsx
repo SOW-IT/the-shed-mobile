@@ -66,6 +66,7 @@ const YearPicker = ({
 
 const ThresholdCard = ({
   title,
+  year,
   explanation,
   configured,
   standard,
@@ -74,6 +75,7 @@ const ThresholdCard = ({
   onSave,
 }: {
   title: string;
+  year: number;
   explanation: string;
   configured: number | null;
   standard: number;
@@ -87,7 +89,7 @@ const ThresholdCard = ({
   const unchanged = amount === (configured ?? standard) || value.trim() === "";
   return (
     <View style={{ gap: spacing.md }}>
-      <SectionTitle>{title}</SectionTitle>
+      <SectionTitle chip={year}>{title}</SectionTitle>
       <Card>
         <Muted>
           {explanation}
@@ -175,7 +177,7 @@ export const FinanceSettingsPanel = ({ currentYear }: { currentYear: number }) =
       )}
       <ErrorBanner message={error} />
       <View style={{ gap: spacing.md }}>
-        <SectionTitle>Budget Manager · {year}</SectionTitle>
+        <SectionTitle chip={year}>Budget Manager</SectionTitle>
         <Card>
           <Select
             label="Budget Manager"
@@ -202,7 +204,8 @@ export const FinanceSettingsPanel = ({ currentYear }: { currentYear: number }) =
       </View>
       <ThresholdCard
         key={`director-${year}`}
-        title={`Reimbursement Director threshold · ${year}`}
+        title="Reimbursement Director threshold"
+        year={year}
         explanation="Reimbursements at or above this amount also need the Director's approval. Only affects requests submitted from now on."
         configured={structure?.directorApprovalThreshold ?? null}
         standard={DIRECTOR_APPROVAL_THRESHOLD}
@@ -212,7 +215,8 @@ export const FinanceSettingsPanel = ({ currentYear }: { currentYear: number }) =
       />
       <ThresholdCard
         key={`event-${year}`}
-        title={`Event Director threshold · ${year}`}
+        title="Event Director threshold"
+        year={year}
         explanation="Event requests whose Finance form has total expenses over this amount also need the Director's approval, before the Finance Head's. Only affects Finance forms submitted from now on."
         configured={structure?.eventDirectorApprovalThreshold ?? null}
         standard={EVENT_DIRECTOR_APPROVAL_THRESHOLD}
@@ -221,7 +225,7 @@ export const FinanceSettingsPanel = ({ currentYear }: { currentYear: number }) =
         onSave={(amount) => run(() => setEventDirectorThreshold({ year, amount }))}
       />
       <View style={{ gap: spacing.md }}>
-        <SectionTitle>Approver delegation · {year}</SectionTitle>
+        <SectionTitle chip={year}>Approver delegation</SectionTitle>
         <Card>
           <Muted>A delegate can approve, decline and pay for their approver this staff year.</Muted>
           {(delegations ?? []).length === 0 ? <Muted>No delegations set.</Muted> : null}
