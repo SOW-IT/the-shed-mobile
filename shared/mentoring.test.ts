@@ -39,7 +39,7 @@ describe("Campus leaders", () => {
   test("show only their campus roles, or every role for other leaders", () => {
     expect(campusLeaderLine(campusLeader)).toBe("Student Leader → MACQ");
     expect(campusLeaderLine(staff)).toBeNull();
-    expect(profileLine(campusLeader)).toBe("Student Leader → MACQ  ·  Staff → Marketing");
+    expect(profileLine(campusLeader)).toBe("Student Leader → MACQ, Staff → Marketing");
     expect(profileLine({})).toBeNull();
   });
 });

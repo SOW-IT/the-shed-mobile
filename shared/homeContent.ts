@@ -85,7 +85,7 @@ const DEFAULT_CAMPUSES: HomeCampus[] = [
       "SOW at the University of Sydney gathers students from across the Camperdown campus to grow together as disciples of Jesus.\n\n" +
       "Each week we meet to open God’s word together, with optional dinner afterwards, and throughout the week we run small groups and share life as a community.",
     meetingLabel: "Weekly Meeting",
-    meeting: "Tuesdays · 5-7pm\nCamperdown campus (room announced each term)",
+    meeting: "Tuesdays, 5-7pm\nCamperdown campus (room announced each term)",
     programs: CAMPUS_PROGRAMS,
     instagram: "sowusyd",
   },
@@ -96,7 +96,7 @@ const DEFAULT_CAMPUSES: HomeCampus[] = [
       "SOW at UNSW brings together students on the Kensington campus around the gospel, learning from God’s word and encouraging one another.\n\n" +
       "Our weekly meeting is the heart of the community, with optional dinner afterwards and small groups running through the week.",
     meetingLabel: "Weekly Meeting",
-    meeting: "Wednesdays · 5-7pm\nKensington campus (room announced each term)",
+    meeting: "Wednesdays, 5-7pm\nKensington campus (room announced each term)",
     programs: CAMPUS_PROGRAMS,
     instagram: "sowunsw",
   },
@@ -107,7 +107,7 @@ const DEFAULT_CAMPUSES: HomeCampus[] = [
       "SOW at UTS meets around the Broadway campus in the heart of the city, welcoming students to explore and follow Jesus together.\n\n" +
       "We gather each week, with optional dinner afterwards, and run small groups through the week to grow in faith and friendship.",
     meetingLabel: "Weekly Meeting",
-    meeting: "Tuesdays · 5-7pm\nBroadway campus (room announced each term)",
+    meeting: "Tuesdays, 5-7pm\nBroadway campus (room announced each term)",
     programs: CAMPUS_PROGRAMS,
     instagram: "sowuts",
   },
@@ -118,7 +118,7 @@ const DEFAULT_CAMPUSES: HomeCampus[] = [
       "SOW at Macquarie University gathers students on the Macquarie Park campus to love Jesus and reach fellow students with the gospel.\n\n" +
       "Come along to our weekly meeting, and join a small group to go deeper through the week.",
     meetingLabel: "Weekly Meeting",
-    meeting: "Wednesdays · 5-7pm\nTrinity Chapel, Macquarie Park",
+    meeting: "Wednesdays, 5-7pm\nTrinity Chapel, Macquarie Park",
     programs: CAMPUS_PROGRAMS,
     instagram: "sowmq",
   },
@@ -129,7 +129,7 @@ const DEFAULT_CAMPUSES: HomeCampus[] = [
       "SOW WSU is the newest campus addition to SOW’s ministry, reaching students across Western Sydney with the gospel.\n\n" +
       "WSU hosts Seasons, our biblical training program, every Thursday at 6pm on the Parramatta South Campus.",
     meetingLabel: "Seasons",
-    meeting: `Thursdays · 6pm\nParramatta South Campus\n\n${SEASONS_LINE}`,
+    meeting: `Thursdays, 6pm\nParramatta South Campus\n\n${SEASONS_LINE}`,
     programs: [],
     instagram: "sowwsu",
   },
@@ -189,7 +189,7 @@ export const DEFAULT_HOME_BLOCKS: Record<HomeTabKey, HomeBlock[]> = {
     { type: "heading", text: "Follow along" },
     {
       type: "socials",
-      caption: `@studentoutreachtotheworld · ${CONTACT_EMAIL}`,
+      caption: `@studentoutreachtotheworld\n${CONTACT_EMAIL}`,
       links: [
         { label: "Instagram", icon: "logo-instagram", url: "https://www.instagram.com/studentoutreachtotheworld/" },
         { label: "Facebook", icon: "logo-facebook", url: "https://www.facebook.com/studentoutreachtotheworld/" },

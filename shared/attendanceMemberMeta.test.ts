@@ -283,7 +283,7 @@ describe("metadataSubtitle", () => {
         { role: "2", year: "2025", arc: "2", ask: "1", ig: "byexjj", zid: "z5689149" },
         2026
       )
-    ).toBe("Member · Year 2 · Arc Member · Coming? Maybe · @byexjj · z5689149");
+    ).toBe("Member, Year 2, Arc Member, Coming? Maybe, @byexjj, z5689149");
     expect(metadataSubtitle(fields, { arc: "3", ig: "@already" }, 2026)).toBe("@already");
     expect(metadataSubtitle(fields, { year: "2030" }, 2026)).toBe("");
   });

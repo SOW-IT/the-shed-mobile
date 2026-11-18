@@ -233,7 +233,7 @@ const ActingAsPicker = ({
           key={persona.role}
           title={personaLabel(persona, titles)}
           caption={
-            options ? personaHighlights(persona, options.teams).join(" · ") : ""
+            options ? personaHighlights(persona, options.teams).join(", ") : ""
           }
           selected={samePersona(current, persona)}
           onPress={() => pick(persona)}
@@ -254,7 +254,7 @@ const ActingAsPicker = ({
             title={department.name}
             caption={
               highlights.length > 0
-                ? highlights.join(" · ")
+                ? highlights.join(", ")
                 : department.division
             }
             selected={samePersona(current, staff) || samePersona(current, head)}

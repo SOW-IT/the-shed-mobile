@@ -1,4 +1,4 @@
-import { Avatar, Card } from "@/components/ui";
+import { Avatar, Card, Facts } from "@/components/ui";
 import {
   radius,
   spacing,
@@ -1388,22 +1388,13 @@ export function FollowUpRow({
         >
           {person.name}
         </Text>
-        {person.subtitle ? (
-          <Text
-            style={[typography.caption, { color: t.muted }]}
-            numberOfLines={1}
-          >
-            {person.kind === "staff" ? person.subtitle : "Member"}
-            {" · "}Last seen {last}
-          </Text>
-        ) : (
-          <Text
-            style={[typography.caption, { color: t.muted }]}
-            numberOfLines={1}
-          >
-            {person.kind === "staff" ? "Staff" : "Member"} · Last seen {last}
-          </Text>
-        )}
+        <Facts
+          numberOfLines={1}
+          parts={[
+            person.kind === "staff" ? person.subtitle || "Staff" : "Member",
+            `Last seen ${last}`,
+          ]}
+        />
         <View
           style={[
             styles.reasonPill,

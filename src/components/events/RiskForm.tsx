@@ -28,6 +28,7 @@ import {
   OptionSheet,
   Row,
   SectionTitle,
+  Facts,
 } from "@/components/ui";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -461,11 +462,13 @@ export const RiskView = ({ data, imported }: { data: RiskData; imported: boolean
               {row.description}
             </Text>
             {row.category ? (
-              <Muted>
-                {RISK_CATEGORY_LABELS[row.category]}
-                {isRiskLevel(row.consequence) ? ` · consequence level ${row.consequence}` : ""}
-                {isRiskLevel(row.likelihood) ? ` · ${LIKELIHOOD_GUIDE[row.likelihood].label.toLowerCase()}` : ""}
-              </Muted>
+              <Facts
+                parts={[
+                  RISK_CATEGORY_LABELS[row.category],
+                  isRiskLevel(row.consequence) ? `consequence level ${row.consequence}` : null,
+                  isRiskLevel(row.likelihood) ? LIKELIHOOD_GUIDE[row.likelihood].label.toLowerCase() : null,
+                ]}
+              />
             ) : null}
             {row.mitigation ? (
               <Text selectable style={[typography.body, { color: t.text }]}>

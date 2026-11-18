@@ -75,7 +75,7 @@ describe("people list", () => {
     expect(ben).toMatchObject({
       tags: ["newcomer", "noCampus"],
       category: { label: "Newcomer" },
-      primary: "1/4 · 25%",
+      primary: "1/4 (25%)",
       secondary: "Last came T1W1 (18 Feb)",
       warning: "No campus set",
     });
@@ -315,9 +315,9 @@ describe("two weeklies in one week", () => {
     expect(weekLabels([{ week: 1 }, { week: 2 }, { week: 2 }, { week: 3 }, { week: 2 }])).toEqual([
       "W1",
       "W2",
-      "W2·2",
+      "W2-2",
       "W3",
-      "W2·3",
+      "W2-3",
     ]);
   });
 
@@ -325,13 +325,13 @@ describe("two weeklies in one week", () => {
     const result = computeTerm(dup, 0, c);
     const blocks = buildTermBlocks({ computedAt: 1, result, before: null, running: false, followUps: null });
     const [byCat] = byType(blocks, "multiBars");
-    expect(byCat.points.map((p) => p.label)).toEqual(["W1", "W2", "W2·2"]);
+    expect(byCat.points.map((p) => p.label)).toEqual(["W1", "W2", "W2-2"]);
     const ana = result.rows.find((r) => r.key === "Ana")!;
     const member = buildMemberBlocks({ name: "Ana", lines: [], details: [], history: [{ term: dup[0], row: ana }], followUp: null, events: [], year: 2026 });
     expect(byType(member, "weekGrid")[0].weeks).toEqual([
       { label: "W1", came: true },
       { label: "W2", came: true },
-      { label: "W2·2", came: false },
+      { label: "W2-2", came: false },
     ]);
   });
 
@@ -348,7 +348,7 @@ describe("two weeklies in one week", () => {
     expect(chart.points.map((p) => [p.label, p.segments.map((sg) => sg.value)])).toEqual([
       ["W1", [1, 3]],
       ["W2", [2, 2]],
-      ["W2·2", [0, 4]],
+      ["W2-2", [0, 4]],
     ]);
   });
 });
@@ -413,14 +413,14 @@ describe("member page", () => {
     expect(blocks.map((b) => b.type)).toEqual(["memberHeader", "keyValues", "termHistory", "weekGrid", "eventList"]);
     expect(blocks[0]).toMatchObject({
       category: { label: "Regular" },
-      reason: "T1 2026: 4/4 · 100%\nLast came T1W4 (11 Mar)\nCame to 4 of 4, then missed the last 2",
+      reason: "T1 2026: 4/4 (100%)\nLast came T1W4 (11 Mar)\nCame to 4 of 4, then missed the last 2",
       photo: null,
     });
     expect(byType(blocks, "weekGrid")[0]).toMatchObject({ subtitle: "Weeklies attended this term" });
     expect(byType(blocks, "weekGrid")[0].weeks.every((w) => w.came)).toBe(true);
     expect(byType(blocks, "eventList")[0].rows).toEqual([
-      { title: "Weeklies T1W1", subtitle: "18 Feb · UNSW", tag: "Weekly" },
-      { title: "Camp", subtitle: "1 Jul 2025 · SOW", tag: undefined },
+      { title: "Weeklies T1W1", subtitle: "18 Feb at UNSW", tag: "Weekly" },
+      { title: "Camp", subtitle: "1 Jul 2025 at SOW", tag: undefined },
     ]);
   });
 
@@ -437,7 +437,7 @@ describe("member page", () => {
       events: [],
       year: 2026,
     });
-    expect((withRow[0] as { reason: string }).reason).toBe("T1 2026: 4/4 · 100%\nLast came T1W4 (11 Mar)");
+    expect((withRow[0] as { reason: string }).reason).toBe("T1 2026: 4/4 (100%)\nLast came T1W4 (11 Mar)");
     expect(byType(withRow, "weekGrid")[0]).toMatchObject({ title: "T1 2026", subtitle: "Weeklies attended" });
   });
 });

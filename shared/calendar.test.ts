@@ -344,7 +344,7 @@ describe("Google", () => {
         "link"
       );
     expect(deadline("time")).toMatchObject({
-      summary: "Applications close · 11:59 pm",
+      summary: "Applications close at 11:59 pm",
       start: { date: "2026-11-20" },
       end: { date: "2026-11-21" },
     });

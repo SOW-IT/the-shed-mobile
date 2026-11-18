@@ -96,7 +96,7 @@ const entryOfAttendance = (a: AttendanceRow): RosterEntry => ({
   campuses: a.campuses,
   university: a.university,
   subtitle:
-    [a.kind === "staff" ? a.roles.join(" · ") : "", a.subtitle].filter(Boolean).join(" · ") ||
+    [a.kind === "staff" ? a.roles.join(", ") : "", a.subtitle].filter(Boolean).join(", ") ||
     undefined,
   photo: a.photo,
 });
@@ -106,7 +106,7 @@ const memberSubtitle = (member: {
   subtitle?: string;
 }): string | undefined => {
   if (member.subtitle) return member.subtitle;
-  if (member.roles.length > 0) return member.roles.join(" · ");
+  if (member.roles.length > 0) return member.roles.join(", ");
   return undefined;
 };
 
@@ -119,15 +119,15 @@ const signedInSubtitle = (
   },
   multiDay: boolean
 ): string => {
-  const org = member.roles.length > 0 ? member.roles.join(" · ") : "";
-  const info = [org, member.subtitle].filter(Boolean).join(" · ");
+  const org = member.roles.length > 0 ? member.roles.join(", ") : "";
+  const info = [org, member.subtitle].filter(Boolean).join(", ");
   const trimmed = member.notes?.trim();
   const notePreview = trimmed
     ? `Note: ${trimmed.length > 36 ? `${trimmed.slice(0, 36)}…` : trimmed}`
     : "";
   return [formatSignInTime(member.signInTime, multiDay), notePreview, info]
     .filter(Boolean)
-    .join(" · ");
+    .join(", ");
 };
 
 function CountChip({

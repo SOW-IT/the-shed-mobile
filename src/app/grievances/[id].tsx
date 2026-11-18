@@ -32,6 +32,7 @@ import {
   Screen,
   SectionTitle,
   Sheet,
+  Facts,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { backOr } from "@/lib/goBack";
@@ -60,7 +61,7 @@ const Answer = ({ label, children }: { label: string; children: ReactNode }) => 
 const Details = ({ g }: { g: Omit<Doc<"grievances">, "ref"> }) => (
   <Card>
     <Answer label="Raised by">
-      {[g.name, g.email, g.phone].filter(Boolean).join(" · ")}
+      {[g.name, g.email, g.phone].filter(Boolean).join(", ")}
     </Answer>
     <Answer label="About">{g.category}</Answer>
     {g.campus ? <Answer label="Campus or area">{g.campus}</Answer> : null}
@@ -86,10 +87,7 @@ const History = ({ id }: { id: Id<"grievances"> }) => {
               <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>
                 {EVENT_LABELS[event.action] ?? event.action}
               </Text>
-              <Text style={[typography.caption, { color: t.muted }]}>
-                {sydneyDateTime(event.at)} · {event.actorName}
-                {event.detail ? ` · ${event.detail}` : ""}
-              </Text>
+              <Facts parts={[sydneyDateTime(event.at), event.actorName, event.detail]} />
             </View>
           </View>
         ))}

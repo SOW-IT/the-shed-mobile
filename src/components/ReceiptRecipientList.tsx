@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { eventStaffYear } from "../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { formatAmount, LoadingBar, Muted, Row, Txt } from "@/components/ui";
+import { Facts, formatAmount, LoadingBar, Row, Txt } from "@/components/ui";
 import { openExternalLink } from "@/lib/openExternalLink";
 
 export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) => {
@@ -27,9 +27,7 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
             <Txt style={{ fontWeight: "700", flexGrow: 1 }}>{recipient.accountName}</Txt>
             <Txt style={{ fontWeight: "700" }}>${formatAmount(recipient.amount)}</Txt>
           </Row>
-          <Muted>
-            BSB {recipient.bsb} · Account {recipient.accountNumber}
-          </Muted>
+          <Facts parts={[`BSB ${recipient.bsb}`, `Account ${recipient.accountNumber}`]} />
           {files === undefined ? (
             <View style={styles.fileLink}>
               <Ionicons name="document-attach-outline" size={15} color={t.muted} />

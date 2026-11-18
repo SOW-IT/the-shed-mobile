@@ -128,7 +128,7 @@ function twigRows(result: TwigResult, people: SowPeople): PeopleRow[] {
       section: r.role,
       tags: [r.role, ...(r.regular ? ["regular"] : []), ...(r.attended === 0 ? ["notYet"] : [])],
       category: rolePill(r),
-      primary: `${r.attended}/${r.held} · ${pct(r.pct)}`,
+      primary: `${r.attended}/${r.held} (${pct(r.pct)})`,
       secondary: r.attended === 0 ? "Hasn't come to a TWIG this staff year" : lastCame(r.lastAt),
       warning: r.role === "none" ? `No staff profile for ${result.year}` : undefined,
       badge: r.regular ? { label: REGULAR_FILTER.label, colour: REGULAR_FILTER.colour } : undefined,

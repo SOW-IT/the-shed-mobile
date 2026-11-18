@@ -311,7 +311,7 @@ export function renderWeeklyBlock(
           <Avatar photo={block.photo ?? null} name={block.name} size={72} />
           <Text style={[typography.title, { color: t.text, textAlign: "center" }]}>{block.name}</Text>
           {block.lines.length ? (
-            <Text style={[typography.body, { color: t.muted, textAlign: "center" }]}>{block.lines.join(" · ")}</Text>
+            <Text style={[typography.body, { color: t.muted, textAlign: "center" }]}>{block.lines.join(", ")}</Text>
           ) : null}
           {block.category ? (
             <View style={{ alignSelf: "center" }}>

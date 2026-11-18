@@ -307,7 +307,7 @@ async function resolvePersons(
       key,
       kind: profile ? "staff" : "member",
       name: personDisplayName(latest.name ?? member?.name, latest.email),
-      subtitle: profile ? roles.join(" · ") || undefined : undefined,
+      subtitle: profile ? roles.join(", ") || undefined : undefined,
       photo: await photoFor(ctx, user, latest.email),
       breakdown: profile
         ? buildBreakdown(roles[0], campuses[0])

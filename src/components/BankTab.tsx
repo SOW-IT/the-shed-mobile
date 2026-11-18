@@ -28,6 +28,7 @@ import {
   measureY,
   type Measurable,
 } from "./ui";
+import { Facts } from "@/components/ui";
 
 type Mode = "none" | "add" | "edit";
 
@@ -309,9 +310,7 @@ export const BankTab = () => {
                   <Ionicons name="star" size={20} color={t.accent} />
                   <View style={{ flex: 1, gap: 2 }}>
                     <Txt style={{ fontWeight: "700" }}>{preferred.accountName}</Txt>
-                    <Muted>
-                      BSB {preferred.bsb} · {maskAccount(preferred.accountNumber)}
-                    </Muted>
+                    <Facts parts={[`BSB ${preferred.bsb}`, `Account ${maskAccount(preferred.accountNumber)}`]} />
                   </View>
                   <IconButton
                     name="create-outline"
@@ -364,9 +363,7 @@ export const BankTab = () => {
                     </Pressable>
                     <View style={{ flex: 1, gap: 2 }}>
                       <Txt style={{ fontWeight: "700" }}>{account.accountName}</Txt>
-                      <Muted>
-                        BSB {account.bsb} · {maskAccount(account.accountNumber)}
-                      </Muted>
+                      <Facts parts={[`BSB ${account.bsb}`, `Account ${maskAccount(account.accountNumber)}`]} />
                     </View>
                     <IconButton
                       name="create-outline"

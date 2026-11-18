@@ -39,7 +39,7 @@ import { EVENTS, FilterChip, FilterRow } from "@/components/FilterChips";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 import { useCalendarView } from "@/hooks/useCalendarView";
 import { sydneyTime } from "@/lib/sydneyTime";
-import { Card, EmptyState, LoadingState, Muted, ReadableColumn, Screen, Segmented } from "@/components/ui";
+import { Card, EmptyState, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
 
 type CalendarEvent = NonNullable<ReturnType<typeof useRange>>[number];
@@ -147,14 +147,26 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
           {event.name}
         </Text>
         <Text style={[typography.caption, { color: t.muted }]}>{when}</Text>
-        <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
+        <View style={styles.eventFacts}>
           {/* Campus colours aren't all legible as text on both themes. */}
-          <Text style={{ color: campusColour ? t.text : colour, fontWeight: "800" }}>
+          <Text
+            numberOfLines={1}
+            style={[typography.caption, { color: campusColour ? t.text : colour, fontWeight: "800" }]}
+          >
             {calendarCategoryLabel(event.category)}
           </Text>
-          {where ? ` · ${where}` : ""}
-          {event.fromEventRequest ? " · Event request" : event.kind === "entry" && !event.due ? " · Calendar only" : ""}
-        </Text>
+          <Facts
+            numberOfLines={1}
+            parts={[
+              where,
+              event.fromEventRequest
+                ? "Event request"
+                : event.kind === "entry" && !event.due
+                  ? "Calendar only"
+                  : null,
+            ]}
+          />
+        </View>
         {event.notes ? (
           <Text selectable style={[typography.caption, { color: t.text }]}>
             {event.notes}
@@ -706,4 +718,5 @@ const styles = StyleSheet.create({
   slot: { position: "absolute", paddingHorizontal: 2 },
   eventRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
   eventBar: { width: 4, alignSelf: "stretch", borderRadius: 2 },
+  eventFacts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md },
 });

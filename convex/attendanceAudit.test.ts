@@ -114,7 +114,7 @@ describe("attendance audit logging", () => {
     expect(detail).toContain("Camp");
     const lines = detail.split("\n").slice(1);
     expect(lines).toHaveLength(2);
-    for (const line of lines) expect(line).toMatch(/ · .+\d{4}/);
+    for (const line of lines) expect(line).toMatch(/, .+\d{4}/);
   });
 
   test("deleting a member with no attendance says so rather than listing nothing", async () => {
@@ -170,7 +170,7 @@ describe("attendance audit logging", () => {
     }
 
     const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
-    expect(deletion!.detail).toContain("No ICU · ");
+    expect(deletion!.detail).toContain("No ICU, ");
     expect(deletion!.detail).toMatch(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/);
   });
 
@@ -512,7 +512,7 @@ describe("audit logging across attendance mutations", () => {
     expect(deletes).toHaveLength(2);
     const busy = deletes.find((l) => l.summary.includes("Busy"))!;
     expect(busy.eventId).toBe(withPeople);
-    expect(busy.detail).toMatch(/^Removed 1 attendance record:\nSam · /);
+    expect(busy.detail).toMatch(/^Removed 1 attendance record:\nSam, /);
     expect(deletes.find((l) => l.summary.includes("Empty"))?.detail).toBe(
       "Removed no attendance records"
     );
@@ -532,7 +532,7 @@ describe("audit logging across attendance mutations", () => {
     await t.run((ctx) => ctx.db.patch(attendanceId, { signInTime: Number.NaN }));
     await staff.mutation(api.events.remove, { eventId });
     const del = (await allLogs(t)).find((l) => l.action === "event.delete");
-    expect(del?.detail).toBe("Removed 1 attendance record:\nSam · unknown time");
+    expect(del?.detail).toBe("Removed 1 attendance record:\nSam, unknown time");
   });
 
   test("event deletePreview names everyone who would lose attendance", async () => {
@@ -985,8 +985,8 @@ describe("audit entries say which campus and skip saves that change nothing", ()
     const labels = options.events.map((e) => e.label).sort();
     expect(labels).toHaveLength(2);
     expect(new Set(labels).size).toBe(2);
-    expect(labels[0]).toMatch(/^S2W5 · UNSW · \d{1,2} [A-Z][a-z]{2} \d{4}$/);
-    expect(labels[1]).toMatch(/^S2W5 · USYD · \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+    expect(labels[0]).toMatch(/^S2W5, UNSW, \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+    expect(labels[1]).toMatch(/^S2W5, USYD, \d{1,2} [A-Z][a-z]{2} \d{4}$/);
     expect(options.events.every((e) => e.name === "S2W5")).toBe(true);
   });
 

@@ -43,7 +43,7 @@ export const formatServices = (services: readonly ServiceTime[]): string | null 
     byDay.set(service.day, [...(byDay.get(service.day) ?? []), formatClock(service.time)]);
   }
   if (byDay.size === 0) return null;
-  return [...byDay].map(([day, times]) => `${WEEKDAYS[day]} ${joinWithAnd(times)}`).join(" · ");
+  return [...byDay].map(([day, times]) => `${WEEKDAYS[day]} ${joinWithAnd(times)}`).join("; ");
 };
 
 export const cleanWebsite = (text: string | undefined): string | undefined | null => {

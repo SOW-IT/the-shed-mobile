@@ -359,5 +359,5 @@ export const metadataSubtitle = (
       return value ? subtitlePart(f.key, value) : null;
     })
     .filter(Boolean)
-    .join(" · ");
+    .join(", ");
 };

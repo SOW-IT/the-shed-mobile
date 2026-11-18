@@ -93,7 +93,7 @@ export async function memberAuditName(
 }
 
 const staffSubtitle = (roles: string[]): string | undefined =>
-  roles.length > 0 ? roles.join(" · ") : undefined;
+  roles.length > 0 ? roles.join(", ") : undefined;
 
 type StaffSource = {
   profile: Doc<"staffProfiles">;
@@ -109,7 +109,7 @@ const staffRowOf = (
   const roles = rolesOfLike(p);
   const campuses = campusesLed(p);
   const metaSubtitle = metadataSubtitle(fields, metadata, viewingYear, [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY]);
-  const subtitle = [staffSubtitle(roles), metaSubtitle].filter(Boolean).join(" · ");
+  const subtitle = [staffSubtitle(roles), metaSubtitle].filter(Boolean).join(", ");
   return {
     key: `staff:${p.email}`,
     kind: "staff",
@@ -140,7 +140,7 @@ const memberRowOf = (
     memberId: m._id,
     roles: [],
     role,
-    subtitle: [role, metaSubtitle].filter(Boolean).join(" · "),
+    subtitle: [role, metaSubtitle].filter(Boolean).join(", "),
     university: resolveUniversity(fields, m.metadata),
     metadata: m.metadata ?? {},
   };
@@ -742,7 +742,7 @@ export const remove = mutation({
 
     const shown = listed.map(
       (record) =>
-        `${eventNames.get(record.eventId)} · ${auditStamp(record.signInTime)}`
+        `${eventNames.get(record.eventId)}, ${auditStamp(record.signInTime)}`
     );
     const hidden = signed.length - shown.length;
 

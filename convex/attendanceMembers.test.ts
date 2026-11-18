@@ -660,10 +660,10 @@ describe("attendanceMembers.remove", () => {
         .collect()
     );
     const detailOf = (id: string) => logs.find((l) => l.memberId === id)!.detail!;
-    expect(detailOf(memberId)).toMatch(/^Removed 102 attendance records:\nWeekly · /);
+    expect(detailOf(memberId)).toMatch(/^Removed 102 attendance records:\nWeekly, /);
     expect(detailOf(memberId).split("\n")).toHaveLength(102);
     expect(detailOf(memberId)).toMatch(/\nand 2 more$/);
-    expect(detailOf(single)).toMatch(/^Removed 1 attendance record:\nDeleted event · /);
+    expect(detailOf(single)).toMatch(/^Removed 1 attendance record:\nDeleted event, /);
     expect(await t.run((ctx) => ctx.db.query("attendance").collect())).toEqual([]);
   });
 });
