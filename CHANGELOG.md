@@ -9,8 +9,8 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [2.11.16] - 2026-11-18
 
 ### Changed
-- **The Calendar's month is shorter, so the day's events show without
-  scrolling.** Each week takes less height and the weeks sit closer together.
+- **The Calendar's month is shorter, leaving more room for the day's events
+  below it.** Each week takes less height and the weeks sit closer together.
   A day shows up to two events in the month, or one and "+N more"; tapping
   the day lists them all just below.
 - **The date heading under the month is gone.** The picked day is already
