@@ -233,7 +233,7 @@ export default function GrievanceScreen() {
                       icon="mail-outline"
                       onPress={() =>
                         void openExternalLink(
-                          `mailto:${g.email}?subject=${encodeURIComponent("About your grievance")}`
+                          `mailto:${encodeURIComponent(g.email)}?subject=${encodeURIComponent("About your grievance")}`
                         )
                       }
                     />
