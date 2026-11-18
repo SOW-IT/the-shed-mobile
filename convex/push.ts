@@ -75,6 +75,11 @@ export const removeToken = internalMutation({
 
 const EXPO_BATCH = 100;
 
+type ExpoErrorDetails = { error?: string; apns?: { reason?: string } };
+
+const isDeadToken = (details: ExpoErrorDetails | undefined) =>
+  details?.error === "DeviceNotRegistered" || details?.apns?.reason === "BadDeviceToken";
+
 async function pushToTokens(
   ctx: ActionCtx,
   targets: PushTarget[],
@@ -84,7 +89,7 @@ async function pushToTokens(
   for (let start = 0; start < targets.length; start += EXPO_BATCH) {
     const batch = targets.slice(start, start + EXPO_BATCH);
     let result: {
-      data?: { status: string; id?: string; details?: { error?: string } }[];
+      data?: { status: string; id?: string; details?: ExpoErrorDetails }[];
     };
     try {
       const response = await fetch("https://exp.host/--/api/v2/push/send", {
@@ -112,7 +117,7 @@ async function pushToTokens(
     }
     for (let i = 0; i < (result.data ?? []).length; i++) {
       const ticket = result.data![i];
-      if (ticket.status === "error" && ticket.details?.error === "DeviceNotRegistered") {
+      if (ticket.status === "error" && isDeadToken(ticket.details)) {
         await ctx.runMutation(internal.push.removeToken, { token: batch[i].token });
       } else if (ticket.status === "ok" && ticket.id) {
         receipts.push({ id: ticket.id, token: batch[i].token });
@@ -175,7 +180,7 @@ export const checkReceipts = internalAction({
   },
   handler: async (ctx, args) => {
     let result: {
-      data?: Record<string, { status: string; details?: { error?: string } }>;
+      data?: Record<string, { status: string; details?: ExpoErrorDetails }>;
     };
     try {
       const response = await fetch("https://exp.host/--/api/v2/push/getReceipts", {
@@ -194,10 +199,7 @@ export const checkReceipts = internalAction({
     }
     for (const { id, token } of args.receipts) {
       const receipt = result.data?.[id];
-      if (
-        receipt?.status === "error" &&
-        receipt.details?.error === "DeviceNotRegistered"
-      ) {
+      if (receipt?.status === "error" && isDeadToken(receipt.details)) {
         await ctx.runMutation(internal.push.removeToken, { token });
       }
     }

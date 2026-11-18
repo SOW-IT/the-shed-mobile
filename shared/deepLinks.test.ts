@@ -8,4 +8,10 @@ describe("push deep links", () => {
     expect(isAllowedDeepLink("/profiles")).toBe(false);
     expect(isAllowedDeepLink("https://evil.example/profile")).toBe(false);
   });
+
+  test("grievance updates open the grievance, and the handover reminder opens the team's list", () => {
+    expect(isAllowedDeepLink("/grievances/v572nqkhj7vrfvjgcj3cppawx58jfe2q")).toBe(true);
+    expect(isAllowedDeepLink("/grievances?tab=submitted")).toBe(true);
+    expect(isAllowedDeepLink("/grievancesx")).toBe(false);
+  });
 });

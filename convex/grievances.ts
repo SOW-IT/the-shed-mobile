@@ -163,13 +163,14 @@ const logEvent = async (
 async function tellSubmitter(
   ctx: MutationCtx,
   g: Grievance,
-  opts: { actor: string; subject: string; body: string }
+  opts: { actor: string; subject: string; body: string; replyTo?: string }
 ) {
   const link = g.accountEmail ? `\n\nFollow it in THE SHED: ${appUrl(grievanceUrl(g))}` : "";
   await ctx.scheduler.runAfter(0, internal.emails.send, {
     to: g.email,
     subject: opts.subject,
     body: `Hi ${g.name},\n\n${opts.body}${link}\n\nBlessings,\nThe SOW team`,
+    ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
   });
   await notify(ctx, {
     to: g.accountEmail,
@@ -187,15 +188,21 @@ async function tellSubmitter(
 async function tellTeam(
   ctx: MutationCtx,
   g: Grievance,
-  opts: { actor: string | undefined; title: string; body: string }
+  opts: {
+    actor: string | undefined;
+    title: string;
+    body: string;
+    personal?: { to: string; title: string; body: string };
+  }
 ) {
   for (const to of await grievanceTeam(ctx)) {
     if (to === g.accountEmail) continue;
+    const message = opts.personal?.to === to ? opts.personal : opts;
     await notify(ctx, {
       to,
       actor: opts.actor,
-      subject: opts.title,
-      body: opts.body,
+      subject: message.title,
+      body: message.body,
       url: grievanceUrl(g),
       grievanceId: g._id,
       email: false,
@@ -314,7 +321,8 @@ export const submit = mutation({
       subject: "We've received your grievance",
       body:
         "Thank you for telling us. Your grievance has gone to SOW's grievance team, and only they can see it. " +
-        "We'll email you when someone is looking after it and when it's resolved.\n\n" +
+        "We'll email you when someone is looking after it and when it's resolved, " +
+        "and you can reply to those emails to talk with them.\n\n" +
         grievanceDetailLines(g).join("\n\n"),
     });
     await tellTeam(ctx, g, {
@@ -343,20 +351,30 @@ export const assign = mutation({
     const assignee = (await nameOf(ctx, args.assigneeEmail)) as string;
     const taken = args.assigneeEmail === actor;
     await logEvent(ctx, g._id, actor, taken ? "taken" : "assigned", taken ? undefined : assignee);
-    if (first) {
-      await tellSubmitter(ctx, g, {
-        actor,
-        subject: "Your grievance is in progress",
-        body: `${assignee} from SOW's grievance team is looking after your grievance. They may contact you to talk it through.`,
-      });
-    }
+    await tellSubmitter(ctx, g, {
+      actor,
+      replyTo: args.assigneeEmail,
+      ...(first
+        ? {
+            subject: "Your grievance is in progress",
+            body: `${assignee} from SOW's grievance team is looking after your grievance. They may contact you to talk it through, and you can reply to this email to reach them.`,
+          }
+        : {
+            subject: "Someone new is looking after your grievance",
+            body: `${assignee} from SOW's grievance team is now looking after your grievance. Reply to this email to reach them.`,
+          }),
+    });
     const ref = grievanceRef(g.ref);
+    const actorName = (await nameOf(ctx, actor)) as string;
     await tellTeam(ctx, g, {
       actor,
       title: taken ? `${assignee} took on grievance ${ref}` : `Grievance ${ref} given to ${assignee}`,
-      body: taken
-        ? `${assignee} is looking after it.`
-        : `${(await nameOf(ctx, actor)) as string} gave it to ${assignee}.`,
+      body: taken ? `${assignee} is looking after it.` : `${actorName} gave it to ${assignee}.`,
+      personal: {
+        to: args.assigneeEmail,
+        title: `You're looking after grievance ${ref}`,
+        body: `${actorName} gave it to you.`,
+      },
     });
     return null;
   },
@@ -391,10 +409,13 @@ export const close = mutation({
     await logEvent(ctx, g._id, actor, resolved ? "resolved" : "not-proceeding", note);
     await tellSubmitter(ctx, g, {
       actor,
+      replyTo: g.assigneeEmail ?? actor,
       subject: resolved ? "Your grievance has been resolved" : "An update on your grievance",
-      body: resolved
-        ? `Your grievance has been resolved.\n\nOutcome: ${note}`
-        : `Your grievance won't be taken further.\n\nReason: ${note}`,
+      body: `${
+        resolved
+          ? `Your grievance has been resolved.\n\nOutcome: ${note}`
+          : `Your grievance won't be taken further.\n\nReason: ${note}`
+      }\n\nIf you'd like to talk about it, reply to this email.`,
     });
     const ref = grievanceRef(g.ref);
     await tellTeam(ctx, g, {

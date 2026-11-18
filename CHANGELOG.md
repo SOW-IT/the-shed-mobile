@@ -6,6 +6,29 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.14] - 2026-11-18
+
+### Added
+- **Whoever raised a grievance can email back and forth with the person
+  looking after it.** Once someone on the grievance team takes it on, every
+  email we send about it replies to them, so answering the email reaches
+  them directly, whether or not the person who raised it has an account.
+  The emails say so. If it's given to someone else, the person who raised it
+  is emailed who's looking after it now. The team gets an Email button on
+  each grievance that starts an email to the person who raised it.
+
+### Fixed
+- **Tapping a grievance notification opens the grievance.** It opened the
+  app and stayed on whatever screen was showing. This covers updates to the
+  person who raised it, the team's notices, and the reminder to hand over
+  last year's grievances.
+- **Someone given a grievance gets a notification meant for them.** It reads
+  "You're looking after grievance …" instead of the notice the rest of the
+  team gets.
+- **Phones Apple won't deliver to stop getting retried.** A device that
+  Apple rejects as a bad device is forgotten, as one that's no longer
+  registered already was. Opening the app on it again registers it afresh.
+
 ## [2.11.13] - 2026-11-17
 
 ### Changed

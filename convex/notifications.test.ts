@@ -380,6 +380,41 @@ describe("push.send (Expo push action)", () => {
     expect(remaining.map((row) => row.token)).toEqual(["ExponentPushToken[live]"]);
   });
 
+  test("a receipt Apple rejects as BadDeviceToken prunes that token; other developer errors don't", async () => {
+    const t = newConvex();
+    await seedToken(t, "a@sow.org.au", "ExponentPushToken[simulator]");
+    await seedToken(t, "a@sow.org.au", "ExponentPushToken[phone]");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              "r-sim": {
+                status: "error",
+                details: { error: "DeveloperError", apns: { reason: "BadDeviceToken", statusCode: 400 } },
+              },
+              "r-phone": {
+                status: "error",
+                details: { error: "DeveloperError", apns: { reason: "TopicDisallowed", statusCode: 400 } },
+              },
+            },
+          }),
+      })
+    );
+
+    await t.action(internal.push.checkReceipts, {
+      receipts: [
+        { id: "r-sim", token: "ExponentPushToken[simulator]" },
+        { id: "r-phone", token: "ExponentPushToken[phone]" },
+      ],
+    });
+
+    const remaining = await t.run((ctx) => ctx.db.query("pushTokens").take(10));
+    expect(remaining.map((row) => row.token)).toEqual(["ExponentPushToken[phone]"]);
+  });
+
   test("missing data array is tolerated (no pruning)", async () => {
     const t = newConvex();
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
