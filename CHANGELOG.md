@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.15] - 2026-11-18
+
+### Changed
+- **The little dots between pieces of text are gone.** Lines of facts, like
+  a request's department, date and age, or who did something and when, are
+  separate pieces with space between them. Counts and years beside a heading
+  sit in a small grey chip, as in "Closed 2" and "Teams 2027". Status pills
+  no longer start with a dot; their colour already shows the state.
+- **Wording that ran together with dots reads as sentences.** Roles and
+  campuses are listed with commas, church service times put a semicolon
+  between days ("Sunday 9am and 6pm; Saturday 6:30pm"), attendance shows
+  "4/6 (67%)", a risk's rating reads "High (12)", a held week reads
+  "Week 3 (Weekly Bible Study)", and a push about a new event says where it
+  is ("Camp at UNSW"). A bank account shows as "Account ending 1234".
+- **A campus's programs on Home show as tags** instead of a bulleted list.
+
 ## [2.11.13] - 2026-11-17
 
 ### Changed
