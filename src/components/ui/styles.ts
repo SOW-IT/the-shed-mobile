@@ -227,6 +227,7 @@ export const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: 3,
   },
+  segmentedPill: { borderRadius: radius.full },
   segmentIndicator: {
     position: "absolute",
     top: 3,

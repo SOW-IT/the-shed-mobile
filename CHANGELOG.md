@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.16] - 2026-11-18
+
+### Changed
+- **The Calendar's month is shorter, so the day's events show without
+  scrolling.** Each week takes less height and the weeks sit closer together.
+  A day shows up to two events in the month, or one and "+N more"; tapping
+  the day lists them all just below.
+- **The date heading under the month is gone.** The picked day is already
+  highlighted in the month, so its events start straight away. A day with
+  nothing on says so in one short line instead of a large empty-state box.
+
+### Fixed
+- **The Month/Week switch's highlight is a pill like the switch around it,**
+  instead of a rounded rectangle inside an oval.
+
 ## [2.11.15] - 2026-11-18
 
 ### Changed
