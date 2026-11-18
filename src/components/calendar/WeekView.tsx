@@ -6,7 +6,6 @@ import {
   type ScrollViewInstance,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 import {
@@ -55,6 +54,7 @@ const hourLabel = (hour: number) => (hour === 0 ? "" : `${hour % 12 || 12} ${hou
 // A week like Google Calendar's: hours down the side, each event where it
 // happens, and events running over several days in a strip along the top.
 export const WeekView = <E extends WeekEvent>({
+  height,
   week,
   byDay,
   today,
@@ -64,6 +64,8 @@ export const WeekView = <E extends WeekEvent>({
   onOpen,
   onAddAt,
 }: {
+  /** The whole view's height; the hours scroll inside what's left. */
+  height: number;
   week: string[];
   byDay: Map<string, E[]>;
   today: string;
@@ -74,7 +76,6 @@ export const WeekView = <E extends WeekEvent>({
   onAddAt?: (day: string, hour: number) => void;
 }) => {
   const t = useAppTheme();
-  const { height } = useWindowDimensions();
   const scrollRef = useRef<ScrollViewInstance>(null);
   const scrolled = useRef(false);
   const [dayWidth, setDayWidth] = useState(0);
@@ -90,7 +91,7 @@ export const WeekView = <E extends WeekEvent>({
     : Math.max(0, ...strip.bars.map((bar) => bar.row + 1));
 
   return (
-    <View style={{ gap: 4 }}>
+    <View style={{ gap: 4, height }}>
       <View style={styles.row}>
         <View style={{ width: GUTTER }} />
         {week.map((key, i) => {
@@ -172,7 +173,7 @@ export const WeekView = <E extends WeekEvent>({
       <ScrollView
         ref={scrollRef}
         nestedScrollEnabled
-        style={{ height: Math.min(24 * HOUR_HEIGHT, Math.max(360, height * 0.6)) }}
+        style={{ flex: 1 }}
         onLayout={() => {
           if (scrolled.current) return;
           scrolled.current = true;

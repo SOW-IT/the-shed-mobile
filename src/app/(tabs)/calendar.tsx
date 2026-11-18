@@ -49,6 +49,12 @@ const useRange = (window: { from: number; to: number }, skip: boolean) =>
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 // Two rows of bars keep the month short, so the day's events show below it.
 const MAX_ROWS = 2;
+// A day in the month, and the space between weeks.
+const CELL_HEIGHT = 66;
+const WEEK_GAP = 2;
+// The month's height: the weekday letters, then its weeks. The week view is as tall.
+const monthHeight = (year: number, month: number) =>
+  (typography.caption.lineHeight ?? 0) + monthGrid(year, month).length * (CELL_HEIGHT + WEEK_GAP);
 const VIEWS = [
   { key: "month", label: "Month" },
   { key: "week", label: "Week" },
@@ -427,6 +433,7 @@ export default function CalendarScreen() {
       return (
         <Card style={wide ? undefined : styles.fullBleedCard}>
           <WeekView
+            height={monthHeight(at.year, at.month)}
             week={weekOf(at.selected)}
             byDay={days}
             today={today}
@@ -690,7 +697,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
   },
   // The weeks sit close together, so the month takes less of the screen.
-  monthCard: { gap: 2 },
+  monthCard: { gap: WEEK_GAP },
   week: { flexDirection: "row" },
   weekday: { flex: 1, textAlign: "center", fontWeight: "700" },
   cell: {
@@ -701,7 +708,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     paddingHorizontal: 2,
     borderRadius: radius.md,
-    minHeight: 66,
+    minHeight: CELL_HEIGHT,
     gap: 2,
   },
   dayNumber: {
