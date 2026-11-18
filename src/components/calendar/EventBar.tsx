@@ -19,7 +19,7 @@ export const EventBar = ({
   fromBefore,
   toAfter,
 }: {
-  event: { name: string; category: CalendarCategory; subgroups: string[]; due: Due | null };
+  event: { name: string; category: CalendarCategory; subgroups: string[]; colour?: string | null; due: Due | null };
   fromBefore: boolean;
   toAfter: boolean;
 }) => {

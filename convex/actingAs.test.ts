@@ -386,7 +386,7 @@ describe("choosing who to act as", () => {
       const can = await canOf();
       expect(can.event).toEqual({ edit: false, cancel: false });
       expect(can.forms).toEqual(
-        Array(3).fill({ fill: false, decide: false, reopen: false, comment: false })
+        Array(3).fill({ fill: false, decide: false, reopen: false, comment: false, remind: false })
       );
     }
     await expect(
@@ -656,7 +656,7 @@ describe("acting as Marketing staff", () => {
     const form = (await admin.query(api.eventRequests.get, { id: events.marketing }))!.forms
       .marketing;
     expect(form.status).toBe("PENDING");
-    expect(form.can).toEqual({ fill: false, decide: false, reopen: false, comment: false });
+    expect(form.can).toEqual({ fill: false, decide: false, reopen: false, comment: false, remind: false });
   });
 
   test("hides the Finance and admin views", async () => {

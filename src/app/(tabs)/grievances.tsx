@@ -8,6 +8,7 @@ import { GroupedList, type StatusGroup } from "@/components/GroupedList";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { staffYearForDate } from "@shared/flow";
 import { GrievanceTeamCard } from "@/components/grievances/GrievanceTeamCard";
+import { GrievanceGuideSheet } from "@/components/grievances/GrievanceGuideSheet";
 import {
   GrievanceOptionsSheet,
 } from "@/components/grievances/GrievanceOptionsSheet";
@@ -104,10 +105,12 @@ export default function GrievancesScreen() {
   const [pickedYear, setPickedYear] = useState<number | null>(null);
   const year = pickedYear ?? years?.[0] ?? null;
   const submitted = useQuery(api.grievances.submitted, team && year ? { year } : "skip");
-  const settings = useQuery(api.grievances.settings, team ? {} : "skip");
+  // Anyone can read it: the guide names the departments that handle grievances.
+  const settings = useQuery(api.grievances.settings);
   const waitingRaw = useQuery(api.grievances.waitingOnMe, team ? {} : "skip");
   const waiting = waitingRaw ?? 0;
   const [editingOptions, setEditingOptions] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const landingKnown =
     !isAuthenticated ||
@@ -209,7 +212,11 @@ export default function GrievancesScreen() {
         onActiveKeyChange={setActive}
         fullWidth
         footer={
-          <FooterAction title="+ Raise a Grievance" onPress={() => router.push("/grievances/new")} />
+          <FooterAction
+            title="+ Raise a Grievance"
+            onPress={() => router.push("/grievances/new")}
+            onInfo={() => setGuideOpen(true)}
+          />
         }
         footerTabKey="mine"
         floatingAboveFooter
@@ -219,7 +226,12 @@ export default function GrievancesScreen() {
           ) : undefined
         }
       />
-      {settings ? (
+      <GrievanceGuideSheet
+        visible={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        departments={settings?.departments ?? []}
+      />
+      {team && settings ? (
         <GrievanceOptionsSheet
           visible={editingOptions}
           categories={settings.categories}

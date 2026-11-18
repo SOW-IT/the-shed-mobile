@@ -16,12 +16,15 @@ import {
   toDateInputValue,
   toTimeInputValue,
 } from "@shared/datetime";
+import { isTagColour, type TagColourName } from "@shared/attendanceTags";
 import { eventWindowFromInputs, subgroupLabel } from "@shared/rollcall";
+import { CATEGORY_COLOURS } from "@/components/calendar/categoryColours";
 import type { AttendanceDraft } from "@/components/attendance/CreateEventSheet";
 import { DateInput, TimeInput } from "@/components/DateInputs";
 import {
   Btn,
   Checkbox,
+  ColourSwatches,
   ConfirmDialog,
   ErrorBanner,
   Field,
@@ -40,6 +43,7 @@ export type EditableEntry = {
   dateEnd: number;
   notes: string | null;
   due: Due | null;
+  colour: string | null;
 };
 
 const KINDS = [
@@ -88,6 +92,7 @@ export const CalendarEntrySheet = ({
   const [deadline, setDeadline] = useState(false);
   const [allDay, setAllDay] = useState(true);
   const [dueTime, setDueTime] = useState(DEFAULT_DUE_TIME);
+  const [colour, setColour] = useState<TagColourName | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -112,6 +117,7 @@ export const CalendarEntrySheet = ({
       setDeadline(entry.due !== null);
       setAllDay(entry.due !== "time");
       setDueTime(entry.due === "time" ? toTimeInputValue(new Date(entry.dateStart)) : DEFAULT_DUE_TIME);
+      setColour(isTagColour(entry.colour) ? entry.colour : null);
     } else {
       setName("");
       setDateStr(day);
@@ -123,6 +129,7 @@ export const CalendarEntrySheet = ({
       setDeadline(false);
       setAllDay(true);
       setDueTime(time ?? DEFAULT_DUE_TIME);
+      setColour(null);
     }
     setWhere(defaultSubgroup);
     setAttendance(false);
@@ -166,13 +173,21 @@ export const CalendarEntrySheet = ({
       setBusy,
       setError,
       async () => {
-        let fields: { name: string; dateStart: number; dateEnd: number; notes: string; due?: Due };
+        let fields: {
+          name: string;
+          dateStart: number;
+          dateEnd: number;
+          notes: string;
+          due?: Due;
+          colour?: string;
+        };
+        const picked = colour ? { colour } : {};
         if (deadline) {
           const at = parseDateTimeInputValues(dateStr, allDay ? "00:00" : dueTime);
           if (at === null) throw new Error("Enter a valid date (YYYY-MM-DD) and time (HH:MM).");
-          fields = { name, dateStart: at, dateEnd: at, notes, due: allDay ? "day" : "time" };
+          fields = { name, dateStart: at, dateEnd: at, notes, due: allDay ? "day" : "time", ...picked };
         } else {
-          fields = { name, ...eventWindow(), notes };
+          fields = { name, ...eventWindow(), notes, ...picked };
         }
         await (entry ? updateEntry({ id: entry.id, ...fields }) : addEntry(fields));
       },
@@ -286,14 +301,27 @@ export const CalendarEntrySheet = ({
           ) : null}
         </>
       ) : (
-        <Field
-          label="Notes (optional)"
-          value={notes}
-          onChangeText={setNotes}
-          autoCapitalize="sentences"
-          maxLength={MAX_ENTRY_NOTES}
-          multiline
-        />
+        <>
+          <View style={{ gap: spacing.xs }}>
+            <Muted>Colour</Muted>
+            <ColourSwatches
+              value={colour}
+              onChange={setColour}
+              none={{
+                label: deadline ? "Deadline red" : "Event grey",
+                hex: CATEGORY_COLOURS[deadline ? "deadline" : "event"],
+              }}
+            />
+          </View>
+          <Field
+            label="Notes (optional)"
+            value={notes}
+            onChangeText={setNotes}
+            autoCapitalize="sentences"
+            maxLength={MAX_ENTRY_NOTES}
+            multiline
+          />
+        </>
       )}
       {/* Inside the sheet: iOS won't show a second modal beside one that's open. */}
       {entry ? (

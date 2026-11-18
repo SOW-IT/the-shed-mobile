@@ -1,3 +1,4 @@
+import { isTagColour, TAG_COLOUR_HEX } from "./attendanceTags";
 import { DAY_MS, pad2 } from "./datetime";
 import { acronym, SYDNEY_TIME_ZONE, universityColour } from "./flow";
 import { isOrgWideSubgroup, SOW_SUBGROUP, subgroupLabel, type TagList } from "./rollcall";
@@ -67,6 +68,7 @@ export type EntryInput = {
   dateEnd: number;
   notes?: string;
   due?: Due;
+  colour?: string;
 };
 
 export const normalizeEntry = <E extends EntryInput>(entry: E): E => ({
@@ -75,6 +77,7 @@ export const normalizeEntry = <E extends EntryInput>(entry: E): E => ({
   notes: entry.notes?.trim() || undefined,
   // Always present, so turning a deadline back into an event clears it.
   due: entry.due,
+  colour: entry.colour || undefined,
 });
 
 export const entryProblem = (entry: EntryInput): string | null => {
@@ -87,6 +90,7 @@ export const entryProblem = (entry: EntryInput): string | null => {
   } else if (entry.dateEnd - entry.dateStart > MAX_SPAN_DAYS * DAY_MS) {
     return `It can run for at most ${MAX_SPAN_DAYS} days.`;
   }
+  if (entry.colour !== undefined && !isTagColour(entry.colour)) return "Choose one of the colours.";
   if ((entry.notes?.length ?? 0) > MAX_ENTRY_NOTES) {
     return `Notes can be at most ${MAX_ENTRY_NOTES} characters.`;
   }
@@ -363,9 +367,39 @@ const GOOGLE_CAMPUS_COLOURS: Record<string, string> = {
   WSU: "11",
 };
 
-const googleColourOf = (category: CalendarCategory, subgroups: string[]): string =>
-  (campusColourOf(category, subgroups) && GOOGLE_CAMPUS_COLOURS[acronym(subgroups[0])]) ||
-  GOOGLE_COLOURS[category];
+// Google's own shades of its colours, to find the nearest to a picked one.
+const GOOGLE_COLOUR_HEX: Record<string, string> = {
+  "1": "#7986CB",
+  "2": "#33B679",
+  "3": "#8E24AA",
+  "4": "#E67C73",
+  "5": "#F6BF26",
+  "6": "#F4511E",
+  "7": "#039BE5",
+  "8": "#616161",
+  "9": "#3F51B5",
+  "10": "#0B8043",
+  "11": "#D50000",
+};
+
+const rgbOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+export const nearestGoogleColour = (hex: string): string => {
+  const [r, g, b] = rgbOf(hex);
+  let best = "1";
+  let bestDistance = Infinity;
+  for (const [id, google] of Object.entries(GOOGLE_COLOUR_HEX)) {
+    const [gr, gg, gb] = rgbOf(google);
+    const distance = (r - gr) ** 2 + (g - gg) ** 2 + (b - gb) ** 2;
+    if (distance < bestDistance) [best, bestDistance] = [id, distance];
+  }
+  return best;
+};
+
+const googleColourOf = (category: CalendarCategory, subgroups: string[], colour?: string): string =>
+  (isTagColour(colour) ? nearestGoogleColour(TAG_COLOUR_HEX[colour]) : undefined) ??
+  ((campusColourOf(category, subgroups) && GOOGLE_CAMPUS_COLOURS[acronym(subgroups[0])]) ||
+    GOOGLE_COLOURS[category]);
 
 // Google gets a deadline as an all-day event on its day, with any time in its
 // title, rather than an event with no length.
@@ -381,7 +415,7 @@ const googleWhen = (event: { dateStart: number; dateEnd: number; due?: Due }) =>
 };
 
 export const googleEventBody = (
-  event: { name: string; dateStart: number; dateEnd: number; subgroups?: string[]; due?: Due },
+  event: { name: string; dateStart: number; dateEnd: number; subgroups?: string[]; due?: Due; colour?: string },
   category: CalendarCategory,
   link: string,
   notes?: string
@@ -397,6 +431,6 @@ export const googleEventBody = (
     .filter(Boolean)
     .join("\n"),
   ...googleWhen(event),
-  colorId: googleColourOf(category, event.subgroups ?? []),
+  colorId: googleColourOf(category, event.subgroups ?? [], event.colour),
   status: "confirmed",
 });

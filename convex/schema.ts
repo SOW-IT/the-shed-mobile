@@ -465,6 +465,9 @@ export default defineSchema({
     changesReason: v.optional(v.string()),
     lastReminderAt: v.optional(v.number()),
     reminderCount: v.optional(v.number()),
+    // The last reminder someone sent by hand to finish it (see eventSubForms.remind).
+    nudgedAt: v.optional(v.number()),
+    nudgedBy: v.optional(v.string()),
   }).index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
 
   eventRequestEvents: defineTable({
