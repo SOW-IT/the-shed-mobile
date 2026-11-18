@@ -25,7 +25,7 @@ export const GrievanceGuideSheet = ({
       {
         icon: "lock-closed-outline",
         title: "Only the grievance team sees it",
-        detail: `It goes to ${departments.length > 0 ? andList(departments) : "SOW's grievance team"}, and nobody else: not your Head or your department.`,
+        detail: `Only members of ${departments.length > 0 ? andList(departments) : "SOW's grievance team"} can see it. Nobody else can, your Head included, unless they're in one of those departments.`,
       },
       {
         icon: "mail-outline",

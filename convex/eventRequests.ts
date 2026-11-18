@@ -42,6 +42,7 @@ import {
   approverTitleFor,
   canCommentOn,
   canNudge,
+  nudgeRecipients,
   emailInbox,
   eventSummary,
   eventUrl,
@@ -361,6 +362,8 @@ export const get = query({
         decidedByName: string | null;
         directorApprovedByName: string | null;
         nudgedByName: string | null;
+        // Who a reminder sent now would go to.
+        nudgeNames: string[];
         approverTitle: string;
         approverName: string | null;
         can: { fill: boolean; decide: boolean; reopen: boolean; comment: boolean; remind: boolean };
@@ -375,6 +378,9 @@ export const get = query({
         decidedByName: await nameOf(form.decidedBy),
         directorApprovedByName: await nameOf(form.directorApprovedBy),
         nudgedByName: await nameOf(form.nudgedBy),
+        nudgeNames: await Promise.all(
+          nudgeRecipients(event, form, caller).map(async (email) => (await nameOf(email)) ?? email)
+        ),
         approverTitle: await approverTitleFor(ctx, approver, kind, form.step),
         approverName: await nameOf(approver?.email),
         can: {

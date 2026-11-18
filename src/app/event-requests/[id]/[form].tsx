@@ -68,6 +68,7 @@ import { spacing, typography, useAppTheme } from "@/theme";
 import { backOr } from "@/lib/goBack";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { DAY_MS, timeAgo } from "@shared/datetime";
+import { andList } from "@shared/grievances";
 
 const remindedToday = (nudgedAt: number | undefined) =>
   nudgedAt !== undefined && Date.now() - nudgedAt < DAY_MS;
@@ -421,7 +422,7 @@ export default function EventSubFormScreen() {
       <ConfirmDialog
         visible={confirmRemind}
         title="Send a reminder?"
-        message={`${data.requesterName ?? "The requester"} gets a push and an email asking them to ${
+        message={`${andList(current.nudgeNames)} ${current.nudgeNames.length === 1 ? "gets" : "get"} a push and an email asking them to ${
           current.status === "CHANGES_REQUESTED" ? "make the changes and resubmit" : "fill in and submit"
         } the ${label} form. Once a day.`}
         confirmLabel="Send Reminder"

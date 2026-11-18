@@ -1042,6 +1042,9 @@ describe("reminding someone to fill in a form", () => {
       reason: "Add crowd control",
     });
     await remind(t, id, MARY, "risk");
+    // It goes to the requester and whoever submitted it, leaving out whoever sends it.
+    expect((await get(t, id, MARY)).forms.risk.nudgeNames).toHaveLength(2);
+    expect((await get(t, id, ELLA)).forms.risk.nudgeNames).toEqual([EVA]);
     const subject = "Reminder: the Risk form for [TEST] SAF27 is waiting on your changes";
     expect(await emailsTo(t, EVA)).toContain(subject);
     expect(await emailsTo(t, ELLA)).toContain(subject);
