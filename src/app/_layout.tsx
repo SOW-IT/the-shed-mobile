@@ -1,7 +1,7 @@
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorReporter } from "@/components/ErrorReporter";
-import { OtaUpdateBanner } from "@/components/OtaUpdateBanner";
+import { OtaRestartOnResume } from "@/components/OtaRestartOnResume";
 import { AppSidebar } from "@/components/nav/AppSidebar";
 import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
@@ -181,7 +181,7 @@ export default function RootLayout() {
                 <AuthGate />
                 <ErrorReporter />
                 <AppUpdatePrompt />
-                <OtaUpdateBanner />
+                <OtaRestartOnResume />
               </ConvexAuthProvider>
             ) : (
               <ConfigurationErrorScreen />

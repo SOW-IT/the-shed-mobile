@@ -45,8 +45,10 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
   everything waiting on them, by push and email.
 - **Accounts**: Google and Apple sign-in through Convex Auth, delete account
   from Profile, push notifications and the in-app bell.
-- **Releases**: over-the-air updates (`expo-updates`), an update prompt driven
-  by `appUpdatePolicy`, and app errors reported to the `appErrors` table.
+- **Releases**: over-the-air updates (`expo-updates`, applied by restarting
+  the app the next time it comes back from the background), a store update
+  prompt driven by `appUpdatePolicy`, and app errors reported to the
+  `appErrors` table.
 
 ## Getting started
 

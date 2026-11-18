@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.16] - 2026-11-18
+
+### Changed
+- **Updates install themselves, with no popup.** "An update is ready" is
+  gone. Once a new version has downloaded, The SHED restarts onto it the
+  next time you come back to the app after leaving it, so it never restarts
+  while you're using it. Pulling down Control Centre or the notification
+  shade doesn't count as leaving.
+
 ## [2.11.14] - 2026-11-18
 
 ### Added
