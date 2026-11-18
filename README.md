@@ -26,7 +26,8 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
   `convex/eventRequests.ts`): asks of Marketing, and an event with its
   Marketing, Risk and Finance forms, each with comments and a timeline.
 - **Grievances** (`convex/grievances.ts`): confidential, seen only by the
-  submitter and the People and Culture and Compliance teams.
+  submitter and the People and Culture and Compliance teams; emails to the
+  submitter reply to whoever is looking after it.
 - **Praise List** (`convex/musicRequests.ts`, `/music`): songs requested and
   approved or declined by a Praise Manager, with Spotify search.
 - **Attendance** (`convex/attendance*.ts`, rules in `shared/rollcall.ts`): events,

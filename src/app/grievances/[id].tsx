@@ -15,6 +15,7 @@ import { LabelledField } from "@/components/events/LabelledField";
 import { GrievanceStatusPill } from "@/components/grievances/GrievanceStatusPill";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { StepTrack } from "@/components/StepTrack";
+import { openExternalLink } from "@/lib/openExternalLink";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
   Btn,
@@ -226,9 +227,19 @@ export default function GrievanceScreen() {
                         }}
                       />
                     ) : null}
+                    <Btn
+                      title={`Email ${g.name.split(" ")[0] || g.name}`}
+                      variant="tonal"
+                      icon="mail-outline"
+                      onPress={() =>
+                        void openExternalLink(
+                          `mailto:${g.email}?subject=${encodeURIComponent("About your grievance")}`
+                        )
+                      }
+                    />
                   </Row>
                 ) : isOpenGrievance(g.status) ? (
-                  <Muted>{`We'll email ${g.email} each time this moves along.`}</Muted>
+                  <Muted>{`We'll email ${g.email} each time this moves along. Reply to those emails to reach whoever is looking after it.`}</Muted>
                 ) : null}
               </Card>
             </FadeInView>

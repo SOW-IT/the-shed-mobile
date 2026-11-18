@@ -63,7 +63,7 @@ const emails = (t: T) =>
   t.run(async (ctx) =>
     (await ctx.db.system.query("_scheduled_functions").collect())
       .filter((f) => f.state.kind === "pending")
-      .map((f) => f.args[0] as { to: string; subject?: string; body?: string })
+      .map((f) => f.args[0] as { to: string; subject?: string; body?: string; replyTo?: string })
       .filter((a) => a.subject !== undefined && a.body !== undefined)
   );
 
@@ -99,6 +99,8 @@ describe("submitting", () => {
     expect(sent[0].subject).toBe("We've received your grievance");
     expect(sent[0].body).not.toContain("Follow it in THE SHED");
     expect(sent[0].body).not.toContain(g.ref.slice(0, 8));
+    expect(sent[0].body).toContain("you can reply to those emails to talk with them");
+    expect(sent[0].replyTo).toBeUndefined();
 
     for (const handler of [HANA, CARL, PIA]) {
       const [n] = await notificationsFor(t, handler);
@@ -261,7 +263,10 @@ describe("handling", () => {
     await asUser(t, HANA).mutation(api.grievances.assign, { id, assigneeEmail: HANA });
     expect(await get(t, id)).toMatchObject({ status: "IN_PROGRESS", assigneeEmail: HANA });
     let sent = await emails(t);
-    expect(sent.map((e) => [e.to, e.subject])).toEqual([[MEMBER, "Your grievance is in progress"]]);
+    expect(sent.map((e) => [e.to, e.subject, e.replyTo])).toEqual([
+      [MEMBER, "Your grievance is in progress", HANA],
+    ]);
+    expect(sent[0].body).toContain("you can reply to this email to reach them");
     expect((await notificationsFor(t, MEMBER))[0].title).toBe("Grievance update");
     expect(await notificationsFor(t, HANA)).toHaveLength(0);
     expect((await notificationsFor(t, CARL))[0].title).toMatch(/^hana@sow\.org\.au took on grievance /);
@@ -271,8 +276,16 @@ describe("handling", () => {
     expect(await notificationsFor(t, CARL)).toHaveLength(0);
 
     await asUser(t, CARL).mutation(api.grievances.assign, { id, assigneeEmail: PIA });
-    expect(await emails(t)).toHaveLength(0);
-    expect((await notificationsFor(t, PIA))[0].title).toMatch(/given to pia@sow\.org\.au$/);
+    sent = await emails(t);
+    expect(sent.map((e) => [e.to, e.subject, e.replyTo])).toEqual([
+      [MEMBER, "Someone new is looking after your grievance", PIA],
+    ]);
+    expect(sent[0].body).toContain("pia@sow.org.au from SOW's grievance team is now looking after your grievance.");
+    expect((await notificationsFor(t, MEMBER))[0].body).toBe("Someone new is looking after your grievance");
+    const [toPia] = await notificationsFor(t, PIA);
+    expect(toPia.title).toMatch(/^You're looking after grievance [0-9A-F-]{8}$/);
+    expect(toPia.body).toBe("carl@sow.org.au gave it to you.");
+    expect((await notificationsFor(t, HANA))[0].title).toMatch(/given to pia@sow\.org\.au$/);
     expect((await asUser(t, CARL).query(api.grievances.get, { id }))!.assigneeName).toBe(PIA);
 
     await clearOutbox(t);
@@ -290,6 +303,8 @@ describe("handling", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].subject).toBe("Your grievance has been resolved");
     expect(sent[0].body).toContain("Outcome: We spoke with the leader and apologised.");
+    expect(sent[0].body).toContain("If you'd like to talk about it, reply to this email.");
+    expect(sent[0].replyTo).toBe(PIA);
 
     await expect(
       asUser(t, PIA).mutation(api.grievances.close, { id, outcome: "RESOLVED", note: "x" })
@@ -326,6 +341,7 @@ describe("handling", () => {
     const [sent] = await emails(t);
     expect(sent.subject).toBe("An update on your grievance");
     expect(sent.body).toContain("Reason: This is a matter for the church.");
+    expect(sent.replyTo).toBe(HANA);
     expect((await notificationsFor(t, CARL))[0].title).toMatch(/closed, not proceeding$/);
   });
 

@@ -10,6 +10,7 @@ const ALLOWED_DEEP_LINK_PREFIXES = [
   "/announcements/",
   "/profile",
   "/churches",
+  "/grievances",
 ] as const;
 
 export const isAllowedDeepLink = (url: string): boolean =>
