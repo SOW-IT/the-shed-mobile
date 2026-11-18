@@ -66,7 +66,9 @@ export const styles = StyleSheet.create({
   },
   sectionTitle: { marginTop: spacing.lg, marginBottom: -spacing.xs },
   sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  sectionTitleText: { flexShrink: 1 },
   chip: {
+    flexShrink: 0,
     paddingHorizontal: spacing.sm,
     minWidth: 24,
     height: 22,

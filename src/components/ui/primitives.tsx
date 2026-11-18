@@ -124,7 +124,11 @@ export const SectionTitle = ({
   const title = (
     <Text
       accessibilityRole="header"
-      style={[typography.section, chip === undefined && styles.sectionTitle, { color: t.text }]}
+      style={[
+        typography.section,
+        chip === undefined ? styles.sectionTitle : styles.sectionTitleText,
+        { color: t.text },
+      ]}
     >
       {children}
     </Text>
