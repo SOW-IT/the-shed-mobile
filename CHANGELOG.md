@@ -23,11 +23,12 @@ All notable changes to **The SHED** mobile app. This project follows
   staff profile, which keeps the personal email.
 
 ### Changed
-- **SOW events on the Calendar are black, SOW's own colour,** like a campus
-  event wears its university's colour, instead of teal. On the dark theme
-  they show in the theme's light text colour so they stay visible, and so
-  does SOW's dot in the Calendar's filters. Google Calendar shows them in
-  Graphite.
+- **SOW events on the Calendar wear their tag's colour,** instead of teal:
+  a Retreat in the Retreat tag's colour, Missions in Missions'. With more
+  than one coloured tag, the first one counts. A SOW event with no coloured
+  tag is black, SOW's own colour, and shows in the theme's light text colour
+  on the dark theme so it stays visible, as does SOW's dot in the Calendar's
+  filters. Google Calendar gets the nearest of its colours, or Graphite.
 
 ### Fixed
 - **Taking attendance at a calendar entry keeps its dates and times.**

@@ -1,4 +1,4 @@
-import { isTagColour, TAG_COLOUR_HEX } from "./attendanceTags";
+import { isTagColour, TAG_COLOUR_HEX, tagHexOf } from "./attendanceTags";
 import { DAY_MS, pad2 } from "./datetime";
 import { acronym, SYDNEY_TIME_ZONE, universityColour } from "./flow";
 import { isOrgWideSubgroup, SOW_SUBGROUP, subgroupLabel, type TagList } from "./rollcall";
@@ -61,6 +61,14 @@ export const campusColourOf = (
   !isOrgWideSubgroup(subgroups[0])
     ? universityColour(subgroups[0])
     : undefined;
+
+export type ColouredTag = { colour?: string | null };
+
+export const sowTagColourOf = (
+  category: CalendarCategory,
+  tags: readonly ColouredTag[]
+): string | undefined =>
+  category === "sow" ? tags.map((tag) => tagHexOf(tag.colour)).find((hex) => hex !== undefined) : undefined;
 
 export type EntryInput = {
   name: string;
@@ -396,10 +404,19 @@ export const nearestGoogleColour = (hex: string): string => {
   return best;
 };
 
-const googleColourOf = (category: CalendarCategory, subgroups: string[], colour?: string): string =>
-  (isTagColour(colour) ? nearestGoogleColour(TAG_COLOUR_HEX[colour]) : undefined) ??
-  ((campusColourOf(category, subgroups) && GOOGLE_CAMPUS_COLOURS[acronym(subgroups[0])]) ||
-    GOOGLE_COLOURS[category]);
+const googleColourOf = (
+  category: CalendarCategory,
+  subgroups: string[],
+  colour: string | undefined,
+  tags: readonly ColouredTag[]
+): string => {
+  const sowTag = sowTagColourOf(category, tags);
+  return (
+    (isTagColour(colour) ? nearestGoogleColour(TAG_COLOUR_HEX[colour]) : undefined) ??
+    ((campusColourOf(category, subgroups) && GOOGLE_CAMPUS_COLOURS[acronym(subgroups[0])]) ||
+      (sowTag ? nearestGoogleColour(sowTag) : GOOGLE_COLOURS[category]))
+  );
+};
 
 // Google gets a deadline as an all-day event on its day, with any time in its
 // title, rather than an event with no length.
@@ -415,7 +432,15 @@ const googleWhen = (event: { dateStart: number; dateEnd: number; due?: Due }) =>
 };
 
 export const googleEventBody = (
-  event: { name: string; dateStart: number; dateEnd: number; subgroups?: string[]; due?: Due; colour?: string },
+  event: {
+    name: string;
+    dateStart: number;
+    dateEnd: number;
+    subgroups?: string[];
+    due?: Due;
+    colour?: string;
+    tags?: readonly ColouredTag[];
+  },
   category: CalendarCategory,
   link: string,
   notes?: string
@@ -431,6 +456,6 @@ export const googleEventBody = (
     .filter(Boolean)
     .join("\n"),
   ...googleWhen(event),
-  colorId: googleColourOf(category, event.subgroups ?? [], event.colour),
+  colorId: googleColourOf(category, event.subgroups ?? [], event.colour, event.tags ?? []),
   status: "confirmed",
 });

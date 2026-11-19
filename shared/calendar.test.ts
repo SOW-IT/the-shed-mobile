@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { TAG_COLOUR_HEX } from "./attendanceTags";
 import { universityColour } from "./flow";
 import {
   calendarCategoryLabel,
@@ -14,6 +15,7 @@ import {
   dayBlocks,
   eventsByDay,
   googleEventBody,
+  sowTagColourOf,
   nearestGoogleColour,
   googleEventId,
   hourAfter,
@@ -335,6 +337,9 @@ describe("Google", () => {
     expect(colour("weekly", ["USYD", "UNSW"])).toBe("7");
     expect(colour("campus", ["SOW"])).toBe("9");
     expect(googleEventBody({ name: "x", dateStart: 0, dateEnd: 1, subgroups: ["SOW"] }, "sow", "link").colorId).toBe("8");
+    expect(
+      googleEventBody({ name: "x", dateStart: 0, dateEnd: 1, subgroups: ["SOW"], tags: [{}, { colour: "orange" }] }, "sow", "link").colorId
+    ).toBe("6");
   });
 
   test("a picked colour goes to Google as the nearest of its colours", () => {
@@ -406,5 +411,15 @@ describe("calendar entries", () => {
     expect(parseDayKey("2026-02-30")).toBeNull();
     expect(parseDayKey("tomorrow")).toBeNull();
     expect(parseDayKey(undefined)).toBeNull();
+  });
+});
+
+describe("sowTagColourOf", () => {
+  test("a SOW event takes its first coloured tag's colour; others, and untagged ones, take none", () => {
+    expect(sowTagColourOf("sow", [{ colour: null }, { colour: "orange" }, { colour: "blue" }])).toBe(TAG_COLOUR_HEX.orange);
+    expect(sowTagColourOf("sow", [{ colour: "#123456" }])).toBe("#123456");
+    expect(sowTagColourOf("sow", [{}])).toBeUndefined();
+    expect(sowTagColourOf("sow", [])).toBeUndefined();
+    expect(sowTagColourOf("campus", [{ colour: "orange" }])).toBeUndefined();
   });
 });

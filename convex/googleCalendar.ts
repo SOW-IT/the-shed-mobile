@@ -39,7 +39,7 @@ async function eventBodyFor(ctx: QueryCtx, event: Doc<"events">): Promise<Google
     (tag): tag is Doc<"attendanceTags"> => tag !== null
   );
   return googleEventBody(
-    event,
+    { ...event, tags },
     calendarCategoryOf(event, tags),
     appUrl(`/attendance/event/${event._id}`)
   );
