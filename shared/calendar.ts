@@ -352,7 +352,7 @@ const GOOGLE_COLOURS: Record<CalendarCategory, string> = {
   ppn: "2",
   weekly: "7",
   campus: "9",
-  sow: "11",
+  sow: "8",
   event: "1",
   deadline: "4",
 };

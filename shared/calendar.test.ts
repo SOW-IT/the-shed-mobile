@@ -334,6 +334,7 @@ describe("Google", () => {
     expect(colour("campus", ["Western Sydney University"])).toBe("11");
     expect(colour("weekly", ["USYD", "UNSW"])).toBe("7");
     expect(colour("campus", ["SOW"])).toBe("9");
+    expect(googleEventBody({ name: "x", dateStart: 0, dateEnd: 1, subgroups: ["SOW"] }, "sow", "link").colorId).toBe("8");
   });
 
   test("a picked colour goes to Google as the nearest of its colours", () => {

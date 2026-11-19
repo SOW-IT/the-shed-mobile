@@ -37,6 +37,7 @@ import { EVENTS, FilterChip, FilterRow } from "@/components/FilterChips";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 import { useCalendarView } from "@/hooks/useCalendarView";
 import { sydneyTime } from "@/lib/sydneyTime";
+import { visibleColour } from "@/lib/visibleColour";
 import { Btn, Card, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -124,9 +125,10 @@ const toggle = <T,>(list: T[], value: T) =>
 
 const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => void }) => {
   const t = useAppTheme();
-  const colour = eventColour(event);
+  const picked = eventColour(event);
+  const colour = visibleColour(picked, t);
   // Campus and picked colours aren't all legible as text on both themes.
-  const ownColour = colour !== CATEGORY_COLOURS[event.category];
+  const ownColour = picked !== CATEGORY_COLOURS[event.category];
   // Calendar entries have no campus; attendance events always do.
   const where = event.subgroups.map(subgroupLabel).join(", ");
   const multiDay = daysOf(event.dateStart, event.dateEnd).length > 1;
