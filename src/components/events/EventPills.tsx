@@ -43,5 +43,5 @@ export const SubFormStatusPill = ({ status }: { status: SubFormStatus }) => (
 );
 
 export const RiskRatingPill = ({ score, rating }: { score?: number; rating: RiskRating }) => (
-  <StatusPill label={score === undefined ? rating : `${score} · ${rating}`} tone={RATING_TONES[rating]} />
+  <StatusPill label={score === undefined ? rating : `${rating} (${score})`} tone={RATING_TONES[rating]} />
 );

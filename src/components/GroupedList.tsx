@@ -47,9 +47,7 @@ export const GroupedList = <Status, Row extends ListRow<Status>>({
           if (inGroup.length === 0) return null;
           return (
             <View key={group.title} style={{ gap: spacing.sm }}>
-              <SectionTitle>
-                {group.title} · {inGroup.length}
-              </SectionTitle>
+              <SectionTitle chip={inGroup.length}>{group.title}</SectionTitle>
               {inGroup.map((row) => (
                 <FadeInView key={row._id} delay={stagger(index++)}>
                   {renderRow(row)}

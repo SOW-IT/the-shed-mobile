@@ -9,3 +9,4 @@ export * from "./overlays";
 export * from "./screen";
 export * from "./measure";
 export * from "./icon";
+export * from "./ColourSwatches";

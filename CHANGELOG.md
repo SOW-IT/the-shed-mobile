@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.16] - 2026-11-18
+## [2.11.18] - 2026-11-19
 
 ### Changed
 - **Updates install themselves, with no popup.** "An update is ready" is
@@ -14,6 +14,66 @@ All notable changes to **The SHED** mobile app. This project follows
   next time you come back to the app after leaving it, so it never restarts
   while you're using it. Pulling down Control Centre or the notification
   shade doesn't count as leaving.
+
+## [2.11.17] - 2026-11-19
+
+### Added
+- **Raise a Grievance has a "How it works" button,** like Make Request on
+  Finance. It walks through the form, who sees it (only the grievance team's
+  departments), the emails that follow, being looked after, how it's closed,
+  and following along when signed in.
+- **Send Reminder on an event form that hasn't been submitted.** Whoever
+  reviews event forms, and the Head of the event's department, can chase a
+  Marketing, Risk or Finance form still being filled in, or sent back for
+  changes. The requester (and whoever submitted it before it was sent back)
+  gets a push and an email straight away, with how far off the event is and
+  any changes asked for. Once a day per form; the button says who last sent
+  one and when. The morning digest's reminders carry on as before.
+- **A calendar entry can have its own colour.** Adding or editing an event or
+  deadline on the Calendar offers the full palette, or its usual grey or red.
+  It shows in the month, the week and the day's list, and Google Calendar
+  gets the nearest of its colours.
+
+### Changed
+- **Attendance tags have 30 colours to choose from,** up from 17: slate,
+  stone, brown, maroon, crimson, coral, gold, olive, forest, sky, navy,
+  lavender and plum join the rest. They're picked from a grid of swatches
+  instead of a long list.
+- **Tapping a day on the Calendar no longer scrolls down to its events.** The
+  screen stays where it is; the day's events are just below the month.
+
+## [2.11.16] - 2026-11-18
+
+### Changed
+- **The Calendar's month is shorter, leaving more room for the day's events
+  below it.** Each week takes less height and the weeks sit closer together.
+  A day shows up to two events in the month, or one and "+N more"; tapping
+  the day lists them all just below.
+- **The Week view is as tall as the month,** so switching between them
+  doesn't move the day's events. The hours scroll inside it, opening at 7am.
+- **The date heading under the month is gone.** The picked day is already
+  highlighted in the month, so its events start straight away. A day with
+  nothing on says so in one short line instead of a large empty-state box.
+
+### Fixed
+- **The Month/Week switch's highlight is a pill like the switch around it,**
+  instead of a rounded rectangle inside an oval.
+
+## [2.11.15] - 2026-11-18
+
+### Changed
+- **The little dots between pieces of text are gone.** Lines of facts, like
+  a request's department, date and age, or who did something and when, are
+  separate pieces with space between them. Counts and years beside a heading
+  sit in a small grey chip, as in "Closed 2" and "Teams 2027". Status pills
+  no longer start with a dot; their colour already shows the state.
+- **Wording that ran together with dots reads as sentences.** Roles and
+  campuses are listed with commas, church service times put a semicolon
+  between days ("Sunday 9am and 6pm; Saturday 6:30pm"), attendance shows
+  "4/6 (67%)", a risk's rating reads "High (12)", a held week reads
+  "Week 3 (Weekly Bible Study)", and a push about a new event says where it
+  is ("Camp at UNSW"). A bank account shows as "Account ending 1234".
+- **A campus's programs on Home show as tags** instead of a bulleted list.
 
 ## [2.11.14] - 2026-11-18
 

@@ -5,6 +5,7 @@ import { formatDueDate } from "@shared/designRequests";
 import { daysSince, timeAgo, waitingLabel } from "@shared/datetime";
 import { sydneyDay } from "@/lib/sydneyTime";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { Facts } from "@/components/ui/primitives";
 import { designStatusColour, DesignStatusPill } from "./DesignStatusPill";
 
 export type DesignRequestListRow = Doc<"designRequests"> & {
@@ -56,14 +57,12 @@ export const DesignRequestRow = ({
   const meta = [
     showRequester ? who : request.department,
     request.dueDate ? `Needed by ${formatDueDate(request.dueDate)}` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  ];
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Design request, ${items || "no items"}, ${meta}`}
+      accessibilityLabel={`Design request, ${items || "no items"}, ${meta.filter(Boolean).join(", ")}`}
       style={({ pressed }) => [
         styles.row,
         { backgroundColor: t.card, borderColor: designStatusColour(t, request.status) },
@@ -83,12 +82,11 @@ export const DesignRequestRow = ({
             <DesignStatusPill status={request.status} />
           </View>
         </View>
-        <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
-          {meta}
-        </Text>
-        <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
-          Submitted {sydneyDay(request.submittedAt)} · {timeAgo(request.submittedAt)}
-        </Text>
+        <Facts parts={meta} numberOfLines={1} />
+        <Facts
+          parts={[`Submitted ${sydneyDay(request.submittedAt)}`, timeAgo(request.submittedAt)]}
+          numberOfLines={1}
+        />
         <WaitingLine since={request.waitingSince} />
       </View>
     </Pressable>

@@ -43,6 +43,7 @@ import {
   type ToastState,
   Txt,
   WarningBanner,
+  Facts,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { formatDayTime } from "@/components/dateTimeDisplay";
@@ -288,7 +289,7 @@ export default function AnnouncementsScreen() {
                 ? "Counting…"
                 : size.people === 0
                   ? "No one matches who you chose."
-                  : `${people(size.people)} · ${size.withApp} with the app get a push`}
+                  : `${people(size.people)}. ${size.withApp} with the app get a push.`}
             </Text>
           </View>
           <Checkbox
@@ -353,10 +354,14 @@ export default function AnnouncementsScreen() {
               <Text numberOfLines={2} style={[typography.caption, { color: t.muted }]}>
                 {a.message}
               </Text>
-              <Muted>
-                {formatDayTime(a.sendAt)} · {a.audience}
-                {a.sendEmail ? " · with email" : ""} · by {a.senderName}
-              </Muted>
+              <Facts
+                parts={[
+                  formatDayTime(a.sendAt),
+                  a.audience,
+                  a.sendEmail ? "with email" : null,
+                  `by ${a.senderName}`,
+                ]}
+              />
               <Btn
                 title="Cancel"
                 variant="danger"
@@ -387,9 +392,7 @@ export default function AnnouncementsScreen() {
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Txt style={{ fontWeight: "700" }}>{a.title}</Txt>
-                  <Muted>
-                    Due {formatDayTime(a.sendAt)} · {a.audience} · by {a.senderName}
-                  </Muted>
+                  <Facts parts={[`Due ${formatDayTime(a.sendAt)}`, a.audience, `by ${a.senderName}`]} />
                   <Text style={[typography.caption, { color: t.warning }]}>{a.notSentReason}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={t.faint} />
@@ -417,10 +420,14 @@ export default function AnnouncementsScreen() {
             </View>
             <View style={{ flex: 1, gap: 2 }}>
               <Txt style={{ fontWeight: "700" }}>{a.title}</Txt>
-              <Muted>
-                {formatDayTime(a.sentAt ?? a.sendAt)} · {a.audience} · {people(a.people ?? 0)}
-                {a.sendEmail ? " · emailed" : ""}
-              </Muted>
+              <Facts
+                parts={[
+                  formatDayTime(a.sentAt ?? a.sendAt),
+                  a.audience,
+                  people(a.people ?? 0),
+                  a.sendEmail ? "emailed" : null,
+                ]}
+              />
               <Muted>by {a.senderName}</Muted>
             </View>
             <Ionicons name="chevron-forward" size={18} color={t.faint} />

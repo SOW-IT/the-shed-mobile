@@ -342,11 +342,13 @@ const CampusDetailSheet = ({
           {campus.programs.length > 0 ? (
             <View style={{ gap: spacing.xs }}>
               <Text style={[typography.label, { color: t.muted }]}>Programs</Text>
-              <View style={{ gap: 4 }}>
+              <View style={styles.programs}>
                 {campus.programs.map((program, i) => (
-                  <Text key={i} style={[typography.body, { color: t.text }]}>
-                    • {program}
-                  </Text>
+                  <View key={i} style={[styles.program, { backgroundColor: t.primarySoft }]}>
+                    <Text style={[typography.caption, styles.programText, { color: t.dark ? t.text : t.primary }]}>
+                      {program}
+                    </Text>
+                  </View>
                 ))}
               </View>
             </View>
@@ -457,6 +459,9 @@ const ContactCard = ({ title, body }: { title: string; body: string }) => {
 };
 
 const styles = StyleSheet.create({
+  programs: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  program: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
+  programText: { fontWeight: "600" },
   page: { gap: spacing.md },
   hero: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.lg },
   heroMark: { width: 72, height: 72 },

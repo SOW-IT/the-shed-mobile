@@ -351,7 +351,7 @@ async function notifyStaffOfNewEvent(
       email: false,
       subject: `New event: ${event.name}`,
       pushTitle: "New event",
-      body: `${event.name} · ${where}`,
+      body: `${event.name} at ${where}`,
       url: `/attendance/event/${event._id}`,
     });
   }
@@ -591,7 +591,7 @@ export async function deleteEvent(ctx: MutationCtx, actorEmail: string, eventId:
     detail: rows.length
       ? [
           `Removed ${rows.length} attendance record${rows.length === 1 ? "" : "s"}:`,
-          ...people.map((p) => `${p.name} · ${auditStamp(p.signInTime)}`),
+          ...people.map((p) => `${p.name}, ${auditStamp(p.signInTime)}`),
           ...(hidden > 0 ? [`and ${hidden} more`] : []),
         ].join("\n")
       : "Removed no attendance records",

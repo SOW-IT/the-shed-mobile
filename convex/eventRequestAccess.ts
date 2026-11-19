@@ -224,6 +224,29 @@ export async function openableEventRequest(
 export const canCommentOn = (access: EventAccess, kind: SubFormKind) =>
   access.requesterSide || access.teams[kind] || (kind === "finance" && access.director);
 
+// A form still to be submitted can be chased by hand, once a day, by whoever
+// reviews event forms and by the Head of the event's department.
+export const NUDGE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+// Who it goes to: the requester, and whoever submitted it before it was sent back.
+export const nudgeRecipients = (event: EventRequest, form: SubForm, caller: CallerContext) =>
+  [...new Set([event.requesterEmail, form.submittedBy])].filter(
+    (email): email is string => !!email && email !== caller.email
+  );
+
+export async function canNudge(
+  ctx: Ctx,
+  caller: CallerContext,
+  event: EventRequest,
+  form: SubForm,
+  access: EventAccess
+): Promise<boolean> {
+  if (isCampusLeader(caller) || event.status !== "IN_PROGRESS") return false;
+  if (form.status !== "DRAFT" && form.status !== "CHANGES_REQUESTED") return false;
+  if (nudgeRecipients(event, form, caller).length === 0) return false;
+  return seesAll(access) || (await actsAs(ctx, caller, await headOf(ctx, event, event.department)));
+}
+
 export async function requireEvent(ctx: Ctx, id: Id<"eventRequests">) {
   const event = await ctx.db.get("eventRequests", id);
   if (!event) throw new ConvexError("Event request not found.");

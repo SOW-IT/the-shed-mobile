@@ -279,7 +279,7 @@ export const eventFilterLabel = (event: {
   const { year, month, day } = sydneyYmd(new Date(event.dateStart));
   return [event.name, eventCampusLabel(event.subgroups), `${day} ${MONTHS[month - 1]} ${year}`]
     .filter(Boolean)
-    .join(" · ");
+    .join(", ");
 };
 
 export type EventHostFilter = "here" | "shared";

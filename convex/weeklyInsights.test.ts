@@ -669,13 +669,13 @@ describe("member page", () => {
     expect(blocks[0]).toMatchObject({
       lines: ["UNSW"],
       category: { label: "Regular" },
-      reason: "T2 2026: 5/7 · 71%\nLast came T2W5 (1 Jul)\nCame to 5 of 5, then missed the last 2",
+      reason: "T2 2026: 5/7 (71%)\nLast came T2W5 (1 Jul)\nCame to 5 of 5, then missed the last 2",
       memberId: ids.ana,
     });
     expect(blocks[1]).toMatchObject({ rows: [{ label: "Email", value: "ana@example.com" }, { label: "Year", value: "2" }] });
     expect(block(blocks, "termHistory").rows.map((r) => r.label)).toEqual(["T2 2026", "T1 2026", "T2 2025"]);
     const events = block(blocks, "eventList").rows;
-    expect(events[0]).toEqual({ title: "Weeklies", subtitle: "5 Aug · UNSW", tag: "Weekly" });
+    expect(events[0]).toEqual({ title: "Weeklies", subtitle: "5 Aug at UNSW", tag: "Weekly" });
     expect(events.find((e) => e.title === "Social")!.tag).toBeUndefined();
     expect(block(blocks, "weekGrid")).toMatchObject({ title: "T2 2026", subtitle: "Weeklies attended this term" });
   });

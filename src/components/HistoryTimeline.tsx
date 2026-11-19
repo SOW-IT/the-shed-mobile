@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { formatDuration, timelineGapHeight } from "@shared/datetime";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { spacing, typography, useAppTheme, type AppTheme } from "@/theme";
+import { Facts } from "@/components/ui";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type Tone = "primary" | "success" | "danger" | "quiet";
@@ -102,10 +103,7 @@ export const HistoryTimeline = ({
               </View>
               <View style={styles.content}>
                 <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>{entry.label}</Text>
-                <Text style={[typography.caption, { color: t.muted }]}>
-                  {entry.who ? `${entry.who} · ` : ""}
-                  {sydneyDateTime(entry.at)}
-                </Text>
+                <Facts parts={[entry.who, sydneyDateTime(entry.at)]} />
                 {entry.detail ? (
                   <Text
                     style={[

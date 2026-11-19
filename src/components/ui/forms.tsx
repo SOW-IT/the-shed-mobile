@@ -237,6 +237,7 @@ export const OptionRow = ({
   multi,
   badge,
   icon,
+  detail,
 }: {
   label: string;
   selected: boolean;
@@ -244,6 +245,7 @@ export const OptionRow = ({
   multi?: boolean;
   badge?: string;
   icon?: keyof typeof Ionicons.glyphMap;
+  detail?: string;
 }) => {
   const t = useAppTheme();
   return (
@@ -256,7 +258,7 @@ export const OptionRow = ({
       onPress={onPress}
       accessibilityRole={multi ? "checkbox" : "radio"}
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={badge ? `${label}, ${badge.toLowerCase()}` : label}
+      accessibilityLabel={[label, detail, badge?.toLowerCase()].filter(Boolean).join(", ")}
     >
       <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         {icon ? <Ionicons name={icon} size={18} color={t.text} /> : null}
@@ -270,6 +272,11 @@ export const OptionRow = ({
         >
           {label}
         </Text>
+        {detail ? (
+          <Text numberOfLines={1} style={[typography.body, { color: t.muted, flexShrink: 1 }]}>
+            {detail}
+          </Text>
+        ) : null}
         {badge ? (
           <View
             style={{
@@ -526,10 +533,13 @@ export const Segmented = ({
   segments,
   active,
   onChange,
+  pill = false,
 }: {
   segments: Segment[];
   active: string;
   onChange: (key: string) => void;
+  /** Fully rounded, for a toggle sitting in a pill of its own. */
+  pill?: boolean;
 }) => {
   const t = useAppTheme();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -552,13 +562,14 @@ export const Segmented = ({
   if (segments.length < 2) return null;
   return (
     <View
-      style={[styles.segmented, { backgroundColor: t.ghost }]}
+      style={[styles.segmented, { backgroundColor: t.ghost }, pill && styles.segmentedPill]}
       onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
     >
       {trackWidth > 0 && (
         <Animated.View
           style={[
             styles.segmentIndicator,
+            pill && styles.segmentedPill,
             {
               backgroundColor: t.card,
               width: segmentWidth,

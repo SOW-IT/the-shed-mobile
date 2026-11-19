@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "@convex/_generated/api";
 import { formatDayTime } from "@/components/dateTimeDisplay";
 import { SignInPrompt } from "@/components/SignInPrompt";
-import { Card, EmptyState, LoadingState, Muted, Screen, SectionTitle } from "@/components/ui";
+import { Card, EmptyState, LoadingState, Muted, Screen, SectionTitle, Chip, Facts } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { backOr } from "@/lib/goBack";
 
@@ -55,9 +55,7 @@ export default function AnnouncementScreen() {
             </View>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={[typography.title, { color: t.text }]}>{announcement.title}</Text>
-              <Muted>
-                {announcement.senderName} · {formatDayTime(announcement.at, { withYear: true })}
-              </Muted>
+              <Facts parts={[announcement.senderName, formatDayTime(announcement.at, { withYear: true })]} />
             </View>
           </View>
           <Text selectable style={[typography.body, { color: t.text }]}>
@@ -68,10 +66,12 @@ export default function AnnouncementScreen() {
           <>
             <SectionTitle>Delivery</SectionTitle>
             <Card>
-              <Muted>
-                {details.notSentReason ? NOT_SENT_LABEL : STATUS_LABELS[details.status]} ·{" "}
-                {details.audience}
-              </Muted>
+              <Facts
+                parts={[
+                  details.notSentReason ? NOT_SENT_LABEL : STATUS_LABELS[details.status],
+                  details.audience,
+                ]}
+              />
               {details.notSentReason ? (
                 <View style={[styles.notSent, { backgroundColor: t.warningSoft }]}>
                   <Ionicons name="alert-circle-outline" size={18} color={t.warning} />
@@ -80,11 +80,13 @@ export default function AnnouncementScreen() {
                   </Text>
                 </View>
               ) : details.people !== null ? (
-                <Muted>
-                  {details.people} {details.people === 1 ? "person" : "people"} ·{" "}
-                  {details.withApp} by push
-                  {details.sendEmail ? ` · ${details.emailed} by email` : ""}
-                </Muted>
+                <Facts
+                  parts={[
+                    `${details.people} ${details.people === 1 ? "person" : "people"}`,
+                    `${details.withApp} by push`,
+                    details.sendEmail ? `${details.emailed} by email` : null,
+                  ]}
+                />
               ) : (
                 <Muted>{details.sendEmail ? "Push and email" : "Push only"}</Muted>
               )}
@@ -125,9 +127,10 @@ export default function AnnouncementScreen() {
                         }
                         style={({ pressed }) => [styles.notSeenToggle, pressed && { opacity: 0.6 }]}
                       >
-                        <Text style={[typography.label, { color: t.primary }]}>
-                          Not seen yet · {details.seen.notSeen.length}
-                        </Text>
+                        <View style={styles.notSeenLabel}>
+                          <Text style={[typography.label, { color: t.primary }]}>Not seen yet</Text>
+                          <Chip>{details.seen.notSeen.length}</Chip>
+                        </View>
                         <Ionicons
                           name={showNotSeen ? "chevron-up" : "chevron-down"}
                           size={16}
@@ -185,5 +188,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingTop: spacing.xs,
   },
+  notSeenLabel: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   person: { gap: 1, paddingVertical: 2 },
 });

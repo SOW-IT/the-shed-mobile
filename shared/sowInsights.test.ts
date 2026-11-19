@@ -224,7 +224,7 @@ describe("TWIG", () => {
     expect(result.summary.people).toBe(3);
     const block = pick(buildTwigBlocks({ result, people: roster, missesForFollowUp: 2 }), "people")[0];
     expect(block.rows.find((r) => r.key === "d")).toMatchObject({
-      primary: "0/4 · 0%",
+      primary: "0/4 (0%)",
       secondary: "Hasn't come to a TWIG this staff year",
       tags: ["leader", "notYet"],
       section: "leader",

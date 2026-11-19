@@ -41,6 +41,8 @@ import {
   actsAs,
   approverTitleFor,
   canCommentOn,
+  canNudge,
+  nudgeRecipients,
   emailInbox,
   eventSummary,
   eventUrl,
@@ -359,9 +361,12 @@ export const get = query({
         submittedByName: string | null;
         decidedByName: string | null;
         directorApprovedByName: string | null;
+        nudgedByName: string | null;
+        // Who a reminder sent now would go to.
+        nudgeNames: string[];
         approverTitle: string;
         approverName: string | null;
-        can: { fill: boolean; decide: boolean; reopen: boolean; comment: boolean };
+        can: { fill: boolean; decide: boolean; reopen: boolean; comment: boolean; remind: boolean };
       }
     >;
     for (const kind of SUB_FORM_KINDS) {
@@ -372,6 +377,10 @@ export const get = query({
         submittedByName: await nameOf(form.submittedBy),
         decidedByName: await nameOf(form.decidedBy),
         directorApprovedByName: await nameOf(form.directorApprovedBy),
+        nudgedByName: await nameOf(form.nudgedBy),
+        nudgeNames: await Promise.all(
+          nudgeRecipients(event, form, caller).map(async (email) => (await nameOf(email)) ?? email)
+        ),
         approverTitle: await approverTitleFor(ctx, approver, kind, form.step),
         approverName: await nameOf(approver?.email),
         can: {
@@ -388,6 +397,7 @@ export const get = query({
             (await actsAs(ctx, caller, approver)),
           reopen: acts && access.requesterSide && open && isSubFormDone(form.status),
           comment: acts && canCommentOn(access, kind),
+          remind: await canNudge(ctx, caller, event, form, access),
         },
       };
     }

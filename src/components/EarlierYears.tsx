@@ -88,7 +88,7 @@ export function EarlierYears<Row>({
     <>
       {rows.length > 0 ? (
         <View style={{ gap: spacing.sm }}>
-          <SectionTitle>{hasMore ? title : `${title} · ${rows.length}`}</SectionTitle>
+          <SectionTitle chip={hasMore ? undefined : rows.length}>{title}</SectionTitle>
           {note?.(groups.map((group) => group.year))}
           {renderRows(rows)}
         </View>

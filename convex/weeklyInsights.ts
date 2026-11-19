@@ -936,7 +936,7 @@ async function eventsAttended(ctx: QueryCtx, key: string): Promise<MemberEvent[]
     events.push({
       name: event.name,
       at: event.dateStart,
-      campuses: normalizeSubgroups(event.subgroups).map(subgroupLabel).join(" · "),
+      campuses: normalizeSubgroups(event.subgroups).map(subgroupLabel).join(", "),
       weekly: !!event.weekly,
     });
   }
@@ -997,7 +997,7 @@ export const member = query({
       now - latestTerm.weeklies[latestTerm.weeklies.length - 1].at < settings.termGapDays * DAY_MS;
     const lines = [
       info.campus ? subgroupLabel(info.campus) : "No campus set",
-      ...(info.roles.length ? [info.roles.join(" · ")] : []),
+      ...(info.roles.length ? [info.roles.join(", ")] : []),
     ];
     return {
       title: person.name,

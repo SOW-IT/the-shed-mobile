@@ -9,4 +9,7 @@ export const entryFields = {
   dateEnd: v.number(),
   notes: v.optional(v.string()),
   due: v.optional(dueValidator),
+  // A name from the tag palette (shared/attendanceTags.ts); without one it
+  // wears its category's colour.
+  colour: v.optional(v.string()),
 };

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { TAG_COLOUR_NAMES, tagColourHex } from "../../../shared/attendanceTags";
+import { isTagColour, tagColourHex } from "../../../shared/attendanceTags";
 import { isOrgWideSubgroup, isWeekliesTagName, tagListOf, tagScope, type TagList } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import type { SaveControls } from "@/components/attendance/MetadataTab";
@@ -13,6 +13,7 @@ import { SubgroupScopePicker } from "@/components/attendance/SubgroupScopePicker
 import {
   Btn,
   Card,
+  ColourSwatches,
   errorMessage,
   Field,
   IconButton,
@@ -31,6 +32,9 @@ type TagDraft = {
   subgroups?: string[];
   list: TagList;
 };
+
+// A tag with no colour, or one no longer in the palette, wears blue.
+const tagColourName = (colour: string | undefined) => (isTagColour(colour) ? colour : "blue");
 
 const withList = (draft: TagDraft, list: TagList): TagDraft =>
   list === "weeklies" ? { ...draft, list, subgroups: tagScope(list, draft.subgroups) } : { ...draft, list };
@@ -358,44 +362,16 @@ export function SettingsTab({
         onClose={() => setColourIndex(null)}
         title="Choose tag colour"
       >
-        <View style={{ gap: spacing.sm }}>
-          {TAG_COLOUR_NAMES.map((colour) => {
-            const selected =
-              colourIndex !== null && tagDrafts[colourIndex]?.colour === colour;
-            return (
-              <Pressable
-                key={colour}
-                accessibilityRole="button"
-                accessibilityLabel={`Colour ${colour}`}
-                accessibilityState={{ selected }}
-                onPress={() => {
-                  setTagDrafts((prev) =>
-                    prev.map((x, j) => (j === colourIndex ? { ...x, colour } : x))
-                  );
-                  setColourIndex(null);
-                }}
-                style={({ pressed }) => [
-                  styles.colourOption,
-                  { borderColor: selected ? t.primary : t.border, backgroundColor: t.card },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <View style={styles.colourPickerValue}>
-                  <View
-                    style={[
-                      styles.colourDot,
-                      { backgroundColor: tagColourHex(colour) },
-                    ]}
-                  />
-                  <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>
-                    {colour}
-                  </Text>
-                </View>
-                {selected ? <Ionicons name="checkmark" size={20} color={t.primary} /> : null}
-              </Pressable>
+        <ColourSwatches
+          value={colourIndex !== null ? tagColourName(tagDrafts[colourIndex]?.colour) : null}
+          onChange={(colour) => {
+            if (colour === null) return;
+            setTagDrafts((prev) =>
+              prev.map((x, j) => (j === colourIndex ? { ...x, colour } : x))
             );
-          })}
-        </View>
+            setColourIndex(null);
+          }}
+        />
       </Sheet>
     </>
   );
@@ -439,14 +415,5 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: radius.full,
-  },
-  colourOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    borderWidth: 2,
-    borderRadius: radius.md,
-    padding: spacing.md,
   },
 });

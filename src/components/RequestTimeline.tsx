@@ -63,7 +63,7 @@ export const RequestTimeline = ({ request }: { request: Doc<"requests"> }) => {
         entries={trail.map((event) => ({
           at: event.at,
           action: event.action,
-          label: `${eventLabel(event.action)}${event.step ? ` · ${STEP_LABELS[event.step as ApprovalStep] ?? event.step}` : ""}`,
+          label: `${eventLabel(event.action)}${event.step ? ` (${STEP_LABELS[event.step as ApprovalStep] ?? event.step})` : ""}`,
           who: event.actorName ?? event.actor,
           detail: event.detail,
         }))}
@@ -74,7 +74,7 @@ export const RequestTimeline = ({ request }: { request: Doc<"requests"> }) => {
                 note: newest
                   ? `${waitingLabel(newest.at)}${
                       reminders > 0 && request.lastReminderAt
-                        ? ` · reminded ${reminders === 1 ? "once" : `${reminders} times`}, last ${sydneyDateTime(request.lastReminderAt)}`
+                        ? `. Reminded ${reminders === 1 ? "once" : `${reminders} times`}, last ${sydneyDateTime(request.lastReminderAt)}`
                         : ""
                     }`
                   : undefined,

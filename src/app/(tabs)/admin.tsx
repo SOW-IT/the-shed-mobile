@@ -31,6 +31,7 @@ import {
   Toast,
   type ToastState,
   Txt,
+  Facts,
 } from "@/components/ui";
 import { useAdminMutations } from "@/hooks/useAdminMutations";
 import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
@@ -950,9 +951,7 @@ export default function AdminScreen() {
 
           {!showingNotSignedIn && editable && returningStaff.length > 0 && (
             <>
-              <SectionTitle>
-                Previously staff · {selectedYear} ({returningStaff.length})
-              </SectionTitle>
+              <SectionTitle chip={returningStaff.length}>Previously staff</SectionTitle>
               <CardGrid maxVisible={VISIBLE_USERS}>
                 {returningStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
@@ -961,10 +960,7 @@ export default function AdminScreen() {
 
           {!showingNotSignedIn && editable && signedInNeverStaff.length > 0 && (
             <>
-              <SectionTitle>
-                Signed in, no assignment · {selectedYear} (
-                {signedInNeverStaff.length})
-              </SectionTitle>
+              <SectionTitle chip={signedInNeverStaff.length}>Signed in, no assignment</SectionTitle>
               <CardGrid maxVisible={VISIBLE_USERS}>
                 {signedInNeverStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
@@ -975,9 +971,8 @@ export default function AdminScreen() {
             editable &&
             directoryNeverStaff.length > 0 && (
               <>
-                <SectionTitle>
-                  In directory, no assignment · {selectedYear} (
-                  {directoryNeverStaff.length})
+                <SectionTitle chip={directoryNeverStaff.length}>
+                  In directory, no assignment
                 </SectionTitle>
                 <CardGrid maxVisible={VISIBLE_USERS}>
                   {directoryNeverStaff.map((user) =>
@@ -989,9 +984,7 @@ export default function AdminScreen() {
 
           {!showingNotSignedIn && editable && (leavers ?? []).length > 0 && (
             <>
-              <SectionTitle>
-                Leaving · {selectedYear} ({(leavers ?? []).length})
-              </SectionTitle>
+              <SectionTitle chip={(leavers ?? []).length}>Leaving</SectionTitle>
               <CardGrid maxVisible={VISIBLE_USERS}>
                 {(leavers ?? []).map((user) => renderLeaverCard(user))}
               </CardGrid>
@@ -1000,7 +993,7 @@ export default function AdminScreen() {
 
           {director ? (
             <>
-              <SectionTitle>Director · {selectedYear}</SectionTitle>
+              <SectionTitle chip={selectedYear}>Director</SectionTitle>
               <CardGrid>{renderProfileCard(director, t.primary)}</CardGrid>
             </>
           ) : null}
@@ -1013,9 +1006,7 @@ export default function AdminScreen() {
             if (!hasAny) return null;
             return (
               <View key={group.division} style={{ gap: spacing.md }}>
-                <SectionTitle>
-                  {group.division} · {selectedYear}
-                </SectionTitle>
+                <SectionTitle chip={selectedYear}>{group.division}</SectionTitle>
                 {group.head ? (
                   <CardGrid>
                     {renderProfileCard(group.head, t.primary)}
@@ -1060,9 +1051,7 @@ export default function AdminScreen() {
               universityColour(group.university) ?? t.primary;
             return (
               <View key={group.university} style={accentContainerStyle}>
-                <SectionTitle>
-                  {group.university} · {selectedYear}
-                </SectionTitle>
+                <SectionTitle chip={selectedYear}>{group.university}</SectionTitle>
                 <CardGrid>
                   {group.profiles.map((profile) =>
                     renderProfileCard(profile, campusAccent),
@@ -1074,7 +1063,7 @@ export default function AdminScreen() {
 
           {nonCampusOtherProfiles.length > 0 && (
             <>
-              <SectionTitle>Other · {selectedYear}</SectionTitle>
+              <SectionTitle chip={selectedYear}>Other</SectionTitle>
               <CardGrid>
                 {nonCampusOtherProfiles.map((profile) =>
                   renderProfileCard(profile),
@@ -1276,10 +1265,7 @@ export default function AdminScreen() {
             <SectionTitle>Directory sync</SectionTitle>
             <Card>
               {syncState?.syncedAt ? (
-                <Muted>
-                  Last synced: {sydneyDateTime(syncState.syncedAt)} ·{" "}
-                  {syncState.status}
-                </Muted>
+                <Facts parts={[`Last synced ${sydneyDateTime(syncState.syncedAt)}`, syncState.status]} />
               ) : (
                 <Muted>Never synced.</Muted>
               )}

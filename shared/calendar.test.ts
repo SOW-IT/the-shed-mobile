@@ -14,6 +14,7 @@ import {
   dayBlocks,
   eventsByDay,
   googleEventBody,
+  nearestGoogleColour,
   googleEventId,
   hourAfter,
   monthGrid,
@@ -335,6 +336,20 @@ describe("Google", () => {
     expect(colour("campus", ["SOW"])).toBe("9");
   });
 
+  test("a picked colour goes to Google as the nearest of its colours", () => {
+    const colour = (picked: string | undefined, category: "event" | "weekly" = "event", subgroups: string[] = []) =>
+      googleEventBody({ name: "x", dateStart: 0, dateEnd: 1, subgroups, colour: picked }, category, "link").colorId;
+    expect(colour("crimson")).toBe("11");
+    expect(colour("green")).toBe("2");
+    expect(colour("navy")).toBe("9");
+    expect(colour("yellow")).toBe("5");
+    // A picked colour wins over a campus's; an unknown one is ignored.
+    expect(colour("forest", "weekly", ["USYD"])).toBe("10");
+    expect(colour("not-a-colour")).toBe("1");
+    expect(colour(undefined)).toBe("1");
+    expect(nearestGoogleColour("#616161")).toBe("8");
+  });
+
   test("a deadline is an all-day event on its Sydney day, with any time in its title", () => {
     const due = sydney("2026-11-20T23:59:00");
     const deadline = (kind: "day" | "time") =>
@@ -344,7 +359,7 @@ describe("Google", () => {
         "link"
       );
     expect(deadline("time")).toMatchObject({
-      summary: "Applications close · 11:59 pm",
+      summary: "Applications close at 11:59 pm",
       start: { date: "2026-11-20" },
       end: { date: "2026-11-21" },
     });
@@ -364,6 +379,9 @@ describe("calendar entries", () => {
     });
     // Present even when it's not a deadline, so saving an event clears an old one.
     expect(Object.keys(normalizeEntry(base))).toContain("due");
+    // The same for a colour, so picking the category's colour again clears it.
+    expect(Object.keys(normalizeEntry(base))).toContain("colour");
+    expect(normalizeEntry({ ...base, colour: "" }).colour).toBeUndefined();
   });
   test.each([
     [{ name: "" }, "Give it a name."],
@@ -372,11 +390,13 @@ describe("calendar entries", () => {
     [{ dateEnd: 1_000 + 32 * 86_400_000 }, "at most 31 days"],
     [{ notes: "x".repeat(1001) }, "Notes can be at most 1000 characters."],
     [{ due: "time" as const }, "A deadline is one moment, with no end."],
+    [{ colour: "chartreuse" }, "Choose one of the colours."],
   ])("%o → %s", (over, message) => {
     expect(entryProblem({ ...base, ...over })).toContain(message);
   });
   test("a good one passes", () => {
     expect(entryProblem({ ...base, notes: "Print 200" })).toBeNull();
+    expect(entryProblem({ ...base, colour: "plum" })).toBeNull();
     expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "day" })).toBeNull();
     expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "time" })).toBeNull();
   });

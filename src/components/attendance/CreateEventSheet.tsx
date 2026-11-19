@@ -350,7 +350,7 @@ export function CreateEventSheet({
           w.slot === pickedTerm.slot &&
           w.week === Number(option.value)
       );
-    return held ? { ...option, label: `${option.label} · ${held.name}` } : option;
+    return held ? { ...option, label: `${option.label} (${held.name})` } : option;
   });
 
   const changeKind = (next: Kind) => {

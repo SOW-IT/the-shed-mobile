@@ -235,7 +235,7 @@ export default function MentoringScreen() {
               <Card style={styles.pairCard}>
                 <PersonLine
                   name={external.name}
-                  line={[external.email, external.phone].filter(Boolean).join("  ·  ") || null}
+                  line={[external.email, external.phone].filter(Boolean).join(", ") || null}
                   showAvatar={false}
                   tags={[
                     {

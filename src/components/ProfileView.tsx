@@ -36,6 +36,7 @@ import {
   SectionTitle,
   stagger,
   Txt,
+  Facts,
 } from "./ui";
 import { backOr } from "@/lib/goBack";
 
@@ -333,21 +334,19 @@ export const ProfileView = ({
                 { backgroundColor: t.primarySoft },
               ]}
             >
-              <Text
-                style={[
-                  typography.caption,
-                  { color: t.dark ? t.text : t.primary, fontWeight: "600" },
+              <Facts
+                style={{ color: t.dark ? t.text : t.primary, fontWeight: "600" }}
+                parts={[
+                  (current.assignments ?? []).length > 0
+                    ? current.assignments
+                        .map((a) => formatAssignment(a, current.roleTitles))
+                        .join(", ")
+                    : current.roles
+                        .map((r) => roleLabel(r, current.roleTitles))
+                        .join(", "),
+                  current.year,
                 ]}
-              >
-                {(current.assignments ?? []).length > 0
-                  ? current.assignments
-                      .map((a) => formatAssignment(a, current.roleTitles))
-                      .join("  ·  ")
-                  : current.roles
-                      .map((r) => roleLabel(r, current.roleTitles))
-                      .join(", ")}{" "}
-                · {current.year}
-              </Text>
+              />
             </View>
           ) : neverStaff && !isSowStaffAddress(profile.email ?? undefined) ? (
             <Muted>Personal account</Muted>

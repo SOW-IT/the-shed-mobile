@@ -19,6 +19,7 @@ import {
   MultiSelect,
   SearchField,
   SowSpinner,
+  Facts,
 } from "@/components/ui";
 import { FilterBar } from "@/components/attendance/FilterBar";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
@@ -296,9 +297,7 @@ export function AuditTab({
                     {row.detail}
                   </Text>
                 ) : null}
-                <Text style={[typography.caption, { color: t.faint }]}>
-                  {row.actorName} · {timeAgo(row.at)}
-                </Text>
+                <Facts parts={[row.actorName, timeAgo(row.at)]} style={{ color: t.faint }} />
               </View>
             </View>
           ))}

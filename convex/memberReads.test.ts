@@ -269,7 +269,7 @@ describe("the roll call lists the people most likely to come", () => {
     for (const limit of [1, 2, 3, 4, 5]) {
       expect(await admin.query(api.attendance.roster, { year: YEAR, eventId, limit })).toEqual(full.slice(0, limit));
     }
-    expect(full.find((r) => r.name === "Ann Lee")?.subtitle).toBe("Regular · front row");
+    expect(full.find((r) => r.name === "Ann Lee")?.subtitle).toBe("Regular, front row");
     await t.mutation(internal.categoryPeople.backfill, {});
     for (const limit of [3, 5]) {
       expect(await admin.query(api.attendance.roster, { year: YEAR, eventId, limit })).toEqual(full.slice(0, limit));

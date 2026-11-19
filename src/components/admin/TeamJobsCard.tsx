@@ -18,7 +18,7 @@ export const TeamJobsCard = ({ year }: { year: number }) => {
     runBusy(busy, setBusy, setError, () => save({ year, job, department }));
   return (
     <View style={{ gap: spacing.md }}>
-      <SectionTitle>Teams · {year}</SectionTitle>
+      <SectionTitle chip={year}>Teams</SectionTitle>
       <Card>
         <Muted>
           Which department does each job this staff year. A year keeps the year before&apos;s choices

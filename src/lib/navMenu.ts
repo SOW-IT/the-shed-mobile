@@ -200,7 +200,7 @@ export const roleLine = (
   const assignments = profile.assignments ?? [];
   const text =
     assignments.length > 0
-      ? assignments.map((a) => formatAssignment(a, titles)).join("  ·  ")
+      ? assignments.map((a) => formatAssignment(a, titles)).join(", ")
       : profile.roles.map((r) => roleLabel(r, titles)).join(", ");
   return text || null;
 };
