@@ -5,7 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { MemberRow } from "@/components/attendance/MemberRow";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
-import { EmptyState, SearchField, Sheet, Txt } from "@/components/ui";
+import { Btn, EmptyState, SearchField, Sheet, SowSpinner, Txt } from "@/components/ui";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { durations, typography, useAppTheme } from "@/theme";
 
@@ -14,6 +14,8 @@ export type OldStaff = { email: string; name: string; year: number };
 type PickedRecord = { memberId: Id<"attendanceMembers">; name: string; email?: string };
 
 const SHEET_HANDOFF_MS = durations.overlayOut + 80;
+const PAGE_SIZE = 25;
+const MAX_RESULTS = 200;
 
 export function ConnectStaffRecordSheet({
   staff,
@@ -31,6 +33,7 @@ export function ConnectStaffRecordSheet({
   const [picked, setPicked] = useState<PickedRecord | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const handoff = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => () => clearTimeout(handoff.current), []);
@@ -38,16 +41,20 @@ export function ConnectStaffRecordSheet({
   useEffect(() => {
     if (staff) return;
     clearTimeout(handoff.current);
-    /* eslint-disable react-hooks/set-state-in-effect -- start over when the sheet closes */
+    /* eslint-disable react-hooks/set-state-in-effect */
     setStage("search");
     setPicked(null);
     setSearch("");
     setDebouncedSearch("");
+    setLimit(PAGE_SIZE);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [staff]);
 
   useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    const id = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setLimit(PAGE_SIZE);
+    }, 300);
     return () => clearTimeout(id);
   }, [search]);
 
@@ -63,7 +70,7 @@ export function ConnectStaffRecordSheet({
     useQuery(
       api.attendanceMembers.list,
       searching
-        ? { year: currentYear, search: debouncedSearch, paginationOpts: { numItems: 25, cursor: null } }
+        ? { year: currentYear, search: debouncedSearch, paginationOpts: { numItems: limit, cursor: null } }
         : "skip"
     ),
     searching ? "search" : "idle"
@@ -73,6 +80,13 @@ export function ConnectStaffRecordSheet({
     (row): row is typeof row & { memberId: Id<"attendanceMembers"> } =>
       !row.key.startsWith("staff:") && Boolean(row.memberId)
   );
+  const moreToSearch = Boolean(results && !results.isDone && limit < MAX_RESULTS);
+  const showMore = () => setLimit((current) => Math.min(current + PAGE_SIZE * 2, MAX_RESULTS));
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!stale && candidates.length === 0 && moreToSearch) showMore();
+  }, [stale, candidates.length, moreToSearch]);
 
   return (
     <>
@@ -94,7 +108,7 @@ export function ConnectStaffRecordSheet({
           loading={loading}
           autoFocus
         />
-        {results && !stale && candidates.length === 0 ? (
+        {results && !stale && candidates.length === 0 && !moreToSearch ? (
           <EmptyState
             icon="search-outline"
             title="No one matches"
@@ -117,6 +131,11 @@ export function ConnectStaffRecordSheet({
                 }}
               />
             ))}
+            {candidates.length === 0 && moreToSearch ? (
+              <SowSpinner size={32} />
+            ) : moreToSearch ? (
+              <Btn title="Show more" variant="ghost" onPress={showMore} />
+            ) : null}
           </View>
         )}
       </Sheet>

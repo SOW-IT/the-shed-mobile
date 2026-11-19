@@ -52,7 +52,10 @@ export const entryWhen = (entry: AuditedEntry): string => {
 
 const notesShown = (notes?: string) => {
   if (!notes) return "none";
-  return notes.length > NOTES_SHOWN ? `${notes.slice(0, NOTES_SHOWN - 1).trimEnd()}…` : notes;
+  const characters = [...notes];
+  return characters.length > NOTES_SHOWN
+    ? `${characters.slice(0, NOTES_SHOWN - 1).join("").trimEnd()}…`
+    : notes;
 };
 
 const FIELDS: { field: string; show: (entry: AuditedEntry) => string }[] = [

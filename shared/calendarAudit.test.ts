@@ -39,6 +39,10 @@ describe("entryChanges", () => {
     const [change] = entryChanges(MEETING, { ...MEETING, notes: long });
     expect(change.to).toHaveLength(NOTES_SHOWN);
     expect(change.to.endsWith("…")).toBe(true);
+    const emoji = `${"a".repeat(NOTES_SHOWN - 2)}🎉🎉🎉`;
+    const [cut] = entryChanges(MEETING, { ...MEETING, notes: emoji });
+    expect(cut.to).toBe(`${"a".repeat(NOTES_SHOWN - 2)}🎉…`);
+    expect(cut.to.isWellFormed()).toBe(true);
     expect(entryChanges({ ...MEETING, notes: long }, { ...MEETING, notes: `${long}b` })).toEqual([
       { field: "Notes", from: "earlier notes", to: "edited notes" },
     ]);
