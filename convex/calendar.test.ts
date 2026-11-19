@@ -195,7 +195,7 @@ describe("googleCalendar.syncEvent", () => {
 });
 
 describe("tags and Google", () => {
-  test("recolouring, renaming or deleting a tag recopies the events wearing it to Google", async () => {
+  test("recolouring, renaming, moving or deleting a tag recopies the events wearing it to Google, and an unchanged save doesn't", async () => {
     const { t, twig, ppn } = await setup();
     await configureGoogle();
     googleFetch([]);
@@ -217,9 +217,25 @@ describe("tags and Google", () => {
       before[2],
     ]);
 
+    await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: twig, name: "TWIG", colour: "orange", list: "weeklies" }],
+      deleteIds: [],
+    });
+    expect(await Promise.all([withTwig, withPpn, untagged].map(syncsOf))).toEqual([
+      before[0] + 2,
+      before[1],
+      before[2],
+    ]);
+
+    await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: twig, name: "TWIG", colour: "orange", list: "weeklies" }],
+      deleteIds: [],
+    });
+    expect(await syncsOf(withTwig)).toBe(before[0] + 2);
+
     await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, { tags: [], deleteIds: [ppn] });
     expect(await Promise.all([withTwig, withPpn, untagged].map(syncsOf))).toEqual([
-      before[0] + 1,
+      before[0] + 2,
       before[1] + 1,
       before[2],
     ]);
