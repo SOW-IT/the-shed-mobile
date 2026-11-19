@@ -1,5 +1,6 @@
 import { isTagColour, TAG_COLOUR_HEX } from "@shared/attendanceTags";
-import { campusColourOf, type CalendarCategory } from "@shared/calendar";
+import { campusColourOf, type CalendarCategory, type ColouredTag, sowTagColourOf } from "@shared/calendar";
+import { UNIVERSITY_COLOURS } from "@shared/flow";
 
 // Mid-tone colours that read on both the cream and the dark theme.
 export const CATEGORY_COLOURS: Record<CalendarCategory, string> = {
@@ -7,7 +8,7 @@ export const CATEGORY_COLOURS: Record<CalendarCategory, string> = {
   ppn: "#8a63c7",
   weekly: "#3a86c8",
   campus: "#d07a2d",
-  sow: "#14958a",
+  sow: UNIVERSITY_COLOURS.SOW,
   event: "#6b7f99",
   deadline: "#d1453b",
 };
@@ -17,7 +18,9 @@ export const eventColour = (event: {
   category: CalendarCategory;
   subgroups: string[];
   colour?: string | null;
+  tags?: readonly ColouredTag[];
 }): string =>
   (isTagColour(event.colour) ? TAG_COLOUR_HEX[event.colour] : undefined) ??
   campusColourOf(event.category, event.subgroups) ??
+  sowTagColourOf(event.category, event.tags ?? []) ??
   CATEGORY_COLOURS[event.category];

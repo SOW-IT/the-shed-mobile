@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { isTagColour, TAG_COLOUR_HEX, TAG_COLOUR_NAMES, tagColourHex } from "./attendanceTags";
+import { isTagColour, TAG_COLOUR_HEX, TAG_COLOUR_NAMES, tagColourHex, tagHexOf } from "./attendanceTags";
 
 describe("tagColourHex", () => {
   test("maps known colour names", () => {
@@ -25,5 +25,15 @@ describe("the palette", () => {
     expect(isTagColour("constructor")).toBe(false);
     expect(isTagColour(undefined)).toBe(false);
     expect(tagColourHex("constructor")).toBe(TAG_COLOUR_HEX.blue);
+  });
+});
+
+describe("tagHexOf", () => {
+  test("a palette name or a stored hex gives its hex; nothing else gives one", () => {
+    expect(tagHexOf("orange")).toBe(TAG_COLOUR_HEX.orange);
+    expect(tagHexOf("#123456")).toBe("#123456");
+    expect(tagHexOf("tangerine")).toBeUndefined();
+    expect(tagHexOf(undefined)).toBeUndefined();
+    expect(tagHexOf(null)).toBeUndefined();
   });
 });

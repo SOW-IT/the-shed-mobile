@@ -18,6 +18,7 @@ import {
   type Due,
 } from "@shared/calendar";
 import { eventColour } from "@/components/calendar/categoryColours";
+import { visibleColour } from "@/lib/visibleColour";
 import { dayTitle } from "@/components/calendar/dayTitle";
 import { BAR_ROW, barColumn, EventBar, MoreLabel } from "@/components/calendar/EventBar";
 import { sydneyTime } from "@/lib/sydneyTime";
@@ -215,7 +216,7 @@ export const WeekView = <E extends WeekEvent>({
                 />
               ))}
               {dayBlocks((byDay.get(key) ?? []).filter((event) => !inStrip(event))).map((block) => {
-                const colour = eventColour(block.event);
+                const colour = visibleColour(eventColour(block.event), t);
                 const blockHeight = ((block.to - block.from) / 60) * HOUR_HEIGHT;
                 const narrow = dayWidth / block.cols < ONE_LINE_BELOW;
                 const lines = narrow ? 1 : Math.max(1, Math.floor((blockHeight - 4) / lineHeight));

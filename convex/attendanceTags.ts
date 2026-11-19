@@ -4,6 +4,8 @@ import { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireAttendanceManager } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
+import { syncToGoogle } from "./events";
+import { calendarSyncConfigured } from "./googleCalendar";
 
 export const list = query({
   args: {},
@@ -33,6 +35,8 @@ export const saveAll = mutation({
   },
   handler: async (ctx, { tags, deleteIds }) => {
     const { email: actorEmail } = await requireAttendanceManager(ctx);
+    const resyncEvents = new Set<Id<"events">>();
+    const resyncTags = new Set<Id<"attendanceTags">>();
     const deleteRows = (
       await Promise.all(deleteIds.map((id) => ctx.db.get(id)))
     ).filter((row): row is NonNullable<typeof row> => row !== null);
@@ -47,6 +51,7 @@ export const saveAll = mutation({
         await ctx.db.patch(event._id, {
           tagIds: tagIds.length > 0 ? tagIds : undefined,
         });
+        resyncEvents.add(event._id);
       }
       for (const row of deleteRows) {
         await ctx.db.delete(row._id);
@@ -96,6 +101,13 @@ export const saveAll = mutation({
           (existing.colour ?? undefined) !== (tag.colour ?? undefined) ||
           JSON.stringify([...(existing.subgroups ?? [])].sort()) !==
             JSON.stringify([...(nextSubgroups ?? [])].sort());
+        if (
+          existing.name !== name ||
+          tagListOf(existing) !== list ||
+          (existing.colour ?? undefined) !== (tag.colour ?? undefined)
+        ) {
+          resyncTags.add(tag.id);
+        }
         await ctx.db.patch(tag.id, {
           name,
           colour: tag.colour,
@@ -128,5 +140,12 @@ export const saveAll = mutation({
         });
       }
     }
+    if (!calendarSyncConfigured()) return;
+    if (resyncTags.size > 0) {
+      for (const event of await ctx.db.query("events").collect()) {
+        if (event.tagIds?.some((tagId) => resyncTags.has(tagId))) resyncEvents.add(event._id);
+      }
+    }
+    for (const eventId of resyncEvents) await syncToGoogle(ctx, eventId);
   },
 });

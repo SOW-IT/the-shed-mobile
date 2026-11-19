@@ -56,6 +56,7 @@ export function MergeMemberSheet({
   removeViewedByDefault = false,
   initialStaff,
   initialMember,
+  onChooseSomeoneElse,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -68,6 +69,7 @@ export function MergeMemberSheet({
   removeViewedByDefault?: boolean;
   initialStaff?: { email: string; name: string } | null;
   initialMember?: { memberId: Id<"attendanceMembers">; name: string; email?: string } | null;
+  onChooseSomeoneElse?: () => void;
 }) {
   const t = useAppTheme();
   const merge = useMutation(api.attendanceMembers.merge);
@@ -274,6 +276,7 @@ export function MergeMemberSheet({
               title="Choose someone else"
               variant="ghost"
               onPress={() => {
+                if (onChooseSomeoneElse) return onChooseSomeoneElse();
                 setPicked(null);
                 setRemoveViewed(removeViewedByDefault);
                 setOrientedFor(null);
@@ -288,6 +291,7 @@ export function MergeMemberSheet({
             title="Choose someone else"
             variant="ghost"
             onPress={() => {
+              if (onChooseSomeoneElse) return onChooseSomeoneElse();
               setPicked(null);
               setRemoveViewed(removeViewedByDefault);
               setOrientedFor(null);

@@ -31,6 +31,7 @@ import type * as auth from "../auth.js";
 import type * as avatars from "../avatars.js";
 import type * as bankAccounts from "../bankAccounts.js";
 import type * as calendar from "../calendar.js";
+import type * as calendarAudit from "../calendarAudit.js";
 import type * as calendarData from "../calendarData.js";
 import type * as categoryPeople from "../categoryPeople.js";
 import type * as checkIn from "../checkIn.js";
@@ -130,6 +131,7 @@ declare const fullApi: ApiFromModules<{
   avatars: typeof avatars;
   bankAccounts: typeof bankAccounts;
   calendar: typeof calendar;
+  calendarAudit: typeof calendarAudit;
   calendarData: typeof calendarData;
   categoryPeople: typeof categoryPeople;
   checkIn: typeof checkIn;

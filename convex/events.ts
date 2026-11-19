@@ -24,7 +24,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { removeReplacedEntry } from "./calendar";
+import { replaceEntryWithEvent } from "./calendar";
 import { openableEventRequest } from "./eventRequestAccess";
 import { optionalProfile, requireProfile } from "./model";
 import { memberAuditName } from "./attendanceMembers";
@@ -416,7 +416,9 @@ export const create = mutation({
   },
   handler: async (ctx, { replacesEntryId, ...fields }) => {
     const { email } = await requireProfile(ctx);
-    if (replacesEntryId) await removeReplacedEntry(ctx, replacesEntryId);
+    if (replacesEntryId) {
+      return await replaceEntryWithEvent(ctx, replacesEntryId, () => insertEvent(ctx, email, fields));
+    }
     return await insertEvent(ctx, email, fields);
   },
 });
@@ -516,7 +518,7 @@ export const update = mutation({
 });
 
 // Copies the event (or its removal) to the shared Google Calendar, when one is set up.
-async function syncToGoogle(ctx: MutationCtx, eventId: Id<"events">) {
+export async function syncToGoogle(ctx: MutationCtx, eventId: Id<"events">) {
   if (calendarSyncConfigured()) {
     await ctx.scheduler.runAfter(0, internal.googleCalendar.syncEvent, { eventId });
   }

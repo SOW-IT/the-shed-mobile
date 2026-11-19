@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { StyleSheet, Text, View } from "react-native";
 import type { CalendarCategory, Due } from "@shared/calendar";
 import { eventColour } from "@/components/calendar/categoryColours";
+import { visibleColour } from "@/lib/visibleColour";
 import { useAppTheme } from "@/theme";
 
 // One row of bars in the month, or in the week view's strip of longer events.
@@ -19,12 +20,19 @@ export const EventBar = ({
   fromBefore,
   toAfter,
 }: {
-  event: { name: string; category: CalendarCategory; subgroups: string[]; colour?: string | null; due: Due | null };
+  event: {
+    name: string;
+    category: CalendarCategory;
+    subgroups: string[];
+    colour?: string | null;
+    tags?: readonly { colour?: string | null }[];
+    due: Due | null;
+  };
   fromBefore: boolean;
   toAfter: boolean;
 }) => {
   const t = useAppTheme();
-  const colour = eventColour(event);
+  const colour = visibleColour(eventColour(event), t);
   return (
     <View
       style={[

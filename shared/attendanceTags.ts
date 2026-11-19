@@ -74,3 +74,8 @@ export const isTagColour = (name: string | null | undefined): name is TagColourN
 
 export const tagColourHex = (name?: string): string =>
   TAG_COLOUR_HEX[isTagColour(name) ? name : "blue"];
+
+export const tagHexOf = (colour: string | null | undefined): string | undefined => {
+  if (isTagColour(colour)) return TAG_COLOUR_HEX[colour];
+  return colour && /^#[0-9a-f]{6}$/i.test(colour) ? colour : undefined;
+};

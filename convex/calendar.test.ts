@@ -194,6 +194,54 @@ describe("googleCalendar.syncEvent", () => {
   });
 });
 
+describe("tags and Google", () => {
+  test("recolouring, renaming, moving or deleting a tag recopies the events wearing it to Google, and an unchanged save doesn't", async () => {
+    const { t, twig, ppn } = await setup();
+    await configureGoogle();
+    googleFetch([]);
+    const withTwig = await create(t, { name: "Leaders' retreat", subgroups: ["SOW"], tagIds: [twig] });
+    const withPpn = await create(t, { name: "PPN night", tagIds: [ppn] });
+    const untagged = await create(t, { name: "Stall" });
+    const syncsOf = async (eventId: Id<"events">) =>
+      (await scheduledSyncs(t)).filter((f) => f.name === "googleCalendar:syncEvent" && f.args[0].eventId === eventId)
+        .length;
+    const before = await Promise.all([withTwig, withPpn, untagged].map(syncsOf));
+
+    await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: twig, name: "TWIG", colour: "orange" }],
+      deleteIds: [],
+    });
+    expect(await Promise.all([withTwig, withPpn, untagged].map(syncsOf))).toEqual([
+      before[0] + 1,
+      before[1],
+      before[2],
+    ]);
+
+    await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: twig, name: "TWIG", colour: "orange", list: "weeklies" }],
+      deleteIds: [],
+    });
+    expect(await Promise.all([withTwig, withPpn, untagged].map(syncsOf))).toEqual([
+      before[0] + 2,
+      before[1],
+      before[2],
+    ]);
+
+    await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: twig, name: "TWIG", colour: "orange", list: "weeklies" }],
+      deleteIds: [],
+    });
+    expect(await syncsOf(withTwig)).toBe(before[0] + 2);
+
+    await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, { tags: [], deleteIds: [ppn] });
+    expect(await Promise.all([withTwig, withPpn, untagged].map(syncsOf))).toEqual([
+      before[0] + 2,
+      before[1] + 1,
+      before[2],
+    ]);
+  });
+});
+
 describe("googleCalendar.backfill", () => {
   test("copies events from the chosen number of days back", async () => {
     const { t } = await setup();

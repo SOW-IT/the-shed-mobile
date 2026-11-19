@@ -285,7 +285,7 @@ export function CreateEventSheet({
 
   const previous = suggestion?.previous ?? null;
   useEffect(() => {
-    if (!visible || isEditing || whenTouched) return;
+    if (!visible || isEditing || draft || whenTouched) return;
     if (weekly && previous) {
       if (whenFor === "weekly") return;
       const next = nextWeeklyInputs(previous, defaultDate());
@@ -310,7 +310,7 @@ export function CreateEventSheet({
     setStartTime(when.startTime);
     setEndTime(when.endTime);
     setWhenFor("event");
-  }, [visible, isEditing, whenTouched, weekly, previous, whenFor]);
+  }, [visible, isEditing, draft, whenTouched, weekly, previous, whenFor]);
 
   const termOptions = suggestion?.options ?? [];
   const termFits = (p: TermPick | null) =>
