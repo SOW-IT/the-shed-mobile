@@ -5,7 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { MemberRow } from "@/components/attendance/MemberRow";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
-import { Btn, EmptyState, SearchField, Sheet, SowSpinner, Txt } from "@/components/ui";
+import { Btn, EmptyState, Muted, SearchField, Sheet, SowSpinner, Txt } from "@/components/ui";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { durations, typography, useAppTheme } from "@/theme";
 
@@ -81,6 +81,7 @@ export function ConnectStaffRecordSheet({
       !row.key.startsWith("staff:") && Boolean(row.memberId)
   );
   const moreToSearch = Boolean(results && !results.isDone && limit < MAX_RESULTS);
+  const capped = Boolean(results && !results.isDone && limit >= MAX_RESULTS);
   const showMore = () => setLimit((current) => Math.min(current + PAGE_SIZE * 2, MAX_RESULTS));
 
   useEffect(() => {
@@ -108,7 +109,13 @@ export function ConnectStaffRecordSheet({
           loading={loading}
           autoFocus
         />
-        {results && !stale && candidates.length === 0 && !moreToSearch ? (
+        {results && !stale && candidates.length === 0 && capped ? (
+          <EmptyState
+            icon="search-outline"
+            title="Keep typing"
+            message={`More than ${MAX_RESULTS} people match. Add more of the name, or search by email.`}
+          />
+        ) : results && !stale && candidates.length === 0 && !moreToSearch ? (
           <EmptyState
             icon="search-outline"
             title="No one matches"
@@ -135,6 +142,8 @@ export function ConnectStaffRecordSheet({
               <SowSpinner size={32} />
             ) : moreToSearch ? (
               <Btn title="Show more" variant="ghost" onPress={showMore} />
+            ) : capped ? (
+              <Muted>{`Showing the first ${MAX_RESULTS} matches. Add more of the name, or search by email.`}</Muted>
             ) : null}
           </View>
         )}
