@@ -16,6 +16,7 @@ import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
+import { useRestartHold } from "@/hooks/useRestartHold";
 import { GuideSheet } from "@/components/ui/GuideSheet";
 import {
   getLocalFileSizeBytes,
@@ -126,6 +127,7 @@ const NewRequestSheet = ({
   directorThreshold: number;
 }) => {
   const submit = useMutation(api.requests.submit);
+  useRestartHold(visible);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [department, setDepartment] = useState(defaultDepartment);
@@ -377,6 +379,7 @@ const ReceiptSheet = ({
   onClose: () => void;
 }) => {
   const submitReceipt = useMutation(api.requests.submitReceipt);
+  useRestartHold(request !== null);
   const generateUploadUrl = useMutation(api.requests.generateReceiptUploadUrl);
   const savedAccounts = useQuery(api.bankAccounts.listMine, {});
   const forgetAccount = useMutation(api.bankAccounts.remove);

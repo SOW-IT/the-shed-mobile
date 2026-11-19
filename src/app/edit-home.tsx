@@ -17,6 +17,7 @@ import {
 } from "../../shared/homeContent";
 import { DISPLAY_ACRONYMS } from "../../shared/flow";
 import { HomeBlocks } from "@/components/home/HomeBlocks";
+import { useRestartHold } from "@/hooks/useRestartHold";
 import { universityLogo } from "@/lib/universityLogos";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
@@ -109,6 +110,7 @@ function Editor({
   const nextId = useRef(initial.length);
   const [items, setItems] = useState<Keyed[]>(() => initial.map((block, id) => ({ id, block })));
   const [dirty, setDirty] = useState(false);
+  useRestartHold(dirty);
   const [mode, setMode] = useState("edit");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

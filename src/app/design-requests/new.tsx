@@ -6,6 +6,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { designRequestName, sydneyToday } from "@shared/designRequests";
 import { staffOnlyMessage } from "@shared/staffOnly";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { useRestartHold } from "@/hooks/useRestartHold";
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
   draftFromAnswers,
@@ -45,6 +46,7 @@ export default function DesignRequestFormScreen() {
   const submit = useMutation(api.designRequests.submit);
   const update = useMutation(api.designRequests.update);
   const [draft, setDraft] = useState<FormDraft | null>(null);
+  useRestartHold(draft !== null);
   const { error, problem, saving, save: saveForm, clear } = useFormSave();
 
   const defaultDepartment = me?.profile?.department ?? "";

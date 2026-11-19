@@ -9,6 +9,7 @@ import { sydneyToday } from "@shared/forms";
 import { SUB_FORM_KINDS, SUB_FORM_LABELS } from "@shared/eventRequests";
 import { staffOnlyMessage } from "@shared/staffOnly";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { useRestartHold } from "@/hooks/useRestartHold";
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
   draftFromAnswers,
@@ -81,6 +82,7 @@ export default function EventRequestFormScreen() {
   const create = useMutation(api.eventRequests.create);
   const update = useMutation(api.eventRequests.update);
   const [draft, setDraft] = useState<FormDraft | null>(null);
+  useRestartHold(draft !== null);
   const { error, problem, saving, save: saveForm, clear } = useFormSave();
   const [leadCutoff] = useState(() => sydneyToday(new Date(Date.now() + LEAD_DAYS * DAY)));
 

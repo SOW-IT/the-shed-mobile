@@ -14,8 +14,10 @@ All notable changes to **The SHED** mobile app. This project follows
   come back after being away for 10 minutes or more, so it never restarts
   while you're using it. A quick trip to another app, Control Centre or the
   notification shade doesn't count, and neither does choosing a photo or
-  file, sharing an export or signing in with Google, so nothing you've typed
-  is lost.
+  file, sharing an export or signing in with Google. It also waits while a
+  request, receipt, event or design request, grievance, event form,
+  announcement or Edit Home is open, however long you were away, so nothing
+  you've typed is lost.
 
 ## [2.11.17] - 2026-11-19
 

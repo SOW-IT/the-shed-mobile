@@ -22,6 +22,7 @@ import {
 } from "@shared/datetime";
 import { acronym } from "@shared/flow";
 import { PushPreview } from "@/components/announcements/PushPreview";
+import { useRestartHold } from "@/hooks/useRestartHold";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import { DateInput, TimeInput } from "@/components/DateInputs";
 import {
@@ -99,6 +100,7 @@ export default function AnnouncementsScreen() {
 
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
+  useRestartHold(title.trim() !== "" || message.trim() !== "");
   const [reach, setReach] = useState<Reach>("everyone");
   const [groups, setGroups] = useState<Audience>(EVERYONE);
   const [sendEmail, setSendEmail] = useState(false);

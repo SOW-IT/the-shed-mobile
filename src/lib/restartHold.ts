@@ -4,12 +4,22 @@ let holds = 0;
 
 export const restartHeld = (): boolean => holds > 0;
 
-export async function withRestartHeld<T>(task: () => Promise<T>): Promise<T> {
+export function holdRestart(): () => void {
   holds += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    holds -= 1;
+  };
+}
+
+export async function withRestartHeld<T>(task: () => Promise<T>): Promise<T> {
+  const release = holdRestart();
   try {
     return await task();
   } finally {
-    holds -= 1;
+    release();
   }
 }
 
