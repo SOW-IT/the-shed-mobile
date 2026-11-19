@@ -1,6 +1,7 @@
 import { Paths, File } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
+import { withRestartHeld } from "./restartHold";
 
 export const downloadFile = async (
   filename: string,
@@ -26,11 +27,13 @@ export const downloadFile = async (
   try {
     await file.write(data);
     if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(file.uri, {
-        mimeType: opts.mimeType,
-        UTI: opts.uti,
-        dialogTitle: opts.dialogTitle,
-      });
+      await withRestartHeld(() =>
+        Sharing.shareAsync(file.uri, {
+          mimeType: opts.mimeType,
+          UTI: opts.uti,
+          dialogTitle: opts.dialogTitle,
+        })
+      );
     }
   } finally {
     if (file.exists) file.delete();

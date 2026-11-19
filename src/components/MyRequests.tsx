@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import { withRestartHeld } from "@/lib/restartHold";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Alert, Image, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
@@ -487,11 +488,13 @@ const ReceiptSheet = ({
   const attachFromFiles = async (index: number) => {
     setError(null);
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        multiple: true,
-        type: ["image/*", "application/pdf"],
-        copyToCacheDirectory: true,
-      });
+      const result = await withRestartHeld(() =>
+        DocumentPicker.getDocumentAsync({
+          multiple: true,
+          type: ["image/*", "application/pdf"],
+          copyToCacheDirectory: true,
+        })
+      );
       if (result.canceled) return;
       await uploadPickedReceipts(
         index,
@@ -514,11 +517,13 @@ const ReceiptSheet = ({
         setError("Photo library access is needed to attach receipt photos.");
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsMultipleSelection: true,
-        quality: 0.9,
-      });
+      const result = await withRestartHeld(() =>
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsMultipleSelection: true,
+          quality: 0.9,
+        })
+      );
       if (result.canceled) return;
       await uploadPickedReceipts(
         index,

@@ -1,6 +1,7 @@
 import { requireOptionalNativeModule } from "expo";
 import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
+import { readyToRestart } from "@/lib/restartHold";
 
 type UpdatesModule = typeof import("expo-updates");
 
@@ -24,13 +25,14 @@ function RestartWhenResumed({
   const { isUpdatePending } = updates.useUpdates();
   useEffect(() => {
     if (!isUpdatePending) return;
-    let leftApp = AppState.currentState === "background";
+    let leftAt = AppState.currentState === "background" ? Date.now() : null;
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "background") {
-        leftApp = true;
-      } else if (state === "active" && leftApp) {
-        leftApp = false;
-        void updates.reloadAsync().catch(() => undefined);
+        leftAt ??= Date.now();
+      } else if (state === "active") {
+        const ready = readyToRestart(leftAt, Date.now());
+        leftAt = null;
+        if (ready) void updates.reloadAsync().catch(() => undefined);
       }
     });
     return () => subscription.remove();

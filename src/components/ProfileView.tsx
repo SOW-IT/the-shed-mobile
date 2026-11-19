@@ -1,5 +1,6 @@
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
+import { withRestartHeld } from "@/lib/restartHold";
 import { uploadLocalFileToUrl } from "@/lib/uploadLocalFile";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -253,12 +254,14 @@ export const ProfileView = ({
   const pickPhoto = async () => {
     setError(null);
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-      });
+      const result = await withRestartHeld(() =>
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 1,
+        })
+      );
       if (result.canceled) return;
       setUploading(true);
       const picked = result.assets[0];
