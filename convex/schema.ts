@@ -7,7 +7,7 @@ import {
   announcementStatusValidator,
   audienceValidator,
 } from "./announcementData";
-import { entryFields } from "./calendarData";
+import { calendarAuditActionValidator, entryChangeValidator, entryFields } from "./calendarData";
 import {
   designAnswersValidator,
   designStatusValidator,
@@ -547,6 +547,16 @@ export default defineSchema({
     // The approved event request this calendar event comes from.
     eventRequestId: v.optional(v.id("eventRequests")),
   }).index("by_dateStart", ["dateStart"]),
+
+  calendarAuditLog: defineTable({
+    actorEmail: v.string(),
+    action: calendarAuditActionValidator,
+    entryId: v.id("calendarEntries"),
+    name: v.string(),
+    when: v.string(),
+    changes: v.optional(v.array(entryChangeValidator)),
+    eventId: v.optional(v.id("events")),
+  }),
 
   eventAttendanceCounts: defineTable({
     eventId: v.id("events"),

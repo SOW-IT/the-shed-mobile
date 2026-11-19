@@ -24,7 +24,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { removeReplacedEntry } from "./calendar";
+import { replaceEntryWithEvent } from "./calendar";
 import { openableEventRequest } from "./eventRequestAccess";
 import { optionalProfile, requireProfile } from "./model";
 import { memberAuditName } from "./attendanceMembers";
@@ -416,7 +416,9 @@ export const create = mutation({
   },
   handler: async (ctx, { replacesEntryId, ...fields }) => {
     const { email } = await requireProfile(ctx);
-    if (replacesEntryId) await removeReplacedEntry(ctx, replacesEntryId);
+    if (replacesEntryId) {
+      return await replaceEntryWithEvent(ctx, replacesEntryId, () => insertEvent(ctx, email, fields));
+    }
     return await insertEvent(ctx, email, fields);
   },
 });

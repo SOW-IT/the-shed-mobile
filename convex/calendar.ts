@@ -9,7 +9,9 @@ import {
   MAX_SPAN_MS,
   normalizeEntry,
 } from "../shared/calendar";
+import { entryChanges } from "../shared/calendarAudit";
 import { normalizeSubgroups } from "../shared/rollcall";
+import { logCalendarAction } from "./calendarAudit";
 import { entryFields } from "./calendarData";
 import { openableEventRequest } from "./eventRequestAccess";
 import { calendarSyncConfigured } from "./googleCalendar";
@@ -39,15 +41,22 @@ async function requireEditableEntry(ctx: MutationCtx, id: Id<"calendarEntries">)
   if (!(await canEditEntry(ctx, caller, entry))) {
     throw new ConvexError("Only whoever added it, or an admin, can change this entry.");
   }
-  return entry;
+  return { caller, entry };
 }
 
 // When an entry starts taking attendance it becomes an attendance event: the
 // event is created and the entry removed in the same transaction.
-export async function removeReplacedEntry(ctx: MutationCtx, entryId: Id<"calendarEntries">) {
-  await requireEditableEntry(ctx, entryId);
+export async function replaceEntryWithEvent(
+  ctx: MutationCtx,
+  entryId: Id<"calendarEntries">,
+  insertEvent: () => Promise<Id<"events">>
+) {
+  const { caller, entry } = await requireEditableEntry(ctx, entryId);
   await ctx.db.delete("calendarEntries", entryId);
   await syncEntry(ctx, entryId);
+  const eventId = await insertEvent();
+  await logCalendarAction(ctx, caller.email, "attendance", entryId, entry, { eventId });
+  return eventId;
 }
 
 export async function syncEntry(ctx: MutationCtx, entryId: Id<"calendarEntries">) {
@@ -60,10 +69,9 @@ export const addEntry = mutation({
   args: entryFields,
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    const id = await ctx.db.insert("calendarEntries", {
-      ...(await checkedEntry(ctx, args)),
-      createdBy: caller.email,
-    });
+    const fields = await checkedEntry(ctx, args);
+    const id = await ctx.db.insert("calendarEntries", { ...fields, createdBy: caller.email });
+    await logCalendarAction(ctx, caller.email, "added", id, fields);
     await syncEntry(ctx, id);
     return id;
   },
@@ -72,8 +80,11 @@ export const addEntry = mutation({
 export const updateEntry = mutation({
   args: { id: v.id("calendarEntries"), ...entryFields },
   handler: async (ctx, { id, ...args }) => {
-    await requireEditableEntry(ctx, id);
-    await ctx.db.patch("calendarEntries", id, await checkedEntry(ctx, args));
+    const { caller, entry } = await requireEditableEntry(ctx, id);
+    const fields = await checkedEntry(ctx, args);
+    await ctx.db.patch("calendarEntries", id, fields);
+    const changes = entryChanges(entry, fields);
+    if (changes.length > 0) await logCalendarAction(ctx, caller.email, "edited", id, fields, { changes });
     await syncEntry(ctx, id);
     return null;
   },
@@ -82,8 +93,9 @@ export const updateEntry = mutation({
 export const removeEntry = mutation({
   args: { id: v.id("calendarEntries") },
   handler: async (ctx, { id }) => {
-    await requireEditableEntry(ctx, id);
+    const { caller, entry } = await requireEditableEntry(ctx, id);
     await ctx.db.delete("calendarEntries", id);
+    await logCalendarAction(ctx, caller.email, "removed", id, entry);
     await syncEntry(ctx, id);
     return null;
   },

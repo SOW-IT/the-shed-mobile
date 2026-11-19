@@ -125,6 +125,7 @@ const RootStack = () => {
             <Stack.Screen name="attendance/event/[eventId]" />
             <Stack.Screen name="attendance/member/[key]" />
             <Stack.Screen name="review" />
+            <Stack.Screen name="calendar-history" />
             <Stack.Screen name="edit-home" />
             <Stack.Screen name="announcements/[id]" />
             <Stack.Screen name="all" />

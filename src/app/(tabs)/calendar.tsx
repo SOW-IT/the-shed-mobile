@@ -37,7 +37,7 @@ import { EVENTS, FilterChip, FilterRow } from "@/components/FilterChips";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 import { useCalendarView } from "@/hooks/useCalendarView";
 import { sydneyTime } from "@/lib/sydneyTime";
-import { Card, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts } from "@/components/ui";
+import { Btn, Card, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
 
 type CalendarEvent = NonNullable<ReturnType<typeof useRange>>[number];
@@ -597,6 +597,16 @@ export default function CalendarScreen() {
               </FilterRow>
             ) : null}
 
+            {me?.isAdmin ? (
+              <View style={{ alignItems: "flex-start" }}>
+                <Btn
+                  title="Calendar history"
+                  variant="ghost"
+                  icon="time-outline"
+                  onPress={() => router.push("/calendar-history")}
+                />
+              </View>
+            ) : null}
             {events && events.length >= 500 ? (
               <Muted>Showing the first 500 events this month.</Muted>
             ) : null}
