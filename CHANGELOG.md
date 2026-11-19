@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.18] - 2026-11-19
+
+### Changed
+- **Updates install themselves, with no popup.** "An update is ready" is
+  gone. Once a new version has downloaded, The SHED restarts onto it when you
+  come back after being away for 10 minutes or more, so it never restarts
+  while you're using it. A quick trip to another app, Control Centre or the
+  notification shade doesn't count, and neither does choosing a photo or
+  file, sharing an export or signing in with Google. It also waits while a
+  request, receipt, event or design request, grievance, event form,
+  announcement or Edit Home is open, however long you were away, so nothing
+  you've typed is lost.
+
 ## [2.11.17] - 2026-11-19
 
 ### Added

@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { searchWithoutSignInParams, WEB_ONLY_MARKER } from "../../shared/appLinks";
 import { friendlyErrorText } from "@/lib/appErrorKinds";
+import { withRestartHeld } from "@/lib/restartHold";
 
 maybeCompleteAuthSession();
 
@@ -153,7 +154,7 @@ export const useGoogleSignIn = () => {
           if (settled || graceTimer) return;
           graceTimer = setTimeout(finishWithoutCode, REDIRECT_GRACE_MS);
         };
-        void openAuthSessionAsync(redirect.toString(), redirectTo).then(
+        void withRestartHeld(() => openAuthSessionAsync(redirect.toString(), redirectTo)).then(
           (result) => {
             if (result.type === "success" && codeFromUrl(result.url)) {
               finishUrl(result.url);

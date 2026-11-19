@@ -67,6 +67,7 @@ import {
 import { spacing, typography, useAppTheme } from "@/theme";
 import { backOr } from "@/lib/goBack";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
+import { useRestartHold } from "@/hooks/useRestartHold";
 import { DAY_MS, timeAgo } from "@shared/datetime";
 import { andList } from "@shared/grievances";
 
@@ -147,6 +148,7 @@ export default function EventSubFormScreen() {
   const markNotificationsRead = useMutation(api.notifications.markReadForEventRequest);
 
   const [drafts, setDrafts] = useState<Drafts>({});
+  useRestartHold(Object.keys(drafts).length > 0);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [openedThreadLink, setOpenedThreadLink] = useState<string | null>(null);
   const [askingChanges, setAskingChanges] = useState(false);

@@ -23,6 +23,7 @@ import {
   Txt,
 } from "@/components/ui";
 import { spacing, typography } from "@/theme";
+import { useRestartHold } from "@/hooks/useRestartHold";
 import { backOr } from "@/lib/goBack";
 
 const EMPTY: GrievanceInput = {
@@ -48,6 +49,7 @@ export default function NewGrievanceScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  useRestartHold(sentTo === null);
 
   const accountEmail = viewer?.email ?? null;
   const accountName = me?.name ?? null;
