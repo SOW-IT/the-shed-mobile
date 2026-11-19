@@ -518,7 +518,7 @@ export const update = mutation({
 });
 
 // Copies the event (or its removal) to the shared Google Calendar, when one is set up.
-async function syncToGoogle(ctx: MutationCtx, eventId: Id<"events">) {
+export async function syncToGoogle(ctx: MutationCtx, eventId: Id<"events">) {
   if (calendarSyncConfigured()) {
     await ctx.scheduler.runAfter(0, internal.googleCalendar.syncEvent, { eventId });
   }
