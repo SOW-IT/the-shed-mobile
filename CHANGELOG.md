@@ -6,6 +6,28 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.19] - 2026-11-19
+
+### Added
+- **Calendar history, for admins.** A "Calendar history" button under the
+  Calendar lists every calendar entry added, edited or deleted, newest
+  first: who did it and when, and for an edit, each field that changed from
+  what to what. An entry turned into an attendance event gets its own line,
+  with a link to the event. Entries that event requests add or update aren't
+  listed. Admins previewing another role don't see it.
+- **Connect someone's attendance record to their old staff profile, from
+  Admin.** Every staff card in Admin, including those in past years and
+  under "Previously staff", has a connect button. Search for the person
+  (for example signed in at an event under a personal email), review what
+  merges, and confirm: their attendance moves onto the record linked to that
+  staff profile, which keeps the personal email.
+
+### Fixed
+- **Taking attendance at a calendar entry keeps its dates and times.**
+  Ticking "Take attendance" and pressing Next used to open the attendance
+  form at today's date and the nearest half hour. It now carries over the
+  entry's start and end, and a multi-day entry stays multi-day.
+
 ## [2.11.18] - 2026-11-19
 
 ### Changed
