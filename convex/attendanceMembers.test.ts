@@ -1435,3 +1435,43 @@ describe("attendanceMembers.byName", () => {
     expect(matches.map((m) => m.name).sort()).toEqual(["Jane Doe", "jane doe"]);
   });
 });
+
+describe("connecting someone to an old staff profile", () => {
+  test("a personal-email record merges into a staff profile from years ago, through that year", async () => {
+    const t = await campusSetup();
+    const admin = asUser(t, ADMIN);
+    const OLD = "former.head@sow.org.au";
+    const { staffRecord, personal } = await t.run(async (ctx) => {
+      const staffRecord = await ctx.db.insert("attendanceMembers", { name: "Former Head" });
+      await ctx.db.insert("staffProfiles", {
+        email: OLD,
+        year: YEAR - 2,
+        name: "Former Head",
+        assignments: [{ role: "Head of Department", department: "Marketing" }],
+        memberId: staffRecord,
+      });
+      const personal = await ctx.db.insert("attendanceMembers", {
+        name: "Former Head",
+        email: "former.head@hotmail.com",
+      });
+      return { staffRecord, personal };
+    });
+    const args = { removeId: personal, keep: { staffEmail: OLD }, staffYear: YEAR - 2 };
+
+    const preview = await admin.query(api.attendanceMembers.mergePreview, args);
+    expect(preview).toMatchObject({ keep: { kind: "staff", personalEmail: "former.head@hotmail.com" } });
+
+    await admin.mutation(api.attendanceMembers.merge, { ...args, resolutions: {} });
+    const rows = await t.run((ctx) => ctx.db.query("attendanceMembers").collect());
+    expect(rows.find((row) => row._id === personal)).toBeUndefined();
+    expect(rows.find((row) => row._id === staffRecord)).toMatchObject({ email: "former.head@hotmail.com" });
+
+    expect(
+      await admin.query(api.attendanceMembers.mergePreview, {
+        removeId: staffRecord,
+        keep: { staffEmail: OLD },
+        staffYear: YEAR - 2,
+      })
+    ).toEqual({ blocked: expect.stringContaining("is staff, so can't be merged away") });
+  });
+});

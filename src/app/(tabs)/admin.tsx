@@ -2,6 +2,7 @@ import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { AdminsCard } from "@/components/admin/AdminsCard";
 import { AppErrorsCard } from "@/components/admin/AppErrorsCard";
+import { ConnectStaffRecordSheet, type OldStaff } from "@/components/admin/ConnectStaffRecordSheet";
 import {
   CardGrid,
   type DeleteConfirm,
@@ -446,6 +447,7 @@ export default function AdminScreen() {
 
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
+  const [connecting, setConnecting] = useState<OldStaff | null>(null);
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
     try {
@@ -665,6 +667,20 @@ export default function AdminScreen() {
                 <Muted>Last on staff in {user.previousYear}</Muted>
               ) : null}
             </View>
+            {me?.isAdmin && user.previousYear ? (
+              <IconButton
+                name="git-merge-outline"
+                size={40}
+                accessibilityLabel={`Connect an attendance record to ${user.name ?? user.email}`}
+                onPress={() =>
+                  setConnecting({
+                    email: user.email,
+                    name: user.name ?? user.email,
+                    year: user.previousYear as number,
+                  })
+                }
+              />
+            ) : null}
             <IconButton
               name="log-out-outline"
               size={40}
@@ -861,6 +877,20 @@ export default function AdminScreen() {
                 <Muted>—</Muted>
               )}
             </View>
+            {me?.isAdmin ? (
+              <IconButton
+                name="git-merge-outline"
+                size={40}
+                accessibilityLabel={`Connect an attendance record to ${profile.name ?? profile.email}`}
+                onPress={() =>
+                  setConnecting({
+                    email: profile.email,
+                    name: profile.name ?? profile.email,
+                    year: selectedYear,
+                  })
+                }
+              />
+            ) : null}
             {editable && (
               <>
                 <IconButton
@@ -1344,6 +1374,12 @@ export default function AdminScreen() {
         onClose={() => setSyncConfirm(false)}
       />
       <Toast toast={toast} />
+      <ConnectStaffRecordSheet
+        staff={connecting}
+        currentYear={currentYear}
+        onClose={() => setConnecting(null)}
+        onConnected={(summary) => setToast({ text: summary })}
+      />
     </>
   );
 }
