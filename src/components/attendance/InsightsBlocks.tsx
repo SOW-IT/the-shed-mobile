@@ -289,6 +289,7 @@ export function InsightsBlocks({
     rendered.push(
       <View key={`g${start}`} style={[styles.cardRow, styles.wrap]}>
         {group.map((block, j) => (
+          // eslint-disable-next-line react/no-array-index-key -- blocks have no id; the computed layout is the same every render
           <FadeInView key={j} delay={stagger(j)}>
             {renderChart(block, `c${start + j}`, chartWidth)}
           </FadeInView>

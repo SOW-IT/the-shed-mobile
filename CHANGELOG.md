@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.28] - 2026-11-21
+
+### Changed
+- **List rows keep their own state when another row goes, for contributors.**
+  Lists were keyed by position, so removing a staff assignment or a church
+  service time handed that row's open picker to the row below it. Rows are
+  now keyed by what they show, editable lists keep an id per row
+  (`src/lib/listKeys.ts`, `useRowIds`), and lint rejects an index key
+  (`react/no-array-index-key`). Fixed positions, like the weekday header and
+  chart points, say why in a disable comment.
+
 ## [2.11.21] - 2026-11-21
 
 ### Fixed
