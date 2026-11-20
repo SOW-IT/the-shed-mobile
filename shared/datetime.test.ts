@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addDaysToDateInputValue,
   compactAgo,
+  shortDate,
   daysSince,
   formatDuration,
   timelineGapHeight,
@@ -168,6 +169,13 @@ describe("parseDateTimeInputValues", () => {
       new Date(2026, 9, 5).getTimezoneOffset();
     expect(at.getHours()).toBe(skipped ? 3 : 2);
     expect(at.getMinutes()).toBe(30);
+  });
+});
+
+describe("shortDate", () => {
+  it("reads as the day and short month", () => {
+    expect(shortDate(new Date(2024, 5, 13, 12, 0).getTime())).toMatch(/^13 June?$/);
+    expect(shortDate(new Date(2024, 0, 2, 9, 0).getTime())).toBe("2 Jan");
   });
 });
 

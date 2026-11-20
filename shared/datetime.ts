@@ -115,6 +115,12 @@ export const formatDuration = (ms: number): string => {
   return `${Math.round(days)} days`;
 };
 
+export const shortDate = (ms: number): string =>
+  new Date(ms).toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+  });
+
 export const compactAgo = (ms: number, now: number = Date.now()): string => {
   const mins = Math.floor((now - ms) / MINUTE_MS);
   if (mins < 1) return "now";
@@ -123,8 +129,5 @@ export const compactAgo = (ms: number, now: number = Date.now()): string => {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d`;
-  return new Date(ms).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-  });
+  return shortDate(ms);
 };
