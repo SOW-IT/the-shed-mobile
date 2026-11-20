@@ -1,10 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { radius, spacing, useAppTheme } from "../theme";
+import { radius, spacing, typography, useAppTheme } from "../theme";
 import { visibleColour } from "@/lib/visibleColour";
 import { useWideLayout } from "./nav/layout";
-import { hapticSelect } from "./ui";
+import { Btn, hapticSelect } from "./ui";
 
 const PEOPLE = ["person", "people"] as const;
 export const EVENTS = ["event", "events"] as const;
@@ -83,7 +83,50 @@ export function FilterRow({ title, children }: { title: string; children: ReactN
   );
 }
 
+export function FilterSummary({
+  children,
+  onShowEveryone,
+}: {
+  children: ReactNode;
+  onShowEveryone?: () => void;
+}) {
+  const t = useAppTheme();
+  return (
+    <View style={[styles.summary, { borderTopColor: t.separator }]}>
+      {children}
+      {onShowEveryone ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onShowEveryone}
+          hitSlop={8}
+          style={({ pressed }) => pressed && { opacity: 0.6 }}
+        >
+          <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>Show everyone</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+export function NoMatches({ message, onShowEveryone }: { message: string; onShowEveryone?: () => void }) {
+  const t = useAppTheme();
+  return (
+    <View style={styles.nothing}>
+      <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>{message}</Text>
+      {onShowEveryone ? <Btn title="Show everyone" variant="ghost" onPress={onShowEveryone} /> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  summary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  nothing: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xl },
   chipScroll: { marginHorizontal: -spacing.lg },
   chips: { flexDirection: "row", gap: spacing.sm - 2, paddingHorizontal: spacing.lg },
   wrapped: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm - 2 },
