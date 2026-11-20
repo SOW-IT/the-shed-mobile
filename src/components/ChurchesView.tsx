@@ -17,6 +17,7 @@ import {
   togglePicked,
   type ChurchFilter,
 } from "../../shared/churches";
+import { plural } from "../../shared/reminders";
 import { subgroupColour, subgroupLabel } from "../../shared/rollcall";
 import { ChromeScreen } from "./ChromeScreen";
 import { ChurchMap, churchMapAvailable, type ChurchPin } from "./ChurchMap";
@@ -32,8 +33,6 @@ type Entry = NonNullable<ReturnType<typeof useQuery<typeof api.churches.director
 const PEOPLE_PREVIEW = 5;
 const PERSON_ROW_HEIGHT = 44;
 const EXPANDED_VISIBLE_ROWS = 8;
-
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 const campusName = (campus: string) => (campus === NO_CAMPUS ? "No campus" : subgroupLabel(campus));
 
