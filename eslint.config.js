@@ -20,6 +20,13 @@ const webBlindDialogs = [
   },
 ];
 
+// Colours come from the theme (useAppTheme, or fixedColours for the few that
+// don't change with it), so dark mode can't miss one.
+const colourLiteral = {
+  selector: "Literal[value=/^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*)$/]",
+  message: "Take colours from useAppTheme(), or fixedColours in src/theme.ts for one that is the same in both themes.",
+};
+
 const rawLinking = {
   selector: "CallExpression[callee.object.name='Linking'][callee.property.name='openURL']",
   message:
@@ -71,8 +78,13 @@ module.exports = defineConfig([
   {
     files: ["src/**/*.ts", "src/**/*.tsx"],
     rules: {
-      "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking],
+      "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking, colourLiteral],
     },
+  },
+  {
+    // The palettes themselves.
+    files: ["src/theme.ts", "src/components/calendar/categoryColours.ts"],
+    rules: { "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking] },
   },
   {
     files: ["convex/**/*.ts"],

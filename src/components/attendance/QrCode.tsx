@@ -1,6 +1,7 @@
 import { create } from "qrcode/lib/core/qrcode";
 import { useMemo } from "react";
 import { View } from "react-native";
+import { fixedColours } from "@/theme";
 
 const QUIET_ZONE = 4;
 
@@ -34,7 +35,7 @@ export function QrCode({ value, size }: { value: string; size: number }) {
       accessible
       accessibilityRole="image"
       accessibilityLabel="QR code for the check-in page"
-      style={{ width: size, height: size, backgroundColor: "#ffffff" }}
+      style={{ width: size, height: size, backgroundColor: fixedColours.qr.light }}
     >
       {matrix.runs.flatMap((runs, y) =>
         runs.map(([x, length]) => (
@@ -46,7 +47,7 @@ export function QrCode({ value, size }: { value: string; size: number }) {
               top: offset + y * cell,
               width: length * cell + 0.5,
               height: cell + 0.5,
-              backgroundColor: "#000000",
+              backgroundColor: fixedColours.qr.dark,
             }}
           />
         ))
