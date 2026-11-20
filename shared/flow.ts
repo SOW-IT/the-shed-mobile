@@ -275,6 +275,9 @@ export const incomingStaffYear = (date: Date = new Date()): number => {
   return sydneyYmd(date).month < 10 ? current + 1 : current;
 };
 
+export const yearLabel = (y: number, currentYear: number): string =>
+  y === currentYear ? `${y} (current)` : y === currentYear + 1 ? `${y} (from Oct 1)` : `${y}`;
+
 export const withinPrefillWindow = (now: Date = new Date()): boolean => {
   const { month, day, hour } = sydneyYmd(now);
   return month === 9 && day === 30 && hour >= 21;

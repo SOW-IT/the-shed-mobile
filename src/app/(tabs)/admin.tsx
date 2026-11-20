@@ -59,6 +59,7 @@ import {
   ROLES,
   scopeKindFor,
   universityColour,
+  yearLabel,
 } from "@shared/flow";
 import { canonicalEmailKey, uniqueStaffByEmail } from "@shared/rollcallImport";
 import { useMutation, useQuery } from "convex/react";
@@ -532,13 +533,6 @@ export default function AdminScreen() {
       </Screen>
     );
   }
-
-  const yearLabel = (y: number) =>
-    y === currentYear
-      ? `${y} (current)`
-      : y === currentYear + 1
-        ? `${y} (from Oct 1)`
-        : `${y}`;
 
   const yearRoles = structure?.roles ?? [];
   const yearAssignableRoles = yearRoles.filter(
@@ -1332,7 +1326,7 @@ export default function AdminScreen() {
             year={selectedYear}
             years={years ?? [currentYear, currentYear + 1]}
             onSelect={onSelectYear}
-            formatLabel={yearLabel}
+            formatLabel={(y) => yearLabel(y, currentYear)}
           />
         }
       />

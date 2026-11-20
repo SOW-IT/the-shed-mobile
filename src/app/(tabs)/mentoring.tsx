@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { yearLabel } from "@shared/flow";
 import { matchesSearch } from "@shared/mentoring";
 import {
   Btn,
@@ -141,9 +142,6 @@ export default function MentoringScreen() {
       </Screen>
     );
   }
-
-  const yearLabel = (y: number) =>
-    y === currentYear ? `${y} (current)` : y === currentYear + 1 ? `${y} (from Oct 1)` : `${y}`;
 
   const assign = async (mentee: { email: string; name: string }, mentor: MentorChoice, mentorName: string) => {
     setError(null);
@@ -329,7 +327,7 @@ export default function MentoringScreen() {
                 setSearch("");
                 setError(null);
               }}
-              formatLabel={yearLabel}
+              formatLabel={(y) => yearLabel(y, currentYear)}
             />
           ) : undefined
         }
