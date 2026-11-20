@@ -88,8 +88,15 @@ export const NO_CHURCH_FILTER: ChurchFilter = { groups: [], campuses: [] };
 
 export const isChurchFilterActive = (filter: ChurchFilter) => filter.groups.length > 0 || filter.campuses.length > 0;
 
-export const togglePicked = <K extends string>(picked: readonly K[], key: K): K[] =>
+export const togglePicked = <T>(picked: readonly T[], key: T): T[] =>
   picked.includes(key) ? picked.filter((k) => k !== key) : [...picked, key];
+
+export const toggleInSet = <T>(set: ReadonlySet<T>, key: T): Set<T> => {
+  const next = new Set(set);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  return next;
+};
 
 type Filterable = { group: ChurchPersonGroup; campus: string | null };
 

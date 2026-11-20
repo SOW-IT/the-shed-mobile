@@ -503,7 +503,7 @@ export function EditMemberSheet({
                     setDeleteOpen(false);
                     setMergeFromDelete(true);
                     setMergeStaff(null);
-                    setTimeout(() => setMergeOpen(true), durations.overlayOut + 80);
+                    setTimeout(() => setMergeOpen(true), durations.sheetHandoff);
                   }}
                 />
               </View>

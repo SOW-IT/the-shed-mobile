@@ -27,6 +27,7 @@ import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
   addDaysToDateInputValue,
+  dateInputFromMs,
   minuteAfterTime,
   toDateInputValue,
   toTimeInputValue,
@@ -42,6 +43,7 @@ import {
   subgroupMatches,
   tagListOf,
 } from "../../../shared/rollcall";
+import { togglePicked } from "../../../shared/churches";
 import {
   DEFAULT_WEEKLY_SETTINGS,
   nextWeeklyInputs,
@@ -57,8 +59,6 @@ const nowWhen = () => {
   const now = defaultEventInputs();
   return { dateStr: now.startDate, endDateStr: now.endDate, startTime: now.startTime, endTime: now.endTime };
 };
-
-const dateInputFromMs = (ms: number): string => toDateInputValue(new Date(ms));
 
 const timeInputFromMs = (ms: number): string => toTimeInputValue(new Date(ms));
 
@@ -364,9 +364,7 @@ export function CreateEventSheet({
   };
 
   const toggleTag = (id: Id<"attendanceTags">) => {
-    setSelectedTags((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setSelectedTags((prev) => togglePicked(prev, id));
   };
 
   const toggleCollaborator = (sg: string) => {
