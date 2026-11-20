@@ -123,8 +123,10 @@ all of them together overflow GitHub's limit on a PR description.
 ## Filling in a form
 
 Route flows open screens; they don't type into them. To drive a form by hand,
-find each input by its test id. Every `Field` gets one from its label:
-`field-` plus the label in kebab case, without "(optional)". "Title" is
+find each input by its test id. Every `Field` gets one from its label, or
+from its accessibility label when it shows none: `field-` plus the label in
+kebab case, without "(optional)". A `LabelledField` uses its visible label,
+not the ", required" its accessibility label adds. "Title" is
 `field-title` and "Phone (optional)" is `field-phone`. A caller that passes
 its own `testID` keeps it (`announcement-title`, `checkin-name`).
 
