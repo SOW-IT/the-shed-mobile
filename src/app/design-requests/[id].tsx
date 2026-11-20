@@ -13,7 +13,7 @@ import {
 } from "@shared/designRequests";
 import { CommentsButton } from "@/components/CommentThreadSheet";
 import { DesignCommentsSheet } from "@/components/design/DesignCommentsSheet";
-import { HistoryTimeline } from "@/components/HistoryTimeline";
+import { TimelineSection } from "@/components/HistoryTimeline";
 import { LabelledField } from "@/components/events/LabelledField";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
@@ -89,23 +89,7 @@ const Answers = ({
 const Timeline = ({ id }: { id: Id<"designRequests"> }) => {
   // Newest first.
   const events = useQuery(api.designRequests.timeline, { id });
-  if (!events || events.length === 0) return null;
-  return (
-    <>
-      <SectionTitle>History</SectionTitle>
-      <Card>
-        <HistoryTimeline
-          entries={events.map((event) => ({
-            at: event.at,
-            action: event.action,
-            label: EVENT_LABELS[event.action] ?? event.action,
-            who: event.actorName,
-            detail: event.detail,
-          }))}
-        />
-      </Card>
-    </>
-  );
+  return <TimelineSection events={events} labelOf={(event) => EVENT_LABELS[event.action] ?? event.action} />;
 };
 
 const StatusTrack = ({
