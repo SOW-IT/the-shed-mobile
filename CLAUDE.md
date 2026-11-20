@@ -16,3 +16,16 @@ A change to native code waits for a store build. EAS builds
 (`eas-production.yml`, `eas-staging.yml`) are started by hand, and skip a
 platform whose native fingerprint matches its last store build unless
 **force** is ticked.
+
+The fingerprint also hashes `package.json` → `scripts` and the root
+`.gitignore`, so editing either cuts phones off from over-the-air updates
+until the next store build. `node scripts/verify.mjs` reports when a branch
+changes the fingerprint.
+
+## Every PR is shepherded to green
+
+After opening a PR, follow `.claude/skills/pr-shepherd/SKILL.md`: fix CI at
+the root, answer every CodeRabbit comment, wait out its rate limit, rerun
+`node scripts/verify.mjs` after each round, then mark the PR ready with a
+change report (summary, verification results, before and after
+screenshots). Never merge or deploy.

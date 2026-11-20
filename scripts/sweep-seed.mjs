@@ -13,6 +13,7 @@ const UNSW = "University of New South Wales";
 
 const run = (fn, args, identity) => {
   const argv = ["convex", "run", fn, JSON.stringify(args)];
+  if (process.env.CONVEX_ENV_FILE) argv.push("--env-file", process.env.CONVEX_ENV_FILE);
   if (identity) argv.push("--identity", JSON.stringify({ email: identity, subject: identity, issuer: "sweep" }));
   const out = execFileSync("npx", argv, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
   const trimmed = out.trim();
@@ -63,5 +64,5 @@ run(
 );
 
 const seeded = { year, eventId, memberId, checkInToken, people: SWEEP_PEOPLE };
-writeFileSync("sweep-seed.json", JSON.stringify(seeded, null, 2));
+writeFileSync(process.env.SWEEP_SEED_OUT ?? "sweep-seed.json", JSON.stringify(seeded, null, 2));
 console.log(JSON.stringify(seeded));

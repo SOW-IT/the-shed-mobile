@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.20] - 2026-11-21
+
+### Changed
+- **One command to check a branch, for contributors.** `node scripts/verify.mjs`
+  reads the diff and decides what to check from a feature map
+  (`scripts/verify/feature-map.json`). Then it opens the screens the change
+  affects on the web and the iOS Simulator, against a throwaway local
+  backend, with before and after screenshots (`docs/verification.md`). A
+  `pr-shepherd` skill and `scripts/pr-status.mjs` take a PR from open to green.
+  Nothing changes for people using the app.
+
 ## [2.11.19] - 2026-11-19
 
 ### Added
