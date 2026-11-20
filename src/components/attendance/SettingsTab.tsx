@@ -140,7 +140,7 @@ export function SettingsTab({
       revert: revertTags,
       error,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reports when the draft changes; the parent's callback and the save and revert closures are not watched
   }, [tagsChanged, saving, tagDrafts, tagDeletes, error]);
 
   if (tags === undefined) return <LoadingState />;

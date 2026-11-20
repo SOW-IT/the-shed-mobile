@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { FastModal, SowSpinner } from "@/components/ui";
 import {
   useAppleSignIn,
@@ -8,16 +8,16 @@ import {
 } from "@/hooks/useAppleSignIn";
 import { type SignInOutcome, useGoogleSignIn } from "@/hooks/useGoogleSignIn";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { notify } from "@/lib/notify";
 
 type SignInMenuAnchor = { top: number; left: number };
 
 export const alertSowAccountRequired = (appleAvailable: boolean) =>
-  Alert.alert(
+  notify(
     "SOW account required",
     appleAvailable
       ? "Only SOW organisation accounts can sign in here. To browse as a guest, tap “Sign in with Apple” instead."
-      : "Only SOW organisation accounts can sign in here.",
-    [{ text: "OK" }]
+      : "Only SOW organisation accounts can sign in here."
   );
 
 export const SignInMenu = ({
@@ -56,20 +56,15 @@ export const SignInMenu = ({
     const outcome = await signIn();
     if (outcome === "rejected") {
       if (kind === "apple") {
-        Alert.alert(
+        notify(
           "Use your SOW account",
-          "That looks like a SOW organisation account. Please tap “Sign in with your SOW account” to sign in with it.",
-          [{ text: "OK" }]
+          "That looks like a SOW organisation account. Please tap “Sign in with your SOW account” to sign in with it."
         );
       } else {
         alertSowAccountRequired(appleAvailable);
       }
     } else if (outcome === "error") {
-      Alert.alert(
-        "Sign-in failed",
-        "Something went wrong signing you in. Please try again.",
-        [{ text: "OK" }]
-      );
+      notify("Sign-in failed", "Something went wrong signing you in. Please try again.");
     }
   };
   return (

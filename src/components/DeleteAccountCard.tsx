@@ -1,11 +1,12 @@
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, Platform, Text } from "react-native";
+import { Text } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { useDeleteAccount } from "@/hooks/useDeleteAccount";
 import { typography, useAppTheme } from "../theme";
 import { Btn, Card, ConfirmDialog, ErrorBanner, Muted } from "./ui";
+import { notify } from "@/lib/notify";
 
 const WHAT_HAPPENS = {
   sow:
@@ -32,8 +33,7 @@ export const DeleteAccountCard = () => {
   const confirm = async () => {
     if (!(await deleteAccount(account.kind, account.name))) return;
     router.replace("/home");
-    if (Platform.OS === "web") window.alert(`${DELETED_TITLE}\n\n${DELETED_MESSAGE}`);
-    else Alert.alert(DELETED_TITLE, DELETED_MESSAGE, [{ text: "OK" }]);
+    notify(DELETED_TITLE, DELETED_MESSAGE);
   };
 
   return (

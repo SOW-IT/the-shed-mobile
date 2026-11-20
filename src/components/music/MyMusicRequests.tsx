@@ -675,7 +675,7 @@ const MusicRequestSheetContent = ({
                       ? "Add to Playlist"
                       : "Submit Request"
               }
-              onPress={onSubmit}
+              onPress={() => void onSubmit()}
               disabled={
                 submitting ||
                 fetchingSpotify ||

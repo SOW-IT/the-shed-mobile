@@ -138,7 +138,7 @@ export const BankTab = () => {
         if (--remaining === 0) finish();
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- animates only when the order or edit mode changes; card refs and positions are read, not watched
   }, [orderKey, editing]);
 
   if (savedAccounts === undefined) return <LoadingState />;

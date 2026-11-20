@@ -1804,7 +1804,7 @@ export const submitReceipt = mutation({
       reqYear === currentYear ? approvers : await financeApprovers(ctx, currentYear);
     const requesterName = await displayName(ctx, request.requesterEmail, reqYear);
     const seen = new Set<string>();
-    const headsByYear: Array<[number, string | undefined]> = [
+    const headsByYear: [number, string | undefined][] = [
       [reqYear, approvers.financeHeadEmail],
       [currentYear, currentApprovers.financeHeadEmail],
     ];

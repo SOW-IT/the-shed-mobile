@@ -25,6 +25,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { notify } from "@/lib/notify";
 
 const DevMenuPreferences = requireOptionalNativeModule("DevMenuPreferences");
 
@@ -75,15 +76,13 @@ const AuthGate = () => {
     useWebAuthCodeExchange();
   useEffect(() => {
     if (error && typeof window !== "undefined") {
-      window.alert(`Sign-in didn't finish\n\n${error}`);
+      notify("Sign-in didn't finish", error);
       clearError();
     }
   }, [error, clearError]);
   useEffect(() => {
     if (!rejected || typeof window === "undefined") return;
-    window.alert(
-      "SOW account required\n\nOnly SOW organisation accounts can sign in here.",
-    );
+    notify("SOW account required", "Only SOW organisation accounts can sign in here.");
     clearRejected();
   }, [rejected, clearRejected]);
   // Allow Spotify OAuth callbacks to render immediately.

@@ -386,7 +386,7 @@ export function ReorderableList<T>({
     };
     if (containerRef.current) measureY(containerRef.current, measureCards);
     else measureCards(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- animates only when the order or the dragged row changes; refs and positions are read, not watched
   }, [orderKey, draggingKey]);
 
   return (
