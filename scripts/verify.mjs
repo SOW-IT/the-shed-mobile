@@ -163,13 +163,16 @@ const versionOnly = (mergeBase, file) => {
 
 const changedFiles = (base) => {
   const mergeBase = git("merge-base", base, "HEAD");
+  // A deleted file has no rule left in the map; the files that imported it
+  // changed too, and they decide the tier.
+  const deleted = git("diff", "--name-only", "--diff-filter=D", mergeBase).split("\n").filter(Boolean);
   const all = [
-    ...git("diff", "--name-only", mergeBase).split("\n"),
+    ...git("diff", "--name-only", "--diff-filter=d", mergeBase).split("\n"),
     ...git("ls-files", "--others", "--exclude-standard").split("\n"),
   ];
   const unique = [...new Set(all.filter(Boolean))];
   const bumped = unique.filter((file) => VERSION_FILES.includes(file) && versionOnly(mergeBase, file));
-  return { mergeBase, files: unique.filter((file) => !bumped.includes(file)), bumped };
+  return { mergeBase, files: unique.filter((file) => !bumped.includes(file)), bumped, deleted };
 };
 
 const printPlan = (plan, mergeBase, args) => {
@@ -490,8 +493,9 @@ const main = async () => {
     log(publish(artifacts, branchSlug()));
     return 0;
   }
-  const { mergeBase, files, bumped } = changedFiles(args.base);
+  const { mergeBase, files, bumped, deleted } = changedFiles(args.base);
   if (bumped.length > 0) log(`version bump only, not counted: ${bumped.join(", ")}`);
+  if (deleted.length > 0) log(`deleted, not counted (their importers are): ${deleted.join(", ")}`);
   const plan = planVerification({ changed: files, map: MAP, full: args.full, only: args.only, unattended: args.unattended });
   printPlan(plan, mergeBase, args);
   if (plan.tier === "blocked") {
