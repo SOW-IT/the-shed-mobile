@@ -101,7 +101,7 @@ describe("email changes: the person stays the same", () => {
     await t.run((ctx) => linkUserProfiles(ctx, userId));
 
     await t.run(async (ctx) => {
-      const legacy = (await ctx.db.get(legacyProfileId))!;
+      const legacy = (await ctx.db.get("staffProfiles", legacyProfileId))!;
       expect(legacy.email).toBe("mia.cho@sowaustralia.com");
       expect(legacy.userId).toBeUndefined();
       const bound = await ctx.db
@@ -132,7 +132,7 @@ describe("email changes: the person stays the same", () => {
     await t.run((ctx) => linkUserProfiles(ctx, newUserId));
 
     await t.run(async (ctx) => {
-      const legacy = (await ctx.db.get(legacyProfileId))!;
+      const legacy = (await ctx.db.get("staffProfiles", legacyProfileId))!;
       expect(legacy.email).toBe("sam@sowaustralia.com");
       expect(legacy.userId).toBe(oldUserId);
       const bound = await ctx.db

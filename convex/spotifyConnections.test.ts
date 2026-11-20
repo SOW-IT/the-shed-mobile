@@ -288,7 +288,7 @@ describe("spotifyConnections.importPlaylist", () => {
           .query("spotifyConnections")
           .withIndex("by_userId", (q) => q.eq("userId", userId))
           .first();
-        await ctx.db.patch(row!._id, { updatedAt: row!.updatedAt + 1 });
+        await ctx.db.patch("spotifyConnections", row!._id, { updatedAt: row!.updatedAt + 1 });
       });
       return json({ access_token: "a", expires_in: 3600 });
     });

@@ -147,7 +147,7 @@ const memberRowOf = (
 };
 
 const withPhoto = async (ctx: QueryCtx, row: MemberRow, profile: Doc<"staffProfiles">): Promise<MemberRow> => {
-  const user = profile.userId ? await ctx.db.get(profile.userId) : null;
+  const user = profile.userId ? await ctx.db.get("users", profile.userId) : null;
   return { ...row, photo: await photoFor(ctx, user, profile.email) };
 };
 
@@ -161,7 +161,7 @@ const staffSourcesOf = async (ctx: QueryCtx, year: number): Promise<StaffSource[
   return await Promise.all(
     profiles.map(async (profile) => ({
       profile,
-      shadow: profile.memberId ? ((await ctx.db.get(profile.memberId)) ?? undefined) : undefined,
+      shadow: profile.memberId ? ((await ctx.db.get("attendanceMembers", profile.memberId)) ?? undefined) : undefined,
     }))
   );
 };
@@ -456,7 +456,7 @@ export const get = query({
   },
   handler: async (ctx, { memberId, staffYear }) => {
     if (!(await optionalProfile(ctx))) return null;
-    const row = await ctx.db.get(memberId);
+    const row = await ctx.db.get("attendanceMembers", memberId);
     if (!row) return null;
     const profileYear = staffYear ?? staffYearForDate(new Date());
     const profile = await staffProfileOfMember(ctx, row._id, profileYear);
@@ -635,7 +635,7 @@ export const update = mutation({
   },
   handler: async (ctx, { memberId, name, email, personalEmail, metadata, staffYear, churchId }) => {
     const { email: actorEmail } = await requireProfile(ctx);
-    const row = await ctx.db.get(memberId);
+    const row = await ctx.db.get("attendanceMembers", memberId);
     if (!row) throw new ConvexError("Member not found.");
     const profileYear = staffYear ?? staffYearForDate(new Date());
     const profile = await staffProfileOfMember(ctx, memberId, profileYear);
@@ -655,7 +655,7 @@ export const update = mutation({
       ) {
         return;
       }
-      await ctx.db.patch(memberId, {
+      await ctx.db.patch("attendanceMembers", memberId, {
         name: staffName,
         email: personal,
         metadata: staffMetadata,
@@ -696,7 +696,7 @@ export const update = mutation({
     ) {
       return;
     }
-    await ctx.db.patch(memberId, {
+    await ctx.db.patch("attendanceMembers", memberId, {
       name: trimmed,
       email: ownEmail,
       metadata: nextMetadata,
@@ -716,7 +716,7 @@ export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }): Promise<boolean> => {
     const { email: actorEmail } = await requireAdmin(ctx);
-    const row = await ctx.db.get(memberId);
+    const row = await ctx.db.get("attendanceMembers", memberId);
     if (!row) return false;
     if (await staffProfileOfMember(ctx, memberId, currentStaffYear())) {
       throw new ConvexError(
@@ -736,7 +736,7 @@ export const remove = mutation({
     const eventNames = new Map<string, string>();
     for (const record of listed) {
       if (eventNames.has(record.eventId)) continue;
-      const event = await ctx.db.get(record.eventId);
+      const event = await ctx.db.get("events", record.eventId);
       eventNames.set(record.eventId, event?.name ?? "Deleted event");
     }
 
@@ -746,7 +746,7 @@ export const remove = mutation({
     );
     const hidden = signed.length - shown.length;
 
-    for (const s of signed) await ctx.db.delete(s._id);
+    for (const s of signed) await ctx.db.delete("attendance", s._id);
     for (const eventId of new Set(signed.map((s) => s.eventId))) {
       await recountEventAttendance(ctx, eventId);
     }
@@ -779,7 +779,7 @@ export const deletePreview = query({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }) => {
     if (!(await optionalProfile(ctx))) return null;
-    const row = await ctx.db.get(memberId);
+    const row = await ctx.db.get("attendanceMembers", memberId);
     if (!row) return null;
     const signed = await ctx.db
       .query("attendance")
@@ -791,7 +791,7 @@ export const deletePreview = query({
       .slice(0, MAX_AUDIT_ATTENDANCE_LINES);
     const events = [];
     for (const record of listed) {
-      const event = await ctx.db.get(record.eventId);
+      const event = await ctx.db.get("events", record.eventId);
       events.push({
         attendanceId: record._id,
         name: event?.name ?? "Deleted event",
@@ -871,7 +871,7 @@ const resolveMergePair = async (
   keepArg: { memberId: Id<"attendanceMembers"> } | { staffEmail: string },
   profileYear: number
 ): Promise<MergePair> => {
-  const remove = await ctx.db.get(removeId);
+  const remove = await ctx.db.get("attendanceMembers", removeId);
   if (!remove) return { blocked: "That member no longer exists." };
   if (await staffProfileOfMember(ctx, remove._id, profileYear)) {
     return {
@@ -881,7 +881,7 @@ const resolveMergePair = async (
 
   let keep: MergeKeep;
   if ("memberId" in keepArg) {
-    const keepRow = await ctx.db.get(keepArg.memberId);
+    const keepRow = await ctx.db.get("attendanceMembers", keepArg.memberId);
     if (!keepRow) return { blocked: "The person to keep no longer exists." };
     const profile = await staffProfileOfMember(ctx, keepRow._id, profileYear);
     keep = profile
@@ -895,7 +895,7 @@ const resolveMergePair = async (
       kind: "staff",
       profile,
       email: profile.email.toLowerCase(),
-      row: linked ? await ctx.db.get(linked) : null,
+      row: linked ? await ctx.db.get("attendanceMembers", linked) : null,
     };
   }
   if (keep.row?._id === remove._id) {
@@ -1092,7 +1092,7 @@ export const merge = mutation({
 
     if (!keep.row) {
       const staff = keep as Extract<MergeKeep, { kind: "staff" }>;
-      await ctx.db.patch(remove._id, await fieldsFor());
+      await ctx.db.patch("attendanceMembers", remove._id, await fieldsFor());
       await linkPerson(ctx, staff.profile, remove._id);
       await logAttendanceAction(ctx, {
         actorEmail,
@@ -1114,7 +1114,7 @@ export const merge = mutation({
       { row: remove, records: await recordsOf(ctx, remove._id) }
     );
     const { moved, combined } = await moveAttendance(ctx, victim.row._id, survivor.row._id);
-    await ctx.db.patch(survivor.row._id, {
+    await ctx.db.patch("attendanceMembers", survivor.row._id, {
       ...(await fieldsFor()),
       churchId: keep.row.churchId ?? remove.churchId,
     });

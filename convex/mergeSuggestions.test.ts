@@ -50,7 +50,7 @@ async function setup() {
         .query("staffProfiles")
         .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", year))
         .unique();
-      await ctx.db.patch(profile!._id, { memberId });
+      await ctx.db.patch("staffProfiles", profile!._id, { memberId });
     });
   const signIn = async (memberId: Id<"attendanceMembers">, signInTime: number) => {
     const eventId = await t.run((ctx) =>
@@ -236,7 +236,7 @@ describe("suggested merges", () => {
     await expect(
       s.admin.mutation(api.mergeSuggestions.dismiss, { staffEmail: "nobody@sow.org.au", memberId: alex })
     ).rejects.toThrow(/Staff profile not found/);
-    await s.t.run((ctx) => ctx.db.delete(alex));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMembers", alex));
     await expect(
       s.admin.mutation(api.mergeSuggestions.dismiss, { staffEmail: ALEX, memberId: alex })
     ).rejects.toThrow(/no longer exists/);
@@ -244,7 +244,7 @@ describe("suggested merges", () => {
 
   test("without a Role field, members carry no role", async () => {
     const s = await setup();
-    await s.t.run((ctx) => ctx.db.delete(s.roleField));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMetadata", s.roleField));
     await s.member("Alex Morgan", { [s.roleField]: "member" });
     const suggestions = await s.admin.query(api.mergeSuggestions.list, {});
     expect(suggestions?.[0].candidates[0].role).toBeUndefined();

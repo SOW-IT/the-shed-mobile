@@ -232,7 +232,7 @@ export const saveAll = mutation({
     const members =
       deleteIds.length > 0 ? await ctx.db.query("attendanceMembers").collect() : [];
     for (const id of deleteIds) {
-      const row = await ctx.db.get(id);
+      const row = await ctx.db.get("attendanceMetadata", id);
       if (!row) continue;
       if (LOCKED_FIELD_KEYS.has(row.key)) {
         throw new ConvexError(`Cannot delete locked metadata field "${row.key}".`);
@@ -242,9 +242,9 @@ export const saveAll = mutation({
         const metadata = { ...member.metadata };
         delete metadata[id];
         member.metadata = metadata;
-        await ctx.db.patch(member._id, { metadata });
+        await ctx.db.patch("attendanceMembers", member._id, { metadata });
       }
-      await ctx.db.delete(id);
+      await ctx.db.delete("attendanceMetadata", id);
       await logAttendanceAction(ctx, {
         actorEmail,
         entityType: "metadata",
@@ -323,7 +323,7 @@ export const saveAll = mutation({
         }
       }
       if (field.id) {
-        const existing = await ctx.db.get(field.id);
+        const existing = await ctx.db.get("attendanceMetadata", field.id);
         if (!existing) continue;
         persistedOrder.push({ id: field.id, from: existing.order, to: field.order });
         const nextValues = field.type === "select" ? values : undefined;
@@ -338,7 +338,7 @@ export const saveAll = mutation({
           (existing.subgroup ?? undefined) !== (subgroup ?? undefined) ||
           JSON.stringify(existingValues ?? null) !==
             JSON.stringify(nextValues ?? null);
-        await ctx.db.patch(field.id, {
+        await ctx.db.patch("attendanceMetadata", field.id, {
           key,
           type: field.type,
           order: field.order,

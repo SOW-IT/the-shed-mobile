@@ -1224,7 +1224,7 @@ describe("audit trail and reminders", () => {
       for await (const event of ctx.db
         .query("requestEvents")
         .withIndex("by_request", (q) => q.eq("requestId", waitingReceipt._id))) {
-        await ctx.db.delete(event._id);
+        await ctx.db.delete("requestEvents", event._id);
       }
     });
 

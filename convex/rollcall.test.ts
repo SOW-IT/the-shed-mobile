@@ -102,7 +102,7 @@ describe("legacy import matching", () => {
     const eventId = await createEvent(admin);
     const memberId = await t.run(async (ctx) => {
       const id = await ctx.db.insert("attendanceMembers", { name: "Gone" });
-      await ctx.db.delete(id);
+      await ctx.db.delete("attendanceMembers", id);
       return id;
     });
     await expect(
@@ -1208,7 +1208,7 @@ describe("guards + edge cases", () => {
     const eventId = await createEvent(leader);
     await t.run(async (ctx) => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
-      await ctx.db.delete(gone);
+      await ctx.db.delete("attendanceMembers", gone);
       await ctx.db.insert("attendance", {
         eventId,
         memberId: gone,
@@ -1338,12 +1338,12 @@ describe("staff sign-in and sign-out by email", () => {
     const membersBefore = await t.run(async (ctx) => (await ctx.db.query("attendanceMembers").collect()).length);
 
     const first = await leader.mutation(api.attendance.signIn, { eventId, email: " Fresh@SOW.org.au " });
-    const linked = await t.run(async (ctx) => (await ctx.db.get(profileId))!.memberId);
+    const linked = await t.run(async (ctx) => (await ctx.db.get("staffProfiles", profileId))!.memberId);
     expect(linked).toBeDefined();
-    const member = await t.run((ctx) => ctx.db.get(linked!));
+    const member = await t.run((ctx) => ctx.db.get("attendanceMembers", linked!));
     expect(member?.name).toBe("Fresh Person");
     expect(member?.email).toBeUndefined();
-    const row = await t.run((ctx) => ctx.db.get(first));
+    const row = await t.run((ctx) => ctx.db.get("attendance", first));
     expect(row?.memberId).toBe(linked);
 
     expect(await leader.mutation(api.attendance.signIn, { eventId, email: "fresh@sow.org.au" })).toBe(first);
@@ -1373,7 +1373,7 @@ describe("staff sign-in and sign-out by email", () => {
     const eventId = await createEvent(leader);
     const membersBefore = await t.run(async (ctx) => (await ctx.db.query("attendanceMembers").collect()).length);
     const id = await leader.mutation(api.attendance.signIn, { eventId, email: STAFF });
-    expect((await t.run((ctx) => ctx.db.get(id)))?.memberId).toBe(staffMemberId);
+    expect((await t.run((ctx) => ctx.db.get("attendance", id)))?.memberId).toBe(staffMemberId);
     expect(
       await leader.mutation(api.attendance.signIn, { eventId, memberId: staffMemberId })
     ).toBe(id);
@@ -1450,7 +1450,7 @@ describe("listByEvent identity", () => {
     const staffMemberId = await memberOf(t, STAFF);
     const { early } = await t.run(async (ctx) => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
-      await ctx.db.delete(gone);
+      await ctx.db.delete("attendanceMembers", gone);
       await ctx.db.insert("attendance", { eventId, memberId: staffMemberId, signInTime: dateStart + 5_000 });
       const early = await ctx.db.insert("attendance", {
         eventId,
@@ -1534,10 +1534,10 @@ describe("a staff person's name follows one rule in every list", () => {
           .query("staffProfiles")
           .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", YEAR))
           .first();
-        await ctx.db.patch(profile!._id, { name: email });
+        await ctx.db.patch("staffProfiles", profile!._id, { name: email });
       }
-      await ctx.db.patch(staffMember, { name: "Sid Staff" });
-      await ctx.db.patch(leaderMember, { name: LEADER });
+      await ctx.db.patch("attendanceMembers", staffMember, { name: "Sid Staff" });
+      await ctx.db.patch("attendanceMembers", leaderMember, { name: LEADER });
     });
     await leader.mutation(api.attendance.signIn, { eventId, email: STAFF });
     await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
@@ -1581,7 +1581,7 @@ describe("a staff person's name follows one rule in every list", () => {
         .query("staffProfiles")
         .withIndex("by_email_and_year", (q) => q.eq("email", STAFF).eq("year", YEAR))
         .first();
-      await ctx.db.patch(profile!._id, { name: "Stella Staff" });
+      await ctx.db.patch("staffProfiles", profile!._id, { name: "Stella Staff" });
     });
     expect((await namesEverywhere())[0]).toEqual([
       "Stella Staff",
