@@ -14,7 +14,10 @@ node scripts/verify.mjs --full     # everything, whatever the diff
 node scripts/verify.mjs --only calendar      # one area of the feature map
 ```
 
-It exits non-zero if any step fails. The agent skill that drives it is
+It exits non-zero if any step fails. Two steps only warn and never fail the
+run: a changed native fingerprint, and a failure while checking the **base**.
+A zero exit doesn't mean the fingerprint is unchanged, so read the summary.
+The agent skill that drives it is
 `.claude/skills/verify/SKILL.md`.
 
 `npm run verify` doesn't exist on purpose. The app's runtime version is its
@@ -60,8 +63,9 @@ report the unmapped files, so the map gets fixed afterwards.
 Before running anything, the script prints the tier, the files that decided
 it, and the exact steps.
 
-The **smoke** routes always run on web and iOS: the app launches and the
-signed-out landing page and Home render.
+Whenever screens are opened (the scoped and full tiers), the **smoke** routes
+run on web and iOS too: the app launches and the signed-out landing page and
+Home render.
 
 ## Setup and teardown
 
@@ -108,8 +112,12 @@ symlinked, and gets its own fresh backend. Pass `--no-before` to skip it.
 ```
 
 `node scripts/verify.mjs --publish` copies the screenshots to the
-`verification-artifacts` branch under `<branch>/`, so a PR description can
-embed them without adding images to `main`.
+`verification-artifacts` branch under `<branch>/`, with a `README.md` there
+that shows every pair, so a PR can show them without adding images to
+`main`. It also writes `screenshots.md`, the same table with image links that
+work in a PR description. Paste the rows for the screens the change touches;
+all of them together overflow GitHub's limit on a PR description.
+`--publish-only` publishes the last finished run again without rerunning it.
 
 ## Requirements on this Mac
 

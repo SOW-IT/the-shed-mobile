@@ -5,9 +5,10 @@ import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { planVerification, resolveRoutes, routeSlug } from "./lib/verifyPlan.mjs";
 
-const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+const ROOT = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const STATE = join(ROOT, ".verify");
 // Outside the repo, so tsc, vitest and eslint never pick up a second copy.
 const BASE_TREE = join(tmpdir(), "theshed-verify-base");
@@ -33,7 +34,11 @@ const parseArgs = (argv) => {
   const values = {};
   for (let i = 0; i < argv.length; i++) {
     const name = argv[i].replace(/^--/, "");
-    if (["only", "base", "device", "app"].includes(name)) values[name] = argv[++i];
+    if (["only", "base", "device", "app"].includes(name)) {
+      const value = argv[++i];
+      if (value === undefined || value.startsWith("--")) throw new Error(`--${name} needs a value`);
+      values[name] = value;
+    }
     else flags.add(name);
   }
   return {
@@ -342,13 +347,14 @@ const resetApp = async (udid, appPath) => {
 
 const iosFlow = (routes, smoke, out, adminEmail) => {
   const link = (path) => `${APP_SCHEME}://${path.replace(/^\//, "")}`;
-  const visit = (prefix, { template, route }) => [
+  const visit = (prefix, { template, route }, signedIn = false) => [
     `- openLink: "${link(route)}"`,
     "- waitForAnimationToEnd:",
     "    timeout: 8000",
     `- takeScreenshot: "${join(out, `${prefix}-${routeSlug(template)}`)}"`,
     "- assertNotVisible:",
     '    text: "(?i).*(something went wrong|configuration error|unmatched route|\\\\(ESC\\\\)).*"',
+    ...(signedIn ? ["- assertNotVisible:", '    text: "(?i).*sign in with your sow account.*"'] : []),
   ];
   const lines = [
     `appId: ${BUNDLE_ID}`,
@@ -360,7 +366,12 @@ const iosFlow = (routes, smoke, out, adminEmail) => {
     `- openLink: "${link(`e2e-auth?email=${encodeURIComponent(adminEmail)}&secret=${E2E_SECRET}`)}"`,
     "- waitForAnimationToEnd:",
     "    timeout: 8000",
-    ...routes.filter(({ route }) => !route.startsWith("/checkin/not-") && route !== "/no-such-page").flatMap((r) => visit("admin", r)),
+    `- openLink: "${link("home")}"`,
+    "- extendedWaitUntil:",
+    "    notVisible: \"Sign in\"",
+    "    timeout: 15000",
+    "- assertNotVisible: \"Sign in\"",
+    ...routes.filter(({ route }) => !route.startsWith("/checkin/not-") && route !== "/no-such-page").flatMap((r) => visit("admin", r, true)),
   ];
   return `${lines.join("\n")}\n`;
 };
@@ -416,23 +427,30 @@ const publish = (artifacts, slug) => {
     const blob = sh("git", ["hash-object", "-w", png]);
     sh("git", ["update-index", "--add", "--cacheinfo", `100644,${blob},${slug}/${relative(artifacts, png)}`], { env });
   }
+  const table = (url) => {
+    const rows = [];
+    for (const platform of ["web", "ios"]) {
+      const afterDir = join(artifacts, "after", platform);
+      if (!existsSync(afterDir)) continue;
+      for (const file of readdirSync(afterDir).filter((f) => f.endsWith(".png")).sort()) {
+        const before = existsSync(join(artifacts, "before", platform, file)) ? `<img src="${url(`before/${platform}/${file}`)}" width="260">` : "(none)";
+        rows.push(`| ${platform} \`${file.replace(/\.png$/, "")}\` | ${before} | <img src="${url(`after/${platform}/${file}`)}" width="260"> |`);
+      }
+    }
+    return ["| Screen | Before | After |", "| --- | --- | --- |", ...rows].join("\n");
+  };
+  // The branch keeps the whole table with relative links, since a PR body
+  // can't hold every screen.
+  const readme = `${readFileSync(join(artifacts, "summary.md"), "utf8")}\n## Screenshots\n\n${table((path) => path)}\n`;
+  const readmeBlob = sh("git", ["hash-object", "-w", "--stdin"], { input: readme });
+  sh("git", ["update-index", "--add", "--cacheinfo", `100644,${readmeBlob},${slug}/README.md`], { env });
   const tree = sh("git", ["write-tree"], { env });
   const commit = sh("git", ["commit-tree", tree, ...(parent ? ["-p", parent] : []), "-m", `screenshots for ${slug}`], { env });
   sh("git", ["push", "origin", `${commit}:refs/heads/${branch}`]);
   const repo = sh("gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]);
-  const url = (path) => `https://raw.githubusercontent.com/${repo}/${commit}/${slug}/${path}`;
-  const rows = [];
-  for (const platform of ["web", "ios"]) {
-    const afterDir = join(artifacts, "after", platform);
-    if (!existsSync(afterDir)) continue;
-    for (const file of readdirSync(afterDir).filter((f) => f.endsWith(".png")).sort()) {
-      const before = existsSync(join(artifacts, "before", platform, file)) ? `<img src="${url(`before/${platform}/${file}`)}" width="260">` : "(none)";
-      rows.push(`| ${platform} \`${file.replace(/\.png$/, "")}\` | ${before} | <img src="${url(`after/${platform}/${file}`)}" width="260"> |`);
-    }
-  }
-  const markdown = ["| Screen | Before | After |", "| --- | --- | --- |", ...rows].join("\n");
-  writeFileSync(join(artifacts, "screenshots.md"), `${markdown}\n`);
-  return `${pngs.length} images at ${commit.slice(0, 7)}; table in ${relative(ROOT, join(artifacts, "screenshots.md"))}`;
+  writeFileSync(join(artifacts, "screenshots.md"), `${table((path) => `https://raw.githubusercontent.com/${repo}/${commit}/${slug}/${path}`)}\n`);
+  writeFileSync(join(artifacts, "screenshots-url.txt"), `https://github.com/${repo}/blob/${commit}/${slug}/README.md\n`);
+  return `${pngs.length} images at ${commit.slice(0, 7)}; table in ${relative(ROOT, join(artifacts, "screenshots.md"))}, all of them at https://github.com/${repo}/blob/${commit}/${slug}/README.md`;
 };
 
 const main = async () => {
@@ -443,9 +461,9 @@ const main = async () => {
   }
   mkdirSync(STATE, { recursive: true });
   writeFileSync(join(STATE, ".gitignore"), "*\n");
-  await stopAll();
-  rmSync(BASE_TREE, { recursive: true, force: true });
   if (args.clean) {
+    await stopAll();
+    rmSync(BASE_TREE, { recursive: true, force: true });
     log("stopped anything left from an earlier run");
     return 0;
   }
@@ -459,16 +477,19 @@ const main = async () => {
   const { mergeBase, files } = changedFiles(args.base);
   const plan = planVerification({ changed: files, map: MAP, full: args.full, only: args.only, unattended: args.unattended });
   printPlan(plan, mergeBase, args);
-  const slug = branchSlug();
-  const artifacts = join(STATE, "artifacts", slug);
-  rmSync(artifacts, { recursive: true, force: true });
-  mkdirSync(join(artifacts, "logs"), { recursive: true });
-  writeFileSync(join(artifacts, "plan.json"), JSON.stringify({ base: args.base, mergeBase, changed: files, ...plan }, null, 2));
   if (plan.tier === "blocked") {
     log("Classify each file above in scripts/verify/feature-map.json (an area, a new area with its routes, core, or static), then rerun.");
     return 3;
   }
   if (args.dryRun) return 0;
+
+  await stopAll();
+  rmSync(BASE_TREE, { recursive: true, force: true });
+  const slug = branchSlug();
+  const artifacts = join(STATE, "artifacts", slug);
+  rmSync(artifacts, { recursive: true, force: true });
+  mkdirSync(join(artifacts, "logs"), { recursive: true });
+  writeFileSync(join(artifacts, "plan.json"), JSON.stringify({ base: args.base, mergeBase, changed: files, ...plan }, null, 2));
 
   const logs = join(artifacts, "logs");
   const baseTree = BASE_TREE;
@@ -520,7 +541,6 @@ const main = async () => {
         }
       }
     }
-    if (args.publish) await step("publish screenshots", () => publish(artifacts, slug));
   } catch (error) {
     if (!(error instanceof StepFailed)) {
       steps.push({ name: "verify", ok: false, detail: String(error?.stack ?? error).slice(0, 400) });
@@ -546,13 +566,24 @@ const main = async () => {
   writeFileSync(join(artifacts, "summary.md"), summary);
   console.log(`\n${summary}`);
   log(`artifacts: ${artifacts}`);
-  return failed || steps.some((s) => !s.ok) ? 1 : 0;
+  const passed = !failed && steps.every((s) => s.ok);
+  if (args.publish && passed) {
+    try {
+      log(`published ${publish(artifacts, slug)}`);
+    } catch (error) {
+      log(`✘ publish: ${error?.message ?? error}`);
+      return 1;
+    }
+  } else if (args.publish) {
+    log("not publishing: the run failed");
+  }
+  return passed ? 0 : 1;
 };
 
 const stopAndExit = (code) => stopAll().finally(() => process.exit(code));
 process.on("SIGINT", () => stopAndExit(130));
 process.on("SIGTERM", () => stopAndExit(143));
 main().then((code) => process.exit(code), (error) => {
-  console.error(error);
+  console.error(`[verify] ${error?.message ?? error}`);
   return stopAndExit(1);
 });

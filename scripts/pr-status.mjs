@@ -17,14 +17,23 @@ const checks = pr.statusCheckRollup.map((c) => ({
   state: c.conclusion || c.status || c.state,
   url: c.detailsUrl ?? c.targetUrl,
 }));
-const pending = checks.filter((c) => ["IN_PROGRESS", "QUEUED", "PENDING", "EXPECTED", "WAITING"].includes(c.state));
-const failed = checks.filter((c) => ["FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"].includes(c.state));
+const PASSED = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
+const RUNNING = new Set(["IN_PROGRESS", "QUEUED", "PENDING", "EXPECTED", "WAITING", "REQUESTED"]);
+const pending = checks.filter((c) => RUNNING.has(c.state));
+// Anything not known to be a pass or still running (STALE, a state GitHub adds later) counts as failed.
+const failed = checks.filter((c) => !PASSED.has(c.state) && !RUNNING.has(c.state));
 
-const query = `query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){
-  reviewThreads(first:100){nodes{id isResolved isOutdated path line comments(first:20){nodes{author{login} body url}}}}}}}`;
-const threads = JSON.parse(
-  gh(["api", "graphql", "-f", `query=${query}`, "-f", `owner=${owner}`, "-f", `repo=${repo}`, "-F", `number=${number}`])
-).data.repository.pullRequest.reviewThreads.nodes;
+const query = `query($owner:String!,$repo:String!,$number:Int!,$after:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){
+  reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor}nodes{id isResolved isOutdated path line comments(first:20){nodes{author{login} body url}}}}}}}`;
+const threads = [];
+for (let after = null; ; ) {
+  const args = ["api", "graphql", "-f", `query=${query}`, "-f", `owner=${owner}`, "-f", `repo=${repo}`, "-F", `number=${number}`];
+  if (after) args.push("-f", `after=${after}`);
+  const page = JSON.parse(gh(args)).data.repository.pullRequest.reviewThreads;
+  threads.push(...page.nodes);
+  if (!page.pageInfo.hasNextPage) break;
+  after = page.pageInfo.endCursor;
+}
 const isRabbit = (login) => /coderabbit/i.test(login ?? "");
 const openThreads = threads
   .filter((t) => !t.isResolved && isRabbit(t.comments.nodes[0]?.author?.login))
@@ -37,31 +46,38 @@ const openThreads = threads
     summary: t.comments.nodes[0].body.replace(/<[^>]+>/g, "").split("\n").map((l) => l.trim()).find((l) => l && !l.startsWith("_")) ?? "",
   }));
 
-// CodeRabbit posts these as issue comments and edits its summary in place, so
-// the most recently updated one says whether a review is waiting.
-const comments = JSON.parse(gh(["api", "--paginate", `repos/${owner}/${repo}/issues/${number}/comments?per_page=100`, "--jq", "[.[] | {login: .user.login, at: .updated_at, body}]"]).replace(/\]\s*\[/g, ","));
-const rabbit = comments.filter((c) => isRabbit(c.login)).sort((a, b) => a.at.localeCompare(b.at));
-const last = rabbit.at(-1);
-const text = (last?.body ?? "").replace(/<[^>]+>/g, " ");
-const limited = /rate limited|review limit reached/i.test(text);
-const minutes = Number(text.match(/available in (\d+) minutes?/i)?.[1] ?? (limited ? 60 : 0));
-const flat = text.replace(/[>#*]/g, " ").replace(/\s+/g, " ");
-const skipped = flat.match(/Review skipped:?\s*(.{0,100})/i)?.[1]?.trim() ?? null;
+// A rate-limit or skipped-review notice stays active until CodeRabbit later
+// finishes a review (a "Review finished" reply or a submitted review). It
+// edits its summary comment in place, so comments are ordered by update time.
+const paged = (path, jq) => JSON.parse(gh(["api", "--paginate", path, "--jq", jq]).replace(/\]\s*\[/g, ","));
+const comments = paged(`repos/${owner}/${repo}/issues/${number}/comments?per_page=100`, "[.[] | {login: .user.login, at: .updated_at, body}]");
+const reviews = paged(`repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`, "[.[] | {login: .user.login, at: .submitted_at}]");
+const plain = (body) => body.replace(/<[^>]+>/g, " ").replace(/[>#*]/g, " ").replace(/\s+/g, " ");
+const rabbitComments = comments.filter((c) => isRabbit(c.login)).map((c) => ({ at: c.at, text: plain(c.body) }));
+const latest = (items) => items.reduce((a, b) => (!a || b.at > a.at ? b : a), null);
+const restriction = latest(rabbitComments.filter((c) => /rate limited|review limit reached|review skipped/i.test(c.text)));
+const cleared = latest([
+  ...rabbitComments.filter((c) => /review finished/i.test(c.text) && !/rate limited|review limit reached|review skipped/i.test(c.text)),
+  ...reviews.filter((r) => isRabbit(r.login) && r.at),
+]);
+const active = restriction && (!cleared || restriction.at > cleared.at) ? restriction : null;
+const limited = Boolean(active && /rate limited|review limit reached/i.test(active.text));
+const minutes = Number(active?.text.match(/available in (\d+) minutes?/i)?.[1] ?? 60);
+const skipped = active && !limited ? (active.text.match(/Review skipped:?\s*(.{0,100})/i)?.[1]?.trim() ?? "review skipped") : null;
 const coderabbit = {
-  lastComment: last ? { at: last.at, gist: text.replace(/\s+/g, " ").trim().slice(0, 160) } : null,
-  rateLimited: limited ? { at: last.at, retryAfter: new Date(Date.parse(last.at) + minutes * 60_000).toISOString() } : null,
+  rateLimited: limited ? { at: active.at, retryAfter: new Date(Date.parse(active.at) + minutes * 60_000).toISOString() } : null,
   skipped,
   openThreads,
 };
 
 const status = { url: pr.url, state: pr.state, draft: pr.isDraft, head: pr.headRefOid.slice(0, 7), changedFiles: pr.changedFiles, checks: { failed, pending, total: checks.length }, coderabbit };
-const done = failed.length === 0 && pending.length === 0 && openThreads.length === 0 && !limited && !skipped;
+const done = checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0 && !limited && !skipped;
 
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ ...status, done }, null, 2));
 } else {
   console.log(`${pr.url} ${pr.isDraft ? "(draft) " : ""}head ${status.head}, ${pr.changedFiles} files`);
-  console.log(`CI: ${checks.length - failed.length - pending.length}/${checks.length} passed, ${pending.length} running, ${failed.length} failed`);
+  console.log(`CI: ${checks.length - failed.length - pending.length}/${checks.length} passed, ${pending.length} running, ${failed.length} failed${checks.length === 0 ? " (no checks yet)" : ""}`);
   for (const c of failed) console.log(`  ✘ ${c.name}: ${c.url}`);
   if (skipped) console.log(`CodeRabbit skipped the review: ${skipped}`);
   if (limited) console.log(`CodeRabbit is rate limited; ask again after ${coderabbit.rateLimited.retryAfter} with "@coderabbitai review"`);

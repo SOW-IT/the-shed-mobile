@@ -20,7 +20,7 @@ skill.
 | Node | 22 + npm (`package-lock.json` only) |
 | Deps | `node_modules` present; `npm install` if a fresh worktree |
 | Convex | Shared cloud **dev** deployment via `.env.local` (`EXPO_PUBLIC_CONVEX_*`). Do **not** use `CONVEX_AGENT_MODE=anonymous` on this Mac unless the user asks for an isolated local backend. |
-| Metro | `http://localhost:8081` — usually `expo start --dev-client`. Restart from **this worktree** if the wrong tree is serving. |
+| Metro | `http://localhost:8081` may be another session's; check it serves **this** worktree before using it, and never restart it. For your own, use port 8092 when `verify` isn't running. |
 | Simulator | iOS sim with **The SHED** (`au.org.sow.theshed`); drive with **baguette** |
 | Chrome | Open Expo web at `http://localhost:8082` for web smoke |
 | Netlify | `NETLIFY_AUTH_TOKEN` in `~/.hermes/.env` for phone HTML explain pages |
@@ -71,8 +71,10 @@ npm test                 # or npm run test:coverage before PR
 **UI (when the change is visible):** `node scripts/verify.mjs --only <area>`
 opens that area's screens on web and the simulator with screenshots (see the
 `verify` skill). For interactions, drive the simulator with baguette and web
-with Playwright. Point Metro at this worktree first
-(`curl -s http://localhost:8081/status`; restart from the worktree if needed).
+with Playwright, against your own Metro from this worktree:
+`npx expo start --dev-client --port 8092` when no verify run is using that
+port. Port 8081 may be another session's Metro, so check it serves this
+worktree before using it, and never restart it.
 
 ## 4. Ship
 
