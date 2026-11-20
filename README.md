@@ -382,6 +382,10 @@ CI fails below 100% line and function coverage of `convex/` and `shared/`.
 The **web sweep** in CI (`scripts/sweep-backend.sh`, `scripts/sweep.mjs`) opens
 every screen against a seeded local backend, signed out and as three roles.
 
+`node scripts/verify.mjs` runs the checks and opens the screens a branch
+affects on web and the iOS Simulator, with before and after screenshots
+([docs/verification.md](docs/verification.md)).
+
 Signed-in testing uses the `e2e-auth` bypass: `src/app/e2e-auth.tsx` handles
 `/e2e-auth?email=…&secret=…` in dev builds (or with `EXPO_PUBLIC_E2E=1`), and
 the backend accepts it only when `E2E_AUTH_ENABLED` is `true` and the secret

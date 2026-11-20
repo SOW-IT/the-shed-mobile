@@ -67,18 +67,11 @@ npm run typecheck
 npm test                 # or npm run test:coverage before PR
 ```
 
-**UI (when the change is visible):**
-
-1. Confirm Metro is this worktree: `curl -s http://localhost:8081/status`.
-   If not, from the worktree: `npx expo start --dev-client --port 8081`
-   (`expo` is a local dependency — `npx` resolves the pinned workspace copy).
-2. Native: `baguette list` → use the `Booted` sim; tap/swipe via baguette.
-   Reload the app after JS changes.
-3. Web: `npx expo start --web --port 8082` and/or Playwright screenshots
-   (prefer Playwright over headless Chrome `--screenshot` for RN-web).
-4. Optional signed-in smoke without Google: e2e-auth bypass when
-   `E2E_AUTH_ENABLED` is set on the deployment (README → Tests and
-   `AGENTS.md`). Never enable that bypass on prod.
+**UI (when the change is visible):** `node scripts/verify.mjs --only <area>`
+opens that area's screens on web and the simulator with screenshots (see the
+`verify` skill). For interactions, drive the simulator with baguette and web
+with Playwright. Point Metro at this worktree first
+(`curl -s http://localhost:8081/status`; restart from the worktree if needed).
 
 ## 4. Ship
 
