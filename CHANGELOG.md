@@ -20,6 +20,9 @@ All notable changes to **The SHED** mobile app. This project follows
   delegations, the not-serving list and grievances. Their queries use the
   longer index and put rows back in the order they had before, so lists look
   the same. The next Convex production deploy drops them.
+- **Lint catches duplicate indexes and on-the-hour crons, for contributors.**
+  `@convex-dev/no-duplicate-indexes` and `@convex-dev/no-top-of-hour-crons`
+  are on. The three indexes kept for their sort order say why next to them.
 
 ## [2.11.21] - 2026-11-21
 

@@ -312,6 +312,7 @@ export default defineSchema({
     grievanceId: v.optional(v.id("grievances")),
     read: v.boolean(),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the feed paginates newest first, which no longer index can give
     .index("by_user", ["userEmail"])
     .index("by_user_and_read", ["userEmail", "read"])
     .index("by_user_and_request_and_read", ["userEmail", "requestId", "read"])
@@ -897,8 +898,10 @@ export default defineSchema({
     searchText: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- "My requests" paginates newest first; by_requester_and_status would group by status
     .index("by_requester", ["requesterEmail"])
     .index("by_requester_and_status", ["requesterEmail", "status"])
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the review, declined and approved lists paginate newest first
     .index("by_status", ["status"])
     .index("by_status_and_reviewed_time", ["status", "reviewedTime"])
     .index("by_status_and_release_date", ["status", "releaseDate"])

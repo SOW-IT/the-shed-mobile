@@ -82,6 +82,8 @@ module.exports = defineConfig([
       "@convex-dev/require-args-validator": "error",
       "@convex-dev/no-filter-in-query": "error",
       "@convex-dev/no-schema-import-cycle": "error",
+      "@convex-dev/no-duplicate-indexes": "error",
+      "@convex-dev/no-top-of-hour-crons": "error",
       "no-restricted-syntax": [
         "error",
         {
