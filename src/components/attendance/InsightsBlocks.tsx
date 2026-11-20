@@ -7,7 +7,6 @@ import { type FollowUpPerson } from "../../../shared/attendanceMetrics";
 import {
   type ViewBlock,
   type ViewLegendItem,
-  type ViewPaint,
 } from "../../../shared/attendanceMetricsView";
 import { type WeeklyBlock } from "../../../shared/weeklyInsightsView";
 import { timeAgo as sharedTimeAgo } from "@shared/datetime";
@@ -64,7 +63,7 @@ export function InsightsBlocks({
     accent: t.accent,
     success: t.success,
   };
-  const paint = (c: ViewPaint): string => (c.startsWith("#") ? c : (tokens[c] ?? t.primary));
+  const paint = (c: string): string => (c.startsWith("#") ? c : (tokens[c] ?? t.primary));
   const legend = (items: ViewLegendItem[]) => items.map((l) => ({ ...l, colour: paint(l.colour) }));
 
   const openPerson = (person: FollowUpPerson) => {

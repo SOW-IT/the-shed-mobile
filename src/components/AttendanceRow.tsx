@@ -67,7 +67,6 @@ interface AttendanceRowProps {
   onAction: () => void;
   onActionStart?: () => void;
   onEdit?: () => void;
-  highlightSignedIn?: boolean;
   entering?: boolean;
   exiting?: boolean;
   onExited?: () => void;
@@ -87,7 +86,6 @@ function AttendanceRowBase({
   onAction,
   onActionStart,
   onEdit,
-  highlightSignedIn = false,
   entering = false,
   exiting = false,
   onExited,
@@ -417,7 +415,7 @@ function AttendanceRowBase({
           style={[
             styles.card,
             {
-              backgroundColor: highlightSignedIn ? t.primarySoft : t.card,
+              backgroundColor: t.card,
               borderColor: pill.colour ?? t.separator,
               zIndex: 2,
             },
