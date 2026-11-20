@@ -1,7 +1,7 @@
 import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@shared/designRequests";
 import { CommentsButton } from "@/components/CommentThreadSheet";
 import { DesignCommentsSheet } from "@/components/design/DesignCommentsSheet";
-import { HistoryTimeline } from "@/components/HistoryTimeline";
+import { TimelineSection } from "@/components/HistoryTimeline";
 import { LabelledField } from "@/components/events/LabelledField";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
@@ -21,6 +21,7 @@ import { sydneyDateTime } from "@/lib/sydneyTime";
 import { StepTrack } from "@/components/StepTrack";
 import { DesignStatusPill } from "@/components/design/DesignStatusPill";
 import {
+  Answer,
   Btn,
   Card,
   ConfirmDialog,
@@ -53,18 +54,6 @@ const EVENT_LABELS: Record<string, string> = {
   imported: "Imported from the old SHED",
 };
 
-const Answer = ({ label, children }: { label: string; children: ReactNode }) => {
-  const t = useAppTheme();
-  return (
-    <View style={styles.answer}>
-      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
-      <Text selectable style={[typography.body, { color: t.text }]}>
-        {children}
-      </Text>
-    </View>
-  );
-};
-
 const Answers = ({
   request,
   fields,
@@ -89,23 +78,7 @@ const Answers = ({
 const Timeline = ({ id }: { id: Id<"designRequests"> }) => {
   // Newest first.
   const events = useQuery(api.designRequests.timeline, { id });
-  if (!events || events.length === 0) return null;
-  return (
-    <>
-      <SectionTitle>History</SectionTitle>
-      <Card>
-        <HistoryTimeline
-          entries={events.map((event) => ({
-            at: event.at,
-            action: event.action,
-            label: EVENT_LABELS[event.action] ?? event.action,
-            who: event.actorName,
-            detail: event.detail,
-          }))}
-        />
-      </Card>
-    </>
-  );
+  return <TimelineSection events={events} labelOf={(event) => EVENT_LABELS[event.action] ?? event.action} />;
 };
 
 const StatusTrack = ({
@@ -412,7 +385,3 @@ export default function DesignRequestScreen() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  answer: { gap: 4 },
-});

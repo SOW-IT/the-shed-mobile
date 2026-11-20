@@ -406,7 +406,7 @@ const SelectFace = ({
         disabled={disabled}
         style={({ pressed }) => [
           styles.input,
-          styles.selectFace,
+          styles.inlineRow,
           { backgroundColor: t.inputBackground, borderColor: "transparent" },
           disabled && { opacity: 0.6 },
           !disabled && pressed && { opacity: 0.7 },

@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { formatDuration, timelineGapHeight } from "@shared/datetime";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { spacing, typography, useAppTheme, type AppTheme } from "@/theme";
-import { Facts } from "@/components/ui";
+import { Card, Facts, SectionTitle } from "@/components/ui";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type Tone = "primary" | "success" | "danger" | "quiet";
@@ -121,6 +121,32 @@ export const HistoryTimeline = ({
         );
       })}
     </View>
+  );
+};
+
+export const TimelineSection = <E extends Omit<HistoryEntry, "label" | "who"> & { actorName: string | null }>({
+  events,
+  labelOf,
+}: {
+  events: E[] | null | undefined;
+  labelOf: (event: E) => string;
+}) => {
+  if (!events || events.length === 0) return null;
+  return (
+    <>
+      <SectionTitle>History</SectionTitle>
+      <Card>
+        <HistoryTimeline
+          entries={events.map((event) => ({
+            at: event.at,
+            action: event.action,
+            label: labelOf(event),
+            who: event.actorName,
+            detail: event.detail,
+          }))}
+        />
+      </Card>
+    </>
   );
 };
 

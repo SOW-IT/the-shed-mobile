@@ -22,7 +22,7 @@ import { subgroupColour, subgroupLabel } from "../../shared/rollcall";
 import { ChromeScreen } from "./ChromeScreen";
 import { ChurchMap, churchMapAvailable, type ChurchPin } from "./ChurchMap";
 import { type Church, ChurchDetails, ChurchForm, useCanEditChurches } from "./ChurchPicker";
-import { FilterChip, FilterRow } from "./FilterChips";
+import { FilterChip, FilterRow, FilterSummary, NoMatches } from "./FilterChips";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { Btn, Card, EmptyState, FadeInView, LoadingState, ScrollCap, SearchField, stagger, Facts } from "./ui";
 
@@ -270,23 +270,13 @@ export function ChurchesView() {
               </FilterRow>
             ) : null}
           </View>
-          <View style={[styles.summary, { borderTopColor: t.separator }]}>
+          <FilterSummary onShowEveryone={filtering ? () => setFilter(NO_CHURCH_FILTER) : undefined}>
             <View style={{ flex: 1 }} accessibilityLiveRegion="polite">
               <Facts
                 parts={[plural(shown.length, "church", "churches"), plural(shownPeople, "person", "people")]}
               />
             </View>
-            {filtering ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setFilter(NO_CHURCH_FILTER)}
-                hitSlop={8}
-                style={({ pressed }) => pressed && { opacity: 0.6 }}
-              >
-                <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>Show everyone</Text>
-              </Pressable>
-            ) : null}
-          </View>
+          </FilterSummary>
           {churchMapAvailable && pins.length > 0 ? (
             <FadeInView>
               <ChurchMap pins={pins} selectedId={selected?.church._id ?? null} onSelect={choose} />
@@ -313,14 +303,10 @@ export function ChurchesView() {
               </FadeInView>
             ))}
           {shown.length === 0 ? (
-            <View style={styles.nothing}>
-              <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>
-                {filtering ? "Nobody matches these filters." : "Nothing matches."}
-              </Text>
-              {filtering ? (
-                <Btn title="Show everyone" variant="ghost" onPress={() => setFilter(NO_CHURCH_FILTER)} />
-              ) : null}
-            </View>
+            <NoMatches
+              message={filtering ? "Nobody matches these filters." : "Nothing matches."}
+              onShowEveryone={filtering ? () => setFilter(NO_CHURCH_FILTER) : undefined}
+            />
           ) : null}
         </>
       )}
@@ -338,13 +324,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   filters: { gap: spacing.sm },
   dot: { width: 9, height: 9, borderRadius: 5 },
-  summary: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingTop: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
   peopleTitle: { marginBottom: spacing.xs },
   person: {
     flexDirection: "row",
@@ -355,7 +334,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   role: { maxWidth: "45%", textAlign: "right" },
-  nothing: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xl },
   campus: {
     flexDirection: "row",
     alignItems: "center",

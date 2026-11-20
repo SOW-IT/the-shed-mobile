@@ -158,7 +158,7 @@ export const FooterAction = ({
             </Text>
           </View>
         ) : null}
-        <View style={styles.footerRow}>
+        <View style={styles.inlineRow}>
           {onInfo && (
             <Pressable
               onPress={onInfo}
@@ -280,7 +280,7 @@ export const FooterIconActions = ({ actions }: { actions: FooterIconAction[] }) 
       onLayout={(e) => reportFooterHeight(footerReach(e.nativeEvent.layout.height))}
       style={styles.footerWrap}
     >
-      <View pointerEvents="box-none" style={[styles.footerRow, { justifyContent: "flex-end" }]}>
+      <View pointerEvents="box-none" style={[styles.inlineRow, { justifyContent: "flex-end" }]}>
         {actions.map((action) => (
           <FooterIconButton key={action.icon} {...action} />
         ))}

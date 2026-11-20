@@ -2,21 +2,17 @@ import { useQuery } from "convex/react";
 import { useState } from "react";
 import {
   LayoutChangeEvent,
-  Pressable,
-  StyleSheet,
   useWindowDimensions,
   View,
 } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { isOrgWideSubgroup, subgroupColour } from "../../../shared/rollcall";
+import { isOrgWideSubgroup } from "../../../shared/rollcall";
 import { type WeeklyBlock } from "../../../shared/weeklyInsightsView";
-import { CampusMark } from "@/components/CampusMark";
+import { CampusSelector } from "@/components/attendance/CampusSelector";
 import { InsightsBlocks } from "@/components/attendance/InsightsBlocks";
-import { FadeInView, LoadingState, Segmented, stagger } from "@/components/ui";
-import { spacing, useAppTheme } from "@/theme";
-
-const CAMPUS_MARK = 40;
+import { LoadingState, Segmented } from "@/components/ui";
+import { spacing } from "@/theme";
 
 type SowTabChoice = { key: string; label: string; picker: "range" | "years" };
 
@@ -49,7 +45,6 @@ export function MetricsTab({
   sowTabView?: { year: number; blocks: WeeklyBlock[] } | null;
   onSowYearChange?: (year: number) => void;
 }) {
-  const t = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const subgroup = selectedSubgroup ?? subgroups[0] ?? null;
   const [containerWidth, setContainerWidth] = useState(windowWidth);
@@ -73,30 +68,12 @@ export function MetricsTab({
   return (
     <View onLayout={onLayout} style={{ gap: spacing.md }}>
       {subgroups.length > 0 ? (
-        <View style={styles.campusRow}>
-          {subgroups.map((sg, i) => {
-            const active = sg === subgroup;
-            const ringColour =
-              isOrgWideSubgroup(sg) && t.dark ? t.text : subgroupColour(sg);
-            return (
-              <FadeInView key={sg} delay={stagger(i)}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={sg}
-                  accessibilityState={{ selected: active }}
-                  onPress={() => onSelectedSubgroupChange(sg)}
-                  style={({ pressed }) => [styles.campusSlot, pressed && { opacity: 0.7 }]}
-                >
-                  <View
-                    style={[styles.campusRing, active && { borderColor: ringColour }]}
-                  >
-                    <CampusMark campus={sg} circleDiameter={CAMPUS_MARK} />
-                  </View>
-                </Pressable>
-              </FadeInView>
-            );
-          })}
-        </View>
+        <CampusSelector
+          subgroups={subgroups}
+          selected={subgroup}
+          onSelect={onSelectedSubgroupChange}
+          labelOf={(sg) => sg}
+        />
       ) : null}
 
       {orgWide && sowTabs && sowTabs.length > 1 && onSowTabChange ? (
@@ -123,19 +100,3 @@ export function MetricsTab({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  campusRow: {
-    flexDirection: "row",
-    flexWrap: "nowrap",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  campusSlot: { flex: 1, alignItems: "center", minWidth: 0 },
-  campusRing: {
-    borderRadius: 999,
-    padding: 0,
-    borderWidth: 2.5,
-    borderColor: "transparent",
-  },
-});

@@ -13,7 +13,7 @@ import {
 } from "@shared/eventRequests";
 import { EventStatusPill, SubFormStatusPill } from "@/components/events/EventPills";
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
-import { HistoryTimeline } from "@/components/HistoryTimeline";
+import { TimelineSection } from "@/components/HistoryTimeline";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
 import { eventHistoryLabel, subFormCardLine } from "@/lib/eventRequestText";
@@ -97,23 +97,7 @@ const FormCard = ({
 const Timeline = ({ id }: { id: Id<"eventRequests"> }) => {
   // Newest first.
   const events = useQuery(api.eventRequests.timeline, { id });
-  if (!events || events.length === 0) return null;
-  return (
-    <>
-      <SectionTitle>History</SectionTitle>
-      <Card>
-        <HistoryTimeline
-          entries={events.map((event) => ({
-            at: event.at,
-            action: event.action,
-            label: eventHistoryLabel(event.action, event.form),
-            who: event.actorName,
-            detail: event.detail,
-          }))}
-        />
-      </Card>
-    </>
-  );
+  return <TimelineSection events={events} labelOf={(event) => eventHistoryLabel(event.action, event.form)} />;
 };
 
 export default function EventRequestScreen() {
