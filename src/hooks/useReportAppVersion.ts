@@ -6,6 +6,11 @@ import { api } from "../../convex/_generated/api";
 
 export const appVersion = (): string | undefined => Constants.expoConfig?.version ?? undefined;
 
+export const appScheme = (): string | undefined => {
+  const scheme = Constants.expoConfig?.scheme;
+  return Array.isArray(scheme) ? scheme[0] : scheme;
+};
+
 export const useReportAppVersion = () => {
   const { isAuthenticated } = useConvexAuth();
   const report = useMutation(api.appInstalls.report);

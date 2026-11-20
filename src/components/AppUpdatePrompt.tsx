@@ -1,13 +1,12 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
-import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import { useSyncExternalStore } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { appLinkForScheme } from "../../shared/appLinks";
 import { Btn } from "@/components/ui";
-import { appVersion } from "@/hooks/useReportAppVersion";
+import { appScheme, appVersion } from "@/hooks/useReportAppVersion";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -15,11 +14,6 @@ const nativePlatform = (): "ios" | "android" | null =>
   Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : null;
 
 const DISMISSED_KEY = "updatePromptDismissedFor";
-
-const appScheme = (): string | undefined => {
-  const scheme = Constants.expoConfig?.scheme;
-  return Array.isArray(scheme) ? scheme[0] : scheme;
-};
 
 let dismissedFor: string | null | undefined;
 let loadingDismissed = false;

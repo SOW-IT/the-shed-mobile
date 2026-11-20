@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import Constants from "expo-constants";
 import { appLinkForScheme } from "../../../shared/appLinks";
 import { type MemberChoice, searchMembers, suggestMembers, yearLevelLabel } from "../../../shared/checkInMatch";
 import { subgroupLabel } from "../../../shared/rollcall";
@@ -15,11 +14,7 @@ import { QrCode } from "./QrCode";
 import { phaseBetween } from "../../../shared/checkInWindow";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { useHeldValue } from "@/hooks/useHeldValue";
-
-const appScheme = (): string | undefined => {
-  const scheme = Constants.expoConfig?.scheme;
-  return Array.isArray(scheme) ? scheme[0] : scheme;
-};
+import { appScheme } from "@/hooks/useReportAppVersion";
 
 const webOrigin = (): string =>
   Platform.OS === "web" && typeof window !== "undefined"
