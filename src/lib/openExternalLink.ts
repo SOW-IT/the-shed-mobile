@@ -1,6 +1,7 @@
 import * as WebBrowser from "expo-web-browser";
-import { Alert, Linking, Platform } from "react-native";
+import { Linking, Platform } from "react-native";
 import { browserFallbackFor, linkFailureText, type LinkFailure } from "./externalLinks";
+import { notify } from "./notify";
 
 const succeeds = async (attempt: () => Promise<unknown>): Promise<boolean> => {
   try {
@@ -11,21 +12,15 @@ const succeeds = async (attempt: () => Promise<unknown>): Promise<boolean> => {
   }
 };
 
-const showFailure = ({ title, message }: LinkFailure) => {
-  if (Platform.OS === "web") {
-    if (typeof window !== "undefined") window.alert(`${title}\n\n${message}`);
-    return;
-  }
-  Alert.alert(title, message);
-};
-
 export const openExternalLink = async (
   url: string,
   options: { fallbackUrl?: string; failure?: LinkFailure } = {}
 ): Promise<boolean> => {
+  // eslint-disable-next-line no-restricted-syntax -- this helper is the one place Linking.openURL is allowed
   if (await succeeds(() => Linking.openURL(url))) return true;
   const fallback = Platform.OS === "web" ? null : browserFallbackFor(url, options.fallbackUrl);
   if (fallback && (await succeeds(() => WebBrowser.openBrowserAsync(fallback)))) return true;
-  showFailure(options.failure ?? linkFailureText(url));
+  const { title, message } = options.failure ?? linkFailureText(url);
+  notify(title, message);
   return false;
 };

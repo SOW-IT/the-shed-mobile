@@ -6,7 +6,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, test } from "vitest";
 
-const cli = join(dirname(fileURLToPath(import.meta.url)), "../convex-export-to-bigquery.mjs");
 import {
   convertExportDir,
   creationTimeToTimestamp,
@@ -20,6 +19,8 @@ import {
   stagingDatasetId,
 } from "./convexExportToBigQuery.mjs";
 import { loadConvexSnapshot, makeRunner } from "./loadConvexSnapshot.mjs";
+
+const cli = join(dirname(fileURLToPath(import.meta.url)), "../convex-export-to-bigquery.mjs");
 
 const temps = [];
 const tempDir = () => {

@@ -35,7 +35,6 @@ import { useConvexAuth, useQuery } from "convex/react";
 import { type Href, usePathname, useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -44,6 +43,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
+import { notify } from "@/lib/notify";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -466,10 +466,9 @@ export const NavMenu = ({
               void signOut()
                 .then(() => router.replace("/home"))
                 .catch(() => {
-                  Alert.alert(
+                  notify(
                     "Sign-out failed",
                     "Something went wrong signing you out. Please try again.",
-                    [{ text: "OK" }],
                   );
                 });
             }}

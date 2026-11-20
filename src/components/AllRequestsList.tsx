@@ -69,7 +69,7 @@ export const AllRequestsList = ({
     ) ?? {};
   const [pickedFilter, setFilter] = useState<"ongoing" | "completed" | null>(null);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- opening a link to another request clears the filter so that request shows
     setFilter(null);
   }, [focusId]);
   const focused = focusId ? requests?.find((request) => request._id === focusId) : undefined;

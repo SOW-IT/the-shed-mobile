@@ -7,7 +7,7 @@ type UpdatesModule = typeof import("expo-updates");
 
 const loadUpdates = (): UpdatesModule | null => {
   if (Platform.OS === "web" || !requireOptionalNativeModule("ExpoUpdates")) return null;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- loaded only when the native module exists, so web and builds without expo-updates never import it
   return require("expo-updates") as UpdatesModule;
 };
 

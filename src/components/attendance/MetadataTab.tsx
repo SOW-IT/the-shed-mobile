@@ -240,7 +240,7 @@ export function MetadataTab({
       revert: revertMeta,
       error,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reports when the draft changes; the parent's callback and the save and revert closures are not watched
   }, [metadataChanged, saving, metaDrafts, metaDeletes, savedFields, error]);
 
   if (metadata === undefined) return <LoadingState />;

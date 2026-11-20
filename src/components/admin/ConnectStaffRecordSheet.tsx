@@ -41,7 +41,7 @@ export function ConnectStaffRecordSheet({
   useEffect(() => {
     if (staff) return;
     clearTimeout(handoff.current);
-    /* eslint-disable react-hooks/set-state-in-effect */
+    /* eslint-disable react-hooks/set-state-in-effect -- closing the sheet resets it for next time */
     setStage("search");
     setPicked(null);
     setSearch("");
@@ -85,7 +85,7 @@ export function ConnectStaffRecordSheet({
   const showMore = () => setLimit((current) => Math.min(current + PAGE_SIZE * 2, MAX_RESULTS));
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- widens the search when a page has no candidates left after filtering
     if (!stale && candidates.length === 0 && moreToSearch) showMore();
   }, [stale, candidates.length, moreToSearch]);
 

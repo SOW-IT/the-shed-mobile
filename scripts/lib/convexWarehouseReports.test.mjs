@@ -126,7 +126,6 @@ describe("report views", () => {
 });
 
 const ok = (stdout = "") => ({ status: 0, stdout, stderr: "", error: null });
-const argLine = (args) => args.join(" ");
 
 describe("loadConvexSnapshot report views", () => {
   test("publishes staff_assignments after the JSON snapshot", () => {

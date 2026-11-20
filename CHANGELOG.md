@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.21] - 2026-11-21
+
+### Fixed
+- **Sign-in and sign-out problems show a message on the web.** If signing
+  out fails, or a sign-in is turned away or goes wrong, the web app now says
+  so, as the phone apps already did. Before, nothing happened.
+
+### Changed
+- **Lint covers the whole repo, for contributors.** CI lints `convex/`,
+  `shared/` and `scripts/` too, warnings fail, and the new rules come from
+  mistakes that reviews kept catching.
+
 ## [2.11.20] - 2026-11-21
 
 ### Changed

@@ -264,17 +264,17 @@ type SpotifyTrack = {
   name?: string;
   type?: string;
   is_local?: boolean;
-  artists?: Array<{ name: string }>;
-  album?: { images?: Array<{ url: string }> };
+  artists?: { name: string }[];
+  album?: { images?: { url: string }[] };
   external_ids?: { isrc?: string };
 };
 
 type PlaylistPage = {
   total?: number;
-  items?: Array<{
+  items?: {
     item?: SpotifyTrack | null;
     track?: SpotifyTrack | null;
-  }>;
+  }[];
 };
 
 function playlistId(link: string): string | null {

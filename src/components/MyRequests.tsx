@@ -177,7 +177,7 @@ const NewRequestSheet = ({
       footer={
         <Row spread>
           <Btn title="Cancel" variant="ghost" onPress={onClose} />
-          <Btn title="Submit Request" onPress={handleSubmit} loading={submitting} disabled={!complete} />
+          <Btn title="Submit Request" onPress={() => void handleSubmit()} loading={submitting} disabled={!complete} />
         </Row>
       }
     >
@@ -412,7 +412,7 @@ const ReceiptSheet = ({
       files: [],
       saveAccount: false,
     }]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fills in the saved account when the request or accounts load; rerunning on every edit would refill a field the user cleared
   }, [request?._id, savedAccounts]);
 
   useEffect(() => {
@@ -554,6 +554,7 @@ const ReceiptSheet = ({
       void attachFromFiles(index);
       return;
     }
+    // eslint-disable-next-line no-restricted-syntax -- a three-choice sheet on iOS and Android only; web returned above
     Alert.alert("Attach receipt", "Choose from your photo library or files.", [
       { text: "Photo Library", onPress: () => void attachFromGallery(index) },
       { text: "Files", onPress: () => void attachFromFiles(index) },

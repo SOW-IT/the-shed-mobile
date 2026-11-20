@@ -90,7 +90,7 @@ coverage test and the offline Expo version check (plus a web sweep job). Run
 these locally before opening the PR:
 
 ```bash
-npm run lint
+npx eslint . --max-warnings 0   # not `npm run lint`, which only lints src/
 npx tsc --noEmit
 npm run test:coverage
 EXPO_OFFLINE=1 npx expo install --check

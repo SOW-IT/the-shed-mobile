@@ -187,7 +187,7 @@ const printPlan = (plan, mergeBase, args) => {
   }
   if (plan.tier === "blocked") return;
   log("steps:");
-  log("  lint, typecheck");
+  log("  lint (eslint . --max-warnings 0), typecheck");
   const unit = plan.unit.kind === "all" ? (plan.tier === "full" ? "all unit tests with coverage" : "all unit tests") : plan.unit.kind === "related" ? `unit tests related to ${plan.unit.files.length} file(s)` : "no unit tests";
   log(`  ${unit}`);
   if (plan.routes.length > 0) {
@@ -525,7 +525,7 @@ const main = async () => {
       if (changed.length === 0) return "unchanged on iOS and Android: over-the-air updates reach current builds";
       throw new Error(`changed on ${changed.join(" and ")}: phones there need a store build before they get this change`);
     }, { soft: true });
-    await step("lint", npm("lint", join(logs, "lint.log")));
+    await step("lint", run("npx", ["eslint", ".", "--max-warnings", "0"], join(logs, "lint.log")));
     await step("typecheck", npm("typecheck", join(logs, "typecheck.log")));
     if (plan.unit.kind === "all") {
       await step(plan.tier === "full" ? "unit tests with coverage" : "unit tests", npm(plan.tier === "full" ? "test:coverage" : "test", join(logs, "unit.log")));
