@@ -10,7 +10,7 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
-import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { CAMPUS_FIELD_KEY, metadataValueLabel, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import {
   cleanInstagram,
   cleanWebsite,
@@ -239,13 +239,11 @@ export const directory = query({
     const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
     const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
     const memberCampus = (member: Doc<"attendanceMembers"> | null) => {
-      const raw = campusField ? member?.metadata?.[campusField._id] : undefined;
-      const campus = raw ? (campusField?.values?.[raw] ?? raw) : null;
+      const campus = metadataValueLabel(campusField, member?.metadata);
       return campus && campus !== "Other" ? campus : null;
     };
     const memberRole = (member: Doc<"attendanceMembers"> | null) => {
-      const raw = roleField ? member?.metadata?.[roleField._id] : undefined;
-      return raw && (roleField?.values?.[raw] ?? raw) === ALUMNI ? ALUMNI : MEMBER;
+      return metadataValueLabel(roleField, member?.metadata) === ALUMNI ? ALUMNI : MEMBER;
     };
     const churches = await ctx.db.query("churches").withIndex("by_nameKey").take(MAX_CHURCHES);
     const out = [];

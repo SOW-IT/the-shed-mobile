@@ -1,6 +1,6 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
-import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { CAMPUS_FIELD_KEY, metadataValueLabel, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import { rangeStartFor, WEEK_MS } from "../shared/attendanceMetrics";
 import { churchPagePath } from "../shared/churches";
 import { markedRoleIn } from "../shared/memberRole";
@@ -337,12 +337,8 @@ export async function resolvePeople(ctx: QueryCtx, keys: string[], years: number
   }
   const fields = await ctx.db.query("attendanceMetadata").take(200);
   const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
-  const fieldLabel = (field: Doc<"attendanceMetadata"> | undefined, member: Doc<"attendanceMembers"> | null) => {
-    const raw = field ? member?.metadata?.[field._id] : undefined;
-    return raw ? (field?.values?.[raw] ?? raw) : null;
-  };
   const memberInfo = (member: Doc<"attendanceMembers"> | null) => {
-    const campus = fieldLabel(campusField, member);
+    const campus = metadataValueLabel(campusField, member?.metadata);
     const marked = markedRoleIn(fields, member?.metadata);
     return { campus: campus && campus !== "Other" ? campus : null, roles: marked ? [marked] : [] };
   };
