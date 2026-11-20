@@ -53,7 +53,7 @@
     "src/fonts.ts",
     "src/env.ts",
     "src/types/**",
-    "src/lib/{errorReporting,appErrorKinds,staleRelease,restartHold,deviceStorage,navMenu,goBack,footerClearance,swipePage,sydneyTime,visibleColour,externalLinks,openExternalLink,imageCacheKey,uploadLocalFile,csv,csvDownload,pdfWriter,universityLogos}.ts",
+    "src/lib/{errorReporting,appErrorKinds,staleRelease,restartHold,deviceStorage,navMenu,goBack,footerClearance,swipePage,sydneyTime,visibleColour,externalLinks,openExternalLink,notify,imageCacheKey,uploadLocalFile,csv,csvDownload,pdfWriter,universityLogos}.ts",
     "src/lib/pdfLibBundle.d.ts",
     "src/hooks/{useRestartHold,useReportAppVersion,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync}.ts",
     "convex/_generated/**",

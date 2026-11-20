@@ -4,7 +4,6 @@ import type {
   compositionPoint,
   followUp,
   metricsDataValidator,
-  metricsSummary,
   splitPoint,
   trendPoint,
 } from "../convex/metricsData";

@@ -213,7 +213,7 @@ function CheckInBody({ token }: { token: string | undefined }) {
     if (!autoMode || autoTried.current) return;
     if (autoMode === "phone" && returning !== true) return;
     autoTried.current = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the automatic sign-in runs once per visit (autoTried) and sets state when it finishes
     if (autoMode === "leader") void leaderSignIn();
     else void submitDetails(rememberedValues(), "phone", true);
   });

@@ -200,7 +200,7 @@ function DeclineSheet({
             title="Decline"
             variant="danger"
             loading={submitting}
-            onPress={handleDecline}
+            onPress={() => void handleDecline()}
           />
           <Btn title="Back" variant="ghost" onPress={onClose} />
         </View>

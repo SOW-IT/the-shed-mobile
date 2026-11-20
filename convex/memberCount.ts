@@ -34,6 +34,7 @@ export const recount = internalMutation({
   returns: v.union(v.object({ count: v.number(), was: v.union(v.number(), v.null()) }), v.null()),
   handler: async (ctx, { nightly }) => {
     if (nightly && nightlyJobsPaused()) return null;
+    // eslint-disable-next-line no-restricted-syntax -- the nightly recount that repairs the counter has to read every member
     const count = (await ctx.db.query("attendanceMembers").collect()).length;
     const row = await storedCount(ctx);
     const countedAt = Date.now();

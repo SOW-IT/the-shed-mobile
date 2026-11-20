@@ -186,7 +186,7 @@ export default function RequestsScreen() {
     : null;
   useEffect(() => {
     if (active !== null || landing === null || linkedTab !== undefined || focusResolving) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- picks the landing segment once, when the counts arrive; after that the user's choice stands
     setActive(landing);
   }, [active, landing, linkedTab, focusResolving]);
   const wanted = active ?? (focusResolving ? null : linkedTab ?? landing);
