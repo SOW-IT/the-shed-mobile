@@ -62,7 +62,19 @@ const parseArgs = (argv) => {
   };
 };
 
-const PORTS = { convex: 3270, convexSite: 3271, metro: 8092, web: 8192 };
+// Another worktree's run may hold the defaults; VERIFY_*_PORT moves this one.
+const port = (name, value, fallback) => {
+  if (value === undefined || value === "") return fallback;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1024 || n > 65535) throw new Error(`${name}=${value} isn't a port`);
+  return n;
+};
+const PORTS = {
+  convex: port("VERIFY_CONVEX_PORT", process.env.VERIFY_CONVEX_PORT, 3270),
+  convexSite: port("VERIFY_CONVEX_SITE_PORT", process.env.VERIFY_CONVEX_SITE_PORT, 3271),
+  metro: port("VERIFY_METRO_PORT", process.env.VERIFY_METRO_PORT, 8092),
+  web: port("VERIFY_WEB_PORT", process.env.VERIFY_WEB_PORT, 8192),
+};
 const BUNDLE_ID = "au.org.sow.theshed";
 const APP_SCHEME = "theshedmobile";
 const DEV_CLIENT_SCHEME = "exp+the-shed-mobile";

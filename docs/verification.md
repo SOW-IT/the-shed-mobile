@@ -76,7 +76,7 @@ Everything a run starts lives under `.verify/`, which ignores itself
    recorded in `.verify/pids/` and nothing else. Daniel's Metro on 8081 is
    never touched.
 2. Starts a fresh local Convex backend from the binary the Convex CLI caches
-   (`~/.cache/convex/binaries`), on ports 3270/3271, with its database in
+   (`~/.cache/convex/binaries`), on ports 3270/3271 (see below to move them), with its database in
    `.verify/run/<before|after>/convex/`. It doesn't read or write `.env.local`, so the shared
    dev deployment is never used.
 3. Pushes the functions, sets JWT keys and `E2E_AUTH_*`, and seeds the sweep
@@ -94,6 +94,11 @@ Everything a run starts lives under `.verify/`, which ignores itself
    (`.verify/run/<before|after>/ios-flow.yaml`). iOS signs in as the admin through
    the `e2e-auth` deep link.
 7. Stops everything it started and frees the ports, even when a step fails.
+
+When another worktree's run already holds the ports, give this run its own
+with `VERIFY_CONVEX_PORT`, `VERIFY_CONVEX_SITE_PORT`, `VERIFY_METRO_PORT` and
+`VERIFY_WEB_PORT` (for example 3280, 3281, 8097, 8197), and its own
+simulator with `--device`. Never 8081.
 
 For **before** screenshots it does the same against the merge base. That
 tree comes from `git archive` into a folder under `$TMPDIR` named after the
