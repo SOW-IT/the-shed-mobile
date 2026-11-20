@@ -199,7 +199,12 @@ npx --yes netlify-cli deploy \
    (e.g. `https://the-shed-pr-<n>-explain.netlify.app`).
 5. Give the user the **production HTTPS URL** plus the GitHub PR URL.
 
-## 8. Report back
+## 8. Shepherd it
+
+Follow the `pr-shepherd` skill until CI is green and CodeRabbit has nothing
+open, then report.
+
+## 9. Report back
 
 Give the user:
 

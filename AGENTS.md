@@ -52,8 +52,9 @@ Head, and a Budget Manager (Admin → "Other"; picker lists Finance members only
 3. **Open the PR** per `.claude/skills/create-pr/SKILL.md`, and add a link to a
    Netlify HTML explainer (with before/after screenshots when visible) to the
    PR description.
-4. **Babysit the PR** until merged or told to stop — fix failing CI, address
-   every review comment (fix or reply), re-verify UI changes on sim + web.
+4. **Shepherd the PR** per `.claude/skills/pr-shepherd/SKILL.md` until CI
+   is green, CodeRabbit has nothing open and `verify` passes, then mark it
+   ready. `node scripts/pr-status.mjs <number>` says where it stands.
 
 ## This Mac
 
