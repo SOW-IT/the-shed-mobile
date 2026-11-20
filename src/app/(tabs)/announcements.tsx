@@ -8,9 +8,12 @@ import type { Id } from "@convex/_generated/dataModel";
 import {
   type Audience,
   audienceSummary,
+  type EmailChoice,
+  emailFlags,
   EVERYONE,
   isEveryone,
   MESSAGE_MAX,
+  nameList,
   rateLimitError,
   scheduleError,
   TITLE_MAX,
@@ -21,7 +24,10 @@ import {
   toTimeInputValue,
 } from "@shared/datetime";
 import { acronym } from "@shared/flow";
+import { NoPushList } from "@/components/announcements/NoPushList";
+import { PeoplePicker } from "@/components/announcements/PeoplePicker";
 import { PushPreview } from "@/components/announcements/PushPreview";
+import { SendConfirmDialog } from "@/components/announcements/SendConfirmDialog";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import { DateInput, TimeInput } from "@/components/DateInputs";
@@ -50,7 +56,7 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { formatDayTime } from "@/components/dateTimeDisplay";
 import { SignInPrompt } from "@/components/SignInPrompt";
 
-type Reach = "everyone" | "groups";
+type Reach = "everyone" | "groups" | "people";
 type When = "now" | "later";
 
 const defaultSendAt = () => {
@@ -103,7 +109,8 @@ export default function AnnouncementsScreen() {
   useRestartHold(title.trim() !== "" || message.trim() !== "");
   const [reach, setReach] = useState<Reach>("everyone");
   const [groups, setGroups] = useState<Audience>(EVERYONE);
-  const [sendEmail, setSendEmail] = useState(false);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [email, setEmail] = useState<EmailChoice>("none");
   const [when, setWhen] = useState<When>("now");
   const [date, setDate] = useState(() => toDateInputValue(defaultSendAt()));
   const [time, setTime] = useState(() => toTimeInputValue(defaultSendAt()));
@@ -116,9 +123,14 @@ export default function AnnouncementsScreen() {
     title: string;
   } | null>(null);
 
-  const audience = reach === "everyone" ? EVERYONE : groups;
-  const nothingPicked = reach === "groups" && isEveryone(groups);
-  const size = useQuery(api.announcements.audienceSize, isAdmin ? { audience } : "skip");
+  const audience = reach === "groups" ? groups : EVERYONE;
+  const target = reach === "people" ? { audience, people: chosen } : { audience };
+  const nothingPicked =
+    (reach === "groups" && isEveryone(groups)) || (reach === "people" && chosen.length === 0);
+  const size = useQuery(
+    api.announcements.audienceSize,
+    isAdmin && !nothingPicked ? target : "skip"
+  );
   const now = useNow();
 
   if (me === undefined) return <LoadingState />;
@@ -181,8 +193,8 @@ export default function AnnouncementsScreen() {
       const result = await send({
         title,
         message,
-        audience,
-        sendEmail,
+        ...target,
+        ...emailFlags(email),
         ...(when === "later" && sendAt !== null ? { sendAt } : {}),
       });
       showToast(
@@ -192,7 +204,7 @@ export default function AnnouncementsScreen() {
       );
       setTitle("");
       setMessage("");
-      setSendEmail(false);
+      setEmail("none");
       setWhen("now");
     } catch (e) {
       setError(errorMessage(e));
@@ -201,11 +213,26 @@ export default function AnnouncementsScreen() {
     }
   };
 
+  const nameOf = (address: string) =>
+    options?.people.find((person) => person.email === address)?.name ?? address;
+  const withoutApp = !nothingPicked && size ? size.withoutApp : [];
+  const toggleEmailEveryone = () => setEmail((v) => (v === "everyone" ? "none" : "everyone"));
+  const toggleEmailThem = () => setEmail((v) => (v === "withoutApp" ? "none" : "withoutApp"));
+
   const confirmMessage = () => {
     if (!size) return undefined;
     const whenPart = when === "now" ? "now" : sendAt ? `on ${formatDayTime(sendAt)}` : "";
-    const email = sendEmail ? "; all get an email" : "";
-    return `"${title.trim()}" goes to ${people(size.people)} (${audienceSummary(audience)}) ${whenPart}. ${size.withApp} by push${email}.`;
+    const who =
+      reach === "people"
+        ? nameList(chosen.slice(0, 3).map(nameOf), chosen.length)
+        : audienceSummary(audience);
+    const emailPart =
+      email === "everyone"
+        ? "; all get an email"
+        : email === "withoutApp" && withoutApp.length > 0
+          ? `; ${withoutApp.length} without it get an email`
+          : "";
+    return `"${title.trim()}" goes to ${people(size.people)} (${who}) ${whenPart}. ${size.withApp} by push${emailPart}.`;
   };
 
   return (
@@ -245,7 +272,8 @@ export default function AnnouncementsScreen() {
           <Segmented
             segments={[
               { key: "everyone", label: "All leaders" },
-              { key: "groups", label: "Choose groups" },
+              { key: "groups", label: "Groups" },
+              { key: "people", label: "People" },
             ]}
             active={reach}
             onChange={(key) => setReach(key as Reach)}
@@ -282,11 +310,16 @@ export default function AnnouncementsScreen() {
               />
             </>
           ) : null}
+          {reach === "people" ? (
+            <PeoplePicker people={options?.people} values={chosen} onChange={setChosen} />
+          ) : null}
           <View style={[styles.reach, { backgroundColor: t.primarySoft }]}>
             <Ionicons name="people" size={18} color={t.dark ? t.text : t.primary} />
             <Text style={[typography.body, { color: t.text, flex: 1 }]} testID="announcement-count">
               {nothingPicked
-                ? "Pick a campus, division, department or role."
+                ? reach === "people"
+                  ? "Pick who to send it to."
+                  : "Pick a campus, division, department or role."
                 : size === undefined || size === null
                 ? "Counting…"
                 : size.people === 0
@@ -294,10 +327,11 @@ export default function AnnouncementsScreen() {
                   : `${people(size.people)}. ${size.withApp} with the app get a push.`}
             </Text>
           </View>
+          <NoPushList withoutApp={withoutApp} email={email} onEmailThem={toggleEmailThem} />
           <Checkbox
-            checked={sendEmail}
-            onToggle={() => setSendEmail((v) => !v)}
-            label="Also send as an email"
+            checked={email === "everyone"}
+            onToggle={toggleEmailEveryone}
+            label="Also email everyone"
           />
         </Card>
 
@@ -360,7 +394,7 @@ export default function AnnouncementsScreen() {
                 parts={[
                   formatDayTime(a.sendAt),
                   a.audience,
-                  a.sendEmail ? "with email" : null,
+                  a.sendEmail ? "with email" : a.emailWithoutApp ? "email if no app" : null,
                   `by ${a.senderName}`,
                 ]}
               />
@@ -427,7 +461,7 @@ export default function AnnouncementsScreen() {
                   formatDayTime(a.sentAt ?? a.sendAt),
                   a.audience,
                   people(a.people ?? 0),
-                  a.sendEmail ? "emailed" : null,
+                  a.sendEmail ? "emailed" : a.emailWithoutApp && a.emailed ? `${a.emailed} emailed` : null,
                 ]}
               />
               <Muted>by {a.senderName}</Muted>
@@ -437,12 +471,14 @@ export default function AnnouncementsScreen() {
         ))}
       </View>
 
-      <ConfirmDialog
+      <SendConfirmDialog
         visible={confirming}
-        title={`${action} this announcement?`}
-        message={confirmMessage()}
-        confirmLabel={action}
-        destructive={false}
+        action={action}
+        summary={confirmMessage()}
+        withoutApp={withoutApp}
+        email={email}
+        onEmailThem={toggleEmailThem}
+        onEmailEveryone={toggleEmailEveryone}
         onConfirm={() => void submit()}
         onClose={() => setConfirming(false)}
       />

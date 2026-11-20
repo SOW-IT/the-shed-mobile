@@ -89,7 +89,17 @@ async function setup() {
 
 const audience = (partial: Partial<Audience>): Audience => ({ ...EVERYONE, ...partial });
 
-const draft = (over: Partial<{ title: string; message: string; sendEmail: boolean; audience: Audience; sendAt: number }> = {}) => ({
+const draft = (
+  over: Partial<{
+    title: string;
+    message: string;
+    sendEmail: boolean;
+    emailWithoutApp: boolean;
+    audience: Audience;
+    people: string[];
+    sendAt: number;
+  }> = {}
+) => ({
   title: "Staff meeting moved",
   message: "This week's staff meeting is on Thursday at 7pm.",
   sendEmail: false,
@@ -126,8 +136,10 @@ describe("audienceSize", () => {
   test("counts this year's leaders the audience reaches, and those with the app", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    const size = (a: Partial<Audience>) =>
-      admin.query(api.announcements.audienceSize, { audience: audience(a) });
+    const size = async (a: Partial<Audience>) => {
+      const result = await admin.query(api.announcements.audienceSize, { audience: audience(a) });
+      return { people: result?.people, withApp: result?.withApp };
+    };
 
     expect(await size({})).toEqual({ people: 6, withApp: 2 });
     expect(await size({ departments: ["Finance"] })).toEqual({ people: 1, withApp: 1 });
@@ -138,6 +150,243 @@ describe("audienceSize", () => {
     expect(await size({ campuses: [UNSW, USYD], roles: ["President"] })).toEqual({ people: 1, withApp: 0 });
     expect(await size({ campuses: [UNSW], roles: ["Staff"] })).toEqual({ people: 0, withApp: 0 });
     expect(await size({ departments: [" Finance ", "Finance", ""] })).toEqual({ people: 1, withApp: 1 });
+  });
+});
+
+describe("who may not get a push", () => {
+  test("lists everyone a push can't reach, by name, and why", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("appInstalls", { email: PRES, platform: "ios", version: "2.4.0", seenAt: PINNED_NOW });
+      for (const email of ["dee@sow.org.au", "zed@sow.org.au"]) {
+        await ctx.db.insert("staffProfiles", {
+          email,
+          year: YEAR,
+          assignments: [{ role: "Staff", department: "Events" }],
+        });
+      }
+      await ctx.db.insert("directoryUsers", { email: "dee@sow.org.au", name: "Dee Directory" });
+    });
+    const admin = asUser(t, ADMIN);
+    expect(await admin.query(api.announcements.audienceSize, { audience: EVERYONE })).toEqual({
+      people: 8,
+      withApp: 2,
+      withoutApp: [
+        { email: ADMIN, name: "Ada Admin", reason: "noApp" },
+        { email: "dee@sow.org.au", name: "Dee Directory", reason: "noApp" },
+        { email: HR, name: "Hannah", reason: "noApp" },
+        { email: IT_HEAD, name: "Ian", reason: "noApp" },
+        { email: PRES, name: "Penny", reason: "notificationsOff" },
+        { email: "zed@sow.org.au", name: "zed@sow.org.au", reason: "noApp" },
+      ],
+    });
+    expect(
+      (await admin.query(api.announcements.options, {}))?.people.find((p) => p.email === "dee@sow.org.au")
+    ).toEqual({ email: "dee@sow.org.au", name: "Dee Directory", detail: "Events" });
+    expect(
+      await admin.query(api.announcements.audienceSize, {
+        audience: audience({ departments: ["Finance"] }),
+      })
+    ).toEqual({ people: 1, withApp: 1, withoutApp: [] });
+  });
+});
+
+describe("choosing people", () => {
+  test("the picker lists this year's leaders by name, with what they do", async () => {
+    const t = await setup();
+    const options = await asUser(t, ADMIN).query(api.announcements.options, {});
+    expect(options?.people.map((p) => p.name)).toEqual([
+      "Ada Admin",
+      "Fiona",
+      "Hannah",
+      "Ian",
+      "Luke",
+      "Penny",
+    ]);
+    expect(options?.people).toContainEqual({ email: LEADER, name: "Luke", detail: "UNSW, Events" });
+    expect(options?.people).toContainEqual({ email: FIN, name: "Fiona", detail: "Finance" });
+    expect(options?.people.some((p) => p.email === "old@sow.org.au")).toBe(false);
+  });
+
+  test("counts just the people picked, whatever groups are also set", async () => {
+    const t = await setup();
+    const size = await asUser(t, ADMIN).query(api.announcements.audienceSize, {
+      audience: audience({ departments: ["Finance"] }),
+      people: [" Luke@sow.org.au ", PRES, PRES, "old@sow.org.au", "nobody@sow.org.au"],
+    });
+    expect(size).toEqual({
+      people: 2,
+      withApp: 1,
+      withoutApp: [{ email: PRES, name: "Penny", reason: "noApp" }],
+    });
+    expect(
+      await asUser(t, ADMIN).query(api.announcements.audienceSize, { audience: EVERYONE, people: [] })
+    ).toEqual({ people: 0, withApp: 0, withoutApp: [] });
+  });
+
+  test("only the people picked get it, and the history names them", async () => {
+    const t = await setup();
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const admin = asUser(t, ADMIN);
+    const { id, people } = await admin.mutation(
+      api.announcements.send,
+      draft({ people: [LEADER, PRES, "Fiona@sow.org.au"], audience: audience({ roles: ["Nope"] }) })
+    );
+    expect(people).toBe(3);
+    expect(await announcement(t, id)).toMatchObject({
+      audience: EVERYONE,
+      people: [LEADER, PRES, FIN],
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await announcement(t, id)).toMatchObject({
+      status: "sent",
+      recipientCount: 3,
+      pushCount: 2,
+      emailCount: 0,
+    });
+    for (const email of [LEADER, PRES, FIN]) {
+      expect(await notificationsFor(t, email)).toHaveLength(1);
+    }
+    for (const email of [ADMIN, HR, IT_HEAD]) {
+      expect(await notificationsFor(t, email)).toEqual([]);
+    }
+    const pushes = fetchMock.mock.calls.filter(([u]) => String(u).includes("push/send"));
+    expect(JSON.parse(pushes[0][1].body).map((m: { to: string }) => m.to).sort()).toEqual([
+      "ExponentPushToken[fin]",
+      "ExponentPushToken[luke]",
+    ]);
+    expect((await admin.query(api.announcements.list, {}))?.sent).toEqual([
+      expect.objectContaining({ id, audience: "Luke, Penny and Fiona", chosenPeople: 3 }),
+    ]);
+    expect((await admin.query(api.announcements.get, { id }))?.details).toMatchObject({
+      audience: "Luke, Penny and Fiona",
+      people: 3,
+      withApp: 2,
+    });
+  });
+
+  test("more than three people are summed up", async () => {
+    const t = await setup();
+    const { id } = await asUser(t, ADMIN).mutation(
+      api.announcements.send,
+      draft({ people: [LEADER, PRES, FIN, HR, IT_HEAD], sendAt: PINNED_NOW + HOUR })
+    );
+    expect((await asUser(t, ADMIN).query(api.announcements.list, {}))?.scheduled).toEqual([
+      expect.objectContaining({ id, audience: "Luke, Penny, Fiona and 2 more", chosenPeople: 5 }),
+    ]);
+  });
+
+  test("needs someone picked who is on this year's staff, and no more than the limit", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await expect(admin.mutation(api.announcements.send, draft({ people: [] }))).rejects.toThrow(
+      /Pick at least one person/
+    );
+    await expect(admin.mutation(api.announcements.send, draft({ people: [" "] }))).rejects.toThrow(
+      /Pick at least one person/
+    );
+    await expect(
+      admin.mutation(api.announcements.send, draft({ people: ["old@sow.org.au"] }))
+    ).rejects.toThrow(/No one matches/);
+    const tooMany = Array.from({ length: 2001 }, (_, i) => `p${i}@sow.org.au`);
+    await expect(admin.mutation(api.announcements.send, draft({ people: tooMany }))).rejects.toThrow(
+      /2000 people or fewer/
+    );
+    await expect(
+      admin.query(api.announcements.audienceSize, { audience: EVERYONE, people: tooMany })
+    ).rejects.toThrow(/2000 people or fewer/);
+  });
+
+  test("a scheduled one whose people have all left by then doesn't go out, and says why", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const { id } = await admin.mutation(
+      api.announcements.send,
+      draft({ people: [PRES], sendAt: PINNED_NOW + HOUR })
+    );
+    await t.run(async (ctx) => {
+      const penny = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", PRES).eq("year", YEAR))
+        .unique();
+      await ctx.db.delete("staffProfiles", penny!._id);
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await announcement(t, id)).toMatchObject({ status: "cancelled", recipientCount: 0 });
+    expect((await admin.query(api.announcements.list, {}))?.notSent).toEqual([
+      expect.objectContaining({
+        id,
+        notSentReason: expect.stringMatching(/None of the people it named/),
+      }),
+    ]);
+  });
+});
+
+describe("emailing the people a push can't reach", () => {
+  test("emails only those without a push when it goes out", async () => {
+    const t = await setup();
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const admin = asUser(t, ADMIN);
+    const { id } = await admin.mutation(
+      api.announcements.send,
+      draft({
+        emailWithoutApp: true,
+        audience: audience({ divisions: ["Governance"] }),
+        sendAt: PINNED_NOW + HOUR,
+      })
+    );
+    expect(await announcement(t, id)).toMatchObject({ sendEmail: false, emailWithoutApp: true });
+    expect((await admin.query(api.announcements.list, {}))?.scheduled).toEqual([
+      expect.objectContaining({ id, sendEmail: false, emailWithoutApp: true }),
+    ]);
+    // Ian installs the app and allows notifications before it's due.
+    await t.run((ctx) =>
+      ctx.db.insert("pushTokens", { email: IT_HEAD, token: "ExponentPushToken[ian]" })
+    );
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await announcement(t, id)).toMatchObject({
+      recipientCount: 3,
+      pushCount: 2,
+      emailCount: 1,
+    });
+    const emails = fetchMock.mock.calls.filter(([u]) => String(u).includes("emails/batch"));
+    expect(emails).toHaveLength(1);
+    expect(JSON.parse(emails[0][1].body).map((m: { to: string[] }) => m.to[0])).toEqual([ADMIN]);
+    expect((await admin.query(api.announcements.get, { id }))?.details).toMatchObject({
+      sendEmail: false,
+      emailWithoutApp: true,
+      emailed: 1,
+    });
+  });
+
+  test("sends no email when everyone it reaches has a push", async () => {
+    const t = await setup();
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const { id } = await asUser(t, ADMIN).mutation(
+      api.announcements.send,
+      draft({ emailWithoutApp: true, people: [FIN, LEADER] })
+    );
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await announcement(t, id)).toMatchObject({ pushCount: 2, emailCount: 0 });
+    expect(fetchMock.mock.calls.some(([u]) => String(u).includes("resend"))).toBe(false);
+  });
+
+  test("emailing everyone wins over emailing just those without the app", async () => {
+    const t = await setup();
+    const { id } = await asUser(t, ADMIN).mutation(
+      api.announcements.send,
+      draft({ sendEmail: true, emailWithoutApp: true, people: [FIN, PRES] })
+    );
+    const stored = await announcement(t, id);
+    expect(stored).toMatchObject({ sendEmail: true });
+    expect(stored?.emailWithoutApp).toBeUndefined();
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await announcement(t, id)).toMatchObject({ emailCount: 2 });
   });
 });
 
