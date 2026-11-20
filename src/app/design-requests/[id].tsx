@@ -1,7 +1,7 @@
 import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
@@ -21,6 +21,7 @@ import { sydneyDateTime } from "@/lib/sydneyTime";
 import { StepTrack } from "@/components/StepTrack";
 import { DesignStatusPill } from "@/components/design/DesignStatusPill";
 import {
+  Answer,
   Btn,
   Card,
   ConfirmDialog,
@@ -51,18 +52,6 @@ const EVENT_LABELS: Record<string, string> = {
   completed: "Marked complete",
   cancelled: "Cancelled",
   imported: "Imported from the old SHED",
-};
-
-const Answer = ({ label, children }: { label: string; children: ReactNode }) => {
-  const t = useAppTheme();
-  return (
-    <View style={styles.answer}>
-      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
-      <Text selectable style={[typography.body, { color: t.text }]}>
-        {children}
-      </Text>
-    </View>
-  );
 };
 
 const Answers = ({
@@ -396,7 +385,3 @@ export default function DesignRequestScreen() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  answer: { gap: 4 },
-});
