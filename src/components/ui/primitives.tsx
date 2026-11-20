@@ -135,7 +135,7 @@ export const SectionTitle = ({
   );
   if (chip === undefined) return title;
   return (
-    <View style={[styles.sectionTitle, styles.sectionTitleRow]}>
+    <View style={[styles.sectionTitle, styles.inlineRow]}>
       {title}
       <Chip>{chip}</Chip>
     </View>
@@ -187,7 +187,7 @@ export const Row = ({
   }
   if (spread) {
     return (
-      <View style={styles.rowSpread}>
+      <View style={styles.inlineRow}>
         {Children.map(children, (child) => (
           <View style={{ flex: 1 }}>{child}</View>
         ))}
