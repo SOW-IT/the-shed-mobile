@@ -64,6 +64,9 @@ const BUNDLE_ID = "au.org.sow.theshed";
 const APP_SCHEME = "theshedmobile";
 const DEV_CLIENT_SCHEME = "exp+the-shed-mobile";
 const E2E_SECRET = "verify-only-secret";
+// Both phases seed events at the same times, so before and after screenshots
+// match. Each phase seeds well inside the hour either side of this moment.
+const SEED_NOW = Date.now();
 const INSTANCE = { name: "theshed-verify", secret: "0".repeat(64) };
 
 const JAVA_HOME = "/opt/homebrew/opt/openjdk";
@@ -263,7 +266,7 @@ const startBackend = async (label, tree, work) => {
   }
   sh("node", [join(ROOT, "scripts/sweep-seed.mjs")], {
     cwd: tree,
-    env: { ...ENV, CONVEX_ENV_FILE: envFile, SWEEP_SEED_OUT: join(dir, "sweep-seed.json") },
+    env: { ...ENV, CONVEX_ENV_FILE: envFile, SWEEP_SEED_OUT: join(dir, "sweep-seed.json"), SWEEP_NOW: String(SEED_NOW) },
   });
   return `${label} functions on :${PORTS.convex}`;
 };
