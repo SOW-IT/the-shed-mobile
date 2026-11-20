@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
+import { allRoutes, resolveRoutes, routeSlug } from "./lib/verifyPlan.mjs";
 
 const arg = (name, fallback) => {
   const index = process.argv.indexOf(`--${name}`);
@@ -10,14 +11,16 @@ const arg = (name, fallback) => {
 const BASE = arg("base", "http://localhost:8082").replace(/\/+$/, "");
 const OUT = arg("out", "sweep");
 const SECRET = process.env.SWEEP_E2E_SECRET || "sweep-only-secret";
-const seed = existsSync("sweep-seed.json") ? JSON.parse(readFileSync("sweep-seed.json", "utf8")) : null;
+const SEED = arg("seed", "sweep-seed.json");
+const seed = existsSync(SEED) ? JSON.parse(readFileSync(SEED, "utf8")) : null;
 
+const roleArg = arg("roles", null)?.split(",");
 const roles = [
   ["out", null],
   ["leader", process.env.SWEEP_LEADER ?? seed?.people.leader ?? null],
   ["staff", process.env.SWEEP_STAFF ?? seed?.people.staff ?? null],
   ["admin", process.env.SWEEP_ADMIN ?? seed?.people.admin ?? null],
-];
+].filter(([role]) => !roleArg || roleArg.includes(role));
 const missingRoles = roles.filter(([role, email]) => role !== "out" && !email).map(([role]) => role);
 if (missingRoles.length > 0) {
   console.error(
@@ -26,40 +29,9 @@ if (missingRoles.length > 0) {
   process.exit(2);
 }
 
-const routes = [
-  "/",
-  "/home",
-  "/notifications",
-  "/announcements",
-  "/profile",
-  "/org",
-  "/churches",
-  "/review",
-  "/all",
-  "/design-requests",
-  "/design-requests/new",
-  "/event-requests",
-  "/event-requests/new",
-  "/edit-home",
-  "/attendance",
-  "/calendar",
-  "/calendar?view=week",
-  "/grievances",
-  "/grievances/new",
-  ...(seed ? [`/attendance/event/${seed.eventId}`, `/attendance/member/member%3A${seed.memberId}`] : []),
-  ...(seed?.checkInToken ? [`/checkin/${seed.checkInToken}`] : []),
-  "/checkin/not-a-real-link",
-  "/insights?tab=general",
-  "/insights?tab=attendance",
-  "/mentoring",
-  "/admin",
-  "/admin?tab=teams",
-  "/admin?tab=system",
-  "/finance-settings",
-  "/attendance/merges",
-  "/grievances?tab=settings",
-  "/no-such-page",
-];
+const map = JSON.parse(readFileSync(new URL("./verify/feature-map.json", import.meta.url), "utf8"));
+const routeArg = arg("routes", null);
+const routes = resolveRoutes(routeArg ? routeArg.split(",") : allRoutes(map), seed);
 
 const BROKEN = /something went wrong|unmatched route|this screen doesn't exist|configuration error/i;
 const SIGNED_OUT = /sign in with your sow account/i;
@@ -125,7 +97,7 @@ for (const [role, email] of roles) {
       continue;
     }
   }
-  for (const route of routes) {
+  for (const { template, route } of routes) {
     const errors = [];
     const consoleErrors = [];
     const onError = (error) => errors.push(String(error).slice(0, 300));
@@ -151,8 +123,7 @@ for (const [role, email] of roles) {
     if (lostSession) errors.push("landed signed out");
     const bad =
       (BROKEN.test(text) && !expectedMissing) || errors.length > 0 || unexpectedConsole.length > 0;
-    const slug = route.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "root";
-    await page.screenshot({ path: `${OUT}/${role}-${slug}.png` }).catch(() => {});
+    await page.screenshot({ path: `${OUT}/${role}-${routeSlug(template)}.png` }).catch(() => {});
     page.off("pageerror", onError);
     page.off("console", onConsole);
     results.push({ role, route, landed: page.url().replace(BASE, ""), bad, errors, consoleErrors, text });

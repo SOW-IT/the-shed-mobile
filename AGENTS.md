@@ -37,13 +37,16 @@ Head, and a Budget Manager (Admin → "Other"; picker lists Finance members only
 1. **Clarify first** — ask the user about anything unclear (scope, UX, edge
    cases, permissions, data) before implementing. Then follow
    `.claude/skills/create-feature/SKILL.md`.
-2. **Verify** — run the checks, then exercise the change on the iOS Simulator
-   (baguette) and web. Take before/after screenshots of UI changes.
+2. **Verify** — `node scripts/verify.mjs` (the `verify` skill,
+   `docs/verification.md`): lint, typecheck and unit tests, then each
+   affected screen on the iOS Simulator and web with before/after
+   screenshots. Drive new interactions by hand with baguette and Playwright.
 3. **Open the PR** per `.claude/skills/create-pr/SKILL.md`, and add a link to a
    Netlify HTML explainer (with before/after screenshots when visible) to the
    PR description.
-4. **Babysit the PR** until merged or told to stop — fix failing CI, address
-   every review comment (fix or reply), re-verify UI changes on sim + web.
+4. **Shepherd the PR** per `.claude/skills/pr-shepherd/SKILL.md` until CI
+   is green, CodeRabbit has nothing open and `verify` passes, then mark it
+   ready. `node scripts/pr-status.mjs <number>` says where it stands.
 
 ## This Mac
 
