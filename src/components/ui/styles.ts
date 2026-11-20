@@ -83,6 +83,7 @@ export const styles = StyleSheet.create({
   rowSpread: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   rowLoading: { minHeight: 42, alignItems: "center", justifyContent: "center" },
   answer: { gap: 4 },
+  loadMore: { alignItems: "center", paddingVertical: spacing.md },
   yearPill: {
     flexDirection: "row",
     alignItems: "center",
