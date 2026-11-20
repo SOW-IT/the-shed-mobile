@@ -120,6 +120,26 @@ work in a PR description. Paste the rows for the screens the change touches;
 all of them together overflow GitHub's limit on a PR description.
 `--publish-only` publishes the last finished run again without rerunning it.
 
+## Filling in a form
+
+Route flows open screens; they don't type into them. To drive a form by hand,
+find each input by its test id. Every `Field` gets one from its label:
+`field-` plus the label in kebab case, without "(optional)". "Title" is
+`field-title` and "Phone (optional)" is `field-phone`. A caller that passes
+its own `testID` keeps it (`announcement-title`, `checkin-name`).
+
+On iOS, in a Maestro flow:
+
+```yaml
+- tapOn:
+    id: field-title
+- inputText: Practice moved to 7pm
+```
+
+On web, with Playwright: `page.getByTestId("field-title").fill("…")`. When
+two fields on one screen share a label, as the link rows on Edit Home do,
+Maestro takes `index:` and Playwright `.nth()`.
+
 ## Requirements on this Mac
 
 - Maestro at `~/.maestro/bin` and Homebrew OpenJDK. The script sets
