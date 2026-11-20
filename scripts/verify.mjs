@@ -2,6 +2,7 @@
 // One entry point for checking a branch: node scripts/verify.mjs --help.
 // docs/verification.md explains the tiers and the feature map.
 import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
@@ -11,7 +12,9 @@ import { planVerification, resolveRoutes, routeSlug } from "./lib/verifyPlan.mjs
 const ROOT = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const STATE = join(ROOT, ".verify");
 // Outside the repo, so tsc, vitest and eslint never pick up a second copy.
-const BASE_TREE = join(tmpdir(), "theshed-verify-base");
+// Named after the checkout, so two worktrees running verify can't remove
+// each other's.
+const BASE_TREE = join(tmpdir(), `theshed-verify-base-${createHash("sha256").update(ROOT).digest("hex").slice(0, 8)}`);
 const MAP = JSON.parse(readFileSync(join(ROOT, "scripts/verify/feature-map.json"), "utf8"));
 
 const HELP = `node scripts/verify.mjs [options]

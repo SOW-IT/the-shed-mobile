@@ -50,7 +50,7 @@ Repeat until `pr-status` exits 0 and the verification gate passes.
    cause. Don't retry a flaky step hoping it passes, and don't skip a check.
 2. **CodeRabbit.** Read every open thread in full
    (`gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate`), and
-   the review bodies (`gh api repos/{owner}/{repo}/pulls/<number>/reviews`)
+   the review bodies (`gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate`)
    for nitpicks and outside-the-diff comments that have no thread. Judge each
    on its merits. CodeRabbit finds real bugs and also posts noise.
    - **Valid**: fix it, and reply on the thread with the commit that fixed it.
