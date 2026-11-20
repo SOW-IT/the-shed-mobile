@@ -37,6 +37,11 @@ describe("planVerification", () => {
     expect(plan.unit).toEqual({ kind: "related", files: ["convex/calendar.ts"] });
   });
 
+  test("changed tests and static scripts go to vitest related too", () => {
+    const plan = planVerification({ changed: ["convex/calendar.ts", "convex/calendar.test.ts", "README.md"], map });
+    expect(plan.unit).toEqual({ kind: "related", files: ["convex/calendar.ts", "convex/calendar.test.ts"] });
+  });
+
   test("routes shared with smoke are not repeated", () => {
     expect(planVerification({ changed: ["src/app/(tabs)/home.tsx"], map }).routes).toEqual(["/", "/home", "/edit-home"]);
   });

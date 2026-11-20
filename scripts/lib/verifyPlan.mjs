@@ -31,7 +31,8 @@ export const classify = (file, map) => {
   return areas.length > 0 ? { kind: "area", areas } : { kind: "unmapped" };
 };
 
-const isCode = (file) => /\.(ts|tsx|mjs|js)$/.test(file) && !/\.test\.(ts|tsx|mjs)$/.test(file);
+// Changed tests run too, and so do the tests of changed static code (scripts).
+const isCodeOrTest = (file) => /\.(ts|tsx|mjs|js)$/.test(file);
 
 /**
  * Pick what to run for a diff.
@@ -99,7 +100,7 @@ export const planVerification = ({ changed, map, full = false, only = null, unat
     unmapped: [],
     areas: areaNames,
     routes: screenAreas.length > 0 ? unique([...map.smoke, ...screenAreas.flatMap((name) => map.areas[name].routes)]) : [],
-    unit: { kind: "related", files: touched.map((c) => c.file).filter(isCode) },
+    unit: { kind: "related", files: classified.filter((c) => c.kind !== "core").map((c) => c.file).filter(isCodeOrTest) },
   };
 };
 
