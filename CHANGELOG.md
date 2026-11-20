@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.27] - 2026-11-21
+
+### Changed
+- **Verify's before and after screenshots match when nothing changed, for
+  contributors.** Each screenshot waits until two frames in a row are
+  identical, on iOS and web, so none is caught mid-transition. The iOS status
+  bar shows 9:41 throughout, and seeded events sit at a round hour. Times the
+  server stamps can still differ (`docs/verification.md` → "Still open").
+  Nothing changes for people using the app.
+
 ## [2.11.21] - 2026-11-21
 
 ### Fixed

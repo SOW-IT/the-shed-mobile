@@ -80,7 +80,9 @@ Everything a run starts lives under `.verify/`, which ignores itself
    `.verify/run/<before|after>/convex/`. It doesn't read or write `.env.local`, so the shared
    dev deployment is never used.
 3. Pushes the functions, sets JWT keys and `E2E_AUTH_*`, and seeds the sweep
-   data (`scripts/sweep-seed.mjs`).
+   data (`scripts/sweep-seed.mjs`). Events are seeded around the top of the
+   next hour, the same instant for both phases, so their times read the same
+   in before and after and in a rerun within the hour.
 4. Serves the web app on 8192 and Metro for iOS on 8092, both pointed at the
    local backend.
 5. Boots the simulator `iPhone 17 Pro` (`--device` to change it) and waits
@@ -93,6 +95,14 @@ Everything a run starts lives under `.verify/`, which ignores itself
    iOS, a Maestro flow generated from the same routes
    (`.verify/run/<before|after>/ios-flow.yaml`). iOS signs in as the admin through
    the `e2e-auth` deep link.
+
+   A screenshot waits until the screen has stopped moving: it keeps taking
+   frames until two in a row are identical, up to ten
+   (`scripts/lib/stableFrames.mjs`). On iOS the Maestro flow asks verify
+   after each frame whether that screen has settled. The simulator's status
+   bar reads 9:41 with full signal and battery for the whole run and goes
+   back to normal afterwards. A screen still moving after ten frames, like
+   one with a spinner, is kept as it was and named in the step's detail.
 7. Stops everything it started and frees the ports, even when a step fails.
 
 For **before** screenshots it does the same against the merge base. That
@@ -139,6 +149,12 @@ all of them together overflow GitHub's limit on a PR description.
 | full | 25 to 35 min | 15 to 20 min |
 
 ## Still open
+
+- Before and after pairs of an unchanged screen still differ where the
+  server writes the time (an attendance sign-in, a request's submission)
+  or the app shows a time relative to now ("7m ago"). Both phases seed at
+  the same round hour, but the backend stamps writes with the real clock and
+  the phases run minutes apart.
 
 - iOS signs in as admin only, while web runs all four roles.
 - The scoped tier runs `vitest related`, not the whole suite.
