@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -14,6 +14,7 @@ import { QrCode } from "./QrCode";
 import { phaseBetween } from "../../../shared/checkInWindow";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { useHeldValue } from "@/hooks/useHeldValue";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { appScheme } from "@/hooks/useReportAppVersion";
 
 const webOrigin = (): string =>
@@ -158,11 +159,7 @@ function MemberPicker({
 }) {
   const t = useAppTheme();
   const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(query.trim()), PICKER_DEBOUNCE_MS);
-    return () => clearTimeout(id);
-  }, [query]);
+  const debounced = useDebouncedValue(query, PICKER_DEBOUNCE_MS).trim();
   const close = () => {
     setQuery("");
     onClose();

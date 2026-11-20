@@ -22,6 +22,7 @@ import {
   Facts,
 } from "@/components/ui";
 import { FilterBar } from "@/components/attendance/FilterBar";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
@@ -72,7 +73,7 @@ export function AuditTab({
   const t = useAppTheme();
 
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 400);
   const [entityTypes, setEntityTypes] = useState<AuditEntityType[]>([]);
   const [actorEmails, setActorEmails] = useState<string[]>([]);
   const [eventIds, setEventIds] = useState<Id<"events">[]>([]);
@@ -101,11 +102,6 @@ export function AuditTab({
       live = false;
     };
   }, [convex, filtersOpen, optionsAttempt]);
-
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(search), 400);
-    return () => clearTimeout(id);
-  }, [search]);
 
   const scopeKey = JSON.stringify([debouncedSearch, entityTypes, actorEmails, eventIds]);
   const listRef = useRef<ScrollViewInstance>(null);

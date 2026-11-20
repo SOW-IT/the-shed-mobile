@@ -55,6 +55,7 @@ import {
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { backOr } from "@/lib/goBack";
 
@@ -223,11 +224,7 @@ export default function EventAttendanceScreen() {
   );
 
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(id);
-  }, [search]);
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS).trim();
   const [toast, setToast] = useState<ToastState>(null);
   const [eventEditOpen, setEventEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
