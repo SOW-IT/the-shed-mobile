@@ -12,10 +12,9 @@ import { useNavDrawer } from "@/components/nav/NavDrawer";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
-import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
-import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
 import { useMusicRequestsBadge } from "@/hooks/useMusicRequestsBadge";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
+import { useStaffWaitingBadge } from "@/hooks/useStaffWaitingBadge";
 import { badgeText } from "@/lib/navMenu";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -44,8 +43,8 @@ export const TopBar = ({
     useQuery(api.notifications.unreadCount, isStaff ? {} : "skip") ?? 0;
   const badge =
     useReimbursementsBadge() +
-    useDesignRequestsBadge() +
-    useEventRequestsBadge() +
+    useStaffWaitingBadge(api.designRequests.waitingOnMe) +
+    useStaffWaitingBadge(api.eventRequests.waitingOnMe) +
     useMusicRequestsBadge();
   return (
     <View style={styles.topBar}>
