@@ -80,13 +80,15 @@ const coderabbit = {
 };
 
 const status = { url: pr.url, state: pr.state, draft: pr.isDraft, head: pr.headRefOid.slice(0, 7), changedFiles: pr.changedFiles, checks: { failed, pending, total: checks.length }, coderabbit };
-// Findings outside the diff live only in the review body, with no thread to
-// resolve. They block done until that review is passed to --ack once read.
+// Findings outside the diff live only in a review body, with no thread to
+// resolve. Reviews are incremental, so a finding on an earlier head isn't
+// repeated later: every CodeRabbit review's findings count until its id is
+// passed to --ack.
 const acked = new Set((process.argv[process.argv.indexOf("--ack") + 1] ?? "").split(",").filter(Boolean));
 const count = (text, label) => Number(text.match(new RegExp(`${label}\\s*\\((\\d+)\\)`, "i"))?.[1] ?? 0);
 const bodyFindings = reviews
-  .filter((r) => isRabbit(r.login) && r.commit === pr.headRefOid)
-  .map((r) => ({ id: String(r.id), outsideDiff: count(plain(r.body ?? ""), "Outside diff range comments"), nitpicks: count(plain(r.body ?? ""), "Nitpick comments") }))
+  .filter((r) => isRabbit(r.login))
+  .map((r) => ({ id: String(r.id), commit: (r.commit ?? "").slice(0, 7), outsideDiff: count(plain(r.body ?? ""), "Outside diff range comments"), nitpicks: count(plain(r.body ?? ""), "Nitpick comments") }))
   .filter((r) => r.outsideDiff + r.nitpicks > 0);
 const unreadBodies = bodyFindings.filter((r) => r.outsideDiff > 0 && !acked.has(r.id));
 coderabbit.bodyFindings = bodyFindings;
@@ -103,7 +105,7 @@ if (process.argv.includes("--json")) {
   if (limited) console.log(`CodeRabbit is rate limited; ask again after ${coderabbit.rateLimited.retryAfter} with "@coderabbitai review"`);
   console.log(`CodeRabbit: ${reviewedHead ? "has reviewed" : "has NOT reviewed"} head ${status.head}; ${openThreads.length} open thread(s)`);
   for (const r of bodyFindings) {
-    console.log(`  review ${r.id}: ${r.outsideDiff} outside-diff, ${r.nitpicks} nitpick finding(s) in its body${acked.has(r.id) ? " (acknowledged)" : r.outsideDiff ? "; read them, then pass --ack " + r.id : ""}`);
+    console.log(`  review ${r.id} (on ${r.commit}): ${r.outsideDiff} outside-diff, ${r.nitpicks} nitpick finding(s) in its body${acked.has(r.id) ? " (acknowledged)" : r.outsideDiff ? "; read them, then pass --ack " + r.id : ""}`);
   }
   if (!reviewedHead && !limited && !skipped) console.log('  ask with "@coderabbitai review" (drafts and stacked PRs get no automatic review)');
   for (const t of openThreads) console.log(`  ${t.outdated ? "(outdated) " : ""}${t.repliedByUs ? "(replied) " : ""}${t.where} ${t.summary.slice(0, 100)}\n    ${t.url}\n    thread ${t.id}`);
