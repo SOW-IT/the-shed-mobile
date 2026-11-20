@@ -9,11 +9,12 @@ import {
   query,
 } from "./_generated/server";
 import { decryptSpotifyToken, encryptSpotifyToken } from "./spotifyCrypto";
+import { env } from "./environment";
 
 export const getClientId = query({
   args: {},
   handler: async () => {
-    return process.env.SPOTIFY_CLIENT_ID ?? "";
+    return env("SPOTIFY_CLIENT_ID") ?? "";
   },
 });
 
@@ -198,8 +199,8 @@ export const connect = action({
       throw new ConvexError("Invalid Spotify redirect URI.");
     }
 
-    const clientId = process.env.SPOTIFY_CLIENT_ID;
-    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+    const clientId = env("SPOTIFY_CLIENT_ID");
+    const clientSecret = env("SPOTIFY_CLIENT_SECRET");
 
     if (!clientId || !clientSecret) {
       throw new ConvexError("Spotify credentials are not configured.");
@@ -330,8 +331,8 @@ export const importPlaylist = action({
     };
 
     if (connection.expiresAt <= Date.now() + 60_000) {
-      const clientId = process.env.SPOTIFY_CLIENT_ID;
-      const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+      const clientId = env("SPOTIFY_CLIENT_ID");
+      const clientSecret = env("SPOTIFY_CLIENT_SECRET");
 
       if (!clientId || !clientSecret) {
         throw new ConvexError("Spotify credentials are not configured.");

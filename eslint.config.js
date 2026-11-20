@@ -98,6 +98,13 @@ module.exports = defineConfig([
     },
   },
   {
+    // Environment variables are read in one module per runtime, which lists
+    // them all: src/env.ts for the app, convex/environment.ts for the backend.
+    files: ["src/**/*.ts", "src/**/*.tsx", "convex/**/*.ts"],
+    ignores: ["src/env.ts", "convex/environment.ts", "convex/**/*.test.ts"],
+    rules: { "no-process-env": "error" },
+  },
+  {
     files: ["convex/**/*.test.ts"],
     rules: { "@convex-dev/no-filter-in-query": "off", "no-restricted-syntax": "off" },
   },

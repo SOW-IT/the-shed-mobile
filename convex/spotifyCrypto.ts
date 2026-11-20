@@ -1,8 +1,10 @@
+import { env } from "./environment";
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 async function encryptionKey(): Promise<CryptoKey> {
-  const encoded = process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY;
+  const encoded = env("SPOTIFY_TOKEN_ENCRYPTION_KEY");
 
   if (!encoded) {
     throw new Error("Spotify encryption key is not configured.");

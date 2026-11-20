@@ -35,6 +35,7 @@ import {
   rolesOf,
 } from "./model";
 import { isAssigned, staffProfileOfMember } from "./staffMembers";
+import { env } from "./environment";
 
 const MAX_CHURCHES = 500;
 const MAX_STAFF = 3000;
@@ -68,7 +69,7 @@ export const viewOf = (church: Doc<"churches">) => ({
   location: church.location ?? null,
 });
 
-const mapsKey = () => process.env.GOOGLE_MAPS_API_KEY || undefined;
+const mapsKey = () => env("GOOGLE_MAPS_API_KEY") || undefined;
 
 const scheduleLocating = async (ctx: MutationCtx) => {
   if (mapsKey()) await ctx.scheduler.runAfter(0, internal.churches.locateAll, {});
