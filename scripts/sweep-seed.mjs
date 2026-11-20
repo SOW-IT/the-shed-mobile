@@ -40,7 +40,7 @@ run("admin:setBudgetManager", { year, email: SWEEP_PEOPLE.finance }, admin);
 run("admin:upsertUniversity", { year, name: UNSW }, admin);
 run("admin:setStaffProfile", { year, email: SWEEP_PEOPLE.leader, roles: ["Student Leader"], university: UNSW }, admin);
 
-const now = Date.now();
+const now = Number(process.env.SWEEP_NOW) || Date.now();
 const eventId = run(
   "events:create",
   { name: "Sweep weekly", dateStart: now - 60 * 60 * 1000, dateEnd: now + 60 * 60 * 1000, subgroups: [UNSW] },
