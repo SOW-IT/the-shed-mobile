@@ -102,7 +102,7 @@ export const NAV_GROUP_LABELS: Record<NavGroupKey, string> = {
   requests: "Requests",
 };
 
-export type NavEntry =
+type NavEntry =
   | { kind: "item"; key: NavKey }
   | { kind: "group"; key: NavGroupKey; items: NavKey[] };
 

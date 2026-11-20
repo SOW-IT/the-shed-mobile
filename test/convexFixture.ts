@@ -16,7 +16,7 @@ declare global {
 export type T = TestConvex<typeof schema>;
 export type Caller = ReturnType<T["withIdentity"]>;
 
-export const modules = import.meta.glob("../convex/**/*.ts");
+const modules = import.meta.glob("../convex/**/*.ts");
 
 export const MINUTE = 60_000;
 export const HOUR = 60 * MINUTE;

@@ -9,7 +9,7 @@ import { Facts } from "@/components/ui";
 type IconName = keyof typeof Ionicons.glyphMap;
 type Tone = "primary" | "success" | "danger" | "quiet";
 
-export type HistoryEntry = {
+type HistoryEntry = {
   at: number;
   action: string;
   label: string;

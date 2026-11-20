@@ -33,7 +33,7 @@ export const seedStaff = (t: T, people: Person[], heads: Record<string, string |
     }
   });
 
-export const FLOW_PEOPLE: Person[] = [
+const FLOW_PEOPLE: Person[] = [
   [HENRY, [{ role: "Head of Department", department: "Marketing" }]],
   [MARY, [{ role: "Staff", department: "Marketing" }]],
   [RACHEL, [{ role: "Staff", department: "Events" }]],
@@ -43,7 +43,7 @@ export const FLOW_PEOPLE: Person[] = [
   [BELLA, [{ role: "Staff", department: "Finance" }]],
 ];
 
-export const FLOW_HEADS = { Marketing: HENRY, Events: EDDIE, Compliance: CORA, Finance: FIONA };
+const FLOW_HEADS = { Marketing: HENRY, Events: EDDIE, Compliance: CORA, Finance: FIONA };
 
 export async function flowSetup(extra: Person[] = [], convex?: T) {
   const t = await seeded(convex);
