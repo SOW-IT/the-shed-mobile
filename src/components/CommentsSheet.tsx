@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
-import { Doc, Id } from "../../convex/_generated/dataModel";
+import { Doc, Id, TableNames } from "../../convex/_generated/dataModel";
 import { CommentThreadSheet } from "./CommentThreadSheet";
 
 const CLOSE_ANIMATION_MS = 300;
@@ -29,10 +29,10 @@ export const useRetained = <T,>(current: T | undefined): T | undefined => {
   return loaded;
 };
 
-export const optimisticComment = <E extends object>(body: string, extra: E) => {
+export const optimisticComment = <T extends TableNames, E extends object>(_table: T, body: string, extra: E) => {
   const now = Date.now();
   return {
-    id: `optimistic-${now}` as never,
+    id: `optimistic-${now}` as unknown as Id<T>,
     authorEmail: "",
     body: body.trim(),
     at: now,
@@ -68,7 +68,7 @@ export const CommentsSheet = ({
       if (!current) return;
       localStore.setQuery(api.comments.list, { requestId }, [
         ...current,
-        optimisticComment(body, { authorName: null, reactions: [] }),
+        optimisticComment("requestComments", body, { authorName: null, reactions: [] }),
       ]);
     }
   );

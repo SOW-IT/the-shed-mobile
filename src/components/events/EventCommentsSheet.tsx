@@ -31,7 +31,7 @@ export const EventCommentsSheet = ({
       if (!current) return;
       localStore.setQuery(api.eventRequestComments.list, { id: args.id, form: args.form }, [
         ...current,
-        optimisticComment(args.body, { authorName: "" }),
+        optimisticComment("eventRequestComments", args.body, { authorName: "" }),
       ]);
     }
   );

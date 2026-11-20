@@ -25,7 +25,7 @@ export const DesignCommentsSheet = ({
       if (!current) return;
       localStore.setQuery(api.designRequestComments.list, { id: args.id }, [
         ...current,
-        optimisticComment(args.body, { authorName: "" }),
+        optimisticComment("designRequestComments", args.body, { authorName: "" }),
       ]);
     }
   );
