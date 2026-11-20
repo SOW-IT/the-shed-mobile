@@ -56,9 +56,12 @@ const plain = (body) => body.replace(/<[^>]+>/g, " ").replace(/[>#*]/g, " ").rep
 const rabbitComments = comments.filter((c) => isRabbit(c.login)).map((c) => ({ at: c.at, text: plain(c.body), body: c.body }));
 // Evidence CodeRabbit reviewed this exact head: a review on that commit, or
 // its summary saying it reviewed up to it ("... between <base> and <head>").
+// A rate-limit notice names the head too, so it doesn't count.
 const reviewedHead =
   reviews.some((r) => isRabbit(r.login) && r.commit === pr.headRefOid) ||
-  rabbitComments.some((c) => new RegExp(`and ${pr.headRefOid}\\b`).test(c.body));
+  rabbitComments.some(
+    (c) => new RegExp(`and ${pr.headRefOid}\\b`).test(c.body) && !/rate limited|review limit reached|review skipped/i.test(c.text),
+  );
 const latest = (items) => items.reduce((a, b) => (!a || b.at > a.at ? b : a), null);
 const restriction = latest(rabbitComments.filter((c) => /rate limited|review limit reached|review skipped/i.test(c.text)));
 const cleared = latest([
