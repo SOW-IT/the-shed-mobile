@@ -1,6 +1,7 @@
 import { describe, expect, it, test } from "vitest";
 import {
   acronym,
+  normalEmail,
   ALLOWED_REACTIONS,
   APPROVED,
   currentStep,
@@ -372,5 +373,11 @@ describe("role titles", () => {
     expect(formatAssignment({ role: "Head of Department", department: "Campus" })).toBe(
       "HOD → Campus"
     );
+  });
+});
+
+describe("normalEmail", () => {
+  test("trims and lowercases an address", () => {
+    expect(normalEmail("  Jane.Doe@SOW.org.au ")).toBe("jane.doe@sow.org.au");
   });
 });

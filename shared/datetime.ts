@@ -5,6 +5,8 @@ export const toDateInputValue = (date: Date): string =>
     date.getMonth() + 1
   )}-${pad2(date.getDate())}`;
 
+export const dateInputFromMs = (ms: number): string => toDateInputValue(new Date(ms));
+
 export const toTimeInputValue = (date: Date): string =>
   `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 

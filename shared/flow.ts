@@ -31,6 +31,8 @@ export const UNIVERSITY_ROLES: readonly Role[] = [
   "Vice President",
   "Executive",
 ];
+export const normalEmail = (email: string) => email.trim().toLowerCase();
+
 export const roleNeedsUniversity = (role: string): boolean =>
   UNIVERSITY_ROLES.includes(role as Role);
 

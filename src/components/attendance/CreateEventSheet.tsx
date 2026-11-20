@@ -27,6 +27,7 @@ import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
   addDaysToDateInputValue,
+  dateInputFromMs,
   minuteAfterTime,
   toDateInputValue,
   toTimeInputValue,
@@ -58,8 +59,6 @@ const nowWhen = () => {
   const now = defaultEventInputs();
   return { dateStr: now.startDate, endDateStr: now.endDate, startTime: now.startTime, endTime: now.endTime };
 };
-
-const dateInputFromMs = (ms: number): string => toDateInputValue(new Date(ms));
 
 const timeInputFromMs = (ms: number): string => toTimeInputValue(new Date(ms));
 

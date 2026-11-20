@@ -5,8 +5,8 @@ import { Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
+  dateInputFromMs,
   parseDateInputValue,
-  toDateInputValue,
 } from "../../../shared/datetime";
 import { subgroupLabel, tagFilterLabels } from "../../../shared/rollcall";
 import { togglePicked } from "../../../shared/churches";
@@ -54,7 +54,6 @@ const endOfDay = (ms: number): number => {
   return d.getTime();
 };
 
-const toInputDate = (ms: number): string => toDateInputValue(new Date(ms));
 const fromInputDate = (value: string): number | undefined =>
   parseDateInputValue(value)?.getTime();
 
@@ -296,17 +295,17 @@ export function ExportSheet({
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             <DateInput
               label="From"
-              value={fromMs ? toInputDate(fromMs) : ""}
-              min={toInputDate(MIN_DATE.getTime())}
-              max={toInputDate(toMs ?? nowMs)}
+              value={fromMs ? dateInputFromMs(fromMs) : ""}
+              min={dateInputFromMs(MIN_DATE.getTime())}
+              max={dateInputFromMs(toMs ?? nowMs)}
               onChange={(s) => setFromMs(fromInputDate(s))}
               needed
             />
             <DateInput
               label="To"
-              value={toMs ? toInputDate(toMs) : ""}
-              min={toInputDate(fromMs ?? MIN_DATE.getTime())}
-              max={toInputDate(nowMs)}
+              value={toMs ? dateInputFromMs(toMs) : ""}
+              min={dateInputFromMs(fromMs ?? MIN_DATE.getTime())}
+              max={dateInputFromMs(nowMs)}
               placeholder="Today"
               onChange={(s) => setToMs(fromInputDate(s))}
               onClear={() => setToMs(undefined)}

@@ -10,6 +10,7 @@ import {
   parseDateInputValue,
   parseDateTimeInputValues,
   parseTimeInputValue,
+  dateInputFromMs,
   toDateInputValue,
   timeAgo,
   toTimeInputValue,
@@ -78,6 +79,7 @@ describe("toDateInputValue / toTimeInputValue", () => {
   it("writes the local calendar day and wall clock zero-padded", () => {
     const d = new Date(2024, 5, 9, 7, 4);
     expect(toDateInputValue(d)).toBe("2024-06-09");
+    expect(dateInputFromMs(d.getTime())).toBe("2024-06-09");
     expect(toTimeInputValue(d)).toBe("07:04");
   });
 
