@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.20] - 2026-11-20
+
+### Fixed
+- **Sign-in and sign-out problems show a message on the web.** If signing
+  out fails, or a sign-in is turned away or goes wrong, the web app now says
+  so, as the phone apps already did. Before, nothing happened.
+
+### Changed
+- **Checks for contributors.** CI lints the whole repo and fails on
+  warnings, and reports unused files, exports and dependencies. The new lint
+  rules come from mistakes that reviews kept catching.
+  `node scripts/verify.mjs` checks a branch: it opens the screens the change
+  affects on the web and the iOS Simulator against a throwaway local
+  backend, with before and after screenshots (`docs/verification.md`).
+  Nothing changes for people using the app.
+
 ## [2.11.19] - 2026-11-19
 
 ### Added
