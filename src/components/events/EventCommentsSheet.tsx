@@ -4,7 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { SUB_FORM_LABELS, type SubFormKind } from "@shared/eventRequests";
 import { CommentThreadSheet } from "@/components/CommentThreadSheet";
-import { useRetained, useThreadActive } from "@/components/CommentsSheet";
+import { optimisticComment, useRetained, useThreadActive } from "@/components/CommentsSheet";
 
 export const EventCommentsSheet = ({
   id,
@@ -29,18 +29,9 @@ export const EventCommentsSheet = ({
         form: args.form,
       });
       if (!current) return;
-      // eslint-disable-next-line react-hooks/purity -- optimistic id/timestamp
-      const now = Date.now();
       localStore.setQuery(api.eventRequestComments.list, { id: args.id, form: args.form }, [
         ...current,
-        {
-          id: `optimistic-${now}` as unknown as Id<"eventRequestComments">,
-          authorEmail: "",
-          authorName: "",
-          body: args.body.trim(),
-          at: now,
-          isMine: true,
-        },
+        optimisticComment(args.body, { authorName: "" }),
       ]);
     }
   );

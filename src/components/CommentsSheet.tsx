@@ -29,6 +29,18 @@ export const useRetained = <T,>(current: T | undefined): T | undefined => {
   return loaded;
 };
 
+export const optimisticComment = <E extends object>(body: string, extra: E) => {
+  const now = Date.now();
+  return {
+    id: `optimistic-${now}` as never,
+    authorEmail: "",
+    body: body.trim(),
+    at: now,
+    isMine: true,
+    ...extra,
+  };
+};
+
 export const CommentsSheet = ({
   request,
   visible,
@@ -54,19 +66,9 @@ export const CommentsSheet = ({
     (localStore, { requestId, body }) => {
       const current = localStore.getQuery(api.comments.list, { requestId });
       if (!current) return;
-      // eslint-disable-next-line react-hooks/purity -- optimistic id/timestamp
-      const now = Date.now();
       localStore.setQuery(api.comments.list, { requestId }, [
         ...current,
-        {
-          id: `optimistic-${now}` as unknown as Id<"requestComments">,
-          authorEmail: "",
-          authorName: null,
-          body: body.trim(),
-          at: now,
-          isMine: true,
-          reactions: [],
-        },
+        optimisticComment(body, { authorName: null, reactions: [] }),
       ]);
     }
   );
