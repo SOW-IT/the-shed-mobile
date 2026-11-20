@@ -1,10 +1,51 @@
 const { defineConfig } = require("eslint/config");
 const expoConfig = require("eslint-config-expo/flat");
+const convexPlugin = require("@convex-dev/eslint-plugin");
+const comments = require("@eslint-community/eslint-plugin-eslint-comments/configs");
+const globals = require("globals");
+
+// Each rule below is in the PR that added it with the review comments and
+// commits it answers (chore/pstack-cleanup). Lint runs as
+// `eslint . --max-warnings 0`, so a rule is either an error or absent.
+
+const webBlindDialogs = [
+  {
+    selector: "CallExpression[callee.object.name='Alert'][callee.property.name='alert']",
+    message:
+      "Alert.alert does nothing on web. Use notify() from @/lib/notify. A multi-button sheet on a native-only branch needs a disable comment saying so.",
+  },
+  {
+    selector: "CallExpression[callee.object.name='window'][callee.property.name=/^(alert|confirm|prompt)$/]",
+    message: "window.alert/confirm/prompt don't exist on iOS and Android. Use notify() from @/lib/notify, or ConfirmDialog from @/components/ui.",
+  },
+];
+
+const rawLinking = {
+  selector: "CallExpression[callee.object.name='Linking'][callee.property.name='openURL']",
+  message:
+    "Linking.openURL rejects when nothing handles the URL, and the rejection goes unhandled. Use openExternalLink from @/lib/openExternalLink.",
+};
 
 module.exports = defineConfig([
   expoConfig,
+  comments.recommended,
+  {
+    linterOptions: { reportUnusedDisableDirectives: "error" },
+    rules: {
+      "@eslint-community/eslint-comments/require-description": ["error", { ignore: ["eslint-enable"] }],
+      "@eslint-community/eslint-comments/no-unlimited-disable": "error",
+      "react-hooks/exhaustive-deps": "error",
+    },
+  },
+  {
+    files: ["**/*.js", "**/*.cjs", "**/*.mjs"],
+    languageOptions: { globals: globals.node },
+  },
   {
     files: ["**/*.ts", "**/*.tsx"],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: __dirname },
+    },
     rules: {
       "import/namespace": "off",
       "no-restricted-imports": [
@@ -19,9 +60,48 @@ module.exports = defineConfig([
           ],
         },
       ],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", ignoreRestSiblings: true },
+      ],
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": ["error", { checksVoidReturn: { attributes: true, arguments: false } }],
     },
   },
   {
-    ignores: ["dist/**", "coverage/**", "convex/_generated/**", ".expo/**"],
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    rules: {
+      "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking],
+    },
+  },
+  {
+    files: ["convex/**/*.ts"],
+    plugins: { "@convex-dev": convexPlugin },
+    rules: {
+      "@convex-dev/no-old-registered-function-syntax": "error",
+      "@convex-dev/require-args-validator": "error",
+      "@convex-dev/no-filter-in-query": "error",
+      "@convex-dev/no-schema-import-cycle": "error",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "MemberExpression[property.name='length'] > AwaitExpression.object > CallExpression.argument[callee.property.name='collect']",
+          message:
+            "`.collect().length` reads every row to count them. Keep a counter (convex/memberCount.ts, convex/attendanceCounts.ts) or paginate.",
+        },
+        {
+          selector: "CallExpression[callee.property.name=/^run(After|At)$/] > MemberExpression.arguments[object.object.name='api']",
+          message: "Schedule internal functions (internal.*), not public api.*, so the scheduled work can't also be called from a client.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["convex/**/*.test.ts"],
+    rules: { "@convex-dev/no-filter-in-query": "off", "no-restricted-syntax": "off" },
+  },
+  {
+    ignores: ["dist/**", "coverage/**", "convex/_generated/**", ".expo/**", ".verify/**", "ios/**", "android/**"],
   },
 ]);

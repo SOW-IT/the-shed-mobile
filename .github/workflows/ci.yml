@@ -29,8 +29,10 @@ jobs:
         env:
           EXPO_OFFLINE: "1"
         run: npx expo install --check
-      - name: Lint
-        run: npm run lint
+      - name: Lint (whole repo, warnings fail)
+        run: npx eslint . --max-warnings 0
+      - name: No unused files, exports or dependencies
+        run: npx knip
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Backend tests (with coverage thresholds)

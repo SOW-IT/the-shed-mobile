@@ -91,7 +91,7 @@ Everything a run starts lives under `.verify/`, which ignores itself
 7. Stops everything it started and frees the ports, even when a step fails.
 
 For **before** screenshots it does the same against the merge base. That
-tree comes from `git archive` into `.verify/base/` with `node_modules`
+tree comes from `git archive` into `$TMPDIR/theshed-verify-base/` with `node_modules`
 symlinked, and gets its own fresh backend. Pass `--no-before` to skip it.
 
 ## Artifacts

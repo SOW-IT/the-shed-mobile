@@ -3,12 +3,14 @@
 // docs/verification.md explains the tiers and the feature map.
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { planVerification, resolveRoutes, routeSlug } from "./lib/verifyPlan.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const STATE = join(ROOT, ".verify");
+// Outside the repo, so tsc, vitest and eslint never pick up a second copy.
+const BASE_TREE = join(tmpdir(), "theshed-verify-base");
 const MAP = JSON.parse(readFileSync(join(ROOT, "scripts/verify/feature-map.json"), "utf8"));
 
 const HELP = `node scripts/verify.mjs [options]
@@ -156,7 +158,7 @@ const printPlan = (plan, mergeBase, args) => {
   }
   if (plan.tier === "blocked") return;
   log("steps:");
-  log("  lint, typecheck");
+  log("  lint (eslint . --max-warnings 0), knip, typecheck");
   const unit = plan.unit.kind === "all" ? (plan.tier === "full" ? "all unit tests with coverage" : "all unit tests") : plan.unit.kind === "related" ? `unit tests related to ${plan.unit.files.length} file(s)` : "no unit tests";
   log(`  ${unit}`);
   if (plan.routes.length > 0) {
@@ -185,14 +187,15 @@ const step = async (name, fn, { soft = false } = {}) => {
 };
 class StepFailed extends Error {}
 
-const npm = (script, logFile) => () => {
-  const result = spawnSync("npm", ["run", "--silent", script], { cwd: ROOT, env: ENV, encoding: "utf8" });
+const run = (cmd, args, logFile) => () => {
+  const result = spawnSync(cmd, args, { cwd: ROOT, env: ENV, encoding: "utf8" });
   writeFileSync(logFile, `${result.stdout}\n${result.stderr}`);
-  if (result.status !== 0) throw new Error(`npm run ${script} failed, see ${relative(ROOT, logFile)}\n${result.stdout.slice(-600)}`);
+  if (result.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed, see ${relative(ROOT, logFile)}\n${result.stdout.slice(-600)}`);
 };
+const npm = (script, logFile) => run("npm", ["run", "--silent", script], logFile);
 
-const fingerprint = (dir) =>
-  JSON.parse(sh("npx", ["expo-updates", "fingerprint:generate", "--platform", "ios"], { cwd: dir })).hash;
+const fingerprint = (dir, platform) =>
+  JSON.parse(sh("npx", ["expo-updates", "fingerprint:generate", "--platform", platform], { cwd: dir })).hash;
 
 const extractBase = (mergeBase, dir) => {
   rmSync(dir, { recursive: true, force: true });
@@ -439,6 +442,7 @@ const main = async () => {
   mkdirSync(STATE, { recursive: true });
   writeFileSync(join(STATE, ".gitignore"), "*\n");
   await stopAll();
+  rmSync(BASE_TREE, { recursive: true, force: true });
   if (args.clean) {
     log("stopped anything left from an earlier run");
     return 0;
@@ -459,16 +463,17 @@ const main = async () => {
   if (args.dryRun) return 0;
 
   const logs = join(artifacts, "logs");
-  const baseTree = join(STATE, "base");
+  const baseTree = BASE_TREE;
   let failed = false;
   try {
     await step("base tree", () => extractBase(mergeBase, baseTree));
     await step("native fingerprint", () => {
-      const [before, after] = [fingerprint(baseTree), fingerprint(ROOT)];
-      if (before === after) return `unchanged (${after.slice(0, 7)}): over-the-air updates reach current builds`;
-      throw new Error(`changed ${before.slice(0, 7)} → ${after.slice(0, 7)}: phones need a store build before they get this change`);
+      const changed = ["ios", "android"].filter((platform) => fingerprint(baseTree, platform) !== fingerprint(ROOT, platform));
+      if (changed.length === 0) return "unchanged on iOS and Android: over-the-air updates reach current builds";
+      throw new Error(`changed on ${changed.join(" and ")}: phones there need a store build before they get this change`);
     }, { soft: true });
-    await step("lint", npm("lint", join(logs, "lint.log")));
+    await step("lint", run("npx", ["eslint", ".", "--max-warnings", "0"], join(logs, "lint.log")));
+    await step("unused code (knip)", run("npx", ["knip"], join(logs, "knip.log")));
     await step("typecheck", npm("typecheck", join(logs, "typecheck.log")));
     if (plan.unit.kind === "all") {
       await step(plan.tier === "full" ? "unit tests with coverage" : "unit tests", npm(plan.tier === "full" ? "test:coverage" : "test", join(logs, "unit.log")));

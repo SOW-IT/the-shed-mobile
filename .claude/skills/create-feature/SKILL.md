@@ -24,7 +24,7 @@ skill.
 | Simulator | iOS sim with **The SHED** (`au.org.sow.theshed`); drive with **baguette** |
 | Chrome | Open Expo web at `http://localhost:8082` for web smoke |
 | Netlify | `NETLIFY_AUTH_TOKEN` in `~/.hermes/.env` for phone HTML explain pages |
-| Checks | `npm run lint`, `npm run typecheck`, `npm test` / `npm run test:coverage` (no backend required) |
+| Checks | `npx eslint . --max-warnings 0`, `npx knip`, `npm run typecheck`, `npm test` / `npm run test:coverage` (no backend required) |
 
 Read `AGENTS.md` (Expo v58 docs link + Convex guidelines + Mac section) before
 coding. For Convex API patterns, read `convex/_generated/ai/guidelines.md` first.
@@ -62,7 +62,8 @@ checkout at `~/GitHub/the-shed-mobile`.
 ## 3. Verify while building
 
 ```bash
-npm run lint
+npx eslint . --max-warnings 0
+npx knip
 npm run typecheck
 npm test                 # or npm run test:coverage before PR
 ```

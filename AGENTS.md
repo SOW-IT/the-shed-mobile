@@ -20,9 +20,17 @@ Convex agent skills for common tasks can be installed by running
 
 Expo (RN) + Convex; the same TS serves iOS/Android/web. Node 22, npm only.
 Commands are in `README.md` / `package.json`. Checks need no backend
-(`convex-test` is in-memory): `npm run lint`, `npm run typecheck`,
-`npm run test:coverage`. CI runs the same three with coverage thresholds, plus
-`EXPO_OFFLINE=1 npx expo install --check` and the web sweep.
+(`convex-test` is in-memory): `npx eslint . --max-warnings 0`, `npx knip`,
+`npm run typecheck`, `npm run test:coverage`. CI runs the same four with
+coverage thresholds, plus `EXPO_OFFLINE=1 npx expo install --check` and the
+web sweep. `npm run lint` (`expo lint`) only covers `src/`, and changing that
+script changes the native fingerprint; it moves to the full command with the
+next release that needs a store build.
+
+The lint rules encode mistakes that past reviews kept catching; the PR that
+added each rule cites them. Fix what a rule reports. When a site
+really is the exception, disable the rule on that line with a reason after
+`--`; a disable with no reason fails lint.
 
 No formatter runs on this code, and `.prettierignore` turns Prettier off so an
 editor's format-on-save can't rewrite a whole file (the music-form merge
