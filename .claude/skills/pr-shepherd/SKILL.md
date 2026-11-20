@@ -24,7 +24,11 @@ node scripts/pr-status.mjs <number> --json # for scripting
 
 It reports failed and running checks with links, whether CodeRabbit is rate
 limited and until when, whether it skipped the review and why, and every
-unresolved CodeRabbit thread with its id.
+unresolved CodeRabbit thread with its id. It also lists the review bodies
+that hold findings outside the diff, which have no thread to resolve. Once
+you've dealt with those, pass the review ids:
+`node scripts/pr-status.mjs <number> --ack <id>,<id>`. Nothing remembers an
+ack, so pass the same ids on every later call.
 
 ## Before the loop: make sure CodeRabbit reviews at all
 
