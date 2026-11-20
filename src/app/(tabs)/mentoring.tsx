@@ -38,7 +38,7 @@ import {
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { durations, spacing, useAppTheme } from "@/theme";
 
-const afterSheetCloses = (open: () => void) => setTimeout(open, durations.overlayOut + 80);
+const afterSheetCloses = (open: () => void) => setTimeout(open, durations.sheetHandoff);
 
 type Pairing = NonNullable<FunctionReturnType<typeof api.mentoring.pairings>>["pairs"][number];
 type MentoringTab = "pairings" | "externals" | "mine";

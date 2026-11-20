@@ -632,7 +632,7 @@ export default function CalendarScreen() {
             clearTimeout(handoff.current);
             handoff.current = setTimeout(
               () => setAttendanceDraft({ subgroup: owner, draft }),
-              durations.overlayOut + 80
+              durations.sheetHandoff
             );
           }}
         />
