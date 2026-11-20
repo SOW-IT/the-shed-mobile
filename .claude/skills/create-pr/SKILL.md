@@ -115,8 +115,10 @@ node scripts/verify.mjs --publish   # run it; screenshots go to the verification
 It opens every affected screen on web and the iOS Simulator against a
 throwaway local backend, before and after, and writes `summary.md` and
 `screenshots.md` for the PR body. Route flows open screens; they don't fill in
-forms. For an interaction the change adds, drive it by hand with **baguette**
-on the simulator and Playwright on web, and capture what you saw.
+forms. For every interaction the change adds **or changes** (a message, a
+form, a confirmation), drive it by hand with **baguette** on the simulator and
+Playwright on web, and record what you saw. If you can't reach it, say so
+under "Not verified".
 
 ### 4d. What to record
 

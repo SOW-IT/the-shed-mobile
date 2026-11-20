@@ -14,7 +14,10 @@ node scripts/verify.mjs --full     # everything, whatever the diff
 node scripts/verify.mjs --only calendar      # one area of the feature map
 ```
 
-It exits non-zero if any step fails. The agent skill that drives it is
+It exits non-zero if any step fails. Two steps only warn and never fail the
+run: a changed native fingerprint, and a failure while checking the **base**.
+A zero exit doesn't mean the fingerprint is unchanged, so read the summary.
+The agent skill that drives it is
 `.claude/skills/verify/SKILL.md`.
 
 `npm run verify` doesn't exist on purpose. The app's runtime version is its
@@ -60,8 +63,9 @@ report the unmapped files, so the map gets fixed afterwards.
 Before running anything, the script prints the tier, the files that decided
 it, and the exact steps.
 
-The **smoke** routes always run on web and iOS: the app launches and the
-signed-out landing page and Home render.
+Whenever screens are opened (the scoped and full tiers), the **smoke** routes
+run on web and iOS too: the app launches and the signed-out landing page and
+Home render.
 
 ## Setup and teardown
 
