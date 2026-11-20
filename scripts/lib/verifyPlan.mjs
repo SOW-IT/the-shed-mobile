@@ -103,16 +103,20 @@ export const planVerification = ({ changed, map, full = false, only = null, unat
   };
 };
 
-/** Fill `{eventId}`-style holes from the sweep seed; drop routes whose value is missing. */
-export const resolveRoutes = (routes, seed) =>
-  routes.flatMap((route) => {
+/**
+ * Fill `{eventId}`-style holes from the sweep seed and drop routes whose value
+ * is missing. Each keeps its template, which names its screenshots so a
+ * before and an after run (with different ids) pair up.
+ */
+export const resolveRoutes = (templates, seed) =>
+  templates.flatMap((template) => {
     let missing = false;
-    const resolved = route.replace(/\{(\w+)\}/g, (_, key) => {
+    const route = template.replace(/\{(\w+)\}/g, (_, key) => {
       const value = seed?.[key];
       if (value === undefined || value === null) missing = true;
       return String(value ?? "");
     });
-    return missing ? [] : [resolved];
+    return missing ? [] : [{ template, route }];
   });
 
 /** A filename-safe name for a route, shared by the web and iOS screenshots. */

@@ -25,6 +25,7 @@ const HELP = `node scripts/verify.mjs [options]
   --device <name>      simulator name (default "iPhone 17 Pro", or VERIFY_DEVICE)
   --app <path.app>     install this dev-client build first
   --publish            push the screenshots to the verification-artifacts branch and print PR markdown
+  --publish-only       publish the last run's screenshots without running anything
   --clean              stop anything a crashed run left behind, then exit`;
 
 const parseArgs = (argv) => {
@@ -49,6 +50,7 @@ const parseArgs = (argv) => {
     device: values.device ?? process.env.VERIFY_DEVICE ?? "iPhone 17 Pro",
     app: values.app ?? null,
     publish: flags.has("publish"),
+    publishOnly: flags.has("publish-only"),
   };
 };
 
@@ -340,11 +342,11 @@ const resetApp = async (udid, appPath) => {
 
 const iosFlow = (routes, smoke, out, adminEmail) => {
   const link = (path) => `${APP_SCHEME}://${path.replace(/^\//, "")}`;
-  const visit = (prefix, route) => [
+  const visit = (prefix, { template, route }) => [
     `- openLink: "${link(route)}"`,
     "- waitForAnimationToEnd:",
     "    timeout: 8000",
-    `- takeScreenshot: "${join(out, `${prefix}-${routeSlug(route)}`)}"`,
+    `- takeScreenshot: "${join(out, `${prefix}-${routeSlug(template)}`)}"`,
     "- assertNotVisible:",
     '    text: "(?i).*(something went wrong|configuration error|unmatched route|\\\\(ESC\\\\)).*"',
   ];
@@ -354,11 +356,11 @@ const iosFlow = (routes, smoke, out, adminEmail) => {
     `- openLink: "${link("e2e-auth?signout=1")}"`,
     "- waitForAnimationToEnd:",
     "    timeout: 8000",
-    ...smoke.flatMap((route) => visit("out", route)),
+    ...smoke.flatMap((route) => visit("out", { template: route, route })),
     `- openLink: "${link(`e2e-auth?email=${encodeURIComponent(adminEmail)}&secret=${E2E_SECRET}`)}"`,
     "- waitForAnimationToEnd:",
     "    timeout: 8000",
-    ...routes.filter((route) => !route.startsWith("/checkin/not-") && route !== "/no-such-page").flatMap((route) => visit("admin", route)),
+    ...routes.filter(({ route }) => !route.startsWith("/checkin/not-") && route !== "/no-such-page").flatMap((r) => visit("admin", r)),
   ];
   return `${lines.join("\n")}\n`;
 };
@@ -448,6 +450,12 @@ const main = async () => {
     return 0;
   }
 
+  if (args.publishOnly) {
+    const artifacts = join(STATE, "artifacts", branchSlug());
+    if (!existsSync(join(artifacts, "summary.md"))) throw new Error(`no finished run in ${relative(ROOT, artifacts)}`);
+    log(publish(artifacts, branchSlug()));
+    return 0;
+  }
   const { mergeBase, files } = changedFiles(args.base);
   const plan = planVerification({ changed: files, map: MAP, full: args.full, only: args.only, unattended: args.unattended });
   printPlan(plan, mergeBase, args);
@@ -500,8 +508,8 @@ const main = async () => {
           await step(`${label}: local backend`, () => startBackend(label, tree, work), { soft });
           if (steps.at(-1).warning) continue;
           const seed = JSON.parse(readFileSync(join(work, "convex/sweep-seed.json"), "utf8"));
-          const routes = resolveRoutes(plan.routes, { ...seed, adminEmail: seed.people.admin });
-          if (args.web) await step(`${label}: web`, () => runWeb(label, tree, work, routes, roles, join(artifacts, label, "web")), { soft });
+          const routes = resolveRoutes(plan.routes, seed);
+          if (args.web) await step(`${label}: web`, () => runWeb(label, tree, work, plan.routes, roles, join(artifacts, label, "web")), { soft });
           if (args.ios) {
             await step(`${label}: iOS reset`, () => resetApp(udid, args.app), { soft });
             await step(`${label}: iOS`, () => runIos(label, tree, work, routes, MAP.smoke, join(artifacts, label, "ios"), udid), { soft });

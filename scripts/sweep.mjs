@@ -97,7 +97,7 @@ for (const [role, email] of roles) {
       continue;
     }
   }
-  for (const route of routes) {
+  for (const { template, route } of routes) {
     const errors = [];
     const consoleErrors = [];
     const onError = (error) => errors.push(String(error).slice(0, 300));
@@ -123,7 +123,7 @@ for (const [role, email] of roles) {
     if (lostSession) errors.push("landed signed out");
     const bad =
       (BROKEN.test(text) && !expectedMissing) || errors.length > 0 || unexpectedConsole.length > 0;
-    await page.screenshot({ path: `${OUT}/${role}-${routeSlug(route)}.png` }).catch(() => {});
+    await page.screenshot({ path: `${OUT}/${role}-${routeSlug(template)}.png` }).catch(() => {});
     page.off("pageerror", onError);
     page.off("console", onConsole);
     results.push({ role, route, landed: page.url().replace(BASE, ""), bad, errors, consoleErrors, text });

@@ -4,9 +4,9 @@ const convexPlugin = require("@convex-dev/eslint-plugin");
 const comments = require("@eslint-community/eslint-plugin-eslint-comments/configs");
 const globals = require("globals");
 
-// Each rule below is in the PR that added it with the review comments and
-// commits it answers (chore/pstack-cleanup). Lint runs as
-// `eslint . --max-warnings 0`, so a rule is either an error or absent.
+// The PR that added these rules (branch chore/pstack-cleanup) lists the review
+// comments and commits behind each one. CI runs `eslint . --max-warnings 0`,
+// so a rule here is an error or it isn't here.
 
 const webBlindDialogs = [
   {

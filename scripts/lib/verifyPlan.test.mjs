@@ -85,7 +85,10 @@ describe("helpers", () => {
   });
 
   test("resolveRoutes fills holes and drops routes it can't fill", () => {
-    expect(resolveRoutes(["/a/{eventId}", "/b/{checkInToken}", "/c"], { eventId: "e1", checkInToken: null })).toEqual(["/a/e1", "/c"]);
+    expect(resolveRoutes(["/a/{eventId}", "/b/{checkInToken}", "/c"], { eventId: "e1", checkInToken: null })).toEqual([
+      { template: "/a/{eventId}", route: "/a/e1" },
+      { template: "/c", route: "/c" },
+    ]);
   });
 
   test("routeSlug", () => {
