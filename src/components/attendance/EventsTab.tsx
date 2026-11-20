@@ -5,7 +5,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
-  contrastingText,
   EVENT_HOST_LABEL,
   eventListFilterCount,
   formatEventRange,
@@ -22,6 +21,7 @@ import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import type { EventsFilter } from "@/components/attendance/EventFilterSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
+import { SubgroupPill } from "@/components/attendance/SubgroupPill";
 import {
   EmptyState,
   FadeInView,
@@ -297,30 +297,9 @@ export function EventsTab({
                             ))}
                           </View>
                           <View style={[styles.badgeGroup, styles.badgeGroupRight]}>
-                            {shownSubgroups.map((s) => {
-                              const colour = subgroupColour(s);
-                              return (
-                                <View
-                                  key={s}
-                                  style={[
-                                    styles.subgroupPill,
-                                    {
-                                      backgroundColor: colour,
-                                    },
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      typography.caption,
-                                      styles.subgroupPillText,
-                                      { color: contrastingText(colour) },
-                                    ]}
-                                  >
-                                    {subgroupLabel(s)}
-                                  </Text>
-                                </View>
-                              );
-                            })}
+                            {shownSubgroups.map((s) => (
+                              <SubgroupPill key={s} subgroup={s} />
+                            ))}
                           </View>
                         </View>
 
@@ -485,16 +464,6 @@ const styles = StyleSheet.create({
   tagGroup: {
     flexShrink: 0,
     maxWidth: "50%",
-  },
-  subgroupPill: {
-    borderRadius: radius.full,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-  },
-  subgroupPillText: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.2,
   },
   eventName: {
     textTransform: "uppercase",
