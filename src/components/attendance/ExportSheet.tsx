@@ -9,6 +9,7 @@ import {
   toDateInputValue,
 } from "../../../shared/datetime";
 import { subgroupLabel, tagFilterLabels } from "../../../shared/rollcall";
+import { togglePicked } from "../../../shared/churches";
 import {
   ATTENDANCE_PCT_HEADER,
   buildAttendanceCsv,
@@ -194,12 +195,7 @@ export function ExportSheet({
 
   const toggleKey = (key: string) => {
     if (!fieldsReady) return;
-    setSelectedKeys((prev) => {
-      const base = prev ?? orderedFieldKeys;
-      return base.includes(key)
-        ? base.filter((k) => k !== key)
-        : [...base, key];
-    });
+    setSelectedKeys((prev) => togglePicked(prev ?? orderedFieldKeys, key));
   };
 
   const isSelected = (key: string) =>

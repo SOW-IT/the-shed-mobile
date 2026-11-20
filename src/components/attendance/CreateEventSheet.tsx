@@ -42,6 +42,7 @@ import {
   subgroupMatches,
   tagListOf,
 } from "../../../shared/rollcall";
+import { togglePicked } from "../../../shared/churches";
 import {
   DEFAULT_WEEKLY_SETTINGS,
   nextWeeklyInputs,
@@ -364,9 +365,7 @@ export function CreateEventSheet({
   };
 
   const toggleTag = (id: Id<"attendanceTags">) => {
-    setSelectedTags((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setSelectedTags((prev) => togglePicked(prev, id));
   };
 
   const toggleCollaborator = (sg: string) => {

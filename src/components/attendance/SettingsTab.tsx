@@ -9,6 +9,7 @@ import { isOrgWideSubgroup, isWeekliesTagName, tagListOf, tagScope, type TagList
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import type { SaveControls } from "@/components/attendance/MetadataTab";
 import { typedMatches } from "../../../shared/typedConfirm";
+import { toggleInSet } from "../../../shared/churches";
 import { SubgroupScopePicker } from "@/components/attendance/SubgroupScopePicker";
 import {
   Btn,
@@ -78,12 +79,7 @@ export function SettingsTab({
   const [colourIndex, setColourIndex] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const toggleExpanded = (key: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+    setExpanded((prev) => toggleInSet(prev, key));
   const [activeList, setActiveList] = useState<TagList>("weeklies");
 
   useEffect(() => {

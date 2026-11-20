@@ -8,6 +8,7 @@ import {
   type Pill,
   type WeeklyBlock,
 } from "../../../shared/weeklyInsightsView";
+import { togglePicked } from "../../../shared/churches";
 import { Avatar, Btn, ReadableColumn, ScrollCap, SearchField } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -154,7 +155,7 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
   const max = all ? total : limit;
   const before = sections.map((_, i) => sections.slice(0, i).reduce((n, s) => n + s.rows.length, 0));
   const toggle = (key: string) => {
-    setChips((current) => (current.includes(key) ? current.filter((c) => c !== key) : [...current, key]));
+    setChips((current) => togglePicked(current, key));
     setLimit(PAGE);
   };
   const searchFor = (text: string) => {
