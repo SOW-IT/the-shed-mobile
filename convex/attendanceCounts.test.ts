@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { eventSignIns } from "./attendanceCounts";
 import { type T, YEAR, ADMIN, USYD, asUser, pinClock, seeded } from "../test/convexFixture";
 
 pinClock();
@@ -227,5 +228,35 @@ describe("event attendance counts", () => {
       await recountEventAttendance(ctx, eventId);
     });
     expect(await t.run((ctx) => ctx.db.get(eventId))).toBeNull();
+  });
+});
+
+describe("an event's sign-ins", () => {
+  // Ann is the older member, so the index lists her first; Ben signed in first.
+  const signInBenThenAnn = async (t: T) => {
+    const eventId = await createEvent(t);
+    const [ann, ben] = await addMembers(t, ["Ann", "Ben"]);
+    await t.run(async (ctx) => {
+      const at = Date.now();
+      await ctx.db.insert("attendance", { eventId, memberId: ben, signInTime: at });
+      await ctx.db.insert("attendance", { eventId, memberId: ann, signInTime: at });
+    });
+    return { eventId, ann, ben };
+  };
+
+  test("come back in the order they were recorded, with or without a limit", async () => {
+    const t = await setup();
+    const { eventId, ann, ben } = await signInBenThenAnn(t);
+    const members = (limit?: number) =>
+      t.run(async (ctx) => (await eventSignIns(ctx, eventId, limit)).map((row) => row.memberId));
+    expect(await members()).toEqual([ben, ann]);
+    expect(await members(10)).toEqual([ben, ann]);
+  });
+
+  test("people who signed in at the same moment stay in sign-in order on the list", async () => {
+    const t = await setup();
+    const { eventId } = await signInBenThenAnn(t);
+    const list = await asUser(t, ADMIN).query(api.attendance.listByEvent, { eventId });
+    expect(list.map((row) => row.name)).toEqual(["Ben", "Ann"]);
   });
 });

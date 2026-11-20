@@ -416,7 +416,7 @@ export async function delegatesForYear(
 ): Promise<string[]> {
   const rows = await ctx.db
     .query("approverDelegations")
-    .withIndex("by_year_and_from", (q) =>
+    .withIndex("by_year_and_from_and_to", (q) =>
       q.eq("year", year).eq("fromEmail", fromEmail)
     )
     .take(DELEGATION_QUERY_LIMIT);

@@ -119,7 +119,7 @@ const leaverEmailSet = async (
 ): Promise<Set<string>> => {
   const rows = await ctx.db
     .query("leavers")
-    .withIndex("by_year", (q) => q.eq("year", year))
+    .withIndex("by_year_and_email", (q) => q.eq("year", year))
     .take(1000);
   return new Set(rows.map((r) => r.email));
 };
@@ -860,8 +860,10 @@ export const listLeavers = query({
     await requireAdmin(ctx);
     const rows = await ctx.db
       .query("leavers")
-      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .withIndex("by_year_and_email", (q) => q.eq("year", args.year))
       .take(1000);
+    // In the order they were marked, as the Leaving list has always shown them.
+    rows.sort((a, b) => a._creationTime - b._creationTime);
     const directoryNameByEmail = await directoryNamesByEmail(ctx);
     const leavers: { email: string; name: string | null }[] = [];
     for (const row of rows) {
@@ -1735,8 +1737,10 @@ export const listDelegations = query({
     }
     const rows = await ctx.db
       .query("approverDelegations")
-      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .withIndex("by_year_and_from_and_to", (q) => q.eq("year", args.year))
       .take(DELEGATION_QUERY_LIMIT);
+    // Oldest first, the order the list has always shown.
+    rows.sort((a, b) => a._creationTime - b._creationTime);
     return rows.map((r) => ({
       id: r._id,
       fromEmail: r.fromEmail,

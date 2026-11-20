@@ -97,7 +97,7 @@ prod has about 40 TWIG/PPN events and 1,500 sign-ins. It reads every event,
 newest first (`MAX_EVENTS`, so if the cap is ever reached it's the oldest that
 drop off), keeps the ones the tags make TWIG or PPN, and lists every staff
 year that has one of that kind (plus the current year) in the picker. It
-reads their sign-ins (`attendance.by_event`) and resolves people with the
+reads their sign-ins (`attendance.by_event_and_member`) and resolves people with the
 weekly Insights' `resolvePeople`, by staff year. It's reactive, so a sign-in shows straight
 away. If it ever gets slow, precompute per staff year the way
 `weeklyInsightViews` does.

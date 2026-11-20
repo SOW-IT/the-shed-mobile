@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { LIKELIHOOD } from "../shared/rollCallLikelihood";
 import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
+import { eventSignIns } from "./attendanceCounts";
 import { currentStaffYear } from "./model";
 import { rankUpcomingEvents } from "./rollCallOrder";
 import { DAY_MS } from "../shared/datetime";
@@ -71,12 +72,7 @@ const sameHistory = (a: Doc<"rosterHistorySnapshots">, b: { events: HistoryEvent
 };
 
 const attendeesOf = async (ctx: MutationCtx, eventId: Id<"events">) =>
-  (
-    await ctx.db
-      .query("attendance")
-      .withIndex("by_event", (q) => q.eq("eventId", eventId))
-      .collect()
-  ).map((row) => row.memberId);
+  (await eventSignIns(ctx, eventId)).map((row) => row.memberId);
 
 export const rebuild = internalMutation({
   args: { full: v.optional(v.boolean()) },

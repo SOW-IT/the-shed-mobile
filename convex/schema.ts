@@ -176,9 +176,7 @@ export default defineSchema({
     fromEmail: v.string(),
     toEmail: v.string(),
   })
-    .index("by_year", ["year"])
     .index("by_year_and_to", ["year", "toEmail"])
-    .index("by_year_and_from", ["year", "fromEmail"])
     .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
 
   actingAs: defineTable({
@@ -216,9 +214,7 @@ export default defineSchema({
   leavers: defineTable({
     year: v.number(),
     email: v.string(),
-  })
-    .index("by_year", ["year"])
-    .index("by_year_and_email", ["year", "email"]),
+  }).index("by_year_and_email", ["year", "email"]),
 
   savedBankAccounts: defineTable({
     email: v.string(),
@@ -227,9 +223,7 @@ export default defineSchema({
     accountNumber: v.string(),
     lastUsedAt: v.number(),
     preferred: v.optional(v.boolean()),
-  })
-    .index("by_email", ["email"])
-    .index("by_email_bsb_accountNumber", ["email", "bsb", "accountNumber"]),
+  }).index("by_email_bsb_accountNumber", ["email", "bsb", "accountNumber"]),
 
   requestComments: defineTable({
     requestId: v.id("requests"),
@@ -241,9 +235,7 @@ export default defineSchema({
     commentId: v.id("requestComments"),
     userEmail: v.string(),
     emoji: v.string(),
-  })
-    .index("by_comment", ["commentId"])
-    .index("by_comment_user_emoji", ["commentId", "userEmail", "emoji"]),
+  }).index("by_comment_user_emoji", ["commentId", "userEmail", "emoji"]),
 
   commentReads: defineTable({
     requestId: v.id("requests"),
@@ -679,7 +671,6 @@ export default defineSchema({
     addedAt: v.optional(v.number()),
     notes: v.optional(v.string()),
   })
-    .index("by_event", ["eventId"])
     .index("by_event_and_member", ["eventId", "memberId"])
     .index("by_member", ["memberId"]),
 
@@ -698,7 +689,6 @@ export default defineSchema({
     closingNote: v.optional(v.string()),
   })
     .index("by_year", ["year"])
-    .index("by_status", ["status"])
     .index("by_status_and_year", ["status", "year"])
     .index("by_accountEmail", ["accountEmail"])
     .index("by_assigneeEmail_and_status", ["assigneeEmail", "status"]),

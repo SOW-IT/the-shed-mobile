@@ -12,6 +12,7 @@ import {
 import { buildPpnBlocks, buildTwigBlocks } from "../shared/sowInsightsView";
 import { Doc } from "./_generated/dataModel";
 import { query, QueryCtx } from "./_generated/server";
+import { eventSignIns } from "./attendanceCounts";
 import { currentStaffYear, optionalProfile } from "./model";
 import { readSettings, resolvePeople } from "./weeklyInsights";
 import { weeklyBlockValidator } from "./weeklyInsightsData";
@@ -32,10 +33,7 @@ async function leaderKeys(ctx: QueryCtx, year: number): Promise<string[]> {
 }
 
 async function toSowEvent(ctx: QueryCtx, event: Doc<"events">): Promise<SowEvent> {
-  const rows = await ctx.db
-    .query("attendance")
-    .withIndex("by_event", (q) => q.eq("eventId", event._id))
-    .take(MAX_SIGN_INS_PER_EVENT);
+  const rows = await eventSignIns(ctx, event._id, MAX_SIGN_INS_PER_EVENT);
   const people = new Set(rows.map((r) => `member:${r.memberId}`));
   return { id: event._id, name: event.name, at: event.dateStart, people: [...people] };
 }

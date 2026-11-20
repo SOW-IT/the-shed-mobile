@@ -3010,7 +3010,7 @@ describe("deleteDeclined", () => {
         await ctx.db.query("requestComments").withIndex("by_request", (q) => q.eq("requestId", id)).take(10)
       ).toHaveLength(0);
       expect(
-        await ctx.db.query("commentReactions").withIndex("by_comment", (q) => q.eq("commentId", comment.id)).take(10)
+        await ctx.db.query("commentReactions").withIndex("by_comment_user_emoji", (q) => q.eq("commentId", comment.id)).take(10)
       ).toHaveLength(0);
       expect(
         await ctx.db.query("commentReads").withIndex("by_request_and_user", (q) => q.eq("requestId", id)).take(10)
