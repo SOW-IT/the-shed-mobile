@@ -36,6 +36,10 @@ CodeRabbit skips some PRs without saying much. `pr-status` shows the skip:
   Splitting it later throws away reviews you've already had.
 - It reviews each commit once ("incremental"). A rerequest after a push
   covers only the new commits.
+- This repository rejects force-pushes on every branch. Don't rebase a pushed
+  branch. To bring a stacked PR up to date with its base, merge the base into
+  it (`git merge <base>`, or `git merge-tree` plus `git commit-tree` if a run
+  is using the working tree).
 
 ## The loop
 
