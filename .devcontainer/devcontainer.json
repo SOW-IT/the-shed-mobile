@@ -1,0 +1,29 @@
+{
+  "name": "the-shed-mobile: static checks and unit tests",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:4-22-bookworm",
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "8gb"
+  },
+  "containerEnv": {
+    "CI": "1",
+    "EXPO_OFFLINE": "1",
+    "EXPO_NO_TELEMETRY": "1"
+  },
+  "onCreateCommand": "command -v zip >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq zip)",
+  "postCreateCommand": "npm ci --no-audit --no-fund && sha256sum package-lock.json | cut -d' ' -f1 > node_modules/.cloud-check-lock",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "expo.vscode-expo-tools",
+        "vitest.explorer"
+      ]
+    },
+    "codespaces": {
+      "openFiles": [
+        "scripts/cloud-check.sh"
+      ]
+    }
+  }
+}

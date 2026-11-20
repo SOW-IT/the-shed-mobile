@@ -6,6 +6,13 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.20] - 2026-11-20
+
+### Added
+- **Lint, typecheck and unit tests can run in GitHub Codespaces.** A dev
+  container and `scripts/cloud-check.sh` run the same static CI checks off
+  the Mac, with no secrets and no native build. Nothing changes in the app.
+
 ## [2.11.19] - 2026-11-19
 
 ### Added
