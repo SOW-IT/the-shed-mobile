@@ -51,9 +51,14 @@ const openThreads = threads
 // edits its summary comment in place, so comments are ordered by update time.
 const paged = (path, jq) => JSON.parse(gh(["api", "--paginate", path, "--jq", jq]).replace(/\]\s*\[/g, ","));
 const comments = paged(`repos/${owner}/${repo}/issues/${number}/comments?per_page=100`, "[.[] | {login: .user.login, at: .updated_at, body}]");
-const reviews = paged(`repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`, "[.[] | {login: .user.login, at: .submitted_at}]");
+const reviews = paged(`repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`, "[.[] | {login: .user.login, at: .submitted_at, commit: .commit_id}]");
 const plain = (body) => body.replace(/<[^>]+>/g, " ").replace(/[>#*]/g, " ").replace(/\s+/g, " ");
-const rabbitComments = comments.filter((c) => isRabbit(c.login)).map((c) => ({ at: c.at, text: plain(c.body) }));
+const rabbitComments = comments.filter((c) => isRabbit(c.login)).map((c) => ({ at: c.at, text: plain(c.body), body: c.body }));
+// Evidence CodeRabbit reviewed this exact head: a review on that commit, or
+// its summary saying it reviewed up to it ("... between <base> and <head>").
+const reviewedHead =
+  reviews.some((r) => isRabbit(r.login) && r.commit === pr.headRefOid) ||
+  rabbitComments.some((c) => new RegExp(`and ${pr.headRefOid}\\b`).test(c.body));
 const latest = (items) => items.reduce((a, b) => (!a || b.at > a.at ? b : a), null);
 const restriction = latest(rabbitComments.filter((c) => /rate limited|review limit reached|review skipped/i.test(c.text)));
 const cleared = latest([
@@ -67,11 +72,12 @@ const skipped = active && !limited ? (active.text.match(/Review skipped:?\s*(.{0
 const coderabbit = {
   rateLimited: limited ? { at: active.at, retryAfter: new Date(Date.parse(active.at) + minutes * 60_000).toISOString() } : null,
   skipped,
+  reviewedHead,
   openThreads,
 };
 
 const status = { url: pr.url, state: pr.state, draft: pr.isDraft, head: pr.headRefOid.slice(0, 7), changedFiles: pr.changedFiles, checks: { failed, pending, total: checks.length }, coderabbit };
-const done = checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0 && !limited && !skipped;
+const done = reviewedHead && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0 && !limited && !skipped;
 
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ ...status, done }, null, 2));
@@ -81,7 +87,8 @@ if (process.argv.includes("--json")) {
   for (const c of failed) console.log(`  ✘ ${c.name}: ${c.url}`);
   if (skipped) console.log(`CodeRabbit skipped the review: ${skipped}`);
   if (limited) console.log(`CodeRabbit is rate limited; ask again after ${coderabbit.rateLimited.retryAfter} with "@coderabbitai review"`);
-  console.log(`CodeRabbit: ${openThreads.length} open thread(s)`);
+  console.log(`CodeRabbit: ${reviewedHead ? "has reviewed" : "has NOT reviewed"} head ${status.head}; ${openThreads.length} open thread(s)`);
+  if (!reviewedHead && !limited && !skipped) console.log('  ask with "@coderabbitai review" (drafts and stacked PRs get no automatic review)');
   for (const t of openThreads) console.log(`  ${t.outdated ? "(outdated) " : ""}${t.repliedByUs ? "(replied) " : ""}${t.where} ${t.summary.slice(0, 100)}\n    ${t.url}\n    thread ${t.id}`);
   console.log(done ? "DONE: CI green, nothing open from CodeRabbit" : "NOT DONE");
 }
