@@ -147,13 +147,23 @@ const requireFreePort = (port) => {
   if (owner) throw new Error(`port ${port} is in use by pid ${owner}, which this script didn't start`);
 };
 
+// Every PR bumps the version in these three files, which would make each one a
+// full run. A change to nothing but `"version"` lines doesn't count.
+const VERSION_FILES = ["package.json", "package-lock.json", "app.json"];
+const versionOnly = (mergeBase, file) => {
+  const lines = git("diff", "-U0", mergeBase, "--", file).split("\n").filter((l) => /^[+-](?![+-])/.test(l));
+  return lines.length > 0 && lines.every((l) => /^[+-]\s*"version": "[^"]*",?$/.test(l));
+};
+
 const changedFiles = (base) => {
   const mergeBase = git("merge-base", base, "HEAD");
-  const files = [
+  const all = [
     ...git("diff", "--name-only", mergeBase).split("\n"),
     ...git("ls-files", "--others", "--exclude-standard").split("\n"),
   ];
-  return { mergeBase, files: [...new Set(files.filter(Boolean))] };
+  const unique = [...new Set(all.filter(Boolean))];
+  const bumped = unique.filter((file) => VERSION_FILES.includes(file) && versionOnly(mergeBase, file));
+  return { mergeBase, files: unique.filter((file) => !bumped.includes(file)), bumped };
 };
 
 const printPlan = (plan, mergeBase, args) => {
@@ -474,7 +484,8 @@ const main = async () => {
     log(publish(artifacts, branchSlug()));
     return 0;
   }
-  const { mergeBase, files } = changedFiles(args.base);
+  const { mergeBase, files, bumped } = changedFiles(args.base);
+  if (bumped.length > 0) log(`version bump only, not counted: ${bumped.join(", ")}`);
   const plan = planVerification({ changed: files, map: MAP, full: args.full, only: args.only, unattended: args.unattended });
   printPlan(plan, mergeBase, args);
   if (plan.tier === "blocked") {
