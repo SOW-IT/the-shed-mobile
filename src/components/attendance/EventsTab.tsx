@@ -17,8 +17,8 @@ import {
 } from "../../../shared/rollcall";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
+import { CampusSelector } from "@/components/attendance/CampusSelector";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
-import { CampusMark } from "@/components/CampusMark";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import type { EventsFilter } from "@/components/attendance/EventFilterSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
@@ -30,8 +30,6 @@ import {
   stagger,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-
-const CAMPUS_MARK = 40;
 
 type EventStatus = "UPCOMING" | "LIVE" | "ENDED";
 
@@ -129,39 +127,13 @@ export function EventsTab({
         />
       ) : (
         <>
-          <View style={styles.campusRow}>
-            {subgroups.map((sg, i) => {
-              const active = sg === subgroup;
-              const ringColour =
-                isOrgWideSubgroup(sg) && t.dark ? t.text : subgroupColour(sg);
-              return (
-                <FadeInView key={sg} delay={stagger(i)}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={subgroupLabel(sg)}
-                    accessibilityState={{ selected: active }}
-                    onPress={() => onSelectedSubgroupChange(sg)}
-                    style={({ pressed }) => [
-                      styles.campusSlot,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.campusRing,
-                        active && { borderColor: ringColour },
-                      ]}
-                    >
-                      <CampusMark
-                        campus={sg}
-                        circleDiameter={CAMPUS_MARK}
-                      />
-                    </View>
-                  </Pressable>
-                </FadeInView>
-              );
-            })}
-          </View>
+          <CampusSelector
+            subgroups={subgroups}
+            selected={subgroup}
+            onSelect={onSelectedSubgroupChange}
+            labelOf={subgroupLabel}
+            style={{ marginBottom: spacing.md }}
+          />
 
           {subgroup ? (
             <View style={styles.toolbar}>
@@ -428,24 +400,6 @@ export function EventsTab({
 }
 
 const styles = StyleSheet.create({
-  campusRow: {
-    flexDirection: "row",
-    flexWrap: "nowrap",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.md,
-  },
-  campusSlot: {
-    flex: 1,
-    alignItems: "center",
-    minWidth: 0,
-  },
-  campusRing: {
-    borderRadius: 999,
-    padding: 0,
-    borderWidth: 2.5,
-    borderColor: "transparent",
-  },
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
