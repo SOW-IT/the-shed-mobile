@@ -427,23 +427,30 @@ const publish = (artifacts, slug) => {
     const blob = sh("git", ["hash-object", "-w", png]);
     sh("git", ["update-index", "--add", "--cacheinfo", `100644,${blob},${slug}/${relative(artifacts, png)}`], { env });
   }
+  const table = (url) => {
+    const rows = [];
+    for (const platform of ["web", "ios"]) {
+      const afterDir = join(artifacts, "after", platform);
+      if (!existsSync(afterDir)) continue;
+      for (const file of readdirSync(afterDir).filter((f) => f.endsWith(".png")).sort()) {
+        const before = existsSync(join(artifacts, "before", platform, file)) ? `<img src="${url(`before/${platform}/${file}`)}" width="260">` : "(none)";
+        rows.push(`| ${platform} \`${file.replace(/\.png$/, "")}\` | ${before} | <img src="${url(`after/${platform}/${file}`)}" width="260"> |`);
+      }
+    }
+    return ["| Screen | Before | After |", "| --- | --- | --- |", ...rows].join("\n");
+  };
+  // The branch keeps the whole table with relative links, since a PR body
+  // can't hold every screen.
+  const readme = `${readFileSync(join(artifacts, "summary.md"), "utf8")}\n## Screenshots\n\n${table((path) => path)}\n`;
+  const readmeBlob = sh("git", ["hash-object", "-w", "--stdin"], { input: readme });
+  sh("git", ["update-index", "--add", "--cacheinfo", `100644,${readmeBlob},${slug}/README.md`], { env });
   const tree = sh("git", ["write-tree"], { env });
   const commit = sh("git", ["commit-tree", tree, ...(parent ? ["-p", parent] : []), "-m", `screenshots for ${slug}`], { env });
   sh("git", ["push", "origin", `${commit}:refs/heads/${branch}`]);
   const repo = sh("gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]);
-  const url = (path) => `https://raw.githubusercontent.com/${repo}/${commit}/${slug}/${path}`;
-  const rows = [];
-  for (const platform of ["web", "ios"]) {
-    const afterDir = join(artifacts, "after", platform);
-    if (!existsSync(afterDir)) continue;
-    for (const file of readdirSync(afterDir).filter((f) => f.endsWith(".png")).sort()) {
-      const before = existsSync(join(artifacts, "before", platform, file)) ? `<img src="${url(`before/${platform}/${file}`)}" width="260">` : "(none)";
-      rows.push(`| ${platform} \`${file.replace(/\.png$/, "")}\` | ${before} | <img src="${url(`after/${platform}/${file}`)}" width="260"> |`);
-    }
-  }
-  const markdown = ["| Screen | Before | After |", "| --- | --- | --- |", ...rows].join("\n");
-  writeFileSync(join(artifacts, "screenshots.md"), `${markdown}\n`);
-  return `${pngs.length} images at ${commit.slice(0, 7)}; table in ${relative(ROOT, join(artifacts, "screenshots.md"))}`;
+  writeFileSync(join(artifacts, "screenshots.md"), `${table((path) => `https://raw.githubusercontent.com/${repo}/${commit}/${slug}/${path}`)}\n`);
+  writeFileSync(join(artifacts, "screenshots-url.txt"), `https://github.com/${repo}/blob/${commit}/${slug}/README.md\n`);
+  return `${pngs.length} images at ${commit.slice(0, 7)}; table in ${relative(ROOT, join(artifacts, "screenshots.md"))}, all of them at https://github.com/${repo}/blob/${commit}/${slug}/README.md`;
 };
 
 const main = async () => {
@@ -534,7 +541,6 @@ const main = async () => {
         }
       }
     }
-    if (args.publish) await step("publish screenshots", () => publish(artifacts, slug));
   } catch (error) {
     if (!(error instanceof StepFailed)) {
       steps.push({ name: "verify", ok: false, detail: String(error?.stack ?? error).slice(0, 400) });
@@ -560,7 +566,18 @@ const main = async () => {
   writeFileSync(join(artifacts, "summary.md"), summary);
   console.log(`\n${summary}`);
   log(`artifacts: ${artifacts}`);
-  return failed || steps.some((s) => !s.ok) ? 1 : 0;
+  const passed = !failed && steps.every((s) => s.ok);
+  if (args.publish && passed) {
+    try {
+      log(`published ${publish(artifacts, slug)}`);
+    } catch (error) {
+      log(`✘ publish: ${error?.message ?? error}`);
+      return 1;
+    }
+  } else if (args.publish) {
+    log("not publishing: the run failed");
+  }
+  return passed ? 0 : 1;
 };
 
 const stopAndExit = (code) => stopAll().finally(() => process.exit(code));

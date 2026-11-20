@@ -51,8 +51,11 @@ node scripts/verify.mjs --publish
 - It exits non-zero when any step fails. Read `summary.md` and the logs under
   `.verify/artifacts/<branch>/logs/`, fix the cause and rerun. A failure in a
   **before** step is a warning: the base is broken there, not this branch.
-- `--publish` pushes the screenshots to the `verification-artifacts` branch
-  and writes `screenshots.md`, a before and after table to paste into the PR.
+- `--publish` pushes the screenshots to the `verification-artifacts` branch,
+  with a `README.md` there showing every pair, and writes `screenshots.md`
+  (the same rows, for a PR description) and `screenshots-url.txt` (the link to
+  the README). Paste the rows for the screens the change touches and link
+  the rest. A PR description can't hold all of them.
 - Other options: `--only <area|/route>`, `--full`, `--no-before`, `--no-web`,
   `--no-ios`, `--device <name>`, `--app <path.app>`. Android never runs.
 - Never pass `--unattended` from an interactive session. It exists for CI and

@@ -112,8 +112,12 @@ symlinked, and gets its own fresh backend. Pass `--no-before` to skip it.
 ```
 
 `node scripts/verify.mjs --publish` copies the screenshots to the
-`verification-artifacts` branch under `<branch>/`, so a PR description can
-embed them without adding images to `main`.
+`verification-artifacts` branch under `<branch>/`, with a `README.md` there
+that shows every pair, so a PR can show them without adding images to
+`main`. It also writes `screenshots.md`, the same table with image links that
+work in a PR description. Paste the rows for the screens the change touches;
+all of them together overflow GitHub's limit on a PR description.
+`--publish-only` publishes the last finished run again without rerunning it.
 
 ## Requirements on this Mac
 
