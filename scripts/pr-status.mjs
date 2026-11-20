@@ -51,7 +51,7 @@ const openThreads = threads
 // edits its summary comment in place, so comments are ordered by update time.
 const paged = (path, jq) => JSON.parse(gh(["api", "--paginate", path, "--jq", jq]).replace(/\]\s*\[/g, ","));
 const comments = paged(`repos/${owner}/${repo}/issues/${number}/comments?per_page=100`, "[.[] | {login: .user.login, at: .updated_at, body}]");
-const reviews = paged(`repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`, "[.[] | {login: .user.login, at: .submitted_at, commit: .commit_id}]");
+const reviews = paged(`repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`, "[.[] | {id, login: .user.login, at: .submitted_at, commit: .commit_id, body}]");
 const plain = (body) => body.replace(/<[^>]+>/g, " ").replace(/[>#*]/g, " ").replace(/\s+/g, " ");
 const rabbitComments = comments.filter((c) => isRabbit(c.login)).map((c) => ({ at: c.at, text: plain(c.body), body: c.body }));
 // Evidence CodeRabbit reviewed this exact head: a review on that commit, or
@@ -70,7 +70,7 @@ const cleared = latest([
 ]);
 const active = restriction && (!cleared || restriction.at > cleared.at) ? restriction : null;
 const limited = Boolean(active && /rate limited|review limit reached/i.test(active.text));
-const minutes = Number(active?.text.match(/available in (\d+) minutes?/i)?.[1] ?? 60);
+const minutes = Number(active?.text.match(/available in:?\s*(\d+) minutes?/i)?.[1] ?? 60);
 const skipped = active && !limited ? (active.text.match(/Review skipped:?\s*(.{0,100})/i)?.[1]?.trim() ?? "review skipped") : null;
 const coderabbit = {
   rateLimited: limited ? { at: active.at, retryAfter: new Date(Date.parse(active.at) + minutes * 60_000).toISOString() } : null,
@@ -80,7 +80,18 @@ const coderabbit = {
 };
 
 const status = { url: pr.url, state: pr.state, draft: pr.isDraft, head: pr.headRefOid.slice(0, 7), changedFiles: pr.changedFiles, checks: { failed, pending, total: checks.length }, coderabbit };
-const done = reviewedHead && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0 && !limited && !skipped;
+// Findings outside the diff live only in the review body, with no thread to
+// resolve. They block done until that review is passed to --ack once read.
+const acked = new Set((process.argv[process.argv.indexOf("--ack") + 1] ?? "").split(",").filter(Boolean));
+const count = (text, label) => Number(text.match(new RegExp(`${label}\\s*\\((\\d+)\\)`, "i"))?.[1] ?? 0);
+const bodyFindings = reviews
+  .filter((r) => isRabbit(r.login) && r.commit === pr.headRefOid)
+  .map((r) => ({ id: String(r.id), outsideDiff: count(plain(r.body ?? ""), "Outside diff range comments"), nitpicks: count(plain(r.body ?? ""), "Nitpick comments") }))
+  .filter((r) => r.outsideDiff + r.nitpicks > 0);
+const unreadBodies = bodyFindings.filter((r) => r.outsideDiff > 0 && !acked.has(r.id));
+coderabbit.bodyFindings = bodyFindings;
+
+const done = reviewedHead && unreadBodies.length === 0 && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0 && !limited && !skipped;
 
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ ...status, done }, null, 2));
@@ -91,6 +102,9 @@ if (process.argv.includes("--json")) {
   if (skipped) console.log(`CodeRabbit skipped the review: ${skipped}`);
   if (limited) console.log(`CodeRabbit is rate limited; ask again after ${coderabbit.rateLimited.retryAfter} with "@coderabbitai review"`);
   console.log(`CodeRabbit: ${reviewedHead ? "has reviewed" : "has NOT reviewed"} head ${status.head}; ${openThreads.length} open thread(s)`);
+  for (const r of bodyFindings) {
+    console.log(`  review ${r.id}: ${r.outsideDiff} outside-diff, ${r.nitpicks} nitpick finding(s) in its body${acked.has(r.id) ? " (acknowledged)" : r.outsideDiff ? "; read them, then pass --ack " + r.id : ""}`);
+  }
   if (!reviewedHead && !limited && !skipped) console.log('  ask with "@coderabbitai review" (drafts and stacked PRs get no automatic review)');
   for (const t of openThreads) console.log(`  ${t.outdated ? "(outdated) " : ""}${t.repliedByUs ? "(replied) " : ""}${t.where} ${t.summary.slice(0, 100)}\n    ${t.url}\n    thread ${t.id}`);
   console.log(done ? "DONE: CI green, nothing open from CodeRabbit" : "NOT DONE");

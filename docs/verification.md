@@ -77,7 +77,7 @@ Everything a run starts lives under `.verify/`, which ignores itself
    never touched.
 2. Starts a fresh local Convex backend from the binary the Convex CLI caches
    (`~/.cache/convex/binaries`), on ports 3270/3271, with its database in
-   `.verify/convex/`. It doesn't read or write `.env.local`, so the shared
+   `.verify/run/<before|after>/convex/`. It doesn't read or write `.env.local`, so the shared
    dev deployment is never used.
 3. Pushes the functions, sets JWT keys and `E2E_AUTH_*`, and seeds the sweep
    data (`scripts/sweep-seed.mjs`).
@@ -89,26 +89,27 @@ Everything a run starts lives under `.verify/`, which ignores itself
    dev client against Metro. The flow signs out first, which clears the
    session the app keeps in the keychain. The simulator keychain is not
    reset: `simctl keychain reset` left the simulator unable to launch apps.
-6. Runs the routes: Playwright (`scripts/sweep.mjs --routes`) on web and
-   Maestro (`.maestro/route.yaml`) on iOS. iOS signs in as the admin through
+6. Runs the routes: Playwright (`scripts/sweep.mjs --routes`) on web and, on
+   iOS, a Maestro flow generated from the same routes
+   (`.verify/run/<before|after>/ios-flow.yaml`). iOS signs in as the admin through
    the `e2e-auth` deep link.
 7. Stops everything it started and frees the ports, even when a step fails.
 
 For **before** screenshots it does the same against the merge base. That
-tree comes from `git archive` into `$TMPDIR/theshed-verify-base/` with `node_modules`
-symlinked, and gets its own fresh backend. Pass `--no-before` to skip it.
+tree comes from `git archive` into a folder under `$TMPDIR` named after the
+checkout (`theshed-verify-base-<hash>`), with `node_modules` symlinked, and gets its own fresh backend. Pass `--no-before` to skip it.
 
 ## Artifacts
 
 ```
 .verify/artifacts/<branch>/
-  plan.json                    tier, reasons, steps
+  plan.json                    base, merge base, changed files, tier, reasons, routes
   summary.md                   each step and its result
   before/web/<role>-<route>.png
   after/web/<role>-<route>.png
-  before/ios/<route>.png
-  after/ios/<route>.png
-  logs/                        convex, metro, web, maestro
+  before/ios/<out|admin>-<route>.png
+  after/ios/<out|admin>-<route>.png
+  logs/                        before-* and after-* logs: convex, web, sweep, metro, maestro
 ```
 
 `node scripts/verify.mjs --publish` copies the screenshots to the
