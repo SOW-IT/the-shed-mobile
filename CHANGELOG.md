@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.21] - 2026-11-20
+## [2.11.23] - 2026-11-21
 
 ### Changed
 - **Backend reads and writes name their table.** Every `ctx.db.get`,
@@ -14,7 +14,16 @@ All notable changes to **The SHED** mobile app. This project follows
   Convex guidelines ask, and lint now requires it. Nothing changes for people
   using the app.
 
-## [2.11.20] - 2026-11-20
+## [2.11.22] - 2026-11-21
+
+### Removed
+- **Unused code, for contributors.** Exports and types that nothing imports
+  lose `export`, or go when nothing uses them at all. The `npx convex dev`
+  welcome page in `convex/` goes too. CI now runs `knip`, so unused files,
+  exports and dependencies fail the build. Nothing changes for people using
+  the app.
+
+## [2.11.21] - 2026-11-21
 
 ### Fixed
 - **Sign-in and sign-out problems show a message on the web.** If signing
@@ -22,12 +31,19 @@ All notable changes to **The SHED** mobile app. This project follows
   so, as the phone apps already did. Before, nothing happened.
 
 ### Changed
-- **Checks for contributors.** CI lints the whole repo and fails on
-  warnings, and reports unused files, exports and dependencies. The new lint
-  rules come from mistakes that reviews kept catching.
-  `node scripts/verify.mjs` checks a branch: it opens the screens the change
-  affects on the web and the iOS Simulator against a throwaway local
-  backend, with before and after screenshots (`docs/verification.md`).
+- **Lint covers the whole repo, for contributors.** CI lints `convex/`,
+  `shared/` and `scripts/` too, warnings fail, and the new rules come from
+  mistakes that reviews kept catching.
+
+## [2.11.20] - 2026-11-21
+
+### Changed
+- **One command to check a branch, for contributors.** `node scripts/verify.mjs`
+  reads the diff and decides what to check from a feature map
+  (`scripts/verify/feature-map.json`). Then it opens the screens the change
+  affects on the web and the iOS Simulator, against a throwaway local
+  backend, with before and after screenshots (`docs/verification.md`). A
+  `pr-shepherd` skill and `scripts/pr-status.mjs` take a PR from open to green.
   Nothing changes for people using the app.
 
 ## [2.11.19] - 2026-11-19
