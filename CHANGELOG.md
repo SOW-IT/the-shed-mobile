@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.38] - 2026-11-21
+
+### Changed
+- **Environment variables are read in one place per runtime, for
+  contributors.** The app reads its build-time variables in `src/env.ts`,
+  and the backend reads its own through `env()` in `convex/environment.ts`,
+  which lists every name it uses. Lint rejects `process.env` anywhere else in
+  `src/` and `convex/`. Nothing changes for people using the app.
+
 ## [2.11.31] - 2026-11-21
 
 ### Added

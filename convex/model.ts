@@ -15,6 +15,7 @@ import {
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
+import { env } from "./environment";
 
 export type Ctx = QueryCtx | MutationCtx;
 
@@ -32,10 +33,10 @@ export const assertManagedYear = (year: number) => {
   }
 };
 
-export const nightlyJobsPaused = (): boolean => process.env.NIGHTLY_JOBS_PAUSED === "true";
+export const nightlyJobsPaused = (): boolean => env("NIGHTLY_JOBS_PAUSED") === "true";
 
 export const allowedDomain = () =>
-  process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
+  env("AUTH_ALLOWED_DOMAIN") ?? "sow.org.au";
 
 export const isOrgEmail = (email: string | null | undefined): boolean =>
   !!email && email.toLowerCase().endsWith(`@${allowedDomain()}`);

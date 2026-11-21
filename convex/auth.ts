@@ -14,18 +14,19 @@ import {
 } from "./appleIdentity";
 import { allowedDomain as resolveAllowedDomain } from "./model";
 import { linkUserProfiles } from "./userLink";
+import { env } from "./environment";
 
 const allowedDomain = resolveAllowedDomain();
 
-const e2eAuthEnabled = process.env.E2E_AUTH_ENABLED === "true";
+const e2eAuthEnabled = env("E2E_AUTH_ENABLED") === "true";
 
 const E2eLogin = ConvexCredentials<DataModel>({
   id: "e2e",
   authorize: async (credentials, ctx) => {
-    if (process.env.E2E_AUTH_ENABLED !== "true") {
+    if (env("E2E_AUTH_ENABLED") !== "true") {
       throw new Error("E2E auth is not enabled on this deployment");
     }
-    const expected = process.env.E2E_AUTH_SECRET;
+    const expected = env("E2E_AUTH_SECRET");
     if (!expected || String(credentials.secret ?? "") !== expected) {
       throw new Error("Invalid E2E secret");
     }
@@ -115,11 +116,11 @@ const AppleLogin = ConvexCredentials<DataModel>({
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   callbacks: {
     async redirect({ redirectTo }) {
-      const allowed = [process.env.SITE_URL, process.env.APP_URL].filter(
+      const allowed = [env("SITE_URL"), env("APP_URL")].filter(
         (url): url is string => !!url
       );
       if (redirectTo.startsWith("/") && !redirectTo.startsWith("//")) {
-        return `${process.env.SITE_URL ?? ""}${redirectTo}`;
+        return `${env("SITE_URL") ?? ""}${redirectTo}`;
       }
       if (
         allowed.some((url) => redirectTo === url || redirectTo.startsWith(`${url}/`)) ||

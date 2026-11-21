@@ -9,6 +9,7 @@ import {
 } from "./_generated/server";
 import { spotifyTrackId } from "./shared/musicLinks";
 import { decryptSpotifyToken, encryptSpotifyToken } from "./spotifyCrypto";
+import { env } from "./environment";
 
 type SpotifyTrack = {
   id?: string;
@@ -74,11 +75,11 @@ export const countSearch = internalMutation({
   },
 });
 
-const canCacheToken = () => !!process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY;
+const canCacheToken = () => !!env("SPOTIFY_TOKEN_ENCRYPTION_KEY");
 
 export async function spotifyToken(ctx: ActionCtx, fresh = false): Promise<string> {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  const clientId = env("SPOTIFY_CLIENT_ID");
+  const clientSecret = env("SPOTIFY_CLIENT_SECRET");
   if (!clientId || !clientSecret)
     throw new ConvexError("Spotify credentials are not configured.");
   if (!fresh && canCacheToken()) {

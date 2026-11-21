@@ -1,15 +1,16 @@
 import { ConvexError } from "convex/values";
 import { decodeJwt, importPKCS8, SignJWT } from "jose";
 import { APPLE_AUDIENCES, APPLE_ISSUER } from "./appleIdentity";
+import { env } from "./environment";
 
 const CLIENT_SECRET_TTL_SECONDS = 300;
 
 type AppleKey = { teamId: string; keyId: string; privateKey: string };
 
 const appleKey = (): AppleKey | null => {
-  const teamId = process.env.APPLE_TEAM_ID;
-  const keyId = process.env.APPLE_KEY_ID;
-  const privateKey = process.env.APPLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const teamId = env("APPLE_TEAM_ID");
+  const keyId = env("APPLE_KEY_ID");
+  const privateKey = env("APPLE_PRIVATE_KEY")?.replace(/\\n/g, "\n");
   return teamId && keyId && privateKey ? { teamId, keyId, privateKey } : null;
 };
 

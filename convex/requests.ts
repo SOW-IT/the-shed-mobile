@@ -66,6 +66,7 @@ import {
   rolesOf,
   withDelegatesForYear,
 } from "./model";
+import { env } from "./environment";
 
 type Step = keyof typeof STEP_FIELDS;
 
@@ -131,8 +132,8 @@ const logEvent = async (
 
 export const appUrl = (path?: string) => {
   const base = (
-    process.env.SITE_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
+    env("SITE_URL")?.trim() ||
+    env("APP_URL")?.trim() ||
     "https://theshed.sow.org.au"
   ).replace(/\/+$/, "");
   return `${base}${path ?? ""}`;

@@ -18,6 +18,7 @@ import {
 import { googleAccessToken, googleServiceAccountConfigured } from "./googleAuth";
 import { appUrl } from "./requests";
 import { DAY_MS } from "../shared/datetime";
+import { env } from "./environment";
 
 const EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const CALENDARS_SCOPE = "https://www.googleapis.com/auth/calendar";
@@ -30,7 +31,7 @@ const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 30 * 60_000];
 // The shared calendar's id: one made by createSharedCalendar below, or any
 // calendar shared with the service account with "Make changes to events".
 export const calendarSyncConfigured = (): boolean =>
-  !!process.env.GOOGLE_CALENDAR_ID && googleServiceAccountConfigured();
+  !!env("GOOGLE_CALENDAR_ID") && googleServiceAccountConfigured();
 
 type GoogleBody = ReturnType<typeof googleEventBody>;
 
@@ -140,7 +141,7 @@ export const finishSync = internalMutation({
 });
 
 const eventsUrl = () =>
-  `${API}/calendars/${encodeURIComponent(process.env.GOOGLE_CALENDAR_ID as string)}/events`;
+  `${API}/calendars/${encodeURIComponent(env("GOOGLE_CALENDAR_ID") as string)}/events`;
 
 async function call(token: string, method: string, url: string, body?: object) {
   return await fetch(url, {
