@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.28] - 2026-11-21
+## [2.11.36] - 2026-11-21
 
 ### Changed
 - **List rows keep their own state when another row goes, for contributors.**
@@ -16,6 +16,15 @@ All notable changes to **The SHED** mobile app. This project follows
   (`src/lib/listKeys.ts`, `useRowIds`), and lint rejects an index key
   (`react/no-array-index-key`). Fixed positions, like the weekday header and
   chart points, say why in a disable comment.
+
+## [2.11.30] - 2026-11-21
+
+### Changed
+- **No more `as never`, for contributors.** The cast fits any type, so it
+  switched type checking off where it was used. The six in the app weren't
+  needed or now name the real type, the tests' fixtures assert to the type
+  they stand in for, and lint rejects new ones. Nothing changes for people
+  using the app.
 
 ## [2.11.21] - 2026-11-21
 

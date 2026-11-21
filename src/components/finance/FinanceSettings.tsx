@@ -306,7 +306,7 @@ export const FinanceSettingsButton = ({ year }: { year: number }) => {
         title="Finance settings"
         variant="tonal"
         icon="settings-outline"
-        onPress={() => router.push("/finance-settings" as never)}
+        onPress={() => router.push("/finance-settings")}
       />
     </Row>
   );
