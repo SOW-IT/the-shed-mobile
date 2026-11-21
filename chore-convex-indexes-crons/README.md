@@ -9,57 +9,57 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 6s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 50s |  |
-| typecheck | ✔ pass | 14s |  |
-| unit tests with coverage | ✔ pass | 18s |  |
+| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 39s |  |
+| typecheck | ✔ pass | 11s |  |
+| unit tests with coverage | ✔ pass | 15s |  |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 18s | before functions on :3270 |
-| before: web | ⚠ warning | 505s |   |
-| before: iOS reset | ✔ pass | 6s |  |
-| before: iOS | ⚠ warning | 111s | maestro failed, see .verify/run/before/logs/maestro.log  |
-| after: local backend | ✔ pass | 41s | after functions on :3270 |
-| after: web | ✔ pass | 546s | 140 screens, 0 broken. |
+| before: local backend | ✔ pass | 14s | before functions on :3270 |
+| before: web | ✔ pass | 549s | 140 screens, 0 broken. |
+| before: iOS reset | ✔ pass | 2s |  |
+| before: iOS | ✔ pass | 234s | 35 screenshots |
+| after: local backend | ✔ pass | 16s | after functions on :3270 |
+| after: web | ✔ pass | 494s | 140 screens, 0 broken. |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 218s | 35 screenshots |
+| after: iOS | ✔ pass | 206s | 35 screenshots |
 
 ## Screenshots
 
 | Screen | Before | After |
 | --- | --- | --- |
-| web `admin-admin` | (none) | <img src="after/web/admin-admin.png" width="260"> |
-| web `admin-admin_tab_system` | (none) | <img src="after/web/admin-admin_tab_system.png" width="260"> |
-| web `admin-admin_tab_teams` | (none) | <img src="after/web/admin-admin_tab_teams.png" width="260"> |
+| web `admin-admin` | <img src="before/web/admin-admin.png" width="260"> | <img src="after/web/admin-admin.png" width="260"> |
+| web `admin-admin_tab_system` | <img src="before/web/admin-admin_tab_system.png" width="260"> | <img src="after/web/admin-admin_tab_system.png" width="260"> |
+| web `admin-admin_tab_teams` | <img src="before/web/admin-admin_tab_teams.png" width="260"> | <img src="after/web/admin-admin_tab_teams.png" width="260"> |
 | web `admin-all` | <img src="before/web/admin-all.png" width="260"> | <img src="after/web/admin-all.png" width="260"> |
-| web `admin-announcements` | (none) | <img src="after/web/admin-announcements.png" width="260"> |
-| web `admin-attendance` | (none) | <img src="after/web/admin-attendance.png" width="260"> |
-| web `admin-attendance_event_eventId` | (none) | <img src="after/web/admin-attendance_event_eventId.png" width="260"> |
-| web `admin-attendance_member_member_3A_memberId` | (none) | <img src="after/web/admin-attendance_member_member_3A_memberId.png" width="260"> |
-| web `admin-attendance_merges` | (none) | <img src="after/web/admin-attendance_merges.png" width="260"> |
-| web `admin-calendar` | (none) | <img src="after/web/admin-calendar.png" width="260"> |
-| web `admin-calendar_history` | (none) | <img src="after/web/admin-calendar_history.png" width="260"> |
-| web `admin-calendar_view_week` | (none) | <img src="after/web/admin-calendar_view_week.png" width="260"> |
-| web `admin-checkin_checkInToken` | (none) | <img src="after/web/admin-checkin_checkInToken.png" width="260"> |
-| web `admin-checkin_not_a_real_link` | (none) | <img src="after/web/admin-checkin_not_a_real_link.png" width="260"> |
-| web `admin-churches` | (none) | <img src="after/web/admin-churches.png" width="260"> |
+| web `admin-announcements` | <img src="before/web/admin-announcements.png" width="260"> | <img src="after/web/admin-announcements.png" width="260"> |
+| web `admin-attendance` | <img src="before/web/admin-attendance.png" width="260"> | <img src="after/web/admin-attendance.png" width="260"> |
+| web `admin-attendance_event_eventId` | <img src="before/web/admin-attendance_event_eventId.png" width="260"> | <img src="after/web/admin-attendance_event_eventId.png" width="260"> |
+| web `admin-attendance_member_member_3A_memberId` | <img src="before/web/admin-attendance_member_member_3A_memberId.png" width="260"> | <img src="after/web/admin-attendance_member_member_3A_memberId.png" width="260"> |
+| web `admin-attendance_merges` | <img src="before/web/admin-attendance_merges.png" width="260"> | <img src="after/web/admin-attendance_merges.png" width="260"> |
+| web `admin-calendar` | <img src="before/web/admin-calendar.png" width="260"> | <img src="after/web/admin-calendar.png" width="260"> |
+| web `admin-calendar_history` | <img src="before/web/admin-calendar_history.png" width="260"> | <img src="after/web/admin-calendar_history.png" width="260"> |
+| web `admin-calendar_view_week` | <img src="before/web/admin-calendar_view_week.png" width="260"> | <img src="after/web/admin-calendar_view_week.png" width="260"> |
+| web `admin-checkin_checkInToken` | <img src="before/web/admin-checkin_checkInToken.png" width="260"> | <img src="after/web/admin-checkin_checkInToken.png" width="260"> |
+| web `admin-checkin_not_a_real_link` | <img src="before/web/admin-checkin_not_a_real_link.png" width="260"> | <img src="after/web/admin-checkin_not_a_real_link.png" width="260"> |
+| web `admin-churches` | <img src="before/web/admin-churches.png" width="260"> | <img src="after/web/admin-churches.png" width="260"> |
 | web `admin-design_requests` | <img src="before/web/admin-design_requests.png" width="260"> | <img src="after/web/admin-design_requests.png" width="260"> |
 | web `admin-design_requests_new` | <img src="before/web/admin-design_requests_new.png" width="260"> | <img src="after/web/admin-design_requests_new.png" width="260"> |
 | web `admin-edit_home` | <img src="before/web/admin-edit_home.png" width="260"> | <img src="after/web/admin-edit_home.png" width="260"> |
-| web `admin-event_requests` | (none) | <img src="after/web/admin-event_requests.png" width="260"> |
-| web `admin-event_requests_new` | (none) | <img src="after/web/admin-event_requests_new.png" width="260"> |
+| web `admin-event_requests` | <img src="before/web/admin-event_requests.png" width="260"> | <img src="after/web/admin-event_requests.png" width="260"> |
+| web `admin-event_requests_new` | <img src="before/web/admin-event_requests_new.png" width="260"> | <img src="after/web/admin-event_requests_new.png" width="260"> |
 | web `admin-finance_settings` | <img src="before/web/admin-finance_settings.png" width="260"> | <img src="after/web/admin-finance_settings.png" width="260"> |
-| web `admin-grievances` | (none) | <img src="after/web/admin-grievances.png" width="260"> |
-| web `admin-grievances_new` | (none) | <img src="after/web/admin-grievances_new.png" width="260"> |
-| web `admin-grievances_tab_settings` | (none) | <img src="after/web/admin-grievances_tab_settings.png" width="260"> |
+| web `admin-grievances` | <img src="before/web/admin-grievances.png" width="260"> | <img src="after/web/admin-grievances.png" width="260"> |
+| web `admin-grievances_new` | <img src="before/web/admin-grievances_new.png" width="260"> | <img src="after/web/admin-grievances_new.png" width="260"> |
+| web `admin-grievances_tab_settings` | <img src="before/web/admin-grievances_tab_settings.png" width="260"> | <img src="after/web/admin-grievances_tab_settings.png" width="260"> |
 | web `admin-home` | <img src="before/web/admin-home.png" width="260"> | <img src="after/web/admin-home.png" width="260"> |
-| web `admin-insights_tab_attendance` | (none) | <img src="after/web/admin-insights_tab_attendance.png" width="260"> |
-| web `admin-insights_tab_general` | (none) | <img src="after/web/admin-insights_tab_general.png" width="260"> |
-| web `admin-mentoring` | (none) | <img src="after/web/admin-mentoring.png" width="260"> |
-| web `admin-music` | (none) | <img src="after/web/admin-music.png" width="260"> |
-| web `admin-no_such_page` | (none) | <img src="after/web/admin-no_such_page.png" width="260"> |
-| web `admin-notifications` | (none) | <img src="after/web/admin-notifications.png" width="260"> |
-| web `admin-org` | (none) | <img src="after/web/admin-org.png" width="260"> |
-| web `admin-profile` | (none) | <img src="after/web/admin-profile.png" width="260"> |
+| web `admin-insights_tab_attendance` | <img src="before/web/admin-insights_tab_attendance.png" width="260"> | <img src="after/web/admin-insights_tab_attendance.png" width="260"> |
+| web `admin-insights_tab_general` | <img src="before/web/admin-insights_tab_general.png" width="260"> | <img src="after/web/admin-insights_tab_general.png" width="260"> |
+| web `admin-mentoring` | <img src="before/web/admin-mentoring.png" width="260"> | <img src="after/web/admin-mentoring.png" width="260"> |
+| web `admin-music` | <img src="before/web/admin-music.png" width="260"> | <img src="after/web/admin-music.png" width="260"> |
+| web `admin-no_such_page` | <img src="before/web/admin-no_such_page.png" width="260"> | <img src="after/web/admin-no_such_page.png" width="260"> |
+| web `admin-notifications` | <img src="before/web/admin-notifications.png" width="260"> | <img src="after/web/admin-notifications.png" width="260"> |
+| web `admin-org` | <img src="before/web/admin-org.png" width="260"> | <img src="after/web/admin-org.png" width="260"> |
+| web `admin-profile` | <img src="before/web/admin-profile.png" width="260"> | <img src="after/web/admin-profile.png" width="260"> |
 | web `admin-review` | <img src="before/web/admin-review.png" width="260"> | <img src="after/web/admin-review.png" width="260"> |
 | web `admin-root` | <img src="before/web/admin-root.png" width="260"> | <img src="after/web/admin-root.png" width="260"> |
 | web `leader-admin` | <img src="before/web/leader-admin.png" width="260"> | <img src="after/web/leader-admin.png" width="260"> |
@@ -167,38 +167,38 @@
 | web `staff-profile` | <img src="before/web/staff-profile.png" width="260"> | <img src="after/web/staff-profile.png" width="260"> |
 | web `staff-review` | <img src="before/web/staff-review.png" width="260"> | <img src="after/web/staff-review.png" width="260"> |
 | web `staff-root` | <img src="before/web/staff-root.png" width="260"> | <img src="after/web/staff-root.png" width="260"> |
-| ios `admin-admin` | (none) | <img src="after/ios/admin-admin.png" width="260"> |
-| ios `admin-admin_tab_system` | (none) | <img src="after/ios/admin-admin_tab_system.png" width="260"> |
-| ios `admin-admin_tab_teams` | (none) | <img src="after/ios/admin-admin_tab_teams.png" width="260"> |
-| ios `admin-all` | (none) | <img src="after/ios/admin-all.png" width="260"> |
-| ios `admin-announcements` | (none) | <img src="after/ios/admin-announcements.png" width="260"> |
-| ios `admin-attendance` | (none) | <img src="after/ios/admin-attendance.png" width="260"> |
-| ios `admin-attendance_event_eventId` | (none) | <img src="after/ios/admin-attendance_event_eventId.png" width="260"> |
-| ios `admin-attendance_member_member_3A_memberId` | (none) | <img src="after/ios/admin-attendance_member_member_3A_memberId.png" width="260"> |
-| ios `admin-attendance_merges` | (none) | <img src="after/ios/admin-attendance_merges.png" width="260"> |
-| ios `admin-calendar` | (none) | <img src="after/ios/admin-calendar.png" width="260"> |
-| ios `admin-calendar_history` | (none) | <img src="after/ios/admin-calendar_history.png" width="260"> |
-| ios `admin-calendar_view_week` | (none) | <img src="after/ios/admin-calendar_view_week.png" width="260"> |
-| ios `admin-checkin_checkInToken` | (none) | <img src="after/ios/admin-checkin_checkInToken.png" width="260"> |
-| ios `admin-churches` | (none) | <img src="after/ios/admin-churches.png" width="260"> |
-| ios `admin-design_requests` | (none) | <img src="after/ios/admin-design_requests.png" width="260"> |
-| ios `admin-design_requests_new` | (none) | <img src="after/ios/admin-design_requests_new.png" width="260"> |
-| ios `admin-edit_home` | (none) | <img src="after/ios/admin-edit_home.png" width="260"> |
-| ios `admin-event_requests` | (none) | <img src="after/ios/admin-event_requests.png" width="260"> |
-| ios `admin-event_requests_new` | (none) | <img src="after/ios/admin-event_requests_new.png" width="260"> |
-| ios `admin-finance_settings` | (none) | <img src="after/ios/admin-finance_settings.png" width="260"> |
-| ios `admin-grievances` | (none) | <img src="after/ios/admin-grievances.png" width="260"> |
-| ios `admin-grievances_new` | (none) | <img src="after/ios/admin-grievances_new.png" width="260"> |
-| ios `admin-grievances_tab_settings` | (none) | <img src="after/ios/admin-grievances_tab_settings.png" width="260"> |
-| ios `admin-home` | (none) | <img src="after/ios/admin-home.png" width="260"> |
-| ios `admin-insights_tab_attendance` | (none) | <img src="after/ios/admin-insights_tab_attendance.png" width="260"> |
-| ios `admin-insights_tab_general` | (none) | <img src="after/ios/admin-insights_tab_general.png" width="260"> |
-| ios `admin-mentoring` | (none) | <img src="after/ios/admin-mentoring.png" width="260"> |
-| ios `admin-music` | (none) | <img src="after/ios/admin-music.png" width="260"> |
-| ios `admin-notifications` | (none) | <img src="after/ios/admin-notifications.png" width="260"> |
-| ios `admin-org` | (none) | <img src="after/ios/admin-org.png" width="260"> |
-| ios `admin-profile` | (none) | <img src="after/ios/admin-profile.png" width="260"> |
-| ios `admin-review` | (none) | <img src="after/ios/admin-review.png" width="260"> |
-| ios `admin-root` | (none) | <img src="after/ios/admin-root.png" width="260"> |
-| ios `out-home` | (none) | <img src="after/ios/out-home.png" width="260"> |
-| ios `out-root` | (none) | <img src="after/ios/out-root.png" width="260"> |
+| ios `admin-admin` | <img src="before/ios/admin-admin.png" width="260"> | <img src="after/ios/admin-admin.png" width="260"> |
+| ios `admin-admin_tab_system` | <img src="before/ios/admin-admin_tab_system.png" width="260"> | <img src="after/ios/admin-admin_tab_system.png" width="260"> |
+| ios `admin-admin_tab_teams` | <img src="before/ios/admin-admin_tab_teams.png" width="260"> | <img src="after/ios/admin-admin_tab_teams.png" width="260"> |
+| ios `admin-all` | <img src="before/ios/admin-all.png" width="260"> | <img src="after/ios/admin-all.png" width="260"> |
+| ios `admin-announcements` | <img src="before/ios/admin-announcements.png" width="260"> | <img src="after/ios/admin-announcements.png" width="260"> |
+| ios `admin-attendance` | <img src="before/ios/admin-attendance.png" width="260"> | <img src="after/ios/admin-attendance.png" width="260"> |
+| ios `admin-attendance_event_eventId` | <img src="before/ios/admin-attendance_event_eventId.png" width="260"> | <img src="after/ios/admin-attendance_event_eventId.png" width="260"> |
+| ios `admin-attendance_member_member_3A_memberId` | <img src="before/ios/admin-attendance_member_member_3A_memberId.png" width="260"> | <img src="after/ios/admin-attendance_member_member_3A_memberId.png" width="260"> |
+| ios `admin-attendance_merges` | <img src="before/ios/admin-attendance_merges.png" width="260"> | <img src="after/ios/admin-attendance_merges.png" width="260"> |
+| ios `admin-calendar` | <img src="before/ios/admin-calendar.png" width="260"> | <img src="after/ios/admin-calendar.png" width="260"> |
+| ios `admin-calendar_history` | <img src="before/ios/admin-calendar_history.png" width="260"> | <img src="after/ios/admin-calendar_history.png" width="260"> |
+| ios `admin-calendar_view_week` | <img src="before/ios/admin-calendar_view_week.png" width="260"> | <img src="after/ios/admin-calendar_view_week.png" width="260"> |
+| ios `admin-checkin_checkInToken` | <img src="before/ios/admin-checkin_checkInToken.png" width="260"> | <img src="after/ios/admin-checkin_checkInToken.png" width="260"> |
+| ios `admin-churches` | <img src="before/ios/admin-churches.png" width="260"> | <img src="after/ios/admin-churches.png" width="260"> |
+| ios `admin-design_requests` | <img src="before/ios/admin-design_requests.png" width="260"> | <img src="after/ios/admin-design_requests.png" width="260"> |
+| ios `admin-design_requests_new` | <img src="before/ios/admin-design_requests_new.png" width="260"> | <img src="after/ios/admin-design_requests_new.png" width="260"> |
+| ios `admin-edit_home` | <img src="before/ios/admin-edit_home.png" width="260"> | <img src="after/ios/admin-edit_home.png" width="260"> |
+| ios `admin-event_requests` | <img src="before/ios/admin-event_requests.png" width="260"> | <img src="after/ios/admin-event_requests.png" width="260"> |
+| ios `admin-event_requests_new` | <img src="before/ios/admin-event_requests_new.png" width="260"> | <img src="after/ios/admin-event_requests_new.png" width="260"> |
+| ios `admin-finance_settings` | <img src="before/ios/admin-finance_settings.png" width="260"> | <img src="after/ios/admin-finance_settings.png" width="260"> |
+| ios `admin-grievances` | <img src="before/ios/admin-grievances.png" width="260"> | <img src="after/ios/admin-grievances.png" width="260"> |
+| ios `admin-grievances_new` | <img src="before/ios/admin-grievances_new.png" width="260"> | <img src="after/ios/admin-grievances_new.png" width="260"> |
+| ios `admin-grievances_tab_settings` | <img src="before/ios/admin-grievances_tab_settings.png" width="260"> | <img src="after/ios/admin-grievances_tab_settings.png" width="260"> |
+| ios `admin-home` | <img src="before/ios/admin-home.png" width="260"> | <img src="after/ios/admin-home.png" width="260"> |
+| ios `admin-insights_tab_attendance` | <img src="before/ios/admin-insights_tab_attendance.png" width="260"> | <img src="after/ios/admin-insights_tab_attendance.png" width="260"> |
+| ios `admin-insights_tab_general` | <img src="before/ios/admin-insights_tab_general.png" width="260"> | <img src="after/ios/admin-insights_tab_general.png" width="260"> |
+| ios `admin-mentoring` | <img src="before/ios/admin-mentoring.png" width="260"> | <img src="after/ios/admin-mentoring.png" width="260"> |
+| ios `admin-music` | <img src="before/ios/admin-music.png" width="260"> | <img src="after/ios/admin-music.png" width="260"> |
+| ios `admin-notifications` | <img src="before/ios/admin-notifications.png" width="260"> | <img src="after/ios/admin-notifications.png" width="260"> |
+| ios `admin-org` | <img src="before/ios/admin-org.png" width="260"> | <img src="after/ios/admin-org.png" width="260"> |
+| ios `admin-profile` | <img src="before/ios/admin-profile.png" width="260"> | <img src="after/ios/admin-profile.png" width="260"> |
+| ios `admin-review` | <img src="before/ios/admin-review.png" width="260"> | <img src="after/ios/admin-review.png" width="260"> |
+| ios `admin-root` | <img src="before/ios/admin-root.png" width="260"> | <img src="after/ios/admin-root.png" width="260"> |
+| ios `out-home` | <img src="before/ios/out-home.png" width="260"> | <img src="after/ios/out-home.png" width="260"> |
+| ios `out-root` | <img src="before/ios/out-root.png" width="260"> | <img src="after/ios/out-root.png" width="260"> |
