@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.35] - 2026-11-21
+## [2.11.44] - 2026-11-22
 
 ### Changed
 - **Verify's before and after screenshots match when nothing changed, for
@@ -17,6 +17,15 @@ All notable changes to **The SHED** mobile app. This project follows
   Verify also stops leaving the checkout's `.env.local` pointed at its
   throwaway backend, which the Convex CLI wrote there on every run. Nothing
   changes for people using the app.
+
+## [2.11.42] - 2026-11-22
+
+### Changed
+- **CodeRabbit only reviews big changes, for contributors.** Automatic
+  reviews are off. A review is requested only when a PR has more than 300
+  lines of app or Convex code, or it touches the schema, data deletion,
+  auth, or notification sending. Smaller PRs go through once CI and verify
+  pass. Nothing changes for people using the app.
 
 ## [2.11.31] - 2026-11-21
 
