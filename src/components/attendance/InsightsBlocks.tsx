@@ -267,7 +267,7 @@ export function InsightsBlocks({
         return renderWeeklyBlock(block, key, {
           onOpenPerson,
           onEditMember,
-          onOpenLink: (link) => router.push(link as never),
+          onOpenLink: (link) => router.push(link),
           colours: t,
         });
     }

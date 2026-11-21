@@ -1353,7 +1353,7 @@ describe("audit trail and reminders", () => {
       approvedByDirector: undefined,
       approvedByFinanceHead: "PENDING",
       _creationTime: staffYearStartMs(YEAR - 1),
-    } as never as Parameters<typeof nextApproverEmail>[0];
+    } as Parameters<typeof nextApproverEmail>[0];
     const lastYear = { financeDepartment: "Finance", hodEmail: HENRY, budgetManagerEmail: undefined, financeHeadEmail: undefined };
     const thisYear = { financeDepartment: "Finance", hodEmail: HENRY, budgetManagerEmail: BELLA, financeHeadEmail: FIONA };
     expect(nextApproverEmail(carriedOver, lastYear, thisYear)).toBe(BELLA);
@@ -1381,7 +1381,7 @@ describe("audit trail and reminders", () => {
     ).toBeUndefined();
     expect(
       nextApproverEmail(
-        { ...carriedOver, approvedByBudgetManager: "APPROVED", approvedByFinanceHead: "APPROVED" } as never,
+        { ...carriedOver, approvedByBudgetManager: "APPROVED", approvedByFinanceHead: "APPROVED" },
         lastYear,
         thisYear
       )
@@ -1403,7 +1403,7 @@ describe("audit trail and reminders", () => {
       approvedByBudgetManager: "APPROVED",
       approvedByDirector: undefined,
       approvedByFinanceHead: "PENDING",
-    } as never as Parameters<typeof involvedApproverEmails>[0];
+    } as Parameters<typeof involvedApproverEmails>[0];
 
     expect(involvedApproverEmails(base, approvers, ["APPROVED"])).toEqual([
       HENRY,
@@ -1411,14 +1411,14 @@ describe("audit trail and reminders", () => {
     ]);
     expect(
       involvedApproverEmails(
-        { ...base, department: "Finance" } as never,
+        { ...base, department: "Finance" },
         approvers,
         ["APPROVED"]
       )
     ).toEqual([BELLA]);
     expect(
       involvedApproverEmails(
-        { ...base, requesterEmail: HENRY } as never,
+        { ...base, requesterEmail: HENRY },
         approvers,
         ["APPROVED"]
       )
