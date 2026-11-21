@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.26] - 2026-11-21
+## [2.11.34] - 2026-11-21
 
 ### Changed
 - **Form inputs have test ids, for contributors.** Every text field gets a
@@ -14,6 +14,15 @@ All notable changes to **The SHED** mobile app. This project follows
   (`field-title`, `field-phone`), so a Maestro flow on
   the iOS Simulator or a Playwright script on web can fill in a form
   (`docs/verification.md` → "Filling in a form"). Nothing changes for people
+  using the app.
+
+## [2.11.30] - 2026-11-21
+
+### Changed
+- **No more `as never`, for contributors.** The cast fits any type, so it
+  switched type checking off where it was used. The six in the app weren't
+  needed or now name the real type, the tests' fixtures assert to the type
+  they stand in for, and lint rejects new ones. Nothing changes for people
   using the app.
 
 ## [2.11.21] - 2026-11-21

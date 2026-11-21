@@ -9,6 +9,7 @@ import {
   isFieldShown,
   normalizeAnswers,
   sydneyToday,
+  type FormAnswers,
   type FormField,
 } from "@shared/forms";
 import {
@@ -104,17 +105,17 @@ const MarketingAnswers = ({
   answers,
 }: {
   fields: readonly FormField[];
-  answers: Record<string, unknown>;
+  answers: FormAnswers;
 }) => {
   const t = useAppTheme();
-  const shown = fields.filter((f) => isFieldShown(f, answers as never));
+  const shown = fields.filter((f) => isFieldShown(f, answers));
   return (
     <Card>
       {shown.map((field) => (
         <View key={field.key} style={{ gap: 4 }}>
           <Text style={[typography.label, { color: t.muted }]}>{field.shortLabel}</Text>
           <Text selectable style={[typography.body, { color: t.text }]}>
-            {formatAnswer(field, answers as never) ?? "—"}
+            {formatAnswer(field, answers) ?? "—"}
           </Text>
         </View>
       ))}
