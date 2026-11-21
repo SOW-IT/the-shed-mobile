@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.43] - 2026-11-22
+## [2.11.51] - 2026-11-22
 
 ### Added
 - **Add someone to one event without making them a member.** When someone
@@ -17,6 +17,16 @@ All notable changes to **The SHED** mobile app. This project follows
   label. They count toward the event's total, its export and campus averages,
   but they never show up in Members, search for other events, merges or
   Insights about people. Remove one the same way you undo a sign-in.
+
+## [2.11.43] - 2026-11-22
+
+### Changed
+- **Form inputs have test ids, for contributors.** Every text field gets a
+  test id from its label, or its accessibility label when it shows none
+  (`field-title`, `field-phone`), so a Maestro flow on
+  the iOS Simulator or a Playwright script on web can fill in a form
+  (`docs/verification.md` → "Filling in a form"). Nothing changes for people
+  using the app.
 
 ## [2.11.42] - 2026-11-22
 
