@@ -10,7 +10,7 @@ import { type MemberChoice, searchMembers, suggestMembers, yearLevelLabel } from
 import { subgroupLabel } from "../../../shared/rollcall";
 import { sydneyDateTime, sydneyTime } from "@/lib/sydneyTime";
 import { Btn, Chip, ConfirmDialog, ErrorBanner, errorMessage, Facts, Muted, OptionSheet, SearchField, Sheet } from "@/components/ui";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 import { QrCode } from "./QrCode";
 import { phaseBetween } from "../../../shared/checkInWindow";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
@@ -138,7 +138,7 @@ function RoundButton({
       <Ionicons
         name={icon}
         size={18}
-        color={tone === "success" ? (t.dark ? t.background : "#ffffff") : t.ghostText}
+        color={tone === "success" ? (t.dark ? t.background : fixedColours.onColour) : t.ghostText}
       />
     </Pressable>
   );

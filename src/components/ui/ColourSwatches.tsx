@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { TAG_COLOUR_NAMES, tagColourHex, type TagColourName } from "@shared/attendanceTags";
-import { typography, useAppTheme } from "@/theme";
+import { typography, useAppTheme, fixedColours } from "@/theme";
 
 const SWATCH = 32;
 
@@ -33,7 +33,7 @@ export const ColourSwatches = ({
       ]}
     >
       <View style={[styles.dot, { backgroundColor: hex }]}>
-        {selected ? <Ionicons name="checkmark" size={18} color="#fff" /> : null}
+        {selected ? <Ionicons name="checkmark" size={18} color={fixedColours.onColour} /> : null}
       </View>
     </Pressable>
   );

@@ -481,7 +481,7 @@ export const remindOutgoingHandlers = internalMutation({
     const held = new Map<string, number>();
     for await (const g of ctx.db
       .query("grievances")
-      .withIndex("by_status", (q) => q.eq("status", "IN_PROGRESS"))) {
+      .withIndex("by_status_and_year", (q) => q.eq("status", "IN_PROGRESS"))) {
       if (!g.assigneeEmail || team.has(g.assigneeEmail)) continue;
       held.set(g.assigneeEmail, (held.get(g.assigneeEmail) ?? 0) + 1);
     }
@@ -568,7 +568,7 @@ export const waitingOnMe = query({
     if (!email) return 0;
     const waiting = await ctx.db
       .query("grievances")
-      .withIndex("by_status", (q) => q.eq("status", "SUBMITTED"))
+      .withIndex("by_status_and_year", (q) => q.eq("status", "SUBMITTED"))
       .take(LIST_LIMIT);
     return waiting.length + (await openHeldBy(ctx, email));
   },

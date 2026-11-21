@@ -2,8 +2,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import React, { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { formatDuration, timelineGapHeight } from "@shared/datetime";
+import { keysFor } from "@/lib/listKeys";
 import { sydneyDateTime } from "@/lib/sydneyTime";
-import { spacing, typography, useAppTheme, type AppTheme } from "@/theme";
+import { spacing, typography, useAppTheme, type AppTheme, fixedColours } from "@/theme";
 import { Facts } from "@/components/ui";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -70,7 +71,8 @@ export const HistoryTimeline = ({
   pending?: { label: string; note?: ReactNode };
 }) => {
   const t = useAppTheme();
-  const onCircle = t.dark ? t.background : "#ffffff";
+  const onCircle = t.dark ? t.background : fixedColours.onColour;
+  const keys = keysFor(entries.map((entry) => `${entry.at}|${entry.action}`));
   return (
     <View>
       {pending ? (
@@ -93,7 +95,7 @@ export const HistoryTimeline = ({
         const look = lookOf(entry.action);
         const older = entries[index + 1];
         return (
-          <React.Fragment key={index}>
+          <React.Fragment key={keys[index]}>
             <View style={styles.row}>
               <View style={styles.railColumn}>
                 <View style={[styles.circle, { backgroundColor: toneColour(t, look.tone) }]}>

@@ -85,7 +85,7 @@ For a fresh deployment, regenerate the JWT keys with
 
 ### Workspace directory sync (optional)
 
-Syncs the sow.org.au member list weekly (Mondays 21:00 UTC, and via the
+Syncs the sow.org.au member list weekly (Mondays 21:11 UTC, and via the
 admin screen's *Sync directory now* button) so admins assign people from a
 picker, and copies each staff member's Workspace photo. Setup:
 
