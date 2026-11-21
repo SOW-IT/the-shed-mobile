@@ -5,12 +5,20 @@ import {
   type Audience,
   audienceSummary,
   cleanDraft,
+  EVERYONE,
+  cleanEmails,
+  emailChoiceOf,
+  emailFlags,
+  emailRecipients,
   inAudience,
+  nameList,
+  type NoPushReason,
+  PEOPLE_MAX,
   rateLimitError,
   scheduleError,
   sortRoles,
 } from "../shared/announcements";
-import { assignmentsOf } from "../shared/flow";
+import { acronym, assignmentsOf } from "../shared/flow";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
@@ -43,7 +51,38 @@ const cleanAudience = (audience: Audience): Audience => ({
   roles: cleanList(audience.roles),
 });
 
-async function audienceEmails(ctx: Ctx, audience: Audience, year: number): Promise<string[]> {
+const peopleValidator = v.optional(v.array(v.string()));
+
+const cleanPeople = (people: string[] | undefined) => {
+  if (people === undefined) return undefined;
+  const emails = cleanEmails(people);
+  if (emails.length > PEOPLE_MAX) {
+    throw new ConvexError(`Pick ${PEOPLE_MAX} people or fewer.`);
+  }
+  return emails;
+};
+
+type Recipient = { email: string; name: string | null };
+
+/** A profile's name, else the Google directory's, else the email. */
+async function nameOf(ctx: Ctx, recipient: Recipient): Promise<string> {
+  if (recipient.name) return recipient.name;
+  const user = await ctx.db
+    .query("directoryUsers")
+    .withIndex("by_email", (q) => q.eq("email", recipient.email))
+    .first();
+  return user?.name?.trim() || recipient.email;
+}
+
+/**
+ * This year's leaders an announcement reaches, by email. A list of people,
+ * when there is one, takes the place of the groups.
+ */
+async function recipientsOf(
+  ctx: Ctx,
+  target: { audience: Audience; people?: string[] },
+  year: number
+): Promise<Recipient[]> {
   const departments = await ctx.db
     .query("departments")
     .withIndex("by_year_and_name", (q) => q.eq("year", year))
@@ -53,13 +92,26 @@ async function audienceEmails(ctx: Ctx, audience: Audience, year: number): Promi
     .query("staffProfiles")
     .withIndex("by_year", (q) => q.eq("year", year))
     .take(MAX_PROFILES);
-  const emails = new Set<string>();
+  const chosen = target.people ? new Set(target.people) : null;
+  const recipients = new Map<string, Recipient>();
   for (const profile of profiles) {
-    if (inAudience(assignmentsOf(profile), audience, (d) => divisionOf.get(d))) {
-      emails.add(profile.email.toLowerCase());
-    }
+    const email = profile.email.toLowerCase();
+    const reached = chosen
+      ? chosen.has(email)
+      : inAudience(assignmentsOf(profile), target.audience, (d) => divisionOf.get(d));
+    if (!reached) continue;
+    const name = profile.name?.trim() || null;
+    if (!recipients.get(email)?.name) recipients.set(email, { email, name });
   }
-  return [...emails].sort();
+  return [...recipients.values()].sort((a, b) => a.email.localeCompare(b.email));
+}
+
+async function audienceEmails(
+  ctx: Ctx,
+  target: { audience: Audience; people?: string[] },
+  year: number
+): Promise<string[]> {
+  return (await recipientsOf(ctx, target, year)).map((r) => r.email);
 }
 
 async function hasApp(ctx: Ctx, email: string): Promise<boolean> {
@@ -69,6 +121,29 @@ async function hasApp(ctx: Ctx, email: string): Promise<boolean> {
     .first();
   return token !== null;
 }
+
+/**
+ * Why a push can't reach someone, or null when it can. Having opened the app
+ * (an `appInstalls` row) without a registered token means they turned
+ * notifications off, or are signed out on their phone.
+ */
+async function noPushReason(ctx: Ctx, email: string): Promise<NoPushReason | null> {
+  if (await hasApp(ctx, email)) return null;
+  const install = await ctx.db
+    .query("appInstalls")
+    .withIndex("by_email_and_platform", (q) => q.eq("email", email))
+    .first();
+  return install ? "notificationsOff" : "noApp";
+}
+
+const assignmentDetail = (profile: Doc<"staffProfiles">) =>
+  [
+    ...new Set(
+      assignmentsOf(profile).map(
+        (a) => a.department ?? a.division ?? (a.university ? acronym(a.university) : a.role)
+      )
+    ),
+  ].join(", ");
 
 async function senderActivity(ctx: Ctx, email: string, now: number) {
   const madeToday = (status: "scheduled" | "sent") =>
@@ -131,21 +206,52 @@ export const options = query({
       divisions: divisions.map((d) => d.name),
       departments: departments.map((d) => ({ name: d.name, division: d.division })),
       roles: sortRoles(profiles.flatMap((p) => assignmentsOf(p).map((a) => a.role))),
+      people: await peopleOptions(ctx, profiles),
     };
   },
 });
 
+async function peopleOptions(ctx: Ctx, profiles: Doc<"staffProfiles">[]) {
+  const byEmail = new Map<string, Recipient & { detail: string }>();
+  for (const profile of profiles) {
+    const email = profile.email.toLowerCase();
+    const known = byEmail.get(email);
+    byEmail.set(email, {
+      email,
+      name: known?.name || profile.name?.trim() || null,
+      detail: [known?.detail, assignmentDetail(profile)].filter(Boolean).join(", "),
+    });
+  }
+  const people = [];
+  for (const person of byEmail.values()) {
+    people.push({ ...person, name: await nameOf(ctx, person) });
+  }
+  return people.sort((a, b) => a.name.localeCompare(b.name) || a.email.localeCompare(b.email));
+}
+
 export const audienceSize = query({
-  args: { audience: audienceValidator },
+  args: { audience: audienceValidator, people: peopleValidator },
   handler: async (ctx, args) => {
     const caller = await optionalAdmin(ctx);
     if (!caller) return null;
-    const emails = await audienceEmails(ctx, cleanAudience(args.audience), caller.year);
-    let withApp = 0;
-    for (const email of emails) {
-      if (await hasApp(ctx, email)) withApp++;
+    const recipients = await recipientsOf(
+      ctx,
+      { audience: cleanAudience(args.audience), people: cleanPeople(args.people) },
+      caller.year
+    );
+    const withoutApp: { email: string; name: string; reason: NoPushReason }[] = [];
+    for (const recipient of recipients) {
+      const reason = await noPushReason(ctx, recipient.email);
+      if (reason) {
+        withoutApp.push({ email: recipient.email, name: await nameOf(ctx, recipient), reason });
+      }
     }
-    return { people: emails.length, withApp };
+    withoutApp.sort((a, b) => a.name.localeCompare(b.name) || a.email.localeCompare(b.email));
+    return {
+      people: recipients.length,
+      withApp: recipients.length - withoutApp.length,
+      withoutApp,
+    };
   },
 });
 
@@ -154,7 +260,9 @@ export const send = mutation({
     title: v.string(),
     message: v.string(),
     audience: audienceValidator,
+    people: peopleValidator,
     sendEmail: v.boolean(),
+    emailWithoutApp: v.optional(v.boolean()),
     sendAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -166,11 +274,16 @@ export const send = mutation({
       const error = scheduleError(args.sendAt, now);
       if (error) throw new ConvexError(error);
     }
-    const audience = cleanAudience(args.audience);
-    const recipients = await audienceEmails(ctx, audience, caller.year);
+    const people = cleanPeople(args.people);
+    if (people?.length === 0) throw new ConvexError("Pick at least one person.");
+    const audience = people ? EVERYONE : cleanAudience(args.audience);
+    const recipients = await audienceEmails(ctx, { audience, people }, caller.year);
     if (recipients.length === 0) {
       throw new ConvexError("No one matches who you chose.");
     }
+    // Keep only the people on this year's staff, so someone who joins later
+    // isn't sent an announcement they weren't counted in.
+    const onStaff = new Set(recipients);
 
     const limited = rateLimitError({
       ...(await senderActivity(ctx, caller.email, now)),
@@ -186,7 +299,8 @@ export const send = mutation({
       title: draft.title,
       message: draft.message,
       audience,
-      sendEmail: args.sendEmail,
+      ...(people ? { people: people.filter((email) => onStaff.has(email)) } : {}),
+      ...emailFlags(emailChoiceOf(args)),
       status: "scheduled",
       sendAt,
     });
@@ -220,6 +334,8 @@ export const cancel = mutation({
 
 const NO_AUDIENCE_REASON =
   "No one matched who it was for when it was due, so it didn't go out. A division, department, role or campus it named may have been renamed or removed.";
+const NO_PEOPLE_REASON =
+  "None of the people it named were on this year's staff list when it was due, so it didn't go out.";
 
 const foundNoAudience = (announcement: Doc<"announcements">) =>
   announcement.status === "cancelled" &&
@@ -232,17 +348,27 @@ async function row(
   names: Map<string, string>,
   year: number
 ) {
-  let senderName = names.get(announcement.senderEmail);
-  if (senderName === undefined) {
-    senderName = await displayName(ctx, announcement.senderEmail, year);
-    names.set(announcement.senderEmail, senderName);
-  }
+  const nameOf = async (email: string) => {
+    let name = names.get(email);
+    if (name === undefined) {
+      name = await displayName(ctx, email, year);
+      names.set(email, name);
+    }
+    return name;
+  };
+  const senderName = await nameOf(announcement.senderEmail);
+  const people = announcement.people;
+  const audience = people
+    ? nameList(await Promise.all(people.slice(0, 3).map(nameOf)), people.length)
+    : audienceSummary(announcement.audience);
   return {
     id: announcement._id,
     title: announcement.title,
     message: announcement.message,
-    audience: audienceSummary(announcement.audience),
+    audience,
+    chosenPeople: people?.length ?? null,
     sendEmail: announcement.sendEmail,
+    emailWithoutApp: announcement.emailWithoutApp ?? false,
     status: announcement.status,
     sendAt: announcement.sendAt,
     sentAt: announcement.sentAt ?? null,
@@ -251,7 +377,11 @@ async function row(
     people: announcement.recipientCount ?? null,
     withApp: announcement.pushCount ?? null,
     emailed: announcement.emailCount ?? null,
-    notSentReason: foundNoAudience(announcement) ? NO_AUDIENCE_REASON : null,
+    notSentReason: foundNoAudience(announcement)
+      ? people
+        ? NO_PEOPLE_REASON
+        : NO_AUDIENCE_REASON
+      : null,
   };
 }
 
@@ -322,6 +452,7 @@ export const get = query({
             status: view.status,
             audience: view.audience,
             sendEmail: view.sendEmail,
+            emailWithoutApp: view.emailWithoutApp,
             people: view.people,
             withApp: view.withApp,
             emailed: view.emailed,
@@ -361,7 +492,7 @@ export const deliver = internalMutation({
     const announcement = await ctx.db.get("announcements", args.id);
     if (!announcement || announcement.status !== "scheduled") return null;
     const year = yearOf(announcement);
-    const recipients = await audienceEmails(ctx, announcement.audience, year);
+    const recipients = await audienceEmails(ctx, announcement, year);
     if (recipients.length === 0) {
       await ctx.db.patch("announcements", announcement._id, {
         status: "cancelled",
@@ -394,11 +525,12 @@ export const deliver = internalMutation({
         url,
       });
     }
-    if (announcement.sendEmail) {
+    const emailTo = emailRecipients(recipients, new Set(withApp), emailChoiceOf(announcement));
+    if (emailTo.length > 0) {
       const senderName = await displayName(ctx, announcement.senderEmail, year);
-      for (let i = 0; i < recipients.length; i += EMAIL_BATCH) {
+      for (let i = 0; i < emailTo.length; i += EMAIL_BATCH) {
         const messages = [];
-        for (const to of recipients.slice(i, i + EMAIL_BATCH)) {
+        for (const to of emailTo.slice(i, i + EMAIL_BATCH)) {
           const link = appUrl(url);
           messages.push({ to, ...announcementEmail({ title, message, senderName, link }) });
         }
@@ -415,7 +547,7 @@ export const deliver = internalMutation({
       jobId: undefined,
       recipientCount: recipients.length,
       pushCount: withApp.length,
-      emailCount: announcement.sendEmail ? recipients.length : 0,
+      emailCount: emailTo.length,
     });
     return null;
   },

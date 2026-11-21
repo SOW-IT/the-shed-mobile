@@ -186,7 +186,8 @@ e.g. Alumni). Home editors change the public Home tab's content.
 
 **Announcement**:
 A message an admin sends to leaders: a short title and a message, delivered
-to the bell, as a push to anyone with the app and, if ticked, by email. It is
+to the bell, as a push to anyone with the app and, if chosen, by email to
+everyone or just to those a push can't reach. It is
 **scheduled** until it goes out, then **sent**; a scheduled one can be
 **cancelled** and then never reaches anyone.
 _Avoid_: broadcast, blast, notice (in code)
@@ -204,6 +205,16 @@ group must be on the same assignment, so "Staff at UNSW" doesn't reach a
 Student Leader at UNSW who is Staff in Events. Worked out again when it goes
 out, from the staff year the sender chose it in, so a scheduled announcement
 reaches whoever is in the audience then, even after the 1 October rollover.
+The sender can instead pick **specific people**: a list of leaders by email,
+which takes the place of the groups. Anyone on it who has left the staff year
+by the time it goes out is dropped.
+
+**No push**:
+A recipient a push can't reach: no registered push token. If they have opened
+the app (an `appInstalls` row) they have **notifications off** (or are signed
+out on their phone); otherwise they have **no app**. Worked out when it goes
+out, so "email these people" emails whoever has no push at that moment.
+_Avoid_: unsubscribed, opted out
 
 
 ## Mentoring
