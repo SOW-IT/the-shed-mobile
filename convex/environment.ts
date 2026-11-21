@@ -1,5 +1,8 @@
-// Every environment variable the backend reads. Set them with
-// `npx convex env set`; LAUNCH.md says which ones prod needs.
+// Every environment variable the backend's functions read. Set them with
+// `npx convex env set`; LAUNCH.md says which ones prod needs. The exception is
+// CONVEX_SITE_URL: Convex sets it, and convex/auth.config.ts reads it directly
+// because Convex reads that file apart from the functions. Tests may set
+// process.env themselves to stage a variable.
 export type EnvName =
   | "APPLE_KEY_ID"
   | "APPLE_PRIVATE_KEY"

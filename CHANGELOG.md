@@ -12,8 +12,11 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Environment variables are read in one place per runtime, for
   contributors.** The app reads its build-time variables in `src/env.ts`,
   and the backend reads its own through `env()` in `convex/environment.ts`,
-  which lists every name it uses. Lint rejects `process.env` anywhere else in
-  `src/` and `convex/`. Nothing changes for people using the app.
+  which lists every name its functions use. Lint rejects `process.env`
+  anywhere else in `src/` and `convex/`, with two exceptions:
+  `convex/auth.config.ts` reads `CONVEX_SITE_URL` directly, the form Convex
+  documents for that file, and Convex tests may set `process.env` to stage a
+  variable. Nothing changes for people using the app.
 
 ## [2.11.55] - 2026-11-22
 
