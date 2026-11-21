@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.33] - 2026-11-21
+## [2.11.40] - 2026-11-21
 
 ### Changed
 - **Background jobs start a few minutes past the hour.** The morning
