@@ -284,7 +284,7 @@ export const eventFilterLabel = (event: {
 
 export type EventHostFilter = "here" | "shared";
 
-export type EventListFilter = {
+type EventListFilter = {
   tagIds?: readonly string[];
   host?: EventHostFilter;
 };

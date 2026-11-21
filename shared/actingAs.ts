@@ -28,8 +28,8 @@ export type Lens =
 export const SELF_LENS: Lens = { kind: "self" };
 export const ALL_VIEWS: Lens = { kind: "all" };
 export const ALL_VIEWS_LABEL = "All views";
-export const BUDGET_MANAGER_LABEL = "Budget Manager";
-export const CAMPUS_LEADER_LABEL = "Campus leader";
+const BUDGET_MANAGER_LABEL = "Budget Manager";
+const CAMPUS_LEADER_LABEL = "Campus leader";
 
 export const personaDepartment = (
   persona: Persona,
@@ -183,7 +183,7 @@ export const personaSeesRequest = (
     personaHoldsStep(persona, step, request.department, teams),
   );
 
-export const personaOnTeam = (
+const personaOnTeam = (
   persona: Persona,
   kind: SubFormKind,
   teams: Teams,

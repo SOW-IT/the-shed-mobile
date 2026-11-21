@@ -70,7 +70,7 @@ export const sowTagColourOf = (
 ): string | undefined =>
   category === "sow" ? tags.map((tag) => tagHexOf(tag.colour)).find((hex) => hex !== undefined) : undefined;
 
-export type EntryInput = {
+type EntryInput = {
   name: string;
   dateStart: number;
   dateEnd: number;
@@ -119,7 +119,7 @@ const keyOfUtc = (ms: number) => {
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 };
 
-export type GridDay = { key: string; day: number; inMonth: boolean };
+type GridDay = { key: string; day: number; inMonth: boolean };
 
 // Weeks start on Monday. `month` is 1-12.
 export const monthGrid = (year: number, month: number): GridDay[][] => {
@@ -215,7 +215,7 @@ export const eventsByDay = <E extends { dateStart: number; dateEnd: number }>(
   return byDay;
 };
 
-export type WeekBar<E> = {
+type WeekBar<E> = {
   event: E;
   // Columns, Monday = 0.
   start: number;
@@ -286,7 +286,7 @@ export const sydneyMinutes = (ms: number): number => {
   return (num("hour") % 24) * 60 + num("minute");
 };
 
-export type DayBlock<E> = {
+type DayBlock<E> = {
   event: E;
   // Minutes since midnight.
   from: number;

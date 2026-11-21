@@ -25,7 +25,7 @@ export type LikelihoodHistory = {
   attendees: readonly (readonly string[])[];
 };
 
-export const likelihoodWindowStart = (dateStart: number) =>
+const likelihoodWindowStart = (dateStart: number) =>
   dateStart - LIKELIHOOD.windowDays * DAY_MS;
 
 const seriesKey = (subgroups: readonly string[]) => normalizeSubgroups([...subgroups]).sort().join("\n");

@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.56] - 2026-11-22
+## [2.11.60] - 2026-11-22
 
 ### Changed
 - **Environment variables are read in one place per runtime, for
@@ -17,6 +17,15 @@ All notable changes to **The SHED** mobile app. This project follows
   `convex/auth.config.ts` reads `CONVEX_SITE_URL` directly, the form Convex
   documents for that file, and Convex tests may set `process.env` to stage a
   variable. Nothing changes for people using the app.
+
+## [2.11.57] - 2026-11-22
+
+### Removed
+- **Unused code, for contributors.** Exports and types that nothing imports
+  lose `export`, or go when nothing uses them at all. The `npx convex dev`
+  welcome page in `convex/` goes too. CI now runs `knip`, so unused files,
+  exports and dependencies fail the build. Nothing changes for people using
+  the app.
 
 ## [2.11.55] - 2026-11-22
 
