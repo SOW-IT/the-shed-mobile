@@ -45,6 +45,10 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
   everything waiting on them, by push and email.
 - **Accounts**: Google and Apple sign-in through Convex Auth, delete account
   from Profile, push notifications and the in-app bell.
+- **Games** (`src/components/games/`, `convex/gameScores.ts`, rules in
+  `shared/games.ts`): three endless mini-games that work offline, opened from
+  the offline screen or three taps on the version at the foot of Profile, with
+  a per-game leaderboard ([ADR 0020](docs/adr/0020-offline-games-leaderboard-keeps-each-best.md)).
 - **Releases**: over-the-air updates (`expo-updates`, applied by restarting
   the app the next time it comes back from the background), a store update
   prompt driven by `appUpdatePolicy`, and app errors reported to the

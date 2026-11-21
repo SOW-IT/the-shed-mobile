@@ -97,6 +97,13 @@ async function deleteByEmail(
         .take(WIPE_BATCH),
       (row) => ctx.db.delete("savedBankAccounts", row._id)
     ),
+    await deleteBatch(
+      await ctx.db
+        .query("gameScores")
+        .withIndex("by_email_and_game", (q) => q.eq("email", email))
+        .take(WIPE_BATCH),
+      (row) => ctx.db.delete("gameScores", row._id)
+    ),
   ];
   if (includeGuestData) {
     more.push(

@@ -58,6 +58,15 @@ async function seedAccount(
       accountNumber: "12345678",
       lastUsedAt: Date.now(),
     });
+    await ctx.db.insert("gameScores", {
+      email,
+      game: "runner",
+      score: 420,
+      runId: `run-${email}`,
+      durationMs: 30_000,
+      playedAt: Date.now(),
+      updatedAt: Date.now(),
+    });
     return { userId, sessionId, avatarId };
   });
 }
@@ -82,6 +91,9 @@ const counts = async (t: T, email: string) =>
     ).length,
     savedBankAccounts: (
       await ctx.db.query("savedBankAccounts").withIndex("by_email", (q) => q.eq("email", email)).take(10)
+    ).length,
+    gameScores: (
+      await ctx.db.query("gameScores").withIndex("by_email_and_game", (q) => q.eq("email", email)).take(10)
     ).length,
   }));
 
@@ -204,6 +216,7 @@ describe("account.deleteMine", () => {
       appInstalls: 0,
       notifications: 1,
       savedBankAccounts: 0,
+      gameScores: 0,
     });
     await t.run(async (ctx) => {
       const [profile] = await ctx.db.query("staffProfiles").take(10);

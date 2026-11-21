@@ -1,0 +1,83 @@
+// What the games keep on the phone: the best score of each game, and the
+// runs waiting to go on the leaderboard. Both work signed out and offline;
+// GameScoreSync publishes the queue once the phone is online and signed in.
+import * as Crypto from "expo-crypto";
+import { useSyncExternalStore } from "react";
+import {
+  enqueueScore,
+  NO_BESTS,
+  parseBests,
+  parseQueue,
+  removeSettled,
+  withBest,
+  type GameId,
+  type LocalBests,
+  type QueuedScore,
+} from "../../../shared/games";
+import { readStored, writeStored } from "../deviceStorage";
+
+/**
+ * A saved value that loads before any change is made to it, so a run
+ * finished while the phone is still reading the saved best can't overwrite
+ * it.
+ */
+const persisted = <T>(key: string, parse: (saved: string) => T, initial: T) => {
+  let value = initial;
+  let loading: Promise<void> | null = null;
+  const listeners = new Set<() => void>();
+  const notify = () => listeners.forEach((listener) => listener());
+  const load = () =>
+    (loading ??= readStored(key).then((saved) => {
+      if (saved === null) return;
+      value = parse(saved);
+      notify();
+    }));
+  const update = async (change: (current: T) => T) => {
+    await load();
+    const next = change(value);
+    if (next === value) return;
+    value = next;
+    notify();
+    await writeStored(key, JSON.stringify(next));
+  };
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+    void load();
+    return () => {
+      listeners.delete(listener);
+    };
+  };
+  return { get: () => value, update, subscribe };
+};
+
+const bests = persisted<LocalBests>("games.bests", parseBests, NO_BESTS);
+const queue = persisted<QueuedScore[]>("games.scoreQueue", parseQueue, []);
+
+export const useLocalBests = () => useSyncExternalStore(bests.subscribe, bests.get, bests.get);
+export const useScoreQueue = () => useSyncExternalStore(queue.subscribe, queue.get, queue.get);
+
+const runId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Crypto.randomUUID();
+
+/** Saves a finished run: a new best if it is one, and a place in the queue. */
+export const recordRun = (game: GameId, score: number, durationMs: number): Promise<void> => {
+  if (score < 1) return Promise.resolve();
+  const entry: QueuedScore = {
+    runId: runId(),
+    game,
+    score,
+    durationMs: Math.max(1, Math.round(durationMs)),
+    playedAt: Date.now(),
+  };
+  return Promise.all([
+    bests.update((current) => withBest(current, game, score)),
+    queue.update((current) => enqueueScore(current, entry)),
+  ]).then(() => undefined);
+};
+
+/** Drops runs the server has answered for, accepted or not. */
+export const settleRuns = (runIds: readonly string[]): Promise<void> =>
+  queue.update((current) => {
+    const next = removeSettled(current, runIds);
+    return next.length === current.length ? current : next;
+  });

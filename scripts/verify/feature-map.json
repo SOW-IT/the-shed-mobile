@@ -243,6 +243,17 @@
         "shared/mentoring.ts"
       ],
       "routes": ["/mentoring"]
+    },
+    "games": {
+      "files": [
+        "src/app/games/**",
+        "src/components/games/**",
+        "src/lib/games/**",
+        "src/hooks/useOffline.ts",
+        "convex/{gameScores,gameScoreData}.ts",
+        "shared/games.ts"
+      ],
+      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/leaderboard", "/games/leaderboard?game=runner"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]
