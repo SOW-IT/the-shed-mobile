@@ -99,7 +99,9 @@ Everything a run starts lives under `.verify/`, which ignores itself
 
    A screenshot waits until the screen has stopped moving: it keeps taking
    frames until two in a row are identical, up to ten
-   (`scripts/lib/stableFrames.mjs`). On iOS the Maestro flow asks verify
+   (`scripts/lib/stableFrames.mjs`). A still frame identical to the screen
+   before counts only after five frames, because under load the app can sit
+   on the old screen before it starts to move to the new one. On iOS the Maestro flow asks verify
    after each frame whether that screen has settled. The simulator's status
    bar reads 9:41 with full signal and battery for the whole run and goes
    back to normal afterwards. A screen still moving after ten frames, like
@@ -152,8 +154,10 @@ all of them together overflow GitHub's limit on a PR description.
 ## Still open
 
 - Before and after pairs of an unchanged screen still differ where the
-  server writes the time (an attendance sign-in, a request's submission)
-  or the app shows a time relative to now ("7m ago"). Both phases seed at
+  server writes the time (an attendance sign-in, a request's submission),
+  the app shows a time relative to now ("7m ago") or the calendar draws its
+  line for the current time, and on screens that never stop moving, such as
+  the pending step's spinner on a request. Both phases seed at
   the same round hour, but the backend stamps writes with the real clock and
   the phases run minutes apart.
 

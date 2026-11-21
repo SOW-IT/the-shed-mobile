@@ -38,8 +38,28 @@ describe("frameJudge", () => {
   test("keeps screens apart, and starts a screen afresh once it settled", () => {
     const { judge } = frameJudge(5);
     judge("home", frame("x"));
-    expect(judge("calendar", frame("x"))).toEqual({ settled: false, frames: 1 });
+    expect(judge("calendar", frame("y"))).toEqual({ settled: false, frames: 1 });
     expect(judge("home", frame("x")).settled).toBe(true);
-    expect(judge("home", frame("x"))).toEqual({ settled: false, frames: 1 });
+    expect(judge("home", frame("z"))).toEqual({ settled: false, frames: 1 });
+  });
+
+  test("a still frame of the last screen waits for the app to move on", () => {
+    const { judge } = frameJudge(6);
+    judge("home", frame("home"));
+    judge("home", frame("home"));
+    expect(judge("edit", frame("home"))).toEqual({ settled: false, frames: 1 });
+    expect(judge("edit", frame("home"))).toEqual({ settled: false, frames: 2 });
+    expect(judge("edit", frame("editing"))).toEqual({ settled: false, frames: 3 });
+    expect(judge("edit", frame("editing"))).toEqual({ settled: true, frames: 4 });
+  });
+
+  test("a screen that really looks like the last one is taken after half the tries", () => {
+    const { judge, moving } = frameJudge(6);
+    judge("root", frame("home"));
+    judge("root", frame("home"));
+    judge("home", frame("home"));
+    judge("home", frame("home"));
+    expect(judge("home", frame("home"))).toEqual({ settled: true, frames: 3 });
+    expect(moving).toEqual([]);
   });
 });

@@ -16,21 +16,28 @@ export const seedInstant = (now) => Math.floor(now / HOUR) * HOUR + HOUR;
 
 /**
  * Judges a stream of frames per screen. A screen is settled when a frame is
- * byte-identical to the one before it. After `tries` frames it's taken as it
- * is and reported as still moving.
+ * byte-identical to the one before it. A still frame identical to the last
+ * screen's screenshot may be that screen, before the app has started to move
+ * to the new one, so it only counts after half the tries. After `tries`
+ * frames the screen is taken as it is and reported as still moving.
  */
 export const frameJudge = (tries = FRAME_TRIES) => {
   const previous = new Map();
   const moving = [];
+  let lastShot = null;
   const judge = (name, frame) => {
     const last = previous.get(name);
     const count = (last?.count ?? 0) + 1;
-    if (last && last.frame.equals(frame)) {
+    const still = Boolean(last && last.frame.equals(frame));
+    const notArrived = still && lastShot !== null && lastShot.equals(frame) && count < Math.ceil(tries / 2);
+    if (still && !notArrived) {
       previous.delete(name);
+      lastShot = frame;
       return { settled: true, frames: count };
     }
     if (count >= tries) {
       previous.delete(name);
+      lastShot = frame;
       moving.push(name);
       return { settled: true, frames: count, moving: true };
     }
