@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.22] - 2026-11-21
+## [2.11.31] - 2026-11-21
 
 ### Removed
 - **Unused code, for contributors.** Exports and types that nothing imports
@@ -14,6 +14,15 @@ All notable changes to **The SHED** mobile app. This project follows
   welcome page in `convex/` goes too. CI now runs `knip`, so unused files,
   exports and dependencies fail the build. Nothing changes for people using
   the app.
+
+## [2.11.30] - 2026-11-21
+
+### Changed
+- **No more `as never`, for contributors.** The cast fits any type, so it
+  switched type checking off where it was used. The six in the app weren't
+  needed or now name the real type, the tests' fixtures assert to the type
+  they stand in for, and lint rejects new ones. Nothing changes for people
+  using the app.
 
 ## [2.11.21] - 2026-11-21
 
