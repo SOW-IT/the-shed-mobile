@@ -15,6 +15,7 @@ import { LabelledField } from "@/components/events/LabelledField";
 import { GrievanceStatusPill } from "@/components/grievances/GrievanceStatusPill";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { StepTrack } from "@/components/StepTrack";
+import { keysFor } from "@/lib/listKeys";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
@@ -77,12 +78,13 @@ const History = ({ id }: { id: Id<"grievances"> }) => {
   const t = useAppTheme();
   const events = useQuery(api.grievances.timeline, { id });
   if (!events || events.length === 0) return null;
+  const keys = keysFor(events.map((event) => `${event.at}|${event.action}`));
   return (
     <>
       <SectionTitle>History</SectionTitle>
       <Card>
         {events.map((event, index) => (
-          <View key={index} style={styles.event}>
+          <View key={keys[index]} style={styles.event}>
             <View style={[styles.eventDot, { backgroundColor: t.faint }]} />
             <View style={{ flex: 1 }}>
               <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>

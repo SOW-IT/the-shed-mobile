@@ -36,6 +36,8 @@ import {
 } from "@/components/ui";
 import { useAdminMutations } from "@/hooks/useAdminMutations";
 import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
+import { useRowIds } from "@/hooks/useRowIds";
+import { keysFor } from "@/lib/listKeys";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
   radius,
@@ -138,6 +140,7 @@ const AssignmentEditor = ({
   const t = useAppTheme();
   const totalCount = startIndex + assignments.length;
   const [removeIndex, setRemoveIndex] = useState<number | null>(null);
+  const rowIds = useRowIds(assignments.length);
   return (
     <View style={{ gap: 8 }}>
       {assignments.map((a, i) => {
@@ -152,7 +155,7 @@ const AssignmentEditor = ({
         const rowRoles = roles.includes(a.role) ? roles : [a.role, ...roles];
         return (
           <View
-            key={i}
+            key={rowIds.keyAt(i)}
             style={{
               backgroundColor: t.ghost,
               borderRadius: radius.md,
@@ -223,7 +226,10 @@ const AssignmentEditor = ({
       <Btn
         title="+ Add assignment"
         variant="ghost"
-        onPress={() => onChange([...assignments, emptyDraft()])}
+        onPress={() => {
+          rowIds.add();
+          onChange([...assignments, emptyDraft()]);
+        }}
       />
       <ConfirmDialog
         visible={removeIndex !== null}
@@ -235,6 +241,7 @@ const AssignmentEditor = ({
         confirmLabel="Remove"
         onConfirm={() => {
           if (removeIndex !== null) {
+            rowIds.remove(removeIndex);
             onChange(assignments.filter((_, j) => j !== removeIndex));
           }
         }}
@@ -243,6 +250,8 @@ const AssignmentEditor = ({
     </View>
   );
 };
+
+const assignmentKey = (a: Assignment) => `${a.role}|${a.department ?? ""}|${a.university ?? ""}`;
 
 const LockedAssignmentRow = ({
   a,
@@ -741,6 +750,8 @@ export default function AdminScreen() {
     const lockedHeadAssignments = profile.assignments.filter(
       (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION,
     );
+    const lockedKeys = keysFor(lockedHeadAssignments.map(assignmentKey));
+    const savedKeys = keysFor(profile.assignments.map(assignmentKey));
     const savedAssignments: AssignmentDraft[] = profile.assignments
       .filter(
         (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION,
@@ -776,7 +787,7 @@ export default function AdminScreen() {
             {profile.name ? <Muted>{profile.email}</Muted> : null}
             {lockedHeadAssignments.map((a, i) => (
               <LockedAssignmentRow
-                key={i}
+                key={lockedKeys[i]}
                 a={a}
                 index={i}
                 totalCount={
@@ -868,7 +879,7 @@ export default function AdminScreen() {
               {profile.assignments.length > 0 ? (
                 <View style={{ marginTop: 2 }}>
                   {profile.assignments.map((a, i) => (
-                    <Muted key={i}>
+                    <Muted key={savedKeys[i]}>
                       {formatAssignment(a, structure?.roleTitles)}
                     </Muted>
                   ))}
