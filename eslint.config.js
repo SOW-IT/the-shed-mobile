@@ -26,6 +26,13 @@ const rawLinking = {
     "Linking.openURL rejects when nothing handles the URL, and the rejection goes unhandled. Use openExternalLink from @/lib/openExternalLink.",
 };
 
+// `as never` fits any type, so it switches type checking off for the value
+// without saying what type it should have been.
+const asNever = {
+  selector: "TSAsExpression > TSNeverKeyword.typeAnnotation",
+  message: "`as never` turns type checking off. Give the value its real type, or assert to the type the call expects.",
+};
+
 module.exports = defineConfig([
   expoConfig,
   comments.recommended,
@@ -66,12 +73,13 @@ module.exports = defineConfig([
       ],
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": ["error", { checksVoidReturn: { attributes: true, arguments: false } }],
+      "no-restricted-syntax": ["error", asNever],
     },
   },
   {
     files: ["src/**/*.ts", "src/**/*.tsx"],
     rules: {
-      "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking],
+      "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking, asNever],
     },
   },
   {
@@ -94,6 +102,7 @@ module.exports = defineConfig([
           selector: "CallExpression[callee.property.name=/^run(After|At)$/] > MemberExpression.arguments[object.object.name='api']",
           message: "Schedule internal functions (internal.*), not public api.*, so the scheduled work can't also be called from a client.",
         },
+        asNever,
       ],
     },
   },
@@ -106,7 +115,7 @@ module.exports = defineConfig([
   },
   {
     files: ["convex/**/*.test.ts"],
-    rules: { "@convex-dev/no-filter-in-query": "off", "no-restricted-syntax": "off" },
+    rules: { "@convex-dev/no-filter-in-query": "off", "no-restricted-syntax": ["error", asNever] },
   },
   {
     ignores: ["dist/**", "coverage/**", "convex/_generated/**", ".expo/**", ".verify/**", "ios/**", "android/**"],

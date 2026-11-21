@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.31] - 2026-11-21
+## [2.11.38] - 2026-11-21
 
 ### Changed
 - **Environment variables are read in one place per runtime, for
@@ -14,6 +14,15 @@ All notable changes to **The SHED** mobile app. This project follows
   and the backend reads its own through `env()` in `convex/environment.ts`,
   which lists every name it uses. Lint rejects `process.env` anywhere else in
   `src/` and `convex/`. Nothing changes for people using the app.
+
+## [2.11.30] - 2026-11-21
+
+### Changed
+- **No more `as never`, for contributors.** The cast fits any type, so it
+  switched type checking off where it was used. The six in the app weren't
+  needed or now name the real type, the tests' fixtures assert to the type
+  they stand in for, and lint rejects new ones. Nothing changes for people
+  using the app.
 
 ## [2.11.21] - 2026-11-21
 
