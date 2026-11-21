@@ -43,6 +43,7 @@ import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
 import { useContentWidth } from "@/components/nav/layout";
+import { fieldTestID } from "@/components/ui/fieldTestID";
 import {
   EmptyState,
   errorMessage,
@@ -991,6 +992,7 @@ export default function EventAttendanceScreen() {
         returnKeyType="done"
         onSubmitEditing={() => void onAddGuest(guestName)}
         accessibilityLabel="Guest's name"
+        testID={fieldTestID("Guest's name")}
         style={[typography.body, styles.guestInput, { color: t.text }]}
       />
       <Pressable
