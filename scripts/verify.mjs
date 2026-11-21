@@ -62,7 +62,26 @@ const parseArgs = (argv) => {
   };
 };
 
-const PORTS = { convex: 3270, convexSite: 3271, metro: 8092, web: 8192 };
+// Another worktree's run may hold the defaults; VERIFY_*_PORT moves this one.
+// Node's fetch refuses these ports (undici's bad-ports list, 1024 and up), so
+// the readiness checks would time out against them.
+const FETCH_BLOCKED_PORTS = new Set([
+  1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669,
+  6679, 6697, 10080,
+]);
+const port = (name, value, fallback) => {
+  if (value === undefined || value === "") return fallback;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1024 || n > 65535) throw new Error(`${name}=${value} isn't a port`);
+  if (FETCH_BLOCKED_PORTS.has(n)) throw new Error(`${name}=${value} is a port Node's fetch refuses; pick another`);
+  return n;
+};
+const PORTS = {
+  convex: port("VERIFY_CONVEX_PORT", process.env.VERIFY_CONVEX_PORT, 3270),
+  convexSite: port("VERIFY_CONVEX_SITE_PORT", process.env.VERIFY_CONVEX_SITE_PORT, 3271),
+  metro: port("VERIFY_METRO_PORT", process.env.VERIFY_METRO_PORT, 8092),
+  web: port("VERIFY_WEB_PORT", process.env.VERIFY_WEB_PORT, 8192),
+};
 const BUNDLE_ID = "au.org.sow.theshed";
 const APP_SCHEME = "theshedmobile";
 const DEV_CLIENT_SCHEME = "exp+the-shed-mobile";

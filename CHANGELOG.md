@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.41] - 2026-11-21
+
+### Added
+- **Announcements can go to specific people.** Under Send to, "People" opens a
+  searchable list of this year's leaders. Search by name, email or
+  department, tick people one by one, or select everyone the search shows.
+  All leaders and Groups work as before, and so do scheduling, the limits,
+  the preview and the history, which names the people it went to.
+- **See who won't get a push before you send.** The form lists everyone in
+  the audience a push can't reach, and why: no app, or notifications off.
+  One tap emails just those people, or you can email everyone. The
+  confirmation before sending always opens and shows the same list with both
+  options. If someone would get neither a push nor an email, it warns you
+  first.
+
 ## [2.11.31] - 2026-11-21
 
 ### Added
