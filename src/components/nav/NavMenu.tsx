@@ -28,7 +28,7 @@ import {
   roleLine,
   sidebarItems,
 } from "@/lib/navMenu";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { type Href, usePathname, useRouter } from "expo-router";
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  badgeText: { color: fixedColours.onColour, fontSize: 11, fontWeight: "800" },
   divider: {
     height: StyleSheet.hairlineWidth,
     marginHorizontal: spacing.sm,

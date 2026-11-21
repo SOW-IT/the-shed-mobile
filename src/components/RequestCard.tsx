@@ -17,7 +17,7 @@ import {
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
-import { radius, spacing, typography, useAppTheme } from "../theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "../theme";
 import {
   Card,
   formatAmount,
@@ -31,6 +31,7 @@ import {
 } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
 import { daysSince, shortDate, timeAgo, waitingLabel } from "@shared/datetime";
+import { keyed } from "@/lib/listKeys";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { ReceiptRecipientList } from "./ReceiptRecipientList";
@@ -107,8 +108,8 @@ const StepInfoModal = ({
           {info.events.length === 0 ? (
             isActiveStep ? <Muted>Awaiting action</Muted> : null
           ) : (
-            info.events.map((event, i) => (
-              <View key={i} style={{ gap: 2 }}>
+            keyed(info.events, (event) => `${event.at}|${event.action}`).map(({ item: event, key }) => (
+              <View key={key} style={{ gap: 2 }}>
                 <Text style={[typography.caption, { color: t.text, fontWeight: "600" }]}>
                   {eventLabel(event.action)}
                 </Text>
@@ -142,7 +143,7 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   }, [fill, needsAnimation]);
   const connectorFillX = fill.interpolate({ inputRange: [0, 2 / 3, 1], outputRange: [-10, 10, 10] });
   const circleFillX = fill.interpolate({ inputRange: [0, 1 / 3, 1], outputRange: [-22, -22, 22] });
-  const dotColor = t.dark ? t.background : "#ffffff";
+  const dotColor = t.dark ? t.background : fixedColours.onColour;
 
   return (
     <>
@@ -475,8 +476,8 @@ export const RequestCard = ({
             size={40}
             accessibilityLabel="Comments"
             badge={unreadComments ?? 0}
-            badgeColor="#ffffff"
-            badgeTextColor="#333333"
+            badgeColor={fixedColours.messageBadge.bg}
+            badgeTextColor={fixedColours.messageBadge.text}
             onPress={() => setShowComments(true)}
           />
           {onCancel ? (

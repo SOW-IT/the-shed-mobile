@@ -16,7 +16,7 @@ import { useMusicRequestsBadge } from "@/hooks/useMusicRequestsBadge";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import { useStaffWaitingBadge } from "@/hooks/useStaffWaitingBadge";
 import { badgeText } from "@/lib/navMenu";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 
 const EDGE_CONTROLS_WIDTH = 60;
 
@@ -161,5 +161,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeText: { color: "#ffffff", fontSize: 10, fontWeight: "800" },
+  badgeText: { color: fixedColours.onColour, fontSize: 10, fontWeight: "800" },
 });

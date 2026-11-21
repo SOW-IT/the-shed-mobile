@@ -9,6 +9,7 @@ import {
   type WeeklyBlock,
 } from "../../../shared/weeklyInsightsView";
 import { togglePicked } from "../../../shared/churches";
+import { keyed } from "@/lib/listKeys";
 import { Avatar, Btn, ReadableColumn, ScrollCap, SearchField } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -92,8 +93,8 @@ function PersonRow({
           <CategoryPill pill={pill} />
           {badge ? <CategoryPill pill={badge} /> : null}
         </View>
-        {lines.map((line, i) => (
-          <Text key={i} style={[typography.caption, { color: t.muted }]} numberOfLines={2}>
+        {keyed(lines, (line) => line).map(({ item: line, key }) => (
+          <Text key={key} style={[typography.caption, { color: t.muted }]} numberOfLines={2}>
             {line}
           </Text>
         ))}
@@ -372,9 +373,9 @@ export function renderWeeklyBlock(
         <Panel key={key} title={block.title} icon="grid-outline">
           {block.subtitle ? <Text style={[typography.caption, { color: t.muted }]}>{block.subtitle}</Text> : null}
           <View style={styles.grid}>
-            {block.weeks.map((w, i) => (
+            {keyed(block.weeks, (w) => w.label).map(({ item: w, key: weekKey }) => (
               <View
-                key={`${w.label}-${i}`}
+                key={weekKey}
                 accessibilityLabel={`${w.label}: ${w.came ? "came" : "missed"}`}
                 style={[
                   styles.week,
@@ -394,8 +395,8 @@ export function renderWeeklyBlock(
             <Text style={[typography.caption, { color: t.muted }]}>{block.emptyText}</Text>
           ) : (
             <ScrollCap maxHeight={LIST_HEIGHT} count={block.rows.length}>
-              {block.rows.map((row, i) => (
-                <View key={i} style={[styles.kv, { borderTopColor: t.separator }]}>
+              {keyed(block.rows, (row) => `${row.title}|${row.subtitle}`).map(({ item: row, key: rowKey }) => (
+                <View key={rowKey} style={[styles.kv, { borderTopColor: t.separator }]}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[typography.body, { color: t.text }]} numberOfLines={1}>
                       {row.title}

@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { USE_NATIVE_DRIVER, typography, useAppTheme } from "@/theme";
+import { USE_NATIVE_DRIVER, typography, useAppTheme, fixedColours } from "@/theme";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
 import { FooterHeightContext } from "./buttons";
 import { Toast, ToastState } from "./feedback";
@@ -204,10 +204,10 @@ export const TabBar = ({
                 <View
                   style={[
                     styles.segmentBadge,
-                    { backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#cccccc" },
+                    { backgroundColor: fixedColours.messageBadge.bg, borderWidth: 1, borderColor: fixedColours.messageBadge.border },
                   ]}
                 >
-                  <Text style={[styles.segmentBadgeText, { color: "#333333" }]}>
+                  <Text style={[styles.segmentBadgeText, { color: fixedColours.messageBadge.text }]}>
                     {segment.messageBadge}
                   </Text>
                 </View>

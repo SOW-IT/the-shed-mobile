@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Sheet, Txt } from "@/components/ui";
 import { IS_DEV_ENVIRONMENT } from "@/env";
-import { radius, spacing, useAppTheme } from "@/theme";
+import { radius, spacing, useAppTheme, fixedColours } from "@/theme";
 
 export const TestEnvironmentChip = () => {
   const t = useAppTheme();
@@ -22,7 +22,7 @@ export const TestEnvironmentChip = () => {
           pressed && { opacity: 0.7 },
         ]}
       >
-        <Ionicons name="construct" size={12} color="#ffffff" />
+        <Ionicons name="construct" size={12} color={fixedColours.onColour} />
         <Text style={styles.chipText}>Test Environment</Text>
       </Pressable>
       <Sheet
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   chipText: {
-    color: "#ffffff",
+    color: fixedColours.onColour,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.3,

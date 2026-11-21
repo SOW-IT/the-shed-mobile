@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -267,7 +267,8 @@ export function InsightsBlocks({
         return renderWeeklyBlock(block, key, {
           onOpenPerson,
           onEditMember,
-          onOpenLink: (link) => router.push(link),
+          // An app link built by the backend; typed routes can't check it here.
+          onOpenLink: (link) => router.push(link as Href),
           colours: t,
         });
     }
@@ -288,6 +289,7 @@ export function InsightsBlocks({
     rendered.push(
       <View key={`g${start}`} style={[styles.cardRow, styles.wrap]}>
         {group.map((block, j) => (
+          // eslint-disable-next-line react/no-array-index-key -- blocks have no id; the computed layout is the same every render
           <FadeInView key={j} delay={stagger(j)}>
             {renderChart(block, `c${start + j}`, chartWidth)}
           </FadeInView>

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { Id } from "../../convex/_generated/dataModel";
-import { radius, useAppTheme } from "../theme";
+import { radius, useAppTheme, fixedColours } from "../theme";
 import {
   PIN_NAME_MAX_WIDTH,
   pinAccessibilityLabel,
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     maxWidth: PIN_NAME_MAX_WIDTH,
     borderRadius: radius.full,
     borderWidth: 1.5,
-    shadowColor: "#000",
+    shadowColor: fixedColours.shadow,
     shadowOpacity: 0.28,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },

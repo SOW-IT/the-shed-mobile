@@ -1,11 +1,6 @@
 import { Avatar, Card, Facts } from "@/components/ui";
-import {
-  radius,
-  spacing,
-  typography,
-  useAppTheme,
-  type AppTheme,
-} from "@/theme";
+import { radius, spacing, typography, useAppTheme, type AppTheme, fixedColours } from "@/theme";
+import { keyed } from "@/lib/listKeys";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { createContext, ReactNode, useContext, useState } from "react";
 import {
@@ -99,6 +94,7 @@ function LinePath({
         const angle = Math.atan2(dy, dx);
         return (
           <View
+            // eslint-disable-next-line react/no-array-index-key -- a segment is the gap between two x positions
             key={`seg-${idx}`}
             style={{
               position: "absolute",
@@ -117,6 +113,7 @@ function LinePath({
       {points.map((p, i) =>
         p ? (
           <View
+            // eslint-disable-next-line react/no-array-index-key -- a dot is an x position on the chart
             key={`dot-${i}`}
             style={{
               position: "absolute",
@@ -213,7 +210,7 @@ function LineSeriesChart({
         >
           {w === 0
             ? null
-            : labels.map((label, i) => {
+            : keyed(labels, (label) => label).map(({ item: label, key, index: i }) => {
                 const active =
                   fullscreen && (selectedIdx === i || hoveredIdx === i);
                 const shown = series.flatMap((s) => {
@@ -226,7 +223,7 @@ function LineSeriesChart({
                 );
                 return (
                   <Pressable
-                    key={`${label}-${i}`}
+                    key={key}
                     pointerEvents={fullscreen ? "auto" : "none"}
                     onPress={
                       fullscreen
@@ -344,9 +341,9 @@ function ChartGrid({
         height: chartHeight,
       }}
     >
-      {ticks.map((v, i) => (
+      {keyed(ticks, String).map(({ item: v, key }) => (
         <View
-          key={i}
+          key={key}
           style={{
             position: "absolute",
             left: 0,
@@ -400,9 +397,9 @@ function YAxis({
       : (Math.round(v * 10) / 10).toFixed(1);
   return (
     <View style={[styles.yAxis, { height: chartContainerH(chartHeight) }]}>
-      {values.map((v, i) => (
+      {keyed(values, String).map(({ item: v, key }) => (
         <Text
-          key={i}
+          key={key}
           style={[
             styles.yTick,
             { color: t.faint, top: BAR_VALUE_H + yAt(v, max, chartHeight) - Y_TICK_LINE_H / 2 },
@@ -1599,7 +1596,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     gap: 3,
     zIndex: 100,
-    shadowColor: "#000",
+    shadowColor: fixedColours.shadow,
     shadowOpacity: 0.2,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
