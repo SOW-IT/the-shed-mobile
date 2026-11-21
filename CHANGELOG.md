@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.36] - 2026-11-21
+## [2.11.45] - 2026-11-22
 
 ### Changed
 - **List rows keep their own state when another row goes, for contributors.**
@@ -16,6 +16,15 @@ All notable changes to **The SHED** mobile app. This project follows
   (`src/lib/listKeys.ts`, `useRowIds`), and lint rejects an index key
   (`react/no-array-index-key`). Fixed positions, like the weekday header and
   chart points, say why in a disable comment.
+
+## [2.11.42] - 2026-11-22
+
+### Changed
+- **CodeRabbit only reviews big changes, for contributors.** Automatic
+  reviews are off. A review is requested only when a PR has more than 300
+  lines of app or Convex code, or it touches the schema, data deletion,
+  auth, or notification sending. Smaller PRs go through once CI and verify
+  pass. Nothing changes for people using the app.
 
 ## [2.11.31] - 2026-11-21
 
