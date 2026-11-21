@@ -1,29 +1,24 @@
 # verify: full
 
-- because core: shared/actingAs.ts
-- because core: src/components/HistoryTimeline.tsx
-- because core: src/components/ui/GuideSheet.tsx
-- because core: src/components/ui/buttons.tsx
-- because core: src/lib/appErrorKinds.ts
-- because core: src/lib/navMenu.ts
+- because core: convex/profile.ts
 
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 5s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 51s |  |
+| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 39s |  |
 | unused code (knip) | ✔ pass | 4s |  |
-| typecheck | ✔ pass | 15s |  |
-| unit tests with coverage | ✔ pass | 26s |  |
+| typecheck | ✔ pass | 12s |  |
+| unit tests with coverage | ✔ pass | 17s |  |
 | Playwright Chromium | ✔ pass | 1s |  |
 | before: local backend | ✔ pass | 16s | before functions on :3270 |
-| before: web | ✔ pass | 482s | 140 screens, 0 broken. |
+| before: web | ✔ pass | 458s | 140 screens, 0 broken. |
 | before: iOS reset | ✔ pass | 2s |  |
-| before: iOS | ✔ pass | 204s | 35 screenshots |
+| before: iOS | ✔ pass | 235s | 35 screenshots |
 | after: local backend | ✔ pass | 16s | after functions on :3270 |
-| after: web | ✔ pass | 474s | 140 screens, 0 broken. |
-| after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 191s | 35 screenshots |
+| after: web | ✔ pass | 543s | 140 screens, 0 broken. |
+| after: iOS reset | ✔ pass | 3s |  |
+| after: iOS | ✔ pass | 247s | 35 screenshots |
 
 ## Screenshots
 
