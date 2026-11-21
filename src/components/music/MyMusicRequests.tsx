@@ -26,6 +26,7 @@ import { parseYouTubeSong } from "../../../convex/shared/youtube";
 import { useSpotifyPlaylist } from "./useSpotifyPlaylist";
 import { type SpotifySearchResult, useSpotifySearch } from "./useSpotifySearch";
 import { GuideSheet } from "@/components/ui/GuideSheet";
+import { keyed } from "@/lib/listKeys";
 
 export type MusicRequest = Doc<"musicRequests">;
 type SpotifySong = {
@@ -1095,9 +1096,9 @@ const MusicRequestSheetContent = ({
             )}
           </View>
 
-          {songs.map((song, index) => (
+          {keyed(songs, (song) => song.link || `${song.title}|${song.artist}`).map(({ item: song, key, index }) => (
             <View
-              key={`${song.link}-${index}`}
+              key={key}
               style={{
                 padding: spacing.sm,
                 borderRadius: radius.md,

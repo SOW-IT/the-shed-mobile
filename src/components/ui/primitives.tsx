@@ -2,6 +2,7 @@ import { Children, ReactNode, useEffect, useState } from "react";
 import { Animated, Easing, Image, Modal, Platform, StyleProp, Text, TextProps, TextStyle, View, ViewStyle } from "react-native";
 import Reanimated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing as ReanimatedEasing } from "react-native-reanimated";
 import { USE_NATIVE_DRIVER, durations, typography, useAppTheme } from "@/theme";
+import { keyed } from "@/lib/listKeys";
 import { styles } from "./styles";
 
 const ReanimatedImage = Reanimated.createAnimatedComponent(Image);
@@ -156,9 +157,9 @@ export const Facts = ({
   if (shown.length === 0) return null;
   return (
     <View style={styles.facts}>
-      {shown.map((part, index) => (
+      {keyed(shown, String).map(({ item: part, key }) => (
         <Text
-          key={index}
+          key={key}
           numberOfLines={numberOfLines}
           style={[typography.caption, { color: t.muted }, style, styles.fact]}
         >

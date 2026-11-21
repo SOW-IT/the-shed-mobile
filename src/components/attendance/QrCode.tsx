@@ -39,6 +39,7 @@ export function QrCode({ value, size }: { value: string; size: number }) {
       {matrix.runs.flatMap((runs, y) =>
         runs.map(([x, length]) => (
           <View
+            // eslint-disable-next-line react/no-array-index-key -- a run's row and column are where it sits in the code
             key={`${y}-${x}`}
             style={{
               position: "absolute",
