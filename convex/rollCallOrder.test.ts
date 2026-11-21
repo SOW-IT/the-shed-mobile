@@ -97,7 +97,7 @@ describe("roll call order", () => {
         .query("rollCallOrders")
         .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
         .unique();
-      await ctx.db.patch(order!._id, { memberIds: [cat], scores: [99] });
+      await ctx.db.patch("rollCallOrders", order!._id, { memberIds: [cat], scores: [99] });
     });
     expect(await rosterNames(t, eventId)).toEqual(["Cat", "Ann", "Ben"]);
   });
@@ -106,7 +106,7 @@ describe("roll call order", () => {
     const { t, admin } = await setup();
     const eventId = await createEvent(admin);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
-    const event = (await t.run((ctx) => ctx.db.get(eventId)))!;
+    const event = (await t.run((ctx) => ctx.db.get("events", eventId)))!;
     await admin.mutation(api.events.update, {
       eventId,
       name: "Renamed",
@@ -121,7 +121,7 @@ describe("roll call order", () => {
     const { t, admin, tag } = await setup();
     const eventId = await createEvent(admin);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
-    const event = (await t.run((ctx) => ctx.db.get(eventId)))!;
+    const event = (await t.run((ctx) => ctx.db.get("events", eventId)))!;
     await admin.mutation(api.events.update, {
       eventId,
       name: event.name,
@@ -256,7 +256,7 @@ describe("roll call order", () => {
     const { t, admin } = await setup();
     await t.run(async (ctx) => {
       for (const snapshot of await ctx.db.query("rosterHistorySnapshots").collect()) {
-        await ctx.db.delete(snapshot._id);
+        await ctx.db.delete("rosterHistorySnapshots", snapshot._id);
       }
     });
     const eventId = await createEvent(admin);
@@ -268,7 +268,7 @@ describe("roll call order", () => {
   test("ranking a deleted event does nothing", async () => {
     const { t, admin } = await setup();
     const eventId = await createEvent(admin, { daysAhead: 1 });
-    await t.run((ctx) => ctx.db.delete(eventId));
+    await t.run((ctx) => ctx.db.delete("events", eventId));
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(await t.mutation(internal.rollCallOrder.rank, { eventId })).toBeNull();
   });

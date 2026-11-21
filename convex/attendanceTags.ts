@@ -38,7 +38,7 @@ export const saveAll = mutation({
     const resyncEvents = new Set<Id<"events">>();
     const resyncTags = new Set<Id<"attendanceTags">>();
     const deleteRows = (
-      await Promise.all(deleteIds.map((id) => ctx.db.get(id)))
+      await Promise.all(deleteIds.map((id) => ctx.db.get("attendanceTags", id)))
     ).filter((row): row is NonNullable<typeof row> => row !== null);
     if (deleteRows.some((row) => isWeekliesTagName(row.name))) {
       throw new ConvexError("The Weeklies tag can't be deleted; every weekly gets it.");
@@ -48,13 +48,13 @@ export const saveAll = mutation({
       for (const event of await ctx.db.query("events").collect()) {
         if (!event.tagIds?.some((tagId) => deleteSet.has(tagId))) continue;
         const tagIds = event.tagIds.filter((tagId) => !deleteSet.has(tagId));
-        await ctx.db.patch(event._id, {
+        await ctx.db.patch("events", event._id, {
           tagIds: tagIds.length > 0 ? tagIds : undefined,
         });
         resyncEvents.add(event._id);
       }
       for (const row of deleteRows) {
-        await ctx.db.delete(row._id);
+        await ctx.db.delete("attendanceTags", row._id);
         await logAttendanceAction(ctx, {
           actorEmail,
           entityType: "tag",
@@ -89,7 +89,7 @@ export const saveAll = mutation({
         throw new ConvexError(`"${name}" is the automatic tag every weekly gets; pick another name.`);
       }
       if (tag.id) {
-        const existing = saved ?? (await ctx.db.get(tag.id));
+        const existing = saved ?? (await ctx.db.get("attendanceTags", tag.id));
         if (!existing) continue;
         if (isWeekliesTagName(existing.name) && existing.name !== name) {
           throw new ConvexError("The Weeklies tag can't be renamed; every weekly gets it.");
@@ -108,7 +108,7 @@ export const saveAll = mutation({
         ) {
           resyncTags.add(tag.id);
         }
-        await ctx.db.patch(tag.id, {
+        await ctx.db.patch("attendanceTags", tag.id, {
           name,
           colour: tag.colour,
           subgroups: nextSubgroups,

@@ -309,8 +309,8 @@ export const recomputeCampusWeeklyAttendance = internalMutation({
     if (existing.length === 0) {
       await ctx.db.insert("campusAttendanceSnapshots", doc);
     } else {
-      await ctx.db.replace(existing[0]._id, doc);
-      for (const extra of existing.slice(1)) await ctx.db.delete(extra._id);
+      await ctx.db.replace("campusAttendanceSnapshots", existing[0]._id, doc);
+      for (const extra of existing.slice(1)) await ctx.db.delete("campusAttendanceSnapshots", extra._id);
     }
     return null;
   },

@@ -210,7 +210,7 @@ describe("account.deleteMine", () => {
       expect(profile).toMatchObject({ email: STAFF, name: "Sam Smith", importId: "p-1" });
       expect(profile.userId).toBeUndefined();
       expect(await ctx.db.query("directoryUsers").take(10)).toHaveLength(1);
-      expect(await ctx.db.system.get(staff.avatarId)).toBeNull();
+      expect(await ctx.db.system.get("_storage", staff.avatarId)).toBeNull();
     });
 
     const again = await t.run(async (ctx) => ctx.db.insert("users", { email: STAFF, name: "Sam Smith" }));
