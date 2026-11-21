@@ -129,14 +129,15 @@ for (const [role, email] of roles) {
       .evaluate(() => document.body.innerText.replace(/\s+/g, " ").slice(0, 300))
       .catch(() => "");
     const expectedMissing = EXPECTED_MISSING.has(route);
+    const lostSession = email !== null && (SIGNED_OUT.test(text) || !(await hasSession()));
+    if (lostSession) errors.push("landed signed out");
+    await screenshot(`${role}-${routeSlug(template)}`).catch(() => {});
+    // After the screenshot, so an error during the frame wait still counts.
     const unexpectedConsole = expectedMissing
       ? []
       : consoleErrors.filter((message) => !HARMLESS_CONSOLE.some((pattern) => pattern.test(message)));
-    const lostSession = email !== null && (SIGNED_OUT.test(text) || !(await hasSession()));
-    if (lostSession) errors.push("landed signed out");
     const bad =
       (BROKEN.test(text) && !expectedMissing) || errors.length > 0 || unexpectedConsole.length > 0;
-    await screenshot(`${role}-${routeSlug(template)}`).catch(() => {});
     page.off("pageerror", onError);
     page.off("console", onConsole);
     results.push({ role, route, landed: page.url().replace(BASE, ""), bad, errors, consoleErrors, text });

@@ -443,13 +443,17 @@ const startFrameServer = async (out) => {
 const STATUS_BAR = ["--time", "9:41", "--dataNetwork", "wifi", "--wifiMode", "active", "--wifiBars", "3", "--cellularMode", "active", "--cellularBars", "4", "--batteryState", "charged", "--batteryLevel", "100"];
 
 // Async, because the frame server answers the flow from this process.
-const runMaestro = (args, opts) => new Promise((resolve) => {
+const runMaestro = (args, opts) => new Promise((resolve, reject) => {
   const child = spawn("maestro", args, { ...opts, stdio: ["ignore", "pipe", "pipe"] });
   let stdout = "";
   let stderr = "";
   child.stdout.on("data", (chunk) => { stdout += chunk; });
   child.stderr.on("data", (chunk) => { stderr += chunk; });
   const timer = setTimeout(() => child.kill("SIGTERM"), opts.timeout);
+  child.on("error", (error) => {
+    clearTimeout(timer);
+    reject(error);
+  });
   child.on("close", (status) => {
     clearTimeout(timer);
     resolve({ status, stdout, stderr });
