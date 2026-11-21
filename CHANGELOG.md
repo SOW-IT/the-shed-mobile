@@ -6,6 +6,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.40] - 2026-11-21
+
+### Changed
+- **Background jobs start a few minutes past the hour.** The morning
+  reminder digest now goes out at 22:07 UTC (9:07am in Sydney in summer,
+  8:07am in winter) instead of on the hour. The Monday directory sync, the
+  30 September prefill and receipt purge, the nightly Insights rebuild and
+  the church map refresh each move by 3 to 11 minutes too. Minute 0 is the
+  busiest minute for scheduled jobs, so they now start off-peak.
+- **Two database indexes that only repeated the start of a longer one are
+  gone,** on comment reactions and grievances. Their queries use the longer
+  index and return the same rows in the same order. The next Convex
+  production deploy drops them.
+- **Lint catches duplicate indexes and on-the-hour crons, for contributors.**
+  `@convex-dev/no-duplicate-indexes` and `@convex-dev/no-top-of-hour-crons`
+  are on. The eight indexes kept for their sort order say why next to them.
+
 ## [2.11.31] - 2026-11-21
 
 ### Added

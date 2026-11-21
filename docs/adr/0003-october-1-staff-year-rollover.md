@@ -15,8 +15,8 @@ correct on both sides of it without a migration step.
 always incoming → incoming+1, not `currentStaffYear() → nextStaffYear()`. On
 the 2026-10-01 rollover that is 2027 into 2028, whether the job runs at 21:00
 on the 30th or after the flip. Admins then configure next from a populated
-copy rather than a blank one. Cron: `0 11 30 9 *` (11:00 UTC = 21:00 AEST;
-midnight 1 Oct is always AEST). Three hours is slack for the copy plus the
+copy rather than a blank one. Cron: `3 11 30 9 *` (11:03 UTC = 21:03 AEST;
+midnight 1 Oct is always AEST; three minutes past so it isn't on minute 0). Three hours is slack for the copy plus the
 Insights fan-out to *finish* before the flip. Cron name: `staff year prefill`.
 Function: `prefillNextStaffYear`. The clock is the rollover.
 
@@ -72,8 +72,8 @@ Full powers: they can submit, approve, and use Admin. New Requests land in
 the new year. On 1 Jan they become unprovisioned if they still have no
 current-year row. This is not seven days.
 
-**Receipt files are kept for two staff years.** After the flip, at 01:00
-Sydney 1 Oct (`0 15 30 9 *`), delete stored files on Requests whose staff
+**Receipt files are kept for two staff years.** After the flip, at 01:04
+Sydney 1 Oct (`4 15 30 9 *`), delete stored files on Requests whose staff
 year is previous-previous or older: `_creationTime < staffYearStartMs(currentStaffYear() - 1)`.
 On 1 Oct 2026 that is everything through 30 Sep 2025. Current and previous
 staff years are left alone. Not 365 days after `paidTime`. The job must run
