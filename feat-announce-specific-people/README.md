@@ -5,18 +5,18 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 12s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 89s |  |
-| typecheck | ✔ pass | 16s |  |
+| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 83s |  |
+| typecheck | ✔ pass | 19s |  |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 17s | before functions on :3280 |
-| before: web | ✔ pass | 57s | 6 screens, 0 broken. |
-| before: iOS reset | ✔ pass | 17s |  |
-| before: iOS | ✔ pass | 101s | 5 screenshots |
-| after: local backend | ✔ pass | 17s | after functions on :3280 |
-| after: web | ✔ pass | 59s | 6 screens, 0 broken. |
-| after: iOS reset | ✔ pass | 2s |  |
-| after: iOS | ✔ pass | 75s | 5 screenshots |
+| before: local backend | ✔ pass | 27s | before functions on :3280 |
+| before: web | ✔ pass | 64s | 6 screens, 0 broken. |
+| before: iOS reset | ✔ pass | 21s |  |
+| before: iOS | ✔ pass | 96s | 5 screenshots, every one settled |
+| after: local backend | ✔ pass | 16s | after functions on :3280 |
+| after: web | ✔ pass | 51s | 6 screens, 0 broken. |
+| after: iOS reset | ✔ pass | 1s |  |
+| after: iOS | ✔ pass | 68s | 5 screenshots, every one settled |
 
 ## Screenshots
 
