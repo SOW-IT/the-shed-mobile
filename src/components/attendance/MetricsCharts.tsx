@@ -1,11 +1,5 @@
 import { Avatar, Card, Facts } from "@/components/ui";
-import {
-  radius,
-  spacing,
-  typography,
-  useAppTheme,
-  type AppTheme,
-} from "@/theme";
+import { radius, spacing, typography, useAppTheme, type AppTheme, fixedColours } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { createContext, ReactNode, useContext, useState } from "react";
 import {
@@ -1603,7 +1597,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     gap: 3,
     zIndex: 100,
-    shadowColor: "#000",
+    shadowColor: fixedColours.shadow,
     shadowOpacity: 0.2,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },

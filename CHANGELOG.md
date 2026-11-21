@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.37] - 2026-11-21
+
+### Changed
+- **Colours come from the theme, for contributors.** A colour written into a
+  screen is how a dark-mode miss happens, so lint now rejects hex and `rgb()`
+  literals outside `src/theme.ts` and the calendar palette. Colours that are
+  the same in both themes (white on a badge, shadows, the QR code) live in
+  `fixedColours`. The only screen that looks different is the "Configuration
+  error" screen, which now follows the dark theme too.
+
 ## [2.11.31] - 2026-11-21
 
 ### Added

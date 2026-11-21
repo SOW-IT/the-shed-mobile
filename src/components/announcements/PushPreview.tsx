@@ -3,12 +3,15 @@ import { spacing, useAppTheme } from "@/theme";
 
 export const PushPreview = ({ title, message }: { title: string; message: string }) => {
   const t = useAppTheme();
+  /* eslint-disable no-restricted-syntax -- these copy an iOS notification banner, not the app's theme */
   const banner = t.dark ? "rgba(58, 58, 60, 0.92)" : "rgba(255, 255, 255, 0.92)";
   const text = t.dark ? "#FFFFFF" : "#000000";
   const secondary = t.dark ? "rgba(235, 235, 245, 0.6)" : "rgba(60, 60, 67, 0.6)";
+  const wallpaper = t.dark ? "#1B3431" : "#C9DAD7";
+  /* eslint-enable no-restricted-syntax */
   return (
     <View
-      style={[styles.wallpaper, { backgroundColor: t.dark ? "#1B3431" : "#C9DAD7" }]}
+      style={[styles.wallpaper, { backgroundColor: wallpaper }]}
       accessibilityLabel={`Notification preview: ${title || "no title"}. ${message}`}
     >
       <View style={[styles.banner, t.surfaceEdge, { backgroundColor: banner }]}>

@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
-import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
+import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 import { useRegisterModal } from "./modalPresence";
 import { FastModal, SowSpinner, Txt } from "./primitives";
 import { useRevealFocusedInput } from "./revealFocus";
@@ -605,10 +605,10 @@ export const Segmented = ({
               <View
                 style={[
                   styles.segmentBadge,
-                  { backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#cccccc" },
+                  { backgroundColor: fixedColours.messageBadge.bg, borderWidth: 1, borderColor: fixedColours.messageBadge.border },
                 ]}
               >
-                <Text style={[styles.segmentBadgeText, { color: "#333333" }]}>
+                <Text style={[styles.segmentBadgeText, { color: fixedColours.messageBadge.text }]}>
                   {segment.messageBadge}
                 </Text>
               </View>
