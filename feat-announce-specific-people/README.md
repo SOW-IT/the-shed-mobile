@@ -1,34 +1,22 @@
-# verify: scoped (after merging main at 871bf16, 2.11.41)
+# verify: scoped
 
 - because --only announcements
-- three runs on head 571920e, on ports 3280/3281/8103/8197 and the simulator "iPhone 17 Pro announce"
 
-Run 1, full (web + iOS):
-
-| Step | Result | Detail |
-| --- | --- | --- |
-| native fingerprint | ✔ pass | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass |  |
-| typecheck | ✔ pass |  |
-| before: web | ✔ pass | 6 screens, 0 broken |
-| after: web | ✔ pass | 6 screens, 0 broken |
-| before / after: iOS | ✔ pass | 5 + 5 screenshots, but all covered by the dev client's first-launch menu on a fresh simulator (fixed for run 2) |
-
-Run 2, iOS (`--no-web`):
-
-| Step | Result | Detail |
-| --- | --- | --- |
-| lint, typecheck | ✔ pass |  |
-| before: iOS | ✔ pass | 5 screenshots |
-| after: iOS | ✔ pass | 5 screenshots; the announcements link raced the sign-in redirect and landed on Home |
-
-Run 3, iOS after only (`--no-web --no-before`):
-
-| Step | Result | Detail |
-| --- | --- | --- |
-| after: iOS | ✔ pass | 5 screenshots; announcements opened |
-
-Web screenshots are from run 1, iOS before from run 2, iOS after from run 3.
+| Step | Result | Time | Detail |
+| --- | --- | --- | --- |
+| base tree | ✔ pass | 0s |  |
+| native fingerprint | ✔ pass | 12s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 89s |  |
+| typecheck | ✔ pass | 16s |  |
+| Playwright Chromium | ✔ pass | 1s |  |
+| before: local backend | ✔ pass | 17s | before functions on :3280 |
+| before: web | ✔ pass | 57s | 6 screens, 0 broken. |
+| before: iOS reset | ✔ pass | 17s |  |
+| before: iOS | ✔ pass | 101s | 5 screenshots |
+| after: local backend | ✔ pass | 17s | after functions on :3280 |
+| after: web | ✔ pass | 59s | 6 screens, 0 broken. |
+| after: iOS reset | ✔ pass | 2s |  |
+| after: iOS | ✔ pass | 75s | 5 screenshots |
 
 ## Screenshots
 
