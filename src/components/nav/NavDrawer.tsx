@@ -28,7 +28,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NavMenu } from "@/components/nav/NavMenu";
 import { useWideLayout } from "@/components/nav/layout";
-import { spacing, useAppTheme } from "@/theme";
+import { spacing, useAppTheme, fixedColours } from "@/theme";
 
 const DRAWER_WIDTH_FRACTION = 0.8;
 const DRAWER_MAX_WIDTH = 320;
@@ -222,7 +222,7 @@ const DrawerOverlay = () => {
 };
 
 const styles = StyleSheet.create({
-  backdrop: { backgroundColor: "#000000" },
+  backdrop: { backgroundColor: fixedColours.backdrop },
   panel: { position: "absolute", top: 0, bottom: 0, left: 0 },
   edge: {
     position: "absolute",

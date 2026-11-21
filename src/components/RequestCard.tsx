@@ -17,7 +17,7 @@ import {
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
-import { radius, spacing, typography, useAppTheme } from "../theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "../theme";
 import {
   Card,
   formatAmount,
@@ -143,7 +143,7 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   }, [fill, needsAnimation]);
   const connectorFillX = fill.interpolate({ inputRange: [0, 2 / 3, 1], outputRange: [-10, 10, 10] });
   const circleFillX = fill.interpolate({ inputRange: [0, 1 / 3, 1], outputRange: [-22, -22, 22] });
-  const dotColor = t.dark ? t.background : "#ffffff";
+  const dotColor = t.dark ? t.background : fixedColours.onColour;
 
   return (
     <>
@@ -479,8 +479,8 @@ export const RequestCard = ({
             size={40}
             accessibilityLabel="Comments"
             badge={unreadComments ?? 0}
-            badgeColor="#ffffff"
-            badgeTextColor="#333333"
+            badgeColor={fixedColours.messageBadge.bg}
+            badgeTextColor={fixedColours.messageBadge.text}
             onPress={() => setShowComments(true)}
           />
           {onCancel ? (
