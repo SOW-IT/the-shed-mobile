@@ -30,8 +30,12 @@ export type ExportEvent = {
   collaborative: boolean;
   collaborators: string[];
   tags: string[];
+  // Members signed in plus guests.
   attendanceCount: number;
   rows: ExportRow[];
+  // People added by name for just this event; they aren't members, so they
+  // stay out of the per-person matrix.
+  guests?: { name: string; signInTime: number }[];
 };
 
 type MemberDoc = Doc<"attendanceMembers">;
@@ -133,6 +137,14 @@ async function resolveExportEvents(
       }
     }
     rows.sort((a, b) => b.signInTime - a.signInTime);
+    const guests = (
+      await ctx.db
+        .query("eventGuests")
+        .withIndex("by_event", (q) => q.eq("eventId", event._id))
+        .collect()
+    )
+      .map((g) => ({ name: g.name, signInTime: g.addedAt }))
+      .sort((a, b) => b.signInTime - a.signInTime);
 
     const tags = await Promise.all(
       (event.tagIds ?? []).map((id) => ctx.db.get(id))
@@ -149,8 +161,9 @@ async function resolveExportEvents(
       tags: tags
         .filter((t): t is Doc<"attendanceTags"> => !!t)
         .map((t) => t.name),
-      attendanceCount: rows.length,
+      attendanceCount: rows.length + guests.length,
       rows,
+      guests,
     });
   }
   return out;

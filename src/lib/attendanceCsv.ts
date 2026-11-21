@@ -55,7 +55,16 @@ export const buildAttendanceCsv = (
         ...(includeNotes ? [row.notes ?? ""] : []),
       ])
     );
-    return [...info, "", tableHeader, ...rows].join("\r\n");
+    const guests = (event.guests ?? []).map((guest) =>
+      csvLine([
+        formatDateTime(guest.signInTime),
+        `${guest.name} (guest)`,
+        "",
+        ...metadataKeys.map(() => ""),
+        ...(includeNotes ? [""] : []),
+      ])
+    );
+    return [...info, "", tableHeader, ...rows, ...guests].join("\r\n");
   });
   return sections.join("\r\n\r\n\r\n");
 };

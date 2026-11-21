@@ -5,12 +5,17 @@ import { internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
 
 const BACKFILL_BATCH_SIZE = 25;
 
+// Members signed in plus guests added for just this event.
 async function countRows(ctx: QueryCtx, eventId: Id<"events">): Promise<number> {
   const rows = await ctx.db
     .query("attendance")
     .withIndex("by_event", (q) => q.eq("eventId", eventId))
     .collect();
-  return rows.length;
+  const guests = await ctx.db
+    .query("eventGuests")
+    .withIndex("by_event", (q) => q.eq("eventId", eventId))
+    .collect();
+  return rows.length + guests.length;
 }
 
 const storedCountOf = (ctx: QueryCtx, eventId: Id<"events">) =>
