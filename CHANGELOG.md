@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.55] - 2026-11-22
+
+### Added
+- **Add someone to one event without making them a member.** When someone
+  comes just once, say a member's parents, you can now count them without
+  adding them to the members list. While searching, tap the small **Guest**
+  button beside Create to add the name you typed. Or tap **Add a guest** under
+  Signed in and type a name. Guests are listed under Signed in with a "Guest"
+  label. They count toward the event's total, its export and campus averages,
+  but they never show up in Members, search for other events, merges or
+  Insights about people. Remove one the same way you undo a sign-in.
+
 ## [2.11.54] - 2026-11-22
 
 ### Added

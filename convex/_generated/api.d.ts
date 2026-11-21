@@ -47,6 +47,7 @@ import type * as designRequests from "../designRequests.js";
 import type * as directory from "../directory.js";
 import type * as directorySync from "../directorySync.js";
 import type * as emails from "../emails.js";
+import type * as eventGuests from "../eventGuests.js";
 import type * as eventRequestAccess from "../eventRequestAccess.js";
 import type * as eventRequestComments from "../eventRequestComments.js";
 import type * as eventRequestData from "../eventRequestData.js";
@@ -147,6 +148,7 @@ declare const fullApi: ApiFromModules<{
   directory: typeof directory;
   directorySync: typeof directorySync;
   emails: typeof emails;
+  eventGuests: typeof eventGuests;
   eventRequestAccess: typeof eventRequestAccess;
   eventRequestComments: typeof eventRequestComments;
   eventRequestData: typeof eventRequestData;

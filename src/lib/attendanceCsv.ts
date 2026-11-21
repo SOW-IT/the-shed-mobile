@@ -55,7 +55,16 @@ export const buildAttendanceCsv = (
         ...(includeNotes ? [row.notes ?? ""] : []),
       ])
     );
-    return [...info, "", tableHeader, ...rows].join("\r\n");
+    const guests = (event.guests ?? []).map((guest) =>
+      csvLine([
+        formatDateTime(guest.signInTime),
+        `${guest.name} (guest)`,
+        "",
+        ...metadataKeys.map(() => ""),
+        ...(includeNotes ? [""] : []),
+      ])
+    );
+    return [...info, "", tableHeader, ...rows, ...guests].join("\r\n");
   });
   return sections.join("\r\n\r\n\r\n");
 };
@@ -120,7 +129,9 @@ export const buildAttendanceMatrixCsv = (
     ATTENDANCE_PCT_HEADER,
     ...eventLabels,
   ]);
-  const countedEvents = events.filter((e) => e.attendanceCount > 0);
+  // Attendance % is per person, so an event only guests came to (no member
+  // rows) doesn't count against anyone.
+  const countedEvents = events.filter((e) => e.rows.length > 0);
   const totalCounted = countedEvents.length;
   const body = sorted.map((person) => {
     const attended = countedEvents.reduce(

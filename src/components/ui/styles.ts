@@ -334,6 +334,13 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
   },
   footerActionText: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
+  footerSecondary: {
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1.5,
+  },
+  footerSecondaryText: { fontSize: 14, fontWeight: "700" },
   footerIconBadge: {
     position: "absolute",
     top: -2,
