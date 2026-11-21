@@ -38,7 +38,7 @@ import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 import { useCalendarView } from "@/hooks/useCalendarView";
 import { sydneyTime } from "@/lib/sydneyTime";
 import { visibleColour } from "@/lib/visibleColour";
-import { Btn, Card, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts } from "@/components/ui";
+import { Btn, Card, IconButton, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
 
 type CalendarEvent = NonNullable<ReturnType<typeof useRange>>[number];
@@ -91,11 +91,12 @@ const shortDay = (ms: number) =>
   }).format(new Date(ms));
 
 // The month or week showing. Swiping is the way along, so a screen reader can
-// step it like a slider, and on web the ← → keys do (see the screen).
+// step it like a slider, and on web the ← → keys do (see the screen). A wide
+// screen has room for buttons either side too, for a mouse or a tap.
 const PeriodTitle = ({ label, unit, step, wide }: { label: string; unit: string; step: (by: -1 | 1) => void; wide: boolean }) => {
   const t = useAppTheme();
   const native = Platform.OS !== "web";
-  return (
+  const heading = (
     <View
       accessible
       accessibilityRole={native ? "adjustable" : "header"}
@@ -106,6 +107,7 @@ const PeriodTitle = ({ label, unit, step, wide }: { label: string; unit: string;
         { name: "decrement", label: `Previous ${unit}` },
       ]}
       onAccessibilityAction={(e) => step(e.nativeEvent.actionName === "increment" ? 1 : -1)}
+      style={wide ? styles.periodLabel : undefined}
     >
       <Text
         numberOfLines={1}
@@ -116,6 +118,24 @@ const PeriodTitle = ({ label, unit, step, wide }: { label: string; unit: string;
       >
         {label}
       </Text>
+    </View>
+  );
+  if (!wide) return heading;
+  return (
+    <View style={styles.periodRow}>
+      <IconButton
+        name="chevron-back"
+        size={40}
+        accessibilityLabel={`Previous ${unit}`}
+        onPress={() => step(-1)}
+      />
+      {heading}
+      <IconButton
+        name="chevron-forward"
+        size={40}
+        accessibilityLabel={`Next ${unit}`}
+        onPress={() => step(1)}
+      />
     </View>
   );
 };
@@ -691,6 +711,10 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderRightWidth: 0,
   },
+  // On a wide screen the period's name sits between its buttons, and gives
+  // way to them when it's long.
+  periodRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  periodLabel: { flex: 1, minWidth: 0 },
   // The weeks sit close together, so the month takes less of the screen.
   monthCard: { gap: WEEK_GAP },
   week: { flexDirection: "row" },
