@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme, fixedColours } from "@/theme";
+import { fieldTestID } from "./fieldTestID";
 import { useRegisterModal } from "./modalPresence";
 import { FastModal, SowSpinner, Txt } from "./primitives";
 import { useRevealFocusedInput } from "./revealFocus";
@@ -66,7 +67,7 @@ export const Field = ({
           autoCapitalize={autoCapitalize}
           autoCorrect={autoCorrect}
           maxLength={maxLength}
-          testID={testID}
+          testID={testID ?? fieldTestID(label || accessibilityLabel)}
           accessibilityLabel={accessibilityLabel ?? label}
           multiline={multiline}
           editable={!disabled}
