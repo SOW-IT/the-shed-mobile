@@ -3,7 +3,7 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { campusPill } from "@/components/attendance/campusPill";
+import { CampusPill, campusPill } from "@/components/attendance/campusPill";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -67,7 +67,6 @@ interface AttendanceRowProps {
   onAction: () => void;
   onActionStart?: () => void;
   onEdit?: () => void;
-  highlightSignedIn?: boolean;
   entering?: boolean;
   exiting?: boolean;
   onExited?: () => void;
@@ -87,7 +86,6 @@ function AttendanceRowBase({
   onAction,
   onActionStart,
   onEdit,
-  highlightSignedIn = false,
   entering = false,
   exiting = false,
   onExited,
@@ -417,7 +415,7 @@ function AttendanceRowBase({
           style={[
             styles.card,
             {
-              backgroundColor: highlightSignedIn ? t.primarySoft : t.card,
+              backgroundColor: t.card,
               borderColor: pill.colour ?? t.separator,
               zIndex: 2,
             },
@@ -447,25 +445,7 @@ function AttendanceRowBase({
           {lockedSignOut ? (
             <Ionicons name="lock-closed" size={14} color={t.faint} accessible={false} />
           ) : null}
-          <View
-            style={[
-              styles.campusPill,
-              {
-                backgroundColor: pill.background,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                typography.caption,
-                styles.campusPillText,
-                { color: pill.text },
-              ]}
-              numberOfLines={1}
-            >
-              {pill.label}
-            </Text>
-          </View>
+          <CampusPill pill={pill} />
         </Animated.View>
       </GestureDetector>
     </Animated.View>
@@ -514,15 +494,4 @@ const styles = StyleSheet.create({
   nameLine: { flexDirection: "row", alignItems: "center", gap: 6 },
   tag: { borderRadius: radius.full, paddingHorizontal: 7, paddingVertical: 2, flexShrink: 0 },
   tagText: { fontSize: 11, fontWeight: "800" },
-  campusPill: {
-    maxWidth: 92,
-    borderRadius: radius.full,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  campusPillText: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.1,
-  },
 });

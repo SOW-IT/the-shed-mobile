@@ -8,13 +8,12 @@ import {
   Avatar,
   ConfirmDialog,
 } from "@/components/ui";
-import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
-import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
 import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
 import { useMusicRequestsBadge } from "@/hooks/useMusicRequestsBadge";
 import { useNavGroupOpen } from "@/hooks/useNavGroupOpen";
 import { useSignOut } from "@/hooks/usePushRegistration";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
+import { useStaffWaitingBadge } from "@/hooks/useStaffWaitingBadge";
 import {
   activeNavKey,
   badgeText,
@@ -262,8 +261,8 @@ export const NavMenu = ({
   const me = useQuery(api.directory.me);
   const viewer = navViewer(isAuthenticated, me);
   const reimbursementsBadge = useReimbursementsBadge();
-  const designRequestsBadge = useDesignRequestsBadge();
-  const eventRequestsBadge = useEventRequestsBadge();
+  const designRequestsBadge = useStaffWaitingBadge(api.designRequests.waitingOnMe);
+  const eventRequestsBadge = useStaffWaitingBadge(api.eventRequests.waitingOnMe);
   const grievancesBadge = useGrievancesBadge();
   const musicRequestsBadge = useMusicRequestsBadge();
   const unread =

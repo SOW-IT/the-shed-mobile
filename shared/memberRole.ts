@@ -1,4 +1,4 @@
-import { type MetadataFieldLike, optionIdForLabel, ROLE_FIELD_KEY } from "./attendanceMemberMeta";
+import { type MetadataFieldLike, metadataValueLabel, optionIdForLabel, ROLE_FIELD_KEY } from "./attendanceMemberMeta";
 import { MEMBER } from "./flow";
 import { subgroupMatches } from "./rollcall";
 import {
@@ -20,11 +20,8 @@ export const markedRoleOf = (label: string | null | undefined): MarkedRole | nul
 export const markedRoleIn = (
   fields: readonly MetadataFieldLike[],
   metadata: Record<string, string> | undefined
-): MarkedRole | null => {
-  const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
-  const raw = roleField ? metadata?.[roleField._id] : undefined;
-  return raw ? markedRoleOf(roleField?.values?.[raw] ?? raw) : null;
-};
+): MarkedRole | null =>
+  markedRoleOf(metadataValueLabel(fields.find((f) => f.key === ROLE_FIELD_KEY), metadata));
 
 export const withMarkedRole = (
   fields: readonly MetadataFieldLike[],
@@ -36,7 +33,7 @@ export const withMarkedRole = (
   if (!roleField) return next;
   const raw = next[roleField._id];
   if (raw === previous?.[roleField._id]) return next;
-  const marked = raw ? markedRoleOf(roleField.values?.[raw] ?? raw) : null;
+  const marked = markedRoleOf(metadataValueLabel(roleField, next));
   if (marked) next[roleField._id] = optionIdForLabel(roleField.values, marked);
   else delete next[roleField._id];
   return next;

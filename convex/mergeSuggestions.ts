@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { assignmentsOf } from "../shared/flow";
-import { resolveUniversity, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { metadataValueLabel, resolveUniversity, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import {
   campusCompatible,
   NAME_MATCHES,
@@ -98,13 +98,12 @@ export const list = query({
         if (!match || dismissed.has(`${staffKey}|${row._id}`)) continue;
         const campus = resolveUniversity(fields, row.metadata);
         if (!campusCompatible(universities, campus)) continue;
-        const rawRole = roleField ? row.metadata?.[roleField._id] : undefined;
         candidates.push({
           memberId: row._id,
           name: row.name,
           email: row.email,
           campus,
-          role: rawRole ? (roleField?.values?.[rawRole] ?? rawRole) : undefined,
+          role: metadataValueLabel(roleField, row.metadata),
           match,
           ...(await historyOf(row._id)),
         });

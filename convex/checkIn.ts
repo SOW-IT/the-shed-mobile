@@ -3,7 +3,7 @@ import { CAMPUS_FIELD_KEY, resolveUniversity, STUDENT_YEAR_FIELD_KEY } from "../
 import { commencementForLevel, isCheckInYearLevel } from "../shared/checkInMatch";
 import { checkInOpen, checkInPhase, checkInWindow } from "../shared/checkInWindow";
 import { eventStaffYear, sydneyCalendarYear } from "../shared/flow";
-import { capitalizeMemberName, isOrgWideSubgroup, subgroupLabel } from "../shared/rollcall";
+import { capitalizeMemberName, isOrgWideSubgroup, subgroupLabel, typedMemberName } from "../shared/rollcall";
 import { Doc, Id } from "./_generated/dataModel";
 import { mutation, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { signInMember, signOutMember } from "./attendance";
@@ -126,8 +126,6 @@ const deviceRequests = (ctx: Ctx, eventId: Id<"events">, clientKey: string, name
     .order("desc")
     .take(DEVICE_PROBE);
 
-const typedName = (raw: string) => capitalizeMemberName(raw.trim().replace(/\s+/g, " "));
-
 const deviceKey = (raw: string) => raw.trim().slice(0, 64);
 
 const newToken = (): string =>
@@ -165,7 +163,7 @@ export const submit = mutation({
   },
   handler: async (ctx, args) => {
     const event = await openEventForToken(ctx, args.token);
-    const name = typedName(args.name);
+    const name = typedMemberName(args.name);
     if (name.length < NAME_MIN || name.length > NAME_MAX) {
       throw new ConvexError("Please enter your full name.");
     }
@@ -249,7 +247,7 @@ export const mine = query({
     const event = await eventForToken(ctx, args.token);
     const clientKey = deviceKey(args.clientKey);
     if (!event || !clientKey) return null;
-    const [latest] = await deviceRequests(ctx, event._id, clientKey, typedName(args.name));
+    const [latest] = await deviceRequests(ctx, event._id, clientKey, typedMemberName(args.name));
     if (!latest) return null;
     if (latest.status === "confirmed" && !(await stillSignedIn(ctx, latest))) return "dismissed" as const;
     return latest.status;
@@ -261,7 +259,7 @@ export const returning = query({
   handler: async (ctx, args) => {
     const event = await eventForToken(ctx, args.token);
     const clientKey = deviceKey(args.clientKey);
-    const name = typedName(args.name);
+    const name = typedMemberName(args.name);
     if (!event || !clientKey || name.length < NAME_MIN) return false;
     return (await memberKnownToDevice(ctx, clientKey, name)) !== null;
   },
@@ -273,7 +271,7 @@ export const undoMine = mutation({
     const event = await eventForToken(ctx, args.token);
     if (!event) throw new ConvexError("This check-in link isn't valid any more.");
     const clientKey = deviceKey(args.clientKey);
-    const requests = await deviceRequests(ctx, event._id, clientKey, typedName(args.name));
+    const requests = await deviceRequests(ctx, event._id, clientKey, typedMemberName(args.name));
     const automatic = requests.find((r) => r.status === "confirmed" && r.decidedBy === SELF_CHECK_IN_ACTOR);
     const memberId = automatic?.memberId;
     if (!automatic || !memberId || !automatic.attendanceId) return false;

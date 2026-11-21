@@ -135,7 +135,7 @@ export const SectionTitle = ({
   );
   if (chip === undefined) return title;
   return (
-    <View style={[styles.sectionTitle, styles.sectionTitleRow]}>
+    <View style={[styles.sectionTitle, styles.inlineRow]}>
       {title}
       <Chip>{chip}</Chip>
     </View>
@@ -187,7 +187,7 @@ export const Row = ({
   }
   if (spread) {
     return (
-      <View style={styles.rowSpread}>
+      <View style={styles.inlineRow}>
         {Children.map(children, (child) => (
           <View style={{ flex: 1 }}>{child}</View>
         ))}
@@ -200,6 +200,18 @@ export const Row = ({
 export const Muted = ({ children }: { children: ReactNode }) => {
   const t = useAppTheme();
   return <Text style={[typography.caption, { color: t.muted }]}>{children}</Text>;
+};
+
+export const Answer = ({ label, children }: { label: string; children: ReactNode }) => {
+  const t = useAppTheme();
+  return (
+    <View style={styles.answer}>
+      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      <Text selectable style={[typography.body, { color: t.text }]}>
+        {children}
+      </Text>
+    </View>
+  );
 };
 
 export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: boolean }) => {

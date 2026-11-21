@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.34] - 2026-11-21
+
+### Removed
+- **Duplicated and dead code, for contributors.**
+  - Code written twice is now one shared piece: about 20 components, hooks
+    and helpers, such as the delete warning on events and members, the
+    campus picker and pills, comment previews, "load more", the request
+    badges, short dates and search debouncing.
+  - Gone: a one-off church reminder nobody ran any more, an unused prop, two
+    file shims, and a finished release checklist.
+  - Screens look and behave the same.
+
 ## [2.11.33] - 2026-11-21
 
 ### Changed

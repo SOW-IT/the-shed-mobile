@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
-import { Doc, Id } from "../../convex/_generated/dataModel";
+import { Doc, Id, TableNames } from "../../convex/_generated/dataModel";
 import { CommentThreadSheet } from "./CommentThreadSheet";
 
 const CLOSE_ANIMATION_MS = 300;
@@ -29,6 +29,18 @@ export const useRetained = <T,>(current: T | undefined): T | undefined => {
   return loaded;
 };
 
+export const optimisticComment = <T extends TableNames, E extends object>(_table: T, body: string, extra: E) => {
+  const now = Date.now();
+  return {
+    id: `optimistic-${now}` as unknown as Id<T>,
+    authorEmail: "",
+    body: body.trim(),
+    at: now,
+    isMine: true,
+    ...extra,
+  };
+};
+
 export const CommentsSheet = ({
   request,
   visible,
@@ -54,19 +66,9 @@ export const CommentsSheet = ({
     (localStore, { requestId, body }) => {
       const current = localStore.getQuery(api.comments.list, { requestId });
       if (!current) return;
-      // eslint-disable-next-line react-hooks/purity -- optimistic id/timestamp
-      const now = Date.now();
       localStore.setQuery(api.comments.list, { requestId }, [
         ...current,
-        {
-          id: `optimistic-${now}` as unknown as Id<"requestComments">,
-          authorEmail: "",
-          authorName: null,
-          body: body.trim(),
-          at: now,
-          isMine: true,
-          reactions: [],
-        },
+        optimisticComment("requestComments", body, { authorName: null, reactions: [] }),
       ]);
     }
   );

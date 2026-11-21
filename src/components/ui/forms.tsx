@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
+import { togglePicked } from "@shared/churches";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
 import { useRegisterModal } from "./modalPresence";
 import { FastModal, SowSpinner, Txt } from "./primitives";
@@ -405,7 +406,7 @@ const SelectFace = ({
         disabled={disabled}
         style={({ pressed }) => [
           styles.input,
-          styles.selectFace,
+          styles.inlineRow,
           { backgroundColor: t.inputBackground, borderColor: "transparent" },
           disabled && { opacity: 0.6 },
           !disabled && pressed && { opacity: 0.7 },
@@ -495,9 +496,7 @@ export const MultiSelect = ({
     .map((v) => normalized.find((o) => o.value === v)?.label ?? v)
     .join(", ");
   const toggle = (value: string) => {
-    onSelect(
-      values.includes(value) ? values.filter((v) => v !== value) : [...values, value]
-    );
+    onSelect(togglePicked(values, value));
   };
   return (
     <>

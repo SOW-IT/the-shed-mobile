@@ -2,6 +2,7 @@ import type { Infer } from "convex/values";
 import type { followRow, peopleRow, pill as pillValidator, weeklyBlockValidator } from "../convex/weeklyInsightsData";
 import { type ViewCard } from "./attendanceMetricsView";
 import { sydneyYmd } from "./flow";
+import { pctText } from "./numbers";
 import { subgroupLabel } from "./rollcall";
 import {
   CATEGORY_META,
@@ -66,8 +67,6 @@ export const pill = (category: WeeklyCategory): Pill => ({
   label: CATEGORY_META[category].label,
   colour: CATEGORY_META[category].colour,
 });
-
-const pctText = (n: number) => `${Math.round(n * 100)}%`;
 
 export const dateText = (ms: number, year: number): string => {
   const y = sydneyYmd(new Date(ms)).year;

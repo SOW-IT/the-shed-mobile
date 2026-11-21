@@ -150,6 +150,9 @@ export async function displayName(
   return (await resolveName(ctx, email, year)) ?? email;
 }
 
+export const nameOf = (ctx: Ctx, email: string | undefined, year = currentStaffYear()) =>
+  email ? displayName(ctx, email, year) : Promise.resolve(null);
+
 export const commentBody = (raw: string): string => {
   const body = raw.trim();
   if (!body) throw new ConvexError("Write a comment first.");
@@ -173,10 +176,10 @@ export const memoAsync = <A extends unknown[], V>(load: (...args: A) => Promise<
 export async function commentRows<
   T extends { _id: string; authorEmail: string; body: string; postedAt: number },
 >(ctx: Ctx, comments: T[], year: number, callerEmail: string) {
-  const nameOf = memoAsync((email: string) => displayName(ctx, email, year));
+  const cachedName = memoAsync((email: string) => displayName(ctx, email, year));
   return await Promise.all(
     comments.map(async (comment) => {
-      const name = nameOf(comment.authorEmail);
+      const name = cachedName(comment.authorEmail);
       return {
         id: comment._id,
         authorEmail: comment.authorEmail,
