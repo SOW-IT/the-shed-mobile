@@ -93,7 +93,7 @@ async function deleteByEmail(
     await deleteBatch(
       await ctx.db
         .query("savedBankAccounts")
-        .withIndex("by_email_bsb_accountNumber", (q) => q.eq("email", email))
+        .withIndex("by_email", (q) => q.eq("email", email))
         .take(WIPE_BATCH),
       (row) => ctx.db.delete("savedBankAccounts", row._id)
     ),

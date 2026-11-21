@@ -9,7 +9,6 @@ import {
 import { Doc } from "./_generated/dataModel";
 import { QueryCtx, query } from "./_generated/server";
 import { staffDisplayName } from "./attendanceMembers";
-import { eventSignIns } from "./attendanceCounts";
 import { optionalProfile } from "./model";
 import { isAssigned } from "./staffMembers";
 
@@ -71,7 +70,10 @@ async function resolveExportEvents(
     const staffYear = staffYearForDate(new Date(event.dateStart));
     const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
     const profiles = await loadProfiles(staffYear);
-    const attendanceRows = await eventSignIns(ctx, event._id);
+    const attendanceRows = await ctx.db
+      .query("attendance")
+      .withIndex("by_event", (q) => q.eq("eventId", event._id))
+      .collect();
 
     const resolveMetadata = (
       source: Record<string, string> | undefined

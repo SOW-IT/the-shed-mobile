@@ -15,14 +15,13 @@ All notable changes to **The SHED** mobile app. This project follows
   30 September prefill and receipt purge, the nightly Insights rebuild and
   the church map refresh each move by 3 to 11 minutes too. Minute 0 is the
   busiest minute for scheduled jobs, so they now start off-peak.
-- **Seven database indexes that only repeated the start of a longer one are
-  gone,** on sign-ins, comment reactions, saved bank accounts, approver
-  delegations, the not-serving list and grievances. Their queries use the
-  longer index and put rows back in the order they had before, so lists look
-  the same. The next Convex production deploy drops them.
+- **Two database indexes that only repeated the start of a longer one are
+  gone,** on comment reactions and grievances. Their queries use the longer
+  index and return the same rows in the same order. The next Convex
+  production deploy drops them.
 - **Lint catches duplicate indexes and on-the-hour crons, for contributors.**
   `@convex-dev/no-duplicate-indexes` and `@convex-dev/no-top-of-hour-crons`
-  are on. The three indexes kept for their sort order say why next to them.
+  are on. The eight indexes kept for their sort order say why next to them.
 
 ## [2.11.31] - 2026-11-21
 

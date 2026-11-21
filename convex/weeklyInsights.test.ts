@@ -328,7 +328,7 @@ describe("nightly builds only redo what changed", () => {
     vi.setSystemTime(NOW + 2 * DAY);
     await t.run(async (ctx) => {
       const gone = ids.weeklies[0];
-      for (const row of await ctx.db.query("attendance").withIndex("by_event_and_member", (q) => q.eq("eventId", gone)).collect()) {
+      for (const row of await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", gone)).collect()) {
         await ctx.db.delete(row._id);
       }
       await ctx.db.delete(gone);
@@ -536,7 +536,7 @@ describe("a term that's gone", () => {
     vi.setSystemTime(NOW + DAY);
     await t.run(async (ctx) => {
       for (const eventId of ids.weeklies.slice(0, T2_2025.length)) {
-        for (const row of await ctx.db.query("attendance").withIndex("by_event_and_member", (q) => q.eq("eventId", eventId)).collect()) {
+        for (const row of await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()) {
           await ctx.db.delete(row._id);
         }
         await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "attendance", action: "delete", summary: "x", eventId });
@@ -609,7 +609,7 @@ describe("sign-in tags", () => {
     vi.setSystemTime(NOW + DAY);
     await t.run(async (ctx) => {
       for (const eventId of ids.weeklies.slice(T2_2025.length + T1_2026.length)) {
-        for (const row of await ctx.db.query("attendance").withIndex("by_event_and_member", (q) => q.eq("eventId", eventId)).collect()) {
+        for (const row of await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()) {
           await ctx.db.delete(row._id);
         }
         await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "attendance", action: "delete", summary: "x", eventId });

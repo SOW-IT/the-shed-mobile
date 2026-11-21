@@ -64,7 +64,6 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { syncCategoryPeople } from "./categoryPeople";
-import { eventSignIns } from "./attendanceCounts";
 import { currentStaffYear, nightlyJobsPaused, optionalProfile } from "./model";
 import { photoFor } from "./photo";
 import { isAssigned, latestProfileOfMember } from "./staffMembers";
@@ -303,7 +302,10 @@ export const attendanceFor = internalQuery({
   handler: async (ctx, { eventIds }) =>
     Promise.all(
       eventIds.map(async (eventId) => {
-        const rows = await eventSignIns(ctx, eventId, MAX_EVENTS);
+        const rows = await ctx.db
+          .query("attendance")
+          .withIndex("by_event", (q) => q.eq("eventId", eventId))
+          .take(MAX_EVENTS);
         return {
           eventId,
           keys: [...new Set(rows.map((r) => `member:${r.memberId}`))],

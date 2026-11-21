@@ -37,7 +37,6 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
-import { eventSignIns } from "./attendanceCounts";
 import { currentStaffYear, nightlyJobsPaused, optionalProfile } from "./model";
 import { metricsDataValidator, viewBlockValidator } from "./metricsData";
 import { readCampusWeeklyAverages } from "./weeklyInsights";
@@ -136,7 +135,14 @@ export const gatherAttendanceChunk = internalQuery({
     })
   ),
   handler: async (ctx, { eventIds }) => {
-    const perEvent = await Promise.all(eventIds.map((id) => eventSignIns(ctx, id)));
+    const perEvent = await Promise.all(
+      eventIds.map((id) =>
+        ctx.db
+          .query("attendance")
+          .withIndex("by_event", (q) => q.eq("eventId", id))
+          .collect()
+      )
+    );
     const out: MetricsAttendance[] = [];
     eventIds.forEach((id, i) => {
       for (const row of perEvent[i]) {

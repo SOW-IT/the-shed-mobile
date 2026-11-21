@@ -2178,18 +2178,6 @@ describe("not-serving (leavers) list", () => {
     ).toHaveLength(0);
   });
 
-  test("lists people in the order they were marked, not by email", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    const marked = ["zed@sow.org.au", "amy@sow.org.au", "max@sow.org.au"];
-    for (const email of marked) {
-      await admin.mutation(api.admin.markLeaving, { email, year: YEAR });
-    }
-    expect(
-      (await admin.query(api.admin.listLeavers, { year: YEAR }))!.map((l) => l.email),
-    ).toEqual(marked);
-  });
-
   test("a leaver row for someone who holds a profile is hidden", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);

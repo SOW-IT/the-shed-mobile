@@ -46,7 +46,6 @@ import schema from "./schema";
 import {
   deleteEventAttendanceCount,
   eventAttendanceCount,
-  eventSignIns,
   startEventAttendanceCount,
 } from "./attendanceCounts";
 import { deleteRollCallOrder, rankingInputsChanged, scheduleRank } from "./rollCallOrder";
@@ -550,7 +549,10 @@ export const deletePreview = query({
     if (!(await optionalProfile(ctx))) return null;
     const event = await ctx.db.get(eventId);
     if (!event) return null;
-    const rows = await eventSignIns(ctx, eventId);
+    const rows = await ctx.db
+      .query("attendance")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect();
     return { total: rows.length, people: await attendeesToList(ctx, event, rows) };
   },
 });
@@ -560,7 +562,10 @@ export const deletePreview = query({
 export async function deleteEvent(ctx: MutationCtx, actorEmail: string, eventId: Id<"events">) {
   const event = await ctx.db.get(eventId);
   if (!event) return;
-  const rows = await eventSignIns(ctx, eventId);
+  const rows = await ctx.db
+    .query("attendance")
+    .withIndex("by_event", (q) => q.eq("eventId", eventId))
+    .collect();
   const people = await attendeesToList(ctx, event, rows);
   for (const row of rows) await ctx.db.delete(row._id);
   const checkIns = await ctx.db

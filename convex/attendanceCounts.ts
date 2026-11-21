@@ -5,28 +5,11 @@ import { internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
 
 const BACKFILL_BATCH_SIZE = 25;
 
-const signInsQuery = (ctx: QueryCtx, eventId: Id<"events">) =>
-  ctx.db
-    .query("attendance")
-    .withIndex("by_event_and_member", (q) => q.eq("eventId", eventId));
-
-// An event's sign-ins in the order they were recorded. The index sorts by
-// member, so this puts them back; callers that dedupe or break ties on time
-// depend on that order.
-export async function eventSignIns(
-  ctx: QueryCtx,
-  eventId: Id<"events">,
-  limit?: number
-): Promise<Doc<"attendance">[]> {
-  const rows =
-    limit === undefined
-      ? await signInsQuery(ctx, eventId).collect()
-      : await signInsQuery(ctx, eventId).take(limit);
-  return rows.sort((a, b) => a._creationTime - b._creationTime);
-}
-
 async function countRows(ctx: QueryCtx, eventId: Id<"events">): Promise<number> {
-  const rows = await signInsQuery(ctx, eventId).collect();
+  const rows = await ctx.db
+    .query("attendance")
+    .withIndex("by_event", (q) => q.eq("eventId", eventId))
+    .collect();
   return rows.length;
 }
 

@@ -32,35 +32,6 @@ describe("listMine", () => {
     expect(await t.query(api.bankAccounts.listMine, {})).toBeNull();
     expect(await asUser(t, RACHEL).query(api.bankAccounts.listMine, {})).toEqual([]);
   });
-
-  test("accounts last used at the same moment stay oldest first, here and when the preferred one goes", async () => {
-    const t = await reimbursementSetup();
-    // BSBs run backwards so that sorting by BSB would reverse them.
-    const [first] = await t.run(async (ctx) => {
-      const lastUsedAt = Date.now();
-      const ids = [];
-      for (const [accountName, bsb] of [["First", "999"], ["Second", "555"], ["Third", "111"]]) {
-        ids.push(
-          await ctx.db.insert("savedBankAccounts", { email: RACHEL, accountName, bsb, accountNumber: "1", lastUsedAt })
-        );
-      }
-      return ids;
-    });
-    const names = async () =>
-      (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!.map((a) => [a.accountName, a.preferred]);
-    expect(await names()).toEqual([
-      ["First", true],
-      ["Second", false],
-      ["Third", false],
-    ]);
-
-    await asUser(t, RACHEL).mutation(api.bankAccounts.setPreferred, { id: first });
-    await asUser(t, RACHEL).mutation(api.bankAccounts.remove, { id: first });
-    expect(await names()).toEqual([
-      ["Second", true],
-      ["Third", false],
-    ]);
-  });
 });
 
 describe("auto-save on receipt submission", () => {

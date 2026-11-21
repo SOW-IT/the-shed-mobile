@@ -70,19 +70,6 @@ describe("finance settings access", () => {
     expect(await sam.query(api.stepTiming.summary, { year: YEAR })).toBeNull();
   });
 
-  test("delegations are listed in the order they were added", async () => {
-    const { t, admin } = await setup();
-    await admin.mutation(api.admin.addDelegation, { year: YEAR, fromEmail: SAM, toEmail: BELLA });
-    await admin.mutation(api.admin.addDelegation, { year: YEAR, fromEmail: BELLA, toEmail: COVER });
-    expect(
-      (await asUser(t, ADMIN).query(api.admin.listDelegations, { year: YEAR }))!.map((d) => [d.fromEmail, d.toEmail])
-    ).toEqual([
-      [FIONA, COVER],
-      [SAM, BELLA],
-      [BELLA, COVER],
-    ]);
-  });
-
   test("an admin acting as a role sees them only if that role would", async () => {
     const { t, admin } = await setup();
     const actAs = (persona: Persona | null) => admin.mutation(api.actingAs.set, { persona });

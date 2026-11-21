@@ -81,7 +81,7 @@ const counts = async (t: T, email: string) =>
       await ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", email)).take(10)
     ).length,
     savedBankAccounts: (
-      await ctx.db.query("savedBankAccounts").withIndex("by_email_bsb_accountNumber", (q) => q.eq("email", email)).take(10)
+      await ctx.db.query("savedBankAccounts").withIndex("by_email", (q) => q.eq("email", email)).take(10)
     ).length,
   }));
 

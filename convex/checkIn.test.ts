@@ -53,7 +53,7 @@ const enabled = async (t: T, subgroups?: string[], startOffset?: number) => {
 
 const signedInIds = (t: T, eventId: Id<"events">) =>
   t.run(async (ctx) =>
-    (await ctx.db.query("attendance").withIndex("by_event_and_member", (q) => q.eq("eventId", eventId)).collect()).map(
+    (await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()).map(
       (r) => r.memberId
     )
   );
@@ -419,7 +419,7 @@ const yearFieldId = (t: T) =>
 const signInTimes = (t: T, eventId: Id<"events">) =>
   t.run(async (ctx) =>
     Object.fromEntries(
-      (await ctx.db.query("attendance").withIndex("by_event_and_member", (q) => q.eq("eventId", eventId)).collect()).map(
+      (await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()).map(
         (r) => [r.memberId, r.signInTime]
       )
     )

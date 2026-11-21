@@ -162,12 +162,12 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
   const newHasPreferred = (
     await ctx.db
       .query("savedBankAccounts")
-      .withIndex("by_email_bsb_accountNumber", (q) => q.eq("email", newEmail))
+      .withIndex("by_email", (q) => q.eq("email", newEmail))
       .take(100)
   ).some((account) => account.preferred === true);
   const savedAccounts = await ctx.db
     .query("savedBankAccounts")
-    .withIndex("by_email_bsb_accountNumber", (q) => q.eq("email", oldEmail))
+    .withIndex("by_email", (q) => q.eq("email", oldEmail))
     .take(100);
   for (const account of savedAccounts) {
     const taken = await ctx.db

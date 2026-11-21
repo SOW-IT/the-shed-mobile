@@ -176,7 +176,11 @@ export default defineSchema({
     fromEmail: v.string(),
     toEmail: v.string(),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- listDelegations takes the first 500 in creation order; the longer index would pick by email once it hits the cap
+    .index("by_year", ["year"])
     .index("by_year_and_to", ["year", "toEmail"])
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- delegatesForYear takes the first 500 in creation order; the longer index would pick by toEmail once it hits the cap
+    .index("by_year_and_from", ["year", "fromEmail"])
     .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
 
   actingAs: defineTable({
@@ -214,7 +218,10 @@ export default defineSchema({
   leavers: defineTable({
     year: v.number(),
     email: v.string(),
-  }).index("by_year_and_email", ["year", "email"]),
+  })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the Leaving list and leaverEmailSet take the first 1,000 in creation order; the longer index would pick by email once it hits the cap
+    .index("by_year", ["year"])
+    .index("by_year_and_email", ["year", "email"]),
 
   savedBankAccounts: defineTable({
     email: v.string(),
@@ -223,7 +230,10 @@ export default defineSchema({
     accountNumber: v.string(),
     lastUsedAt: v.number(),
     preferred: v.optional(v.boolean()),
-  }).index("by_email_bsb_accountNumber", ["email", "bsb", "accountNumber"]),
+  })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- saved-account reads take the first 100 in creation order; the longer index would pick by BSB once it hits the cap
+    .index("by_email", ["email"])
+    .index("by_email_bsb_accountNumber", ["email", "bsb", "accountNumber"]),
 
   requestComments: defineTable({
     requestId: v.id("requests"),
@@ -672,6 +682,8 @@ export default defineSchema({
     addedAt: v.optional(v.number()),
     notes: v.optional(v.string()),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the Insights builds take the first 2,000 and 5,000 sign-ins in creation order; the longer index would pick by member once it hits the cap
+    .index("by_event", ["eventId"])
     .index("by_event_and_member", ["eventId", "memberId"])
     .index("by_member", ["memberId"]),
 

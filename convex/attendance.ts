@@ -18,7 +18,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { mutation, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
-import { adjustEventAttendanceCount, eventSignIns } from "./attendanceCounts";
+import { adjustEventAttendanceCount } from "./attendanceCounts";
 import { memberAuditName, staffDisplayName } from "./attendanceMembers";
 import { eventCampuses, memberRoleResolver, memberRolesFor } from "./memberRoles";
 import { photoFor } from "./photo";
@@ -439,7 +439,10 @@ export const listByEvent = query({
           fieldSubgroups.some((sg) => subgroupMatches(field.subgroup!, sg))
       )
       .sort((a, b) => a.order - b.order);
-    const rows = await eventSignIns(ctx, eventId);
+    const rows = await ctx.db
+      .query("attendance")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect();
     const roleOf = await memberRoleResolver(ctx, metadataFields, eventCampuses(event.subgroups));
 
     const withNames = await Promise.all(

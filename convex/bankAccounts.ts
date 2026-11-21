@@ -1,11 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { Doc } from "./_generated/dataModel";
 import { mutation, MutationCtx, query } from "./_generated/server";
 import { optionalEmail, requireEmail } from "./model";
-
-// Most recently used first; accounts used at the same moment stay oldest first.
-const byLastUsed = (a: Doc<"savedBankAccounts">, b: Doc<"savedBankAccounts">) =>
-  b.lastUsedAt - a.lastUsedAt || a._creationTime - b._creationTime;
 
 export async function rememberBankAccount(
   ctx: MutationCtx,
@@ -45,9 +40,9 @@ export const listMine = query({
     if (!email) return null;
     const accounts = await ctx.db
       .query("savedBankAccounts")
-      .withIndex("by_email_bsb_accountNumber", (q) => q.eq("email", email))
+      .withIndex("by_email", (q) => q.eq("email", email))
       .take(100);
-    const sorted = accounts.sort(byLastUsed);
+    const sorted = accounts.sort((a, b) => b.lastUsedAt - a.lastUsedAt);
     const hasExplicitPreferred = sorted.some((a) => a.preferred === true);
     return sorted.map((a, i) => ({
       id: a._id,
@@ -69,7 +64,7 @@ export const setPreferred = mutation({
     }
     const all = await ctx.db
       .query("savedBankAccounts")
-      .withIndex("by_email_bsb_accountNumber", (q) => q.eq("email", email))
+      .withIndex("by_email", (q) => q.eq("email", email))
       .collect();
     for (const a of all) {
       await ctx.db.patch("savedBankAccounts", a._id, { preferred: a._id === args.id ? true : undefined });
@@ -96,12 +91,12 @@ export const addAccount = mutation({
 
     const before = await ctx.db
       .query("savedBankAccounts")
-      .withIndex("by_email_bsb_accountNumber", (q) => q.eq("email", email))
+      .withIndex("by_email", (q) => q.eq("email", email))
       .collect();
     const hadExplicitPreferred = before.some((a) => a.preferred === true);
     const priorPreferredId =
       before.find((a) => a.preferred === true)?._id ??
-      [...before].sort(byLastUsed)[0]?._id;
+      [...before].sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?._id;
 
     const existing = before.find(
       (a) => a.bsb === bsb && a.accountNumber === accountNumber
@@ -127,7 +122,7 @@ export const addAccount = mutation({
     if (args.makePreferred || !hadExplicitPreferred) {
       const all = await ctx.db
         .query("savedBankAccounts")
-        .withIndex("by_email_bsb_accountNumber", (q) => q.eq("email", email))
+        .withIndex("by_email", (q) => q.eq("email", email))
         .collect();
       for (const a of all) {
         await ctx.db.patch("savedBankAccounts", a._id, {
@@ -186,9 +181,9 @@ export const remove = mutation({
       const remaining = (
         await ctx.db
           .query("savedBankAccounts")
-          .withIndex("by_email_bsb_accountNumber", (q) => q.eq("email", email))
+          .withIndex("by_email", (q) => q.eq("email", email))
           .take(100)
-      ).sort(byLastUsed);
+      ).sort((a, b) => b.lastUsedAt - a.lastUsedAt);
       if (remaining.length > 0) {
         await ctx.db.patch("savedBankAccounts", remaining[0]._id, { preferred: true });
       }
