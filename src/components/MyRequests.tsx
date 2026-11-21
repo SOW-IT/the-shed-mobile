@@ -691,7 +691,7 @@ const ReceiptSheet = ({
             keyboardType="decimal-pad"
           />
           {recipient.files.map((file, fileIndex) => (
-            <Row key={`${file.storageId}-${fileIndex}`}>
+            <Row key={file.storageId}>
               {file.previewUri ? (
                 <Image
                   source={{ uri: file.previewUri }}

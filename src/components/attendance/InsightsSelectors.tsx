@@ -182,7 +182,7 @@ export function PeriodFab({
                   <Text style={[typography.headline, { color: t.text }]}>{year}</Text>
                   <View style={[styles.periodRow, { backgroundColor: t.ghost }]}>
                     {cells.map((cell, i) => {
-                      if (!cell) return <View key={`empty-${i}`} style={styles.periodCell} />;
+                      if (!cell) return <View key={i < columns ? `term-${i + 1}` : "year"} style={styles.periodCell} />;
                       const selected = cell.key === value;
                       return (
                         <Pressable

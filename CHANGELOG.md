@@ -18,6 +18,29 @@ All notable changes to **The SHED** mobile app. This project follows
   but they never show up in Members, search for other events, merges or
   Insights about people. Remove one the same way you undo a sign-in.
 
+## [2.11.45] - 2026-11-22
+
+### Changed
+- **List rows keep their own state when another row goes, for contributors.**
+  Lists were keyed by position, so removing a staff assignment or a church
+  service time handed that row's open picker to the row below it. Rows are
+  now keyed by what they show, editable lists keep an id per row
+  (`src/lib/listKeys.ts`, `useRowIds`), and lint rejects an index key
+  (`react/no-array-index-key`). Fixed positions, like the weekday header and
+  chart points, say why in a disable comment.
+
+## [2.11.44] - 2026-11-22
+
+### Changed
+- **Verify's before and after screenshots match when nothing changed, for
+  contributors.** Each screenshot waits until two frames in a row are
+  identical, on iOS and web, so none is caught mid-transition. The iOS status
+  bar shows 9:41 throughout, and seeded events sit at a round hour. Times the
+  server stamps can still differ (`docs/verification.md` → "Still open").
+  Verify also stops leaving the checkout's `.env.local` pointed at its
+  throwaway backend, which the Convex CLI wrote there on every run. Nothing
+  changes for people using the app.
+
 ## [2.11.43] - 2026-11-22
 
 ### Changed
