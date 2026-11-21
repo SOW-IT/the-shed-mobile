@@ -122,7 +122,7 @@ describe("event guests", () => {
 
   test("a guest can't be added to a missing event", async () => {
     const { t, admin, eventId } = await setup();
-    await t.run((ctx) => ctx.db.delete(eventId));
+    await t.run((ctx) => ctx.db.delete("events", eventId));
     await expect(admin.mutation(api.eventGuests.add, { eventId, name: "Dad" })).rejects.toThrow(
       /Event not found/
     );
@@ -184,7 +184,7 @@ describe("event guests", () => {
         .query("eventAttendanceCounts")
         .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
         .unique();
-      if (row) await ctx.db.delete(row._id);
+      if (row) await ctx.db.delete("eventAttendanceCounts", row._id);
     });
     expect(await listedCount(t, eventId)).toBe(2);
     await t.run(async (ctx) => {
