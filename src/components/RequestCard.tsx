@@ -31,6 +31,7 @@ import {
 } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
 import { daysSince, timeAgo, waitingLabel } from "@shared/datetime";
+import { keyed } from "@/lib/listKeys";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { ReceiptRecipientList } from "./ReceiptRecipientList";
@@ -107,8 +108,8 @@ const StepInfoModal = ({
           {info.events.length === 0 ? (
             isActiveStep ? <Muted>Awaiting action</Muted> : null
           ) : (
-            info.events.map((event, i) => (
-              <View key={i} style={{ gap: 2 }}>
+            keyed(info.events, (event) => `${event.at}|${event.action}`).map(({ item: event, key }) => (
+              <View key={key} style={{ gap: 2 }}>
                 <Text style={[typography.caption, { color: t.text, fontWeight: "600" }]}>
                   {eventLabel(event.action)}
                 </Text>
