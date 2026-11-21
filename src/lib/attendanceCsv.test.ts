@@ -256,6 +256,25 @@ describe("buildAttendanceMatrixCsv", () => {
     expect(lines[2]).toBe("Guest Person,,Female,100%,Y");
   });
 
+  test("an event only guests came to counts in the total but not in anyone's attendance %", () => {
+    const guestsOnly = baseEvent({
+      _id: "g",
+      name: "Parents night",
+      dateStart: at("2026-03-18T17:00:00"),
+      attendanceCount: 2,
+      rows: [],
+      guests: [
+        { name: "Ada's Mum", signInTime: at("2026-03-18T17:05:00") },
+        { name: "Ada's Dad", signInTime: at("2026-03-18T17:06:00") },
+      ],
+    });
+    const lines = buildAttendanceMatrixCsv([eventA(), eventB(), guestsOnly], []).split("\r\n");
+    expect(lines[0]).toBe("Total Attendance,,,2,1,2");
+    expect(lines[2]).toBe("Ada Lovelace,ada@sow.org.au,100%,Y,Y,");
+    expect(lines[3]).toBe("Bob Smith,bob@sow.org.au,50%,Y,,");
+    expect(lines.join("\n")).not.toContain("Mum");
+  });
+
   test("duplicate event names get a date suffix on the column header", () => {
     const a = baseEvent({
       _id: "a",

@@ -50,6 +50,8 @@ import {
 } from "./attendanceCounts";
 import { deleteRollCallOrder, rankingInputsChanged, scheduleRank } from "./rollCallOrder";
 import { calendarSyncConfigured } from "./googleCalendar";
+import { deleteEventGuests } from "./eventGuests";
+import { EVENT_GUESTS_MAX } from "../shared/eventGuests";
 
 const weeklyMarkArg = v.object({
   year: v.number(),
@@ -553,11 +555,20 @@ export const deletePreview = query({
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
-    return { total: rows.length, people: await attendeesToList(ctx, event, rows) };
+    // Every guest counts toward the total; only the list is capped.
+    const guests = await ctx.db
+      .query("eventGuests")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .take(EVENT_GUESTS_MAX);
+    const people = [
+      ...(await attendeesToList(ctx, event, rows)),
+      ...guests.map((g) => ({ attendanceId: g._id, name: `${g.name} (guest)`, signInTime: g.addedAt })),
+    ].slice(0, MAX_AUDIT_ATTENDANCE_LINES);
+    return { total: rows.length + guests.length, people };
   },
 });
 
-// Deletes an event with its sign-ins, check-in requests, count and roll-call
+// Deletes an event with its sign-ins, guests, check-in requests, count and roll-call
 // order, copies the removal to Google, and logs who was signed in.
 export async function deleteEvent(ctx: MutationCtx, actorEmail: string, eventId: Id<"events">) {
   const event = await ctx.db.get("events", eventId);
@@ -573,6 +584,7 @@ export async function deleteEvent(ctx: MutationCtx, actorEmail: string, eventId:
     .withIndex("by_event_and_status", (q) => q.eq("eventId", eventId))
     .collect();
   for (const request of checkIns) await ctx.db.delete("checkInRequests", request._id);
+  const guests = await deleteEventGuests(ctx, eventId);
   await deleteEventAttendanceCount(ctx, eventId);
   await deleteRollCallOrder(ctx, eventId);
   await ctx.db.delete("events", eventId);
@@ -590,13 +602,21 @@ export async function deleteEvent(ctx: MutationCtx, actorEmail: string, eventId:
     action: "event.delete",
     summary: `Deleted event ${auditEventName(event)}`,
     eventId,
-    detail: rows.length
-      ? [
-          `Removed ${rows.length} attendance record${rows.length === 1 ? "" : "s"}:`,
-          ...people.map((p) => `${p.name}, ${auditStamp(p.signInTime)}`),
-          ...(hidden > 0 ? [`and ${hidden} more`] : []),
-        ].join("\n")
-      : "Removed no attendance records",
+    detail:
+      rows.length || guests.length
+        ? [
+            ...(rows.length
+              ? [
+                  `Removed ${rows.length} attendance record${rows.length === 1 ? "" : "s"}:`,
+                  ...people.map((p) => `${p.name}, ${auditStamp(p.signInTime)}`),
+                  ...(hidden > 0 ? [`and ${hidden} more`] : []),
+                ]
+              : []),
+            ...(guests.length
+              ? [`Removed ${guests.length} guest${guests.length === 1 ? "" : "s"}: ${guests.join(", ")}`]
+              : []),
+          ].join("\n")
+        : "Removed no attendance records",
   });
 }
 

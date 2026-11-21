@@ -70,6 +70,8 @@ interface AttendanceRowProps {
   entering?: boolean;
   exiting?: boolean;
   onExited?: () => void;
+  // Off for someone with no campus to show, such as an event's guest.
+  showCampus?: boolean;
 }
 
 function AttendanceRowBase({
@@ -89,6 +91,7 @@ function AttendanceRowBase({
   entering = false,
   exiting = false,
   onExited,
+  showCampus = true,
 }: AttendanceRowProps) {
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
@@ -445,7 +448,7 @@ function AttendanceRowBase({
           {lockedSignOut ? (
             <Ionicons name="lock-closed" size={14} color={t.faint} accessible={false} />
           ) : null}
-          <CampusPill pill={pill} />
+          {showCampus ? <CampusPill pill={pill} /> : null}
         </Animated.View>
       </GestureDetector>
     </Animated.View>

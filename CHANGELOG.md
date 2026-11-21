@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.57] - 2026-11-21
+## [2.11.59] - 2026-11-22
 
 ### Removed
 - **Duplicated and dead code, for contributors.**
@@ -18,7 +18,7 @@ All notable changes to **The SHED** mobile app. This project follows
     file shims, and a finished release checklist.
   - Screens look and behave the same.
 
-## [2.11.56] - 2026-11-21
+## [2.11.58] - 2026-11-22
 
 ### Changed
 - **Backend reads and writes name their table.** Every `ctx.db.get`,
@@ -26,7 +26,7 @@ All notable changes to **The SHED** mobile app. This project follows
   Convex guidelines ask, and lint now requires it. Nothing changes for people
   using the app.
 
-## [2.11.55] - 2026-11-21
+## [2.11.57] - 2026-11-22
 
 ### Removed
 - **Unused code, for contributors.** Exports and types that nothing imports
@@ -34,6 +34,18 @@ All notable changes to **The SHED** mobile app. This project follows
   welcome page in `convex/` goes too. CI now runs `knip`, so unused files,
   exports and dependencies fail the build. Nothing changes for people using
   the app.
+
+## [2.11.55] - 2026-11-22
+
+### Added
+- **Add someone to one event without making them a member.** When someone
+  comes just once, say a member's parents, you can now count them without
+  adding them to the members list. While searching, tap the small **Guest**
+  button beside Create to add the name you typed. Or tap **Add a guest** under
+  Signed in and type a name. Guests are listed under Signed in with a "Guest"
+  label. They count toward the event's total, its export and campus averages,
+  but they never show up in Members, search for other events, merges or
+  Insights about people. Remove one the same way you undo a sign-in.
 
 ## [2.11.54] - 2026-11-22
 

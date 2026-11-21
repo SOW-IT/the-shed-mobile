@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
   type ViewInstance,
@@ -25,9 +26,11 @@ import {
   SOW_SUBGROUP,
 } from "@shared/rollcall";
 import { eventStaffYear, sydneyCalendarYear } from "@shared/flow";
+import { EVENT_GUEST_NAME_MAX } from "@shared/eventGuests";
 import {
   ATTENDANCE_ROW_ENTER_MS,
   ATTENDANCE_ROW_LEAVE_MS,
+  AttendanceRow as AttendanceRowView,
 } from "@/components/AttendanceRow";
 import { RollCallRow, type RollCallHandlers } from "@/components/attendance/RollCallRow";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
@@ -38,6 +41,7 @@ import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
 import { SubgroupPill } from "@/components/attendance/SubgroupPill";
 import { useContentWidth } from "@/components/nav/layout";
+import { fieldTestID } from "@/components/ui/fieldTestID";
 import {
   EmptyState,
   errorMessage,
@@ -59,6 +63,7 @@ import { backOr } from "@/lib/goBack";
 
 type RosterEntry = FunctionReturnType<typeof api.attendance.roster>[number];
 type AttendanceRow = FunctionReturnType<typeof api.attendance.listByEvent>[number];
+type Guest = FunctionReturnType<typeof api.eventGuests.listByEvent>[number];
 
 const ROSTER_PAGE_SIZE = 30;
 const UNSIGNED_PAGE_SIZE = 10;
@@ -163,6 +168,9 @@ export default function EventAttendanceScreen() {
 
   const event = useQuery(api.events.get, { eventId: evId });
   const attendance = useQuery(api.attendance.listByEvent, { eventId: evId });
+  const guests = useQuery(api.eventGuests.listByEvent, { eventId: evId });
+  const addGuest = useMutation(api.eventGuests.add);
+  const removeGuest = useMutation(api.eventGuests.remove);
   const eventSubgroup = event?.subgroups[0];
   const roster = useQuery(
     api.attendance.roster,
@@ -237,6 +245,10 @@ export default function EventAttendanceScreen() {
     notes?: string;
   } | null>(null);
   const [editUnlocked, setEditUnlocked] = useState(false);
+  const [guestFormOpen, setGuestFormOpen] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [addingGuest, setAddingGuest] = useState(false);
+  const [removingGuests, setRemovingGuests] = useState<Set<string>>(new Set());
   const [unsignedLimit, setUnsignedLimit] = useState(UNSIGNED_PAGE_SIZE);
   const [signedInLimit, setSignedInLimit] = useState(ROSTER_PAGE_SIZE);
   const lastUnsignedEndHeight = useRef(-1);
@@ -621,8 +633,12 @@ export default function EventAttendanceScreen() {
   const pendingSignedOut = [...optimisticSignedOut].filter((k) =>
     signedInKeys.has(k)
   ).length;
+  const shownGuests = (guests ?? []).filter((g) => !removingGuests.has(g._id));
+  const filteredGuests = isSearching
+    ? shownGuests.filter((g) => g.name.toLowerCase().includes(searchQuery))
+    : shownGuests;
   const optimisticSignedInCount =
-    (attendance?.length ?? 0) + pendingSignedIn - pendingSignedOut;
+    (attendance?.length ?? 0) + pendingSignedIn - pendingSignedOut + shownGuests.length;
   const optimisticUnsignedCount = pool.filter(
     (m) =>
       !(
@@ -758,6 +774,39 @@ export default function EventAttendanceScreen() {
     setSearch("");
   };
 
+  // The guest form is read-only while it saves, so clearing it can't drop new
+  // typing; search stays editable, so it's cleared only if it still holds the
+  // submitted name.
+  const onAddGuest = async (rawName: string, from: "form" | "search") => {
+    const name = rawName.trim();
+    if (!canEdit || !name || addingGuest) return;
+    hapticSelect();
+    setAddingGuest(true);
+    try {
+      await addGuest({ eventId: evId, name });
+      setToast({ text: `Added ${name} as a guest for this event only.` });
+      if (from === "form") {
+        setGuestName("");
+        setGuestFormOpen(false);
+      } else {
+        setSearch((current) => (current === rawName ? "" : current));
+      }
+    } catch (e) {
+      setToast({ text: errorMessage(e) });
+    } finally {
+      setAddingGuest(false);
+    }
+  };
+
+  const onRemoveGuest = (guest: Guest) => {
+    if (!canEdit) return;
+    hapticSelect();
+    setRemovingGuests((prev) => new Set(prev).add(guest._id));
+    void removeGuest({ guestId: guest._id })
+      .catch((e) => setToast({ text: errorMessage(e) }))
+      .finally(() => setRemovingGuests((prev) => withoutKey(prev, guest._id)));
+  };
+
   const openEdit = async (opts: {
     memberId?: Id<"attendanceMembers">;
     staffEmail?: string;
@@ -842,7 +891,12 @@ export default function EventAttendanceScreen() {
     []
   );
 
-  if (event === undefined || attendance === undefined || subgroups === undefined) {
+  if (
+    event === undefined ||
+    attendance === undefined ||
+    guests === undefined ||
+    subgroups === undefined
+  ) {
     return <LoadingState />;
   }
   if (event === null) {
@@ -926,6 +980,68 @@ export default function EventAttendanceScreen() {
     </>
   );
 
+  const guestForm = guestFormOpen ? (
+    <View style={[styles.guestForm, { backgroundColor: t.card, borderColor: t.separator }]}>
+      <TextInput
+        value={guestName}
+        onChangeText={setGuestName}
+        placeholder="Guest's name"
+        placeholderTextColor={t.faint}
+        autoFocus
+        editable={!addingGuest}
+        autoCapitalize="words"
+        maxLength={EVENT_GUEST_NAME_MAX}
+        returnKeyType="done"
+        onSubmitEditing={() => void onAddGuest(guestName, "form")}
+        accessibilityLabel="Guest's name"
+        testID={fieldTestID("Guest's name")}
+        style={[typography.body, styles.guestInput, { color: t.text }]}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Cancel adding a guest"
+        hitSlop={8}
+        onPress={() => {
+          setGuestFormOpen(false);
+          setGuestName("");
+        }}
+        style={({ pressed }) => pressed && { opacity: 0.6 }}
+      >
+        <Text style={[typography.caption, { color: t.muted, fontWeight: "700" }]}>Cancel</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add guest"
+        accessibilityState={{ disabled: !guestName.trim() || addingGuest }}
+        disabled={!guestName.trim() || addingGuest}
+        onPress={() => void onAddGuest(guestName, "form")}
+        style={({ pressed }) => [
+          styles.guestAdd,
+          { backgroundColor: t.primary, opacity: !guestName.trim() || addingGuest ? 0.4 : 1 },
+          pressed && { opacity: 0.7 },
+        ]}
+      >
+        <Text style={[typography.caption, { color: t.onPrimary, fontWeight: "700" }]}>Add</Text>
+      </Pressable>
+    </View>
+  ) : (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Add a guest for this event only"
+      hitSlop={6}
+      onPress={() => {
+        hapticSelect();
+        setGuestFormOpen(true);
+      }}
+      style={({ pressed }) => [styles.guestLink, pressed && { opacity: 0.6 }]}
+    >
+      <Ionicons name="add" size={14} color={t.muted} />
+      <Text style={[typography.caption, { color: t.muted, fontWeight: "700" }]}>
+        Add a guest
+      </Text>
+    </Pressable>
+  );
+
   const signedInStaggerOffset = Math.min(visibleUnsigned.length, UNSIGNED_VISIBLE_ROWS);
   const multiDay = isMultiDayEvent(event.dateStart, event.dateEnd);
 
@@ -972,7 +1088,26 @@ export default function EventAttendanceScreen() {
         <View style={{ alignItems: "center", paddingVertical: spacing.sm }}>
           <SowSpinner size={28} />
         </View>
-      ) : null}
+      ) : (
+        <>
+          {filteredGuests.map((g) => (
+            <AttendanceRowView
+              key={g._id}
+              mode="signedIn"
+              name={g.name}
+              subtitle={formatSignInTime(g.addedAt, multiDay)}
+              photo={null}
+              showCampus={false}
+              tag={{ label: "Guest", colour: t.muted }}
+              disabled={!canEdit}
+              actionDisabled={!canReverseSignIn(event, g.addedAt, clock)}
+              dimmed={!canEdit}
+              onAction={() => onRemoveGuest(g)}
+            />
+          ))}
+          {canEdit && !isSearching ? guestForm : null}
+        </>
+      )}
     </>
   );
 
@@ -1105,6 +1240,13 @@ export default function EventAttendanceScreen() {
                 : search.trim()
             }"`}
             onPress={openCreateMember}
+            secondary={{
+              title: "Guest",
+              icon: "person-add-outline",
+              accessibilityLabel: `Add "${search.trim()}" as a guest for this event only`,
+              disabled: addingGuest,
+              onPress: () => void onAddGuest(search, "search"),
+            }}
             bottomOffset={footerBottomOffset}
           />
         ) : pastEvent ? (
@@ -1324,6 +1466,29 @@ const styles = StyleSheet.create({
     maxWidth: "50%",
   },
   search: { marginBottom: spacing.sm },
+  guestLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    paddingVertical: spacing.xs,
+  },
+  guestForm: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  guestInput: { flex: 1, paddingVertical: spacing.sm },
+  guestAdd: {
+    borderRadius: radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
   section: { marginTop: spacing.md, marginBottom: spacing.sm },
   unsignedScroll: { height: UNSIGNED_LIST_HEIGHT, flexGrow: 0, flexShrink: 0 },
   columns: { flexDirection: "row", gap: spacing.md },
