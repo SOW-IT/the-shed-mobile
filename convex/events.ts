@@ -103,7 +103,7 @@ const decodeListBySubgroupCursor = (
 
 async function resolveTags(ctx: QueryCtx, tagIds?: Id<"attendanceTags">[]) {
   if (!tagIds?.length) return [];
-  const tags = await Promise.all(tagIds.map((id) => ctx.db.get(id)));
+  const tags = await Promise.all(tagIds.map((id) => ctx.db.get("attendanceTags", id)));
   return tags.filter((t): t is NonNullable<typeof t> => !!t);
 }
 
@@ -183,7 +183,7 @@ async function validateEventFields(
   }
   if (uniqueTagIds) {
     for (const tagId of uniqueTagIds) {
-      const tag = await ctx.db.get(tagId);
+      const tag = await ctx.db.get("attendanceTags", tagId);
       if (!tag) {
         throw new ConvexError("One or more selected tags no longer exist.");
       }
@@ -222,7 +222,7 @@ export const listBySubgroup = query({
     for (const rawEventId of decodedCursor.bufferedIds) {
       const eventId = ctx.db.normalizeId("events", rawEventId);
       if (!eventId) continue;
-      const event = await ctx.db.get(eventId);
+      const event = await ctx.db.get("events", eventId);
       if (!event) continue;
       if (!matches(event)) continue;
       if (page.length < pageSize) {
@@ -309,7 +309,7 @@ export const get = query({
     if (!caller) return null;
     const eventId = ctx.db.normalizeId("events", rawEventId);
     if (!eventId) return null;
-    const event = await ctx.db.get(eventId);
+    const event = await ctx.db.get("events", eventId);
     if (!event) return null;
     return {
       ...(await annotate(ctx, event)),
@@ -362,7 +362,7 @@ async function notifyStaffOfNewEvent(
 export const notifyNewEvent = internalMutation({
   args: { eventId: v.id("events"), actorEmail: v.string() },
   handler: async (ctx, { eventId, actorEmail }) => {
-    const event = await ctx.db.get(eventId);
+    const event = await ctx.db.get("events", eventId);
     if (!event) return null;
     await notifyStaffOfNewEvent(ctx, event, actorEmail);
     return null;
@@ -432,7 +432,7 @@ export async function retimeEvent(
   eventId: Id<"events">,
   next: { name: string; dateStart: number; dateEnd: number }
 ) {
-  const existing = await ctx.db.get(eventId);
+  const existing = await ctx.db.get("events", eventId);
   if (!existing) return;
   const eventFields = await validateEventFields(ctx, { ...existing, ...next });
   const changes = [
@@ -442,7 +442,7 @@ export async function retimeEvent(
   ].filter((change) => change !== null);
   if (changes.length === 0) return;
   const { name, dateStart, dateEnd } = eventFields;
-  await ctx.db.patch(eventId, { name, dateStart, dateEnd });
+  await ctx.db.patch("events", eventId, { name, dateStart, dateEnd });
   if (rankingInputsChanged(existing, { ...existing, dateStart })) {
     await scheduleRank(ctx, { _id: eventId, dateStart });
   }
@@ -474,7 +474,7 @@ export const update = mutation({
     { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly }
   ) => {
     const { email } = await requireProfile(ctx);
-    const existing = await ctx.db.get(eventId);
+    const existing = await ctx.db.get("events", eventId);
     if (!existing) throw new ConvexError("Event not found.");
     if (
       existing.eventRequestId &&
@@ -490,7 +490,7 @@ export const update = mutation({
       tagIds,
       weekly: weekly === undefined ? existing.weekly : weekly,
     });
-    await ctx.db.patch(eventId, eventFields);
+    await ctx.db.patch("events", eventId, eventFields);
     if (rankingInputsChanged(existing, { ...existing, ...eventFields })) {
       await scheduleRank(ctx, { _id: eventId, dateStart: eventFields.dateStart });
     }
@@ -538,7 +538,7 @@ const attendeesToList = async (
     .slice(0, MAX_AUDIT_ATTENDANCE_LINES);
   const people = [];
   for (const row of listed) {
-    const member = await ctx.db.get(row.memberId);
+    const member = await ctx.db.get("attendanceMembers", row.memberId);
     const name = member ? (await memberAuditName(ctx, member, year)).name : "Deleted member";
     people.push({ attendanceId: row._id, name, signInTime: row.signInTime });
   }
@@ -549,7 +549,7 @@ export const deletePreview = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
     if (!(await optionalProfile(ctx))) return null;
-    const event = await ctx.db.get(eventId);
+    const event = await ctx.db.get("events", eventId);
     if (!event) return null;
     const rows = await ctx.db
       .query("attendance")
@@ -571,28 +571,28 @@ export const deletePreview = query({
 // Deletes an event with its sign-ins, guests, check-in requests, count and roll-call
 // order, copies the removal to Google, and logs who was signed in.
 export async function deleteEvent(ctx: MutationCtx, actorEmail: string, eventId: Id<"events">) {
-  const event = await ctx.db.get(eventId);
+  const event = await ctx.db.get("events", eventId);
   if (!event) return;
   const rows = await ctx.db
     .query("attendance")
     .withIndex("by_event", (q) => q.eq("eventId", eventId))
     .collect();
   const people = await attendeesToList(ctx, event, rows);
-  for (const row of rows) await ctx.db.delete(row._id);
+  for (const row of rows) await ctx.db.delete("attendance", row._id);
   const checkIns = await ctx.db
     .query("checkInRequests")
     .withIndex("by_event_and_status", (q) => q.eq("eventId", eventId))
     .collect();
-  for (const request of checkIns) await ctx.db.delete(request._id);
+  for (const request of checkIns) await ctx.db.delete("checkInRequests", request._id);
   const guests = await deleteEventGuests(ctx, eventId);
   await deleteEventAttendanceCount(ctx, eventId);
   await deleteRollCallOrder(ctx, eventId);
-  await ctx.db.delete(eventId);
+  await ctx.db.delete("events", eventId);
   await syncToGoogle(ctx, eventId);
   if (event.eventRequestId) {
-    const request = await ctx.db.get(event.eventRequestId);
+    const request = await ctx.db.get("eventRequests", event.eventRequestId);
     if (request?.attendanceEventId === eventId) {
-      await ctx.db.patch(request._id, { attendanceEventId: undefined });
+      await ctx.db.patch("eventRequests", request._id, { attendanceEventId: undefined });
     }
   }
   const hidden = rows.length - people.length;

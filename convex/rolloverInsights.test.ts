@@ -225,7 +225,7 @@ describe("October rollover → General Insights", () => {
       const tagId =
         tag?._id ?? (await ctx.db.insert("attendanceTags", { name: "Weeklies" }));
       for (const e of await ctx.db.query("events").collect()) {
-        await ctx.db.patch(e._id, {
+        await ctx.db.patch("events", e._id, {
           tagIds: [tagId],
           weekly: { year: new Date(e.dateStart).getUTCFullYear(), slot: 2, week: 1 },
         });

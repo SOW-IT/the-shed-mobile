@@ -202,7 +202,7 @@ export const filterOptions = query({
     const loggedIds = [
       ...new Set(recent.flatMap((r) => (r.eventId ? [r.eventId] : []))),
     ].filter((id) => !startedIds.has(id));
-    const logged = await Promise.all(loggedIds.map((id) => ctx.db.get(id)));
+    const logged = await Promise.all(loggedIds.map((id) => ctx.db.get("events", id)));
     const events = [...started, ...logged]
       .filter((e): e is NonNullable<typeof e> => e !== null)
       .map((e) => ({

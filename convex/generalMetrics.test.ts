@@ -638,7 +638,7 @@ describe("Insights staff trends snapshot", () => {
     await t.mutation(internal.generalMetrics.recomputeStaffTrends, {});
     const current = await t.run((ctx) => ctx.db.query("staffTrendsSnapshots").first());
     await t.run(async (ctx) => {
-      await ctx.db.patch(current!._id, { staffYear: YEAR - 1 });
+      await ctx.db.patch("staffTrendsSnapshots", current!._id, { staffYear: YEAR - 1 });
       await ctx.db.insert("staffTrendsSnapshots", { staffYear: YEAR - 1, trends: current!.trends });
     });
     await addProfile(t, "ben@sow.org.au");
