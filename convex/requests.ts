@@ -1251,7 +1251,7 @@ export const purgeDeletedRequestData = internalMutation({
     for (const comment of comments) {
       const reactions = await ctx.db
         .query("commentReactions")
-        .withIndex("by_comment", (q) => q.eq("commentId", comment._id))
+        .withIndex("by_comment_user_emoji", (q) => q.eq("commentId", comment._id))
         .take(reactionBudget);
       for (const reaction of reactions) {
         await ctx.db.delete("commentReactions", reaction._id);

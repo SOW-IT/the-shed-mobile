@@ -103,10 +103,13 @@ export const list = query({
 
     const result = [];
     for (const comment of comments) {
-      const reactions = await ctx.db
-        .query("commentReactions")
-        .withIndex("by_comment", (q) => q.eq("commentId", comment._id))
-        .collect();
+      // Oldest first, so emoji with the same count keep the order they were first used.
+      const reactions = (
+        await ctx.db
+          .query("commentReactions")
+          .withIndex("by_comment_user_emoji", (q) => q.eq("commentId", comment._id))
+          .collect()
+      ).sort((a, b) => a._creationTime - b._creationTime);
       const byEmoji = new Map<string, ReactionGroup>();
       for (const reaction of reactions) {
         const group =
