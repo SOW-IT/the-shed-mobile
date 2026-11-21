@@ -47,14 +47,17 @@ const secureStorage = {
   removeItem: (key: string) => SecureStore.deleteItemAsync(key),
 };
 
-const ConfigurationErrorScreen = () => (
-  <View style={configErrorStyles.container}>
-    <Text style={configErrorStyles.title}>Configuration error</Text>
-    <Text style={configErrorStyles.message}>
-      Missing Convex configuration. Set EXPO_PUBLIC_CONVEX_URL and rebuild.
-    </Text>
-  </View>
-);
+const ConfigurationErrorScreen = () => {
+  const t = useAppTheme();
+  return (
+    <View style={[configErrorStyles.container, { backgroundColor: t.background }]}>
+      <Text style={[configErrorStyles.title, { color: t.text }]}>Configuration error</Text>
+      <Text style={[configErrorStyles.message, { color: t.muted }]}>
+        Missing Convex configuration. Set EXPO_PUBLIC_CONVEX_URL and rebuild.
+      </Text>
+    </View>
+  );
+};
 
 const configErrorStyles = StyleSheet.create({
   container: {
@@ -63,10 +66,9 @@ const configErrorStyles = StyleSheet.create({
     alignItems: "center",
     padding: 24,
     gap: 12,
-    backgroundColor: "#F5F3E3",
   },
-  title: { fontSize: 20, fontWeight: "800", color: "#0F2523" },
-  message: { color: "#5C6B62", textAlign: "center" },
+  title: { fontSize: 20, fontWeight: "800" },
+  message: { textAlign: "center" },
 });
 
 const AuthGate = () => {

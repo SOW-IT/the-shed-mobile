@@ -32,7 +32,7 @@ import {
 } from "@/components/ui";
 import { keyed } from "@/lib/listKeys";
 import { openExternalLink } from "@/lib/openExternalLink";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 import { RiskRatingPill } from "./EventPills";
 import { LabelledField } from "./LabelledField";
 
@@ -118,7 +118,7 @@ const Matrix = () => {
                   style={{
                     fontSize: 11,
                     fontWeight: "700",
-                    color: rating === "Extreme" ? "#ffffff" : t.text,
+                    color: rating === "Extreme" ? fixedColours.onColour : t.text,
                   }}
                 >
                   {score}

@@ -1,5 +1,5 @@
 import { Avatar } from "@/components/ui";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -365,7 +365,7 @@ function AttendanceRowBase({
           },
         ]}
       >
-        <Ionicons name="pencil" size={22} color="#fff" />
+        <Ionicons name="pencil" size={22} color={fixedColours.onColour} />
       </Animated.View>
 
       <Animated.View
@@ -379,7 +379,7 @@ function AttendanceRowBase({
           },
         ]}
       >
-        <Ionicons name={primaryIcon} size={22} color="#fff" />
+        <Ionicons name={primaryIcon} size={22} color={fixedColours.onColour} />
       </Animated.View>
 
       {snapVisual === "edit" && onEdit ? (
