@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.41] - 2026-11-21
+## [2.11.50] - 2026-11-22
 
 ### Added
 - **Announcements can go to specific people.** Under Send to, "People" opens a
@@ -20,6 +20,25 @@ All notable changes to **The SHED** mobile app. This project follows
   confirmation before sending always opens and shows the same list with both
   options. If someone would get neither a push nor an email, it warns you
   first.
+
+## [2.11.43] - 2026-11-22
+
+### Changed
+- **Form inputs have test ids, for contributors.** Every text field gets a
+  test id from its label, or its accessibility label when it shows none
+  (`field-title`, `field-phone`), so a Maestro flow on
+  the iOS Simulator or a Playwright script on web can fill in a form
+  (`docs/verification.md` → "Filling in a form"). Nothing changes for people
+  using the app.
+
+## [2.11.42] - 2026-11-22
+
+### Changed
+- **CodeRabbit only reviews big changes, for contributors.** Automatic
+  reviews are off. A review is requested only when a PR has more than 300
+  lines of app or Convex code, or it touches the schema, data deletion,
+  auth, or notification sending. Smaller PRs go through once CI and verify
+  pass. Nothing changes for people using the app.
 
 ## [2.11.31] - 2026-11-21
 
