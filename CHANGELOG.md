@@ -15,6 +15,16 @@ All notable changes to **The SHED** mobile app. This project follows
   which lists every name it uses. Lint rejects `process.env` anywhere else in
   `src/` and `convex/`. Nothing changes for people using the app.
 
+## [2.11.31] - 2026-11-21
+
+### Added
+- **Previous and next buttons beside the month or week on bigger screens.**
+  On a tablet or a computer, the calendar's month or week now has a ‹ button
+  on its left and a › button on its right, so you can go back or forward with
+  a click or a tap instead of a swipe or the arrow keys. They move the same way
+  a swipe does. Phones look the same as before: swipe to change the month or
+  week.
+
 ## [2.11.30] - 2026-11-21
 
 ### Changed
