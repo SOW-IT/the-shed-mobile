@@ -110,7 +110,7 @@ const newObstacle = (state: RunnerState): Obstacle => {
  * Distance to the next obstacle: always enough to land a jump and react,
  * which is about a second of running at any speed.
  */
-export const gapAfter = (state: RunnerState) => state.speed * between(state, 0.85, 1.7) + 140;
+const gapAfter = (state: RunnerState) => state.speed * between(state, 0.85, 1.7) + 140;
 
 const hits = (state: RunnerState, obstacle: Obstacle) => {
   const f = RUNNER.forgive;

@@ -58,7 +58,7 @@ export const pipeSpeed = (time: number) => Math.min(240, 150 + time * 1.5);
 /** The gap narrows from 180 to 130 over the first forty seconds. */
 export const gapHeight = (time: number) => Math.max(130, 180 - time * 1.25);
 
-export const flappyScore = (gaps: number, time: number) => gaps * FLAPPY.pointsPerGap + Math.floor(time);
+const flappyScore = (gaps: number, time: number) => gaps * FLAPPY.pointsPerGap + Math.floor(time);
 
 const newPipe = (state: FlappyState): Pipe => {
   const gap = gapHeight(state.time);

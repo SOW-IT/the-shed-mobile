@@ -18,7 +18,7 @@ import { GAME_INFO, type GameId } from "../../../shared/games";
 
 const g = fixedColours.games;
 
-export type Phase = "ready" | "playing" | "over";
+type Phase = "ready" | "playing" | "over";
 export type Size = { width: number; height: number };
 
 /** A key press this soon after a crash doesn't restart: you were still mashing. */
@@ -59,7 +59,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   return { run, setRun, phase, result, best, begin, restart, canRestartByKey };
 };
 
-export type GameSession = Pick<ReturnType<typeof useGameSession>, "phase" | "result" | "best" | "restart">;
+type GameSession = Pick<ReturnType<typeof useGameSession>, "phase" | "result" | "best" | "restart">;
 
 /** The latest value, for handlers made once. Written after each render. */
 export const useLatest = <T,>(value: T) => {

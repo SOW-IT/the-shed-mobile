@@ -6,6 +6,28 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-11-22
+
+### Added
+- **Three little games for when you're offline.** Sky Shooter: drag to fly a
+  plane that fires on its own while enemies come in from every edge. Mystic
+  Man: he runs faster and faster; swipe up to jump the rocks and swipe down to
+  slide under the floating beams (the up and down arrow keys on a computer).
+  Flap: tap to flap through the gaps. The longer you last, the higher your
+  score, and each game remembers your best on this device. They need no
+  internet at all.
+- **A way in when there's no connection.** If The SHED can't connect when you
+  open it, you now see "You're offline" with a button to play a game while you
+  wait, instead of a loading screen that never finishes. If the connection
+  drops while you're using the app, a small "Offline · Play a game" note
+  appears at the top. Once you're back online, one tap takes you back into The
+  SHED. A game is never closed on you.
+- **A leaderboard for each game.** It shows the top ten scores at SOW, one per
+  person and by name, plus your own best and your place. Scores you set
+  offline or signed out are kept on your device and go up on their own once
+  you're online and signed in. Sending the same score twice changes nothing,
+  and scores that can't be real are turned away.
+
 ## [2.11.58] - 2026-11-22
 
 ### Changed

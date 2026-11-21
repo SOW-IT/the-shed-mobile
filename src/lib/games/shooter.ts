@@ -84,7 +84,7 @@ export const moveShooter = (state: ShooterState, dx: number, dy: number): Shoote
   };
 };
 
-export const shooterScore = (time: number, killPoints: number) =>
+const shooterScore = (time: number, killPoints: number) =>
   Math.floor(time * SHOOTER.pointsPerSecond) + killPoints;
 
 /** Seconds between enemies: about one a second at first, three a second later. */

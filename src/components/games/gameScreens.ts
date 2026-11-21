@@ -4,7 +4,7 @@ import { FlappyGame } from "./FlappyGame";
 import { RunnerGame } from "./RunnerGame";
 import { ShooterGame } from "./ShooterGame";
 
-export type GameScreenProps = { onExit: () => void; onLeaderboard?: () => void };
+type GameScreenProps = { onExit: () => void; onLeaderboard?: () => void };
 
 export const GAME_SCREENS: Record<GameId, ComponentType<GameScreenProps>> = {
   shooter: ShooterGame,
