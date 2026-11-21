@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.39] - 2026-11-21
+
+### Fixed
+- **Typecheck passes again once Metro has run, for contributors.** 2.11.30
+  removed two router casts that weren't needless. A notification's link and
+  an Insights link come from the backend, so typed routes can't check them,
+  and without a cast `npm run typecheck` failed in any checkout where Metro
+  had generated `.expo/types/router.d.ts`. CI doesn't generate that file, so
+  it didn't catch this. They're now `as Href`, the narrow cast a review
+  asked for in #161. Nothing changes for people using the app.
+
 ## [2.11.30] - 2026-11-21
 
 ### Changed

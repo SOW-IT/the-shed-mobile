@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { useFocusEffect, useRouter } from "expo-router";
+import { type Href, useFocusEffect, useRouter } from "expo-router";
 import { appVersion } from "@/hooks/useReportAppVersion";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { SignInPrompt } from "@/components/SignInPrompt";
@@ -92,7 +92,8 @@ export default function NotificationsScreen() {
       const separator = url.includes("?") ? "&" : "?";
       reopenCounter.current += 1;
       const reopen = encodeURIComponent(`${id}:${reopenCounter.current}`);
-      router.push(`${url}${separator}reopen=${reopen}`);
+      // The backend stores the notification's link; typed routes can't check it here.
+      router.push(`${url}${separator}reopen=${reopen}` as Href);
     }
   };
 
