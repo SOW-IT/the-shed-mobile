@@ -176,8 +176,10 @@ export default defineSchema({
     fromEmail: v.string(),
     toEmail: v.string(),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- listDelegations takes the first 500 in creation order; the longer index would pick by email once it hits the cap
     .index("by_year", ["year"])
     .index("by_year_and_to", ["year", "toEmail"])
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- delegatesForYear takes the first 500 in creation order; the longer index would pick by toEmail once it hits the cap
     .index("by_year_and_from", ["year", "fromEmail"])
     .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
 
@@ -217,6 +219,7 @@ export default defineSchema({
     year: v.number(),
     email: v.string(),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the Leaving list and leaverEmailSet take the first 1,000 in creation order; the longer index would pick by email once it hits the cap
     .index("by_year", ["year"])
     .index("by_year_and_email", ["year", "email"]),
 
@@ -228,6 +231,7 @@ export default defineSchema({
     lastUsedAt: v.number(),
     preferred: v.optional(v.boolean()),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- saved-account reads take the first 100 in creation order; the longer index would pick by BSB once it hits the cap
     .index("by_email", ["email"])
     .index("by_email_bsb_accountNumber", ["email", "bsb", "accountNumber"]),
 
@@ -241,9 +245,7 @@ export default defineSchema({
     commentId: v.id("requestComments"),
     userEmail: v.string(),
     emoji: v.string(),
-  })
-    .index("by_comment", ["commentId"])
-    .index("by_comment_user_emoji", ["commentId", "userEmail", "emoji"]),
+  }).index("by_comment_user_emoji", ["commentId", "userEmail", "emoji"]),
 
   commentReads: defineTable({
     requestId: v.id("requests"),
@@ -320,6 +322,7 @@ export default defineSchema({
     grievanceId: v.optional(v.id("grievances")),
     read: v.boolean(),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the feed paginates newest first, which no longer index can give
     .index("by_user", ["userEmail"])
     .index("by_user_and_read", ["userEmail", "read"])
     .index("by_user_and_request_and_read", ["userEmail", "requestId", "read"])
@@ -679,6 +682,7 @@ export default defineSchema({
     addedAt: v.optional(v.number()),
     notes: v.optional(v.string()),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the Insights builds take the first 2,000 and 5,000 sign-ins in creation order; the longer index would pick by member once it hits the cap
     .index("by_event", ["eventId"])
     .index("by_event_and_member", ["eventId", "memberId"])
     .index("by_member", ["memberId"]),
@@ -698,7 +702,6 @@ export default defineSchema({
     closingNote: v.optional(v.string()),
   })
     .index("by_year", ["year"])
-    .index("by_status", ["status"])
     .index("by_status_and_year", ["status", "year"])
     .index("by_accountEmail", ["accountEmail"])
     .index("by_assigneeEmail_and_status", ["assigneeEmail", "status"]),
@@ -907,8 +910,10 @@ export default defineSchema({
     searchText: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- "My requests" paginates newest first; by_requester_and_status would group by status
     .index("by_requester", ["requesterEmail"])
     .index("by_requester_and_status", ["requesterEmail", "status"])
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the review, declined and approved lists paginate newest first
     .index("by_status", ["status"])
     .index("by_status_and_reviewed_time", ["status", "reviewedTime"])
     .index("by_status_and_release_date", ["status", "releaseDate"])

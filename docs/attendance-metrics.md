@@ -60,8 +60,8 @@ follow-up prompts for a sub-group and time range.
 The dashboard never scans attendance history on the device. Snapshots are
 rebuilt by one cron, fanning out one bounded recompute per sub-group:
 
-- **Nightly rebuild** (`attendance metrics daily rebuild`, **16:00 UTC ≈
-  02:00–03:00 Sydney**) — `recomputeAll` recomputes **SOW and every campus**
+- **Nightly rebuild** (`attendance metrics daily rebuild`, **16:06 UTC ≈
+  02:06–03:06 Sydney**) — `recomputeAll` recomputes **SOW and every campus**
   for the current staff year. The app reads only the SOW snapshots; each
   campus's Insights are built from its weeklies since 2.5.0 (see
   [weekly-insights.md](weekly-insights.md)), and the campus snapshots feed the
