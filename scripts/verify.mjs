@@ -3,10 +3,12 @@
 // docs/verification.md explains the tiers and the feature map.
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FRAME_TRIES, frameJudge, seedInstant } from "./lib/stableFrames.mjs";
 import { classify, planVerification, resolveRoutes, routeSlug } from "./lib/verifyPlan.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
@@ -86,9 +88,9 @@ const BUNDLE_ID = "au.org.sow.theshed";
 const APP_SCHEME = "theshedmobile";
 const DEV_CLIENT_SCHEME = "exp+the-shed-mobile";
 const E2E_SECRET = "verify-only-secret";
-// Both phases seed events at the same times, so before and after screenshots
-// match. Each phase seeds well inside the hour either side of this moment.
-const SEED_NOW = Date.now();
+// Both phases seed events at the same round hour, so before and after
+// screenshots match, and so does a rerun within the hour.
+const SEED_NOW = seedInstant(Date.now());
 const INSTANCE = { name: "theshed-verify", secret: "0".repeat(64) };
 
 const JAVA_HOME = "/opt/homebrew/opt/openjdk";
@@ -277,7 +279,17 @@ const startBackend = async (label, tree, work) => {
   const envFile = join(dir, "env");
   writeFileSync(envFile, `CONVEX_SELF_HOSTED_URL=http://127.0.0.1:${PORTS.convex}\nCONVEX_SELF_HOSTED_ADMIN_KEY=${adminKey}\n`);
   const convex = (command, rest = []) => sh("npx", ["convex", ...command, "--env-file", envFile, ...rest], { cwd: tree });
-  convex(["dev"], ["--once", "--typecheck", "disable", "--codegen", "disable"]);
+  // `convex dev` writes this backend's URLs into the tree's .env.local as
+  // EXPO_PUBLIC_CONVEX_URL, which would point the checkout's own Metro at a
+  // backend that's gone once verify stops. Put the file back as it was.
+  const envLocal = join(tree, ".env.local");
+  const envLocalBefore = existsSync(envLocal) ? readFileSync(envLocal) : null;
+  try {
+    convex(["dev"], ["--once", "--typecheck", "disable", "--codegen", "disable"]);
+  } finally {
+    if (envLocalBefore) writeFileSync(envLocal, envLocalBefore);
+    else rmSync(envLocal, { force: true });
+  }
 
   sh("node", [join(ROOT, "scripts/generate-auth-keys.mjs")], { cwd: dir });
   const settings = {
@@ -386,13 +398,30 @@ const resetApp = async (udid, appPath) => {
   writeFileSync(join(data, "Library/Preferences", `${BUNDLE_ID}.plist`), DEV_MENU_PREFS);
 };
 
+// Maestro's waitForAnimationToEnd allows a little movement, which left some
+// screenshots mid-transition. So the flow takes frames and asks the frame
+// server after each one whether the screen has settled (stableFrames.mjs).
+const SETTLE_SCRIPT = `const answer = json(http.post(FRAMES_URL + "?name=" + encodeURIComponent(NAME), { body: "" }).body);
+output.settled = answer.settled;
+`;
+
 const iosFlow = (routes, smoke, out, adminEmail) => {
   const link = (path) => `${APP_SCHEME}://${path.replace(/^\//, "")}`;
   const visit = (prefix, { template, route }, signedIn = false) => [
     `- openLink: "${link(route)}"`,
     "- waitForAnimationToEnd:",
     "    timeout: 8000",
-    `- takeScreenshot: "${join(out, `${prefix}-${routeSlug(template)}`)}"`,
+    "- evalScript: ${output.settled = false}",
+    "- repeat:",
+    "    while:",
+    "      true: ${!output.settled}",
+    `    times: ${FRAME_TRIES}`,
+    "    commands:",
+    `      - takeScreenshot: "${join(out, `${prefix}-${routeSlug(template)}.frame`)}"`,
+    "      - runScript:",
+    "          file: settle.js",
+    "          env:",
+    `            NAME: "${prefix}-${routeSlug(template)}"`,
     "- assertNotVisible:",
     '    text: "(?i).*(something went wrong|configuration error|unmatched route|\\\\(ESC\\\\)).*"',
     ...(signedIn ? ["- assertNotVisible:", '    text: "(?i).*sign in with your sow account.*"'] : []),
@@ -417,9 +446,53 @@ const iosFlow = (routes, smoke, out, adminEmail) => {
   return `${lines.join("\n")}\n`;
 };
 
+// Answers the flow's "has it settled?" after each frame. The settled frame
+// becomes the screenshot.
+const startFrameServer = async (out) => {
+  const { judge, moving } = frameJudge();
+  const server = createServer((req, res) => {
+    const name = new URL(req.url, "http://localhost").searchParams.get("name") ?? "";
+    const frame = join(out, `${name}.frame.png`);
+    let answer;
+    try {
+      if (!/^[\w-]+$/.test(name) || !existsSync(frame)) throw new Error(`no frame named "${name}"`);
+      answer = judge(name, readFileSync(frame));
+      if (answer.settled) renameSync(frame, join(out, `${name}.png`));
+    } catch (error) {
+      res.writeHead(400).end(JSON.stringify({ error: String(error?.message ?? error) }));
+      return;
+    }
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(answer));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  return { url: `http://127.0.0.1:${server.address().port}/frame`, moving, close: () => server.close() };
+};
+
+// The status bar shows the same time, signal and battery in every screenshot.
+const STATUS_BAR = ["--time", "9:41", "--dataNetwork", "wifi", "--wifiMode", "active", "--wifiBars", "3", "--cellularMode", "active", "--cellularBars", "4", "--batteryState", "charged", "--batteryLevel", "100"];
+
+// Async, because the frame server answers the flow from this process.
+const runMaestro = (args, opts) => new Promise((resolve, reject) => {
+  const child = spawn("maestro", args, { ...opts, stdio: ["ignore", "pipe", "pipe"] });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk) => { stdout += chunk; });
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const timer = setTimeout(() => child.kill("SIGTERM"), opts.timeout);
+  child.on("error", (error) => {
+    clearTimeout(timer);
+    reject(error);
+  });
+  child.on("close", (status) => {
+    clearTimeout(timer);
+    resolve({ status, stdout, stderr });
+  });
+});
+
 const runIos = async (label, tree, work, routes, smoke, out, udid) => {
   requireFreePort(PORTS.metro);
   const metroLog = join(work, "logs/metro.log");
+  let frames;
   start("metro", "npx", ["expo", "start", "--dev-client", "--port", String(PORTS.metro), "--clear"], {
     cwd: tree, env: appEnv, marker: `--port ${PORTS.metro}`, logFile: metroLog,
   });
@@ -433,13 +506,19 @@ const runIos = async (label, tree, work, routes, smoke, out, udid) => {
     const seed = JSON.parse(readFileSync(join(work, "convex/sweep-seed.json"), "utf8"));
     const flowFile = join(work, "ios-flow.yaml");
     writeFileSync(flowFile, iosFlow(routes, smoke, out, seed.people.admin));
-    const result = spawnSync("maestro", ["--device", udid, "test", flowFile, "--test-output-dir", join(work, "maestro")], {
-      cwd: work, env: ENV, encoding: "utf8", timeout: 20 * 60_000,
+    writeFileSync(join(work, "settle.js"), SETTLE_SCRIPT);
+    frames = await startFrameServer(out);
+    sh("xcrun", ["simctl", "status_bar", udid, "override", ...STATUS_BAR]);
+    const result = await runMaestro(["--device", udid, "test", flowFile, "--test-output-dir", join(work, "maestro"), "-e", `FRAMES_URL=${frames.url}`], {
+      cwd: work, env: ENV, timeout: 20 * 60_000,
     });
     writeFileSync(join(work, "logs/maestro.log"), `${result.stdout}\n${result.stderr}`);
     if (result.status !== 0) throw new Error(`maestro failed, see ${relative(ROOT, join(work, "logs/maestro.log"))}\n${result.stdout.split("\n").filter((line) => /FAILED|Assertion|not visible|is visible/i.test(line)).slice(0, 4).join("\n")}`);
-    return `${readdirSync(out).filter((f) => f.endsWith(".png")).length} screenshots`;
+    const shots = readdirSync(out).filter((f) => f.endsWith(".png") && !f.endsWith(".frame.png")).length;
+    return frames.moving.length > 0 ? `${shots} screenshots; still moving after ${FRAME_TRIES} frames: ${frames.moving.join(", ")}` : `${shots} screenshots, every one settled`;
   } finally {
+    frames?.close();
+    spawnSync("xcrun", ["simctl", "status_bar", udid, "clear"]);
     spawnSync("xcrun", ["simctl", "terminate", udid, BUNDLE_ID]);
     await stopRecorded("metro");
   }

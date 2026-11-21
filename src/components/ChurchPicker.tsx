@@ -11,6 +11,7 @@ import {
   WEEKDAYS,
   websiteLabel,
 } from "../../shared/churches";
+import { useRowIds } from "@/hooks/useRowIds";
 import { mapsLink } from "@/lib/externalLinks";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { durations, radius, spacing, typography, useAppTheme } from "../theme";
@@ -116,6 +117,7 @@ function ServiceTimesField({
   onChange: (services: ServiceTime[]) => void;
 }) {
   const t = useAppTheme();
+  const rowIds = useRowIds(services.length);
   const change = (index: number, patch: Partial<ServiceTime>) =>
     onChange(services.map((service, i) => (i === index ? { ...service, ...patch } : service)));
   return (
@@ -125,7 +127,7 @@ function ServiceTimesField({
         <Text style={[typography.caption, { color: t.muted }]}>None yet. Add the day and time each service starts.</Text>
       ) : null}
       {services.map((service, index) => (
-        <View key={index} style={styles.serviceRow}>
+        <View key={rowIds.keyAt(index)} style={styles.serviceRow}>
           <View style={{ flex: 1 }}>
             <Select
               label="Day"
@@ -141,7 +143,10 @@ function ServiceTimesField({
             accessibilityRole="button"
             accessibilityLabel={`Remove the ${WEEKDAYS[service.day]} service`}
             hitSlop={8}
-            onPress={() => onChange(services.filter((_, i) => i !== index))}
+            onPress={() => {
+              rowIds.remove(index);
+              onChange(services.filter((_, i) => i !== index));
+            }}
             style={({ pressed }) => [styles.removeService, pressed && { opacity: 0.6 }]}
           >
             <Ionicons name="close-circle" size={22} color={t.faint} />
@@ -151,9 +156,10 @@ function ServiceTimesField({
       {services.length < MAX_SERVICES ? (
         <Pressable
           accessibilityRole="button"
-          onPress={() =>
-            onChange([...services, { day: services[services.length - 1]?.day ?? 0, time: services.length ? "" : "10:00" }])
-          }
+          onPress={() => {
+            rowIds.add();
+            onChange([...services, { day: services[services.length - 1]?.day ?? 0, time: services.length ? "" : "10:00" }]);
+          }}
           style={({ pressed }) => [styles.addService, pressed && { opacity: 0.6 }]}
         >
           <Ionicons name="add-circle-outline" size={18} color={t.primary} />
