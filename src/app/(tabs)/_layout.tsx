@@ -5,7 +5,7 @@ import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useReportAppVersion } from "@/hooks/useReportAppVersion";
 import { useReportSeen } from "@/hooks/useReportSeen";
-import { BOTTOM_TAB_HEIGHT, radius, useAppTheme } from "@/theme";
+import { BOTTOM_TAB_HEIGHT, radius, useAppTheme, fixedColours } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { Tabs } from "expo-router";
@@ -183,7 +183,7 @@ export default function TabsLayout() {
         tabBarButton: (props) => <AnimatedTabBarButton {...props} />,
         tabBarBadgeStyle: {
           backgroundColor: t.accent,
-          color: "#ffffff",
+          color: fixedColours.onColour,
           fontSize: 11,
           fontWeight: "700",
         },

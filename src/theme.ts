@@ -71,6 +71,8 @@ export interface AppTheme {
   ghost: string;
   ghostText: string;
   overlay: string;
+  /** The shade at a scrolled edge of a grid. */
+  edgeShade: string;
   chip: Record<"PAID" | "DECLINED" | "default", { bg: string; fg: string }>;
   errorBackground: string;
   errorText: string;
@@ -127,6 +129,7 @@ const light: AppTheme = {
   ghost: "#EAE8D8",
   ghostText: "#0F2523",
   overlay: "rgba(15, 37, 35, 0.45)",
+  edgeShade: "rgba(15, 37, 35, 0.14)",
   chip: {
     PAID: { bg: "#E2F1DA", fg: "#2C5239" },
     DECLINED: { bg: "#F6DFD9", fg: "#9C3A23" },
@@ -162,6 +165,7 @@ const dark: AppTheme = {
   ghost: "#21403A",
   ghostText: "#F5F3E3",
   overlay: "rgba(0, 0, 0, 0.6)",
+  edgeShade: "rgba(0, 0, 0, 0.5)",
   chip: {
     PAID: { bg: "#1E4634", fg: "#DDF0DC" },
     DECLINED: { bg: "#52281A", fg: "#F2D4C6" },
@@ -172,6 +176,21 @@ const dark: AppTheme = {
   surfaceEdge: { borderWidth: 1, borderColor: "#1F3A35" },
   shadowFloat: darkShadowFloat,
 };
+
+// Colours that are the same in both themes. Lint keeps colour literals in
+// this file, so a colour that does change with the theme goes in AppTheme.
+export const fixedColours = {
+  /** Text and icons on a saturated fill: a badge, a tag, a filled action. */
+  onColour: "#ffffff",
+  shadow: "#000000",
+  /** Behind the nav drawer, faded in with its own opacity. */
+  backdrop: "#000000",
+  /** The unread-messages badge, white with a grey edge. */
+  messageBadge: { bg: "#ffffff", border: "#cccccc", text: "#333333" },
+  /** Scanners need dark modules on a light ground, whatever the theme. */
+  qr: { light: "#ffffff", dark: "#000000" },
+  spotifyGreen: "#1DB954",
+} as const;
 
 export const useAppTheme = (): AppTheme => {
   const scheme = useColorScheme();

@@ -19,7 +19,7 @@ import {
   roleLabel,
   staffYearForDate,
 } from "../../shared/flow";
-import { radius, spacing, typography, useAppTheme } from "../theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "../theme";
 import { ChromeScreen } from "./ChromeScreen";
 import { ChurchDetails, ChurchPicker } from "./ChurchPicker";
 import { DeleteAccountCard } from "./DeleteAccountCard";
@@ -100,12 +100,12 @@ function SpotifyConnectionCard() {
             width: 44,
             height: 44,
             borderRadius: 22,
-            backgroundColor: "#1DB954",
+            backgroundColor: fixedColours.spotifyGreen,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <FontAwesome name="spotify" size={27} color="#FFFFFF" />
+          <FontAwesome name="spotify" size={27} color={fixedColours.onColour} />
         </View>
 
         {/* Account status */}

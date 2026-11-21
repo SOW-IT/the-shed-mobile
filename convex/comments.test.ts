@@ -477,6 +477,17 @@ describe("toggleReaction + list grouping", () => {
     expect(list[0].reactions.find((r) => r.emoji === "👍")?.mine).toBe(false);
   });
 
+  test("emoji with the same count keep the order they were first used", async () => {
+    const t = await reimbursementSetup();
+    const id = await submit(t);
+    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "hello" });
+    const [comment] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
+    await asUser(t, RACHEL).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "🎉" });
+    await asUser(t, HENRY).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "👍" });
+    const [listed] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
+    expect(listed.reactions.map((r) => r.emoji)).toEqual(["🎉", "👍"]);
+  });
+
   test("someone who can't see the request can't react to its comments", async () => {
     const t = await reimbursementSetup();
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
