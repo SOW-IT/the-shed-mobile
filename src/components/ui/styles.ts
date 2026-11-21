@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 import { FOOTER_GAP } from "@/lib/footerClearance";
-import { radius, spacing } from "@/theme";
+import { radius, spacing, fixedColours } from "@/theme";
 
 export const styles = StyleSheet.create({
   screen: { flex: 1 },
@@ -38,7 +38,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  tabBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  tabBadgeText: { color: fixedColours.onColour, fontSize: 11, fontWeight: "800" },
   floatingYearPicker: { position: "absolute", right: spacing.lg, bottom: spacing.md },
   scroll: {
     flexGrow: 1,
@@ -118,7 +118,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconBadgeText: { color: "#ffffff", fontSize: 10, fontWeight: "800" },
+  iconBadgeText: { color: fixedColours.onColour, fontSize: 10, fontWeight: "800" },
   field: { gap: 6 },
   input: {
     borderRadius: radius.md,
@@ -254,7 +254,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  segmentBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  segmentBadgeText: { color: fixedColours.onColour, fontSize: 11, fontWeight: "800" },
   dialogOuter: {
     flex: 1,
     justifyContent: "center",

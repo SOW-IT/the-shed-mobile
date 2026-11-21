@@ -1,4 +1,4 @@
-import { useAppTheme } from "@/theme";
+import { useAppTheme, fixedColours } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRef, useState } from "react";
 import type { View as RNView } from "react-native";
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 4,
     elevation: 8,
-    shadowColor: "#000",
+    shadowColor: fixedColours.shadow,
     shadowOpacity: 0.15,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },

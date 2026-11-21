@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -268,7 +268,8 @@ export function InsightsBlocks({
         return renderWeeklyBlock(block, key, {
           onOpenPerson,
           onEditMember,
-          onOpenLink: (link) => router.push(link),
+          // An app link built by the backend; typed routes can't check it here.
+          onOpenLink: (link) => router.push(link as Href),
           colours: t,
         });
     }
