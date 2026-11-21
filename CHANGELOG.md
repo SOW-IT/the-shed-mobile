@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.32] - 2026-11-21
+## [2.11.41] - 2026-11-21
 
 ### Added
 - **Announcements can go to specific people.** Under Send to, "People" opens a
@@ -20,6 +20,25 @@ All notable changes to **The SHED** mobile app. This project follows
   confirmation before sending always opens and shows the same list with both
   options. If someone would get neither a push nor an email, it warns you
   first.
+
+## [2.11.31] - 2026-11-21
+
+### Added
+- **Previous and next buttons beside the month or week on bigger screens.**
+  On a tablet or a computer, the calendar's month or week now has a ‹ button
+  on its left and a › button on its right, so you can go back or forward with
+  a click or a tap instead of a swipe or the arrow keys. They move the same way
+  a swipe does. Phones look the same as before: swipe to change the month or
+  week.
+
+## [2.11.30] - 2026-11-21
+
+### Changed
+- **No more `as never`, for contributors.** The cast fits any type, so it
+  switched type checking off where it was used. The six in the app weren't
+  needed or now name the real type, the tests' fixtures assert to the type
+  they stand in for, and lint rejects new ones. Nothing changes for people
+  using the app.
 
 ## [2.11.21] - 2026-11-21
 
