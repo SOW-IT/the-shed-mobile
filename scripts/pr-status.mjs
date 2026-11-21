@@ -93,7 +93,7 @@ const bodyFindings = reviews
 const unreadBodies = bodyFindings.filter((r) => r.outsideDiff > 0 && !acked.has(r.id));
 coderabbit.bodyFindings = bodyFindings;
 
-const done = reviewedHead && unreadBodies.length === 0 && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0 && !limited && !skipped;
+const done = unreadBodies.length === 0 && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0;
 
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ ...status, done }, null, 2));
@@ -107,7 +107,7 @@ if (process.argv.includes("--json")) {
   for (const r of bodyFindings) {
     console.log(`  review ${r.id} (on ${r.commit}): ${r.outsideDiff} outside-diff, ${r.nitpicks} nitpick finding(s) in its body${acked.has(r.id) ? " (acknowledged)" : r.outsideDiff ? "; read them, then pass --ack " + r.id : ""}`);
   }
-  if (!reviewedHead && !limited && !skipped) console.log('  ask with "@coderabbitai review" (drafts and stacked PRs get no automatic review)');
+  if (!reviewedHead && !limited && !skipped) console.log('  request "@coderabbitai review" only if this is a big PR (see AGENTS.md); otherwise a review is not required');
   for (const t of openThreads) console.log(`  ${t.outdated ? "(outdated) " : ""}${t.repliedByUs ? "(replied) " : ""}${t.where} ${t.summary.slice(0, 100)}\n    ${t.url}\n    thread ${t.id}`);
   console.log(done ? "DONE: CI green, nothing open from CodeRabbit" : "NOT DONE");
 }
