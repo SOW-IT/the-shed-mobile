@@ -224,7 +224,7 @@ describe("the Churches page", () => {
       await ctx.db.insert("users", { email: "fay@sow.org.au", name: "Fay Former", churchId: grace });
       const fay = await ctx.db.insert("attendanceMembers", { name: "Fay F", metadata: { [role]: "a" } });
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
-      await ctx.db.delete(gone);
+      await ctx.db.delete("attendanceMembers", gone);
       await staff("fay@sowaustralia.com", [{ role: "Staff" }], undefined, gone, YEAR - 1);
       await staff("fay@sow.org.au", [{ role: "Staff" }], undefined, fay, YEAR - 2);
       await ctx.db.insert("users", { email: "gus@sow.org.au", name: "Gus Gone", churchId: grace });

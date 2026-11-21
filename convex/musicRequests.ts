@@ -824,12 +824,12 @@ export const approve = mutation({
     if (!(await callerIsPraiseManager(ctx, caller))) {
       throw new ConvexError("Only Praise Managers can approve music requests.");
     }
-    const request = await ctx.db.get(args.requestId);
+    const request = await ctx.db.get("musicRequests", args.requestId);
     if (!request) throw new ConvexError("Request not found.");
     if (request.status !== "PENDING") {
       throw new ConvexError("This request has already been reviewed.");
     }
-    await ctx.db.patch(args.requestId, {
+    await ctx.db.patch("musicRequests", args.requestId, {
       status: "APPROVED",
       reviewedByEmail: caller.email,
       reviewedTime: Date.now(),
@@ -861,7 +861,7 @@ export const decline = mutation({
     if (!(await callerIsPraiseManager(ctx, caller))) {
       throw new ConvexError("Only Praise Managers can decline music requests.");
     }
-    const request = await ctx.db.get(args.requestId);
+    const request = await ctx.db.get("musicRequests", args.requestId);
     if (!request) throw new ConvexError("Request not found.");
     if (request.status !== "PENDING") {
       throw new ConvexError("This request has already been reviewed.");
@@ -872,7 +872,7 @@ export const decline = mutation({
       caller.email,
       currentStaffYear(),
     );
-    await ctx.db.patch(args.requestId, {
+    await ctx.db.patch("musicRequests", args.requestId, {
       status: "DECLINED",
       reviewedByEmail: caller.email,
       reviewedTime: Date.now(),
@@ -903,7 +903,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    const request = await ctx.db.get(args.requestId);
+    const request = await ctx.db.get("musicRequests", args.requestId);
     if (!request) {
       throw new ConvexError("Request not found.");
     }
@@ -949,7 +949,7 @@ export const remove = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    const request = await ctx.db.get(args.requestId);
+    const request = await ctx.db.get("musicRequests", args.requestId);
     if (!request) {
       throw new ConvexError("Request not found.");
     }
@@ -961,6 +961,6 @@ export const remove = mutation({
     if (request.status !== "PENDING" && request.status !== "APPROVED") {
       throw new ConvexError("This request cannot be deleted.");
     }
-    await ctx.db.delete(args.requestId);
+    await ctx.db.delete("musicRequests", args.requestId);
   },
 });

@@ -126,7 +126,7 @@ export const range = query({
     }
     const tagIds = [...new Set(events.flatMap((event) => event.tagIds ?? []))];
     const tags = new Map(
-      (await Promise.all(tagIds.map((id) => ctx.db.get(id)))).flatMap((tag) =>
+      (await Promise.all(tagIds.map((id) => ctx.db.get("attendanceTags", id)))).flatMap((tag) =>
         tag ? [[tag._id, tag] as const] : []
       )
     );

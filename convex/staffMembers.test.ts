@@ -29,8 +29,8 @@ function setup() {
     t.run((ctx) =>
       ctx.db.insert("staffProfiles", { email, year, assignments: LEADER, ...fields })
     );
-  const getProfile = (id: Id<"staffProfiles">) => t.run((ctx) => ctx.db.get(id));
-  const getMember = (id: Id<"attendanceMembers">) => t.run((ctx) => ctx.db.get(id));
+  const getProfile = (id: Id<"staffProfiles">) => t.run((ctx) => ctx.db.get("staffProfiles", id));
+  const getMember = (id: Id<"attendanceMembers">) => t.run((ctx) => ctx.db.get("attendanceMembers", id));
   const members = () => t.run((ctx) => ctx.db.query("attendanceMembers").collect());
   const logs = () => t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
   const roleField = (values: Record<string, string>) =>
@@ -90,11 +90,11 @@ describe("linking a profile to its person", () => {
     const elsewhere = await s.profile("lee.aver@sow.org.au", NOW - 3, { memberId: other });
     const current = await s.profile("lee.aver@sow.org.au", NOW);
 
-    const known = await s.t.run(async (ctx) => knownMemberId(ctx, (await ctx.db.get(current))!));
+    const known = await s.t.run(async (ctx) => knownMemberId(ctx, (await ctx.db.get("staffProfiles", current))!));
     expect(known).toBe(memberId);
 
     const linked = await s.t.run(async (ctx) =>
-      linkOrCreateMember(ctx, (await ctx.db.get(current))!, ACTOR)
+      linkOrCreateMember(ctx, (await ctx.db.get("staffProfiles", current))!, ACTOR)
     );
     expect(linked).toBe(memberId);
     expect((await s.getProfile(current))?.memberId).toBe(memberId);
@@ -112,7 +112,7 @@ describe("linking a profile to its person", () => {
     const renamed = await s.profile("jane.new@sow.org.au", NOW, { importId: "person-jane" });
 
     const linked = await s.t.run(async (ctx) =>
-      linkOrCreateMember(ctx, (await ctx.db.get(renamed))!, ACTOR)
+      linkOrCreateMember(ctx, (await ctx.db.get("staffProfiles", renamed))!, ACTOR)
     );
     expect(linked).toBe(memberId);
     expect((await s.getProfile(renamed))?.memberId).toBe(memberId);
@@ -127,7 +127,7 @@ describe("linking a profile to its person", () => {
     const current = await s.profile("lee.aver@sow.org.au", NOW, { memberId: own });
 
     const linked = await s.t.run(async (ctx) =>
-      linkOrCreateMember(ctx, (await ctx.db.get(current))!, ACTOR)
+      linkOrCreateMember(ctx, (await ctx.db.get("staffProfiles", current))!, ACTOR)
     );
     expect(linked).toBe(own);
   });
@@ -135,15 +135,15 @@ describe("linking a profile to its person", () => {
   test("a dangling memberId is treated as unlinked, and a new row is created with a name", async () => {
     const s = setup();
     const gone = await s.member("Deleted");
-    await s.t.run((ctx) => ctx.db.delete(gone));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMembers", gone));
     const past = await s.profile("jane.doe@sowaustralia.com", NOW - 1, { memberId: gone });
     const current = await s.profile("jane.doe@sow.org.au", NOW, { memberId: gone });
 
     expect(
-      await s.t.run(async (ctx) => knownMemberId(ctx, (await ctx.db.get(current))!))
+      await s.t.run(async (ctx) => knownMemberId(ctx, (await ctx.db.get("staffProfiles", current))!))
     ).toBeNull();
     const created = await s.t.run(async (ctx) =>
-      linkOrCreateMember(ctx, (await ctx.db.get(current))!, ACTOR)
+      linkOrCreateMember(ctx, (await ctx.db.get("staffProfiles", current))!, ACTOR)
     );
     expect(created).not.toBe(gone);
     expect((await s.getMember(created))?.name).toBe("Jane Doe");
@@ -164,7 +164,7 @@ describe("linking a profile to its person", () => {
     const s = setup();
     const current = await s.profile("x1@sow.org.au", NOW, { name: "mary quant" });
     const created = await s.t.run(async (ctx) =>
-      linkOrCreateMember(ctx, (await ctx.db.get(current))!, ACTOR)
+      linkOrCreateMember(ctx, (await ctx.db.get("staffProfiles", current))!, ACTOR)
     );
     expect((await s.getMember(created))?.name).toBe("Mary Quant");
   });
@@ -175,7 +175,7 @@ describe("attachMember", () => {
     const s = setup();
     const unassigned = await s.profile("una.ssigned@sow.org.au", NOW, { assignments: [] });
     const deleted = await s.profile("gone.person@sow.org.au", NOW);
-    await s.t.run((ctx) => ctx.db.delete(deleted));
+    await s.t.run((ctx) => ctx.db.delete("staffProfiles", deleted));
 
     expect(await s.t.run((ctx) => attachMember(ctx, unassigned, ACTOR))).toBeNull();
     expect(await s.t.run((ctx) => attachMember(ctx, deleted, ACTOR))).toBeNull();
@@ -228,7 +228,7 @@ describe("leaveStaff", () => {
     const profileId = await s.profile("lee.aver@sow.org.au", NOW, { name: "Lee-ann aver", memberId });
 
     const ok = await s.t.run(async (ctx) =>
-      leaveStaff(ctx, memberId, (await ctx.db.get(profileId))!, NOW + 1, ACTOR)
+      leaveStaff(ctx, memberId, (await ctx.db.get("staffProfiles", profileId))!, NOW + 1, ACTOR)
     );
     expect(ok).toBe(true);
     const row = await s.getMember(memberId);
@@ -257,7 +257,7 @@ describe("leaveStaff", () => {
     const profileId = await s.profile("lee.aver@sow.org.au", NOW, { memberId });
 
     await s.t.run(async (ctx) =>
-      leaveStaff(ctx, memberId, (await ctx.db.get(profileId))!, NOW + 1, ACTOR)
+      leaveStaff(ctx, memberId, (await ctx.db.get("staffProfiles", profileId))!, NOW + 1, ACTOR)
     );
     const row = await s.getMember(memberId);
     expect(row?.name).toBe("Kept Name");
@@ -274,7 +274,7 @@ describe("leaveStaff", () => {
       assignments: [{ role: "Staff", department: "Finance" }],
     });
     await s.t.run(async (ctx) =>
-      leaveStaff(ctx, memberId, (await ctx.db.get(profileId))!, NOW + 1, ACTOR)
+      leaveStaff(ctx, memberId, (await ctx.db.get("staffProfiles", profileId))!, NOW + 1, ACTOR)
     );
     expect((await s.getMember(memberId))?.metadata).toEqual({});
   });
@@ -283,9 +283,9 @@ describe("leaveStaff", () => {
     const s = setup();
     const memberId = await s.member("Gone");
     const profileId = await s.profile("lee.aver@sow.org.au", NOW, { memberId });
-    await s.t.run((ctx) => ctx.db.delete(memberId));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMembers", memberId));
     const ok = await s.t.run(async (ctx) =>
-      leaveStaff(ctx, memberId, (await ctx.db.get(profileId))!, NOW + 1, ACTOR)
+      leaveStaff(ctx, memberId, (await ctx.db.get("staffProfiles", profileId))!, NOW + 1, ACTOR)
     );
     expect(ok).toBe(false);
     expect(await s.logs()).toHaveLength(0);

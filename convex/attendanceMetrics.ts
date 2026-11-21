@@ -269,7 +269,7 @@ async function resolvePersons(
     if (!key.startsWith(MEMBER_PREFIX)) continue;
     const memberKey = key.slice(MEMBER_PREFIX.length);
     const id = ctx.db.normalizeId("attendanceMembers", memberKey);
-    const member = id ? await ctx.db.get(id) : null;
+    const member = id ? await ctx.db.get("attendanceMembers", id) : null;
     const latest = [...years].reverse().map((y) => matchProfile(memberKey, y)).find(Boolean);
     if (!latest) {
       const campus = memberCampus(member?.metadata);
@@ -287,7 +287,7 @@ async function resolvePersons(
     const profile = matchProfile(memberKey, year);
     const roles = profile ? [...new Set(assignmentsOf(profile).map((a) => a.role))] : [];
     const campuses = profile ? campusesLed(profile) : [];
-    const user = latest.userId ? await ctx.db.get(latest.userId) : null;
+    const user = latest.userId ? await ctx.db.get("users", latest.userId) : null;
     const breakdownByYear: Record<string, Record<string, string>> = {};
     const leaderByYear: Record<string, boolean> = {};
     const campusesByYear: Record<string, string[]> = {};
@@ -369,8 +369,8 @@ export const writeSnapshots = internalMutation({
       if (matches.length === 0) {
         await ctx.db.insert("attendanceMetricsSnapshots", doc);
       } else {
-        await ctx.db.patch(matches[0]._id, doc);
-        for (const extra of matches.slice(1)) await ctx.db.delete(extra._id);
+        await ctx.db.patch("attendanceMetricsSnapshots", matches[0]._id, doc);
+        for (const extra of matches.slice(1)) await ctx.db.delete("attendanceMetricsSnapshots", extra._id);
       }
     }
     return null;

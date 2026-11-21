@@ -147,7 +147,7 @@ async function resolveExportEvents(
       .sort((a, b) => b.signInTime - a.signInTime);
 
     const tags = await Promise.all(
-      (event.tagIds ?? []).map((id) => ctx.db.get(id))
+      (event.tagIds ?? []).map((id) => ctx.db.get("attendanceTags", id))
     );
     const subgroups = normalizeSubgroups(event.subgroups);
     out.push({
@@ -210,7 +210,7 @@ export const eventForExport = query({
   args: { eventId: v.id("events"), subgroup: v.optional(v.string()) },
   handler: async (ctx, { eventId, subgroup }) => {
     if (!(await optionalProfile(ctx))) return null;
-    const event = await ctx.db.get(eventId);
+    const event = await ctx.db.get("events", eventId);
     if (!event) return null;
     const scope = subgroup ?? normalizeSubgroups(event.subgroups)[0] ?? "SOW";
     const [resolved] = await resolveExportEvents(ctx, [event], scope);

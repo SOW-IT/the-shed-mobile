@@ -176,7 +176,7 @@ export const wipe = internalMutation({
       await ctx.db.patch("staffProfiles", profile._id, { userId: undefined });
     }
 
-    if (user.avatarId && (await ctx.db.system.get(user.avatarId))) {
+    if (user.avatarId && (await ctx.db.system.get("_storage", user.avatarId))) {
       await ctx.storage.delete(user.avatarId);
     }
     await ctx.db.delete("users", userId);

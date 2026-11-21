@@ -22,7 +22,7 @@ export const keyed = <T>(items: readonly T[], label: (item: T) => string) => {
 };
 
 /** Row ids for an editable list that has nothing to key on. */
-export type RowIds = { ids: number[]; next: number };
+type RowIds = { ids: number[]; next: number };
 
 export const rowIdsFor = (count: number): RowIds => ({ ids: Array.from({ length: count }, (_, i) => i), next: count });
 

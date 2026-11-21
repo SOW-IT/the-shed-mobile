@@ -91,6 +91,7 @@ these locally before opening the PR:
 
 ```bash
 npx eslint . --max-warnings 0   # not `npm run lint`, which only lints src/
+npx knip
 npx tsc --noEmit
 npm run test:coverage
 EXPO_OFFLINE=1 npx expo install --check

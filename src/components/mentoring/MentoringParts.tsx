@@ -28,7 +28,7 @@ import {
 } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
 
-export type Candidates = NonNullable<FunctionReturnType<typeof api.mentoring.candidates>>;
+type Candidates = NonNullable<FunctionReturnType<typeof api.mentoring.candidates>>;
 export type ExternalMentor = NonNullable<
   FunctionReturnType<typeof api.mentoring.externalMentors>
 >[number];
