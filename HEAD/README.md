@@ -1,12 +1,6 @@
 # verify: full
 
-- because core: shared/actingAs.ts
-- because core: src/components/HistoryTimeline.tsx
-- because core: src/components/ui/GuideSheet.tsx
-- because core: src/components/ui/buttons.tsx
-- because core: src/lib/appErrorKinds.ts
-- because core: src/lib/listKeys.ts
-- because core: src/lib/navMenu.ts
+- because core: convex/profile.ts
 
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
@@ -18,13 +12,13 @@
 | unit tests with coverage | ✔ pass | 16s |  |
 | Playwright Chromium | ✔ pass | 1s |  |
 | before: local backend | ✔ pass | 14s | before functions on :3270 |
-| before: web | ✔ pass | 462s | 140 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: web | ✔ pass | 466s | 140 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
 | before: iOS reset | ✔ pass | 1s |  |
-| before: iOS | ✔ pass | 192s | 35 screenshots; still moving after 10 frames: admin-review, admin-all |
+| before: iOS | ✔ pass | 193s | 35 screenshots; still moving after 10 frames: admin-review, admin-all |
 | after: local backend | ✔ pass | 14s | after functions on :3270 |
-| after: web | ✔ pass | 462s | 140 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| after: web | ✔ pass | 464s | 140 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 188s | 35 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: iOS | ✔ pass | 193s | 35 screenshots; still moving after 10 frames: admin-review, admin-all |
 
 ## Screenshots
 
