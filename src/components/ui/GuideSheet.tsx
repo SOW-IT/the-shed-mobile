@@ -5,7 +5,7 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { keyed } from "@/lib/listKeys";
 import { Sheet } from "./overlays";
 
-export type GuideStep = {
+type GuideStep = {
   icon: ComponentProps<typeof Ionicons>["name"];
   title: string;
   detail: string;

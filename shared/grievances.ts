@@ -11,7 +11,7 @@ export const DEFAULT_GRIEVANCE_CATEGORIES = [
 ];
 
 export const MAX_GRIEVANCE_TEXT = 5000;
-export const MAX_GRIEVANCE_SHORT = 200;
+const MAX_GRIEVANCE_SHORT = 200;
 export const MAX_GRIEVANCE_OPTIONS = 20;
 export const MAX_GRIEVANCE_OPTION = 80;
 export const MAX_GRIEVANCE_DEPARTMENTS = 10;
@@ -120,7 +120,7 @@ export const grievanceDetailLines = (g: Omit<GrievanceInput, "name" | "email">):
 
 type StepState = "done" | "declined" | "current" | "todo";
 
-export type GrievanceStep = {
+type GrievanceStep = {
   key: "submitted" | "inProgress" | "closed";
   label: string;
   state: StepState;

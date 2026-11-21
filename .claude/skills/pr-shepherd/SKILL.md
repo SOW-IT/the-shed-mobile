@@ -73,7 +73,7 @@ For a big PR, also wait until CodeRabbit has reviewed the current head.
      `gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=<thread id>`
 3. **Verification gate.** After a round of fixes, before pushing:
    `node scripts/verify.mjs --publish` (the `verify` skill), which also runs
-   lint, typecheck and the unit tests. Refresh the screenshots in the
+   lint, knip, typecheck and the unit tests. Refresh the screenshots in the
    PR body if the screens changed.
 4. **Push.** On a big PR, comment `@coderabbitai review` so it looks
    at the new commits, unless the only new commit is a clean merge of

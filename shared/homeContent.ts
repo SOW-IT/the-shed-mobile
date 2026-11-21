@@ -18,7 +18,6 @@ export const isHomeTabKey = (key: string): key is HomeTabKey =>
 
 export type HomeBlock = Infer<typeof homeBlockValidator>;
 export type HomeButton = Extract<HomeBlock, { type: "card" }>["buttons"][number];
-export type HomeButtonStyle = HomeButton["style"];
 export type HomeLink = Extract<HomeBlock, { type: "links" }>["links"][number];
 export type HomeSocial = Extract<HomeBlock, { type: "socials" }>["links"][number];
 export type HomeCampus = Extract<HomeBlock, { type: "campuses" }>["campuses"][number];

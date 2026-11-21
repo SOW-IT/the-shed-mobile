@@ -9,6 +9,8 @@
     "babel.config.js",
     "fingerprint.config.js"
   ],
+  // verify writes its run files (settle.js and others) under .verify, which git ignores.
+  "ignore": [".verify/**"],
   // vite comes with vitest; the tests only import its types.
   "ignoreDependencies": ["vite"]
 }

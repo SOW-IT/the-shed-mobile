@@ -262,7 +262,7 @@ export const FooterAction = ({
   );
 };
 
-export type FooterIconAction = {
+type FooterIconAction = {
   icon: keyof typeof Ionicons.glyphMap;
   accessibilityLabel: string;
   onPress: () => void;
