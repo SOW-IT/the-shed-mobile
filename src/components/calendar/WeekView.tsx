@@ -157,7 +157,7 @@ export const WeekView = <E extends WeekEvent>({
             {strip.more.map((count, col) =>
               count > 0 ? (
                 <Pressable
-                  key={col}
+                  key={week[col]}
                   onPress={() => onSelectDay(week[col])}
                   accessibilityRole="button"
                   accessibilityLabel={`${count} more on ${dayTitle(week[col])}`}

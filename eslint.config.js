@@ -87,6 +87,10 @@ module.exports = defineConfig([
     files: ["src/**/*.ts", "src/**/*.tsx"],
     rules: {
       "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking, colourLiteral, asNever],
+      // An index key hands a row's state to its neighbour when a row is added
+      // or removed above it. Key on the item (keysFor/keyed in
+      // src/lib/listKeys.ts), or useRowIds for an editable list.
+      "react/no-array-index-key": "error",
     },
   },
   {

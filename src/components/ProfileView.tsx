@@ -1,4 +1,5 @@
 import { useMinuteTick } from "@/hooks/useMinuteTick";
+import { keyed } from "@/lib/listKeys";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
 import { withRestartHeld } from "@/lib/restartHold";
 import { uploadLocalFileToUrl } from "@/lib/uploadLocalFile";
@@ -464,9 +465,9 @@ export const ProfileView = ({
                 <View style={{ flex: 1 }}>
                   {(entry.assignments ?? []).length > 0 ? (
                     <View style={styles.assignmentChips}>
-                      {entry.assignments.map((a, i) => (
+                      {keyed(entry.assignments, (a) => formatAssignment(a, entry.roleTitles)).map(({ item: a, key }) => (
                         <View
-                          key={i}
+                          key={key}
                           style={[
                             styles.assignmentChip,
                             { backgroundColor: t.primarySoft },
