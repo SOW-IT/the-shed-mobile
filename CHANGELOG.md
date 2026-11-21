@@ -17,6 +17,16 @@ All notable changes to **The SHED** mobile app. This project follows
   it didn't catch this. They're now `as Href`, the narrow cast a review
   asked for in #161. Nothing changes for people using the app.
 
+## [2.11.43] - 2026-11-22
+
+### Changed
+- **Form inputs have test ids, for contributors.** Every text field gets a
+  test id from its label, or its accessibility label when it shows none
+  (`field-title`, `field-phone`), so a Maestro flow on
+  the iOS Simulator or a Playwright script on web can fill in a form
+  (`docs/verification.md` → "Filling in a form"). Nothing changes for people
+  using the app.
+
 ## [2.11.42] - 2026-11-22
 
 ### Changed
