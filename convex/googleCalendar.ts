@@ -36,7 +36,7 @@ export const calendarSyncConfigured = (): boolean =>
 type GoogleBody = ReturnType<typeof googleEventBody>;
 
 async function eventBodyFor(ctx: QueryCtx, event: Doc<"events">): Promise<GoogleBody> {
-  const tags = (await Promise.all((event.tagIds ?? []).map((id) => ctx.db.get(id)))).filter(
+  const tags = (await Promise.all((event.tagIds ?? []).map((id) => ctx.db.get("attendanceTags", id)))).filter(
     (tag): tag is Doc<"attendanceTags"> => tag !== null
   );
   return googleEventBody(
@@ -57,7 +57,7 @@ const entryBodyFor = (entry: Doc<"calendarEntries">): GoogleBody =>
 export const eventBody = internalQuery({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    const event = await ctx.db.get(eventId);
+    const event = await ctx.db.get("events", eventId);
     return event ? await eventBodyFor(ctx, event) : null;
   },
 });
@@ -65,7 +65,7 @@ export const eventBody = internalQuery({
 export const entryBody = internalQuery({
   args: { entryId: v.id("calendarEntries") },
   handler: async (ctx, { entryId }) => {
-    const entry = await ctx.db.get(entryId);
+    const entry = await ctx.db.get("calendarEntries", entryId);
     return entry ? entryBodyFor(entry) : null;
   },
 });

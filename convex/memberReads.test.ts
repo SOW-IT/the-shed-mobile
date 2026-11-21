@@ -197,7 +197,7 @@ describe("Insights categories, one row per person", () => {
       `${USYD}|member:a|newcomer`,
       `${USYD}|member:c|irregular`,
     ]);
-    expect(await t.run((ctx) => ctx.db.get(kept))).not.toBeNull();
+    expect(await t.run((ctx) => ctx.db.get("weeklyCategoryPeople", kept))).not.toBeNull();
 
     await t.mutation(internal.weeklyInsights.saveIndex, { ...indexArgs(USYD), currentKey: null, periods: [] });
     expect(await peopleRows(t)).toEqual([`${UNSW}|member:b|visitor`]);
@@ -236,15 +236,15 @@ async function rosterWorld() {
       order: 51,
       subgroup: UNSW,
     });
-    const row = (await ctx.db.get(ann))!;
-    await ctx.db.patch(ann, { metadata: { ...row.metadata, [usydNote]: "front row", [unswNote]: "hidden here" } });
+    const row = (await ctx.db.get("attendanceMembers", ann))!;
+    await ctx.db.patch("attendanceMembers", ann, { metadata: { ...row.metadata, [usydNote]: "front row", [unswNote]: "hidden here" } });
   });
   const ben = await member("Ben Ng", "unsw");
   const cat = await member("Cat Wu");
   const dan = await member("Dan Ho", "usyd");
   await member("Eve Yu", "usyd");
   const ghost = await member("Ghost");
-  await t.run((ctx) => ctx.db.delete(ghost));
+  await t.run((ctx) => ctx.db.delete("attendanceMembers", ghost));
   const eventId = await event();
   await order(eventId, [
     [dan, 9],
@@ -354,7 +354,7 @@ describe("roll call search", () => {
 
     expect(await search("   ")).toEqual([]);
     expect(await t.query(api.attendance.searchRoster, { eventId, search: "ann" })).toEqual([]);
-    await t.run((ctx) => ctx.db.delete(eventId));
+    await t.run((ctx) => ctx.db.delete("events", eventId));
     expect(await search("ann")).toEqual([]);
   });
 

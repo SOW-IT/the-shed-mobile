@@ -83,7 +83,7 @@ describe("attendanceMembers.list: staff profile ↔ member linking", () => {
   test("the staff row carries the linked member's id and their own email", async () => {
     const { t, leader } = await setup();
     const memberId = await linkedMemberOf(t, LEADER);
-    await t.run((ctx) => ctx.db.patch(memberId, { email: "lee@gmail.com" }));
+    await t.run((ctx) => ctx.db.patch("attendanceMembers", memberId, { email: "lee@gmail.com" }));
 
     const { page } = await listAll(leader);
 
@@ -313,7 +313,7 @@ describe("attendanceMembers.get", () => {
     const memberId = await linkedMemberOf(t, LEADER);
     const church = await addChurch(t, "Hillsong");
     await t.run(async (ctx) => {
-      await ctx.db.patch(memberId, {
+      await ctx.db.patch("attendanceMembers", memberId, {
         email: "lee@gmail.com",
         metadata: { [f.campus._id]: "custom", [f.year._id]: "2024" },
       });
@@ -345,7 +345,7 @@ describe("attendanceMembers.get", () => {
   test("in a year they weren't staff, the same row is a plain member", async () => {
     const { t, leader } = await setup();
     const memberId = await linkedMemberOf(t, LEADER);
-    await t.run((ctx) => ctx.db.patch(memberId, { email: "lee@gmail.com" }));
+    await t.run((ctx) => ctx.db.patch("attendanceMembers", memberId, { email: "lee@gmail.com" }));
     const row = await leader.query(api.attendanceMembers.get, {
       memberId,
       staffYear: YEAR - 5,
@@ -360,7 +360,7 @@ describe("attendanceMembers.get", () => {
   test("a member that no longer exists reads as null", async () => {
     const { t, leader } = await setup();
     const memberId = await t.run((ctx) => ctx.db.insert("attendanceMembers", { name: "Gone" }));
-    await t.run((ctx) => ctx.db.delete(memberId));
+    await t.run((ctx) => ctx.db.delete("attendanceMembers", memberId));
     expect(await leader.query(api.attendanceMembers.get, { memberId })).toBeNull();
   });
 });
@@ -375,8 +375,8 @@ describe("attendanceMembers.update", () => {
         .query("staffProfiles")
         .withIndex("by_email_and_year", (q) => q.eq("email", LEADER).eq("year", YEAR))
         .first();
-      await ctx.db.patch(profile!._id, { name: "Lee Leader" });
-      await ctx.db.patch(memberId, { metadata: { [f.campus._id]: "own-campus" } });
+      await ctx.db.patch("staffProfiles", profile!._id, { name: "Lee Leader" });
+      await ctx.db.patch("attendanceMembers", memberId, { metadata: { [f.campus._id]: "own-campus" } });
     });
 
     await leader.mutation(api.attendanceMembers.update, {
@@ -392,7 +392,7 @@ describe("attendanceMembers.update", () => {
       staffYear: YEAR,
     });
 
-    const row = await t.run((ctx) => ctx.db.get(memberId));
+    const row = await t.run((ctx) => ctx.db.get("attendanceMembers", memberId));
     expect(row).toMatchObject({
       name: "Lee Leader",
       email: "lee@gmail.com",
@@ -424,7 +424,7 @@ describe("attendanceMembers.update", () => {
       name: " lee leader ",
       staffYear: YEAR,
     });
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.name).toBe("Lee Leader");
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", memberId)))?.name).toBe("Lee Leader");
     const again = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR });
     expect(again).toMatchObject({ nameLocked: false, name: "Lee Leader" });
     const { page } = await listAll(leader, { search: "lee" });
@@ -439,12 +439,12 @@ describe("attendanceMembers.update", () => {
         .query("staffProfiles")
         .withIndex("by_email_and_year", (q) => q.eq("email", LEADER).eq("year", YEAR))
         .first();
-      await ctx.db.patch(profile!._id, { name: "Lee Leader" });
+      await ctx.db.patch("staffProfiles", profile!._id, { name: "Lee Leader" });
     });
     const shown = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR });
     expect(shown).toMatchObject({ nameLocked: true, name: "Lee Leader" });
     await leader.mutation(api.attendanceMembers.update, { memberId, name: "", staffYear: YEAR });
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.name).toBe("Lee Leader");
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", memberId)))?.name).toBe("Lee Leader");
   });
 
   test("a current staffer edited from a year they weren't staff keeps their Campus and Role", async () => {
@@ -452,7 +452,7 @@ describe("attendanceMembers.update", () => {
     const f = await defaultFields(admin);
     const memberId = await linkedMemberOf(t, LEADER);
     await t.run((ctx) =>
-      ctx.db.patch(memberId, {
+      ctx.db.patch("attendanceMembers", memberId, {
         metadata: { [f.campus._id]: "own-campus", [f.role._id]: "own-role" },
       })
     );
@@ -465,7 +465,7 @@ describe("attendanceMembers.update", () => {
       metadata: { [f.year._id]: "2024" },
       staffYear: YEAR - 3,
     });
-    const row = await t.run((ctx) => ctx.db.get(memberId));
+    const row = await t.run((ctx) => ctx.db.get("attendanceMembers", memberId));
     expect(row).toMatchObject({
       name: "Lee Leader",
       metadata: { [f.campus._id]: "own-campus", [f.role._id]: "own-role", [f.year._id]: "2024" },
@@ -475,7 +475,7 @@ describe("attendanceMembers.update", () => {
   test("as staff, a blank personal email clears it and a staff address is refused", async () => {
     const { t, leader } = await setup();
     const memberId = await linkedMemberOf(t, LEADER);
-    await t.run((ctx) => ctx.db.patch(memberId, { email: "lee@gmail.com" }));
+    await t.run((ctx) => ctx.db.patch("attendanceMembers", memberId, { email: "lee@gmail.com" }));
     await expect(
       leader.mutation(api.attendanceMembers.update, {
         memberId,
@@ -488,7 +488,7 @@ describe("attendanceMembers.update", () => {
       name: "x",
       personalEmail: "  ",
     });
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.email).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", memberId)))?.email).toBeUndefined();
   });
 
   test("editing a current staffer from a year they weren't staff is a plain member edit", async () => {
@@ -500,7 +500,7 @@ describe("attendanceMembers.update", () => {
       email: "Lee@Gmail.com",
       staffYear: YEAR - 5,
     });
-    expect(await t.run((ctx) => ctx.db.get(memberId))).toMatchObject({
+    expect(await t.run((ctx) => ctx.db.get("attendanceMembers", memberId))).toMatchObject({
       name: "Lee Der",
       email: "lee@gmail.com",
     });
@@ -538,7 +538,7 @@ describe("attendanceMembers.update", () => {
       name: "Imported",
       email: " ",
     });
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.email).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", memberId)))?.email).toBeUndefined();
   });
 
   test("a plain member's church is set, kept, cleared and checked", async () => {
@@ -548,7 +548,7 @@ describe("attendanceMembers.update", () => {
       name: "Churchgoer",
       churchId: church,
     });
-    const churchOf = async () => (await t.run((ctx) => ctx.db.get(memberId)))?.churchId;
+    const churchOf = async () => (await t.run((ctx) => ctx.db.get("attendanceMembers", memberId)))?.churchId;
     expect(await churchOf()).toBe(church);
     await leader.mutation(api.attendanceMembers.update, { memberId, name: "Churchgoer" });
     expect(await churchOf()).toBe(church);
@@ -559,7 +559,7 @@ describe("attendanceMembers.update", () => {
     });
     expect(await churchOf()).toBeUndefined();
     const gone = await addChurch(t, "Gone Church");
-    await t.run((ctx) => ctx.db.delete(gone));
+    await t.run((ctx) => ctx.db.delete("churches", gone));
     await expect(
       leader.mutation(api.attendanceMembers.update, {
         memberId,
@@ -592,7 +592,7 @@ describe("attendanceMembers.remove", () => {
     await expect(admin.mutation(api.attendanceMembers.remove, { memberId })).rejects.toThrow(
       /on staff this year/
     );
-    expect(await t.run((ctx) => ctx.db.get(memberId))).not.toBeNull();
+    expect(await t.run((ctx) => ctx.db.get("attendanceMembers", memberId))).not.toBeNull();
   });
 
   test("unlinks every staff profile that pointed at the deleted row", async () => {
@@ -603,7 +603,7 @@ describe("attendanceMembers.remove", () => {
         .query("staffProfiles")
         .withIndex("by_email_and_year", (q) => q.eq("email", LEADER).eq("year", YEAR))
         .first();
-      await ctx.db.patch(current!._id, { assignments: [] });
+      await ctx.db.patch("staffProfiles", current!._id, { assignments: [] });
       return await ctx.db.insert("staffProfiles", {
         email: LEADER,
         year: YEAR - 1,
@@ -622,7 +622,7 @@ describe("attendanceMembers.remove", () => {
     );
     expect(profiles.map((p) => p._id)).toContain(pastProfile);
     expect(profiles.every((p) => p.memberId === undefined)).toBe(true);
-    expect(await t.run((ctx) => ctx.db.get(memberId))).toBeNull();
+    expect(await t.run((ctx) => ctx.db.get("attendanceMembers", memberId))).toBeNull();
   });
 
   test("the audit names events once each and caps the list", async () => {
@@ -646,7 +646,7 @@ describe("attendanceMembers.remove", () => {
         subgroups: [],
       });
       await ctx.db.insert("attendance", { eventId: gone, memberId: single, signInTime: 1_500 });
-      await ctx.db.delete(gone);
+      await ctx.db.delete("events", gone);
       return { memberId, single };
     });
 
@@ -751,7 +751,7 @@ describe("Role is worked out", () => {
   test("only Visitor or Alumni are saved by hand, and an old Role stays until it's changed", async () => {
     const { t, leader, roleId, member } = await roleSetup();
     const id = await member("Old Role", { [roleId]: "r3" });
-    const stored = async () => (await t.run((ctx) => ctx.db.get(id)))?.metadata ?? {};
+    const stored = async () => (await t.run((ctx) => ctx.db.get("attendanceMembers", id)))?.metadata ?? {};
 
     await leader.mutation(api.attendanceMembers.update, {
       memberId: id,
@@ -785,7 +785,7 @@ describe("Role is worked out", () => {
       name: "Typed Leader",
       metadata: { [roleId]: "Student Leader" },
     });
-    expect((await t.run((ctx) => ctx.db.get(created)))?.metadata).toEqual({});
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", created)))?.metadata).toEqual({});
   });
 });
 
@@ -822,7 +822,7 @@ describe("attendance members on a campus", () => {
       staffEmail: STAFF,
     });
     await t.run((ctx) =>
-      ctx.db.patch(shadowId, { metadata: { [campusField._id]: usydId } })
+      ctx.db.patch("attendanceMembers", shadowId, { metadata: { [campusField._id]: usydId } })
     );
     const page = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
@@ -943,7 +943,7 @@ describe("attendance members on a campus", () => {
     expect(await t.run((ctx) => ctx.db.query("attendanceMembers").collect())).toHaveLength(
       before.length
     );
-    expect((await t.run((ctx) => ctx.db.get(profileId)))?.memberId).toBe(memberId);
+    expect((await t.run((ctx) => ctx.db.get("staffProfiles", profileId)))?.memberId).toBe(memberId);
   });
 
   test("ensureForStaff reuses a member linked from a profile with the same import id", async () => {
@@ -1001,7 +1001,7 @@ describe("attendance members on a campus", () => {
       name: "Next Leader",
       staffYear: YEAR,
     });
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.email).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", memberId)))?.email).toBeUndefined();
   });
 
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {
@@ -1015,7 +1015,7 @@ describe("attendance members on a campus", () => {
         staffEmail: OUTSIDER,
       })
     ).rejects.toThrow(/not found/i);
-    const row = await t.run((ctx) => ctx.db.get(memberId));
+    const row = await t.run((ctx) => ctx.db.get("attendanceMembers", memberId));
     expect(row?.email).toBe(OUTSIDER);
   });
 

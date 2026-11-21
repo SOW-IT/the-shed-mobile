@@ -62,7 +62,7 @@ export const disconnect = mutation({
       .collect();
 
     for (const connection of connections) {
-      await ctx.db.delete(connection._id);
+      await ctx.db.delete("spotifyConnections", connection._id);
     }
 
     return { success: true };
@@ -98,7 +98,7 @@ export const saveConnection = internalMutation({
   },
   handler: async (ctx, args) => {
     // The account may have been deleted while Spotify was answering.
-    if (!(await ctx.db.get(args.userId))) return null;
+    if (!(await ctx.db.get("users", args.userId))) return null;
 
     const existing = await ctx.db
       .query("spotifyConnections")
@@ -108,7 +108,7 @@ export const saveConnection = internalMutation({
     const now = Date.now();
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
+      await ctx.db.patch("spotifyConnections", existing._id, {
         encryptedAccessToken: args.encryptedAccessToken,
         encryptedRefreshToken: args.encryptedRefreshToken,
         expiresAt: args.expiresAt,
@@ -138,13 +138,13 @@ export const updateRefreshedConnection = internalMutation({
     expiresAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const connection = await ctx.db.get(args.connectionId);
+    const connection = await ctx.db.get("spotifyConnections", args.connectionId);
 
     if (!connection || connection.updatedAt !== args.expectedUpdatedAt) {
       return false;
     }
 
-    await ctx.db.patch(connection._id, {
+    await ctx.db.patch("spotifyConnections", connection._id, {
       encryptedAccessToken: args.encryptedAccessToken,
       encryptedRefreshToken: args.encryptedRefreshToken,
       expiresAt: args.expiresAt,
@@ -161,10 +161,10 @@ export const forgetRejectedConnection = internalMutation({
     encryptedAccessToken: v.string(),
   },
   handler: async (ctx, args) => {
-    const connection = await ctx.db.get(args.connectionId);
+    const connection = await ctx.db.get("spotifyConnections", args.connectionId);
 
     if (connection?.encryptedAccessToken === args.encryptedAccessToken) {
-      await ctx.db.delete(connection._id);
+      await ctx.db.delete("spotifyConnections", connection._id);
     }
 
     return null;

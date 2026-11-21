@@ -29,7 +29,7 @@ const stripFinanceHolders = (t: T) =>
   t.run(async (ctx) => {
     for (const profile of await ctx.db.query("staffProfiles").collect()) {
       if (profile.assignments?.some((a) => a.department === "Finance")) {
-        await ctx.db.patch(profile._id, { assignments: [] });
+        await ctx.db.patch("staffProfiles", profile._id, { assignments: [] });
       }
     }
   });
@@ -2631,7 +2631,7 @@ describe("staff profiles and their attendance member", () => {
       subjectEmail: BELLA,
       detail: `Not staff in ${YEAR}`,
     });
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toEqual({});
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", memberId)))?.metadata).toEqual({});
   });
 
   test("removing a profile leaves the member alone while they are still staff, or in another year", async () => {

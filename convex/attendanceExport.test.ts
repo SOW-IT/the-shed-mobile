@@ -107,7 +107,7 @@ describe("attendanceExport", () => {
     const eventId = await createEvent(leader, { name: "Mixed", ...window() });
     const staffMemberId = await memberOf(t, STAFF);
     const { lookalike, unassigned } = await t.run(async (ctx) => {
-      await ctx.db.patch(staffMemberId, { name: "Member Row Name", email: "personal@example.com" });
+      await ctx.db.patch("attendanceMembers", staffMemberId, { name: "Member Row Name", email: "personal@example.com" });
       const lookalike = await ctx.db.insert("attendanceMembers", { name: "Shadow Of Staff", email: "Staff@SOW.org.au" });
       const unassigned = await ctx.db.insert("attendanceMembers", { name: "Paused Pat" });
       await ctx.db.insert("staffProfiles", {
@@ -121,6 +121,7 @@ describe("attendanceExport", () => {
     });
     await t.run(async (ctx) => {
       await ctx.db.patch(
+        "staffProfiles",
         (await ctx.db
           .query("staffProfiles")
           .withIndex("by_email_and_year", (q) => q.eq("email", STAFF).eq("year", YEAR))
@@ -176,7 +177,7 @@ describe("attendanceExport", () => {
     const eventId = await createEvent(leader, { name: "Gone", ...window() });
     const rowIds = await t.run(async (ctx) => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
-      await ctx.db.delete(gone);
+      await ctx.db.delete("attendanceMembers", gone);
       return [
         await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: 1 }),
         await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: 2 }),

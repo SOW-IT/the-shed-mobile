@@ -43,7 +43,7 @@ const setStoredCount = (t: T, eventId: Id<"events">, count: number) =>
       .query("eventAttendanceCounts")
       .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
       .unique();
-    if (row) await ctx.db.patch(row._id, { count });
+    if (row) await ctx.db.patch("eventAttendanceCounts", row._id, { count });
   });
 
 const dropStoredCount = (t: T, eventId: Id<"events">) =>
@@ -52,7 +52,7 @@ const dropStoredCount = (t: T, eventId: Id<"events">) =>
       .query("eventAttendanceCounts")
       .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
       .unique();
-    if (row) await ctx.db.delete(row._id);
+    if (row) await ctx.db.delete("eventAttendanceCounts", row._id);
   });
 
 const listedCount = async (t: T, eventId: Id<"events">) => {
@@ -94,12 +94,12 @@ describe("event attendance counts", () => {
     const t = await setup();
     const eventId = await createEvent(t);
     const [ann] = await addMembers(t, ["Ann"]);
-    const before = await t.run((ctx) => ctx.db.get(eventId));
+    const before = await t.run((ctx) => ctx.db.get("events", eventId));
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.attendance.signIn, { eventId, memberId: ann });
-    expect(await t.run((ctx) => ctx.db.get(eventId))).toEqual(before);
+    expect(await t.run((ctx) => ctx.db.get("events", eventId))).toEqual(before);
     await admin.mutation(api.attendance.signOut, { eventId, memberId: ann });
-    expect(await t.run((ctx) => ctx.db.get(eventId))).toEqual(before);
+    expect(await t.run((ctx) => ctx.db.get("events", eventId))).toEqual(before);
   });
 
   test("a sign-in to an event with no stored count recounts it", async () => {
@@ -180,10 +180,10 @@ describe("event attendance counts", () => {
     const eventId = await createEvent(t);
     await t.run(async (ctx) => {
       const { adjustEventAttendanceCount } = await import("./attendanceCounts");
-      await ctx.db.delete(eventId);
+      await ctx.db.delete("events", eventId);
       await adjustEventAttendanceCount(ctx, eventId, 1);
     });
-    expect(await t.run((ctx) => ctx.db.get(eventId))).toBeNull();
+    expect(await t.run((ctx) => ctx.db.get("events", eventId))).toBeNull();
   });
 
   test("the backfill stores every event's count, in batches", async () => {
@@ -223,9 +223,9 @@ describe("event attendance counts", () => {
 
     await t.run(async (ctx) => {
       const { recountEventAttendance } = await import("./attendanceCounts");
-      await ctx.db.delete(eventId);
+      await ctx.db.delete("events", eventId);
       await recountEventAttendance(ctx, eventId);
     });
-    expect(await t.run((ctx) => ctx.db.get(eventId))).toBeNull();
+    expect(await t.run((ctx) => ctx.db.get("events", eventId))).toBeNull();
   });
 });
