@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.40] - 2026-11-21
+## [2.11.49] - 2026-11-22
 
 ### Changed
 - **Background jobs start a few minutes past the hour.** The morning
@@ -22,6 +22,15 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Lint catches duplicate indexes and on-the-hour crons, for contributors.**
   `@convex-dev/no-duplicate-indexes` and `@convex-dev/no-top-of-hour-crons`
   are on. The eight indexes kept for their sort order say why next to them.
+
+## [2.11.42] - 2026-11-22
+
+### Changed
+- **CodeRabbit only reviews big changes, for contributors.** Automatic
+  reviews are off. A review is requested only when a PR has more than 300
+  lines of app or Convex code, or it touches the schema, data deletion,
+  auth, or notification sending. Smaller PRs go through once CI and verify
+  pass. Nothing changes for people using the app.
 
 ## [2.11.31] - 2026-11-21
 
