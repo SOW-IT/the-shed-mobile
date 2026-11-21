@@ -48,7 +48,7 @@ export type ExternalMentorDraft = {
   notes: string;
 };
 
-export type CleanExternalMentor = {
+type CleanExternalMentor = {
   name: string;
   email?: string;
   phone?: string;

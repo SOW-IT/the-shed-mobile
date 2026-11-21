@@ -187,7 +187,7 @@ const printPlan = (plan, mergeBase, args) => {
   }
   if (plan.tier === "blocked") return;
   log("steps:");
-  log("  lint (eslint . --max-warnings 0), typecheck");
+  log("  lint (eslint . --max-warnings 0), knip, typecheck");
   const unit = plan.unit.kind === "all" ? (plan.tier === "full" ? "all unit tests with coverage" : "all unit tests") : plan.unit.kind === "related" ? `unit tests related to ${plan.unit.files.length} file(s)` : "no unit tests";
   log(`  ${unit}`);
   if (plan.routes.length > 0) {
@@ -526,6 +526,7 @@ const main = async () => {
       throw new Error(`changed on ${changed.join(" and ")}: phones there need a store build before they get this change`);
     }, { soft: true });
     await step("lint", run("npx", ["eslint", ".", "--max-warnings", "0"], join(logs, "lint.log")));
+    await step("unused code (knip)", run("npx", ["knip"], join(logs, "knip.log")));
     await step("typecheck", npm("typecheck", join(logs, "typecheck.log")));
     if (plan.unit.kind === "all") {
       await step(plan.tier === "full" ? "unit tests with coverage" : "unit tests", npm(plan.tier === "full" ? "test:coverage" : "test", join(logs, "unit.log")));

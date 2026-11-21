@@ -20,8 +20,8 @@ Convex agent skills for common tasks can be installed by running
 
 Expo (RN) + Convex; the same TS serves iOS/Android/web. Node 22, npm only.
 Commands are in `README.md` / `package.json`. Checks need no backend
-(`convex-test` is in-memory): `npx eslint . --max-warnings 0`,
-`npm run typecheck`, `npm run test:coverage`. CI runs the same three with
+(`convex-test` is in-memory): `npx eslint . --max-warnings 0`, `npx knip`,
+`npm run typecheck`, `npm run test:coverage`. CI runs the same four with
 coverage thresholds, plus `EXPO_OFFLINE=1 npx expo install --check` and the
 web sweep. `npm run lint` (`expo lint`) only covers `src/`, and changing that
 script changes the native fingerprint; it moves to the full command with the

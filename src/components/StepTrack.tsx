@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { sydneyDay } from "@/lib/sydneyTime";
 import { spacing, typography, useAppTheme } from "@/theme";
 
-export type TrackStep = {
+type TrackStep = {
   key: string;
   label: string;
   state: "done" | "declined" | "current" | "todo";

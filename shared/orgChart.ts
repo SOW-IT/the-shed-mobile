@@ -2,7 +2,7 @@ import { acronym, HEAD_OF_DEPARTMENT, type RoleTitles } from "./flow";
 
 export type OrgPerson = { email: string; name: string | null; photo: string | null; role: string | null };
 
-export type OrgDepartment = {
+type OrgDepartment = {
   name: string;
   colour: string | null;
   head: OrgPerson | null;
@@ -21,12 +21,12 @@ export type OrgChartSections = {
   universities: readonly OrgCampus[];
 };
 
-export type OrgAreaKind = "staff" | "division" | "campus";
+type OrgAreaKind = "staff" | "division" | "campus";
 
-export type OrgArea = { key: string; kind: OrgAreaKind; name: string; label: string };
+type OrgArea = { key: string; kind: OrgAreaKind; name: string; label: string };
 
-export const STAFF_SECTION = "Staff";
-export const CAMPUS_SECTION = "Campus";
+const STAFF_SECTION = "Staff";
+const CAMPUS_SECTION = "Campus";
 export const STAFF_AREA = "staff";
 
 export const divisionArea = (name: string) => `division:${name}`;

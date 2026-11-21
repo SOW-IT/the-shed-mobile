@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Sheet } from "./overlays";
 
-export type GuideStep = {
+type GuideStep = {
   icon: ComponentProps<typeof Ionicons>["name"];
   title: string;
   detail: string;

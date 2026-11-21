@@ -4,7 +4,6 @@ import type {
   compositionPoint,
   followUp,
   metricsDataValidator,
-  metricsSummary,
   splitPoint,
   trendPoint,
 } from "../convex/metricsData";
@@ -90,11 +89,10 @@ export type ComputeInput = {
 
 export type TrendPoint = Infer<typeof trendPoint>;
 export type SplitPoint = Infer<typeof splitPoint>;
-export type CompositionPoint = Infer<typeof compositionPoint>;
-export type MetricsSummary = Infer<typeof metricsSummary>;
+type CompositionPoint = Infer<typeof compositionPoint>;
 export type FollowUpPerson = Infer<typeof followUp>;
 export type FollowUpReasonCode = FollowUpPerson["reasonCode"];
-export type MetricsBreakdown = Infer<typeof breakdown>;
+type MetricsBreakdown = Infer<typeof breakdown>;
 export type SubgroupMetricsData = Infer<typeof metricsDataValidator>;
 
 const MONTHS = [

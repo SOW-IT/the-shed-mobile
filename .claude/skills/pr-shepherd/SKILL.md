@@ -64,7 +64,7 @@ Repeat until `pr-status` exits 0 and the verification gate passes.
      `gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=<thread id>`
 3. **Verification gate.** After a round of fixes, before pushing:
    `node scripts/verify.mjs --publish` (the `verify` skill), which also runs
-   lint, typecheck and the unit tests. Refresh the screenshots in the
+   lint, knip, typecheck and the unit tests. Refresh the screenshots in the
    PR body if the screens changed.
 4. **Push**, then ask CodeRabbit to look at the new commits:
    comment `@coderabbitai review`.

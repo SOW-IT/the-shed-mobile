@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.32] - 2026-11-21
+
+### Removed
+- **Unused code, for contributors.** Exports and types that nothing imports
+  lose `export`, or go when nothing uses them at all. The `npx convex dev`
+  welcome page in `convex/` goes too. CI now runs `knip`, so unused files,
+  exports and dependencies fail the build. Nothing changes for people using
+  the app.
+
 ## [2.11.31] - 2026-11-21
 
 ### Added
