@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.33] - 2026-11-21
+## [2.11.56] - 2026-11-21
 
 ### Changed
 - **Backend reads and writes name their table.** Every `ctx.db.get`,
@@ -14,7 +14,7 @@ All notable changes to **The SHED** mobile app. This project follows
   Convex guidelines ask, and lint now requires it. Nothing changes for people
   using the app.
 
-## [2.11.32] - 2026-11-21
+## [2.11.55] - 2026-11-21
 
 ### Removed
 - **Unused code, for contributors.** Exports and types that nothing imports
@@ -22,6 +22,101 @@ All notable changes to **The SHED** mobile app. This project follows
   welcome page in `convex/` goes too. CI now runs `knip`, so unused files,
   exports and dependencies fail the build. Nothing changes for people using
   the app.
+
+## [2.11.54] - 2026-11-22
+
+### Added
+- **Announcements can go to specific people.** Under Send to, "People" opens a
+  searchable list of this year's leaders. Search by name, email or
+  department, tick people one by one, or select everyone the search shows.
+  All leaders and Groups work as before, and so do scheduling, the limits,
+  the preview and the history, which names the people it went to.
+- **See who won't get a push before you send.** The form lists everyone in
+  the audience a push can't reach, and why: no app, or notifications off.
+  One tap emails just those people, or you can email everyone. The
+  confirmation before sending always opens and shows the same list with both
+  options. If someone would get neither a push nor an email, it warns you
+  first.
+
+## [2.11.52] - 2026-11-22
+
+### Fixed
+- **Typecheck passes again once Metro has run, for contributors.** 2.11.30
+  removed two router casts that weren't needless. A notification's link and
+  an Insights link come from the backend, so typed routes can't check them,
+  and without a cast `npm run typecheck` failed in any checkout where Metro
+  had generated `.expo/types/router.d.ts`. CI doesn't generate that file, so
+  it didn't catch this. They're now `as Href`, the narrow cast a review
+  asked for in #161. Nothing changes for people using the app.
+
+## [2.11.49] - 2026-11-22
+
+### Changed
+- **Background jobs start a few minutes past the hour.** The morning
+  reminder digest now goes out at 22:07 UTC (9:07am in Sydney in summer,
+  8:07am in winter) instead of on the hour. The Monday directory sync, the
+  30 September prefill and receipt purge, the nightly Insights rebuild and
+  the church map refresh each move by 3 to 11 minutes too. Minute 0 is the
+  busiest minute for scheduled jobs, so they now start off-peak.
+- **Two database indexes that only repeated the start of a longer one are
+  gone,** on comment reactions and grievances. Their queries use the longer
+  index and return the same rows in the same order. The next Convex
+  production deploy drops them.
+- **Lint catches duplicate indexes and on-the-hour crons, for contributors.**
+  `@convex-dev/no-duplicate-indexes` and `@convex-dev/no-top-of-hour-crons`
+  are on. The eight indexes kept for their sort order say why next to them.
+
+## [2.11.46] - 2026-11-22
+
+### Changed
+- **Colours come from the theme, for contributors.** A colour written into a
+  screen is how a dark-mode miss happens, so lint now rejects hex and `rgb()`
+  literals outside `src/theme.ts` and the calendar palette. Colours that are
+  the same in both themes (white on a badge, shadows, the QR code) live in
+  `fixedColours`. The only screen that looks different is the "Configuration
+  error" screen, which now follows the dark theme too.
+
+## [2.11.45] - 2026-11-22
+
+### Changed
+- **List rows keep their own state when another row goes, for contributors.**
+  Lists were keyed by position, so removing a staff assignment or a church
+  service time handed that row's open picker to the row below it. Rows are
+  now keyed by what they show, editable lists keep an id per row
+  (`src/lib/listKeys.ts`, `useRowIds`), and lint rejects an index key
+  (`react/no-array-index-key`). Fixed positions, like the weekday header and
+  chart points, say why in a disable comment.
+
+## [2.11.44] - 2026-11-22
+
+### Changed
+- **Verify's before and after screenshots match when nothing changed, for
+  contributors.** Each screenshot waits until two frames in a row are
+  identical, on iOS and web, so none is caught mid-transition. The iOS status
+  bar shows 9:41 throughout, and seeded events sit at a round hour. Times the
+  server stamps can still differ (`docs/verification.md` → "Still open").
+  Verify also stops leaving the checkout's `.env.local` pointed at its
+  throwaway backend, which the Convex CLI wrote there on every run. Nothing
+  changes for people using the app.
+
+## [2.11.43] - 2026-11-22
+
+### Changed
+- **Form inputs have test ids, for contributors.** Every text field gets a
+  test id from its label, or its accessibility label when it shows none
+  (`field-title`, `field-phone`), so a Maestro flow on
+  the iOS Simulator or a Playwright script on web can fill in a form
+  (`docs/verification.md` → "Filling in a form"). Nothing changes for people
+  using the app.
+
+## [2.11.42] - 2026-11-22
+
+### Changed
+- **CodeRabbit only reviews big changes, for contributors.** Automatic
+  reviews are off. A review is requested only when a PR has more than 300
+  lines of app or Convex code, or it touches the schema, data deletion,
+  auth, or notification sending. Smaller PRs go through once CI and verify
+  pass. Nothing changes for people using the app.
 
 ## [2.11.31] - 2026-11-21
 

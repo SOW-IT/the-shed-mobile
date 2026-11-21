@@ -76,11 +76,14 @@ Everything a run starts lives under `.verify/`, which ignores itself
    recorded in `.verify/pids/` and nothing else. Daniel's Metro on 8081 is
    never touched.
 2. Starts a fresh local Convex backend from the binary the Convex CLI caches
-   (`~/.cache/convex/binaries`), on ports 3270/3271, with its database in
-   `.verify/run/<before|after>/convex/`. It doesn't read or write `.env.local`, so the shared
-   dev deployment is never used.
+   (`~/.cache/convex/binaries`), on ports 3270/3271 (see below to move them), with its database in
+   `.verify/run/<before|after>/convex/`. It doesn't read `.env.local`, so the shared
+   dev deployment is never used. The Convex CLI writes the local backend's URLs
+   into `.env.local` when it pushes, so verify puts that file back as it was.
 3. Pushes the functions, sets JWT keys and `E2E_AUTH_*`, and seeds the sweep
-   data (`scripts/sweep-seed.mjs`).
+   data (`scripts/sweep-seed.mjs`). Events are seeded around the top of the
+   next hour, the same instant for both phases, so their times read the same
+   in before and after and in a rerun within the hour.
 4. Serves the web app on 8192 and Metro for iOS on 8092, both pointed at the
    local backend.
 5. Boots the simulator `iPhone 17 Pro` (`--device` to change it) and waits
@@ -93,7 +96,22 @@ Everything a run starts lives under `.verify/`, which ignores itself
    iOS, a Maestro flow generated from the same routes
    (`.verify/run/<before|after>/ios-flow.yaml`). iOS signs in as the admin through
    the `e2e-auth` deep link.
+
+   A screenshot waits until the screen has stopped moving: it keeps taking
+   frames until two in a row are identical, up to ten
+   (`scripts/lib/stableFrames.mjs`). A still frame identical to the screen
+   before counts only after five frames, because under load the app can sit
+   on the old screen before it starts to move to the new one. On iOS the Maestro flow asks verify
+   after each frame whether that screen has settled. The simulator's status
+   bar reads 9:41 with full signal and battery for the whole run and goes
+   back to normal afterwards. A screen still moving after ten frames, like
+   one with a spinner, is kept as it was and named in the step's detail.
 7. Stops everything it started and frees the ports, even when a step fails.
+
+When another worktree's run already holds the ports, give this run its own
+with `VERIFY_CONVEX_PORT`, `VERIFY_CONVEX_SITE_PORT`, `VERIFY_METRO_PORT` and
+`VERIFY_WEB_PORT` (for example 3280, 3281, 8097, 8197), and its own
+simulator with `--device`. Never 8081.
 
 For **before** screenshots it does the same against the merge base. That
 tree comes from `git archive` into a folder under `$TMPDIR` named after the
@@ -120,6 +138,28 @@ work in a PR description. Paste the rows for the screens the change touches;
 all of them together overflow GitHub's limit on a PR description.
 `--publish-only` publishes the last finished run again without rerunning it.
 
+## Filling in a form
+
+Route flows open screens; they don't type into them. To drive a form by hand,
+find each input by its test id. Every `Field` gets one from its label, or
+from its accessibility label when it shows none: `field-` plus the label in
+kebab case, without "(optional)". A `LabelledField` uses its visible label,
+not the ", required" its accessibility label adds. "Title" is
+`field-title` and "Phone (optional)" is `field-phone`. A caller that passes
+its own `testID` keeps it (`announcement-title`, `checkin-name`).
+
+On iOS, in a Maestro flow:
+
+```yaml
+- tapOn:
+    id: field-title
+- inputText: Practice moved to 7pm
+```
+
+On web, with Playwright: `page.getByTestId("field-title").fill("…")`. When
+two fields on one screen share a label, as the link rows on Edit Home do,
+Maestro takes `index:` and Playwright `.nth()`.
+
 ## Requirements on this Mac
 
 - Maestro at `~/.maestro/bin` and Homebrew OpenJDK. The script sets
@@ -139,6 +179,14 @@ all of them together overflow GitHub's limit on a PR description.
 | full | 25 to 35 min | 15 to 20 min |
 
 ## Still open
+
+- Before and after pairs of an unchanged screen still differ where the
+  server writes the time (an attendance sign-in, a request's submission),
+  the app shows a time relative to now ("7m ago") or the calendar draws its
+  line for the current time, and on screens that never stop moving, such as
+  the pending step's spinner on a request. Both phases seed at
+  the same round hour, but the backend stamps writes with the real clock and
+  the phases run minutes apart.
 
 - iOS signs in as admin only, while web runs all four roles.
 - The scoped tier runs `vitest related`, not the whole suite.

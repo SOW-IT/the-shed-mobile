@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ComponentProps } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { keyed } from "@/lib/listKeys";
 import { Sheet } from "./overlays";
 
 type GuideStep = {
@@ -24,8 +25,8 @@ export const GuideSheet = ({
   const t = useAppTheme();
   return (
     <Sheet visible={visible} onClose={onClose} title={title}>
-      {steps.map((step, i) => (
-        <View key={i} style={styles.step}>
+      {keyed(steps, (step) => step.title).map(({ item: step, key }) => (
+        <View key={key} style={styles.step}>
           <View style={[styles.iconWrap, { backgroundColor: t.primarySoft }]}>
             <Ionicons name={step.icon} size={18} color={t.primary} />
           </View>

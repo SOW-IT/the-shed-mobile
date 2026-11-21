@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import { tagColourHex } from "../../../shared/attendanceTags";
-import { radius, typography } from "@/theme";
+import { radius, typography, fixedColours } from "@/theme";
 
 export const AttendanceTagPill = ({
   name,
@@ -31,7 +31,7 @@ export const AttendanceTagPill = ({
         style={[
           typography.caption,
           {
-            color: selected ? "#fff" : hex,
+            color: selected ? fixedColours.onColour : hex,
             fontWeight: "600",
             fontSize: small ? 11 : 12,
           },

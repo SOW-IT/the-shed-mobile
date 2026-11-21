@@ -7,6 +7,7 @@ import {
 } from "@shared/eventRequests";
 import { formatAmount, money, sumAmounts } from "@shared/money";
 import { Btn, Card, currencyText, Field, Muted } from "@/components/ui";
+import { keyed } from "@/lib/listKeys";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { spacing, typography, useAppTheme } from "@/theme";
 
@@ -191,8 +192,8 @@ export const FinanceView = ({ data }: { data: FinanceData }) => {
     <Card>
       <Text style={[typography.headline, { color: t.text }]}>{title}</Text>
       {lines.length === 0 ? <Muted>None</Muted> : null}
-      {lines.map((l, i) => (
-        <View key={i} style={styles.summaryRow}>
+      {keyed(lines, (l) => `${l.label}|${l.amount}`).map(({ item: l, key }) => (
+        <View key={key} style={styles.summaryRow}>
           <Text selectable style={[typography.body, { color: t.text, flex: 1 }]}>
             {l.label}
           </Text>

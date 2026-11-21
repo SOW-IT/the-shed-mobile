@@ -58,6 +58,68 @@ export const audienceSummary = (audience: Audience): string => {
   return groups.length > 0 ? `${roles} in ${where}` : roles;
 };
 
+export const PEOPLE_MAX = 2000;
+
+export const cleanEmails = (emails: readonly string[]): string[] => [
+  ...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean)),
+];
+
+export const nameList = (names: readonly string[], total = names.length): string => {
+  const shown = names.slice(0, 3);
+  const more = total - shown.length;
+  if (shown.length === 0) return "";
+  if (more > 0) return `${shown.join(", ")} and ${more} more`;
+  if (shown.length === 1) return shown[0];
+  return `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+};
+
+export type NoPushReason = "noApp" | "notificationsOff";
+
+export const NO_PUSH_LABELS: Record<NoPushReason, string> = {
+  noApp: "No app",
+  notificationsOff: "Notifications off",
+};
+
+export type EmailChoice = "none" | "withoutApp" | "everyone";
+
+export const emailChoiceOf = (announcement: {
+  sendEmail: boolean;
+  emailWithoutApp?: boolean;
+}): EmailChoice =>
+  announcement.sendEmail ? "everyone" : announcement.emailWithoutApp ? "withoutApp" : "none";
+
+export const emailFlags = (
+  choice: EmailChoice
+): { sendEmail: boolean; emailWithoutApp?: true } =>
+  choice === "everyone"
+    ? { sendEmail: true }
+    : choice === "withoutApp"
+      ? { sendEmail: false, emailWithoutApp: true }
+      : { sendEmail: false };
+
+/** Who an announcement emails, given who in its audience a push can reach. */
+export const emailRecipients = (
+  recipients: readonly string[],
+  withApp: ReadonlySet<string>,
+  choice: EmailChoice
+): string[] =>
+  choice === "everyone"
+    ? [...recipients]
+    : choice === "withoutApp"
+      ? recipients.filter((email) => !withApp.has(email))
+      : [];
+
+/** Sending would leave someone with neither a push nor an email. */
+export const missesSomeone = (withoutPush: number, choice: EmailChoice): boolean =>
+  withoutPush > 0 && choice === "none";
+
+export const emailDeliverySummary = (choice: EmailChoice): string =>
+  choice === "everyone"
+    ? "Push and email"
+    : choice === "withoutApp"
+      ? "Push, and email to anyone without it"
+      : "Push only";
+
 export const sortRoles = (roles: Iterable<string>): string[] => {
   const order = (role: string) => {
     const i = (ROLES as readonly string[]).indexOf(role);
@@ -147,3 +209,22 @@ export const announcementEmail = (opts: {
   subject: opts.title,
   body: `${opts.message}\n\n— ${opts.senderName}, via THE SHED\n\nOpen in THE SHED: ${opts.link}`,
 });
+
+export type PersonOption = { email: string; name: string; detail: string };
+
+export const personMatches = (person: PersonOption, search: string): boolean => {
+  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const haystack = `${person.name} ${person.email} ${person.detail}`.toLowerCase();
+  return words.every((word) => haystack.includes(word));
+};
+
+/** Adds every shown person to the chosen ones, keeping the order they were picked in. */
+export const withAll = (chosen: readonly string[], shown: readonly PersonOption[]): string[] => [
+  ...new Set([...chosen, ...shown.map((person) => person.email)]),
+];
+
+/** Takes every shown person off the chosen ones. */
+export const withoutAll = (chosen: readonly string[], shown: readonly PersonOption[]): string[] => {
+  const drop = new Set(shown.map((person) => person.email));
+  return chosen.filter((email) => !drop.has(email));
+};
