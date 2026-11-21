@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { staffYearStartMs } from "../shared/flow";
+import type { Id } from "./_generated/dataModel";
 import { api, internal } from "./_generated/api";
 import { actionOwnerEmail } from "./requests";
 import { type T, YEAR, ADMIN, newConvex, asUser } from "../test/convexFixture";
@@ -33,9 +34,9 @@ const submit = async (t: T, amount = 100) => {
   return request._id;
 };
 
-const owner = (t: T, requestId: string) =>
+const owner = (t: T, requestId: Id<"requests">) =>
   t.run(async (ctx) => {
-    const request = await ctx.db.get("requests", requestId as never);
+    const request = await ctx.db.get("requests", requestId);
     return actionOwnerEmail(ctx, request!);
   });
 

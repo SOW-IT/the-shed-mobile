@@ -92,7 +92,7 @@ export default function NotificationsScreen() {
       const separator = url.includes("?") ? "&" : "?";
       reopenCounter.current += 1;
       const reopen = encodeURIComponent(`${id}:${reopenCounter.current}`);
-      router.push(`${url}${separator}reopen=${reopen}` as never);
+      router.push(`${url}${separator}reopen=${reopen}`);
     }
   };
 
