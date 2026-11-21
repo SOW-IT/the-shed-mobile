@@ -50,7 +50,6 @@ const EdgeShade = ({
   width: number | null;
 }) => {
   const t = useAppTheme();
-  const shade = t.dark ? "rgba(0, 0, 0, 0.5)" : "rgba(15, 37, 35, 0.14)";
   return (
     <View
       pointerEvents="none"
@@ -64,7 +63,7 @@ const EdgeShade = ({
           [edge]: 0,
         },
         gradientStyle(
-          `linear-gradient(${edge === "top" ? "to bottom" : "to top"}, ${shade}, transparent)`
+          `linear-gradient(${edge === "top" ? "to bottom" : "to top"}, ${t.edgeShade}, transparent)`
         ),
       ]}
     />

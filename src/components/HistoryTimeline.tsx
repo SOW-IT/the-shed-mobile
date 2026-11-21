@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { formatDuration, timelineGapHeight } from "@shared/datetime";
 import { keysFor } from "@/lib/listKeys";
 import { sydneyDateTime } from "@/lib/sydneyTime";
-import { spacing, typography, useAppTheme, type AppTheme } from "@/theme";
+import { spacing, typography, useAppTheme, type AppTheme, fixedColours } from "@/theme";
 import { Facts } from "@/components/ui";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -71,7 +71,7 @@ export const HistoryTimeline = ({
   pending?: { label: string; note?: ReactNode };
 }) => {
   const t = useAppTheme();
-  const onCircle = t.dark ? t.background : "#ffffff";
+  const onCircle = t.dark ? t.background : fixedColours.onColour;
   const keys = keysFor(entries.map((entry) => `${entry.at}|${entry.action}`));
   return (
     <View>

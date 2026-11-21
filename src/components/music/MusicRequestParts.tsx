@@ -1,7 +1,7 @@
 import { Btn, Card, Sheet } from "@/components/ui";
 import { releaseDateLabel, songServiceLabel } from "@shared/praiseList";
 import { openExternalLink } from "@/lib/openExternalLink";
-import { radius, spacing, useAppTheme } from "@/theme";
+import { radius, spacing, useAppTheme, fixedColours } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -96,7 +96,7 @@ export function FilterChips({
             ]}
           >
             <Text
-              style={[styles.filterText, { color: selected ? "#fff" : t.text }]}
+              style={[styles.filterText, { color: selected ? fixedColours.onColour : t.text }]}
             >
               {option === "ALL"
                 ? "All"
