@@ -76,7 +76,8 @@ rather than an `@sow.org.au` Google account (personal Google sign-in was
 removed in 2.4.7; guests who used it before keep their account but can't
 sign in with it again). A guest has an account and no profile. Guest is no
 longer a Role (2.9.9): a non-student at events, such as a parent or a church
-guest, is a hand-set Visitor.
+guest, is a hand-set Visitor, or an Event guest when they only come once (see
+[Attendance](./attendance.md)).
 Deleting a guest's account removes everything it had; deleting a staff
 member's account removes only the sign-in, and their profiles stay.
 _Avoid_: visitor (in Attendance that's someone from another campus), public
