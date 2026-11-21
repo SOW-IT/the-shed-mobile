@@ -281,6 +281,9 @@ export const send = mutation({
     if (recipients.length === 0) {
       throw new ConvexError("No one matches who you chose.");
     }
+    // Keep only the people on this year's staff, so someone who joins later
+    // isn't sent an announcement they weren't counted in.
+    const onStaff = new Set(recipients);
 
     const limited = rateLimitError({
       ...(await senderActivity(ctx, caller.email, now)),
@@ -296,7 +299,7 @@ export const send = mutation({
       title: draft.title,
       message: draft.message,
       audience,
-      ...(people ? { people } : {}),
+      ...(people ? { people: people.filter((email) => onStaff.has(email)) } : {}),
       ...emailFlags(emailChoiceOf(args)),
       status: "scheduled",
       sendAt,

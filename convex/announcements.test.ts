@@ -231,9 +231,20 @@ describe("choosing people", () => {
     const admin = asUser(t, ADMIN);
     const { id, people } = await admin.mutation(
       api.announcements.send,
-      draft({ people: [LEADER, PRES, "Fiona@sow.org.au"], audience: audience({ roles: ["Nope"] }) })
+      draft({
+        people: [LEADER, PRES, "old@sow.org.au", "Fiona@sow.org.au"],
+        audience: audience({ roles: ["Nope"] }),
+      })
     );
     expect(people).toBe(3);
+    // Last year's leader is dropped when it's sent, so joining later doesn't add them.
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "old@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Finance" }],
+      })
+    );
     expect(await announcement(t, id)).toMatchObject({
       audience: EVERYONE,
       people: [LEADER, PRES, FIN],
