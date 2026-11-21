@@ -2,26 +2,24 @@
 
 - because core: convex/comments.ts
 - because core: convex/crons.ts
-- because core: convex/model.ts
 - because core: convex/schema.ts
-- because core: convex/userLink.ts
 
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 39s |  |
-| typecheck | ✔ pass | 11s |  |
-| unit tests with coverage | ✔ pass | 15s |  |
+| native fingerprint | ✔ pass | 3s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 40s |  |
+| typecheck | ✔ pass | 12s |  |
+| unit tests with coverage | ✔ pass | 16s |  |
 | Playwright Chromium | ✔ pass | 1s |  |
 | before: local backend | ✔ pass | 14s | before functions on :3270 |
-| before: web | ✔ pass | 549s | 140 screens, 0 broken. |
+| before: web | ✔ pass | 431s | 140 screens, 0 broken. |
 | before: iOS reset | ✔ pass | 2s |  |
-| before: iOS | ✔ pass | 234s | 35 screenshots |
-| after: local backend | ✔ pass | 16s | after functions on :3270 |
-| after: web | ✔ pass | 494s | 140 screens, 0 broken. |
+| before: iOS | ✔ pass | 221s | 35 screenshots |
+| after: local backend | ✔ pass | 15s | after functions on :3270 |
+| after: web | ✔ pass | 423s | 140 screens, 0 broken. |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 206s | 35 screenshots |
+| after: iOS | ✔ pass | 184s | 35 screenshots |
 
 ## Screenshots
 
