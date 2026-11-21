@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
 import { Text, View } from "react-native";
 import { Field } from "@/components/ui";
+import { fieldTestID } from "@/components/ui/fieldTestID";
 import { typography, useAppTheme } from "@/theme";
 
 export const LabelledField = ({
@@ -15,7 +16,11 @@ export const LabelledField = ({
         {label}
         {required ? <Text style={{ color: t.danger }}> *</Text> : null}
       </Text>
-      <Field {...field} accessibilityLabel={required ? `${label}, required` : label} />
+      <Field
+        {...field}
+        testID={field.testID ?? fieldTestID(label)}
+        accessibilityLabel={required ? `${label}, required` : label}
+      />
     </View>
   );
 };
