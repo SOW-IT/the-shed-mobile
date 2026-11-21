@@ -1091,8 +1091,9 @@ export default function EventAttendanceScreen() {
               key={g._id}
               mode="signedIn"
               name={g.name}
-              subtitle={`${formatSignInTime(g.addedAt, multiDay)}, just this event`}
+              subtitle={formatSignInTime(g.addedAt, multiDay)}
               photo={null}
+              showCampus={false}
               tag={{ label: "Guest", colour: t.muted }}
               disabled={!canEdit}
               actionDisabled={!canReverseSignIn(event, g.addedAt, clock)}
