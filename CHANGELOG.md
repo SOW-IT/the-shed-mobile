@@ -15,6 +15,16 @@ All notable changes to **The SHED** mobile app. This project follows
   which lists every name it uses. Lint rejects `process.env` anywhere else in
   `src/` and `convex/`. Nothing changes for people using the app.
 
+## [2.11.46] - 2026-11-22
+
+### Changed
+- **Colours come from the theme, for contributors.** A colour written into a
+  screen is how a dark-mode miss happens, so lint now rejects hex and `rgb()`
+  literals outside `src/theme.ts` and the calendar palette. Colours that are
+  the same in both themes (white on a badge, shadows, the QR code) live in
+  `fixedColours`. The only screen that looks different is the "Configuration
+  error" screen, which now follows the dark theme too.
+
 ## [2.11.45] - 2026-11-22
 
 ### Changed
