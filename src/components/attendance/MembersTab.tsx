@@ -200,7 +200,7 @@ export function MembersTab({
             title={`Review ${mergeCount} who may be the same person`}
             variant="tonal"
             icon="git-merge-outline"
-            onPress={() => router.push("/attendance/merges" as never)}
+            onPress={() => router.push("/attendance/merges")}
           />
         </View>
       ) : null}
