@@ -14,7 +14,9 @@ All notable changes to **The SHED** mobile app. This project follows
   identical, on iOS and web, so none is caught mid-transition. The iOS status
   bar shows 9:41 throughout, and seeded events sit at a round hour. Times the
   server stamps can still differ (`docs/verification.md` → "Still open").
-  Nothing changes for people using the app.
+  Verify also stops leaving the checkout's `.env.local` pointed at its
+  throwaway backend, which the Convex CLI wrote there on every run. Nothing
+  changes for people using the app.
 
 ## [2.11.21] - 2026-11-21
 

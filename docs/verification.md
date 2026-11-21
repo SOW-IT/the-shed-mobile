@@ -77,8 +77,9 @@ Everything a run starts lives under `.verify/`, which ignores itself
    never touched.
 2. Starts a fresh local Convex backend from the binary the Convex CLI caches
    (`~/.cache/convex/binaries`), on ports 3270/3271, with its database in
-   `.verify/run/<before|after>/convex/`. It doesn't read or write `.env.local`, so the shared
-   dev deployment is never used.
+   `.verify/run/<before|after>/convex/`. It doesn't read `.env.local`, so the shared
+   dev deployment is never used. The Convex CLI writes the local backend's URLs
+   into `.env.local` when it pushes, so verify puts that file back as it was.
 3. Pushes the functions, sets JWT keys and `E2E_AUTH_*`, and seeds the sweep
    data (`scripts/sweep-seed.mjs`). Events are seeded around the top of the
    next hour, the same instant for both phases, so their times read the same

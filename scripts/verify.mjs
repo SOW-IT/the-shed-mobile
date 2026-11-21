@@ -260,7 +260,17 @@ const startBackend = async (label, tree, work) => {
   const envFile = join(dir, "env");
   writeFileSync(envFile, `CONVEX_SELF_HOSTED_URL=http://127.0.0.1:${PORTS.convex}\nCONVEX_SELF_HOSTED_ADMIN_KEY=${adminKey}\n`);
   const convex = (command, rest = []) => sh("npx", ["convex", ...command, "--env-file", envFile, ...rest], { cwd: tree });
-  convex(["dev"], ["--once", "--typecheck", "disable", "--codegen", "disable"]);
+  // `convex dev` writes this backend's URLs into the tree's .env.local as
+  // EXPO_PUBLIC_CONVEX_URL, which would point the checkout's own Metro at a
+  // backend that's gone once verify stops. Put the file back as it was.
+  const envLocal = join(tree, ".env.local");
+  const envLocalBefore = existsSync(envLocal) ? readFileSync(envLocal) : null;
+  try {
+    convex(["dev"], ["--once", "--typecheck", "disable", "--codegen", "disable"]);
+  } finally {
+    if (envLocalBefore) writeFileSync(envLocal, envLocalBefore);
+    else rmSync(envLocal, { force: true });
+  }
 
   sh("node", [join(ROOT, "scripts/generate-auth-keys.mjs")], { cwd: dir });
   const settings = {
