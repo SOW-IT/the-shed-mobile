@@ -474,6 +474,7 @@ export default function CalendarScreen() {
       <Card style={[styles.monthCard, wide ? undefined : styles.fullBleedCard]}>
         <View style={styles.week}>
           {WEEKDAYS.map((d, i) => (
+            // eslint-disable-next-line react/no-array-index-key -- seven fixed columns, and "T" and "S" repeat
             <Text key={i} style={[styles.weekday, typography.caption, { color: t.faint }]}>
               {d}
             </Text>
@@ -538,7 +539,7 @@ export default function CalendarScreen() {
                 {more.map((count, col) =>
                   count > 0 ? (
                     <View
-                      key={col}
+                      key={gridWeek[col].key}
                       style={[styles.slot, barColumn(col), { top: (MAX_ROWS - 1) * BAR_ROW }]}
                     >
                       <MoreLabel count={count} />
