@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "@convex/_generated/api";
+import { emailChoiceOf, emailDeliverySummary } from "@shared/announcements";
 import { formatDayTime } from "@/components/dateTimeDisplay";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { Card, EmptyState, LoadingState, Muted, Screen, SectionTitle, Chip, Facts } from "@/components/ui";
@@ -84,11 +85,11 @@ export default function AnnouncementScreen() {
                   parts={[
                     `${details.people} ${details.people === 1 ? "person" : "people"}`,
                     `${details.withApp} by push`,
-                    details.sendEmail ? `${details.emailed} by email` : null,
+                    details.sendEmail || details.emailed ? `${details.emailed} by email` : null,
                   ]}
                 />
               ) : (
-                <Muted>{details.sendEmail ? "Push and email" : "Push only"}</Muted>
+                <Muted>{emailDeliverySummary(emailChoiceOf(details))}</Muted>
               )}
             </Card>
             {details.seen ? (
