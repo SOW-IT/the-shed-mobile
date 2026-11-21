@@ -779,7 +779,10 @@ export default function EventAttendanceScreen() {
     setSearch("");
   };
 
-  const onAddGuest = async (rawName: string) => {
+  // The guest form is read-only while it saves, so clearing it can't drop new
+  // typing; search stays editable, so it's cleared only if it still holds the
+  // submitted name.
+  const onAddGuest = async (rawName: string, from: "form" | "search") => {
     const name = rawName.trim();
     if (!canEdit || !name || addingGuest) return;
     hapticSelect();
@@ -787,9 +790,12 @@ export default function EventAttendanceScreen() {
     try {
       await addGuest({ eventId: evId, name });
       setToast({ text: `Added ${name} as a guest for this event only.` });
-      setGuestName("");
-      setGuestFormOpen(false);
-      setSearch("");
+      if (from === "form") {
+        setGuestName("");
+        setGuestFormOpen(false);
+      } else {
+        setSearch((current) => (current === rawName ? "" : current));
+      }
     } catch (e) {
       setToast({ text: errorMessage(e) });
     } finally {
@@ -987,10 +993,11 @@ export default function EventAttendanceScreen() {
         placeholder="Guest's name"
         placeholderTextColor={t.faint}
         autoFocus
+        editable={!addingGuest}
         autoCapitalize="words"
         maxLength={EVENT_GUEST_NAME_MAX}
         returnKeyType="done"
-        onSubmitEditing={() => void onAddGuest(guestName)}
+        onSubmitEditing={() => void onAddGuest(guestName, "form")}
         accessibilityLabel="Guest's name"
         testID={fieldTestID("Guest's name")}
         style={[typography.body, styles.guestInput, { color: t.text }]}
@@ -1012,7 +1019,7 @@ export default function EventAttendanceScreen() {
         accessibilityLabel="Add guest"
         accessibilityState={{ disabled: !guestName.trim() || addingGuest }}
         disabled={!guestName.trim() || addingGuest}
-        onPress={() => void onAddGuest(guestName)}
+        onPress={() => void onAddGuest(guestName, "form")}
         style={({ pressed }) => [
           styles.guestAdd,
           { backgroundColor: t.primary, opacity: !guestName.trim() || addingGuest ? 0.4 : 1 },
@@ -1243,7 +1250,7 @@ export default function EventAttendanceScreen() {
               icon: "person-add-outline",
               accessibilityLabel: `Add "${search.trim()}" as a guest for this event only`,
               disabled: addingGuest,
-              onPress: () => void onAddGuest(search),
+              onPress: () => void onAddGuest(search, "search"),
             }}
             bottomOffset={footerBottomOffset}
           />

@@ -210,6 +210,18 @@ describe("event guests", () => {
     expect(log?.detail).toContain("Removed 1 guest: Dad");
   });
 
+  test("the delete preview counts every guest but lists at most 100 people", async () => {
+    const { t, admin, eventId } = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 101; i++) {
+        await ctx.db.insert("eventGuests", { eventId, name: `Guest ${i}`, addedAt: Date.now(), addedBy: ADMIN });
+      }
+    });
+    const preview = await admin.query(api.events.deletePreview, { eventId });
+    expect(preview?.total).toBe(101);
+    expect(preview?.people).toHaveLength(100);
+  });
+
   test("deleting an event with only guests lists just the guests", async () => {
     const { t, admin, eventId } = await setup();
     await admin.mutation(api.eventGuests.add, { eventId, name: "Mum" });

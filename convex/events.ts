@@ -51,6 +51,7 @@ import {
 import { deleteRollCallOrder, rankingInputsChanged, scheduleRank } from "./rollCallOrder";
 import { calendarSyncConfigured } from "./googleCalendar";
 import { deleteEventGuests } from "./eventGuests";
+import { EVENT_GUESTS_MAX } from "../shared/eventGuests";
 
 const weeklyMarkArg = v.object({
   year: v.number(),
@@ -554,14 +555,15 @@ export const deletePreview = query({
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
+    // Every guest counts toward the total; only the list is capped.
     const guests = await ctx.db
       .query("eventGuests")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
-      .take(MAX_AUDIT_ATTENDANCE_LINES);
+      .take(EVENT_GUESTS_MAX);
     const people = [
       ...(await attendeesToList(ctx, event, rows)),
       ...guests.map((g) => ({ attendanceId: g._id, name: `${g.name} (guest)`, signInTime: g.addedAt })),
-    ];
+    ].slice(0, MAX_AUDIT_ATTENDANCE_LINES);
     return { total: rows.length + guests.length, people };
   },
 });

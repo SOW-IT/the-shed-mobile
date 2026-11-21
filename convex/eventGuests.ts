@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { auditEventName, canReverseSignIn } from "../shared/rollcall";
-import { EVENT_GUEST_NAME_MAX } from "../shared/eventGuests";
+import { EVENT_GUEST_NAME_MAX, EVENT_GUESTS_MAX } from "../shared/eventGuests";
 import { Id } from "./_generated/dataModel";
 import { mutation, type MutationCtx, query } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
@@ -11,7 +11,7 @@ import { optionalProfile, requireProfile } from "./model";
 // that event's headcount (convex/attendanceCounts.ts) but have no attendance
 // member, so member lists, search, merges and member stats never see them.
 
-const MAX_GUESTS_PER_EVENT = 500;
+const MAX_GUESTS_PER_EVENT = EVENT_GUESTS_MAX;
 
 const guestValidator = v.object({
   _id: v.id("eventGuests"),
