@@ -146,8 +146,8 @@
         "src/components/AttendanceRow.tsx",
         "src/lib/{attendanceCsv,checkInDevice}.ts",
         "src/hooks/useAttendanceSubgroup.ts",
-        "convex/{attendance*,events,checkIn,memberCount,memberPairSuggestions,memberRoles,mergeSuggestions,rollCallOrder,rosterHistory,staffMembers}.ts",
-        "shared/{rollcall*,attendanceMemberMeta,attendanceTags,checkIn*,memberMerge,memberRole,mergeSuggestions,rollCallLikelihood}.ts"
+        "convex/{attendance*,events,eventGuests,checkIn,memberCount,memberPairSuggestions,memberRoles,mergeSuggestions,rollCallOrder,rosterHistory,staffMembers}.ts",
+        "shared/{rollcall*,attendanceMemberMeta,attendanceTags,checkIn*,eventGuests,memberMerge,memberRole,mergeSuggestions,rollCallLikelihood}.ts"
       ],
       "routes": [
         "/attendance",

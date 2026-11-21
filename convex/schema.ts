@@ -689,6 +689,16 @@ export default defineSchema({
     .index("by_event_and_member", ["eventId", "memberId"])
     .index("by_member", ["memberId"]),
 
+  // People signed in to one event by name only, e.g. someone's parents. They
+  // count toward that event's headcount but aren't attendance members, so they
+  // never show in member lists, search or member stats.
+  eventGuests: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    addedAt: v.number(),
+    addedBy: v.string(),
+  }).index("by_event", ["eventId"]),
+
   grievances: defineTable({
     ref: v.string(),
     // The staff year it's listed under; open ones move to the new year on 1 October.
