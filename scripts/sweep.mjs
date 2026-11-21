@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
+import { frameJudge } from "./lib/stableFrames.mjs";
 import { allRoutes, resolveRoutes, routeSlug } from "./lib/verifyPlan.mjs";
 
 const arg = (name, fallback) => {
@@ -77,6 +78,18 @@ const results = [];
 
 const settle = (ms) => page.waitForTimeout(ms);
 
+// The text can be still while something still moves (a spinner, a sliding
+// tab), so the screenshot waits for two identical frames as well.
+const FRAME_GAP_MS = 150;
+const frames = frameJudge();
+const screenshot = async (name) => {
+  for (;;) {
+    const frame = await page.screenshot();
+    if (frames.judge(name, frame).settled) return writeFileSync(`${OUT}/${name}.png`, frame);
+    await page.waitForTimeout(FRAME_GAP_MS);
+  }
+};
+
 const WARM_UP_TIMEOUT_MS = 180_000;
 await page.goto(`${BASE}/home`, { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS }).catch(() => {});
 await page
@@ -116,14 +129,15 @@ for (const [role, email] of roles) {
       .evaluate(() => document.body.innerText.replace(/\s+/g, " ").slice(0, 300))
       .catch(() => "");
     const expectedMissing = EXPECTED_MISSING.has(route);
+    const lostSession = email !== null && (SIGNED_OUT.test(text) || !(await hasSession()));
+    if (lostSession) errors.push("landed signed out");
+    await screenshot(`${role}-${routeSlug(template)}`).catch(() => {});
+    // After the screenshot, so an error during the frame wait still counts.
     const unexpectedConsole = expectedMissing
       ? []
       : consoleErrors.filter((message) => !HARMLESS_CONSOLE.some((pattern) => pattern.test(message)));
-    const lostSession = email !== null && (SIGNED_OUT.test(text) || !(await hasSession()));
-    if (lostSession) errors.push("landed signed out");
     const bad =
       (BROKEN.test(text) && !expectedMissing) || errors.length > 0 || unexpectedConsole.length > 0;
-    await page.screenshot({ path: `${OUT}/${role}-${routeSlug(template)}.png` }).catch(() => {});
     page.off("pageerror", onError);
     page.off("console", onConsole);
     results.push({ role, route, landed: page.url().replace(BASE, ""), bad, errors, consoleErrors, text });
@@ -142,5 +156,6 @@ for (const r of results) {
   for (const e of r.errors) console.log(`        page error: ${e}`);
   for (const e of r.consoleErrors.slice(0, 2)) console.log(`        console: ${e}`);
 }
-console.log(`\n${results.length} screens, ${broken.length} broken.`);
+const moving = frames.moving.length > 0 ? `, still moving: ${frames.moving.join(", ")}` : "";
+console.log(`\n${results.length} screens, ${broken.length} broken${moving}.`);
 if (broken.length > 0) process.exit(1);
