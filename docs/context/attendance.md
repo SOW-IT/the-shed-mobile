@@ -90,8 +90,11 @@ one-off night (`eventGuests`). They count toward that event's headcount
 (the event's count, its exports' totals, campus averages) but have no
 attendance member row, so they never appear in member lists, search, merges,
 roll-call order or Insights built from people. Added from the small "Guest"
-button beside Create while searching, or "Add a guest" under Signed in;
-removed like a sign-in, with the same 10-minute rule after the event ends.
+button beside Create while searching, or the "+ Guest" button beside the Not
+signed in header; renamed from the row's edit strip (`eventGuests.rename`, any
+time, since it doesn't change the count); removed like a sign-in, with the same
+10-minute rule after the event ends. The page header's "Total" chip is the
+headcount: members signed in plus guests.
 _Avoid_: guest (alone: that's an account, see [Org](./org.md)), temporary
 member (they aren't a Member), Visitor (a Member from another campus)
 
