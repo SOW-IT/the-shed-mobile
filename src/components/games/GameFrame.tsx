@@ -2,6 +2,8 @@ import { Btn, hapticSelect } from "@/components/ui";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { useLocalBests, recordRun } from "@/lib/games/gameStorage";
 import { OnlineBanner } from "./OnlineBanner";
+import { LeaveGameDialog } from "./LeaveGameDialog";
+import { needsLeaveConfirm } from "@/lib/games/leave";
 import { fitScale, type Size } from "@/lib/games/fit";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -62,11 +64,32 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   );
   const restart = useCallback(() => setRun(null), []);
   const canRestartByKey = useCallback(() => Date.now() - overAt.current > RESTART_LOCK_MS, []);
+  // Asking whether to leave a run in progress. The game is paused meanwhile.
+  const [askingToLeave, setAskingToLeave] = useState(false);
+  const askToLeave = useCallback(() => setAskingToLeave(true), []);
+  const keepPlaying = useCallback(() => setAskingToLeave(false), []);
+  const paused = askingToLeave && phase === "playing";
   const result = run?.over ? { score: run.score, previousBest: bestAtStart } : null;
-  return { run, setRun, phase, result, best, begin, restart, canRestartByKey };
+  return { run, setRun, phase, paused, result, best, begin, restart, canRestartByKey, askToLeave, keepPlaying };
 };
 
-type GameSession = Pick<ReturnType<typeof useGameSession>, "phase" | "result" | "best" | "restart">;
+type GameSession = Pick<
+  ReturnType<typeof useGameSession>,
+  "phase" | "paused" | "result" | "best" | "restart" | "askToLeave" | "keepPlaying"
+>;
+
+/**
+ * A screen that can be left by other means than the game's own back button
+ * (the iOS swipe, the browser's back) watches whether a run is in progress,
+ * asks the game to confirm when one of those is tried, and hears whether
+ * the player stayed.
+ */
+export type LeaveGuard = {
+  onPlayingChange: (playing: boolean) => void;
+  /** Goes up by one each time leaving was tried and blocked. */
+  leaveAsks: number;
+  onStay: () => void;
+};
 
 /** The latest value, for handlers made once. Written after each render. */
 export const useLatest = <T,>(value: T) => {
@@ -116,6 +139,7 @@ export const GameFrame = ({
   startHint,
   onExit,
   onLeaderboard,
+  guard,
   children,
 }: {
   game: GameId;
@@ -132,10 +156,29 @@ export const GameFrame = ({
   startHint: string;
   onExit: () => void;
   onLeaderboard?: () => void;
+  guard?: LeaveGuard;
   children: ReactNode;
 }) => {
   const { isAuthenticated } = useConvexAuth();
-  const { phase, result, best } = session;
+  const { phase, result, best, askToLeave, keepPlaying } = session;
+  const playing = phase === "playing";
+  const onPlayingChange = guard?.onPlayingChange;
+  useEffect(() => {
+    onPlayingChange?.(playing);
+  }, [onPlayingChange, playing]);
+  // A swipe or browser back was blocked: ask, the same as the back button.
+  const leaveAsks = guard?.leaveAsks ?? 0;
+  const seenAsks = useRef(leaveAsks);
+  useEffect(() => {
+    if (leaveAsks === seenAsks.current) return;
+    seenAsks.current = leaveAsks;
+    if (playing) askToLeave();
+  }, [leaveAsks, playing, askToLeave]);
+  const back = () => (needsLeaveConfirm(phase) ? askToLeave() : onExit());
+  const stay = () => {
+    keepPlaying();
+    guard?.onStay();
+  };
   const scale = fitScale(world, board);
   const info = GAME_INFO[game];
   const newBest = result !== null && result.score > result.previousBest && result.score > 0;
@@ -145,7 +188,7 @@ export const GameFrame = ({
       <StatusBar hidden={phase === "playing"} animated />
       <View style={styles.bar}>
         <Pressable
-          onPress={onExit}
+          onPress={back}
           hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel="Back to the games"
@@ -230,6 +273,7 @@ export const GameFrame = ({
         ) : null}
       </View>
       <OnlineBanner />
+      <LeaveGameDialog visible={session.paused} onLeave={onExit} onContinue={stay} />
     </SafeAreaView>
   );
 };

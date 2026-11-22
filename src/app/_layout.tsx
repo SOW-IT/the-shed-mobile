@@ -150,7 +150,8 @@ const RootStack = () => {
             <Stack.Screen name="checkin/[token]" />
             <Stack.Screen name="e2e-auth" />
             <Stack.Screen name="games/index" />
-            <Stack.Screen name="games/[game]" options={{ gestureEnabled: false }} />
+            {/* Swipe back works; during a run the game asks first (usePreventRemove). */}
+            <Stack.Screen name="games/[game]" />
             <Stack.Screen name="games/leaderboard" />
             <Stack.Screen
               name="spotify-callback"

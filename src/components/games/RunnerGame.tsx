@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
 import { MysticMan } from "./MysticMan";
 import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import type { LeaveGuard } from "./GameFrame";
 import { fitBoard } from "@/lib/games/fit";
 
 const c = fixedColours.games.runner;
@@ -93,10 +94,12 @@ export const RunnerGame = ({
   onExit,
   onLeaderboard,
   active = true,
+  guard,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
   active?: boolean;
+  guard?: LeaveGuard;
 }) => {
   const session = useGameSession<RunnerState>("runner");
   const { run, setRun, phase } = session;
@@ -109,7 +112,7 @@ export const RunnerGame = ({
   const [runHeight, setRunHeight] = useState(0);
   const latest = useLatest({ session, width, height });
 
-  useGameLoop(phase === "playing" && active, (dt) => setRun((state) => state && advance(state, dt, stepRunner)));
+  useGameLoop(phase === "playing" && active && !session.paused, (dt) => setRun((state) => state && advance(state, dt, stepRunner)));
 
   const act = (move: "jump" | "duck") => {
     const { session: current, width: w } = latest.current;
@@ -151,7 +154,7 @@ export const RunnerGame = ({
       return;
     }
     act(isJump ? "jump" : "duck");
-  }, undefined, active);
+  }, undefined, active && !session.paused);
 
   return (
     <GameFrame
@@ -165,6 +168,7 @@ export const RunnerGame = ({
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Tap", "press the up arrow")}
       onExit={onExit}
+      guard={guard}
       onLeaderboard={onLeaderboard}
     >
       {board ? <Scene state={run ?? preview} height={run && runHeight > 0 ? runHeight : height} /> : null}
