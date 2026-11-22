@@ -1,4 +1,5 @@
 import type { EmoteId, Look, MutualKind, Pose } from "@shared/world";
+import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
 import { garden, hud, people, shade } from "./palette";
@@ -185,7 +186,7 @@ const motion = (doing: Doing, t: number) => {
  * accessory. Turned by its heading; bobs while walking; plays emotes with a
  * face and a body animation.
  */
-export const Avatar = ({
+const AvatarView = ({
   figure,
   pose,
   look,
@@ -485,6 +486,37 @@ export const Avatar = ({
   }
   return <>{parts}</>;
 };
+
+const sameDoing = (a: Doing, b: Doing) =>
+  a === b ||
+  (a !== null && b !== null && a.kind === b.kind && a.id === b.id && a.p === b.p && (a.kind !== "mutual" || (b.kind === "mutual" && a.toward === b.toward)));
+
+/**
+ * The avatar, redrawn only when something about it changed. Someone standing
+ * still gets the same numbers every frame (the garden passes them t = 0), so
+ * they're skipped while someone else walks.
+ */
+export const Avatar = memo(
+  AvatarView,
+  (a, b) =>
+    a.figure.foot.x === b.figure.foot.x &&
+    a.figure.foot.y === b.figure.foot.y &&
+    a.figure.s === b.figure.s &&
+    a.figure.up === b.figure.up &&
+    a.figure.bob === b.figure.bob &&
+    a.pose.heading === b.pose.heading &&
+    a.pose.walking === b.pose.walking &&
+    a.look.skin === b.look.skin &&
+    a.look.hair === b.look.hair &&
+    a.look.hairColour === b.look.hairColour &&
+    a.look.shirt === b.look.shirt &&
+    a.look.hat === b.look.hat &&
+    a.look.accessory === b.look.accessory &&
+    a.t === b.t &&
+    a.seed === b.seed &&
+    a.shadow === b.shadow &&
+    sameDoing(a.doing ?? null, b.doing ?? null)
+);
 
 /** The name, line and emote over someone's head, above all the scenery. */
 export const Tag = ({

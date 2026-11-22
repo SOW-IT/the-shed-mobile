@@ -73,12 +73,21 @@ const TitlePill = ({ instance }: { instance: number }) => (
  * Shed World, the Garden. Tap the ground to walk; type to talk to people
  * nearby. Shows the list view instead offline, with VoiceOver, or by choice.
  */
-export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade: () => void }) => {
+export const WorldScreen = ({
+  onBack,
+  onArcade,
+  active = true,
+}: {
+  onBack: () => void;
+  onArcade: () => void;
+  /** False while another screen covers this one: the visit ends until it's back. */
+  active?: boolean;
+}) => {
   const offline = useOffline();
   const screenReader = useScreenReader();
   const [chosen, setChosen] = useState<WorldView | null>(null);
   const view = pickView({ offline, screenReader, chosen, canDraw: Platform.OS !== "android" });
-  const world = useWorld(!offline);
+  const world = useWorld(!offline && active);
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [person, setPerson] = useState<string | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
@@ -114,7 +123,8 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
     const problem = await world.say(text);
     if (problem) {
       setNote(problem);
-      setDraft(text);
+      // Put it back, unless they've started typing something new.
+      setDraft((current) => (current === "" ? text : current));
     }
   };
 
@@ -128,6 +138,8 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
   const sheets = (
     <>
       <PersonSheet
+        // A report started for one person never carries over to another.
+        key={person ?? "nobody"}
         person={tapped}
         muted={person !== null && muted.has(person)}
         near={near}

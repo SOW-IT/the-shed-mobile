@@ -101,6 +101,9 @@ export const useWorld = (enabled: boolean) => {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Bumped when a visit ends, so a reply from the last visit can't queue a move in this one.
   const visit = useRef(0);
+  // True from a tap until the server answers it: our own walk is a
+  // prediction until then, and the server's may be older than it.
+  const predicting = useRef(false);
 
   const serverNow = useCallback(() => Date.now() + (offset.current ?? 0), []);
   const heard = useCallback((serverTime: number, sentAt: number) => {
@@ -144,6 +147,7 @@ export const useWorld = (enabled: boolean) => {
       // eslint-disable-next-line react-hooks/exhaustive-deps -- a counter of visits, not a rendered node; bumping it at cleanup is the point
       visit.current++;
       pending.current = null;
+      predicting.current = false;
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       counts.leave++;
@@ -182,8 +186,10 @@ export const useWorld = (enabled: boolean) => {
   const myServerWalk = myRow && !(myRow instanceof Error) ? (myRow as Walk) : null;
   useEffect(() => {
     // Adopt the server's walk when it's newer than ours (another device, or the first load).
-    if (myServerWalk && (!myWalk || myServerWalk.startedAt > myWalk.startedAt + 1000)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- adopting a newer walk from the server
+    // While a tap is unanswered, only a walk well after ours (another device)
+    // replaces the prediction; otherwise any newer walk from the server does.
+    const gap = predicting.current ? 1000 : 0;
+    if (myServerWalk && (!myWalk || myServerWalk.startedAt > myWalk.startedAt + gap)) {
       setMyWalk(myServerWalk);
     }
   }, [myServerWalk, myWalk]);
@@ -210,7 +216,10 @@ export const useWorld = (enabled: boolean) => {
         heard(reply.serverNow, sentAt);
         if (reply.ok) {
           const { fromX, fromZ, toX, toZ, startedAt } = reply;
-          if (!pending.current) setMyWalk({ fromX, fromZ, toX, toZ, startedAt });
+          if (!pending.current) {
+            setMyWalk({ fromX, fromZ, toX, toZ, startedAt });
+            predicting.current = false;
+          }
         } else {
           // Turned away by the rate limit: send the latest spot once a token is back.
           stats.current.moveRefused++;
@@ -219,6 +228,7 @@ export const useWorld = (enabled: boolean) => {
         }
       })
       .catch((e: unknown) => {
+        if (!pending.current) predicting.current = false;
         if (leftGarden(e)) again();
       })
       .finally(() => {
@@ -245,6 +255,7 @@ export const useWorld = (enabled: boolean) => {
       });
       setTarget(to);
       pending.current = to;
+      predicting.current = true;
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
       later(COALESCE_MS);

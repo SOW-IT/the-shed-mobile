@@ -2,8 +2,8 @@ import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { canHear, EMOTE_IDS, EMOTES, MAX_SAY_LENGTH, posAt } from "@shared/world";
 import { useQuery } from "convex/react";
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { useWorld } from "./useWorld";
 
@@ -39,6 +39,29 @@ export const WorldList = ({
   const t = useAppTheme();
   const [draft, setDraft] = useState("");
   const log = useQuery(api.world.chatLog, world.roomId && !offline ? { roomId: world.roomId } : "skip");
+
+  // Read new lines from others aloud as they arrive (VoiceOver), but not the
+  // history that was there when the list opened.
+  const heard = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!log) return;
+    const known = heard.current;
+    heard.current = new Set(log.map((line) => line.id));
+    if (!known || Platform.OS === "web") return;
+    for (const line of [...log].reverse()) {
+      if (known.has(line.id) || line.isMe || muted.has(line.memberId)) continue;
+      AccessibilityInfo.announceForAccessibilityWithOptions(`${line.name} said ${line.text}`, { queue: true });
+    }
+  }, [log, muted]);
+
+  // "Can hear you" changes as people walk; recount once a second while anyone is.
+  const [, setTick] = useState(0);
+  const walking = world.people.some((p) => p.walk && posAt(p.walk, world.serverNow()).walking);
+  useEffect(() => {
+    if (!walking) return;
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [walking]);
   const title = world.instance > 1 ? `The Garden · ${world.instance}` : "The Garden";
 
   if (offline) {
@@ -64,7 +87,8 @@ export const WorldList = ({
     const problem = await world.say(text);
     if (problem) {
       onNote(problem);
-      setDraft(text);
+      // Put it back, unless they've started typing something new.
+      setDraft((current) => (current === "" ? text : current));
     }
   };
 
@@ -136,6 +160,8 @@ export const WorldList = ({
         </View>
         {note ? <Text style={[typography.caption, { color: t.danger }]}>{note}</Text> : null}
         {log && log.filter((l) => !muted.has(l.memberId)).length === 0 ? <Muted>Nothing yet. Say hello.</Muted> : null}
+        {/* On the web, a polite live region reads new lines out. */}
+        <View aria-live="polite" style={styles.lines}>
         {(log ?? [])
           .filter((line) => !muted.has(line.memberId))
           .map((line) => (
@@ -146,6 +172,7 @@ export const WorldList = ({
               <Text style={[typography.body, { color: t.text }]}>{line.text}</Text>
             </View>
           ))}
+        </View>
         <Muted>Lines are kept for 15 minutes, unless someone reports them.</Muted>
       </Card>
     </Screen>
@@ -167,4 +194,5 @@ const styles = StyleSheet.create({
   emote: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   emoteText: { fontSize: 20 },
   line: { gap: 2, paddingVertical: spacing.xs },
+  lines: { gap: spacing.xs },
 });

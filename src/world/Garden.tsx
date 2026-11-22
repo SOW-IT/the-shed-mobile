@@ -214,7 +214,9 @@ export const Garden = ({
     actors.push({
       depth: figure.foot.depth,
       key: p.memberId,
-      node: <Avatar figure={figure} pose={turned} look={p.look} t={t} seed={seed} doing={d} />,
+      // Only someone moving needs the clock; for the rest t stays 0, so their
+      // memoized avatar isn't redrawn while others walk.
+      node: <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} doing={d} />,
     });
     const far = !p.me && mePose !== null && !canHear(mePose, pose);
     const line = !p.muted && recent(p.say?.at, BUBBLE_MS) ? p.say?.text : undefined;
