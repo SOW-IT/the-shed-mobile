@@ -72,9 +72,14 @@ describe("submitScores", () => {
 });
 
 describe("leaderboard", () => {
-  test("is only for signed-in people", async () => {
+  test("anyone can read it, signed out too, with no best of their own", async () => {
     const t = newConvex();
-    expect(await t.query(api.gameScores.leaderboard, { game: "runner" })).toBeNull();
+    expect(await t.query(api.gameScores.leaderboard, { game: "runner" })).toEqual({ top: [], me: null });
+    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 300)] });
+    expect(await t.query(api.gameScores.leaderboard, { game: "runner" })).toEqual({
+      top: [{ rank: 1, name: "anna", score: 300, isMe: false }],
+      me: null,
+    });
   });
 
   test("lists one best per person by name, ties sharing a place, with the caller's own", async () => {

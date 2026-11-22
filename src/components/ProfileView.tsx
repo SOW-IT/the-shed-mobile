@@ -273,6 +273,7 @@ export const ProfileView = ({
     return (
       <ProfileFrame asTab={asTab} onBack={goBack}>
         <SignInPrompt what="page" />
+        {email ? null : <VersionText />}
       </ProfileFrame>
     );
   }

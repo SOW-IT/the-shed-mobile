@@ -77,23 +77,20 @@ const entryValidator = v.object({
 
 /**
  * The top scores of a game, one per person, and the caller's own best and
- * place. Signed-out callers get null: the names are members'.
+ * place. Anyone can read it, so the games' leaderboard works signed out;
+ * a signed-out caller has no best of their own here.
  */
 export const leaderboard = query({
   args: { game: gameIdValidator },
-  returns: v.union(
-    v.null(),
-    v.object({
-      top: v.array(entryValidator),
-      me: v.union(
-        v.null(),
-        v.object({ score: v.number(), rank: v.union(v.number(), v.null()) })
-      ),
-    })
-  ),
+  returns: v.object({
+    top: v.array(entryValidator),
+    me: v.union(
+      v.null(),
+      v.object({ score: v.number(), rank: v.union(v.number(), v.null()) })
+    ),
+  }),
   handler: async (ctx, { game }) => {
     const email = await optionalEmail(ctx);
-    if (!email) return null;
     const rows = await ctx.db
       .query("gameScores")
       .withIndex("by_game_and_score", (q) => q.eq("game", game))
@@ -106,13 +103,15 @@ export const leaderboard = query({
         rank: rows.findIndex((other) => other.score === row.score) + 1,
         name: await nameFor(ctx, row.email),
         score: row.score,
-        isMe: row.email === email,
+        isMe: email !== null && row.email === email,
       });
     }
-    const mine = await ctx.db
-      .query("gameScores")
-      .withIndex("by_email_and_game", (q) => q.eq("email", email).eq("game", game))
-      .unique();
+    const mine = email
+      ? await ctx.db
+          .query("gameScores")
+          .withIndex("by_email_and_game", (q) => q.eq("email", email).eq("game", game))
+          .unique()
+      : null;
     if (!mine) return { top, me: null };
     const ahead = await ctx.db
       .query("gameScores")

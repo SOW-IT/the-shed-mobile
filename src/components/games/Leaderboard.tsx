@@ -12,7 +12,6 @@ const Board = ({ game }: { game: GameId }) => {
   const t = useAppTheme();
   const board = useQuery(api.gameScores.leaderboard, { game });
   if (board === undefined) return <LoadingState />;
-  if (board === null) return null;
   return (
     <View style={styles.boardGap}>
       {board.me ? (
@@ -68,7 +67,6 @@ export const Leaderboard = ({
   const offline = useOffline();
   const localBest = useLocalBests()[game];
   const waiting = useScoreQueue().some((queued) => queued.game === game);
-  const canLoad = isAuthenticated && !offline;
   return (
     <Screen title="Leaderboard" subtitle="Games" onBack={onBack} maxWidth={640}>
       <TabBar
@@ -83,23 +81,20 @@ export const Leaderboard = ({
           On this device: best {localBest.toLocaleString()}
           {waiting ? ", waiting to be published" : ""}
         </Text>
+        {!isAuthenticated && !isLoading ? (
+          <Text style={[typography.caption, { color: t.dark ? t.text : t.primary }]}>
+            Sign in and your scores go on the leaderboard.
+          </Text>
+        ) : null}
       </View>
-      {canLoad ? (
-        <Board game={game} />
-      ) : offline ? (
+      {offline ? (
         <EmptyState
           icon="cloud-offline-outline"
           title="You're offline"
           message="The leaderboard shows up when you're back online. Your scores are saved on this device until then."
         />
-      ) : isLoading ? (
-        <LoadingState />
       ) : (
-        <EmptyState
-          icon="lock-closed-outline"
-          title="Sign in to see the leaderboard"
-          message="Your scores are saved on this device and go on the leaderboard once you sign in."
-        />
+        <Board game={game} />
       )}
       <View style={styles.play}>
         <Btn title={`Play ${GAME_INFO[game].title}`} icon="play" variant="tonal" onPress={() => onPlay(game)} />
