@@ -74,7 +74,8 @@ describe("tryAcquire", () => {
   test("takes a free lock, creating its folder, and leaves no temporary file", () => {
     const record = ownRecord({ root: "/a", branch: "b" });
     expect(tryAcquire(file, record)).toEqual({ ok: true });
-    expect(lockOf()).toEqual(record);
+    expect(lockOf()).toEqual({ ...record, since: expect.any(String) });
+    expect(Date.now() - Date.parse(lockOf().since)).toBeLessThan(5000);
     expect(readdirSync(join(dir, "nested"))).toEqual(["verify.lock"]);
   });
 
@@ -82,8 +83,8 @@ describe("tryAcquire", () => {
     const first = ownRecord({ branch: "first" });
     tryAcquire(file, first);
     const result = tryAcquire(file, ownRecord({ branch: "second" }));
-    expect(result).toEqual({ ok: false, holder: first });
-    expect(currentHolder(file)).toEqual(first);
+    expect(result).toEqual({ ok: false, holder: { ...first, since: expect.any(String) } });
+    expect(currentHolder(file)?.token).toBe(first.token);
   });
 
   test("taking it again with the same record is a no-op", () => {

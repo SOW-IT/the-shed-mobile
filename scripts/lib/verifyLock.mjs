@@ -35,12 +35,11 @@ export const holderGone = (record, startOf = processStart) => {
   return started !== "" && started !== record.started;
 };
 
-/** This process's lock record. */
+/** This process's lock record. The lock file adds `since`, when it was taken. */
 export const ownRecord = (details = {}, startOf = processStart) => ({
   token: randomUUID(),
   pid: process.pid,
   started: startOf(process.pid),
-  since: new Date().toISOString(),
   ...details,
 });
 
@@ -56,7 +55,7 @@ const read = (file) => {
 // Creates `file` holding `record`, or reports that it already exists.
 const create = (file, record) => {
   const aside = `${file}.${record.token}.tmp`;
-  writeFileSync(aside, JSON.stringify(record));
+  writeFileSync(aside, JSON.stringify({ ...record, since: new Date().toISOString() }));
   try {
     linkSync(aside, file);
     return true;
