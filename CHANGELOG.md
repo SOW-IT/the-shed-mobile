@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.4] - 2026-11-22
+
+### Changed
+- **Going back mid-game asks first.** In the offline games, pressing back
+  during a run (the back button, swiping back on iPhone, or the browser's back
+  button) now pauses the game and asks "Leave this game?". **Continue** is the
+  main button and picks up where you left off; tapping outside the box or
+  pressing Escape does the same. **Leave game** ends the run without saving
+  its score. Before a run starts and after it ends, back works straight away,
+  as before.
+
 ## [2.12.1] - 2026-11-22
 
 ### Fixed

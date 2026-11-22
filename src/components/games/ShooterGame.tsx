@@ -5,6 +5,7 @@ import { fixedColours } from "@/theme";
 import { memo, useMemo, useRef, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
 import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import type { LeaveGuard } from "./GameFrame";
 import { fitBoard, fitScale, type Size } from "@/lib/games/fit";
 
 const c = fixedColours.games.shooter;
@@ -91,10 +92,12 @@ export const ShooterGame = ({
   onExit,
   onLeaderboard,
   active = true,
+  guard,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
   active?: boolean;
+  guard?: LeaveGuard;
 }) => {
   const session = useGameSession<ShooterState>("shooter");
   const { run, setRun, phase } = session;
@@ -108,7 +111,7 @@ export const ShooterGame = ({
   const latest = useLatest({ session, width, height, scale });
   const keys = useRef(new Set<string>());
 
-  useGameLoop(phase === "playing" && active, (dt) => {
+  useGameLoop(phase === "playing" && active && !session.paused, (dt) => {
     const held = keys.current;
     const dx = (held.has("ArrowRight") ? 1 : 0) - (held.has("ArrowLeft") ? 1 : 0);
     const dy = (held.has("ArrowDown") ? 1 : 0) - (held.has("ArrowUp") ? 1 : 0);
@@ -152,7 +155,7 @@ export const ShooterGame = ({
     const current = latest.current.session;
     if (current.phase === "ready") startIfReady();
     else if (current.phase === "over" && key === " " && current.canRestartByKey()) current.restart();
-  }, () => keys.current.clear(), active);
+  }, () => keys.current.clear(), active && !session.paused);
 
   return (
     <GameFrame
@@ -166,6 +169,7 @@ export const ShooterGame = ({
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Touch and drag", "press an arrow key")}
       onExit={onExit}
+      guard={guard}
       onLeaderboard={onLeaderboard}
     >
       {board ? <Stars width={world?.width ?? width} height={world?.height ?? height} /> : null}
