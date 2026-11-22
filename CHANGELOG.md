@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.63] - 2026-11-22
+## [2.11.65] - 2026-11-22
 
 ### Fixed
 - **Verify runs on this Mac take turns, for contributors.** A run of
@@ -19,6 +19,44 @@ All notable changes to **The SHED** mobile app. This project follows
   the same moment can no longer both get going. The lock is given back when
   a run ends, fails, or is interrupted, and a run killed outright leaves a
   lock the next run takes over. Nothing changes for people using the app.
+
+## [2.11.64] - 2026-11-22
+
+### Added
+- **Fix a guest's name after adding them.** On an event's attendance page, tap
+  the left side of a guest's row (or swipe it right) and tap the pencil to fix
+  a typo. The name changes on that event only, and the event's total stays the
+  same. You can do it after the event ends too, once editing is turned on.
+- **Total attendance in the page header.** The chip at the top right of an
+  event's attendance page now reads **Total**: everyone signed in plus guests,
+  the same number the event's export and averages use.
+
+### Changed
+- **Add a guest from beside "Not signed in".** The small **+ Guest** button now
+  sits next to the Not signed in heading, so you no longer scroll to the end of
+  Signed in to find it. The name box opens just below it.
+
+### Fixed
+- **"Not signed in" scrolls again after an event ends.** On a wide but short
+  window, such as a laptop browser window, the ended-event
+  note and Enable editing button left so little room that both lists grew to
+  their full length. They stopped scrolling, and "Not signed in" never loaded
+  past its first ten people. The lists now keep room for at least three people
+  each, and the page scrolls to show them.
+
+## [2.11.62] - 2026-11-22
+
+### Changed
+- **`pr-status` applies the big-PR CodeRabbit rule, for contributors.**
+  `node scripts/pr-status.mjs <number>` now works out whether the PR needs
+  a CodeRabbit review: more than 300 changed lines of app or Convex code, or
+  a change to the schema, deletion or migration, auth or permissions, or
+  notifications. Small, config and tooling PRs don't. A review still counts
+  when it covered the same app and Convex changes as the head, so a clean
+  merge of `main` doesn't need a new one. A big PR with no review covering
+  its head now reports NOT DONE. `--big` and `--not-big` override the path
+  rules. The pr-shepherd skill follows the same rule. Nothing changes for
+  people using the app.
 
 ## [2.11.60] - 2026-11-22
 
