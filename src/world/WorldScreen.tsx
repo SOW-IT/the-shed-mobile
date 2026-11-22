@@ -85,6 +85,13 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
   const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
+  // The chip counts who can hear you as people walk; once a second is plenty.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (view !== "garden") return;
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [view]);
 
   useEffect(() => {
     if (!note) return;
