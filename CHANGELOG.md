@@ -6,6 +6,26 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.3] - 2026-11-22
+
+### Added
+- **The Garden: a place online to hang out.** Open Games and tap The Garden
+  to walk into a little courtyard with everyone else who's there. Tap the
+  ground to walk, and type to talk: what you say floats over your head. The
+  chip at the top says how many people can hear you; people further away
+  still show up, but their bubbles are faded. The flower button gives you
+  emotes, and the arcade cabinet in the corner opens the games. Up to 20
+  people share a garden, and more open another.
+- **Mute, block and report.** Tap someone to wave, mute their bubbles for
+  this visit, block them (you won't see each other in the garden again until
+  you unblock them under People here), or report them to the leaders. Chat is
+  cleared after 15 minutes, but a report keeps the last few lines so leaders
+  can see what happened.
+- **A list view of the garden.** Under People here, "Show as a list" shows
+  who's here, who can hear you and what's been said, with the same chat and
+  emotes. It opens by itself with VoiceOver on, and when you're offline the
+  garden says so and offers the games instead.
+
 ## [2.12.1] - 2026-11-22
 
 ### Fixed
