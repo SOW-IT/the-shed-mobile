@@ -232,7 +232,33 @@ export const hash = (text: string): number => {
 };
 
 /** How many choices each part of a look has. Palettes grow by appending. */
-export const LOOK_SIZES = { skin: 8, hair: 6, hairColour: 9, shirt: 10, hat: 5, accessory: 4 } as const;
+/**
+ * How many choices each part of a look has. Palettes grow by appending, so a
+ * saved index keeps its meaning. The first four are in every look; the rest
+ * came later and are optional, so a look saved before them (or by an older
+ * app) is still valid and draws with their defaults.
+ */
+export const LOOK_SIZES = {
+  skin: 8,
+  hair: 12,
+  hairColour: 9,
+  shirt: 10,
+  hat: 5,
+  accessory: 4,
+  face: 5,
+  eyes: 6,
+  eyeColour: 6,
+  brows: 5,
+  nose: 4,
+  mouth: 5,
+  height: 5,
+  build: 5,
+  freckles: 2,
+  blush: 3,
+  beard: 4,
+} as const;
+/** The look's shape: version 2 added the face, body and extras. */
+export const LOOK_VERSION = 2;
 export type Look = {
   skin: number;
   hair: number;
@@ -240,13 +266,81 @@ export type Look = {
   shirt: number;
   hat?: number;
   accessory?: number;
+  /** The version of the editor that saved it (missing before version 2). */
+  v?: number;
+  face?: number;
+  eyes?: number;
+  eyeColour?: number;
+  brows?: number;
+  nose?: number;
+  mouth?: number;
+  height?: number;
+  build?: number;
+  freckles?: number;
+  blush?: number;
+  beard?: number;
 };
 export type LookPart = keyof typeof LOOK_SIZES;
 const LOOK_PARTS = Object.keys(LOOK_SIZES) as LookPart[];
+const REQUIRED: readonly LookPart[] = ["skin", "hair", "hairColour", "shirt"];
 
-export const HAIR_STYLES = ["Short", "Bun", "Long", "Curly", "Pigtails", "Spiky"] as const;
+/** What a missing optional part means: the look from before it existed. */
+const LOOK_DEFAULTS = {
+  hat: 0,
+  accessory: 0,
+  face: 0,
+  eyes: 0,
+  eyeColour: 0,
+  brows: 0,
+  nose: 0,
+  mouth: 0,
+  height: 2,
+  build: 2,
+  freckles: 0,
+  blush: 1,
+  beard: 0,
+} as const;
+/** A part of a look, or its default when the look predates it. */
+export const lookPart = (look: Look, part: LookPart): number => {
+  const value = look[part];
+  return value ?? (LOOK_DEFAULTS as Record<string, number>)[part] ?? 0;
+};
+
+export const HAIR_STYLES = [
+  "Short",
+  "Bun",
+  "Long",
+  "Curly",
+  "Pigtails",
+  "Spiky",
+  "Buzz",
+  "Ponytail",
+  "Bald",
+  "Bob",
+  "Afro",
+  "Side swept",
+] as const;
 export const HATS = ["None", "Cap", "Beanie", "Flower crown", "Sun hat"] as const;
 export const ACCESSORIES = ["None", "Glasses", "Backpack", "Scarf"] as const;
+export const FACES = ["Round", "Oval", "Square", "Heart", "Long"] as const;
+export const EYES = ["Dots", "Round", "Sleepy", "Sparkly", "Wide", "Narrow"] as const;
+export const BROWS = ["None", "Soft", "Straight", "Arched", "Thick"] as const;
+export const NOSES = ["None", "Dot", "Button", "Pointy"] as const;
+export const MOUTHS = ["None", "Smile", "Grin", "Small", "Flat"] as const;
+export const BLUSH = ["None", "Light", "Rosy"] as const;
+export const BEARDS = ["None", "Stubble", "Beard", "Moustache"] as const;
+export const ON_OFF = ["Off", "On"] as const;
+
+/**
+ * How tall and how broad someone is drawn, from their height and build
+ * steps. Clamped to a narrow range so everyone stays readable; it changes
+ * only the drawing, never where they stand, how close they can get or who
+ * can hear them.
+ */
+export const bodyScale = (look: Look) => ({
+  height: 0.88 + lookPart(look, "height") * 0.06,
+  width: 0.85 + lookPart(look, "build") * 0.075,
+});
 
 /**
  * Someone's look until they save their own, picked from their email so it's
@@ -263,25 +357,39 @@ export const lookFor = (seed: string): Look => {
   };
 };
 
-/** Whether every part of a look is one of the choices. */
+/** Whether every part of a look is one of the choices (bounds checked on the server). */
 export const isValidLook = (look: Look): boolean =>
+  (look.v === undefined || (Number.isInteger(look.v) && look.v >= 1 && look.v <= LOOK_VERSION)) &&
   LOOK_PARTS.every((part) => {
     const value = look[part];
-    if (value === undefined) return part === "hat" || part === "accessory";
+    if (value === undefined) return !REQUIRED.includes(part);
     return Number.isInteger(value) && value >= 0 && value < LOOK_SIZES[part];
   });
 
 /** A look picked at random, for the editor's Randomise button. */
 export const randomLook = (random: () => number = Math.random): Look => {
   const pick = (part: LookPart) => Math.floor(random() * LOOK_SIZES[part]);
+  // Mostly none, so not everyone gets a hat, a beard and freckles at once.
+  const rarely = (part: LookPart, chance: number) => (random() < chance ? pick(part) : 0);
   return {
+    v: LOOK_VERSION,
     skin: pick("skin"),
     hair: pick("hair"),
     hairColour: pick("hairColour"),
     shirt: pick("shirt"),
-    // Half the time no hat, and mostly no accessory, so it isn't all hats.
-    hat: random() < 0.5 ? 0 : pick("hat"),
-    accessory: random() < 0.6 ? 0 : pick("accessory"),
+    hat: rarely("hat", 0.5),
+    accessory: rarely("accessory", 0.4),
+    face: pick("face"),
+    eyes: pick("eyes"),
+    eyeColour: pick("eyeColour"),
+    brows: pick("brows"),
+    nose: pick("nose"),
+    mouth: pick("mouth"),
+    height: pick("height"),
+    build: pick("build"),
+    freckles: rarely("freckles", 0.5),
+    blush: pick("blush"),
+    beard: rarely("beard", 0.3),
   };
 };
 

@@ -8,6 +8,20 @@ export const worldLookValidator = v.object({
   // Added with the character editor; looks from before have neither.
   hat: v.optional(v.number()),
   accessory: v.optional(v.number()),
+  // Version 2 (the Mii-style editor): face, body and extras. All optional, so
+  // older looks stay valid and older apps simply don't draw them.
+  v: v.optional(v.number()),
+  face: v.optional(v.number()),
+  eyes: v.optional(v.number()),
+  eyeColour: v.optional(v.number()),
+  brows: v.optional(v.number()),
+  nose: v.optional(v.number()),
+  mouth: v.optional(v.number()),
+  height: v.optional(v.number()),
+  build: v.optional(v.number()),
+  freckles: v.optional(v.number()),
+  blush: v.optional(v.number()),
+  beard: v.optional(v.number()),
 });
 
 export const worldBucketValidator = v.object({ tokens: v.number(), at: v.number() });

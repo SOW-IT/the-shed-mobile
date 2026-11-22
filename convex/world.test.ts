@@ -354,6 +354,20 @@ describe("character editor", () => {
     expect((await rows(t)).members.find((m) => m.email === ANNA)!.look).toEqual({ ...look, hat: 0 });
   });
 
+  test("a version 2 look (face, body, extras) saves in one write and reaches everyone through the roster", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    await ben.mutation(api.world.join, {});
+    const v2 = { v: 2, skin: 2, hair: 10, hairColour: 4, shirt: 3, face: 3, eyes: 3, eyeColour: 2, brows: 2, nose: 1, mouth: 2, height: 4, build: 0, freckles: 1, blush: 2, beard: 3 };
+    expect(await anna.mutation(api.world.saveLook, { look: v2 })).toEqual({ ok: true });
+    const seen = await ben.query(api.world.roster, { roomId: a.roomId });
+    expect(seen!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(v2);
+    await expect(anna.mutation(api.world.saveLook, { look: { ...v2, height: 5 } })).rejects.toThrow(/doesn't exist/);
+    await expect(anna.mutation(api.world.saveLook, { look: { ...v2, v: 9 } })).rejects.toThrow(/doesn't exist/);
+  });
+
   test("turns away a choice that doesn't exist", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);

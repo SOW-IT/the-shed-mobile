@@ -16,8 +16,10 @@ import {
   MUTUAL_MS,
   openAsk,
   LOOK_SIZES,
+  bodyScale,
   isValidLook,
   lookFor,
+  lookPart,
   randomLook,
   MAX_SAY_LENGTH,
   OBSTACLES,
@@ -110,11 +112,33 @@ test("lookFor picks a stable look in range", () => {
 test("isValidLook checks every part, and randomLook stays in range", () => {
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0 })).toBe(true);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, hat: 4, accessory: 3 })).toBe(true);
-  expect(isValidLook({ skin: 0, hair: 6, hairColour: 0, shirt: 0 })).toBe(false);
+  expect(isValidLook({ skin: 0, hair: 11, hairColour: 0, shirt: 0 })).toBe(true);
+  expect(isValidLook({ skin: 0, hair: 12, hairColour: 0, shirt: 0 })).toBe(false);
+  // Version 2's face, body and extras: each bounded, all optional.
+  const v2 = { v: 2, skin: 0, hair: 0, hairColour: 0, shirt: 0, face: 4, eyes: 5, eyeColour: 5, brows: 4, nose: 3, mouth: 4, height: 4, build: 4, freckles: 1, blush: 2, beard: 3 };
+  expect(isValidLook(v2)).toBe(true);
+  expect(isValidLook({ ...v2, height: 5 })).toBe(false);
+  expect(isValidLook({ ...v2, freckles: 2 })).toBe(false);
+  expect(isValidLook({ ...v2, v: 3 })).toBe(false);
+  expect(isValidLook({ ...v2, v: 1.5 })).toBe(false);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, hat: 0.5 })).toBe(false);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: undefined as unknown as number })).toBe(false);
   for (const r of [0, 0.3, 0.55, 0.99]) expect(isValidLook(randomLook(() => r))).toBe(true);
   expect(isValidLook(randomLook())).toBe(true);
+});
+
+test("a look from before version 2 draws with the old defaults, and the body stays in range", () => {
+  const old = { skin: 1, hair: 2, hairColour: 3, shirt: 4 };
+  expect(lookPart(old, "height")).toBe(2);
+  expect(lookPart(old, "blush")).toBe(1);
+  expect(lookPart(old, "skin")).toBe(1);
+  expect(bodyScale(old)).toEqual({ height: 1, width: 1 });
+  const tall = bodyScale({ ...old, height: 4, build: 4 });
+  const small = bodyScale({ ...old, height: 0, build: 0 });
+  expect(tall.height).toBeCloseTo(1.12);
+  expect(small.height).toBeCloseTo(0.88);
+  expect(tall.width).toBeCloseTo(1.15);
+  expect(small.width).toBeCloseTo(0.85);
 });
 
 test("tagName shows a short first name", () => {

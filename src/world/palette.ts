@@ -51,6 +51,9 @@ export const people = {
   glasses: "#1F2A28",
   mouth: "#7A2E2A",
   tear: "#8DCFE0",
+  freckle: "#B07A5A",
+  // Eye colours: dark, brown, blue, green, hazel, grey.
+  eyeColours: ["#1F2A28", "#6B4226", "#3A6EA5", "#3E7D4F", "#8A6A2F", "#5F6B73"],
   feet: "#3F4A46",
   eye: "#1F2A28",
   eyeShine: "#FFFFFF",

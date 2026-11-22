@@ -1,6 +1,24 @@
 import { Btn, Sheet } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
-import { ACCESSORIES, HAIR_STYLES, HATS, randomLook, type Look, type LookPart } from "@shared/world";
+import {
+  ACCESSORIES,
+  BEARDS,
+  BLUSH,
+  BROWS,
+  EYES,
+  FACES,
+  HAIR_STYLES,
+  HATS,
+  LOOK_SIZES,
+  LOOK_VERSION,
+  lookPart,
+  MOUTHS,
+  NOSES,
+  ON_OFF,
+  randomLook,
+  type Look,
+  type LookPart,
+} from "@shared/world";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { garden, hud, people } from "./palette";
@@ -182,8 +200,53 @@ const Choices = ({
 };
 
 /**
- * Choose your character: skin, hair, hair colour, shirt, a hat and an extra.
- * Nothing is sent while you browse; Save sends the look once.
+ * A step slider: drag the thumb or tap a step. Takes the touch so a drag here
+ * doesn't scroll the choices.
+ */
+const Steps = ({ value, count, onPick, label, low, high }: { value: number; count: number; onPick: (v: number) => void; label: string; low: string; high: string }) => {
+  const t = useAppTheme();
+  const [width, setWidth] = useState(0);
+  const pickAt = (x: number) => {
+    if (width <= 0) return;
+    onPick(Math.max(0, Math.min(count - 1, Math.round((x / width) * (count - 1)))));
+  };
+  const at = (value / (count - 1)) * width;
+  return (
+    <View style={styles.stepsRow}>
+      <Text style={[typography.caption, { color: t.muted }]}>{low}</Text>
+      <View
+        style={[styles.track, { backgroundColor: hud.primarySoft }]}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel={label}
+        accessibilityValue={{ min: 1, max: count, now: value + 1 }}
+        accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+        onAccessibilityAction={(e) => onPick(Math.max(0, Math.min(count - 1, value + (e.nativeEvent.actionName === "increment" ? 1 : -1))))}
+        testID={`world-editor-${label.toLowerCase()}`}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponderCapture={() => true}
+        onResponderTerminationRequest={() => false}
+        onResponderGrant={(e) => pickAt(e.nativeEvent.locationX)}
+        onResponderMove={(e) => pickAt(e.nativeEvent.locationX)}
+      >
+        {Array.from({ length: count }, (_, i) => (
+          <View key={`step${i}`} pointerEvents="none" style={[styles.stop, { left: (i / (count - 1)) * width - 3 }]} />
+        ))}
+        <View pointerEvents="none" style={[styles.thumb, { left: at - 13 }]} />
+      </View>
+      <Text style={[typography.caption, { color: t.muted }]}>{high}</Text>
+    </View>
+  );
+};
+
+const TABS = ["Face", "Hair", "Body", "Outfit", "Extras"] as const;
+type Tab = (typeof TABS)[number];
+
+/**
+ * Choose your character, Mii-style, in tabs: face (shape, eyes, brows, nose,
+ * mouth), hair, body (height and build), outfit and extras. Nothing is sent
+ * while you browse; Save sends the look once.
  */
 export const CharacterEditor = ({
   visible,
@@ -200,6 +263,7 @@ export const CharacterEditor = ({
   const t = useAppTheme();
   const [draft, setDraft] = useState<Look>(look);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<Tab>("Face");
   const [error, setError] = useState<string | null>(null);
   // Start from your current look each time the editor opens, so a cancelled
   // change doesn't come back.
@@ -225,11 +289,12 @@ export const CharacterEditor = ({
     },
     []
   );
-  const set = (part: LookPart) => (value: number) => setDraft((d) => ({ ...d, [part]: value }));
+  const set = (name: LookPart) => (value: number) => setDraft((d) => ({ ...d, [name]: value }));
+  const part = (name: LookPart) => lookPart(draft, name);
   const save = async () => {
     const savedIn = opening;
     setBusy(true);
-    const problem = await onSave(draft);
+    const problem = await onSave({ ...draft, v: LOOK_VERSION });
     setBusy(false);
     // The editor was closed (and maybe opened again) while saving: leave it be.
     if (latestOpening.current !== savedIn) return;
@@ -262,19 +327,78 @@ export const CharacterEditor = ({
       <View style={styles.stack}>
         {/* The preview stays put while the choices scroll under it. */}
         <Preview look={draft} active={visible} />
+        <View style={styles.tabs} accessibilityRole="tablist">
+          {TABS.map((name) => (
+            <Pressable
+              key={name}
+              onPress={() => setTab(name)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: tab === name }}
+              testID={`world-editor-tab-${name.toLowerCase()}`}
+              style={[styles.tab, tab === name && { backgroundColor: hud.primary }]}
+            >
+              <Text style={[typography.label, { color: tab === name ? hud.cream : t.text }]}>{name}</Text>
+            </Pressable>
+          ))}
+        </View>
         <ScrollView style={styles.choices} contentContainerStyle={styles.stack}>
-        {section("Skin")}
-        <Swatches colours={people.skins} value={draft.skin} onPick={set("skin")} label="Skin" />
-        {section("Hair")}
-        <Choices names={HAIR_STYLES} value={draft.hair} onPick={set("hair")} testID="world-editor-hair" />
-        {section("Hair colour")}
-        <Swatches colours={people.hairColours} value={draft.hairColour} onPick={set("hairColour")} label="Hair colour" />
-        {section("Shirt")}
-        <Swatches colours={people.shirts} value={draft.shirt} onPick={set("shirt")} label="Shirt" />
-        {section("Hat")}
-        <Choices names={HATS} value={draft.hat ?? 0} onPick={set("hat")} testID="world-editor-hat" />
-        {section("Extra")}
-        <Choices names={ACCESSORIES} value={draft.accessory ?? 0} onPick={set("accessory")} testID="world-editor-extra" />
+        {tab === "Face" ? (
+          <>
+            {section("Skin")}
+            <Swatches colours={people.skins} value={draft.skin} onPick={set("skin")} label="Skin" />
+            {section("Face shape")}
+            <Choices names={FACES} value={part("face")} onPick={set("face")} testID="world-editor-face" />
+            {section("Eyes")}
+            <Choices names={EYES} value={part("eyes")} onPick={set("eyes")} testID="world-editor-eyes" />
+            {section("Eye colour")}
+            <Swatches colours={people.eyeColours} value={part("eyeColour")} onPick={set("eyeColour")} label="Eye colour" />
+            {section("Eyebrows")}
+            <Choices names={BROWS} value={part("brows")} onPick={set("brows")} testID="world-editor-brows" />
+            {section("Nose")}
+            <Choices names={NOSES} value={part("nose")} onPick={set("nose")} testID="world-editor-nose" />
+            {section("Mouth")}
+            <Choices names={MOUTHS} value={part("mouth")} onPick={set("mouth")} testID="world-editor-mouth" />
+          </>
+        ) : null}
+        {tab === "Hair" ? (
+          <>
+            {section("Hairstyle")}
+            <Choices names={HAIR_STYLES} value={draft.hair} onPick={set("hair")} testID="world-editor-hair" />
+            {section("Hair colour")}
+            <Swatches colours={people.hairColours} value={draft.hairColour} onPick={set("hairColour")} label="Hair colour" />
+          </>
+        ) : null}
+        {tab === "Body" ? (
+          <>
+            {section("Height")}
+            <Steps value={part("height")} count={LOOK_SIZES.height} onPick={set("height")} label="Height" low="Short" high="Tall" />
+            {section("Build")}
+            <Steps value={part("build")} count={LOOK_SIZES.build} onPick={set("build")} label="Build" low="Slim" high="Broad" />
+            <Text style={[typography.caption, { color: t.muted }]}>
+              Only how you look: everyone walks, stands and hears the same.
+            </Text>
+          </>
+        ) : null}
+        {tab === "Outfit" ? (
+          <>
+            {section("Shirt")}
+            <Swatches colours={people.shirts} value={draft.shirt} onPick={set("shirt")} label="Shirt" />
+            {section("Hat")}
+            <Choices names={HATS} value={part("hat")} onPick={set("hat")} testID="world-editor-hat" />
+          </>
+        ) : null}
+        {tab === "Extras" ? (
+          <>
+            {section("Extra")}
+            <Choices names={ACCESSORIES} value={part("accessory")} onPick={set("accessory")} testID="world-editor-extra" />
+            {section("Blush")}
+            <Choices names={BLUSH} value={part("blush")} onPick={set("blush")} testID="world-editor-blush" />
+            {section("Freckles")}
+            <Choices names={ON_OFF} value={part("freckles")} onPick={set("freckles")} testID="world-editor-freckles" />
+            {section("Beard")}
+            <Choices names={BEARDS} value={part("beard")} onPick={set("beard")} testID="world-editor-beard" />
+          </>
+        ) : null}
         </ScrollView>
       </View>
     </Sheet>
@@ -284,6 +408,13 @@ export const CharacterEditor = ({
 const styles = StyleSheet.create({
   stack: { gap: spacing.sm, paddingBottom: spacing.sm },
   choices: { maxHeight: 200 },
+  tabs: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  tab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: hud.primarySoft },
+  stepsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
+  // Inset by half the thumb, so the thumb never covers the end labels.
+  track: { flex: 1, height: 8, borderRadius: 4, justifyContent: "center", marginHorizontal: 13 },
+  stop: { position: "absolute", width: 6, height: 6, borderRadius: 3, backgroundColor: hud.cream },
+  thumb: { position: "absolute", width: 26, height: 26, borderRadius: 13, backgroundColor: hud.accent, borderWidth: 2.5, borderColor: hud.forest },
   footer: { gap: spacing.sm },
   preview: { height: PREVIEW_HEIGHT, borderRadius: 18, overflow: "hidden", marginBottom: spacing.sm },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

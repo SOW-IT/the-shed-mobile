@@ -23,7 +23,7 @@ import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent
 import { makeCamera } from "./camera";
 import { buildGarden, type Prim, type Prop } from "./gardenScene";
 import { garden, hud } from "./palette";
-import { Avatar, figureFor, HEAD_TOP, hitBox, Tag, touchK, type Doing } from "./Person";
+import { Avatar, figureFor, headTop, hitBox, Tag, touchK, type Doing } from "./Person";
 import { accepted } from "./announce";
 import { Ellipse, Shape } from "./Shapes";
 import { useGlide } from "./useGlide";
@@ -322,7 +322,7 @@ export const Garden = ({
       p.ask !== undefined && people.some((o) => o.memberId === p.ask?.to && accepted(o, p.memberId, p.ask.at));
     const waiting =
       p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${MUTUALS[p.ask.kind as keyof typeof MUTUALS]?.ask ?? "…"}` : undefined;
-    const head = cam.project([pose.x, HEAD_TOP + figure.bob, pose.z]);
+    const head = cam.project([pose.x, headTop(p.look) + figure.bob, pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     tags.push({
       key: p.memberId,
@@ -430,7 +430,7 @@ export const Garden = ({
         {asks.map((p, i) => {
           const pose = poses[people.indexOf(p)];
           if (!pose || !p.ask) return null;
-          const head = cam.project([pose.x, HEAD_TOP + 0.9, pose.z]);
+          const head = cam.project([pose.x, headTop(p.look) + 0.9, pose.z]);
           // Asks from people standing together stack upward instead of
           // covering each other, and never leave the stage.
           const top = Math.max(8, head.y - 64 - promptOffset(asks, i, poses, people, cam));
@@ -525,7 +525,7 @@ const promptOffset = (
 ) => {
   const at = (p: GardenPerson) => {
     const pose = poses[people.indexOf(p)];
-    return pose ? cam.project([pose.x, HEAD_TOP + 0.9, pose.z]) : null;
+    return pose ? cam.project([pose.x, headTop(p.look) + 0.9, pose.z]) : null;
   };
   const me = at(asks[i]);
   if (!me) return 0;
