@@ -98,6 +98,64 @@ describe("event guests", () => {
     );
   });
 
+  test("renaming a guest fixes the name without changing the count", async () => {
+    const { t, admin, eventId } = await setup();
+    const guestId = await admin.mutation(api.eventGuests.add, { eventId, name: "Dadd" });
+    await admin.mutation(api.eventGuests.rename, { guestId, name: "  Ann's   Dad " });
+    expect(await admin.query(api.eventGuests.listByEvent, { eventId })).toEqual([
+      expect.objectContaining({ _id: guestId, name: "Ann's Dad" }),
+    ]);
+    expect(await storedCount(t, eventId)).toBe(1);
+    const renames = async () =>
+      (await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect()))
+        .filter((row) => row.action === "attendance.guestRename")
+        .map((row) => [row.summary, row.eventId]);
+    expect(await renames()).toEqual([
+      [expect.stringContaining("Renamed Dadd (guest) to Ann's Dad"), eventId],
+    ]);
+    // The same name again changes nothing and logs nothing.
+    await admin.mutation(api.eventGuests.rename, { guestId, name: "Ann's Dad" });
+    expect(await renames()).toHaveLength(1);
+  });
+
+  test("a renamed guest needs a name of a sensible length", async () => {
+    const { admin, eventId } = await setup();
+    const guestId = await admin.mutation(api.eventGuests.add, { eventId, name: "Dad" });
+    await expect(admin.mutation(api.eventGuests.rename, { guestId, name: "  " })).rejects.toThrow(
+      /name is required/
+    );
+    await expect(
+      admin.mutation(api.eventGuests.rename, { guestId, name: "x".repeat(EVENT_GUEST_NAME_MAX + 1) })
+    ).rejects.toThrow(/under/);
+    expect((await admin.query(api.eventGuests.listByEvent, { eventId })).map((g) => g.name)).toEqual([
+      "Dad",
+    ]);
+  });
+
+  test("a removed guest can't be renamed", async () => {
+    const { admin, eventId } = await setup();
+    const guestId = await admin.mutation(api.eventGuests.add, { eventId, name: "Dad" });
+    await admin.mutation(api.eventGuests.remove, { guestId });
+    await expect(admin.mutation(api.eventGuests.rename, { guestId, name: "Mum" })).rejects.toThrow(
+      /has been removed/
+    );
+  });
+
+  test("a guest can be renamed after the event ends", async () => {
+    const { t, admin } = await setup();
+    const eventId = await createEvent(admin, {
+      dateStart: Date.now() - 3 * HOUR,
+      dateEnd: Date.now() - 2 * HOUR,
+    });
+    const guestId = await t.run((ctx) =>
+      ctx.db.insert("eventGuests", { eventId, name: "Early", addedAt: Date.now() - 2.5 * HOUR, addedBy: ADMIN })
+    );
+    await admin.mutation(api.eventGuests.rename, { guestId, name: "Earlier" });
+    expect((await admin.query(api.eventGuests.listByEvent, { eventId })).map((g) => g.name)).toEqual([
+      "Earlier",
+    ]);
+  });
+
   test("a guest needs a name of a sensible length", async () => {
     const { admin, eventId } = await setup();
     await expect(admin.mutation(api.eventGuests.add, { eventId, name: "   " })).rejects.toThrow(
@@ -136,6 +194,7 @@ describe("event guests", () => {
     expect(await t.query(api.eventGuests.listByEvent, { eventId })).toEqual([]);
     await expect(outsider.mutation(api.eventGuests.add, { eventId, name: "Mum" })).rejects.toThrow();
     await expect(outsider.mutation(api.eventGuests.remove, { guestId })).rejects.toThrow();
+    await expect(outsider.mutation(api.eventGuests.rename, { guestId, name: "Mum" })).rejects.toThrow();
     expect(await admin.query(api.eventGuests.listByEvent, { eventId: "not-an-id" })).toEqual([]);
   });
 

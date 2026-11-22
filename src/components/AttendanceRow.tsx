@@ -73,6 +73,8 @@ interface AttendanceRowProps {
   onExited?: () => void;
   // Off for someone with no campus to show, such as an event's guest.
   showCampus?: boolean;
+  // What the edit strip does, for screen readers.
+  editLabel?: string;
 }
 
 function AttendanceRowBase({
@@ -94,6 +96,7 @@ function AttendanceRowBase({
   exiting = false,
   onExited,
   showCampus = true,
+  editLabel = "Edit member",
 }: AttendanceRowProps) {
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
@@ -198,7 +201,7 @@ function AttendanceRowBase({
   const canEdit = !disabled && Boolean(onEdit);
   const accessibilityActions = [
     ...(canPrimary ? [{ name: "activate", label: primaryLabel }] : []),
-    ...(canEdit ? [{ name: "edit", label: "Edit member" }] : []),
+    ...(canEdit ? [{ name: "edit", label: editLabel }] : []),
   ];
   const onAccessibilityAction = (e: { nativeEvent: { actionName: string } }) => {
     if (e.nativeEvent.actionName === "activate" && canPrimary) onPrimaryStripPress();
@@ -388,7 +391,7 @@ function AttendanceRowBase({
       {snapVisual === "edit" && onEdit ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Edit member"
+          accessibilityLabel={editLabel}
           style={[styles.actionHit, styles.editHit, { width: SNAP_POSITION }]}
           onPress={onEditStripPress}
         />
