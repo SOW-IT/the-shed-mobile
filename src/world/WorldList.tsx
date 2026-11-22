@@ -1,6 +1,6 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { canHear, EMOTES, MAX_SAY_LENGTH, posAt } from "@shared/world";
+import { canHear, EMOTE_IDS, EMOTES, MAX_SAY_LENGTH, posAt } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -122,15 +122,15 @@ export const WorldList = ({
           <Btn title="Send" onPress={() => void send()} />
         </View>
         <View style={styles.emotes}>
-          {EMOTES.map((emote) => (
+          {EMOTE_IDS.map((emote) => (
             <Pressable
               key={emote}
               onPress={() => void world.act(emote)}
               accessibilityRole="button"
-              accessibilityLabel={`Emote ${emote}`}
+              accessibilityLabel={`Emote: ${EMOTES[emote].label}`}
               style={({ pressed }) => [styles.emote, { backgroundColor: t.primarySoft }, pressed && { opacity: 0.7 }]}
             >
-              <Text style={styles.emoteText}>{emote}</Text>
+              <Text style={styles.emoteText}>{EMOTES[emote].icon}</Text>
             </Pressable>
           ))}
         </View>
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   },
   compose: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   input: { flex: 1, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  emotes: { flexDirection: "row", gap: spacing.sm },
+  emotes: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   emote: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   emoteText: { fontSize: 20 },
   line: { gap: 2, paddingVertical: spacing.xs },

@@ -39,10 +39,18 @@ export const garden = {
   butterflies: ["#F6D365", "#F4A6B8", "#FFFFFF"],
 } as const;
 
+// Choices grow by appending, so a saved index keeps its colour.
 export const people = {
-  skins: ["#F0C7A5", "#F6D9C2", "#B27B58", "#F2CDAE", "#C9926C", "#EFCBA9"],
-  hairColours: ["#3A2A20", "#D49A5A", "#1C1714", "#7A4A2C", "#2A201A", "#141414"],
-  shirts: ["#C9603A", "#F6E3D8", "#BCDCCD", "#F4A6B8", "#9DC5E0", "#D9CDEE", "#F6D365", "#A9D8A6"],
+  skins: ["#F0C7A5", "#F6D9C2", "#B27B58", "#F2CDAE", "#C9926C", "#EFCBA9", "#8D5A3B", "#5E3A26"],
+  hairColours: ["#3A2A20", "#D49A5A", "#1C1714", "#7A4A2C", "#2A201A", "#141414", "#E8C77A", "#B8473A", "#8A8F98"],
+  shirts: ["#C9603A", "#F6E3D8", "#BCDCCD", "#F4A6B8", "#9DC5E0", "#D9CDEE", "#F6D365", "#A9D8A6", "#1D4A41", "#FFFEF8"],
+  hats: { cap: "#C9603A", beanie: "#9DC5E0", pompom: "#FFFEF8", sunHat: "#F1D9A6", band: "#C9603A" },
+  backpack: "#E5AD66",
+  backpackStrap: "#8A5A2C",
+  scarf: "#B8473A",
+  glasses: "#1F2A28",
+  mouth: "#7A2E2A",
+  tear: "#8DCFE0",
   feet: "#3F4A46",
   eye: "#1F2A28",
   eyeShine: "#FFFFFF",

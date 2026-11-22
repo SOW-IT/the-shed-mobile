@@ -2,8 +2,16 @@ import {
   BUBBLE_MS,
   canHear,
   EMOTE_MS,
+  EMOTES,
+  isEmote,
+  liveMutual,
+  MUTUALS,
+  openAsk,
+  type Ask,
+  type Reply,
   hash,
   HEAR_RADIUS,
+  ASK_MS,
   OBSTACLES,
   posAt,
   tagName,
@@ -12,11 +20,11 @@ import {
   type Walk,
 } from "@shared/world";
 import { Fragment, memo, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, View, type GestureResponderEvent, type LayoutChangeEvent } from "react-native";
+import { Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from "react-native";
 import { makeCamera } from "./camera";
 import { buildGarden, type Prim, type Prop } from "./gardenScene";
-import { garden } from "./palette";
-import { Avatar, figureFor, HEAD_TOP, hitBox, Tag } from "./Person";
+import { garden, hud } from "./palette";
+import { Avatar, figureFor, HEAD_TOP, hitBox, Tag, type Doing } from "./Person";
 import { Ellipse, Shape } from "./Shapes";
 
 type GardenPerson = {
@@ -27,6 +35,8 @@ type GardenPerson = {
   walk: Walk | null;
   say?: { text: string; at: number };
   act?: { emote: string; at: number };
+  ask?: Ask;
+  reply?: Reply;
   muted: boolean;
 };
 
@@ -78,6 +88,10 @@ export const Garden = ({
   onTapGround,
   onTapPerson,
   onTapArcade,
+  onAccept,
+  onDecline,
+  declined,
+  onHearing,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -86,6 +100,14 @@ export const Garden = ({
   onTapGround: (x: number, z: number) => void;
   onTapPerson: (memberId: string) => void;
   onTapArcade: () => void;
+  /** Accept the ask `from` made of you. */
+  onAccept: (from: string) => void;
+  /** Hide an ask made of you; it lapses on its own, so nothing is sent. */
+  onDecline: (from: string, askAt: number) => void;
+  /** Asks you've declined, as `${from}:${askAt}`. */
+  declined: ReadonlySet<string>;
+  /** How many others can hear you, whenever that changes. */
+  onHearing: (count: number) => void;
 }) => {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const onLayout = (e: LayoutChangeEvent) => {
@@ -100,9 +122,47 @@ export const Garden = ({
   const me = people.findIndex((p) => p.me);
   const mePose = me >= 0 ? poses[me] : null;
   const recent = (at: number | undefined, ms: number) => at !== undefined && now - at < ms;
+  // What each person is doing: a mutual action with someone (worked out from
+  // the asker's ask and the other's answer), or else an emote.
+  const doing: Doing[] = people.map(() => null);
+  const facingOverride: (number | null)[] = people.map(() => null);
+  people.forEach((asker, i) => {
+    if (!asker.ask) return;
+    const j = people.findIndex((p) => p.memberId === asker.ask?.to);
+    const a = poses[i];
+    const b = j >= 0 ? poses[j] : null;
+    if (j < 0 || !a || !b) return;
+    const live = liveMutual({ id: asker.memberId, ask: asker.ask }, { id: people[j].memberId, reply: people[j].reply }, now);
+    if (!live) return;
+    // Turn to face each other; the hand goes up on the side the other is on screen.
+    const toward = b.x >= a.x ? 1 : -1;
+    doing[i] = { kind: "mutual", id: live.kind, p: live.progress, toward };
+    doing[j] = { kind: "mutual", id: live.kind, p: live.progress, toward: toward > 0 ? -1 : 1 };
+    facingOverride[i] = Math.atan2(b.x - a.x, b.z - a.z);
+    facingOverride[j] = Math.atan2(a.x - b.x, a.z - b.z);
+  });
+  people.forEach((p, i) => {
+    if (doing[i] || p.muted || !p.act || !isEmote(p.act.emote) || !recent(p.act.at, EMOTE_MS)) return;
+    doing[i] = { kind: "emote", id: p.act.emote, p: (now - p.act.at) / EMOTE_MS };
+  });
+  const meId = me >= 0 ? people[me].memberId : null;
+  // Worked out here, on the same frame as the faded bubbles, so the chip
+  // and the bubbles always agree.
+  const hearing = mePose ? poses.filter((pose, i) => i !== me && pose !== null && canHear(mePose, pose)).length : 0;
+  useEffect(() => {
+    onHearing(hearing);
+  }, [hearing, onHearing]);
+  // Asks made of you that are still open and not answered or declined.
+  const asks = people.filter(
+    (p) =>
+      p.ask?.to === meId &&
+      openAsk(p.ask, now) !== null &&
+      !declined.has(`${p.memberId}:${p.ask.at}`) &&
+      !(me >= 0 && people[me].reply?.to === p.memberId && people[me].reply?.askAt === p.ask.at)
+  );
   const animating =
-    poses.some((pose) => pose?.walking) ||
-    people.some((p) => recent(p.act?.at, EMOTE_MS)) ||
+    poses.some((pose) => pose && (pose.walking || (now - pose.arrivesAt < 800 && pose.heading !== 0))) ||
+    doing.some((d) => d !== null) ||
     (target !== null && mePose !== null && Math.hypot(mePose.x - target.x, mePose.z - target.z) > 0.05);
   const t = useClock(animating) / 1000;
 
@@ -116,7 +176,7 @@ export const Garden = ({
     // People first, nearest the camera first.
     const hits = people
       .map((p, i) => ({ p, pose: poses[i] }))
-      .filter((h): h is { p: GardenPerson; pose: Pose } => h.pose !== null && !h.p.me)
+      .filter((h): h is { p: GardenPerson; pose: Pose } => h.pose !== null)
       .map((h) => ({ ...h, box: hitBox(figureFor(cam, h.pose, t, hash(h.p.memberId) % 7)), depth: cam.project([h.pose.x, 0, h.pose.z]).depth }))
       .filter((h) => x >= h.box.left && x <= h.box.right && y >= h.box.top && y <= h.box.bottom)
       .sort((a, b) => a.depth - b.depth);
@@ -141,21 +201,34 @@ export const Garden = ({
     if (!pose) return;
     const seed = hash(p.memberId) % 7;
     const figure = figureFor(cam, pose, t, seed);
+    // Standing still, people turn back to face the camera, so their faces
+    // (and emotes) show; during a mutual action they face each other.
+    const settled = pose.walking ? pose.heading : turnToward(pose.heading, 0, Math.min(1, (now - pose.arrivesAt) / 700));
+    const turned = { ...pose, heading: facingOverride[i] ?? settled };
+    const d = doing[i];
     actors.push({
       depth: figure.foot.depth,
       key: p.memberId,
-      node: <Avatar figure={figure} pose={pose} look={p.look} t={t} seed={seed} />,
+      node: <Avatar figure={figure} pose={turned} look={p.look} t={t} seed={seed} doing={d} />,
     });
     const far = !p.me && mePose !== null && !canHear(mePose, pose);
     const line = !p.muted && recent(p.say?.at, BUBBLE_MS) ? p.say?.text : undefined;
-    const emote = !p.muted && recent(p.act?.at, EMOTE_MS) ? p.act?.emote : undefined;
+    // The icon over the head: the emote's, or the mutual action's when hands meet.
+    const emote =
+      d?.kind === "emote"
+        ? EMOTES[d.id].icon
+        : d?.kind === "mutual" && d.p > 0.4
+          ? MUTUALS[d.id].icon
+          : undefined;
+    const rise = d?.kind === "emote" ? d.p : d?.kind === "mutual" ? (d.p - 0.4) / 0.6 : 0;
+    const waiting = p.me && p.ask && openAsk(p.ask, now) && !d ? `${MUTUALS[p.ask.kind as keyof typeof MUTUALS]?.ask ?? "…"}` : undefined;
     const head = cam.project([pose.x, HEAD_TOP + figure.bob, pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     tags.push({
       key: p.memberId,
       depth: head.depth,
-      ...tagBox(head.x, head.y, name, line),
-      props: { name, me: p.me, line, far, emote, emoteRise: emote && p.act ? (now - p.act.at) / EMOTE_MS : 0 },
+      ...tagBox(head.x, head.y, name, line ?? waiting, Boolean(emote)),
+      props: { name, me: p.me, line: line ?? waiting, far, emote, emoteRise: rise },
     });
   });
   // The tap marker: a spinning flower with a bobbing pin, until you arrive.
@@ -229,8 +302,56 @@ export const Garden = ({
           <Tag key={tag.key} x={tag.x} y={tag.bottom} {...tag.props} />
         ))}
       </View>
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        {asks.map((p) => {
+          const pose = poses[people.indexOf(p)];
+          if (!pose || !p.ask) return null;
+          const head = cam.project([pose.x, HEAD_TOP + 0.9, pose.z]);
+          const left = Math.max(1 - (now - p.ask.at) / ASK_MS, 0);
+          const info = MUTUALS[p.ask.kind as keyof typeof MUTUALS];
+          if (!info) return null;
+          const askAt = p.ask.at;
+          return (
+            <View key={`ask-${p.memberId}`} style={[styles.ask, { left: head.x - 110, top: head.y - 64 }]} testID="world-ask">
+              <Text style={styles.askText} numberOfLines={1}>
+                {info.icon} {tagName(p.name)}: {info.ask}
+              </Text>
+              <View style={styles.askRow}>
+                <Pressable
+                  onPress={() => onAccept(p.memberId)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${info.label} with ${p.name}`}
+                  testID="world-ask-accept"
+                  style={({ pressed }) => [styles.askYes, pressed && { opacity: 0.75 }]}
+                >
+                  <Text style={styles.askYesText}>{info.label}!</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => onDecline(p.memberId, askAt)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Not now"
+                  testID="world-ask-decline"
+                  style={({ pressed }) => [styles.askNo, pressed && { opacity: 0.75 }]}
+                >
+                  <Text style={styles.askNoText}>Not now</Text>
+                </Pressable>
+              </View>
+              {/* Time left to answer. */}
+              <View style={styles.askTrack}>
+                <View style={[styles.askLeft, { width: `${left * 100}%` }]} />
+              </View>
+            </View>
+          );
+        })}
+      </View>
     </Pressable>
   );
+};
+
+/** An angle part of the way to another, the short way round. */
+const turnToward = (from: number, to: number, k: number) => {
+  const diff = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+  return from + diff * k;
 };
 
 type TagSpot = {
@@ -244,12 +365,13 @@ type TagSpot = {
 };
 
 /** Roughly how much room a name tag and its bubble take, for stacking. */
-const tagBox = (x: number, bottom: number, name: string, line: string | undefined) => {
+const tagBox = (x: number, bottom: number, name: string, line: string | undefined, emote: boolean) => {
   const nameWidth = name.length * 7.5 + 22;
-  if (!line) return { x, bottom, width: nameWidth, height: 24 };
+  const icon = emote ? 36 : 0;
+  if (!line) return { x, bottom, width: Math.max(nameWidth, icon), height: 24 + icon };
   const chars = Array.from(line).length;
   const lines = Math.ceil(chars / 24);
-  return { x, bottom, width: Math.max(nameWidth, Math.min(214, chars * 8 + 32)), height: 24 + 10 + lines * 18.5 + 21 };
+  return { x, bottom, width: Math.max(nameWidth, Math.min(214, chars * 8 + 32)), height: 24 + 10 + lines * 18.5 + 21 + icon };
 };
 
 /**
@@ -278,6 +400,28 @@ const stackTags = (tags: TagSpot[]): TagSpot[] => {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, overflow: "hidden" },
+  ask: {
+    position: "absolute",
+    width: 220,
+    gap: 8,
+    padding: 10,
+    borderRadius: 18,
+    backgroundColor: hud.card,
+    borderWidth: 2.5,
+    borderColor: hud.forest,
+    shadowColor: hud.forest,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+  },
+  askText: { color: hud.forest, fontSize: 14.5, fontWeight: "700", textAlign: "center" },
+  askRow: { flexDirection: "row", gap: 8 },
+  askYes: { flex: 1, backgroundColor: hud.accent, borderRadius: 999, paddingVertical: 8, alignItems: "center", borderWidth: 2, borderColor: hud.forest },
+  askYesText: { color: hud.onAccent, fontWeight: "700", fontSize: 14 },
+  askNo: { flex: 1, backgroundColor: hud.primarySoft, borderRadius: 999, paddingVertical: 8, alignItems: "center" },
+  askNoText: { color: hud.forest, fontWeight: "600", fontSize: 14 },
+  askTrack: { height: 4, borderRadius: 2, backgroundColor: hud.primarySoft, overflow: "hidden" },
+  askLeft: { height: 4, backgroundColor: hud.accent },
   pin: {
     position: "absolute",
     borderLeftColor: "transparent",

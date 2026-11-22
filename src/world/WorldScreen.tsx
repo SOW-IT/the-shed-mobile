@@ -1,10 +1,11 @@
 import { useOffline } from "@/hooks/useOffline";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { canHear, EMOTES, MAX_SAY_LENGTH, posAt } from "@shared/world";
+import { distance, EMOTE_IDS, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, posAt } from "@shared/world";
 import { useEffect, useState } from "react";
 import { AccessibilityInfo, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { CharacterEditor } from "./CharacterEditor";
 import { Garden } from "./Garden";
 import { hud } from "./palette";
 import { PeopleSheet, PersonSheet } from "./Sheets";
@@ -84,14 +85,13 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
   const [draft, setDraft] = useState("");
   const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  // Asks you've turned down, as `${from}:${askAt}`. Declining sends nothing:
+  // the ask just runs out.
+  const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
-  // The chip counts who can hear you as people walk; once a second is plenty.
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (view !== "garden") return;
-    const id = setInterval(() => setTick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [view]);
+  // How many can hear you, as the garden draws it.
+  const [hearing, setHearing] = useState(0);
 
   useEffect(() => {
     if (!note) return;
@@ -118,16 +118,30 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
     }
   };
 
+  const now = world.serverNow();
+  const me = world.people.find((p) => p.isMe);
+  const mePose = me?.walk ? posAt(me.walk, now) : null;
+  const tapped = world.people.find((p) => p.memberId === person) ?? null;
+  const tappedPose = tapped?.walk ? posAt(tapped.walk, now) : null;
+  const near = mePose !== null && tappedPose !== null && distance(mePose, tappedPose) <= INTERACT_RADIUS;
+
   const sheets = (
     <>
       <PersonSheet
-        person={world.people.find((p) => p.memberId === person) ?? null}
+        person={tapped}
         muted={person !== null && muted.has(person)}
+        near={near}
         onToggleMute={toggleMute}
-        onWave={() => void world.act("👋")}
+        onWave={() => void world.act("wave")}
+        onHighFive={(to) => void world.ask(to, "highFive").then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."))}
+        onCustomize={() => {
+          setPerson(null);
+          setEditing(true);
+        }}
         onClose={() => setPerson(null)}
         onDone={setNote}
       />
+      <CharacterEditor visible={editing} look={me?.look ?? { skin: 0, hair: 0, hairColour: 0, shirt: 0 }} onSave={world.saveLook} onClose={() => setEditing(false)} />
       <PeopleSheet
         visible={peopleOpen}
         people={world.people}
@@ -139,6 +153,10 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
         onPerson={(memberId) => {
           setPeopleOpen(false);
           setPerson(memberId);
+        }}
+        onCustomize={() => {
+          setPeopleOpen(false);
+          setEditing(true);
         }}
         onClose={() => setPeopleOpen(false)}
       />
@@ -164,12 +182,6 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
     );
   }
 
-  const now = world.serverNow();
-  const me = world.people.find((p) => p.isMe);
-  const mePose = me?.walk ? posAt(me.walk, now) : null;
-  const hearing = mePose
-    ? world.people.filter((p) => !p.isMe && p.walk && canHear(mePose, posAt(p.walk, now))).length
-    : 0;
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -182,6 +194,8 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
           walk: p.walk,
           say: p.say,
           act: p.act,
+          ask: p.ask,
+          reply: p.reply,
           muted: muted.has(p.memberId),
         }))}
         serverNow={world.serverNow}
@@ -192,11 +206,21 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
         }}
         onTapPerson={setPerson}
         onTapArcade={onArcade}
+        onAccept={(from) => {
+          const p = world.people.find((x) => x.memberId === from);
+          if (p) void world.accept(p.memberId).then((problem) => problem && setNote(problem));
+        }}
+        onDecline={(from, askAt) => setDeclined((set) => new Set(set).add(`${from}:${askAt}`))}
+        declined={declined}
+        onHearing={setHearing}
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <RoundButton icon="chevron-back" label="Back" onPress={onBack} testID="world-back" />
         <TitlePill instance={world.instance} />
         <RoundButton icon="people-outline" label="People here" onPress={() => setPeopleOpen(true)} testID="world-people" />
+      </View>
+      <View style={[styles.side, { top: insets.top + 64 }]} pointerEvents="box-none">
+        <RoundButton icon="shirt-outline" label="Customize your character" onPress={() => setEditing(true)} testID="world-customize" />
       </View>
       <View style={[styles.chipRow, { top: insets.top + 66 }]} pointerEvents="none">
         <View style={styles.chip} testID="world-hearing">
@@ -209,19 +233,21 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
       </View>
       <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
         {tray ? (
-          <View style={styles.tray}>
-            {EMOTES.map((emote) => (
+          <View style={styles.tray} testID="world-emote-tray">
+            {EMOTE_IDS.map((id) => (
               <Pressable
-                key={emote}
+                key={id}
                 onPress={() => {
                   setTray(false);
-                  void world.act(emote);
+                  void world.act(id);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel={`Emote ${emote}`}
+                accessibilityLabel={`Emote: ${EMOTES[id].label}`}
+                testID={`world-emote-${id}`}
                 style={({ pressed }) => [styles.trayItem, pressed && styles.pressed]}
               >
-                <Text style={styles.trayEmoji}>{emote}</Text>
+                <Text style={styles.trayEmoji}>{EMOTES[id].icon}</Text>
+                <Text style={styles.trayLabel}>{EMOTES[id].label}</Text>
               </Pressable>
             ))}
           </View>
@@ -329,18 +355,21 @@ const styles = StyleSheet.create({
     ...ink,
   },
   bottom: { position: "absolute", left: 14, right: 14, bottom: 0, gap: 10 },
+  side: { position: "absolute", right: 14 },
   tray: {
-    alignSelf: "flex-start",
     flexDirection: "row",
-    gap: 4,
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
     backgroundColor: hud.card,
-    borderRadius: 999,
-    padding: 5,
+    borderRadius: 22,
+    padding: 8,
     ...ink,
     ...pop,
   },
-  trayItem: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: hud.accentSoft },
+  trayItem: { width: 54, height: 56, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: hud.accentSoft },
   trayEmoji: { fontSize: 22 },
+  trayLabel: { fontSize: 10.5, fontWeight: "600", color: hud.forest, marginTop: 2 },
   chat: {
     height: 54,
     flexDirection: "row",

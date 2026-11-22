@@ -18,15 +18,23 @@ const problem = (e: unknown) => (e instanceof ConvexError ? String(e.data) : "Th
 export const PersonSheet = ({
   person,
   muted,
+  near,
   onToggleMute,
   onWave,
+  onHighFive,
+  onCustomize,
   onClose,
   onDone,
 }: {
   person: WorldMember | null;
   muted: boolean;
+  /** Close enough for a high five. */
+  near: boolean;
   onToggleMute: (memberId: string) => void;
   onWave: () => void;
+  onHighFive: (to: Id<"worldMembers">) => void;
+  /** Your own sheet's way into the character editor. */
+  onCustomize: () => void;
   onClose: () => void;
   onDone: (note: string) => void;
 }) => {
@@ -56,8 +64,18 @@ export const PersonSheet = ({
       setBusy(false);
     }
   };
-  const visible = person !== null && !person.isMe;
+  const visible = person !== null;
   const name = person?.name ?? "";
+  if (person?.isMe) {
+    return (
+      <Sheet visible={visible} onClose={close} title="You">
+        <View style={styles.stack}>
+          <Btn title="Customize your character" icon="shirt-outline" variant="tonal" onPress={onCustomize} />
+          <Muted>Change your skin, hair, shirt, hat and extras. Everyone here sees it when you save.</Muted>
+        </View>
+      </Sheet>
+    );
+  }
   return (
     <Sheet visible={visible} onClose={close} title={name}>
       {reporting ? (
@@ -79,6 +97,16 @@ export const PersonSheet = ({
         </View>
       ) : (
         <View style={styles.stack}>
+          <Btn
+            title="High five"
+            icon="hand-right-outline"
+            disabled={!near}
+            onPress={() => {
+              onHighFive(person!.memberId);
+              close();
+            }}
+          />
+          {near ? null : <Muted>Walk a bit closer to high five.</Muted>}
           <Btn
             title={`Wave at ${name.split(" ")[0]}`}
             icon="hand-left-outline"
@@ -121,6 +149,7 @@ export const PeopleSheet = ({
   view,
   onView,
   onPerson,
+  onCustomize,
   onClose,
 }: {
   visible: boolean;
@@ -128,6 +157,7 @@ export const PeopleSheet = ({
   view: WorldView;
   onView: (view: WorldView) => void;
   onPerson: (memberId: string) => void;
+  onCustomize: () => void;
   onClose: () => void;
 }) => {
   const t = useAppTheme();
@@ -149,6 +179,7 @@ export const PeopleSheet = ({
             <Text style={[typography.body, { color: t.text, flex: 1 }]}>{p.isMe ? `${p.name} (you)` : p.name}</Text>
           </Pressable>
         ))}
+        <Btn title="Customize your character" icon="shirt-outline" variant="tonal" onPress={onCustomize} />
         <Btn
           title={view === "garden" ? "Show as a list" : "Show the garden"}
           icon={view === "garden" ? "list-outline" : "leaf-outline"}

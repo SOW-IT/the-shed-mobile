@@ -1,8 +1,10 @@
 import {
   clampTarget,
+  type Look,
+  type Ask,
+  type Reply,
   HEARTBEAT_IDLE_MS,
   posAt,
-  type Look,
   type Walk,
 } from "@shared/world";
 import { useMutation, useQueries, useQuery } from "convex/react";
@@ -23,6 +25,8 @@ export type WorldMember = {
   walk: Walk | null;
   say?: { text: string; at: number };
   act?: { emote: string; at: number };
+  ask?: Ask;
+  reply?: Reply;
 };
 
 /** Taps closer together than this send only the last one. */
@@ -32,8 +36,38 @@ const COALESCE_MS = 150;
  * Counts of what this phone sent, for measuring the write budget. Tests and
  * the verify run read it from `globalThis.__shedWorld`.
  */
-type WorldStats = { join: number; move: number; moveRefused: number; act: number; say: number; heartbeat: number; leave: number; since: number };
-const newStats = (): WorldStats => ({ join: 0, move: 0, moveRefused: 0, act: 0, say: 0, heartbeat: 0, leave: 0, since: Date.now() });
+type WorldStats = {
+  join: number;
+  move: number;
+  moveRefused: number;
+  act: number;
+  say: number;
+  ask: number;
+  accept: number;
+  saveLook: number;
+  heartbeat: number;
+  leave: number;
+  since: number;
+};
+const newStats = (): WorldStats => ({
+  join: 0,
+  move: 0,
+  moveRefused: 0,
+  act: 0,
+  say: 0,
+  ask: 0,
+  accept: 0,
+  saveLook: 0,
+  heartbeat: 0,
+  leave: 0,
+  since: Date.now(),
+});
+
+/** Why an ask or an accept was turned away, in words. */
+const turnedAwayText = (reply: { reason?: string; retryInMs?: number }) =>
+  reply.retryInMs !== undefined
+    ? `Slow down a little. Try again in ${Math.ceil(reply.retryInMs / 1000)}s.`
+    : (reply.reason ?? "That didn't work.");
 
 const leftGarden = (e: unknown) => e instanceof ConvexError && /left the garden/.test(String(e.data));
 
@@ -49,6 +83,9 @@ export const useWorld = (enabled: boolean) => {
   const actM = useMutation(api.world.act);
   const sayM = useMutation(api.world.say);
   const heartbeatM = useMutation(api.world.heartbeat);
+  const askM = useMutation(api.world.ask);
+  const acceptM = useMutation(api.world.accept);
+  const saveLookM = useMutation(api.world.saveLook);
 
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -231,6 +268,55 @@ export const useWorld = (enabled: boolean) => {
     [actM, heard, again]
   );
 
+  /** Asks someone for a mutual action. Says why not, or null when it's asked. */
+  const ask = useCallback(
+    async (to: MemberId, kind: string): Promise<string | null> => {
+      const sentAt = Date.now();
+      stats.current.ask++;
+      try {
+        const reply = await askM({ to, kind });
+        heard(reply.serverNow, sentAt);
+        if (reply.ok) return null;
+        return turnedAwayText(reply);
+      } catch (e) {
+        if (leftGarden(e)) again();
+        return e instanceof ConvexError ? String(e.data) : "That didn't send.";
+      }
+    },
+    [askM, heard, again]
+  );
+
+  const accept = useCallback(
+    async (from: MemberId): Promise<string | null> => {
+      const sentAt = Date.now();
+      stats.current.accept++;
+      try {
+        const reply = await acceptM({ from });
+        heard(reply.serverNow, sentAt);
+        if (reply.ok) return null;
+        return turnedAwayText(reply);
+      } catch (e) {
+        if (leftGarden(e)) again();
+        return e instanceof ConvexError ? String(e.data) : "That didn't send.";
+      }
+    },
+    [acceptM, heard, again]
+  );
+
+  /** Saves a look from the editor: one write, only when Save is pressed. */
+  const saveLook = useCallback(
+    async (look: Look): Promise<string | null> => {
+      stats.current.saveLook++;
+      try {
+        const reply = await saveLookM({ look });
+        return reply.ok ? null : "Saved a moment ago. Try again in a few seconds.";
+      } catch (e) {
+        return e instanceof ConvexError ? String(e.data) : "That didn't save.";
+      }
+    },
+    [saveLookM]
+  );
+
   // "Still here", only after a quiet spell. No query reads it, so it pushes nothing.
   useEffect(() => {
     if (!session) return;
@@ -250,7 +336,7 @@ export const useWorld = (enabled: boolean) => {
   }, [session, heartbeatM, heard, again]);
 
   const people: WorldMember[] = members.map((m) => {
-    const row = states[m.memberId] as (Walk & Pick<WorldMember, "say" | "act">) | null | undefined | Error;
+    const row = states[m.memberId] as (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply">) | null | undefined | Error;
     const state = row && !(row instanceof Error) ? row : null;
     return {
       memberId: m.memberId,
@@ -260,6 +346,8 @@ export const useWorld = (enabled: boolean) => {
       walk: m.isMe ? (myWalk ?? state) : state,
       say: state?.say,
       act: state?.act,
+      ask: state?.ask,
+      reply: state?.reply,
     };
   });
 
@@ -274,5 +362,8 @@ export const useWorld = (enabled: boolean) => {
     walkTo,
     say,
     act,
+    ask,
+    accept,
+    saveLook,
   };
 };
