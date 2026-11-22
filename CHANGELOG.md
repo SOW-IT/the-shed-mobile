@@ -6,6 +6,30 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.64] - 2026-11-22
+
+### Added
+- **Fix a guest's name after adding them.** On an event's attendance page, tap
+  the left side of a guest's row (or swipe it right) and tap the pencil to fix
+  a typo. The name changes on that event only, and the event's total stays the
+  same. You can do it after the event ends too, once editing is turned on.
+- **Total attendance in the page header.** The chip at the top right of an
+  event's attendance page now reads **Total**: everyone signed in plus guests,
+  the same number the event's export and averages use.
+
+### Changed
+- **Add a guest from beside "Not signed in".** The small **+ Guest** button now
+  sits next to the Not signed in heading, so you no longer scroll to the end of
+  Signed in to find it. The name box opens just below it.
+
+### Fixed
+- **"Not signed in" scrolls again after an event ends.** On a wide but short
+  window, such as a laptop browser window, the ended-event
+  note and Enable editing button left so little room that both lists grew to
+  their full length. They stopped scrolling, and "Not signed in" never loaded
+  past its first ten people. The lists now keep room for at least three people
+  each, and the page scrolls to show them.
+
 ## [2.11.62] - 2026-11-22
 
 ### Changed
