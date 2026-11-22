@@ -75,6 +75,12 @@ describe("enqueueScore", () => {
     expect(enqueueScore([stale], fresh, NOW)).toEqual([fresh]);
   });
 
+  test("a run the server would turn away never replaces a good one", () => {
+    const good = entry({ runId: "run-good-01", score: 100 });
+    const endless = entry({ runId: "run-endless", score: 900, durationMs: MAX_RUN_MS + 1 });
+    expect(enqueueScore([good], endless, NOW)).toEqual([good]);
+  });
+
   test("never queues a zero score", () => {
     expect(enqueueScore([], entry({ score: 0 }), NOW)).toEqual([]);
   });

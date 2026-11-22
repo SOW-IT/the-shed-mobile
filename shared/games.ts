@@ -79,8 +79,9 @@ export const scoreProblem = (entry: QueuedScore, now: number): string | null => 
  * would change nothing once the higher one is published.
  */
 export const enqueueScore = (queue: readonly QueuedScore[], entry: QueuedScore, now: number): QueuedScore[] => {
-  if (entry.score < 1) return [...queue];
-  // A queued run the server would turn away can't hold its place.
+  // A run the server would turn away is never queued, and a queued one that
+  // has become unpublishable can't hold its place.
+  if (scoreProblem(entry, now) !== null) return [...queue];
   const current = queue.find((queued) => queued.game === entry.game && scoreProblem(queued, now) === null);
   if (current && current.score >= entry.score) return [...queue];
   return [...queue.filter((queued) => queued.game !== entry.game), entry];
