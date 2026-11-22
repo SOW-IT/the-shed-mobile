@@ -11,13 +11,19 @@ export const readStored = async (key: string): Promise<string | null> => {
   }
 };
 
-export const writeStored = async (key: string, value: string): Promise<void> => {
+/** Saves a value, saying whether it was saved. */
+export const tryWriteStored = async (key: string, value: string): Promise<boolean> => {
   try {
     if (onWeb()) window.localStorage.setItem(key, value);
     else await SecureStore.setItemAsync(key, value);
+    return true;
   } catch {
-    return;
+    return false;
   }
+};
+
+export const writeStored = async (key: string, value: string): Promise<void> => {
+  await tryWriteStored(key, value);
 };
 
 export const removeStored = async (key: string): Promise<void> => {
