@@ -5,19 +5,19 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 62s |  |
-| unused code (knip) | ✔ pass | 5s |  |
-| typecheck | ✔ pass | 17s |  |
-| Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 18s | before functions on :3270 |
-| before: web | ⚠ warning | 94s | 16 screens, 12 broken. out     /games                                               BROKEN, 1 console error(s) out     /games/shooter                                       BROKEN, 1 console error(s) out     /games/runner                                        BROKEN, 1 console error(s) out     /games/flappy                                        BROKEN, 1 console error(s) out     /games/leaderboar |
-| before: iOS reset | ✔ pass | 3s |  |
-| before: iOS | ✔ pass | 114s | 10 screenshots, every one settled |
-| after: local backend | ✔ pass | 21s | after functions on :3270 |
-| after: web | ✔ pass | 103s | 16 screens, 0 broken. |
-| after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 102s | 10 screenshots, every one settled |
+| native fingerprint | ✔ pass | 12s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 96s |  |
+| unused code (knip) | ✔ pass | 8s |  |
+| typecheck | ✔ pass | 35s |  |
+| Playwright Chromium | ✔ pass | 2s |  |
+| before: local backend | ✔ pass | 40s | before functions on :3270 |
+| before: web | ⚠ warning | 112s | 16 screens, 12 broken. out     /games                                               BROKEN, 1 console error(s) out     /games/shooter                                       BROKEN, 1 console error(s) out     /games/runner                                        BROKEN, 1 console error(s) out     /games/flappy                                        BROKEN, 1 console error(s) out     /games/leaderboar |
+| before: iOS reset | ✔ pass | 2s |  |
+| before: iOS | ✔ pass | 190s | 10 screenshots, every one settled |
+| after: local backend | ✔ pass | 22s | after functions on :3270 |
+| after: web | ✔ pass | 98s | 16 screens, 0 broken. |
+| after: iOS reset | ✔ pass | 2s |  |
+| after: iOS | ✔ pass | 88s | 10 screenshots, every one settled |
 
 ## Screenshots
 
