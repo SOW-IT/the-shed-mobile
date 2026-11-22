@@ -2,6 +2,7 @@ import { AdvancedMarker, APIProvider, Map, useMap, useMapsLibrary } from "@vis.g
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { Id } from "../../convex/_generated/dataModel";
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from "@/env";
 import { radius, useAppTheme } from "../theme";
 import {
   PIN_NAME_MAX_WIDTH,
@@ -15,8 +16,8 @@ import {
 
 export type { ChurchPin } from "./churchPins";
 
-const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
-const MAP_ID = process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
+const API_KEY = GOOGLE_MAPS_API_KEY ?? "";
+const MAP_ID = GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
 
 export const churchMapAvailable = API_KEY.length > 0;
 
