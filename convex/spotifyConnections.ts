@@ -10,11 +10,12 @@ import {
 } from "./_generated/server";
 import { spotifyTokenRequester } from "./spotify";
 import { decryptSpotifyToken, encryptSpotifyToken } from "./spotifyCrypto";
+import { env } from "./environment";
 
 export const getClientId = query({
   args: {},
   handler: async () => {
-    return process.env.SPOTIFY_CLIENT_ID ?? "";
+    return env("SPOTIFY_CLIENT_ID") ?? "";
   },
 });
 

@@ -1,3 +1,5 @@
+import { env } from "./environment";
+
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 const base64url = (bytes: Uint8Array): string => {
@@ -20,14 +22,14 @@ const pemToArrayBuffer = (pem: string): ArrayBuffer => {
 };
 
 export const googleServiceAccountConfigured = (): boolean =>
-  !!process.env.GOOGLE_SA_CLIENT_EMAIL && !!process.env.GOOGLE_SA_PRIVATE_KEY;
+  !!env("GOOGLE_SA_CLIENT_EMAIL") && !!env("GOOGLE_SA_PRIVATE_KEY");
 
 // A token for the SOW service account. `subject` impersonates a Workspace user
 // (domain-wide delegation); leave it out to act as the service account itself,
 // e.g. on a calendar that's been shared with it.
 export async function googleAccessToken(scope: string, subject?: string): Promise<string> {
-  const clientEmail = process.env.GOOGLE_SA_CLIENT_EMAIL as string;
-  const privateKeyPem = (process.env.GOOGLE_SA_PRIVATE_KEY as string).replace(/\\n/g, "\n");
+  const clientEmail = env("GOOGLE_SA_CLIENT_EMAIL") as string;
+  const privateKeyPem = (env("GOOGLE_SA_PRIVATE_KEY") as string).replace(/\\n/g, "\n");
 
   const now = Math.floor(Date.now() / 1000);
   const unsigned = `${encodeJson({ alg: "RS256", typ: "JWT" })}.${encodeJson({

@@ -78,6 +78,7 @@ import {
   teamsFor,
 } from "./teamJobs";
 import { sameEmail } from "../shared/memberMerge";
+import { env } from "./environment";
 
 const syncDirectorCacheAfterProfileChange = async (
   ctx: MutationCtx,
@@ -2101,7 +2102,7 @@ const prefillNextStaffYearHandler = async (ctx: MutationCtx) => {
   }
   const counts: CopyYearCounts = await copyYearData(ctx, from, to);
   const subject = `THE SHED: staff year prefill, ${from} copied to ${to}`;
-  const siteUrl = process.env.SITE_URL ?? process.env.APP_URL ?? "unknown";
+  const siteUrl = env("SITE_URL") ?? env("APP_URL") ?? "unknown";
   const body = [
     `The annual staff-year prefill ran and copied ${from} into ${to}.`,
     "",

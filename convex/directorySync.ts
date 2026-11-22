@@ -16,6 +16,7 @@ import {
 } from "../shared/rollcallImport";
 import { googleAccessToken, googleServiceAccountConfigured } from "./googleAuth";
 import { optionalEmail, requireAdmin } from "./model";
+import { env } from "./environment";
 
 const SCOPE = "https://www.googleapis.com/auth/admin.directory.user.readonly";
 const DIRECTORY_LIMIT = 10000;
@@ -33,7 +34,7 @@ const base64urlToBytes = (data: string): Uint8Array => {
 };
 
 async function getAccessToken(): Promise<string> {
-  const impersonate = process.env.GOOGLE_ADMIN_IMPERSONATE;
+  const impersonate = env("GOOGLE_ADMIN_IMPERSONATE");
   if (!googleServiceAccountConfigured() || !impersonate) {
     throw new Error(
       "Directory sync is not configured: set GOOGLE_SA_CLIENT_EMAIL, GOOGLE_SA_PRIVATE_KEY and GOOGLE_ADMIN_IMPERSONATE."
@@ -73,7 +74,7 @@ async function fetchPhoto(
 export const run = internalAction({
   args: {},
   handler: async (ctx) => {
-    const domain = process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
+    const domain = env("AUTH_ALLOWED_DOMAIN") ?? "sow.org.au";
     type DirUser = { email: string; name?: string; photoEtag?: string };
     let users: DirUser[] = [];
     const uploadedThisRun: Id<"_storage">[] = [];
