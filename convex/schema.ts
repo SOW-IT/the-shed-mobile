@@ -22,8 +22,10 @@ import {
 } from "./eventRequestData";
 import { gameIdValidator } from "./gameScoreData";
 import {
+  worldAskValidator,
   worldBucketValidator,
   worldLookValidator,
+  worldReplyValidator,
   worldReportLineValidator,
   worldWalkFields,
 } from "./worldData";
@@ -165,6 +167,10 @@ export default defineSchema({
     ...worldWalkFields,
     act: v.optional(v.object({ emote: v.string(), at: v.number() })),
     say: v.optional(v.object({ text: v.string(), at: v.number() })),
+    // A high five (or later another mutual action) asked of someone nearby,
+    // and the answer to one asked of you. Overwritten, never appended.
+    ask: v.optional(worldAskValidator),
+    reply: v.optional(worldReplyValidator),
     moveBucket: worldBucketValidator,
     actBucket: worldBucketValidator,
     sayBucket: worldBucketValidator,
@@ -191,6 +197,14 @@ export default defineSchema({
   })
     .index("by_roomId_and_at", ["roomId", "at"])
     .index("by_at", ["at"]),
+
+  // A look someone saved in the character editor, kept across visits. The
+  // roster reads it, so a save shows on everyone's screen with no new query.
+  worldLooks: defineTable({
+    email: v.string(),
+    look: worldLookValidator,
+    updatedAt: v.number(),
+  }).index("by_email", ["email"]),
 
   // Someone a person never wants to see in the world, in either direction.
   worldBlocks: defineTable({

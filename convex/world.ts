@@ -3,13 +3,19 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import {
+  ASK_MS,
   CHAT_LOG_SIZE,
   CHAT_ROOM_CAP,
   CHAT_TTL_MS,
   cleanLine,
   clampTarget,
+  distance,
   fullBucket,
+  INTERACT_RADIUS,
   isEmote,
+  isMutual,
+  isValidLook,
+  LOOK_SAVE_GAP_MS,
   lookFor,
   posAt,
   PRESENCE_TOUCH_MS,
@@ -24,7 +30,7 @@ import {
   WORLD_PLACE,
   type BucketKind,
 } from "../shared/world";
-import { worldLookValidator, worldWalkFields } from "./worldData";
+import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields } from "./worldData";
 import { Ctx, currentStaffYear, requireEmail, resolveName } from "./model";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
@@ -46,6 +52,12 @@ const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
     .first();
   return user?.name?.trim() || email.split("@")[0];
 };
+
+const savedLook = (ctx: Ctx, email: string) =>
+  ctx.db
+    .query("worldLooks")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
 
 const memberByEmail = (ctx: Ctx, email: string) =>
   ctx.db
@@ -169,7 +181,7 @@ export const join = mutation({
         roomId: room._id,
         email,
         name: await nameFor(ctx, email),
-        look: lookFor(email),
+        look: (await savedLook(ctx, email))?.look ?? lookFor(email),
         joinedAt: now,
       });
       const spawn = spawnFor(email);
@@ -269,6 +281,83 @@ export const say = mutation({
   },
 });
 
+const refused = v.object({ ok: v.literal(false), reason: v.string(), serverNow: v.number() });
+
+/**
+ * Someone else in the caller's room, close enough for a mutual action, and
+ * neither has blocked the other. Returns why not, or both state rows.
+ */
+type Partner = { reason: string } | { reason?: undefined; other: Doc<"worldMembers">; otherState: Doc<"worldState"> };
+
+const partner = async (
+  ctx: MutationCtx,
+  me: Awaited<ReturnType<typeof requireMe>>,
+  otherId: Id<"worldMembers">,
+  now: number
+): Promise<Partner> => {
+  const other = await ctx.db.get("worldMembers", otherId);
+  const otherState = other && (await stateOf(ctx, other._id));
+  if (!other || !otherState || other.roomId !== me.member.roomId) return { reason: "They've left the garden." };
+  if (other._id === me.member._id) return { reason: "That's you." };
+  if (await blockedEither(ctx, me.email, other.email)) return { reason: "They've left the garden." };
+  if (distance(posAt(me.state, now), posAt(otherState, now)) > INTERACT_RADIUS) return { reason: "Get a bit closer first." };
+  return { other, otherState };
+};
+
+/**
+ * Asks someone nearby for a mutual action ("High five?"). One write, on the
+ * caller's own row, which everyone in the room already receives. It lapses
+ * after ASK_MS; declining writes nothing.
+ */
+export const ask = mutation({
+  args: { to: v.id("worldMembers"), kind: v.string() },
+  returns: v.union(v.object({ ok: v.literal(true), at: v.number(), serverNow: v.number() }), turnedAway, refused),
+  handler: async (ctx, { to, kind }) => {
+    if (!isMutual(kind)) throw new ConvexError("That isn't something you can do together.");
+    const me = await requireMe(ctx);
+    const now = Date.now();
+    const found = await partner(ctx, me, to, now);
+    if (found.reason !== undefined) return { ok: false as const, reason: found.reason, serverNow: now };
+    const token = spend("act", me.state, now);
+    if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    await ctx.db.patch("worldState", me.state._id, { ask: { kind, to, at: now }, actBucket: token.bucket });
+    await touchPresence(ctx, me.member._id, now);
+    return { ok: true as const, at: now, serverNow: now };
+  },
+});
+
+/**
+ * Accepts an ask made of the caller, while it's still open and they're
+ * still close. One write, on the caller's own row; every phone plays the
+ * action from the ask and this answer together.
+ */
+export const accept = mutation({
+  args: { from: v.id("worldMembers") },
+  returns: v.union(v.object({ ok: v.literal(true), at: v.number(), serverNow: v.number() }), turnedAway, refused),
+  handler: async (ctx, { from }) => {
+    const me = await requireMe(ctx);
+    const now = Date.now();
+    const found = await partner(ctx, me, from, now);
+    if (found.reason !== undefined) return { ok: false as const, reason: found.reason, serverNow: now };
+    const asked = found.otherState.ask;
+    if (!asked || asked.to !== me.member._id || now - asked.at >= ASK_MS) {
+      return { ok: false as const, reason: "That's gone. Ask them again.", serverNow: now };
+    }
+    // One answer per ask, so a double tap can't replay it.
+    if (me.state.reply?.to === from && me.state.reply.askAt === asked.at) {
+      return { ok: true as const, at: me.state.reply.at, serverNow: now };
+    }
+    const token = spend("act", me.state, now);
+    if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    await ctx.db.patch("worldState", me.state._id, {
+      reply: { kind: asked.kind, to: from, askAt: asked.at, at: now },
+      actBucket: token.bucket,
+    });
+    await touchPresence(ctx, me.member._id, now);
+    return { ok: true as const, at: now, serverNow: now };
+  },
+});
+
 /**
  * "Still here", sent only after HEARTBEAT_IDLE_MS without another action.
  * `present: false` tells the app it was swept and should join again.
@@ -319,7 +408,8 @@ export const roster = query({
     const members = [];
     for (const row of rows) {
       if (await blockedEither(ctx, me.email, row.email)) continue;
-      members.push({ memberId: row._id, name: row.name, look: row.look, isMe: row._id === me._id });
+      const look = (await savedLook(ctx, row.email))?.look ?? row.look;
+      members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id });
     }
     return { instance: room.instance, members };
   },
@@ -337,6 +427,8 @@ export const state = query({
       ...worldWalkFields,
       act: v.optional(v.object({ emote: v.string(), at: v.number() })),
       say: v.optional(v.object({ text: v.string(), at: v.number() })),
+      ask: v.optional(worldAskValidator),
+      reply: v.optional(worldReplyValidator),
     })
   ),
   handler: async (ctx, { memberId }) => {
@@ -345,8 +437,8 @@ export const state = query({
     if (!member || !me || (await blockedEither(ctx, me.email, member.email))) return null;
     const row = await stateOf(ctx, memberId);
     if (!row) return null;
-    const { fromX, fromZ, toX, toZ, startedAt, act, say } = row;
-    return { fromX, fromZ, toX, toZ, startedAt, act, say };
+    const { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply } = row;
+    return { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply };
   },
 });
 
@@ -380,6 +472,25 @@ export const chatLog = query({
       lines.push({ id: row._id, memberId: row.memberId, name: row.name, text: row.text, at: row.at, isMe: row.email === me.email });
     }
     return lines;
+  },
+});
+
+/**
+ * Saves the caller's look from the character editor: one write, kept across
+ * visits. The roster reads it, so everyone in the room sees it at once.
+ */
+export const saveLook = mutation({
+  args: { look: worldLookValidator },
+  returns: v.object({ ok: v.boolean() }),
+  handler: async (ctx, { look }) => {
+    const email = await requireEmail(ctx);
+    if (!isValidLook(look)) throw new ConvexError("That look has a choice that doesn't exist.");
+    const now = Date.now();
+    const row = await savedLook(ctx, email);
+    if (!row) await ctx.db.insert("worldLooks", { email, look, updatedAt: now });
+    else if (now - row.updatedAt < LOOK_SAVE_GAP_MS) return { ok: false };
+    else await ctx.db.patch("worldLooks", row._id, { look, updatedAt: now });
+    return { ok: true };
   },
 });
 

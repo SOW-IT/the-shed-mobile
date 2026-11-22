@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  ASK_MS,
   BUCKETS,
   canHear,
   cleanLine,
@@ -7,9 +8,16 @@ import {
   fullBucket,
   hash,
   HEAR_RADIUS,
+  EMOTE_IDS,
   isEmote,
+  isMutual,
+  liveMutual,
+  MUTUAL_MS,
+  openAsk,
   LOOK_SIZES,
+  isValidLook,
   lookFor,
+  randomLook,
   MAX_SAY_LENGTH,
   OBSTACLES,
   posAt,
@@ -88,6 +96,16 @@ test("lookFor picks a stable look in range", () => {
   }
 });
 
+test("isValidLook checks every part, and randomLook stays in range", () => {
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0 })).toBe(true);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, hat: 4, accessory: 3 })).toBe(true);
+  expect(isValidLook({ skin: 0, hair: 6, hairColour: 0, shirt: 0 })).toBe(false);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, hat: 0.5 })).toBe(false);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: undefined as unknown as number })).toBe(false);
+  for (const r of [0, 0.3, 0.55, 0.99]) expect(isValidLook(randomLook(() => r))).toBe(true);
+  expect(isValidLook(randomLook())).toBe(true);
+});
+
 test("tagName shows a short first name", () => {
   expect(tagName("  Grace   Lee ")).toBe("Grace");
   expect(tagName("")).toBe("Someone");
@@ -100,9 +118,35 @@ test("cleanLine trims, joins lines and caps the length", () => {
   expect(Array.from(cleanLine("🌸".repeat(200))!)).toHaveLength(MAX_SAY_LENGTH);
 });
 
-test("isEmote knows the emote tray", () => {
-  expect(isEmote("👋")).toBe(true);
-  expect(isEmote("💩")).toBe(false);
+test("isEmote and isMutual know the choices, and nothing inherited", () => {
+  expect(EMOTE_IDS).toContain("wave");
+  expect([isEmote("wave"), isEmote("👋"), isEmote("toString")]).toEqual([true, false, false]);
+  expect([isMutual("highFive"), isMutual("hug"), isMutual("constructor")]).toEqual([true, false, false]);
+});
+
+describe("mutual actions", () => {
+  const ask = { kind: "highFive", to: "b", at: 1000 };
+  const reply = { kind: "highFive", to: "a", askAt: 1000, at: 3000 };
+
+  test("an ask is open for ASK_MS", () => {
+    expect(openAsk(ask, 1000 + ASK_MS - 1)).toBe(ask);
+    expect(openAsk(ask, 1000 + ASK_MS)).toBeNull();
+    expect(openAsk(undefined, 0)).toBeNull();
+  });
+
+  test("plays from the answer for MUTUAL_MS, only when the ask and answer match", () => {
+    const live = (r: typeof reply | undefined, now: number, a = ask) => liveMutual({ id: "a", ask: a }, { id: "b", reply: r }, now);
+    expect(live(reply, 3000)).toEqual({ kind: "highFive", progress: 0 });
+    expect(live(reply, 3000 + MUTUAL_MS / 2)!.progress).toBeCloseTo(0.5);
+    expect(live(reply, 3000 + MUTUAL_MS)).toBeNull();
+    expect(live(reply, 2999)).toBeNull();
+    expect(live(undefined, 3000)).toBeNull();
+    expect(live({ ...reply, to: "c" }, 3000)).toBeNull();
+    expect(live(reply, 3000, { ...ask, to: "c" })).toBeNull();
+    expect(live({ ...reply, askAt: 999 }, 3000)).toBeNull();
+    expect(live({ ...reply, kind: "hug" }, 3000)).toBeNull();
+    expect(live({ ...reply, kind: "hug" }, 3000, { ...ask, kind: "hug" })).toBeNull();
+  });
 });
 
 describe("takeToken", () => {
