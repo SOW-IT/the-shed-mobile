@@ -3,7 +3,6 @@ import { keyed } from "@/lib/listKeys";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
 import { withRestartHeld } from "@/lib/restartHold";
 import { uploadLocalFileToUrl } from "@/lib/uploadLocalFile";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { isSowStaffAddress } from "@shared/rollcallImport";
 import { useMutation, useQuery } from "convex/react";
@@ -40,6 +39,7 @@ import {
   Txt,
   Facts,
 } from "./ui";
+import { FontAwesomeSubsetIcons } from "./ui/subsetIcons";
 import { backOr } from "@/lib/goBack";
 
 const ProfileFrame = ({
@@ -105,7 +105,7 @@ function SpotifyConnectionCard() {
             justifyContent: "center",
           }}
         >
-          <FontAwesome name="spotify" size={27} color={fixedColours.onColour} />
+          <FontAwesomeSubsetIcons name="spotify" size={27} color={fixedColours.onColour} />
         </View>
 
         {/* Account status */}

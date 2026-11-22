@@ -71,6 +71,16 @@ module.exports = defineConfig([
               message:
                 "Import one icon set, e.g. @expo/vector-icons/Ionicons. The package root ships every icon font in the app.",
             },
+            {
+              name: "@expo/vector-icons/MaterialCommunityIcons",
+              message:
+                "This ships a 1.3 MB font. Add the glyph to MaterialSubsetIcons in src/components/ui/subsetIcons.ts.",
+            },
+            {
+              name: "@expo/vector-icons/FontAwesome",
+              message:
+                "This ships a 166 KB font. Add the glyph to FontAwesomeSubsetIcons in src/components/ui/subsetIcons.ts.",
+            },
           ],
         },
       ],
