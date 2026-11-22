@@ -461,17 +461,23 @@ describe("account.wipe", () => {
     const t = newConvex();
     const userId = await t.run((ctx) => ctx.db.insert("users", { email: GUEST, name: "Gina Guest" }));
     await t.withIdentity({ email: GUEST, subject: `${userId}|session`, issuer: "test" }).mutation(api.world.join, {});
+    const gardenRows = () =>
+      t.run(async (ctx) => ({
+        members: await ctx.db.query("worldMembers").collect(),
+        states: await ctx.db.query("worldState").collect(),
+        presence: await ctx.db.query("worldPresence").collect(),
+        rooms: await ctx.db.query("worldRooms").collect(),
+        throttles: await ctx.db.query("worldThrottle").collect(),
+      }));
+    const empty = { members: [], states: [], presence: [], rooms: [], throttles: [] };
     await t.mutation(internal.account.wipe, { userId });
+    // Straight after the wipe, before any scheduled sweep runs: the wipe itself did it.
+    expect(await gardenRows()).toEqual(empty);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     vi.setSystemTime(Date.now() + 10 * 60_000);
     await t.mutation(internal.world.sweep, {});
-    await t.run(async (ctx) => {
-      expect(await ctx.db.query("worldMembers").collect()).toEqual([]);
-      expect(await ctx.db.query("worldState").collect()).toEqual([]);
-      expect(await ctx.db.query("worldPresence").collect()).toEqual([]);
-      expect(await ctx.db.query("worldRooms").collect()).toEqual([]);
-      expect(await ctx.db.query("worldThrottle").collect()).toEqual([]);
-    });
+    // And no later sweep brings anything back.
+    expect(await gardenRows()).toEqual(empty);
   });
 
   test("deletes the user's saved Spotify connection and search count", async () => {
