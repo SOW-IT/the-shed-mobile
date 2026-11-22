@@ -18,6 +18,20 @@ const FACE_SHAPES = [
   { w: 0.9, h: 1.14, top: 0.9, bottom: 0.9 },
 ] as const;
 
+/**
+ * How far the very top of a character (hair and hat included) stands above
+ * its feet, as a multiple of its scale, when it's drawn `up` scales tall per
+ * unit of height. For fitting a character into a fixed frame.
+ */
+export const figureTop = (look: Look, up: number) => {
+  const head = bodyScale(look).height * up;
+  const face = 0.42 * (FACE_SHAPES[lookPart(look, "face")] ?? FACE_SHAPES[0]).h + 0.05;
+  const hat = lookPart(look, "hat");
+  const above = Math.max(face, look.hair === 1 ? 0.63 : 0, look.hair === 10 ? 0.65 : 0, hat === 4 ? 0.5 : 0);
+  const spikes = look.hair === 5 && hat === 0 ? 1.52 * head + 0.06 : 0;
+  return Math.max(head + above, spikes);
+};
+
 type Figure = {
   foot: ScreenPoint;
   /** Pixels per world unit, across and up. */
@@ -532,7 +546,9 @@ const AvatarView = ({
               : { height: 0.025 * s, backgroundColor: people.eye, borderRadius: s, top: my };
     face.push(<View key="mouth" style={[styles.abs, { left: mx - w / 2, width: w }, mouth]} />);
   }
-  const hatColour = [undefined, people.hats.cap, people.hats.beanie, undefined, people.hats.sunHat][hat];
+  // The cap and beanie are drawn as the hair cap in the hat's colour. The sun
+  // hat has its own brim and crown, so under it hair is just hair (or none).
+  const capHat = [undefined, people.hats.cap, people.hats.beanie][hat];
   parts.push(
     <View
       key="head"
@@ -574,22 +590,22 @@ const AvatarView = ({
         <View style={[styles.abs, { left: iw * 0.03, top: -ih * 0.05, width: iw, height: ih, borderRadius: Math.max(iw, ih), backgroundColor: skin }]} />
         {face}
         {/* The hair cap (none when bald; short and fine for a buzz cut). */}
-        {look.hair === 8 && !hatColour ? null : (
+        {look.hair === 8 && !capHat ? null : (
         <View
           style={[
             styles.abs,
             {
               left: icx - inner * 1.12 - side * 0.3 * inner,
-              top: icy - inner * 1.12 - (capDrop + (look.hair === 6 && !hatColour ? 0.22 : 0)) * inner,
+              top: icy - inner * 1.12 - (capDrop + (look.hair === 6 && !capHat ? 0.22 : 0)) * inner,
               width: inner * 2.24,
               height: inner * 2.24,
               borderRadius: inner * 1.12,
-              backgroundColor: hatColour && hat !== 4 ? hatColour : look.hair === 6 ? shade(hair, 0.25) : hair,
+              backgroundColor: capHat ?? (look.hair === 6 ? shade(hair, 0.25) : hair),
             },
           ]}
         />
         )}
-        {look.hair === 8 && !hatColour ? null : (
+        {look.hair === 8 && !capHat ? null : (
         <View
           style={[
             styles.abs,
@@ -599,7 +615,7 @@ const AvatarView = ({
               width: inner * 0.7,
               height: inner * 0.5,
               borderRadius: inner,
-              backgroundColor: shade(hatColour && hat !== 4 ? hatColour : hair, 0.18),
+              backgroundColor: shade(capHat ?? hair, 0.18),
             },
           ]}
         />

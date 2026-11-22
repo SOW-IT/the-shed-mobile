@@ -22,10 +22,10 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { garden, hud, people } from "./palette";
-import { Avatar } from "./Person";
+import { Avatar, figureTop } from "./Person";
 import { Ellipse } from "./Shapes";
 
-const PREVIEW_HEIGHT = 170;
+const PREVIEW_HEIGHT = 184;
 
 /** Turns per pixel dragged (radians). */
 const TURN_PER_PX = 0.012;
@@ -101,8 +101,11 @@ const Preview = ({ look, active }: { look: Look; active: boolean }) => {
     d.touchedAt = Date.now();
   };
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
-  const s = 100;
-  const foot = { x: width / 2, y: PREVIEW_HEIGHT - 28, depth: 1, scale: s };
+  // Full size, unless the tallest looks (a tall afro, say) would poke out of
+  // the top: then just small enough to fit.
+  const footY = PREVIEW_HEIGHT - 28;
+  const s = Math.min(100, (footY - 6) / figureTop(look, 0.86));
+  const foot = { x: width / 2, y: footY, depth: 1, scale: s };
   return (
     <View
       style={[styles.preview, { backgroundColor: garden.sky }, noBrowserGestures]}
@@ -297,7 +300,7 @@ export const CharacterEditor = ({
   const section = (title: string) => <Text style={[typography.label, { color: t.muted }]}>{title}</Text>;
   return (
     <Sheet visible={visible} onClose={onClose} title="Your character" scrollable={false} footer={footer}>
-      <View style={styles.stack}>
+      <View style={[styles.stack, styles.shrink]}>
         {/* The preview stays put while the choices scroll under it. */}
         <Preview look={draft} active={visible} />
         <View style={styles.tabs} accessibilityRole="tablist">
@@ -380,7 +383,10 @@ export const CharacterEditor = ({
 
 const styles = StyleSheet.create({
   stack: { gap: spacing.sm, paddingBottom: spacing.sm },
-  choices: { maxHeight: 200 },
+  // On a short screen the choices give up height (and scroll) rather than
+  // slide under Save.
+  shrink: { flexShrink: 1, minHeight: 0 },
+  choices: { maxHeight: 200, flexShrink: 1, minHeight: 64 },
   tabs: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   tab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: hud.primarySoft },
   stepsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },

@@ -373,7 +373,6 @@ export const useWorld = (enabled: boolean) => {
       });
       setTarget(to);
       fingerAt.current = to;
-      lastAction.current = Date.now();
     },
     [serverNow]
   );
@@ -384,6 +383,9 @@ export const useWorld = (enabled: boolean) => {
       pending.current = to;
       predicting.current = true;
       lastSent.current = { ...to, at: Date.now() };
+      // Only what reaches the server counts as activity: a long, still hold
+      // sends nothing, so the idle heartbeat keeps you in the garden.
+      lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       flushRef.current();
@@ -437,9 +439,16 @@ export const useWorld = (enabled: boolean) => {
       if (holdTimer.current) clearTimeout(holdTimer.current);
       holdTimer.current = null;
       const to = clampTarget(x, z);
-      retarget(to);
       const last = lastSent.current;
-      if (!last || Math.hypot(to.x - last.x, to.z - last.z) > RELEASE_MIN) sendNow(to);
+      if (!last || Math.hypot(to.x - last.x, to.z - last.z) > RELEASE_MIN) {
+        retarget(to);
+        sendNow(to);
+      } else if (!pending.current && !inFlight.current) {
+        // Lifted on the spot already sent and answered: the walk on screen is
+        // already going there, so it stands, and the server's walks are
+        // taken as usual again (a reply still on its way does this itself).
+        predicting.current = false;
+      }
     },
     [session, retarget, sendNow]
   );

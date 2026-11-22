@@ -133,18 +133,23 @@ export const Garden = ({
   const [firstStarts, setFirstStarts] = useState<Record<string, number>>({});
   const replyKeys = people.map((p) => (p.reply ? `${p.reply.to}:${p.reply.askAt}:${p.reply.at}` : "")).join(",");
   useEffect(() => {
-    const fresh: Record<string, number> = {};
+    // Kept only while that reply stays on screen without a break: the
+    // optimistic one hands straight over to the server's, but a refused accept
+    // vanishes, so a retry starts afresh.
+    const current: Record<string, number> = {};
     for (const p of people) {
       if (!p.reply) continue;
       const key = `${p.reply.to}:${p.reply.askAt}`;
-      if (firstStarts[key] === undefined) fresh[key] = p.reply.at;
+      current[key] = firstStarts[key] ?? p.reply.at;
     }
+    const same = Object.keys(current).length === Object.keys(firstStarts).length && Object.keys(current).every((k) => current[k] === firstStarts[k]);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- remember a start the first time it's seen
-    if (Object.keys(fresh).length) setFirstStarts((all) => ({ ...fresh, ...all }));
+    if (!same) setFirstStarts(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the replies, not the arrays
   }, [replyKeys]);
   const me = people.findIndex((p) => p.me);
-  const mePose = me >= 0 ? poses[me] : null;
+  // Where you're walking (before any high-five step), for the target marker.
+  const placed = me >= 0 ? poses[me] : null;
   const recent = (at: number | undefined, ms: number) => at !== undefined && now - at < ms;
   // What each person is doing: a mutual action with someone (worked out from
   // the asker's ask and the other's answer), or else an emote.
@@ -166,7 +171,9 @@ export const Garden = ({
     const key = answer ? `${answer.to}:${answer.askAt}` : "";
     const reply = answer && startedAt[key] !== undefined ? { ...answer, at: Math.min(startedAt[key], answer.at) } : answer;
     const live = liveMutual({ id: asker.memberId, ask: asker.ask }, { id: people[j].memberId, reply }, now);
-    if (!live) return;
+    // One at a time each: if A-B and B-C both play at once, B keeps the first,
+    // so B's hands, steps and spark all belong to the same pair.
+    if (!live || doing[i] || doing[j]) return;
     // Turn to face each other; the hand goes up on the side the other is on screen.
     const toward = b.x >= a.x ? 1 : -1;
     doing[i] = { kind: "mutual", id: live.kind, p: live.progress, toward };
@@ -185,6 +192,9 @@ export const Garden = ({
     const contact = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, k, i, j };
     touches.push(contact);
   });
+  // Where you're drawn, stepped in for a high five or not: the hearing ring,
+  // the chip and the faded bubbles all go by that.
+  const mePose = me >= 0 ? poses[me] : null;
   people.forEach((p, i) => {
     if (doing[i] || p.muted || !p.act || !isEmote(p.act.emote) || !recent(p.act.at, EMOTE_MS)) return;
     doing[i] = { kind: "emote", id: p.act.emote, p: (now - p.act.at) / EMOTE_MS };
@@ -207,7 +217,7 @@ export const Garden = ({
   const animating =
     poses.some((pose) => pose && (pose.walking || (now - pose.arrivesAt < 800 && pose.heading !== 0))) ||
     doing.some((d) => d !== null) ||
-    (target !== null && mePose !== null && Math.hypot(mePose.x - target.x, mePose.z - target.z) > 0.05);
+    (target !== null && placed !== null && Math.hypot(placed.x - target.x, placed.z - target.z) > 0.05);
   const t = useClock(animating) / 1000;
   const press = useRef<{
     x: number;
@@ -215,7 +225,9 @@ export const Garden = ({
     hit: { kind: "person"; id: string } | { kind: "arcade" } | { kind: "ground" };
     walking: boolean;
     timer: ReturnType<typeof setTimeout> | null;
-  }>({ x: 0, y: 0, hit: { kind: "ground" }, walking: false, timer: null });
+    /** The last point of this press that was on the ground. */
+    spot: { x: number; z: number } | null;
+  }>({ x: 0, y: 0, hit: { kind: "ground" }, walking: false, timer: null, spot: null });
 
   /** Where a touch is on the stage. Children don't take touches, so it's the stage's own. */
   const where = (e: GestureResponderEvent) => {
@@ -246,8 +258,11 @@ export const Garden = ({
 
   /** Starts walking toward a screen point, if it's on the ground. */
   const walkFrom = (x: number, y: number, phase: "start" | "move" | "end") => {
-    const spot = cam?.ground(x, y);
+    // A finger lifted off the ground (above the horizon) still ends the hold,
+    // at the last spot it was on the ground.
+    const spot = cam?.ground(x, y) ?? (phase === "end" ? press.current.spot : null);
     if (!spot) return;
+    press.current.spot = spot;
     if (phase === "start") onHoldStart(spot.x, spot.z);
     else if (phase === "move") onHoldMove(spot.x, spot.z);
     else onHoldEnd(spot.x, spot.z);
@@ -262,7 +277,7 @@ export const Garden = ({
     if (!at) return;
     const hit = hitAt(at.x, at.y);
     if (press.current.timer) clearTimeout(press.current.timer);
-    press.current = { ...at, hit, walking: hit.kind === "ground", timer: null };
+    press.current = { ...at, hit, walking: hit.kind === "ground", timer: null, spot: null };
     if (hit.kind === "ground") walkFrom(at.x, at.y, "start");
     else {
       press.current.timer = setTimeout(() => {
@@ -294,6 +309,16 @@ export const Garden = ({
     if (p.walking) return walkFrom(at.x, at.y, "end");
     if (p.hit.kind === "person") onTapPerson(p.hit.id);
     else if (p.hit.kind === "arcade") onTapArcade();
+  };
+  // The system took the touch away (a call, a system gesture): it was no tap,
+  // so open nothing; a walk in progress ends where the finger last was.
+  const onCancel = () => {
+    const p = press.current;
+    if (p.timer) clearTimeout(p.timer);
+    p.timer = null;
+    if (p.walking) walkFrom(p.x, p.y, "end");
+    p.walking = false;
+    p.hit = { kind: "ground" };
   };
 
   if (!cam || !scene) return <View style={styles.fill} onLayout={onLayout} />;
@@ -362,7 +387,7 @@ export const Garden = ({
     actors.push({ depth: front - 0.01, key: `touch-${c.i}-${c.j}`, node: <Spark x={at.x} y={at.y} size={at.scale * 0.55} t={t} /> });
   }
   // The tap marker: a spinning flower with a bobbing pin, until you arrive.
-  if (target && mePose && Math.hypot(mePose.x - target.x, mePose.z - target.z) > 0.05) {
+  if (target && placed && Math.hypot(placed.x - target.x, placed.z - target.z) > 0.05) {
     const base = cam.project([target.x, 0, target.z]);
     const pin = cam.project([target.x, 0.85 + Math.sin(t * 4) * 0.1, target.z]);
     const k = (t * 0.9) % 1;
@@ -432,7 +457,7 @@ export const Garden = ({
         onResponderGrant={onGrant}
         onResponderMove={onMove}
         onResponderRelease={onRelease}
-        onResponderTerminate={onRelease}
+        onResponderTerminate={onCancel}
         testID="world-stage"
       >
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
