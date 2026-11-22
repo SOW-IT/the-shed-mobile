@@ -40,6 +40,24 @@ const asNever = {
   message: "`as never` turns type checking off. Give the value its real type, or assert to the type the call expects.",
 };
 
+// Icon fonts that would ship whole. Shared by every no-restricted-imports
+// below: a later block's options replace an earlier one's for its files.
+const iconFontPaths = [
+  {
+    name: "@expo/vector-icons",
+    message:
+      "Import one icon set, e.g. @expo/vector-icons/Ionicons. The package root ships every icon font in the app.",
+  },
+  {
+    name: "@expo/vector-icons/MaterialCommunityIcons",
+    message: "This ships a 1.3 MB font. Add the glyph to MaterialSubsetIcons in src/components/ui/subsetIcons.ts.",
+  },
+  {
+    name: "@expo/vector-icons/FontAwesome",
+    message: "This ships a 166 KB font. Add the glyph to FontAwesomeSubsetIcons in src/components/ui/subsetIcons.ts.",
+  },
+];
+
 module.exports = defineConfig([
   expoConfig,
   comments.recommended,
@@ -65,13 +83,7 @@ module.exports = defineConfig([
       "no-restricted-imports": [
         "error",
         {
-          paths: [
-            {
-              name: "@expo/vector-icons",
-              message:
-                "Import one icon set, e.g. @expo/vector-icons/Ionicons. The package root ships every icon font in the app.",
-            },
-          ],
+          paths: iconFontPaths,
         },
       ],
       "@typescript-eslint/no-unused-vars": [
@@ -107,13 +119,9 @@ module.exports = defineConfig([
       "no-restricted-imports": [
         "error",
         {
-          paths: [
-            {
-              name: "@expo/vector-icons",
-              message:
-                "Import one icon set, e.g. @expo/vector-icons/Ionicons. The package root ships every icon font in the app.",
-            },
-          ],
+          // A rule set again here replaces the one above, so it repeats the
+          // icon-font paths.
+          paths: iconFontPaths,
           patterns: [
             {
               group: ["@/world/*", "**/world/*"],

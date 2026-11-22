@@ -1,9 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { MaterialSubsetIcons } from "./subsetIcons";
 
 export type AppIconName =
   | keyof typeof Ionicons.glyphMap
-  | { material: keyof typeof MaterialCommunityIcons.glyphMap };
+  | { material: keyof typeof MaterialSubsetIcons.glyphMap };
 
 export const AppIcon = ({
   name,
@@ -17,5 +17,5 @@ export const AppIcon = ({
   typeof name === "string" ? (
     <Ionicons name={name} size={size} color={color} />
   ) : (
-    <MaterialCommunityIcons name={name.material} size={size} color={color} />
+    <MaterialSubsetIcons name={name.material} size={size} color={color} />
   );
