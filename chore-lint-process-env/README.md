@@ -15,20 +15,20 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 6s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 57s |  |
+| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 42s |  |
 | unused code (knip) | ✔ pass | 4s |  |
-| typecheck | ✔ pass | 13s |  |
-| unit tests with coverage | ✔ pass | 19s |  |
+| typecheck | ✔ pass | 12s |  |
+| unit tests with coverage | ✔ pass | 16s |  |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 16s | before functions on :3270 |
-| before: web | ✔ pass | 550s | 140 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
-| before: iOS reset | ✔ pass | 1s |  |
-| before: iOS | ✔ pass | 214s | 35 screenshots; still moving after 10 frames: admin-review, admin-all |
-| after: local backend | ✔ pass | 16s | after functions on :3270 |
-| after: web | ✔ pass | 524s | 140 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
-| after: iOS reset | ✔ pass | 77s |  |
-| after: iOS | ✔ pass | 227s | 35 screenshots; still moving after 10 frames: admin-review, admin-all |
+| before: local backend | ✔ pass | 15s | before functions on :3270 |
+| before: web | ✔ pass | 474s | 140 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: iOS reset | ✔ pass | 2s |  |
+| before: iOS | ✔ pass | 222s | 35 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: local backend | ✔ pass | 15s | after functions on :3270 |
+| after: web | ✔ pass | 478s | 140 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| after: iOS reset | ✔ pass | 1s |  |
+| after: iOS | ✔ pass | 198s | 35 screenshots; still moving after 10 frames: admin-review, admin-all |
 
 ## Screenshots
 
