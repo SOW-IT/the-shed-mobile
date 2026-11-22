@@ -13,6 +13,7 @@ import {
   endDateAfterStartChange,
   eventWindowFromInputs,
   capitalizeMemberName,
+  typedMemberName,
   displayNameFromEmail,
   eventHasEnded,
   canReverseSignIn,
@@ -51,6 +52,10 @@ describe("names", () => {
     ["", ""],
   ])("capitalizeMemberName(%j) is %j", (input, expected) => {
     expect(capitalizeMemberName(input)).toBe(expected);
+  });
+
+  test("a typed name is trimmed, single-spaced and capitalised", () => {
+    expect(typedMemberName("  jane   van  doe ")).toBe("Jane Van Doe");
   });
 
   test.each([

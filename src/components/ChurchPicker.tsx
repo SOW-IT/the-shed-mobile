@@ -409,7 +409,7 @@ export function ChurchSelect({
             accessibilityRole="button"
             onPress={() => {
               setListOpen(false);
-              setTimeout(() => setAdding(true), durations.overlayOut + 80);
+              setTimeout(() => setAdding(true), durations.sheetHandoff);
             }}
             style={({ pressed }) => [
               styles.option,

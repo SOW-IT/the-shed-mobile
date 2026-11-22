@@ -77,24 +77,30 @@ export const countSearch = internalMutation({
 
 const canCacheToken = () => !!env("SPOTIFY_TOKEN_ENCRYPTION_KEY");
 
-export async function spotifyToken(ctx: ActionCtx, fresh = false): Promise<string> {
+export const spotifyTokenRequester = () => {
   const clientId = env("SPOTIFY_CLIENT_ID");
   const clientSecret = env("SPOTIFY_CLIENT_SECRET");
   if (!clientId || !clientSecret)
     throw new ConvexError("Spotify credentials are not configured.");
+  return (body: string | URLSearchParams) =>
+    fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+};
+
+export async function spotifyToken(ctx: ActionCtx, fresh = false): Promise<string> {
+  const requestToken = spotifyTokenRequester();
   if (!fresh && canCacheToken()) {
     const cached = await ctx.runQuery(internal.spotify.cachedAppToken, {});
     const decrypted = cached ? await decryptSpotifyToken(cached).catch(() => null) : null;
     if (decrypted) return decrypted;
   }
-  const response = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: "grant_type=client_credentials",
-  });
+  const response = await requestToken("grant_type=client_credentials");
   if (!response.ok)
     throw new ConvexError(
       `Spotify authentication failed (${response.status}).`,

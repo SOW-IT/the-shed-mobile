@@ -18,15 +18,12 @@ import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
 import {
   canReverseSignIn,
-  contrastingText,
   eventHasEnded,
   formatEventRange,
   formatSignInTime,
   isMultiDayEvent,
   personKey,
   SOW_SUBGROUP,
-  subgroupColour,
-  subgroupLabel,
 } from "@shared/rollcall";
 import { eventStaffYear, sydneyCalendarYear } from "@shared/flow";
 import { EVENT_GUEST_NAME_MAX } from "@shared/eventGuests";
@@ -42,6 +39,7 @@ import { CheckInSheet, useCheckInPending } from "@/components/attendance/CheckIn
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
+import { SubgroupPill } from "@/components/attendance/SubgroupPill";
 import { useContentWidth } from "@/components/nav/layout";
 import { fieldTestID } from "@/components/ui/fieldTestID";
 import {
@@ -59,6 +57,7 @@ import {
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { backOr } from "@/lib/goBack";
 
@@ -231,11 +230,7 @@ export default function EventAttendanceScreen() {
   );
 
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(id);
-  }, [search]);
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS).trim();
   const [toast, setToast] = useState<ToastState>(null);
   const [eventEditOpen, setEventEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -1271,22 +1266,9 @@ export default function EventAttendanceScreen() {
       {metaUnderTitle ? eventMeta : null}
       <View style={styles.badgeRow}>
         <View style={styles.badgeGroup}>
-          {event.subgroups.map((s) => {
-            const colour = subgroupColour(s);
-            return (
-              <View key={s} style={[styles.subgroupPill, { backgroundColor: colour }]}>
-                <Text
-                  style={[
-                    typography.caption,
-                    styles.subgroupPillText,
-                    { color: contrastingText(colour) },
-                  ]}
-                >
-                  {subgroupLabel(s)}
-                </Text>
-              </View>
-            );
-          })}
+          {event.subgroups.map((s) => (
+            <SubgroupPill key={s} subgroup={s} />
+          ))}
         </View>
         {event.tags && event.tags.length > 0 ? (
           <View style={[styles.badgeGroup, styles.badgeGroupRight, styles.tagGroup]}>
@@ -1482,16 +1464,6 @@ const styles = StyleSheet.create({
   tagGroup: {
     flexShrink: 0,
     maxWidth: "50%",
-  },
-  subgroupPill: {
-    borderRadius: radius.full,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-  },
-  subgroupPillText: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.2,
   },
   search: { marginBottom: spacing.sm },
   guestLink: {

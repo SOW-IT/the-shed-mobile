@@ -8,7 +8,7 @@ import { auditHeadline, type CalendarAuditAction } from "@shared/calendarAudit";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { backOr } from "@/lib/goBack";
 import { sydneyDateTime } from "@/lib/sydneyTime";
-import { Btn, EmptyState, Facts, LoadingState, Screen, SowSpinner } from "@/components/ui";
+import { EmptyState, Facts, LoadingState, LoadMoreFooter, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const PAGE_SIZE = 30;
@@ -103,15 +103,7 @@ export default function CalendarHistoryScreen() {
       ) : (
         <>
           {rows.map(renderRow)}
-          {loadingMore ? (
-            <View style={styles.more}>
-              <SowSpinner size={36} />
-            </View>
-          ) : hasMore ? (
-            <View style={styles.more}>
-              <Btn title="Show earlier" variant="ghost" onPress={loadMore} />
-            </View>
-          ) : null}
+          <LoadMoreFooter loadingMore={loadingMore} hasMore={hasMore} onLoadMore={loadMore} />
         </>
       )}
     </Screen>
@@ -136,5 +128,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rowText: { flex: 1, minWidth: 0, gap: 2 },
-  more: { alignItems: "center", paddingVertical: spacing.md },
 });

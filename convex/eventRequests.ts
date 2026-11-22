@@ -69,6 +69,7 @@ import {
   getDepartment,
   getYearSettings,
   memoAsync,
+  nameOf,
   resolveName,
 } from "./model";
 
@@ -349,8 +350,6 @@ export const get = query({
     const access = await accessTo(ctx, caller, event);
     if (!access.canView) return null;
     const forms = await subFormsOf(ctx, event._id);
-    const nameOf = (email: string | undefined) =>
-      email ? displayName(ctx, email, event.year) : Promise.resolve(null);
     const open = event.status !== "CANCELLED";
     // A campus leader who is an admin can look through a lens, but every
     // event action still turns them away.
@@ -374,15 +373,15 @@ export const get = query({
       const approver = await stepApprover(ctx, event, kind, form.step);
       formViews[kind] = {
         ...form,
-        submittedByName: await nameOf(form.submittedBy),
-        decidedByName: await nameOf(form.decidedBy),
-        directorApprovedByName: await nameOf(form.directorApprovedBy),
-        nudgedByName: await nameOf(form.nudgedBy),
+        submittedByName: await nameOf(ctx, form.submittedBy, event.year),
+        decidedByName: await nameOf(ctx, form.decidedBy, event.year),
+        directorApprovedByName: await nameOf(ctx, form.directorApprovedBy, event.year),
+        nudgedByName: await nameOf(ctx, form.nudgedBy, event.year),
         nudgeNames: await Promise.all(
-          nudgeRecipients(event, form, caller).map(async (email) => (await nameOf(email)) ?? email)
+          nudgeRecipients(event, form, caller).map(async (email) => (await nameOf(ctx, email, event.year)) ?? email)
         ),
         approverTitle: await approverTitleFor(ctx, approver, kind, form.step),
-        approverName: await nameOf(approver?.email),
+        approverName: await nameOf(ctx, approver?.email, event.year),
         can: {
           fill:
             acts &&
@@ -404,8 +403,8 @@ export const get = query({
     const settings = await getYearSettings(ctx, event.year);
     return {
       event,
-      requesterName: await nameOf(event.requesterEmail),
-      cancelledByName: await nameOf(event.cancelledBy),
+      requesterName: await nameOf(ctx, event.requesterEmail, event.year),
+      cancelledByName: await nameOf(ctx, event.cancelledBy, event.year),
       forms: formViews,
       directorThreshold: eventDirectorThresholdOr(settings?.eventDirectorApprovalThreshold),
       can: {

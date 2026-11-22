@@ -196,18 +196,18 @@ export const TabBar = ({
                 {segment.label}
               </Text>
               {segment.badge ? (
-                <View style={[styles.tabBadge, { backgroundColor: t.warning }]}>
-                  <Text style={styles.tabBadgeText}>{segment.badge}</Text>
+                <View style={[styles.segmentBadge, { backgroundColor: t.warning }]}>
+                  <Text style={styles.segmentBadgeText}>{segment.badge}</Text>
                 </View>
               ) : null}
               {segment.messageBadge ? (
                 <View
                   style={[
-                    styles.tabBadge,
+                    styles.segmentBadge,
                     { backgroundColor: fixedColours.messageBadge.bg, borderWidth: 1, borderColor: fixedColours.messageBadge.border },
                   ]}
                 >
-                  <Text style={[styles.tabBadgeText, { color: fixedColours.messageBadge.text }]}>
+                  <Text style={[styles.segmentBadgeText, { color: fixedColours.messageBadge.text }]}>
                     {segment.messageBadge}
                   </Text>
                 </View>
