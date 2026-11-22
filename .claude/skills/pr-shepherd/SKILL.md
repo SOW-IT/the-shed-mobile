@@ -24,7 +24,9 @@ node scripts/pr-status.mjs <number> --json # for scripting
 
 It reports failed and running checks with links, whether CodeRabbit is rate
 limited and until when, whether it skipped the review and why, and every
-unresolved CodeRabbit thread with its id. It also lists the review bodies
+unresolved CodeRabbit thread with its id. It also says whether the PR is big
+enough to need a CodeRabbit review (below), and if so whether a review
+covers the head. It also lists the review bodies
 that hold findings outside the diff, which have no thread to resolve. Once
 you've dealt with those, pass the review ids:
 `node scripts/pr-status.mjs <number> --ack <id>,<id>`. Nothing remembers an
@@ -41,6 +43,21 @@ sending). Never request a review on any other PR. A commit that only merges
 files or functions as the PR, does not need a new review. If CodeRabbit
 already left threads, still fix or reply and resolve them.
 
+`pr-status` applies this rule (`scripts/lib/coderabbitGate.mjs`):
+
+- **Big** means more than 300 changed lines in `src/`, `shared/` or `convex/`
+  (not tests or `convex/_generated`), or one of those files matching a
+  sensitive area: the schema, deletion or migration (by name, or a
+  `db.delete`/`storage.delete` line in the diff), auth or permissions, or
+  push or email notifications. Scripts, docs, config and tests never count.
+- **Covered** means CodeRabbit reviewed the head, or reviewed an earlier
+  commit whose app and Convex changes are the same: the same files, each
+  with the same resulting content. A clean merge of `main` keeps that. A new
+  commit to those files, or a conflict resolved in one, doesn't. A later
+  change only to tests, scripts or docs doesn't need a new review.
+- The rules go by path, so they can be wrong. If your reading of AGENTS.md
+  differs, pass `--big` or `--not-big`, and say why in the PR.
+
 Other skip rules still apply when you do request a review:
 
 - **More than 100 files**: the free plan refuses. Split the PR into a stack
@@ -55,8 +72,8 @@ Other skip rules still apply when you do request a review:
 ## The loop
 
 Repeat until `pr-status` exits 0 and the verification gate passes.
-`pr-status` exit 0 means CI is green and no CodeRabbit threads are open.
-For a big PR, also wait until CodeRabbit has reviewed the current head.
+`pr-status` exit 0 means CI is green, no CodeRabbit threads are open, and,
+for a big PR, a CodeRabbit review covers the head.
 
 1. **CI.** `gh pr checks <number> --watch`. For each failure, read
    `gh run view <run-id> --log-failed`, reproduce it locally, and fix the
@@ -75,9 +92,9 @@ For a big PR, also wait until CodeRabbit has reviewed the current head.
    `node scripts/verify.mjs --publish` (the `verify` skill), which also runs
    lint, knip, typecheck and the unit tests. Refresh the screenshots in the
    PR body if the screens changed.
-4. **Push.** On a big PR, comment `@coderabbitai review` so it looks
-   at the new commits, unless the only new commit is a clean merge of
-   `main` that does not touch this PR's files or functions.
+4. **Push.** Run `pr-status` again. Comment `@coderabbitai review` only
+   when it says a review is required and not covered. It stays covered
+   after a clean merge of `main`.
 5. **Rate limit** (big PRs only). If `pr-status` says CodeRabbit is rate
    limited, it gives the time to ask again. CodeRabbit's notice says "Next
    included review available in N minutes", and `pr-status` assumes 60
@@ -90,8 +107,8 @@ top of the report and hand over. Don't keep pushing guesses.
 
 ## Done
 
-When CI is green, the gate passed, no CodeRabbit threads are open, and
-(for a big PR) CodeRabbit has reviewed the current head:
+When `pr-status` exits 0 (CI green, no CodeRabbit threads open, and for a
+big PR a review covering the head) and the gate passed:
 
 1. Rewrite the PR description as the change report (template below).
 2. `gh pr ready <number>`.

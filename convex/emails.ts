@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
+import { env } from "./environment";
 
 export const send = internalAction({
   args: {
@@ -9,8 +10,8 @@ export const send = internalAction({
     replyTo: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
-    const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.RESEND_FROM_EMAIL;
+    const apiKey = env("RESEND_API_KEY");
+    const from = env("RESEND_FROM_EMAIL");
     if (!apiKey || !from) {
       console.warn("RESEND_API_KEY/RESEND_FROM_EMAIL not set; skipping email to", args.to);
       return null;
@@ -43,8 +44,8 @@ export const sendBatch = internalAction({
     replyTo: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
-    const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.RESEND_FROM_EMAIL;
+    const apiKey = env("RESEND_API_KEY");
+    const from = env("RESEND_FROM_EMAIL");
     if (!apiKey || !from) {
       console.warn(
         "RESEND_API_KEY/RESEND_FROM_EMAIL not set; skipping",

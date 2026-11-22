@@ -1,7 +1,8 @@
 import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
+import { APP_VARIANT } from "@/env";
 import { appLinkFor, WEB_ONLY_MARKER } from "../../shared/appLinks";
 
-const APP_LINK = appLinkFor(process.env.EXPO_PUBLIC_APP_VARIANT);
+const APP_LINK = appLinkFor(APP_VARIANT);
 
 export default function Root({ children }: { children: React.ReactNode }) {
   const { htmlAttributes, bodyAttributes, headNodes, bodyNodes } = useServerDocumentContext();

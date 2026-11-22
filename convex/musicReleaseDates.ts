@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { spotifyTrack } from "./spotify";
+import { env } from "./environment";
 
 export const trackOf = internalQuery({
   args: { requestId: v.id("musicRequests") },
@@ -28,7 +29,7 @@ export const save = internalMutation({
 export const fill = internalAction({
   args: { requestId: v.id("musicRequests") },
   handler: async (ctx, { requestId }) => {
-    if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) return null;
+    if (!env("SPOTIFY_CLIENT_ID") || !env("SPOTIFY_CLIENT_SECRET")) return null;
     const spotifyTrackId = await ctx.runQuery(internal.musicReleaseDates.trackOf, { requestId });
     if (!spotifyTrackId) return null;
     try {

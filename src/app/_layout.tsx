@@ -30,12 +30,13 @@ import { useEffect, useState } from "react";
 import { Modal, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { CONVEX_URL } from "@/env";
 import { notify } from "@/lib/notify";
 
 const DevMenuPreferences = requireOptionalNativeModule("DevMenuPreferences");
 
-const convex = process.env.EXPO_PUBLIC_CONVEX_URL
-  ? new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL, {
+const convex = CONVEX_URL
+  ? new ConvexReactClient(CONVEX_URL, {
       unsavedChangesWarning: false,
     })
   : null;
