@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.3] - 2026-11-22
+## [2.12.6] - 2026-11-23
 
 ### Added
 - **The Garden: a place online to hang out.** Open Games and tap The Garden
@@ -15,16 +15,39 @@ All notable changes to **The SHED** mobile app. This project follows
   chip at the top says how many people can hear you; people further away
   still show up, but their bubbles are faded. The flower button gives you
   emotes, and the arcade cabinet in the corner opens the games. Up to 20
-  people share a garden, and more open another.
+  people share a garden, and more open another. Voices now carry half as far
+  again as in the first design, so you can talk to people a little further away.
+- **High fives.** Walk up to someone, tap them and choose High five. They see
+  "High five?" over your head and have 10 seconds to say yes; if they do, you
+  both turn to each other and slap hands. If they don't, it quietly goes away.
+- **Twelve emotes with faces.** Wave, smile, laugh, cheer, love, surprised,
+  think, pout, cry, angry, sleepy and pray. Your character's face and body act
+  each one out for a few seconds, with an icon over your head, for everyone
+  nearby to see.
+- **Make your character your own.** Tap the shirt button (or yourself) to
+  choose your skin, hairstyle, hair colour and shirt, plus a cap, beanie,
+  flower crown or sun hat, and glasses, a backpack or a scarf. A turning
+  preview shows it as you go, Randomise picks one for you, and Save shows it
+  to everyone in the garden. Until you save, you keep the look you were given.
 - **Mute, block and report.** Tap someone to wave, mute their bubbles for
   this visit, block them (you won't see each other in the garden again until
   you unblock them under People here), or report them to the leaders. Chat is
-  cleared after 15 minutes, but a report keeps the last few lines so leaders
-  can see what happened.
+  cleared after 15 minutes, but a report keeps the last few lines, and the
+  reported person's own, so leaders can see what happened.
 - **A list view of the garden.** Under People here, "Show as a list" shows
   who's here, who can hear you and what's been said, with the same chat and
   emotes. It opens by itself with VoiceOver on, and when you're offline the
   garden says so and offers the games instead.
+## [2.12.4] - 2026-11-22
+
+### Changed
+- **Going back mid-game asks first.** In the offline games, pressing back
+  during a run (the back button, swiping back on iPhone, or the browser's back
+  button) now pauses the game and asks "Leave this game?". **Continue** is the
+  main button and picks up where you left off; tapping outside the box or
+  pressing Escape does the same. **Leave game** ends the run without saving
+  its score. Before a run starts and after it ends, back works straight away,
+  as before.
 
 ## [2.12.1] - 2026-11-22
 

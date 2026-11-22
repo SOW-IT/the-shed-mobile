@@ -53,10 +53,37 @@ What we weighed:
   chat. Proximity is a display choice, not privacy: everyone in the room
   receives every line.
 
+## Added the same night: high fives, emotes, a bigger voice, the editor
+
+Daniel asked for four more things (2026-11-22, 11:48pm and 11:51pm), with
+Convex use kept as small as before:
+
+- **High fives (and later hugs, fist bumps, dances).** One asks, the other
+  accepts within `ASK_MS` (10 s). The ask is an `ask` field on the asker's own
+  `worldState` row and the answer a `reply` field on the other's, so each is
+  one write and reaches the room through the per-person subscriptions it
+  already has: no new table, query or subscription. Both are overwritten by
+  the next one, so there's nothing to sweep. Every phone plays the action from
+  `reply.at` (`liveMutual` in `shared/world.ts`), so both people slap hands
+  at the same moment. Declining writes nothing; the ask runs out. The server
+  checks both people are in the room, haven't blocked each other and stand
+  within `INTERACT_RADIUS`. A new mutual action is one entry in `MUTUALS`
+  plus its animation.
+- **Emotes** are twelve ids (`EMOTES`), each a face and a body animation in
+  `src/world/Person.tsx` plus an icon. Still one write each, on the same
+  bucket as before.
+- **The voice** carries `HEAR_RADIUS` = 7.5, up from 5.
+- **The character editor** saves one `worldLooks` row per person, written
+  once on Save (never while browsing), validated against `LOOK_SIZES` on the
+  server, and read by the roster query people already subscribe to. Choices
+  grow by appending to the palettes, and `lookFor` keeps the first build's
+  ranges, so nobody's default look changed.
+
 ## Write budget
 
-Measured by `convex/world.test.ts` ("write budget per player"), ten minutes
-of simulated play against the real mutations:
+Estimated by `convex/world.test.ts` ("write budget per player"), ten minutes
+of simulated play against the real mutations, counting writes per code path
+(mutation counts were also measured live from two web clients):
 
 | Player | Mutations a minute | Document writes a minute |
 | --- | ---: | ---: |
@@ -64,5 +91,7 @@ of simulated play against the real mutations:
 | At every rate limit | 36 accepted (more are refused, writing nothing) | at most 47 |
 | Idle | about 1.3 heartbeats | at most 1.3 |
 
-Join and leave are a handful of writes once per visit, and the sweeper adds
-two calls a minute while anyone is in.
+A high-five ask or accept is one write, like an emote, on the same rate
+limit; saving a look is one write. Join and leave are a handful of writes
+once per visit (leave also keeps the rate limits in `worldThrottle`), and the
+sweeper adds two calls a minute while anyone is in.

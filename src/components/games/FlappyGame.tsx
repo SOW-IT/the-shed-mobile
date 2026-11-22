@@ -5,6 +5,7 @@ import { fixedColours } from "@/theme";
 import { useMemo, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
 import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import type { LeaveGuard } from "./GameFrame";
 import { fitBoard } from "@/lib/games/fit";
 
 const c = fixedColours.games.flappy;
@@ -95,10 +96,12 @@ export const FlappyGame = ({
   onExit,
   onLeaderboard,
   active = true,
+  guard,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
   active?: boolean;
+  guard?: LeaveGuard;
 }) => {
   const session = useGameSession<FlappyState>("flappy");
   const { run, setRun, phase } = session;
@@ -109,7 +112,7 @@ export const FlappyGame = ({
   const preview = useMemo(() => newFlappy(width, height, 1), [width, height]);
   const latest = useLatest({ session, width, height });
 
-  useGameLoop(phase === "playing" && active, (dt) => setRun((state) => state && advance(state, dt, stepFlappy)));
+  useGameLoop(phase === "playing" && active && !session.paused, (dt) => setRun((state) => state && advance(state, dt, stepFlappy)));
 
   const tap = () => {
     const { session: current, width: w, height: h } = latest.current;
@@ -131,7 +134,7 @@ export const FlappyGame = ({
     const current = latest.current.session;
     if (current.phase !== "over") tap();
     else if (key === " " && current.canRestartByKey()) current.restart();
-  }, undefined, active);
+  }, undefined, active && !session.paused);
 
   return (
     <GameFrame
@@ -146,6 +149,7 @@ export const FlappyGame = ({
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Tap", "press space")}
       onExit={onExit}
+      guard={guard}
       onLeaderboard={onLeaderboard}
     >
       {board ? <Scene state={run ?? preview} /> : null}

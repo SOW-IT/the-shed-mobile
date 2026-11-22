@@ -53,7 +53,8 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
   in `shared/world.ts`): an online courtyard, reached from Games, where
   signed-in people walk by tapping and chat in bubbles over their heads, 20 to
   a room. Drawn with plain views (no GL), one write per tap, chat kept 15
-  minutes, with mute, block, report and a list view
+  minutes, with high fives, emotes, a character editor, mute, block, report
+  and a list view
   ([ADR 0021](docs/adr/0021-shed-world-garden-without-gl.md)).
 - **Releases**: over-the-air updates (`expo-updates`, applied by restarting
   the app the next time it comes back from the background), a store update
