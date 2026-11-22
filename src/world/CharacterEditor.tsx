@@ -128,12 +128,15 @@ export const CharacterEditor = ({
   const [draft, setDraft] = useState<Look>(look);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [openedWith, setOpenedWith] = useState<Look | null>(null);
-  // Start from your current look each time the editor opens.
-  if (visible && openedWith !== look) {
-    setOpenedWith(look);
-    setDraft(look);
-    setError(null);
+  // Start from your current look each time the editor opens, so a cancelled
+  // change doesn't come back.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) {
+      setDraft(look);
+      setError(null);
+    }
   }
   const spin = useSpin(visible);
   const set = (part: LookPart) => (value: number) => setDraft((d) => ({ ...d, [part]: value }));

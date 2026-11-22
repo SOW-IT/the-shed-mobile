@@ -389,27 +389,27 @@ export const ask = mutation({
  * action from the ask and this answer together.
  */
 export const accept = mutation({
-  args: { from: v.id("worldMembers") },
+  // `askAt` is the ask the prompt showed, so a tap never accepts a newer one.
+  args: { from: v.id("worldMembers"), askAt: v.number() },
   returns: v.union(v.object({ ok: v.literal(true), at: v.number(), serverNow: v.number() }), turnedAway, refused),
-  handler: async (ctx, { from }) => {
+  handler: async (ctx, { from, askAt }) => {
     const me = await requireMe(ctx);
     const now = Date.now();
     const found = await partner(ctx, me, from, now);
     if (found.reason !== undefined) return { ok: false as const, reason: found.reason, serverNow: now };
     const asked = found.otherState.ask;
-    if (!asked || asked.to !== me.member._id || now - asked.at >= ASK_MS) {
+    if (!asked || asked.to !== me.member._id || asked.at !== askAt || now - asked.at >= ASK_MS) {
       return { ok: false as const, reason: "That's gone. Ask them again.", serverNow: now };
     }
-    // One answer per ask, so a double tap can't replay it.
-    if (me.state.reply?.to === from && me.state.reply.askAt === asked.at) {
-      return { ok: true as const, at: me.state.reply.at, serverNow: now };
-    }
+    // One answer per ask, however many others came between: accepting it
+    // again returns the first answer and spends nothing.
+    const open = (me.state.answered ?? []).filter((a) => now - a.askAt < ASK_MS);
+    const before = open.find((a) => a.to === from && a.askAt === asked.at);
+    if (before) return { ok: true as const, at: before.at, serverNow: now };
     const token = spend("act", me.state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
-    await ctx.db.patch("worldState", me.state._id, {
-      reply: { kind: asked.kind, to: from, askAt: asked.at, at: now },
-      actBucket: token.bucket,
-    });
+    const reply = { kind: asked.kind, to: from, askAt: asked.at, at: now };
+    await ctx.db.patch("worldState", me.state._id, { reply, answered: [...open, reply], actBucket: token.bucket });
     await touchPresence(ctx, me.member._id, now);
     return { ok: true as const, at: now, serverNow: now };
   },
@@ -518,9 +518,10 @@ export const chatLog = query({
   handler: async (ctx, { roomId }) => {
     const me = await meIn(ctx, roomId);
     if (!me) return null;
+    // Lines past the chat TTL aren't shown, even before the sweeper deletes them.
     const rows = await ctx.db
       .query("worldChat")
-      .withIndex("by_roomId_and_at", (q) => q.eq("roomId", roomId))
+      .withIndex("by_roomId_and_at", (q) => q.eq("roomId", roomId).gt("at", Date.now() - CHAT_TTL_MS))
       .order("desc")
       .take(CHAT_LOG_SIZE);
     const lines = [];

@@ -8,7 +8,7 @@ import { OBSTACLES } from "@shared/world";
 import type { Camera, Vec3 } from "./camera";
 import { garden, shade } from "./palette";
 
-export type Pt = { x: number; y: number };
+type Pt = { x: number; y: number };
 export type Prim =
   | { kind: "quad"; key: string; pts: Pt[]; fill: string; radius?: number; border?: number; borderColour?: string }
   | {

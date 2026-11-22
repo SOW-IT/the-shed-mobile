@@ -1,4 +1,5 @@
 import {
+  ASK_MS,
   clampTarget,
   type Look,
   type Ask,
@@ -91,6 +92,8 @@ export const useWorld = (enabled: boolean) => {
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(() => AppState.currentState !== "background");
   const [rejoin, setRejoin] = useState(0);
+  // Your own walk, ahead of the server so a tap moves you at once.
+  const [myWalk, setMyWalk] = useState<Walk | null>(null);
   const stats = useRef<WorldStats>(newStats());
   // Server time minus this phone's, smoothed over replies.
   const offset = useRef<number | null>(null);
@@ -148,6 +151,8 @@ export const useWorld = (enabled: boolean) => {
       visit.current++;
       pending.current = null;
       predicting.current = false;
+      // The next visit starts from its own spawn walk, not this one's.
+      setMyWalk(null);
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       counts.leave++;
@@ -179,8 +184,6 @@ export const useWorld = (enabled: boolean) => {
   );
   const states = useQueries(requests);
 
-  // Your own walk, ahead of the server so a tap moves you at once.
-  const [myWalk, setMyWalk] = useState<Walk | null>(null);
   const [target, setTarget] = useState<{ x: number; z: number } | null>(null);
   const myRow = session ? states[session.memberId] : undefined;
   const myServerWalk = myRow && !(myRow instanceof Error) ? (myRow as Walk) : null;
@@ -312,11 +315,11 @@ export const useWorld = (enabled: boolean) => {
   );
 
   const accept = useCallback(
-    async (from: MemberId): Promise<string | null> => {
+    async (from: MemberId, askAt: number): Promise<string | null> => {
       const sentAt = Date.now();
       stats.current.accept++;
       try {
-        const reply = await acceptM({ from });
+        const reply = await acceptM({ from, askAt });
         heard(reply.serverNow, sentAt);
         if (reply.ok) return null;
         return turnedAwayText(reply);
@@ -376,11 +379,40 @@ export const useWorld = (enabled: boolean) => {
     };
   });
 
+  // A once-a-second clock while anyone is walking or an ask to you is open,
+  // so "can hear you", the High five button and ask countdowns stay current
+  // outside the garden's own frame clock (the list view, the sheets). It
+  // restarts when a walk or an ask changes and stops once nothing is moving.
+  const latest = useRef(people);
+  useEffect(() => {
+    latest.current = people;
+  });
+  const liveKey = people.map((p) => `${p.walk?.startedAt ?? ""}:${p.ask?.at ?? ""}`).join(",");
+  const myId = session?.memberId ?? null;
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const live = () => {
+      const now = serverNow();
+      return latest.current.some(
+        (p) =>
+          (p.walk !== null && posAt(p.walk, now).walking) ||
+          (p.ask !== undefined && p.ask.to === myId && now - p.ask.at < ASK_MS)
+      );
+    };
+    if (!live()) return;
+    const id = setInterval(() => {
+      setTick((n) => n + 1);
+      if (!live()) clearInterval(id);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [liveKey, myId, serverNow]);
+
   return {
     status: error ? ("error" as const) : roster ? ("in" as const) : ("joining" as const),
     error,
     instance: roster?.instance ?? session?.instance ?? 1,
     roomId: session?.roomId ?? null,
+    memberId: session?.memberId ?? null,
     people,
     target,
     serverNow,

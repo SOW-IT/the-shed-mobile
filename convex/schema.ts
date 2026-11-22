@@ -171,6 +171,9 @@ export default defineSchema({
     // and the answer to one asked of you. Overwritten, never appended.
     ask: v.optional(worldAskValidator),
     reply: v.optional(worldReplyValidator),
+    // The asks this person accepted that are still open, so accepting one
+    // again replays nothing even after they've accepted another since.
+    answered: v.optional(v.array(worldReplyValidator)),
     moveBucket: worldBucketValidator,
     actBucket: worldBucketValidator,
     sayBucket: worldBucketValidator,

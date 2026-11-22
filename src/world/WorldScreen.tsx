@@ -108,6 +108,12 @@ export const WorldScreen = ({
     return () => clearTimeout(id);
   }, [note]);
 
+  const accept = (from: string, askAt: number) => {
+    const p = world.people.find((x) => x.memberId === from);
+    if (p) void world.accept(p.memberId, askAt).then((problem) => problem && setNote(problem));
+  };
+  const decline = (from: string, askAt: number) => setDeclined((set) => new Set(set).add(`${from}:${askAt}`));
+
   const toggleMute = (memberId: string) =>
     setMuted((set) => {
       const next = new Set(set);
@@ -188,6 +194,9 @@ export const WorldScreen = ({
           onPerson={setPerson}
           note={note}
           onNote={setNote}
+          declined={declined}
+          onAccept={accept}
+          onDecline={decline}
         />
         {sheets}
       </>
@@ -218,11 +227,8 @@ export const WorldScreen = ({
         }}
         onTapPerson={setPerson}
         onTapArcade={onArcade}
-        onAccept={(from) => {
-          const p = world.people.find((x) => x.memberId === from);
-          if (p) void world.accept(p.memberId).then((problem) => problem && setNote(problem));
-        }}
-        onDecline={(from, askAt) => setDeclined((set) => new Set(set).add(`${from}:${askAt}`))}
+        onAccept={accept}
+        onDecline={decline}
         declined={declined}
         onHearing={setHearing}
       />

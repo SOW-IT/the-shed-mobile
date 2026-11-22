@@ -100,8 +100,8 @@ export const Garden = ({
   onTapGround: (x: number, z: number) => void;
   onTapPerson: (memberId: string) => void;
   onTapArcade: () => void;
-  /** Accept the ask `from` made of you. */
-  onAccept: (from: string) => void;
+  /** Accept the ask `from` made of you at `askAt`. */
+  onAccept: (from: string, askAt: number) => void;
   /** Hide an ask made of you; it lapses on its own, so nothing is sent. */
   onDecline: (from: string, askAt: number) => void;
   /** Asks you've declined, as `${from}:${askAt}`. */
@@ -329,7 +329,7 @@ export const Garden = ({
               </Text>
               <View style={styles.askRow}>
                 <Pressable
-                  onPress={() => onAccept(p.memberId)}
+                  onPress={() => onAccept(p.memberId, askAt)}
                   accessibilityRole="button"
                   accessibilityLabel={`${info.label} with ${p.name}`}
                   testID="world-ask-accept"

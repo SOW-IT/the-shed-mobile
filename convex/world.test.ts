@@ -258,14 +258,27 @@ describe("high fives", () => {
     expect(await ben.query(api.world.state, { memberId: a.memberId })).toMatchObject({ ask: { to: b.memberId } });
 
     later(2000);
-    const accepted = await ben.mutation(api.world.accept, { from: a.memberId });
+    const askAt = (await stateRow(t, a.memberId))!.ask!.at;
+    expect(await ben.mutation(api.world.accept, { from: a.memberId, askAt: askAt - 1 })).toMatchObject({ ok: false, reason: /gone/ });
+    const accepted = await ben.mutation(api.world.accept, { from: a.memberId, askAt });
     expect(accepted).toMatchObject({ ok: true });
     const reply = (await stateRow(t, b.memberId))!.reply!;
     expect(reply).toEqual({ kind: "highFive", to: a.memberId, askAt: (await stateRow(t, a.memberId))!.ask!.at, at: near(PINNED_NOW + 2000) });
     // A second tap answers the same ask without another write.
     later(500);
-    expect(await ben.mutation(api.world.accept, { from: a.memberId })).toMatchObject({ ok: true, at: reply.at });
+    expect(await ben.mutation(api.world.accept, { from: a.memberId, askAt })).toMatchObject({ ok: true, at: reply.at });
     expect((await stateRow(t, b.memberId))!.reply).toEqual(reply);
+
+    // Ben accepts Cara's ask too; accepting Anna's again still replays nothing.
+    const cara = asUser(t, CARA);
+    const c = await cara.mutation(api.world.join, {});
+    await standAt(t, c.memberId, 1.5, 0.5);
+    await cara.mutation(api.world.ask, { to: b.memberId, kind: "highFive" });
+    const caraAsk = (await stateRow(t, c.memberId))!.ask!.at;
+    await ben.mutation(api.world.accept, { from: c.memberId, askAt: caraAsk });
+    const bucketBefore = (await stateRow(t, b.memberId))!.actBucket;
+    expect(await ben.mutation(api.world.accept, { from: a.memberId, askAt })).toMatchObject({ ok: true, at: reply.at });
+    expect((await stateRow(t, b.memberId))!.actBucket).toEqual(bucketBefore);
   });
 
   test("an ask lapses after ASK_MS, and can't be accepted by anyone else", async () => {
@@ -274,10 +287,11 @@ describe("high fives", () => {
     const c = await cara.mutation(api.world.join, {});
     await standAt(t, c.memberId, 0.5, 0.5);
     await anna.mutation(api.world.ask, { to: b.memberId, kind: "highFive" });
-    expect(await cara.mutation(api.world.accept, { from: a.memberId })).toMatchObject({ ok: false, reason: /gone/ });
-    expect(await anna.mutation(api.world.accept, { from: b.memberId })).toMatchObject({ ok: false, reason: /gone/ });
+    const askAt = (await stateRow(t, a.memberId))!.ask!.at;
+    expect(await cara.mutation(api.world.accept, { from: a.memberId, askAt })).toMatchObject({ ok: false, reason: /gone/ });
+    expect(await anna.mutation(api.world.accept, { from: b.memberId, askAt })).toMatchObject({ ok: false, reason: /gone/ });
     later(ASK_MS + 50);
-    expect(await ben.mutation(api.world.accept, { from: a.memberId })).toMatchObject({ ok: false, reason: /gone/ });
+    expect(await ben.mutation(api.world.accept, { from: a.memberId, askAt })).toMatchObject({ ok: false, reason: /gone/ });
     expect((await stateRow(t, b.memberId))!.reply).toBeUndefined();
   });
 
@@ -297,17 +311,18 @@ describe("high fives", () => {
     expect(await anna.mutation(api.world.ask, { to: b.memberId, kind: "highFive" })).toMatchObject({ reason: /left/ });
     await ben.mutation(api.world.leave, {});
     expect(await anna.mutation(api.world.ask, { to: b.memberId, kind: "highFive" })).toMatchObject({ reason: /left/ });
-    expect(await anna.mutation(api.world.accept, { from: b.memberId })).toMatchObject({ reason: /left/ });
+    expect(await anna.mutation(api.world.accept, { from: b.memberId, askAt: 0 })).toMatchObject({ reason: /left/ });
   });
 
   test("asking and accepting share the emote rate limit", async () => {
-    const { anna, ben, a, b } = await pair();
+    const { t, anna, ben, a, b } = await pair();
     for (let i = 0; i < BUCKETS.act.burst; i++) await anna.mutation(api.world.act, { emote: "wave" });
     expect(await anna.mutation(api.world.ask, { to: b.memberId, kind: "highFive" })).toMatchObject({ ok: false, retryInMs: near(BUCKETS.act.refillMs) });
     later(BUCKETS.act.refillMs + 100);
     expect(await anna.mutation(api.world.ask, { to: b.memberId, kind: "highFive" })).toMatchObject({ ok: true });
     for (let i = 0; i < BUCKETS.act.burst; i++) await ben.mutation(api.world.act, { emote: "smile" });
-    expect(await ben.mutation(api.world.accept, { from: a.memberId })).toMatchObject({ ok: false, retryInMs: near(BUCKETS.act.refillMs) });
+    const askAt = (await stateRow(t, a.memberId))!.ask!.at;
+    expect(await ben.mutation(api.world.accept, { from: a.memberId, askAt })).toMatchObject({ ok: false, retryInMs: near(BUCKETS.act.refillMs) });
   });
 });
 
@@ -613,6 +628,16 @@ describe("review fixes", () => {
     expect(report.lines[0]).toMatchObject({ text: "the unkind line", reported: true });
     expect(report.lines).toHaveLength(REPORT_CONTEXT_LINES + 1);
     expect(report.lines.map((l) => l.at)).toEqual([...report.lines.map((l) => l.at)].sort((x, y) => x - y));
+  });
+
+  test("the chat log leaves out lines past the TTL before the sweeper runs", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.say, { text: "old news" });
+    later(CHAT_TTL_MS + 1000);
+    await anna.mutation(api.world.heartbeat, {});
+    expect(await anna.query(api.world.chatLog, { roomId: a.roomId })).toEqual([]);
   });
 
   test("a line on a state row is cleared after the chat TTL", async () => {

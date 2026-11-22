@@ -1,6 +1,6 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { canHear, EMOTE_IDS, EMOTES, MAX_SAY_LENGTH, posAt } from "@shared/world";
+import { ASK_MS, canHear, EMOTE_IDS, EMOTES, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -25,6 +25,9 @@ export const WorldList = ({
   onPerson,
   note,
   onNote,
+  declined,
+  onAccept,
+  onDecline,
 }: {
   world: ReturnType<typeof useWorld>;
   offline: boolean;
@@ -35,6 +38,10 @@ export const WorldList = ({
   onPerson: (memberId: string) => void;
   note: string | null;
   onNote: (note: string | null) => void;
+  /** Asks declined, as `${from}:${askAt}`. */
+  declined: ReadonlySet<string>;
+  onAccept: (from: string, askAt: number) => void;
+  onDecline: (from: string, askAt: number) => void;
 }) => {
   const t = useAppTheme();
   const [draft, setDraft] = useState("");
@@ -54,14 +61,6 @@ export const WorldList = ({
     }
   }, [log, muted]);
 
-  // "Can hear you" changes as people walk; recount once a second while anyone is.
-  const [, setTick] = useState(0);
-  const walking = world.people.some((p) => p.walk && posAt(p.walk, world.serverNow()).walking);
-  useEffect(() => {
-    if (!walking) return;
-    const id = setInterval(() => setTick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [walking]);
   const title = world.instance > 1 ? `The Garden · ${world.instance}` : "The Garden";
 
   if (offline) {
@@ -99,6 +98,34 @@ export const WorldList = ({
       maxWidth={640}
       headerRight={<Btn title="People" icon="people-outline" variant="tonal" onPress={onPeople} />}
     >
+      {/* Asks made of you, with time to answer: the same as over heads in the garden. */}
+      {world.people
+        .filter(
+          (p) =>
+            p.ask &&
+            p.ask.to === world.memberId &&
+            now - p.ask.at < ASK_MS &&
+            !declined.has(`${p.memberId}:${p.ask.at}`) &&
+            !(me?.reply?.to === p.memberId && me.reply.askAt === p.ask.at)
+        )
+        .map((p) => {
+          const askAt = p.ask!.at;
+          const info = MUTUALS[p.ask!.kind as keyof typeof MUTUALS];
+          if (!info) return null;
+          const left = Math.max(0, Math.ceil((ASK_MS - (now - askAt)) / 1000));
+          return (
+            <Card key={`ask-${p.memberId}`} style={styles.card}>
+              <Text style={[typography.headline, { color: t.text }]} accessibilityRole="header" testID="world-list-ask">
+                {info.icon} {p.name}: {info.ask}
+              </Text>
+              <Muted>{`${left} second${left === 1 ? "" : "s"} to answer.`}</Muted>
+              <View style={styles.compose}>
+                <Btn title={`${info.label}!`} onPress={() => onAccept(p.memberId, askAt)} />
+                <Btn title="Not now" variant="tonal" onPress={() => onDecline(p.memberId, askAt)} />
+              </View>
+            </Card>
+          );
+        })}
       <Card style={styles.card}>
         <Text style={[typography.headline, { color: t.text }]} accessibilityRole="header">
           Here now
