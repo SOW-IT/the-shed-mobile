@@ -6,18 +6,18 @@
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
 | native fingerprint | ✔ pass | 3s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 43s |  |
+| lint | ✔ pass | 44s |  |
 | unused code (knip) | ✔ pass | 4s |  |
-| typecheck | ✔ pass | 13s |  |
+| typecheck | ✔ pass | 12s |  |
 | Playwright Chromium | ✔ pass | 1s |  |
 | before: local backend | ✔ pass | 14s | before functions on :3270 |
-| before: web | ⚠ warning | 82s | 16 screens, 12 broken. out     /games                                               BROKEN, 1 console error(s) out     /games/shooter                                       BROKEN, 1 console error(s) out     /games/runner                                        BROKEN, 1 console error(s) out     /games/flappy                                        BROKEN, 1 console error(s) out     /games/leaderboar |
+| before: web | ⚠ warning | 81s | 16 screens, 12 broken. out     /games                                               BROKEN, 1 console error(s) out     /games/shooter                                       BROKEN, 1 console error(s) out     /games/runner                                        BROKEN, 1 console error(s) out     /games/flappy                                        BROKEN, 1 console error(s) out     /games/leaderboar |
 | before: iOS reset | ✔ pass | 1s |  |
-| before: iOS | ✔ pass | 86s | 10 screenshots, every one settled |
+| before: iOS | ✔ pass | 73s | 10 screenshots, every one settled |
 | after: local backend | ✔ pass | 14s | after functions on :3270 |
 | after: web | ✔ pass | 76s | 16 screens, 0 broken. |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 78s | 10 screenshots, every one settled |
+| after: iOS | ✔ pass | 77s | 10 screenshots, every one settled |
 
 ## Screenshots
 
