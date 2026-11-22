@@ -28,6 +28,12 @@ export const CHAT_ROOM_CAP = 50;
 export const CHAT_LOG_SIZE = 30;
 /** Lines copied into a report, for context. */
 export const REPORT_CONTEXT_LINES = 10;
+/** The reported person's own recent lines kept in a report. */
+export const REPORT_OWN_LINES = 5;
+/** Blocks one person can keep. */
+export const MAX_BLOCKS = 200;
+/** How long someone's rate limits are kept after they leave. */
+export const THROTTLE_KEEP_MS = 10 * 60_000;
 /** Reports one person can file in REPORT_WINDOW_MS. */
 export const REPORTS_PER_WINDOW = 5;
 export const REPORT_WINDOW_MS = 10 * 60_000;
@@ -141,8 +147,17 @@ export const distance = (a: { x: number; z: number }, b: { x: number; z: number 
 export const canHear = (a: { x: number; z: number }, b: { x: number; z: number }) =>
   distance(a, b) <= HEAR_RADIUS;
 
-/** The courtyard between the hedges. Anything outside is scenery. */
+/**
+ * The courtyard between the hedges. Anything outside is scenery. It narrows
+ * toward the front, where the camera sees less across, so nobody can stand
+ * where a narrow phone wouldn't show them.
+ */
 export const WALK_BOUNDS = { minX: -3.9, maxX: 3.9, minZ: -10.8, maxZ: 7.6 } as const;
+const NARROW_FROM_Z = 2;
+const NARROW_PER_Z = 0.25;
+
+/** How far either side of the middle someone can stand at depth z. */
+export const halfWidthAt = (z: number) => WALK_BOUNDS.maxX - Math.max(0, z - NARROW_FROM_Z) * NARROW_PER_Z;
 
 /** Things in the courtyard nobody stands inside, as ellipses on the ground. */
 export const OBSTACLES = [
@@ -151,8 +166,21 @@ export const OBSTACLES = [
   { id: "arcade", x: -3.1, z: 5.7, rx: 0.6, rz: 0.5 },
   { id: "sign", x: 3.7, z: -6.4, rx: 0.3, rz: 0.3 },
 ] as const;
+type Obstacle = (typeof OBSTACLES)[number];
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+/** The nearest spot inside the courtyard's outline. */
+const inBounds = (x: number, z: number) => {
+  const cz = clamp(z, WALK_BOUNDS.minZ, WALK_BOUNDS.maxZ);
+  const half = halfWidthAt(cz);
+  return { x: clamp(x, -half, half), z: cz };
+};
+
+const inside = (o: Obstacle, p: { x: number; z: number }) => Math.hypot((p.x - o.x) / o.rx, (p.z - o.z) / o.rz) < 1;
+
+/** A spot just outside an obstacle's rim, at angle `a` round it. */
+const onRim = (o: Obstacle, a: number) => ({ x: o.x + Math.cos(a) * o.rx * 1.02, z: o.z + Math.sin(a) * o.rz * 1.02 });
 
 /**
  * The nearest place someone can stand to (x, z): inside the courtyard and
@@ -160,23 +188,28 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
  */
 export const clampTarget = (x: number, z: number): { x: number; z: number } => {
   if (!Number.isFinite(x) || !Number.isFinite(z)) return { ...SPAWN };
-  let px = clamp(x, WALK_BOUNDS.minX, WALK_BOUNDS.maxX);
-  let pz = clamp(z, WALK_BOUNDS.minZ, WALK_BOUNDS.maxZ);
+  let p = inBounds(x, z);
   for (const o of OBSTACLES) {
-    const ux = (px - o.x) / o.rx;
-    const uz = (pz - o.z) / o.rz;
-    const r = Math.hypot(ux, uz);
-    if (r >= 1) continue;
+    if (!inside(o, p)) continue;
     // Out along the line from the obstacle's middle; straight down from its
     // middle when the tap was dead centre.
-    const [nx, nz] = r === 0 ? [0, 1] : [ux / r, uz / r];
-    px = o.x + nx * o.rx * 1.02;
-    pz = o.z + nz * o.rz * 1.02;
+    const ux = (p.x - o.x) / o.rx;
+    const uz = (p.z - o.z) / o.rz;
+    const rim = ux === 0 && uz === 0 ? onRim(o, Math.PI / 2) : onRim(o, Math.atan2(uz, ux));
+    p = inBounds(rim.x, rim.z);
   }
-  return {
-    x: clamp(px, WALK_BOUNDS.minX, WALK_BOUNDS.maxX),
-    z: clamp(pz, WALK_BOUNDS.minZ, WALK_BOUNDS.maxZ),
-  };
+  const stuck = OBSTACLES.find((o) => inside(o, p));
+  if (!stuck) return p;
+  // The courtyard's edge pushed it back in (the pond reaches past the west
+  // edge): the nearest free spot on that rim inside the courtyard.
+  let best: { x: number; z: number } | null = null;
+  for (let i = 0; i < 64; i++) {
+    const q = onRim(stuck, (i / 64) * Math.PI * 2);
+    const b = inBounds(q.x, q.z);
+    if (b.x !== q.x || b.z !== q.z || OBSTACLES.some((o) => inside(o, q))) continue;
+    if (!best || Math.hypot(q.x - x, q.z - z) < Math.hypot(best.x - x, best.z - z)) best = q;
+  }
+  return best ?? { ...SPAWN };
 };
 
 /** Where people arrive: on the path at the front of the garden. */
@@ -209,7 +242,7 @@ export type Look = {
   accessory?: number;
 };
 export type LookPart = keyof typeof LOOK_SIZES;
-export const LOOK_PARTS = Object.keys(LOOK_SIZES) as LookPart[];
+const LOOK_PARTS = Object.keys(LOOK_SIZES) as LookPart[];
 
 export const HAIR_STYLES = ["Short", "Bun", "Long", "Curly", "Pigtails", "Spiky"] as const;
 export const HATS = ["None", "Cap", "Beanie", "Flower crown", "Sun hat"] as const;
@@ -257,8 +290,9 @@ export const LOOK_SAVE_GAP_MS = 3000;
 
 /** The name over someone's head: the first word of their name. */
 export const tagName = (name: string): string => {
-  const first = name.trim().split(/\s+/)[0] ?? "";
-  return first.length > 14 ? `${first.slice(0, 13)}…` : first || "Someone";
+  // By code point, so an emoji is never cut in half.
+  const first = Array.from(name.trim().split(/\s+/)[0] ?? "");
+  return first.length > 14 ? `${first.slice(0, 13).join("")}…` : first.join("") || "Someone";
 };
 
 /** A chat line as it's kept: trimmed, one line, at most MAX_SAY_LENGTH. */
@@ -277,6 +311,8 @@ export const BUCKETS = {
   move: { burst: 5, refillMs: 3000 },
   act: { burst: 3, refillMs: 6000 },
   say: { burst: 3, refillMs: 10_000 },
+  /** Joining again after leaving, so coming and going can't refill the others. */
+  join: { burst: 4, refillMs: 30_000 },
 } as const;
 export type BucketKind = keyof typeof BUCKETS;
 type Bucket = { tokens: number; at: number };

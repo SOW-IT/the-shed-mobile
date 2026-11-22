@@ -7,7 +7,7 @@ import { garden, hud, people } from "./palette";
 import { Avatar } from "./Person";
 import { Ellipse } from "./Shapes";
 
-const PREVIEW_HEIGHT = 200;
+const PREVIEW_HEIGHT = 170;
 
 /** Turns the preview a little every frame while the editor is open. */
 const useSpin = (on: boolean) => {
@@ -30,7 +30,7 @@ const useSpin = (on: boolean) => {
 const Preview = ({ look, t }: { look: Look; t: number }) => {
   const [width, setWidth] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
-  const s = 118;
+  const s = 100;
   const foot = { x: width / 2, y: PREVIEW_HEIGHT - 28, depth: 1, scale: s };
   return (
     <View style={[styles.preview, { backgroundColor: garden.sky }]} onLayout={onLayout} testID="world-editor-preview">
@@ -144,9 +144,23 @@ export const CharacterEditor = ({
     if (problem) setError(problem);
     else onClose();
   };
+  const footer = (
+    <View style={styles.footer}>
+      {error ? <Text style={[typography.caption, { color: t.danger }]}>{error}</Text> : null}
+      <View style={styles.buttons}>
+        <View style={styles.grow}>
+          <Btn title="Randomise" icon="shuffle" variant="tonal" onPress={() => setDraft(randomLook())} />
+        </View>
+        <View style={styles.grow}>
+          <Btn title="Save" icon="checkmark" loading={busy} onPress={() => void save()} />
+        </View>
+      </View>
+      <Text style={[typography.caption, { color: t.muted }]}>Everyone in the garden sees your new look when you save.</Text>
+    </View>
+  );
   const section = (title: string) => <Text style={[typography.label, { color: t.muted }]}>{title}</Text>;
   return (
-    <Sheet visible={visible} onClose={onClose} title="Your character" scrollable={false}>
+    <Sheet visible={visible} onClose={onClose} title="Your character" scrollable={false} footer={footer}>
       <View style={styles.stack}>
         {/* The preview stays put while the choices scroll under it. */}
         <Preview look={draft} t={spin} />
@@ -164,16 +178,6 @@ export const CharacterEditor = ({
         {section("Extra")}
         <Choices names={ACCESSORIES} value={draft.accessory ?? 0} onPick={set("accessory")} testID="world-editor-extra" />
         </ScrollView>
-        {error ? <Text style={[typography.caption, { color: t.danger }]}>{error}</Text> : null}
-        <View style={styles.buttons}>
-          <View style={styles.grow}>
-            <Btn title="Randomise" icon="shuffle" variant="tonal" onPress={() => setDraft(randomLook())} />
-          </View>
-          <View style={styles.grow}>
-            <Btn title="Save" icon="checkmark" loading={busy} onPress={() => void save()} />
-          </View>
-        </View>
-        <Text style={[typography.caption, { color: t.muted }]}>Everyone in the garden sees your new look when you save.</Text>
       </View>
     </Sheet>
   );
@@ -181,12 +185,13 @@ export const CharacterEditor = ({
 
 const styles = StyleSheet.create({
   stack: { gap: spacing.sm, paddingBottom: spacing.sm },
-  choices: { maxHeight: 300 },
+  choices: { maxHeight: 200 },
+  footer: { gap: spacing.sm },
   preview: { height: PREVIEW_HEIGHT, borderRadius: 18, overflow: "hidden", marginBottom: spacing.sm },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   swatch: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: hud.primarySoft },
   swatchOn: { borderWidth: 3.5, borderColor: hud.forest },
   chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
-  buttons: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  buttons: { flexDirection: "row", gap: spacing.sm },
   grow: { flex: 1 },
 });

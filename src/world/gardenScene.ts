@@ -28,7 +28,34 @@ export type Prim =
   | { kind: "line"; key: string; a: Pt; b: Pt; width: number; colour: string };
 
 /** A group of shapes drawn together, sorted against people by depth. */
-export type Prop = { id: string; depth: number; prims: Prim[]; tap?: "arcade" };
+export type Prop = {
+  id: string;
+  depth: number;
+  prims: Prim[];
+  tap?: "arcade";
+  /** The screen box the prop's shapes cover, for taps on it. */
+  box: { left: number; right: number; top: number; bottom: number };
+};
+
+const boxOf = (prims: Prim[]) => {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const p of prims) {
+    if (p.kind === "quad") {
+      for (const q of p.pts) {
+        xs.push(q.x);
+        ys.push(q.y);
+      }
+    } else if (p.kind === "line") {
+      xs.push(p.a.x, p.b.x);
+      ys.push(p.a.y, p.b.y);
+    } else {
+      xs.push(p.cx - p.rx, p.cx + p.rx);
+      ys.push(p.cy - p.ry, p.cy + p.ry);
+    }
+  }
+  return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+};
 
 interface GardenScene {
   ground: Prim[];
@@ -258,7 +285,8 @@ export const buildGarden = (cam: Camera): GardenScene => {
   const prop = (id: string, x: number, z: number, draw: (p: Builder) => void, tap?: "arcade") => {
     const p = new Builder(cam, id);
     draw(p);
-    props.push({ id, depth: depthOf(cam, x, z), prims: p.take(), tap });
+    const prims = p.take();
+    props.push({ id, depth: depthOf(cam, x, z), prims, tap, box: boxOf(prims) });
   };
   const bed = (id: string, cx: number, cz: number, n: number, spread: number) =>
     prop(id, cx, cz, (p) => {

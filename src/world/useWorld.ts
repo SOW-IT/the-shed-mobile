@@ -95,6 +95,12 @@ export const useWorld = (enabled: boolean) => {
   // Server time minus this phone's, smoothed over replies.
   const offset = useRef<number | null>(null);
   const lastAction = useRef(0);
+  // The spot waiting to be sent, whether a move is on its way, and its timer.
+  const pending = useRef<{ x: number; z: number } | null>(null);
+  const inFlight = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Bumped when a visit ends, so a reply from the last visit can't queue a move in this one.
+  const visit = useRef(0);
 
   const serverNow = useCallback(() => Date.now() + (offset.current ?? 0), []);
   const heard = useCallback((serverTime: number, sentAt: number) => {
@@ -134,6 +140,12 @@ export const useWorld = (enabled: boolean) => {
     return () => {
       cancelled = true;
       setSession(null);
+      // Nothing queued in this visit goes out in the next.
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- a counter of visits, not a rendered node; bumping it at cleanup is the point
+      visit.current++;
+      pending.current = null;
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
       counts.leave++;
       leaveM({}).catch(() => undefined);
     };
@@ -176,13 +188,13 @@ export const useWorld = (enabled: boolean) => {
     }
   }, [myServerWalk, myWalk]);
 
-  const pending = useRef<{ x: number; z: number } | null>(null);
-  const inFlight = useRef(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushRef = useRef<() => void>(() => undefined);
   const later = useCallback((ms: number) => {
+    // Only the latest flush may run, so a newer tap can still cancel it.
+    if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => flushRef.current(), ms);
   }, []);
+
   const flush = useCallback(() => {
     timer.current = null;
     const to = pending.current;
@@ -190,9 +202,11 @@ export const useWorld = (enabled: boolean) => {
     pending.current = null;
     inFlight.current = true;
     const sentAt = Date.now();
+    const sentIn = visit.current;
     stats.current.move++;
     moveM({ toX: to.x, toZ: to.z })
       .then((reply) => {
+        if (sentIn !== visit.current) return;
         heard(reply.serverNow, sentAt);
         if (reply.ok) {
           const { fromX, fromZ, toX, toZ, startedAt } = reply;
@@ -209,7 +223,7 @@ export const useWorld = (enabled: boolean) => {
       })
       .finally(() => {
         inFlight.current = false;
-        if (pending.current && !timer.current) later(COALESCE_MS);
+        if (sentIn === visit.current && pending.current && !timer.current) later(COALESCE_MS);
       });
   }, [moveM, heard, again, later]);
   useEffect(() => {

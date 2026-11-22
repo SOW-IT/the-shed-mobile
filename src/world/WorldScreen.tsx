@@ -77,7 +77,7 @@ export const WorldScreen = ({ onBack, onArcade }: { onBack: () => void; onArcade
   const offline = useOffline();
   const screenReader = useScreenReader();
   const [chosen, setChosen] = useState<WorldView | null>(null);
-  const view = pickView({ offline, screenReader, chosen });
+  const view = pickView({ offline, screenReader, chosen, canDraw: Platform.OS !== "android" });
   const world = useWorld(!offline);
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [person, setPerson] = useState<string | null>(null);

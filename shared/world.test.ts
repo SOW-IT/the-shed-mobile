@@ -6,6 +6,7 @@ import {
   cleanLine,
   clampTarget,
   fullBucket,
+  halfWidthAt,
   hash,
   HEAR_RADIUS,
   EMOTE_IDS,
@@ -72,9 +73,19 @@ describe("clampTarget", () => {
     expect(out.x).toBeGreaterThan(bath.x + bath.rx);
     expect(out.z).toBeCloseTo(bath.z);
     const centre = clampTarget(bath.x, bath.z);
-    expect(centre.x).toBe(bath.x);
+    expect(centre.x).toBeCloseTo(bath.x);
     expect(centre.z).toBeGreaterThan(bath.z + bath.rz);
   });
+});
+
+test("keeps a tap by the pond's west edge out of the pond, and narrows toward the front", () => {
+  const pond = OBSTACLES[1];
+  const out = clampTarget(-3.9, 2.2);
+  expect(Math.hypot((out.x - pond.x) / pond.rx, (out.z - pond.z) / pond.rz)).toBeGreaterThanOrEqual(1);
+  expect(out.x).toBeGreaterThanOrEqual(-halfWidthAt(out.z));
+  expect(halfWidthAt(0)).toBe(WALK_BOUNDS.maxX);
+  expect(clampTarget(99, WALK_BOUNDS.maxZ).x).toBeCloseTo(halfWidthAt(WALK_BOUNDS.maxZ));
+  expect(halfWidthAt(WALK_BOUNDS.maxZ)).toBeLessThan(3);
 });
 
 test("spawnFor stays near the spawn point and is stable", () => {
@@ -110,6 +121,7 @@ test("tagName shows a short first name", () => {
   expect(tagName("  Grace   Lee ")).toBe("Grace");
   expect(tagName("")).toBe("Someone");
   expect(tagName("Maximiliannnnnnnn")).toBe("Maximiliannnn…");
+  expect(tagName("abcdefghijkl😀zzz")).toBe("abcdefghijkl😀…");
 });
 
 test("cleanLine trims, joins lines and caps the length", () => {

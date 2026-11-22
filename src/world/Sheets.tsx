@@ -3,7 +3,7 @@ import { spacing, typography, useAppTheme } from "@/theme";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { WorldMember } from "./useWorld";
@@ -180,12 +180,14 @@ export const PeopleSheet = ({
           </Pressable>
         ))}
         <Btn title="Customize your character" icon="shirt-outline" variant="tonal" onPress={onCustomize} />
+        {Platform.OS === "android" ? null : (
         <Btn
           title={view === "garden" ? "Show as a list" : "Show the garden"}
           icon={view === "garden" ? "list-outline" : "leaf-outline"}
           variant="tonal"
           onPress={() => onView(view === "garden" ? "list" : "garden")}
         />
+        )}
         {blocked && blocked.length > 0 ? (
           <>
             <Text style={[typography.label, { color: t.muted }]}>Blocked</Text>

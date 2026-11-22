@@ -16,17 +16,20 @@ import {
   isMutual,
   isValidLook,
   LOOK_SAVE_GAP_MS,
+  MAX_BLOCKS,
   lookFor,
   posAt,
   PRESENCE_TOUCH_MS,
   PRESENCE_TTL_MS,
   REPORT_CONTEXT_LINES,
+  REPORT_OWN_LINES,
   REPORT_WINDOW_MS,
   REPORTS_PER_WINDOW,
   ROOM_CAP,
   spawnFor,
   SWEEP_EVERY_MS,
   takeToken,
+  THROTTLE_KEEP_MS,
   WORLD_PLACE,
   type BucketKind,
 } from "../shared/world";
@@ -105,10 +108,36 @@ const touchPresence = async (ctx: MutationCtx, memberId: Id<"worldMembers">, now
   }
 };
 
-/** Takes everything of one member out of the world, and their room if it empties. */
+const throttleOf = (ctx: Ctx, email: string) =>
+  ctx.db
+    .query("worldThrottle")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
+
+/**
+ * Takes everything of one member out of the world, and their room if it
+ * empties. Their rate limits are kept for a while, so coming straight back
+ * doesn't refill them.
+ */
 const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">) => {
   const state = await stateOf(ctx, member._id);
-  if (state) await ctx.db.delete("worldState", state._id);
+  if (state) {
+    const { moveBucket, actBucket, sayBucket } = state;
+    const now = Date.now();
+    const kept = await throttleOf(ctx, member.email);
+    if (kept) await ctx.db.patch("worldThrottle", kept._id, { moveBucket, actBucket, sayBucket, at: now });
+    else {
+      await ctx.db.insert("worldThrottle", {
+        email: member.email,
+        moveBucket,
+        actBucket,
+        sayBucket,
+        joinBucket: fullBucket("join", now),
+        at: now,
+      });
+    }
+    await ctx.db.delete("worldState", state._id);
+  }
   const presence = await presenceOf(ctx, member._id);
   if (presence) await ctx.db.delete("worldPresence", presence._id);
   await ctx.db.delete("worldMembers", member._id);
@@ -130,8 +159,9 @@ const sweeperMeta = (ctx: Ctx) =>
  */
 const ensureSweeper = async (ctx: MutationCtx, now: number) => {
   const meta = await sweeperMeta(ctx);
-  // A run is pending, and not overdue enough to have been lost.
-  if (meta?.sweepAt !== undefined && meta.sweepAt > now - SWEEP_EVERY_MS) return;
+  // A run is due soon, and not overdue enough to have been lost. One booked
+  // far ahead (for the last chat lines to expire) is too late for presence.
+  if (meta?.sweepAt !== undefined && meta.sweepAt > now - SWEEP_EVERY_MS && meta.sweepAt <= now + SWEEP_EVERY_MS) return;
   const sweepAt = now + SWEEP_EVERY_MS;
   if (meta) await ctx.db.patch("worldMeta", meta._id, { sweepAt });
   else await ctx.db.insert("worldMeta", { key: "sweeper", sweepAt });
@@ -145,10 +175,20 @@ const roomWithSpace = async (ctx: MutationCtx): Promise<Doc<"worldRooms">> => {
     .take(ROOM_SCAN);
   const open = rooms.find((room) => room.memberCount < ROOM_CAP);
   if (open) return open;
-  // The lowest instance number no room is using.
-  const used = new Set(rooms.map((room) => room.instance));
   let instance = 1;
-  while (used.has(instance)) instance++;
+  if (rooms.length < ROOM_SCAN) {
+    // Every room was seen: the lowest instance number none is using.
+    const used = new Set(rooms.map((room) => room.instance));
+    while (used.has(instance)) instance++;
+  } else {
+    // More rooms than the scan: one past the highest, which is never taken.
+    const highest = await ctx.db
+      .query("worldRooms")
+      .withIndex("by_place_and_instance", (q) => q.eq("place", WORLD_PLACE))
+      .order("desc")
+      .first();
+    instance = (highest?.instance ?? 0) + 1;
+  }
   const roomId = await ctx.db.insert("worldRooms", { place: WORLD_PLACE, instance, memberCount: 0 });
   return (await ctx.db.get("worldRooms", roomId))!;
 };
@@ -176,6 +216,18 @@ export const join = mutation({
     let room = member && (await ctx.db.get("worldRooms", member.roomId));
     if (!member || !room) {
       if (member) await removeMember(ctx, member);
+      // Back soon after leaving: the rate limits carry on where they were,
+      // and joining itself is limited.
+      const kept = await throttleOf(ctx, email);
+      let buckets = { moveBucket: fullBucket("move", now), actBucket: fullBucket("act", now), sayBucket: fullBucket("say", now) };
+      if (kept) {
+        const token = takeToken("join", kept.joinBucket, now);
+        if (!token.ok) {
+          throw new ConvexError(`You've come and gone a few times. Try again in ${Math.ceil(token.retryInMs / 1000)}s.`);
+        }
+        await ctx.db.patch("worldThrottle", kept._id, { joinBucket: token.bucket, at: now });
+        buckets = { moveBucket: kept.moveBucket, actBucket: kept.actBucket, sayBucket: kept.sayBucket };
+      }
       room = await roomWithSpace(ctx);
       const memberId = await ctx.db.insert("worldMembers", {
         roomId: room._id,
@@ -192,9 +244,7 @@ export const join = mutation({
         toX: spawn.x,
         toZ: spawn.z,
         startedAt: now,
-        moveBucket: fullBucket("move", now),
-        actBucket: fullBucket("act", now),
-        sayBucket: fullBucket("say", now),
+        ...buckets,
       });
       await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
       member = (await ctx.db.get("worldMembers", memberId))!;
@@ -219,7 +269,7 @@ export const leave = mutation({
 
 const turnedAway = v.object({ ok: v.literal(false), retryInMs: v.number(), serverNow: v.number() });
 
-const spend = (kind: BucketKind, state: Doc<"worldState">, now: number) =>
+const spend = (kind: Exclude<BucketKind, "join">, state: Doc<"worldState">, now: number) =>
   takeToken(kind, state[`${kind}Bucket`], now);
 
 /**
@@ -276,6 +326,13 @@ export const say = mutation({
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     await ctx.db.patch("worldState", state._id, { say: { text, at: now }, sayBucket: token.bucket });
     await ctx.db.insert("worldChat", { roomId: member.roomId, memberId: member._id, email, name: member.name, text, at: now });
+    // Keep the room within CHAT_ROOM_CAP lines as each one arrives.
+    const lines = await ctx.db
+      .query("worldChat")
+      .withIndex("by_roomId_and_at", (q) => q.eq("roomId", member.roomId))
+      .order("desc")
+      .take(CHAT_ROOM_CAP + 5);
+    for (const row of lines.slice(CHAT_ROOM_CAP)) await ctx.db.delete("worldChat", row._id);
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
   },
@@ -504,6 +561,11 @@ export const block = mutation({
     if (!other) throw new ConvexError("They've already left the garden.");
     if (other.email === email) throw new ConvexError("You can't block yourself.");
     if (!(await blocks(ctx, email, other.email))) {
+      const mine = await ctx.db
+        .query("worldBlocks")
+        .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email))
+        .take(MAX_BLOCKS);
+      if (mine.length >= MAX_BLOCKS) throw new ConvexError(`You've blocked ${MAX_BLOCKS} people. Unblock someone under People here first.`);
       await ctx.db.insert("worldBlocks", { email, blockedEmail: other.email, blockedName: other.name });
     }
     return null;
@@ -530,7 +592,7 @@ export const myBlocks = query({
     const rows = await ctx.db
       .query("worldBlocks")
       .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email))
-      .take(200);
+      .take(MAX_BLOCKS);
     return rows.map((row) => ({ id: row._id, name: row.blockedName }));
   },
 });
@@ -560,11 +622,20 @@ export const report = mutation({
       throw new ConvexError("You've sent a lot of reports. Try again in a few minutes, or talk to a leader.");
     }
     const room = await ctx.db.get("worldRooms", other.roomId);
-    const rows = await ctx.db
+    // Their own latest lines, however busy the room has been since, and the
+    // room's latest lines around them, in the order they were said.
+    const own = await ctx.db
+      .query("worldChat")
+      .withIndex("by_roomId_and_email_and_at", (q) => q.eq("roomId", other.roomId).eq("email", other.email))
+      .order("desc")
+      .take(REPORT_OWN_LINES);
+    const context = await ctx.db
       .query("worldChat")
       .withIndex("by_roomId_and_at", (q) => q.eq("roomId", other.roomId))
       .order("desc")
       .take(REPORT_CONTEXT_LINES);
+    const byId = new Map([...own, ...context].map((row) => [row._id, row]));
+    const rows = [...byId.values()].sort((a, b) => a.at - b.at);
     await ctx.db.insert("worldReports", {
       reporterEmail: email,
       reportedEmail: other.email,
@@ -572,18 +643,54 @@ export const report = mutation({
       place: room?.place ?? WORLD_PLACE,
       instance: room?.instance ?? 0,
       reason,
-      lines: rows
-        .reverse()
-        .map((row) => ({ name: row.name, text: row.text, at: row.at, reported: row.email === other.email })),
+      lines: rows.map((row) => ({ name: row.name, text: row.text, at: row.at, reported: row.email === other.email })),
       createdAt: now,
     });
     return null;
   },
 });
 
+/** Chat lines deleted per run; a full batch schedules another run straight away. */
+const CHAT_PURGE_BATCH = 200;
+
+/** Deletes chat lines past CHAT_TTL_MS. Says whether more may be left. */
+const purgeOldChat = async (ctx: MutationCtx, now: number) => {
+  const old = await ctx.db
+    .query("worldChat")
+    .withIndex("by_at", (q) => q.lt("at", now - CHAT_TTL_MS))
+    .take(CHAT_PURGE_BATCH);
+  for (const row of old) await ctx.db.delete("worldChat", row._id);
+  return old.length === CHAT_PURGE_BATCH;
+};
+
+/** Carries on deleting expired chat lines until none are left. */
+export const purgeChat = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    if (await purgeOldChat(ctx, Date.now())) await ctx.scheduler.runAfter(0, internal.world.purgeChat, {});
+    return null;
+  },
+});
+
 /**
- * Removes people who went quiet, old chat lines and empty rooms. Runs every
- * SWEEP_EVERY_MS while anyone is in the world, and once a day as a backstop.
+ * When the sweeper next needs to run: soon while anyone is in, at the next
+ * expiry while only chat lines or kept rate limits are left, or never.
+ */
+const nextSweep = async (ctx: MutationCtx, now: number): Promise<number | undefined> => {
+  if ((await ctx.db.query("worldPresence").first()) !== null) return now + SWEEP_EVERY_MS;
+  const chat = await ctx.db.query("worldChat").withIndex("by_at").first();
+  const kept = await ctx.db.query("worldThrottle").withIndex("by_at").first();
+  const due = [chat && chat.at + CHAT_TTL_MS, kept && kept.at + THROTTLE_KEEP_MS].filter((at): at is number => typeof at === "number");
+  if (due.length === 0) return undefined;
+  return Math.max(Math.min(...due) + 1000, now + SWEEP_EVERY_MS);
+};
+
+/**
+ * Removes people who went quiet, old chat lines (from the log and from the
+ * bubbles on state rows), kept rate limits and empty rooms. Runs every
+ * SWEEP_EVERY_MS while anyone is in the world, then once more when the last
+ * lines expire, and once a day as a backstop.
  */
 export const sweep = internalMutation({
   args: {},
@@ -599,11 +706,7 @@ export const sweep = internalMutation({
       if (member) await removeMember(ctx, member);
       else await ctx.db.delete("worldPresence", presence._id);
     }
-    const old = await ctx.db
-      .query("worldChat")
-      .withIndex("by_at", (q) => q.lt("at", now - CHAT_TTL_MS))
-      .take(SWEEP_BATCH * 2);
-    for (const row of old) await ctx.db.delete("worldChat", row._id);
+    if (await purgeOldChat(ctx, now)) await ctx.scheduler.runAfter(0, internal.world.purgeChat, {});
     const rooms = await ctx.db.query("worldRooms").take(ROOM_SCAN);
     for (const room of rooms) {
       const lines = await ctx.db
@@ -613,18 +716,30 @@ export const sweep = internalMutation({
         .take(CHAT_ROOM_CAP + SWEEP_BATCH);
       for (const row of lines.slice(CHAT_ROOM_CAP)) await ctx.db.delete("worldChat", row._id);
     }
+    // A line someone said long ago stays on their state row until they say
+    // another; take it off once it's past the chat TTL.
+    const oldSay = await ctx.db
+      .query("worldState")
+      .withIndex("by_say_at", (q) => q.gt("say.at", 0).lt("say.at", now - CHAT_TTL_MS))
+      .take(SWEEP_BATCH);
+    for (const row of oldSay) await ctx.db.patch("worldState", row._id, { say: undefined });
+    const oldThrottles = await ctx.db
+      .query("worldThrottle")
+      .withIndex("by_at", (q) => q.lt("at", now - THROTTLE_KEEP_MS))
+      .take(SWEEP_BATCH);
+    for (const row of oldThrottles) await ctx.db.delete("worldThrottle", row._id);
+
     const meta = await sweeperMeta(ctx);
-    const anyone = (await ctx.db.query("worldPresence").first()) !== null;
-    if (!anyone) {
+    const next = await nextSweep(ctx, now);
+    if (next === undefined) {
       if (meta) await ctx.db.patch("worldMeta", meta._id, { sweepAt: undefined });
       return null;
     }
     // The chained run reschedules; the daily backstop only restarts a lost chain.
     if (meta?.sweepAt === undefined || meta.sweepAt <= now + 1000) {
-      const sweepAt = now + SWEEP_EVERY_MS;
-      if (meta) await ctx.db.patch("worldMeta", meta._id, { sweepAt });
-      else await ctx.db.insert("worldMeta", { key: "sweeper", sweepAt });
-      await ctx.scheduler.runAt(sweepAt, internal.world.sweep, {});
+      if (meta) await ctx.db.patch("worldMeta", meta._id, { sweepAt: next });
+      else await ctx.db.insert("worldMeta", { key: "sweeper", sweepAt: next });
+      await ctx.scheduler.runAt(next, internal.world.sweep, {});
     }
     return null;
   },

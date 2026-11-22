@@ -28,7 +28,8 @@ export const figureFor = (cam: Camera, pose: Pose, t: number, seed: number): Fig
 export const hitBox = (f: Figure) => ({
   left: f.foot.x - 0.5 * f.s,
   right: f.foot.x + 0.5 * f.s,
-  top: f.foot.y - (1.45 + f.bob) * f.up,
+  // Up to the top of a bun, pigtails or a hat.
+  top: f.foot.y - (1.45 + f.bob) * f.up - 0.35 * f.s,
   bottom: f.foot.y + 0.1 * f.s,
 });
 

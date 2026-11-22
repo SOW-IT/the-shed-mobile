@@ -181,6 +181,11 @@ export const Garden = ({
       .filter((h) => x >= h.box.left && x <= h.box.right && y >= h.box.top && y <= h.box.bottom)
       .sort((a, b) => a.depth - b.depth);
     if (hits[0]) return onTapPerson(hits[0].p.memberId);
+    // Then the arcade cabinet as drawn (its faces stand well above the ground).
+    const arcade = scene.props.find((prop) => prop.tap === "arcade");
+    if (arcade && x >= arcade.box.left && x <= arcade.box.right && y >= arcade.box.top && y <= arcade.box.bottom) {
+      return onTapArcade();
+    }
     const spot = cam.ground(x, y);
     if (!spot) return;
     if (Math.hypot(spot.x - ARCADE.x, spot.z - ARCADE.z) < 0.75) return onTapArcade();
@@ -290,7 +295,10 @@ export const Garden = ({
   }
 
   return (
-    <Pressable style={[styles.fill, { backgroundColor: garden.sky }]} onLayout={onLayout} onPress={onPress} accessible={false}>
+    <View style={[styles.fill, { backgroundColor: garden.sky }]} onLayout={onLayout}>
+      {/* The ground takes taps; the asks sit beside it, not inside it, so
+          on iOS a tap on an ask's button never reaches the ground. */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={onPress} accessible={false}>
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Layer prims={scene.ground} />
         {ring}
@@ -302,6 +310,7 @@ export const Garden = ({
           <Tag key={tag.key} x={tag.x} y={tag.bottom} {...tag.props} />
         ))}
       </View>
+      </Pressable>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         {asks.map((p) => {
           const pose = poses[people.indexOf(p)];
@@ -344,7 +353,7 @@ export const Garden = ({
           );
         })}
       </View>
-    </Pressable>
+    </View>
   );
 };
 
@@ -376,7 +385,8 @@ const tagBox = (x: number, bottom: number, name: string, line: string | undefine
 
 /**
  * Nearest people's tags stay over their heads; a farther tag that would
- * cover one moves up above it. Returned far to near, so nearer tags draw on top.
+ * cover one moves up above it, but never off the top of the stage. Returned
+ * far to near, so nearer tags draw on top.
  */
 const stackTags = (tags: TagSpot[]): TagSpot[] => {
   const placed: TagSpot[] = [];
@@ -393,7 +403,9 @@ const stackTags = (tags: TagSpot[]): TagSpot[] => {
         }
       }
     }
-    placed.push({ ...tag, bottom });
+    // A crowd can stack tags past the top of the stage; the top one stops
+    // there and overlaps the one below rather than vanishing.
+    placed.push({ ...tag, bottom: Math.max(bottom, tag.height + 4) });
   }
   return placed.reverse();
 };

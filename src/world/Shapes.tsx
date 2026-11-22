@@ -91,7 +91,9 @@ export const Ellipse = ({
   const squash = ry / rx;
   // Ink is a circle behind the fill, not a border: on iOS a clipped child
   // would paint over a border.
-  const solidInk = ink && !dashed ? ink : 0;
+  // A see-through ellipse with ink is a ring: draw the ink as a border.
+  const ring = dashed || fill === "transparent";
+  const solidInk = ink && !ring ? ink : 0;
   const inner = rx - solidInk;
   return (
     <View
@@ -104,8 +106,8 @@ export const Ellipse = ({
           width: rx * 2,
           height: rx * 2,
           borderRadius: rx,
-          backgroundColor: solidInk ? inkColour : dashed ? undefined : fill,
-          borderWidth: dashed && ink ? ink / Math.max(0.3, squash) : 0,
+          backgroundColor: solidInk ? inkColour : ring ? undefined : fill,
+          borderWidth: ring && ink ? ink / Math.max(0.3, squash) : 0,
           borderColor: inkColour,
           borderStyle: dashed ? "dashed" : undefined,
           opacity,

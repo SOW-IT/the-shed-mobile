@@ -8,13 +8,19 @@ export const pickView = ({
   offline,
   screenReader,
   chosen,
+  canDraw = true,
 }: {
   offline: boolean;
   screenReader: boolean;
   /** What the person picked this visit, if anything. */
   chosen: WorldView | null;
+  /**
+   * Whether this platform draws the garden right. Android ignores the
+   * perspective part of a view's matrix, so its quads come out wrong.
+   */
+  canDraw?: boolean;
 }): WorldView => {
-  if (offline) return "list";
+  if (offline || !canDraw) return "list";
   if (chosen) return chosen;
   return screenReader ? "list" : "garden";
 };

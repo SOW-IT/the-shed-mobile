@@ -2,12 +2,16 @@
 // every device, so a spot on the screen and a spot in the garden map to each
 // other with plain arithmetic. The renderer, the name tags and taps all use it.
 
+import { halfWidthAt, WALK_BOUNDS } from "../../shared/world";
+
 export type Vec3 = readonly [number, number, number];
 export type ScreenPoint = { x: number; y: number; depth: number; scale: number };
 
 const FOV_DEG = 34;
 /** Where the camera sits relative to what it looks at (style C's framing). */
 const OFFSET: Vec3 = [0, 17.5, 25];
+/** Pixels kept clear at the stage's sides when fitting the courtyard. */
+const EDGE_MARGIN = 8;
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -40,7 +44,15 @@ export const makeCamera = (width: number, height: number, focus: { x: number; z:
   const back = norm(sub(eye, target));
   const right = norm(cross([0, 1, 0], back));
   const up = cross(back, right);
-  const focal = height / 2 / Math.tan((FOV_DEG * Math.PI) / 360);
+  // Style C's lens, unless the stage is too narrow to show the walkable
+  // courtyard's front corners: then it widens just enough to fit them.
+  const lens = height / 2 / Math.tan((FOV_DEG * Math.PI) / 360);
+  const fit = [2, WALK_BOUNDS.maxZ].reduce((best, z) => {
+    const d = sub([halfWidthAt(z) + 0.4, 0, z], eye);
+    const across = Math.abs(dot(d, right)) + 1e-9;
+    return Math.min(best, ((width / 2 - EDGE_MARGIN) * -dot(d, back)) / across);
+  }, Infinity);
+  const focal = Math.min(lens, fit);
   const project = (p: Vec3): ScreenPoint => {
     const d = sub(p, eye);
     const depth = -dot(d, back);

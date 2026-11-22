@@ -9,6 +9,9 @@ import {
   CHAT_TTL_MS,
   clampTarget,
   INTERACT_RADIUS,
+  MAX_BLOCKS,
+  REPORT_CONTEXT_LINES,
+  THROTTLE_KEEP_MS,
   PRESENCE_TOUCH_MS,
   PRESENCE_TTL_MS,
   REPORTS_PER_WINDOW,
@@ -515,7 +518,11 @@ describe("sweep", () => {
     all = await rows(t);
     expect(all.members).toEqual([]);
     expect(all.rooms).toEqual([]);
-    expect(all.meta[0].sweepAt).toBeUndefined();
+    // Their rate limits are kept a while, so one more run is booked for when they expire.
+    expect(all.meta[0].sweepAt).toBeGreaterThan(Date.now() + SWEEP_EVERY_MS);
+    later(THROTTLE_KEEP_MS + CHAT_TTL_MS);
+    await t.mutation(internal.world.sweep, {});
+    expect((await rows(t)).meta[0].sweepAt).toBeUndefined();
 
     // Joining again restarts it.
     await anna.mutation(api.world.join, {});
@@ -554,11 +561,133 @@ describe("sweep", () => {
   });
 });
 
+describe("review fixes", () => {
+  test("leaving and coming back keeps the rate limits, and joining itself is limited", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    for (let i = 0; i < BUCKETS.say.burst; i++) await anna.mutation(api.world.say, { text: `line ${i}` });
+    expect(await anna.mutation(api.world.say, { text: "one more" })).toMatchObject({ ok: false });
+    await anna.mutation(api.world.leave, {});
+    await anna.mutation(api.world.join, {});
+    expect(await anna.mutation(api.world.say, { text: "back again" })).toMatchObject({ ok: false });
+    for (let i = 0; i < BUCKETS.join.burst - 1; i++) {
+      await anna.mutation(api.world.leave, {});
+      await anna.mutation(api.world.join, {});
+    }
+    await anna.mutation(api.world.leave, {});
+    await expect(anna.mutation(api.world.join, {})).rejects.toThrow(/come and gone/);
+    later(BUCKETS.join.refillMs + 100);
+    expect(await anna.mutation(api.world.join, {})).toMatchObject({ instance: 1 });
+  });
+
+  test("a room never holds more than CHAT_ROOM_CAP lines, even between sweeps", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    await t.run(async (ctx) => {
+      for (let i = 0; i < CHAT_ROOM_CAP + 3; i++) {
+        await ctx.db.insert("worldChat", { roomId: a.roomId, memberId: a.memberId, email: ANNA, name: "anna", text: `${i}`, at: Date.now() - 1000 + i });
+      }
+    });
+    await anna.mutation(api.world.say, { text: "newest" });
+    const chat = (await rows(t)).chat;
+    expect(chat).toHaveLength(CHAT_ROOM_CAP);
+    expect(chat.some((line) => line.text === "newest")).toBe(true);
+  });
+
+  test("a report keeps the reported person's lines however busy the room was after", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    const b = await ben.mutation(api.world.join, {});
+    await ben.mutation(api.world.say, { text: "the unkind line" });
+    await t.run(async (ctx) => {
+      for (let i = 0; i < REPORT_CONTEXT_LINES + 5; i++) {
+        await ctx.db.insert("worldChat", { roomId: a.roomId, memberId: a.memberId, email: ANNA, name: "anna", text: `chatter ${i}`, at: Date.now() + 1 + i });
+      }
+    });
+    await anna.mutation(api.world.report, { memberId: b.memberId, reason: "Mean" });
+    const report = (await t.run((ctx) => ctx.db.query("worldReports").first()))!;
+    expect(report.lines[0]).toMatchObject({ text: "the unkind line", reported: true });
+    expect(report.lines).toHaveLength(REPORT_CONTEXT_LINES + 1);
+    expect(report.lines.map((l) => l.at)).toEqual([...report.lines.map((l) => l.at)].sort((x, y) => x - y));
+  });
+
+  test("a line on a state row is cleared after the chat TTL", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const { memberId } = await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.say, { text: "hello" });
+    // Anna stays (heartbeats) past the TTL.
+    for (let i = 0; i < 12; i++) {
+      later(PRESENCE_TTL_MS - 1000);
+      await anna.mutation(api.world.heartbeat, {});
+    }
+    await t.mutation(internal.world.sweep, {});
+    expect((await stateRow(t, memberId))!.say).toBeUndefined();
+    expect(await anna.query(api.world.state, { memberId })).not.toHaveProperty("say");
+  });
+
+  test("expired chat is purged in follow-up runs, and the sweeper waits for the last line once the garden empties", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 205; i++) {
+        await ctx.db.insert("worldChat", { roomId: a.roomId, memberId: a.memberId, email: ANNA, name: "anna", text: `${i}`, at: 1 + i });
+      }
+    });
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout"] });
+    vi.setSystemTime(Date.now());
+    await t.mutation(internal.world.sweep, {});
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    expect((await rows(t)).chat).toHaveLength(0);
+
+    await anna.mutation(api.world.say, { text: "last words" });
+    await anna.mutation(api.world.leave, {});
+    later(SWEEP_EVERY_MS);
+    await t.mutation(internal.world.sweep, {});
+    const meta = (await rows(t)).meta[0];
+    expect(meta.sweepAt).toBeGreaterThanOrEqual(Date.now() + SWEEP_EVERY_MS);
+  });
+
+  test("purgeChat stops when nothing is left", async () => {
+    const t = newConvex();
+    await t.mutation(internal.world.purgeChat, {});
+    expect((await rows(t)).chat).toEqual([]);
+  });
+
+  test("rooms past the scan get a fresh instance number", async () => {
+    const t = newConvex();
+    await t.run(async (ctx) => {
+      for (let i = 1; i <= 50; i++) await ctx.db.insert("worldRooms", { place: "garden", instance: i, memberCount: ROOM_CAP });
+      await ctx.db.insert("worldRooms", { place: "garden", instance: 77, memberCount: ROOM_CAP });
+    });
+    expect((await asUser(t, ANNA).mutation(api.world.join, {})).instance).toBe(78);
+  });
+
+  test("blocking stops at MAX_BLOCKS so every block stays listed", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const b = await asUser(t, BEN).mutation(api.world.join, {});
+    await t.run(async (ctx) => {
+      for (let i = 0; i < MAX_BLOCKS; i++) await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: `p${i}@sow.org.au`, blockedName: `p${i}` });
+    });
+    await expect(anna.mutation(api.world.block, { memberId: b.memberId })).rejects.toThrow(/Unblock someone/);
+    expect(await anna.query(api.world.myBlocks, {})).toHaveLength(MAX_BLOCKS);
+  });
+});
+
 /**
- * The write budget in the PR: a player who taps and talks as fast as the
- * rate limits allow, for ten minutes, and a typical one. Each accepted move,
- * emote or line writes the state row; a line also writes a chat row; and the
- * presence mark is written at most once every PRESENCE_TOUCH_MS.
+ * The write budget in the PR, counted per code path rather than measured at
+ * the database: each accepted move, emote or line writes the caller's state
+ * row once; a line also inserts a chat row (and, in a room already at
+ * CHAT_ROOM_CAP lines, deletes the oldest); the presence mark is written at
+ * most once every PRESENCE_TOUCH_MS, which the simulation observes directly.
+ * It's an estimate of document writes, not a guarantee the database enforces.
  */
 describe("write budget per player", () => {
   const simulate = async (perMinute: { move: number; act: number; say: number }, minutes: number) => {
@@ -593,7 +722,7 @@ describe("write budget per player", () => {
     return { ...counts, writesPerMinute: writes / minutes, mutationsPerMinute: counts.mutations / minutes };
   };
 
-  test("a player at every rate limit writes at most 47 documents a minute", async () => {
+  test("a player at every rate limit makes an estimated 47 document writes a minute at most", async () => {
     // Tapping four times a second, an emote and a line every 2 seconds.
     const flat = await simulate({ move: 240, act: 30, say: 30 }, 10);
     // 20 moves + 10 emotes + 6 lines (two writes each) + 3 presence marks,
@@ -602,7 +731,7 @@ describe("write budget per player", () => {
     expect(flat.writesPerMinute).toBeGreaterThan(44);
   }, 120_000);
 
-  test("a typical player writes about 15 documents a minute", async () => {
+  test("a typical player makes an estimated 15 document writes a minute", async () => {
     const typical = await simulate({ move: 8, act: 1, say: 2 }, 10);
     expect(typical.writesPerMinute).toBeLessThanOrEqual(16);
     expect(typical.mutationsPerMinute).toBe(11);

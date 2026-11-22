@@ -174,7 +174,23 @@ export default defineSchema({
     moveBucket: worldBucketValidator,
     actBucket: worldBucketValidator,
     sayBucket: worldBucketValidator,
-  }).index("by_memberId", ["memberId"]),
+  })
+    .index("by_memberId", ["memberId"])
+    // For clearing lines older than the chat TTL off the state rows.
+    .index("by_say_at", ["say.at"]),
+
+  // Someone's rate limits, kept for THROTTLE_KEEP_MS after they leave, so
+  // leaving and joining again can't refill them. Swept after that.
+  worldThrottle: defineTable({
+    email: v.string(),
+    moveBucket: worldBucketValidator,
+    actBucket: worldBucketValidator,
+    sayBucket: worldBucketValidator,
+    joinBucket: worldBucketValidator,
+    at: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_at", ["at"]),
 
   // When each member was last heard from. No query reads this table for the
   // app, so marking someone present pushes nothing to anyone.
@@ -196,6 +212,7 @@ export default defineSchema({
     at: v.number(),
   })
     .index("by_roomId_and_at", ["roomId", "at"])
+    .index("by_roomId_and_email_and_at", ["roomId", "email", "at"])
     .index("by_at", ["at"]),
 
   // A look someone saved in the character editor, kept across visits. The

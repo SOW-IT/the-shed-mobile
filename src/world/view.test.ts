@@ -6,6 +6,7 @@ test("offline always shows the list; otherwise a choice wins, then VoiceOver", (
   expect(pickView({ offline: false, screenReader: true, chosen: "garden" })).toBe("garden");
   expect(pickView({ offline: false, screenReader: true, chosen: null })).toBe("list");
   expect(pickView({ offline: false, screenReader: false, chosen: null })).toBe("garden");
+  expect(pickView({ offline: false, screenReader: false, chosen: "garden", canDraw: false })).toBe("list");
 });
 
 test("hearingLabel counts people", () => {
