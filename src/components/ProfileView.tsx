@@ -10,7 +10,7 @@ import { useMutation, useQuery } from "convex/react";
 import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { ReactNode, useState } from "react";
+import { ReactNode, useRef, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { timeAgo } from "../../shared/datetime";
@@ -202,6 +202,35 @@ function SpotifyConnectionCard() {
   );
 }
 
+/** Taps this close together count towards the three that open the games. */
+const TAP_WINDOW_MS = 600;
+
+/**
+ * The app version at the foot of your profile. Three quick taps open the
+ * games; it looks and reads the same as plain text.
+ */
+const VersionText = () => {
+  const t = useAppTheme();
+  const router = useRouter();
+  const taps = useRef({ count: 0, at: 0 });
+  const onPress = () => {
+    const now = Date.now();
+    const count = now - taps.current.at < TAP_WINDOW_MS ? taps.current.count + 1 : 1;
+    taps.current = { count: count === 3 ? 0 : count, at: now };
+    if (count === 3) router.push("/games");
+  };
+  return (
+    <Text
+      onPress={onPress}
+      suppressHighlighting
+      testID="profile-version"
+      style={[typography.caption, styles.versionText, { color: t.muted }]}
+    >
+      Version {Constants.expoConfig?.version ?? "—"}
+    </Text>
+  );
+};
+
 /**
  * A person's profile. Your own (`asTab`) is a root screen from the side menu,
  * with the top bar; anyone else's opens on top of the screen you came from,
@@ -244,6 +273,7 @@ export const ProfileView = ({
     return (
       <ProfileFrame asTab={asTab} onBack={goBack}>
         <SignInPrompt what="page" />
+        {email ? null : <VersionText />}
       </ProfileFrame>
     );
   }
@@ -503,18 +533,14 @@ export const ProfileView = ({
         </FadeInView>
       )}
       {profile.isMe && <DeleteAccountCard />}
-      {profile.isMe && (
-        <Text
-          style={[typography.caption, { color: t.muted, textAlign: "center" }]}
-        >
-          Version {Constants.expoConfig?.version ?? "—"}
-        </Text>
-      )}
+      {profile.isMe && <VersionText />}
     </ProfileFrame>
   );
 };
 
 const styles = StyleSheet.create({
+  // A plain cursor, so the easter egg doesn't show itself on web.
+  versionText: { textAlign: "center", cursor: "auto" },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   syncChip: {
     flexDirection: "row",

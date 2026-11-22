@@ -56,6 +56,8 @@ import type * as eventRequestLinks from "../eventRequestLinks.js";
 import type * as eventRequests from "../eventRequests.js";
 import type * as eventSubForms from "../eventSubForms.js";
 import type * as events from "../events.js";
+import type * as gameScoreData from "../gameScoreData.js";
+import type * as gameScores from "../gameScores.js";
 import type * as generalMetrics from "../generalMetrics.js";
 import type * as googleAuth from "../googleAuth.js";
 import type * as googleCalendar from "../googleCalendar.js";
@@ -157,6 +159,8 @@ declare const fullApi: ApiFromModules<{
   eventRequests: typeof eventRequests;
   eventSubForms: typeof eventSubForms;
   events: typeof events;
+  gameScoreData: typeof gameScoreData;
+  gameScores: typeof gameScores;
   generalMetrics: typeof generalMetrics;
   googleAuth: typeof googleAuth;
   googleCalendar: typeof googleCalendar;
