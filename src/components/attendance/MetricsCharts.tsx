@@ -20,6 +20,7 @@ import type {
   SplitPoint,
   TrendPoint,
 } from "../../../shared/attendanceMetrics";
+import { shortDate } from "../../../shared/datetime";
 
 const BAR_MIN = 3;
 const CHART_HEIGHT = 120;
@@ -1360,12 +1361,7 @@ export function FollowUpRow({
 }) {
   const t = useAppTheme();
   const tone = t[REASON_TONE[person.reasonCode]] as string;
-  const last = person.lastAttended
-    ? new Date(person.lastAttended).toLocaleDateString("en-AU", {
-        day: "numeric",
-        month: "short",
-      })
-    : "—";
+  const last = person.lastAttended ? shortDate(person.lastAttended) : "—";
   return (
     <Pressable
       accessibilityRole="button"

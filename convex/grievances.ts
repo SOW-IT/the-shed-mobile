@@ -22,7 +22,7 @@ import { grievanceFields } from "./grievanceData";
 import {
   Ctx,
   currentStaffYear,
-  displayName,
+  nameOf,
   optionalEmail,
   optionalProfile,
   profileForCurrentYear,
@@ -146,9 +146,6 @@ async function requireOpen(ctx: Ctx, id: Id<"grievances">): Promise<Grievance> {
   }
   return grievance;
 }
-
-const nameOf = (ctx: Ctx, email: string | undefined, year = currentStaffYear()) =>
-  email ? displayName(ctx, email, year) : Promise.resolve(null);
 
 const logEvent = async (
   ctx: MutationCtx,

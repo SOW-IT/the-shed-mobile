@@ -306,7 +306,7 @@ export const ExternalMentorSheet = ({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmShown, setConfirmShown] = useState(false);
   const deleting = useRef(false);
-  const afterSheetCloses = (open: () => void) => setTimeout(open, durations.overlayOut + 80);
+  const afterSheetCloses = (open: () => void) => setTimeout(open, durations.sheetHandoff);
   const set = (key: keyof ExternalMentorDraft) => (value: string) =>
     setDraft((current) => ({ ...current, [key]: value }));
 

@@ -8,6 +8,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import { spotifyTokenRequester } from "./spotify";
 import { decryptSpotifyToken, encryptSpotifyToken } from "./spotifyCrypto";
 
 export const getClientId = query({
@@ -198,26 +199,16 @@ export const connect = action({
       throw new ConvexError("Invalid Spotify redirect URI.");
     }
 
-    const clientId = process.env.SPOTIFY_CLIENT_ID;
-    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+    const requestToken = spotifyTokenRequester();
 
-    if (!clientId || !clientSecret) {
-      throw new ConvexError("Spotify credentials are not configured.");
-    }
-
-    const response = await fetch("https://accounts.spotify.com/api/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
-      },
-      body: new URLSearchParams({
+    const response = await requestToken(
+      new URLSearchParams({
         grant_type: "authorization_code",
         code: args.code,
         redirect_uri: args.redirectUri,
         code_verifier: args.codeVerifier,
       }),
-    });
+    );
 
     if (!response.ok) {
       throw new ConvexError(
@@ -330,30 +321,17 @@ export const importPlaylist = action({
     };
 
     if (connection.expiresAt <= Date.now() + 60_000) {
-      const clientId = process.env.SPOTIFY_CLIENT_ID;
-      const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-
-      if (!clientId || !clientSecret) {
-        throw new ConvexError("Spotify credentials are not configured.");
-      }
+      const requestToken = spotifyTokenRequester();
 
       const refreshToken = await decryptSpotifyToken(
         connection.encryptedRefreshToken,
       );
 
-      const refreshResponse = await fetch(
-        "https://accounts.spotify.com/api/token",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: refreshToken,
-          }),
-        },
+      const refreshResponse = await requestToken(
+        new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+        }),
       );
 
       if (!refreshResponse.ok) {

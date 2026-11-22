@@ -10,7 +10,7 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
-import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { CAMPUS_FIELD_KEY, metadataValueLabel, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import {
   cleanInstagram,
   cleanWebsite,
@@ -23,7 +23,7 @@ import {
 import { assignmentsOf, MEMBER, roleNeedsUniversity } from "../shared/flow";
 import { ALUMNI } from "../shared/memberRole";
 import { personDisplayName } from "../shared/rollcall";
-import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
+import { staffEmailCandidates } from "../shared/rollcallImport";
 import {
   currentStaffYear,
   findMemberByEmail,
@@ -37,7 +37,6 @@ import {
 import { isAssigned, staffProfileOfMember } from "./staffMembers";
 
 const MAX_CHURCHES = 500;
-const MAX_STAFF = 3000;
 const MAX_ATTENDEES = 500;
 
 const tidy = (text: string | undefined) => text?.trim().replace(/\s+/g, " ") || undefined;
@@ -240,13 +239,11 @@ export const directory = query({
     const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
     const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
     const memberCampus = (member: Doc<"attendanceMembers"> | null) => {
-      const raw = campusField ? member?.metadata?.[campusField._id] : undefined;
-      const campus = raw ? (campusField?.values?.[raw] ?? raw) : null;
+      const campus = metadataValueLabel(campusField, member?.metadata);
       return campus && campus !== "Other" ? campus : null;
     };
     const memberRole = (member: Doc<"attendanceMembers"> | null) => {
-      const raw = roleField ? member?.metadata?.[roleField._id] : undefined;
-      return raw && (roleField?.values?.[raw] ?? raw) === ALUMNI ? ALUMNI : MEMBER;
+      return metadataValueLabel(roleField, member?.metadata) === ALUMNI ? ALUMNI : MEMBER;
     };
     const churches = await ctx.db.query("churches").withIndex("by_nameKey").take(MAX_CHURCHES);
     const out = [];
@@ -361,54 +358,5 @@ export const locateAll = internalAction({
       }
     }
     return tally;
-  },
-});
-
-export const REMINDER = {
-  title: "Set your local church",
-  body: "Pick your church in your Profile, or add it with where it is and when it meets.",
-  url: "/profile",
-};
-
-export const remindToSetChurch = internalMutation({
-  args: { dryRun: v.optional(v.boolean()) },
-  returns: v.object({ staff: v.number(), withoutChurch: v.number(), reminded: v.number() }),
-  handler: async (ctx, { dryRun = true }) => {
-    const profiles = await ctx.db
-      .query("staffProfiles")
-      .withIndex("by_year", (q) => q.eq("year", currentStaffYear()))
-      .take(MAX_STAFF);
-    const staff = new Map<string, string>();
-    for (const profile of profiles) {
-      const key = canonicalEmailKey(profile.email);
-      if (key && !staff.has(key)) staff.set(key, profile.email.toLowerCase());
-    }
-    const remind: string[] = [];
-    for (const [key, email] of staff) {
-      let hasChurch = false;
-      for (const candidate of staffEmailCandidates(key)) {
-        const user = await ctx.db
-          .query("users")
-          .withIndex("email", (q) => q.eq("email", candidate))
-          .first();
-        if (user?.churchId) hasChurch = true;
-      }
-      if (!hasChurch) remind.push(email);
-    }
-    if (!dryRun) {
-      for (const email of remind) {
-        await ctx.db.insert("notifications", {
-          userEmail: email,
-          title: REMINDER.title,
-          body: REMINDER.body,
-          url: REMINDER.url,
-          read: false,
-        });
-      }
-      if (remind.length) {
-        await ctx.scheduler.runAfter(0, internal.push.sendMany, { to: remind, ...REMINDER });
-      }
-    }
-    return { staff: staff.size, withoutChurch: remind.length, reminded: dryRun ? 0 : remind.length };
   },
 });

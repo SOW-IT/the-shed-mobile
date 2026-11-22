@@ -40,6 +40,7 @@ import {
   getDepartment,
   memoAsync,
   optionalProfile,
+  nameOf,
   requireProfile,
   resolveName,
   withDelegatesForYear,
@@ -458,13 +459,11 @@ export const get = query({
     const access = await viewableAccess(ctx, caller, request);
     if (!access) return null;
     const open = isOpenDesignStatus(request.status);
-    const nameOf = (email: string | undefined) =>
-      email ? displayName(ctx, email, request.year) : Promise.resolve(null);
     return {
       request,
-      requesterName: await nameOf(request.requesterEmail),
-      decidedByName: await nameOf(request.decidedBy),
-      completedByName: await nameOf(request.completedBy),
+      requesterName: await nameOf(ctx, request.requesterEmail, request.year),
+      decidedByName: await nameOf(ctx, request.decidedBy, request.year),
+      completedByName: await nameOf(ctx, request.completedBy, request.year),
       can: {
         approve: access.canDecide && request.status === "PENDING",
         complete: access.canComplete && request.status === "APPROVED",

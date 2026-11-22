@@ -30,7 +30,7 @@ import {
   Facts,
 } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
-import { daysSince, timeAgo, waitingLabel } from "@shared/datetime";
+import { daysSince, shortDate, timeAgo, waitingLabel } from "@shared/datetime";
 import { keyed } from "@/lib/listKeys";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
@@ -402,10 +402,7 @@ export const RequestCard = ({
           parts={[
             request.department,
             showRequester ? requesterName ?? request.requesterEmail : null,
-            new Date(request._creationTime).toLocaleDateString("en-AU", {
-              day: "numeric",
-              month: "short",
-            }),
+            shortDate(request._creationTime),
             timeAgo(request._creationTime),
           ]}
         />

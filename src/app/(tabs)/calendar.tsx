@@ -23,6 +23,7 @@ import {
 } from "@shared/calendar";
 import { subgroupLabel } from "@shared/rollcall";
 import { universityColour } from "@shared/flow";
+import { togglePicked } from "@shared/churches";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import { useWideLayout } from "@/components/nav/layout";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -139,9 +140,6 @@ const PeriodTitle = ({ label, unit, step, wide }: { label: string; unit: string;
     </View>
   );
 };
-
-const toggle = <T,>(list: T[], value: T) =>
-  list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
 const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => void }) => {
   const t = useAppTheme();
@@ -599,7 +597,7 @@ export default function CalendarScreen() {
                     colour={CATEGORY_COLOURS[c.key]}
                     count={inView(all.filter((e) => e.category === c.key))}
                     counting={EVENTS}
-                    onPress={() => setCategories((prev) => toggle(prev, c.key))}
+                    onPress={() => setCategories((prev) => togglePicked(prev, c.key))}
                   />
                 ))}
               </FilterRow>
@@ -614,7 +612,7 @@ export default function CalendarScreen() {
                     colour={universityColour(s)}
                     count={inView(all.filter((e) => e.subgroups.includes(s)))}
                     counting={EVENTS}
-                    onPress={() => setCampuses((prev) => toggle(prev, s))}
+                    onPress={() => setCampuses((prev) => togglePicked(prev, s))}
                   />
                 ))}
               </FilterRow>
@@ -655,7 +653,7 @@ export default function CalendarScreen() {
             clearTimeout(handoff.current);
             handoff.current = setTimeout(
               () => setAttendanceDraft({ subgroup: owner, draft }),
-              durations.overlayOut + 80
+              durations.sheetHandoff
             );
           }}
         />

@@ -1,1 +1,213 @@
-export { NativeDateInput as DateInput, NativeTimeInput as TimeInput } from "./NativeDateTimeField";
+import { DateTimePicker } from "@expo/ui/community/datetime-picker";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useState } from "react";
+import { Platform, Pressable, View } from "react-native";
+import { Btn, Sheet, Txt } from "@/components/ui";
+import { spacing, typography, useAppTheme } from "@/theme";
+import {
+  parseDateInputValue,
+  toDateInputValue,
+  toTimeInputValue,
+} from "@shared/datetime";
+import {
+  formatDateDisplay,
+  formatTimeDisplay,
+  inputToTime,
+} from "./dateTimeDisplay";
+
+const PICKER_IS_A_DIALOG = Platform.OS === "android";
+
+const clampDate = (d: Date, min?: Date, max?: Date): Date => {
+  let ms = d.getTime();
+  if (min) ms = Math.max(ms, min.getTime());
+  if (max) ms = Math.min(ms, max.getTime());
+  return new Date(ms);
+};
+
+const FieldButton = ({
+  label,
+  display,
+  hasValue,
+  icon,
+  onOpen,
+  onClear,
+  needed,
+}: {
+  label: string;
+  display: string;
+  hasValue: boolean;
+  icon: keyof typeof Ionicons.glyphMap;
+  onOpen: () => void;
+  onClear?: () => void;
+  needed?: boolean;
+}) => {
+  const t = useAppTheme();
+  return (
+    <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+      <Txt style={[typography.label, { color: t.muted }]}>{label}</Txt>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          height: 44,
+          paddingHorizontal: 12,
+          borderRadius: 10,
+          borderWidth: 1.5,
+          borderColor: needed && !hasValue ? t.primary : "transparent",
+          backgroundColor: t.inputBackground,
+        }}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          onPress={onOpen}
+          style={({ pressed }) => [
+            { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Ionicons name={icon} size={16} color={needed && !hasValue ? t.primary : t.faint} />
+          <Txt
+            numberOfLines={1}
+            style={[typography.body, { flex: 1, color: hasValue ? t.text : needed ? t.primary : t.faint }]}
+          >
+            {display}
+          </Txt>
+        </Pressable>
+        {hasValue && onClear ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Clear ${label}`}
+            hitSlop={8}
+            onPress={onClear}
+            style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+          >
+            <Ionicons name="close-circle" size={16} color={t.faint} />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+};
+
+export const DateInput = ({
+  label,
+  value,
+  min,
+  max,
+  placeholder = "Select date",
+  onChange,
+  onClear,
+  needed,
+}: {
+  label: string;
+  value: string;
+  min?: string;
+  max?: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+  onClear?: () => void;
+  needed?: boolean;
+}) => {
+  const t = useAppTheme();
+  const [open, setOpen] = useState(false);
+  const current = parseDateInputValue(value);
+  const minDate = min ? parseDateInputValue(min) ?? undefined : undefined;
+  const maxDate = max ? parseDateInputValue(max) ?? undefined : undefined;
+  const initial = clampDate(current ?? new Date(), minDate, maxDate);
+  return (
+    <>
+      <FieldButton
+        label={label}
+        icon="calendar-outline"
+        hasValue={current !== null}
+        display={current ? formatDateDisplay(current) : placeholder}
+        onOpen={() => setOpen(true)}
+        onClear={onClear ? () => onClear() : undefined}
+        needed={needed}
+      />
+      <Sheet
+        visible={open}
+        onClose={() => setOpen(false)}
+        scrollable={false}
+        title={label}
+        footer={<Btn title="Done" onPress={() => setOpen(false)} />}
+      >
+        <View style={{ alignSelf: "stretch", paddingVertical: spacing.sm }}>
+          <DateTimePicker
+            mode="date"
+            display="spinner"
+            style={{ width: "100%" }}
+            value={initial}
+            minimumDate={minDate}
+            maximumDate={maxDate}
+            accentColor={t.primary}
+            onValueChange={(_event, date) => {
+              onChange(toDateInputValue(date));
+              if (PICKER_IS_A_DIALOG) setOpen(false);
+            }}
+            onDismiss={() => setOpen(false)}
+          />
+        </View>
+      </Sheet>
+    </>
+  );
+};
+
+export const TimeInput = ({
+  label,
+  value,
+  min,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  min?: string;
+  onChange: (value: string) => void;
+}) => {
+  const t = useAppTheme();
+  const [open, setOpen] = useState(false);
+  const current = inputToTime(value);
+  const minTime = min ? inputToTime(min) ?? undefined : undefined;
+  const initial = clampDate(current ?? new Date(), minTime);
+  const close = () => {
+    if (min && value && value < min) onChange(min);
+    setOpen(false);
+  };
+  return (
+    <>
+      <FieldButton
+        label={label}
+        icon="time-outline"
+        hasValue={current !== null}
+        display={current ? formatTimeDisplay(current) : "Select time"}
+        onOpen={() => setOpen(true)}
+      />
+      <Sheet
+        visible={open}
+        onClose={close}
+        scrollable={false}
+        title={label}
+        footer={<Btn title="Done" onPress={close} />}
+      >
+        <View style={{ alignSelf: "stretch", paddingVertical: spacing.sm }}>
+          <DateTimePicker
+            mode="time"
+            display="spinner"
+            style={{ width: "100%" }}
+            value={initial}
+            minimumDate={minTime}
+            accentColor={t.primary}
+            onValueChange={(_event, date) => {
+              const chosen = toTimeInputValue(date);
+              onChange(min && chosen < min ? min : chosen);
+              if (PICKER_IS_A_DIALOG) setOpen(false);
+            }}
+            onDismiss={close}
+          />
+        </View>
+      </Sheet>
+    </>
+  );
+};

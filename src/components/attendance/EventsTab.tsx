@@ -5,7 +5,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
-  contrastingText,
   EVENT_HOST_LABEL,
   eventListFilterCount,
   formatEventRange,
@@ -17,11 +16,12 @@ import {
 } from "../../../shared/rollcall";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
+import { CampusSelector } from "@/components/attendance/CampusSelector";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
-import { CampusMark } from "@/components/CampusMark";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import type { EventsFilter } from "@/components/attendance/EventFilterSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
+import { SubgroupPill } from "@/components/attendance/SubgroupPill";
 import {
   EmptyState,
   FadeInView,
@@ -30,8 +30,6 @@ import {
   stagger,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-
-const CAMPUS_MARK = 40;
 
 type EventStatus = "UPCOMING" | "LIVE" | "ENDED";
 
@@ -129,39 +127,13 @@ export function EventsTab({
         />
       ) : (
         <>
-          <View style={styles.campusRow}>
-            {subgroups.map((sg, i) => {
-              const active = sg === subgroup;
-              const ringColour =
-                isOrgWideSubgroup(sg) && t.dark ? t.text : subgroupColour(sg);
-              return (
-                <FadeInView key={sg} delay={stagger(i)}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={subgroupLabel(sg)}
-                    accessibilityState={{ selected: active }}
-                    onPress={() => onSelectedSubgroupChange(sg)}
-                    style={({ pressed }) => [
-                      styles.campusSlot,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.campusRing,
-                        active && { borderColor: ringColour },
-                      ]}
-                    >
-                      <CampusMark
-                        campus={sg}
-                        circleDiameter={CAMPUS_MARK}
-                      />
-                    </View>
-                  </Pressable>
-                </FadeInView>
-              );
-            })}
-          </View>
+          <CampusSelector
+            subgroups={subgroups}
+            selected={subgroup}
+            onSelect={onSelectedSubgroupChange}
+            labelOf={subgroupLabel}
+            style={{ marginBottom: spacing.md }}
+          />
 
           {subgroup ? (
             <View style={styles.toolbar}>
@@ -325,30 +297,9 @@ export function EventsTab({
                             ))}
                           </View>
                           <View style={[styles.badgeGroup, styles.badgeGroupRight]}>
-                            {shownSubgroups.map((s) => {
-                              const colour = subgroupColour(s);
-                              return (
-                                <View
-                                  key={s}
-                                  style={[
-                                    styles.subgroupPill,
-                                    {
-                                      backgroundColor: colour,
-                                    },
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      typography.caption,
-                                      styles.subgroupPillText,
-                                      { color: contrastingText(colour) },
-                                    ]}
-                                  >
-                                    {subgroupLabel(s)}
-                                  </Text>
-                                </View>
-                              );
-                            })}
+                            {shownSubgroups.map((s) => (
+                              <SubgroupPill key={s} subgroup={s} />
+                            ))}
                           </View>
                         </View>
 
@@ -428,24 +379,6 @@ export function EventsTab({
 }
 
 const styles = StyleSheet.create({
-  campusRow: {
-    flexDirection: "row",
-    flexWrap: "nowrap",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.md,
-  },
-  campusSlot: {
-    flex: 1,
-    alignItems: "center",
-    minWidth: 0,
-  },
-  campusRing: {
-    borderRadius: 999,
-    padding: 0,
-    borderWidth: 2.5,
-    borderColor: "transparent",
-  },
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
@@ -531,16 +464,6 @@ const styles = StyleSheet.create({
   tagGroup: {
     flexShrink: 0,
     maxWidth: "50%",
-  },
-  subgroupPill: {
-    borderRadius: radius.full,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-  },
-  subgroupPillText: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.2,
   },
   eventName: {
     textTransform: "uppercase",

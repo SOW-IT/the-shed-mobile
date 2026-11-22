@@ -2,9 +2,12 @@ import { Platform, TextStyle, useColorScheme, ViewStyle } from "react-native";
 
 export const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
+const OVERLAY_OUT = 100;
+
 export const durations = {
   overlayIn: 130,
-  overlayOut: 100,
+  overlayOut: OVERLAY_OUT,
+  sheetHandoff: OVERLAY_OUT + 80,
   screen: 220,
   fadeIn: 190,
 } as const;

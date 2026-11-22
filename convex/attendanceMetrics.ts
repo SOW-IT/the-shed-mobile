@@ -16,7 +16,7 @@ import {
   SOW_SUBGROUP,
   subgroupLabel,
 } from "../shared/rollcall";
-import { CAMPUS_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { CAMPUS_FIELD_KEY, metadataValueLabel } from "../shared/attendanceMemberMeta";
 import {
   computeSubgroupMetrics,
   RANGE_WEEKS,
@@ -259,9 +259,7 @@ async function resolvePersons(
   const memberCampus = (
     metadata: Record<string, string> | undefined
   ): string | undefined => {
-    const raw = campusField ? metadata?.[campusField._id] : undefined;
-    if (!raw) return undefined;
-    const label = campusField?.values?.[raw] ?? raw;
+    const label = metadataValueLabel(campusField, metadata);
     return label && label !== "Other" ? label : undefined;
   };
   const persons: MetricsPerson[] = [];

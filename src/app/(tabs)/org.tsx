@@ -8,10 +8,9 @@ import { universityColour } from "../../../shared/flow";
 import { departmentHeadTitle, filterOrgChart } from "../../../shared/orgChart";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { ChromeScreen } from "@/components/ChromeScreen";
-import { FilterChip, FilterRow } from "@/components/FilterChips";
+import { FilterChip, FilterRow, FilterSummary, NoMatches } from "@/components/FilterChips";
 import {
   Avatar,
-  Btn,
   FadeInView,
   FloatingYearPicker,
   Grid,
@@ -121,21 +120,11 @@ export default function OrgChartScreen() {
               ))}
             </FilterRow>
           ) : null}
-          <View style={[styles.summary, { borderTopColor: t.separator }]}>
+          <FilterSummary onShowEveryone={filtering || searching ? showEveryone : undefined}>
             <Text style={[typography.caption, { color: t.muted, flex: 1 }]} accessibilityLiveRegion="polite">
               {people === 1 ? "1 person" : `${people} people`}
             </Text>
-            {filtering || searching ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={showEveryone}
-                hitSlop={8}
-                style={({ pressed }) => pressed && { opacity: 0.6 }}
-              >
-                <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>Show everyone</Text>
-              </Pressable>
-            ) : null}
-          </View>
+          </FilterSummary>
         </View>
       </ReadableColumn>
 
@@ -152,12 +141,10 @@ export default function OrgChartScreen() {
       )}
 
       {(filtering || searching) && people === 0 ? (
-        <View style={styles.nothing}>
-          <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>
-            {searching ? "Nobody matches that search." : "Nobody matches these filters."}
-          </Text>
-          <Btn title="Show everyone" variant="ghost" onPress={showEveryone} />
-        </View>
+        <NoMatches
+          message={searching ? "Nobody matches that search." : "Nobody matches these filters."}
+          onShowEveryone={showEveryone}
+        />
       ) : null}
 
       {shown.staff.length > 0 && (
@@ -275,18 +262,6 @@ const styles = StyleSheet.create({
   finder: {
     gap: spacing.sm,
     marginBottom: spacing.md,
-  },
-  summary: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingTop: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  nothing: {
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.xl,
   },
   directorCard: {
     borderRadius: radius.lg,

@@ -6,6 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { formatMetadataFieldValue, metadataSubtitle } from "../../../shared/attendanceMemberMeta";
 import type { MergeResolutions, MergeSide } from "../../../shared/memberMerge";
+import { plural } from "../../../shared/reminders";
 import { typedMatches } from "../../../shared/typedConfirm";
 import { MemberRow } from "@/components/attendance/MemberRow";
 import {
@@ -34,8 +35,6 @@ type Picked = {
   email?: string;
   memberId?: Id<"attendanceMembers">;
 };
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 type History = { events: number; lastAttended: number | null };
 
