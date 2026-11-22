@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Animated, Image, Text, View } from "react-native";
 import { forgetCachedImage, useCachedImageUri } from "@/hooks/useCachedImageUri";
 import { USE_NATIVE_DRIVER, typography, useAppTheme } from "@/theme";
@@ -135,6 +135,29 @@ export const LoadingState = () => (
     <SowSpinner />
   </View>
 );
+
+export const LoadMoreFooter = ({
+  loadingMore,
+  hasMore,
+  onLoadMore,
+  end = null,
+}: {
+  loadingMore: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  end?: ReactNode;
+}) =>
+  loadingMore ? (
+    <View style={styles.loadMore}>
+      <SowSpinner size={36} />
+    </View>
+  ) : hasMore ? (
+    <View style={styles.loadMore}>
+      <Btn title="Show earlier" variant="ghost" onPress={onLoadMore} />
+    </View>
+  ) : (
+    end
+  );
 
 export const Avatar = ({
   photo,

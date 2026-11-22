@@ -24,11 +24,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Fixed
 - **"Not signed in" scrolls again after an event ends.** On a wide but short
-  window, such as a laptop browser or a tablet on its side, the ended-event
+  window, such as a laptop browser window, the ended-event
   note and Enable editing button left so little room that both lists grew to
   their full length. They stopped scrolling, and "Not signed in" never loaded
   past its first ten people. The lists now keep room for at least three people
   each, and the page scrolls to show them.
+
+## [2.11.59] - 2026-11-22
+
+### Removed
+- **Duplicated and dead code, for contributors.**
+  - Code written twice is now one shared piece: about 20 components, hooks
+    and helpers, such as the delete warning on events and members, the
+    campus picker and pills, comment previews, "load more", the request
+    badges, short dates and search debouncing.
+  - Gone: a one-off church reminder nobody ran any more, an unused prop, two
+    file shims, and a finished release checklist.
+  - Screens look and behave the same.
 
 ## [2.11.58] - 2026-11-22
 

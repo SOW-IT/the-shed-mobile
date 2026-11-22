@@ -30,15 +30,6 @@ export const styles = StyleSheet.create({
     borderTopLeftRadius: 3,
     borderTopRightRadius: 3,
   },
-  tabBadge: {
-    borderRadius: radius.full,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 4,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tabBadgeText: { color: fixedColours.onColour, fontSize: 11, fontWeight: "800" },
   floatingYearPicker: { position: "absolute", right: spacing.lg, bottom: spacing.md },
   scroll: {
     flexGrow: 1,
@@ -65,7 +56,7 @@ export const styles = StyleSheet.create({
     gap: spacing.sm + 2,
   },
   sectionTitle: { marginTop: spacing.lg, marginBottom: -spacing.xs },
-  sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  inlineRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   sectionTitleText: { flexShrink: 1 },
   chip: {
     flexShrink: 0,
@@ -80,8 +71,9 @@ export const styles = StyleSheet.create({
   facts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md, rowGap: 2 },
   fact: { flexShrink: 1 },
   row: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", alignItems: "center" },
-  rowSpread: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   rowLoading: { minHeight: 42, alignItems: "center", justifyContent: "center" },
+  answer: { gap: 4 },
+  loadMore: { alignItems: "center", paddingVertical: spacing.md },
   yearPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -160,7 +152,6 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  selectFace: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   optionSheetHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -302,11 +293,6 @@ export const styles = StyleSheet.create({
     maxWidth: 720,
     width: "100%",
     alignSelf: "center",
-  },
-  footerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
   },
   footerNote: {
     flexDirection: "row",

@@ -178,6 +178,8 @@ export const formatSignInTime = (ms: number, withDay = false): string => {
 export const capitalizeMemberName = (value: string): string =>
   value.replace(/(^|\s)\S/g, (ch) => ch.toUpperCase());
 
+export const typedMemberName = (raw: string): string => capitalizeMemberName(raw.trim().replace(/\s+/g, " "));
+
 export const displayNameFromEmail = (email: string): string | null => {
   const local = email.split("@")[0]?.trim();
   if (!local) return null;

@@ -12,6 +12,7 @@ import {
   type EventHostFilter,
   type TagList,
 } from "../../../shared/rollcall";
+import { togglePicked } from "../../../shared/churches";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { Btn, Muted, Row, Segmented, Sheet, SowSpinner, Txt } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
@@ -52,9 +53,7 @@ export function EventFilterSheet({
   const toggleTag = (tagId: Id<"attendanceTags">) =>
     onChange({
       ...filter,
-      tagIds: filter.tagIds.includes(tagId)
-        ? filter.tagIds.filter((id) => id !== tagId)
-        : [...filter.tagIds, tagId],
+      tagIds: togglePicked(filter.tagIds, tagId),
     });
   const changeHost = (key: string) =>
     onChange({ ...filter, host: key === "here" || key === "shared" ? key : undefined });

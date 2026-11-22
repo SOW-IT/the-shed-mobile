@@ -11,6 +11,7 @@ import {
 } from "@shared/forms";
 import { addDaysToDateInputValue, minuteAfterTime } from "@shared/datetime";
 import { type EventSize } from "@shared/eventRequests";
+import { togglePicked } from "@shared/churches";
 import { DateInput, TimeInput } from "@/components/DateInputs";
 import {
   Card,
@@ -64,9 +65,6 @@ export const answersFromDraft = (fields: readonly FormField[], draft: FormDraft)
   }
   return answers;
 };
-
-const toggle = (values: string[], value: string): string[] =>
-  values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
 
 const Question = ({
   number,
@@ -207,7 +205,7 @@ const FieldInput = ({
                 multi
                 badge={recommendedBadge(option.recommended)}
                 selected={ticked.includes(option.value)}
-                onPress={() => set(field.key, toggle(ticked, option.value))}
+                onPress={() => set(field.key, togglePicked(ticked, option.value))}
               />
             ))}
           </View>

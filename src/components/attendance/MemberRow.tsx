@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { campusPill } from "@/components/attendance/campusPill";
+import { CampusPill, campusPill } from "@/components/attendance/campusPill";
 import { Avatar } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -57,14 +57,7 @@ export function MemberRow({
           </Text>
         ) : null}
       </View>
-      <View style={[styles.campusPill, { backgroundColor: pill.background }]}>
-        <Text
-          style={[typography.caption, styles.campusPillText, { color: pill.text }]}
-          numberOfLines={1}
-        >
-          {pill.label}
-        </Text>
-      </View>
+      <CampusPill pill={pill} />
     </Pressable>
   );
 }
@@ -85,15 +78,4 @@ const styles = StyleSheet.create({
   name: { flexShrink: 1 },
   tag: { borderRadius: radius.full, paddingHorizontal: 7, paddingVertical: 2 },
   tagText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.2 },
-  campusPill: {
-    maxWidth: 92,
-    borderRadius: radius.full,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  campusPillText: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.1,
-  },
 });
