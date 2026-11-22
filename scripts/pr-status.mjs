@@ -1,17 +1,21 @@
 #!/usr/bin/env node
-// Where a PR stands for the pr-shepherd loop: node scripts/pr-status.mjs <number> [--json]
-// Exit 0 when CI is green and no CodeRabbit thread is open, 1 otherwise.
+// Where a PR stands for the pr-shepherd loop:
+//   node scripts/pr-status.mjs <number> [--json] [--ack <id>,...] [--big | --not-big]
+// Exit 0 when CI is green, no CodeRabbit thread is open, and a big PR's app
+// and Convex changes have had a CodeRabbit review (scripts/lib/coderabbitGate.mjs);
+// 1 otherwise.
 import { execFileSync } from "node:child_process";
+import { assessSize, coveringReview } from "./lib/coderabbitGate.mjs";
 
 const gh = (args) => execFileSync("gh", args, { encoding: "utf8" });
 const number = process.argv[2];
 if (!/^\d+$/.test(number ?? "")) {
-  console.error("usage: node scripts/pr-status.mjs <pr-number> [--json]");
+  console.error("usage: node scripts/pr-status.mjs <pr-number> [--json] [--ack <id>,...] [--big | --not-big]");
   process.exit(2);
 }
 const [owner, repo] = gh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).trim().split("/");
 
-const pr = JSON.parse(gh(["pr", "view", number, "--json", "isDraft,headRefOid,state,changedFiles,statusCheckRollup,url"]));
+const pr = JSON.parse(gh(["pr", "view", number, "--json", "isDraft,headRefOid,baseRefName,state,changedFiles,statusCheckRollup,url"]));
 const checks = pr.statusCheckRollup.map((c) => ({
   name: c.name ?? c.context,
   state: c.conclusion || c.status || c.state,
@@ -72,12 +76,46 @@ const active = restriction && (!cleared || restriction.at > cleared.at) ? restri
 const limited = Boolean(active && /rate limited|review limit reached/i.test(active.text));
 const minutes = Number(active?.text.match(/available in:?\s*(\d+) minutes?/i)?.[1] ?? 60);
 const skipped = active && !limited ? (active.text.match(/Review skipped:?\s*(.{0,100})/i)?.[1]?.trim() ?? "review skipped") : null;
+
+// Does this PR need a CodeRabbit review (AGENTS.md's big-PR rule), and if so
+// has one covered the head? A review of an earlier commit covers it when the
+// app and Convex changes are the same, as after a clean merge of main.
+const fileFields = "{filename, status, sha, changes, patch, previous_filename}";
+const headFiles = paged(`repos/${owner}/${repo}/pulls/${number}/files?per_page=100`, `[.[] | ${fileFields}]`);
+const override = process.argv.includes("--big") ? true : process.argv.includes("--not-big") ? false : null;
+const size = assessSize(headFiles, override);
+const reviewedShas = [
+  ...reviews.filter((r) => isRabbit(r.login) && r.commit).sort((a, b) => (b.at ?? "").localeCompare(a.at ?? "")).map((r) => r.commit),
+  ...rabbitComments
+    .filter((c) => !/rate limited|review limit reached|review skipped/i.test(c.text))
+    .flatMap((c) => [...c.body.matchAll(/\band ([0-9a-f]{40})\b/g)].map((m) => m[1])),
+];
+// The reviewed commit's own changes against the base, as GitHub compares
+// them now. Null if GitHub can't (the commit is gone).
+const filesAt = (sha) => {
+  try {
+    return JSON.parse(gh(["api", `repos/${owner}/${repo}/compare/${pr.baseRefName}...${sha}`, "--jq", `[.files[] | ${fileFields}]`]));
+  } catch {
+    return null;
+  }
+};
+const covered = size.big
+  ? coveringReview({
+      head: pr.headRefOid,
+      headFiles,
+      reviewed: [...new Set(reviewedShas)].slice(0, 10).map((sha) => ({ sha, files: sha === pr.headRefOid ? headFiles : filesAt(sha) })),
+    })
+  : null;
 const coderabbit = {
   rateLimited: limited ? { at: active.at, retryAfter: new Date(Date.parse(active.at) + minutes * 60_000).toISOString() } : null,
   skipped,
   reviewedHead,
+  required: size.big,
+  size: { lines: size.lines, reasons: size.reasons, overridden: size.overridden },
+  coveredBy: covered && { commit: covered.commit.slice(0, 7), how: covered.how },
   openThreads,
 };
+const reviewOwed = size.big && !covered;
 
 const status = { url: pr.url, state: pr.state, draft: pr.isDraft, head: pr.headRefOid.slice(0, 7), changedFiles: pr.changedFiles, checks: { failed, pending, total: checks.length }, coderabbit };
 // Findings outside the diff live only in a review body, with no thread to
@@ -93,7 +131,7 @@ const bodyFindings = reviews
 const unreadBodies = bodyFindings.filter((r) => r.outsideDiff > 0 && !acked.has(r.id));
 coderabbit.bodyFindings = bodyFindings;
 
-const done = unreadBodies.length === 0 && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0;
+const done = !reviewOwed && unreadBodies.length === 0 && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0;
 
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ ...status, done }, null, 2));
@@ -103,12 +141,17 @@ if (process.argv.includes("--json")) {
   for (const c of failed) console.log(`  ✘ ${c.name}: ${c.url}`);
   if (skipped) console.log(`CodeRabbit skipped the review: ${skipped}`);
   if (limited) console.log(`CodeRabbit is rate limited; ask again after ${coderabbit.rateLimited.retryAfter} with "@coderabbitai review"`);
-  console.log(`CodeRabbit: ${reviewedHead ? "has reviewed" : "has NOT reviewed"} head ${status.head}; ${openThreads.length} open thread(s)`);
+  console.log(`CodeRabbit: ${reviewedHead ? "has reviewed" : "has not reviewed"} head ${status.head}; ${openThreads.length} open thread(s)`);
+  const why = size.reasons.length > 0 ? size.reasons.join("; ") : `${size.lines} changed lines of app or Convex code, nothing sensitive`;
+  if (!size.big) console.log(`  review not required: not a big PR (${why})`);
+  else if (covered?.how === "reviewed head") console.log(`  review required (big PR: ${why}); done on head ${status.head}`);
+  else if (covered) console.log(`  review required (big PR: ${why}); covered by the review of ${coderabbit.coveredBy.commit}, which has the same app and Convex changes`);
+  else console.log(`  review required (big PR: ${why}); NOT covered: ${reviewedShas.length > 0 ? "the app or Convex changes differ from every reviewed commit" : "CodeRabbit hasn't reviewed any commit"}`);
   for (const r of bodyFindings) {
     console.log(`  review ${r.id} (on ${r.commit}): ${r.outsideDiff} outside-diff, ${r.nitpicks} nitpick finding(s) in its body${acked.has(r.id) ? " (acknowledged)" : r.outsideDiff ? "; read them, then pass --ack " + r.id : ""}`);
   }
-  if (!reviewedHead && !limited && !skipped) console.log('  request "@coderabbitai review" only if this is a big PR (see AGENTS.md); otherwise a review is not required');
+  if (reviewOwed && !limited && !skipped) console.log('  request "@coderabbitai review" (one request at a time across PRs; see AGENTS.md)');
   for (const t of openThreads) console.log(`  ${t.outdated ? "(outdated) " : ""}${t.repliedByUs ? "(replied) " : ""}${t.where} ${t.summary.slice(0, 100)}\n    ${t.url}\n    thread ${t.id}`);
-  console.log(done ? "DONE: CI green, nothing open from CodeRabbit" : "NOT DONE");
+  console.log(done ? `DONE: CI green, nothing open from CodeRabbit${size.big ? ", review covers the head" : ""}` : "NOT DONE");
 }
 process.exit(done ? 0 : 1);
