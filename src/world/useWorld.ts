@@ -34,6 +34,12 @@ export type WorldMember = {
 
 /** Taps closer together than this send only the last one. */
 const COALESCE_MS = 150;
+/** While a finger is held or dragged: at most one move this often… */
+const HOLD_SEND_MS = 500;
+/** …and only once the target has moved this far (world units). */
+const HOLD_SEND_MIN = 0.5;
+/** On release, a move is sent only if the spot differs from the last one by more than this. */
+const RELEASE_MIN = 0.05;
 
 /**
  * Counts of what this phone sent, for measuring the write budget. Tests and
@@ -109,6 +115,13 @@ export const useWorld = (enabled: boolean) => {
   // True from a tap until the server answers it: our own walk is a
   // prediction until then, and the server's may be older than it.
   const predicting = useRef(false);
+  // A finger down on the ground: the walk follows it locally every frame,
+  // and the last spot sent (and when) throttles the writes.
+  const holding = useRef(false);
+  const lastSent = useRef<{ x: number; z: number; at: number } | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The finger's latest spot, for the send that ends a throttle window.
+  const fingerAt = useRef<{ x: number; z: number } | null>(null);
 
   const serverNow = useCallback(() => Date.now() + (offset.current ?? 0), []);
   const heard = useCallback((serverTime: number, sentAt: number) => {
@@ -153,6 +166,10 @@ export const useWorld = (enabled: boolean) => {
       visit.current++;
       pending.current = null;
       predicting.current = false;
+      holding.current = false;
+      lastSent.current = null;
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+      holdTimer.current = null;
       // The next visit starts from its own spawn walk, not this one's.
       setMyWalk(null);
       if (timer.current) clearTimeout(timer.current);
@@ -221,7 +238,8 @@ export const useWorld = (enabled: boolean) => {
         heard(reply.serverNow, sentAt);
         if (reply.ok) {
           const { fromX, fromZ, toX, toZ, startedAt } = reply;
-          if (!pending.current) {
+          // While a finger is down the local walk leads; adopt the server's after release.
+          if (!pending.current && !holding.current) {
             setMyWalk({ fromX, fromZ, toX, toZ, startedAt });
             predicting.current = false;
           }
@@ -266,6 +284,87 @@ export const useWorld = (enabled: boolean) => {
       later(COALESCE_MS);
     },
     [session, serverNow, later]
+  );
+
+  /** Points your walk at a spot now, from wherever you are on the way. */
+  const retarget = useCallback(
+    (to: { x: number; z: number }) => {
+      const now = serverNow();
+      setMyWalk((walk) => {
+        const from = walk ? posAt(walk, now) : to;
+        return { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
+      });
+      setTarget(to);
+      fingerAt.current = to;
+      lastAction.current = Date.now();
+    },
+    [serverNow]
+  );
+
+  /** Sends a move for this spot now (or as soon as the one on its way is answered). */
+  const sendNow = useCallback(
+    (to: { x: number; z: number }) => {
+      pending.current = to;
+      predicting.current = true;
+      lastSent.current = { ...to, at: Date.now() };
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      flushRef.current();
+    },
+    []
+  );
+
+  /** Finger down on the ground: walk there at once, and send it at once. */
+  const holdStart = useCallback(
+    (x: number, z: number) => {
+      if (!session) return;
+      const to = clampTarget(x, z);
+      holding.current = true;
+      retarget(to);
+      sendNow(to);
+    },
+    [session, retarget, sendNow]
+  );
+
+  /**
+   * Finger held or dragged: follow it locally every time it moves, but send
+   * at most one move every HOLD_SEND_MS, and only past HOLD_SEND_MIN. If the
+   * finger stops on an unsent spot, it goes when the window ends.
+   */
+  const holdMove = useCallback(
+    (x: number, z: number) => {
+      if (!session || !holding.current) return;
+      const to = clampTarget(x, z);
+      retarget(to);
+      const consider = () => {
+        holdTimer.current = null;
+        const last = lastSent.current;
+        const latest = fingerAt.current;
+        if (!holding.current || !latest) return;
+        const far = !last || Math.hypot(latest.x - last.x, latest.z - last.z) > HOLD_SEND_MIN;
+        if (!far) return;
+        const wait = last ? HOLD_SEND_MS - (Date.now() - last.at) : 0;
+        if (wait <= 0) sendNow(latest);
+        else holdTimer.current = setTimeout(consider, wait);
+      };
+      if (!holdTimer.current) consider();
+    },
+    [session, retarget, sendNow]
+  );
+
+  /** Finger up: stop following, and send the last spot only if it differs. */
+  const holdEnd = useCallback(
+    (x: number, z: number) => {
+      if (!session || !holding.current) return;
+      holding.current = false;
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+      const to = clampTarget(x, z);
+      retarget(to);
+      const last = lastSent.current;
+      if (!last || Math.hypot(to.x - last.x, to.z - last.z) > RELEASE_MIN) sendNow(to);
+    },
+    [session, retarget, sendNow]
   );
 
   const say = useCallback(
@@ -420,6 +519,9 @@ export const useWorld = (enabled: boolean) => {
     target,
     serverNow,
     walkTo,
+    holdStart,
+    holdMove,
+    holdEnd,
     say,
     act,
     ask,

@@ -170,7 +170,8 @@ describe("takeToken", () => {
       bucket = r.bucket;
     }
     expect(takeToken("move", bucket, 0)).toEqual({ ok: false, retryInMs: BUCKETS.move.refillMs });
-    expect(takeToken("move", bucket, 1000)).toEqual({ ok: false, retryInMs: 2000 });
+    const third = BUCKETS.move.refillMs / 3;
+    expect(takeToken("move", bucket, third)).toEqual({ ok: false, retryInMs: Math.ceil(BUCKETS.move.refillMs - third) });
     expect(takeToken("move", bucket, BUCKETS.move.refillMs).ok).toBe(true);
   });
 

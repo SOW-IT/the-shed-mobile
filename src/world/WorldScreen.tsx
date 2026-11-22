@@ -229,10 +229,12 @@ export const WorldScreen = ({
         }))}
         serverNow={world.serverNow}
         target={world.target}
-        onTapGround={(x, z) => {
+        onHoldStart={(x, z) => {
           setTray(false);
-          world.walkTo(x, z);
+          world.holdStart(x, z);
         }}
+        onHoldMove={world.holdMove}
+        onHoldEnd={world.holdEnd}
         onTapPerson={setPerson}
         onTapArcade={onArcade}
         onAccept={accept}

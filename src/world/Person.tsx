@@ -70,7 +70,14 @@ const capsule = (a: { x: number; y: number }, b: { x: number; y: number }, width
 /** What someone is doing right now: an emote or a mutual action, and how far through (0 to 1). */
 export type Doing =
   | { kind: "emote"; id: EmoteId; p: number }
-  | { kind: "mutual"; id: MutualKind; p: number; toward: -1 | 1 }
+  | {
+      kind: "mutual";
+      id: MutualKind;
+      p: number;
+      toward: -1 | 1;
+      /** Where the two raised palms meet, on screen. */
+      reach?: { x: number; y: number };
+    }
   | null;
 
 type Eyes = "dot" | "happy" | "closed" | "big" | "up";
@@ -95,6 +102,13 @@ const EXPRESSIONS: Record<EmoteId, Expression> = {
 /** An ease up and back down over an emote, so it starts and ends at rest. */
 const swell = (p: number) => Math.sin(Math.min(1, Math.max(0, p)) * Math.PI);
 
+/**
+ * How far into a mutual action's reach (0 at rest, 1 touching): it gets
+ * there a third of the way in, holds while the palms are together, and
+ * eases back. The garden uses the same curve to step people in and out.
+ */
+export const touchK = (p: number) => Math.min(1, swell(p) * 1.25);
+
 /** Where the hands go and how the body moves for what someone is doing. */
 const motion = (doing: Doing, t: number) => {
   const hands: { l?: [number, number]; r?: [number, number]; front?: boolean } = {};
@@ -103,10 +117,10 @@ const motion = (doing: Doing, t: number) => {
   let sink = 0;
   let lean = 0;
   if (doing?.kind === "mutual") {
-    // Step in, slap hands at the top, step back.
-    const k = swell(doing.p);
-    const hit = doing.p > 0.42 && doing.p < 0.62;
-    lean = doing.toward * 0.22 * k;
+    // The garden steps them in and out; here the near hand rises (and, with
+    // `reach`, meets the other's at the contact point), with a little hop at the slap.
+    const k = touchK(doing.p);
+    const hit = k >= 1;
     const hand: [number, number] = [doing.toward * (0.3 + 0.2 * k), 0.6 + 0.6 * k];
     if (doing.toward > 0) hands.r = hand;
     else hands.l = hand;
@@ -263,7 +277,14 @@ const AvatarView = ({
   }
   const arm = (e: number) => {
     const hand = e < 0 ? move.hands.l : move.hands.r;
-    return [at(0.26 * e, 0.6), hand ? at(hand[0], hand[1]) : at(0.4 * e, 0.34 + swing * e)] as const;
+    const shoulder = at(0.26 * e, 0.6);
+    // A high five's raised hand goes all the way to the shared contact point.
+    if (doing?.kind === "mutual" && doing.reach && e === doing.toward && hand) {
+      const k = touchK(doing.p);
+      const rest = at(hand[0], hand[1]);
+      return [shoulder, { x: rest.x + (doing.reach.x - rest.x) * k, y: rest.y + (doing.reach.y - rest.y) * k }] as const;
+    }
+    return [shoulder, hand ? at(hand[0], hand[1]) : at(0.4 * e, 0.34 + swing * e)] as const;
   };
   const arms = (front: boolean) => {
     for (const e of [-1, 1]) {
@@ -490,7 +511,13 @@ const AvatarView = ({
 
 const sameDoing = (a: Doing, b: Doing) =>
   a === b ||
-  (a !== null && b !== null && a.kind === b.kind && a.id === b.id && a.p === b.p && (a.kind !== "mutual" || (b.kind === "mutual" && a.toward === b.toward)));
+  (a !== null &&
+    b !== null &&
+    a.kind === b.kind &&
+    a.id === b.id &&
+    a.p === b.p &&
+    (a.kind !== "mutual" ||
+      (b.kind === "mutual" && a.toward === b.toward && a.reach?.x === b.reach?.x && a.reach?.y === b.reach?.y)));
 
 /**
  * The avatar, redrawn only when something about it changed. Someone standing

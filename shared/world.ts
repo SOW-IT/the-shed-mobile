@@ -308,7 +308,9 @@ export const cleanLine = (raw: string): string | null => {
  * one costs nothing, and an action turned away writes nothing.
  */
 export const BUCKETS = {
-  move: { burst: 5, refillMs: 3000 },
+  // Matches the app's throttle while a finger is held: at most a move every
+  // 500 ms, so others see a drag about twice a second.
+  move: { burst: 4, refillMs: 500 },
   act: { burst: 3, refillMs: 6000 },
   say: { burst: 3, refillMs: 10_000 },
   /** Joining again after leaving, so coming and going can't refill the others. */

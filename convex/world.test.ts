@@ -826,22 +826,23 @@ describe("write budget per player", () => {
     return { ...counts, writesPerMinute: writes / minutes, mutationsPerMinute: counts.mutations / minutes };
   };
 
-  test("a player at every rate limit makes an estimated 47 document writes a minute at most, in a room under the chat cap", async () => {
-    // Tapping four times a second, an emote and a line every 2 seconds, in a
-    // room that stays under CHAT_ROOM_CAP lines (7 minutes of lines).
+  test("a player at every rate limit makes an estimated 147 document writes a minute at most, in a room under the chat cap", async () => {
+    // Moving four times a second (a finger dragged without a pause, which the
+    // app sends at most every 500 ms), an emote and a line every 2 seconds,
+    // in a room that stays under CHAT_ROOM_CAP lines (7 minutes of lines).
     const flat = await simulate({ move: 240, act: 30, say: 30 }, 7);
     expect(flat.chatDeletes).toBe(0);
-    // 20 moves + 10 emotes + 6 lines (two writes each) + 3 presence marks,
-    // plus the first minute's bursts spread over the ten.
-    expect(flat.writesPerMinute).toBeLessThanOrEqual(47);
-    expect(flat.writesPerMinute).toBeGreaterThan(44);
+    // 120 moves + 10 emotes + 6 lines (two writes each) + 3 presence marks,
+    // plus the first minute's bursts spread over the run.
+    expect(flat.writesPerMinute).toBeLessThanOrEqual(147);
+    expect(flat.writesPerMinute).toBeGreaterThan(144);
   }, 120_000);
 
-  test("in a room already at the chat cap, each line also deletes one: at most 53 a minute", async () => {
+  test("in a room already at the chat cap, each line also deletes one: at most 153 a minute", async () => {
     const busy = await simulate({ move: 240, act: 30, say: 30 }, 10, true);
     expect(busy.chatDeletes).toBe(busy.chatWrites);
-    expect(busy.writesPerMinute).toBeLessThanOrEqual(53);
-    expect(busy.writesPerMinute).toBeGreaterThan(50);
+    expect(busy.writesPerMinute).toBeLessThanOrEqual(153);
+    expect(busy.writesPerMinute).toBeGreaterThan(150);
   }, 120_000);
 
   test("a typical player makes an estimated 15 document writes a minute", async () => {

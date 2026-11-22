@@ -2,7 +2,7 @@ import { Btn, Sheet } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { ACCESSORIES, HAIR_STYLES, HATS, randomLook, type Look, type LookPart } from "@shared/world";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { garden, hud, people } from "./palette";
 import { announce } from "./announce";
 import { Avatar } from "./Person";
@@ -10,44 +10,116 @@ import { Ellipse } from "./Shapes";
 
 const PREVIEW_HEIGHT = 170;
 
-/** Turns the preview a little every frame while the editor is open. */
-const useSpin = (on: boolean) => {
-  const [t, setT] = useState(0);
-  useEffect(() => {
-    if (!on) return;
-    let frame = 0;
-    const start = Date.now();
-    const tick = () => {
-      setT((Date.now() - start) / 1000);
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [on]);
-  return t;
-};
+/** Turns per pixel dragged (radians). */
+const TURN_PER_PX = 0.012;
+/** The slow turn on its own (radians a second). */
+const AUTO_TURN = 0.6;
+/** After this long without a touch, the slow turn starts again. */
+const AUTO_RESUME_MS = 3000;
+/** How quickly a flick's spin dies away (per second). */
+const SPIN_DECAY = 3;
+/** The fastest a flick can spin it (radians a second). */
+const MAX_SPIN = 12;
 
-/** The character on a patch of lawn, turning slowly. */
-const Preview = ({ look, t }: { look: Look; t: number }) => {
+/**
+ * The character on a patch of lawn. It turns slowly on its own; swipe (or
+ * drag with a mouse) to turn it by hand, with a little momentum when you let
+ * go. It starts turning by itself again a few seconds after the last touch.
+ * The swipe stays on the preview: it doesn't scroll the list or close the
+ * sheet. All on this phone; nothing is sent.
+ */
+const Preview = ({ look, active }: { look: Look; active: boolean }) => {
   const [width, setWidth] = useState(0);
+  const [frame, setFrame] = useState({ heading: 0, t: 0 });
+  const spin = useRef({ down: false, lastX: 0, lastAt: 0, velocity: 0, heading: 0, touchedAt: -Infinity });
+  useEffect(() => {
+    if (!active) return;
+    let id = 0;
+    const start = Date.now();
+    let prev = start;
+    // Each opening starts facing you, and only turns by itself after a moment.
+    spin.current = { down: false, lastX: 0, lastAt: start, velocity: 0, heading: 0, touchedAt: start };
+    const tick = () => {
+      const now = Date.now();
+      const dt = (now - prev) / 1000;
+      prev = now;
+      const d = spin.current;
+      if (!d.down) {
+        if (Math.abs(d.velocity) > 0.05) {
+          d.heading += d.velocity * dt;
+          d.velocity *= Math.exp(-SPIN_DECAY * dt);
+        } else if (now - d.touchedAt > AUTO_RESUME_MS) d.heading += AUTO_TURN * dt;
+      }
+      setFrame({ heading: d.heading, t: (now - start) / 1000 });
+      id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [active]);
+  const onGrant = (e: GestureResponderEvent) => {
+    const d = spin.current;
+    d.down = true;
+    d.lastX = e.nativeEvent.pageX;
+    d.lastAt = Date.now();
+    d.velocity = 0;
+    d.touchedAt = d.lastAt;
+  };
+  const onMove = (e: GestureResponderEvent) => {
+    const d = spin.current;
+    const now = Date.now();
+    const dx = e.nativeEvent.pageX - d.lastX;
+    d.heading += dx * TURN_PER_PX;
+    const dt = Math.max(1, now - d.lastAt) / 1000;
+    const v = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, (dx * TURN_PER_PX) / dt));
+    d.velocity = d.velocity * 0.6 + v * 0.4;
+    d.lastX = e.nativeEvent.pageX;
+    d.lastAt = now;
+    d.touchedAt = now;
+  };
+  const onEnd = () => {
+    const d = spin.current;
+    d.down = false;
+    // A finger that stopped before lifting leaves no spin.
+    if (Date.now() - d.lastAt > 80) d.velocity = 0;
+    d.touchedAt = Date.now();
+  };
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
   const s = 100;
   const foot = { x: width / 2, y: PREVIEW_HEIGHT - 28, depth: 1, scale: s };
   return (
-    <View style={[styles.preview, { backgroundColor: garden.sky }]} onLayout={onLayout} testID="world-editor-preview">
-      <Ellipse cx={width / 2} cy={PREVIEW_HEIGHT - 26} rx={Math.min(width * 0.42, 150)} ry={34} fill={garden.lawn} />
-      {width > 0 ? (
-        <Avatar
-          figure={{ foot, s, up: s * 0.86, bob: 0 }}
-          pose={{ x: 0, z: 0, walking: false, heading: Math.sin(t * 0.7) * 1.25, arrivesAt: 0 }}
-          look={look}
-          t={t}
-          seed={0}
-        />
-      ) : null}
+    <View
+      style={[styles.preview, { backgroundColor: garden.sky }, noBrowserGestures]}
+      onLayout={onLayout}
+      testID="world-editor-preview"
+      accessible
+      accessibilityLabel="Your character. Swipe left or right to turn it."
+      onStartShouldSetResponder={() => true}
+      // Capture moves too, so a swipe here never scrolls the choices or the sheet.
+      onMoveShouldSetResponderCapture={() => true}
+      onResponderTerminationRequest={() => false}
+      onResponderGrant={onGrant}
+      onResponderMove={onMove}
+      onResponderRelease={onEnd}
+      onResponderTerminate={onEnd}
+    >
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Ellipse cx={width / 2} cy={PREVIEW_HEIGHT - 26} rx={Math.min(width * 0.42, 150)} ry={34} fill={garden.lawn} />
+        {width > 0 ? (
+          <Avatar
+            figure={{ foot, s, up: s * 0.86, bob: 0 }}
+            pose={{ x: 0, z: 0, walking: false, heading: frame.heading, arrivesAt: 0 }}
+            look={look}
+            t={frame.t}
+            seed={0}
+          />
+        ) : null}
+      </View>
     </View>
   );
 };
+
+/** On the web, a drag on the preview mustn't scroll the page or select text. */
+const noBrowserGestures = (Platform.OS === "web" ? { touchAction: "none", userSelect: "none" } : {}) as unknown as ViewStyle;
 
 const Swatches = ({
   colours,
@@ -153,7 +225,6 @@ export const CharacterEditor = ({
     },
     []
   );
-  const spin = useSpin(visible);
   const set = (part: LookPart) => (value: number) => setDraft((d) => ({ ...d, [part]: value }));
   const save = async () => {
     const savedIn = opening;
@@ -190,7 +261,7 @@ export const CharacterEditor = ({
     <Sheet visible={visible} onClose={onClose} title="Your character" scrollable={false} footer={footer}>
       <View style={styles.stack}>
         {/* The preview stays put while the choices scroll under it. */}
-        <Preview look={draft} t={spin} />
+        <Preview look={draft} active={visible} />
         <ScrollView style={styles.choices} contentContainerStyle={styles.stack}>
         {section("Skin")}
         <Swatches colours={people.skins} value={draft.skin} onPick={set("skin")} label="Skin" />
