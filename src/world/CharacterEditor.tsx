@@ -1,9 +1,10 @@
 import { Btn, Sheet } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { ACCESSORIES, HAIR_STYLES, HATS, randomLook, type Look, type LookPart } from "@shared/world";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { garden, hud, people } from "./palette";
+import { announce } from "./announce";
 import { Avatar } from "./Person";
 import { Ellipse } from "./Shapes";
 
@@ -131,25 +132,41 @@ export const CharacterEditor = ({
   // Start from your current look each time the editor opens, so a cancelled
   // change doesn't come back.
   const [wasVisible, setWasVisible] = useState(visible);
+  // Counts openings, so a save started in one can't close the next.
+  const [opening, setOpening] = useState(0);
   if (visible !== wasVisible) {
     setWasVisible(visible);
     if (visible) {
       setDraft(look);
       setError(null);
+      setOpening((n) => n + 1);
     }
   }
+  const latestOpening = useRef(opening);
+  useEffect(() => {
+    latestOpening.current = visible ? opening : -1;
+  }, [opening, visible]);
   const spin = useSpin(visible);
   const set = (part: LookPart) => (value: number) => setDraft((d) => ({ ...d, [part]: value }));
   const save = async () => {
+    const savedIn = opening;
     setBusy(true);
     const problem = await onSave(draft);
     setBusy(false);
-    if (problem) setError(problem);
-    else onClose();
+    // The editor was closed (and maybe opened again) while saving: leave it be.
+    if (latestOpening.current !== savedIn) return;
+    if (problem) {
+      setError(problem);
+      announce(problem);
+    } else onClose();
   };
   const footer = (
     <View style={styles.footer}>
-      {error ? <Text style={[typography.caption, { color: t.danger }]}>{error}</Text> : null}
+      {error ? (
+        <Text style={[typography.caption, { color: t.danger }]} aria-live="polite">
+          {error}
+        </Text>
+      ) : null}
       <View style={styles.buttons}>
         <View style={styles.grow}>
           <Btn title="Randomise" icon="shuffle" variant="tonal" onPress={() => setDraft(randomLook())} />

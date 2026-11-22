@@ -28,6 +28,8 @@ export type WorldMember = {
   act?: { emote: string; at: number };
   ask?: Ask;
   reply?: Reply;
+  /** The asks this person accepted that are still open. */
+  answered?: Reply[];
 };
 
 /** Taps closer together than this send only the last one. */
@@ -364,7 +366,7 @@ export const useWorld = (enabled: boolean) => {
   }, [session, heartbeatM, heard, again]);
 
   const people: WorldMember[] = members.map((m) => {
-    const row = states[m.memberId] as (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply">) | null | undefined | Error;
+    const row = states[m.memberId] as (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered">) | null | undefined | Error;
     const state = row && !(row instanceof Error) ? row : null;
     return {
       memberId: m.memberId,
@@ -376,6 +378,7 @@ export const useWorld = (enabled: boolean) => {
       act: state?.act,
       ask: state?.ask,
       reply: state?.reply,
+      answered: state?.answered,
     };
   });
 

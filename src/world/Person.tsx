@@ -26,9 +26,10 @@ export const figureFor = (cam: Camera, pose: Pose, t: number, seed: number): Fig
 };
 
 /** The screen box a tap on someone lands in. */
-export const hitBox = (f: Figure) => ({
-  left: f.foot.x - 0.5 * f.s,
-  right: f.foot.x + 0.5 * f.s,
+export const hitBox = (f: Figure, look?: Look) => ({
+  // Wider for a sun hat, whose brim reaches past the shoulders.
+  left: f.foot.x - (look?.hat === 4 ? 0.72 : 0.5) * f.s,
+  right: f.foot.x + (look?.hat === 4 ? 0.72 : 0.5) * f.s,
   // Up to the top of a bun, pigtails or a hat.
   top: f.foot.y - (1.45 + f.bob) * f.up - 0.35 * f.s,
   bottom: f.foot.y + 0.1 * f.s,

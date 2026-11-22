@@ -5,6 +5,7 @@ import { distance, EMOTE_IDS, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, posAt } f
 import { useEffect, useState } from "react";
 import { AccessibilityInfo, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { announce } from "./announce";
 import { CharacterEditor } from "./CharacterEditor";
 import { Garden } from "./Garden";
 import { hud } from "./palette";
@@ -104,6 +105,8 @@ export const WorldScreen = ({
 
   useEffect(() => {
     if (!note) return;
+    // Read it out too: it goes in 3.5 seconds, wherever focus is.
+    announce(note);
     const id = setTimeout(() => setNote(null), 3500);
     return () => clearTimeout(id);
   }, [note]);
@@ -159,7 +162,8 @@ export const WorldScreen = ({
         onClose={() => setPerson(null)}
         onDone={setNote}
       />
-      <CharacterEditor visible={editing} look={me?.look ?? { skin: 0, hair: 0, hairColour: 0, shirt: 0 }} onSave={world.saveLook} onClose={() => setEditing(false)} />
+      {/* Only once your look has loaded, so a draft never starts from a placeholder. */}
+      {me ? <CharacterEditor visible={editing} look={me.look} onSave={world.saveLook} onClose={() => setEditing(false)} /> : null}
       <PeopleSheet
         visible={peopleOpen}
         people={world.people}
@@ -217,6 +221,7 @@ export const WorldScreen = ({
           act: p.act,
           ask: p.ask,
           reply: p.reply,
+          answered: p.answered,
           muted: muted.has(p.memberId),
         }))}
         serverNow={world.serverNow}
@@ -247,7 +252,11 @@ export const WorldScreen = ({
             {world.status === "joining" ? "Opening the garden…" : world.status === "error" ? world.error : hearingLabel(hearing)}
           </Text>
         </View>
-        {note ? <Text style={styles.note}>{note}</Text> : null}
+        {note ? (
+          <Text style={styles.note} accessibilityLiveRegion="polite" aria-live="polite">
+            {note}
+          </Text>
+        ) : null}
       </View>
       <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
         {tray ? (

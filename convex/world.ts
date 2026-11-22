@@ -248,6 +248,9 @@ export const join = mutation({
       });
       await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
       member = (await ctx.db.get("worldMembers", memberId))!;
+    } else {
+      // Another tab or device joining the same member: count the visit.
+      await ctx.db.patch("worldMembers", member._id, { visits: (member.visits ?? 1) + 1 });
     }
     await touchPresence(ctx, member._id, now);
     await ensureSweeper(ctx, now);
@@ -255,14 +258,20 @@ export const join = mutation({
   },
 });
 
-/** Leaves the garden at once. A phone that can't say goodbye is swept later. */
+/**
+ * Ends one visit. The member goes when their last visit does (another tab
+ * may still be open). A phone that can't say goodbye is swept later.
+ */
 export const leave = mutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
     const email = await requireEmail(ctx);
     const member = await memberByEmail(ctx, email);
-    if (member) await removeMember(ctx, member);
+    if (!member) return null;
+    const visits = member.visits ?? 1;
+    if (visits > 1) await ctx.db.patch("worldMembers", member._id, { visits: visits - 1 });
+    else await removeMember(ctx, member);
     return null;
   },
 });
@@ -486,6 +495,10 @@ export const state = query({
       say: v.optional(v.object({ text: v.string(), at: v.number() })),
       ask: v.optional(worldAskValidator),
       reply: v.optional(worldReplyValidator),
+      // The asks this person accepted that are still open (which ask and
+      // when, nothing more), so an asker sees their ask was answered even
+      // after the other person accepted someone else's too.
+      answered: v.optional(v.array(worldReplyValidator)),
     })
   ),
   handler: async (ctx, { memberId }) => {
@@ -494,8 +507,8 @@ export const state = query({
     if (!member || !me || (await blockedEither(ctx, me.email, member.email))) return null;
     const row = await stateOf(ctx, memberId);
     if (!row) return null;
-    const { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply } = row;
-    return { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply };
+    const { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered } = row;
+    return { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered };
   },
 });
 
@@ -518,14 +531,17 @@ export const chatLog = query({
   handler: async (ctx, { roomId }) => {
     const me = await meIn(ctx, roomId);
     if (!me) return null;
-    // Lines past the chat TTL aren't shown, even before the sweeper deletes them.
+    // Lines past the chat TTL aren't shown, even before the sweeper deletes
+    // them. Read the whole room (it holds CHAT_ROOM_CAP at most) and keep the
+    // newest CHAT_LOG_SIZE from people nobody has blocked.
     const rows = await ctx.db
       .query("worldChat")
       .withIndex("by_roomId_and_at", (q) => q.eq("roomId", roomId).gt("at", Date.now() - CHAT_TTL_MS))
       .order("desc")
-      .take(CHAT_LOG_SIZE);
+      .take(CHAT_ROOM_CAP);
     const lines = [];
     for (const row of rows) {
+      if (lines.length === CHAT_LOG_SIZE) break;
       if (await blockedEither(ctx, me.email, row.email)) continue;
       lines.push({ id: row._id, memberId: row.memberId, name: row.name, text: row.text, at: row.at, isMe: row.email === me.email });
     }
@@ -627,12 +643,15 @@ export const report = mutation({
     // room's latest lines around them, in the order they were said.
     const own = await ctx.db
       .query("worldChat")
-      .withIndex("by_roomId_and_email_and_at", (q) => q.eq("roomId", other.roomId).eq("email", other.email))
+      .withIndex("by_roomId_and_email_and_at", (q) =>
+        q.eq("roomId", other.roomId).eq("email", other.email).gt("at", now - CHAT_TTL_MS)
+      )
       .order("desc")
       .take(REPORT_OWN_LINES);
+    // Only lines still inside the chat TTL, as the room would see them.
     const context = await ctx.db
       .query("worldChat")
-      .withIndex("by_roomId_and_at", (q) => q.eq("roomId", other.roomId))
+      .withIndex("by_roomId_and_at", (q) => q.eq("roomId", other.roomId).gt("at", now - CHAT_TTL_MS))
       .order("desc")
       .take(REPORT_CONTEXT_LINES);
     const byId = new Map([...own, ...context].map((row) => [row._id, row]));

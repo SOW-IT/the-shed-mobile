@@ -156,6 +156,9 @@ export default defineSchema({
     name: v.string(),
     look: worldLookValidator,
     joinedAt: v.number(),
+    // Open visits sharing this member (tabs, devices). Leave removes the
+    // member only when the last one goes. Missing means one.
+    visits: v.optional(v.number()),
   })
     .index("by_roomId", ["roomId"])
     .index("by_email", ["email"]),
@@ -231,7 +234,9 @@ export default defineSchema({
     email: v.string(),
     blockedEmail: v.string(),
     blockedName: v.string(),
-  }).index("by_email_and_blockedEmail", ["email", "blockedEmail"]),
+  })
+    .index("by_email_and_blockedEmail", ["email", "blockedEmail"])
+    .index("by_blockedEmail", ["blockedEmail"]),
 
   // A report keeps its lines after the chat is swept, for leaders to review.
   worldReports: defineTable({

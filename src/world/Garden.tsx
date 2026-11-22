@@ -25,6 +25,7 @@ import { makeCamera } from "./camera";
 import { buildGarden, type Prim, type Prop } from "./gardenScene";
 import { garden, hud } from "./palette";
 import { Avatar, figureFor, HEAD_TOP, hitBox, Tag, type Doing } from "./Person";
+import { accepted } from "./announce";
 import { Ellipse, Shape } from "./Shapes";
 
 type GardenPerson = {
@@ -37,6 +38,8 @@ type GardenPerson = {
   act?: { emote: string; at: number };
   ask?: Ask;
   reply?: Reply;
+  /** Asks this person accepted that are still open. */
+  answered?: Reply[];
   muted: boolean;
 };
 
@@ -158,7 +161,7 @@ export const Garden = ({
       p.ask?.to === meId &&
       openAsk(p.ask, now) !== null &&
       !declined.has(`${p.memberId}:${p.ask.at}`) &&
-      !(me >= 0 && people[me].reply?.to === p.memberId && people[me].reply?.askAt === p.ask.at)
+      !accepted(me >= 0 ? people[me] : undefined, p.memberId, p.ask.at)
   );
   const animating =
     poses.some((pose) => pose && (pose.walking || (now - pose.arrivesAt < 800 && pose.heading !== 0))) ||
@@ -177,15 +180,15 @@ export const Garden = ({
     const hits = people
       .map((p, i) => ({ p, pose: poses[i] }))
       .filter((h): h is { p: GardenPerson; pose: Pose } => h.pose !== null)
-      .map((h) => ({ ...h, box: hitBox(figureFor(cam, h.pose, t, hash(h.p.memberId) % 7)), depth: cam.project([h.pose.x, 0, h.pose.z]).depth }))
+      .map((h) => ({ ...h, box: hitBox(figureFor(cam, h.pose, t, hash(h.p.memberId) % 7), h.p.look), depth: cam.project([h.pose.x, 0, h.pose.z]).depth }))
       .filter((h) => x >= h.box.left && x <= h.box.right && y >= h.box.top && y <= h.box.bottom)
       .sort((a, b) => a.depth - b.depth);
-    if (hits[0]) return onTapPerson(hits[0].p.memberId);
-    // Then the arcade cabinet as drawn (its faces stand well above the ground).
+    // The arcade cabinet as drawn (its faces stand well above the ground).
+    // Where it and a person overlap, whichever is drawn in front wins.
     const arcade = scene.props.find((prop) => prop.tap === "arcade");
-    if (arcade && x >= arcade.box.left && x <= arcade.box.right && y >= arcade.box.top && y <= arcade.box.bottom) {
-      return onTapArcade();
-    }
+    const onArcade = arcade && x >= arcade.box.left && x <= arcade.box.right && y >= arcade.box.top && y <= arcade.box.bottom;
+    if (hits[0] && !(onArcade && arcade.depth < hits[0].depth)) return onTapPerson(hits[0].p.memberId);
+    if (onArcade) return onTapArcade();
     const spot = cam.ground(x, y);
     if (!spot) return;
     if (Math.hypot(spot.x - ARCADE.x, spot.z - ARCADE.z) < 0.75) return onTapArcade();
@@ -228,7 +231,12 @@ export const Garden = ({
           ? MUTUALS[d.id].icon
           : undefined;
     const rise = d?.kind === "emote" ? d.p : d?.kind === "mutual" ? (d.p - 0.4) / 0.6 : 0;
-    const waiting = p.me && p.ask && openAsk(p.ask, now) && !d ? `${MUTUALS[p.ask.kind as keyof typeof MUTUALS]?.ask ?? "…"}` : undefined;
+    // Your own open ask shows "High five?" over you until the other person
+    // answers it (not only while the slap plays).
+    const answeredMine =
+      p.ask !== undefined && people.some((o) => o.memberId === p.ask?.to && accepted(o, p.memberId, p.ask.at));
+    const waiting =
+      p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${MUTUALS[p.ask.kind as keyof typeof MUTUALS]?.ask ?? "…"}` : undefined;
     const head = cam.project([pose.x, HEAD_TOP + figure.bob, pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     tags.push({
@@ -314,16 +322,19 @@ export const Garden = ({
       </View>
       </Pressable>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        {asks.map((p) => {
+        {asks.map((p, i) => {
           const pose = poses[people.indexOf(p)];
           if (!pose || !p.ask) return null;
           const head = cam.project([pose.x, HEAD_TOP + 0.9, pose.z]);
+          // Asks from people standing together stack upward instead of
+          // covering each other, and never leave the stage.
+          const top = Math.max(8, head.y - 64 - promptOffset(asks, i, poses, people, cam));
           const left = Math.max(1 - (now - p.ask.at) / ASK_MS, 0);
           const info = MUTUALS[p.ask.kind as keyof typeof MUTUALS];
           if (!info) return null;
           const askAt = p.ask.at;
           return (
-            <View key={`ask-${p.memberId}`} style={[styles.ask, { left: head.x - 110, top: head.y - 64 }]} testID="world-ask">
+            <View key={`ask-${p.memberId}`} style={[styles.ask, { left: Math.max(4, head.x - 110), top }]} testID="world-ask">
               <Text style={styles.askText} numberOfLines={1}>
                 {info.icon} {tagName(p.name)}: {info.ask}
               </Text>
@@ -357,6 +368,31 @@ export const Garden = ({
       </View>
     </View>
   );
+};
+
+/** Height of an ask card, for stacking them. */
+const PROMPT_HEIGHT = 128;
+
+/** How far up the i-th ask card moves so it clears the ones before it. */
+const promptOffset = (
+  asks: GardenPerson[],
+  i: number,
+  poses: (Pose | null)[],
+  people: GardenPerson[],
+  cam: ReturnType<typeof makeCamera>
+) => {
+  const at = (p: GardenPerson) => {
+    const pose = poses[people.indexOf(p)];
+    return pose ? cam.project([pose.x, HEAD_TOP + 0.9, pose.z]) : null;
+  };
+  const me = at(asks[i]);
+  if (!me) return 0;
+  let lift = 0;
+  for (let j = 0; j < i; j++) {
+    const other = at(asks[j]);
+    if (other && Math.abs(other.x - me.x) < 220 && Math.abs(other.y - me.y) < PROMPT_HEIGHT + lift) lift += PROMPT_HEIGHT;
+  }
+  return lift;
 };
 
 /** An angle part of the way to another, the short way round. */
