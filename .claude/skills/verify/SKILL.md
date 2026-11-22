@@ -86,9 +86,15 @@ The PR description needs:
   Maestro. `--clean` stops what an earlier run of this script left behind.
 - Ports belong to this repo: Convex 3270/3271, Metro 8092, web 8192.
   Daniel's Metro on 8081 is not ours. The simulator is `iPhone 17 Pro`.
-  If another worktree's run holds them, set `VERIFY_CONVEX_PORT`,
-  `VERIFY_CONVEX_SITE_PORT`, `VERIFY_METRO_PORT` and `VERIFY_WEB_PORT` to free
-  ports and pass a simulator nobody else is driving with `--device`.
+- One run drives screens at a time on this Mac. When another worktree's run
+  has the lock, verify says whose it is and waits its turn by itself. Just
+  start it. Don't wait with `pgrep`, `ps | grep` or a loop of your own: two
+  `pgrep -f` waiters once matched each other's shell text and waited
+  forever. A lock left by a run that was killed outright is taken over once its
+  pid has exited.
+- If something other than a verify run holds a port, set
+  `VERIFY_CONVEX_PORT`, `VERIFY_CONVEX_SITE_PORT`, `VERIFY_METRO_PORT` and
+  `VERIFY_WEB_PORT` to free ports.
 - The backend is local and seeded fresh every run. Don't point a run at the
   shared dev deployment, and never at prod.
 - Don't add `npm run verify`. A change to `package.json` scripts changes the
