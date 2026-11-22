@@ -166,7 +166,12 @@ export const WorldScreen = ({
         onDone={setNote}
       />
       {/* Only once your look has loaded, so a draft never starts from a placeholder. */}
-      {me ? <CharacterEditor visible={editing} look={me.look} onSave={world.saveLook} onClose={() => setEditing(false)} /> : null}
+      {me ? <CharacterEditor
+          visible={editing}
+          look={me.look}
+          onSave={(look) => world.saveLook(look).then((problem) => problem && setNote(`Your new look didn't save. ${problem}`))}
+          onClose={() => setEditing(false)}
+        /> : null}
       <PeopleSheet
         visible={peopleOpen}
         people={world.people}

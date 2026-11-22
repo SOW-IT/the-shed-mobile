@@ -79,6 +79,34 @@ Convex use kept as small as before:
   grow by appending to the palettes, and `lookFor` keeps the first build's
   ranges, so nobody's default look changed.
 
+## Added the next morning: touch, touching hands, a Mii-style editor, optimism
+
+Daniel's items 5 to 9 (2026-11-23):
+
+- **Touch.** The garden takes the touch with a responder instead of a press,
+  so walking starts on touch down and follows the finger while it's held or
+  dragged. The local walk follows every move. Writes stay discrete: one move
+  at once on touch down, then at most one every 500 ms and only once the
+  target has moved 0.5 world units, and one on release only if the spot
+  differs; a quick tap is exactly one move. The server's move bucket became
+  burst 4, then one per 500 ms, to match. Other phones ease each remote
+  person toward their new walk (`useGlide`) so a twice-a-second update
+  glides. Nothing is written per frame.
+- **High fives touch.** Drawn only, from the accepted event: both step toward
+  the midpoint until 1.1 apart, the raised palms meet at one point above their
+  heads with a spark, and they step back (`touchK` in `Person.tsx`).
+- **Look version 2.** The look gained optional face, eye, brow, nose, mouth,
+  height, build, blush, freckles and beard parts, and `v: 2`. Additive on
+  `worldLookValidator`, bounds checked by `isValidLook`, defaults for any
+  missing part (`lookPart`), so the email look and older apps keep working.
+  Height and build change only the drawing (`bodyScale`), never position,
+  collisions or hearing. Saving is still one write.
+- **Optimistic everywhere.** Emotes, lines, asks, accepts and saved looks use
+  Convex optimistic updates, so they show at once on the actor's phone; Convex
+  drops each when its mutation answers, so the server's copy replaces it (no
+  duplicates) and a refusal rolls it back. A pending chat line is marked by
+  its id. Moves were already local.
+
 ## Write budget
 
 Estimated by `convex/world.test.ts` ("write budget per player"), ten minutes
@@ -88,7 +116,8 @@ of simulated play against the real mutations, counting writes per code path
 | Player | Mutations a minute | Document writes a minute |
 | --- | ---: | ---: |
 | Typical: 8 taps, 1 emote, 2 lines | 11 | about 15 |
-| At every rate limit | 36 accepted (more are refused, writing nothing) | at most 47 |
+| Dragging for 3 s | 6 to 10 moves in all | the same |
+| At every rate limit (dragging non-stop) | about 146 accepted | at most 147, 153 in a full chat room |
 | Idle | about 1.3 heartbeats | at most 1.3 |
 
 A line in a room already holding 50 lines also deletes the oldest, one more

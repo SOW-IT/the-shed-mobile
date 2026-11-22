@@ -22,7 +22,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { garden, hud, people } from "./palette";
-import { announce } from "./announce";
 import { Avatar } from "./Person";
 import { Ellipse } from "./Shapes";
 
@@ -257,65 +256,39 @@ export const CharacterEditor = ({
   visible: boolean;
   /** The look you have now: your saved one, or the one picked from your email. */
   look: Look;
-  onSave: (look: Look) => Promise<string | null>;
+  /** Saves the look; the garden reports a failure, the editor doesn't wait. */
+  onSave: (look: Look) => Promise<unknown>;
   onClose: () => void;
 }) => {
   const t = useAppTheme();
   const [draft, setDraft] = useState<Look>(look);
-  const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>("Face");
-  const [error, setError] = useState<string | null>(null);
   // Start from your current look each time the editor opens, so a cancelled
   // change doesn't come back.
   const [wasVisible, setWasVisible] = useState(visible);
-  // Counts openings, so a save started in one can't close the next.
-  const [opening, setOpening] = useState(0);
   if (visible !== wasVisible) {
     setWasVisible(visible);
     if (visible) {
       setDraft(look);
-      setError(null);
-      setOpening((n) => n + 1);
     }
   }
-  const latestOpening = useRef(opening);
-  useEffect(() => {
-    latestOpening.current = visible ? opening : -1;
-  }, [opening, visible]);
-  // Gone (the visit ended): a save still on its way closes nothing.
-  useEffect(
-    () => () => {
-      latestOpening.current = -1;
-    },
-    []
-  );
   const set = (name: LookPart) => (value: number) => setDraft((d) => ({ ...d, [name]: value }));
   const part = (name: LookPart) => lookPart(draft, name);
-  const save = async () => {
-    const savedIn = opening;
-    setBusy(true);
-    const problem = await onSave({ ...draft, v: LOOK_VERSION });
-    setBusy(false);
-    // The editor was closed (and maybe opened again) while saving: leave it be.
-    if (latestOpening.current !== savedIn) return;
-    if (problem) {
-      setError(problem);
-      announce(problem);
-    } else onClose();
+  // The new look shows at once (an optimistic update) and the editor closes
+  // straight away; if the save fails, the garden says so and puts the old
+  // look back.
+  const save = () => {
+    void onSave({ ...draft, v: LOOK_VERSION });
+    onClose();
   };
   const footer = (
     <View style={styles.footer}>
-      {error ? (
-        <Text style={[typography.caption, { color: t.danger }]} aria-live="polite">
-          {error}
-        </Text>
-      ) : null}
       <View style={styles.buttons}>
         <View style={styles.grow}>
           <Btn title="Randomise" icon="shuffle" variant="tonal" onPress={() => setDraft(randomLook())} />
         </View>
         <View style={styles.grow}>
-          <Btn title="Save" icon="checkmark" loading={busy} onPress={() => void save()} />
+          <Btn title="Save" icon="checkmark" onPress={save} />
         </View>
       </View>
       <Text style={[typography.caption, { color: t.muted }]}>Everyone in the garden sees your new look when you save.</Text>

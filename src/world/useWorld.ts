@@ -1,6 +1,7 @@
 import {
   ASK_MS,
   clampTarget,
+  cleanLine,
   type Look,
   type Ask,
   type Reply,
@@ -9,6 +10,8 @@ import {
   type Walk,
 } from "@shared/world";
 import { useMutation, useQueries, useQuery } from "convex/react";
+import type { OptimisticLocalStore } from "convex/browser";
+import type { FunctionReturnType } from "convex/server";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
@@ -16,6 +19,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
 type MemberId = Id<"worldMembers">;
+type StateRow = NonNullable<FunctionReturnType<typeof api.world.state>>;
 type Session = { roomId: Id<"worldRooms">; memberId: MemberId; instance: number };
 
 export type WorldMember = {
@@ -31,6 +35,9 @@ export type WorldMember = {
   /** The asks this person accepted that are still open. */
   answered?: Reply[];
 };
+
+/** The id prefix of a chat line shown before the server has it. */
+export const PENDING = "pending:";
 
 /** Taps closer together than this send only the last one. */
 const COALESCE_MS = 150;
@@ -81,6 +88,71 @@ const turnedAwayText = (reply: { reason?: string; retryInMs?: number }) =>
 const leftGarden = (e: unknown) => e instanceof ConvexError && /left the garden/.test(String(e.data));
 
 /**
+ * Optimistic updates: every action shows at once on this phone, before the
+ * server answers. Convex drops each one when its mutation's answer arrives,
+ * so the server's own copy replaces it (never a duplicate) and a refusal or
+ * failure rolls it back by itself.
+ */
+let serverOffset = 0;
+const clock = () => Date.now() + serverOffset;
+
+/** You, as the roster this phone already holds knows you. */
+const meIn = (store: OptimisticLocalStore) => {
+  for (const { args, value } of store.getAllQueries(api.world.roster)) {
+    const me = value?.members.find((m) => m.isMe);
+    if (me) return { roomId: args.roomId, memberId: me.memberId, name: me.name };
+  }
+  return null;
+};
+
+const patchMine = (store: OptimisticLocalStore, change: (row: StateRow) => StateRow) => {
+  const me = meIn(store);
+  const row = me && store.getQuery(api.world.state, { memberId: me.memberId });
+  if (me && row) store.setQuery(api.world.state, { memberId: me.memberId }, change(row));
+};
+
+const showEmote = (store: OptimisticLocalStore, { emote }: { emote: string }) =>
+  patchMine(store, (row) => ({ ...row, act: { emote, at: clock() } }));
+
+const showLine = (store: OptimisticLocalStore, { text }: { text: string }) => {
+  const me = meIn(store);
+  const line = cleanLine(text);
+  if (!me || !line) return;
+  const at = clock();
+  patchMine(store, (row) => ({ ...row, say: { text: line, at } }));
+  const log = store.getQuery(api.world.chatLog, { roomId: me.roomId });
+  if (log) {
+    // Marked pending by its id until the server's line replaces it.
+    const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true };
+    store.setQuery(api.world.chatLog, { roomId: me.roomId }, [pending, ...log]);
+  }
+};
+
+const showAsk = (store: OptimisticLocalStore, { to, kind }: { to: MemberId; kind: string }) =>
+  patchMine(store, (row) => ({ ...row, ask: { kind, to, at: clock() } }));
+
+const showAccept = (store: OptimisticLocalStore, { from, askAt }: { from: MemberId; askAt: number }) => {
+  const asker = store.getQuery(api.world.state, { memberId: from });
+  if (!asker?.ask || asker.ask.at !== askAt) return;
+  const kind = asker.ask.kind;
+  // The high five starts here, as soon as this phone knows both agreed.
+  patchMine(store, (row) => {
+    const reply = { kind, to: from, askAt, at: clock() };
+    return { ...row, reply, answered: [...(row.answered ?? []), reply] };
+  });
+};
+
+const showLook = (store: OptimisticLocalStore, { look }: { look: Look }) => {
+  const me = meIn(store);
+  const roster = me && store.getQuery(api.world.roster, { roomId: me.roomId });
+  if (!me || !roster) return;
+  store.setQuery(api.world.roster, { roomId: me.roomId }, {
+    ...roster,
+    members: roster.members.map((m) => (m.memberId === me.memberId ? { ...m, look } : m)),
+  });
+};
+
+/**
  * Being in the garden: joins on open, leaves on close or when the app goes
  * to the background, and keeps every write to one per action. Positions are
  * never sent per frame; each phone walks people along their latest walk.
@@ -89,12 +161,16 @@ export const useWorld = (enabled: boolean) => {
   const joinM = useMutation(api.world.join);
   const leaveM = useMutation(api.world.leave);
   const moveM = useMutation(api.world.move);
-  const actM = useMutation(api.world.act);
-  const sayM = useMutation(api.world.say);
   const heartbeatM = useMutation(api.world.heartbeat);
-  const askM = useMutation(api.world.ask);
-  const acceptM = useMutation(api.world.accept);
-  const saveLookM = useMutation(api.world.saveLook);
+  // Every action shows at once on this phone (optimistic updates, below),
+  // before the server answers.
+  const actM = useMutation(api.world.act).withOptimisticUpdate(showEmote);
+  const sayM = useMutation(api.world.say).withOptimisticUpdate(showLine);
+  const askM = useMutation(api.world.ask).withOptimisticUpdate(showAsk);
+  const acceptM = useMutation(api.world.accept).withOptimisticUpdate(showAccept);
+  const saveLookM = useMutation(api.world.saveLook).withOptimisticUpdate(showLook);
+  // Server time minus this phone's, smoothed over replies.
+  const offset = useRef<number | null>(null);
 
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -103,8 +179,7 @@ export const useWorld = (enabled: boolean) => {
   // Your own walk, ahead of the server so a tap moves you at once.
   const [myWalk, setMyWalk] = useState<Walk | null>(null);
   const stats = useRef<WorldStats>(newStats());
-  // Server time minus this phone's, smoothed over replies.
-  const offset = useRef<number | null>(null);
+
   const lastAction = useRef(0);
   // The spot waiting to be sent, whether a move is on its way, and its timer.
   const pending = useRef<{ x: number; z: number } | null>(null);
@@ -128,6 +203,7 @@ export const useWorld = (enabled: boolean) => {
     const received = Date.now();
     const sample = serverTime - (sentAt + received) / 2;
     offset.current = offset.current === null ? sample : offset.current * 0.8 + sample * 0.2;
+    serverOffset = offset.current;
     lastAction.current = received;
   }, []);
 
@@ -189,6 +265,7 @@ export const useWorld = (enabled: boolean) => {
   }, [session, roster, again]);
 
   const members = roster?.members ?? [];
+
   // One subscription per person, keyed on who's here so it changes only on join and leave.
   const memberKey = members.map((m) => m.memberId).join(",");
   const requests = useMemo(

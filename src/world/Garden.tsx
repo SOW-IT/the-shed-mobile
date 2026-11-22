@@ -129,12 +129,27 @@ export const Garden = ({
   // Your own walk as it is; others glide toward each new walk from the server.
   // A copy: a high five below steps people in and out of where they're drawn.
   const poses = [...useGlide(people, now)];
+  // When each accepted mutual action was first seen to start (see below).
+  const [firstStarts, setFirstStarts] = useState<Record<string, number>>({});
+  const replyKeys = people.map((p) => (p.reply ? `${p.reply.to}:${p.reply.askAt}:${p.reply.at}` : "")).join(",");
+  useEffect(() => {
+    const fresh: Record<string, number> = {};
+    for (const p of people) {
+      if (!p.reply) continue;
+      const key = `${p.reply.to}:${p.reply.askAt}`;
+      if (firstStarts[key] === undefined) fresh[key] = p.reply.at;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- remember a start the first time it's seen
+    if (Object.keys(fresh).length) setFirstStarts((all) => ({ ...fresh, ...all }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the replies, not the arrays
+  }, [replyKeys]);
   const me = people.findIndex((p) => p.me);
   const mePose = me >= 0 ? poses[me] : null;
   const recent = (at: number | undefined, ms: number) => at !== undefined && now - at < ms;
   // What each person is doing: a mutual action with someone (worked out from
   // the asker's ask and the other's answer), or else an emote.
   const doing: Doing[] = people.map(() => null);
+  const startedAt = firstStarts;
   // Where each high five's palms meet (world), and how far into the reach.
   const touches: { x: number; z: number; k: number; i: number; j: number }[] = [];
   const facingOverride: (number | null)[] = people.map(() => null);
@@ -144,7 +159,13 @@ export const Garden = ({
     const a = poses[i];
     const b = j >= 0 ? poses[j] : null;
     if (j < 0 || !a || !b) return;
-    const live = liveMutual({ id: asker.memberId, ask: asker.ask }, { id: people[j].memberId, reply: people[j].reply }, now);
+    // The first start time seen for this accept: the optimistic one on the
+    // accepter's own phone, so the server's slightly later copy doesn't
+    // restart the animation.
+    const answer = people[j].reply;
+    const key = answer ? `${answer.to}:${answer.askAt}` : "";
+    const reply = answer && startedAt[key] !== undefined ? { ...answer, at: Math.min(startedAt[key], answer.at) } : answer;
+    const live = liveMutual({ id: asker.memberId, ask: asker.ask }, { id: people[j].memberId, reply }, now);
     if (!live) return;
     // Turn to face each other; the hand goes up on the side the other is on screen.
     const toward = b.x >= a.x ? 1 : -1;

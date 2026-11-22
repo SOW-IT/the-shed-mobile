@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { accepted, announce } from "./announce";
-import type { useWorld } from "./useWorld";
+import { PENDING, type useWorld } from "./useWorld";
 
 const clock = (at: number) =>
   new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
@@ -258,7 +258,11 @@ export const WorldList = ({
           .map((line) => (
             <View key={line.id} style={styles.line} accessible accessibilityLabel={`${line.isMe ? "You" : line.name} said ${line.text}`}>
               <Text style={[typography.label, { color: t.text }]}>
-                {line.isMe ? "You" : line.name} <Text style={{ color: t.muted, fontWeight: "400" }}>{clock(line.at)}</Text>
+                {line.isMe ? "You" : line.name}{" "}
+                <Text style={{ color: t.muted, fontWeight: "400" }}>
+                  {/* Shown at once; marked until the server has it. */}
+                  {line.id.startsWith(PENDING) ? "Sending…" : clock(line.at)}
+                </Text>
               </Text>
               <Text style={[typography.body, { color: t.text }]}>{line.text}</Text>
             </View>

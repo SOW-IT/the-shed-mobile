@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.6] - 2026-11-23
+## [2.12.7] - 2026-11-23
 
 ### Added
 - **The Garden: a place online to hang out.** Open Games and tap The Garden
@@ -29,6 +29,21 @@ All notable changes to **The SHED** mobile app. This project follows
   flower crown or sun hat, and glasses, a backpack or a scarf. A turning
   preview shows it as you go, Randomise picks one for you, and Save shows it
   to everyone in the garden. Until you save, you keep the look you were given.
+- **Walk by holding, not just tapping.** Press anywhere on the ground and you
+  start walking straight away; keep your finger down or drag it and you follow
+  it. A quick tap still walks there, and holding on someone never opens their
+  card by mistake. Other people glide smoothly after you instead of jumping.
+- **High fives that really touch.** When someone says yes, you both step in,
+  your hands meet above your heads with a little spark, and you step back.
+- **Make your character, Mii-style.** The editor now has tabs for Face, Hair,
+  Body, Outfit and Extras: face shape, eyes and eye colour, eyebrows, nose and
+  mouth; twelve hairstyles including buzz, ponytail, bald, bob and afro; height
+  and build sliders; blush, freckles and a beard or moustache. Swipe the
+  preview to turn your character around. Everyone else sees your new look.
+- **Everything you do shows instantly.** Your messages, emotes, high fives and
+  new look appear on your own screen straight away, while they're still on
+  their way. A message shows "Sending…" until it arrives, and if something
+  can't be sent it quietly goes back with a short note.
 - **Mute, block and report.** Tap someone to wave, mute their bubbles for
   this visit, block them (you won't see each other in the garden again until
   you unblock them under People here), or report them to the leaders. Chat is
