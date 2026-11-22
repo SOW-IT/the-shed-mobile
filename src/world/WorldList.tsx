@@ -90,14 +90,17 @@ export const WorldList = ({
 
   // A line on screen goes when it passes the chat TTL, even if nothing else
   // changes: redraw at the oldest line's expiry.
-  const [, setExpired] = useState(0);
-  const oldest = log?.length ? Math.min(...log.map((line) => line.at)) : null;
+  const [expired, setExpired] = useState(0);
   const { serverNow } = world;
+  // The oldest line still showing: after it expires the redraw picks the
+  // next, so each line goes on time even when nothing else changes.
+  const showing = (log ?? []).filter((line) => serverNow() - line.at < CHAT_TTL_MS);
+  const oldest = showing.length ? Math.min(...showing.map((line) => line.at)) : null;
   useEffect(() => {
     if (oldest === null) return;
     const id = setTimeout(() => setExpired((n) => n + 1), Math.max(0, oldest + CHAT_TTL_MS - serverNow()) + 50);
     return () => clearTimeout(id);
-  }, [oldest, serverNow]);
+  }, [oldest, serverNow, expired]);
 
   if (offline) {
     return (

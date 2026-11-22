@@ -146,6 +146,13 @@ export const CharacterEditor = ({
   useEffect(() => {
     latestOpening.current = visible ? opening : -1;
   }, [opening, visible]);
+  // Gone (the visit ended): a save still on its way closes nothing.
+  useEffect(
+    () => () => {
+      latestOpening.current = -1;
+    },
+    []
+  );
   const spin = useSpin(visible);
   const set = (part: LookPart) => (value: number) => setDraft((d) => ({ ...d, [part]: value }));
   const save = async () => {

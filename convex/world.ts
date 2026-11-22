@@ -108,6 +108,16 @@ const touchPresence = async (ctx: MutationCtx, memberId: Id<"worldMembers">, now
   }
 };
 
+/**
+ * Takes someone out of the Garden for good when their account is deleted:
+ * their member, state and presence go, the room count follows, and no rate
+ * limits are kept (they'd hold the deleted email).
+ */
+export const removeFromWorld = async (ctx: MutationCtx, email: string) => {
+  const member = await memberByEmail(ctx, email);
+  if (member) await removeMember(ctx, member, { keepLimits: false });
+};
+
 const throttleOf = (ctx: Ctx, email: string) =>
   ctx.db
     .query("worldThrottle")
@@ -119,9 +129,9 @@ const throttleOf = (ctx: Ctx, email: string) =>
  * empties. Their rate limits are kept for a while, so coming straight back
  * doesn't refill them.
  */
-const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">) => {
+const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { keepLimits = true } = {}) => {
   const state = await stateOf(ctx, member._id);
-  if (state) {
+  if (state && keepLimits) {
     const { moveBucket, actBucket, sayBucket } = state;
     const now = Date.now();
     const kept = await throttleOf(ctx, member.email);
@@ -136,8 +146,8 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">) => {
         at: now,
       });
     }
-    await ctx.db.delete("worldState", state._id);
   }
+  if (state) await ctx.db.delete("worldState", state._id);
   const presence = await presenceOf(ctx, member._id);
   if (presence) await ctx.db.delete("worldPresence", presence._id);
   await ctx.db.delete("worldMembers", member._id);

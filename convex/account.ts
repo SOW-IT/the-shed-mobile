@@ -13,6 +13,7 @@ import {
 import { APPLE_FALLBACK_NAME } from "./appleIdentity";
 import { revokeAppleTokens } from "./appleRevoke";
 import { isOrgEmail } from "./model";
+import { removeFromWorld } from "./world";
 import { typedMatches } from "../shared/typedConfirm";
 
 const accountKind = v.union(v.literal("sow"), v.literal("apple"));
@@ -70,6 +71,8 @@ async function deleteByEmail(
   email: string,
   includeGuestData: boolean
 ): Promise<boolean> {
+  // First out of the Garden, so a later sweep can't keep rate limits under this email.
+  await removeFromWorld(ctx, email);
   const more = [
     await deleteBatch(
       await ctx.db.query("pushTokens").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),

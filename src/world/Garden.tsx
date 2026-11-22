@@ -334,7 +334,7 @@ export const Garden = ({
           if (!info) return null;
           const askAt = p.ask.at;
           return (
-            <View key={`ask-${p.memberId}`} style={[styles.ask, { left: Math.max(4, head.x - 110), top }]} testID="world-ask">
+            <View key={`ask-${p.memberId}`} style={[styles.ask, { left: Math.min(Math.max(4, head.x - ASK_CARD_WIDTH / 2), cam.width - ASK_CARD_WIDTH - 4), top }]} testID="world-ask">
               <Text style={styles.askText} numberOfLines={1}>
                 {info.icon} {tagName(p.name)}: {info.ask}
               </Text>
@@ -370,6 +370,8 @@ export const Garden = ({
   );
 };
 
+/** An ask card's width (styles.ask), for keeping it on the stage. */
+const ASK_CARD_WIDTH = 220;
 /** Height of an ask card, for stacking them. */
 const PROMPT_HEIGHT = 128;
 
@@ -452,7 +454,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1, overflow: "hidden" },
   ask: {
     position: "absolute",
-    width: 220,
+    width: ASK_CARD_WIDTH,
     gap: 8,
     padding: 10,
     borderRadius: 18,

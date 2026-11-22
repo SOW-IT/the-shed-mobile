@@ -96,6 +96,9 @@ export const WorldScreen = ({
   const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  // The editor closes with the visit (your look goes with it); open it again after.
+  const hasMe = world.people.some((p) => p.isMe);
+  if (editing && !hasMe && world.status !== "in") setEditing(false);
   // Asks you've turned down, as `${from}:${askAt}`. Declining sends nothing:
   // the ask just runs out.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());

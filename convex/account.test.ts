@@ -456,6 +456,24 @@ describe("account.wipe", () => {
     });
   });
 
+  test("someone still in the Garden is taken out, and a later sweep keeps nothing under their email", async () => {
+    vi.useFakeTimers();
+    const t = newConvex();
+    const userId = await t.run((ctx) => ctx.db.insert("users", { email: GUEST, name: "Gina Guest" }));
+    await t.withIdentity({ email: GUEST, subject: `${userId}|session`, issuer: "test" }).mutation(api.world.join, {});
+    await t.mutation(internal.account.wipe, { userId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.setSystemTime(Date.now() + 10 * 60_000);
+    await t.mutation(internal.world.sweep, {});
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("worldMembers").collect()).toEqual([]);
+      expect(await ctx.db.query("worldState").collect()).toEqual([]);
+      expect(await ctx.db.query("worldPresence").collect()).toEqual([]);
+      expect(await ctx.db.query("worldRooms").collect()).toEqual([]);
+      expect(await ctx.db.query("worldThrottle").collect()).toEqual([]);
+    });
+  });
+
   test("deletes the user's saved Spotify connection and search count", async () => {
     const t = newConvex();
     const { userId, other } = await t.run(async (ctx) => {
