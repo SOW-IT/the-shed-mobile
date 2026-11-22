@@ -95,8 +95,34 @@ module.exports = defineConfig([
   },
   {
     // The palettes themselves.
-    files: ["src/theme.ts", "src/components/calendar/categoryColours.ts"],
+    files: ["src/theme.ts", "src/components/calendar/categoryColours.ts", "src/world/palette.ts"],
     rules: { "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking, asNever] },
+  },
+  {
+    // The garden loads lazily (src/app/world.tsx imports it with import()).
+    // A static import from anywhere else would load it at startup.
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    ignores: ["src/world/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@expo/vector-icons",
+              message:
+                "Import one icon set, e.g. @expo/vector-icons/Ionicons. The package root ships every icon font in the app.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@/world/*", "**/world/*"],
+              message: "Load the garden with import() from src/app/world.tsx, so it isn't part of startup.",
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     files: ["convex/**/*.ts"],

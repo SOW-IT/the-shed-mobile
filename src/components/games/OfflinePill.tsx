@@ -14,7 +14,8 @@ export const OfflinePill = ({ onPlay }: { onPlay: () => void }) => {
   const offline = useOffline();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  if (!offline || pathname.startsWith("/games")) return null;
+  // The games and the garden say they are offline themselves.
+  if (!offline || pathname.startsWith("/games") || pathname === "/world") return null;
   return (
     <View style={[styles.wrap, { top: insets.top + spacing.xs }]} pointerEvents="box-none">
       <Pressable

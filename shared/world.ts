@@ -35,7 +35,7 @@ export const BUBBLE_MS = 8000;
 export const EMOTE_MS = 2600;
 
 export const EMOTES = ["👋", "💚", "🙏", "😂", "🎉"] as const;
-export type Emote = (typeof EMOTES)[number];
+type Emote = (typeof EMOTES)[number];
 export const isEmote = (value: string): value is Emote => (EMOTES as readonly string[]).includes(value);
 
 /** The latest walk of one person: everything a phone needs to place them. */
@@ -72,7 +72,7 @@ export const posAt = (walk: Walk, now: number): Pose => {
   };
 };
 
-export const distance = (a: { x: number; z: number }, b: { x: number; z: number }) =>
+const distance = (a: { x: number; z: number }, b: { x: number; z: number }) =>
   Math.hypot(a.x - b.x, a.z - b.z);
 
 export const canHear = (a: { x: number; z: number }, b: { x: number; z: number }) =>
@@ -173,11 +173,11 @@ export const BUCKETS = {
   say: { burst: 3, refillMs: 10_000 },
 } as const;
 export type BucketKind = keyof typeof BUCKETS;
-export type Bucket = { tokens: number; at: number };
+type Bucket = { tokens: number; at: number };
 
 export const fullBucket = (kind: BucketKind, now: number): Bucket => ({ tokens: BUCKETS[kind].burst, at: now });
 
-export type TakeResult = { ok: true; bucket: Bucket } | { ok: false; retryInMs: number };
+type TakeResult = { ok: true; bucket: Bucket } | { ok: false; retryInMs: number };
 
 export const takeToken = (kind: BucketKind, bucket: Bucket, now: number): TakeResult => {
   const { burst, refillMs } = BUCKETS[kind];

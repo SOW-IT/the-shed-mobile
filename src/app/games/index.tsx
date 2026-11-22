@@ -8,6 +8,7 @@ export default function GamesScreen() {
     <GamesMenu
       onBack={() => backOr(router, "/profile")}
       onOpen={(target) => router.push(`/games/${target}`)}
+      onGarden={() => router.push("/world")}
     />
   );
 }
