@@ -110,13 +110,15 @@ const AuthGate = () => {
 
 const RootStack = () => {
   const wide = useWideLayout();
+  // The games are full screen: no sidebar beside them.
+  const inGames = usePathname().startsWith("/games");
   const { isAuthenticated } = useConvexAuth();
   const offline = useOffline();
   const [playingOffline, setPlayingOffline] = useState(false);
   return (
     <NavDrawerProvider>
       <View style={rootStackStyles.row}>
-        {wide ? <AppSidebar /> : null}
+        {wide && !inGames ? <AppSidebar /> : null}
         <View style={rootStackStyles.screens}>
           <Stack
             screenOptions={{

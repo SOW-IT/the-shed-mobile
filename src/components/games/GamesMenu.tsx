@@ -5,6 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { GAME_IDS, GAME_INFO, type GameId } from "../../../shared/games";
+import { OnlineBanner } from "./OnlineBanner";
 
 // Ionicons only: the app has already loaded that font, and offline on web
 // another icon font can't be fetched.
@@ -66,7 +67,8 @@ export const GamesMenu = ({
   const bests = useLocalBests();
   const waiting = useScoreQueue().length;
   return (
-    <Screen title="Games" subtitle="They work offline" onBack={onBack} maxWidth={640}>
+    <View style={styles.fill}>
+    <Screen title="Games" onBack={onBack} maxWidth={640}>
       {intro}
       <View style={styles.list}>
         {GAME_IDS.map((game) => (
@@ -95,10 +97,13 @@ export const GamesMenu = ({
         </Muted>
       ) : null}
     </Screen>
+    <OnlineBanner />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   list: { gap: spacing.md },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   icon: { width: 44, height: 44, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },

@@ -20,8 +20,11 @@ All notable changes to **The SHED** mobile app. This project follows
   open it, you now see "You're offline" with a button to play a game while you
   wait, instead of a loading screen that never finishes. If the connection
   drops while you're using the app, a small "Offline · Play a game" note
-  appears at the top. Once you're back online, one tap takes you back into The
-  SHED. A game is never closed on you.
+  appears at the top. When the connection comes back, a small "Online" note
+  shows for a moment and the back button takes you into The SHED. Nothing
+  stops, reloads or closes a game you're playing.
+- **The games fill the screen.** While you play, the side menu and status bar
+  step aside; a small back button and the game-over card are the ways out.
 - **A leaderboard for each game.** It shows the top ten scores at SOW, one per
   person and by name, plus your own best and your place. Anyone can look at
   it, signed in or not. Scores you set

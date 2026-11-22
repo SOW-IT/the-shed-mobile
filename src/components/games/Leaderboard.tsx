@@ -6,6 +6,7 @@ import { useConvexAuth, useQuery } from "convex/react";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
+import { OnlineBanner } from "./OnlineBanner";
 import { GAME_IDS, GAME_INFO, isGameId, type GameId } from "../../../shared/games";
 
 const Board = ({ game }: { game: GameId }) => {
@@ -68,6 +69,7 @@ export const Leaderboard = ({
   const localBest = useLocalBests()[game];
   const waiting = useScoreQueue().some((queued) => queued.game === game);
   return (
+    <View style={styles.fill}>
     <Screen title="Leaderboard" subtitle="Games" onBack={onBack} maxWidth={640}>
       <TabBar
         segments={GAME_IDS.map((id) => ({ key: id, label: GAME_INFO[id].title }))}
@@ -100,10 +102,13 @@ export const Leaderboard = ({
         <Btn title={`Play ${GAME_INFO[game].title}`} icon="play" variant="tonal" onPress={() => onPlay(game)} />
       </View>
     </Screen>
+    <OnlineBanner />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   boardGap: { gap: spacing.md },
   mine: { alignItems: "center", gap: 2 },
   list: { paddingVertical: spacing.xs, gap: 0 },

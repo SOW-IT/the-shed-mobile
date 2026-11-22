@@ -4,10 +4,11 @@ import { newSeed } from "@/lib/games/random";
 import { fixedColours } from "@/theme";
 import { useMemo, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
-import { fitBoard, GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import { fitBoard } from "@/lib/games/fit";
 
 const c = fixedColours.games.flappy;
-const MAX_BOARD = { width: 480, height: 820 };
+const MAX_BOARD = { width: 720, height: 1400 };
 const FLAP_KEYS = new Set([" ", "ArrowUp", "w", "W"]);
 const CLOUDS = [
   { id: "a", x: 0.12, y: 0.12, w: 90 },

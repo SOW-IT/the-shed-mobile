@@ -5,10 +5,11 @@ import { fixedColours } from "@/theme";
 import { useMemo, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
 import { MysticMan } from "./MysticMan";
-import { fitBoard, GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import { fitBoard } from "@/lib/games/fit";
 
 const c = fixedColours.games.runner;
-const MAX_BOARD = { width: 760, height: 400 };
+const MAX_BOARD = { width: 1200, height: 400 };
 const GROUND = 48;
 /** A swipe this long counts as a swipe, not a tap. */
 const SWIPE = 22;

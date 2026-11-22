@@ -4,19 +4,11 @@ import { moveShooter, newShooter, SHOOTER, stepShooter, type ShooterState } from
 import { fixedColours } from "@/theme";
 import { memo, useMemo, useRef, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
-import {
-  fitBoard,
-  fitScale,
-  GameFrame,
-  startHintFor,
-  useGameSession,
-  useLatest,
-  useStage,
-  type Size,
-} from "./GameFrame";
+import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import { fitBoard, fitScale, type Size } from "@/lib/games/fit";
 
 const c = fixedColours.games.shooter;
-const MAX_BOARD = { width: 480, height: 860 };
+const MAX_BOARD = { width: 720, height: 1400 };
 /** Arrow keys move the plane this many points a second. */
 const KEY_SPEED = 340;
 

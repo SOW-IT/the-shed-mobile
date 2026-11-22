@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { birdX, FLAPPY, flap, gapHeight, MAX_GAP_RISE, newFlappy, pipeSpeed, stepFlappy, type FlappyState } from "./flappy";
+import { fitBoard, fitScale } from "./fit";
 import { between, random } from "./random";
 import {
   duck,
@@ -207,5 +208,20 @@ describe("flappy", () => {
     let state = newFlappy(360, 640, 1);
     state = { ...state, nextIn: 1e9, pipes: [{ id: 9, x: birdX(state) + 20, gapTop: 0, gapHeight: 60, passed: false }] };
     expect(runFor(state, 1, stepFlappy, (s) => (s.vy > 0 ? flap(s) : s)).over).toBe(true);
+  });
+});
+
+describe("fitting the board", () => {
+  test("the board is the stage, up to the game's largest size", () => {
+    expect(fitBoard({ width: 390.6, height: 700 }, { width: 720, height: 1400 })).toEqual({ width: 390, height: 700 });
+    expect(fitBoard({ width: 1400, height: 900 }, { width: 1200, height: 400 })).toEqual({ width: 1200, height: 400 });
+  });
+
+  test("a run that started on another size is scaled to fit, keeping its shape", () => {
+    expect(fitScale(null, { width: 390, height: 700 })).toBe(1);
+    expect(fitScale({ width: 390, height: 700 }, { width: 390, height: 700 })).toBe(1);
+    expect(fitScale({ width: 390, height: 700 }, { width: 390, height: 350 })).toBe(0.5);
+    expect(fitScale({ width: 400, height: 400 }, { width: 800, height: 1200 })).toBe(2);
+    expect(fitScale({ width: 0, height: 400 }, { width: 800, height: 1200 })).toBe(1);
   });
 });

@@ -31,9 +31,9 @@ export const OfflineScreen = ({ onPlay }: { onPlay: () => void }) => {
 };
 
 /**
- * The games without the app around them, for when the app can't load. Once
- * the connection is back, a button goes on into The SHED; it never takes you
- * out of a game on its own.
+ * The games without the app around them, for when the app can't load. When
+ * the connection comes back, a small "Online" note shows and the menu's back
+ * button leads into The SHED; nothing takes you out of a game on its own.
  */
 export const OfflineGames = ({
   online,
@@ -42,7 +42,7 @@ export const OfflineGames = ({
 }: {
   online: boolean;
   onLeave: () => void;
-  /** Whether the menu has a back button to the app behind it. */
+  /** Whether the menu always has a back button to the app behind it. */
   canClose?: boolean;
 }) => {
   const t = useAppTheme();
@@ -56,14 +56,13 @@ export const OfflineGames = ({
   return (
     <GamesMenu
       onOpen={setView}
-      onBack={canClose ? onLeave : undefined}
+      onBack={canClose || online ? onLeave : undefined}
       intro={
-        <View style={[styles.banner, { backgroundColor: online ? t.successSoft : t.ghost }]}>
-          <Text style={[typography.body, styles.bannerText, { color: online ? t.success : t.text }]}>
-            {online ? "You're back online." : "You're offline. The games still work."}
-          </Text>
-          {online ? <Btn title="Open The SHED" icon="arrow-forward" onPress={onLeave} /> : null}
-        </View>
+        online ? null : (
+          <View style={[styles.banner, { backgroundColor: t.ghost }]} testID="offline-notice">
+            <Text style={[typography.body, styles.bannerText, { color: t.text }]}>You&apos;re offline.</Text>
+          </View>
+        )
       }
     />
   );
@@ -81,6 +80,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   icon: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
-  banner: { borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md },
+  banner: { borderRadius: radius.lg, padding: spacing.lg },
   bannerText: { fontWeight: "600" },
 });

@@ -1,8 +1,12 @@
 import { Btn, hapticSelect } from "@/components/ui";
+import { useRestartHold } from "@/hooks/useRestartHold";
 import { useLocalBests, recordRun } from "@/lib/games/gameStorage";
+import { OnlineBanner } from "./OnlineBanner";
+import { fitScale, type Size } from "@/lib/games/fit";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth } from "convex/react";
+import { StatusBar } from "expo-status-bar";
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
   GestureResponderHandlers,
@@ -19,7 +23,6 @@ import { GAME_INFO, type GameId } from "../../../shared/games";
 const g = fixedColours.games;
 
 type Phase = "ready" | "playing" | "over";
-export type Size = { width: number; height: number };
 
 /** A key press this soon after a crash doesn't restart: you were still mashing. */
 const RESTART_LOCK_MS = 700;
@@ -37,6 +40,9 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const recorded = useRef<S | null>(null);
   const overAt = useRef(0);
   const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
+  // An update waiting to install restarts the app when it comes back from
+  // the background; never in the middle of a run.
+  useRestartHold(phase === "playing");
 
   useEffect(() => {
     if (!run?.over || recorded.current === run) return;
@@ -82,20 +88,6 @@ export const useStage = () => {
   return [stage, onLayout] as const;
 };
 
-export const fitBoard = (stage: Size, max: Size): Size => ({
-  width: Math.floor(Math.min(stage.width, max.width)),
-  height: Math.floor(Math.min(stage.height, max.height)),
-});
-
-/**
- * How much to shrink or grow a run's world to fit the board. A run keeps the
- * size it started at, so a rotation or a resized window mid-run scales the
- * scene instead of cutting it off.
- */
-export const fitScale = (world: Size | null, board: Size | null): number =>
-  world && board && world.width > 0 && world.height > 0
-    ? Math.min(board.width / world.width, board.height / world.height)
-    : 1;
 
 const Stat = ({ label, value, ink }: { label: string; value: number; ink: string }) => (
   <View style={styles.stat}>
@@ -148,6 +140,8 @@ export const GameFrame = ({
   const newBest = result !== null && result.score > result.previousBest && result.score > 0;
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: background }]} edges={["top", "bottom"]}>
+      {/* Full screen while playing; the safe area still keeps clear of the notch. */}
+      <StatusBar hidden={phase === "playing"} animated />
       <View style={styles.bar}>
         <Pressable
           onPress={onExit}
@@ -229,6 +223,7 @@ export const GameFrame = ({
           </View>
         ) : null}
       </View>
+      <OnlineBanner />
     </SafeAreaView>
   );
 };
@@ -264,7 +259,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...(Platform.OS === "web" ? { userSelect: "none", touchAction: "none", cursor: "pointer" } : null),
   },
-  board: { overflow: "hidden", borderRadius: radius.lg },
+  // Full screen: the board meets the edges, so no rounded corners.
+  board: { overflow: "hidden" },
   overlay: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
   card: {
     maxWidth: 320,
