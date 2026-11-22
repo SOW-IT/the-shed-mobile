@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.65] - 2026-11-22
+
+### Changed
+- **The app is smaller, and the Event Requests page loads faster on the
+  web.** The calendar-check icon on Event Requests and the Spotify logo on
+  Profile each came with a whole icon font: 1.3 MB and 166 KB for three
+  icons. They now use fonts cut down to just those icons, which draw exactly
+  the same. The loading spinner uses a smaller copy of the SOW mark instead
+  of the 1024-pixel splash image. Each over-the-air update and the app
+  download carry about 1.9 MB less, and a signed-in visit to Event Requests
+  on the web downloads 1.6 MB less. Nothing looks different.
+
 ## [2.11.62] - 2026-11-22
 
 ### Changed
