@@ -234,10 +234,12 @@ export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: bool
   }));
   return (
     <ReanimatedImage
+      // 256 px copies of the splash marks: the spinner is at most 64 pt, and
+      // the 1024 px originals cost about 4 MB of decoded bitmap each.
       source={
         dark
-          ? require("../../../assets/images/splash-icon-dark.png")
-          : require("../../../assets/images/splash-icon.png")
+          ? require("../../../assets/images/spinner-dark.png")
+          : require("../../../assets/images/spinner.png")
       }
       style={animatedStyle}
       resizeMode="contain"
