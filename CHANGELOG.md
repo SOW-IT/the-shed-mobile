@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.2] - 2026-11-22
+## [2.12.5] - 2026-11-23
 
 ### Changed
 - **The app is smaller, and the Event Requests page loads faster on the
@@ -17,6 +17,17 @@ All notable changes to **The SHED** mobile app. This project follows
   of the 1024-pixel splash image. Each over-the-air update and the app
   download carry about 1.9 MB less, and a signed-in visit to Event Requests
   on the web downloads 1.6 MB less. Nothing looks different.
+
+## [2.12.4] - 2026-11-22
+
+### Changed
+- **Going back mid-game asks first.** In the offline games, pressing back
+  during a run (the back button, swiping back on iPhone, or the browser's back
+  button) now pauses the game and asks "Leave this game?". **Continue** is the
+  main button and picks up where you left off; tapping outside the box or
+  pressing Escape does the same. **Leave game** ends the run without saving
+  its score. Before a run starts and after it ends, back works straight away,
+  as before.
 
 ## [2.12.1] - 2026-11-22
 

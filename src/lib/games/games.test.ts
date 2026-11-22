@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { birdX, FLAPPY, flap, gapHeight, MAX_GAP_RISE, newFlappy, pipeSpeed, stepFlappy, type FlappyState } from "./flappy";
 import { fitBoard, fitScale } from "./fit";
+import { needsLeaveConfirm } from "./leave";
 import { between, random } from "./random";
 import {
   duck,
@@ -223,5 +224,13 @@ describe("fitting the board", () => {
     expect(fitScale({ width: 390, height: 700 }, { width: 390, height: 350 })).toBe(0.5);
     expect(fitScale({ width: 400, height: 400 }, { width: 800, height: 1200 })).toBe(2);
     expect(fitScale({ width: 0, height: 400 }, { width: 800, height: 1200 })).toBe(1);
+  });
+});
+
+describe("leaving a game", () => {
+  test("only a run in progress asks first; the start and game-over screens just go back", () => {
+    expect(needsLeaveConfirm("playing")).toBe(true);
+    expect(needsLeaveConfirm("ready")).toBe(false);
+    expect(needsLeaveConfirm("over")).toBe(false);
   });
 });
