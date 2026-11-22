@@ -9,6 +9,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FRAME_TRIES, frameJudge, seedInstant } from "./lib/stableFrames.mjs";
+import { acquire, currentHolder, ownRecord, release } from "./lib/verifyLock.mjs";
 import { classify, planVerification, resolveRoutes, routeSlug } from "./lib/verifyPlan.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
@@ -18,6 +19,9 @@ const STATE = join(ROOT, ".verify");
 // each other's.
 const BASE_TREE = join(tmpdir(), `theshed-verify-base-${createHash("sha256").update(ROOT).digest("hex").slice(0, 8)}`);
 const MAP = JSON.parse(readFileSync(join(ROOT, "scripts/verify/feature-map.json"), "utf8"));
+// One for the whole Mac, outside every worktree and $TMPDIR (which a sandbox
+// may move): screen runs share the simulator and the ports (verifyLock.mjs).
+const LOCK_FILE = join(homedir(), ".cache/theshed-verify/verify.lock");
 
 const HELP = `node scripts/verify.mjs [options]
 
@@ -32,7 +36,11 @@ const HELP = `node scripts/verify.mjs [options]
   --app <path.app>     install this dev-client build first
   --publish            push the screenshots to the verification-artifacts branch and print PR markdown
   --publish-only       publish the last run's screenshots without running anything
-  --clean              stop anything a crashed run left behind, then exit`;
+  --clean              stop anything a crashed run left behind, then exit
+
+Runs that take screenshots go one at a time on this Mac: a run waits while
+another worktree's run has the simulator and ports, then starts by itself.
+Start it and let it wait; don't poll for other runs.`;
 
 const parseArgs = (argv) => {
   const flags = new Set();
@@ -105,6 +113,9 @@ const ENV = {
 };
 
 const log = (line) => console.log(`[verify] ${line}`);
+const holderText = (holder) => holder
+  ? `pid ${holder.pid}, ${holder.branch ?? "?"} in ${holder.root ?? "?"}, since ${holder.since ?? "?"}`
+  : "a lock file nobody can read";
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: "utf8", env: ENV, cwd: ROOT, ...opts }).trim();
 const git = (...args) => sh("git", args);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -217,6 +228,31 @@ const printPlan = (plan, mergeBase, args) => {
     for (const route of plan.routes) log(`    ${route}`);
   }
 };
+
+// Held from the first screen step until everything is stopped. Given back
+// on every way out: return, crash, Ctrl-C, SIGTERM, a closed terminal. A run
+// killed outright leaves it behind, and the next run takes it over once the
+// holder's pid is gone.
+let lock = null;
+const releaseLock = () => {
+  if (lock) release(LOCK_FILE, lock);
+  lock = null;
+};
+const takeLock = async () => {
+  const record = ownRecord({ root: ROOT, branch: git("rev-parse", "--abbrev-ref", "HEAD") });
+  const started = Date.now();
+  let waitedFor = null;
+  await acquire(LOCK_FILE, record, {
+    onWait: (holder) => {
+      waitedFor = holder;
+      log(`waiting for the run that has the simulator and ports: ${holderText(holder)}`);
+    },
+  });
+  lock = record;
+  const waited = Math.round((Date.now() - started) / 1000);
+  return waitedFor ? `took it after waiting ${waited}s for ${holderText(waitedFor)}` : "free, taken at once";
+};
+process.on("exit", releaseLock);
 
 const steps = [];
 const step = async (name, fn, { soft = false } = {}) => {
@@ -599,6 +635,8 @@ const main = async () => {
   if (deleted.length > 0) log(`deleted with no map rule left, not counted (their importers are): ${deleted.join(", ")}`);
   const plan = planVerification({ changed: files, map: MAP, full: args.full, only: args.only, unattended: args.unattended });
   printPlan(plan, mergeBase, args);
+  const holder = currentHolder(LOCK_FILE);
+  if (plan.routes.length > 0) log(holder ? `verify lock: held by ${holderText(holder)}; this run will wait for it` : "verify lock: free");
   if (plan.tier === "blocked") {
     log("Classify each file above in scripts/verify/feature-map.json (an area, a new area with its routes, core, or static), then rerun.");
     return 3;
@@ -638,6 +676,7 @@ const main = async () => {
     }
 
     if (plan.routes.length > 0 && (args.web || args.ios)) {
+      await step("verify lock", takeLock);
       if (args.web) await step("Playwright Chromium", () => void sh("npx", ["playwright", "install", "chromium"]));
       const udid = args.ios ? simulator(args.device) : null;
       const roles = plan.tier === "full" ? ["out", "leader", "staff", "admin"] : ["out", "admin"];
@@ -671,6 +710,7 @@ const main = async () => {
     failed = true;
   } finally {
     await stopAll();
+    releaseLock();
     rmSync(baseTree, { recursive: true, force: true });
   }
 
@@ -705,6 +745,7 @@ const main = async () => {
 const stopAndExit = (code) => stopAll().finally(() => process.exit(code));
 process.on("SIGINT", () => stopAndExit(130));
 process.on("SIGTERM", () => stopAndExit(143));
+process.on("SIGHUP", () => stopAndExit(129));
 main().then((code) => process.exit(code), (error) => {
   console.error(`[verify] ${error?.message ?? error}`);
   return stopAndExit(1);

@@ -18,6 +18,20 @@ All notable changes to **The SHED** mobile app. This project follows
   download carry about 1.9 MB less, and a signed-in visit to Event Requests
   on the web downloads 1.6 MB less. Nothing looks different.
 
+## [2.12.1] - 2026-11-22
+
+### Fixed
+- **Verify runs on this Mac take turns, for contributors.** A run of
+  `node scripts/verify.mjs` that takes screenshots now holds a lock for the
+  whole Mac (`~/.cache/theshed-verify/verify.lock`) while it uses the
+  simulator, Metro and the local Convex backend. A second run, from any
+  worktree or tmux session, says whose run has it and waits its turn by
+  itself, so nobody needs a `pgrep` waiter: two of those once matched each
+  other's shell text and waited for each other forever. Two runs starting at
+  the same moment can no longer both get going. The lock is given back when
+  a run ends, fails, or is interrupted, and a run killed outright leaves a
+  lock the next run takes over. Nothing changes for people using the app.
+
 ## [2.12.0] - 2026-11-22
 
 ### Added

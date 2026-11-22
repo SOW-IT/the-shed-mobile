@@ -74,7 +74,10 @@ Everything a run starts lives under `.verify/`, which ignores itself
 
 1. Clears whatever a crashed earlier run left behind. It kills the PIDs
    recorded in `.verify/pids/` and nothing else. Daniel's Metro on 8081 is
-   never touched.
+   never touched. Then it runs lint, knip, typecheck and unit tests, which
+   share nothing with other worktrees.
+   Before the first screen step it takes the verify lock (see "One run at a
+   time" below), and it holds the lock until it has stopped everything below.
 2. Starts a fresh local Convex backend from the binary the Convex CLI caches
    (`~/.cache/convex/binaries`), on ports 3270/3271 (see below to move them), with its database in
    `.verify/run/<before|after>/convex/`. It doesn't read `.env.local`, so the shared
@@ -108,10 +111,36 @@ Everything a run starts lives under `.verify/`, which ignores itself
    one with a spinner, is kept as it was and named in the step's detail.
 7. Stops everything it started and frees the ports, even when a step fails.
 
-When another worktree's run already holds the ports, give this run its own
-with `VERIFY_CONVEX_PORT`, `VERIFY_CONVEX_SITE_PORT`, `VERIFY_METRO_PORT` and
-`VERIFY_WEB_PORT` (for example 3280, 3281, 8097, 8197), and its own
-simulator with `--device`. Never 8081.
+### One run at a time
+
+The simulator and the ports are shared by every worktree and tmux session
+on this Mac, so only one run drives screens at a time. The lock is
+`~/.cache/theshed-verify/verify.lock`, a file holding the holder's pid,
+process start time, branch and worktree (`scripts/lib/verifyLock.mjs`).
+
+- A run that finds the lock held prints who holds it and waits, polling
+  every two seconds, then carries on by itself. `--dry-run` prints whether
+  the lock is free. Don't write a waiter of your own. A `pgrep -f` waiter
+  matches other sessions' waiter shells by their text, and two of them once
+  waited for each other forever.
+- The lock is created complete in one step (written aside, then
+  hard-linked into place), so two runs starting at the same moment can't
+  both get it.
+- It is given back when the run ends, fails, crashes, or gets Ctrl-C,
+  SIGTERM or SIGHUP (a closed terminal or tmux window).
+- A run killed outright (`kill -9`) leaves the lock behind. The next run
+  takes it over once the holder's pid has exited, or belongs to a process
+  that started later. A takeover first creates a `verify.lock.takeover`
+  guard, so two runs taking over the same stale lock can't remove each
+  other's new one.
+- Static runs take no lock, and neither does `--dry-run`, `--clean` or
+  `--publish-only`.
+
+When a process that isn't a verify run holds a port, give this run other
+ports with `VERIFY_CONVEX_PORT`, `VERIFY_CONVEX_SITE_PORT`,
+`VERIFY_METRO_PORT` and `VERIFY_WEB_PORT` (for example 3280, 3281, 8097,
+8197). Never 8081. Other ports don't let two runs go at once: the lock is
+for the whole Mac.
 
 For **before** screenshots it does the same against the merge base. That
 tree comes from `git archive` into a folder under `$TMPDIR` named after the
