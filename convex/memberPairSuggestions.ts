@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import { resolveUniversity, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { metadataValueLabel, resolveUniversity, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import {
   duplicatePairs,
   memberNameMatch,
@@ -64,15 +64,6 @@ const signInsOf = (ctx: Ctx, memberId: MemberId) =>
     .take(MAX_SIGN_INS);
 
 const metadataFields = (ctx: Ctx) => ctx.db.query("attendanceMetadata").take(MAX_FIELDS);
-
-const roleLabel = (
-  roleField: MetadataField | undefined,
-  metadata: Record<string, string> | undefined
-): string | undefined => {
-  if (!roleField) return undefined;
-  const raw = metadata?.[roleField._id];
-  return raw ? (roleField.values?.[raw] ?? raw) : undefined;
-};
 
 export const memberPage = internalQuery({
   args: { paginationOpts: paginationOptsValidator },
@@ -198,7 +189,7 @@ const sideOf = (
   name: row.name,
   email: row.email,
   campus,
-  role: roleLabel(roleField, row.metadata),
+  role: metadataValueLabel(roleField, row.metadata),
   ...(stats ?? NO_STATS),
 });
 

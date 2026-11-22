@@ -13,7 +13,6 @@ export type OldStaff = { email: string; name: string; year: number };
 
 type PickedRecord = { memberId: Id<"attendanceMembers">; name: string; email?: string };
 
-const SHEET_HANDOFF_MS = durations.overlayOut + 80;
 const PAGE_SIZE = 25;
 const MAX_RESULTS = 200;
 
@@ -61,7 +60,7 @@ export function ConnectStaffRecordSheet({
   const moveTo = (next: "search" | "review") => {
     setStage("handoff");
     clearTimeout(handoff.current);
-    handoff.current = setTimeout(() => setStage(next), SHEET_HANDOFF_MS);
+    handoff.current = setTimeout(() => setStage(next), durations.sheetHandoff);
   };
 
   const typed = search.trim();

@@ -1,6 +1,6 @@
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
@@ -19,6 +19,7 @@ import { keysFor } from "@/lib/listKeys";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
+  Answer,
   Btn,
   Card,
   EmptyState,
@@ -46,18 +47,6 @@ const EVENT_LABELS: Record<string, string> = {
   "carried-over": "Moved to the new staff year",
   resolved: "Resolved",
   "not-proceeding": "Closed, not proceeding",
-};
-
-const Answer = ({ label, children }: { label: string; children: ReactNode }) => {
-  const t = useAppTheme();
-  return (
-    <View style={styles.answer}>
-      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
-      <Text selectable style={[typography.body, { color: t.text }]}>
-        {children}
-      </Text>
-    </View>
-  );
 };
 
 const Details = ({ g }: { g: Omit<Doc<"grievances">, "ref"> }) => (
@@ -305,7 +294,6 @@ export default function GrievanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  answer: { gap: 4 },
   event: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
   eventDot: { width: 7, height: 7, borderRadius: 4, marginTop: 6 },
 });

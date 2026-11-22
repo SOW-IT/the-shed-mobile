@@ -3,7 +3,6 @@ import type { legendItem, segmentPoint, viewBlockValidator, viewCard } from "../
 import { RANGE_LABELS, RANGE_WEEKS, type SubgroupMetricsData } from "./attendanceMetrics";
 import { subgroupColour } from "./rollcall";
 
-export type ViewPaint = string;
 export type ViewLegendItem = Infer<typeof legendItem>;
 export type ViewSegmentPoint = Infer<typeof segmentPoint>;
 export type ViewCard = Infer<typeof viewCard>;

@@ -257,6 +257,14 @@ export type MetadataFieldLike = {
   values?: Record<string, string>;
 };
 
+export const metadataValueLabel = (
+  field: MetadataFieldLike | undefined,
+  metadata: Record<string, string> | undefined
+): string | undefined => {
+  const raw = field ? metadata?.[field._id] : undefined;
+  return raw ? (field?.values?.[raw] ?? raw) : undefined;
+};
+
 export const optionIdForLabel = (
   values: Record<string, string> | undefined,
   label: string
@@ -320,15 +328,8 @@ export const resolveUniversity = (
   metadata: Record<string, string> | undefined,
   orgCampuses: readonly string[] = []
 ): string | undefined => {
-  const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
-  if (campusField && metadata) {
-    const raw = metadata[campusField._id];
-    if (raw) {
-      const label = campusField.values?.[raw] ?? raw;
-      if (label && label !== "Other") return label;
-    }
-  }
-  return orgCampuses[0];
+  const label = metadataValueLabel(fields.find((f) => f.key === CAMPUS_FIELD_KEY), metadata);
+  return label && label !== "Other" ? label : orgCampuses[0];
 };
 
 const subtitlePart = (fieldKey: string, value: string): string | null => {

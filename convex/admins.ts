@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { DIRECTOR } from "../shared/flow";
+import { DIRECTOR, normalEmail } from "../shared/flow";
 import type { Teams } from "../shared/teams";
 import { teamsFor } from "./teamJobs";
 import {
@@ -21,8 +21,6 @@ const MAX_CHOSEN_ADMINS = 50;
 const MAX_STORED_ROWS = 200;
 const MAX_PROFILES = 3000;
 const STALE = "Someone else changed the admins while you were editing. Check the list and try again.";
-
-const normalEmail = (email: string) => email.trim().toLowerCase();
 
 const thisYearsProfiles = (ctx: Ctx) =>
   ctx.db

@@ -48,7 +48,7 @@
     "src/app/e2e-auth.tsx",
     "src/components/nav/**",
     "src/components/ui/**",
-    "src/components/{ErrorBoundary,ErrorReporter,AppUpdatePrompt,OtaRestartOnResume,ChromeScreen,PagerScreen,PagerCarousel,PagerCarousel.native,GroupedList,FilterChips,DateInputs,DateInputs.web,WebDateTimeInput,NativeDateTimeField,ReorderableList,HistoryTimeline,CommentsSheet,CommentThreadSheet,SignInPrompt,CampusMark}.tsx",
+    "src/components/{ErrorBoundary,ErrorReporter,AppUpdatePrompt,OtaRestartOnResume,ChromeScreen,PagerScreen,PagerCarousel,PagerCarousel.native,GroupedList,FilterChips,DateInputs,DateInputs.web,ReorderableList,HistoryTimeline,CommentsSheet,CommentThreadSheet,SignInPrompt,CampusMark}.tsx",
     "src/components/{useTopBarCollapse,dateTimeDisplay}.ts",
     "src/theme.ts",
     "src/fonts.ts",
@@ -56,7 +56,7 @@
     "src/types/**",
     "src/lib/{listKeys,errorReporting,appErrorKinds,staleRelease,restartHold,deviceStorage,navMenu,goBack,footerClearance,swipePage,sydneyTime,visibleColour,externalLinks,openExternalLink,notify,imageCacheKey,uploadLocalFile,csv,csvDownload,pdfWriter,universityLogos}.ts",
     "src/lib/pdfLibBundle.d.ts",
-    "src/hooks/{useRowIds,useRestartHold,useReportAppVersion,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync}.ts",
+    "src/hooks/{useRowIds,useRestartHold,useReportAppVersion,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync,useStaffWaitingBadge}.ts",
     "convex/_generated/**",
     "convex/shared/**",
     "convex/tsconfig.json",
@@ -96,7 +96,6 @@
         "src/components/design/**",
         "src/components/forms/**",
         "src/lib/designRequestPdf.ts",
-        "src/hooks/useDesignRequestsBadge.ts",
         "convex/designRequest*.ts",
         "shared/{designRequests,forms}.ts"
       ],
@@ -109,7 +108,6 @@
         "src/components/events/**",
         "src/components/forms/**",
         "src/lib/eventRequest*.ts",
-        "src/hooks/useEventRequestsBadge.ts",
         "convex/{eventRequest*,eventSubForms,teams,teamJobs}.ts",
         "shared/{eventRequests,forms,teams}.ts"
       ],
