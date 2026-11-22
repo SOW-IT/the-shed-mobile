@@ -91,7 +91,9 @@ of simulated play against the real mutations, counting writes per code path
 | At every rate limit | 36 accepted (more are refused, writing nothing) | at most 47 |
 | Idle | about 1.3 heartbeats | at most 1.3 |
 
-A high-five ask or accept is one write, like an emote, on the same rate
-limit; saving a look is one write. Join and leave are a handful of writes
+A line in a room already holding 50 lines also deletes the oldest, one more
+write (at most 6 a minute at the line limit, so at most 53 then). A
+high-five ask or accept is one write, like an emote, on the same rate limit;
+saving a look is one write. Join and leave are a handful of writes
 once per visit (leave also keeps the rate limits in `worldThrottle`), and the
 sweeper adds two calls a minute while anyone is in.
