@@ -7,21 +7,21 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 3s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 45s |  |
+| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 44s |  |
 | unused code (knip) | ✔ pass | 4s |  |
 | typecheck | ✔ pass | 13s |  |
 | unit tests with coverage | ✔ pass | 19s |  |
 | verify lock | ✔ pass | 0s | free, taken at once |
 | Playwright Chromium | ✔ pass | 1s |  |
 | before: local backend | ✔ pass | 14s | before functions on :3270 |
-| before: web | ⚠ warning | 552s | 168 screens, 4 broken, still moving: staff-root, staff-all, admin-review, admin-all. out     /world                                               BROKEN, 1 console error(s) out     /no-such-page                                        ok, 1 console error(s) leader  /world                                               BROKEN, 1 console error(s) leader  /no-such-page                                   |
-| before: iOS reset | ✔ pass | 2s |  |
-| before: iOS | ✔ pass | 234s | 42 screenshots; still moving after 10 frames: admin-review, admin-all |
+| before: web | ⚠ warning | 548s | 168 screens, 4 broken, still moving: staff-root, staff-all, admin-review, admin-all. out     /world                                               BROKEN, 1 console error(s) out     /no-such-page                                        ok, 1 console error(s) leader  /world                                               BROKEN, 1 console error(s) leader  /no-such-page                                   |
+| before: iOS reset | ✔ pass | 1s |  |
+| before: iOS | ✔ pass | 233s | 42 screenshots; still moving after 10 frames: admin-review, admin-all |
 | after: local backend | ✔ pass | 15s | after functions on :3270 |
-| after: web | ✔ pass | 560s | 168 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| after: web | ✔ pass | 559s | 168 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
 | after: iOS reset | ✔ pass | 2s |  |
-| after: iOS | ✔ pass | 247s | 42 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: iOS | ✔ pass | 241s | 42 screenshots; still moving after 10 frames: admin-review, admin-all |
 
 ## Screenshots
 
