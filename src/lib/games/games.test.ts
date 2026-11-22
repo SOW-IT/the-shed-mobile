@@ -4,10 +4,20 @@ import { fitBoard, fitScale } from "./fit";
 import { needsLeaveConfirm } from "./leave";
 import { between, random } from "./random";
 import {
+  apex,
+  clearableLength,
   duck,
+  HIT_WIDTH,
+  hop,
+  isPatternKind,
   jump,
+  makePattern,
+  minimumGap,
   newRunner,
   onGround,
+  patternSpan,
+  previewWith,
+  REACH_SHARE,
   RUNNER,
   runnerHeight,
   runnerSpeed,
@@ -95,45 +105,78 @@ describe("shooter", () => {
 });
 
 describe("runner", () => {
-  const withObstacle = (state: RunnerState, kind: "low" | "high"): RunnerState => ({
-    ...state,
-    nextIn: 1e9,
-    obstacles: [
-      kind === "low"
-        ? { id: 999, kind, x: 200, width: 30, height: 46, bottom: 0 }
-        : { id: 999, kind, x: 200, width: 46, height: RUNNER.highHeight, bottom: RUNNER.highBottom },
-    ],
-  });
-  const nearby = (state: RunnerState) => state.obstacles.some((o) => o.x < RUNNER.x + 90 && o.x > RUNNER.x - 10);
+  const blank = (seed = 1, time = 0): RunnerState => ({ ...newRunner(760, seed), time, speed: runnerSpeed(time), nextIn: 1e9 });
+  const place = (state: RunnerState, kind: Parameters<typeof makePattern>[1], x = 260): RunnerState => {
+    const copy = { ...state };
+    const obstacles = makePattern(copy, kind, x);
+    return { ...copy, obstacles };
+  };
+  const firstFront = (s: RunnerState) => Math.min(...s.obstacles.map((o) => o.x));
 
   test("speeds up over time, up to a top speed, and scores the distance", () => {
     expect(runnerSpeed(0)).toBe(RUNNER.startSpeed);
     expect(runnerSpeed(10)).toBeGreaterThan(RUNNER.startSpeed);
     expect(runnerSpeed(1000)).toBe(RUNNER.topSpeed);
-    const state = runFor({ ...newRunner(400, 1), nextIn: 1e9 }, 2, stepRunner);
+    const state = runFor(blank(), 2, stepRunner);
     expect(state.score).toBe(Math.floor(state.distance / RUNNER.stride));
     expect(state.score).toBeGreaterThan(40);
   });
 
-  test("running into a low obstacle ends the run; jumping clears it", () => {
-    expect(runFor(withObstacle(newRunner(400, 1), "low"), 2, stepRunner).over).toBe(true);
-    const cleared = runFor(withObstacle(newRunner(400, 1), "low"), 2, stepRunner, (s) =>
-      s.obstacles.some((o) => o.x < RUNNER.x + 70 && o.x > RUNNER.x) ? jump(s) : s
-    );
-    expect(cleared.over).toBe(false);
+  test("a tap is a small hop, a swipe up the big jump", () => {
+    expect(apex(RUNNER.hopSpeed)).toBeGreaterThan(60);
+    expect(apex(RUNNER.hopSpeed)).toBeLessThan(apex(RUNNER.jumpSpeed) / 2);
+    const peak = (start: RunnerState) => {
+      let s = start;
+      let top = 0;
+      for (let i = 0; i < 120; i++) {
+        s = stepRunner(s, FRAME);
+        top = Math.max(top, s.y);
+      }
+      return top;
+    };
+    expect(Math.abs(peak(hop(blank())) - apex(RUNNER.hopSpeed))).toBeLessThan(1);
+    expect(Math.abs(peak(jump(blank())) - apex(RUNNER.jumpSpeed))).toBeLessThan(1);
   });
 
-  test("standing into a high obstacle ends the run; sliding goes under it", () => {
-    expect(runFor(withObstacle(newRunner(400, 1), "high"), 2, stepRunner).over).toBe(true);
-    const slid = runFor(withObstacle(newRunner(400, 1), "high"), 2, stepRunner, (s) =>
-      nearby(s) && !sliding(s) ? duck(s) : s
-    );
-    expect(slid.over).toBe(false);
+  test("a swipe up just after the tap turns the hop into the big jump; later it doesn't", () => {
+    const hopped = stepRunner(stepRunner(hop(blank()), FRAME), FRAME);
+    const upgraded = jump(hopped);
+    expect(upgraded.bigJump).toBe(true);
+    const top = runFor(upgraded, 0.6, stepRunner, (x) => x);
+    let peak = 0;
+    for (let s = upgraded, i = 0; i < 60; i++) {
+      s = stepRunner(s, FRAME);
+      peak = Math.max(peak, s.y);
+    }
+    expect(top.over).toBe(false);
+    expect(Math.abs(peak - apex(RUNNER.jumpSpeed))).toBeLessThan(1);
+    const late = runFor(hop(blank()), RUNNER.upgradeSeconds + 0.05, stepRunner);
+    expect(jump(late)).toBe(late);
+    expect(hop(hopped)).toBe(hopped);
+  });
+
+  test("a small rock: a hop clears it, standing still doesn't", () => {
+    const autopilot = (s: RunnerState) => (firstFront(s) - RUNNER.x < s.speed * 0.15 + 20 ? hop(s) : s);
+    expect(runFor(place(blank(), "rock"), 2, stepRunner).over).toBe(true);
+    expect(runFor(place(blank(), "rock"), 2, stepRunner, autopilot).over).toBe(false);
+  });
+
+  test("a tall rock needs the big jump: a hop hits it", () => {
+    const at = (act: (s: RunnerState) => RunnerState) => (s: RunnerState) =>
+      firstFront(s) - RUNNER.x < s.speed * 0.2 + 20 ? act(s) : s;
+    expect(runFor(place(blank(1, 30), "tall"), 2, stepRunner, at(hop)).over).toBe(true);
+    expect(runFor(place(blank(1, 30), "tall"), 2, stepRunner, at(jump)).over).toBe(false);
+  });
+
+  test("hanging vines can only be slid under: even the big jump hits them", () => {
+    const at = (act: (s: RunnerState) => RunnerState) => (s: RunnerState) =>
+      firstFront(s) - RUNNER.x < s.speed * 0.15 + 20 && !sliding(s) ? act(s) : s;
+    expect(runFor(place(blank(1, 30), "hang"), 2, stepRunner, at(jump)).over).toBe(true);
+    expect(runFor(place(blank(1, 30), "hang"), 2, stepRunner, at(duck)).over).toBe(false);
   });
 
   test("can't jump again in the air; a swipe down there dives and slides on landing", () => {
-    let state = jump(newRunner(400, 1));
-    state = stepRunner({ ...state, nextIn: 1e9 }, 0.1);
+    let state = runFor(jump(blank()), 0.2, stepRunner);
     expect(onGround(state)).toBe(false);
     expect(jump(state)).toBe(state);
     state = duck(state);
@@ -144,19 +187,117 @@ describe("runner", () => {
     expect(runnerHeight(state)).toBe(RUNNER.slideHeight);
   });
 
-  test("a player who reacts to each obstacle can keep going: the gaps are fair", () => {
-    const autopilot = (s: RunnerState) => {
-      const next = s.obstacles.find((o) => o.x + o.width > RUNNER.x - RUNNER.width / 2);
-      if (!next) return s;
-      const lead = next.x - RUNNER.x;
-      if (next.kind === "low" && lead < s.speed * 0.2 + 20) return jump(s);
-      if (next.kind === "high" && lead < s.speed * 0.15 + 20 && !sliding(s)) return duck(s);
-      return s;
-    };
-    for (const seed of [1, 2, 3]) {
-      const state = runFor(newRunner(400, seed), 90, stepRunner, autopilot);
-      expect(state.over).toBe(false);
-      expect(state.obstacles.length + state.nextId).toBeGreaterThan(20);
+  test("every pattern fits its rules at every speed: hop ones in a hop's reach, big ones out of it but in the big jump's", () => {
+    const H = RUNNER.forgive;
+    for (const time of [0, 10, 25, 45, 80]) {
+      for (let seed = 1; seed <= 40; seed++) {
+        const state = blank(seed, time);
+        for (const kind of ["rock", "tall", "wide", "double", "beam", "hang"] as const) {
+          const group = makePattern(state, kind, 300);
+          const span = patternSpan(group);
+          const height = Math.max(...group.map((o) => o.bottom + o.height));
+          const s = state.speed;
+          if (kind === "rock") {
+            expect(height - H).toBeLessThan(apex(RUNNER.hopSpeed));
+            expect(span).toBeLessThanOrEqual(REACH_SHARE * clearableLength(RUNNER.hopSpeed, height, s));
+          }
+          if (kind === "tall") {
+            expect(height - H).toBeGreaterThan(apex(RUNNER.hopSpeed));
+            expect(span).toBeLessThanOrEqual(REACH_SHARE * clearableLength(RUNNER.jumpSpeed, height, s));
+          }
+          if (kind === "wide") {
+            expect(span).toBeGreaterThan(clearableLength(RUNNER.hopSpeed, height, s));
+            expect(span).toBeLessThanOrEqual(REACH_SHARE * clearableLength(RUNNER.jumpSpeed, height, s) + 1);
+          }
+          if (kind === "double") {
+            expect(group).toHaveLength(2);
+            expect(group[1].x - (group[0].x + group[0].width)).toBeLessThanOrEqual(24);
+            expect(height - H).toBeGreaterThan(apex(RUNNER.hopSpeed));
+            expect(span).toBeLessThanOrEqual(REACH_SHARE * clearableLength(RUNNER.jumpSpeed, height, s));
+          }
+          if (kind === "hang") {
+            expect(group[0].bottom).toBeGreaterThan(RUNNER.slideHeight - H);
+            expect(group[0].bottom).toBeLessThan(RUNNER.standHeight - H);
+            expect(group[0].bottom + group[0].height).toBeGreaterThan(apex(RUNNER.jumpSpeed) + RUNNER.standHeight);
+          }
+        }
+      }
+    }
+  });
+
+  /**
+   * Plays with the right input for each pattern, timed from the physics:
+   * a hop or the big jump centred over the pattern, or a slide that covers it.
+   * Any pattern the generator makes must be cleared this way.
+   */
+  const autopilot = (s: RunnerState): RunnerState => {
+    const xL = RUNNER.x - HIT_WIDTH / 2;
+    const xR = RUNNER.x + HIT_WIDTH / 2;
+    const ahead = s.obstacles.filter((o) => o.x + o.width > xL).sort((a, b) => a.x - b.x);
+    if (ahead.length === 0) return s;
+    const group = ahead.filter((o) => o.group === ahead[0].group);
+    const front = Math.min(...group.map((o) => o.x));
+    const back = Math.max(...group.map((o) => o.x + o.width));
+    const enter = (front - xR) / s.speed;
+    const exit = (back - xL) / s.speed;
+    const pattern = group[0].pattern;
+    if (pattern === "hang" || pattern === "beam") {
+      if (!onGround(s)) return enter < 0.3 ? duck(s) : s;
+      return enter <= 0.08 && !sliding(s) ? duck(s) : s;
+    }
+    const speed = pattern === "rock" ? RUNNER.hopSpeed : RUNNER.jumpSpeed;
+    const takeoff = (enter + exit) / 2 - speed / RUNNER.gravity;
+    if (takeoff > FRAME / 2 || !onGround(s)) return s;
+    return pattern === "rock" ? hop(s) : jump(s);
+  };
+
+  test("every generated sequence can be cleared with the right input, at every speed (seeded)", () => {
+    const passed: Record<string, number> = {};
+    for (const time of [0, 8, 20, 35, 50, 70]) {
+      for (let seed = 1; seed <= 40; seed++) {
+        let state: RunnerState = { ...newRunner(760, seed), time, speed: runnerSpeed(time) };
+        const seen = new Set<number>();
+        for (let i = 0; i < 60 * 45 && !state.over; i++) {
+          state = stepRunner(autopilot(state), FRAME);
+          for (const o of state.obstacles) if (!seen.has(o.group)) {
+            seen.add(o.group);
+            passed[o.pattern] = (passed[o.pattern] ?? 0) + 1;
+          }
+        }
+        expect(state.over, `seed ${seed} from ${time}s died at ${state.time.toFixed(1)}s`).toBe(false);
+      }
+    }
+    // Every kind of pattern came up and was cleared.
+    for (const kind of ["rock", "tall", "wide", "double", "beam", "hang"]) expect(passed[kind]).toBeGreaterThan(20);
+  });
+
+  test("a preview board shows the asked-for patterns in order, sized for the given time", () => {
+    const board = previewWith(760, ["double", "hang"], 30);
+    expect(board.obstacles.map((o) => o.pattern)).toEqual(["double", "double", "hang"]);
+    expect(board.obstacles[0].x).toBeCloseTo(760 * 0.4);
+    expect(board.speed).toBe(runnerSpeed(30));
+    expect(["rock", "hang", "snake"].map(isPatternKind)).toEqual([true, true, false]);
+  });
+
+  test("patterns are always spaced far enough to land the big jump and react", () => {
+    for (const time of [0, 20, 60]) {
+      for (let seed = 1; seed <= 10; seed++) {
+        let state: RunnerState = { ...newRunner(760, seed), time, speed: runnerSpeed(time) };
+        // Each pattern's front and back in distance run, and the speed it came at.
+        const spawned: { group: number; front: number; back: number; speed: number }[] = [];
+        for (let i = 0; i < 60 * 30; i++) {
+          const before = new Set(state.obstacles.map((o) => o.group));
+          state = stepRunner(autopilot(state), FRAME);
+          const fresh = state.obstacles.filter((o) => !before.has(o.group));
+          if (fresh.length) {
+            const front = state.distance + Math.min(...fresh.map((o) => o.x));
+            spawned.push({ group: fresh[0].group, front, back: state.distance + Math.max(...fresh.map((o) => o.x + o.width)), speed: state.speed });
+          }
+        }
+        for (let k = 1; k < spawned.length; k++) {
+          expect(spawned[k].front - spawned[k - 1].back).toBeGreaterThanOrEqual(minimumGap(spawned[k - 1].speed) - 1);
+        }
+      }
     }
   });
 });
