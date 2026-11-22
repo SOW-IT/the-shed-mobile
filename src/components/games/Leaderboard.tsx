@@ -29,7 +29,7 @@ const Board = ({ game }: { game: GameId }) => {
         <Card style={styles.list}>
           {board.top.map((row, index) => (
             <View
-              key={`${row.rank}-${row.name}-${row.score}`}
+              key={row.id}
               style={[
                 styles.row,
                 index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.separator },

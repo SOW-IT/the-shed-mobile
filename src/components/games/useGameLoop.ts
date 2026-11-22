@@ -38,21 +38,30 @@ export const useGameLoop = (running: boolean, onFrame: (dt: number) => void) => 
   }, [running]);
 };
 
-/** Keys held down on web, for games that read them every frame. */
-export const useWebKeys = (onKey: (key: string, down: boolean, event: KeyboardEvent) => void) => {
-  const onKeyRef = useRef(onKey);
+/**
+ * Key presses on web. onBlur runs when the window loses focus, when a held
+ * key's release would go unseen.
+ */
+export const useWebKeys = (
+  onKey: (key: string, down: boolean, event: KeyboardEvent) => void,
+  onBlur?: () => void
+) => {
+  const handlers = useRef({ onKey, onBlur });
   useEffect(() => {
-    onKeyRef.current = onKey;
+    handlers.current = { onKey, onBlur };
   });
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const down = (event: KeyboardEvent) => onKeyRef.current(event.key, true, event);
-    const up = (event: KeyboardEvent) => onKeyRef.current(event.key, false, event);
+    const down = (event: KeyboardEvent) => handlers.current.onKey(event.key, true, event);
+    const up = (event: KeyboardEvent) => handlers.current.onKey(event.key, false, event);
+    const blur = () => handlers.current.onBlur?.();
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
     };
   }, []);
 };

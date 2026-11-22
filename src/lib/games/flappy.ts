@@ -60,10 +60,24 @@ export const gapHeight = (time: number) => Math.max(130, 180 - time * 1.25);
 
 const flappyScore = (gaps: number, time: number) => gaps * FLAPPY.pointsPerGap + Math.floor(time);
 
+/**
+ * How far a gap may sit above the one before it. Between two pipes the bird
+ * can climb about 320, so this leaves room to react; falling is easy.
+ */
+export const MAX_GAP_RISE = 240;
+const MAX_GAP_DROP = 320;
+
 const newPipe = (state: FlappyState): Pipe => {
   const gap = gapHeight(state.time);
   const floor = state.height - FLAPPY.groundHeight;
-  const gapTop = between(state, 60, Math.max(61, floor - 60 - gap));
+  const previous = state.pipes.at(-1)?.gapTop;
+  let low = 60;
+  let high = Math.max(61, floor - 60 - gap);
+  if (previous !== undefined) {
+    low = Math.max(low, previous - MAX_GAP_RISE);
+    high = Math.max(low + 1, Math.min(high, previous + MAX_GAP_DROP));
+  }
+  const gapTop = between(state, low, high);
   return { id: state.nextId++, x: state.width + 4, gapTop, gapHeight: gap, passed: false };
 };
 

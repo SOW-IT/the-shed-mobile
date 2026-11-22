@@ -78,9 +78,10 @@ export const scoreProblem = (entry: QueuedScore, now: number): string | null => 
  * so the queue only needs the best unpublished run of each game: a lower one
  * would change nothing once the higher one is published.
  */
-export const enqueueScore = (queue: readonly QueuedScore[], entry: QueuedScore): QueuedScore[] => {
+export const enqueueScore = (queue: readonly QueuedScore[], entry: QueuedScore, now: number): QueuedScore[] => {
   if (entry.score < 1) return [...queue];
-  const current = queue.find((queued) => queued.game === entry.game);
+  // A queued run the server would turn away can't hold its place.
+  const current = queue.find((queued) => queued.game === entry.game && scoreProblem(queued, now) === null);
   if (current && current.score >= entry.score) return [...queue];
   return [...queue.filter((queued) => queued.game !== entry.game), entry];
 };

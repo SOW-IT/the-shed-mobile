@@ -61,16 +61,22 @@ describe("enqueueScore", () => {
     const lower = entry({ runId: "run-lower-1", score: 50 });
     const higher = entry({ runId: "run-higher1", score: 300 });
     const flappy = entry({ runId: "run-flappy1", game: "flappy", score: 20 });
-    let queue = enqueueScore([], first);
-    queue = enqueueScore(queue, lower);
+    let queue = enqueueScore([], first, NOW);
+    queue = enqueueScore(queue, lower, NOW);
     expect(queue).toEqual([first]);
-    queue = enqueueScore(queue, flappy);
-    queue = enqueueScore(queue, higher);
+    queue = enqueueScore(queue, flappy, NOW);
+    queue = enqueueScore(queue, higher, NOW);
     expect(queue).toEqual([flappy, higher]);
   });
 
+  test("a queued run too old to publish gives way to a lower one that can be", () => {
+    const stale = entry({ runId: "run-stale-1", score: 900, playedAt: NOW - MAX_SCORE_AGE_MS - 1 });
+    const fresh = entry({ runId: "run-fresh-1", score: 50 });
+    expect(enqueueScore([stale], fresh, NOW)).toEqual([fresh]);
+  });
+
   test("never queues a zero score", () => {
-    expect(enqueueScore([], entry({ score: 0 }))).toEqual([]);
+    expect(enqueueScore([], entry({ score: 0 }), NOW)).toEqual([]);
   });
 });
 

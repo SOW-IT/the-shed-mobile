@@ -18,24 +18,33 @@ export const GameScoreSync = () => {
   const queue = useScoreQueue();
   const submit = useMutation(api.gameScores.submitScores);
   const sending = useRef(false);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     if (!isAuthenticated || offline || queue.length === 0 || sending.current) return;
     sending.current = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     submit({ scores: queue.slice(0, MAX_SCORES_PER_SUBMIT) })
       .then(({ accepted, rejected }) => settleRuns([...accepted, ...rejected.map((r) => r.runId)]))
-      .catch(() => {
-        timer = setTimeout(() => setRetry((n) => n + 1), RETRY_MS);
-      })
-      .finally(() => {
-        sending.current = false;
-      });
-    return () => {
-      if (timer !== undefined) clearTimeout(timer);
-    };
+      .then(
+        () => {
+          sending.current = false;
+          // The queue may have changed while this was in flight; look again.
+          setRetry((n) => n + 1);
+        },
+        () => {
+          sending.current = false;
+          retryTimer.current = setTimeout(() => setRetry((n) => n + 1), RETRY_MS);
+        }
+      );
   }, [isAuthenticated, offline, queue, submit, retry]);
+
+  useEffect(
+    () => () => {
+      if (retryTimer.current !== undefined) clearTimeout(retryTimer.current);
+    },
+    []
+  );
 
   return null;
 };

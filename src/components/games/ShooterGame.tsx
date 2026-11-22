@@ -6,6 +6,7 @@ import { memo, useMemo, useRef, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
 import {
   fitBoard,
+  fitScale,
   GameFrame,
   startHintFor,
   useGameSession,
@@ -102,7 +103,9 @@ export const ShooterGame = ({ onExit, onLeaderboard }: { onExit: () => void; onL
   const width = board?.width ?? 0;
   const height = board?.height ?? 0;
   const preview = useMemo(() => newShooter(width, height, 1), [width, height]);
-  const latest = useLatest({ session, width, height });
+  const world = run ? { width: run.width, height: run.height } : null;
+  const scale = fitScale(world, board);
+  const latest = useLatest({ session, width, height, scale });
   const keys = useRef(new Set<string>());
 
   useGameLoop(phase === "playing", (dt) => {
@@ -131,8 +134,9 @@ export const ShooterGame = ({ onExit, onLeaderboard }: { onExit: () => void; onL
         last = { dx: 0, dy: 0 };
       },
       onPanResponderMove: (_event, gesture) => {
-        const dx = gesture.dx - last.dx;
-        const dy = gesture.dy - last.dy;
+        const { scale: s } = latest.current;
+        const dx = (gesture.dx - last.dx) / s;
+        const dy = (gesture.dy - last.dy) / s;
         last = { dx: gesture.dx, dy: gesture.dy };
         latest.current.session.setRun((state) => state && moveShooter(state, dx, dy));
       },
@@ -148,7 +152,7 @@ export const ShooterGame = ({ onExit, onLeaderboard }: { onExit: () => void; onL
     const current = latest.current.session;
     if (current.phase === "ready") startIfReady();
     else if (current.phase === "over" && key === " " && current.canRestartByKey()) current.restart();
-  });
+  }, () => keys.current.clear());
 
   return (
     <GameFrame
@@ -157,13 +161,14 @@ export const ShooterGame = ({ onExit, onLeaderboard }: { onExit: () => void; onL
       session={session}
       score={run?.score ?? 0}
       board={board}
+      world={world}
       onStageLayout={onStageLayout}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Touch and drag", "press an arrow key")}
       onExit={onExit}
       onLeaderboard={onLeaderboard}
     >
-      {board ? <Stars width={width} height={height} /> : null}
+      {board ? <Stars width={world?.width ?? width} height={world?.height ?? height} /> : null}
       {board ? <Scene state={run ?? preview} /> : null}
     </GameFrame>
   );

@@ -77,7 +77,7 @@ describe("leaderboard", () => {
     expect(await t.query(api.gameScores.leaderboard, { game: "runner" })).toEqual({ top: [], me: null });
     await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 300)] });
     expect(await t.query(api.gameScores.leaderboard, { game: "runner" })).toEqual({
-      top: [{ rank: 1, name: "anna", score: 300, isMe: false }],
+      top: [{ id: expect.any(String), rank: 1, name: "anna", score: 300, isMe: false }],
       me: null,
     });
   });
@@ -102,7 +102,7 @@ describe("leaderboard", () => {
     expect(board?.top.map((row) => row.name).sort()).toEqual(["Anna Lee", "Ben Ng", "cara"]);
     expect(board?.me).toEqual({ score: 500, rank: 2 });
     expect(await asUser(t, BEN).query(api.gameScores.leaderboard, { game: "shooter" })).toEqual({
-      top: [{ rank: 1, name: "cara", score: 40, isMe: false }],
+      top: [{ id: expect.any(String), rank: 1, name: "cara", score: 40, isMe: false }],
       me: null,
     });
   });

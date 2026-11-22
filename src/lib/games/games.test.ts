@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { birdX, FLAPPY, flap, gapHeight, newFlappy, pipeSpeed, stepFlappy, type FlappyState } from "./flappy";
+import { birdX, FLAPPY, flap, gapHeight, MAX_GAP_RISE, newFlappy, pipeSpeed, stepFlappy, type FlappyState } from "./flappy";
 import { between, random } from "./random";
 import {
   duck,
@@ -186,6 +186,21 @@ describe("flappy", () => {
     expect(state.over).toBe(false);
     expect(state.gaps).toBeGreaterThan(10);
     expect(state.score).toBe(state.gaps * FLAPPY.pointsPerGap + Math.floor(state.time));
+  });
+
+  test("a gap never sits higher than the bird can climb to from the one before", () => {
+    // A tall board after a minute is where an unbounded gap could be out of reach.
+    for (const seed of [1, 2, 3, 4, 5]) {
+      let state: FlappyState = { ...newFlappy(480, 820, seed), time: 60 };
+      const tops: number[] = [];
+      for (let i = 0; i < 30_000 && tops.length < 120; i++) {
+        const known = new Set(state.pipes.map((p) => p.id));
+        state = stepFlappy({ ...state, y: 300, vy: 0, over: false }, FRAME);
+        for (const pipe of state.pipes) if (!known.has(pipe.id)) tops.push(pipe.gapTop);
+      }
+      expect(tops.length).toBe(120);
+      for (let i = 1; i < tops.length; i++) expect(tops[i - 1] - tops[i]).toBeLessThanOrEqual(MAX_GAP_RISE);
+    }
   });
 
   test("hitting a pipe ends the run", () => {

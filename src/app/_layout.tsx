@@ -27,7 +27,7 @@ import {
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Modal, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { notify } from "@/lib/notify";
 
@@ -161,12 +161,15 @@ const RootStack = () => {
       </View>
       <OfflinePill onPlay={() => setPlayingOffline(true)} />
       {!wide && isAuthenticated ? <AppDrawer /> : null}
-      {/* Over the app rather than a route: offline, a web page can't fetch a route it hasn't loaded. */}
-      {playingOffline ? (
-        <View style={StyleSheet.absoluteFill}>
-          <OfflineGames online={!offline} onLeave={() => setPlayingOffline(false)} canClose />
-        </View>
-      ) : null}
+      {/* A modal over the app rather than a route: offline, a web page can't
+          fetch a route it hasn't loaded. The modal keeps focus inside it. */}
+      <Modal
+        visible={playingOffline}
+        animationType="fade"
+        onRequestClose={() => setPlayingOffline(false)}
+      >
+        <OfflineGames online={!offline} onLeave={() => setPlayingOffline(false)} canClose />
+      </Modal>
     </NavDrawerProvider>
   );
 };

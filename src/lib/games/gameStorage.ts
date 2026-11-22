@@ -71,7 +71,7 @@ export const recordRun = (game: GameId, score: number, durationMs: number): Prom
   };
   return Promise.all([
     bests.update((current) => withBest(current, game, score)),
-    queue.update((current) => enqueueScore(current, entry)),
+    queue.update((current) => enqueueScore(current, entry, entry.playedAt)),
   ]).then(() => undefined);
 };
 

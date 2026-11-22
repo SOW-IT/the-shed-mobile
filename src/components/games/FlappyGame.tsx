@@ -132,6 +132,7 @@ export const FlappyGame = ({ onExit, onLeaderboard }: { onExit: () => void; onLe
       session={session}
       score={run?.score ?? 0}
       board={board}
+      world={run ? { width: run.width, height: run.height } : null}
       onStageLayout={onStageLayout}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Tap", "press space")}

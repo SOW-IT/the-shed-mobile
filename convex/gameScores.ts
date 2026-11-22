@@ -69,6 +69,7 @@ const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
 };
 
 const entryValidator = v.object({
+  id: v.id("gameScores"),
   rank: v.number(),
   name: v.string(),
   score: v.number(),
@@ -99,6 +100,7 @@ export const leaderboard = query({
     const top = [];
     for (const row of rows) {
       top.push({
+        id: row._id,
         // Equal scores share the place of the first of them.
         rank: rows.findIndex((other) => other.score === row.score) + 1,
         name: await nameFor(ctx, row.email),

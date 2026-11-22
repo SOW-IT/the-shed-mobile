@@ -147,6 +147,7 @@ export const RunnerGame = ({ onExit, onLeaderboard }: { onExit: () => void; onLe
       session={session}
       score={run?.score ?? 0}
       board={board}
+      world={run && board ? { width: run.width, height: board.height } : null}
       onStageLayout={onStageLayout}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Tap", "press the up arrow")}

@@ -87,6 +87,16 @@ export const fitBoard = (stage: Size, max: Size): Size => ({
   height: Math.floor(Math.min(stage.height, max.height)),
 });
 
+/**
+ * How much to shrink or grow a run's world to fit the board. A run keeps the
+ * size it started at, so a rotation or a resized window mid-run scales the
+ * scene instead of cutting it off.
+ */
+export const fitScale = (world: Size | null, board: Size | null): number =>
+  world && board && world.width > 0 && world.height > 0
+    ? Math.min(board.width / world.width, board.height / world.height)
+    : 1;
+
 const Stat = ({ label, value, ink }: { label: string; value: number; ink: string }) => (
   <View style={styles.stat}>
     <Text style={[styles.statLabel, { color: ink }]}>{label}</Text>
@@ -107,6 +117,7 @@ export const GameFrame = ({
   session,
   score,
   board,
+  world = null,
   onStageLayout,
   stageHandlers,
   startHint,
@@ -121,6 +132,8 @@ export const GameFrame = ({
   session: GameSession;
   score: number;
   board: Size | null;
+  /** The running game's own size, when it has one; the scene is scaled to the board. */
+  world?: Size | null;
   onStageLayout: (event: LayoutChangeEvent) => void;
   stageHandlers?: GestureResponderHandlers;
   startHint: string;
@@ -130,6 +143,7 @@ export const GameFrame = ({
 }) => {
   const { isAuthenticated } = useConvexAuth();
   const { phase, result, best } = session;
+  const scale = fitScale(world, board);
   const info = GAME_INFO[game];
   const newBest = result !== null && result.score > result.previousBest && result.score > 0;
   return (
@@ -153,10 +167,32 @@ export const GameFrame = ({
       <View style={styles.stage} onLayout={onStageLayout} {...stageHandlers}>
         {board ? (
           <View
-            style={[styles.board, { width: board.width, height: board.height, backgroundColor: background }]}
+            style={[
+              styles.board,
+              world
+                ? { width: world.width * scale, height: world.height * scale }
+                : { width: board.width, height: board.height },
+              { backgroundColor: background },
+            ]}
             pointerEvents="box-none"
           >
-            {children}
+            {world && scale !== 1 ? (
+              <View
+                pointerEvents="box-none"
+                style={{
+                  position: "absolute",
+                  width: world.width,
+                  height: world.height,
+                  left: (world.width * scale - world.width) / 2,
+                  top: (world.height * scale - world.height) / 2,
+                  transform: [{ scale }],
+                }}
+              >
+                {children}
+              </View>
+            ) : (
+              children
+            )}
             {phase === "ready" ? (
               <View style={[StyleSheet.absoluteFill, styles.overlay]} pointerEvents="none">
                 <View style={styles.card}>
