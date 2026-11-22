@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.61] - 2026-11-22
+## [2.11.64] - 2026-11-22
 
 ### Added
 - **Fix a guest's name after adding them.** On an event's attendance page, tap
