@@ -135,7 +135,7 @@ export const Garden = ({
     key: prop.id,
     node: <PropView prop={prop} />,
   }));
-  const tags: ReactNode[] = [];
+  const tags: TagSpot[] = [];
   people.forEach((p, i) => {
     const pose = poses[i];
     if (!pose) return;
@@ -150,19 +150,13 @@ export const Garden = ({
     const line = !p.muted && recent(p.say?.at, BUBBLE_MS) ? p.say?.text : undefined;
     const emote = !p.muted && recent(p.act?.at, EMOTE_MS) ? p.act?.emote : undefined;
     const head = cam.project([pose.x, HEAD_TOP + figure.bob, pose.z]);
-    tags.push(
-      <Tag
-        key={p.memberId}
-        x={head.x}
-        y={head.y}
-        name={p.me ? "You" : tagName(p.name)}
-        me={p.me}
-        line={line}
-        far={far}
-        emote={emote}
-        emoteRise={emote && p.act ? (now - p.act.at) / EMOTE_MS : 0}
-      />
-    );
+    const name = p.me ? "You" : tagName(p.name);
+    tags.push({
+      key: p.memberId,
+      depth: head.depth,
+      ...tagBox(head.x, head.y, name, line),
+      props: { name, me: p.me, line, far, emote, emoteRise: emote && p.act ? (now - p.act.at) / EMOTE_MS : 0 },
+    });
   });
   // The tap marker: a spinning flower with a bobbing pin, until you arrive.
   if (target && mePose && Math.hypot(mePose.x - target.x, mePose.z - target.z) > 0.05) {
@@ -231,10 +225,55 @@ export const Garden = ({
         {actors.map((a) => (
           <Fragment key={a.key}>{a.node}</Fragment>
         ))}
-        {tags}
+        {stackTags(tags).map((tag) => (
+          <Tag key={tag.key} x={tag.x} y={tag.bottom} {...tag.props} />
+        ))}
       </View>
     </Pressable>
   );
+};
+
+type TagSpot = {
+  key: string;
+  depth: number;
+  x: number;
+  bottom: number;
+  width: number;
+  height: number;
+  props: Omit<Parameters<typeof Tag>[0], "x" | "y">;
+};
+
+/** Roughly how much room a name tag and its bubble take, for stacking. */
+const tagBox = (x: number, bottom: number, name: string, line: string | undefined) => {
+  const nameWidth = name.length * 7.5 + 22;
+  if (!line) return { x, bottom, width: nameWidth, height: 24 };
+  const chars = Array.from(line).length;
+  const lines = Math.ceil(chars / 24);
+  return { x, bottom, width: Math.max(nameWidth, Math.min(214, chars * 8 + 32)), height: 24 + 10 + lines * 18.5 + 21 };
+};
+
+/**
+ * Nearest people's tags stay over their heads; a farther tag that would
+ * cover one moves up above it. Returned far to near, so nearer tags draw on top.
+ */
+const stackTags = (tags: TagSpot[]): TagSpot[] => {
+  const placed: TagSpot[] = [];
+  for (const tag of [...tags].sort((a, b) => a.depth - b.depth)) {
+    let bottom = tag.bottom;
+    for (let moved = true; moved; ) {
+      moved = false;
+      for (const other of placed) {
+        const across = Math.abs(other.x - tag.x) < (other.width + tag.width) / 2;
+        const up = bottom > other.bottom - other.height && bottom - tag.height < other.bottom;
+        if (across && up) {
+          bottom = other.bottom - other.height - 4;
+          moved = true;
+        }
+      }
+    }
+    placed.push({ ...tag, bottom });
+  }
+  return placed.reverse();
 };
 
 const styles = StyleSheet.create({
