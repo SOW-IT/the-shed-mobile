@@ -1,0 +1,520 @@
+import { ConvexError, v } from "convex/values";
+import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
+import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
+import {
+  CHAT_LOG_SIZE,
+  CHAT_ROOM_CAP,
+  CHAT_TTL_MS,
+  cleanLine,
+  clampTarget,
+  fullBucket,
+  isEmote,
+  lookFor,
+  posAt,
+  PRESENCE_TOUCH_MS,
+  PRESENCE_TTL_MS,
+  REPORT_CONTEXT_LINES,
+  REPORT_WINDOW_MS,
+  REPORTS_PER_WINDOW,
+  ROOM_CAP,
+  spawnFor,
+  SWEEP_EVERY_MS,
+  takeToken,
+  WORLD_PLACE,
+  type BucketKind,
+} from "../shared/world";
+import { worldLookValidator, worldWalkFields } from "./worldData";
+import { Ctx, currentStaffYear, requireEmail, resolveName } from "./model";
+
+// Shed World, the Garden. See docs/context/world.md for the write budget.
+// Every mutation writes at most the caller's own state row, plus their
+// presence mark at most once every PRESENCE_TOUCH_MS, plus one chat line for
+// `say`. An action the rate limit turns away writes nothing.
+
+/** Rooms of one place looked at when picking one with space. */
+const ROOM_SCAN = 50;
+/** Rows the sweeper deletes of each kind per run. */
+const SWEEP_BATCH = 50;
+
+const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
+  const resolved = await resolveName(ctx, email, currentStaffYear());
+  if (resolved) return resolved;
+  const user = await ctx.db
+    .query("users")
+    .withIndex("email", (q) => q.eq("email", email))
+    .first();
+  return user?.name?.trim() || email.split("@")[0];
+};
+
+const memberByEmail = (ctx: Ctx, email: string) =>
+  ctx.db
+    .query("worldMembers")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .first();
+
+const stateOf = (ctx: Ctx, memberId: Id<"worldMembers">) =>
+  ctx.db
+    .query("worldState")
+    .withIndex("by_memberId", (q) => q.eq("memberId", memberId))
+    .unique();
+
+const presenceOf = (ctx: Ctx, memberId: Id<"worldMembers">) =>
+  ctx.db
+    .query("worldPresence")
+    .withIndex("by_memberId", (q) => q.eq("memberId", memberId))
+    .unique();
+
+const blocks = async (ctx: Ctx, email: string, other: string) =>
+  (await ctx.db
+    .query("worldBlocks")
+    .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email).eq("blockedEmail", other))
+    .first()) !== null;
+
+/** Whether either of two people has blocked the other. */
+const blockedEither = async (ctx: Ctx, a: string, b: string) =>
+  a !== b && ((await blocks(ctx, a, b)) || (await blocks(ctx, b, a)));
+
+/** The caller's member and state rows. Throws when they aren't in the world. */
+const requireMe = async (ctx: MutationCtx) => {
+  const email = await requireEmail(ctx);
+  const member = await memberByEmail(ctx, email);
+  const state = member && (await stateOf(ctx, member._id));
+  if (!member || !state) throw new ConvexError("You've left the garden. Open it again to come back.");
+  return { email, member, state };
+};
+
+/** Marks a member present, unless they were marked moments ago. */
+const touchPresence = async (ctx: MutationCtx, memberId: Id<"worldMembers">, now: number) => {
+  const presence = await presenceOf(ctx, memberId);
+  if (!presence) await ctx.db.insert("worldPresence", { memberId, lastSeen: now });
+  else if (now - presence.lastSeen >= PRESENCE_TOUCH_MS) {
+    await ctx.db.patch("worldPresence", presence._id, { lastSeen: now });
+  }
+};
+
+/** Takes everything of one member out of the world, and their room if it empties. */
+const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">) => {
+  const state = await stateOf(ctx, member._id);
+  if (state) await ctx.db.delete("worldState", state._id);
+  const presence = await presenceOf(ctx, member._id);
+  if (presence) await ctx.db.delete("worldPresence", presence._id);
+  await ctx.db.delete("worldMembers", member._id);
+  const room = await ctx.db.get("worldRooms", member.roomId);
+  if (!room) return;
+  if (room.memberCount <= 1) await ctx.db.delete("worldRooms", room._id);
+  else await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount - 1 });
+};
+
+const sweeperMeta = (ctx: Ctx) =>
+  ctx.db
+    .query("worldMeta")
+    .withIndex("by_key", (q) => q.eq("key", "sweeper"))
+    .unique();
+
+/**
+ * Makes sure a sweep is coming. The sweeper reschedules itself while anyone
+ * is in the world and stops when it's empty, so an empty world costs nothing.
+ */
+const ensureSweeper = async (ctx: MutationCtx, now: number) => {
+  const meta = await sweeperMeta(ctx);
+  // A run is pending, and not overdue enough to have been lost.
+  if (meta?.sweepAt !== undefined && meta.sweepAt > now - SWEEP_EVERY_MS) return;
+  const sweepAt = now + SWEEP_EVERY_MS;
+  if (meta) await ctx.db.patch("worldMeta", meta._id, { sweepAt });
+  else await ctx.db.insert("worldMeta", { key: "sweeper", sweepAt });
+  await ctx.scheduler.runAt(sweepAt, internal.world.sweep, {});
+};
+
+const roomWithSpace = async (ctx: MutationCtx): Promise<Doc<"worldRooms">> => {
+  const rooms = await ctx.db
+    .query("worldRooms")
+    .withIndex("by_place_and_instance", (q) => q.eq("place", WORLD_PLACE))
+    .take(ROOM_SCAN);
+  const open = rooms.find((room) => room.memberCount < ROOM_CAP);
+  if (open) return open;
+  // The lowest instance number no room is using.
+  const used = new Set(rooms.map((room) => room.instance));
+  let instance = 1;
+  while (used.has(instance)) instance++;
+  const roomId = await ctx.db.insert("worldRooms", { place: WORLD_PLACE, instance, memberCount: 0 });
+  return (await ctx.db.get("worldRooms", roomId))!;
+};
+
+/**
+ * Enters the garden: the first room with space, or a new one. Someone already
+ * in it (another tab, or a phone that lost signal) keeps their place.
+ */
+export const join = mutation({
+  args: {},
+  returns: v.object({
+    roomId: v.id("worldRooms"),
+    memberId: v.id("worldMembers"),
+    instance: v.number(),
+    serverNow: v.number(),
+  }),
+  handler: async (ctx) => {
+    const email = await requireEmail(ctx);
+    const now = Date.now();
+    let member = await memberByEmail(ctx, email);
+    if (member && !(await stateOf(ctx, member._id))) {
+      await removeMember(ctx, member);
+      member = null;
+    }
+    let room = member && (await ctx.db.get("worldRooms", member.roomId));
+    if (!member || !room) {
+      if (member) await removeMember(ctx, member);
+      room = await roomWithSpace(ctx);
+      const memberId = await ctx.db.insert("worldMembers", {
+        roomId: room._id,
+        email,
+        name: await nameFor(ctx, email),
+        look: lookFor(email),
+        joinedAt: now,
+      });
+      const spawn = spawnFor(email);
+      await ctx.db.insert("worldState", {
+        memberId,
+        fromX: spawn.x,
+        fromZ: spawn.z,
+        toX: spawn.x,
+        toZ: spawn.z,
+        startedAt: now,
+        moveBucket: fullBucket("move", now),
+        actBucket: fullBucket("act", now),
+        sayBucket: fullBucket("say", now),
+      });
+      await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
+      member = (await ctx.db.get("worldMembers", memberId))!;
+    }
+    await touchPresence(ctx, member._id, now);
+    await ensureSweeper(ctx, now);
+    return { roomId: room._id, memberId: member._id, instance: room.instance, serverNow: now };
+  },
+});
+
+/** Leaves the garden at once. A phone that can't say goodbye is swept later. */
+export const leave = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const email = await requireEmail(ctx);
+    const member = await memberByEmail(ctx, email);
+    if (member) await removeMember(ctx, member);
+    return null;
+  },
+});
+
+const turnedAway = v.object({ ok: v.literal(false), retryInMs: v.number(), serverNow: v.number() });
+
+const spend = (kind: BucketKind, state: Doc<"worldState">, now: number) =>
+  takeToken(kind, state[`${kind}Bucket`], now);
+
+/**
+ * Walks to a spot: one write per tap. The walk starts where the server says
+ * the person is now, so nobody can teleport, and ends inside the courtyard.
+ */
+export const move = mutation({
+  args: { toX: v.number(), toZ: v.number() },
+  returns: v.union(v.object({ ok: v.literal(true), ...worldWalkFields, serverNow: v.number() }), turnedAway),
+  handler: async (ctx, { toX, toZ }) => {
+    const { member, state } = await requireMe(ctx);
+    const now = Date.now();
+    const token = spend("move", state, now);
+    if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    const from = posAt(state, now);
+    const to = clampTarget(toX, toZ);
+    const walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
+    await ctx.db.patch("worldState", state._id, { ...walk, moveBucket: token.bucket });
+    await touchPresence(ctx, member._id, now);
+    return { ok: true as const, ...walk, serverNow: now };
+  },
+});
+
+const done = v.union(v.object({ ok: v.literal(true), serverNow: v.number() }), turnedAway);
+
+/** An emote over your head, played on every phone. */
+export const act = mutation({
+  args: { emote: v.string() },
+  returns: done,
+  handler: async (ctx, { emote }) => {
+    if (!isEmote(emote)) throw new ConvexError("That emote isn't one of the choices.");
+    const { member, state } = await requireMe(ctx);
+    const now = Date.now();
+    const token = spend("act", state, now);
+    if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    await ctx.db.patch("worldState", state._id, { act: { emote, at: now }, actBucket: token.bucket });
+    await touchPresence(ctx, member._id, now);
+    return { ok: true as const, serverNow: now };
+  },
+});
+
+/** A chat line: the bubble over your head, and a line in the room's log. */
+export const say = mutation({
+  args: { text: v.string() },
+  returns: done,
+  handler: async (ctx, args) => {
+    const text = cleanLine(args.text);
+    if (!text) throw new ConvexError("Write something first.");
+    const { email, member, state } = await requireMe(ctx);
+    const now = Date.now();
+    // The same line again straight after is a double tap, not a new line.
+    if (state.say?.text === text && now - state.say.at < 5000) return { ok: true as const, serverNow: now };
+    const token = spend("say", state, now);
+    if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    await ctx.db.patch("worldState", state._id, { say: { text, at: now }, sayBucket: token.bucket });
+    await ctx.db.insert("worldChat", { roomId: member.roomId, memberId: member._id, email, name: member.name, text, at: now });
+    await touchPresence(ctx, member._id, now);
+    return { ok: true as const, serverNow: now };
+  },
+});
+
+/**
+ * "Still here", sent only after HEARTBEAT_IDLE_MS without another action.
+ * `present: false` tells the app it was swept and should join again.
+ */
+export const heartbeat = mutation({
+  args: {},
+  returns: v.object({ present: v.boolean(), serverNow: v.number() }),
+  handler: async (ctx) => {
+    const email = await requireEmail(ctx);
+    const now = Date.now();
+    const member = await memberByEmail(ctx, email);
+    if (!member) return { present: false, serverNow: now };
+    await touchPresence(ctx, member._id, now);
+    return { present: true, serverNow: now };
+  },
+});
+
+/** The caller's member row, when they're in this room. */
+const meIn = async (ctx: Ctx, roomId: Id<"worldRooms">) => {
+  const email = await requireEmail(ctx);
+  const member = await memberByEmail(ctx, email);
+  return member?.roomId === roomId ? member : null;
+};
+
+/**
+ * Who's in the room, without anyone blocked either way. Changes only when
+ * someone joins or leaves. Null when the caller isn't in the room.
+ */
+export const roster = query({
+  args: { roomId: v.id("worldRooms") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      instance: v.number(),
+      members: v.array(
+        v.object({ memberId: v.id("worldMembers"), name: v.string(), look: worldLookValidator, isMe: v.boolean() })
+      ),
+    })
+  ),
+  handler: async (ctx, { roomId }) => {
+    const me = await meIn(ctx, roomId);
+    const room = me && (await ctx.db.get("worldRooms", roomId));
+    if (!me || !room) return null;
+    const rows = await ctx.db
+      .query("worldMembers")
+      .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+      .take(ROOM_CAP);
+    const members = [];
+    for (const row of rows) {
+      if (await blockedEither(ctx, me.email, row.email)) continue;
+      members.push({ memberId: row._id, name: row.name, look: row.look, isMe: row._id === me._id });
+    }
+    return { instance: room.instance, members };
+  },
+});
+
+/**
+ * One member's walk, emote and line. Each phone subscribes once per person,
+ * so a tap pushes one small row, not the whole room.
+ */
+export const state = query({
+  args: { memberId: v.id("worldMembers") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      ...worldWalkFields,
+      act: v.optional(v.object({ emote: v.string(), at: v.number() })),
+      say: v.optional(v.object({ text: v.string(), at: v.number() })),
+    })
+  ),
+  handler: async (ctx, { memberId }) => {
+    const member = await ctx.db.get("worldMembers", memberId);
+    const me = member && (await meIn(ctx, member.roomId));
+    if (!member || !me || (await blockedEither(ctx, me.email, member.email))) return null;
+    const row = await stateOf(ctx, memberId);
+    if (!row) return null;
+    const { fromX, fromZ, toX, toZ, startedAt, act, say } = row;
+    return { fromX, fromZ, toX, toZ, startedAt, act, say };
+  },
+});
+
+/** The room's latest lines, newest first, for the list view. */
+export const chatLog = query({
+  args: { roomId: v.id("worldRooms") },
+  returns: v.union(
+    v.null(),
+    v.array(
+      v.object({
+        id: v.id("worldChat"),
+        memberId: v.id("worldMembers"),
+        name: v.string(),
+        text: v.string(),
+        at: v.number(),
+        isMe: v.boolean(),
+      })
+    )
+  ),
+  handler: async (ctx, { roomId }) => {
+    const me = await meIn(ctx, roomId);
+    if (!me) return null;
+    const rows = await ctx.db
+      .query("worldChat")
+      .withIndex("by_roomId_and_at", (q) => q.eq("roomId", roomId))
+      .order("desc")
+      .take(CHAT_LOG_SIZE);
+    const lines = [];
+    for (const row of rows) {
+      if (await blockedEither(ctx, me.email, row.email)) continue;
+      lines.push({ id: row._id, memberId: row.memberId, name: row.name, text: row.text, at: row.at, isMe: row.email === me.email });
+    }
+    return lines;
+  },
+});
+
+/** Never see someone in the world again, and they never see you. */
+export const block = mutation({
+  args: { memberId: v.id("worldMembers") },
+  returns: v.null(),
+  handler: async (ctx, { memberId }) => {
+    const email = await requireEmail(ctx);
+    const other = await ctx.db.get("worldMembers", memberId);
+    if (!other) throw new ConvexError("They've already left the garden.");
+    if (other.email === email) throw new ConvexError("You can't block yourself.");
+    if (!(await blocks(ctx, email, other.email))) {
+      await ctx.db.insert("worldBlocks", { email, blockedEmail: other.email, blockedName: other.name });
+    }
+    return null;
+  },
+});
+
+export const unblock = mutation({
+  args: { blockId: v.id("worldBlocks") },
+  returns: v.null(),
+  handler: async (ctx, { blockId }) => {
+    const email = await requireEmail(ctx);
+    const row = await ctx.db.get("worldBlocks", blockId);
+    if (row?.email === email) await ctx.db.delete("worldBlocks", blockId);
+    return null;
+  },
+});
+
+/** The people the caller has blocked. */
+export const myBlocks = query({
+  args: {},
+  returns: v.array(v.object({ id: v.id("worldBlocks"), name: v.string() })),
+  handler: async (ctx) => {
+    const email = await requireEmail(ctx);
+    const rows = await ctx.db
+      .query("worldBlocks")
+      .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email))
+      .take(200);
+    return rows.map((row) => ({ id: row._id, name: row.blockedName }));
+  },
+});
+
+/**
+ * Reports someone, copying their recent lines and the room's around them, so
+ * the report outlives the 15-minute chat.
+ */
+export const report = mutation({
+  args: { memberId: v.id("worldMembers"), reason: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const email = await requireEmail(ctx);
+    const reason = args.reason.trim().slice(0, 500);
+    if (!reason) throw new ConvexError("Say what happened.");
+    const other = await ctx.db.get("worldMembers", args.memberId);
+    if (!other) throw new ConvexError("They've already left the garden.");
+    if (other.email === email) throw new ConvexError("You can't report yourself.");
+    const now = Date.now();
+    const recent = await ctx.db
+      .query("worldReports")
+      .withIndex("by_reporterEmail_and_createdAt", (q) =>
+        q.eq("reporterEmail", email).gt("createdAt", now - REPORT_WINDOW_MS)
+      )
+      .take(REPORTS_PER_WINDOW);
+    if (recent.length >= REPORTS_PER_WINDOW) {
+      throw new ConvexError("You've sent a lot of reports. Try again in a few minutes, or talk to a leader.");
+    }
+    const room = await ctx.db.get("worldRooms", other.roomId);
+    const rows = await ctx.db
+      .query("worldChat")
+      .withIndex("by_roomId_and_at", (q) => q.eq("roomId", other.roomId))
+      .order("desc")
+      .take(REPORT_CONTEXT_LINES);
+    await ctx.db.insert("worldReports", {
+      reporterEmail: email,
+      reportedEmail: other.email,
+      reportedName: other.name,
+      place: room?.place ?? WORLD_PLACE,
+      instance: room?.instance ?? 0,
+      reason,
+      lines: rows
+        .reverse()
+        .map((row) => ({ name: row.name, text: row.text, at: row.at, reported: row.email === other.email })),
+      createdAt: now,
+    });
+    return null;
+  },
+});
+
+/**
+ * Removes people who went quiet, old chat lines and empty rooms. Runs every
+ * SWEEP_EVERY_MS while anyone is in the world, and once a day as a backstop.
+ */
+export const sweep = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const stale = await ctx.db
+      .query("worldPresence")
+      .withIndex("by_lastSeen", (q) => q.lt("lastSeen", now - PRESENCE_TTL_MS))
+      .take(SWEEP_BATCH);
+    for (const presence of stale) {
+      const member = await ctx.db.get("worldMembers", presence.memberId);
+      if (member) await removeMember(ctx, member);
+      else await ctx.db.delete("worldPresence", presence._id);
+    }
+    const old = await ctx.db
+      .query("worldChat")
+      .withIndex("by_at", (q) => q.lt("at", now - CHAT_TTL_MS))
+      .take(SWEEP_BATCH * 2);
+    for (const row of old) await ctx.db.delete("worldChat", row._id);
+    const rooms = await ctx.db.query("worldRooms").take(ROOM_SCAN);
+    for (const room of rooms) {
+      const lines = await ctx.db
+        .query("worldChat")
+        .withIndex("by_roomId_and_at", (q) => q.eq("roomId", room._id))
+        .order("desc")
+        .take(CHAT_ROOM_CAP + SWEEP_BATCH);
+      for (const row of lines.slice(CHAT_ROOM_CAP)) await ctx.db.delete("worldChat", row._id);
+    }
+    const meta = await sweeperMeta(ctx);
+    const anyone = (await ctx.db.query("worldPresence").first()) !== null;
+    if (!anyone) {
+      if (meta) await ctx.db.patch("worldMeta", meta._id, { sweepAt: undefined });
+      return null;
+    }
+    // The chained run reschedules; the daily backstop only restarts a lost chain.
+    if (meta?.sweepAt === undefined || meta.sweepAt <= now + 1000) {
+      const sweepAt = now + SWEEP_EVERY_MS;
+      if (meta) await ctx.db.patch("worldMeta", meta._id, { sweepAt });
+      else await ctx.db.insert("worldMeta", { key: "sweeper", sweepAt });
+      await ctx.scheduler.runAt(sweepAt, internal.world.sweep, {});
+    }
+    return null;
+  },
+});
