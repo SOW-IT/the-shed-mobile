@@ -15,7 +15,7 @@ All notable changes to **The SHED** mobile app. This project follows
   slide under the floating beams (the up and down arrow keys on a computer).
   Flap: tap to flap through the gaps. The longer you last, the higher your
   score, and each game remembers your best on this device. They need no
-  internet at all.
+  internet and no sign-in.
 - **A way in when there's no connection.** If The SHED can't connect when you
   open it, you now see "You're offline" with a button to play a game while you
   wait, instead of a loading screen that never finishes. If the connection
@@ -23,7 +23,8 @@ All notable changes to **The SHED** mobile app. This project follows
   appears at the top. Once you're back online, one tap takes you back into The
   SHED. A game is never closed on you.
 - **A leaderboard for each game.** It shows the top ten scores at SOW, one per
-  person and by name, plus your own best and your place. Scores you set
+  person and by name, plus your own best and your place. Anyone can look at
+  it, signed in or not. Scores you set
   offline or signed out are kept on your device and go up on their own once
   you're online and signed in. Sending the same score twice changes nothing,
   and scores that can't be real are turned away.

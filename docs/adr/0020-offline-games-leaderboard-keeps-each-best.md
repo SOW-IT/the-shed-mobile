@@ -22,8 +22,11 @@ What we weighed:
   sense: a whole number, under each game's cap, no more points than the run's
   length allows (`SCORE_LIMITS` in `shared/games.ts`), and an end time that
   isn't in the future or over a year old. It turns away a typo or a crude
-  edit, not a determined cheat. Only signed-in people can publish, and the
-  board is only shown to them, since it carries members' names.
+  edit, not a determined cheat. Only signed-in people can publish. Daniel
+  asked (2026-11-22) for the games and the board to work without signing
+  in, so the leaderboard query is a public read: it shows display names and
+  scores, never emails, and a signed-out caller simply has no best of their
+  own on it.
 - **Detecting offline.** The app has no network library, and adding one is a
   native change that waits for a store build. The connection that matters is
   the one to Convex, so `useOffline` watches the Convex client's connection
