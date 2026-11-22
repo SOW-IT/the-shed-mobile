@@ -9,19 +9,19 @@
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
 | native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 49s |  |
+| lint | ✔ pass | 41s |  |
 | unused code (knip) | ✔ pass | 4s |  |
-| typecheck | ✔ pass | 13s |  |
-| related unit tests | ✔ pass | 13s | 1393 passed (1393) |
+| typecheck | ✔ pass | 12s |  |
+| related unit tests | ✔ pass | 11s | 1391 passed (1391) |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 15s | before functions on :3292 |
-| before: web | ✔ pass | 99s | 14 screens, 0 broken. |
-| before: iOS reset | ✔ pass | 2s |  |
-| before: iOS | ✔ pass | 103s | 9 screenshots, every one settled |
-| after: local backend | ✔ pass | 16s | after functions on :3292 |
-| after: web | ✔ pass | 91s | 14 screens, 0 broken. |
-| after: iOS reset | ✔ pass | 2s |  |
-| after: iOS | ✔ pass | 151s | 9 screenshots, every one settled |
+| before: local backend | ✔ pass | 14s | before functions on :3292 |
+| before: web | ✔ pass | 76s | 14 screens, 0 broken. |
+| before: iOS reset | ✔ pass | 1s |  |
+| before: iOS | ✔ pass | 89s | 9 screenshots, every one settled |
+| after: local backend | ✔ pass | 15s | after functions on :3292 |
+| after: web | ✔ pass | 77s | 14 screens, 0 broken. |
+| after: iOS reset | ✔ pass | 1s |  |
+| after: iOS | ✔ pass | 75s | 9 screenshots, every one settled |
 
 ## Screenshots
 
