@@ -142,7 +142,7 @@
         "src/app/checkin/**",
         "src/components/attendance/**",
         "src/components/AttendanceRow.tsx",
-        "src/lib/{attendanceCsv,checkInDevice}.ts",
+        "src/lib/{attendanceCsv,checkInDevice,rollCallColumns}.ts",
         "src/hooks/useAttendanceSubgroup.ts",
         "convex/{attendance*,events,eventGuests,checkIn,memberCount,memberPairSuggestions,memberRoles,mergeSuggestions,rollCallOrder,rosterHistory,staffMembers}.ts",
         "shared/{rollcall*,attendanceMemberMeta,attendanceTags,checkIn*,eventGuests,memberMerge,memberRole,mergeSuggestions,rollCallLikelihood}.ts"
@@ -241,6 +241,17 @@
         "shared/mentoring.ts"
       ],
       "routes": ["/mentoring"]
+    },
+    "games": {
+      "files": [
+        "src/app/games/**",
+        "src/components/games/**",
+        "src/lib/games/**",
+        "src/hooks/useOffline.ts",
+        "convex/{gameScores,gameScoreData}.ts",
+        "shared/games.ts"
+      ],
+      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/leaderboard", "/games/leaderboard?game=runner"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]

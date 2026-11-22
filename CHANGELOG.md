@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.11.65] - 2026-11-22
+## [2.12.2] - 2026-11-22
 
 ### Changed
 - **The app is smaller, and the Event Requests page loads faster on the
@@ -17,6 +17,56 @@ All notable changes to **The SHED** mobile app. This project follows
   of the 1024-pixel splash image. Each over-the-air update and the app
   download carry about 1.9 MB less, and a signed-in visit to Event Requests
   on the web downloads 1.6 MB less. Nothing looks different.
+
+## [2.12.0] - 2026-11-22
+
+### Added
+- **Three little games for when you're offline.** Sky Shooter: drag to fly a
+  plane that fires on its own while enemies come in from every edge. Mystic
+  Man: he runs faster and faster; swipe up to jump the rocks and swipe down to
+  slide under the floating beams (the up and down arrow keys on a computer).
+  Flap: tap to flap through the gaps. The longer you last, the higher your
+  score, and each game remembers your best on this device. They need no
+  internet and no sign-in.
+- **A way in when there's no connection.** If The SHED can't connect when you
+  open it, you now see "You're offline" with a button to play a game while you
+  wait, instead of a loading screen that never finishes. If the connection
+  drops while you're using the app, a small "Offline · Play a game" note
+  appears at the top. When the connection comes back, a small "Online" note
+  shows for a moment and the back button takes you into The SHED. Nothing
+  stops, reloads or closes a game you're playing.
+- **The games fill the screen.** While you play, the side menu and status bar
+  step aside; a small back button and the game-over card are the ways out.
+- **A leaderboard for each game.** It shows the top ten scores at SOW, one per
+  person and by name, plus your own best and your place. Anyone can look at
+  it, signed in or not. Scores you set
+  offline or signed out are kept on your device and go up on their own once
+  you're online and signed in. Sending the same score twice changes nothing,
+  and scores that can't be real are turned away.
+
+## [2.11.64] - 2026-11-22
+
+### Added
+- **Fix a guest's name after adding them.** On an event's attendance page, tap
+  the left side of a guest's row (or swipe it right) and tap the pencil to fix
+  a typo. The name changes on that event only, and the event's total stays the
+  same. You can do it after the event ends too, once editing is turned on.
+- **Total attendance in the page header.** The chip at the top right of an
+  event's attendance page now reads **Total**: everyone signed in plus guests,
+  the same number the event's export and averages use.
+
+### Changed
+- **Add a guest from beside "Not signed in".** The small **+ Guest** button now
+  sits next to the Not signed in heading, so you no longer scroll to the end of
+  Signed in to find it. The name box opens just below it.
+
+### Fixed
+- **"Not signed in" scrolls again after an event ends.** On a wide but short
+  window, such as a laptop browser window, the ended-event
+  note and Enable editing button left so little room that both lists grew to
+  their full length. They stopped scrolling, and "Not signed in" never loaded
+  past its first ten people. The lists now keep room for at least three people
+  each, and the page scrolls to show them.
 
 ## [2.11.62] - 2026-11-22
 

@@ -36,6 +36,15 @@ export const listByEvent = query({
   },
 });
 
+const cleanGuestName = (name: string): string => {
+  const trimmed = name.trim().replace(/\s+/g, " ");
+  if (!trimmed) throw new ConvexError("A guest's name is required.");
+  if (trimmed.length > EVENT_GUEST_NAME_MAX) {
+    throw new ConvexError(`Keep a guest's name under ${EVENT_GUEST_NAME_MAX} characters.`);
+  }
+  return trimmed;
+};
+
 export const add = mutation({
   args: { eventId: v.id("events"), name: v.string() },
   returns: v.id("eventGuests"),
@@ -43,11 +52,7 @@ export const add = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const event = await ctx.db.get("events", eventId);
     if (!event) throw new ConvexError("Event not found.");
-    const trimmed = name.trim().replace(/\s+/g, " ");
-    if (!trimmed) throw new ConvexError("A guest's name is required.");
-    if (trimmed.length > EVENT_GUEST_NAME_MAX) {
-      throw new ConvexError(`Keep a guest's name under ${EVENT_GUEST_NAME_MAX} characters.`);
-    }
+    const trimmed = cleanGuestName(name);
     const existing = await ctx.db
       .query("eventGuests")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
@@ -70,6 +75,31 @@ export const add = mutation({
       eventId,
     });
     return id;
+  },
+});
+
+// Fixes a guest's name, such as a typo. Anyone who can add a guest can rename
+// one, and a rename doesn't change the headcount, so it's allowed after the
+// event ends too.
+export const rename = mutation({
+  args: { guestId: v.id("eventGuests"), name: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { guestId, name }) => {
+    const { email: actorEmail } = await requireProfile(ctx);
+    const guest = await ctx.db.get("eventGuests", guestId);
+    if (!guest) throw new ConvexError("This guest has been removed.");
+    const trimmed = cleanGuestName(name);
+    if (trimmed === guest.name) return null;
+    await ctx.db.patch("eventGuests", guestId, { name: trimmed });
+    const event = await ctx.db.get("events", guest.eventId);
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "attendance",
+      action: "attendance.guestRename",
+      summary: `Renamed ${guest.name} (guest) to ${trimmed} in ${auditEventName(event)}`,
+      eventId: guest.eventId,
+    });
+    return null;
   },
 });
 

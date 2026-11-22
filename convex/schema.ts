@@ -20,6 +20,7 @@ import {
   subFormKindValidator,
   subFormStatusValidator,
 } from "./eventRequestData";
+import { gameIdValidator } from "./gameScoreData";
 import { grievanceFields, grievanceStatusValidator } from "./grievanceData";
 import { homeBlockValidator } from "./homeData";
 import { metricsDataValidator, staffTrendsValidator } from "./metricsData";
@@ -126,6 +127,20 @@ export default defineSchema({
     version: v.string(),
     seenAt: v.number(),
   }).index("by_email_and_platform", ["email", "platform"]),
+
+  // Each person's best run of each offline mini-game, for its leaderboard.
+  gameScores: defineTable({
+    email: v.string(),
+    game: gameIdValidator,
+    score: v.number(),
+    // The phone's id for the run, so a retried submit changes nothing.
+    runId: v.string(),
+    durationMs: v.number(),
+    playedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_email_and_game", ["email", "game"])
+    .index("by_game_and_score", ["game", "score"]),
 
   appUpdatePolicy: defineTable({
     platform: v.union(v.literal("ios"), v.literal("android")),
