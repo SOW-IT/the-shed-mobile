@@ -879,13 +879,15 @@ export default function EventAttendanceScreen() {
 
   const onRenameGuest = async () => {
     if (!renaming || !canEdit || savingRename) return;
+    const { guestId } = renaming;
     const name = renaming.name.trim();
     if (!name) return;
     hapticSelect();
     setSavingRename(true);
     try {
-      await renameGuest({ guestId: renaming.guestId, name });
-      setRenaming(null);
+      await renameGuest({ guestId, name });
+      // Another guest's name box may have opened while this one saved.
+      setRenaming((current) => (current?.guestId === guestId ? null : current));
     } catch (e) {
       setToast({ text: errorMessage(e) });
     } finally {
