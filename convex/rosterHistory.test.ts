@@ -145,7 +145,7 @@ describe("roster history snapshot", () => {
           .query("eventAttendanceCounts")
           .withIndex("by_eventId", (q) => q.eq("eventId", tagged))
           .first();
-        if (row) await ctx.db.patch(row._id, { count });
+        if (row) await ctx.db.patch("eventAttendanceCounts", row._id, { count });
         else await ctx.db.insert("eventAttendanceCounts", { eventId: tagged, count });
       });
     const taggedAttendees = async () => {
@@ -213,7 +213,7 @@ describe("roster history snapshot", () => {
         .query("eventAttendanceCounts")
         .withIndex("by_eventId", (q) => q.eq("eventId", old))
         .first();
-      await ctx.db.patch(row!._id, { count: 1 });
+      await ctx.db.patch("eventAttendanceCounts", row!._id, { count: 1 });
     });
     const attendeesOfOld = async () => {
       const snapshot = (await t.run((ctx) => ctx.db.query("rosterHistorySnapshots").first()))!;
@@ -243,7 +243,7 @@ describe("roster history snapshot", () => {
   test("reads a snapshot saved in the old shape, then rewrites it packed", async () => {
     const { t, current, tagged, cat } = await setup();
     await t.run(async (ctx) => {
-      const event = (await ctx.db.get(tagged))!;
+      const event = (await ctx.db.get("events", tagged))!;
       await ctx.db.insert("rosterHistorySnapshots", {
         year: YEAR,
         builtAt: PINNED_NOW,

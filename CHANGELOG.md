@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.58] - 2026-11-22
+
+### Changed
+- **Backend reads and writes name their table.** Every `ctx.db.get`,
+  `patch`, `replace` and `delete` passes the table name with the id, as the
+  Convex guidelines ask, and lint now requires it. Nothing changes for people
+  using the app.
+
 ## [2.11.57] - 2026-11-22
 
 ### Removed

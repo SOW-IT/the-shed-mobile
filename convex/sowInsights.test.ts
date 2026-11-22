@@ -44,7 +44,7 @@ async function setup() {
         email,
         year,
         memberId,
-        name: (await ctx.db.get(memberId))!.name,
+        name: (await ctx.db.get("attendanceMembers", memberId))!.name,
         assignments: [{ role, ...(university ? { university } : { department: "Ministry" }) }],
       });
     await profile(lee, "lee@sow.org.au", 2026, "Student Leader", UNSW);

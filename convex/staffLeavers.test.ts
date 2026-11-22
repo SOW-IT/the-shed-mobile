@@ -21,7 +21,7 @@ async function setup() {
   await t.run(async (ctx) => {
     const adminRow = await ctx.db.insert("attendanceMembers", { name: "Admin" });
     for (const seeded of await ctx.db.query("staffProfiles").collect()) {
-      await ctx.db.patch(seeded._id, { memberId: adminRow });
+      await ctx.db.patch("staffProfiles", seeded._id, { memberId: adminRow });
     }
   });
   const fields = await t.run(async (ctx) => ({
@@ -50,8 +50,8 @@ async function setup() {
     );
   const member = (name: string, metadata?: Record<string, string>) =>
     t.run((ctx) => ctx.db.insert("attendanceMembers", { name, metadata }));
-  const getProfile = (id: Id<"staffProfiles">) => t.run((ctx) => ctx.db.get(id));
-  const getMember = (id: Id<"attendanceMembers">) => t.run((ctx) => ctx.db.get(id));
+  const getProfile = (id: Id<"staffProfiles">) => t.run((ctx) => ctx.db.get("staffProfiles", id));
+  const getMember = (id: Id<"attendanceMembers">) => t.run((ctx) => ctx.db.get("attendanceMembers", id));
   const members = () => t.run((ctx) => ctx.db.query("attendanceMembers").collect());
   const logs = (action: string) =>
     t.run(async (ctx) =>
@@ -198,7 +198,7 @@ describe("staffRollover", () => {
     const s = await setup();
     const row = await s.member("Una Ssigned");
     const gone = await s.member("Gone");
-    await s.t.run((ctx) => ctx.db.delete(gone));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMembers", gone));
     await s.profile("una.ssigned@sow.org.au", LAST, undefined, { memberId: row, assignments: [] });
     await s.profile("un.linked@sow.org.au", LAST);
     await s.profile("dang.ling@sow.org.au", LAST, undefined, { memberId: gone });
@@ -209,7 +209,7 @@ describe("staffRollover", () => {
   test("a dangling link on this year's profile is treated as unlinked", async () => {
     const s = await setup();
     const gone = await s.member("Gone");
-    await s.t.run((ctx) => ctx.db.delete(gone));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMembers", gone));
     const profileId = await s.profile(NEWBIE, YEAR, "New Bie", { memberId: gone });
 
     const result = await s.rollover({ dryRun: false });

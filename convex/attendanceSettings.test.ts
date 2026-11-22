@@ -281,7 +281,7 @@ describe("attendance tags in two lists", () => {
       ],
       deleteIds: [],
     });
-    const saved = await t.run((ctx) => ctx.db.get(weekly._id));
+    const saved = await t.run((ctx) => ctx.db.get("attendanceTags", weekly._id));
     expect(saved).toMatchObject({ list: "weeklies", colour: "cyan" });
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ id: event._id, name: "Party", list: "weeklies" }],
@@ -304,7 +304,7 @@ describe("attendance tags in two lists", () => {
       leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "seasons", list: "events" }], deleteIds: [] })
     ).rejects.toThrow(/Other events already has/);
     await leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: old, name: "Seasons" }], deleteIds: [] });
-    expect((await t.run((ctx) => ctx.db.get(old)))!.list).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get("attendanceTags", old)))!.list).toBeUndefined();
     await leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "Seasons", list: "weeklies" }], deleteIds: [] });
     expect(await listed(t)).toEqual(["-:Seasons", "weeklies:Seasons"]);
   });
@@ -323,7 +323,7 @@ describe("attendance tags in two lists", () => {
       tags: [{ id: weeklies, name: "Weeklies", colour: "amber" }],
       deleteIds: [],
     });
-    expect(await t.run((ctx) => ctx.db.get(weeklies))).toMatchObject({ name: "Weeklies", colour: "amber" });
+    expect(await t.run((ctx) => ctx.db.get("attendanceTags", weeklies))).toMatchObject({ name: "Weeklies", colour: "amber" });
     expect(await t.run((ctx) => ctx.db.query("attendanceTags").collect())).toHaveLength(1);
   });
 
@@ -332,9 +332,9 @@ describe("attendance tags in two lists", () => {
     const leader = asUser(t, LEADER);
     const old = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Weekly Meeting" }));
     await leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: old, name: "Weekly Catch-up" }], deleteIds: [] });
-    expect(await t.run((ctx) => ctx.db.get(old))).toMatchObject({ name: "Weekly Catch-up" });
+    expect(await t.run((ctx) => ctx.db.get("attendanceTags", old))).toMatchObject({ name: "Weekly Catch-up" });
     await leader.mutation(api.attendanceTags.saveAll, { tags: [], deleteIds: [old] });
-    expect(await t.run((ctx) => ctx.db.get(old))).toBeNull();
+    expect(await t.run((ctx) => ctx.db.get("attendanceTags", old))).toBeNull();
   });
 
   test("no other tag can take the Weeklies name, in either list", async () => {
@@ -360,7 +360,7 @@ describe("attendance tags in two lists", () => {
     const leader = asUser(t, LEADER);
     const id = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Gone", list: "events" }));
     await leader.mutation(api.attendanceTags.saveAll, { tags: [{ id, name: "Gone" }], deleteIds: [id] });
-    expect(await t.run((ctx) => ctx.db.get(id))).toBeNull();
+    expect(await t.run((ctx) => ctx.db.get("attendanceTags", id))).toBeNull();
   });
 });
 
@@ -569,7 +569,7 @@ describe("attendance metadata", () => {
         type: "input",
         order: 99,
       });
-      await ctx.db.delete(id);
+      await ctx.db.delete("attendanceMetadata", id);
       return id;
     });
     const before = await leader.query(api.attendanceMetadata.list, {});

@@ -104,6 +104,7 @@ module.exports = defineConfig([
     rules: {
       "@convex-dev/no-old-registered-function-syntax": "error",
       "@convex-dev/require-args-validator": "error",
+      "@convex-dev/explicit-table-ids": "error",
       "@convex-dev/no-filter-in-query": "error",
       "@convex-dev/no-schema-import-cycle": "error",
       "@convex-dev/no-duplicate-indexes": "error",

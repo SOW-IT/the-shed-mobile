@@ -117,7 +117,7 @@ describe("turning check-in on and off", () => {
   test("a missing event is reported", async () => {
     const t = await setup();
     const eventId = await createEvent(t);
-    await t.run((ctx) => ctx.db.delete(eventId));
+    await t.run((ctx) => ctx.db.delete("events", eventId));
     await expect(asUser(t, ADMIN).mutation(api.checkIn.enable, { eventId })).rejects.toThrow(/not found/);
     await expect(asUser(t, ADMIN).mutation(api.checkIn.disable, { eventId })).rejects.toThrow(/not found/);
     expect(await asUser(t, ADMIN).query(api.checkIn.status, { eventId })).toBeNull();
@@ -298,7 +298,7 @@ describe("a leader handling the waiting list", () => {
     expect(fresh.match).toBeNull();
 
     const { memberId } = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: fresh.id });
-    const created = await t.run((ctx) => ctx.db.get(memberId));
+    const created = await t.run((ctx) => ctx.db.get("attendanceMembers", memberId));
     expect(created).toMatchObject({ name: "New Person", metadata: expect.objectContaining({ [await campusFieldId(t)]: "3" }) });
     await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: ben.id, memberId: benId });
     expect((await signedInIds(t, eventId)).sort()).toEqual([memberId, benId].sort());
@@ -311,12 +311,12 @@ describe("a leader handling the waiting list", () => {
     const { eventId, token } = await enabled(t, ["SOW"]);
     const annId = await t.run((ctx) => ctx.db.insert("attendanceMembers", { name: "Ann Lee" }));
     await t.mutation(api.checkIn.submit, { token, name: "Ann Lee", clientKey: "k" });
-    await t.run((ctx) => ctx.db.delete(annId));
+    await t.run((ctx) => ctx.db.delete("attendanceMembers", annId));
     const [row] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
     expect(row.match).toBeNull();
     const { memberId } = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id });
     expect(memberId).not.toBe(annId);
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", memberId)))?.metadata).toBeUndefined();
   });
 
   test("someone already signed in shows as such, and confirming them doesn't sign them in twice", async () => {
@@ -348,18 +348,18 @@ describe("a leader handling the waiting list", () => {
     await bare.mutation(api.checkIn.submit, { token: first.token, name: "Ann Lee", clientKey: "k" });
     const [a] = (await asUser(bare, ADMIN).query(api.checkIn.pending, { eventId: first.eventId }))!;
     const made = await asUser(bare, ADMIN).mutation(api.checkIn.confirm, { requestId: a.id });
-    expect((await bare.run((ctx) => ctx.db.get(made.memberId)))?.metadata).toBeUndefined();
+    expect((await bare.run((ctx) => ctx.db.get("attendanceMembers", made.memberId)))?.metadata).toBeUndefined();
 
     const t = await setup();
     await t.run(async (ctx) => {
       const field = (await ctx.db.query("attendanceMetadata").collect())[0];
-      await ctx.db.patch(field._id, { values: { "1": UNSW } });
+      await ctx.db.patch("attendanceMetadata", field._id, { values: { "1": UNSW } });
     });
     const second = await enabled(t);
     await t.mutation(api.checkIn.submit, { token: second.token, name: "Ben Ng", clientKey: "k" });
     const [b] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: second.eventId }))!;
     const other = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: b.id });
-    expect((await t.run((ctx) => ctx.db.get(other.memberId)))?.metadata).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", other.memberId)))?.metadata).toBeUndefined();
   });
 
   test("a single same-named member on another campus is offered, not assumed, and can be passed over", async () => {
@@ -406,9 +406,9 @@ describe("a leader handling the waiting list", () => {
     await t.mutation(api.checkIn.submit, { token, name: "Ann Lee", clientKey: "k" });
     await t.mutation(api.checkIn.submit, { token, name: "Ben Ng", clientKey: "k" });
     const [first, second] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
-    await t.run((ctx) => ctx.db.delete(first.id));
+    await t.run((ctx) => ctx.db.delete("checkInRequests", first.id));
     await expect(asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: first.id })).rejects.toThrow(/already/);
-    await t.run((ctx) => ctx.db.delete(eventId));
+    await t.run((ctx) => ctx.db.delete("events", eventId));
     await expect(asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: second.id })).rejects.toThrow(/not found/);
   });
 });
@@ -454,11 +454,11 @@ describe("sign-in times and new members' details", () => {
     const ann = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: rows[0].id });
     const ben = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: rows[1].id });
     const fieldId = await campusFieldId(t);
-    expect((await t.run((ctx) => ctx.db.get(ann.memberId)))?.metadata).toEqual({
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", ann.memberId)))?.metadata).toEqual({
       [fieldId]: "3",
       [yearId]: String(calendarYear - 1),
     });
-    expect((await t.run((ctx) => ctx.db.get(ben.memberId)))?.metadata?.[yearId]).toBe(String(calendarYear - 5));
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", ben.memberId)))?.metadata?.[yearId]).toBe(String(calendarYear - 5));
   });
 
   test("a year with no Year field to hold it, or a stored level that isn't on the list, is left off", async () => {
@@ -467,7 +467,7 @@ describe("sign-in times and new members' details", () => {
     await t.mutation(api.checkIn.submit, { token, name: "Ann Lee", yearLevel: "3", clientKey: "a" });
     const [row] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId }))!;
     const made = await asUser(t, ADMIN).mutation(api.checkIn.confirm, { requestId: row.id });
-    expect((await t.run((ctx) => ctx.db.get(made.memberId)))?.metadata).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", made.memberId)))?.metadata).toBeUndefined();
 
     const withYear = await setup(false);
     await yearFieldId(withYear);
@@ -483,7 +483,7 @@ describe("sign-in times and new members' details", () => {
       })
     );
     const old = await asUser(withYear, ADMIN).mutation(api.checkIn.confirm, { requestId });
-    expect((await withYear.run((ctx) => ctx.db.get(old.memberId)))?.metadata).toBeUndefined();
+    expect((await withYear.run((ctx) => ctx.db.get("attendanceMembers", old.memberId)))?.metadata).toBeUndefined();
   });
 });
 
@@ -526,8 +526,8 @@ describe("confirming every match at once", () => {
     const [ann] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: first.eventId }))!;
     const [ben] = (await asUser(t, ADMIN).query(api.checkIn.pending, { eventId: second.eventId }))!;
     await t.run(async (ctx) => {
-      await ctx.db.delete(annId);
-      await ctx.db.delete(second.eventId);
+      await ctx.db.delete("attendanceMembers", annId);
+      await ctx.db.delete("events", second.eventId);
     });
     await expect(t.mutation(api.checkIn.confirmMatched, { requestIds: [ann.id] })).rejects.toThrow();
     expect(
@@ -646,14 +646,14 @@ describe("someone a leader has already matched, checking in again from the same 
     const first = await enabled(t);
     await t.mutation(api.checkIn.submit, { token: first.token, name: "Jon Smith", clientKey: "phone" });
     const memberId = await confirmFirst(t, first.eventId, "Jon Smith");
-    await t.run((ctx) => ctx.db.patch(memberId, { name: "John Smith" }));
+    await t.run((ctx) => ctx.db.patch("attendanceMembers", memberId, { name: "John Smith" }));
 
     const second = await enabled(t);
     expect(
       await t.mutation(api.checkIn.submit, { token: second.token, name: "John Smith", clientKey: "phone" })
     ).toEqual({ status: "confirmed", automatic: true });
 
-    await t.run((ctx) => ctx.db.delete(memberId));
+    await t.run((ctx) => ctx.db.delete("attendanceMembers", memberId));
     const third = await enabled(t);
     expect(
       await t.mutation(api.checkIn.submit, { token: third.token, name: "Jon Smith", clientKey: "phone" })

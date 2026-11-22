@@ -134,7 +134,7 @@ export const dismiss = mutation({
     const profile = await latestStaffProfile(ctx, staffEmail);
     if (!profile) throw new ConvexError("Staff profile not found.");
     const staffKey = canonicalEmailKey(profile.email)!;
-    const member = await ctx.db.get(memberId);
+    const member = await ctx.db.get("attendanceMembers", memberId);
     if (!member) throw new ConvexError("That member no longer exists.");
     const existing = await ctx.db
       .query("mergeSuggestionDismissals")

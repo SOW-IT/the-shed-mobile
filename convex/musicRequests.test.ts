@@ -66,7 +66,7 @@ async function assignPraiseManager(
       .withIndex("by_year", (q) => q.eq("year", YEAR))
       .first();
     if (settings) {
-      await ctx.db.patch(settings._id, { praiseManagerEmails: [email] });
+      await ctx.db.patch("yearSettings", settings._id, { praiseManagerEmails: [email] });
     } else {
       await ctx.db.insert("yearSettings", {
         year: YEAR,
@@ -522,7 +522,7 @@ describe("music request indexed duplicates", () => {
       link: "https://example.com/manager-auto-approval",
     });
 
-    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+    const request = await t.run(async (ctx) => ctx.db.get("musicRequests", requestId));
 
     expect(request?.status).toBe("APPROVED");
     expect(request?.reviewedByEmail).toBe(ADMIN);
@@ -540,7 +540,7 @@ describe("music request indexed duplicates", () => {
     });
 
     await t.run(async (ctx) => {
-      await ctx.db.patch(requestId, {
+      await ctx.db.patch("musicRequests", requestId, {
         status: "DECLINED",
         reviewedByEmail: ADMIN,
         reviewedTime: Date.now(),
@@ -592,7 +592,7 @@ describe("music request indexed duplicates", () => {
       link: SPOTIFY,
     });
     await t.run(async (ctx) => {
-      await ctx.db.patch(declinedId, { status: "DECLINED" });
+      await ctx.db.patch("musicRequests", declinedId, { status: "DECLINED" });
     });
     const [declined] = await staff.query(api.musicRequests.myRequests, {});
     expect(declined).not.toHaveProperty("canRequestAgain");
@@ -623,7 +623,7 @@ describe("music request indexed duplicates", () => {
       link: SPOTIFY,
     });
     await t.run(async (ctx) => {
-      await ctx.db.patch(declinedId, { status: "DECLINED" });
+      await ctx.db.patch("musicRequests", declinedId, { status: "DECLINED" });
     });
 
     expect(
@@ -651,7 +651,7 @@ describe("music request indexed duplicates", () => {
       link: SPOTIFY,
     });
     await t.run(async (ctx) => {
-      await ctx.db.patch(declinedId, { status: "DECLINED" });
+      await ctx.db.patch("musicRequests", declinedId, { status: "DECLINED" });
     });
     const songs = [
       { title: "Batch Declined", artist: "Test Artist", link: SPOTIFY },
@@ -738,7 +738,7 @@ describe("music request indexed duplicates", () => {
 
     await manager.mutation(api.musicRequests.approve, { requestId });
 
-    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+    const request = await t.run(async (ctx) => ctx.db.get("musicRequests", requestId));
     expect(request?.status).toBe("APPROVED");
     expect(request?.reviewedByEmail).toBe(ADMIN);
     expect(request?.reviewedTime).toBeDefined();
@@ -761,7 +761,7 @@ describe("music request indexed duplicates", () => {
       reason: "Not suitable for this playlist",
     });
 
-    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+    const request = await t.run(async (ctx) => ctx.db.get("musicRequests", requestId));
     expect(request?.status).toBe("DECLINED");
     expect(request?.declineComment).toBe("Not suitable for this playlist");
     expect(request?.reviewedByEmail).toBe(ADMIN);
@@ -786,7 +786,7 @@ describe("music request indexed duplicates", () => {
       }),
     });
 
-    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+    const request = await t.run(async (ctx) => ctx.db.get("musicRequests", requestId));
     expect(request?.title).toBe("Edited Approved");
     expect(request?.status).toBe("APPROVED");
   });
@@ -803,7 +803,7 @@ describe("music request indexed duplicates", () => {
 
     await staff.mutation(api.musicRequests.remove, { requestId });
 
-    const request = await t.run(async (ctx) => ctx.db.get(requestId));
+    const request = await t.run(async (ctx) => ctx.db.get("musicRequests", requestId));
     expect(request).toBeNull();
   });
 
@@ -1029,7 +1029,7 @@ describe("Praise Manager administration", () => {
         .withIndex("by_year", (q) => q.eq("year", YEAR))
         .first();
       if (settings) {
-        await ctx.db.patch(settings._id, { praiseManagerEmails: [stored] });
+        await ctx.db.patch("yearSettings", settings._id, { praiseManagerEmails: [stored] });
       } else {
         await ctx.db.insert("yearSettings", {
           year: YEAR,
@@ -1049,7 +1049,7 @@ describe("Praise Manager administration", () => {
         .query("yearSettings")
         .withIndex("by_year", (q) => q.eq("year", YEAR))
         .first();
-      await ctx.db.patch(settings!._id, { praiseManagerEmails: [stored] });
+      await ctx.db.patch("yearSettings", settings!._id, { praiseManagerEmails: [stored] });
     });
     await admin.mutation(api.admin.removePraiseManager, {
       year: YEAR,
@@ -1062,7 +1062,7 @@ describe("Praise Manager administration", () => {
         .query("yearSettings")
         .withIndex("by_year", (q) => q.eq("year", YEAR))
         .first();
-      await ctx.db.patch(settings!._id, { praiseManagerEmails: [stored] });
+      await ctx.db.patch("yearSettings", settings!._id, { praiseManagerEmails: [stored] });
     });
     await admin.mutation(api.admin.removeStaffProfile, {
       year: YEAR,
@@ -1101,7 +1101,7 @@ describe("Praise Manager directory recognition", () => {
         .first();
 
       if (settings) {
-        await ctx.db.patch(settings._id, {
+        await ctx.db.patch("yearSettings", settings._id, {
           praiseManagerEmails: ["MUSIC.STAFF@SOW.ORG.AU"],
         });
       } else {
@@ -1240,7 +1240,7 @@ describe("Praise List details", () => {
           q.eq("email", STAFF).eq("year", YEAR),
         )
         .first();
-      await ctx.db.patch(profile!._id, { name: "Hana Doe" });
+      await ctx.db.patch("staffProfiles", profile!._id, { name: "Hana Doe" });
     });
     const staff = asUser(t, STAFF);
     await staff.mutation(api.musicRequests.submit, song());
@@ -1334,7 +1334,7 @@ describe("Praise List review follow-up", () => {
           q.eq("email", STAFF).eq("year", YEAR),
         )
         .first();
-      await ctx.db.patch(profile!._id, { name });
+      await ctx.db.patch("staffProfiles", profile!._id, { name });
     });
 
   const setPraiseManagers = (t: T, emails: string[]) =>
@@ -1343,7 +1343,7 @@ describe("Praise List review follow-up", () => {
         .query("yearSettings")
         .withIndex("by_year", (q) => q.eq("year", YEAR))
         .first();
-      await ctx.db.patch(settings!._id, { praiseManagerEmails: emails });
+      await ctx.db.patch("yearSettings", settings!._id, { praiseManagerEmails: emails });
     });
 
   test("the same YouTube video is refused whatever its title or link form", async () => {
