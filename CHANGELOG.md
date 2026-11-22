@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.11.62] - 2026-11-22
+
+### Changed
+- **`pr-status` applies the big-PR CodeRabbit rule, for contributors.**
+  `node scripts/pr-status.mjs <number>` now works out whether the PR needs
+  a CodeRabbit review: more than 300 changed lines of app or Convex code, or
+  a change to the schema, deletion or migration, auth or permissions, or
+  notifications. Small, config and tooling PRs don't. A review still counts
+  when it covered the same app and Convex changes as the head, so a clean
+  merge of `main` doesn't need a new one. A big PR with no review covering
+  its head now reports NOT DONE. `--big` and `--not-big` override the path
+  rules. The pr-shepherd skill follows the same rule. Nothing changes for
+  people using the app.
+
 ## [2.11.60] - 2026-11-22
 
 ### Changed
