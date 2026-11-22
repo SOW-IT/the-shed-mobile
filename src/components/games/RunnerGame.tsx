@@ -89,20 +89,32 @@ const Scene = ({ state, height }: { state: RunnerState; height: number }) => {
 };
 
 /** Mystic Man: he runs; swipe up to jump, down to slide. */
-export const RunnerGame = ({ onExit, onLeaderboard }: { onExit: () => void; onLeaderboard?: () => void }) => {
+export const RunnerGame = ({
+  onExit,
+  onLeaderboard,
+  active = true,
+}: {
+  onExit: () => void;
+  onLeaderboard?: () => void;
+  active?: boolean;
+}) => {
   const session = useGameSession<RunnerState>("runner");
   const { run, setRun, phase } = session;
   const [stage, onStageLayout] = useStage();
   const board = stage && fitBoard(stage, MAX_BOARD);
   const width = board?.width ?? 0;
+  const height = board?.height ?? 0;
   const preview = useMemo(() => newRunner(width, 1), [width]);
-  const latest = useLatest({ session, width });
+  // The board height the run started on; a shorter board later scales the scene.
+  const [runHeight, setRunHeight] = useState(0);
+  const latest = useLatest({ session, width, height });
 
-  useGameLoop(phase === "playing", (dt) => setRun((state) => state && advance(state, dt, stepRunner)));
+  useGameLoop(phase === "playing" && active, (dt) => setRun((state) => state && advance(state, dt, stepRunner)));
 
   const act = (move: "jump" | "duck") => {
     const { session: current, width: w } = latest.current;
     if (current.phase === "ready" && w > 0) {
+      setRunHeight(latest.current.height);
       current.begin(newRunner(w, newSeed()));
       return;
     }
@@ -139,7 +151,7 @@ export const RunnerGame = ({ onExit, onLeaderboard }: { onExit: () => void; onLe
       return;
     }
     act(isJump ? "jump" : "duck");
-  });
+  }, undefined, active);
 
   return (
     <GameFrame
@@ -148,14 +160,14 @@ export const RunnerGame = ({ onExit, onLeaderboard }: { onExit: () => void; onLe
       session={session}
       score={run?.score ?? 0}
       board={board}
-      world={run && board ? { width: run.width, height: board.height } : null}
+      world={run && runHeight > 0 ? { width: run.width, height: runHeight } : null}
       onStageLayout={onStageLayout}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Tap", "press the up arrow")}
       onExit={onExit}
       onLeaderboard={onLeaderboard}
     >
-      {board ? <Scene state={run ?? preview} height={board.height} /> : null}
+      {board ? <Scene state={run ?? preview} height={run && runHeight > 0 ? runHeight : height} /> : null}
     </GameFrame>
   );
 };

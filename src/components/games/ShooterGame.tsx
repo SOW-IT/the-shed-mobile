@@ -87,7 +87,15 @@ const Scene = ({ state }: { state: ShooterState }) => (
 );
 
 /** Sky Shooter: drag to fly; the plane fires on its own. */
-export const ShooterGame = ({ onExit, onLeaderboard }: { onExit: () => void; onLeaderboard?: () => void }) => {
+export const ShooterGame = ({
+  onExit,
+  onLeaderboard,
+  active = true,
+}: {
+  onExit: () => void;
+  onLeaderboard?: () => void;
+  active?: boolean;
+}) => {
   const session = useGameSession<ShooterState>("shooter");
   const { run, setRun, phase } = session;
   const [stage, onStageLayout] = useStage();
@@ -100,7 +108,7 @@ export const ShooterGame = ({ onExit, onLeaderboard }: { onExit: () => void; onL
   const latest = useLatest({ session, width, height, scale });
   const keys = useRef(new Set<string>());
 
-  useGameLoop(phase === "playing", (dt) => {
+  useGameLoop(phase === "playing" && active, (dt) => {
     const held = keys.current;
     const dx = (held.has("ArrowRight") ? 1 : 0) - (held.has("ArrowLeft") ? 1 : 0);
     const dy = (held.has("ArrowDown") ? 1 : 0) - (held.has("ArrowUp") ? 1 : 0);
@@ -144,7 +152,7 @@ export const ShooterGame = ({ onExit, onLeaderboard }: { onExit: () => void; onL
     const current = latest.current.session;
     if (current.phase === "ready") startIfReady();
     else if (current.phase === "over" && key === " " && current.canRestartByKey()) current.restart();
-  }, () => keys.current.clear());
+  }, () => keys.current.clear(), active);
 
   return (
     <GameFrame

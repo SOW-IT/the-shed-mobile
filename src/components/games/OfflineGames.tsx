@@ -47,15 +47,30 @@ export const OfflineGames = ({
 }) => {
   const t = useAppTheme();
   const [view, setView] = useState<GameId | "leaderboard" | "menu">("menu");
+  // The game a leaderboard was opened from, so it opens on that game's tab.
+  const [boardGame, setBoardGame] = useState<GameId | undefined>(undefined);
   const toMenu = () => setView("menu");
-  if (view === "leaderboard") return <Leaderboard onBack={toMenu} onPlay={setView} />;
+  const open = (target: GameId | "leaderboard") => {
+    if (target === "leaderboard") setBoardGame(undefined);
+    setView(target);
+  };
+  if (view === "leaderboard") return <Leaderboard onBack={toMenu} onPlay={setView} initialGame={boardGame} />;
   if (view !== "menu") {
-    const Game = GAME_SCREENS[view];
-    return <Game onExit={toMenu} onLeaderboard={() => setView("leaderboard")} />;
+    const game = view;
+    const Game = GAME_SCREENS[game];
+    return (
+      <Game
+        onExit={toMenu}
+        onLeaderboard={() => {
+          setBoardGame(game);
+          setView("leaderboard");
+        }}
+      />
+    );
   }
   return (
     <GamesMenu
-      onOpen={setView}
+      onOpen={open}
       onBack={canClose || online ? onLeave : undefined}
       intro={
         online ? null : (

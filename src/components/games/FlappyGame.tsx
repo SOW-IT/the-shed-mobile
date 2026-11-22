@@ -91,7 +91,15 @@ const Scene = ({ state }: { state: FlappyState }) => {
 };
 
 /** Flap: tap to flap through the gaps. */
-export const FlappyGame = ({ onExit, onLeaderboard }: { onExit: () => void; onLeaderboard?: () => void }) => {
+export const FlappyGame = ({
+  onExit,
+  onLeaderboard,
+  active = true,
+}: {
+  onExit: () => void;
+  onLeaderboard?: () => void;
+  active?: boolean;
+}) => {
   const session = useGameSession<FlappyState>("flappy");
   const { run, setRun, phase } = session;
   const [stage, onStageLayout] = useStage();
@@ -101,7 +109,7 @@ export const FlappyGame = ({ onExit, onLeaderboard }: { onExit: () => void; onLe
   const preview = useMemo(() => newFlappy(width, height, 1), [width, height]);
   const latest = useLatest({ session, width, height });
 
-  useGameLoop(phase === "playing", (dt) => setRun((state) => state && advance(state, dt, stepFlappy)));
+  useGameLoop(phase === "playing" && active, (dt) => setRun((state) => state && advance(state, dt, stepFlappy)));
 
   const tap = () => {
     const { session: current, width: w, height: h } = latest.current;
@@ -123,7 +131,7 @@ export const FlappyGame = ({ onExit, onLeaderboard }: { onExit: () => void; onLe
     const current = latest.current.session;
     if (current.phase !== "over") tap();
     else if (key === " " && current.canRestartByKey()) current.restart();
-  });
+  }, undefined, active);
 
   return (
     <GameFrame

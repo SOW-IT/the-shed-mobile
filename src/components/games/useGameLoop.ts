@@ -44,14 +44,16 @@ export const useGameLoop = (running: boolean, onFrame: (dt: number) => void) => 
  */
 export const useWebKeys = (
   onKey: (key: string, down: boolean, event: KeyboardEvent) => void,
-  onBlur?: () => void
+  onBlur?: () => void,
+  /** Off while the game isn't the screen in front, so its keys go elsewhere. */
+  enabled = true
 ) => {
   const handlers = useRef({ onKey, onBlur });
   useEffect(() => {
     handlers.current = { onKey, onBlur };
   });
   useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    if (!enabled || Platform.OS !== "web" || typeof window === "undefined") return;
     const down = (event: KeyboardEvent) => handlers.current.onKey(event.key, true, event);
     const up = (event: KeyboardEvent) => handlers.current.onKey(event.key, false, event);
     const blur = () => handlers.current.onBlur?.();
@@ -63,5 +65,5 @@ export const useWebKeys = (
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, []);
+  }, [enabled]);
 };

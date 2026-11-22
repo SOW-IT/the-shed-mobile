@@ -13,6 +13,7 @@ import {
   LayoutChangeEvent,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -187,40 +188,45 @@ export const GameFrame = ({
             ) : (
               children
             )}
-            {phase === "ready" ? (
-              <View style={[StyleSheet.absoluteFill, styles.overlay]} pointerEvents="none">
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>{info.title}</Text>
-                  <Text style={styles.cardBody}>{info.blurb}</Text>
-                  <Text style={styles.hint}>{startHint}</Text>
-                </View>
-              </View>
-            ) : null}
-            {phase === "over" && result ? (
-              <View style={[StyleSheet.absoluteFill, styles.overlay, { backgroundColor: g.scrim }]}>
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>{newBest ? "New best!" : "Game over"}</Text>
-                  <Text style={styles.bigScore} testID="game-final-score">
-                    {result.score.toLocaleString()}
-                  </Text>
-                  <Text style={styles.cardBody}>
-                    Best {Math.max(result.previousBest, result.score).toLocaleString()}
-                  </Text>
-                  <Text style={styles.note}>
-                    {isAuthenticated
-                      ? "Saved. It goes on the leaderboard when you're online."
-                      : "Saved on this device. Sign in and it goes on the leaderboard."}
-                  </Text>
-                  <View style={styles.actions}>
-                    <Btn title="Play again" icon="refresh" onPress={session.restart} />
-                    {onLeaderboard ? (
-                      <Btn title="Leaderboard" icon="trophy-outline" variant="ghost" onPress={onLeaderboard} />
-                    ) : null}
-                  </View>
-                </View>
-              </View>
-            ) : null}
           </View>
+        ) : null}
+        {/* The cards cover the whole stage, not the board, so a short board
+            can't cut off their buttons; a stage shorter than a card scrolls. */}
+        {phase === "ready" ? (
+          <View style={[StyleSheet.absoluteFill, styles.overlay]} pointerEvents="none">
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{info.title}</Text>
+              <Text style={styles.cardBody}>{info.blurb}</Text>
+              <Text style={styles.hint}>{startHint}</Text>
+            </View>
+          </View>
+        ) : null}
+        {phase === "over" && result ? (
+          <ScrollView
+            style={[StyleSheet.absoluteFill, { backgroundColor: g.scrim }]}
+            contentContainerStyle={styles.overlayScroll}
+          >
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{newBest ? "New best!" : "Game over"}</Text>
+              <Text style={styles.bigScore} testID="game-final-score">
+                {result.score.toLocaleString()}
+              </Text>
+              <Text style={styles.cardBody}>
+                Best {Math.max(result.previousBest, result.score).toLocaleString()}
+              </Text>
+              <Text style={styles.note}>
+                {isAuthenticated
+                  ? "Saved. It goes on the leaderboard when you're online."
+                  : "Saved on this device. Sign in and it goes on the leaderboard."}
+              </Text>
+              <View style={styles.actions}>
+                <Btn title="Play again" icon="refresh" onPress={session.restart} />
+                {onLeaderboard ? (
+                  <Btn title="Leaderboard" icon="trophy-outline" variant="ghost" onPress={onLeaderboard} />
+                ) : null}
+              </View>
+            </View>
+          </ScrollView>
         ) : null}
       </View>
       <OnlineBanner />
@@ -262,6 +268,7 @@ const styles = StyleSheet.create({
   // Full screen: the board meets the edges, so no rounded corners.
   board: { overflow: "hidden" },
   overlay: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  overlayScroll: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   card: {
     maxWidth: 320,
     alignItems: "center",

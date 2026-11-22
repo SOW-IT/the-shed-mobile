@@ -14,7 +14,7 @@ import {
   type LocalBests,
   type QueuedScore,
 } from "../../../shared/games";
-import { readStored, writeStored } from "../deviceStorage";
+import { readStored, tryWriteStored } from "../deviceStorage";
 
 /**
  * A saved value that loads before any change is made to it, so a run
@@ -32,13 +32,18 @@ const persisted = <T>(key: string, parse: (saved: string) => T, initial: T) => {
       value = parse(saved);
       notify();
     }));
+  // A write that failed stays owed, so the next change saves it even when
+  // that change leaves the value as it was.
+  let unsaved = false;
   const update = async (change: (current: T) => T) => {
     await load();
     const next = change(value);
-    if (next === value) return;
-    value = next;
-    notify();
-    await writeStored(key, JSON.stringify(next));
+    if (next === value && !unsaved) return;
+    if (next !== value) {
+      value = next;
+      notify();
+    }
+    unsaved = !(await tryWriteStored(key, JSON.stringify(value)));
   };
   const subscribe = (listener: () => void) => {
     listeners.add(listener);
