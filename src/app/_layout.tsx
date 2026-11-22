@@ -29,6 +29,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { Modal, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { notify } from "@/lib/notify";
 
 const DevMenuPreferences = requireOptionalNativeModule("DevMenuPreferences");
@@ -168,7 +169,10 @@ const RootStack = () => {
         animationType="fade"
         onRequestClose={() => setPlayingOffline(false)}
       >
-        <OfflineGames online={!offline} onLeave={() => setPlayingOffline(false)} canClose />
+        {/* A modal is its own window on iOS: measure its safe area again. */}
+        <SafeAreaProvider>
+          <OfflineGames online={!offline} onLeave={() => setPlayingOffline(false)} canClose />
+        </SafeAreaProvider>
       </Modal>
     </NavDrawerProvider>
   );
