@@ -79,7 +79,7 @@ jobs:
           EAS_PLATFORM: ${{ steps.fingerprint.outputs.eas_platform }}
         run: eas build --platform "$EAS_PLATFORM" --profile production --non-interactive --auto-submit --json > "$RUNNER_TEMP/eas-builds.json"
 
-      - name: Post to Data and IT in Google Chat
+      - name: Post to Google Chat
         if: always()
         env:
           GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}

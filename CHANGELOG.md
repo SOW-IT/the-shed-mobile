@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.14] - 2026-11-23
+## [2.12.17] - 2026-11-23
 
 ### Changed
 - **Walking is faster,** about one and a half times the old pace, with
@@ -25,7 +25,6 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Fewer buttons in People here.** Customize your character and Show as a
   list are gone. Tap yourself and pick Outfit to change your look. In the
   list view, tap your own name.
-
 - **Update from your profile.** When your app is behind the recommended
   version, an Update button sits under the version number. It downloads
   the latest update and restarts the app, and only sends you to the store
@@ -41,6 +40,41 @@ All notable changes to **The SHED** mobile app. This project follows
   screen** so nothing could be tapped. That way in is gone.
 - **Tapping a poke notification opens the World** instead of leaving you
   on whatever screen you had open last.
+
+## [2.12.15] - 2026-11-23
+
+### Changed
+- **No swiping back out of a game.** In Sky Shooter, Mystic Man and Flap,
+  a sideways swipe is always a move in the game. Before, a swipe right in
+  Sky Shooter could be taken for "go back" and close the game. The way out
+  is the back button at the top left, which still asks "Leave this game?"
+  during a run. On the web, the browser's own swipe back (from the edge of
+  a phone's screen, or two fingers on a trackpad) is kept off the game the
+  same way; the browser's back button still asks first during a run.
+- **Back from a game is always the games menu.** Going from a game to the
+  leaderboard and playing again, over and over, used to pile up screens, so
+  getting back out took a tap of the back button per screen. Now Play on
+  the leaderboard swaps the old game and the leaderboard for the new game:
+  there's only ever one game open, with at most the leaderboard on top of it.
+- **The leaderboard shows everyone.** Each game's board used to stop at the
+  top 10. It now shows 25 at a time with **Load more** at the bottom, which
+  keeps going until every score is on the list ("That's everyone."). Your
+  own best and place stay at the top, and your row is marked "(you)" in the
+  list. Older versions of the app keep the top 10 as before.
+
+## [2.12.14] - 2026-11-23
+
+### Added
+- **Every merge is posted to Google Chat.** When a pull request lands on
+  `main`, a card in the team's Chat space says which version just went out,
+  the PR's title and author, who merged it, and links to the PR and the deploy
+  runs. It reminds you that web and the backend go live straight away and
+  phones follow over the air.
+
+### Changed
+- **Chat posts move to a new space.** Merges, over-the-air update reports,
+  EAS Production results and the backup and usage alerts all use one webhook,
+  which now points at a dedicated space instead of Data and IT.
 
 ## [2.12.13] - 2026-11-23
 

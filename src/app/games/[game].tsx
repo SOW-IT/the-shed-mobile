@@ -15,8 +15,9 @@ export default function GameScreen() {
       return () => setFocused(false);
     }, [])
   );
-  // During a run, the iOS swipe and the browser's back are held until the
-  // player confirms in the game's own dialog.
+  // There's no swipe back from a game (see the root layout). During a run,
+  // the browser's back is held until the player confirms in the game's own
+  // dialog, the same as the back button.
   const navigation = useNavigation();
   const [playing, setPlaying] = useState(false);
   const [leaveAsks, setLeaveAsks] = useState(0);

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 export const SWEEP_PEOPLE = {
   admin: "sweep.admin@sow.org.au",
@@ -62,6 +64,31 @@ run(
   { name: "Sweep camp", dateStart: now, dateEnd: now + 2 * DAY },
   SWEEP_PEOPLE.staff
 );
+
+// Enough scores that the games' leaderboards run past their first page, with
+// the admin's own best part way down Mystic Man's.
+const LEADERBOARD_PLAYERS = 40;
+const scores = [];
+for (const game of ["shooter", "runner"]) {
+  for (let i = 0; i < LEADERBOARD_PLAYERS; i++) {
+    const player = `sweep.player${String(i + 1).padStart(2, "0")}`;
+    scores.push({ email: `${player}@sow.org.au`, game, score: 5000 - i * 100, runId: `seed-${game}-${player}` });
+  }
+}
+scores.push({ email: admin, game: "runner", score: 2050, runId: "seed-runner-admin" });
+const scoreDir = mkdtempSync(join(tmpdir(), "sweep-scores-"));
+const scoreFile = join(scoreDir, "gameScores.jsonl");
+writeFileSync(
+  scoreFile,
+  scores.map((row) => JSON.stringify({ ...row, durationMs: 60_000, playedAt: now - DAY, updatedAt: now - DAY })).join("\n")
+);
+const importArgs = ["convex", "import", "--table", "gameScores", "--append", "--yes", scoreFile];
+if (process.env.CONVEX_ENV_FILE) importArgs.push("--env-file", process.env.CONVEX_ENV_FILE);
+try {
+  execFileSync("npx", importArgs, { stdio: ["ignore", "ignore", "inherit"] });
+} finally {
+  rmSync(scoreDir, { recursive: true, force: true });
+}
 
 const seeded = { year, eventId, memberId, checkInToken, people: SWEEP_PEOPLE };
 writeFileSync(process.env.SWEEP_SEED_OUT ?? "sweep-seed.json", JSON.stringify(seeded, null, 2));
