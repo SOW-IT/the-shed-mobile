@@ -284,7 +284,20 @@ export const useWorld = (enabled: boolean, away = false) => {
   useEffect(() => {
     if (!session || (!away && !toldAway.current)) return;
     toldAway.current = away;
-    awayM({ at: away ? "arcade" : null }).catch(() => undefined);
+    let stillWanted = true;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const tell = () => {
+      awayM({ at: away ? "arcade" : null })
+        .then((reply) => {
+          if (stillWanted && !reply.ok) retry = setTimeout(tell, reply.retryInMs);
+        })
+        .catch(() => undefined);
+    };
+    tell();
+    return () => {
+      stillWanted = false;
+      if (retry) clearTimeout(retry);
+    };
   }, [session, away, awayM]);
 
   const actTokens = useRef(fullBucket("act", 0));
@@ -615,6 +628,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     roomId: session?.roomId ?? null,
     memberId: session?.memberId ?? null,
     people,
+    serverWalk: myServerWalk,
     target,
     serverNow,
     walkTo,

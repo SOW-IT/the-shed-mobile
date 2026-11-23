@@ -285,6 +285,33 @@ describe("the offline list and pokes", () => {
     expect((await ben.query(api.world.offline, {})).people.map((p) => p.name)).not.toContain("Anna");
   });
 
+  test("looks past people it has to skip, so a full list still shows, up to a limit", async () => {
+    const { t, anna } = await trio();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 40; i++) {
+        const email = `blocked${i}@sow.org.au`;
+        await ctx.db.insert("worldVisitors", { email, name: `Blocked ${i}`, lastSeenAt: PINNED_NOW + 500_000 + i });
+        await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: email, blockedName: `Blocked ${i}` });
+      }
+      for (let i = 0; i < OFFLINE_LIST_SIZE; i++) {
+        await ctx.db.insert("worldVisitors", { email: `older${i}@sow.org.au`, name: `Older ${i}`, lastSeenAt: 1000 + i });
+      }
+    });
+    const list = await anna.query(api.world.offline, {});
+    expect(list.people).toHaveLength(OFFLINE_LIST_SIZE);
+    expect(list.people.some((p) => p.name.startsWith("Blocked"))).toBe(false);
+    expect(list.people.some((p) => p.name.startsWith("Older"))).toBe(true);
+
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 200; i++) {
+        const email = `wall${i}@sow.org.au`;
+        await ctx.db.insert("worldVisitors", { email, name: `Wall ${i}`, lastSeenAt: PINNED_NOW + 900_000 + i });
+        await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: email, blockedName: `Wall ${i}` });
+      }
+    });
+    expect((await anna.query(api.world.offline, {})).people).toEqual([]);
+  });
+
   test("a poke leaves a notification and a push, with your words or the usual ones", async () => {
     const { t, anna, cara } = await trio();
     const ben = (await anna.query(api.world.offline, {})).people[0];

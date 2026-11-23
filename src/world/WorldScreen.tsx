@@ -181,11 +181,12 @@ export const WorldScreen = ({
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
   const mePose = me?.walk ? posAt(me.walk, now) : null;
+  const meOnServer = world.serverWalk ? posAt(world.serverWalk, now) : mePose;
   const selected = world.people.find((p) => p.memberId === person) ?? null;
   if (person !== null && !selected && world.status === "in") setPerson(null);
   const tapped = world.people.find((p) => p.memberId === sheet?.memberId) ?? null;
   const tappedPose = tapped?.walk ? posAt(tapped.walk, now) : null;
-  const near = mePose !== null && tappedPose !== null && distance(mePose, tappedPose) <= INTERACT_RADIUS;
+  const near = meOnServer !== null && tappedPose !== null && distance(meOnServer, tappedPose) <= INTERACT_RADIUS;
   const firstName = (memberId: string) => world.people.find((p) => p.memberId === memberId)?.name.split(" ")[0] ?? "them";
 
   const askHighFive = (to: string) => {
@@ -207,8 +208,10 @@ export const WorldScreen = ({
       setNote("They've left the garden.");
       return false;
     }
+    const drawn = posAt(mine.walk, at);
+    const known = latest.serverWalk ? posAt(latest.serverWalk, at) : drawn;
     const step = approachStep({
-      mine: posAt(mine.walk, at),
+      mine: { ...known, walking: known.walking || drawn.walking, arrivesAt: Math.max(known.arrivesAt, drawn.arrivesAt) },
       theirs: posAt(theirs.walk, at),
       theirGoal: { x: theirs.walk.toX, z: theirs.walk.toZ },
       aimedAt: aimedAt.current,
@@ -381,6 +384,8 @@ export const WorldScreen = ({
     </>
   );
 
+  if (away) return <View style={styles.fill} />;
+
   if (view === "list") {
     return (
       <>
@@ -403,8 +408,6 @@ export const WorldScreen = ({
     );
   }
 
-
-  if (away) return <View style={styles.fill} />;
 
   return (
     <View style={styles.fill}>

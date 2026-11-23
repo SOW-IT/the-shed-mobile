@@ -5,7 +5,7 @@ import { timeAgo } from "@shared/datetime";
 import { MAX_POKE_LENGTH, tagName } from "@shared/world";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -163,6 +163,11 @@ const OfflineList = () => {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
   const waitMs = list ? list.pokeAgainAt - now : 0;
+  useEffect(() => {
+    if (!open || waitMs <= 0) return;
+    const id = setTimeout(() => setNow(Date.now()), waitMs + 250);
+    return () => clearTimeout(id);
+  }, [open, waitMs]);
   const send = async (visitorId: Id<"worldVisitors">, name: string) => {
     setBusy(true);
     setError(null);

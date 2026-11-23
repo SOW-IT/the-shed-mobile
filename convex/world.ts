@@ -665,7 +665,7 @@ export const myBlocks = query({
   },
 });
 
-const OFFLINE_SCAN = OFFLINE_LIST_SIZE + 20;
+const OFFLINE_SCAN_MAX = 200;
 
 export const offline = query({
   args: {},
@@ -675,10 +675,11 @@ export const offline = query({
   }),
   handler: async (ctx) => {
     const email = await requireEmail(ctx);
-    const rows = await ctx.db.query("worldVisitors").withIndex("by_lastSeenAt").order("desc").take(OFFLINE_SCAN);
     const people = [];
-    for (const row of rows) {
-      if (people.length === OFFLINE_LIST_SIZE) break;
+    let scanned = 0;
+    for await (const row of ctx.db.query("worldVisitors").withIndex("by_lastSeenAt").order("desc")) {
+      if (people.length === OFFLINE_LIST_SIZE || scanned === OFFLINE_SCAN_MAX) break;
+      scanned++;
       if (row.email === email) continue;
       if (await memberByEmail(ctx, row.email)) continue;
       if (await blockedEither(ctx, email, row.email)) continue;
