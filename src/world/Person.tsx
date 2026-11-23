@@ -432,6 +432,9 @@ const AvatarView = ({
       { x: at(l2, bottom).x - grow, y: at(0, bottom).y + grow },
     ];
   };
+  // The chin, in body units: the head covers the neck, so collars, bow ties
+  // and necklaces hang just below it.
+  const chin = Math.min(0.7, ((foot.y - (head.y + hh / 2 - (hh - r * 2) * 0.25)) / up - bob) / body.height);
   const dot = (key: string, x: number, y: number, rad: number, fill: string) =>
     parts.push(<View key={key} pointerEvents="none" style={[styles.abs, { left: at(x, y).x - rad, top: at(x, y).y - rad, width: rad * 2, height: rad * 2, borderRadius: rad, backgroundColor: fill }]} />);
   const piece = (key: string, fill: string, top: number, bottom: number, topHalf: number, bottomHalf: number, radius = 12) => {
@@ -471,8 +474,11 @@ const AvatarView = ({
   }
   if (outfit === 6 && facing >= 0) {
     // Collared: a white collar and two buttons.
-    for (const e of [-1, 1]) parts.push(quad(sidePanel(e, 0.72, 0.61, [0, 0.15], [0.02, 0.12], 0), people.collar, `collar${e}`, 2));
-    for (const y of [0.52, 0.4]) dot(`button${y}`, 0, y, 0.022 * s, shade(shirt, -0.35));
+    for (const e of [-1, 1]) {
+      parts.push(quad(sidePanel(e, chin + 0.03, chin - 0.1, [0, 0.15], [0.02, 0.11], ink * 0.8), garden.ink, `collarInk${e}`, 2));
+      parts.push(quad(sidePanel(e, chin + 0.03, chin - 0.1, [0, 0.15], [0.02, 0.11], 0), people.collar, `collar${e}`, 2));
+    }
+    for (const y of [chin - 0.16, chin - 0.28]) if (y > hem + 0.04) dot(`button${y}`, 0, y, 0.022 * s, shade(shirt, -0.35));
   }
   if (outfit === 7 && facing >= 0) {
     // A jacket, open over a tee.
@@ -522,18 +528,18 @@ const AvatarView = ({
   if (accessory === 4 && facing >= 0) {
     // A bow tie, in their favourite colour.
     for (const e of [-1, 1]) {
-      parts.push(quad(sidePanel(e, 0.715, 0.6, [0.01, 0.12], [0.01, 0.12], ink * 0.8), garden.ink, `tieInk${e}`, 3));
-      parts.push(quad(sidePanel(e, 0.705, 0.61, [0.01, 0.115], [0.01, 0.115], 0), fav(people.scarf), `tie${e}`, 3));
+      parts.push(quad(sidePanel(e, chin + 0.005, chin - 0.105, [0.01, 0.12], [0.01, 0.12], ink * 0.8), garden.ink, `tieInk${e}`, 3));
+      parts.push(quad(sidePanel(e, chin - 0.005, chin - 0.095, [0.01, 0.115], [0.01, 0.115], 0), fav(people.scarf), `tie${e}`, 3));
     }
-    ball("knot", at(0, 0.66).x, at(0, 0.66).y, 0.04 * s, shade(fav(people.scarf), -0.15));
+    ball("knot", at(0, chin - 0.05).x, at(0, chin - 0.05).y, 0.04 * s, shade(fav(people.scarf), -0.15));
   }
   if (accessory === 5 && facing >= 0) {
     // A string of pearls with a pendant in their favourite colour.
     for (let i = 0; i <= 6; i++) {
-      const x = -0.14 + i * (0.28 / 6);
-      dot(`pearl${i}`, x, 0.67 - 0.07 * (1 - (x / 0.14) ** 2), 0.022 * s, people.pearl);
+      const x = -0.15 + i * (0.3 / 6);
+      dot(`pearl${i}`, x, chin + 0.01 - 0.08 * (1 - (x / 0.15) ** 2), 0.024 * s, people.pearl);
     }
-    ball("pendant", at(0, 0.58).x, at(0, 0.58).y, 0.04 * s, fav(garden.blooms[0]));
+    ball("pendant", at(0, chin - 0.11).x, at(0, chin - 0.11).y, 0.04 * s, fav(garden.blooms[0]));
   }
   if (feetInFront) feet();
   arms("front");
@@ -589,7 +595,7 @@ const AvatarView = ({
       <View
         key="mullet"
         pointerEvents="none"
-        style={[styles.abs, { left: head.x - r * 0.95 - side * 0.15 * s, top: head.y + r * 0.1, width: r * 1.9, height: r * 1.15, borderRadius: r * 0.4, backgroundColor: hair, borderWidth: ink, borderColor: garden.ink }]}
+        style={[styles.abs, { left: head.x - r * 1.02 - side * 0.15 * s, top: head.y - r * 0.2, width: r * 2.04, height: r * (1.05 + 0.3 * Math.max(0, -facing)), borderRadius: r * 0.45, backgroundColor: hair, borderWidth: ink, borderColor: garden.ink }]}
       />
     );
   }
@@ -599,11 +605,25 @@ const AvatarView = ({
       <View
         key="wavy"
         pointerEvents="none"
-        style={[styles.abs, { left: head.x - r * 1.08 - side * 0.1 * s, top: head.y - r * 0.4, width: r * 2.16, height: r * 1.45, borderRadius: r * 0.5, backgroundColor: hair, borderWidth: ink, borderColor: garden.ink }]}
+        style={[styles.abs, { left: head.x - r * 1.08 - side * 0.1 * s, top: head.y - r * 0.4, width: r * 2.16, height: r * 1.3, borderRadius: r * 0.5, backgroundColor: hair, borderWidth: ink, borderColor: garden.ink }]}
       />
     );
-    for (let i = 0; i < 4; i++) ball(`wave${i}`, head.x - side * 0.1 * s + r * (-0.8 + (i * 1.6) / 3), head.y + r * 1.02, 0.1 * s, hair);
+    const ends = facing > 0.2 ? [-0.92, -0.62, 0.62, 0.92] : [-0.8, -0.27, 0.27, 0.8];
+    ends.forEach((x, i) => ball(`wave${i}`, head.x - side * 0.1 * s + r * x, head.y + r * (facing > 0.2 ? 0.92 - 0.12 * Math.abs(x) : 0.9), 0.1 * s, hair));
   }
+  // A flower tucked behind one ear, drawn behind the head while that ear is
+  // turned away so it peeks out round the side.
+  const earFlower = () => {
+    const out = side < 0.3 ? 0.9 : 1.05;
+    const fx = head.x + r * out * (Math.abs(facing) < 0.35 ? 0.35 * Math.sign(facing || 1) : facing);
+    const fy = head.y - r * (side < 0.3 ? 0.35 : 0.62);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      ball(`petal${i}`, fx + Math.cos(a) * 0.065 * s, fy + Math.sin(a) * 0.065 * s, 0.05 * s, fav(garden.blooms[0]));
+    }
+    ball("flowerMiddle", fx, fy, 0.04 * s, garden.blooms[1]);
+  };
+  if (accessory === 7 && side >= 0.3) earFlower();
   const hat = lookPart(look, "hat");
   if (hat === 4) {
     // The sun hat's brim behind the head.
@@ -975,6 +995,21 @@ const AvatarView = ({
           ]}
         />
         )}
+        {look.hair === 15 && !coversFringe(hat) && facing > 0.45
+          ? // Curtains: parted in the middle, swept down to each temple.
+            [
+              ...[-1, 1].map((e) => (
+                <View
+                  key={`curtain${e}`}
+                  style={[styles.abs, { left: icx + 0.39 * side * s + (e * 0.82 * facing - 0.35) * inner, top: icy - inner * 0.62, width: inner * 0.7, height: inner * 0.78, borderRadius: inner * 0.35, backgroundColor: hair }]}
+                />
+              )),
+              <View
+                key="parting"
+                style={[styles.abs, { left: icx + 0.39 * side * s - 0.13 * inner, top: icy - inner * 0.33, width: inner * 0.26, height: inner * 0.26, transform: [{ rotate: "45deg" }], backgroundColor: skin }]}
+              />,
+            ]
+          : null}
         {hat === 2 ? (
           <View style={[styles.abs, { left: 0, width: iw, top: icy - capDrop * inner + inner * 0.02, height: inner * 0.28, backgroundColor: shade(people.hats.beanie, -0.15) }]} />
         ) : null}
@@ -1006,10 +1041,6 @@ const AvatarView = ({
   if (look.hair === 13) {
     for (const e of [-1, 1]) ball(`spaceBun${e}`, head.x + e * r * 0.66 * facing - side * 0.1 * s, head.y - r * 0.8, 0.16 * s, hair);
   }
-  if (look.hair === 15 && !coversFringe(hat) && facing > 0.2) {
-    // Curtains: a fringe parted in the middle.
-    for (const e of [-1, 1]) parts.push(<Ellipse key={`curtain${e}`} cx={head.x + (e * 0.2 * facing + side * 0.25) * s} cy={head.y - r * 0.48} rx={r * 0.5} ry={r * 0.27} fill={hair} ink={ink} inkColour={garden.ink} />);
-  }
   if (look.hair === 5 && hat === 0) {
     for (const k of [-1, 0, 1]) {
       parts.push(capsule(at(k * 0.12, 1.36 - Math.abs(k) * 0.04), at(k * 0.2, 1.52 - Math.abs(k) * 0.06), 0.11 * s, hair, `spike${k}`));
@@ -1035,8 +1066,19 @@ const AvatarView = ({
   }
   if (hat === 5) {
     // A beret, worn to one side, in their favourite colour.
-    parts.push(<Ellipse key="beret" cx={head.x - side * 0.1 * s - r * 0.12} cy={head.y - r * 0.74} rx={r * 0.98} ry={r * 0.34} fill={fav(people.hats.beret)} ink={ink} inkColour={garden.ink} />);
-    ball("stalk", head.x - side * 0.1 * s - r * 0.12, head.y - r * 1.08, 0.04 * s, shade(fav(people.hats.beret), -0.2));
+    // A soft dome pulled down over the top of the head and tipped to one side.
+    const bx = head.x - side * 0.1 * s - r * 0.12;
+    const colour = fav(people.hats.beret);
+    parts.push(
+      <View
+        key="beret"
+        pointerEvents="none"
+        style={[styles.abs, { left: bx - r * 1.1, top: head.y - r * 1.3, width: r * 2.2, height: r * 0.95, borderTopLeftRadius: r * 1.1, borderTopRightRadius: r * 1.1, borderBottomLeftRadius: r * 0.5, borderBottomRightRadius: r * 0.5, backgroundColor: colour, borderWidth: ink, borderColor: garden.ink, transform: [{ rotate: "-9deg" }] }]}
+      >
+        <View style={{ position: "absolute", left: r * 0.35, top: r * 0.12, width: r * 0.6, height: r * 0.22, borderRadius: r, backgroundColor: shade(colour, 0.18) }} />
+      </View>
+    );
+    ball("stalk", bx - r * 0.15, head.y - r * 1.33, 0.04 * s, shade(colour, -0.2));
   }
   if (hat === 6) {
     // A bow on top, to one side.
@@ -1062,29 +1104,24 @@ const AvatarView = ({
       parts.push(<View key={`point${k}`} pointerEvents="none" style={[styles.abs, { left: head.x + k * r * 0.32 - r * 0.16, top: top - r * 0.3, borderLeftWidth: r * 0.16, borderRightWidth: r * 0.16, borderBottomWidth: r * 0.32, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: people.hats.crown }]} />);
     }
     parts.push(<View key="crownBand" pointerEvents="none" style={[styles.abs, { left: head.x - half, top, width: half * 2, height: r * 0.28, borderRadius: r * 0.06, backgroundColor: people.hats.crown, borderWidth: ink, borderColor: garden.ink }]} />);
-    if (facing > -0.3) ball("jewel", head.x + side * r * 0.3, top + r * 0.14, 0.04 * s, fav(people.lipstick[1]));
+    if (facing > 0.15) ball("jewel", head.x + side * r * 0.3, top + r * 0.14, 0.04 * s, fav(people.lipstick[1]));
   }
   if (accessory === 6) {
     // Headphones: a band over the top and a cup over each ear.
     // Seen from the side, the band is a single strap from the top to the ear.
-    const span = Math.max(0.12 * s, r * 2.1 * Math.abs(facing));
-    parts.push(<View key="band" pointerEvents="none" style={[styles.abs, { left: head.x - span / 2, top: head.y - r * 1.12, width: span, height: r * 1.5, borderRadius: r, borderTopWidth: 0.06 * s, borderLeftWidth: 0.06 * s, borderRightWidth: 0.06 * s, borderColor: people.headphones, borderBottomColor: "transparent" }]} />);
+    // Side-on, the band is an arc along the top of the head down to the near ear.
+    const sideOn = Math.abs(facing) < 0.55;
+    const span = sideOn ? r * 2.2 : r * 2.1 * Math.abs(facing);
+    const bandTop = head.y - r * 1.12;
+    const edge = sideOn ? "transparent" : people.headphones;
+    parts.push(<View key="band" pointerEvents="none" style={[styles.abs, { left: head.x - span / 2, top: bandTop, width: span, height: sideOn ? span : head.y + r * 0.1 - bandTop, borderRadius: span / 2, borderTopWidth: 0.06 * s, borderLeftWidth: 0.06 * s, borderRightWidth: 0.06 * s, borderColor: people.headphones, borderLeftColor: edge, borderRightColor: edge, borderBottomColor: "transparent" }]} />);
     for (const e of [-1, 1]) {
       if (-e * side < -0.3) continue;
       const cup = { x: head.x + r * 0.98 * e * facing, y: head.y + r * 0.05 };
       parts.push(<Ellipse key={`cup${e}`} cx={cup.x} cy={cup.y} rx={0.1 * s} ry={0.14 * s} fill={fav(people.headphones)} ink={ink} inkColour={garden.ink} />);
     }
   }
-  if (accessory === 7 && side < 0.3) {
-    // A flower tucked behind one ear.
-    const fx = head.x + r * 0.9 * facing;
-    const fy = head.y - r * 0.35;
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2;
-      ball(`petal${i}`, fx + Math.cos(a) * 0.065 * s, fy + Math.sin(a) * 0.065 * s, 0.05 * s, fav(garden.blooms[0]));
-    }
-    ball("flowerMiddle", fx, fy, 0.04 * s, garden.blooms[1]);
-  }
+  if (accessory === 7 && side < 0.3) earFlower();
   arms("over");
   if (move.palms > 0.6 && facing >= 0) {
     const tips = 0.41 + 0.13 * move.palms;
