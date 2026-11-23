@@ -15,6 +15,7 @@ import {
   tagName,
   arrivalSpot,
   ELSEWHERE_NAMES,
+  seatIn,
   isPlace,
   PLACES,
   type Place,
@@ -333,7 +334,25 @@ export const move = mutation({
     const from = posAt(state, now);
     const to = clampTarget(toX, toZ, placeOf(member));
     const walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
-    await ctx.db.patch("worldState", state._id, { ...walk, away: undefined, moveBucket: token.bucket });
+    await ctx.db.patch("worldState", state._id, { ...walk, away: undefined, seat: undefined, moveBucket: token.bucket });
+    await touchPresence(ctx, member._id, now);
+    return { ok: true as const, ...walk, serverNow: now };
+  },
+});
+
+export const sit = mutation({
+  args: { seat: v.string() },
+  returns: v.union(v.object({ ok: v.literal(true), ...worldWalkFields, serverNow: v.number() }), turnedAway),
+  handler: async (ctx, args) => {
+    const { member, state } = await requireMe(ctx);
+    const seat = seatIn(placeOf(member), args.seat);
+    if (!seat) throw new ConvexError("That isn't somewhere you can sit.");
+    const now = Date.now();
+    const token = spend("move", state, now);
+    if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    const from = posAt(state, now);
+    const walk = { fromX: from.x, fromZ: from.z, toX: seat.x, toZ: seat.z, startedAt: now };
+    await ctx.db.patch("worldState", state._id, { ...walk, away: undefined, seat: seat.id, moveBucket: token.bucket });
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, ...walk, serverNow: now };
   },
@@ -379,6 +398,7 @@ export const travel = mutation({
       reply: undefined,
       answered: undefined,
       away: undefined,
+      seat: undefined,
       actBucket: token.bucket,
     });
     await touchPresence(ctx, member._id, now);
@@ -664,6 +684,7 @@ export const state = query({
       // after the other person accepted someone else's too.
       answered: v.optional(v.array(worldReplyValidator)),
       away: v.optional(v.literal("arcade")),
+      seat: v.optional(v.string()),
     })
   ),
   handler: async (ctx, { memberId }) => {
@@ -672,8 +693,8 @@ export const state = query({
     if (!member || !me || (await blockedEither(ctx, me.email, member.email))) return null;
     const row = await stateOf(ctx, memberId);
     if (!row) return null;
-    const { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt } = row;
-    return { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt };
+    const { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt, seat } = row;
+    return { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt, seat };
   },
 });
 

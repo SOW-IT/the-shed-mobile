@@ -10,6 +10,7 @@ import {
   CHAT_TTL_MS,
   arrivalSpot,
   ELSEWHERE_NAMES,
+  SEATS,
   PLACE_OBSTACLES,
   clampTarget,
   INTERACT_RADIUS,
@@ -314,6 +315,33 @@ describe("places", () => {
     expect({ x: walked.toX, z: walked.toZ }).toEqual(clampTarget(pew.x, pew.z, "chapel"));
     expect({ x: walked.toX, z: walked.toZ }).not.toEqual({ x: pew.x, z: pew.z });
     expect((await stateRow(t, a.memberId))!.toX).toBe(walked.toX);
+  });
+
+  test("sitting walks you to a seat of the place you're in, and walking off stands you up", async () => {
+    const { t, anna, a } = await two();
+    await standAt(t, a.memberId, 0, 0);
+    const blanket = SEATS.garden[0];
+    const sat = await anna.mutation(api.world.sit, { seat: blanket.id });
+    expect(sat).toMatchObject({ ok: true, fromX: 0, fromZ: 0, toX: blanket.x, toZ: blanket.z });
+    expect(await anna.query(api.world.state, { memberId: a.memberId })).toMatchObject({ seat: blanket.id });
+    await expect(anna.mutation(api.world.sit, { seat: SEATS.chapel[0].id })).rejects.toThrow(/somewhere you can sit/);
+
+    later(60_000);
+    await anna.mutation(api.world.move, { toX: 0, toZ: 0 });
+    expect((await stateRow(t, a.memberId))!.seat).toBeUndefined();
+
+    await anna.mutation(api.world.sit, { seat: blanket.id });
+    await anna.mutation(api.world.travel, { to: "chapel" });
+    expect((await stateRow(t, a.memberId))!.seat).toBeUndefined();
+    const pew = SEATS.chapel[0];
+    expect(await anna.mutation(api.world.sit, { seat: pew.id })).toMatchObject({ ok: true, toX: pew.x, toZ: pew.z });
+  });
+
+  test("sitting shares the walking rate limit", async () => {
+    const { anna } = await two();
+    const blanket = SEATS.garden[0];
+    for (let i = 0; i < BUCKETS.move.burst; i++) await anna.mutation(api.world.sit, { seat: blanket.id });
+    expect(await anna.mutation(api.world.sit, { seat: blanket.id })).toMatchObject({ ok: false, retryInMs: expect.any(Number) });
   });
 
   test("the people list can show who is in the other places", async () => {

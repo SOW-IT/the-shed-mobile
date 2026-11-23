@@ -4,6 +4,7 @@ import {
   cleanLine,
   fullBucket,
   isPlace,
+  seatIn,
   takeToken,
   type Place,
   type Look,
@@ -43,6 +44,7 @@ export type WorldMember = {
   /** The asks this person accepted that are still open. */
   answered?: Reply[];
   away?: "arcade";
+  seat?: string;
 };
 
 /** The id prefix of a chat line shown before the server has it. */
@@ -190,6 +192,8 @@ export const useWorld = (enabled: boolean, away = false) => {
   const heartbeatM = useMutation(api.world.heartbeat);
   const awayM = useMutation(api.world.away);
   const travelM = useMutation(api.world.travel);
+  const sitM = useMutation(api.world.sit);
+  const [mySeat, setMySeat] = useState<string | null>(null);
   const travelling = useRef(false);
   // Every action shows at once on this phone (optimistic updates, below),
   // before the server answers.
@@ -212,7 +216,7 @@ export const useWorld = (enabled: boolean, away = false) => {
 
   const lastAction = useRef(0);
   // The spot waiting to be sent, whether a move is on its way, and its timer.
-  const pending = useRef<{ x: number; z: number } | null>(null);
+  const pending = useRef<{ x: number; z: number; seat?: string } | null>(null);
   const inFlight = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Bumped when a visit ends, so a reply from the last visit can't queue a move in this one.
@@ -277,6 +281,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       // The next visit starts from its own spawn walk, not this one's.
       setMyWalk(null);
       setTarget(null);
+      setMySeat(null);
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       counts.leave++;
@@ -345,6 +350,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     if (myServerWalk && (!myWalk || myServerWalk.startedAt > myWalk.startedAt + gap)) {
       const now = serverNow();
       setMyWalk((walk) => blendIn(walk, myServerWalk, now));
+      setMySeat((myServerWalk as { seat?: string }).seat ?? null);
     }
   }, [myServerWalk, myWalk, serverNow]);
 
@@ -364,7 +370,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     const sentAt = Date.now();
     const sentIn = visit.current;
     stats.current.move++;
-    moveM({ toX: to.x, toZ: to.z })
+    (to.seat ? sitM({ seat: to.seat }) : moveM({ toX: to.x, toZ: to.z }))
       .then((reply) => {
         if (sentIn !== visit.current) return;
         heard(reply.serverNow, sentAt);
@@ -391,7 +397,7 @@ export const useWorld = (enabled: boolean, away = false) => {
         inFlight.current = false;
         if (sentIn === visit.current && pending.current && !timer.current) later(COALESCE_MS);
       });
-  }, [moveM, heard, again, later, serverNow]);
+  }, [moveM, sitM, heard, again, later, serverNow]);
   useEffect(() => {
     flushRef.current = flush;
   }, [flush]);
@@ -407,7 +413,25 @@ export const useWorld = (enabled: boolean, away = false) => {
       const now = serverNow();
       setMyWalk((walk) => headFor(walk, to, now));
       setTarget(to);
+      setMySeat(null);
       pending.current = to;
+      predicting.current = true;
+      lastAction.current = Date.now();
+      if (timer.current) clearTimeout(timer.current);
+      later(COALESCE_MS);
+    },
+    [session, serverNow, later]
+  );
+
+  const sitOn = useCallback(
+    (seatId: string) => {
+      const seat = session && seatIn(session.place, seatId);
+      if (!seat) return;
+      const now = serverNow();
+      setMyWalk((walk) => headFor(walk, seat, now));
+      setTarget(null);
+      setMySeat(seat.id);
+      pending.current = { x: seat.x, z: seat.z, seat: seat.id };
       predicting.current = true;
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
@@ -445,6 +469,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       if (!session) return;
       holding.current = true;
       predicting.current = true;
+      setMySeat(null);
       retarget(clampTarget(x, z, session.place));
     },
     [session, retarget]
@@ -566,6 +591,7 @@ export const useWorld = (enabled: boolean, away = false) => {
         const arrived = { fromX, fromZ, toX, toZ, startedAt };
         setMyWalk({ ...arrived, gait: restingGait(arrived) });
         setTarget(null);
+        setMySeat(null);
         setSession({ roomId: reply.roomId, memberId: session.memberId, instance: reply.instance, place: placeFrom(reply.place) });
         return null;
       } catch (e) {
@@ -613,7 +639,11 @@ export const useWorld = (enabled: boolean, away = false) => {
   }, [session, heartbeatM, heard, again]);
 
   const people: WorldMember[] = members.map((m) => {
-    const row = states[m.memberId] as (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away">) | null | undefined | Error;
+    const row = states[m.memberId] as
+      | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "seat">)
+      | null
+      | undefined
+      | Error;
     const state = row && !(row instanceof Error) ? row : null;
     return {
       memberId: m.memberId,
@@ -628,6 +658,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       reply: state?.reply,
       answered: state?.answered,
       away: state?.away,
+      seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
     };
   });
 
@@ -673,6 +704,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     target,
     serverNow,
     walkTo,
+    sitOn,
     holdStart,
     holdMove,
     holdEnd,

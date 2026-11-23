@@ -23,6 +23,8 @@ import {
   PLACE_TITLES,
   PORTALS,
   PORTAL_RADIUS,
+  SEATS,
+  seatIn,
   arrivalSpot,
   isPlace,
   portalAt,
@@ -251,10 +253,17 @@ describe("places and the pads between them", () => {
     expect(portalAt("garden", { x: 0, z: 0 })).toBeNull();
   });
 
-  test("the garden leads everywhere, and everywhere leads back", () => {
-    expect(PORTALS.garden.map((pad) => pad.to).sort()).toEqual(PLACES.filter((place) => place !== "garden").sort());
+  test("the map: which places lead to which, and every way has a way back", () => {
+    const leadsTo = Object.fromEntries(PLACES.map((place) => [place, PORTALS[place].map((pad) => pad.to).sort()]));
+    expect(leadsTo).toEqual({
+      garden: ["beach", "campfire", "chapel"],
+      beach: ["campfire", "garden"],
+      campfire: ["beach", "cafe", "garden"],
+      chapel: ["cafe", "garden"],
+      cafe: ["campfire", "chapel"],
+    });
     for (const place of PLACES) {
-      if (place !== "garden") expect(PORTALS[place].map((pad) => pad.to)).toEqual(["garden"]);
+      for (const pad of PORTALS[place]) expect(PORTALS[pad.to].some((back) => back.to === place)).toBe(true);
     }
   });
 
@@ -278,5 +287,40 @@ describe("places and the pads between them", () => {
     const pond = PLACE_OBSTACLES.garden.find((o) => o.id === "pond")!;
     expect(clampTarget(pond.x + 0.5, pond.z, "campfire")).toEqual({ x: pond.x + 0.5, z: pond.z });
     expect(clampTarget(pond.x + 0.5, pond.z)).not.toEqual({ x: pond.x + 0.5, z: pond.z });
+  });
+});
+
+describe("seats", () => {
+  test("every seat is inside its place, has its own id, and is clear of the pads", () => {
+    for (const place of PLACES) {
+      const ids = SEATS[place].map((seat) => seat.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const seat of SEATS[place]) {
+        expect(seat.z).toBeGreaterThanOrEqual(WALK_BOUNDS.minZ);
+        expect(seat.z).toBeLessThanOrEqual(WALK_BOUNDS.maxZ);
+        expect(Math.abs(seat.x)).toBeLessThanOrEqual(halfWidthAt(seat.z));
+        expect(portalAt(place, seat)).toBeNull();
+        expect(seatIn(place, seat.id)).toBe(seat);
+      }
+    }
+  });
+
+  test("every place has somewhere to sit, and a seat belongs to one place", () => {
+    for (const place of PLACES) expect(SEATS[place].length).toBeGreaterThan(0);
+    expect(seatIn("garden", "blanket-0")).not.toBeNull();
+    expect(seatIn("beach", "blanket-0")).toBeNull();
+    expect(seatIn("garden", undefined)).toBeNull();
+  });
+
+  test("people sharing a bench have room, and bench seats sit inside the furniture", () => {
+    for (const place of PLACES) {
+      const seats = SEATS[place];
+      for (const a of seats) {
+        for (const b of seats) {
+          if (a !== b) expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(0.7);
+        }
+        if (a.height > 0) expect(clampTarget(a.x, a.z, place)).not.toEqual({ x: a.x, z: a.z });
+      }
+    }
   });
 });

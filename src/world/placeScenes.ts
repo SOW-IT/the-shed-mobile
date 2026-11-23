@@ -90,10 +90,8 @@ const buildChapel = (cam: Camera): Scene => {
 
   const { props, add } = propsFor(cam);
   for (const pew of PLACE_OBSTACLES.chapel.filter((o) => o.id.startsWith("pew"))) {
-    add(pew.id, pew.x, pew.z + 0.3, (p) => {
-      p.box(pew.x, 0.25, pew.z - 0.05, 2.5, 0.5, 0.55, c.wood);
-      p.box(pew.x, 0.6, pew.z + 0.28, 2.5, 1.2, 0.14, c.wood);
-    });
+    add(`${pew.id}-seat`, pew.x, pew.z - 0.35, (p) => p.box(pew.x, 0.2, pew.z - 0.05, 2.5, 0.4, 0.55, c.wood));
+    add(`${pew.id}-back`, pew.x, pew.z + 0.36, (p) => p.box(pew.x, 0.45, pew.z + 0.28, 2.5, 0.9, 0.14, c.wood));
   }
   const lectern = obstacle("chapel", "lectern");
   add("lectern", lectern.x, lectern.z, (p) => {
@@ -166,7 +164,7 @@ const buildCampfire = (cam: Camera): Scene => {
   });
   for (const id of ["log-back", "log-left", "log-right"]) {
     const log = obstacle("campfire", id);
-    add(id, log.x, log.z, (p) => p.box(log.x, 0.22, log.z, log.rx * 1.8, 0.44, log.rz * 1.8, c.log));
+    add(id, log.x, log.z - log.rz, (p) => p.box(log.x, 0.22, log.z, log.rx * 1.8, 0.44, log.rz * 1.8, c.log));
   }
   for (const [id, colour] of [["tent-left", c.tentA], ["tent-right", c.tentB]] as const) {
     const tent = obstacle("campfire", id);
@@ -219,7 +217,7 @@ const buildCafe = (cam: Camera): Scene => {
   });
   for (const id of ["table-a", "table-b", "table-c"]) {
     const table = obstacle("cafe", id);
-    add(id, table.x, table.z, (p) => {
+    add(id, table.x, table.z - 0.2, (p) => {
       p.groundDisc(table.x - 0.25, table.z - 0.2, 0.75, 0.55, garden.shadow);
       for (const side of [-1, 1]) p.cylinder(table.x + side * 0.6, table.z + 0.1, 0, 0.45, 0.17, 0.19, c.stool);
       p.cylinder(table.x, table.z, 0, 0.74, 0.09, 0.09, c.leg);
@@ -228,7 +226,7 @@ const buildCafe = (cam: Camera): Scene => {
     });
   }
   const couch = obstacle("cafe", "couch");
-  add("couch", couch.x, couch.z, (p) => {
+  add("couch", couch.x, couch.z - 0.5, (p) => {
     p.box(couch.x, 0.6, couch.z - 0.38, 2.3, 1.2, 0.26, c.couch);
     p.box(couch.x, 0.28, couch.z, 2.3, 0.56, 0.9, c.couch);
     for (const side of [-1, 1]) p.box(couch.x + side * 1.05, 0.45, couch.z, 0.24, 0.9, 0.9, c.couch);
@@ -321,9 +319,9 @@ const buildBeach = (cam: Camera): Scene => {
     for (const y of [1.5, 1.2, 0.9]) p.line([left.x, y, left.z], [right.x, y, right.z], y === 1.5 ? 3 : 1.5, c.net);
     for (let x = left.x + 0.34; x < right.x; x += 0.34) p.line([x, 1.5, left.z], [x, 0.9, left.z], 1.2, c.net);
   });
-  add("ball", 2.9, 1.2, (p) => {
-    p.groundDisc(2.8, 1.1, 0.26, 0.18, garden.shadow);
-    p.ball([2.9, 0.26, 1.2], 0.26, c.ball, { ink: 0.03 });
+  add("ball", 0.9, 1.0, (p) => {
+    p.groundDisc(0.8, 0.9, 0.26, 0.18, garden.shadow);
+    p.ball([0.9, 0.26, 1.0], 0.26, c.ball, { ink: 0.03 });
   });
   const inBounds = obstacle("beach", "palm");
   add("palm", inBounds.x, inBounds.z, (p) => {

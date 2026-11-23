@@ -10,6 +10,7 @@ import {
   MUTUALS,
   OBSTACLES,
   PLACE_TITLES,
+  SEATS,
   portalAt,
   posAt,
   type Place,
@@ -76,6 +77,7 @@ const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
 const ARCADE_SPOT = clampTarget(ARCADE.x + 0.9, ARCADE.z + 0.9);
 const AT_ARCADE = 0.3;
 const ARCADE_TRIP_MS = 20_000;
+const SAME_FURNITURE = 1.7;
 
 const RoundButton = ({
   icon,
@@ -302,6 +304,22 @@ export const WorldScreen = ({
     return () => clearInterval(id);
   }, [view, away]);
 
+  const sitNear = (seatId: string) => {
+    setPerson(null);
+    setApproach(null);
+    setArcadeTrip(null);
+    setTray(false);
+    const seats = SEATS[world.place];
+    const tapped = seats.find((seat) => seat.id === seatId);
+    if (!tapped) return;
+    const taken = new Set(world.people.filter((p) => !p.isMe && p.seat).map((p) => p.seat));
+    const free = seats
+      .filter((seat) => !taken.has(seat.id) && Math.hypot(seat.x - tapped.x, seat.z - tapped.z) <= SAME_FURNITURE)
+      .sort((a, b) => Math.hypot(a.x - tapped.x, a.z - tapped.z) - Math.hypot(b.x - tapped.x, b.z - tapped.z))[0];
+    if (free) world.sitOn(free.id);
+    else setNote("Those seats are taken.");
+  };
+
   const goToArcade = () => {
     setPerson(null);
     setApproach(null);
@@ -474,6 +492,7 @@ export const WorldScreen = ({
           answered: p.answered,
           muted: muted.has(p.memberId),
           away: p.away !== undefined,
+          seat: p.seat,
         }))}
         serverNow={world.serverNow}
         target={world.target}
@@ -495,6 +514,7 @@ export const WorldScreen = ({
         place={world.place}
         placeCounts={world.placeCounts}
         onTapArcade={goToArcade}
+        onTapSeat={sitNear}
         onAccept={accept}
         onDecline={decline}
         declined={declined}

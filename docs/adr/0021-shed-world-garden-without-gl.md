@@ -143,9 +143,11 @@ Daniel's items 5 to 9 (2026-11-23):
 
 ## Places
 
-The Garden is the hub of five places (`PLACES` in `shared/world.ts`): the
-Chapel, the Campfire, the Café and the Beach hang off it, each with one pad
-back.
+There are five places (`PLACES` in `shared/world.ts`), joined by pads
+(`PORTALS`) the way Daniel laid them out: the Garden leads to the Beach (at
+the gate), the Campfire and the Chapel; the Beach to the Campfire; the
+Campfire to the Café; the Café to the Chapel. Every pad has one going back,
+so the five make a loop with the Garden to Campfire path across it.
 
 - **Same floor everywhere.** Every place uses the Garden's walkable outline
   and camera, so the camera, taps, clamping and the narrow-phone fit are

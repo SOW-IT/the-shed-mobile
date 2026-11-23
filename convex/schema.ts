@@ -181,6 +181,7 @@ export default defineSchema({
     // again replays nothing even after they've accepted another since.
     answered: v.optional(v.array(worldReplyValidator)),
     away: v.optional(v.literal("arcade")),
+    seat: v.optional(v.string()),
     moveBucket: worldBucketValidator,
     actBucket: worldBucketValidator,
     sayBucket: worldBucketValidator,
