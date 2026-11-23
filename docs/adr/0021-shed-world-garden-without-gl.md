@@ -141,6 +141,39 @@ Daniel's items 5 to 9 (2026-11-23):
   notification and a push linking to `/world`: one poke an hour per sender,
   and nobody is poked more than once in ten minutes.
 
+## Look version 3 and everyone on the poke list
+
+- **Look version 3.** Nineteen more optional look parts, still one small
+  object and one write on Save: Mii-style placement sliders for the eyes,
+  brows and mouth (`eyeY`, `eyeGap`, `eyeSize`, `eyeTilt`, `browY`,
+  `browGap`, `browSize`, `browTilt`, `mouthY`, `mouthSize`, `mouthTilt`),
+  `browColour`, `glasses`, `eyeshadow`, `lipstick`, `mole`, `pants`,
+  `pantsColour` and `favourite`. Every slider has seven steps and its
+  middle step is where the part was drawn before, so a missing slider draws
+  the old face. The existing palettes grew by appending (hairstyles, hair
+  colours, skin tones, hats, extras, eyes, mouths, blush, freckles, facial
+  hair, tops). `isValidLook` bounds every part on the server and accepts
+  versions 1 to 3.
+- **A newer look on an older app.** `lookPart` treats a choice outside this
+  app's range as the default, and unknown fields are ignored, so an older
+  app draws a newer look with the parts it knows.
+- **Glasses got their own part.** They were extra number 1, so glasses and
+  a backpack couldn't go together. A missing `glasses` still means round
+  glasses when the extra is 1; the editor moves them across when it opens
+  and no longer offers that extra.
+- **Brows follow the eyes.** The brow sliders are offsets from the eyes, so
+  moving the eyes carries the brows with them and the two can't collide.
+- **The poke list is everyone on staff.** `world.offlineStaff` pages through
+  this staff year's profiles by name (`staffProfiles.by_year_and_name`),
+  leaving out the caller, anyone in the world and anyone blocked either way.
+  A page reads at most 50 profiles and can come back shorter than asked when
+  it skipped people; the app keeps loading with "Load more" until it's done.
+  `world.pokeStaff` pokes by staff profile, so people who have never been in
+  the world can be invited, with the same limits as `world.poke`. Someone
+  never seen has no `worldVisitors` row, so their ten-minute gap is kept in
+  `worldPoked` instead. `world.offline` and `world.poke` stay for older
+  apps.
+
 ## Places
 
 There are five places (`PLACES` in `shared/world.ts`), joined by pads

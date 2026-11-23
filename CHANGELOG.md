@@ -6,6 +6,40 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.16] - 2026-11-23
+
+### Added
+- **Move, size and tilt your eyes, brows and mouth.** The character editor
+  has Eyes, Brows and Mouth tabs, each with Mii-style sliders: up and down,
+  spacing, size and tilt (the mouth has up and down, size and tilt). Reset
+  puts them back. The preview comes in close on your face while you're on
+  the face tabs, and turns back to face you.
+- **More ways to look like you.** Six more hairstyles (mohawk, space buns,
+  a braid, curtains, a mullet, wavy), pink, blue and platinum hair, four
+  more skin tones, a brow colour, lashes and almond eyes, a cat mouth and a
+  tongue out, round and line blush, more freckles, moles, eyeshadow and
+  lipstick, a goatee, a wide moustache and a chin strap.
+- **Glasses of your own.** Round, square, sunglasses or big round, worn
+  with any extra, so glasses and a backpack can go together now.
+- **Hats and extras.** A beret, a bow, a headband, a party hat and a crown;
+  a bow tie, a necklace, headphones and a flower behind your ear.
+- **Tops and bottoms.** A collared shirt, a jacket, a jumper and polka dots,
+  and trousers, shorts or a skirt in a colour of your own.
+- **A favourite colour.** You wear it as your shoes, and on a beret, bow,
+  headband, party hat, bow tie or necklace.
+- **Poke anyone on staff.** "Not here right now" in People here now lists
+  everyone with a staff profile this year who isn't in the world, by name,
+  with Load more until you reach the end, not just a few people who'd been
+  in before. You can poke someone who has never visited; the limits are the
+  same (one poke an hour, and nobody poked twice in ten minutes).
+
+### Changed
+- **Randomise** picks from all the new choices too, with glasses, makeup,
+  moles and the rest kept rare so not everyone gets everything.
+- **Looks saved before this update don't change.** Every new part starts
+  where it was drawn before, and an older app shows a newer look with the
+  parts it knows.
+
 ## [2.12.13] - 2026-11-23
 
 ### Added
