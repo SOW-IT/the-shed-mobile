@@ -521,6 +521,30 @@ describe("the offline list and pokes", () => {
   });
 });
 
+describe("how many are online", () => {
+  test("counts everyone in every place, follows them in and out, and is zero signed out", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const cara = asUser(t, CARA);
+    expect(await anna.query(api.world.onlineCount, {})).toBe(0);
+    await anna.mutation(api.world.join, {});
+    await ben.mutation(api.world.join, {});
+    await cara.mutation(api.world.join, {});
+    expect(await anna.query(api.world.onlineCount, {})).toBe(3);
+    // Travelling doesn't change the count; leaving does.
+    await ben.mutation(api.world.travel, { to: "chapel" });
+    expect(await cara.query(api.world.onlineCount, {})).toBe(3);
+    await cara.mutation(api.world.leave, {});
+    expect(await cara.query(api.world.onlineCount, {})).toBe(2);
+    // Someone gone silent drops off once the sweep takes them out.
+    later(PRESENCE_TTL_MS + SWEEP_EVERY_MS + 1);
+    await t.mutation(internal.world.sweep, {});
+    expect(await cara.query(api.world.onlineCount, {})).toBe(0);
+    expect(await t.query(api.world.onlineCount, {})).toBe(0);
+  });
+});
+
 describe("everyone on staff who isn't here", () => {
   const year = () => currentStaffYear();
   const staff = (t: T, people: { email: string; name?: string; year?: number }[]) =>

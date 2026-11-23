@@ -46,7 +46,7 @@ import {
   type BucketKind,
 } from "../shared/world";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields } from "./worldData";
-import { Ctx, currentStaffYear, requireEmail, resolveName } from "./model";
+import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
 // Every mutation writes at most the caller's own state row, plus their
@@ -452,6 +452,27 @@ export const elsewhere = query({
       if (count > 0) found.push({ place, count, names });
     }
     return found;
+  },
+});
+
+/** Rooms read when counting everyone online, across every place. */
+const ONLINE_ROOM_SCAN = 500;
+
+/**
+ * How many people are in the world right now, in every place: the sum of
+ * the rooms' member counts, which join, leave, travel and the presence sweep
+ * keep in step. One indexed read of the live rooms (empty rooms are deleted),
+ * and it reruns only when someone comes, goes or travels, never per step.
+ * The sidebar, the Games list and the People button share it. Zero when
+ * signed out.
+ */
+export const onlineCount = query({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    if (!(await optionalEmail(ctx))) return 0;
+    const rooms = await ctx.db.query("worldRooms").withIndex("by_place_and_instance").take(ONLINE_ROOM_SCAN);
+    return rooms.reduce((total, room) => total + room.memberCount, 0);
   },
 });
 

@@ -47,8 +47,8 @@ export default function World() {
   if (isLoading) return <LoadingState />;
   if (!isAuthenticated) {
     return (
-      <Screen title="The Garden" onBack={() => backOr(router, "/games")}>
-        <SignInPrompt what="garden" />
+      <Screen title="World" onBack={() => backOr(router, "/games")}>
+        <SignInPrompt what="world" />
       </Screen>
     );
   }

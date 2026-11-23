@@ -14,6 +14,7 @@ import { useNavGroupOpen } from "@/hooks/useNavGroupOpen";
 import { useSignOut } from "@/hooks/usePushRegistration";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import { useStaffWaitingBadge } from "@/hooks/useStaffWaitingBadge";
+import { onlineText, useWorldOnline } from "@/hooks/useWorldOnline";
 import {
   activeNavKey,
   badgeText,
@@ -113,6 +114,7 @@ const NavItemRow = ({
   label,
   selected,
   badge,
+  note,
   sidebar,
   nested,
   onPress,
@@ -121,6 +123,8 @@ const NavItemRow = ({
   label: string;
   selected: boolean;
   badge: number;
+  /** A word beside the label, like "3 online". */
+  note?: string;
   sidebar: boolean;
   nested?: boolean;
   onPress: () => void;
@@ -131,7 +135,7 @@ const NavItemRow = ({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      accessibilityLabel={badge > 0 ? `${label}, ${badge} to action` : label}
+      accessibilityLabel={[label, note, badge > 0 ? `${badge} to action` : undefined].filter(Boolean).join(", ")}
       style={({ pressed }) => [
         styles.item,
         sidebar ? styles.itemSidebar : styles.itemDrawer,
@@ -155,6 +159,11 @@ const NavItemRow = ({
       >
         {label}
       </Text>
+      {note ? (
+        <Text numberOfLines={1} style={[styles.note, { color: t.muted }]} testID="nav-world-online">
+          {note}
+        </Text>
+      ) : null}
       <CountBadge count={badge} />
     </Pressable>
   );
@@ -268,6 +277,7 @@ export const NavMenu = ({
   const musicRequestsBadge = useMusicRequestsBadge();
   const unread =
     useQuery(api.notifications.unreadCount, viewer.isStaff ? {} : "skip") ?? 0;
+  const worldOnline = useWorldOnline(viewer.signedIn);
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   const sidebar = variant === "sidebar";
@@ -435,6 +445,7 @@ export const NavMenu = ({
               label={NAV_LABELS[entry.key]}
               selected={entry.key === active}
               badge={badgeFor(entry.key)}
+              note={entry.key === "garden" ? onlineText(worldOnline) : undefined}
               sidebar={sidebar}
               onPress={() => go(entry.key)}
             />
@@ -554,6 +565,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   badgeText: { color: fixedColours.onColour, fontSize: 11, fontWeight: "800" },
+  note: { marginLeft: "auto", fontSize: 13, fontWeight: "600" },
   divider: {
     height: StyleSheet.hairlineWidth,
     marginHorizontal: spacing.sm,
