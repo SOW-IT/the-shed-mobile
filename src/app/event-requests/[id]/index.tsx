@@ -157,7 +157,7 @@ export default function EventRequestScreen() {
   const downloadPdf = () =>
     run(async () => {
       const [{ buildEventRequestPdf, eventRequestPdfFilename }, history] = await Promise.all([
-        import("@/lib/eventRequestPdf"),
+        import("@/lib/requestPdfs"),
         convex.query(api.eventRequests.timeline, { id: event._id }),
       ]);
       const bytes = await buildEventRequestPdf({

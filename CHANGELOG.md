@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.21] - 2026-11-23
+## [2.12.22] - 2026-11-24
 
 ### Changed
 - **Swim in the pond and the sea.** Walk into the Garden pond or past the
@@ -19,10 +19,40 @@ All notable changes to **The SHED** mobile app. This project follows
   your heads, then the winner cheers and the loser cries. A draw goes again
   with three seconds to pick. Nobody sees a pick until the reveal, and
   anyone who doesn't pick in time gets one picked for them.
+- **Join and leave lines in the chat.** The chat log now says when someone
+  comes into the World and when they leave, in yellow like a game server:
+  "[12:04] Daniel K. joined the Garden", "[12:09] Daniel K. left". Moving
+  between places writes no line, and you don't see these lines for anyone
+  you've blocked.
+- **Last-name initials on name tags.** Name tags in the World show your
+  first name and the first letter of your last name, "Daniel K." instead of
+  "Daniel", so two people with the same first name can be told apart. Your
+  own tag still says "You".
+- **Randomise asks first.** In the character editor, Randomise now asks
+  "Randomise your character?" before it replaces your look.
+- **Duels in the list view.** Someone's sheet in the list view has a Rock
+  paper scissors button, and the list shows the picks and who won (read
+  aloud by VoiceOver).
 
 ### Fixed
 - **Praying looks like praying.** The Pray emote now shows two small hands
   held together under the chin, instead of a long loop down the chest.
+- **Duel fixes.** A pick sent just as a round ends can't count in the next
+  round, each player has their own limit on changes of mind, a late reveal
+  still gives the next round its full time, a new duel straight after another
+  shows its buttons at once, and you don't see duels of someone you've
+  blocked.
+- **Swimmers keep swimming when they stop,** treading water instead of
+  freezing.
+
+## [2.12.21] - 2026-11-23
+
+### Changed
+- **The website opens faster.** The code that makes Event Request and Design
+  Request PDFs (about a fifth of the shared code every page loaded) is now
+  fetched only when you press Download PDF. Every page downloads about 208 KB
+  less, and on a slow connection the sign-in screen is ready about a quarter
+  of a second sooner. The PDFs and the app on phones are unchanged.
 
 ## [2.12.20] - 2026-11-23
 
