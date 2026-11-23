@@ -173,6 +173,13 @@ Daniel's items 5 to 9 (2026-11-23):
   never seen has no `worldVisitors` row, so their ten-minute gap is kept in
   `worldPoked` instead. `world.offline` and `world.poke` stay for older
   apps.
+- **One online count.** `world.onlineCount` adds up `memberCount` on the
+  rooms (`worldRooms`, read by index, at most 500 rooms), the same presence
+  the world draws from, so it moves with joins, travel, leaves and the
+  sweeper. It reads a handful of small rows instead of every member, and
+  one subscription serves the side menu, the Games list card and the People
+  button badge (`useWorldOnline`). It's 0 when signed out, and the app shows
+  nothing at 0.
 
 ## Places
 
