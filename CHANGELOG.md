@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.28] - 2026-11-24
+## [2.12.30] - 2026-11-24
 
 ### Fixed
 - **Hats, hair and the scarf look right in the World.** Every hair style,
@@ -22,6 +22,17 @@ All notable changes to **The SHED** mobile app. This project follows
   - Spiky hair has proper spikes, and the side-swept fringe falls over the
     forehead instead of floating off the head.
   - The scarf wraps under the chin, where you can see it.
+
+## [2.12.29] - 2026-11-24
+
+### Changed
+- **Reimbursement lists on the website stop using the computer while you
+  read.** The moving fill on each request's current approval step was
+  redrawn by the page's code every frame, once per card, so a list of
+  requests kept the computer or phone busy (about half of a slow phone's
+  processor on All) even when nothing changed. On the website it's now a
+  CSS animation the browser runs by itself. It looks the same. The app on
+  phones already ran it this way.
 
 ## [2.12.25] - 2026-11-24
 
