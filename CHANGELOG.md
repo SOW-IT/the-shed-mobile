@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.10] - 2026-11-23
+## [2.12.11] - 2026-11-23
 
 ### Changed
 - **Org Chart search looks through every year.** Type a name, role or team
