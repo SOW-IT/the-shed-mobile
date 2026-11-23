@@ -16,6 +16,23 @@ All notable changes to **The SHED** mobile app. This project follows
   All list) no longer keeps a laptop or phone busy. They look the same, and
   the app on phones is unchanged.
 
+## [2.12.30] - 2026-11-24
+
+### Fixed
+- **Hats, hair and the scarf look right in the World.** Every hair style,
+  hat, outfit and accessory was checked from the front, side and back:
+  - The cap's peak sits at the cap's lower edge, not across the forehead,
+    and from behind the cap no longer covers the whole head like a helmet.
+  - The beanie's cuff runs along its lower edge instead of near the top.
+  - On the oval and long face shapes, the beanie's pompom, the sun hat and
+    the flower crown sit on top of the head instead of sinking into it.
+  - Curly hair, a bun and an afro tuck under a cap, beanie or sun hat
+    instead of showing through or ballooning above it.
+  - A ponytail and an afro show from behind.
+  - Spiky hair has proper spikes, and the side-swept fringe falls over the
+    forehead instead of floating off the head.
+  - The scarf wraps under the chin, where you can see it.
+
 ## [2.12.29] - 2026-11-24
 
 ### Changed
