@@ -866,8 +866,7 @@ const MusicRequestSheetContent = ({
                 color={t.warning}
               />
               <Text style={[typography.caption, { color: t.warning, flex: 1 }]}>
-                YouTube song details may be inaccurate. Please double-check the
-                song title and artist before submitting.
+                YouTube details can be wrong. Check the title and artist.
               </Text>
             </View>
           )}

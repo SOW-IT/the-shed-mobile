@@ -1402,7 +1402,7 @@ export default function AdminScreen() {
       <ConfirmDialog
         visible={syncConfirm}
         title="Sync directory now?"
-        message="Pulls active Google Workspace users into the people picker and caches profile photos. Runs automatically each week."
+        message="Pulls Google Workspace users and photos into the people picker. Also runs weekly."
         destructive={false}
         confirmLabel="Sync"
         onConfirm={() => {

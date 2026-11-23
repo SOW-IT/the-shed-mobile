@@ -210,7 +210,7 @@ export default function MentoringScreen() {
         <EmptyState
           icon="person-add-outline"
           title="No external mentors yet"
-          message="Add mentors who aren't SOW leaders, like a pastor or a former leader."
+          message="For mentors who aren't SOW leaders."
         />
       ) : (
         <>

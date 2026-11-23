@@ -216,8 +216,7 @@ const ActingAsPicker = ({
     >
       <View style={styles.intro}>
         <Muted>
-          See the app the way someone in a role does. You can still only do what
-          your own roles let you do.
+          You can still only do what your own roles allow.
         </Muted>
       </View>
       <ChoiceRow
