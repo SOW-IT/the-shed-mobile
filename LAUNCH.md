@@ -39,11 +39,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       Google Cloud until the minimum app version reaches 2.10.0, because
       2.9.25 to 2.9.29 still draw Google Maps with it.
 
-- [ ] **Send pull requests to the Data and IT space** (if wanted) through the
-      **GitHub for Google Chat** app: add it to the space, then
-      `/github_subscribe SOW-IT/the-shed-mobile`. EAS Production's own Chat
-      post already works.
-
 - [ ] **Add the 2025–26 and 2026–27 mentor lists** once 2.10.4 is live:
       `npx convex run --prod mentoring:setPairings` for 2026 and 2027, eight
       pairings each, from the lists given on 2026-10-23.

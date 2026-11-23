@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.14] - 2026-11-23
+## [2.12.15] - 2026-11-23
 
 ### Changed
 - **No swiping back out of a game.** In Sky Shooter, Mystic Man and Flap,
@@ -21,6 +21,20 @@ All notable changes to **The SHED** mobile app. This project follows
   getting back out took a tap of the back button per screen. Now Play on
   the leaderboard swaps the old game and the leaderboard for the new game:
   there's only ever one game open, with at most the leaderboard on top of it.
+
+## [2.12.14] - 2026-11-23
+
+### Added
+- **Every merge is posted to Google Chat.** When a pull request lands on
+  `main`, a card in the team's Chat space says which version just went out,
+  the PR's title and author, who merged it, and links to the PR and the deploy
+  runs. It reminds you that web and the backend go live straight away and
+  phones follow over the air.
+
+### Changed
+- **Chat posts move to a new space.** Merges, over-the-air update reports,
+  EAS Production results and the backup and usage alerts all use one webhook,
+  which now points at a dedicated space instead of Data and IT.
 
 ## [2.12.13] - 2026-11-23
 
