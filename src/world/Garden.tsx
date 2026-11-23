@@ -108,7 +108,6 @@ export const Garden = ({
   onAccept,
   onDecline,
   declined,
-  onHearing,
   selected,
   hudActions,
   place,
@@ -131,8 +130,6 @@ export const Garden = ({
   onDecline: (from: string, askAt: number) => void;
   /** Asks you've declined, as `${from}:${askAt}`. */
   declined: ReadonlySet<string>;
-  /** How many others can hear you, whenever that changes. */
-  onHearing: (count: number) => void;
   selected: string | null;
   hudActions: HudAction[];
   place: Place;
@@ -230,12 +227,6 @@ export const Garden = ({
     doing[i] = { kind: "emote", id: p.act.emote, p: (now - p.act.at) / EMOTE_MS };
   });
   const meId = me >= 0 ? people[me].memberId : null;
-  // Worked out here, on the same frame as the faded bubbles, so the chip
-  // and the bubbles always agree.
-  const hearing = mePose ? poses.filter((pose, i) => i !== me && pose !== null && canHear(mePose, pose)).length : 0;
-  useEffect(() => {
-    onHearing(hearing);
-  }, [hearing, onHearing]);
   // Asks made of you that are still open and not answered or declined.
   const asks = people.filter(
     (p) =>

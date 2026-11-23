@@ -14,4 +14,10 @@ describe("push deep links", () => {
     expect(isAllowedDeepLink("/grievances?tab=submitted")).toBe(true);
     expect(isAllowedDeepLink("/grievancesx")).toBe(false);
   });
+
+  test("a poke opens the World", () => {
+    expect(isAllowedDeepLink("/world")).toBe(true);
+    expect(isAllowedDeepLink("/world?reopen=abc")).toBe(true);
+    expect(isAllowedDeepLink("/worlds")).toBe(false);
+  });
 });

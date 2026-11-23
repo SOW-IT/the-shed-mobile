@@ -172,6 +172,15 @@ export const hud = {
   scrim: "rgba(15, 37, 35, 0.35)",
 } as const;
 
+export const chatLog = {
+  text: "#FFFFFF",
+  shadow: "rgba(20, 20, 20, 0.85)",
+  time: "#D4D4D4",
+  me: "#FFFF55",
+  name: "#FFFFFF",
+  status: "#E0E0E0",
+} as const;
+
 const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
 
 const lightness = (hex: string) => 0.2126 * channel(hex, 0) + 0.7152 * channel(hex, 1) + 0.0722 * channel(hex, 2);

@@ -26,7 +26,8 @@ import { hud } from "./palette";
 import type { HudAction } from "./PersonHud";
 import { PeopleSheet, PersonSheet } from "./Sheets";
 import { useWorld } from "./useWorld";
-import { hearingLabel, pickView, type WorldView } from "./view";
+import { pickView } from "./view";
+import { ChatLog } from "./ChatLog";
 import { WorldList } from "./WorldList";
 
 const useScreenReader = () => {
@@ -134,8 +135,7 @@ export const WorldScreen = ({
 }) => {
   const offline = useOffline();
   const screenReader = useScreenReader();
-  const [chosen, setChosen] = useState<WorldView | null>(null);
-  const view = pickView({ offline, screenReader, chosen, canDraw: Platform.OS !== "android" });
+  const view = pickView({ offline, screenReader, canDraw: Platform.OS !== "android" });
   const world = useWorld(!offline && active, away);
   const [arcadeTrip, setArcadeTrip] = useState<number | null>(null);
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
@@ -155,8 +155,6 @@ export const WorldScreen = ({
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
-  // How many can hear you, as the garden draws it.
-  const [hearing, setHearing] = useState(0);
 
   useEffect(() => {
     if (!note) return;
@@ -412,10 +410,6 @@ export const WorldScreen = ({
         onToggleMute={toggleMute}
         onWave={() => emote("wave")}
         onHighFive={highFive}
-        onCustomize={() => {
-          setSheet(null);
-          setEditing(true);
-        }}
         onClose={() => setSheet(null)}
         onDone={setNote}
       />
@@ -429,19 +423,10 @@ export const WorldScreen = ({
       <PeopleSheet
         visible={peopleOpen}
         people={world.people}
-        view={view}
-        onView={(next) => {
-          setChosen(next);
-          setPeopleOpen(false);
-        }}
         onPerson={(memberId) => {
           setPeopleOpen(false);
           if (view === "list") setSheet({ memberId, safetyOnly: false });
           else setPerson(memberId);
-        }}
-        onCustomize={() => {
-          setPeopleOpen(false);
-          setEditing(true);
         }}
         place={world.place}
         onGo={go}
@@ -462,7 +447,10 @@ export const WorldScreen = ({
           onBack={onBack}
           onArcade={onArcade}
           onPeople={() => setPeopleOpen(true)}
-          onPerson={(memberId) => setSheet({ memberId, safetyOnly: false })}
+          onPerson={(memberId) => {
+            if (world.people.some((p) => p.isMe && p.memberId === memberId)) setEditing(true);
+            else setSheet({ memberId, safetyOnly: false });
+          }}
           note={note}
           onNote={setNote}
           declined={declined}
@@ -518,24 +506,25 @@ export const WorldScreen = ({
         onAccept={accept}
         onDecline={decline}
         declined={declined}
-        onHearing={setHearing}
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <RoundButton icon="chevron-back" label="Back" onPress={onBack} testID="world-back" />
         <TitlePill title={PLACE_TITLES[world.place]} instance={world.instance} />
         <RoundButton icon="people-outline" label="People here" onPress={() => setPeopleOpen(true)} testID="world-people" />
       </View>
-      <View style={[styles.chipRow, { top: insets.top + 66 }]} pointerEvents="none">
-        <View style={styles.chip} testID="world-hearing">
-          <View style={styles.chipRing} />
-          <Text style={styles.chipText}>
-            {world.status === "joining"
+      <View style={[styles.logRow, { top: insets.top + 66 }]} pointerEvents="box-none">
+        <ChatLog
+          roomId={world.status === "in" ? world.roomId : null}
+          muted={muted}
+          now={world.serverNow()}
+          status={
+            world.status === "joining"
               ? `Opening ${PLACE_TITLES[world.place].toLowerCase()}…`
               : world.status === "error"
                 ? world.error
-                : hearingLabel(hearing)}
-          </Text>
-        </View>
+                : null
+          }
+        />
         {note ? (
           <Text style={styles.note} accessibilityLiveRegion="polite" aria-live="polite">
             {note}
@@ -675,18 +664,7 @@ const styles = StyleSheet.create({
   },
   mark: { width: 30, height: 30, borderRadius: 15, backgroundColor: hud.primary, alignItems: "center", justifyContent: "center" },
   titleText: { fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.3, color: hud.forest },
-  chipRow: { position: "absolute", left: 0, right: 0, alignItems: "center", gap: 8 },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: hud.chip,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-  },
-  chipRing: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderStyle: "dashed", borderColor: hud.chipRing },
-  chipText: { color: hud.cream, fontSize: 12.5, fontWeight: "600" },
+  logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
   note: {
     backgroundColor: hud.card,
     color: hud.forest,

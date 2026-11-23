@@ -6,6 +6,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.14] - 2026-11-23
+
+### Changed
+- **The chat log sits at the top of the World.** The last few lines show
+  over the scenery with the time and who said them, in place of the "can
+  hear you" pill, and you can scroll up through older lines. Speech
+  bubbles over heads are unchanged.
+- **Fewer buttons in People here.** Customize your character and Show as a
+  list are gone. Tap yourself and pick Outfit to change your look. In the
+  list view, tap your own name.
+
+### Fixed
+- **Opening the character editor from People here could freeze the
+  screen** so nothing could be tapped. That way in is gone.
+- **Tapping a poke notification opens the World** instead of leaving you
+  on whatever screen you had open last.
+
 ## [2.12.13] - 2026-11-23
 
 ### Added

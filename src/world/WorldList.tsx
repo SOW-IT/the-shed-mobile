@@ -7,9 +7,8 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-na
 import { api } from "../../convex/_generated/api";
 import { accepted, announce } from "./announce";
 import { PENDING, type useWorld } from "./useWorld";
+import { clock } from "./view";
 
-const clock = (at: number) =>
-  new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
 /**
  * The garden without the drawing: who's here, who can hear you, and the last
@@ -172,7 +171,7 @@ export const WorldList = ({
         {world.people.map((p) => {
           const theirs = p.walk ? posAt(p.walk, now) : null;
           const near = mePose && theirs && !p.isMe ? canHear(mePose, theirs) : false;
-          const detail = p.isMe ? "You" : p.away ? "Playing at the arcade" : near ? "Can hear you" : "Out of earshot";
+          const detail = p.isMe ? "You · change your look" : p.away ? "Playing at the arcade" : near ? "Can hear you" : "Out of earshot";
           // Close enough for a high five? If not, a way to walk over: the list
           // view (and Android, which always has it) can't tap the ground.
           const gap = mePose && theirs ? Math.hypot(theirs.x - mePose.x, theirs.z - mePose.z) : 0;
@@ -187,10 +186,9 @@ export const WorldList = ({
             // The row and Walk over sit side by side: a button can't hold another on the web.
             <View key={p.memberId} style={[styles.row, { borderColor: t.border }]}>
               <Pressable
-                disabled={p.isMe}
                 onPress={() => onPerson(p.memberId)}
                 accessibilityRole="button"
-                accessibilityLabel={`${p.name}, ${detail}${muted.has(p.memberId) ? ", muted" : ""}`}
+                accessibilityLabel={p.isMe ? `${p.name}, you. Change your look` : `${p.name}, ${detail}${muted.has(p.memberId) ? ", muted" : ""}`}
                 style={({ pressed }) => [styles.rowMain, pressed && { opacity: 0.7 }]}
               >
                 <Text style={[typography.body, { color: t.text, flex: 1 }]}>{p.name}</Text>
