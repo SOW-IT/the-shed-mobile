@@ -13,6 +13,10 @@ import {
   jump,
   makePattern,
   minimumGap,
+  comboGap,
+  COMBOS,
+  LONG_COMBOS,
+  type PatternKind,
   newRunner,
   onGround,
   patternSpan,
@@ -240,7 +244,7 @@ describe("runner", () => {
    * a hop or the big jump centred over the pattern, or a slide that covers it.
    * Any pattern the generator makes must be cleared this way.
    */
-  const autopilot = (s: RunnerState): RunnerState => {
+  const autopilot = (s: RunnerState, late = 0): RunnerState => {
     const xL = RUNNER.x - HIT_WIDTH / 2;
     const xR = RUNNER.x + HIT_WIDTH / 2;
     const ahead = s.obstacles.filter((o) => o.x + o.width > xL).sort((a, b) => a.x - b.x);
@@ -252,12 +256,12 @@ describe("runner", () => {
     const exit = (back - xL) / s.speed;
     const pattern = group[0].pattern;
     if (pattern === "hang" || pattern === "beam") {
-      if (!onGround(s)) return enter < 0.3 ? duck(s) : s;
-      return enter <= 0.08 && !sliding(s) ? duck(s) : s;
+      if (!onGround(s)) return enter < 0.3 - late ? duck(s) : s;
+      return enter <= 0.08 - late && !sliding(s) ? duck(s) : s;
     }
     const speed = pattern === "rock" ? RUNNER.hopSpeed : RUNNER.jumpSpeed;
     const takeoff = (enter + exit) / 2 - speed / RUNNER.gravity;
-    if (takeoff > FRAME / 2 || !onGround(s)) return s;
+    if (takeoff > FRAME / 2 - late || !onGround(s)) return s;
     return pattern === "rock" ? hop(s) : jump(s);
   };
 
@@ -281,6 +285,23 @@ describe("runner", () => {
     for (const kind of ["rock", "tall", "wide", "double", "beam", "hang"]) expect(passed[kind]).toBeGreaterThan(20);
   });
 
+  test("combos leave room for a human: a little early or a little late still clears them", () => {
+    let combos = 0;
+    for (const late of [-0.05, 0.05]) {
+      for (const time of [20, 45, 90]) {
+        for (let seed = 1; seed <= 30; seed++) {
+          let state: RunnerState = { ...newRunner(760, seed), time, speed: runnerSpeed(time) };
+          for (let i = 0; i < 60 * 40 && !state.over; i++) {
+            if (state.chain.length > 0 && state.nextIn <= state.speed * FRAME) combos++;
+            state = stepRunner(autopilot(state, late), FRAME);
+          }
+          expect(state.over, `${late > 0 ? "late" : "early"}, seed ${seed} from ${time}s died at ${state.time.toFixed(1)}s`).toBe(false);
+        }
+      }
+    }
+    expect(combos).toBeGreaterThan(100);
+  });
+
   test("a preview board shows the asked-for patterns in order, sized for the given time", () => {
     const board = previewWith(760, ["double", "hang"], 30);
     expect(board.obstacles.map((o) => o.pattern)).toEqual(["double", "double", "hang"]);
@@ -289,26 +310,35 @@ describe("runner", () => {
     expect(["rock", "hang", "snake"].map(isPatternKind)).toEqual([true, true, false]);
   });
 
-  test("patterns are always spaced far enough to land the big jump and react", () => {
+  test("patterns are spaced to land the big jump and react, or, inside a combo, to land and go again", () => {
+    const inCombo = (first: string, second: string) =>
+      [...COMBOS, ...LONG_COMBOS].some((combo) => combo.some((kind, k) => kind === first && combo[k + 1] === second));
+    let tight = 0;
     for (const time of [0, 20, 60, 90]) {
       for (let seed = 1; seed <= 10; seed++) {
         let state: RunnerState = { ...newRunner(760, seed), time, speed: runnerSpeed(time) };
         // Each pattern's front and back in distance run, and the speed it came at.
-        const spawned: { group: number; front: number; back: number; speed: number }[] = [];
+        const spawned: { group: number; kind: string; front: number; back: number; speed: number }[] = [];
         for (let i = 0; i < 60 * 30; i++) {
           const before = new Set(state.obstacles.map((o) => o.group));
           state = stepRunner(autopilot(state), FRAME);
           const fresh = state.obstacles.filter((o) => !before.has(o.group));
           if (fresh.length) {
             const front = state.distance + Math.min(...fresh.map((o) => o.x));
-            spawned.push({ group: fresh[0].group, front, back: state.distance + Math.max(...fresh.map((o) => o.x + o.width)), speed: state.speed });
+            spawned.push({ group: fresh[0].group, kind: fresh[0].pattern, front, back: state.distance + Math.max(...fresh.map((o) => o.x + o.width)), speed: state.speed });
           }
         }
         for (let k = 1; k < spawned.length; k++) {
-          expect(spawned[k].front - spawned[k - 1].back).toBeGreaterThanOrEqual(minimumGap(spawned[k - 1].speed) - 1);
+          const [before, after] = [spawned[k - 1], spawned[k]];
+          const gap = after.front - before.back;
+          if (gap >= minimumGap(before.speed) - 1) continue;
+          tight++;
+          expect(inCombo(before.kind, after.kind), `${before.kind} then ${after.kind}`).toBe(true);
+          expect(gap).toBeGreaterThanOrEqual(comboGap(before.kind as PatternKind, after.kind as PatternKind, before.speed) - 1);
         }
       }
     }
+    expect(tight).toBeGreaterThan(10);
   });
 });
 

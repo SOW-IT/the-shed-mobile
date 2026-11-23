@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.19] - 2026-11-23
+
+### Changed
+- **Mystic Man is faster again.** His top speed is a quarter higher (960 to
+  1200), and he keeps speeding up for longer to reach it.
+- **Combos.** From 15 seconds in, obstacles sometimes come one straight after
+  another: a hop and then straight under the vines, a hop into the big jump,
+  two hops in a row, out of a slide into a hop, or a hop and then duck the
+  beam. After 40 seconds they come more often, and some run to three. Each
+  one is spaced from how long the first move takes to land, a quarter of a
+  second to react, and the run-up the next needs, so it's tight but always
+  possible, even a little early or late.
+- **Obstacles come closer together.** The clear run between patterns is
+  shorter, with less extra space thrown in.
+
 ## [2.12.17] - 2026-11-23
 
 ### Changed
