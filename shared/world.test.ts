@@ -42,6 +42,13 @@ import {
   takeToken,
   WALK_BOUNDS,
   WALK_SPEED,
+  askInfo,
+  chantAt,
+  DUEL_REVEAL_MS,
+  duelWinner,
+  inWater,
+  isAskKind,
+  isDuelPick,
 } from "./world";
 
 describe("posAt", () => {
@@ -92,10 +99,10 @@ describe("clampTarget", () => {
   });
 });
 
-test("keeps a tap by the pond's west edge out of the pond, and narrows toward the front", () => {
-  const pond = OBSTACLES[1];
-  const out = clampTarget(-3.9, 2.2);
-  expect(Math.hypot((out.x - pond.x) / pond.rx, (out.z - pond.z) / pond.rz)).toBeGreaterThanOrEqual(1);
+test("lets you walk into the pond, and narrows toward the front", () => {
+  expect(OBSTACLES.some((o) => o.id === ("pond" as string))).toBe(false);
+  const out = clampTarget(-3.5, 2.2);
+  expect(out).toEqual({ x: -3.5, z: 2.2 });
   expect(out.x).toBeGreaterThanOrEqual(-halfWidthAt(out.z));
   expect(halfWidthAt(0)).toBe(WALK_BOUNDS.maxX);
   expect(clampTarget(99, WALK_BOUNDS.maxZ).x).toBeCloseTo(halfWidthAt(WALK_BOUNDS.maxZ));
@@ -156,8 +163,11 @@ test("a look from before version 2 draws with the old defaults, and the body sta
   expect(small.width).toBeCloseTo(0.85);
 });
 
-test("tagName shows a short first name", () => {
-  expect(tagName("  Grace   Lee ")).toBe("Grace");
+test("tagName shows a short first name and the last name's initial", () => {
+  expect(tagName("  Grace   Lee ")).toBe("Grace L.");
+  expect(tagName("Daniel Chan kim")).toBe("Daniel K.");
+  expect(tagName("Grace")).toBe("Grace");
+  expect(tagName("Maximiliannnnnnnn Ng")).toBe("Maximiliannnn… N.");
   expect(tagName("")).toBe("Someone");
   expect(tagName("Maximiliannnnnnnn")).toBe("Maximiliannnn…");
   expect(tagName("abcdefghijkl😀zzz")).toBe("abcdefghijkl😀…");
@@ -284,9 +294,9 @@ describe("places and the pads between them", () => {
     const pew = PLACE_OBSTACLES.chapel[0];
     expect(clampTarget(pew.x, pew.z, "chapel")).not.toEqual({ x: pew.x, z: pew.z });
     expect(clampTarget(pew.x, pew.z, "beach")).toEqual({ x: pew.x, z: pew.z });
-    const pond = PLACE_OBSTACLES.garden.find((o) => o.id === "pond")!;
-    expect(clampTarget(pond.x + 0.5, pond.z, "campfire")).toEqual({ x: pond.x + 0.5, z: pond.z });
-    expect(clampTarget(pond.x + 0.5, pond.z)).not.toEqual({ x: pond.x + 0.5, z: pond.z });
+    const bath = PLACE_OBSTACLES.garden.find((o) => o.id === "birdbath")!;
+    expect(clampTarget(bath.x + 0.2, bath.z, "beach")).toEqual({ x: bath.x + 0.2, z: bath.z });
+    expect(clampTarget(bath.x + 0.2, bath.z)).not.toEqual({ x: bath.x + 0.2, z: bath.z });
   });
 });
 
@@ -322,5 +332,48 @@ describe("seats", () => {
         if (a.height > 0) expect(clampTarget(a.x, a.z, place)).not.toEqual({ x: a.x, z: a.z });
       }
     }
+  });
+});
+
+describe("water", () => {
+  test("the pond and the sea are water; the path and the sand aren't", () => {
+    expect(inWater("garden", { x: -2.9, z: 2.2 })).toBe(true);
+    expect(inWater("garden", { x: 0.2, z: 6.2 })).toBe(false);
+    expect(inWater("beach", { x: 0, z: -9 })).toBe(true);
+    expect(inWater("beach", { x: 0, z: -6 })).toBe(false);
+    expect(inWater("chapel", { x: -2.9, z: 2.2 })).toBe(false);
+    expect(clampTarget(0, -10.5, "beach").z).toBeLessThan(-7.4);
+  });
+});
+
+describe("rock paper scissors", () => {
+  test("rock beats scissors, scissors beats paper, paper beats rock", () => {
+    expect(duelWinner("rock", "scissors")).toBe("a");
+    expect(duelWinner("scissors", "rock")).toBe("b");
+    expect(duelWinner("scissors", "paper")).toBe("a");
+    expect(duelWinner("rock", "paper")).toBe("b");
+    expect(duelWinner("paper", "paper")).toBe("draw");
+    expect(isDuelPick("rock")).toBe(true);
+    expect(isDuelPick("lizard")).toBe(false);
+    expect(isDuelPick(3)).toBe(false);
+  });
+
+  test("the chant lands Rock! on the reveal and stops after it", () => {
+    const end = 10_000;
+    expect(chantAt(end, end - 3000)).toBeNull();
+    expect(chantAt(end, end - 2400)).toBe("Scissors…");
+    expect(chantAt(end, end - 1000)).toBe("Paper…");
+    expect(chantAt(end, end)).toBe("Rock!");
+    expect(chantAt(end, end + DUEL_REVEAL_MS - 1)).toBe("Rock!");
+    expect(chantAt(end, end + DUEL_REVEAL_MS)).toBeNull();
+  });
+
+  test("a duel is something you can ask for, but not a mutual animation", () => {
+    expect(isAskKind("rps")).toBe(true);
+    expect(isMutual("rps")).toBe(false);
+    expect(askInfo("rps")?.ask).toBe("Rock paper scissors?");
+    expect(askInfo("highFive")?.ask).toBe("High five?");
+    expect(askInfo("nope")).toBeNull();
+    expect(askInfo(undefined)).toBeNull();
   });
 });

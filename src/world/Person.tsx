@@ -52,6 +52,8 @@ type Stride = { stridePhase: number; strideAmp: number };
 
 const ON_BENCH_ABOVE_SEAT = 0.1;
 const ON_GROUND_SINK = 0.08;
+export const SWIM_SINK = 0.4;
+
 export const sitRise = (seatHeight: number | undefined) =>
   seatHeight === undefined ? 0 : seatHeight > 0 ? seatHeight - ON_BENCH_ABOVE_SEAT : -ON_GROUND_SINK;
 
@@ -255,8 +257,8 @@ const motion = (doing: Doing, t: number) => {
     case "pray": {
       const fold = settle(doing.p / 0.2) * settle((1 - doing.p) / 0.16);
       const breath = Math.sin(t * 1.8) * 0.01 * fold;
-      hands.l = [-0.4 + 0.36 * fold, 0.34 + 0.07 * fold + breath];
-      hands.r = [0.4 - 0.36 * fold, 0.34 + 0.07 * fold + breath];
+      hands.l = [-0.4 + 0.33 * fold, 0.34 + 0.12 * fold + breath];
+      hands.r = [0.4 - 0.33 * fold, 0.34 + 0.12 * fold + breath];
       hands.front = true;
       palms = fold;
       nod = fold;
@@ -283,6 +285,7 @@ const AvatarView = ({
   sit,
   doing = null,
   shadow = true,
+  swim = false,
 }: {
   figure: Figure;
   pose: Pose;
@@ -293,10 +296,21 @@ const AvatarView = ({
   sit?: number;
   doing?: Doing;
   shadow?: boolean;
+  swim?: boolean;
 }) => {
   const { foot, s, up } = figure;
   const move = motion(doing, t);
-  const bob = figure.bob + move.lift - move.sink + sitRise(sit);
+  if (swim && !move.hands.l && !move.hands.r) {
+    const reach = pose.walking ? 1 : 0.3;
+    for (const e of [-1, 1] as const) {
+      const phase = t * 7 + seed + (e > 0 ? Math.PI : 0);
+      const hand: [number, number] = [e * (0.36 + 0.06 * Math.cos(phase)), 0.62 + 0.24 * reach * Math.sin(phase)];
+      if (e < 0) move.hands.l = hand;
+      else move.hands.r = hand;
+    }
+    move.hands.front = true;
+  }
+  const bob = figure.bob + move.lift - move.sink + sitRise(sit) - (swim ? SWIM_SINK : 0);
   const ink = Math.max(1.2, 0.035 * s);
   const dx = move.shake + move.lean;
   // Height and build stretch the body; the head stays the same size.
@@ -333,7 +347,7 @@ const AvatarView = ({
   const ball = (key: string, x: number, y: number, rad: number, fill: string) =>
     parts.push(<Ellipse key={key} cx={x} cy={y} rx={rad} ry={rad} fill={fill} ink={ink * 0.8} inkColour={garden.ink} ramp />);
 
-  if (shadow && !(sit !== undefined && sit > 0)) {
+  if (shadow && !swim && !(sit !== undefined && sit > 0)) {
     parts.push(
       <Ellipse key="shadow" cx={foot.x - 0.08 * s} cy={foot.y - 0.04 * s} rx={0.4 * s} ry={0.2 * s} fill={garden.shadow} />
     );
@@ -350,7 +364,7 @@ const AvatarView = ({
     }
   };
   const feetInFront = seated && facing >= 0;
-  if (!feetInFront) feet();
+  if (!feetInFront && !swim) feet();
   const accessory = look.accessory ?? 0;
   // A backpack shows behind the body from the front, over it from behind.
   const backpack = (key: string) =>
@@ -855,12 +869,22 @@ const AvatarView = ({
   }
   arms("over");
   if (move.palms > 0.6 && facing >= 0) {
-    const tips = 0.41 + 0.13 * move.palms;
-    parts.push(capsule(at(0, 0.4), at(0, tips), 0.15 * s + ink * 2, garden.ink, "palmsInk"));
-    parts.push(capsule(at(0, 0.4), at(0, tips), 0.15 * s, skin, "palms"));
-    parts.push(capsule(at(0, 0.41), at(0, tips - 0.01), ink * 0.7, garden.ink, "palmsSeam"));
+    const y = move.hands.l?.[1] ?? 0.46;
+    for (const e of [-1, 1]) {
+      const hand = at(0.045 * e, y + 0.02);
+      parts.push(<Ellipse key={`palm${e}`} cx={hand.x} cy={hand.y} rx={0.065 * s} ry={0.095 * s} fill={skin} ink={ink * 0.8} inkColour={garden.ink} />);
+    }
   }
-  return <>{parts}</>;
+  if (!swim) return <>{parts}</>;
+  const lap = 1 + 0.08 * Math.sin(t * 5 + seed);
+  return (
+    <>
+      <Ellipse cx={foot.x} cy={foot.y} rx={0.6 * s * lap} ry={0.16 * s * lap} fill={garden.ripple} ink={ink * 0.7} inkColour={garden.water} />
+      <View pointerEvents="none" style={[styles.abs, styles.waterline, { height: foot.y }]}>
+        {parts}
+      </View>
+    </>
+  );
 };
 
 const sameLook = (a: Look, b: Look) =>
@@ -898,6 +922,7 @@ export const Avatar = memo(
     a.stride?.strideAmp === b.stride?.strideAmp &&
     a.sit === b.sit &&
     a.shadow === b.shadow &&
+    a.swim === b.swim &&
     sameDoing(a.doing ?? null, b.doing ?? null)
 );
 
@@ -969,6 +994,7 @@ export const Tag = ({
 
 const styles = StyleSheet.create({
   abs: { position: "absolute" },
+  waterline: { left: 0, top: 0, width: "100%", overflow: "hidden" },
   quad: { position: "absolute", left: 0, top: 0, width: QUAD_SIZE, height: QUAD_SIZE },
   tag: { position: "absolute", width: 240, height: 400, alignItems: "center", justifyContent: "flex-end", gap: 10 },
   emote: { fontSize: 30, marginBottom: -4 },

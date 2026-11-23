@@ -13,6 +13,9 @@ import {
   SEATS,
   portalAt,
   posAt,
+  ASKS,
+  type AskKind,
+  type DuelPick,
   type Place,
 } from "@shared/world";
 import { useEffect, useRef, useState } from "react";
@@ -28,6 +31,8 @@ import { PeopleSheet, PersonSheet } from "./Sheets";
 import { useWorld } from "./useWorld";
 import { pickView } from "./view";
 import { ChatLog } from "./ChatLog";
+import { duelFor } from "./duel";
+import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -142,7 +147,7 @@ export const WorldScreen = ({
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [person, setPerson] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ memberId: string; safetyOnly: boolean; name?: string } | null>(null);
-  const [approach, setApproach] = useState<{ to: string; since: number } | null>(null);
+  const [approach, setApproach] = useState<{ to: string; since: number; kind: AskKind } | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [composing, setComposing] = useState(false);
@@ -214,18 +219,31 @@ export const WorldScreen = ({
   };
   const firstName = (memberId: string) => world.people.find((p) => p.memberId === memberId)?.name.split(" ")[0] ?? "them";
 
-  const askHighFive = (to: string) => {
-    const other = world.people.find((p) => p.memberId === to);
-    if (other) void world.ask(other.memberId, "highFive").then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."));
+  const myDuel = world.memberId ? duelFor(world.duels, world.memberId, now) : null;
+  const duelOpponent = myDuel ? (myDuel.a === world.memberId ? myDuel.b : myDuel.a) : null;
+  const pickInMyDuel = (pick: DuelPick) => {
+    if (myDuel) void world.pickInDuel(myDuel.id, myDuel.round, pick).then((problem) => problem && setNote(problem));
+  };
+  const duelProps = {
+    duel: myDuel,
+    side: myDuel && myDuel.b === world.memberId ? ("b" as const) : ("a" as const),
+    opponentName: duelOpponent ? firstName(duelOpponent) : "them",
+    serverNow: world.serverNow,
+    onPick: pickInMyDuel,
   };
 
-  const live = useRef({ world, askHighFive });
+  const askFor = (to: string, kind: AskKind) => {
+    const other = world.people.find((p) => p.memberId === to);
+    if (other) void world.ask(other.memberId, kind).then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."));
+  };
+
+  const live = useRef({ world, askFor });
   useEffect(() => {
-    live.current = { world, askHighFive };
+    live.current = { world, askFor };
   });
   const aimedAt = useRef<string | null>(null);
-  const stepToward = (to: string, since: number): boolean => {
-    const { world: latest, askHighFive: ask } = live.current;
+  const stepToward = (to: string, since: number, kind: AskKind): boolean => {
+    const { world: latest, askFor: ask } = live.current;
     const at = latest.serverNow();
     const mine = latest.people.find((p) => p.isMe);
     const theirs = latest.people.find((p) => p.memberId === to);
@@ -243,7 +261,7 @@ export const WorldScreen = ({
       now: at,
     });
     if (step.kind === "ask") {
-      ask(to);
+      ask(to, kind);
       return false;
     }
     if (step.kind === "giveUp" || Date.now() - since > APPROACH_MS) {
@@ -259,7 +277,7 @@ export const WorldScreen = ({
   useEffect(() => {
     if (!approach) return;
     const id = setInterval(() => {
-      if (!stepToward(approach.to, approach.since)) setApproach(null);
+      if (!stepToward(approach.to, approach.since, approach.kind)) setApproach(null);
     }, 150);
     return () => clearInterval(id);
   }, [approach]);
@@ -347,14 +365,15 @@ export const WorldScreen = ({
 
   const emote = (id: string) => void world.act(id).then((problem) => problem && setNote(problem));
 
-  const highFive = (to: string) => {
+  const walkOverAndAsk = (to: string, kind: AskKind) => {
     setPerson(null);
     aimedAt.current = null;
     const since = Date.now();
-    if (!stepToward(to, since)) return setApproach(null);
-    setApproach({ to, since });
+    if (!stepToward(to, since, kind)) return setApproach(null);
+    setApproach({ to, since, kind });
     setNote(`Walking over to ${firstName(to)}…`);
   };
+  const highFive = (to: string) => walkOverAndAsk(to, "highFive");
 
   const hudActions: HudAction[] = !selected
     ? []
@@ -392,6 +411,13 @@ export const WorldScreen = ({
                   emoji: MUTUALS.highFive.icon,
                   onPress: () => highFive(selected.memberId),
                 },
+                {
+                  id: "rps",
+                  label: "Duel",
+                  hint: `${ASKS.rps.label} with ${selected.name}`,
+                  emoji: ASKS.rps.icon,
+                  onPress: () => walkOverAndAsk(selected.memberId, "rps"),
+                },
               ]),
           {
             id: "wave",
@@ -426,6 +452,7 @@ export const WorldScreen = ({
         onToggleMute={toggleMute}
         onWave={() => emote("wave")}
         onHighFive={highFive}
+        onDuel={(to) => walkOverAndAsk(to, "rps")}
         onClose={() => setSheet(null)}
         onDone={setNote}
       />
@@ -470,6 +497,7 @@ export const WorldScreen = ({
           note={note}
           onNote={setNote}
           onLine={openSpeaker}
+          duelCard={<DuelCard {...duelProps} showResult />}
           declined={declined}
           onAccept={accept}
           onDecline={decline}
@@ -519,6 +547,7 @@ export const WorldScreen = ({
         hudActions={hudActions}
         place={world.place}
         placeCounts={world.placeCounts}
+        duels={world.duels}
         onTapArcade={goToArcade}
         onTapSeat={sitNear}
         onAccept={accept}
@@ -572,6 +601,7 @@ export const WorldScreen = ({
         ]}
         pointerEvents="box-none"
       >
+        <DuelCard {...duelProps} />
         {tray ? (
           <View style={styles.tray} testID="world-emote-tray">
             {EMOTE_TRAY.map((id) => (
