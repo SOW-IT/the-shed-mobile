@@ -2,6 +2,8 @@ import {
   ASK_MS,
   clampTarget,
   cleanLine,
+  fullBucket,
+  takeToken,
   type Look,
   type Ask,
   type Reply,
@@ -16,6 +18,7 @@ import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { api } from "../../convex/_generated/api";
+import { carryGait, restingGait, type Gait } from "./gait";
 import type { Id } from "../../convex/_generated/dataModel";
 
 type MemberId = Id<"worldMembers">;
@@ -28,12 +31,14 @@ export type WorldMember = {
   look: Look;
   isMe: boolean;
   walk: Walk | null;
+  gait?: Gait;
   say?: { text: string; at: number };
   act?: { emote: string; at: number };
   ask?: Ask;
   reply?: Reply;
   /** The asks this person accepted that are still open. */
   answered?: Reply[];
+  away?: "arcade";
 };
 
 /** The id prefix of a chat line shown before the server has it. */
@@ -41,12 +46,29 @@ export const PENDING = "pending:";
 
 /** Taps closer together than this send only the last one. */
 const COALESCE_MS = 150;
-/** While a finger is held or dragged: at most one move this often… */
-const HOLD_SEND_MS = 500;
-/** …and only once the target has moved this far (world units). */
-const HOLD_SEND_MIN = 0.5;
-/** On release, a move is sent only if the spot differs from the last one by more than this. */
-const RELEASE_MIN = 0.05;
+const SAME_SPOT = 0.05;
+const TOO_FAR_TO_BLEND = 3;
+
+type LocalWalk = Walk & { gait: Gait };
+
+const headFor = (walk: LocalWalk | null, to: { x: number; z: number }, now: number): LocalWalk => {
+  const from = walk ? posAt(walk, now) : to;
+  const next = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
+  return { ...next, gait: carryGait(walk ? { walk, gait: walk.gait } : null, next, now) };
+};
+
+const blendIn = (walk: LocalWalk | null, server: Walk, now: number): LocalWalk => {
+  const { fromX, fromZ, toX, toZ, startedAt } = server;
+  const theirs = { fromX, fromZ, toX, toZ, startedAt };
+  if (!walk) return { ...theirs, gait: restingGait(theirs) };
+  if (Math.hypot(walk.toX - toX, walk.toZ - toZ) < SAME_SPOT) return walk;
+  const here = posAt(walk, now);
+  const there = posAt(theirs, now);
+  if (Math.hypot(here.x - there.x, here.z - there.z) > TOO_FAR_TO_BLEND) {
+    return { ...theirs, gait: carryGait({ walk, gait: walk.gait }, theirs, now) };
+  }
+  return headFor(walk, { x: toX, z: toZ }, now);
+};
 
 /**
  * Counts of what this phone sent, for measuring the write budget. Tests and
@@ -157,11 +179,12 @@ const showLook = (store: OptimisticLocalStore, { look }: { look: Look }) => {
  * to the background, and keeps every write to one per action. Positions are
  * never sent per frame; each phone walks people along their latest walk.
  */
-export const useWorld = (enabled: boolean) => {
+export const useWorld = (enabled: boolean, away = false) => {
   const joinM = useMutation(api.world.join);
   const leaveM = useMutation(api.world.leave);
   const moveM = useMutation(api.world.move);
   const heartbeatM = useMutation(api.world.heartbeat);
+  const awayM = useMutation(api.world.away);
   // Every action shows at once on this phone (optimistic updates, below),
   // before the server answers.
   const actM = useMutation(api.world.act).withOptimisticUpdate(showEmote);
@@ -177,7 +200,8 @@ export const useWorld = (enabled: boolean) => {
   const [active, setActive] = useState(() => AppState.currentState !== "background");
   const [rejoin, setRejoin] = useState(0);
   // Your own walk, ahead of the server so a tap moves you at once.
-  const [myWalk, setMyWalk] = useState<Walk | null>(null);
+  const [myWalk, setMyWalk] = useState<LocalWalk | null>(null);
+  const [target, setTarget] = useState<{ x: number; z: number } | null>(null);
   const stats = useRef<WorldStats>(newStats());
 
   const lastAction = useRef(0);
@@ -193,8 +217,7 @@ export const useWorld = (enabled: boolean) => {
   // A finger down on the ground: the walk follows it locally every frame,
   // and the last spot sent (and when) throttles the writes.
   const holding = useRef(false);
-  const lastSent = useRef<{ x: number; z: number; at: number } | null>(null);
-  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdFrame = useRef<number | null>(null);
   // The finger's latest spot, for the send that ends a throttle window.
   const fingerAt = useRef<{ x: number; z: number } | null>(null);
 
@@ -243,11 +266,11 @@ export const useWorld = (enabled: boolean) => {
       pending.current = null;
       predicting.current = false;
       holding.current = false;
-      lastSent.current = null;
-      if (holdTimer.current) clearTimeout(holdTimer.current);
-      holdTimer.current = null;
+      if (holdFrame.current !== null) cancelAnimationFrame(holdFrame.current);
+      holdFrame.current = null;
       // The next visit starts from its own spawn walk, not this one's.
       setMyWalk(null);
+      setTarget(null);
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       counts.leave++;
@@ -256,6 +279,33 @@ export const useWorld = (enabled: boolean) => {
   }, [enabled, active, rejoin, joinM, leaveM, heard]);
 
   const again = useCallback(() => setRejoin((n) => n + 1), []);
+
+  const toldAway = useRef(false);
+  useEffect(() => {
+    if (!session || (!away && !toldAway.current)) return;
+    toldAway.current = away;
+    let stillWanted = true;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const tell = () => {
+      awayM({ at: away ? "arcade" : null })
+        .then((reply) => {
+          if (stillWanted && !reply.ok) retry = setTimeout(tell, reply.retryInMs);
+        })
+        .catch(() => undefined);
+    };
+    tell();
+    return () => {
+      stillWanted = false;
+      if (retry) clearTimeout(retry);
+    };
+  }, [session, away, awayM]);
+
+  const actTokens = useRef(fullBucket("act", 0));
+  const spendAct = useCallback(() => {
+    const taken = takeToken("act", actTokens.current, Date.now());
+    if (taken.ok) actTokens.current = taken.bucket;
+    return taken;
+  }, []);
 
   const roster = useQuery(api.world.roster, session ? { roomId: session.roomId } : "skip");
   // Swept while away (a long background, a lost signal): come back in.
@@ -280,7 +330,6 @@ export const useWorld = (enabled: boolean) => {
   );
   const states = useQueries(requests);
 
-  const [target, setTarget] = useState<{ x: number; z: number } | null>(null);
   const myRow = session ? states[session.memberId] : undefined;
   const myServerWalk = myRow && !(myRow instanceof Error) ? (myRow as Walk) : null;
   useEffect(() => {
@@ -289,9 +338,10 @@ export const useWorld = (enabled: boolean) => {
     // replaces the prediction; otherwise any newer walk from the server does.
     const gap = predicting.current ? 1000 : 0;
     if (myServerWalk && (!myWalk || myServerWalk.startedAt > myWalk.startedAt + gap)) {
-      setMyWalk(myServerWalk);
+      const now = serverNow();
+      setMyWalk((walk) => blendIn(walk, myServerWalk, now));
     }
-  }, [myServerWalk, myWalk]);
+  }, [myServerWalk, myWalk, serverNow]);
 
   const flushRef = useRef<() => void>(() => undefined);
   const later = useCallback((ms: number) => {
@@ -317,7 +367,8 @@ export const useWorld = (enabled: boolean) => {
           const { fromX, fromZ, toX, toZ, startedAt } = reply;
           // While a finger is down the local walk leads; adopt the server's after release.
           if (!pending.current && !holding.current) {
-            setMyWalk({ fromX, fromZ, toX, toZ, startedAt });
+            const now = serverNow();
+            setMyWalk((walk) => blendIn(walk, { fromX, fromZ, toX, toZ, startedAt }, now));
             predicting.current = false;
           }
         } else {
@@ -335,7 +386,7 @@ export const useWorld = (enabled: boolean) => {
         inFlight.current = false;
         if (sentIn === visit.current && pending.current && !timer.current) later(COALESCE_MS);
       });
-  }, [moveM, heard, again, later]);
+  }, [moveM, heard, again, later, serverNow]);
   useEffect(() => {
     flushRef.current = flush;
   }, [flush]);
@@ -349,10 +400,7 @@ export const useWorld = (enabled: boolean) => {
       if (!session) return;
       const to = clampTarget(x, z);
       const now = serverNow();
-      setMyWalk((walk) => {
-        const from = walk ? posAt(walk, now) : to;
-        return { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
-      });
+      setMyWalk((walk) => headFor(walk, to, now));
       setTarget(to);
       pending.current = to;
       predicting.current = true;
@@ -367,10 +415,7 @@ export const useWorld = (enabled: boolean) => {
   const retarget = useCallback(
     (to: { x: number; z: number }) => {
       const now = serverNow();
-      setMyWalk((walk) => {
-        const from = walk ? posAt(walk, now) : to;
-        return { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
-      });
+      setMyWalk((walk) => headFor(walk, to, now));
       setTarget(to);
       fingerAt.current = to;
     },
@@ -382,9 +427,6 @@ export const useWorld = (enabled: boolean) => {
     (to: { x: number; z: number }) => {
       pending.current = to;
       predicting.current = true;
-      lastSent.current = { ...to, at: Date.now() };
-      // Only what reaches the server counts as activity: a long, still hold
-      // sends nothing, so the idle heartbeat keeps you in the garden.
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
@@ -393,62 +435,38 @@ export const useWorld = (enabled: boolean) => {
     []
   );
 
-  /** Finger down on the ground: walk there at once, and send it at once. */
   const holdStart = useCallback(
     (x: number, z: number) => {
       if (!session) return;
-      const to = clampTarget(x, z);
       holding.current = true;
-      retarget(to);
-      sendNow(to);
+      predicting.current = true;
+      retarget(clampTarget(x, z));
     },
-    [session, retarget, sendNow]
+    [session, retarget]
   );
 
-  /**
-   * Finger held or dragged: follow it locally every time it moves, but send
-   * at most one move every HOLD_SEND_MS, and only past HOLD_SEND_MIN. If the
-   * finger stops on an unsent spot, it goes when the window ends.
-   */
   const holdMove = useCallback(
     (x: number, z: number) => {
       if (!session || !holding.current) return;
-      const to = clampTarget(x, z);
-      retarget(to);
-      const consider = () => {
-        holdTimer.current = null;
-        const last = lastSent.current;
-        const latest = fingerAt.current;
-        if (!holding.current || !latest) return;
-        const far = !last || Math.hypot(latest.x - last.x, latest.z - last.z) > HOLD_SEND_MIN;
-        if (!far) return;
-        const wait = last ? HOLD_SEND_MS - (Date.now() - last.at) : 0;
-        if (wait <= 0) sendNow(latest);
-        else holdTimer.current = setTimeout(consider, wait);
-      };
-      if (!holdTimer.current) consider();
+      fingerAt.current = clampTarget(x, z);
+      if (holdFrame.current !== null) return;
+      holdFrame.current = requestAnimationFrame(() => {
+        holdFrame.current = null;
+        if (holding.current && fingerAt.current) retarget(fingerAt.current);
+      });
     },
-    [session, retarget, sendNow]
+    [session, retarget]
   );
 
-  /** Finger up: stop following, and send the last spot only if it differs. */
   const holdEnd = useCallback(
     (x: number, z: number) => {
       if (!session || !holding.current) return;
       holding.current = false;
-      if (holdTimer.current) clearTimeout(holdTimer.current);
-      holdTimer.current = null;
+      if (holdFrame.current !== null) cancelAnimationFrame(holdFrame.current);
+      holdFrame.current = null;
       const to = clampTarget(x, z);
-      const last = lastSent.current;
-      if (!last || Math.hypot(to.x - last.x, to.z - last.z) > RELEASE_MIN) {
-        retarget(to);
-        sendNow(to);
-      } else if (!pending.current && !inFlight.current) {
-        // Lifted on the spot already sent and answered: the walk on screen is
-        // already going there, so it stands, and the server's walks are
-        // taken as usual again (a reply still on its way does this itself).
-        predicting.current = false;
-      }
+      retarget(to);
+      sendNow(to);
     },
     [session, retarget, sendNow]
   );
@@ -470,22 +488,27 @@ export const useWorld = (enabled: boolean) => {
   );
 
   const act = useCallback(
-    async (emote: string) => {
+    async (emote: string): Promise<string | null> => {
+      const token = spendAct();
+      if (!token.ok) return turnedAwayText(token);
       const sentAt = Date.now();
       stats.current.act++;
       try {
         const reply = await actM({ emote });
         heard(reply.serverNow, sentAt);
+        return reply.ok ? null : turnedAwayText(reply);
       } catch (e) {
         if (leftGarden(e)) again();
+        return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
-    [actM, heard, again]
+    [actM, heard, again, spendAct]
   );
 
   /** Asks someone for a mutual action. Says why not, or null when it's asked. */
   const ask = useCallback(
     async (to: MemberId, kind: string): Promise<string | null> => {
+      spendAct();
       const sentAt = Date.now();
       stats.current.ask++;
       try {
@@ -498,11 +521,12 @@ export const useWorld = (enabled: boolean) => {
         return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
-    [askM, heard, again]
+    [askM, heard, again, spendAct]
   );
 
   const accept = useCallback(
     async (from: MemberId, askAt: number): Promise<string | null> => {
+      spendAct();
       const sentAt = Date.now();
       stats.current.accept++;
       try {
@@ -515,7 +539,7 @@ export const useWorld = (enabled: boolean) => {
         return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
-    [acceptM, heard, again]
+    [acceptM, heard, again, spendAct]
   );
 
   /** Saves a look from the editor: one write, only when Save is pressed. */
@@ -551,7 +575,7 @@ export const useWorld = (enabled: boolean) => {
   }, [session, heartbeatM, heard, again]);
 
   const people: WorldMember[] = members.map((m) => {
-    const row = states[m.memberId] as (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered">) | null | undefined | Error;
+    const row = states[m.memberId] as (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away">) | null | undefined | Error;
     const state = row && !(row instanceof Error) ? row : null;
     return {
       memberId: m.memberId,
@@ -559,11 +583,13 @@ export const useWorld = (enabled: boolean) => {
       look: m.look,
       isMe: m.isMe,
       walk: m.isMe ? (myWalk ?? state) : state,
+      gait: m.isMe ? myWalk?.gait : undefined,
       say: state?.say,
       act: state?.act,
       ask: state?.ask,
       reply: state?.reply,
       answered: state?.answered,
+      away: state?.away,
     };
   });
 
@@ -602,6 +628,7 @@ export const useWorld = (enabled: boolean) => {
     roomId: session?.roomId ?? null,
     memberId: session?.memberId ?? null,
     people,
+    serverWalk: myServerWalk,
     target,
     serverNow,
     walkTo,

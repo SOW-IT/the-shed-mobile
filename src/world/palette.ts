@@ -45,6 +45,8 @@ export const people = {
   hairColours: ["#3A2A20", "#D49A5A", "#1C1714", "#7A4A2C", "#2A201A", "#141414", "#E8C77A", "#B8473A", "#8A8F98"],
   shirts: ["#C9603A", "#F6E3D8", "#BCDCCD", "#F4A6B8", "#9DC5E0", "#D9CDEE", "#F6D365", "#A9D8A6", "#1D4A41", "#FFFEF8"],
   hats: { cap: "#C9603A", beanie: "#9DC5E0", pompom: "#FFFEF8", sunHat: "#F1D9A6", band: "#C9603A" },
+  denim: "#5B7FA6",
+  drawstring: "#FFFEF8",
   backpack: "#E5AD66",
   backpackStrap: "#8A5A2C",
   scarf: "#B8473A",
@@ -81,6 +83,11 @@ export const hud = {
 } as const;
 
 const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+
+const lightness = (hex: string) => 0.2126 * channel(hex, 0) + 0.7152 * channel(hex, 1) + 0.0722 * channel(hex, 2);
+
+export const lightToDark = (colours: readonly string[]): number[] =>
+  colours.map((_, i) => i).sort((a, b) => lightness(colours[b]) - lightness(colours[a]));
 
 /**
  * A colour mixed toward white (amount > 0) or black (amount < 0): the steps

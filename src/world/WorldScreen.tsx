@@ -1,14 +1,16 @@
 import { useOffline } from "@/hooks/useOffline";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { distance, EMOTE_IDS, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, posAt } from "@shared/world";
-import { useEffect, useState } from "react";
-import { AccessibilityInfo, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { clampTarget, distance, EMOTE_TRAY, EMOTES, MAX_SAY_LENGTH, MUTUALS, OBSTACLES, posAt } from "@shared/world";
+import { useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Animated, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { announce } from "./announce";
+import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
 import { Garden } from "./Garden";
 import { hud } from "./palette";
+import type { HudAction } from "./PersonHud";
 import { PeopleSheet, PersonSheet } from "./Sheets";
 import { useWorld } from "./useWorld";
 import { hearingLabel, pickView, type WorldView } from "./view";
@@ -32,6 +34,36 @@ const useScreenReader = () => {
   }, []);
   return on;
 };
+
+const KEYBOARD_GAP = 8;
+
+const useKeyboardLift = (bottomInset: number) => {
+  const [lift] = useState(() => new Animated.Value(0));
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const move = (toValue: number, duration: number) =>
+      Animated.timing(lift, { toValue, duration: duration || 250, useNativeDriver: true }).start();
+    const show = Keyboard.addListener("keyboardWillShow", (e) => {
+      setOpen(true);
+      move(-Math.max(0, e.endCoordinates.height - bottomInset + KEYBOARD_GAP), e.duration);
+    });
+    const hide = Keyboard.addListener("keyboardWillHide", (e) => {
+      setOpen(false);
+      move(0, e.duration);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [lift, bottomInset]);
+  return { lift, open };
+};
+
+const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
+const ARCADE_SPOT = clampTarget(ARCADE.x + 0.9, ARCADE.z + 0.9);
+const AT_ARCADE = 0.3;
+const ARCADE_TRIP_MS = 20_000;
 
 const RoundButton = ({
   icon,
@@ -78,19 +110,24 @@ export const WorldScreen = ({
   onBack,
   onArcade,
   active = true,
+  away = false,
 }: {
   onBack: () => void;
   onArcade: () => void;
   /** False while another screen covers this one: the visit ends until it's back. */
   active?: boolean;
+  away?: boolean;
 }) => {
   const offline = useOffline();
   const screenReader = useScreenReader();
   const [chosen, setChosen] = useState<WorldView | null>(null);
   const view = pickView({ offline, screenReader, chosen, canDraw: Platform.OS !== "android" });
-  const world = useWorld(!offline && active);
+  const world = useWorld(!offline && active, away);
+  const [arcadeTrip, setArcadeTrip] = useState<number | null>(null);
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [person, setPerson] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<{ memberId: string; safetyOnly: boolean } | null>(null);
+  const [approach, setApproach] = useState<{ to: string; since: number } | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [tray, setTray] = useState(false);
@@ -103,6 +140,7 @@ export const WorldScreen = ({
   // the ask just runs out.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
   // How many can hear you, as the garden draws it.
   const [hearing, setHearing] = useState(0);
 
@@ -143,26 +181,174 @@ export const WorldScreen = ({
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
   const mePose = me?.walk ? posAt(me.walk, now) : null;
-  const tapped = world.people.find((p) => p.memberId === person) ?? null;
-  const tappedPose = tapped?.walk ? posAt(tapped.walk, now) : null;
-  const near = mePose !== null && tappedPose !== null && distance(mePose, tappedPose) <= INTERACT_RADIUS;
+  const selected = world.people.find((p) => p.memberId === person) ?? null;
+  if (person !== null && !selected && world.status === "in") setPerson(null);
+  const tapped = world.people.find((p) => p.memberId === sheet?.memberId) ?? null;
+  const firstName = (memberId: string) => world.people.find((p) => p.memberId === memberId)?.name.split(" ")[0] ?? "them";
+
+  const askHighFive = (to: string) => {
+    const other = world.people.find((p) => p.memberId === to);
+    if (other) void world.ask(other.memberId, "highFive").then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."));
+  };
+
+  const live = useRef({ world, askHighFive });
+  useEffect(() => {
+    live.current = { world, askHighFive };
+  });
+  const aimedAt = useRef<string | null>(null);
+  const stepToward = (to: string, since: number): boolean => {
+    const { world: latest, askHighFive: ask } = live.current;
+    const at = latest.serverNow();
+    const mine = latest.people.find((p) => p.isMe);
+    const theirs = latest.people.find((p) => p.memberId === to);
+    if (!mine?.walk || !theirs?.walk) {
+      setNote("They've left the garden.");
+      return false;
+    }
+    const drawn = posAt(mine.walk, at);
+    const known = latest.serverWalk ? posAt(latest.serverWalk, at) : drawn;
+    const step = approachStep({
+      mine: { ...known, walking: known.walking || drawn.walking, arrivesAt: Math.max(known.arrivesAt, drawn.arrivesAt) },
+      theirs: posAt(theirs.walk, at),
+      theirGoal: { x: theirs.walk.toX, z: theirs.walk.toZ },
+      aimedAt: aimedAt.current,
+      now: at,
+    });
+    if (step.kind === "ask") {
+      ask(to);
+      return false;
+    }
+    if (step.kind === "giveUp" || Date.now() - since > APPROACH_MS) {
+      setNote(`Couldn't get close to ${theirs.name.split(" ")[0]}.`);
+      return false;
+    }
+    if (step.kind === "walk") {
+      aimedAt.current = step.aimedAt;
+      latest.walkTo(step.to.x, step.to.z);
+    }
+    return true;
+  };
+  useEffect(() => {
+    if (!approach) return;
+    const id = setInterval(() => {
+      if (!stepToward(approach.to, approach.since)) setApproach(null);
+    }, 150);
+    return () => clearInterval(id);
+  }, [approach]);
+
+  useEffect(() => {
+    if (arcadeTrip === null) return;
+    const id = setInterval(() => {
+      const { world: latest } = live.current;
+      const at = latest.serverNow();
+      const mine = latest.people.find((p) => p.isMe);
+      const pose = mine?.walk ? posAt(mine.walk, at) : null;
+      const arrived = pose !== null && distance(pose, ARCADE_SPOT) <= AT_ARCADE;
+      const strayed = pose === null || (!pose.walking && at - pose.arrivesAt > 400) || Date.now() - arcadeTrip > ARCADE_TRIP_MS;
+      if (!arrived && !strayed) return;
+      setArcadeTrip(null);
+      if (arrived) onArcade();
+    }, 120);
+    return () => clearInterval(id);
+  }, [arcadeTrip, onArcade]);
+
+  const goToArcade = () => {
+    setPerson(null);
+    setApproach(null);
+    setTray(false);
+    if (!mePose) return onArcade();
+    if (distance(mePose, ARCADE_SPOT) <= AT_ARCADE) return onArcade();
+    world.walkTo(ARCADE_SPOT.x, ARCADE_SPOT.z);
+    setArcadeTrip(Date.now());
+    setNote("Walking to the arcade…");
+  };
+
+  const emote = (id: string) => void world.act(id).then((problem) => problem && setNote(problem));
+
+  const highFive = (to: string) => {
+    setPerson(null);
+    aimedAt.current = null;
+    const since = Date.now();
+    if (!stepToward(to, since)) return setApproach(null);
+    setApproach({ to, since });
+    setNote(`Walking over to ${firstName(to)}…`);
+  };
+
+  const hudActions: HudAction[] = !selected
+    ? []
+    : selected.isMe
+      ? [
+          {
+            id: "customize",
+            label: "Outfit",
+            hint: "Customize your character",
+            icon: "shirt-outline",
+            onPress: () => {
+              setPerson(null);
+              setEditing(true);
+            },
+          },
+          {
+            id: "emotes",
+            label: "Emotes",
+            hint: "Emotes",
+            emoji: "🌸",
+            onPress: () => {
+              setPerson(null);
+              setTray(true);
+            },
+          },
+        ]
+      : [
+          ...(selected.away
+            ? []
+            : [
+                {
+                  id: "highfive",
+                  label: MUTUALS.highFive.label,
+                  hint: `${MUTUALS.highFive.label} with ${selected.name}`,
+                  emoji: MUTUALS.highFive.icon,
+                  onPress: () => highFive(selected.memberId),
+                },
+              ]),
+          {
+            id: "wave",
+            label: EMOTES.wave.label,
+            hint: `Wave at ${selected.name}`,
+            emoji: EMOTES.wave.icon,
+            onPress: () => {
+              setPerson(null);
+              emote("wave");
+            },
+          },
+          {
+            id: "more",
+            label: "More",
+            hint: `Mute, block or report ${selected.name}`,
+            icon: "ellipsis-horizontal",
+            onPress: () => {
+              setPerson(null);
+              setSheet({ memberId: selected.memberId, safetyOnly: true });
+            },
+          },
+        ];
 
   const sheets = (
     <>
       <PersonSheet
         // A report started for one person never carries over to another.
-        key={person ?? "nobody"}
+        key={sheet?.memberId ?? "nobody"}
         person={tapped}
-        muted={person !== null && muted.has(person)}
-        near={near}
+        safetyOnly={sheet?.safetyOnly ?? false}
+        muted={sheet !== null && muted.has(sheet.memberId)}
         onToggleMute={toggleMute}
-        onWave={() => void world.act("wave")}
-        onHighFive={(to) => void world.ask(to, "highFive").then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."))}
+        onWave={() => emote("wave")}
+        onHighFive={highFive}
         onCustomize={() => {
-          setPerson(null);
+          setSheet(null);
           setEditing(true);
         }}
-        onClose={() => setPerson(null)}
+        onClose={() => setSheet(null)}
         onDone={setNote}
       />
       {/* Only once your look has loaded, so a draft never starts from a placeholder. */}
@@ -182,7 +368,8 @@ export const WorldScreen = ({
         }}
         onPerson={(memberId) => {
           setPeopleOpen(false);
-          setPerson(memberId);
+          if (view === "list") setSheet({ memberId, safetyOnly: false });
+          else setPerson(memberId);
         }}
         onCustomize={() => {
           setPeopleOpen(false);
@@ -192,6 +379,8 @@ export const WorldScreen = ({
       />
     </>
   );
+
+  if (away) return <View style={styles.fill} />;
 
   if (view === "list") {
     return (
@@ -203,7 +392,7 @@ export const WorldScreen = ({
           onBack={onBack}
           onArcade={onArcade}
           onPeople={() => setPeopleOpen(true)}
-          onPerson={setPerson}
+          onPerson={(memberId) => setSheet({ memberId, safetyOnly: false })}
           note={note}
           onNote={setNote}
           declined={declined}
@@ -217,7 +406,7 @@ export const WorldScreen = ({
 
 
   return (
-    <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <View style={styles.fill}>
       <Garden
         people={world.people.map((p) => ({
           memberId: p.memberId,
@@ -225,23 +414,33 @@ export const WorldScreen = ({
           look: p.look,
           me: p.isMe,
           walk: p.walk,
+          gait: p.gait,
           say: p.say,
           act: p.act,
           ask: p.ask,
           reply: p.reply,
           answered: p.answered,
           muted: muted.has(p.memberId),
+          away: p.away !== undefined,
         }))}
         serverNow={world.serverNow}
         target={world.target}
         onHoldStart={(x, z) => {
           setTray(false);
+          setPerson(null);
+          setApproach(null);
+          setArcadeTrip(null);
           world.holdStart(x, z);
         }}
         onHoldMove={world.holdMove}
         onHoldEnd={world.holdEnd}
-        onTapPerson={setPerson}
-        onTapArcade={onArcade}
+        onTapPerson={(memberId) => {
+          setTray(false);
+          setPerson((current) => (current === memberId ? null : memberId));
+        }}
+        selected={person}
+        hudActions={hudActions}
+        onTapArcade={goToArcade}
         onAccept={accept}
         onDecline={decline}
         declined={declined}
@@ -251,9 +450,6 @@ export const WorldScreen = ({
         <RoundButton icon="chevron-back" label="Back" onPress={onBack} testID="world-back" />
         <TitlePill instance={world.instance} />
         <RoundButton icon="people-outline" label="People here" onPress={() => setPeopleOpen(true)} testID="world-people" />
-      </View>
-      <View style={[styles.side, { top: insets.top + 64 }]} pointerEvents="box-none">
-        <RoundButton icon="shirt-outline" label="Customize your character" onPress={() => setEditing(true)} testID="world-customize" />
       </View>
       <View style={[styles.chipRow, { top: insets.top + 66 }]} pointerEvents="none">
         <View style={styles.chip} testID="world-hearing">
@@ -268,15 +464,31 @@ export const WorldScreen = ({
           </Text>
         ) : null}
       </View>
-      <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
+      {keyboard.open ? (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={Keyboard.dismiss}
+          accessibilityRole="button"
+          accessibilityLabel="Hide keyboard"
+          testID="world-keyboard-dismiss"
+        />
+      ) : null}
+      <Animated.View
+        style={[
+          styles.bottom,
+          { paddingBottom: Math.max(insets.bottom, 12) },
+          { transform: [{ translateY: keyboard.lift }] },
+        ]}
+        pointerEvents="box-none"
+      >
         {tray ? (
           <View style={styles.tray} testID="world-emote-tray">
-            {EMOTE_IDS.map((id) => (
+            {EMOTE_TRAY.map((id) => (
               <Pressable
                 key={id}
                 onPress={() => {
                   setTray(false);
-                  void world.act(id);
+                  emote(id);
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={`Emote: ${EMOTES[id].label}`}
@@ -284,24 +496,39 @@ export const WorldScreen = ({
                 style={({ pressed }) => [styles.trayItem, pressed && styles.pressed]}
               >
                 <Text style={styles.trayEmoji}>{EMOTES[id].icon}</Text>
-                <Text style={styles.trayLabel}>{EMOTES[id].label}</Text>
+                <Text style={styles.trayLabel} numberOfLines={1}>
+                  {EMOTES[id].label}
+                </Text>
               </Pressable>
             ))}
           </View>
         ) : null}
         <View style={styles.chat}>
-          <Pressable
-            onPress={() => setTray((open) => !open)}
-            accessibilityRole="button"
-            accessibilityLabel="Emotes"
-            testID="world-emotes"
-            style={({ pressed }) => [styles.emo, pressed && styles.pressed]}
-          >
-            <Text style={styles.emoText}>🌸</Text>
-          </Pressable>
+          {keyboard.open ? (
+            <Pressable
+              onPress={Keyboard.dismiss}
+              accessibilityRole="button"
+              accessibilityLabel="Hide keyboard"
+              testID="world-keyboard-close"
+              style={({ pressed }) => [styles.emo, pressed && styles.pressed]}
+            >
+              <Ionicons name="close" size={20} color={hud.forest} />
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => setTray((open) => !open)}
+              accessibilityRole="button"
+              accessibilityLabel="Emotes"
+              testID="world-emotes"
+              style={({ pressed }) => [styles.emo, pressed && styles.pressed]}
+            >
+              <Text style={styles.emoText}>🌸</Text>
+            </Pressable>
+          )}
           <TextInput
             value={draft}
             onChangeText={setDraft}
+            onFocus={() => setTray(false)}
             placeholder="Talk to people nearby…"
             placeholderTextColor={hud.placeholder}
             maxLength={MAX_SAY_LENGTH}
@@ -322,9 +549,9 @@ export const WorldScreen = ({
             <Ionicons name="arrow-up" size={20} color={hud.onAccent} />
           </Pressable>
         </View>
-      </View>
+      </Animated.View>
       {sheets}
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -392,11 +619,8 @@ const styles = StyleSheet.create({
     ...ink,
   },
   bottom: { position: "absolute", left: 14, right: 14, bottom: 0, gap: 10 },
-  side: { position: "absolute", right: 14 },
   tray: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
     gap: 6,
     backgroundColor: hud.card,
     borderRadius: 22,
@@ -404,7 +628,7 @@ const styles = StyleSheet.create({
     ...ink,
     ...pop,
   },
-  trayItem: { width: 54, height: 56, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: hud.accentSoft },
+  trayItem: { flex: 1, height: 56, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: hud.accentSoft },
   trayEmoji: { fontSize: 22 },
   trayLabel: { fontSize: 10.5, fontWeight: "600", color: hud.forest, marginTop: 2 },
   chat: {

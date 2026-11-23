@@ -11,6 +11,10 @@ import {
   clampTarget,
   INTERACT_RADIUS,
   MAX_BLOCKS,
+  MAX_POKE_LENGTH,
+  OFFLINE_LIST_SIZE,
+  POKE_EVERY_MS,
+  POKED_GAP_MS,
   REPORT_CONTEXT_LINES,
   THROTTLE_KEEP_MS,
   PRESENCE_TOUCH_MS,
@@ -237,6 +241,174 @@ const stateRow = (t: T, memberId: Id<"worldMembers">) =>
       .withIndex("by_memberId", (q) => q.eq("memberId", memberId))
       .unique()
   );
+
+describe("the offline list and pokes", () => {
+  const trio = async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const cara = asUser(t, CARA);
+    await anna.mutation(api.world.join, {});
+    await ben.mutation(api.world.join, {});
+    await cara.mutation(api.world.join, {});
+    later(60_000);
+    await ben.mutation(api.world.leave, {});
+    return { t, anna, ben, cara };
+  };
+  const notes = (t: T, email: string) =>
+    t.run((ctx) => ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", email)).collect());
+  const pushes = (t: T) => t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+
+  test("lists who has left, newest first, and nobody who's here", async () => {
+    const { anna, cara } = await trio();
+    const list = await anna.query(api.world.offline, {});
+    expect(list.people).toEqual([{ id: expect.any(String), name: expect.any(String), lastSeenAt: near(PINNED_NOW + 60_000) }]);
+    expect(list.pokeAgainAt).toBe(0);
+    later(1000);
+    await cara.mutation(api.world.leave, {});
+    expect((await anna.query(api.world.offline, {})).people.map((p) => p.lastSeenAt)).toEqual([near(PINNED_NOW + 61_000), near(PINNED_NOW + 60_000)]);
+  });
+
+  test("leaves out people blocked either way, and stops at the list size", async () => {
+    const { t, anna, ben } = await trio();
+    const benRow = (await anna.query(api.world.offline, {})).people[0];
+    await t.run(async (ctx) => {
+      await ctx.db.insert("worldBlocks", { email: BEN, blockedEmail: ANNA, blockedName: "Anna" });
+      for (let i = 0; i < OFFLINE_LIST_SIZE + 5; i++) {
+        await ctx.db.insert("worldVisitors", { email: `past${i}@sow.org.au`, name: `Past ${i}`, lastSeenAt: i });
+      }
+    });
+    const list = await anna.query(api.world.offline, {});
+    expect(list.people).toHaveLength(OFFLINE_LIST_SIZE);
+    expect(list.people.map((p) => p.id)).not.toContain(benRow.id);
+    await expect(anna.mutation(api.world.poke, { visitorId: benRow.id })).rejects.toThrow(/can't be poked/);
+    expect((await ben.query(api.world.offline, {})).people.map((p) => p.name)).not.toContain("Anna");
+  });
+
+  test("looks past people it has to skip, so a full list still shows, up to a limit", async () => {
+    const { t, anna } = await trio();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 40; i++) {
+        const email = `blocked${i}@sow.org.au`;
+        await ctx.db.insert("worldVisitors", { email, name: `Blocked ${i}`, lastSeenAt: PINNED_NOW + 500_000 + i });
+        await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: email, blockedName: `Blocked ${i}` });
+      }
+      for (let i = 0; i < OFFLINE_LIST_SIZE; i++) {
+        await ctx.db.insert("worldVisitors", { email: `older${i}@sow.org.au`, name: `Older ${i}`, lastSeenAt: 1000 + i });
+      }
+    });
+    const list = await anna.query(api.world.offline, {});
+    expect(list.people).toHaveLength(OFFLINE_LIST_SIZE);
+    expect(list.people.some((p) => p.name.startsWith("Blocked"))).toBe(false);
+    expect(list.people.some((p) => p.name.startsWith("Older"))).toBe(true);
+
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 200; i++) {
+        const email = `wall${i}@sow.org.au`;
+        await ctx.db.insert("worldVisitors", { email, name: `Wall ${i}`, lastSeenAt: PINNED_NOW + 900_000 + i });
+        await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: email, blockedName: `Wall ${i}` });
+      }
+    });
+    expect((await anna.query(api.world.offline, {})).people).toEqual([]);
+  });
+
+  test("a poke leaves a notification and a push, with your words or the usual ones", async () => {
+    const { t, anna, cara } = await trio();
+    const ben = (await anna.query(api.world.offline, {})).people[0];
+    expect(await anna.mutation(api.world.poke, { visitorId: ben.id, message: `  come\nplay ${"x".repeat(200)}` })).toEqual({ ok: true });
+    const [note] = await notes(t, BEN);
+    expect(note).toMatchObject({ title: expect.stringMatching(/poked you$/), url: "/world", read: false });
+    expect(note.body.startsWith("come play x")).toBe(true);
+    expect(Array.from(note.body)).toHaveLength(MAX_POKE_LENGTH);
+    expect(await pushes(t)).toEqual(expect.arrayContaining([expect.objectContaining({ name: "push:send" })]));
+    expect((await anna.query(api.world.offline, {})).pokeAgainAt).toBeCloseTo(PINNED_NOW + 60_000 + POKE_EVERY_MS, -2);
+
+    later(POKED_GAP_MS + 1);
+    expect(await cara.mutation(api.world.poke, { visitorId: ben.id, message: "   " })).toEqual({ ok: true });
+    expect((await notes(t, BEN)).map((n) => n.body)).toContain("Come and join me in the Garden.");
+  });
+
+  test("one poke an hour for each person, whoever it's to", async () => {
+    const { t, anna, cara } = await trio();
+    const ben = (await anna.query(api.world.offline, {})).people[0];
+    await anna.mutation(api.world.poke, { visitorId: ben.id });
+    later(1000);
+    await cara.mutation(api.world.leave, {});
+    const caraRow = (await anna.query(api.world.offline, {})).people[0];
+    expect(await anna.mutation(api.world.poke, { visitorId: caraRow.id })).toEqual({ ok: false, retryInMs: near(POKE_EVERY_MS - 1000) });
+    expect(await notes(t, CARA)).toEqual([]);
+    later(POKE_EVERY_MS);
+    expect(await anna.mutation(api.world.poke, { visitorId: caraRow.id })).toEqual({ ok: true });
+  });
+
+  test("nobody is poked twice in a few minutes, or while they're here, and never yourself", async () => {
+    const { t, anna, ben, cara } = await trio();
+    const benRow = (await anna.query(api.world.offline, {})).people[0];
+    await anna.mutation(api.world.poke, { visitorId: benRow.id });
+    await expect(cara.mutation(api.world.poke, { visitorId: benRow.id })).rejects.toThrow(/a moment ago/);
+    later(POKED_GAP_MS + 1);
+    await ben.mutation(api.world.join, {});
+    await expect(cara.mutation(api.world.poke, { visitorId: benRow.id })).rejects.toThrow(/already in the garden/);
+    const mine = await t.run(async (ctx) => (await ctx.db.query("worldVisitors").collect()).find((row) => row.email === CARA)!._id);
+    await expect(cara.mutation(api.world.poke, { visitorId: mine })).rejects.toThrow(/can't be poked/);
+  });
+
+  test("someone who was here before visits were kept can still poke", async () => {
+    const { t, anna } = await trio();
+    const ben = (await anna.query(api.world.offline, {})).people[0];
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query("worldVisitors").collect()).find((r) => r.email === ANNA)!;
+      await ctx.db.delete("worldVisitors", row._id);
+    });
+    expect((await anna.query(api.world.offline, {})).pokeAgainAt).toBe(0);
+    expect(await anna.mutation(api.world.poke, { visitorId: ben.id })).toEqual({ ok: true });
+  });
+});
+
+describe("at the arcade", () => {
+  const pair = async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    const b = await ben.mutation(api.world.join, {});
+    await standAt(t, a.memberId, 0, 0);
+    await standAt(t, b.memberId, 1, 0);
+    return { t, anna, ben, a, b };
+  };
+
+  test("going to the arcade shows on your row, and you stay in the garden", async () => {
+    const { t, anna, ben, b } = await pair();
+    expect(await ben.mutation(api.world.away, { at: "arcade" })).toMatchObject({ ok: true });
+    expect(await anna.query(api.world.state, { memberId: b.memberId })).toMatchObject({ away: "arcade" });
+    expect((await rows(t)).members).toHaveLength(2);
+    later(PRESENCE_TOUCH_MS + 1);
+    await ben.mutation(api.world.away, { at: "arcade" });
+    expect((await stateRow(t, b.memberId))!.actBucket.tokens).toBe(BUCKETS.act.burst - 1);
+  });
+
+  test("nobody can high five someone who's playing", async () => {
+    const { anna, ben, b } = await pair();
+    await ben.mutation(api.world.away, { at: "arcade" });
+    expect(await anna.mutation(api.world.ask, { to: b.memberId, kind: "highFive" })).toMatchObject({ ok: false, reason: /arcade/ });
+    expect(await ben.mutation(api.world.away, { at: null })).toMatchObject({ ok: true });
+    expect(await anna.query(api.world.state, { memberId: b.memberId })).not.toHaveProperty("away");
+    expect(await anna.mutation(api.world.ask, { to: b.memberId, kind: "highFive" })).toMatchObject({ ok: true });
+  });
+
+  test("walking off clears it, and coming back never waits on a rate limit", async () => {
+    const { t, ben, b } = await pair();
+    await ben.mutation(api.world.away, { at: "arcade" });
+    await ben.mutation(api.world.move, { toX: 2, toZ: 0 });
+    expect((await stateRow(t, b.memberId))!.away).toBeUndefined();
+    for (let i = 1; i < BUCKETS.act.burst; i++) {
+      await ben.mutation(api.world.away, { at: "arcade" });
+      await ben.mutation(api.world.away, { at: null });
+    }
+    expect(await ben.mutation(api.world.away, { at: "arcade" })).toMatchObject({ ok: false, retryInMs: expect.any(Number) });
+    expect(await ben.mutation(api.world.away, { at: null })).toMatchObject({ ok: true });
+  });
+});
 
 describe("high fives", () => {
   const pair = async () => {
@@ -840,23 +1012,23 @@ describe("write budget per player", () => {
     return { ...counts, writesPerMinute: writes / minutes, mutationsPerMinute: counts.mutations / minutes };
   };
 
-  test("a player at every rate limit makes an estimated 147 document writes a minute at most, in a room under the chat cap", async () => {
+  test("a player at every rate limit makes an estimated 152 document writes a minute at most, in a room under the chat cap", async () => {
     // Moving four times a second (a finger dragged without a pause, which the
     // app sends at most every 500 ms), an emote and a line every 2 seconds,
     // in a room that stays under CHAT_ROOM_CAP lines (7 minutes of lines).
     const flat = await simulate({ move: 240, act: 30, say: 30 }, 7);
     expect(flat.chatDeletes).toBe(0);
-    // 120 moves + 10 emotes + 6 lines (two writes each) + 3 presence marks,
+    // 120 moves + 15 emotes + 6 lines (two writes each) + 3 presence marks,
     // plus the first minute's bursts spread over the run.
-    expect(flat.writesPerMinute).toBeLessThanOrEqual(147);
-    expect(flat.writesPerMinute).toBeGreaterThan(144);
+    expect(flat.writesPerMinute).toBeLessThanOrEqual(152);
+    expect(flat.writesPerMinute).toBeGreaterThan(149);
   }, 120_000);
 
-  test("in a room already at the chat cap, each line also deletes one: at most 153 a minute", async () => {
+  test("in a room already at the chat cap, each line also deletes one: at most 158 a minute", async () => {
     const busy = await simulate({ move: 240, act: 30, say: 30 }, 10, true);
     expect(busy.chatDeletes).toBe(busy.chatWrites);
-    expect(busy.writesPerMinute).toBeLessThanOrEqual(153);
-    expect(busy.writesPerMinute).toBeGreaterThan(150);
+    expect(busy.writesPerMinute).toBeLessThanOrEqual(158);
+    expect(busy.writesPerMinute).toBeGreaterThan(155);
   }, 120_000);
 
   test("a typical player makes an estimated 15 document writes a minute", async () => {

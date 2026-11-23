@@ -1,14 +1,17 @@
 import { Btn, Sheet } from "@/components/ui";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { spacing, typography, useAppTheme } from "@/theme";
 import {
   ACCESSORIES,
   BEARDS,
   BLUSH,
+  bodyScale,
   BROWS,
   EYES,
   FACES,
   HAIR_STYLES,
   HATS,
+  OUTFITS,
   LOOK_SIZES,
   LOOK_VERSION,
   lookPart,
@@ -21,11 +24,11 @@ import {
 } from "@shared/world";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
-import { garden, hud, people } from "./palette";
+import { garden, hud, lightToDark, people } from "./palette";
 import { Avatar, figureTop } from "./Person";
 import { Ellipse } from "./Shapes";
 
-const PREVIEW_HEIGHT = 184;
+const PREVIEW_HEIGHT = 148;
 
 /** Turns per pixel dragged (radians). */
 const TURN_PER_PX = 0.012;
@@ -146,38 +149,90 @@ const Swatches = ({
   value,
   onPick,
   label,
+  order,
 }: {
   colours: readonly string[];
   value: number;
   onPick: (index: number) => void;
   label: string;
-}) => (
-  <View style={styles.wrap}>
-    {colours.map((colour, i) => (
-      <Pressable
-        key={colour}
-        onPress={() => onPick(i)}
-        accessibilityRole="radio"
-        accessibilityState={{ selected: i === value }}
-        accessibilityLabel={`${label} ${i + 1}`}
-        style={[styles.swatch, { backgroundColor: colour }, i === value && styles.swatchOn]}
-      />
-    ))}
-  </View>
-);
+  order?: readonly number[];
+}) => {
+  const t = useAppTheme();
+  const shown = order ?? colours.map((_, i) => i);
+  return (
+    <View style={styles.wrap}>
+      {shown.map((i, place) => (
+        <Pressable
+          key={colours[i]}
+          onPress={() => onPick(i)}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: i === value }}
+          accessibilityLabel={`${label} ${place + 1}`}
+          testID={`world-editor-${label.toLowerCase().replace(" ", "-")}-${i}`}
+          style={[styles.swatch, { backgroundColor: colours[i] }, i === value && [styles.swatchOn, { borderColor: t.text }]]}
+        />
+      ))}
+    </View>
+  );
+};
+
+const SKINS_LIGHT_TO_DARK = lightToDark(people.skins);
+
+const TILE = 68;
+const FRAMES = {
+  face: { s: 62, headAt: 0.54, heading: 0 },
+  hair: { s: 46, headAt: 0.6, heading: 0.4 },
+  hat: { s: 40, headAt: 0.66, heading: 0 },
+  body: { s: 46, headAt: 0.36, heading: -0.6 },
+  outfit: { s: 50, headAt: 0.3, heading: 0 },
+} as const;
+type Framing = keyof typeof FRAMES;
+
+const mannequin = (draft: Look): Look => ({
+  v: LOOK_VERSION,
+  skin: draft.skin,
+  hair: HAIR_STYLES.indexOf("Bald"),
+  hairColour: draft.hairColour,
+  shirt: draft.shirt,
+  eyeColour: lookPart(draft, "eyeColour"),
+  hat: 0,
+  accessory: 0,
+  face: 0,
+  eyes: 0,
+  brows: 0,
+  nose: 0,
+  mouth: 0,
+  height: 2,
+  build: 2,
+  freckles: 0,
+  blush: 0,
+  beard: 0,
+  outfit: 0,
+});
+
+const STILL = { x: 0, z: 0, walking: false, arrivesAt: 0 };
 
 const Choices = ({
   names,
-  value,
+  part,
+  framing,
+  draft,
   onPick,
   testID,
 }: {
   names: readonly string[];
-  value: number;
+  part: LookPart;
+  framing: Framing;
+  draft: Look;
   onPick: (index: number) => void;
   testID: string;
 }) => {
   const t = useAppTheme();
+  const value = lookPart(draft, part);
+  const blank = mannequin(draft);
+  const frame = FRAMES[framing];
+  const up = frame.s * 0.86;
+  const foot = { x: TILE / 2, y: TILE * frame.headAt + bodyScale(blank).height * up, depth: 1, scale: frame.s };
   return (
     <View style={styles.wrap}>
       {names.map((name, i) => (
@@ -188,13 +243,23 @@ const Choices = ({
           accessibilityState={{ selected: i === value }}
           accessibilityLabel={name}
           testID={`${testID}-${i}`}
-          style={[
-            styles.chip,
-            { borderColor: t.border, backgroundColor: t.card },
-            i === value && { backgroundColor: hud.primary, borderColor: hud.primary },
-          ]}
+          style={({ pressed }) => [styles.tile, { borderColor: i === value ? t.text : hud.primarySoft }, pressed && styles.tilePressed]}
         >
-          <Text style={[typography.label, { color: i === value ? hud.cream : t.text }]}>{name}</Text>
+          <View style={styles.tileStage} pointerEvents="none">
+            <Avatar
+              figure={{ foot, s: frame.s, up, bob: 0 }}
+              pose={{ ...STILL, heading: frame.heading }}
+              look={{ ...blank, [part]: i }}
+              t={0}
+              seed={0}
+              shadow={false}
+            />
+          </View>
+          {i === value ? (
+            <View style={styles.tileTick}>
+              <Ionicons name="checkmark" size={12} color={hud.onAccent} />
+            </View>
+          ) : null}
         </Pressable>
       ))}
     </View>
@@ -313,7 +378,7 @@ export const CharacterEditor = ({
               testID={`world-editor-tab-${name.toLowerCase()}`}
               style={[styles.tab, tab === name && { backgroundColor: hud.primary }]}
             >
-              <Text style={[typography.label, { color: tab === name ? hud.cream : t.text }]}>{name}</Text>
+              <Text style={[typography.label, { color: tab === name ? hud.cream : hud.forest }]}>{name}</Text>
             </Pressable>
           ))}
         </View>
@@ -321,25 +386,25 @@ export const CharacterEditor = ({
         {tab === "Face" ? (
           <>
             {section("Skin")}
-            <Swatches colours={people.skins} value={draft.skin} onPick={set("skin")} label="Skin" />
+            <Swatches colours={people.skins} value={draft.skin} onPick={set("skin")} label="Skin" order={SKINS_LIGHT_TO_DARK} />
             {section("Face shape")}
-            <Choices names={FACES} value={part("face")} onPick={set("face")} testID="world-editor-face" />
+            <Choices names={FACES} part="face" framing="face" draft={draft} onPick={set("face")} testID="world-editor-face" />
             {section("Eyes")}
-            <Choices names={EYES} value={part("eyes")} onPick={set("eyes")} testID="world-editor-eyes" />
+            <Choices names={EYES} part="eyes" framing="face" draft={draft} onPick={set("eyes")} testID="world-editor-eyes" />
             {section("Eye colour")}
             <Swatches colours={people.eyeColours} value={part("eyeColour")} onPick={set("eyeColour")} label="Eye colour" />
             {section("Eyebrows")}
-            <Choices names={BROWS} value={part("brows")} onPick={set("brows")} testID="world-editor-brows" />
+            <Choices names={BROWS} part="brows" framing="face" draft={draft} onPick={set("brows")} testID="world-editor-brows" />
             {section("Nose")}
-            <Choices names={NOSES} value={part("nose")} onPick={set("nose")} testID="world-editor-nose" />
+            <Choices names={NOSES} part="nose" framing="face" draft={draft} onPick={set("nose")} testID="world-editor-nose" />
             {section("Mouth")}
-            <Choices names={MOUTHS} value={part("mouth")} onPick={set("mouth")} testID="world-editor-mouth" />
+            <Choices names={MOUTHS} part="mouth" framing="face" draft={draft} onPick={set("mouth")} testID="world-editor-mouth" />
           </>
         ) : null}
         {tab === "Hair" ? (
           <>
             {section("Hairstyle")}
-            <Choices names={HAIR_STYLES} value={draft.hair} onPick={set("hair")} testID="world-editor-hair" />
+            <Choices names={HAIR_STYLES} part="hair" framing="hair" draft={draft} onPick={set("hair")} testID="world-editor-hair" />
             {section("Hair colour")}
             <Swatches colours={people.hairColours} value={draft.hairColour} onPick={set("hairColour")} label="Hair colour" />
           </>
@@ -357,22 +422,24 @@ export const CharacterEditor = ({
         ) : null}
         {tab === "Outfit" ? (
           <>
-            {section("Shirt")}
+            {section("Outfit")}
+            <Choices names={OUTFITS} part="outfit" framing="outfit" draft={draft} onPick={set("outfit")} testID="world-editor-outfit" />
+            {section("Colour")}
             <Swatches colours={people.shirts} value={draft.shirt} onPick={set("shirt")} label="Shirt" />
             {section("Hat")}
-            <Choices names={HATS} value={part("hat")} onPick={set("hat")} testID="world-editor-hat" />
+            <Choices names={HATS} part="hat" framing="hat" draft={draft} onPick={set("hat")} testID="world-editor-hat" />
           </>
         ) : null}
         {tab === "Extras" ? (
           <>
             {section("Extra")}
-            <Choices names={ACCESSORIES} value={part("accessory")} onPick={set("accessory")} testID="world-editor-extra" />
+            <Choices names={ACCESSORIES} part="accessory" framing="body" draft={draft} onPick={set("accessory")} testID="world-editor-extra" />
             {section("Blush")}
-            <Choices names={BLUSH} value={part("blush")} onPick={set("blush")} testID="world-editor-blush" />
+            <Choices names={BLUSH} part="blush" framing="face" draft={draft} onPick={set("blush")} testID="world-editor-blush" />
             {section("Freckles")}
-            <Choices names={ON_OFF} value={part("freckles")} onPick={set("freckles")} testID="world-editor-freckles" />
+            <Choices names={ON_OFF} part="freckles" framing="face" draft={draft} onPick={set("freckles")} testID="world-editor-freckles" />
             {section("Beard")}
-            <Choices names={BEARDS} value={part("beard")} onPick={set("beard")} testID="world-editor-beard" />
+            <Choices names={BEARDS} part="beard" framing="face" draft={draft} onPick={set("beard")} testID="world-editor-beard" />
           </>
         ) : null}
         </ScrollView>
@@ -386,7 +453,7 @@ const styles = StyleSheet.create({
   // On a short screen the choices give up height (and scroll) rather than
   // slide under Save.
   shrink: { flexShrink: 1, minHeight: 0 },
-  choices: { maxHeight: 200, flexShrink: 1, minHeight: 64 },
+  choices: { maxHeight: 264, flexShrink: 1, minHeight: 64 },
   tabs: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   tab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: hud.primarySoft },
   stepsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
@@ -398,8 +465,21 @@ const styles = StyleSheet.create({
   preview: { height: PREVIEW_HEIGHT, borderRadius: 18, overflow: "hidden", marginBottom: spacing.sm },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   swatch: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: hud.primarySoft },
-  swatchOn: { borderWidth: 3.5, borderColor: hud.forest },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
+  swatchOn: { borderWidth: 3.5 },
+  tile: { width: TILE + 5, height: TILE + 5, borderRadius: 16, borderWidth: 2.5, overflow: "hidden", backgroundColor: hud.primarySoft },
+  tilePressed: { opacity: 0.75 },
+  tileStage: { width: TILE, height: TILE, overflow: "hidden" },
+  tileTick: {
+    position: "absolute",
+    right: 3,
+    top: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: hud.accent,
+  },
   buttons: { flexDirection: "row", gap: spacing.sm },
   grow: { flex: 1 },
 });

@@ -118,6 +118,10 @@ async function deleteByEmail(
       (row) => ctx.db.delete("worldThrottle", row._id)
     ),
     await deleteBatch(
+      await ctx.db.query("worldVisitors").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldVisitors", row._id)
+    ),
+    await deleteBatch(
       await ctx.db
         .query("worldBlocks")
         .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email))

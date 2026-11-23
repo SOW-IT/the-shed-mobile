@@ -107,6 +107,40 @@ Daniel's items 5 to 9 (2026-11-23):
   duplicates) and a refusal rolls it back. A pending chat line is marked by
   its id. Moves were already local.
 
+## Changed in 2.12.10: a review pass and Daniel's next list
+
+- **Touch, revised.** A held or dragged finger is now drawn on the phone only:
+  the walk follows it once a frame and nothing is sent until the finger
+  lifts, when one move goes out. The 500 ms sends while dragging are gone,
+  so a long drag costs one write and other phones see the walk once it's
+  settled.
+- **Walking is drawn from a gait** (`src/world/gait.ts`): the stride starts
+  at zero and fades out after arriving, a heading eases over 180 ms and is
+  kept after stopping (nobody turns back to the camera), and a walk that goes
+  nowhere keeps the heading. The server's answer to a tap is blended into
+  the local walk (`blendIn` in `useWorld.ts`) instead of replacing it, which
+  used to step you back by the round trip. Remote glide offsets are set in a
+  layout effect, so the first frame of a new walk is already eased.
+- **Tapping someone opens a HUD over them** (`PersonHud.tsx`), not a sheet.
+  High five walks you beside them first (`approach.ts`) and asks on arrival.
+  Mute, block and report stay in the sheet, behind More.
+- **The arcade is a place you stay.** Tapping it walks you there, then opens
+  Games with the Garden screen still mounted and joined. `worldState.away`
+  (one write to set, one to clear, cleared by any move) shows you faded with
+  "Playing" to everyone else, and asks to you are refused meanwhile.
+- **Emotes.** The tray offers six (`EMOTE_TRAY`); all twelve ids stay valid
+  for older apps. The act bucket refills every 4 s (was 6 s) so an emote can
+  follow the last one, and the app keeps its own copy of the bucket so a
+  refused emote is never shown and then taken back.
+- **Outfits.** `outfit` is one more optional look part (dress, skirt,
+  overalls, striped tee, hoodie), additive like version 2's parts.
+- **Offline list and pokes.** `worldVisitors` keeps each person's name and
+  when they were last in the garden (written on join and on leaving, deleted
+  with the account). `world.offline` lists the latest 30 who aren't here and
+  haven't blocked you or been blocked. `world.poke` sends an in-app
+  notification and a push linking to `/world`: one poke an hour per sender,
+  and nobody is poked more than once in ten minutes.
+
 ## Write budget
 
 Estimated by `convex/world.test.ts` ("write budget per player"), ten minutes
@@ -116,8 +150,8 @@ of simulated play against the real mutations, counting writes per code path
 | Player | Mutations a minute | Document writes a minute |
 | --- | ---: | ---: |
 | Typical: 8 taps, 1 emote, 2 lines | 11 | about 15 |
-| Dragging for 3 s | 6 to 10 moves in all | the same |
-| At every rate limit (dragging non-stop) | about 146 accepted | at most 147, 153 in a full chat room |
+| Dragging for 3 s | 1 move, on release | the same |
+| At every rate limit (scripted, not the app) | about 151 accepted | at most 152, 158 in a full chat room |
 | Idle | about 1.3 heartbeats | at most 1.3 |
 
 A line in a room already holding 50 lines also deletes the oldest, one more

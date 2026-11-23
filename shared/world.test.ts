@@ -10,12 +10,14 @@ import {
   hash,
   HEAR_RADIUS,
   EMOTE_IDS,
+  EMOTE_TRAY,
   isEmote,
   isMutual,
   liveMutual,
   MUTUAL_MS,
   openAsk,
   LOOK_SIZES,
+  OUTFITS,
   bodyScale,
   isValidLook,
   lookFor,
@@ -122,6 +124,9 @@ test("isValidLook checks every part, and randomLook stays in range", () => {
   expect(isValidLook({ ...v2, v: 3 })).toBe(false);
   expect(isValidLook({ ...v2, v: 1.5 })).toBe(false);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, hat: 0.5 })).toBe(false);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, outfit: OUTFITS.length - 1 })).toBe(true);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, outfit: OUTFITS.length })).toBe(false);
+  expect(lookPart({ skin: 0, hair: 0, hairColour: 0, shirt: 0 }, "outfit")).toBe(0);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: undefined as unknown as number })).toBe(false);
   for (const r of [0, 0.3, 0.55, 0.99]) expect(isValidLook(randomLook(() => r))).toBe(true);
   expect(isValidLook(randomLook())).toBe(true);
@@ -154,8 +159,19 @@ test("cleanLine trims, joins lines and caps the length", () => {
   expect(Array.from(cleanLine("🌸".repeat(200))!)).toHaveLength(MAX_SAY_LENGTH);
 });
 
+test("cleanLine drops characters nobody can see", () => {
+  expect(cleanLine("\u200B")).toBeNull();
+  expect(cleanLine("\u2060\uFEFF \u202E")).toBeNull();
+  expect(cleanLine("\u0301\u0301")).toBeNull();
+  expect(cleanLine("hi\u202Ethere\u0000")).toBe("hi there");
+  expect(cleanLine("👨\u200D👩\u200D👧")).toBe("👨\u200D👩\u200D👧");
+  expect(cleanLine("é")).toBe("é");
+});
+
+
 test("isEmote and isMutual know the choices, and nothing inherited", () => {
   expect(EMOTE_IDS).toContain("wave");
+  expect(EMOTE_TRAY.every((id) => EMOTE_IDS.includes(id))).toBe(true);
   expect([isEmote("wave"), isEmote("👋"), isEmote("toString")]).toEqual([true, false, false]);
   expect([isMutual("highFive"), isMutual("hug"), isMutual("constructor")]).toEqual([true, false, false]);
 });

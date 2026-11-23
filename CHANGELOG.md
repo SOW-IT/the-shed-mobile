@@ -6,6 +6,75 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.12] - 2026-11-23
+
+### Added
+- **See who's not in the Garden, and poke them.** People here now has "Not
+  here right now": everyone who has visited, with how long ago. Poke sends
+  them a notification asking them to join you, with a short message of your
+  own if you like. You can poke once an hour, and nobody gets poked more
+  than once in ten minutes.
+- **Outfits.** As well as a T-shirt you can wear a dress, a skirt, overalls,
+  a striped tee or a hoodie, in any of the colours.
+- **The arcade is somewhere you go.** Tap the cabinet and you walk over to
+  it before the games open. While you play, everyone else still sees you
+  there, faded, with "Playing" over your head. Come back and you're back to
+  normal, in the same spot.
+- **A check before you leave.** Going back from the Garden, by the button,
+  a swipe or the browser's back, asks "Leave the garden?" first.
+
+### Changed
+- **Tapping someone opens a small bubble over their head.** It has High
+  five, Wave and More, and pops up right where they are instead of a sheet
+  that covers the garden. More still has mute, block and report. Tap
+  yourself for Outfit and Emotes (the shirt button in the corner is gone).
+  Tap the ground, or the person again, and it goes away.
+- **High five from anywhere.** Choose High five on someone across the garden
+  and you walk over and stand beside them first. The ask goes out when you
+  get there. Tap the ground to change your mind on the way.
+- **Walking is smoother.** Steps start and stop gently instead of snapping,
+  characters turn to a new direction rather than flipping, you no longer
+  slip back a step just after you tap, and other people no longer flicker
+  for a moment each time they change direction. Speech bubbles fade in and
+  out, and the timer on a high-five ask runs smoothly.
+- **Dragging is smoother too.** While your finger is down, your walk and the
+  flower marker follow it on your own phone only. Everyone else sees where
+  you went when you let go.
+- **You keep facing the way you walked.** Characters used to turn back
+  toward the screen after stopping.
+- **Six emotes, acted out.** Wave, Laugh, Cheer, Sad, Angry and Pray. Your
+  character jumps, doubles up, slumps, stomps, or bows their head with
+  hands together, so you can read it from the body and not only the icon.
+  A new emote takes over from the one playing.
+- **Pick your character's features by looking at them.** Face shape, eyes,
+  eyebrows, nose, mouth, hairstyle, hat, extras, blush, freckles and beard
+  each show as little pictures on a plain character, instead of words like
+  "Short" or "Bun". Skin tones now run from lightest to darkest.
+- **The games leaderboard is easier to get around.** The Play button is at
+  the top of each game's page, and on a phone you can swipe left and right
+  between the games, the same as the tabs on Attendance.
+- **The Garden is in the side menu,** under Announcements, as well as in
+  Games. Praise List now sits under Churches. Profile is no longer a menu
+  item: tap your photo at the top of the menu.
+
+### Fixed
+- **Typing on iPhone.** The chat box now rises to sit just above the
+  keyboard, and the garden stays put behind it instead of being squashed.
+  Tap anywhere, or the cross, to put the keyboard away.
+- **An emote no longer flips back to the one before it.** Tapping emotes
+  quickly could show the new one and then swap it for the old.
+- **Speech bubble tails point at the right person on iPhone.** The little
+  tail under a short bubble such as "High five?" sat off to one side.
+- **Blank chat lines.** A message made only of invisible characters is no
+  longer sent, and characters that flip the direction of text are removed.
+- **The two buttons on a high-five ask line up.**
+- **The character editor's tabs are readable in dark mode.** Hair, Body,
+  Outfit and Extras were pale text on a pale button.
+- **The walk marker no longer lingers** at your feet after you come back to
+  the garden from another app.
+- **Opening the Garden from Games while you're at the arcade** takes you
+  back to where you were, not into a second copy of it.
+
 ## [2.12.11] - 2026-11-23
 
 ### Changed
