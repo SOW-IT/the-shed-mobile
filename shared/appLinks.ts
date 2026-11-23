@@ -57,6 +57,39 @@ export const updateStatusFor = (version: string, policy: UpdatePolicy | null): U
   return "ok";
 };
 
+/** What this phone knows about an over-the-air update for its build. */
+export type OtaState = {
+  /** An update is on the server for this build, downloaded or not. */
+  available: boolean;
+  /** The update's version, when its manifest says. */
+  version?: string;
+  /** The phone has asked the update server since it started. */
+  checked: boolean;
+  /** It's asking, or downloading, right now. */
+  busy: boolean;
+};
+
+/**
+ * How a phone behind the version it should be on gets there: restarting into
+ * an over-the-air update when there's one for its build that reaches the
+ * target, or the store when only a new build will. "wait" while the phone
+ * hasn't heard back from the update server, so it never sends someone to the
+ * store for something a restart would fix. A build without over-the-air
+ * updates (`ota` null) can only use the store.
+ */
+export const updateRouteFor = (
+  target: string | null,
+  ota: OtaState | null
+): "restart" | "store" | "wait" => {
+  if (!ota) return "store";
+  if (ota.available) {
+    const reaches = !target || !ota.version || !isAppVersion(ota.version) || compareVersions(ota.version, target) >= 0;
+    if (reaches) return "restart";
+  }
+  if (!ota.checked || ota.busy) return "wait";
+  return "store";
+};
+
 const SIGN_IN_RETURN_PARAMS = [
   "code",
   "state",

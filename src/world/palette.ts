@@ -166,10 +166,17 @@ export const hud = {
   chip: "rgba(29, 74, 65, 0.92)",
   chipRing: "#BCDCCD",
   nameBg: "rgba(255, 254, 248, 0.92)",
-  farBubble: "#E9EEE4",
-  farText: "#6A7A72",
-  farEdge: "#8FA197",
   scrim: "rgba(15, 37, 35, 0.35)",
+} as const;
+
+export const chatLog = {
+  text: "#FFFFFF",
+  shadow: "rgba(20, 20, 20, 0.85)",
+  time: "#D4D4D4",
+  me: "#FFFF55",
+  place: "#7FF6FF",
+  name: "#FFFFFF",
+  status: "#E0E0E0",
 } as const;
 
 const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
