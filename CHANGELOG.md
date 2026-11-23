@@ -16,6 +16,11 @@ All notable changes to **The SHED** mobile app. This project follows
   during a run. On the web, the browser's own swipe back (from the edge of
   a phone's screen, or two fingers on a trackpad) is kept off the game the
   same way; the browser's back button still asks first during a run.
+- **Back from a game is always the games menu.** Going from a game to the
+  leaderboard and playing again, over and over, used to pile up screens, so
+  getting back out took a long tap of the back button per round. Now Play on
+  the leaderboard swaps the old game and the leaderboard for the new game:
+  there's only ever one game open, with at most the leaderboard on top of it.
 
 ## [2.12.13] - 2026-11-23
 
