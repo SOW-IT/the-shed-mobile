@@ -22,6 +22,7 @@ export const worldLookValidator = v.object({
   freckles: v.optional(v.number()),
   blush: v.optional(v.number()),
   beard: v.optional(v.number()),
+  outfit: v.optional(v.number()),
 });
 
 export const worldBucketValidator = v.object({ tokens: v.number(), at: v.number() });

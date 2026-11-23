@@ -468,8 +468,10 @@ describe("account.wipe", () => {
         presence: await ctx.db.query("worldPresence").collect(),
         rooms: await ctx.db.query("worldRooms").collect(),
         throttles: await ctx.db.query("worldThrottle").collect(),
+        visitors: await ctx.db.query("worldVisitors").collect(),
       }));
-    const empty = { members: [], states: [], presence: [], rooms: [], throttles: [] };
+    expect((await gardenRows()).visitors).toHaveLength(1);
+    const empty = { members: [], states: [], presence: [], rooms: [], throttles: [], visitors: [] };
     await t.mutation(internal.account.wipe, { userId });
     // Straight after the wipe, before any scheduled sweep runs: the wipe itself did it.
     expect(await gardenRows()).toEqual(empty);

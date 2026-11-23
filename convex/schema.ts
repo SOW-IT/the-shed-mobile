@@ -177,6 +177,7 @@ export default defineSchema({
     // The asks this person accepted that are still open, so accepting one
     // again replays nothing even after they've accepted another since.
     answered: v.optional(v.array(worldReplyValidator)),
+    away: v.optional(v.literal("arcade")),
     moveBucket: worldBucketValidator,
     actBucket: worldBucketValidator,
     sayBucket: worldBucketValidator,
@@ -237,6 +238,16 @@ export default defineSchema({
   })
     .index("by_email_and_blockedEmail", ["email", "blockedEmail"])
     .index("by_blockedEmail", ["blockedEmail"]),
+
+  worldVisitors: defineTable({
+    email: v.string(),
+    name: v.string(),
+    lastSeenAt: v.number(),
+    lastPokeAt: v.optional(v.number()),
+    lastPokedAt: v.optional(v.number()),
+  })
+    .index("by_email", ["email"])
+    .index("by_lastSeenAt", ["lastSeenAt"]),
 
   // A report keeps its lines after the chat is swept, for leaders to review.
   worldReports: defineTable({

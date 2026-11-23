@@ -10,12 +10,14 @@ import {
   hash,
   HEAR_RADIUS,
   EMOTE_IDS,
+  EMOTE_TRAY,
   isEmote,
   isMutual,
   liveMutual,
   MUTUAL_MS,
   openAsk,
   LOOK_SIZES,
+  OUTFITS,
   bodyScale,
   isValidLook,
   lookFor,
@@ -122,6 +124,9 @@ test("isValidLook checks every part, and randomLook stays in range", () => {
   expect(isValidLook({ ...v2, v: 3 })).toBe(false);
   expect(isValidLook({ ...v2, v: 1.5 })).toBe(false);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, hat: 0.5 })).toBe(false);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, outfit: OUTFITS.length - 1 })).toBe(true);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, outfit: OUTFITS.length })).toBe(false);
+  expect(lookPart({ skin: 0, hair: 0, hairColour: 0, shirt: 0 }, "outfit")).toBe(0);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: undefined as unknown as number })).toBe(false);
   for (const r of [0, 0.3, 0.55, 0.99]) expect(isValidLook(randomLook(() => r))).toBe(true);
   expect(isValidLook(randomLook())).toBe(true);
@@ -166,6 +171,7 @@ test("cleanLine drops characters nobody can see", () => {
 
 test("isEmote and isMutual know the choices, and nothing inherited", () => {
   expect(EMOTE_IDS).toContain("wave");
+  expect(EMOTE_TRAY.every((id) => EMOTE_IDS.includes(id))).toBe(true);
   expect([isEmote("wave"), isEmote("👋"), isEmote("toString")]).toEqual([true, false, false]);
   expect([isMutual("highFive"), isMutual("hug"), isMutual("constructor")]).toEqual([true, false, false]);
 });

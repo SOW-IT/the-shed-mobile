@@ -62,13 +62,14 @@ export const EMOTES = {
   surprised: { label: "Surprised", icon: "😮" },
   think: { label: "Think", icon: "🤔" },
   pout: { label: "Pout", icon: "😤" },
-  cry: { label: "Cry", icon: "😢" },
+  cry: { label: "Sad", icon: "😢" },
   angry: { label: "Angry", icon: "💢" },
   sleepy: { label: "Sleepy", icon: "💤" },
   pray: { label: "Pray", icon: "🙏" },
 } as const;
 export type EmoteId = keyof typeof EMOTES;
 export const EMOTE_IDS = Object.keys(EMOTES) as EmoteId[];
+export const EMOTE_TRAY: readonly EmoteId[] = ["wave", "laugh", "cheer", "cry", "angry", "pray"];
 export const isEmote = (value: string): value is EmoteId => Object.hasOwn(EMOTES, value);
 
 /**
@@ -256,6 +257,7 @@ export const LOOK_SIZES = {
   freckles: 2,
   blush: 3,
   beard: 4,
+  outfit: 6,
 } as const;
 /** The look's shape: version 2 added the face, body and extras. */
 export const LOOK_VERSION = 2;
@@ -279,6 +281,7 @@ export type Look = {
   freckles?: number;
   blush?: number;
   beard?: number;
+  outfit?: number;
 };
 export type LookPart = keyof typeof LOOK_SIZES;
 const LOOK_PARTS = Object.keys(LOOK_SIZES) as LookPart[];
@@ -321,6 +324,7 @@ export const HAIR_STYLES = [
   "Side swept",
 ] as const;
 export const HATS = ["None", "Cap", "Beanie", "Flower crown", "Sun hat"] as const;
+export const OUTFITS = ["T-shirt", "Dress", "Skirt", "Overalls", "Striped tee", "Hoodie"] as const;
 export const ACCESSORIES = ["None", "Glasses", "Backpack", "Scarf"] as const;
 export const FACES = ["Round", "Oval", "Square", "Heart", "Long"] as const;
 export const EYES = ["Dots", "Round", "Sleepy", "Sparkly", "Wide", "Narrow"] as const;
@@ -390,11 +394,22 @@ export const randomLook = (random: () => number = Math.random): Look => {
     freckles: rarely("freckles", 0.5),
     blush: pick("blush"),
     beard: rarely("beard", 0.3),
+    outfit: pick("outfit"),
   };
 };
 
 /** A saved look can't change more often than this. */
 export const LOOK_SAVE_GAP_MS = 3000;
+
+export const POKE_EVERY_MS = 60 * 60_000;
+export const POKED_GAP_MS = 10 * 60_000;
+export const MAX_POKE_LENGTH = 80;
+export const OFFLINE_LIST_SIZE = 30;
+
+export const cleanPoke = (raw: string): string | null => {
+  const line = cleanLine(raw);
+  return line === null ? null : Array.from(line).slice(0, MAX_POKE_LENGTH).join("");
+};
 
 /** The name over someone's head: the first word of their name. */
 export const tagName = (name: string): string => {
@@ -422,7 +437,7 @@ export const BUCKETS = {
   // Matches the app's throttle while a finger is held: at most a move every
   // 500 ms, so others see a drag about twice a second.
   move: { burst: 4, refillMs: 500 },
-  act: { burst: 3, refillMs: 6000 },
+  act: { burst: 3, refillMs: 4000 },
   say: { burst: 3, refillMs: 10_000 },
   /** Joining again after leaving, so coming and going can't refill the others. */
   join: { burst: 4, refillMs: 30_000 },
