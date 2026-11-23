@@ -12,6 +12,7 @@ import { Doc } from "../../convex/_generated/dataModel";
 import { spacing } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
 import { useRequestUnreadCounts } from "@/hooks/useRequestUnreadCounts";
+import { useRequestStepActors } from "@/hooks/useRequestStepActors";
 import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
 import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import {
@@ -95,6 +96,7 @@ export const AllRequestsList = ({
   const focusIndex = focused ? filtered.findIndex((request) => request._id === focused._id) : -1;
   const shown = filtered.slice(0, Math.max(visible, focusIndex + 1));
   const hasMore = filtered.length > shown.length;
+  const stepActorsOf = useRequestStepActors(isCompleted ? undefined : shown.map((r) => r._id));
 
   const pending = useRef(false);
   useEffect(() => {
@@ -161,6 +163,7 @@ export const AllRequestsList = ({
                 showRequester
                 collapsible={isCompleted}
                 unread={unread[request._id] ?? 0}
+                stepActors={isCompleted ? undefined : stepActorsOf(request._id)}
                 autoExpand={request._id === focusId}
                 autoOpenThread={request._id === focusId && focusThread}
                 deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}

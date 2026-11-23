@@ -85,6 +85,7 @@
         "src/lib/requestsCsv.ts",
         "src/hooks/useReimbursementsBadge.ts",
         "src/hooks/useRequestUnreadCounts.ts",
+        "src/hooks/useRequestStepActors.ts",
         "convex/{requests,categoryPeople,stepTiming,reminders}.ts",
         "shared/{flow,money,reminders}.ts"
       ],

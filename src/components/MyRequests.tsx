@@ -16,6 +16,7 @@ import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
 import { useRequestUnreadCounts } from "@/hooks/useRequestUnreadCounts";
+import { useRequestStepActors } from "@/hooks/useRequestStepActors";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { GuideSheet } from "@/components/ui/GuideSheet";
@@ -840,6 +841,9 @@ export const MyRequests = ({
   const t = useAppTheme();
   const requests = useQuery(api.requests.myRequests, {});
   const unread = useRequestUnreadCounts(requests?.map((r) => r._id));
+  const stepActorsOf = useRequestStepActors(
+    requests?.filter((r) => !requestCompleted(r)).map((r) => r._id)
+  );
   const cancel = useMutation(api.requests.cancel);
   const deleteDeclined = useMutation(api.requests.deleteDeclined);
   const sendNudge = useMutation(api.requests.nudge);
@@ -911,6 +915,7 @@ export const MyRequests = ({
                   actionRequired={needsReceipt}
                   collapsible={requestCompleted(request)}
                   unread={unread[request._id] ?? 0}
+                  stepActors={requestCompleted(request) ? undefined : stepActorsOf(request._id)}
                   autoExpand={request._id === focusId}
                   autoOpenThread={request._id === focusId && focusThread}
                   deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}

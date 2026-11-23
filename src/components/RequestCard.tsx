@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import React, { ReactNode, useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import type { ListStepActors } from "@/hooks/useRequestStepActors";
 import {
   APPROVED,
   currentStep,
@@ -123,12 +124,13 @@ const StepInfoModal = ({
   );
 };
 
-const StepLine = ({ request }: { request: Doc<"requests"> }) => {
+const StepLine = ({ request, listActors }: { request: Doc<"requests">; listActors?: ListStepActors }) => {
   const t = useAppTheme();
   const [selectedStep, setSelectedStep] = useState<ApprovalStep | null>(null);
   const active = currentStep(request);
   const steps = stepsForRequest(request);
-  const actors = useQuery(api.requests.stepActors, { requestId: request._id });
+  const ownActors = useQuery(api.requests.stepActors, listActors ? "skip" : { requestId: request._id });
+  const actors = listActors ? listActors.actors : ownActors;
 
   const [fill] = useState(() => new Animated.Value(0));
   const needsAnimation = active !== null;
@@ -300,6 +302,7 @@ export const RequestCard = ({
   onAutoOpenThread,
   waitingSince,
   unread,
+  stepActors,
   children,
 }: {
   request: Doc<"requests">;
@@ -316,6 +319,11 @@ export const RequestCard = ({
    * in one query. Without it the card asks for its own.
    */
   unread?: number;
+  /**
+   * The step line's approvers, when the list fetched every card's in one
+   * query. Without it the card asks for its own.
+   */
+  stepActors?: ListStepActors;
   collapsible?: boolean;
   children?: ReactNode;
 }) => {
@@ -435,7 +443,7 @@ export const RequestCard = ({
   const body = (
     <>
       <Txt>{request.description}</Txt>
-      <StepLine request={request} />
+      <StepLine request={request} listActors={stepActors} />
       {request.declineReason ? (
         <View style={[styles.declineBox, { backgroundColor: t.dangerSoft }]}>
           <Ionicons name="close-circle" size={15} color={t.danger} />

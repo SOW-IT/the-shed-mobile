@@ -1141,10 +1141,20 @@ describe("audit trail and reminders", () => {
         actors: (await as.query(api.requests.stepActors, { requestId: request._id })) !== null,
         comments: (await as.query(api.comments.list, { requestId: request._id })) !== null,
         unread: (await as.query(api.comments.unreadCount, { requestId: request._id })) !== null,
+        actorsBatch:
+          request._id in (await as.query(api.requests.stepActorsForRequests, { requestIds: [request._id] })),
       };
     };
-    const all = { get: true, trail: true, step: true, actors: true, comments: true, unread: true };
-    const none = { get: false, trail: false, step: false, actors: false, comments: false, unread: false };
+    const all = { get: true, trail: true, step: true, actors: true, comments: true, unread: true, actorsBatch: true };
+    const none = {
+      get: false,
+      trail: false,
+      step: false,
+      actors: false,
+      comments: false,
+      unread: false,
+      actorsBatch: false,
+    };
 
     expect(await reads(RACHEL)).toEqual(all);
     expect(await reads(HENRY)).toEqual(all);
@@ -2590,6 +2600,43 @@ describe("stepActors", () => {
     expect(
       await asUser(t, RACHEL).query(api.requests.stepActors, { requestId: id })
     ).toBeNull();
+  });
+});
+
+describe("stepActorsForRequests", () => {
+  test("gives each request what stepActors gives it, in one query", async () => {
+    const t = await setup();
+    const approved = await approvedRequest(t);
+    const pending = await pendingRequest(t, 50);
+    const batch = await asUser(t, RACHEL).query(api.requests.stepActorsForRequests, {
+      requestIds: [approved, pending, approved],
+    });
+    expect(Object.keys(batch).sort()).toEqual([approved, pending].sort());
+    for (const id of [approved, pending]) {
+      expect(batch[id]).toEqual(await asUser(t, RACHEL).query(api.requests.stepActors, { requestId: id }));
+    }
+  });
+
+  test("leaves out requests the caller can't see or that are gone", async () => {
+    const t = await setup();
+    const approved = await approvedRequest(t);
+    const pending = await pendingRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: pending });
+    expect(await t.query(api.requests.stepActorsForRequests, { requestIds: [approved] })).toEqual({});
+    const batch = await asUser(t, RACHEL).query(api.requests.stepActorsForRequests, {
+      requestIds: [approved, pending],
+    });
+    expect(Object.keys(batch)).toEqual([approved]);
+  });
+
+  test("takes at most a hundred requests", async () => {
+    const t = await setup();
+    const id = await pendingRequest(t);
+    await expect(
+      asUser(t, RACHEL).query(api.requests.stepActorsForRequests, {
+        requestIds: Array.from({ length: 101 }, () => id),
+      })
+    ).rejects.toThrow(/at most 100/);
   });
 });
 
