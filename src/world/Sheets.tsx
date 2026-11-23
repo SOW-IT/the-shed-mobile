@@ -22,7 +22,6 @@ export const PersonSheet = ({
   person,
   safetyOnly = false,
   muted,
-  near,
   onToggleMute,
   onWave,
   onHighFive,
@@ -33,8 +32,6 @@ export const PersonSheet = ({
   person: WorldMember | null;
   safetyOnly?: boolean;
   muted: boolean;
-  /** Close enough for a high five. */
-  near: boolean;
   onToggleMute: (memberId: string) => void;
   onWave: () => void;
   onHighFive: (to: Id<"worldMembers">) => void;
@@ -107,13 +104,12 @@ export const PersonSheet = ({
             <Btn
               title="High five"
               icon="hand-right-outline"
-              disabled={!near}
               onPress={() => {
                 onHighFive(person!.memberId);
                 close();
               }}
             />
-            {near ? null : <Muted>Walk a bit closer to high five.</Muted>}
+            <Muted>If they&apos;re not beside you, you walk over first.</Muted>
             <Btn
               title={`Wave at ${name.split(" ")[0]}`}
               icon="hand-left-outline"
@@ -163,11 +159,17 @@ const OfflineList = () => {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
   const waitMs = list ? list.pokeAgainAt - now : 0;
+  const pokeAgainAt = list?.pokeAgainAt;
   useEffect(() => {
-    if (!open || waitMs <= 0) return;
-    const id = setTimeout(() => setNow(Date.now()), waitMs + 250);
-    return () => clearTimeout(id);
-  }, [open, waitMs]);
+    if (!open || pokeAgainAt === undefined) return;
+    const refresh = () => setNow(Date.now());
+    const soon = setTimeout(refresh, 0);
+    const whenAllowed = setTimeout(refresh, Math.max(0, pokeAgainAt - Date.now()) + 250);
+    return () => {
+      clearTimeout(soon);
+      clearTimeout(whenAllowed);
+    };
+  }, [open, pokeAgainAt]);
   const send = async (visitorId: Id<"worldVisitors">, name: string) => {
     setBusy(true);
     setError(null);

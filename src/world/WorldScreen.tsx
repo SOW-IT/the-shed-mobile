@@ -6,7 +6,6 @@ import {
   distance,
   EMOTE_TRAY,
   EMOTES,
-  INTERACT_RADIUS,
   MAX_SAY_LENGTH,
   MUTUALS,
   OBSTACLES,
@@ -194,12 +193,9 @@ export const WorldScreen = ({
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
   const mePose = me?.walk ? posAt(me.walk, now) : null;
-  const meOnServer = world.serverWalk ? posAt(world.serverWalk, now) : mePose;
   const selected = world.people.find((p) => p.memberId === person) ?? null;
   if (person !== null && !selected && world.status === "in") setPerson(null);
   const tapped = world.people.find((p) => p.memberId === sheet?.memberId) ?? null;
-  const tappedPose = tapped?.walk ? posAt(tapped.walk, now) : null;
-  const near = meOnServer !== null && tappedPose !== null && distance(meOnServer, tappedPose) <= INTERACT_RADIUS;
   const firstName = (memberId: string) => world.people.find((p) => p.memberId === memberId)?.name.split(" ")[0] ?? "them";
 
   const askHighFive = (to: string) => {
@@ -395,10 +391,9 @@ export const WorldScreen = ({
         person={tapped}
         safetyOnly={sheet?.safetyOnly ?? false}
         muted={sheet !== null && muted.has(sheet.memberId)}
-        near={near}
         onToggleMute={toggleMute}
         onWave={() => emote("wave")}
-        onHighFive={askHighFive}
+        onHighFive={highFive}
         onCustomize={() => {
           setSheet(null);
           setEditing(true);

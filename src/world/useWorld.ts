@@ -504,7 +504,7 @@ export const useWorld = (enabled: boolean, away = false) => {
         return reply.ok ? null : turnedAwayText(reply);
       } catch (e) {
         if (leftGarden(e)) again();
-        return null;
+        return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
     [actM, heard, again, spendAct]

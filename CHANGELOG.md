@@ -18,7 +18,7 @@ All notable changes to **The SHED** mobile app. This project follows
   From the same sheet you can go to any place the circles lead to without
   walking, which is also how you get around in the list view.
 
-## [2.12.10] - 2026-11-23
+## [2.12.12] - 2026-11-23
 
 ### Added
 - **See who's not in the Garden, and poke them.** People here now has "Not
@@ -86,6 +86,18 @@ All notable changes to **The SHED** mobile app. This project follows
   the garden from another app.
 - **Opening the Garden from Games while you're at the arcade** takes you
   back to where you were, not into a second copy of it.
+
+## [2.12.11] - 2026-11-23
+
+### Changed
+- **Org Chart search looks through every year.** Type a name, role or team
+  and the Org Chart lists each staff year it turns up in, newest first, with
+  the role and team held that year and the year on a chip. Searching "Daniel
+  Kim" lists every year from Student Leader at UNSW in 2020 to Head of
+  Division in 2027. Tap a result to open that year's chart showing just that
+  person, with "Show everyone" to see the whole year. Each word you type
+  matches the start of a word, so "dan ki" works, and a search shows up to 40
+  results. The search used to cover only the year on screen.
 
 ## [2.12.9] - 2026-11-23
 
