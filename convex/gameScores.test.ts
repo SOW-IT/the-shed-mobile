@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { api } from "./_generated/api";
-import { LEADERBOARD_SIZE, MAX_PAGE_SIZE, RANK_LIMIT } from "./gameScores";
+import { api, internal } from "./_generated/api";
+import { LEADERBOARD_SIZE, MAX_PAGE_SIZE, RANK_LIMIT, RESET_BATCH } from "./gameScores";
 import { asUser, newConvex, YEAR, type T } from "../test/convexFixture";
 import { MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
 
@@ -215,5 +215,50 @@ describe("leaderboard pages", () => {
     });
     expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { game: "shooter" })).toBeNull();
     expect(await t.query(api.gameScores.myLeaderboardPlace, { game: "runner" })).toBeNull();
+  });
+});
+
+describe("resetScores", () => {
+  const scheduled = (t: T) => t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+  const notice = { title: "Scores reset", body: "Play again." };
+
+  test("wipes one game's board, keeps the others, and pushes to everyone who was on it", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 500)] });
+    await asUser(t, BEN).mutation(api.gameScores.submitScores, {
+      scores: [run("run-ben-01", 700), run("run-ben-02", 9, "flappy")],
+    });
+    await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
+    expect(await bests(t)).toEqual([[BEN, "flappy", 9, "run-ben-02"]]);
+    const jobs = await scheduled(t);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].name).toBe("push:sendMany");
+    expect(jobs[0].args[0]).toEqual({ to: [ANNA, BEN].sort(), ...notice, url: "/games/runner" });
+  });
+
+  test("a board already empty pushes to nobody", async () => {
+    const t = newConvex();
+    await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
+    expect(await scheduled(t)).toEqual([]);
+  });
+
+  test("a big board is wiped a batch at a time", async () => {
+    const t = newConvex();
+    await t.run(async (ctx) => {
+      for (let i = 0; i <= RESET_BATCH; i++) {
+        await ctx.db.insert("gameScores", {
+          email: `p${i}@sow.org.au`,
+          game: "runner",
+          score: i + 1,
+          runId: `run-p${i}-0000`,
+          durationMs: 60_000,
+          playedAt: 0,
+          updatedAt: 0,
+        });
+      }
+    });
+    await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
+    expect(await bests(t)).toHaveLength(1);
+    expect((await scheduled(t)).map((job) => job.name).sort()).toEqual(["gameScores:resetScores", "push:sendMany"]);
   });
 });

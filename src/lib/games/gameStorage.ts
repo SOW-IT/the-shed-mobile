@@ -9,6 +9,7 @@ import {
   parseBests,
   parseQueue,
   removeSettled,
+  stringifyBests,
   withBest,
   type GameId,
   type LocalBests,
@@ -21,7 +22,12 @@ import { readStored, tryWriteStored } from "../deviceStorage";
  * finished while the phone is still reading the saved best can't overwrite
  * it.
  */
-const persisted = <T>(key: string, parse: (saved: string) => T, initial: T) => {
+const persisted = <T>(
+  key: string,
+  parse: (saved: string) => T,
+  initial: T,
+  stringify: (value: T) => string = JSON.stringify
+) => {
   let value = initial;
   let loading: Promise<void> | null = null;
   const listeners = new Set<() => void>();
@@ -43,7 +49,7 @@ const persisted = <T>(key: string, parse: (saved: string) => T, initial: T) => {
       value = next;
       notify();
     }
-    unsaved = !(await tryWriteStored(key, JSON.stringify(value)));
+    unsaved = !(await tryWriteStored(key, stringify(value)));
   };
   const subscribe = (listener: () => void) => {
     listeners.add(listener);
@@ -55,7 +61,7 @@ const persisted = <T>(key: string, parse: (saved: string) => T, initial: T) => {
   return { get: () => value, update, subscribe };
 };
 
-const bests = persisted<LocalBests>("games.bests", parseBests, NO_BESTS);
+const bests = persisted<LocalBests>("games.bests", parseBests, NO_BESTS, stringifyBests);
 const queue = persisted<QueuedScore[]>("games.scoreQueue", parseQueue, []);
 
 export const useLocalBests = () => useSyncExternalStore(bests.subscribe, bests.get, bests.get);
