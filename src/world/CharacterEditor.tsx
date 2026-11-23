@@ -346,6 +346,21 @@ const Steps = ({
     onPick(Math.max(0, Math.min(count - 1, Math.round((x / width) * (count - 1)))));
   };
   const at = (value / (count - 1)) * width;
+  const step = (by: number) => onPick(Math.max(0, Math.min(count - 1, value + by)));
+  // On the web the track is a tab stop, and the arrow keys (Home and End too)
+  // move it a step at a time, as a slider does.
+  const keys =
+    Platform.OS === "web"
+      ? ({
+          tabIndex: 0,
+          onKeyDown: (e: { key: string; preventDefault: () => void }) => {
+            const by = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1, Home: -count, End: count }[e.key];
+            if (by === undefined) return;
+            e.preventDefault();
+            step(by);
+          },
+        } as object)
+      : {};
   return (
     <View style={styles.stepsRow}>
       <Text style={[typography.caption, styles.edge, { color: t.muted }]}>{low}</Text>
@@ -357,7 +372,8 @@ const Steps = ({
         accessibilityLabel={label}
         accessibilityValue={{ min: 1, max: count, now: value + 1 }}
         accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
-        onAccessibilityAction={(e) => onPick(Math.max(0, Math.min(count - 1, value + (e.nativeEvent.actionName === "increment" ? 1 : -1))))}
+        onAccessibilityAction={(e) => step(e.nativeEvent.actionName === "increment" ? 1 : -1)}
+        {...keys}
         testID={testID ?? `world-editor-${label.toLowerCase()}`}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponderCapture={() => true}

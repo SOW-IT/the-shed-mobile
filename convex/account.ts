@@ -107,8 +107,9 @@ async function deleteByEmail(
         .take(WIPE_BATCH),
       (row) => ctx.db.delete("gameScores", row._id)
     ),
-    // The Garden: their saved look, kept rate limits, the people they blocked
-    // and the blocks others made of them (which hold their name).
+    // The World: their saved look, kept rate limits, when they were last
+    // poked, the people they blocked and the blocks others made of them
+    // (which hold their name).
     await deleteBatch(
       await ctx.db.query("worldLooks").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
       (row) => ctx.db.delete("worldLooks", row._id)
@@ -120,6 +121,10 @@ async function deleteByEmail(
     await deleteBatch(
       await ctx.db.query("worldVisitors").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
       (row) => ctx.db.delete("worldVisitors", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("worldPoked").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldPoked", row._id)
     ),
     await deleteBatch(
       await ctx.db

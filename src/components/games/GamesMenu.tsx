@@ -1,6 +1,6 @@
 import { AppIcon, Card, Muted, Screen, type AppIconName } from "@/components/ui";
 import { useOffline } from "@/hooks/useOffline";
-import { useWorldOnline } from "@/hooks/useWorldOnline";
+import { onlineNow, useWorldOnline } from "@/hooks/useWorldOnline";
 import { useLocalBests, useScoreQueue } from "@/lib/games/gameStorage";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -63,7 +63,7 @@ const MenuRow = ({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={meta ? `${title}, ${meta}` : title}
       testID={testID}
       style={({ pressed }) => pressed && { opacity: 0.7 }}
     >
@@ -114,7 +114,7 @@ export const GamesMenu = ({
             icon="leaf-outline"
             title="World"
             detail="Walk around and chat with whoever's online."
-            meta={online > 0 ? `${online} online now` : "Nobody online right now"}
+            meta={onlineNow(online)}
             onPress={onGarden}
             testID="games-open-garden"
           />

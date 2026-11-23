@@ -4,12 +4,17 @@ import { api } from "../../convex/_generated/api";
 /**
  * How many people are in the World right now, live. Every caller shares one
  * subscription (Convex dedupes the same query), and it only changes when
- * someone comes, goes or travels. Zero when signed out, or until it loads.
+ * someone comes, goes or travels. Undefined while it loads, and when signed
+ * out or not asked for, so nothing claims a count it doesn't know.
  */
-export const useWorldOnline = (enabled = true): number => {
+export const useWorldOnline = (enabled = true): number | undefined => {
   const { isAuthenticated } = useConvexAuth();
-  return useQuery(api.world.onlineCount, enabled && isAuthenticated ? {} : "skip") ?? 0;
+  return useQuery(api.world.onlineCount, enabled && isAuthenticated ? {} : "skip");
 };
 
-/** "3 online", or nothing when nobody is. */
-export const onlineText = (count: number): string | undefined => (count > 0 ? `${count} online` : undefined);
+/** "3 online", or nothing when nobody is or the count isn't known yet. */
+export const onlineText = (count: number | undefined): string | undefined => (count ? `${count} online` : undefined);
+
+/** The Games list's line for the World: nothing until the count is known. */
+export const onlineNow = (count: number | undefined): string | undefined =>
+  count === undefined ? undefined : count > 0 ? `${count} online now` : "Nobody online right now";

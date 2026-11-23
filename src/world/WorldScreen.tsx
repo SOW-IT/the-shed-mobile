@@ -167,7 +167,7 @@ export const WorldScreen = ({
   const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const online = useWorldOnline();
+  const online = useWorldOnline() ?? 0;
   // A link to the editor opens it once your look has loaded.
   const [editorAsked, setEditorAsked] = useState(opening === "character");
   // The editor closes with the visit (your look goes with it); open it again after.

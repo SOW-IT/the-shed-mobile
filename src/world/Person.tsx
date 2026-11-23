@@ -19,6 +19,14 @@ export const headTop = (look: Look) => {
 };
 
 /** Face shapes: width and height (of a round head), and corner rounding at top and bottom. */
+/** Each style of glasses: lens width and height (times the head scale), corner rounding and rim. */
+const LENSES = [
+  { w: 0.2, h: 0.2, round: 1, rim: 0.028 },
+  { w: 0.23, h: 0.18, round: 0.2, rim: 0.026 },
+  { w: 0.23, h: 0.16, round: 0.35, rim: 0.02 },
+  { w: 0.27, h: 0.27, round: 1, rim: 0.024 },
+] as const;
+
 const FACE_SHAPES = [
   { w: 1, h: 1, top: 1, bottom: 1 },
   { w: 0.94, h: 1.08, top: 1, bottom: 1 },
@@ -778,14 +786,7 @@ const AvatarView = ({
     if (glasses > 0) {
       // Glasses fit the eyes: they follow the sliders but don't tilt.
       const k = eyeScale;
-      const lens =
-        glasses === 1
-          ? { w: 0.2, h: 0.2, round: 1, rim: 0.028 }
-          : glasses === 2
-            ? { w: 0.23, h: 0.18, round: 0.2, rim: 0.026 }
-            : glasses === 3
-              ? { w: 0.23, h: 0.16, round: 0.35, rim: 0.02 }
-              : { w: 0.27, h: 0.27, round: 1, rim: 0.024 };
+      const lens = LENSES[glasses - 1] ?? LENSES[0];
       const w = lens.w * k * s;
       const h = lens.h * k * s;
       face.push(
@@ -829,7 +830,10 @@ const AvatarView = ({
     }
   }
   if (faceOn && glasses > 0 && Math.abs(side) < 0.6) {
-    const w = 0.1 * s + Math.max(0, eyeGap * 2 * s);
+    // From one lens's inner rim to the other's, wherever the sliders put them.
+    const lens = LENSES[glasses - 1] ?? LENSES[0];
+    const gap = 2 * (spread + eyeGap) * Math.abs(facing) * s - lens.w * eyeScale * s;
+    const w = Math.max(0, gap) + lens.rim * s * 2;
     face.push(<View key="bridge" style={[styles.abs, { left: icx + 0.39 * side * s - w / 2, top: icy + (0.09 - eyeLift) * s, width: w, height: 0.025 * s, backgroundColor: people.glasses }]} />);
   }
   if (faceOn && lookPart(look, "freckles") === 3) {
@@ -862,7 +866,9 @@ const AvatarView = ({
   }
   if (faceOn && beard === 6) {
     // A chin strap along the jaw.
-    face.push(<View key="strap" style={[styles.abs, { left: icx - iw * 0.47 + 0.3 * side * s, top: my - 0.24 * s, width: iw * 0.94, height: ih, borderRadius: s, borderLeftWidth: 0.05 * s, borderRightWidth: 0.05 * s, borderBottomWidth: 0.06 * s, borderColor: hair, borderTopColor: "transparent" }]} />);
+    // Its lower edge sits just inside the jaw, so the part under the chin shows.
+    const top = my - 0.24 * s;
+    face.push(<View key="strap" style={[styles.abs, { left: icx - iw * 0.47 + 0.3 * side * s, top, width: iw * 0.94, height: Math.max(0.2 * s, ih - 0.012 * s - top), borderRadius: s, borderLeftWidth: 0.05 * s, borderRightWidth: 0.05 * s, borderBottomWidth: 0.06 * s, borderColor: hair, borderTopColor: "transparent" }]} />);
   }
   if (faceOn && beard === 4) {
     face.push(<View key="goatee" style={[styles.abs, { left: mx - 0.06 * s, top: my + 0.035 * s, width: 0.12 * s, height: 0.1 * s, borderTopLeftRadius: 0.02 * s, borderTopRightRadius: 0.02 * s, borderBottomLeftRadius: s, borderBottomRightRadius: s, backgroundColor: hair }]} />);
