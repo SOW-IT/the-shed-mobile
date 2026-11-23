@@ -194,7 +194,7 @@ export default function DesignRequestScreen() {
     run(async () => {
       const [{ buildDesignRequestPdf, designRequestPdfFilename }, history, comments] =
         await Promise.all([
-          import("@/lib/designRequestPdf"),
+          import("@/lib/requestPdfs"),
           convex.query(api.designRequests.timeline, { id: request._id }),
           convex.query(api.designRequestComments.list, { id: request._id }),
         ]);

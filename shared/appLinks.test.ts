@@ -8,6 +8,7 @@ import {
   compareVersions,
   isAppVersion,
   searchWithoutSignInParams,
+  updateRouteFor,
   updateStatusFor,
   WEB_ONLY_MARKER,
 } from "./appLinks";
@@ -117,5 +118,21 @@ describe.each([
     expect(
       statement.relation_extensions["delegate_permission/common.handle_all_urls"].dynamic_app_link_components
     ).toEqual([...webOnly, { "/": "*" }]);
+  });
+
+  test("an over-the-air update is a restart; only a new build sends you to the store", () => {
+    const idle = { available: false, checked: true, busy: false };
+    // An update for this build that reaches the target: restart, never the store.
+    expect(updateRouteFor("2.12.17", { ...idle, available: true, version: "2.12.17" })).toBe("restart");
+    expect(updateRouteFor("2.12.17", { ...idle, available: true, version: "2.13.0" })).toBe("restart");
+    expect(updateRouteFor("2.12.17", { ...idle, available: true, busy: true })).toBe("restart");
+    expect(updateRouteFor(null, { ...idle, available: true, version: "garbage" })).toBe("restart");
+    // Still asking the update server: don't send anyone to the store yet.
+    expect(updateRouteFor("2.12.17", { ...idle, checked: false })).toBe("wait");
+    expect(updateRouteFor("2.12.17", { ...idle, busy: true })).toBe("wait");
+    // Nothing over the air for this build, or nothing new enough: the store.
+    expect(updateRouteFor("2.12.17", idle)).toBe("store");
+    expect(updateRouteFor("2.13.0", { ...idle, available: true, version: "2.12.17" })).toBe("store");
+    expect(updateRouteFor("2.12.17", null)).toBe("store");
   });
 });

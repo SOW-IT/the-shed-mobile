@@ -1,15 +1,15 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { ASK_MS, canHear, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, PLACE_TITLES, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
+import { ASK_MS, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, PLACE_TITLES, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import { accepted, announce } from "./announce";
 import { PENDING, type useWorld } from "./useWorld";
+import { clock, lineWhere, saidLabel } from "./view";
 
-const clock = (at: number) =>
-  new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
 /**
  * The garden without the drawing: who's here, who can hear you, and the last
@@ -26,6 +26,7 @@ export const WorldList = ({
   onPerson,
   note,
   onNote,
+  onLine,
   declined,
   onAccept,
   onDecline,
@@ -39,6 +40,7 @@ export const WorldList = ({
   onPerson: (memberId: string) => void;
   note: string | null;
   onNote: (note: string | null) => void;
+  onLine: (memberId: Id<"worldMembers">, name: string) => void;
   /** Asks declined, as `${from}:${askAt}`. */
   declined: ReadonlySet<string>;
   onAccept: (from: string, askAt: number) => void;
@@ -58,7 +60,7 @@ export const WorldList = ({
     if (!known || Platform.OS === "web") return;
     for (const line of [...log].reverse()) {
       if (known.has(line.id) || line.isMe || muted.has(line.memberId)) continue;
-      announce(`${line.name} said ${line.text}`);
+      announce(saidLabel(line));
     }
   }, [log, muted]);
 
@@ -125,6 +127,7 @@ export const WorldList = ({
     const text = draft.trim();
     if (!text) return;
     setDraft("");
+    world.typing(false);
     const problem = await world.say(text);
     if (problem) {
       onNote(problem);
@@ -171,8 +174,7 @@ export const WorldList = ({
         {world.error ? <Muted>{world.error}</Muted> : null}
         {world.people.map((p) => {
           const theirs = p.walk ? posAt(p.walk, now) : null;
-          const near = mePose && theirs && !p.isMe ? canHear(mePose, theirs) : false;
-          const detail = p.isMe ? "You" : p.away ? "Playing at the arcade" : near ? "Can hear you" : "Out of earshot";
+          const detail = p.isMe ? "You · change your look" : p.away ? "Playing at the arcade" : "Here";
           // Close enough for a high five? If not, a way to walk over: the list
           // view (and Android, which always has it) can't tap the ground.
           const gap = mePose && theirs ? Math.hypot(theirs.x - mePose.x, theirs.z - mePose.z) : 0;
@@ -187,10 +189,9 @@ export const WorldList = ({
             // The row and Walk over sit side by side: a button can't hold another on the web.
             <View key={p.memberId} style={[styles.row, { borderColor: t.border }]}>
               <Pressable
-                disabled={p.isMe}
                 onPress={() => onPerson(p.memberId)}
                 accessibilityRole="button"
-                accessibilityLabel={`${p.name}, ${detail}${muted.has(p.memberId) ? ", muted" : ""}`}
+                accessibilityLabel={p.isMe ? `${p.name}, you. Change your look` : `${p.name}, ${detail}${muted.has(p.memberId) ? ", muted" : ""}`}
                 style={({ pressed }) => [styles.rowMain, pressed && { opacity: 0.7 }]}
               >
                 <Text style={[typography.body, { color: t.text, flex: 1 }]}>{p.name}</Text>
@@ -221,14 +222,18 @@ export const WorldList = ({
         <View style={styles.compose}>
           <TextInput
             value={draft}
-            onChangeText={setDraft}
-            placeholder="Talk to people nearby…"
+            onChangeText={(text) => {
+              setDraft(text);
+              world.typing(text.trim() !== "");
+            }}
+            onBlur={() => world.typing(false)}
+            placeholder="Talk to everyone in the World…"
             placeholderTextColor={t.faint}
             maxLength={MAX_SAY_LENGTH}
             returnKeyType="send"
             onSubmitEditing={() => void send()}
             submitBehavior="submit"
-            accessibilityLabel="Talk to people nearby"
+            accessibilityLabel="Talk to everyone in the World"
             testID="world-list-input"
             style={[styles.input, typography.body, { color: t.text, borderColor: t.border, backgroundColor: t.background }]}
           />
@@ -257,16 +262,25 @@ export const WorldList = ({
         <View aria-live="polite" style={styles.lines}>
         {shown
           .map((line) => (
-            <View key={line.id} style={styles.line} accessible accessibilityLabel={`${line.isMe ? "You" : line.name} said ${line.text}`}>
+            <Pressable
+              key={line.id}
+              style={styles.line}
+              accessible
+              accessibilityLabel={saidLabel(line)}
+              accessibilityHint={line.isMe ? undefined : `Mute, block or report ${line.name}`}
+              disabled={line.isMe}
+              onPress={() => onLine(line.memberId, line.name)}
+            >
               <Text style={[typography.label, { color: t.text }]}>
                 {line.isMe ? "You" : line.name}{" "}
                 <Text style={{ color: t.muted, fontWeight: "400" }}>
                   {/* Shown at once; marked until the server has it. */}
                   {line.id.startsWith(PENDING) ? "Sending…" : clock(line.at)}
+                  {line.here ? "" : ` · ${lineWhere(line)}`}
                 </Text>
               </Text>
               <Text style={[typography.body, { color: t.text }]}>{line.text}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
         <Muted>Lines are kept for 15 minutes, unless someone reports them.</Muted>

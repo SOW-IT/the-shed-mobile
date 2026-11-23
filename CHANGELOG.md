@@ -6,6 +6,91 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.21] - 2026-11-23
+
+### Changed
+- **The website opens faster.** The code that makes Event Request and Design
+  Request PDFs (about a fifth of the shared code every page loaded) is now
+  fetched only when you press Download PDF. Every page downloads about 208 KB
+  less, and on a slow connection the sign-in screen is ready about a quarter
+  of a second sooner. The PDFs and the app on phones are unchanged.
+
+## [2.12.20] - 2026-11-23
+
+### Fixed
+- **Update restarts the app; it doesn't send you to the store.** When your
+  version is behind and there's an over-the-air update for your app, the
+  popup, the top-bar pill and the Update button on your profile now say
+  "Restart to update" and restart into it, downloading it first if needed.
+  The store is a separate prompt, "Open the App Store" (or Play Store),
+  shown only when no over-the-air update can bring you up to date and you
+  need a new build. The app checks for an over-the-air update before it
+  ever offers the store.
+
+## [2.12.19] - 2026-11-23
+
+### Changed
+- **Leaderboard moves to the top of Games.** It's now a small button at the
+  top right, next to the "Games" title, instead of its own card at the bottom
+  of the list. It opens the same leaderboard as before.
+- **Shorter lines under each game.** Each game in the list has one short line
+  ("Fly and shoot.", "Run and jump.", "Tap through the gaps.") instead of the
+  full how-to-play text, which still shows on the game's start card.
+
+## [2.12.18] - 2026-11-23
+
+### Changed
+- **See who's typing.** Three dots bounce over someone's head while they
+  write a line, and stop when they send it or stop typing.
+- **Leaving the app for a moment keeps you in the World.** Switching apps or
+  locking the phone no longer takes you out; you're still standing there when
+  you come back. Away for more than about a minute and a half, you're taken
+  out as before.
+- **You come back where you left.** Opening the World again puts you in the
+  place and on the spot you were in when you left, not back at the Garden
+  gate.
+- **No more hearing ring.** Everyone in the World sees the chat, so the ring
+  round you, the faded bubbles for people "out of earshot" and the list
+  view's "Can hear you" are gone.
+- **Tap a line in the chat log** to mute, block or report whoever said it,
+  even if they're somewhere else.
+- **Walking is faster,** about one and a half times the old pace, with
+  quicker steps to match.
+- **One chat for the whole World.** The chat log shows every place's
+  lines, with the place in brackets when it isn't yours, and includes
+  the last 15 minutes from before you arrived. Speech bubbles over heads
+  still only show in your own place.
+- **Name tags and speech bubbles stay over their owners' heads.** When
+  they overlap, the newest message draws on top and the rest go behind,
+  rather than being pushed up the screen.
+- **The chat log sits at the top of the World.** The last few lines show
+  over the scenery with the time and who said them, in place of the "can
+  hear you" pill, and you can scroll up through older lines. Speech
+  bubbles over heads are unchanged.
+- **Fewer buttons in People here.** Customize your character and Show as a
+  list are gone. Tap yourself and pick Outfit to change your look. In the
+  list view, tap your own name.
+- **Update from your profile.** When your app is behind the recommended
+  version, an Update button sits under the version number. It downloads
+  the latest update and restarts the app, and only sends you to the store
+  when a store update is needed. The update pill and the required-update
+  screen do the same.
+- **Delete account looks dangerous now:** a solid red card with a warning
+  sign. What it does hasn't changed.
+- **Admin, Users shows each person's app version and when they were last
+  online,** with versions behind the newest one marked.
+
+### Fixed
+- **Opening the character editor from People here could freeze the
+  screen** so nothing could be tapped. That way in is gone.
+- **Swiping up from the bottom of the screen no longer walks you there.**
+  Touches below the chat bar, where the iPhone's home swipe starts, are
+  ignored.
+- **Admin, Users shows activity for everyone** on very long lists, not just
+  the first 600 people.
+- **Update copes with an update being pulled** between checking and
+  downloading, and applies a rollback instead of sending you to the store.
+
 ## [2.12.17] - 2026-11-23
 
 ### Changed

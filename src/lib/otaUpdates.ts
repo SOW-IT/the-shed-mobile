@@ -1,5 +1,6 @@
 import { requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
+import type { OtaState } from "../../shared/appLinks";
 
 type UpdatesModule = typeof import("expo-updates");
 
@@ -16,22 +17,42 @@ export const otaUpdates: UpdatesModule | null = (() => {
 })();
 
 /**
- * Updates the app the quickest way there is: an over-the-air update for this
- * build if one is waiting, installed and restarted into straight away, or
- * else the store, for a version that needs a new build.
+ * Restarts into the over-the-air update for this build, downloading it
+ * first if it isn't on the phone yet. Never opens the store: that's a
+ * separate prompt, for a version that needs a new build.
  */
-export const updateApp = async (openStore: () => void): Promise<void> => {
-  if (otaUpdates) {
-    try {
-      const { isAvailable } = await otaUpdates.checkForUpdateAsync();
-      if (isAvailable) {
-        await otaUpdates.fetchUpdateAsync();
-        await otaUpdates.reloadAsync();
-        return;
-      }
-    } catch {
-      // Offline, or the update server is down: the store still works.
+export const restartIntoUpdate = async (pending: boolean): Promise<void> => {
+  if (!otaUpdates) return;
+  if (!pending) await otaUpdates.fetchUpdateAsync();
+  await otaUpdates.reloadAsync();
+};
+
+const manifestVersion = (manifest: unknown): string | undefined => {
+  const extra = (manifest as { extra?: { expoClient?: { version?: unknown } } } | undefined)?.extra;
+  const version = extra?.expoClient?.version;
+  return typeof version === "string" ? version : undefined;
+};
+
+/** The over-the-air update state, or null in a build without expo-updates. */
+export const useOtaState: () => (OtaState & { pending: boolean }) | null = otaUpdates
+  ? () => {
+      const state = otaUpdates.useUpdates();
+      const update = state.downloadedUpdate ?? state.availableUpdate;
+      return {
+        available: state.isUpdateAvailable || state.isUpdatePending,
+        pending: state.isUpdatePending,
+        version: manifestVersion(update?.manifest),
+        checked: state.lastCheckForUpdateTimeSinceRestart !== undefined || state.checkError !== undefined,
+        busy: state.isChecking || state.isDownloading || state.isStartupProcedureRunning,
+      };
     }
-  }
-  openStore();
+  : () => null;
+
+let askedServer = false;
+
+/** Asks the update server once per launch, when nothing else has yet. */
+export const checkForUpdateOnce = () => {
+  if (!otaUpdates || askedServer) return;
+  askedServer = true;
+  otaUpdates.checkForUpdateAsync().catch(() => undefined);
 };

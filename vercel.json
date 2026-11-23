@@ -1,6 +1,12 @@
 {
   "buildCommand": "npx expo export --platform web && mkdir -p dist/.well-known && cp web/.well-known/apple-app-site-association web/.well-known/assetlinks.json dist/.well-known/",
   "outputDirectory": "dist",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true
+    }
+  },
   "framework": null,
   "rewrites": [
     {
