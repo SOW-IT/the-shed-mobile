@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.18] - 2026-11-23
+
+### Fixed
+- **Update restarts the app; it doesn't send you to the store.** When your
+  version is behind and there's an over-the-air update for your app, the
+  popup and the top-bar pill now say "Restart to update" and restart into
+  it, downloading it first if needed. The store is a separate prompt, "Open
+  the App Store" (or Play Store), shown only when no over-the-air update can
+  bring you up to date and you need a new build. The app checks for an
+  over-the-air update before it ever offers the store.
+
 ## [2.12.17] - 2026-11-23
 
 ### Changed
