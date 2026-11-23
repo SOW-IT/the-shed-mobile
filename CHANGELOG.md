@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.32] - 2026-11-24
+## [2.12.34] - 2026-11-24
 
 ### Changed
 - **Unread comment counts cost far less to work out.** The red comment counts
@@ -15,6 +15,52 @@ All notable changes to **The SHED** mobile app. This project follows
   read. Most requests have no comments, so over 40 requests a Head of
   Department's count reads 25 records instead of 365. The numbers shown are
   the same.
+
+## [2.12.33] - 2026-11-24
+
+### Changed
+- **Calendar history is a small button at the top.** Admins open it from a
+  clock button next to the Month and Week switch, instead of a button under
+  the calendar.
+- **Counts are chips.** The Review sections, Ready to Pay and the All list's
+  "Requests" heading show their count as a chip instead of "(2)" in the title. My mentees on Mentoring shows its year the same way.
+- **Shorter text across the app.** Empty lists say what's empty and stop
+  there ("All caught up", "No notifications", "No past requests") instead of
+  adding a sentence about what would show up. Helper lines on Churches,
+  Mentoring, Grievances, Profile (Spotify), Admin (Teams, Step timing, App
+  errors, directory sync), Finance settings, Praise Managers and Acting as are
+  cut to the part you need. What each role can see or change, what gets
+  deleted, and dates like 1 October stay.
+- **No duplicate Make a request button.** An empty Mine tab on Requests no
+  longer repeats the "+ Make Request" button already at the bottom; "See past
+  requests" stays when you have some.
+
+## [2.12.32] - 2026-11-24
+
+### Changed
+- **Mystic Man is faster again.** His top speed is a quarter higher (960 to
+  1200), and he keeps speeding up for longer to reach it.
+- **Combos that keep getting longer.** From 15 seconds in, obstacles
+  sometimes come one straight after another, in a random order: a hop and
+  then straight under the vines, a hop into the big jump, two hops, out of a
+  slide into a hop, two slides back to back (swipe down again), and any
+  other mix. They start as pairs and grow by one every 15 seconds you last,
+  up to ten in a row, and come more often as the run goes on. Each gap is
+  worked out from how long the move before it takes to land, a quarter of a
+  second to react, and the run-up the next move needs, so every combo is
+  tight but possible, even a little early or late.
+- **Obstacles come closer together.** The clear run between patterns is
+  shorter, with less extra space thrown in.
+- **Mystic Man wears coral.** His cloak is a warm coral with a light trim
+  and a light outline, so he stands out from the night sky, the hills, the
+  ground and every obstacle, even at full speed.
+
+### Fixed
+- **The start and game-over cards are crisp.** In Mystic Man, Sky Shooter
+  and Flap, the card is solid instead of letting the game show through, its
+  text is full white, and Play again and Leaderboard have their own bright
+  colours instead of the app's dark green. Only the game around the card is
+  dimmed.
 
 ## [2.12.31] - 2026-11-24
 

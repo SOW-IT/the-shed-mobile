@@ -97,8 +97,7 @@ export default function CalendarHistoryScreen() {
       {rows.length === 0 ? (
         <EmptyState
           icon="time-outline"
-          title="Nothing yet"
-          message="Calendar entries added, edited or deleted will show up here."
+          title="No changes yet"
         />
       ) : (
         <>

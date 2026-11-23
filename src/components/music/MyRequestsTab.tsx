@@ -36,7 +36,7 @@ function PraiseManagersLine({
         <Text style={{ color: t.faint, fontSize: 13 }}>
           {managers.length
             ? `${managers.map((manager) => manager.name).join(", ")} review your requests.`
-            : "There are no Praise Managers this year yet, so requests wait until an admin chooses one."}
+            : "None this year yet. Requests wait until an admin picks one."}
         </Text>
       </View>
     </View>

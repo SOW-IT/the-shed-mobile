@@ -15,7 +15,7 @@ export const StepTimingCard = ({ year }: { year: number }) => {
     <View style={{ gap: spacing.md }}>
       <SectionTitle chip={year}>Step timing</SectionTitle>
       <Card>
-        <Muted>The median and longest wait at each step for requests made in {year}, and who actioned it most.</Muted>
+        <Muted>Median and longest wait at each step, and who actioned it most.</Muted>
         {sections === undefined ? <LoadingState /> : null}
         {sections?.map((section) => (
           <View key={section.key} style={styles.section}>

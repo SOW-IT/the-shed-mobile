@@ -61,7 +61,7 @@ const RequestList = ({
   groups: Group[];
   showRequester: boolean;
   unread: Record<string, number>;
-  empty: { title: string; message: string; action?: { label: string; onPress: () => void } };
+  empty: { title: string; message?: string; action?: { label: string; onPress: () => void } };
   footer?: ReactNode;
 }) => (
   <GroupedList
@@ -201,8 +201,7 @@ export default function DesignRequestsScreen() {
           footer={<EarlierRequests history={earlierMine} showRequester={false} unread={unread} />}
           empty={{
             title: earlierMine.groups.length > 0 ? "Nothing this year yet" : "No design requests",
-            message:
-              `Ask the ${designTeam} team to design something for a project. For an event, make an Event Request instead.`,
+            message: "For an event, make an Event Request instead.",
           }}
         />
       ),
@@ -220,10 +219,7 @@ export default function DesignRequestsScreen() {
                 groups={QUEUE_GROUPS}
                 showRequester
                 unread={unread}
-                empty={{
-                  title: "All caught up",
-                  message: "Requests waiting for approval or to be finished show up here.",
-                }}
+                empty={{ title: "All caught up" }}
               />
             ),
           },
@@ -238,10 +234,7 @@ export default function DesignRequestsScreen() {
                 showRequester
                 unread={unread}
                 footer={<EarlierRequests history={earlierArchive} showRequester unread={unread} />}
-                empty={{
-                  title: "Nothing here",
-                  message: `No design requests yet in ${me.year}.`,
-                }}
+                empty={{ title: `No design requests in ${me.year}` }}
               />
             ),
           },
