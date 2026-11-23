@@ -40,6 +40,24 @@ const asNever = {
   message: "`as never` turns type checking off. Give the value its real type, or assert to the type the call expects.",
 };
 
+// Icon fonts that would ship whole. Shared by every no-restricted-imports
+// below: a later block's options replace an earlier one's for its files.
+const iconFontPaths = [
+  {
+    name: "@expo/vector-icons",
+    message:
+      "Import one icon set, e.g. @expo/vector-icons/Ionicons. The package root ships every icon font in the app.",
+  },
+  {
+    name: "@expo/vector-icons/MaterialCommunityIcons",
+    message: "This ships a 1.3 MB font. Add the glyph to MaterialSubsetIcons in src/components/ui/subsetIcons.ts.",
+  },
+  {
+    name: "@expo/vector-icons/FontAwesome",
+    message: "This ships a 166 KB font. Add the glyph to FontAwesomeSubsetIcons in src/components/ui/subsetIcons.ts.",
+  },
+];
+
 module.exports = defineConfig([
   expoConfig,
   comments.recommended,
@@ -65,23 +83,7 @@ module.exports = defineConfig([
       "no-restricted-imports": [
         "error",
         {
-          paths: [
-            {
-              name: "@expo/vector-icons",
-              message:
-                "Import one icon set, e.g. @expo/vector-icons/Ionicons. The package root ships every icon font in the app.",
-            },
-            {
-              name: "@expo/vector-icons/MaterialCommunityIcons",
-              message:
-                "This ships a 1.3 MB font. Add the glyph to MaterialSubsetIcons in src/components/ui/subsetIcons.ts.",
-            },
-            {
-              name: "@expo/vector-icons/FontAwesome",
-              message:
-                "This ships a 166 KB font. Add the glyph to FontAwesomeSubsetIcons in src/components/ui/subsetIcons.ts.",
-            },
-          ],
+          paths: iconFontPaths,
         },
       ],
       "@typescript-eslint/no-unused-vars": [
@@ -105,8 +107,30 @@ module.exports = defineConfig([
   },
   {
     // The palettes themselves.
-    files: ["src/theme.ts", "src/components/calendar/categoryColours.ts"],
+    files: ["src/theme.ts", "src/components/calendar/categoryColours.ts", "src/world/palette.ts"],
     rules: { "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking, asNever] },
+  },
+  {
+    // The garden loads lazily (src/app/world.tsx imports it with import()).
+    // A static import from anywhere else would load it at startup.
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    ignores: ["src/world/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          // A rule set again here replaces the one above, so it repeats the
+          // icon-font paths.
+          paths: iconFontPaths,
+          patterns: [
+            {
+              group: ["@/world/*", "**/world/*"],
+              message: "Load the garden with import() from src/app/world.tsx, so it isn't part of startup.",
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     files: ["convex/**/*.ts"],

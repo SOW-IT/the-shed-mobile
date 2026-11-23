@@ -1,0 +1,128 @@
+# Shed World: the Garden, drawn without GL, one write per tap
+
+Daniel picked style C, "Garden", from three mockups (2026-11-22): a
+toon-shaded chibi courtyard with ink outlines, chat bubbles over heads, a
+"N people can hear you" chip, and faded bubbles from people out of earshot.
+He asked that Convex use stay small, that chat be kept 15 minutes plus
+anything reported, that rooms hold 20, and that the first release avoid
+waiting on a store build where it could.
+
+What we weighed:
+
+- **Drawing it.** The design plan proposed react-three-fiber with `expo-gl`.
+  `expo-gl` is native code, so phones would get nothing until a store build,
+  the Simulator's GL is unreliable, and three plus R3F add about 1 MB to every
+  bundle and over-the-air update. The Garden's look is flat colours, a
+  three-step toon ramp and ink lines, from a fixed camera, so it doesn't need
+  a GPU. `src/world/camera.ts` projects the courtyard through the same
+  perspective camera as the mockup, and the scene is plain React Native views:
+  box faces and ground tiles are squares warped into place with a 4×4
+  `matrix` transform (`matrix3d` on the web), balls are circles with a lighter
+  circle toward the sun, and ink edges are thin rotated views. It runs the
+  same on iOS, the web and the Simulator, ships over the air, and adds no
+  dependency. The cost: no real shadows or lighting, a camera that doesn't
+  move, and a few hundred views. A GL renderer could replace `Garden.tsx`
+  later behind `pickView` without touching the backend.
+- **What crosses the network.** Only actions: a walk (from, to, start time),
+  an emote, a line, and an idle heartbeat. Every phone works out where people
+  are from their latest walk (`posAt` in `shared/world.ts`), so a tap is one
+  mutation that patches one row, and walking costs nothing per frame. The
+  server starts each walk where it says the person is now and clamps the end
+  to the courtyard, so nobody can teleport.
+- **Who receives what.** Convex re-sends a query's result whenever anything
+  it read changes. Each person's walk, emote and line live in their own
+  `worldState` row and each phone subscribes to each person's row, so a tap
+  pushes one small row instead of the whole room. Heartbeats go to
+  `worldPresence`, which no app query reads, so they push nothing. The roster
+  changes only on join and leave, and the chat log is read only by the list
+  view.
+- **Keeping storage bounded.** Rows grow with people present, not with time:
+  `worldState` is upserted, a member's rows are deleted when they leave or
+  go quiet for 90 seconds, chat lines go after 15 minutes (and past 50 per
+  room), and empty rooms are deleted. The sweeper schedules itself every 30
+  seconds while anyone is in, stops when the garden is empty, and a daily
+  cron restarts it if a run was ever lost. A report copies the room's last
+  lines into `worldReports`, which is kept.
+- **Rate limits.** Token buckets on each person's own state row (move: burst
+  5, one per 3 s; emote: 3, one per 6 s; line: 3, one per 10 s). A turned-away
+  action writes nothing and tells the phone when to retry; the phone keeps
+  only the latest spot and sends it then. Taps closer than 150 ms send only
+  the last.
+- **Safety.** Mute is per visit and on the phone. Block is kept
+  (`worldBlocks`) and hides both people from each other's roster, states and
+  chat. Proximity is a display choice, not privacy: everyone in the room
+  receives every line.
+
+## Added the same night: high fives, emotes, a bigger voice, the editor
+
+Daniel asked for four more things (2026-11-22, 11:48pm and 11:51pm), with
+Convex use kept as small as before:
+
+- **High fives (and later hugs, fist bumps, dances).** One asks, the other
+  accepts within `ASK_MS` (10 s). The ask is an `ask` field on the asker's own
+  `worldState` row and the answer a `reply` field on the other's, so each is
+  one write and reaches the room through the per-person subscriptions it
+  already has: no new table, query or subscription. Both are overwritten by
+  the next one, so there's nothing to sweep. Every phone plays the action from
+  `reply.at` (`liveMutual` in `shared/world.ts`), so both people slap hands
+  at the same moment. Declining writes nothing; the ask runs out. The server
+  checks both people are in the room, haven't blocked each other and stand
+  within `INTERACT_RADIUS`. A new mutual action is one entry in `MUTUALS`
+  plus its animation.
+- **Emotes** are twelve ids (`EMOTES`), each a face and a body animation in
+  `src/world/Person.tsx` plus an icon. Still one write each, on the same
+  bucket as before.
+- **The voice** carries `HEAR_RADIUS` = 7.5, up from 5.
+- **The character editor** saves one `worldLooks` row per person, written
+  once on Save (never while browsing), validated against `LOOK_SIZES` on the
+  server, and read by the roster query people already subscribe to. Choices
+  grow by appending to the palettes, and `lookFor` keeps the first build's
+  ranges, so nobody's default look changed.
+
+## Added the next morning: touch, touching hands, a Mii-style editor, optimism
+
+Daniel's items 5 to 9 (2026-11-23):
+
+- **Touch.** The garden takes the touch with a responder instead of a press,
+  so walking starts on touch down and follows the finger while it's held or
+  dragged. The local walk follows every move. Writes stay discrete: one move
+  at once on touch down, then at most one every 500 ms and only once the
+  target has moved 0.5 world units, and one on release only if the spot
+  differs; a quick tap is exactly one move. The server's move bucket became
+  burst 4, then one per 500 ms, to match. Other phones ease each remote
+  person toward their new walk (`useGlide`) so a twice-a-second update
+  glides. Nothing is written per frame.
+- **High fives touch.** Drawn only, from the accepted event: both step toward
+  the midpoint until 1.1 apart, the raised palms meet at one point above their
+  heads with a spark, and they step back (`touchK` in `Person.tsx`).
+- **Look version 2.** The look gained optional face, eye, brow, nose, mouth,
+  height, build, blush, freckles and beard parts, and `v: 2`. Additive on
+  `worldLookValidator`, bounds checked by `isValidLook`, defaults for any
+  missing part (`lookPart`), so the email look and older apps keep working.
+  Height and build change only the drawing (`bodyScale`), never position,
+  collisions or hearing. Saving is still one write.
+- **Optimistic everywhere.** Emotes, lines, asks, accepts and saved looks use
+  Convex optimistic updates, so they show at once on the actor's phone; Convex
+  drops each when its mutation answers, so the server's copy replaces it (no
+  duplicates) and a refusal rolls it back. A pending chat line is marked by
+  its id. Moves were already local.
+
+## Write budget
+
+Estimated by `convex/world.test.ts` ("write budget per player"), ten minutes
+of simulated play against the real mutations, counting writes per code path
+(mutation counts were also measured live from two web clients):
+
+| Player | Mutations a minute | Document writes a minute |
+| --- | ---: | ---: |
+| Typical: 8 taps, 1 emote, 2 lines | 11 | about 15 |
+| Dragging for 3 s | 6 to 10 moves in all | the same |
+| At every rate limit (dragging non-stop) | about 146 accepted | at most 147, 153 in a full chat room |
+| Idle | about 1.3 heartbeats | at most 1.3 |
+
+A line in a room already holding 50 lines also deletes the oldest, one more
+write (at most 6 a minute at the line limit, so at most 53 then). A
+high-five ask or accept is one write, like an emote, on the same rate limit;
+saving a look is one write. Join and leave are a handful of writes
+once per visit (leave also keeps the rate limits in `worldThrottle`), and the
+sweeper adds two calls a minute while anyone is in.

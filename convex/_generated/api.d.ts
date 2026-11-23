@@ -102,6 +102,8 @@ import type * as userLink from "../userLink.js";
 import type * as waitingOnMe from "../waitingOnMe.js";
 import type * as weeklyInsights from "../weeklyInsights.js";
 import type * as weeklyInsightsData from "../weeklyInsightsData.js";
+import type * as world from "../world.js";
+import type * as worldData from "../worldData.js";
 import type * as youtube from "../youtube.js";
 
 import type {
@@ -205,6 +207,8 @@ declare const fullApi: ApiFromModules<{
   waitingOnMe: typeof waitingOnMe;
   weeklyInsights: typeof weeklyInsights;
   weeklyInsightsData: typeof weeklyInsightsData;
+  world: typeof world;
+  worldData: typeof worldData;
   youtube: typeof youtube;
 }>;
 

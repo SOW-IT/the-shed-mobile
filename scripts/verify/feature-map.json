@@ -252,6 +252,15 @@
         "shared/games.ts"
       ],
       "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/leaderboard", "/games/leaderboard?game=runner"]
+    },
+    "world": {
+      "files": [
+        "src/app/world.tsx",
+        "src/world/**",
+        "convex/{world,worldData}.ts",
+        "shared/world.ts"
+      ],
+      "routes": ["/world", "/games"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]
