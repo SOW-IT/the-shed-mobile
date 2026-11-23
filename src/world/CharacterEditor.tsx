@@ -11,6 +11,7 @@ import {
   FACES,
   HAIR_STYLES,
   HATS,
+  OUTFITS,
   LOOK_SIZES,
   LOOK_VERSION,
   lookPart,
@@ -183,6 +184,7 @@ const FRAMES = {
   hair: { s: 46, headAt: 0.6, heading: 0.4 },
   hat: { s: 40, headAt: 0.66, heading: 0 },
   body: { s: 46, headAt: 0.36, heading: -0.6 },
+  outfit: { s: 50, headAt: 0.3, heading: 0 },
 } as const;
 type Framing = keyof typeof FRAMES;
 
@@ -205,6 +207,7 @@ const mannequin = (draft: Look): Look => ({
   freckles: 0,
   blush: 0,
   beard: 0,
+  outfit: 0,
 });
 
 const STILL = { x: 0, z: 0, walking: false, arrivesAt: 0 };
@@ -419,7 +422,9 @@ export const CharacterEditor = ({
         ) : null}
         {tab === "Outfit" ? (
           <>
-            {section("Shirt")}
+            {section("Outfit")}
+            <Choices names={OUTFITS} part="outfit" framing="outfit" draft={draft} onPick={set("outfit")} testID="world-editor-outfit" />
+            {section("Colour")}
             <Swatches colours={people.shirts} value={draft.shirt} onPick={set("shirt")} label="Shirt" />
             {section("Hat")}
             <Choices names={HATS} part="hat" framing="hat" draft={draft} onPick={set("hat")} testID="world-editor-hat" />

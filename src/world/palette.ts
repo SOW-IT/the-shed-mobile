@@ -45,6 +45,8 @@ export const people = {
   hairColours: ["#3A2A20", "#D49A5A", "#1C1714", "#7A4A2C", "#2A201A", "#141414", "#E8C77A", "#B8473A", "#8A8F98"],
   shirts: ["#C9603A", "#F6E3D8", "#BCDCCD", "#F4A6B8", "#9DC5E0", "#D9CDEE", "#F6D365", "#A9D8A6", "#1D4A41", "#FFFEF8"],
   hats: { cap: "#C9603A", beanie: "#9DC5E0", pompom: "#FFFEF8", sunHat: "#F1D9A6", band: "#C9603A" },
+  denim: "#5B7FA6",
+  drawstring: "#FFFEF8",
   backpack: "#E5AD66",
   backpackStrap: "#8A5A2C",
   scarf: "#B8473A",

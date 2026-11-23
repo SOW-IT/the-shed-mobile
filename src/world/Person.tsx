@@ -124,6 +124,11 @@ const EXPRESSIONS: Record<EmoteId, Expression> = {
   pray: { eyes: "closed", mouth: "smile" },
 };
 
+const settle = (k: number) => {
+  const c = Math.min(1, Math.max(0, k));
+  return c * c * (3 - 2 * c);
+};
+
 /** An ease up and back down over an emote, so it starts and ends at rest. */
 const swell = (p: number) => Math.sin(Math.min(1, Math.max(0, p)) * Math.PI);
 
@@ -136,11 +141,13 @@ export const touchK = (p: number) => Math.min(1, swell(p) * 1.25);
 
 /** Where the hands go and how the body moves for what someone is doing. */
 const motion = (doing: Doing, t: number) => {
-  const hands: { l?: [number, number]; r?: [number, number]; front?: boolean } = {};
+  const hands: { l?: [number, number]; r?: [number, number]; front?: boolean; over?: boolean } = {};
   let lift = 0;
   let shake = 0;
   let sink = 0;
   let lean = 0;
+  let nod = 0;
+  let palms = 0;
   if (doing?.kind === "mutual") {
     // The garden steps them in and out; here the near hand rises (and, with
     // `reach`, meets the other's at the contact point), with a little hop at the slap.
@@ -150,29 +157,39 @@ const motion = (doing: Doing, t: number) => {
     if (doing.toward > 0) hands.r = hand;
     else hands.l = hand;
     lift = hit ? 0.05 : 0;
-    return { hands, lift, shake, sink, lean };
+    return { hands, lift, shake, sink, lean, nod, palms };
   }
-  if (doing?.kind !== "emote") return { hands, lift, shake, sink, lean };
+  if (doing?.kind !== "emote") return { hands, lift, shake, sink, lean, nod, palms };
   const k = swell(doing.p);
   const wob = Math.sin(t * 16);
+  const hold = settle(doing.p / 0.14) * settle((1 - doing.p) / 0.14);
+  const reach = (side: -1 | 1, x: number, y: number): [number, number] => [
+    side * 0.4 + (x - side * 0.4) * hold,
+    0.34 + (y - 0.34) * hold,
+  ];
   switch (doing.id) {
     case "wave":
-      hands.r = [0.45 + wob * 0.06, 1.05];
+      hands.r = reach(1, 0.48 + Math.sin(t * 11) * 0.14, 1.08);
+      lean = Math.sin(t * 5.5) * 0.03 * hold;
+      lift = doing.p < 0.12 ? Math.sin((doing.p / 0.12) * Math.PI) * 0.1 : 0;
       break;
     case "smile":
       lift = Math.abs(Math.sin(t * 6)) * 0.05 * k;
       break;
     case "laugh":
-      hands.l = [-0.2, 0.42];
-      hands.r = [0.2, 0.42];
+      hands.l = reach(-1, -0.18, 0.42);
+      hands.r = reach(1, 0.18, 0.42);
       hands.front = true;
-      shake = wob * 0.03 * k;
-      lift = Math.abs(Math.sin(t * 12)) * 0.05 * k;
+      shake = Math.sin(t * 13) * 0.035 * hold;
+      lift = Math.abs(Math.sin(t * 13)) * 0.09 * hold;
+      lean = Math.sin(t * 3) * 0.04 * hold;
+      nod = -0.5 * hold;
       break;
     case "cheer":
-      hands.l = [-0.42, 1.15 + wob * 0.04];
-      hands.r = [0.42, 1.15 - wob * 0.04];
-      lift = Math.abs(Math.sin(t * 8)) * 0.18 * k;
+      hands.l = reach(-1, -0.44, 1.18 + wob * 0.06);
+      hands.r = reach(1, 0.44, 1.18 - wob * 0.06);
+      lift = Math.abs(Math.sin(t * 7)) * 0.3 * hold;
+      nod = -0.25 * hold;
       break;
     case "love":
       hands.l = [-0.1, 0.55];
@@ -196,28 +213,38 @@ const motion = (doing: Doing, t: number) => {
       hands.front = true;
       break;
     case "cry":
-      hands.l = [-0.16, 0.92];
-      hands.r = [0.16, 0.92];
+      hands.l = reach(-1, -0.17, 0.8);
+      hands.r = reach(1, 0.17, 0.8);
       hands.front = true;
-      sink = 0.05 * k;
-      shake = Math.sin(t * 20) * 0.01;
+      hands.over = hold > 0.5;
+      sink = 0.09 * hold;
+      nod = hold;
+      shake = Math.sin(t * 18) * 0.018 * hold;
       break;
     case "angry":
-      hands.l = [-0.46, 0.3];
-      hands.r = [0.46, 0.3];
-      shake = wob * 0.05 * k;
+      hands.l = reach(-1, -0.5, 0.26);
+      hands.r = reach(1, 0.5, 0.26);
+      lift = Math.max(0, Math.sin(t * 9)) * 0.07 * hold;
+      shake = Math.sin(t * 24) * 0.05 * hold;
+      nod = 0.35 * hold;
       break;
     case "sleepy":
       sink = 0.06 * k + Math.sin(t * 2) * 0.02;
       lean = 0.08 * k;
       break;
-    case "pray":
-      hands.l = [-0.03, 0.62];
-      hands.r = [0.03, 0.62];
+    case "pray": {
+      const fold = settle(doing.p / 0.2) * settle((1 - doing.p) / 0.16);
+      const breath = Math.sin(t * 1.8) * 0.01 * fold;
+      hands.l = [-0.4 + 0.36 * fold, 0.34 + 0.07 * fold + breath];
+      hands.r = [0.4 - 0.36 * fold, 0.34 + 0.07 * fold + breath];
       hands.front = true;
+      palms = fold;
+      nod = fold;
+      sink = 0.03 * fold - breath;
       break;
+    }
   }
-  return { hands, lift, shake, sink, lean };
+  return { hands, lift, shake, sink, lean, nod, palms };
 };
 
 /**
@@ -263,7 +290,7 @@ const AvatarView = ({
   const side = Math.sin(pose.heading);
   const ph = t * 9 + seed;
   const swing = stride ? strideSwing(stride) : pose.walking ? Math.sin(ph) * 0.07 : 0;
-  const head = at(0, 1.0);
+  const head = at(0, 1.0 - move.nod * 0.07);
   const r = 0.42 * s;
   const inner = r - ink;
   // The face shape: the head's width, height and corner rounding.
@@ -287,7 +314,7 @@ const AvatarView = ({
     );
   }
   for (const e of [-1, 1]) {
-    const p = { x: foot.x + 0.12 * e * s, y: foot.y - 0.08 * up };
+    const p = { x: foot.x + 0.12 * e * s, y: foot.y - (0.08 + move.lift) * up };
     parts.push(<Ellipse key={`foot${e}`} cx={p.x} cy={p.y} rx={0.1 * s} ry={0.09 * s} fill={people.feet} ink={ink * 0.8} inkColour={garden.ink} />);
   }
   const accessory = look.accessory ?? 0;
@@ -327,16 +354,17 @@ const AvatarView = ({
     }
     return [shoulder, hand ? at(hand[0], hand[1]) : at(0.4 * e, 0.34 + swing * e)] as const;
   };
-  const arms = (front: boolean) => {
+  const arms = (layer: "back" | "front" | "over") => {
     for (const e of [-1, 1]) {
       const hand = e < 0 ? move.hands.l : move.hands.r;
-      if (Boolean(hand && move.hands.front) !== front) continue;
+      const drawnIn = !hand ? "back" : move.hands.over && facing >= 0 ? "over" : move.hands.front ? "front" : "back";
+      if (drawnIn !== layer) continue;
       const [a, b] = arm(e);
-      parts.push(capsule(a, b, 0.14 * s + ink * 2, garden.ink, `armInk${e}${front}`));
-      parts.push(capsule(a, b, 0.14 * s, skin, `arm${e}${front}`));
+      parts.push(capsule(a, b, 0.14 * s + ink * 2, garden.ink, `armInk${e}${layer}`));
+      parts.push(capsule(a, b, 0.14 * s, skin, `arm${e}${layer}`));
     }
   };
-  arms(false);
+  arms("back");
   // The body: a tapered shirt, ink first.
   const bodyPts = (grow: number) => [
     { x: at(-0.21, 0.7).x - grow, y: at(0, 0.7).y - grow },
@@ -344,9 +372,48 @@ const AvatarView = ({
     { x: at(0.33, 0.16).x + grow, y: at(0, 0.16).y + grow },
     { x: at(-0.33, 0.16).x - grow, y: at(0, 0.16).y + grow },
   ];
-  parts.push(quad(bodyPts(ink), garden.ink, "bodyInk", 30));
-  parts.push(quad(bodyPts(0), shirt, "body", 30));
-  parts.push(quad(bodyPts(0).map((p, i) => (i === 0 || i === 3 ? { x: p.x + 0.2 * s, y: p.y } : p)), shade(shirt, 0.12), "bodyLit", 30));
+  const outfit = lookPart(look, "outfit");
+  const halfWidth = (y: number) => 0.21 + (0.12 * (0.7 - y)) / 0.54;
+  const panel = (top: number, bottom: number, topHalf: number, bottomHalf: number, grow: number) => [
+    { x: at(-topHalf, top).x - grow, y: at(0, top).y - grow },
+    { x: at(topHalf, top).x + grow, y: at(0, top).y - grow },
+    { x: at(bottomHalf, bottom).x + grow, y: at(0, bottom).y + grow },
+    { x: at(-bottomHalf, bottom).x - grow, y: at(0, bottom).y + grow },
+  ];
+  const piece = (key: string, fill: string, top: number, bottom: number, topHalf: number, bottomHalf: number, radius = 12) => {
+    parts.push(quad(panel(top, bottom, topHalf, bottomHalf, ink), garden.ink, `${key}Ink`, radius));
+    parts.push(quad(panel(top, bottom, topHalf, bottomHalf, 0), fill, key, radius));
+  };
+  if (outfit === 1) {
+    const dress = (grow: number) => panel(0.7, 0.1, 0.21, 0.46, grow);
+    parts.push(quad(dress(ink), garden.ink, "bodyInk", 30));
+    parts.push(quad(dress(0), shirt, "body", 30));
+    parts.push(quad(dress(0).map((p, i) => (i === 0 || i === 3 ? { x: p.x + 0.24 * s, y: p.y } : p)), shade(shirt, 0.12), "bodyLit", 30));
+    parts.push(capsule(at(-halfWidth(0.47), 0.47), at(halfWidth(0.47), 0.47), 0.05 * s, shade(shirt, -0.22), "sash"));
+  } else {
+    parts.push(quad(bodyPts(ink), garden.ink, "bodyInk", 30));
+    parts.push(quad(bodyPts(0), shirt, "body", 30));
+    parts.push(quad(bodyPts(0).map((p, i) => (i === 0 || i === 3 ? { x: p.x + 0.2 * s, y: p.y } : p)), shade(shirt, 0.12), "bodyLit", 30));
+  }
+  if (outfit === 2) piece("skirt", shade(shirt, -0.28), 0.4, 0.1, halfWidth(0.4) + 0.01, 0.45, 14);
+  if (outfit === 3) {
+    piece("dungarees", people.denim, 0.36, 0.14, halfWidth(0.36) + 0.01, 0.34, 10);
+    if (facing >= 0) {
+      piece("bib", people.denim, 0.58, 0.34, 0.13, 0.15, 6);
+      for (const e of [-1, 1]) parts.push(capsule(at(0.12 * e, 0.7), at(0.11 * e, 0.56), 0.05 * s, people.denim, `brace${e}`));
+    } else {
+      for (const e of [-1, 1]) parts.push(capsule(at(0.14 * e, 0.7), at(0.04 * e, 0.36), 0.05 * s, people.denim, `brace${e}`));
+    }
+  }
+  if (outfit === 4) {
+    for (const y of [0.58, 0.44, 0.3]) {
+      parts.push(capsule(at(-halfWidth(y) + 0.04, y), at(halfWidth(y) - 0.04, y), 0.055 * s, shade(shirt, -0.3), `stripe${y}`));
+    }
+  }
+  if (outfit === 5 && facing >= 0) {
+    piece("pocket", shade(shirt, -0.14), 0.38, 0.2, 0.15, 0.19, 10);
+    for (const e of [-1, 1]) parts.push(capsule(at(0.06 * e, 0.68), at(0.07 * e, 0.52), 0.03 * s, people.drawstring, `string${e}`));
+  }
   if (accessory === 2 && facing >= 0) {
     for (const e of [-1, 1]) parts.push(capsule(at(0.13 * e, 0.69), at(0.15 * e, 0.38), 0.05 * s, people.backpackStrap, `strap${e}`));
   }
@@ -356,8 +423,9 @@ const AvatarView = ({
     parts.push(capsule(at(-0.24, 0.72), at(0.24, 0.72), 0.12 * s, people.scarf, "scarf"));
     parts.push(capsule(at(0.12, 0.7), at(0.16 + swing, 0.48), 0.1 * s, shade(people.scarf, -0.1), "scarfTail"));
   }
-  arms(true);
+  arms("front");
 
+  if (outfit === 5) ball("hood", head.x - side * 0.1 * s, head.y + r * 0.42, r * 0.86, shade(shirt, -0.1));
   // Hair that sits behind the head: a bun, or long hair down to the shoulders.
   if (look.hair === 1) ball("bun", head.x - side * 0.15 * s, head.y - 0.46 * s, 0.17 * s, hair);
   if (look.hair === 2) {
@@ -664,6 +732,13 @@ const AvatarView = ({
     );
     parts.push(<View key="band" pointerEvents="none" style={[styles.abs, { left: head.x - r * 0.75, top: head.y - r * 0.62, width: r * 1.5, height: r * 0.16, backgroundColor: people.hats.band }]} />);
   }
+  arms("over");
+  if (move.palms > 0.6 && facing >= 0) {
+    const tips = 0.41 + 0.13 * move.palms;
+    parts.push(capsule(at(0, 0.4), at(0, tips), 0.15 * s + ink * 2, garden.ink, "palmsInk"));
+    parts.push(capsule(at(0, 0.4), at(0, tips), 0.15 * s, skin, "palms"));
+    parts.push(capsule(at(0, 0.41), at(0, tips - 0.01), ink * 0.7, garden.ink, "palmsSeam"));
+  }
   return <>{parts}</>;
 };
 
@@ -715,6 +790,7 @@ export const Tag = ({
   emote,
   emoteRise,
   lineFade = 1,
+  status,
 }: {
   x: number;
   y: number;
@@ -726,6 +802,7 @@ export const Tag = ({
   /** 0 when the emote starts, 1 when it's gone. */
   emoteRise: number;
   lineFade?: number;
+  status?: string;
 }) => (
   <View pointerEvents="none" style={[styles.tag, { left: x - 120, top: y - 400 }]}>
     {emote ? (
@@ -745,6 +822,11 @@ export const Tag = ({
           <View style={[styles.tail, far && { borderTopColor: hud.farBubble }]} />
         </View>
       </View>
+    ) : null}
+    {status ? (
+      <Text style={styles.status} numberOfLines={1}>
+        {status}
+      </Text>
     ) : null}
     <Text style={[styles.name, me && styles.meName, far && !me && { opacity: 0.8 }]} numberOfLines={1}>
       {name}
@@ -773,6 +855,17 @@ const styles = StyleSheet.create({
   },
   farBubble: { backgroundColor: hud.farBubble, borderColor: hud.farEdge, borderStyle: "dashed", shadowOpacity: 0 },
   bubbleText: { color: hud.forest, fontSize: 14.5, lineHeight: 18.5, fontWeight: "600" },
+  status: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: hud.cream,
+    backgroundColor: hud.chip,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: "hidden",
+    marginBottom: -6,
+  },
   tailRow: { position: "absolute", left: 0, right: 0, bottom: -14, height: 14, alignItems: "center" },
   tailInk: {
     marginTop: 2,

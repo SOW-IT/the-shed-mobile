@@ -1,6 +1,6 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { ASK_MS, canHear, CHAT_TTL_MS, EMOTE_IDS, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
+import { ASK_MS, canHear, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -171,7 +171,7 @@ export const WorldList = ({
         {world.people.map((p) => {
           const theirs = p.walk ? posAt(p.walk, now) : null;
           const near = mePose && theirs && !p.isMe ? canHear(mePose, theirs) : false;
-          const detail = p.isMe ? "You" : near ? "Can hear you" : "Out of earshot";
+          const detail = p.isMe ? "You" : p.away ? "Playing at the arcade" : near ? "Can hear you" : "Out of earshot";
           // Close enough for a high five? If not, a way to walk over: the list
           // view (and Android, which always has it) can't tap the ground.
           const gap = mePose && theirs ? Math.hypot(theirs.x - mePose.x, theirs.z - mePose.z) : 0;
@@ -234,7 +234,7 @@ export const WorldList = ({
           <Btn title="Send" onPress={() => void send()} />
         </View>
         <View style={styles.emotes}>
-          {EMOTE_IDS.map((emote) => (
+          {EMOTE_TRAY.map((emote) => (
             <Pressable
               key={emote}
               onPress={() => void world.act(emote)}

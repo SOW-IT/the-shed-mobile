@@ -1,5 +1,8 @@
 import { Btn, Field, Muted, Sheet } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { timeAgo } from "@shared/datetime";
+import { MAX_POKE_LENGTH, tagName } from "@shared/world";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useState } from "react";
@@ -148,6 +151,110 @@ export const PersonSheet = ({
   );
 };
 
+const OfflineList = () => {
+  const t = useAppTheme();
+  const [open, setOpen] = useState(false);
+  const [now, setNow] = useState(0);
+  const list = useQuery(api.world.offline, open ? {} : "skip");
+  const poke = useMutation(api.world.poke);
+  const [writingTo, setWritingTo] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState<string | null>(null);
+  const waitMs = list ? list.pokeAgainAt - now : 0;
+  const send = async (visitorId: Id<"worldVisitors">, name: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const reply = await poke({ visitorId, message: message.trim() || undefined });
+      if (!reply.ok) return setError(`You can poke again in ${Math.ceil(reply.retryInMs / 60_000)} min.`);
+      setWritingTo(null);
+      setMessage("");
+      setSent(`Poked ${tagName(name)}. They'll get a notification.`);
+    } catch (e) {
+      setError(problem(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={styles.offline}>
+      <Pressable
+        onPress={() => {
+          setNow(Date.now());
+          setOpen((was) => !was);
+        }}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel="Not here right now"
+        testID="world-offline-toggle"
+        style={({ pressed }) => [styles.row, { borderColor: t.border }, pressed && { opacity: 0.7 }]}
+      >
+        <Text style={[typography.label, { color: t.muted, flex: 1 }]}>Not here right now</Text>
+        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={t.muted} />
+      </Pressable>
+      {open && list === undefined ? <Muted>Loading…</Muted> : null}
+      {open && list?.people.length === 0 ? <Muted>Nobody else has been in the garden yet.</Muted> : null}
+      {open && list && list.people.length > 0 ? (
+        <Muted>
+          {waitMs > 0
+            ? `You can poke again in ${Math.min(60, Math.ceil(waitMs / 60_000))} min.`
+            : "Poke someone to invite them in. One poke an hour."}
+        </Muted>
+      ) : null}
+      {open && sent ? <Text style={[typography.caption, { color: t.text }]}>{sent}</Text> : null}
+      {open
+        ? list?.people.map((p) => (
+            <View key={p.id} style={[styles.offlineRow, { borderColor: t.border }]}>
+              <View style={styles.offlineHead}>
+                <Text style={[typography.body, { color: t.text, flex: 1 }]} numberOfLines={1}>
+                  {p.name}
+                </Text>
+                <Text style={[typography.caption, { color: t.muted }]}>{timeAgo(p.lastSeenAt, now)}</Text>
+                {writingTo === p.id ? null : (
+                  <Btn
+                    title="Poke"
+                    variant="ghost"
+                    disabled={waitMs > 0}
+                    onPress={() => {
+                      setError(null);
+                      setSent(null);
+                      setMessage("");
+                      setWritingTo(p.id);
+                    }}
+                  />
+                )}
+              </View>
+              {writingTo === p.id ? (
+                <View style={styles.stack}>
+                  <Field
+                    label="Message (optional)"
+                    value={message}
+                    onChangeText={setMessage}
+                    placeholder="Come and join me in the Garden."
+                    maxLength={MAX_POKE_LENGTH}
+                    autoCapitalize="sentences"
+                    testID="world-poke-message"
+                  />
+                  {error ? <Text style={[typography.caption, { color: t.danger }]}>{error}</Text> : null}
+                  <View style={styles.pokeButtons}>
+                    <View style={styles.grow}>
+                      <Btn title="Cancel" variant="ghost" onPress={() => setWritingTo(null)} />
+                    </View>
+                    <View style={styles.grow}>
+                      <Btn title="Send poke" icon="notifications-outline" loading={busy} onPress={() => void send(p.id, p.name)} />
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          ))
+        : null}
+    </View>
+  );
+};
+
 /** Who's here, the people you've blocked, and the garden or list view. */
 export const PeopleSheet = ({
   visible,
@@ -194,6 +301,7 @@ export const PeopleSheet = ({
           onPress={() => onView(view === "garden" ? "list" : "garden")}
         />
         )}
+        <OfflineList />
         {blocked && blocked.length > 0 ? (
           <>
             <Text style={[typography.label, { color: t.muted }]}>Blocked</Text>
@@ -212,6 +320,11 @@ export const PeopleSheet = ({
 
 const styles = StyleSheet.create({
   stack: { gap: spacing.md, paddingBottom: spacing.lg },
+  offline: { gap: spacing.sm },
+  offlineRow: { paddingVertical: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, gap: spacing.sm },
+  offlineHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  pokeButtons: { flexDirection: "row", gap: spacing.sm },
+  grow: { flex: 1 },
   row: {
     flexDirection: "row",
     alignItems: "center",

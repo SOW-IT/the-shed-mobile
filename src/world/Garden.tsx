@@ -43,6 +43,7 @@ type GardenPerson = {
   /** Asks this person accepted that are still open. */
   answered?: Reply[];
   muted: boolean;
+  away?: boolean;
 };
 
 /** What the camera looks at: style C's framing of the courtyard. */
@@ -348,7 +349,8 @@ export const Garden = ({
     if (!pose) return;
     const seed = hash(p.memberId) % 7;
     const figure = figureFor(cam, pose);
-    const turned = { ...pose, heading: facingOverride[i] ?? pose.heading };
+    const atArcade = p.away ? Math.atan2(ARCADE.x - pose.x, ARCADE.z - pose.z) : null;
+    const turned = { ...pose, heading: facingOverride[i] ?? atArcade ?? pose.heading };
     const striding = pose.strideAmp > 0;
     const stride = { stridePhase: striding ? pose.stridePhase : 0, strideAmp: pose.strideAmp };
     const touch = touches.find((c) => c.i === i || c.j === i);
@@ -362,7 +364,13 @@ export const Garden = ({
       key: p.memberId,
       // Only someone moving needs the clock; for the rest t stays 0, so their
       // memoized avatar isn't redrawn while others walk.
-      node: <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} stride={stride} doing={d} />,
+      node: p.away ? (
+        <View style={[StyleSheet.absoluteFill, styles.away]} pointerEvents="none">
+          <Avatar figure={figure} pose={turned} look={p.look} t={0} seed={seed} stride={stride} />
+        </View>
+      ) : (
+        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} stride={stride} doing={d} />
+      ),
     });
     const far = !p.me && mePose !== null && !canHear(mePose, pose);
     const line = bubbleFades[i] > 0 ? p.say?.text : undefined;
@@ -385,8 +393,8 @@ export const Garden = ({
     tags.push({
       key: p.memberId,
       depth: head.depth,
-      ...tagBox(head.x, head.y, name, line ?? waiting, Boolean(emote)),
-      props: { name, me: p.me, line: line ?? waiting, far, emote, emoteRise: rise, lineFade: line ? bubbleFades[i] : 1 },
+      ...tagBox(head.x, head.y, name, line ?? waiting, Boolean(emote), p.away === true),
+      props: { name, me: p.me, line: line ?? waiting, far, emote, emoteRise: rise, lineFade: line ? bubbleFades[i] : 1, status: p.away ? AWAY_STATUS : undefined },
     });
   });
   // The contact pop where palms meet: a quick burst while they touch.
@@ -555,6 +563,7 @@ const bubbleFade = (age: number) =>
   age < 0 || age >= BUBBLE_MS ? 0 : Math.min(1, (age + 16) / BUBBLE_IN_MS, (BUBBLE_MS - age) / BUBBLE_OUT_MS);
 const bubbleMoving = (age: number) => age < BUBBLE_IN_MS || (age > BUBBLE_MS - BUBBLE_OUT_MS - 1100 && age < BUBBLE_MS);
 
+const AWAY_STATUS = "🕹️ Playing";
 const NAME_TAG_CLEARANCE = 30;
 const HUD_CLEAR_TOP = 112;
 /** An ask card's width (styles.ask), for keeping it on the stage. */
@@ -630,9 +639,9 @@ type TagSpot = {
 };
 
 /** Roughly how much room a name tag and its bubble take, for stacking. */
-const tagBox = (x: number, bottom: number, name: string, line: string | undefined, emote: boolean) => {
-  const nameWidth = name.length * 7.5 + 22;
-  const icon = emote ? 36 : 0;
+const tagBox = (x: number, bottom: number, name: string, line: string | undefined, emote: boolean, status = false) => {
+  const nameWidth = Math.max(name.length * 7.5 + 22, status ? 84 : 0);
+  const icon = (emote ? 36 : 0) + (status ? 18 : 0);
   if (!line) return { x, bottom, width: Math.max(nameWidth, icon), height: 24 + icon };
   const chars = Array.from(line).length;
   const lines = Math.ceil(chars / 24);
@@ -668,6 +677,7 @@ const stackTags = (tags: TagSpot[]): TagSpot[] => {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, overflow: "hidden" },
+  away: { opacity: 0.45 },
   ask: {
     position: "absolute",
     width: ASK_CARD_WIDTH,
