@@ -6,6 +6,45 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.8] - 2026-11-23
+
+### Changed
+- **Tapping someone in the Garden opens a small bubble over their head.**
+  It has High five, Wave and More, and pops up right where they are instead
+  of a sheet that covers the garden. More still has mute, block and report.
+  Tap yourself for Outfit and Emotes. Tap the ground, or the person again,
+  and it goes away.
+- **High five from anywhere.** Choose High five on someone across the garden
+  and you walk over and stand beside them first. The ask goes out when you
+  get there. Tap the ground to change your mind on the way.
+- **Walking is smoother.** Steps start and stop gently instead of snapping,
+  characters turn to a new direction rather than flipping, you no longer
+  slip back a step just after you tap, and other people no longer flicker
+  for a moment each time they change direction. Speech bubbles fade in and
+  out, and the timer on a high-five ask runs smoothly.
+- **You keep facing the way you walked.** Characters used to turn back
+  toward the screen after stopping.
+- **The Garden is in the side menu,** under Announcements, as well as in
+  Games. Praise List now sits under Churches. Profile is no longer a menu
+  item: tap your photo at the top of the menu.
+- **Pick your character's features by looking at them.** Face shape, eyes,
+  eyebrows, nose, mouth, hairstyle, hat, extras, blush, freckles and beard
+  each show as little pictures on a plain character, instead of words like
+  "Short" or "Bun". Skin tones now run from lightest to darkest.
+- **The emote tray is the same on every phone:** four across, three rows.
+  It used to wrap differently on iPhone and the web.
+
+### Fixed
+- **Speech bubble tails point at the right person on iPhone.** The little
+  tail under a short bubble such as "High five?" sat off to one side.
+- **Blank chat lines.** A message made only of invisible characters is no
+  longer sent, and characters that flip the direction of text are removed.
+- **The two buttons on a high-five ask line up.**
+- **The character editor's tabs are readable in dark mode.** Hair, Body,
+  Outfit and Extras were pale text on a pale button.
+- **The walk marker no longer lingers** at your feet after you come back to
+  the garden from another app.
+
 ## [2.12.7] - 2026-11-23
 
 ### Added
