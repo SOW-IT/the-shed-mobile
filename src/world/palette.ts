@@ -209,6 +209,7 @@ export const glass = {
   muted: "rgba(245, 243, 227, 0.68)",
   error: "#FFB4A6",
   scrim: "rgba(6, 16, 15, 0.32)",
+  scrimDeep: "rgba(6, 16, 15, 0.55)",
   bust: "#BFE3DA",
 } as const;
 

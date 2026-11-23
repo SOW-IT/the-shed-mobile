@@ -1,6 +1,6 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { bodyScale, PLACE_TITLES, PLACES, type Look, type Place } from "@shared/world";
+import { bodyScale, PLACE_TITLES, type Look, type Place } from "@shared/world";
 import { useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
@@ -17,7 +17,7 @@ const OPEN_MS = LEAD_MS + STAGGER_MS * STAGGERED + ITEM_MS;
 const STEPS = [0, 0.25, 0.5, 0.75, 1];
 const EASE_OUT = STEPS.map((k) => 1 - (1 - k) ** 3);
 
-const PLACE_ICONS: Record<Place, string> = {
+export const PLACE_ICONS: Record<Place, string> = {
   garden: "🌿",
   chapel: "⛪",
   campfire: "🔥",
@@ -146,57 +146,98 @@ export const WifiBars = ({ bars, size = 20, off = signal.offOnCard }: { bars?: n
   );
 };
 
-export const PlacesMenu = ({
+export type MenuEntry = {
+  id: string;
+  label: string;
+  emoji?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  count?: number;
+  tone?: "leave";
+  accessibilityLabel?: string;
+  onPress: () => void;
+};
+
+export const WorldMenu = ({
   open,
   top,
-  place,
-  counts,
-  onPick,
+  entries,
   onClose,
 }: {
   open: boolean;
   top: number;
-  place: Place;
-  counts?: Record<string, number>;
-  onPick: (to: Place) => void;
+  entries: readonly MenuEntry[];
   onClose: () => void;
 }) => {
   const { mounted, clock } = useOverlayClock(open);
   if (!mounted) return null;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={open ? "box-none" : "none"}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close places" testID="world-places-close">
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu" testID="world-menu-close">
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(clock)]} />
       </Pressable>
-      <Animated.View style={[styles.menu, blurBehind, { top }, popStyle(clock)]} testID="world-places">
-        {PLACES.map((to, i) => {
-          const here = to === place;
-          const count = counts?.[to] ?? 0;
-          return (
-            <Animated.View key={to} style={itemStyle(clock, i)}>
-              <Pressable
-                onPress={() => (here ? onClose() : onPick(to))}
-                accessibilityRole="button"
-                accessibilityState={{ selected: here }}
-                accessibilityLabel={`${PLACE_TITLES[to]}, ${count} ${count === 1 ? "person" : "people"}${here ? ", you're here" : ""}`}
-                testID={`world-place-${to}`}
-                style={({ pressed }) => [styles.place, here && styles.placeHere, pressed && styles.rowPressed]}
-              >
-                <View style={styles.placeIcon}>
-                  <Text style={styles.placeEmoji}>{PLACE_ICONS[to]}</Text>
-                </View>
-                <Text style={styles.placeTitle} numberOfLines={1}>
-                  {PLACE_TITLES[to]}
-                </Text>
-                <View style={[styles.count, count === 0 && styles.countEmpty]}>
+      <Animated.View style={[styles.menu, blurBehind, { top }, popStyle(clock)]} testID="world-menu">
+        {entries.map((entry, i) => (
+          <Animated.View key={entry.id} style={[itemStyle(clock, i), entry.tone === "leave" && i > 0 && styles.leaveGap]}>
+            <Pressable
+              onPress={entry.onPress}
+              accessibilityRole="button"
+              accessibilityLabel={entry.accessibilityLabel ?? entry.label}
+              testID={`world-menu-${entry.id}`}
+              style={({ pressed }) => [styles.place, entry.tone === "leave" && styles.leave, pressed && styles.rowPressed]}
+            >
+              <View style={[styles.placeIcon, entry.tone === "leave" && styles.leaveIcon]}>
+                {entry.emoji ? <Text style={styles.placeEmoji}>{entry.emoji}</Text> : null}
+                {entry.icon ? <Ionicons name={entry.icon} size={19} color={glass.text} /> : null}
+              </View>
+              <Text style={styles.placeTitle} numberOfLines={1}>
+                {entry.label}
+              </Text>
+              {entry.count !== undefined ? (
+                <View style={[styles.count, entry.count === 0 && styles.countEmpty]}>
                   <Ionicons name="person" size={11} color={glass.text} />
-                  <Text style={styles.countText}>{count}</Text>
+                  <Text style={styles.countText}>{entry.count}</Text>
                 </View>
-                {here ? <Ionicons name="location" size={18} color={hud.accent} /> : <Ionicons name="chevron-forward" size={16} color={glass.muted} />}
-              </Pressable>
-            </Animated.View>
-          );
-        })}
+              ) : null}
+            </Pressable>
+          </Animated.View>
+        ))}
+      </Animated.View>
+    </View>
+  );
+};
+
+export const LeaveDialog = ({ open, onStay, onLeave }: { open: boolean; onStay: () => void; onLeave: () => void }) => {
+  const { mounted, clock } = useOverlayClock(open);
+  if (!mounted) return null;
+  return (
+    <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents={open ? "box-none" : "none"}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onStay} accessibilityRole="button" accessibilityLabel="Stay" testID="world-leave-scrim">
+        <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(clock)]} />
+      </Pressable>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(clock)]} testID="world-leave-dialog" accessibilityViewIsModal>
+        <Animated.View style={[styles.door, itemStyle(clock, 0)]}>
+          <Ionicons name="exit-outline" size={30} color={glass.text} />
+        </Animated.View>
+        <Animated.View style={itemStyle(clock, 1)}>
+          <Text style={styles.dialogTitle} accessibilityRole="header">
+            Leave the World?
+          </Text>
+          <Text style={styles.dialogText}>Everyone here will see you go. You can come back any time.</Text>
+        </Animated.View>
+        <Animated.View style={[styles.dialogButtons, itemStyle(clock, 2)]}>
+          <Pressable onPress={onStay} accessibilityRole="button" testID="world-leave-stay" style={({ pressed }) => [styles.dialogButton, pressed && styles.rowPressed]}>
+            <Text style={styles.dialogButtonText}>Stay</Text>
+          </Pressable>
+          <Pressable
+            onPress={onLeave}
+            accessibilityRole="button"
+            testID="world-leave-confirm"
+            style={({ pressed }) => [styles.dialogButton, styles.dialogLeave, pressed && styles.rowPressed]}
+          >
+            <Ionicons name="exit-outline" size={17} color={hud.onAccent} />
+            <Text style={styles.dialogButtonText}>Leave</Text>
+          </Pressable>
+        </Animated.View>
       </Animated.View>
     </View>
   );
@@ -240,8 +281,8 @@ const styles = StyleSheet.create({
   bars: { flexDirection: "row", alignItems: "flex-end" },
   menu: {
     position: "absolute",
-    alignSelf: "center",
-    width: 300,
+    left: 14,
+    width: 270,
     maxWidth: "92%",
     padding: 8,
     gap: 6,
@@ -249,10 +290,32 @@ const styles = StyleSheet.create({
     backgroundColor: glass.panel,
     borderWidth: 1.5,
     borderColor: glass.edge,
-    transformOrigin: "top",
+    transformOrigin: "top left",
   },
+  leaveGap: { marginTop: 6 },
+  leave: { backgroundColor: "transparent", borderWidth: 1, borderColor: glass.edge },
+  leaveIcon: { backgroundColor: hud.accent },
+  centre: { alignItems: "center", justifyContent: "center" },
+  scrimDeep: { backgroundColor: glass.scrimDeep },
+  dialog: {
+    width: 300,
+    maxWidth: "88%",
+    alignItems: "center",
+    gap: 12,
+    padding: 20,
+    borderRadius: 26,
+    backgroundColor: glass.panel,
+    borderWidth: 1.5,
+    borderColor: glass.edge,
+  },
+  door: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: hud.accent },
+  dialogTitle: { fontFamily: fonts.display, fontSize: 21, color: glass.text, textAlign: "center", letterSpacing: -0.3 },
+  dialogText: { color: glass.muted, fontSize: 14, lineHeight: 19, textAlign: "center", marginTop: 6 },
+  dialogButtons: { flexDirection: "row", gap: 10, alignSelf: "stretch", marginTop: 4 },
+  dialogButton: { flex: 1, flexDirection: "row", gap: 6, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: glass.row, borderWidth: 1, borderColor: glass.edge },
+  dialogLeave: { backgroundColor: hud.accent, borderColor: hud.accent },
+  dialogButtonText: { color: glass.text, fontFamily: fonts.display, fontSize: 16 },
   place: { flexDirection: "row", alignItems: "center", gap: 10, height: 52, paddingHorizontal: 8, borderRadius: 16, backgroundColor: glass.row },
-  placeHere: { backgroundColor: glass.here },
   rowPressed: { opacity: 0.7 },
   placeIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
   placeEmoji: { fontSize: 19 },

@@ -42,18 +42,22 @@ All notable changes to **The SHED** mobile app. This project follows
   connection as one to four bars (green, amber or red). Tap someone here to
   wave, high five, duel, mute, block or report; tap someone in another place
   to go there. The poke list and your blocked people are at the bottom.
-- **Your connection at the top.** Wi-fi bars and your ping in
-  milliseconds sit next to the People button; tap them for the details.
-  Each phone times its own round trips to the server and shares its bars
-  only when they change, at most once every 30 seconds.
-- **Places from the title.** Tap "The Garden" at the top for a dropdown of
-  every place, with how many people are in each and a pin on where you
-  are. Pick one to go there; tap outside or the title again to close it.
+- **Your connection at the top.** Wi-fi bars sit next to the People
+  button; tap them to see your ping in milliseconds for a moment. Each
+  phone times its own round trips to the server and shares its bars only
+  when they change, at most once every 30 seconds.
+- **One menu from the place button.** The place button ("The Garden") is
+  at the top left now. Tap it for a menu that drops down with every other
+  place (and how many people are in each) and Leave at the bottom. Leave
+  asks first, in a World-styled dialog. Tap outside or the button again to
+  close the menu.
 
 ### Changed
-- **Smoother World menus.** The People list and the places dropdown slide
-  and fade in with their rows one after another, and ease out when they
-  close. With Reduce Motion on, they appear and go without moving.
+- **No back button in the World.** Leave from the place menu instead.
+- **Smoother World menus.** The People list, the place menu and the Leave
+  dialog slide and fade in with their rows one after another, and ease out
+  when they close. With Reduce Motion on, they appear and go without
+  moving.
 - **The editor's camera glides.** Switching tabs moves the preview smoothly
   between a close-up of the face (face, eyes, brows, mouth), head and
   shoulders (hair and hats) and the whole body (body, outfit, extras),

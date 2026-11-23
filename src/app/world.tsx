@@ -58,6 +58,7 @@ export default function World() {
         active={focused || atArcade}
         away={atArcade && !focused}
         onBack={() => setAsking(true)}
+        onLeave={leave}
         opening={sheet === "character" || sheet === "poke" ? sheet : undefined}
         onArcade={() => {
           setAtArcade(true);

@@ -11,6 +11,7 @@ import {
   MUTUALS,
   OBSTACLES,
   PLACE_TITLES,
+  PLACES,
   SEATS,
   pingBars,
   portalAt,
@@ -31,7 +32,7 @@ import { hud } from "./palette";
 import type { HudAction } from "./PersonHud";
 import { PersonSheet } from "./Sheets";
 import { PeoplePanel } from "./People";
-import { connectionLabel, PlacesMenu, WifiBars } from "./Overlays";
+import { connectionLabel, LeaveDialog, PLACE_ICONS, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
 import { useWorld } from "./useWorld";
 import { pickView } from "./view";
 import { ChatLog } from "./ChatLog";
@@ -138,7 +139,7 @@ const TitlePill = ({ title, instance, open, onPress }: { title: string; instance
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${label}. Places`}
+      accessibilityLabel={`${label}. Places and leave`}
       accessibilityState={{ expanded: open }}
       testID="world-title"
       style={({ pressed }) => [styles.title, pressed && styles.pressed]}
@@ -154,22 +155,28 @@ const TitlePill = ({ title, instance, open, onPress }: { title: string; instance
   );
 };
 
-const PingButton = ({ ms, onPress }: { ms: number | null; onPress: () => void }) => {
+const PingBars = ({ ms }: { ms: number | null }) => {
   const bars = ms === null ? undefined : pingBars(ms);
+  const [showMs, setShowMs] = useState(false);
+  useEffect(() => {
+    if (!showMs) return;
+    const id = setTimeout(() => setShowMs(false), 2500);
+    return () => clearTimeout(id);
+  }, [showMs]);
   return (
     <Pressable
-      onPress={onPress}
-      onLongPress={onPress}
+      onPress={() => setShowMs(true)}
+      onLongPress={() => setShowMs(true)}
       accessibilityRole="button"
       accessibilityLabel={ms === null ? "Your connection: measuring" : `Your connection: ${ms} milliseconds. ${connectionLabel(bars)}`}
       testID="world-ping"
-      hitSlop={6}
-      style={({ pressed }) => [styles.round, styles.ping, pressed && styles.pressed]}
+      hitSlop={10}
+      style={styles.ping}
     >
-      <WifiBars bars={bars} size={20} />
-      <Text style={styles.pingText} numberOfLines={1}>
-        {ms === null ? "…" : `${Math.min(999, ms)}ms`}
-      </Text>
+      <WifiBars bars={bars} size={26} />
+      {showMs && ms !== null ? (
+        <Text style={styles.pingText}>{`${Math.min(999, ms)} ms`}</Text>
+      ) : null}
     </Pressable>
   );
 };
@@ -180,12 +187,14 @@ const PingButton = ({ ms, onPress }: { ms: number | null; onPress: () => void })
  */
 export const WorldScreen = ({
   onBack,
+  onLeave,
   onArcade,
   active = true,
   away = false,
   opening,
 }: {
   onBack: () => void;
+  onLeave: () => void;
   onArcade: () => void;
   /** A sheet to open on arrival, from a link: the character editor or the poke list. */
   opening?: "character" | "poke";
@@ -204,6 +213,7 @@ export const WorldScreen = ({
   const [approach, setApproach] = useState<{ to: string; since: number; kind: AskKind } | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(opening === "poke");
   const [placesOpen, setPlacesOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [draft, setDraft] = useState("");
   const [composing, setComposing] = useState(false);
   const typingNow = composing && draft.trim() !== "";
@@ -545,6 +555,31 @@ export const WorldScreen = ({
     </>
   );
 
+  const menuEntries: MenuEntry[] = [
+    ...PLACES.filter((to) => to !== world.place).map((to) => {
+      const count = world.placeCounts?.[to] ?? 0;
+      return {
+        id: to,
+        label: PLACE_TITLES[to],
+        emoji: PLACE_ICONS[to],
+        count,
+        accessibilityLabel: `Go to ${PLACE_TITLES[to]}, ${count} ${count === 1 ? "person" : "people"} there`,
+        onPress: () => go(to),
+      };
+    }),
+    {
+      id: "leave",
+      label: "Leave",
+      icon: "exit-outline",
+      tone: "leave",
+      accessibilityLabel: "Leave the World",
+      onPress: () => {
+        setPlacesOpen(false);
+        setLeaving(true);
+      },
+    },
+  ];
+
   if (away) return <View style={styles.fill} />;
 
   if (view === "list") {
@@ -623,7 +658,6 @@ export const WorldScreen = ({
         declined={declined}
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
-        <RoundButton icon="chevron-back" label="Back" onPress={onBack} testID="world-back" />
         <TitlePill
           title={PLACE_TITLES[world.place]}
           instance={world.instance}
@@ -634,10 +668,7 @@ export const WorldScreen = ({
           }}
         />
         <View style={styles.right}>
-          <PingButton
-            ms={world.ping}
-            onPress={() => setNote(world.ping === null ? "Measuring your connection…" : `Your ping: ${world.ping} ms. ${connectionLabel(pingBars(world.ping))}.`)}
-          />
+          <PingBars ms={world.ping} />
           <RoundButton
             icon="people-outline"
             label="People"
@@ -771,13 +802,14 @@ export const WorldScreen = ({
         </View>
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
-      <PlacesMenu
-        open={placesOpen}
-        top={insets.top + TOP_BAR_GAP}
-        place={world.place}
-        counts={world.placeCounts}
-        onPick={go}
-        onClose={() => setPlacesOpen(false)}
+      <WorldMenu open={placesOpen} top={insets.top + TOP_BAR_GAP} entries={menuEntries} onClose={() => setPlacesOpen(false)} />
+      <LeaveDialog
+        open={leaving}
+        onStay={() => setLeaving(false)}
+        onLeave={() => {
+          setLeaving(false);
+          onLeave();
+        }}
       />
       {sheets}
     </View>
@@ -844,9 +876,9 @@ const styles = StyleSheet.create({
   },
   mark: { width: 30, height: 30, borderRadius: 15, backgroundColor: hud.primary, alignItems: "center", justifyContent: "center" },
   titleText: { flexShrink: 1, fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.3, color: hud.forest },
-  right: { flexDirection: "row", alignItems: "center", gap: 8 },
-  ping: { gap: 1, paddingTop: 3 },
-  pingText: { fontSize: 9.5, fontWeight: "800", color: hud.forest, letterSpacing: -0.2 },
+  right: { flexDirection: "row", alignItems: "center", gap: 10 },
+  ping: { width: 30, height: 44, alignItems: "center", justifyContent: "center" },
+  pingText: { position: "absolute", top: 36, left: -25, width: 80, textAlign: "center", fontSize: 11, fontWeight: "800", color: hud.forest },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
   note: {
     backgroundColor: hud.card,
