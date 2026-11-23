@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.15] - 2026-11-23
+## [2.12.16] - 2026-11-23
 
 ### Changed
 - **Mystic Man plays in landscape.** Turn your phone sideways: on a phone held
