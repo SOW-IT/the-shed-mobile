@@ -153,7 +153,7 @@ const showLine = (store: OptimisticLocalStore, { text }: { text: string }) => {
   const log = store.getQuery(api.world.chatLog, { roomId: me.roomId });
   if (log) {
     // Marked pending by its id until the server's line replaces it.
-    const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true };
+    const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true, kind: undefined };
     store.setQuery(api.world.chatLog, { roomId: me.roomId }, [pending, ...log]);
   }
 };
@@ -628,15 +628,17 @@ export const useWorld = (enabled: boolean, away = false) => {
   );
 
   const duels = useQuery(api.world.duels, session ? { roomId: session.roomId } : "skip");
-  const duelPickM = useMutation(api.world.duelPick).withOptimisticUpdate((store, { duelId, pick }) => {
+  const duelPickM = useMutation(api.world.duelPick).withOptimisticUpdate((store, { duelId, round, pick }) => {
     const me = meIn(store);
     const rows = me && store.getQuery(api.world.duels, { roomId: me.roomId });
-    if (me && rows) store.setQuery(api.world.duels, { roomId: me.roomId }, rows.map((row) => (row.id === duelId ? { ...row, myPick: pick } : row)));
+    if (me && rows) {
+      store.setQuery(api.world.duels, { roomId: me.roomId }, rows.map((row) => (row.id === duelId && row.round === round ? { ...row, myPick: pick } : row)));
+    }
   });
   const pickInDuel = useCallback(
-    async (duelId: Id<"worldDuels">, pick: string): Promise<string | null> => {
+    async (duelId: Id<"worldDuels">, round: number, pick: string): Promise<string | null> => {
       try {
-        const reply = await duelPickM({ duelId, pick });
+        const reply = await duelPickM({ duelId, round, pick });
         return reply.ok ? null : reply.reason;
       } catch (e) {
         return e instanceof ConvexError ? String(e.data) : "That didn't send.";

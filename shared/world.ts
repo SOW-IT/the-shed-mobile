@@ -607,9 +607,12 @@ export const cleanPoke = (raw: string): string | null => {
 
 /** The name over someone's head: the first word of their name. */
 export const tagName = (name: string): string => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
   // By code point, so an emoji is never cut in half.
-  const first = Array.from(name.trim().split(/\s+/)[0] ?? "");
-  return first.length > 14 ? `${first.slice(0, 13).join("")}…` : first.join("") || "Someone";
+  const first = Array.from(words[0] ?? "");
+  const short = first.length > 14 ? `${first.slice(0, 13).join("")}…` : first.join("") || "Someone";
+  const initial = words.length > 1 ? Array.from(words[words.length - 1])[0].toUpperCase() : null;
+  return initial ? `${short} ${initial}.` : short;
 };
 
 /** A chat line as it's kept: trimmed, one line, at most MAX_SAY_LENGTH. */

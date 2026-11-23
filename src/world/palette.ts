@@ -178,6 +178,7 @@ export const chatLog = {
   place: "#7FF6FF",
   name: "#FFFFFF",
   status: "#E0E0E0",
+  system: "#FFFF55",
 } as const;
 
 const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);

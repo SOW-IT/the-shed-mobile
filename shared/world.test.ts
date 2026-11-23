@@ -163,8 +163,11 @@ test("a look from before version 2 draws with the old defaults, and the body sta
   expect(small.width).toBeCloseTo(0.85);
 });
 
-test("tagName shows a short first name", () => {
-  expect(tagName("  Grace   Lee ")).toBe("Grace");
+test("tagName shows a short first name and the last name's initial", () => {
+  expect(tagName("  Grace   Lee ")).toBe("Grace L.");
+  expect(tagName("Daniel Chan kim")).toBe("Daniel K.");
+  expect(tagName("Grace")).toBe("Grace");
+  expect(tagName("Maximiliannnnnnnn Ng")).toBe("Maximiliannnn… N.");
   expect(tagName("")).toBe("Someone");
   expect(tagName("Maximiliannnnnnnn")).toBe("Maximiliannnn…");
   expect(tagName("abcdefghijkl😀zzz")).toBe("abcdefghijkl😀…");

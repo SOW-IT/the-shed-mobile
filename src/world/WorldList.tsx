@@ -8,7 +8,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { accepted, announce } from "./announce";
 import { PENDING, type useWorld } from "./useWorld";
-import { clock, lineWhere, saidLabel } from "./view";
+import { clock, lineWhere, saidLabel, systemLine } from "./view";
 
 
 /**
@@ -264,7 +264,17 @@ export const WorldList = ({
         {/* On the web, a polite live region reads new lines out. */}
         <View aria-live="polite" style={styles.lines}>
         {shown
-          .map((line) => (
+          .map((line) => line.kind ? (
+            <Text
+              key={line.id}
+              style={[typography.caption, styles.line, { color: t.warning, fontWeight: "700" }]}
+              accessibilityLabel={saidLabel(line)}
+              testID="world-list-system"
+            >
+              [{clock(line.at)}] {systemLine(line)}
+              {line.here ? "" : ` · ${lineWhere(line)}`}
+            </Text>
+          ) : (
             <Pressable
               key={line.id}
               style={styles.line}

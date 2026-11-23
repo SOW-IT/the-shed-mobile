@@ -250,8 +250,13 @@ export const Garden = ({
   const typingSince = people.map((p) =>
     !p.muted && p.typing !== undefined && now - p.typing < TYPING_MS && (!p.say || p.say.at < p.typing) ? p.typing : undefined
   );
+  const swimmers = people.map((p, i) => {
+    const pose = poses[i];
+    return pose ? !sitting[i] && !p.away && inWater(place, pose) : false;
+  });
   const animating =
     poses.some((pose) => pose && (pose.walking || pose.strideAmp > 0 || pose.turning)) ||
+    swimmers.some(Boolean) ||
     doing.some((d) => d !== null) ||
     asks.length > 0 ||
     typingSince.some((at) => at !== undefined) ||
@@ -394,7 +399,7 @@ export const Garden = ({
     const seat = sitting[i];
     const seatRise = sitRise(seat?.height);
     const atArcade = p.away ? Math.atan2(ARCADE.x - pose.x, ARCADE.z - pose.z) : null;
-    const swimming = !seat && !p.away && inWater(place, pose);
+    const swimming = swimmers[i];
     const turned = { ...pose, heading: facingOverride[i] ?? atArcade ?? seat?.heading ?? pose.heading };
     const striding = pose.strideAmp > 0;
     const stride = { stridePhase: striding ? pose.stridePhase : 0, strideAmp: pose.strideAmp };
@@ -414,7 +419,7 @@ export const Garden = ({
           <Avatar figure={figure} pose={turned} look={p.look} t={0} seed={seed} stride={stride} />
         </View>
       ) : (
-        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} />
+        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d || swimming ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} />
       ),
     });
     const duelLook = duelLooks[i];

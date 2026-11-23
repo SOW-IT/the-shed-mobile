@@ -18,6 +18,7 @@ import {
   seatIn,
   isPlace,
   PLACES,
+  PLACE_TITLES,
   type Place,
   clampTarget,
   distance,
@@ -163,6 +164,33 @@ const throttleOf = (ctx: Ctx, email: string) =>
     .query("worldThrottle")
     .withIndex("by_email", (q) => q.eq("email", email))
     .unique();
+
+type ChatLine = { text: string; kind?: "join" | "leave" };
+
+const addChatLine = async (ctx: MutationCtx, member: Doc<"worldMembers">, line: ChatLine, now: number) => {
+  await ctx.db.insert("worldChat", {
+    roomId: member.roomId,
+    place: placeOf(member),
+    memberId: member._id,
+    email: member.email,
+    name: member.name,
+    at: now,
+    ...line,
+  });
+  const lines = await ctx.db
+    .query("worldChat")
+    .withIndex("by_roomId_and_at", (q) => q.eq("roomId", member.roomId))
+    .order("desc")
+    .take(CHAT_ROOM_CAP + 5);
+  for (const row of lines.slice(CHAT_ROOM_CAP)) await ctx.db.delete("worldChat", row._id);
+};
+
+const joinedLine = (member: Doc<"worldMembers">): ChatLine => ({
+  text: `joined ${PLACE_TITLES[placeOf(member)].replace(/^The /, "the ")}`,
+  kind: "join",
+});
+
+const LEFT_LINE: ChatLine = { text: "left", kind: "leave" };
 
 /**
  * Takes everything of one member out of the world, and their room if it
@@ -310,6 +338,7 @@ export const join = mutation({
       await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
       member = (await ctx.db.get("worldMembers", memberId))!;
       await markSeen(ctx, email, member.name, now);
+      await addChatLine(ctx, member, joinedLine(member), now);
     } else {
       // Another tab or device joining the same member: count the visit.
       await ctx.db.patch("worldMembers", member._id, { visits: (member.visits ?? 1) + 1 });
@@ -333,7 +362,10 @@ export const leave = mutation({
     if (!member) return null;
     const visits = member.visits ?? 1;
     if (visits > 1) await ctx.db.patch("worldMembers", member._id, { visits: visits - 1 });
-    else await removeMember(ctx, member);
+    else {
+      await addChatLine(ctx, member, LEFT_LINE, Date.now());
+      await removeMember(ctx, member);
+    }
     return null;
   },
 });
@@ -537,21 +569,15 @@ export const say = mutation({
   handler: async (ctx, args) => {
     const text = cleanLine(args.text);
     if (!text) throw new ConvexError("Write something first.");
-    const { email, member, state } = await requireMe(ctx);
+    const { member, state } = await requireMe(ctx);
     const now = Date.now();
     // The same line again straight after is a double tap, not a new line.
     if (state.say?.text === text && now - state.say.at < 5000) return { ok: true as const, serverNow: now };
     const token = spend("say", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     await ctx.db.patch("worldState", state._id, { say: { text, at: now }, typing: undefined, sayBucket: token.bucket });
-    await ctx.db.insert("worldChat", { roomId: member.roomId, place: placeOf(member), memberId: member._id, email, name: member.name, text, at: now });
     // Keep the room within CHAT_ROOM_CAP lines as each one arrives.
-    const lines = await ctx.db
-      .query("worldChat")
-      .withIndex("by_roomId_and_at", (q) => q.eq("roomId", member.roomId))
-      .order("desc")
-      .take(CHAT_ROOM_CAP + 5);
-    for (const row of lines.slice(CHAT_ROOM_CAP)) await ctx.db.delete("worldChat", row._id);
+    await addChatLine(ctx, member, { text }, now);
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
   },
@@ -657,7 +683,8 @@ export const accept = mutation({
         round: 1,
         startsAt: now,
         endsAt: now + DUEL_FIRST_MS,
-        changes: 0,
+        aChanges: 0,
+        bChanges: 0,
       });
       await ctx.scheduler.runAt(now + DUEL_FIRST_MS, internal.world.resolveDuel, { duelId, round: 1 });
     }
@@ -683,9 +710,9 @@ const liveDuelOf = async (ctx: Ctx, memberId: Id<"worldMembers">) => {
 const randomPick = () => DUEL_PICK_ORDER[Math.floor(Math.random() * DUEL_PICK_ORDER.length)];
 
 export const duelPick = mutation({
-  args: { duelId: v.id("worldDuels"), pick: v.string() },
+  args: { duelId: v.id("worldDuels"), round: v.number(), pick: v.string() },
   returns: v.union(v.object({ ok: v.literal(true) }), v.object({ ok: v.literal(false), reason: v.string() })),
-  handler: async (ctx, { duelId, pick }) => {
+  handler: async (ctx, { duelId, round, pick }) => {
     if (!isDuelPick(pick)) throw new ConvexError("Pick rock, paper or scissors.");
     const { member } = await requireMe(ctx);
     const duel = await ctx.db.get("worldDuels", duelId);
@@ -693,10 +720,15 @@ export const duelPick = mutation({
     if (!duel || duel.doneAt !== undefined || (duel.a !== member._id && duel.b !== member._id)) {
       return { ok: false as const, reason: "That game's over." };
     }
-    if (now < duel.startsAt || now >= duel.endsAt) return { ok: false as const, reason: "Too late for this round." };
-    if (duel.changes >= DUEL_PICK_CHANGES) return { ok: false as const, reason: "Make up your mind!" };
-    const side = duel.a === member._id ? "aPick" : "bPick";
-    if (duel[side] !== pick) await ctx.db.patch("worldDuels", duel._id, { [side]: pick, changes: duel.changes + 1 });
+    if (duel.round !== round || now < duel.startsAt || now >= duel.endsAt) {
+      return { ok: false as const, reason: "Too late for this round." };
+    }
+    const isA = duel.a === member._id;
+    const changes = isA ? duel.aChanges : duel.bChanges;
+    if (changes >= DUEL_PICK_CHANGES) return { ok: false as const, reason: "Make up your mind!" };
+    if ((isA ? duel.aPick : duel.bPick) !== pick) {
+      await ctx.db.patch("worldDuels", duel._id, isA ? { aPick: pick, aChanges: changes + 1 } : { bPick: pick, bChanges: changes + 1 });
+    }
     return { ok: true as const };
   },
 });
@@ -716,16 +748,26 @@ export const resolveDuel = internalMutation({
     const aPick = isDuelPick(duel.aPick) ? duel.aPick : randomPick();
     const bPick = isDuelPick(duel.bPick) ? duel.bPick : randomPick();
     const winner = duelWinner(aPick, bPick);
-    const shown = { a: aPick, b: bPick, at: duel.endsAt, winner };
+    const at = Math.max(duel.endsAt, Date.now());
+    const shown = { a: aPick, b: bPick, at, winner };
     if (winner === "draw" && round < DUEL_MAX_ROUNDS) {
-      const startsAt = duel.endsAt + DUEL_REVEAL_MS;
+      const startsAt = at + DUEL_REVEAL_MS;
       const endsAt = startsAt + DUEL_AGAIN_MS;
-      await ctx.db.patch("worldDuels", duel._id, { shown, round: round + 1, startsAt, endsAt, aPick: undefined, bPick: undefined, changes: 0 });
+      await ctx.db.patch("worldDuels", duel._id, {
+        shown,
+        round: round + 1,
+        startsAt,
+        endsAt,
+        aPick: undefined,
+        bPick: undefined,
+        aChanges: 0,
+        bChanges: 0,
+      });
       await ctx.scheduler.runAt(endsAt, internal.world.resolveDuel, { duelId, round: round + 1 });
       return null;
     }
-    await ctx.db.patch("worldDuels", duel._id, { shown, doneAt: duel.endsAt });
-    await ctx.scheduler.runAt(duel.endsAt + DUEL_REVEAL_MS + EMOTE_MS, internal.world.clearDuel, { duelId });
+    await ctx.db.patch("worldDuels", duel._id, { shown, doneAt: at });
+    await ctx.scheduler.runAt(at + DUEL_REVEAL_MS + EMOTE_MS, internal.world.clearDuel, { duelId });
     return null;
   },
 });
@@ -775,7 +817,19 @@ export const duels = query({
       .query("worldDuels")
       .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
       .take(DUEL_SCAN);
-    return rows.map((row) => ({
+    const hidden = new Map<Id<"worldMembers">, boolean>();
+    const hides = async (memberId: Id<"worldMembers">) => {
+      if (memberId === me._id) return false;
+      const known = hidden.get(memberId);
+      if (known !== undefined) return known;
+      const member = await ctx.db.get("worldMembers", memberId);
+      const hide = !member || (await blockedEither(ctx, me.email, member.email));
+      hidden.set(memberId, hide);
+      return hide;
+    };
+    const visible = [];
+    for (const row of rows) if (!(await hides(row.a)) && !(await hides(row.b))) visible.push(row);
+    return visible.map((row) => ({
       id: row._id,
       a: row.a,
       b: row.b,
@@ -899,6 +953,7 @@ export const chatLog = query({
         isMe: v.boolean(),
         place: v.optional(v.string()),
         here: v.boolean(),
+        kind: v.optional(v.union(v.literal("join"), v.literal("leave"))),
       })
     )
   ),
@@ -927,6 +982,7 @@ export const chatLog = query({
         isMe: row.email === me.email,
         place: row.place,
         here: row.place === undefined ? row.roomId === roomId : row.place === placeOf(me),
+        kind: row.kind,
       });
     }
     return lines;
@@ -1051,6 +1107,17 @@ export const poke = mutation({
   },
 });
 
+const saidLines = async (rows: AsyncIterable<Doc<"worldChat">>, count: number) => {
+  const said: Doc<"worldChat">[] = [];
+  if (count <= 0) return said;
+  for await (const row of rows) {
+    if (row.kind !== undefined) continue;
+    said.push(row);
+    if (said.length === count) break;
+  }
+  return said;
+};
+
 /**
  * Reports someone, copying their recent lines and the room's around them, so
  * the report outlives the 15-minute chat.
@@ -1078,19 +1145,23 @@ export const report = mutation({
     const room = await ctx.db.get("worldRooms", other.roomId);
     // Their own latest lines, however busy the room has been since, and the
     // room's latest lines around them, in the order they were said.
-    const own = await ctx.db
-      .query("worldChat")
-      .withIndex("by_roomId_and_email_and_at", (q) =>
-        q.eq("roomId", other.roomId).eq("email", other.email).gt("at", now - CHAT_TTL_MS)
-      )
-      .order("desc")
-      .take(REPORT_OWN_LINES);
+    const own = await saidLines(
+      ctx.db
+        .query("worldChat")
+        .withIndex("by_roomId_and_email_and_at", (q) =>
+          q.eq("roomId", other.roomId).eq("email", other.email).gt("at", now - CHAT_TTL_MS)
+        )
+        .order("desc"),
+      REPORT_OWN_LINES
+    );
     // Only lines still inside the chat TTL, as the room would see them.
-    const context = await ctx.db
-      .query("worldChat")
-      .withIndex("by_roomId_and_at", (q) => q.eq("roomId", other.roomId).gt("at", now - CHAT_TTL_MS))
-      .order("desc")
-      .take(REPORT_CONTEXT_LINES);
+    const context = await saidLines(
+      ctx.db
+        .query("worldChat")
+        .withIndex("by_roomId_and_at", (q) => q.eq("roomId", other.roomId).gt("at", now - CHAT_TTL_MS))
+        .order("desc"),
+      REPORT_CONTEXT_LINES
+    );
     const byId = new Map([...own, ...context].map((row) => [row._id, row]));
     const rows = [...byId.values()].sort((a, b) => a.at - b.at);
     await ctx.db.insert("worldReports", {
@@ -1160,8 +1231,10 @@ export const sweep = internalMutation({
       .take(SWEEP_BATCH);
     for (const presence of stale) {
       const member = await ctx.db.get("worldMembers", presence.memberId);
-      if (member) await removeMember(ctx, member);
-      else await ctx.db.delete("worldPresence", presence._id);
+      if (member) {
+        await addChatLine(ctx, member, LEFT_LINE, now);
+        await removeMember(ctx, member);
+      } else await ctx.db.delete("worldPresence", presence._id);
     }
     if (await purgeOldChat(ctx, now)) await ctx.scheduler.runAfter(0, internal.world.purgeChat, {});
     const rooms = await ctx.db.query("worldRooms").take(ROOM_SCAN);

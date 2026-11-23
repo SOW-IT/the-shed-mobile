@@ -28,8 +28,10 @@ type DuelLook = {
   result: { emote: EmoteId; p: number } | null;
 };
 
-export const duelFor = <D extends DuelView>(duels: readonly D[], memberId: string, now: number): D | null =>
-  duels.find((duel) => (duel.a === memberId || duel.b === memberId) && duelStillShowing(duel, now)) ?? null;
+export const duelFor = <D extends DuelView>(duels: readonly D[], memberId: string, now: number): D | null => {
+  const theirs = duels.filter((duel) => (duel.a === memberId || duel.b === memberId) && duelStillShowing(duel, now));
+  return theirs.find((duel) => !duel.done) ?? theirs[0] ?? null;
+};
 
 const duelStillShowing = (duel: DuelView, now: number) =>
   !duel.done || (duel.shown !== undefined && now < duel.shown.at + DUEL_REVEAL_MS + EMOTE_MS);

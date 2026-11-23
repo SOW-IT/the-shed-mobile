@@ -222,16 +222,15 @@ export const WorldScreen = ({
   const myDuel = world.memberId ? duelFor(world.duels, world.memberId, now) : null;
   const duelOpponent = myDuel ? (myDuel.a === world.memberId ? myDuel.b : myDuel.a) : null;
   const pickInMyDuel = (pick: DuelPick) => {
-    if (myDuel) void world.pickInDuel(myDuel.id, pick).then((problem) => problem && setNote(problem));
+    if (myDuel) void world.pickInDuel(myDuel.id, myDuel.round, pick).then((problem) => problem && setNote(problem));
   };
-  const duelCard = (
-    <DuelCard
-      duel={myDuel}
-      opponentName={duelOpponent ? firstName(duelOpponent) : "them"}
-      serverNow={world.serverNow}
-      onPick={pickInMyDuel}
-    />
-  );
+  const duelProps = {
+    duel: myDuel,
+    side: myDuel && myDuel.b === world.memberId ? ("b" as const) : ("a" as const),
+    opponentName: duelOpponent ? firstName(duelOpponent) : "them",
+    serverNow: world.serverNow,
+    onPick: pickInMyDuel,
+  };
 
   const askFor = (to: string, kind: AskKind) => {
     const other = world.people.find((p) => p.memberId === to);
@@ -453,6 +452,7 @@ export const WorldScreen = ({
         onToggleMute={toggleMute}
         onWave={() => emote("wave")}
         onHighFive={highFive}
+        onDuel={(to) => walkOverAndAsk(to, "rps")}
         onClose={() => setSheet(null)}
         onDone={setNote}
       />
@@ -497,7 +497,7 @@ export const WorldScreen = ({
           note={note}
           onNote={setNote}
           onLine={openSpeaker}
-          duelCard={duelCard}
+          duelCard={<DuelCard {...duelProps} showResult />}
           declined={declined}
           onAccept={accept}
           onDecline={decline}
@@ -601,7 +601,7 @@ export const WorldScreen = ({
         ]}
         pointerEvents="box-none"
       >
-        {duelCard}
+        <DuelCard {...duelProps} />
         {tray ? (
           <View style={styles.tray} testID="world-emote-tray">
             {EMOTE_TRAY.map((id) => (

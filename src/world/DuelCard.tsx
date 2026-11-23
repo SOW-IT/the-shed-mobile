@@ -1,4 +1,4 @@
-import { DUEL_PICK_ORDER, DUEL_PICKS, type DuelPick } from "@shared/world";
+import { DUEL_PICK_ORDER, DUEL_PICKS, isDuelPick, type DuelPick } from "@shared/world";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { announce } from "./announce";
@@ -7,22 +7,29 @@ import { hud } from "./palette";
 
 const TICK_MS = 100;
 
+const pickName = (pick: string) => (isDuelPick(pick) ? DUEL_PICKS[pick].label.toLowerCase() : pick);
+const pickIcon = (pick: string) => (isDuelPick(pick) ? DUEL_PICKS[pick].icon : "");
+
 export const DuelCard = ({
   duel,
+  side,
   opponentName,
   serverNow,
   onPick,
+  showResult = false,
 }: {
   duel: DuelView | null;
+  side: "a" | "b";
   opponentName: string;
   serverNow: () => number;
   onPick: (pick: DuelPick) => void;
+  showResult?: boolean;
 }) => {
   const [now, setNow] = useState(serverNow);
   const live = choosing(duel, now);
   const endsAt = duel?.endsAt ?? 0;
   const round = duel?.round ?? 1;
-  const waiting = duel !== null && !duel.done;
+  const waiting = duel !== null && (!duel.done || showResult);
   useEffect(() => {
     if (!waiting) return;
     const id = setInterval(() => setNow(serverNow()), TICK_MS);
@@ -31,7 +38,43 @@ export const DuelCard = ({
   useEffect(() => {
     if (live) announce(round > 1 ? "Draw. Pick again." : `Rock paper scissors with ${opponentName}. Pick one.`);
   }, [live, round, opponentName]);
-  if (!duel || !live) return null;
+  const shown = duel?.shown;
+  const revealed = showResult && !live && shown !== undefined && now >= shown.at;
+  const mine = shown ? shown[side] : "";
+  const theirs = shown ? shown[side === "a" ? "b" : "a"] : "";
+  const verdict = !shown || shown.winner === "draw" ? "Draw!" : shown.winner === side ? "You win!" : `${opponentName} wins.`;
+  const said = revealed ? `You picked ${pickName(mine)}, ${opponentName} picked ${pickName(theirs)}. ${verdict}` : null;
+  useEffect(() => {
+    if (said) announce(said);
+  }, [said]);
+  if (!duel) return null;
+  if (!live) {
+    if (said === null) return null;
+    return (
+      <View style={styles.card} testID="world-duel-result" accessible accessibilityLabel={said}>
+        <View style={styles.head}>
+          <Text style={styles.title} numberOfLines={1}>
+            {verdict}
+          </Text>
+        </View>
+        <View style={styles.row}>
+          <View style={[styles.pick, shown?.winner === side && styles.picked]}>
+            <Text style={styles.icon}>{pickIcon(mine)}</Text>
+            <Text style={[styles.label, shown?.winner === side && styles.pickedLabel]}>You</Text>
+          </View>
+          <View style={[styles.pick, shown !== undefined && shown.winner !== side && shown.winner !== "draw" && styles.picked]}>
+            <Text style={styles.icon}>{pickIcon(theirs)}</Text>
+            <Text
+              style={[styles.label, shown !== undefined && shown.winner !== side && shown.winner !== "draw" && styles.pickedLabel]}
+              numberOfLines={1}
+            >
+              {opponentName}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
   const left = Math.max(0, Math.ceil((duel.endsAt - now) / 1000));
   const share = Math.max(0, Math.min(1, (duel.endsAt - now) / (duel.endsAt - duel.startsAt)));
   return (

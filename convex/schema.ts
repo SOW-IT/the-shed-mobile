@@ -202,7 +202,8 @@ export default defineSchema({
     endsAt: v.number(),
     aPick: v.optional(v.string()),
     bPick: v.optional(v.string()),
-    changes: v.number(),
+    aChanges: v.number(),
+    bChanges: v.number(),
     shown: v.optional(
       v.object({
         a: v.string(),
@@ -248,6 +249,7 @@ export default defineSchema({
     name: v.string(),
     text: v.string(),
     at: v.number(),
+    kind: v.optional(v.union(v.literal("join"), v.literal("leave"))),
   })
     .index("by_roomId_and_at", ["roomId", "at"])
     .index("by_roomId_and_email_and_at", ["roomId", "email", "at"])

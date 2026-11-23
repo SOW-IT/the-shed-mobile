@@ -47,4 +47,10 @@ describe("what a duel shows over each player", () => {
     expect(duelFor([won, fresh], "ann", 21_000)?.id).toBe("d2");
     expect(choosing(null, 0)).toBe(false);
   });
+
+  test("a new duel wins over a result still showing", () => {
+    const next: DuelView = { ...live, id: "d2", startsAt: 5050, endsAt: 10_050 };
+    expect(duelFor([won, next], "ann", 5100)?.id).toBe("d2");
+    expect(duelFor([won], "ann", 5100)?.id).toBe("d1");
+  });
 });
