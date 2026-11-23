@@ -269,6 +269,7 @@ describe("places", () => {
     await standAt(t, b.memberId, 1, 0);
     await ben.mutation(api.world.ask, { to: a.memberId, kind: "highFive" });
     await anna.mutation(api.world.ask, { to: b.memberId, kind: "highFive" });
+    await anna.mutation(api.world.say, { text: "Only for the Garden" });
     later(1000);
     const moved = await anna.mutation(api.world.travel, { to: "chapel" });
     const spot = arrivalSpot("garden", "chapel");
@@ -279,6 +280,7 @@ describe("places", () => {
     const there = await anna.query(api.world.roster, { roomId: moved.roomId });
     expect(there).toMatchObject({ place: "chapel", members: [{ memberId: a.memberId, isMe: true }] });
     expect((await stateRow(t, a.memberId))!.ask).toBeUndefined();
+    expect((await stateRow(t, a.memberId))!.say).toBeUndefined();
     expect(await anna.query(api.world.places, {})).toMatchObject({ garden: 1, chapel: 1 });
     expect((await ben.query(api.world.roster, { roomId: b.roomId }))!.members).toHaveLength(1);
     expect(await ben.query(api.world.state, { memberId: a.memberId })).toBeNull();
@@ -369,6 +371,19 @@ describe("places", () => {
     const [chapel] = await anna.query(api.world.elsewhere, {});
     expect(chapel.count).toBe(ELSEWHERE_NAMES + 3);
     expect(chapel.names).toHaveLength(ELSEWHERE_NAMES);
+  });
+
+  test("hides someone who blocked you even when hundreds of others have too", async () => {
+    const { t, anna, ben } = await two();
+    const cara = asUser(t, CARA);
+    await cara.mutation(api.world.join, {});
+    await ben.mutation(api.world.travel, { to: "chapel" });
+    await cara.mutation(api.world.travel, { to: "chapel" });
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 200; i++) await ctx.db.insert("worldBlocks", { email: `stranger${i}@sow.org.au`, blockedEmail: ANNA, blockedName: "Anna" });
+      await ctx.db.insert("worldBlocks", { email: CARA, blockedEmail: ANNA, blockedName: "Anna" });
+    });
+    expect(await anna.query(api.world.elsewhere, {})).toEqual([{ place: "chapel", count: 1, names: [expect.any(String)] }]);
   });
 
   test("another tab joins you where you are, and leaving from anywhere tidies up", async () => {

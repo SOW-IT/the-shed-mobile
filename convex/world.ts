@@ -394,6 +394,7 @@ export const travel = mutation({
     const walk = { fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z, startedAt: now };
     await ctx.db.patch("worldState", state._id, {
       ...walk,
+      say: undefined,
       ask: undefined,
       reply: undefined,
       answered: undefined,
@@ -423,8 +424,9 @@ export const elsewhere = query({
     const ofMe = await ctx.db
       .query("worldBlocks")
       .withIndex("by_blockedEmail", (q) => q.eq("blockedEmail", email))
-      .take(BLOCKED_BY_SCAN);
+      .take(BLOCKED_BY_SCAN + 1);
     for (const row of ofMe) hidden.add(row.email);
+    const askEach = ofMe.length > BLOCKED_BY_SCAN;
     const found = [];
     for (const place of PLACES) {
       const rooms = await ctx.db
@@ -441,6 +443,7 @@ export const elsewhere = query({
           .take(ROOM_CAP);
         for (const member of members) {
           if (hidden.has(member.email)) continue;
+          if (askEach && (await blocks(ctx, member.email, email))) continue;
           count++;
           if (names.length < ELSEWHERE_NAMES) names.push(member.name);
         }

@@ -363,6 +363,10 @@ export const useWorld = (enabled: boolean, away = false) => {
 
   const flush = useCallback(() => {
     timer.current = null;
+    if (travelling.current) {
+      pending.current = null;
+      return;
+    }
     const to = pending.current;
     if (!to || inFlight.current) return;
     pending.current = null;
@@ -576,9 +580,14 @@ export const useWorld = (enabled: boolean, away = false) => {
     async (to: Place): Promise<string | null> => {
       if (!session || travelling.current) return null;
       travelling.current = true;
+      pending.current = null;
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
       const sentAt = Date.now();
+      const sentIn = visit.current;
       try {
         const reply = await travelM({ to });
+        if (sentIn !== visit.current) return null;
         heard(reply.serverNow, sentAt);
         if (!reply.ok) return turnedAwayText(reply);
         spendAct();
@@ -595,6 +604,7 @@ export const useWorld = (enabled: boolean, away = false) => {
         setSession({ roomId: reply.roomId, memberId: session.memberId, instance: reply.instance, place: placeFrom(reply.place) });
         return null;
       } catch (e) {
+        if (sentIn !== visit.current) return null;
         if (leftGarden(e)) again();
         return e instanceof ConvexError ? String(e.data) : "Couldn't get there.";
       } finally {

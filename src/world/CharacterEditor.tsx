@@ -32,6 +32,10 @@ import { Ellipse } from "./Shapes";
 const BASE_PREVIEW = 148;
 const MAX_PREVIEW = 300;
 const COLUMN_WIDTH = 560;
+const WIDE_COLUMN = 960;
+const SHORT_SCREEN = 600;
+const SIDE_BY_SIDE_WIDTH = 560;
+const SHORT_PREVIEW = 110;
 
 /** Turns per pixel dragged (radians). */
 const TURN_PER_PX = 0.012;
@@ -343,8 +347,11 @@ export const CharacterEditor = ({
 }) => {
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { height: screenHeight } = useWindowDimensions();
-  const previewHeight = Math.round(Math.min(MAX_PREVIEW, Math.max(BASE_PREVIEW, screenHeight * 0.3)));
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const short = screenHeight < SHORT_SCREEN;
+  const sideBySide = short && screenWidth >= SIDE_BY_SIDE_WIDTH;
+  const previewHeight = short ? SHORT_PREVIEW : Math.round(Math.min(MAX_PREVIEW, Math.max(BASE_PREVIEW, screenHeight * 0.3)));
+  const [sideHeight, setSideHeight] = useState(0);
   const [choicesWidth, setChoicesWidth] = useState(0);
   const tile = tileFor(choicesWidth);
   const [draft, setDraft] = useState<Look>(look);
@@ -368,10 +375,108 @@ export const CharacterEditor = ({
     onClose();
   };
   const section = (title: string) => <Text style={[typography.label, { color: t.muted }]}>{title}</Text>;
+  const tabs = (
+    <View style={styles.tabs} accessibilityRole="tablist">
+      {TABS.map((name) => (
+        <Pressable
+          key={name}
+          onPress={() => setTab(name)}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: tab === name }}
+          testID={`world-editor-tab-${name.toLowerCase()}`}
+          style={[styles.tab, tab === name && { backgroundColor: hud.primary }]}
+        >
+          <Text style={[typography.label, { color: tab === name ? hud.cream : hud.forest }]} numberOfLines={1}>
+            {name}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+  const choices = (
+    <ScrollView
+      style={styles.grow}
+      contentContainerStyle={styles.stack}
+      onLayout={(e) => setChoicesWidth(e.nativeEvent.layout.width)}
+    >
+      {tab === "Face" ? (
+        <>
+          {section("Skin")}
+          <Swatches colours={people.skins} value={draft.skin} onPick={set("skin")} label="Skin" order={SKINS_LIGHT_TO_DARK} />
+          {section("Face shape")}
+          <Choices names={FACES} part="face" framing="face" draft={draft} onPick={set("face")} tile={tile} testID="world-editor-face" />
+          {section("Eyes")}
+          <Choices names={EYES} part="eyes" framing="face" draft={draft} onPick={set("eyes")} tile={tile} testID="world-editor-eyes" />
+          {section("Eye colour")}
+          <Swatches colours={people.eyeColours} value={part("eyeColour")} onPick={set("eyeColour")} label="Eye colour" />
+          {section("Eyebrows")}
+          <Choices names={BROWS} part="brows" framing="face" draft={draft} onPick={set("brows")} tile={tile} testID="world-editor-brows" />
+          {section("Nose")}
+          <Choices names={NOSES} part="nose" framing="face" draft={draft} onPick={set("nose")} tile={tile} testID="world-editor-nose" />
+          {section("Mouth")}
+          <Choices names={MOUTHS} part="mouth" framing="face" draft={draft} onPick={set("mouth")} tile={tile} testID="world-editor-mouth" />
+        </>
+      ) : null}
+      {tab === "Hair" ? (
+        <>
+          {section("Hairstyle")}
+          <Choices names={HAIR_STYLES} part="hair" framing="hair" draft={draft} onPick={set("hair")} tile={tile} testID="world-editor-hair" />
+          {section("Hair colour")}
+          <Swatches colours={people.hairColours} value={draft.hairColour} onPick={set("hairColour")} label="Hair colour" />
+        </>
+      ) : null}
+      {tab === "Body" ? (
+        <>
+          {section("Height")}
+          <Steps value={part("height")} count={LOOK_SIZES.height} onPick={set("height")} label="Height" low="Short" high="Tall" />
+          {section("Build")}
+          <Steps value={part("build")} count={LOOK_SIZES.build} onPick={set("build")} label="Build" low="Slim" high="Broad" />
+          <Text style={[typography.caption, { color: t.muted }]}>
+            Only how you look: everyone walks, stands and hears the same.
+          </Text>
+        </>
+      ) : null}
+      {tab === "Outfit" ? (
+        <>
+          {section("Outfit")}
+          <Choices names={OUTFITS} part="outfit" framing="outfit" draft={draft} onPick={set("outfit")} tile={tile} testID="world-editor-outfit" />
+          {section("Colour")}
+          <Swatches colours={people.shirts} value={draft.shirt} onPick={set("shirt")} label="Shirt" />
+          {section("Hat")}
+          <Choices names={HATS} part="hat" framing="hat" draft={draft} onPick={set("hat")} tile={tile} testID="world-editor-hat" />
+        </>
+      ) : null}
+      {tab === "Extras" ? (
+        <>
+          {section("Extra")}
+          <Choices names={ACCESSORIES} part="accessory" framing="body" draft={draft} onPick={set("accessory")} tile={tile} testID="world-editor-extra" />
+          {section("Blush")}
+          <Choices names={BLUSH} part="blush" framing="face" draft={draft} onPick={set("blush")} tile={tile} testID="world-editor-blush" />
+          {section("Freckles")}
+          <Choices names={ON_OFF} part="freckles" framing="face" draft={draft} onPick={set("freckles")} tile={tile} testID="world-editor-freckles" />
+          {section("Beard")}
+          <Choices names={BEARDS} part="beard" framing="face" draft={draft} onPick={set("beard")} tile={tile} testID="world-editor-beard" />
+        </>
+      ) : null}
+    </ScrollView>
+  );
+  const footer = (
+    <View style={styles.footer}>
+      <View style={styles.buttons}>
+        <View style={styles.grow}>
+          <Btn title="Randomise" icon="shuffle" variant="tonal" onPress={() => setDraft(randomLook())} />
+        </View>
+        <View style={styles.grow}>
+          <Btn title="Save" icon="checkmark" onPress={save} />
+        </View>
+      </View>
+      {short ? null : <Text style={[typography.caption, { color: t.muted }]}>Everyone sees your new look when you save.</Text>}
+    </View>
+  );
   return (
     <FastModal visible={visible} onRequestClose={onClose}>
       <View style={[styles.screen, { backgroundColor: t.background, paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom + spacing.sm }]}>
-        <View style={styles.column} testID="world-editor">
+        <View style={[styles.column, sideBySide && { maxWidth: WIDE_COLUMN }]} testID="world-editor">
           <View style={styles.header}>
             <Text style={[typography.headline, styles.grow, { color: t.text }]} accessibilityRole="header">
               Your character
@@ -387,99 +492,27 @@ export const CharacterEditor = ({
               <Ionicons name="close" size={20} color={t.ghostText} />
             </Pressable>
           </View>
-          <Preview look={draft} active={visible} height={previewHeight} />
-          <View style={styles.tabs} accessibilityRole="tablist">
-            {TABS.map((name) => (
-              <Pressable
-                key={name}
-                onPress={() => setTab(name)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: tab === name }}
-                testID={`world-editor-tab-${name.toLowerCase()}`}
-                style={[styles.tab, tab === name && { backgroundColor: hud.primary }]}
-              >
-                <Text style={[typography.label, { color: tab === name ? hud.cream : hud.forest }]} numberOfLines={1}>
-                  {name}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <ScrollView
-            style={styles.grow}
-            contentContainerStyle={styles.stack}
-            onLayout={(e) => setChoicesWidth(e.nativeEvent.layout.width)}
-          >
-        {tab === "Face" ? (
-          <>
-            {section("Skin")}
-            <Swatches colours={people.skins} value={draft.skin} onPick={set("skin")} label="Skin" order={SKINS_LIGHT_TO_DARK} />
-            {section("Face shape")}
-            <Choices names={FACES} part="face" framing="face" draft={draft} onPick={set("face")} tile={tile} testID="world-editor-face" />
-            {section("Eyes")}
-            <Choices names={EYES} part="eyes" framing="face" draft={draft} onPick={set("eyes")} tile={tile} testID="world-editor-eyes" />
-            {section("Eye colour")}
-            <Swatches colours={people.eyeColours} value={part("eyeColour")} onPick={set("eyeColour")} label="Eye colour" />
-            {section("Eyebrows")}
-            <Choices names={BROWS} part="brows" framing="face" draft={draft} onPick={set("brows")} tile={tile} testID="world-editor-brows" />
-            {section("Nose")}
-            <Choices names={NOSES} part="nose" framing="face" draft={draft} onPick={set("nose")} tile={tile} testID="world-editor-nose" />
-            {section("Mouth")}
-            <Choices names={MOUTHS} part="mouth" framing="face" draft={draft} onPick={set("mouth")} tile={tile} testID="world-editor-mouth" />
-          </>
-        ) : null}
-        {tab === "Hair" ? (
-          <>
-            {section("Hairstyle")}
-            <Choices names={HAIR_STYLES} part="hair" framing="hair" draft={draft} onPick={set("hair")} tile={tile} testID="world-editor-hair" />
-            {section("Hair colour")}
-            <Swatches colours={people.hairColours} value={draft.hairColour} onPick={set("hairColour")} label="Hair colour" />
-          </>
-        ) : null}
-        {tab === "Body" ? (
-          <>
-            {section("Height")}
-            <Steps value={part("height")} count={LOOK_SIZES.height} onPick={set("height")} label="Height" low="Short" high="Tall" />
-            {section("Build")}
-            <Steps value={part("build")} count={LOOK_SIZES.build} onPick={set("build")} label="Build" low="Slim" high="Broad" />
-            <Text style={[typography.caption, { color: t.muted }]}>
-              Only how you look: everyone walks, stands and hears the same.
-            </Text>
-          </>
-        ) : null}
-        {tab === "Outfit" ? (
-          <>
-            {section("Outfit")}
-            <Choices names={OUTFITS} part="outfit" framing="outfit" draft={draft} onPick={set("outfit")} tile={tile} testID="world-editor-outfit" />
-            {section("Colour")}
-            <Swatches colours={people.shirts} value={draft.shirt} onPick={set("shirt")} label="Shirt" />
-            {section("Hat")}
-            <Choices names={HATS} part="hat" framing="hat" draft={draft} onPick={set("hat")} tile={tile} testID="world-editor-hat" />
-          </>
-        ) : null}
-        {tab === "Extras" ? (
-          <>
-            {section("Extra")}
-            <Choices names={ACCESSORIES} part="accessory" framing="body" draft={draft} onPick={set("accessory")} tile={tile} testID="world-editor-extra" />
-            {section("Blush")}
-            <Choices names={BLUSH} part="blush" framing="face" draft={draft} onPick={set("blush")} tile={tile} testID="world-editor-blush" />
-            {section("Freckles")}
-            <Choices names={ON_OFF} part="freckles" framing="face" draft={draft} onPick={set("freckles")} tile={tile} testID="world-editor-freckles" />
-            {section("Beard")}
-            <Choices names={BEARDS} part="beard" framing="face" draft={draft} onPick={set("beard")} tile={tile} testID="world-editor-beard" />
-          </>
-        ) : null}
-          </ScrollView>
-          <View style={styles.footer}>
-            <View style={styles.buttons}>
-              <View style={styles.grow}>
-                <Btn title="Randomise" icon="shuffle" variant="tonal" onPress={() => setDraft(randomLook())} />
+          {sideBySide ? (
+            <View style={styles.sideBySide}>
+              <View style={styles.side}>
+                <View style={styles.grow} onLayout={(e) => setSideHeight(e.nativeEvent.layout.height)}>
+                  {sideHeight > 0 ? <Preview look={draft} active={visible} height={sideHeight} /> : null}
+                </View>
+                {footer}
               </View>
-              <View style={styles.grow}>
-                <Btn title="Save" icon="checkmark" onPress={save} />
+              <View style={styles.pane}>
+                {tabs}
+                {choices}
               </View>
             </View>
-            <Text style={[typography.caption, { color: t.muted }]}>Everyone sees your new look when you save.</Text>
-          </View>
+          ) : (
+            <>
+              <Preview look={draft} active={visible} height={previewHeight} />
+              {tabs}
+              {choices}
+              {footer}
+            </>
+          )}
         </View>
       </View>
     </FastModal>
@@ -490,6 +523,9 @@ const styles = StyleSheet.create({
   stack: { gap: spacing.sm, paddingBottom: spacing.sm },
   screen: { flex: 1, alignItems: "center" },
   column: { flex: 1, width: "100%", maxWidth: COLUMN_WIDTH, paddingHorizontal: spacing.lg, gap: spacing.sm },
+  sideBySide: { flex: 1, flexDirection: "row", gap: spacing.md },
+  side: { width: "40%", gap: spacing.sm },
+  pane: { flex: 1, gap: spacing.sm },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xs },
   close: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
   tabs: { flexDirection: "row", gap: 6 },
