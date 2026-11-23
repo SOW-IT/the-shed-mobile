@@ -48,6 +48,16 @@ All notable changes to **The SHED** mobile app. This project follows
   where it was drawn before, and an older app shows a newer look with the
   parts it knows.
 
+## [2.12.31] - 2026-11-24
+
+### Changed
+- **Loading spinners on the website stop using the computer.** The spinning
+  SOW mark and the pulsing grey placeholders were redrawn by the page's code
+  every frame. On the website they're now animations the browser runs by
+  itself, so a spinner left on screen (like the one at the bottom of a long
+  All list) no longer keeps a laptop or phone busy. They look the same, and
+  the app on phones is unchanged.
+
 ## [2.12.30] - 2026-11-24
 
 ### Fixed
