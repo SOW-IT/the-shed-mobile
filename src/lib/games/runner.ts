@@ -25,7 +25,7 @@ export const RUNNER = {
   slideSeconds: 0.6,
   startSpeed: 300,
   speedGain: 9,
-  topSpeed: 720,
+  topSpeed: 960,
   /** Distance per point. */
   stride: 12,
   /** The floating beam: over a slide, into a standing head; a big jump clears it too. */

@@ -16,6 +16,32 @@ All notable changes to **The SHED** mobile app. This project follows
   ("Fly and shoot.", "Run and jump.", "Tap through the gaps.") instead of the
   full how-to-play text, which still shows on the game's start card.
 
+## [2.12.17] - 2026-11-23
+
+### Changed
+- **Mystic Man goes faster.** His top speed is a third higher than before, and
+  he keeps speeding up for longer to get there. Every obstacle is still sized
+  so the right move clears it at any speed.
+- **Mystic Man's scores start again.** The faster game made the old scores
+  unfair, so the leaderboard was cleared and everyone who was on it got a
+  push. A best saved on a phone before the reset no longer shows, and an old
+  run waiting to be sent from a phone that was offline is turned away, so the
+  old scores can't come back.
+- **An update you should install asks every time you open the app.** When
+  your version is older than the recommended one, a popup asks you to update
+  each time the app starts, until you do; "Not now" closes it until next
+  time, and the Update pill in the top bar works the same way. Update
+  installs an over-the-air update and restarts straight away when there is
+  one for your build, and opens the store when you need a new build.
+
+### Fixed
+- **Mystic Man's cards are sharp.** On a phone held upright, the game-over
+  card (and everything else in the game) could look slightly blurred,
+  because the sideways game sat half a pixel off. It now lines up exactly.
+- **Tapping a poke opens the Garden.** A poke's push opened the app but went
+  nowhere; it now takes you to the Garden. A push about a game opens that
+  game.
+
 ## [2.12.16] - 2026-11-23
 
 ### Changed
