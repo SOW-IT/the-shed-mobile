@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.34] - 2026-11-24
+
+### Changed
+- **Unread comment counts cost far less to work out.** The red comment counts
+  on Home, the Reimbursements tab and the All, Review, Requests and Past lists
+  now look at a request's approvals only when it has comments you haven't
+  read. Most requests have no comments, so over 40 requests a Head of
+  Department's count reads 25 records instead of 365. The numbers shown are
+  the same.
+
 ## [2.12.33] - 2026-11-24
 
 ### Changed
