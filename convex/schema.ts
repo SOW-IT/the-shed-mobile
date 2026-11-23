@@ -193,6 +193,31 @@ export default defineSchema({
 
   // Someone's rate limits, kept for THROTTLE_KEEP_MS after they leave, so
   // leaving and joining again can't refill them. Swept after that.
+  worldDuels: defineTable({
+    roomId: v.id("worldRooms"),
+    a: v.id("worldMembers"),
+    b: v.id("worldMembers"),
+    round: v.number(),
+    startsAt: v.number(),
+    endsAt: v.number(),
+    aPick: v.optional(v.string()),
+    bPick: v.optional(v.string()),
+    changes: v.number(),
+    shown: v.optional(
+      v.object({
+        a: v.string(),
+        b: v.string(),
+        at: v.number(),
+        winner: v.union(v.literal("a"), v.literal("b"), v.literal("draw")),
+      })
+    ),
+    doneAt: v.optional(v.number()),
+  })
+    .index("by_roomId", ["roomId"])
+    .index("by_a", ["a"])
+    .index("by_b", ["b"])
+    .index("by_endsAt", ["endsAt"]),
+
   worldThrottle: defineTable({
     email: v.string(),
     moveBucket: worldBucketValidator,

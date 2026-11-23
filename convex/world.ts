@@ -24,7 +24,16 @@ import {
   fullBucket,
   INTERACT_RADIUS,
   isEmote,
-  isMutual,
+  isAskKind,
+  isDuelPick,
+  duelWinner,
+  DUEL_AGAIN_MS,
+  DUEL_FIRST_MS,
+  DUEL_MAX_ROUNDS,
+  DUEL_PICK_CHANGES,
+  DUEL_PICK_ORDER,
+  DUEL_REVEAL_MS,
+  EMOTE_MS,
   isValidLook,
   LOOK_SAVE_GAP_MS,
   MAX_BLOCKS,
@@ -599,7 +608,7 @@ export const ask = mutation({
   args: { to: v.id("worldMembers"), kind: v.string() },
   returns: v.union(v.object({ ok: v.literal(true), at: v.number(), serverNow: v.number() }), turnedAway, refused),
   handler: async (ctx, { to, kind }) => {
-    if (!isMutual(kind)) throw new ConvexError("That isn't something you can do together.");
+    if (!isAskKind(kind)) throw new ConvexError("That isn't something you can do together.");
     const me = await requireMe(ctx);
     const now = Date.now();
     const found = await partner(ctx, me, to, now);
@@ -637,10 +646,146 @@ export const accept = mutation({
     if (before) return { ok: true as const, at: before.at, serverNow: now };
     const token = spend("act", me.state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    if (asked.kind === "rps") {
+      if ((await liveDuelOf(ctx, me.member._id)) || (await liveDuelOf(ctx, from))) {
+        return { ok: false as const, reason: "One of you is already playing.", serverNow: now };
+      }
+      const duelId = await ctx.db.insert("worldDuels", {
+        roomId: me.member.roomId,
+        a: from,
+        b: me.member._id,
+        round: 1,
+        startsAt: now,
+        endsAt: now + DUEL_FIRST_MS,
+        changes: 0,
+      });
+      await ctx.scheduler.runAt(now + DUEL_FIRST_MS, internal.world.resolveDuel, { duelId, round: 1 });
+    }
     const reply = { kind: asked.kind, to: from, askAt: asked.at, at: now };
     await ctx.db.patch("worldState", me.state._id, { reply, answered: [...open, reply], actBucket: token.bucket });
     await touchPresence(ctx, me.member._id, now);
     return { ok: true as const, at: now, serverNow: now };
+  },
+});
+
+const liveDuelOf = async (ctx: Ctx, memberId: Id<"worldMembers">) => {
+  for (const index of ["by_a", "by_b"] as const) {
+    const rows = await ctx.db
+      .query("worldDuels")
+      .withIndex(index, (q) => q.eq(index === "by_a" ? "a" : "b", memberId))
+      .take(5);
+    const live = rows.find((row) => row.doneAt === undefined);
+    if (live) return live;
+  }
+  return null;
+};
+
+const randomPick = () => DUEL_PICK_ORDER[Math.floor(Math.random() * DUEL_PICK_ORDER.length)];
+
+export const duelPick = mutation({
+  args: { duelId: v.id("worldDuels"), pick: v.string() },
+  returns: v.union(v.object({ ok: v.literal(true) }), v.object({ ok: v.literal(false), reason: v.string() })),
+  handler: async (ctx, { duelId, pick }) => {
+    if (!isDuelPick(pick)) throw new ConvexError("Pick rock, paper or scissors.");
+    const { member } = await requireMe(ctx);
+    const duel = await ctx.db.get("worldDuels", duelId);
+    const now = Date.now();
+    if (!duel || duel.doneAt !== undefined || (duel.a !== member._id && duel.b !== member._id)) {
+      return { ok: false as const, reason: "That game's over." };
+    }
+    if (now < duel.startsAt || now >= duel.endsAt) return { ok: false as const, reason: "Too late for this round." };
+    if (duel.changes >= DUEL_PICK_CHANGES) return { ok: false as const, reason: "Make up your mind!" };
+    const side = duel.a === member._id ? "aPick" : "bPick";
+    if (duel[side] !== pick) await ctx.db.patch("worldDuels", duel._id, { [side]: pick, changes: duel.changes + 1 });
+    return { ok: true as const };
+  },
+});
+
+export const resolveDuel = internalMutation({
+  args: { duelId: v.id("worldDuels"), round: v.number() },
+  returns: v.null(),
+  handler: async (ctx, { duelId, round }) => {
+    const duel = await ctx.db.get("worldDuels", duelId);
+    if (!duel || duel.round !== round || duel.doneAt !== undefined) return null;
+    const a = await ctx.db.get("worldMembers", duel.a);
+    const b = await ctx.db.get("worldMembers", duel.b);
+    if (!a || !b || a.roomId !== duel.roomId || b.roomId !== duel.roomId) {
+      await ctx.db.delete("worldDuels", duel._id);
+      return null;
+    }
+    const aPick = isDuelPick(duel.aPick) ? duel.aPick : randomPick();
+    const bPick = isDuelPick(duel.bPick) ? duel.bPick : randomPick();
+    const winner = duelWinner(aPick, bPick);
+    const shown = { a: aPick, b: bPick, at: duel.endsAt, winner };
+    if (winner === "draw" && round < DUEL_MAX_ROUNDS) {
+      const startsAt = duel.endsAt + DUEL_REVEAL_MS;
+      const endsAt = startsAt + DUEL_AGAIN_MS;
+      await ctx.db.patch("worldDuels", duel._id, { shown, round: round + 1, startsAt, endsAt, aPick: undefined, bPick: undefined, changes: 0 });
+      await ctx.scheduler.runAt(endsAt, internal.world.resolveDuel, { duelId, round: round + 1 });
+      return null;
+    }
+    await ctx.db.patch("worldDuels", duel._id, { shown, doneAt: duel.endsAt });
+    await ctx.scheduler.runAt(duel.endsAt + DUEL_REVEAL_MS + EMOTE_MS, internal.world.clearDuel, { duelId });
+    return null;
+  },
+});
+
+export const clearDuel = internalMutation({
+  args: { duelId: v.id("worldDuels") },
+  returns: v.null(),
+  handler: async (ctx, { duelId }) => {
+    const duel = await ctx.db.get("worldDuels", duelId);
+    if (duel?.doneAt !== undefined) await ctx.db.delete("worldDuels", duelId);
+    return null;
+  },
+});
+
+const DUEL_SCAN = 40;
+const DUEL_STALE_MS = 60_000;
+
+export const duels = query({
+  args: { roomId: v.id("worldRooms") },
+  returns: v.union(
+    v.null(),
+    v.array(
+      v.object({
+        id: v.id("worldDuels"),
+        a: v.id("worldMembers"),
+        b: v.id("worldMembers"),
+        round: v.number(),
+        startsAt: v.number(),
+        endsAt: v.number(),
+        myPick: v.optional(v.string()),
+        shown: v.optional(
+          v.object({
+            a: v.string(),
+            b: v.string(),
+            at: v.number(),
+            winner: v.union(v.literal("a"), v.literal("b"), v.literal("draw")),
+          })
+        ),
+        done: v.boolean(),
+      })
+    )
+  ),
+  handler: async (ctx, { roomId }) => {
+    const me = await meIn(ctx, roomId);
+    if (!me) return null;
+    const rows = await ctx.db
+      .query("worldDuels")
+      .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+      .take(DUEL_SCAN);
+    return rows.map((row) => ({
+      id: row._id,
+      a: row.a,
+      b: row.b,
+      round: row.round,
+      startsAt: row.startsAt,
+      endsAt: row.endsAt,
+      myPick: row.a === me._id ? row.aPick : row.b === me._id ? row.bPick : undefined,
+      shown: row.shown,
+      done: row.doneAt !== undefined,
+    }));
   },
 });
 
@@ -1040,6 +1185,11 @@ export const sweep = internalMutation({
       .withIndex("by_at", (q) => q.lt("at", now - THROTTLE_KEEP_MS))
       .take(SWEEP_BATCH);
     for (const row of oldThrottles) await ctx.db.delete("worldThrottle", row._id);
+    const staleDuels = await ctx.db
+      .query("worldDuels")
+      .withIndex("by_endsAt", (q) => q.lt("endsAt", now - DUEL_STALE_MS))
+      .take(SWEEP_BATCH);
+    for (const row of staleDuels) await ctx.db.delete("worldDuels", row._id);
 
     const meta = await sweeperMeta(ctx);
     const next = await nextSweep(ctx, now);

@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.21] - 2026-11-23
+
+### Changed
+- **Swim in the pond and the sea.** Walk into the Garden pond or past the
+  shallows at the Beach and you swim: you sink to your shoulders with a
+  ripple round you, and your arms stroke as you move.
+- **Rock paper scissors duels.** Tap someone and pick Duel: you walk over and
+  ask "Rock paper scissors?". If they accept, you both get five seconds to
+  pick rock, paper or scissors, while you both shout "Scissors… Paper…
+  Rock!" over your heads (not in the chat). On "Rock!" your picks show over
+  your heads, then the winner cheers and the loser cries. A draw goes again
+  with three seconds to pick. Nobody sees a pick until the reveal, and
+  anyone who doesn't pick in time gets one picked for them.
+
+### Fixed
+- **Praying looks like praying.** The Pray emote now shows two small hands
+  held together under the chin, instead of a long loop down the chest.
+
 ## [2.12.20] - 2026-11-23
 
 ### Fixed

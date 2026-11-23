@@ -1,11 +1,13 @@
 import {
   BUBBLE_MS,
   TYPING_MS,
+  inWater,
   EMOTE_MS,
   EMOTES,
   isEmote,
   liveMutual,
   MUTUALS,
+  askInfo,
   openAsk,
   type Ask,
   type Reply,
@@ -28,11 +30,12 @@ import { makeCamera } from "./camera";
 import type { Prim, Prop } from "./gardenScene";
 import { garden, hud, places } from "./palette";
 import { buildScene } from "./placeScenes";
-import { Avatar, figureFor, headTop, hitBox, sitRise, Tag, touchK, type Doing } from "./Person";
+import { Avatar, figureFor, headTop, hitBox, sitRise, SWIM_SINK, Tag, touchK, type Doing } from "./Person";
 import { accepted } from "./announce";
 import type { DrawnPose, Gait } from "./gait";
 import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
+import { duelLookFor, type DuelView } from "./duel";
 import { useGlide } from "./useGlide";
 
 type GardenPerson = {
@@ -112,6 +115,7 @@ export const Garden = ({
   hudActions,
   place,
   placeCounts,
+  duels = [],
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -134,6 +138,7 @@ export const Garden = ({
   hudActions: HudAction[];
   place: Place;
   placeCounts?: Record<string, number>;
+  duels?: readonly DuelView[];
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -219,6 +224,15 @@ export const Garden = ({
     const contact = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, k, i, j };
     touches.push(contact);
   });
+  const duelLooks = people.map((p) => duelLookFor(duels, p.memberId, now));
+  duelLooks.forEach((look, i) => {
+    if (!look) return;
+    const j = people.findIndex((p) => p.memberId === look.opponent);
+    const a = poses[i];
+    const b = j >= 0 ? poses[j] : null;
+    if (a && b && facingOverride[i] === null) facingOverride[i] = Math.atan2(b.x - a.x, b.z - a.z);
+    if (look.result && !doing[i]) doing[i] = { kind: "emote", id: look.result.emote, p: look.result.p };
+  });
   people.forEach((p, i) => {
     if (doing[i] || p.muted || !p.act || !isEmote(p.act.emote) || !recent(p.act.at, EMOTE_MS)) return;
     doing[i] = { kind: "emote", id: p.act.emote, p: (now - p.act.at) / EMOTE_MS };
@@ -241,6 +255,7 @@ export const Garden = ({
     doing.some((d) => d !== null) ||
     asks.length > 0 ||
     typingSince.some((at) => at !== undefined) ||
+    duelLooks.some((look) => look !== null) ||
     people.some((p) => !p.muted && p.say !== undefined && bubbleMoving(now - p.say.at)) ||
     (target !== null && placed !== null && Math.hypot(placed.x - target.x, placed.z - target.z) > 0.05);
   const t = useClock(animating) / 1000;
@@ -379,6 +394,7 @@ export const Garden = ({
     const seat = sitting[i];
     const seatRise = sitRise(seat?.height);
     const atArcade = p.away ? Math.atan2(ARCADE.x - pose.x, ARCADE.z - pose.z) : null;
+    const swimming = !seat && !p.away && inWater(place, pose);
     const turned = { ...pose, heading: facingOverride[i] ?? atArcade ?? seat?.heading ?? pose.heading };
     const striding = pose.strideAmp > 0;
     const stride = { stridePhase: striding ? pose.stridePhase : 0, strideAmp: pose.strideAmp };
@@ -398,31 +414,34 @@ export const Garden = ({
           <Avatar figure={figure} pose={turned} look={p.look} t={0} seed={seed} stride={stride} />
         </View>
       ) : (
-        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} />
+        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} />
       ),
     });
-    const line = bubbleFades[i] > 0 ? p.say?.text : undefined;
+    const duelLook = duelLooks[i];
+    const chant = duelLook?.chant ?? undefined;
+    const line = chant ?? (bubbleFades[i] > 0 ? p.say?.text : undefined);
     // The icon over the head: the emote's, or the mutual action's when hands meet.
     const emote =
-      d?.kind === "emote"
+      duelLook?.pickIcon ??
+      (d?.kind === "emote"
         ? EMOTES[d.id].icon
         : d?.kind === "mutual" && d.p > 0.4
           ? MUTUALS[d.id].icon
-          : undefined;
-    const rise = d?.kind === "emote" ? d.p : d?.kind === "mutual" ? (d.p - 0.4) / 0.6 : 0;
+          : undefined);
+    const rise = duelLook?.pickIcon ? 0 : d?.kind === "emote" ? d.p : d?.kind === "mutual" ? (d.p - 0.4) / 0.6 : 0;
     // Your own open ask shows "High five?" over you until the other person
     // answers it (not only while the slap plays).
     const answeredMine =
       p.ask !== undefined && people.some((o) => o.memberId === p.ask?.to && accepted(o, p.memberId, p.ask.at));
     const waiting =
-      p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${MUTUALS[p.ask.kind as keyof typeof MUTUALS]?.ask ?? "…"}` : undefined;
-    const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise, pose.z]);
+      p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${askInfo(p.ask.kind)?.ask ?? "…"}` : undefined;
+    const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? SWIM_SINK : 0), pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
     tags.push({
       key: p.memberId,
       depth: head.depth,
-      spokeAt: line ? p.say?.at : waiting ? p.ask?.at : typing,
+      spokeAt: chant ? now : line ? p.say?.at : waiting ? p.ask?.at : typing,
       ...tagBox(head.x, head.y, name, line ?? waiting ?? (typing === undefined ? undefined : TYPING_BOX), Boolean(emote), p.away === true),
       props: {
         name,
@@ -431,7 +450,7 @@ export const Garden = ({
         typing: typing === undefined ? undefined : t,
         emote,
         emoteRise: rise,
-        lineFade: line ? bubbleFades[i] : 1,
+        lineFade: line && !chant ? bubbleFades[i] : 1,
         status: p.away ? AWAY_STATUS : undefined,
       },
     });
@@ -540,7 +559,7 @@ export const Garden = ({
           // covering each other, and never leave the stage.
           const top = Math.max(8, head.y - 64 - promptOffset(asks, i, poses, people, cam));
           const left = Math.max(1 - (now - p.ask.at) / ASK_MS, 0);
-          const info = MUTUALS[p.ask.kind as keyof typeof MUTUALS];
+          const info = askInfo(p.ask.kind);
           if (!info) return null;
           const askAt = p.ask.at;
           return (

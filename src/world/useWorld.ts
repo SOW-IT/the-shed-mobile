@@ -627,6 +627,24 @@ export const useWorld = (enabled: boolean, away = false) => {
     [session, typingM]
   );
 
+  const duels = useQuery(api.world.duels, session ? { roomId: session.roomId } : "skip");
+  const duelPickM = useMutation(api.world.duelPick).withOptimisticUpdate((store, { duelId, pick }) => {
+    const me = meIn(store);
+    const rows = me && store.getQuery(api.world.duels, { roomId: me.roomId });
+    if (me && rows) store.setQuery(api.world.duels, { roomId: me.roomId }, rows.map((row) => (row.id === duelId ? { ...row, myPick: pick } : row)));
+  });
+  const pickInDuel = useCallback(
+    async (duelId: Id<"worldDuels">, pick: string): Promise<string | null> => {
+      try {
+        const reply = await duelPickM({ duelId, pick });
+        return reply.ok ? null : reply.reason;
+      } catch (e) {
+        return e instanceof ConvexError ? String(e.data) : "That didn't send.";
+      }
+    },
+    [duelPickM]
+  );
+
   const placeCounts = useQuery(api.world.places, session ? {} : "skip");
 
   /** Saves a look from the editor: one write, only when Save is pressed. */
@@ -742,6 +760,8 @@ export const useWorld = (enabled: boolean, away = false) => {
     holdEnd,
     say,
     typing,
+    duels: duels ?? [],
+    pickInDuel,
     act,
     ask,
     accept,

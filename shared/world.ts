@@ -85,6 +85,49 @@ export const MUTUALS = {
 export type MutualKind = keyof typeof MUTUALS;
 export const isMutual = (value: string): value is MutualKind => Object.hasOwn(MUTUALS, value);
 
+export const ASKS = {
+  ...MUTUALS,
+  rps: { label: "Rock paper scissors", ask: "Rock paper scissors?", icon: "✊" },
+} as const;
+export type AskKind = keyof typeof ASKS;
+export const isAskKind = (value: string): value is AskKind => Object.hasOwn(ASKS, value);
+export const askInfo = (kind: string | undefined) => (kind !== undefined && isAskKind(kind) ? ASKS[kind] : null);
+
+export const DUEL_PICKS = {
+  rock: { label: "Rock", icon: "✊" },
+  paper: { label: "Paper", icon: "✋" },
+  scissors: { label: "Scissors", icon: "✌️" },
+} as const;
+export type DuelPick = keyof typeof DUEL_PICKS;
+export const DUEL_PICK_ORDER: readonly DuelPick[] = ["rock", "paper", "scissors"];
+export const isDuelPick = (value: unknown): value is DuelPick => typeof value === "string" && Object.hasOwn(DUEL_PICKS, value);
+
+export const DUEL_FIRST_MS = 5000;
+export const DUEL_AGAIN_MS = 3000;
+export const DUEL_REVEAL_MS = 1600;
+export const DUEL_MAX_ROUNDS = 10;
+export const DUEL_PICK_CHANGES = 12;
+export const DUEL_WINNER_EMOTE: EmoteId = "cheer";
+export const DUEL_LOSER_EMOTE: EmoteId = "cry";
+
+const BEATS: Record<DuelPick, DuelPick> = { rock: "scissors", paper: "rock", scissors: "paper" };
+
+export const duelWinner = (a: DuelPick, b: DuelPick): "a" | "b" | "draw" => (a === b ? "draw" : BEATS[a] === b ? "a" : "b");
+
+const CHANT = [
+  { word: "Scissors…", from: -2400 },
+  { word: "Paper…", from: -1200 },
+  { word: "Rock!", from: 0 },
+] as const;
+
+export const chantAt = (endsAt: number, now: number): string | null => {
+  const k = now - endsAt;
+  if (k < CHANT[0].from || k >= DUEL_REVEAL_MS) return null;
+  let word: string = CHANT[0].word;
+  for (const step of CHANT) if (k >= step.from) word = step.word;
+  return word;
+};
+
 export type Ask = { kind: string; to: string; at: number };
 export type Reply = { kind: string; to: string; askAt: number; at: number };
 
@@ -109,6 +152,19 @@ export const liveMutual = (
   const progress = (now - reply.at) / MUTUAL_MS;
   return progress >= 0 && progress < 1 ? { kind: reply.kind, progress } : null;
 };
+
+type Water = { kind: "pool"; x: number; z: number; rx: number; rz: number } | { kind: "sea"; beyondZ: number };
+
+const WATER: Record<Place, readonly Water[]> = {
+  garden: [{ kind: "pool", x: -2.9, z: 2.2, rx: 1.95, rz: 1.5 }],
+  chapel: [],
+  campfire: [],
+  cafe: [],
+  beach: [{ kind: "sea", beyondZ: -7.4 }],
+};
+
+export const inWater = (place: Place, at: { x: number; z: number }) =>
+  WATER[place].some((w) => (w.kind === "sea" ? at.z < w.beyondZ : Math.hypot((at.x - w.x) / w.rx, (at.z - w.z) / w.rz) < 1));
 
 /** The latest walk of one person: everything a phone needs to place them. */
 export interface Walk {
@@ -165,7 +221,6 @@ export const halfWidthAt = (z: number) => WALK_BOUNDS.maxX - Math.max(0, z - NAR
 /** Things in the courtyard nobody stands inside, as ellipses on the ground. */
 export const OBSTACLES = [
   { id: "birdbath", x: 0, z: -2.4, rx: 0.8, rz: 0.8 },
-  { id: "pond", x: -2.9, z: 2.2, rx: 2.1, rz: 1.65 },
   { id: "arcade", x: -3.1, z: 5.7, rx: 0.6, rz: 0.5 },
   { id: "sign", x: 3.7, z: -6.4, rx: 0.3, rz: 0.3 },
 ] as const;

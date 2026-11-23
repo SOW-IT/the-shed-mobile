@@ -14,6 +14,7 @@ export const garden = {
   bathStone: "#E7DCC4",
   bathTop: "#EFE6D2",
   water: "#9AD4E2",
+  ripple: "rgba(255, 255, 255, 0.55)",
   pond: "#8DCFE0",
   pondRim: "#E7DCC4",
   pad: "#5FA066",
