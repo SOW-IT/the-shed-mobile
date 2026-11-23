@@ -2,12 +2,17 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
+import { removeFromWorld } from "./world";
 import {
   ASK_MS,
   BUCKETS,
   CHAT_LOG_SIZE,
   CHAT_ROOM_CAP,
   CHAT_TTL_MS,
+  DUEL_AGAIN_MS,
+  DUEL_FIRST_MS,
+  DUEL_PICK_CHANGES,
+  DUEL_REVEAL_MS,
   arrivalSpot,
   ELSEWHERE_NAMES,
   SEATS,
@@ -57,6 +62,8 @@ const rows = (t: T) =>
     chat: await ctx.db.query("worldChat").collect(),
     meta: await ctx.db.query("worldMeta").collect(),
   }));
+
+const said = <L extends { kind?: string }>(lines: L[]) => lines.filter((line) => line.kind === undefined);
 
 const lastSeenOf = (t: T, memberId: Id<"worldMembers">) =>
   t.run(async (ctx) => {
@@ -202,11 +209,11 @@ describe("act and say", () => {
     await anna.mutation(api.world.say, { text: "Lunch after service?" });
     const all = await rows(t);
     expect(all.states[0].say).toEqual({ text: "Lunch after service?", at: near(PINNED_NOW)});
-    expect(all.chat).toMatchObject([{ email: ANNA, name: "anna", text: "Lunch after service?" }]);
+    expect(said(all.chat)).toMatchObject([{ email: ANNA, name: "anna", text: "Lunch after service?" }]);
     await anna.mutation(api.world.say, { text: "two" });
     await anna.mutation(api.world.say, { text: "three" });
     expect(await anna.mutation(api.world.say, { text: "four" })).toMatchObject({ ok: false });
-    expect((await rows(t)).chat).toHaveLength(3);
+    expect(said((await rows(t)).chat)).toHaveLength(3);
   });
 
   test("a heartbeat marks you present, or says you've been swept", async () => {
@@ -381,20 +388,20 @@ describe("places", () => {
     later(1000);
     await ben.mutation(api.world.say, { text: "Anyone in the Chapel?" });
     await anna.mutation(api.world.say, { text: "Garden here" });
-    expect(await anna.query(api.world.chatLog, { roomId: a.roomId })).toMatchObject([
+    expect(said((await anna.query(api.world.chatLog, { roomId: a.roomId }))!)).toMatchObject([
       { text: "Garden here", isMe: true, place: "garden", here: true },
       { text: "Anyone in the Chapel?", isMe: false, place: "chapel", here: false },
     ]);
     const cara = asUser(t, CARA);
     const c = await cara.mutation(api.world.join, {});
-    expect((await cara.query(api.world.chatLog, { roomId: c.roomId }))!.map((line) => line.text)).toEqual(["Garden here", "Anyone in the Chapel?"]);
+    expect(said((await cara.query(api.world.chatLog, { roomId: c.roomId }))!).map((line) => line.text)).toEqual(["Garden here", "Anyone in the Chapel?"]);
 
     await t.run(async (ctx) => {
       await ctx.db.insert("worldChat", { roomId: a.roomId, memberId: a.memberId, email: ANNA, name: "anna", text: "From before places", at: Date.now() });
     });
-    expect(await anna.query(api.world.chatLog, { roomId: a.roomId })).toMatchObject([{ text: "From before places", here: true }, {}, {}]);
+    expect(said((await anna.query(api.world.chatLog, { roomId: a.roomId }))!)).toMatchObject([{ text: "From before places", here: true }, {}, {}]);
     const chapelRoom = await t.run(async (ctx) => (await ctx.db.query("worldMembers").collect()).find((m) => m.email === BEN)!.roomId);
-    expect(await ben.query(api.world.chatLog, { roomId: chapelRoom })).toMatchObject([{ text: "From before places", here: false }, {}, {}]);
+    expect(said((await ben.query(api.world.chatLog, { roomId: chapelRoom }))!)).toMatchObject([{ text: "From before places", here: false }, {}, {}]);
   });
 
   test("hides someone who blocked you even when hundreds of others have too", async () => {
@@ -747,7 +754,7 @@ describe("what people can see", () => {
       ],
     });
     expect(await anna.query(api.world.state, { memberId: b.memberId })).toMatchObject({ say: { text: "hi" } });
-    expect(await anna.query(api.world.chatLog, { roomId: a.roomId })).toMatchObject([{ name: "ben", text: "hi", isMe: false }]);
+    expect(said((await anna.query(api.world.chatLog, { roomId: a.roomId }))!)).toMatchObject([{ name: "ben", text: "hi", isMe: false }]);
 
     const cara = asUser(t, CARA);
     expect(await cara.query(api.world.roster, { roomId: a.roomId })).toBeNull();
@@ -782,7 +789,7 @@ describe("what people can see", () => {
     expect((await ben.query(api.world.roster, { roomId: a.roomId }))!.members).toHaveLength(1);
     expect(await anna.query(api.world.state, { memberId: b.memberId })).toBeNull();
     expect(await ben.query(api.world.state, { memberId: a.memberId })).toBeNull();
-    expect(await anna.query(api.world.chatLog, { roomId: a.roomId })).toEqual([]);
+    expect((await anna.query(api.world.chatLog, { roomId: a.roomId }))!.filter((line) => !line.isMe)).toEqual([]);
 
     // Only the person who blocked can unblock.
     await ben.mutation(api.world.unblock, { blockId: blocked[0].id });
@@ -1040,7 +1047,7 @@ describe("review fixes", () => {
     await t.mutation(internal.world.sweep, {});
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     vi.useFakeTimers({ toFake: ["Date"] });
-    expect((await rows(t)).chat).toHaveLength(0);
+    expect(said((await rows(t)).chat)).toHaveLength(0);
 
     await anna.mutation(api.world.say, { text: "last words" });
     await anna.mutation(api.world.leave, {});
@@ -1090,7 +1097,7 @@ describe("review fixes", () => {
       }
     });
     await anna.mutation(api.world.block, { memberId: b.memberId });
-    expect(await anna.query(api.world.chatLog, { roomId: a.roomId })).toMatchObject([{ text: "older but fine" }]);
+    expect(said((await anna.query(api.world.chatLog, { roomId: a.roomId }))!)).toMatchObject([{ text: "older but fine" }]);
   });
 
   test("a report leaves out lines already past the chat TTL", async () => {
@@ -1150,7 +1157,7 @@ describe("write budget per player", () => {
     if (fullRoom) {
       // A busy room: already at CHAT_ROOM_CAP, so every line also deletes the oldest.
       await t.run(async (ctx) => {
-        for (let i = 0; i < CHAT_ROOM_CAP; i++) {
+        for (let i = 1; i < CHAT_ROOM_CAP; i++) {
           await ctx.db.insert("worldChat", { roomId, memberId, email: ANNA, name: "anna", text: `${i}`, at: Date.now() - 1000 + i });
         }
       });
@@ -1333,6 +1340,230 @@ describe("chat log and blocked senders", () => {
         await ctx.db.insert("worldChat", { roomId: b.roomId, memberId: b.memberId, email: CARA, name: "cara", text: `spam ${i}`, at: Date.now() + i });
       }
     });
-    expect((await anna.query(api.world.chatLog, { roomId: a.roomId }))!.map((line) => line.text)).toEqual(["still here"]);
+    expect(said((await anna.query(api.world.chatLog, { roomId: a.roomId }))!).map((line) => line.text)).toEqual(["still here"]);
+  });
+});
+
+describe("rock paper scissors", () => {
+  const duelPair = async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    const b = await ben.mutation(api.world.join, {});
+    await standAt(t, a.memberId, 0, 0);
+    await standAt(t, b.memberId, 1, 0);
+    return { t, anna, ben, a, b };
+  };
+
+  const start = async () => {
+    const pair = await duelPair();
+    const { t, anna, ben, b, a } = pair;
+    const asked = await anna.mutation(api.world.ask, { to: b.memberId, kind: "rps" });
+    if (!asked.ok) throw new Error("ask refused");
+    expect(await ben.mutation(api.world.accept, { from: a.memberId, askAt: asked.at })).toMatchObject({ ok: true });
+    const duel = (await t.run((ctx) => ctx.db.query("worldDuels").first()))!;
+    return { ...pair, duel };
+  };
+
+  test("accepting a duel starts a five-second round between the two", async () => {
+    const { anna, a, b, duel } = await start();
+    expect(duel).toMatchObject({ a: a.memberId, b: b.memberId, round: 1, aChanges: 0, bChanges: 0 });
+    expect(duel.endsAt - duel.startsAt).toBe(DUEL_FIRST_MS);
+    expect(await anna.query(api.world.duels, { roomId: a.roomId })).toMatchObject([{ id: duel._id, round: 1, done: false }]);
+  });
+
+  test("nobody sees a pick before the reveal, not even the other player", async () => {
+    const { t, anna, ben, a, duel } = await start();
+    await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "rock" });
+    const cara = asUser(t, CARA);
+    await cara.mutation(api.world.join, {});
+    expect((await anna.query(api.world.duels, { roomId: a.roomId }))![0].myPick).toBe("rock");
+    expect((await ben.query(api.world.duels, { roomId: a.roomId }))![0].myPick).toBeUndefined();
+    expect((await cara.query(api.world.duels, { roomId: a.roomId }))![0].myPick).toBeUndefined();
+    expect((await ben.query(api.world.duels, { roomId: a.roomId }))![0].shown).toBeUndefined();
+  });
+
+  test("the reveal names the winner and ends the game", async () => {
+    const { t, anna, ben, a, duel } = await start();
+    await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "paper" });
+    await ben.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "rock" });
+    await t.mutation(internal.world.resolveDuel, { duelId: duel._id, round: 1 });
+    const [after] = (await anna.query(api.world.duels, { roomId: a.roomId }))!;
+    expect(after).toMatchObject({ done: true, shown: { a: "paper", b: "rock", winner: "a", at: duel.endsAt } });
+    await t.mutation(internal.world.resolveDuel, { duelId: duel._id, round: 1 });
+    await t.mutation(internal.world.clearDuel, { duelId: duel._id });
+    expect(await anna.query(api.world.duels, { roomId: a.roomId })).toEqual([]);
+  });
+
+  test("a draw goes again with a three-second round", async () => {
+    const { t, anna, ben, a, duel } = await start();
+    await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "scissors" });
+    await ben.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "scissors" });
+    await t.mutation(internal.world.resolveDuel, { duelId: duel._id, round: 1 });
+    const [again] = (await anna.query(api.world.duels, { roomId: a.roomId }))!;
+    expect(again).toMatchObject({ round: 2, done: false, shown: { winner: "draw" } });
+    expect(again.myPick).toBeUndefined();
+    expect(again.startsAt).toBe(duel.endsAt + DUEL_REVEAL_MS);
+    expect(again.endsAt - again.startsAt).toBe(DUEL_AGAIN_MS);
+    await t.mutation(internal.world.clearDuel, { duelId: duel._id });
+    expect(await anna.query(api.world.duels, { roomId: a.roomId })).toHaveLength(1);
+  });
+
+  test("no pick by the end gets one picked for you", async () => {
+    const { t, anna, a, duel } = await start();
+    await t.mutation(internal.world.resolveDuel, { duelId: duel._id, round: 1 });
+    const [after] = (await anna.query(api.world.duels, { roomId: a.roomId }))!;
+    expect(["rock", "paper", "scissors"]).toContain(after.shown!.a);
+    expect(["rock", "paper", "scissors"]).toContain(after.shown!.b);
+  });
+
+  test("picks only count from the players, inside the round, and not forever", async () => {
+    const { t, anna, duel } = await start();
+    const cara = asUser(t, CARA);
+    await cara.mutation(api.world.join, {});
+    expect(await cara.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "rock" })).toMatchObject({ ok: false });
+    await expect(anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "lizard" })).rejects.toThrow(/rock, paper or scissors/);
+    for (let i = 0; i < DUEL_PICK_CHANGES; i++) {
+      await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: i % 2 ? "rock" : "paper" });
+    }
+    expect(await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "scissors" })).toMatchObject({ ok: false, reason: /mind/ });
+    later(DUEL_FIRST_MS + 10);
+    expect(await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "rock" })).toMatchObject({ ok: false, reason: /late/ });
+  });
+
+  test("each player has their own changes of mind", async () => {
+    const { ben, anna, duel } = await start();
+    for (let i = 0; i < DUEL_PICK_CHANGES; i++) {
+      await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: i % 2 ? "rock" : "paper" });
+    }
+    expect(await ben.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "scissors" })).toEqual({ ok: true });
+  });
+
+  test("a pick sent for an earlier round doesn't count in the next", async () => {
+    const { t, anna, ben, a, duel } = await start();
+    await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "rock" });
+    await ben.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "rock" });
+    await t.mutation(internal.world.resolveDuel, { duelId: duel._id, round: 1 });
+    later(DUEL_REVEAL_MS + DUEL_FIRST_MS + 100);
+    expect(await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "paper" })).toMatchObject({ ok: false, reason: /late/ });
+    expect((await anna.query(api.world.duels, { roomId: a.roomId }))![0].myPick).toBeUndefined();
+  });
+
+  test("a late reveal still gives the next round its full time", async () => {
+    const { t, anna, ben, a, duel } = await start();
+    await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "paper" });
+    await ben.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "paper" });
+    later(DUEL_FIRST_MS + 10_000);
+    const resolvedAt = Date.now();
+    await t.mutation(internal.world.resolveDuel, { duelId: duel._id, round: 1 });
+    const [again] = (await anna.query(api.world.duels, { roomId: a.roomId }))!;
+    expect(again.shown!.at).toBeGreaterThanOrEqual(resolvedAt);
+    expect(again.startsAt).toBe(again.shown!.at + DUEL_REVEAL_MS);
+    expect(again.endsAt - again.startsAt).toBe(DUEL_AGAIN_MS);
+  });
+
+  test("someone who blocked a player doesn't see their duel", async () => {
+    const { t, anna, a } = await start();
+    const cara = asUser(t, CARA);
+    await cara.mutation(api.world.join, {});
+    expect(await cara.query(api.world.duels, { roomId: a.roomId })).toHaveLength(1);
+    await cara.mutation(api.world.block, { memberId: a.memberId });
+    expect(await cara.query(api.world.duels, { roomId: a.roomId })).toEqual([]);
+    expect(await anna.query(api.world.duels, { roomId: a.roomId })).toHaveLength(1);
+  });
+
+  test("one game at a time, and leaving calls it off", async () => {
+    const { t, anna, ben, a, b, duel } = await start();
+    const cara = asUser(t, CARA);
+    const c = await cara.mutation(api.world.join, {});
+    await standAt(t, c.memberId, 0.5, 0.5);
+    later(ASK_MS);
+    const asked = await cara.mutation(api.world.ask, { to: a.memberId, kind: "rps" });
+    if (!asked.ok) throw new Error("ask refused");
+    expect(await anna.mutation(api.world.accept, { from: c.memberId, askAt: asked.at })).toMatchObject({ ok: false, reason: /already playing/ });
+    await ben.mutation(api.world.leave, {});
+    await t.mutation(internal.world.resolveDuel, { duelId: duel._id, round: 1 });
+    expect(await anna.query(api.world.duels, { roomId: a.roomId })).toEqual([]);
+    expect(b.memberId).toBeDefined();
+  });
+
+  test("the sweep clears a duel whose reveal was lost", async () => {
+    const { t, anna, a, duel } = await start();
+    later(DUEL_FIRST_MS + 61_000);
+    await anna.mutation(api.world.heartbeat, {});
+    await t.mutation(internal.world.sweep, {});
+    expect(await anna.query(api.world.duels, { roomId: a.roomId })).toEqual([]);
+    expect(duel).toBeDefined();
+  });
+
+  test("anything else isn't something you can ask for", async () => {
+    const { anna, b } = await duelPair();
+    await expect(anna.mutation(api.world.ask, { to: b.memberId, kind: "arm wrestle" })).rejects.toThrow(/together/);
+  });
+});
+
+describe("join and leave lines", () => {
+  const systemLines = (t: T) =>
+    t.run(async (ctx) => (await ctx.db.query("worldChat").collect()).filter((row) => row.kind !== undefined).map((row) => `${row.name} ${row.text}`));
+
+  test("coming in writes one joined line, and another tab doesn't", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.join, {});
+    await ben.mutation(api.world.join, {});
+    expect(await systemLines(t)).toEqual(["anna joined the Garden", "ben joined the Garden"]);
+    expect((await ben.query(api.world.chatLog, { roomId: a.roomId }))![1]).toMatchObject({ name: "anna", text: "joined the Garden", kind: "join", here: true });
+  });
+
+  test("leaving writes a left line only when the last visit ends", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.leave, {});
+    expect(await systemLines(t)).toEqual(["anna joined the Garden"]);
+    await anna.mutation(api.world.leave, {});
+    expect(await systemLines(t)).toEqual(["anna joined the Garden", "anna left"]);
+  });
+
+  test("the sweep writes a left line for someone who went quiet", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    later(PRESENCE_TTL_MS + 1000);
+    await t.mutation(internal.world.sweep, {});
+    expect(await systemLines(t)).toEqual(["anna joined the Garden", "anna left"]);
+  });
+
+  test("travelling and deleting an account write no line", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.travel, { to: "chapel" });
+    await t.run((ctx) => removeFromWorld(ctx, ANNA));
+    expect(await systemLines(t)).toEqual(["anna joined the Garden"]);
+  });
+
+  test("they don't use up anyone's lines, aren't reported, and hide with a block", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const cara = asUser(t, CARA);
+    const a = await anna.mutation(api.world.join, {});
+    const b = await ben.mutation(api.world.join, {});
+    await cara.mutation(api.world.join, {});
+    for (let i = 0; i < BUCKETS.say.burst; i++) {
+      expect(await ben.mutation(api.world.say, { text: `line ${i}` })).toMatchObject({ ok: true });
+    }
+    await anna.mutation(api.world.report, { memberId: b.memberId, reason: "rude" });
+    const report = (await t.run((ctx) => ctx.db.query("worldReports").first()))!;
+    expect(report.lines.map((line) => line.text).sort()).toEqual(["line 0", "line 1", "line 2"]);
+    await anna.mutation(api.world.block, { memberId: b.memberId });
+    await ben.mutation(api.world.leave, {});
+    const seen = (await anna.query(api.world.chatLog, { roomId: a.roomId }))!.filter((line) => line.kind !== undefined);
+    expect(seen.map((line) => line.name)).toEqual(["cara", "anna"]);
   });
 });
