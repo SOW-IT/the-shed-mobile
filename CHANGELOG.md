@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.36] - 2026-11-24
+
+### Fixed
+- **Going from the Chapel back to the Garden no longer crashes test
+  builds.** A round shape that had been squashed sent React Native an empty
+  transform, which threw "Cannot read property 'forEach' of null". Shapes
+  now always send one, and a lint rule stops a transform from being left
+  out like that again. A full-screen attendance chart had the same pattern
+  when the phone turned back upright, and is fixed the same way.
+- **Mystic Man's start card says the controls once.** On a phone it ends
+  with "Tap to start." instead of repeating them; on the web it lists only
+  the keys.
+- **The game-over card says where your score went.** Online and signed in
+  it says "Saved to the leaderboard."; it only says it'll go on when you're
+  online when you're offline.
+
 ## [2.12.35] - 2026-11-24
 
 ### Added
