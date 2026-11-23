@@ -6,6 +6,27 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.16] - 2026-11-23
+
+### Changed
+- **Mystic Man plays in landscape.** Turn your phone sideways: on a phone held
+  upright the game is drawn turned a quarter turn, so it fills the screen when
+  you hold it sideways, and the rest of the app stays as it was. On a computer
+  it plays on a wide board, as before.
+- **A small hop and a big jump.** Tap for a small hop; swipe up for the big
+  jump; swipe down to duck. The hop starts the moment your finger touches the
+  screen, not when you lift it, and a swipe up in the same touch turns it into
+  the big jump, so nothing feels late. On a computer, tap ↑, W or space to hop, hold it (or
+  press Shift with it) for the big jump, and press ↓ or S to duck.
+- **More kinds of obstacle.** Besides the small rocks you can hop, there are
+  now tall rocks and long logs that need the big jump, pairs of rocks back to
+  back that need it too, and hanging vines you can only duck under. The
+  floating beam is still there: duck or jump it.
+- **Every run can be cleared.** Obstacles are sized from how high and far the
+  hop and the big jump really go at the speed you're running, and there's
+  always room to land and react before the next one, so nothing is ever
+  impossible with the right move.
+
 ## [2.12.15] - 2026-11-23
 
 ### Changed

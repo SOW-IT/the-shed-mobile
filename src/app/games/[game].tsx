@@ -1,12 +1,17 @@
 import { GAME_SCREENS } from "@/components/games/gameScreens";
 import { backOr } from "@/lib/goBack";
+import { E2E_BUILD } from "@/env";
+import { isPatternKind } from "@/lib/games/runner";
 import { isGameId } from "@shared/games";
 import { Redirect, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, usePreventRemove } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 
 export default function GameScreen() {
   const router = useRouter();
-  const { game } = useLocalSearchParams<{ game: string }>();
+  const { game, preview } = useLocalSearchParams<{ game: string; preview?: string }>();
+  // Test builds can open Mystic Man on a still board of chosen obstacles
+  // (?preview=double,hang) for screenshots. Never in a store build.
+  const previewKinds = __DEV__ || E2E_BUILD ? (preview ?? "").split(",").filter(isPatternKind) : [];
   // The leaderboard opens on top of the game; the game waits behind it.
   const [focused, setFocused] = useState(true);
   useFocusEffect(
@@ -41,6 +46,7 @@ export default function GameScreen() {
   return (
     <Game
       active={focused}
+      preview={previewKinds.length ? previewKinds : undefined}
       guard={{ onPlayingChange: setPlaying, leaveAsks, onStay }}
       onExit={exit}
       onLeaderboard={() => router.push({ pathname: "/games/leaderboard", params: { game } })}

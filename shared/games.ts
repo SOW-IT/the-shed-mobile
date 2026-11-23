@@ -15,7 +15,7 @@ export const GAME_INFO: Record<GameId, { title: string; blurb: string }> = {
   },
   runner: {
     title: "Mystic Man",
-    blurb: "Swipe up to jump, swipe down to slide. It gets faster.",
+    blurb: "Tap to hop, swipe up for a big jump, swipe down to duck. It gets faster. Best sideways.",
   },
   flappy: {
     title: "Flap",

@@ -16,9 +16,11 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   View,
+  ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GAME_INFO, type GameId } from "../../../shared/games";
@@ -170,6 +172,8 @@ export const GameFrame = ({
   onExit,
   onLeaderboard,
   guard,
+  insets,
+  hideStartCard = false,
   children,
 }: {
   game: GameId;
@@ -187,6 +191,14 @@ export const GameFrame = ({
   onExit: () => void;
   onLeaderboard?: () => void;
   guard?: LeaveGuard;
+  /**
+   * Set when the game is drawn turned sideways: the device's safe area, in
+   * the game's own directions. The frame pads by these instead of measuring,
+   * and asks to leave in place rather than in a modal.
+   */
+  insets?: { top: number; right: number; bottom: number; left: number };
+  /** A still preview board, for screenshots: nothing over it. */
+  hideStartCard?: boolean;
   children: ReactNode;
 }) => {
   const { isAuthenticated } = useConvexAuth();
@@ -214,7 +226,7 @@ export const GameFrame = ({
   const info = GAME_INFO[game];
   const newBest = result !== null && result.score > result.previousBest && result.score > 0;
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: background }]} edges={["top", "bottom"]}>
+    <Frame insets={insets} style={[styles.screen, { backgroundColor: background }]}>
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
       <StatusBar hidden={phase === "playing"} animated />
       <View style={styles.bar}>
@@ -266,7 +278,7 @@ export const GameFrame = ({
         ) : null}
         {/* The cards cover the whole stage, not the board, so a short board
             can't cut off their buttons; a stage shorter than a card scrolls. */}
-        {phase === "ready" ? (
+        {phase === "ready" && !hideStartCard ? (
           <View style={[StyleSheet.absoluteFill, styles.overlay]} pointerEvents="none">
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{info.title}</Text>
@@ -304,10 +316,35 @@ export const GameFrame = ({
         ) : null}
       </View>
       <OnlineBanner />
-      <LeaveGameDialog visible={session.paused} onLeave={onExit} onContinue={stay} />
-    </SafeAreaView>
+      <LeaveGameDialog visible={session.paused} onLeave={onExit} onContinue={stay} inline={!!insets} />
+    </Frame>
   );
 };
+
+/** The screen's outer box: the measured safe area, or the insets given. */
+const Frame = ({
+  insets,
+  style,
+  children,
+}: {
+  insets?: { top: number; right: number; bottom: number; left: number };
+  style: StyleProp<ViewStyle>;
+  children: ReactNode;
+}) =>
+  insets ? (
+    <View
+      style={[
+        style,
+        { paddingTop: insets.top, paddingRight: insets.right, paddingBottom: insets.bottom, paddingLeft: insets.left },
+      ]}
+    >
+      {children}
+    </View>
+  ) : (
+    <SafeAreaView style={style} edges={["top", "bottom"]}>
+      {children}
+    </SafeAreaView>
+  );
 
 export const startHintFor = (touch: string, keys: string) =>
   Platform.OS === "web" ? `${touch}, or ${keys}, to start` : `${touch} to start`;
