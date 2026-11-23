@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.26] - 2026-11-24
+## [2.12.27] - 2026-11-24
 
 ### Fixed
 - **Hats, hair and the scarf look right in the World.** Every hair style,
