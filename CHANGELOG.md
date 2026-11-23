@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.21] - 2026-11-23
+## [2.12.22] - 2026-11-23
 
 ### Changed
 - **Mystic Man is faster again.** His top speed is a quarter higher (960 to
@@ -32,6 +32,15 @@ All notable changes to **The SHED** mobile app. This project follows
   text is full white, and Play again and Leaderboard have their own bright
   colours instead of the app's dark green. Only the game around the card is
   dimmed.
+
+## [2.12.21] - 2026-11-23
+
+### Changed
+- **The website opens faster.** The code that makes Event Request and Design
+  Request PDFs (about a fifth of the shared code every page loaded) is now
+  fetched only when you press Download PDF. Every page downloads about 208 KB
+  less, and on a slow connection the sign-in screen is ready about a quarter
+  of a second sooner. The PDFs and the app on phones are unchanged.
 
 ## [2.12.20] - 2026-11-23
 
