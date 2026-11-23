@@ -7,7 +7,7 @@ export const WORLD_PLACE = "garden";
 /** People per room. A full room opens the next instance of the place. */
 export const ROOM_CAP = 20;
 /** Walking speed, in world units a second. */
-export const WALK_SPEED = 1.4;
+export const WALK_SPEED = 2.2;
 /**
  * How far a voice carries. People further away still see a faded bubble.
  * Was 5 in the first build; Daniel asked for about half as far again.
@@ -25,7 +25,7 @@ export const CHAT_TTL_MS = 15 * 60_000;
 /** Lines kept per room, whatever their age. */
 export const CHAT_ROOM_CAP = 50;
 /** Lines the chat sheet and list view show. */
-export const CHAT_LOG_SIZE = 30;
+export const CHAT_LOG_SIZE = 50;
 /** Lines copied into a report, for context. */
 export const REPORT_CONTEXT_LINES = 10;
 /** The reported person's own recent lines kept in a report. */

@@ -151,7 +151,7 @@ const showLine = (store: OptimisticLocalStore, { text }: { text: string }) => {
   const log = store.getQuery(api.world.chatLog, { roomId: me.roomId });
   if (log) {
     // Marked pending by its id until the server's line replaces it.
-    const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true };
+    const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true };
     store.setQuery(api.world.chatLog, { roomId: me.roomId }, [pending, ...log]);
   }
 };

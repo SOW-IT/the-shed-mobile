@@ -216,6 +216,7 @@ export default defineSchema({
   // CHAT_TTL_MS. Name and email are copied so a line outlives its member.
   worldChat: defineTable({
     roomId: v.id("worldRooms"),
+    place: v.optional(v.string()),
     memberId: v.id("worldMembers"),
     email: v.string(),
     name: v.string(),

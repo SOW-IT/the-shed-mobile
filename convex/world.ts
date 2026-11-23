@@ -519,7 +519,7 @@ export const say = mutation({
     const token = spend("say", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     await ctx.db.patch("worldState", state._id, { say: { text, at: now }, sayBucket: token.bucket });
-    await ctx.db.insert("worldChat", { roomId: member.roomId, memberId: member._id, email, name: member.name, text, at: now });
+    await ctx.db.insert("worldChat", { roomId: member.roomId, place: placeOf(member), memberId: member._id, email, name: member.name, text, at: now });
     // Keep the room within CHAT_ROOM_CAP lines as each one arrives.
     const lines = await ctx.db
       .query("worldChat")
@@ -702,6 +702,8 @@ export const state = query({
 });
 
 /** The room's latest lines, newest first, for the list view. */
+const CHAT_SCAN = 200;
+
 export const chatLog = query({
   args: { roomId: v.id("worldRooms") },
   returns: v.union(
@@ -714,6 +716,8 @@ export const chatLog = query({
         text: v.string(),
         at: v.number(),
         isMe: v.boolean(),
+        place: v.optional(v.string()),
+        here: v.boolean(),
       })
     )
   ),
@@ -721,20 +725,28 @@ export const chatLog = query({
     const me = await meIn(ctx, roomId);
     if (!me) return null;
     // Lines past the chat TTL aren't shown, even before the sweeper deletes
-    // them. Read the whole room (it holds CHAT_ROOM_CAP at most) and keep the
-    // newest CHAT_LOG_SIZE from people nobody has blocked.
+    // them.
     const rows = await ctx.db
       .query("worldChat")
-      .withIndex("by_roomId_and_at", (q) => q.eq("roomId", roomId).gt("at", Date.now() - CHAT_TTL_MS))
+      .withIndex("by_at", (q) => q.gt("at", Date.now() - CHAT_TTL_MS))
       .order("desc")
-      .take(CHAT_ROOM_CAP);
+      .take(CHAT_SCAN);
     const lines = [];
     const hidden = new Map<string, boolean>();
     for (const row of rows) {
       if (lines.length === CHAT_LOG_SIZE) break;
       if (!hidden.has(row.email)) hidden.set(row.email, await blockedEither(ctx, me.email, row.email));
       if (hidden.get(row.email)) continue;
-      lines.push({ id: row._id, memberId: row.memberId, name: row.name, text: row.text, at: row.at, isMe: row.email === me.email });
+      lines.push({
+        id: row._id,
+        memberId: row.memberId,
+        name: row.name,
+        text: row.text,
+        at: row.at,
+        isMe: row.email === me.email,
+        place: row.place,
+        here: row.place === undefined ? row.roomId === roomId : row.place === placeOf(me),
+      });
     }
     return lines;
   },

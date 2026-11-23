@@ -27,6 +27,7 @@ import {
   ROOM_CAP,
   spawnFor,
   SWEEP_EVERY_MS,
+  WALK_SPEED,
 } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
@@ -152,7 +153,7 @@ describe("move", () => {
     const spawn = spawnFor(ANNA);
     const first = await anna.mutation(api.world.move, { toX: spawn.x, toZ: spawn.z - 2.8 });
     expect(first).toMatchObject({ ok: true, fromX: spawn.x, fromZ: spawn.z, startedAt: near(PINNED_NOW)});
-    later(1000); // 1.4 units along
+    later((1.4 / WALK_SPEED) * 1000); // 1.4 units along
     const second = await anna.mutation(api.world.move, { toX: 99, toZ: 0 });
     if (!second.ok) throw new Error("turned away");
     expect(second.fromZ).toBeCloseTo(spawn.z - 1.4);
@@ -371,6 +372,28 @@ describe("places", () => {
     const [chapel] = await anna.query(api.world.elsewhere, {});
     expect(chapel.count).toBe(ELSEWHERE_NAMES + 3);
     expect(chapel.names).toHaveLength(ELSEWHERE_NAMES);
+  });
+
+  test("the chat log is shared by every place, and shows lines from before you joined", async () => {
+    const { t, anna, ben, a } = await two();
+    await ben.mutation(api.world.travel, { to: "chapel" });
+    later(1000);
+    await ben.mutation(api.world.say, { text: "Anyone in the Chapel?" });
+    await anna.mutation(api.world.say, { text: "Garden here" });
+    expect(await anna.query(api.world.chatLog, { roomId: a.roomId })).toMatchObject([
+      { text: "Garden here", isMe: true, place: "garden", here: true },
+      { text: "Anyone in the Chapel?", isMe: false, place: "chapel", here: false },
+    ]);
+    const cara = asUser(t, CARA);
+    const c = await cara.mutation(api.world.join, {});
+    expect((await cara.query(api.world.chatLog, { roomId: c.roomId }))!.map((line) => line.text)).toEqual(["Garden here", "Anyone in the Chapel?"]);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("worldChat", { roomId: a.roomId, memberId: a.memberId, email: ANNA, name: "anna", text: "From before places", at: Date.now() });
+    });
+    expect(await anna.query(api.world.chatLog, { roomId: a.roomId })).toMatchObject([{ text: "From before places", here: true }, {}, {}]);
+    const chapelRoom = await t.run(async (ctx) => (await ctx.db.query("worldMembers").collect()).find((m) => m.email === BEN)!.roomId);
+    expect(await ben.query(api.world.chatLog, { roomId: chapelRoom })).toMatchObject([{ text: "From before places", here: false }, {}, {}]);
   });
 
   test("hides someone who blocked you even when hundreds of others have too", async () => {

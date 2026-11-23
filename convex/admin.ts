@@ -886,6 +886,66 @@ export const listLeavers = query({
   },
 });
 
+const ACTIVITY_EMAIL_LIMIT = 600;
+
+const appPlatformValidator = v.union(v.literal("ios"), v.literal("android"));
+
+const userActivityValidator = v.object({
+  email: v.string(),
+  versions: v.array(
+    v.object({
+      platform: appPlatformValidator,
+      version: v.string(),
+      seenAt: v.number(),
+    }),
+  ),
+  lastSeenAt: v.union(v.number(), v.null()),
+});
+
+const activityFor = async (ctx: QueryCtx, email: string) => {
+  const byPlatform = new Map<
+    Doc<"appInstalls">["platform"],
+    Doc<"appInstalls">
+  >();
+  let lastSeenAt: number | null = null;
+  for (const candidate of staffEmailCandidates(email)) {
+    const installs = await ctx.db
+      .query("appInstalls")
+      .withIndex("by_email_and_platform", (q) => q.eq("email", candidate))
+      .take(2);
+    for (const install of installs) {
+      const known = byPlatform.get(install.platform);
+      if (!known || install.seenAt > known.seenAt) {
+        byPlatform.set(install.platform, install);
+      }
+    }
+    const seen = await ctx.db
+      .query("lastSeen")
+      .withIndex("by_email", (q) => q.eq("email", candidate))
+      .unique();
+    if (seen && (lastSeenAt === null || seen.at > lastSeenAt)) {
+      lastSeenAt = seen.at;
+    }
+  }
+  const versions = [...byPlatform.values()]
+    .sort((a, b) => b.seenAt - a.seenAt)
+    .map(({ platform, version, seenAt }) => ({ platform, version, seenAt }));
+  return { email, versions, lastSeenAt };
+};
+
+export const userActivity = query({
+  args: { emails: v.array(v.string()) },
+  returns: v.union(v.array(userActivityValidator), v.null()),
+  handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return null;
+    await requireAdmin(ctx);
+    const emails = [...new Set(args.emails)].slice(0, ACTIVITY_EMAIL_LIMIT);
+    const rows = [];
+    for (const email of emails) rows.push(await activityFor(ctx, email));
+    return rows;
+  },
+});
+
 export const markLeaving = mutation({
   args: { email: v.string(), year: v.number() },
   handler: async (ctx, args) => {

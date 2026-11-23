@@ -421,6 +421,7 @@ export const Garden = ({
     tags.push({
       key: p.memberId,
       depth: head.depth,
+      spokeAt: line ? p.say?.at : waiting ? p.ask?.at : undefined,
       ...tagBox(head.x, head.y, name, line ?? waiting, Boolean(emote), p.away === true),
       props: { name, me: p.me, line: line ?? waiting, far, emote, emoteRise: rise, lineFade: line ? bubbleFades[i] : 1, status: p.away ? AWAY_STATUS : undefined },
     });
@@ -538,7 +539,7 @@ export const Garden = ({
         {actors.map((a) => (
           <Fragment key={a.key}>{a.node}</Fragment>
         ))}
-        {stackTags(tags).map((tag) => (
+        {layerTags(tags).map((tag) => (
           <Tag key={tag.key} x={tag.x} y={tag.bottom} {...tag.props} />
         ))}
       </View>
@@ -684,6 +685,7 @@ const promptOffset = (
 type TagSpot = {
   key: string;
   depth: number;
+  spokeAt: number | undefined;
   x: number;
   bottom: number;
   width: number;
@@ -701,32 +703,15 @@ const tagBox = (x: number, bottom: number, name: string, line: string | undefine
   return { x, bottom, width: Math.max(nameWidth, Math.min(214, chars * 8 + 32)), height: 24 + 10 + lines * 18.5 + 21 + icon };
 };
 
-/**
- * Nearest people's tags stay over their heads; a farther tag that would
- * cover one moves up above it, but never off the top of the stage. Returned
- * far to near, so nearer tags draw on top.
- */
-const stackTags = (tags: TagSpot[]): TagSpot[] => {
-  const placed: TagSpot[] = [];
-  for (const tag of [...tags].sort((a, b) => a.depth - b.depth)) {
-    let bottom = tag.bottom;
-    for (let moved = true; moved; ) {
-      moved = false;
-      for (const other of placed) {
-        const across = Math.abs(other.x - tag.x) < (other.width + tag.width) / 2;
-        const up = bottom > other.bottom - other.height && bottom - tag.height < other.bottom;
-        if (across && up) {
-          bottom = other.bottom - other.height - 4;
-          moved = true;
-        }
-      }
-    }
-    // A crowd can stack tags past the top of the stage; the top one stops
-    // there and overlaps the one below rather than vanishing.
-    placed.push({ ...tag, bottom: Math.max(bottom, tag.height + 4) });
-  }
-  return placed.reverse();
-};
+const drawOrder = (tag: TagSpot) => (tag.spokeAt === undefined ? [0, -tag.depth] : [1, tag.spokeAt]);
+
+const layerTags = (tags: TagSpot[]): TagSpot[] =>
+  [...tags]
+    .sort((a, b) => {
+      const [x, y] = [drawOrder(a), drawOrder(b)];
+      return x[0] - y[0] || x[1] - y[1];
+    })
+    .map((tag) => ({ ...tag, bottom: Math.max(tag.bottom, tag.height + 4) }));
 
 const styles = StyleSheet.create({
   fill: { flex: 1, overflow: "hidden" },

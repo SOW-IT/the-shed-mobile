@@ -177,6 +177,7 @@ export const chatLog = {
   shadow: "rgba(20, 20, 20, 0.85)",
   time: "#D4D4D4",
   me: "#FFFF55",
+  place: "#7FF6FF",
   name: "#FFFFFF",
   status: "#E0E0E0",
 } as const;

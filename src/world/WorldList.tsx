@@ -1,6 +1,6 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { ASK_MS, canHear, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, PLACE_TITLES, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
+import { ASK_MS, canHear, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, isPlace, PLACE_TITLES, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -261,6 +261,7 @@ export const WorldList = ({
                 <Text style={{ color: t.muted, fontWeight: "400" }}>
                   {/* Shown at once; marked until the server has it. */}
                   {line.id.startsWith(PENDING) ? "Sending…" : clock(line.at)}
+                  {line.here ? "" : ` · ${line.place && isPlace(line.place) ? PLACE_TITLES[line.place] : "elsewhere"}`}
                 </Text>
               </Text>
               <Text style={[typography.body, { color: t.text }]}>{line.text}</Text>

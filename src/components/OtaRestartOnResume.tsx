@@ -11,7 +11,7 @@ const loadUpdates = (): UpdatesModule | null => {
   return require("expo-updates") as UpdatesModule;
 };
 
-const updatesModule = loadUpdates();
+export const updatesModule = loadUpdates();
 
 export function OtaRestartOnResume() {
   return updatesModule?.isEnabled ? <RestartWhenResumed updates={updatesModule} /> : null;

@@ -1,4 +1,4 @@
-import { CHAT_TTL_MS } from "@shared/world";
+import { CHAT_TTL_MS, isPlace, PLACE_TITLES } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useRef } from "react";
 import { Platform, ScrollView, StyleSheet, Text, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from "react-native";
@@ -11,6 +11,8 @@ import { clock } from "./view";
 const LINE_HEIGHT = 19;
 const SHOWN_LINES = 5;
 const END_SLACK = 6;
+
+const placeTag = (place: string | undefined) => (place && isPlace(place) ? PLACE_TITLES[place].replace(/^The /, "") : "Elsewhere");
 
 const blocky = Platform.select({
   ios: "Menlo",
@@ -66,6 +68,7 @@ export const ChatLog = ({
           testID="world-chat-line"
         >
           <Text style={styles.time}>[{line.id.startsWith(PENDING) ? "…" : clock(line.at)}] </Text>
+          {line.here ? null : <Text style={styles.place}>[{placeTag(line.place)}] </Text>}
           <Text style={line.isMe ? styles.me : styles.name}>{`<${line.name}> `}</Text>
           {line.text}
         </Text>
@@ -87,5 +90,6 @@ const styles = StyleSheet.create({
   time: { color: chatLog.time },
   name: { color: chatLog.name },
   me: { color: chatLog.me },
+  place: { color: chatLog.place },
   status: { color: chatLog.status },
 });

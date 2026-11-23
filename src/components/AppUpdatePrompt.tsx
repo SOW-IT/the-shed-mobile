@@ -1,17 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useQuery } from "convex/react";
 import * as SecureStore from "expo-secure-store";
 import { useSyncExternalStore } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { api } from "../../convex/_generated/api";
-import { appLinkForScheme } from "../../shared/appLinks";
-import { Btn } from "@/components/ui";
-import { appScheme, appVersion } from "@/hooks/useReportAppVersion";
-import { openExternalLink } from "@/lib/openExternalLink";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Btn, ErrorBanner } from "@/components/ui";
+import { nativePlatform, useAppUpdate } from "@/hooks/useAppUpdate";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-
-const nativePlatform = (): "ios" | "android" | null =>
-  Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : null;
 
 const DISMISSED_KEY = "updatePromptDismissedFor";
 
@@ -40,25 +33,9 @@ const subscribeDismissed = (listener: () => void) => {
 
 const getDismissed = () => dismissedFor;
 
-const useUpdateCheck = () => {
-  const platform = nativePlatform();
-  const version = appVersion();
-  const link = appLinkForScheme(appScheme());
-  const storeUrl = platform === "ios" ? link.iosStore : platform === "android" ? link.androidStore : null;
-  const check = useQuery(
-    api.appInstalls.updateStatus,
-    platform && version && storeUrl ? { platform, version } : "skip"
-  );
-  const dismissed = useSyncExternalStore(subscribeDismissed, getDismissed, getDismissed);
-  const openStore = () => {
-    if (storeUrl) void openExternalLink(storeUrl);
-  };
-  return { check: storeUrl ? check : undefined, version, dismissed, openStore };
-};
-
 export function AppUpdatePrompt() {
   const t = useAppTheme();
-  const { check, version, openStore } = useUpdateCheck();
+  const { check, version, busy, label, error, update } = useAppUpdate();
   if (check?.status !== "required") return null;
   return (
     <View
@@ -71,14 +48,21 @@ export function AppUpdatePrompt() {
         {check.message ??
           `This version (${version}) is no longer supported. Update to ${check.latest ?? "the latest version"} to keep using The SHED.`}
       </Text>
-      <Btn title="Update" icon="arrow-down-circle-outline" onPress={openStore} />
+      <Btn
+        title={label ?? "Update"}
+        icon="arrow-down-circle-outline"
+        disabled={busy}
+        onPress={update}
+      />
+      <ErrorBanner message={error} />
     </View>
   );
 }
 
 export function UpdatePill() {
   const t = useAppTheme();
-  const { check, dismissed, openStore } = useUpdateCheck();
+  const { check, busy, label, error, update } = useAppUpdate();
+  const dismissed = useSyncExternalStore(subscribeDismissed, getDismissed, getDismissed);
   if (check?.status !== "recommended") return null;
   const recommended = check.latest ?? "";
   if (dismissed === undefined || dismissed === recommended) return null;
@@ -90,13 +74,15 @@ export function UpdatePill() {
     <View style={[styles.pill, { backgroundColor: t.primary }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={check.message ?? `Update The SHED to ${recommended}`}
-        onPress={openStore}
+        accessibilityLabel={label ?? error ?? check.message ?? `Update The SHED to ${recommended}`}
+        accessibilityState={{ busy }}
+        disabled={busy}
+        onPress={update}
         style={({ pressed }) => [styles.pillMain, pressed && { opacity: 0.75 }]}
       >
-        <Ionicons name="arrow-down-circle" size={16} color={t.onPrimary} />
+        <Ionicons name={error ? "refresh" : "arrow-down-circle"} size={16} color={t.onPrimary} />
         <Text style={[typography.caption, { color: t.onPrimary, fontWeight: "800" }]}>
-          {recommended ? `Update ${recommended}` : "Update"}
+          {label ?? (error ? "Retry update" : recommended ? `Update ${recommended}` : "Update")}
         </Text>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Not now" hitSlop={10} onPress={dismiss}>

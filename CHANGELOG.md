@@ -9,6 +9,15 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [2.12.14] - 2026-11-23
 
 ### Changed
+- **Walking is faster,** about one and a half times the old pace, with
+  quicker steps to match.
+- **One chat for the whole World.** The chat log shows every place's
+  lines, with the place in brackets when it isn't yours, and includes
+  the last 15 minutes from before you arrived. Speech bubbles over heads
+  still only show in your own place.
+- **Name tags and speech bubbles stay over their owners' heads.** When
+  they overlap, the newest message draws on top and the rest go behind,
+  rather than being pushed up the screen.
 - **The chat log sits at the top of the World.** The last few lines show
   over the scenery with the time and who said them, in place of the "can
   hear you" pill, and you can scroll up through older lines. Speech
@@ -16,6 +25,16 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Fewer buttons in People here.** Customize your character and Show as a
   list are gone. Tap yourself and pick Outfit to change your look. In the
   list view, tap your own name.
+
+- **Update from your profile.** When your app is behind the recommended
+  version, an Update button sits under the version number. It downloads
+  the latest update and restarts the app, and only sends you to the store
+  when a store update is needed. The update pill and the required-update
+  screen do the same.
+- **Delete account looks dangerous now:** a solid red card with a warning
+  sign. What it does hasn't changed.
+- **Admin, Users shows each person's app version and when they were last
+  online,** with versions behind the newest one marked.
 
 ### Fixed
 - **Opening the character editor from People here could freeze the
