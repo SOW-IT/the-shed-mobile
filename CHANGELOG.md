@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.21] - 2026-11-24
+
+### Changed
+- **Unread comment badges cost far less to work out.** The red comment counts
+  on Home, the Reimbursements tab and Finance's All requests list now look at
+  a request's approvals only when it has comments you haven't read. Most
+  requests have no comments, so a Head of Department's badge reads about a
+  fourteenth of what it did. The numbers shown are the same.
+
 ## [2.12.20] - 2026-11-23
 
 ### Fixed
