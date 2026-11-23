@@ -1,11 +1,47 @@
 import { Children, ReactNode, useEffect, useState } from "react";
-import { Animated, Easing, Image, Modal, Platform, StyleProp, Text, TextProps, TextStyle, View, ViewStyle } from "react-native";
+import { Animated, Easing, Image, Modal, Platform, StyleProp, StyleSheet, Text, TextProps, TextStyle, View, ViewStyle } from "react-native";
 import Reanimated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing as ReanimatedEasing } from "react-native-reanimated";
 import { USE_NATIVE_DRIVER, durations, typography, useAppTheme } from "@/theme";
 import { keyed } from "@/lib/listKeys";
 import { styles } from "./styles";
 
 const ReanimatedImage = Reanimated.createAnimatedComponent(Image);
+
+const WEB = Platform.OS === "web";
+
+/**
+ * A looping CSS animation for react-native-web, which turns
+ * `animationKeyframes` into @keyframes. The browser runs it by itself, where
+ * an Animated or Reanimated loop on web runs JavaScript every frame. It only
+ * works in a StyleSheet style on a plain View or Image: Animated components
+ * flatten their style inline, where keyframes can't go. Transforms are CSS
+ * strings, as react-native-web drops transform arrays inside keyframes.
+ */
+const webLoop = (
+  frames: Record<string, Record<string, string | number>>,
+  ms: number,
+  timing: string
+): ViewStyle =>
+  ({
+    animationKeyframes: frames,
+    animationDuration: `${ms}ms`,
+    animationTimingFunction: timing,
+    animationIterationCount: "infinite",
+  }) as unknown as ViewStyle;
+
+const SPIN_MS = 1200;
+const PULSE_MS = 650;
+const PULSE_LOW = 0.45;
+const PULSE_HIGH = 0.85;
+
+const webMotion = StyleSheet.create({
+  spin: WEB ? webLoop({ "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } }, SPIN_MS, "linear") : {},
+  // Up for one beat and down for the next, eased each way, as LoadingBar's
+  // native sequence of two timings does.
+  pulse: WEB
+    ? webLoop({ "0%": { opacity: PULSE_LOW }, "50%": { opacity: PULSE_HIGH }, "100%": { opacity: PULSE_LOW } }, PULSE_MS * 2, "ease-in-out")
+    : {},
+});
 
 export const Txt = ({ style, ...props }: TextProps) => {
   const t = useAppTheme();
@@ -215,13 +251,30 @@ export const Answer = ({ label, children }: { label: string; children: ReactNode
   );
 };
 
-export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: boolean }) => {
+type SpinnerProps = { size?: number; onDark?: boolean };
+
+// 256 px copies of the splash marks: the spinner is at most 64 pt, and
+// the 1024 px originals cost about 4 MB of decoded bitmap each.
+const spinnerImage = (dark: boolean) =>
+  dark ? require("../../../assets/images/spinner-dark.png") : require("../../../assets/images/spinner.png");
+
+/** On web the turn is a CSS animation, so a spinner left on screen costs no JavaScript. */
+const WebSpinner = ({ size = 64, onDark }: SpinnerProps) => {
+  const t = useAppTheme();
+  return (
+    <View style={[{ width: size, height: size }, webMotion.spin]} accessibilityLabel="Loading">
+      <Image source={spinnerImage(onDark ?? t.dark)} style={{ width: size, height: size }} resizeMode="contain" />
+    </View>
+  );
+};
+
+const NativeSpinner = ({ size = 64, onDark }: SpinnerProps) => {
   const t = useAppTheme();
   const dark = onDark ?? t.dark;
   const rotation = useSharedValue(0);
   useEffect(() => {
     rotation.value = withRepeat(
-      withTiming(360, { duration: 1200, easing: ReanimatedEasing.linear }),
+      withTiming(360, { duration: SPIN_MS, easing: ReanimatedEasing.linear }),
       -1,
       false
     );
@@ -234,13 +287,7 @@ export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: bool
   }));
   return (
     <ReanimatedImage
-      // 256 px copies of the splash marks: the spinner is at most 64 pt, and
-      // the 1024 px originals cost about 4 MB of decoded bitmap each.
-      source={
-        dark
-          ? require("../../../assets/images/spinner-dark.png")
-          : require("../../../assets/images/spinner.png")
-      }
+      source={spinnerImage(dark)}
       style={animatedStyle}
       resizeMode="contain"
       accessibilityLabel="Loading"
@@ -248,27 +295,38 @@ export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: bool
   );
 };
 
-export const LoadingBar = ({
-  width = 56,
-  height = 10,
-}: {
-  width?: number;
-  height?: number;
-}) => {
+export const SowSpinner = WEB ? WebSpinner : NativeSpinner;
+
+type LoadingBarProps = { width?: number; height?: number };
+
+/** On web the pulse is a CSS animation, so skeletons on screen cost no JavaScript. */
+const WebLoadingBar = ({ width = 56, height = 10 }: LoadingBarProps) => {
   const t = useAppTheme();
-  const [pulse] = useState(() => new Animated.Value(0.45));
+  return (
+    <View
+      style={[
+        { width, height, borderRadius: height / 2, backgroundColor: t.separator, filter: "blur(2px)" },
+        webMotion.pulse,
+      ]}
+    />
+  );
+};
+
+const NativeLoadingBar = ({ width = 56, height = 10 }: LoadingBarProps) => {
+  const t = useAppTheme();
+  const [pulse] = useState(() => new Animated.Value(PULSE_LOW));
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
-          toValue: 0.85,
-          duration: 650,
-          useNativeDriver: USE_NATIVE_DRIVER,
+          toValue: PULSE_HIGH,
+          duration: PULSE_MS,
+          useNativeDriver: true,
         }),
         Animated.timing(pulse, {
-          toValue: 0.45,
-          duration: 650,
-          useNativeDriver: USE_NATIVE_DRIVER,
+          toValue: PULSE_LOW,
+          duration: PULSE_MS,
+          useNativeDriver: true,
         }),
       ])
     );
@@ -283,8 +341,10 @@ export const LoadingBar = ({
         borderRadius: height / 2,
         backgroundColor: t.separator,
         opacity: pulse,
-        filter: Platform.OS === "web" ? "blur(2px)" : [{ blur: 2 }],
+        filter: [{ blur: 2 }],
       }}
     />
   );
 };
+
+export const LoadingBar = WEB ? WebLoadingBar : NativeLoadingBar;
