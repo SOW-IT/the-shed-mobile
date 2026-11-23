@@ -14,7 +14,6 @@ import {
   ErrorBanner,
   errorMessage,
   Field,
-  formatAmount,
   IconButton,
   Muted,
   LoadingState,
@@ -93,7 +92,7 @@ const ThresholdCard = ({
       <Card>
         <Muted>
           {explanation}
-          {configured == null ? ` Using the standard default of $${formatAmount(standard)}.` : ""}
+          {configured == null ? " This is the default." : ""}
         </Muted>
         {editable ? (
           <>
@@ -206,7 +205,7 @@ export const FinanceSettingsPanel = ({ currentYear }: { currentYear: number }) =
         key={`director-${year}`}
         title="Reimbursement Director threshold"
         year={year}
-        explanation="Reimbursements at or above this amount also need the Director's approval. Only affects requests submitted from now on."
+        explanation="Reimbursements at or above this also need the Director's approval. Applies to new requests only."
         configured={structure?.directorApprovalThreshold ?? null}
         standard={DIRECTOR_APPROVAL_THRESHOLD}
         editable={editable}
@@ -217,7 +216,7 @@ export const FinanceSettingsPanel = ({ currentYear }: { currentYear: number }) =
         key={`event-${year}`}
         title="Event Director threshold"
         year={year}
-        explanation="Event requests whose Finance form has total expenses over this amount also need the Director's approval, before the Finance Head's. Only affects Finance forms submitted from now on."
+        explanation="Finance forms with expenses over this also need the Director's approval, before the Finance Head's. Applies to new forms only."
         configured={structure?.eventDirectorApprovalThreshold ?? null}
         standard={EVENT_DIRECTOR_APPROVAL_THRESHOLD}
         editable={editable}

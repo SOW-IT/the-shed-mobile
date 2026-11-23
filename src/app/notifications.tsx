@@ -157,7 +157,6 @@ export default function NotificationsScreen() {
         <EmptyState
           icon="notifications-outline"
           title="No notifications"
-          message="Updates about your requests and approvals, and announcements, will show up here."
         />
       ) : (
         <>

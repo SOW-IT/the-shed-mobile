@@ -1210,8 +1210,8 @@ export default function EventAttendanceScreen() {
   const unsignedEmptyState = isSearching ? null : (
     <Muted>
       {optimisticSignedInCount > 0
-        ? "Everyone expected is signed in 🎉 Search to add anyone else."
-        : "Search to find people and sign them in."}
+        ? "Everyone expected is signed in."
+        : "Search to sign people in."}
     </Muted>
   );
 

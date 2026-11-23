@@ -28,7 +28,7 @@ export const GroupedList = <Status, Row extends ListRow<Status>>({
   rows: Row[] | null | undefined;
   groups: StatusGroup<Status>[];
   icon: AppIconName;
-  empty: { title: string; message: string; action?: { label: string; onPress: () => void } };
+  empty: { title: string; message?: string; action?: { label: string; onPress: () => void } };
   header?: ReactNode;
   footer?: ReactNode;
   renderRow: (row: Row) => ReactNode;

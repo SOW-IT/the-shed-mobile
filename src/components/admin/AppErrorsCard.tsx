@@ -64,7 +64,7 @@ export function AppErrorsCard() {
         <View style={styles.note}>
           <Ionicons name="information-circle-outline" size={14} color={t.faint} />
           <Text style={[typography.caption, { color: t.faint, flex: 1 }]}>
-            The same error is counted once per occurrence and kept until cleared here.
+            Kept until cleared.
           </Text>
         </View>
       </Card>
