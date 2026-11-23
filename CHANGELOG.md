@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.32] - 2026-11-24
+## [2.12.33] - 2026-11-24
 
 ### Changed
 - **Reimbursement lists ask the server less, part two.** The names under
