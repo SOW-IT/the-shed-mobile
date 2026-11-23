@@ -6,7 +6,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { chatLog } from "./palette";
 import { PENDING } from "./useWorld";
-import { clock, saidLabel } from "./view";
+import { clock, saidLabel, systemLine } from "./view";
 
 const LINE_HEIGHT = 19;
 const SHOWN_LINES = 5;
@@ -62,22 +62,30 @@ export const ChatLog = ({
           {status}
         </Text>
       ) : null}
-      {lines.map((line) => (
-        <Text
-          key={line.id}
-          style={styles.line}
-          accessibilityLabel={saidLabel(line)}
-          accessibilityHint={line.isMe ? undefined : `Mute, block or report ${line.name}`}
-          onPress={line.isMe ? undefined : () => onLine(line.memberId, line.name)}
-          suppressHighlighting
-          testID="world-chat-line"
-        >
-          <Text style={styles.time}>[{line.id.startsWith(PENDING) ? "…" : clock(line.at)}] </Text>
-          {line.here ? null : <Text style={styles.place}>[{placeTag(line.place)}] </Text>}
-          <Text style={line.isMe ? styles.me : styles.name}>{`<${line.name}> `}</Text>
-          {line.text}
-        </Text>
-      ))}
+      {lines.map((line) =>
+        line.kind ? (
+          <Text key={line.id} style={[styles.line, styles.system]} accessibilityLabel={saidLabel(line)} testID="world-chat-system">
+            <Text style={styles.time}>[{clock(line.at)}] </Text>
+            {line.here ? null : <Text style={styles.place}>[{placeTag(line.place)}] </Text>}
+            {systemLine(line)}
+          </Text>
+        ) : (
+          <Text
+            key={line.id}
+            style={styles.line}
+            accessibilityLabel={saidLabel(line)}
+            accessibilityHint={line.isMe ? undefined : `Mute, block or report ${line.name}`}
+            onPress={line.isMe ? undefined : () => onLine(line.memberId, line.name)}
+            suppressHighlighting
+            testID="world-chat-line"
+          >
+            <Text style={styles.time}>[{line.id.startsWith(PENDING) ? "…" : clock(line.at)}] </Text>
+            {line.here ? null : <Text style={styles.place}>[{placeTag(line.place)}] </Text>}
+            <Text style={line.isMe ? styles.me : styles.name}>{`<${line.name}> `}</Text>
+            {line.text}
+          </Text>
+        )
+      )}
     </ScrollView>
   );
 };
@@ -97,4 +105,5 @@ const styles = StyleSheet.create({
   me: { color: chatLog.me },
   place: { color: chatLog.place },
   status: { color: chatLog.status },
+  system: { color: chatLog.system },
 });
