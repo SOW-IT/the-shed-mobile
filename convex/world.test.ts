@@ -34,6 +34,7 @@ import {
   spawnFor,
   SWEEP_EVERY_MS,
   TYPING_REFRESH_MS,
+  PING_PUBLISH_MS,
   WALK_SPEED,
 } from "../shared/world";
 
@@ -363,8 +364,10 @@ describe("places", () => {
     expect(await anna.query(api.world.elsewhere, {})).toEqual([]);
     await ben.mutation(api.world.travel, { to: "chapel" });
     await cara.mutation(api.world.travel, { to: "chapel" });
-    expect(await anna.query(api.world.elsewhere, {})).toEqual([{ place: "chapel", count: 2, names: [expect.any(String), expect.any(String)] }]);
-    expect(await ben.query(api.world.elsewhere, {})).toEqual([{ place: "garden", count: 1, names: [expect.any(String)] }]);
+    expect(await anna.query(api.world.elsewhere, {})).toMatchObject([
+      { place: "chapel", count: 2, names: [expect.any(String), expect.any(String)], people: [{ look: expect.any(Object) }, { look: expect.any(Object) }] },
+    ]);
+    expect(await ben.query(api.world.elsewhere, {})).toMatchObject([{ place: "garden", count: 1, names: [expect.any(String)], people: [{ name: expect.any(String) }] }]);
 
     await t.run(async (ctx) => {
       await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: BEN, blockedName: "Ben" });
@@ -381,6 +384,7 @@ describe("places", () => {
     const [chapel] = await anna.query(api.world.elsewhere, {});
     expect(chapel.count).toBe(ELSEWHERE_NAMES + 3);
     expect(chapel.names).toHaveLength(ELSEWHERE_NAMES);
+    expect(chapel.people).toHaveLength(ELSEWHERE_NAMES);
   });
 
   test("the chat log is shared by every place, and shows lines from before you joined", async () => {
@@ -415,7 +419,7 @@ describe("places", () => {
       for (let i = 0; i < 200; i++) await ctx.db.insert("worldBlocks", { email: `stranger${i}@sow.org.au`, blockedEmail: ANNA, blockedName: "Anna" });
       await ctx.db.insert("worldBlocks", { email: CARA, blockedEmail: ANNA, blockedName: "Anna" });
     });
-    expect(await anna.query(api.world.elsewhere, {})).toEqual([{ place: "chapel", count: 1, names: [expect.any(String)] }]);
+    expect(await anna.query(api.world.elsewhere, {})).toMatchObject([{ place: "chapel", count: 1, names: [expect.any(String)] }]);
   });
 
   test("another tab joins you where you are, and leaving from anywhere tidies up", async () => {
@@ -1721,5 +1725,57 @@ describe("join and leave lines", () => {
     await ben.mutation(api.world.leave, {});
     const seen = (await anna.query(api.world.chatLog, { roomId: a.roomId }))!.filter((line) => line.kind !== undefined);
     expect(seen.map((line) => line.name)).toEqual(["cara", "anna"]);
+  });
+});
+
+describe("ping", () => {
+  const pingOf = async (t: T, email: string) =>
+    t.run(async (ctx) => (await ctx.db.query("worldMembers").withIndex("by_email", (q) => q.eq("email", email)).first())?.ping);
+
+  test("your bars show on the roster and to people in other places", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    await ben.mutation(api.world.join, {});
+    expect(await anna.mutation(api.world.ping, { bars: 3 })).toMatchObject({ published: true, serverNow: expect.any(Number) });
+    const roster = await ben.query(api.world.roster, { roomId: a.roomId });
+    expect(roster?.members.find((m) => !m.isMe)?.ping).toBe(3);
+    await ben.mutation(api.world.travel, { to: "beach" });
+    expect(await ben.query(api.world.elsewhere, {})).toMatchObject([{ place: "garden", people: [{ ping: 3 }] }]);
+  });
+
+  test("the same bars write nothing, and a change waits 30 s after the last write", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.ping, { bars: 4 });
+    later(PING_PUBLISH_MS * 2);
+    expect(await anna.mutation(api.world.ping, { bars: 4 })).toMatchObject({ published: false });
+    await anna.mutation(api.world.ping, { bars: 2 });
+    expect(await pingOf(t, ANNA)).toBe(2);
+    later(PING_PUBLISH_MS - 1000);
+    expect(await anna.mutation(api.world.ping, { bars: 1 })).toMatchObject({ published: false });
+    expect(await pingOf(t, ANNA)).toBe(2);
+    later(1000);
+    expect(await anna.mutation(api.world.ping, { bars: 1 })).toMatchObject({ published: true });
+    expect(await pingOf(t, ANNA)).toBe(1);
+  });
+
+  test("a probe without bars, or from someone not in the world, writes nothing", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    expect(await anna.mutation(api.world.ping, { bars: 3 })).toMatchObject({ published: false });
+    await anna.mutation(api.world.join, {});
+    expect(await anna.mutation(api.world.ping, {})).toMatchObject({ published: false });
+    expect((await pingOf(t, ANNA)) ?? null).toBeNull();
+  });
+
+  test("bars outside one to four are refused", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await expect(anna.mutation(api.world.ping, { bars: 7 })).rejects.toThrow(/1 to 4/);
+    await expect(anna.mutation(api.world.ping, { bars: 2.5 })).rejects.toThrow(/1 to 4/);
   });
 });

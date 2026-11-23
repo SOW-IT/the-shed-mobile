@@ -46,6 +46,35 @@ export const PRESENCE_TOUCH_MS = 20_000;
 export const SWEEP_EVERY_MS = 30_000;
 export const TYPING_MS = 6000;
 export const TYPING_REFRESH_MS = 3000;
+export const PING_PUBLISH_MS = 30_000;
+export const PING_PROBE_MS = 15_000;
+export const PING_MAX_SAMPLE_MS = 10_000;
+const PING_STEPS_MS = [150, 300, 600] as const;
+export type PingBars = 1 | 2 | 3 | 4;
+
+export const isPingBars = (value: unknown): value is PingBars => value === 1 || value === 2 || value === 3 || value === 4;
+
+export const pingBars = (ms: number): PingBars => {
+  const [great, good, slow] = PING_STEPS_MS;
+  return ms <= great ? 4 : ms <= good ? 3 : ms <= slow ? 2 : 1;
+};
+
+export const smoothPing = (smoothed: number | null, sample: number): number => {
+  const clamped = Math.min(PING_MAX_SAMPLE_MS, Math.max(0, sample));
+  return smoothed === null ? clamped : smoothed * 0.7 + clamped * 0.3;
+};
+
+export const shouldPublishPing = ({
+  bars,
+  published,
+  publishedAt,
+  now,
+}: {
+  bars: PingBars;
+  published: PingBars | null;
+  publishedAt: number | null;
+  now: number;
+}): boolean => bars !== published && (publishedAt === null || now - publishedAt >= PING_PUBLISH_MS);
 /** How long a chat bubble stays over someone's head. */
 export const BUBBLE_MS = 8000;
 /** How long an emote plays: the face, the body and the icon over the head. */

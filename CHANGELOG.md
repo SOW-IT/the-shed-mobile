@@ -36,8 +36,34 @@ All notable changes to **The SHED** mobile app. This project follows
   the Games list card says how many people are in right now, and the People
   button in the World has a badge with the count. Nothing shows when
   nobody's in.
+- **A game-style People list.** People in the World opens a see-through
+  dark panel over the World instead of a white sheet. Each row has the
+  person's character, their name ("Daniel K."), where they are, and their
+  connection as one to four bars (green, amber or red). Tap someone here to
+  wave, high five, duel, mute, block or report; tap someone in another place
+  to go there. The poke list and your blocked people are at the bottom.
+- **Your connection at the top.** Wi-fi bars and your ping in
+  milliseconds sit next to the People button; tap them for the details.
+  Each phone times its own round trips to the server and shares its bars
+  only when they change, at most once every 30 seconds.
+- **Places from the title.** Tap "The Garden" at the top for a dropdown of
+  every place, with how many people are in each and a pin on where you
+  are. Pick one to go there; tap outside or the title again to close it.
 
 ### Changed
+- **Smoother World menus.** The People list and the places dropdown slide
+  and fade in with their rows one after another, and ease out when they
+  close. With Reduce Motion on, they appear and go without moving.
+- **The editor's camera glides.** Switching tabs moves the preview smoothly
+  between a close-up of the face (face, eyes, brows, mouth), head and
+  shoulders (hair and hats) and the whole body (body, outfit, extras),
+  instead of jumping. Hats moved into the Hair tab, now called Hair & hat.
+- **The cap fits the head.** Its crown follows the head and comes down the
+  sides to just above the ears, the hair only shows below its edge, and the
+  peak points the way you face, turning with you and going behind your head
+  when you face away. Buns and space buns tuck under it, curls peek out
+  below it, and long hair, a bob, wavy hair and a ponytail start under its
+  edge.
 - **The Games list card is called World**, like the side menu.
 - **One way into the character editor.** The Customise buttons are gone
   from the People list and your own card. Tap your character and press

@@ -165,6 +165,8 @@ export default defineSchema({
     // Open visits sharing this member (tabs, devices). Leave removes the
     // member only when the last one goes. Missing means one.
     visits: v.optional(v.number()),
+    ping: v.optional(v.number()),
+    pingAt: v.optional(v.number()),
   })
     .index("by_roomId", ["roomId"])
     .index("by_email", ["email"]),

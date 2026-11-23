@@ -53,6 +53,8 @@ import {
   takeToken,
   THROTTLE_KEEP_MS,
   TYPING_REFRESH_MS,
+  isPingBars,
+  PING_PUBLISH_MS,
   WORLD_PLACE,
   type BucketKind,
 } from "../shared/world";
@@ -469,7 +471,14 @@ const BLOCKED_BY_SCAN = 200;
 
 export const elsewhere = query({
   args: {},
-  returns: v.array(v.object({ place: v.string(), count: v.number(), names: v.array(v.string()) })),
+  returns: v.array(
+    v.object({
+      place: v.string(),
+      count: v.number(),
+      names: v.array(v.string()),
+      people: v.array(v.object({ name: v.string(), look: worldLookValidator, ping: v.optional(v.number()) })),
+    })
+  ),
   handler: async (ctx) => {
     const email = await requireEmail(ctx);
     const me = await memberByEmail(ctx, email);
@@ -492,6 +501,7 @@ export const elsewhere = query({
         .withIndex("by_place_and_instance", (q) => q.eq("place", place))
         .take(ROOM_SCAN);
       const names: string[] = [];
+      const people: { name: string; look: Doc<"worldMembers">["look"]; ping?: number }[] = [];
       let count = 0;
       for (const room of rooms) {
         if (room._id === me?.roomId) continue;
@@ -503,10 +513,14 @@ export const elsewhere = query({
           if (hidden.has(member.email)) continue;
           if (askEach && (await blocks(ctx, member.email, email))) continue;
           count++;
-          if (names.length < ELSEWHERE_NAMES) names.push(member.name);
+          if (names.length < ELSEWHERE_NAMES) {
+            names.push(member.name);
+            const look = (await savedLook(ctx, member.email))?.look ?? member.look;
+            people.push({ name: member.name, look, ping: member.ping });
+          }
         }
       }
-      if (count > 0) found.push({ place, count, names });
+      if (count > 0) found.push({ place, count, names, people });
     }
     return found;
   },
@@ -620,6 +634,22 @@ export const typing = mutation({
       await ctx.db.patch("worldState", state._id, { typing: { at: was.at, on: false } });
     }
     return null;
+  },
+});
+
+export const ping = mutation({
+  args: { bars: v.optional(v.number()) },
+  returns: v.object({ published: v.boolean(), serverNow: v.number() }),
+  handler: async (ctx, { bars }) => {
+    const email = await requireEmail(ctx);
+    const now = Date.now();
+    if (bars === undefined) return { published: false, serverNow: now };
+    if (!isPingBars(bars)) throw new ConvexError("Ping bars go from 1 to 4.");
+    const member = await memberByEmail(ctx, email);
+    if (!member || member.ping === bars) return { published: false, serverNow: now };
+    if (member.pingAt !== undefined && now - member.pingAt < PING_PUBLISH_MS) return { published: false, serverNow: now };
+    await ctx.db.patch("worldMembers", member._id, { ping: bars, pingAt: now });
+    return { published: true, serverNow: now };
   },
 });
 
@@ -901,7 +931,13 @@ export const roster = query({
       instance: v.number(),
       place: v.string(),
       members: v.array(
-        v.object({ memberId: v.id("worldMembers"), name: v.string(), look: worldLookValidator, isMe: v.boolean() })
+        v.object({
+          memberId: v.id("worldMembers"),
+          name: v.string(),
+          look: worldLookValidator,
+          isMe: v.boolean(),
+          ping: v.optional(v.number()),
+        })
       ),
     })
   ),
@@ -917,7 +953,7 @@ export const roster = query({
     for (const row of rows) {
       if (await blockedEither(ctx, me.email, row.email)) continue;
       const look = (await savedLook(ctx, row.email))?.look ?? row.look;
-      members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id });
+      members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id, ping: row.ping });
     }
     return { instance: room.instance, place: room.place, members };
   },

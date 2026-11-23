@@ -32,6 +32,7 @@ import {
   type NudgePart,
 } from "@shared/world";
 import { useEffect, useRef, useState } from "react";
+import { useReducedMotion } from "react-native-reanimated";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { garden, hud, lightToDark, people, shade } from "./palette";
@@ -47,6 +48,33 @@ const SIDE_BY_SIDE_WIDTH = 560;
 const SHORT_PREVIEW = 110;
 /** The preview's scale close up on the face, at the base preview height. */
 const CLOSE_UP = 140;
+const HEAD_SHOT = 118;
+const GLIDE_MS = 520;
+
+type Shot = "face" | "head" | "full";
+
+const easeInOut = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2);
+
+const shotFor = (shot: Shot, look: Look, height: number) => {
+  const zoom = height / BASE_PREVIEW;
+  const footY = height - 28 * zoom;
+  const neck = bodyScale(look).height * 0.86;
+  if (shot === "full") {
+    // Full size, unless the tallest looks (a tall afro, say) would poke out of
+    // the top: then just small enough to fit.
+    const s = Math.min(100 * zoom, (footY - 6) / figureTop(look, 0.86));
+    return { s, y: footY };
+  }
+  if (shot === "face") {
+    // Close up on the face while you work on it, so a slider's step shows.
+    const s = CLOSE_UP * zoom;
+    return { s, y: height * 0.56 + neck * s };
+  }
+  const middle = height * 0.6;
+  const above = Math.max(0.5, figureTop(look, 0.86) - neck);
+  const s = Math.min(HEAD_SHOT * zoom, (middle - 8) / above);
+  return { s, y: middle + neck * s };
+};
 
 /** Turns per pixel dragged (radians). */
 const TURN_PER_PX = 0.012;
@@ -64,15 +92,19 @@ const MAX_SPIN = 12;
  * go. The swipe stays on the preview: it doesn't scroll the list or close the
  * sheet. All on this phone; nothing is sent.
  */
-const Preview = ({ look, active, height, closeUp }: { look: Look; active: boolean; height: number; closeUp: boolean }) => {
+const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; height: number; shot: Shot }) => {
+  const reduceMotion = useReducedMotion();
   const [width, setWidth] = useState(0);
-  const [frame, setFrame] = useState({ heading: 0, t: 0 });
+  const goal = shotFor(shot, look, height);
+  const [frame, setFrame] = useState({ heading: 0, t: 0, s: goal.s, y: goal.y });
   const spin = useRef({ down: false, lastX: 0, lastAt: 0, velocity: 0, heading: 0, openedAt: 0, touched: false });
   // Read by the animation without restarting it.
-  const closeUpNow = useRef(closeUp);
+  const closeUpNow = useRef(shot !== "full");
+  const goalNow = useRef({ ...goal, still: reduceMotion });
   useEffect(() => {
-    closeUpNow.current = closeUp;
-  }, [closeUp]);
+    closeUpNow.current = shot !== "full";
+    goalNow.current = { s: goal.s, y: goal.y, still: reduceMotion };
+  }, [shot, goal.s, goal.y, reduceMotion]);
   useEffect(() => {
     if (!active) return;
     let id = 0;
@@ -80,10 +112,19 @@ const Preview = ({ look, active, height, closeUp }: { look: Look; active: boolea
     let prev = start;
     // Each opening starts facing you, and only turns by itself after a moment.
     spin.current = { down: false, lastX: 0, lastAt: start, velocity: 0, heading: 0, openedAt: start, touched: false };
+    const glide = { from: { s: goalNow.current.s, y: goalNow.current.y }, to: { s: goalNow.current.s, y: goalNow.current.y }, at: start, now: { s: goalNow.current.s, y: goalNow.current.y } };
     const tick = () => {
       const now = Date.now();
       const dt = (now - prev) / 1000;
       prev = now;
+      const target = goalNow.current;
+      if (Math.abs(target.s - glide.to.s) > 0.01 || Math.abs(target.y - glide.to.y) > 0.01) {
+        glide.from = glide.now;
+        glide.to = { s: target.s, y: target.y };
+        glide.at = now;
+      }
+      const k = target.still ? 1 : easeInOut(Math.min(1, (now - glide.at) / GLIDE_MS));
+      glide.now = { s: glide.from.s + (glide.to.s - glide.from.s) * k, y: glide.from.y + (glide.to.y - glide.from.y) * k };
       const d = spin.current;
       if (!d.down) {
         if (Math.abs(d.velocity) > 0.05) {
@@ -95,7 +136,7 @@ const Preview = ({ look, active, height, closeUp }: { look: Look; active: boolea
           d.heading += (front - d.heading) * Math.min(1, dt * 3);
         } else if (!d.touched && now - d.openedAt > AUTO_START_MS) d.heading += AUTO_TURN * dt;
       }
-      setFrame({ heading: d.heading, t: (now - start) / 1000 });
+      setFrame({ heading: d.heading, t: (now - start) / 1000, s: glide.now.s, y: glide.now.y });
       id = requestAnimationFrame(tick);
     };
     id = requestAnimationFrame(tick);
@@ -127,13 +168,8 @@ const Preview = ({ look, active, height, closeUp }: { look: Look; active: boolea
     if (Date.now() - d.lastAt > 80) d.velocity = 0;
   };
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
-  // Full size, unless the tallest looks (a tall afro, say) would poke out of
-  // the top: then just small enough to fit.
-  const zoom = height / BASE_PREVIEW;
-  const footY = height - 28 * zoom;
-  // Close up on the face while you work on it, so a slider's step shows.
-  const s = closeUp ? CLOSE_UP * zoom : Math.min(100 * zoom, (footY - 6) / figureTop(look, 0.86));
-  const foot = { x: width / 2, y: closeUp ? height * 0.56 + bodyScale(look).height * s * 0.86 : footY, depth: 1, scale: s };
+  const s = frame.s;
+  const foot = { x: width / 2, y: frame.y, depth: 1, scale: s };
   return (
     <View
       style={[styles.preview, { height, backgroundColor: garden.sky }, noBrowserGestures]}
@@ -151,7 +187,7 @@ const Preview = ({ look, active, height, closeUp }: { look: Look; active: boolea
       onResponderTerminate={onEnd}
     >
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {closeUp ? null : <Ellipse cx={width / 2} cy={height - 26 * zoom} rx={Math.min(width * 0.42, 150 * zoom)} ry={34 * zoom} fill={garden.lawn} />}
+        <Ellipse cx={width / 2} cy={foot.y + 0.02 * s} rx={Math.min(width * 0.42, 1.5 * s)} ry={0.34 * s} fill={garden.lawn} />
         {width > 0 ? (
           <Avatar
             figure={{ foot, s, up: s * 0.86, bob: 0 }}
@@ -415,8 +451,8 @@ const NUDGE_ROWS = {
 /** Two rows of four: the face's parts, then everything else. */
 const TABS = ["Face", "Eyes", "Brows", "Mouth", "Hair", "Body", "Outfit", "Extras"] as const;
 type Tab = (typeof TABS)[number];
-/** Tabs about the face, where the preview comes in close. */
-const CLOSE_TABS: readonly Tab[] = ["Face", "Eyes", "Brows", "Mouth"];
+const TAB_LABELS: Partial<Record<Tab, string>> = { Hair: "Hair & hat" };
+const SHOTS: Record<Tab, Shot> = { Face: "face", Eyes: "face", Brows: "face", Mouth: "face", Hair: "head", Body: "full", Outfit: "full", Extras: "full" };
 
 /** Glasses were one of the extras; the editor keeps them as their own part. */
 const withOwnGlasses = (look: Look): Look =>
@@ -453,7 +489,7 @@ export const CharacterEditor = ({
   const tile = tileFor(choicesWidth);
   const [draft, setDraft] = useState<Look>(() => withOwnGlasses(look));
   const [tab, setTab] = useState<Tab>("Face");
-  const closeUp = CLOSE_TABS.includes(tab);
+  const shot = SHOTS[tab];
   const [confirmingRandom, setConfirmingRandom] = useState(false);
   // Start from your current look each time the editor opens, so a cancelled
   // change doesn't come back.
@@ -521,7 +557,7 @@ export const CharacterEditor = ({
           style={[styles.tab, tab === name && { backgroundColor: hud.primary }]}
         >
           <Text style={[typography.label, { color: tab === name ? hud.cream : hud.forest }]} numberOfLines={1}>
-            {name}
+            {TAB_LABELS[name] ?? name}
           </Text>
         </Pressable>
       ))}
@@ -595,6 +631,8 @@ export const CharacterEditor = ({
           <Choices names={HAIR_STYLES} part="hair" framing="hair" draft={draft} onPick={set("hair")} tile={tile} testID="world-editor-hair" />
           {section("Hair colour")}
           <Swatches colours={people.hairColours} value={draft.hairColour} onPick={set("hairColour")} label="Hair colour" />
+          {section("Hat")}
+          <Choices names={HATS} part="hat" framing="hat" draft={draft} onPick={set("hat")} tile={tile} testID="world-editor-hat" />
         </>
       ) : null}
       {tab === "Body" ? (
@@ -631,8 +669,6 @@ export const CharacterEditor = ({
       ) : null}
       {tab === "Extras" ? (
         <>
-          {section("Hat")}
-          <Choices names={HATS} part="hat" framing="hat" draft={draft} onPick={set("hat")} tile={tile} testID="world-editor-hat" />
           {section("Extra")}
           <Choices names={ACCESSORIES} part="accessory" framing="body" draft={draft} onPick={set("accessory")} tile={tile} testID="world-editor-extra" hidden={[OLD_GLASSES]} />
         </>
@@ -675,7 +711,7 @@ export const CharacterEditor = ({
             <View style={styles.sideBySide}>
               <View style={styles.side}>
                 <View style={styles.grow} onLayout={(e) => setSideHeight(e.nativeEvent.layout.height)}>
-                  {sideHeight > 0 ? <Preview look={draft} active={visible} height={sideHeight} closeUp={closeUp} /> : null}
+                  {sideHeight > 0 ? <Preview look={draft} active={visible} height={sideHeight} shot={shot} /> : null}
                 </View>
                 {footer}
               </View>
@@ -686,7 +722,7 @@ export const CharacterEditor = ({
             </View>
           ) : (
             <>
-              <Preview look={draft} active={visible} height={previewHeight} closeUp={closeUp} />
+              <Preview look={draft} active={visible} height={previewHeight} shot={shot} />
               {tabs}
               {choices}
               {footer}

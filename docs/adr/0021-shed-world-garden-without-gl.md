@@ -243,6 +243,11 @@ of simulated play against the real mutations, counting writes per code path
 A line in a room already holding 50 lines also deletes the oldest, one more
 write (at most 6 a minute at the line limit, so at most 53 then). A
 high-five ask or accept is one write, like an emote, on the same rate limit;
-saving a look is one write. Join and leave are a handful of writes
+saving a look is one write. Ping costs at most 2 writes a minute and
+usually none: each app times its own round trips to Convex, smooths them,
+and writes its signal bars (1 to 4) onto its `worldMembers` row only when
+the bucket changes, at most once every 30 s (`world.ping`, checked on the
+server too). An idle app probes with a call that writes nothing every 15 s.
+Join and leave are a handful of writes
 once per visit (leave also keeps the rate limits in `worldThrottle`), and the
 sweeper adds two calls a minute while anyone is in.

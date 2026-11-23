@@ -199,6 +199,29 @@ export const hud = {
   scrim: "rgba(15, 37, 35, 0.35)",
 } as const;
 
+export const glass = {
+  panel: "rgba(12, 30, 28, 0.84)",
+  edge: "rgba(255, 255, 255, 0.16)",
+  row: "rgba(255, 255, 255, 0.07)",
+  rowPressed: "rgba(255, 255, 255, 0.16)",
+  here: "rgba(201, 96, 58, 0.34)",
+  text: "#F5F3E3",
+  muted: "rgba(245, 243, 227, 0.68)",
+  error: "#FFB4A6",
+  scrim: "rgba(6, 16, 15, 0.32)",
+  bust: "#BFE3DA",
+} as const;
+
+export const signal = {
+  good: "#4CD07D",
+  fair: "#F2B134",
+  poor: "#EF5B45",
+  offOnGlass: "rgba(245, 243, 227, 0.22)",
+  offOnCard: "rgba(15, 37, 35, 0.18)",
+} as const;
+
+export const signalColour = (bars: number) => (bars >= 3 ? signal.good : bars === 2 ? signal.fair : signal.poor);
+
 export const chatLog = {
   text: "#FFFFFF",
   shadow: "rgba(20, 20, 20, 0.85)",

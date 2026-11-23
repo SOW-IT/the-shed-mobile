@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { LOOK_SIZES } from "../../shared/world";
-import { isLight, lightToDark, people } from "./palette";
+import { isLight, lightToDark, people, signal, signalColour } from "./palette";
 
 test("skins are offered lightest first without changing what a saved index means", () => {
   const order = lightToDark(people.skins);
@@ -24,4 +24,8 @@ test("every palette has a colour for each choice of its part", () => {
 
 test("isLight tells pale colours from dark ones", () => {
   expect([isLight(people.collar), isLight(people.shirts[8])]).toEqual([true, false]);
+});
+
+test("ping bars are green at three or four, amber at two and red at one", () => {
+  expect([4, 3, 2, 1].map(signalColour)).toEqual([signal.good, signal.good, signal.fair, signal.poor]);
 });

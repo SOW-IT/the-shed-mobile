@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import {
   ASK_MS,
+  isPingBars,
+  PING_MAX_SAMPLE_MS,
+  PING_PUBLISH_MS,
+  pingBars,
+  shouldPublishPing,
+  smoothPing,
   BUCKETS,
   canHear,
   cleanLine,
@@ -486,5 +492,42 @@ describe("rock paper scissors", () => {
     expect(askInfo("highFive")?.ask).toBe("High five?");
     expect(askInfo("nope")).toBeNull();
     expect(askInfo(undefined)).toBeNull();
+  });
+});
+
+describe("ping", () => {
+  test("round trips bucket into one to four bars", () => {
+    expect(pingBars(0)).toBe(4);
+    expect(pingBars(150)).toBe(4);
+    expect(pingBars(151)).toBe(3);
+    expect(pingBars(300)).toBe(3);
+    expect(pingBars(301)).toBe(2);
+    expect(pingBars(600)).toBe(2);
+    expect(pingBars(601)).toBe(1);
+    expect(pingBars(9000)).toBe(1);
+  });
+
+  test("only one to four counts as bars", () => {
+    expect([0, 1, 2, 3, 4, 5, 2.5, "3", null].map(isPingBars)).toEqual([false, true, true, true, true, false, false, false, false]);
+  });
+
+  test("smoothing starts at the first sample and moves 30% toward each new one", () => {
+    expect(smoothPing(null, 120)).toBe(120);
+    expect(smoothPing(100, 200)).toBeCloseTo(130);
+    expect(smoothPing(null, -5)).toBe(0);
+    expect(smoothPing(null, 60_000)).toBe(PING_MAX_SAMPLE_MS);
+  });
+
+  test("a new bucket is published at once the first time", () => {
+    expect(shouldPublishPing({ bars: 3, published: null, publishedAt: null, now: 1000 })).toBe(true);
+  });
+
+  test("the same bucket is never published again", () => {
+    expect(shouldPublishPing({ bars: 3, published: 3, publishedAt: 0, now: 10 * PING_PUBLISH_MS })).toBe(false);
+  });
+
+  test("a changed bucket waits until 30 s after the last publish", () => {
+    expect(shouldPublishPing({ bars: 2, published: 3, publishedAt: 1000, now: 1000 + PING_PUBLISH_MS - 1 })).toBe(false);
+    expect(shouldPublishPing({ bars: 2, published: 3, publishedAt: 1000, now: 1000 + PING_PUBLISH_MS })).toBe(true);
   });
 });

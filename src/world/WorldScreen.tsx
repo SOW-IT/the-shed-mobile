@@ -12,6 +12,7 @@ import {
   OBSTACLES,
   PLACE_TITLES,
   SEATS,
+  pingBars,
   portalAt,
   posAt,
   ASKS,
@@ -20,7 +21,7 @@ import {
   type Place,
 } from "@shared/world";
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { announce } from "./announce";
 import { APPROACH_MS, approachStep } from "./approach";
@@ -28,7 +29,9 @@ import { CharacterEditor } from "./CharacterEditor";
 import { Garden } from "./Garden";
 import { hud } from "./palette";
 import type { HudAction } from "./PersonHud";
-import { PeopleSheet, PersonSheet } from "./Sheets";
+import { PersonSheet } from "./Sheets";
+import { PeoplePanel } from "./People";
+import { connectionLabel, PlacesMenu, WifiBars } from "./Overlays";
 import { useWorld } from "./useWorld";
 import { pickView } from "./view";
 import { ChatLog } from "./ChatLog";
@@ -125,12 +128,51 @@ const Mark = () => (
   </View>
 );
 
-const TitlePill = ({ title, instance }: { title: string; instance: number }) => (
-  <View style={styles.title} accessibilityRole="header">
-    <Mark />
-    <Text style={styles.titleText}>{instance > 1 ? `${title} · ${instance}` : title}</Text>
-  </View>
-);
+const TitlePill = ({ title, instance, open, onPress }: { title: string; instance: number; open: boolean; onPress: () => void }) => {
+  const [turn] = useState(() => new Animated.Value(open ? 1 : 0));
+  useEffect(() => {
+    Animated.timing(turn, { toValue: open ? 1 : 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
+  }, [open, turn]);
+  const label = instance > 1 ? `${title} · ${instance}` : title;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}. Places`}
+      accessibilityState={{ expanded: open }}
+      testID="world-title"
+      style={({ pressed }) => [styles.title, pressed && styles.pressed]}
+    >
+      <Mark />
+      <Text style={styles.titleText} numberOfLines={1}>
+        {label}
+      </Text>
+      <Animated.View style={{ transform: [{ rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "180deg"] }) }] }}>
+        <Ionicons name="chevron-down" size={16} color={hud.forest} />
+      </Animated.View>
+    </Pressable>
+  );
+};
+
+const PingButton = ({ ms, onPress }: { ms: number | null; onPress: () => void }) => {
+  const bars = ms === null ? undefined : pingBars(ms);
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={ms === null ? "Your connection: measuring" : `Your connection: ${ms} milliseconds. ${connectionLabel(bars)}`}
+      testID="world-ping"
+      hitSlop={6}
+      style={({ pressed }) => [styles.round, styles.ping, pressed && styles.pressed]}
+    >
+      <WifiBars bars={bars} size={20} />
+      <Text style={styles.pingText} numberOfLines={1}>
+        {ms === null ? "…" : `${Math.min(999, ms)}ms`}
+      </Text>
+    </Pressable>
+  );
+};
 
 /**
  * Shed World, the Garden. Tap the ground to walk; type to talk to people
@@ -161,6 +203,7 @@ export const WorldScreen = ({
   const [sheet, setSheet] = useState<{ memberId: string; safetyOnly: boolean; name?: string } | null>(null);
   const [approach, setApproach] = useState<{ to: string; since: number; kind: AskKind } | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(opening === "poke");
+  const [placesOpen, setPlacesOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [composing, setComposing] = useState(false);
   const typingNow = composing && draft.trim() !== "";
@@ -325,6 +368,7 @@ export const WorldScreen = ({
     setArcadeTrip(null);
     setTray(false);
     setPeopleOpen(false);
+    setPlacesOpen(false);
     const veil = (toValue: number) =>
       Animated.timing(fade, { toValue, duration: 180, useNativeDriver: Platform.OS !== "web" }).start();
     veil(1);
@@ -482,9 +526,11 @@ export const WorldScreen = ({
           onSave={(look) => world.saveLook(look).then((problem) => problem && setNote(`Your new look didn't save. ${problem}`))}
           onClose={() => setEditing(false)}
         /> : null}
-      <PeopleSheet
-        visible={peopleOpen}
+      <PeoplePanel
+        open={peopleOpen}
+        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
         people={world.people}
+        online={online}
         onPerson={(memberId) => {
           setPeopleOpen(false);
           if (view === "list") setSheet({ memberId, safetyOnly: false });
@@ -494,6 +540,7 @@ export const WorldScreen = ({
         onGo={go}
         onClose={() => setPeopleOpen(false)}
         pokeListOpen={opening === "poke"}
+        showPlaces={view === "list"}
       />
     </>
   );
@@ -577,8 +624,31 @@ export const WorldScreen = ({
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <RoundButton icon="chevron-back" label="Back" onPress={onBack} testID="world-back" />
-        <TitlePill title={PLACE_TITLES[world.place]} instance={world.instance} />
-        <RoundButton icon="people-outline" label="People here" onPress={() => setPeopleOpen(true)} testID="world-people" badge={online} />
+        <TitlePill
+          title={PLACE_TITLES[world.place]}
+          instance={world.instance}
+          open={placesOpen}
+          onPress={() => {
+            setPeopleOpen(false);
+            setPlacesOpen((was) => !was);
+          }}
+        />
+        <View style={styles.right}>
+          <PingButton
+            ms={world.ping}
+            onPress={() => setNote(world.ping === null ? "Measuring your connection…" : `Your ping: ${world.ping} ms. ${connectionLabel(pingBars(world.ping))}.`)}
+          />
+          <RoundButton
+            icon="people-outline"
+            label="People"
+            onPress={() => {
+              setPlacesOpen(false);
+              setPeopleOpen((was) => !was);
+            }}
+            testID="world-people"
+            badge={online}
+          />
+        </View>
       </View>
       <View style={[styles.logRow, { top: insets.top + 66 }]} pointerEvents="box-none">
         <ChatLog
@@ -701,12 +771,21 @@ export const WorldScreen = ({
         </View>
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
+      <PlacesMenu
+        open={placesOpen}
+        top={insets.top + TOP_BAR_GAP}
+        place={world.place}
+        counts={world.placeCounts}
+        onPick={go}
+        onClose={() => setPlacesOpen(false)}
+      />
       {sheets}
     </View>
   );
 };
 
 const CHAT_BAR_HEIGHT = 54;
+const TOP_BAR_GAP = 62;
 const UNDER_CHAT_SLACK = 10;
 
 const ink = { borderWidth: 2.5, borderColor: hud.forest };
@@ -758,13 +837,16 @@ const styles = StyleSheet.create({
     backgroundColor: hud.card,
     borderRadius: 999,
     paddingLeft: 6,
-    paddingRight: 16,
+    paddingRight: 12,
     paddingVertical: 6,
     ...ink,
     ...pop,
   },
   mark: { width: 30, height: 30, borderRadius: 15, backgroundColor: hud.primary, alignItems: "center", justifyContent: "center" },
-  titleText: { fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.3, color: hud.forest },
+  titleText: { flexShrink: 1, fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.3, color: hud.forest },
+  right: { flexDirection: "row", alignItems: "center", gap: 8 },
+  ping: { gap: 1, paddingTop: 3 },
+  pingText: { fontSize: 9.5, fontWeight: "800", color: hud.forest, letterSpacing: -0.2 },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
   note: {
     backgroundColor: hud.card,
