@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.22] - 2026-11-23
+## [2.12.26] - 2026-11-24
 
 ### Changed
 - **Mystic Man is faster again.** His top speed is a quarter higher (960 to
@@ -32,6 +32,15 @@ All notable changes to **The SHED** mobile app. This project follows
   text is full white, and Play again and Leaderboard have their own bright
   colours instead of the app's dark green. Only the game around the card is
   dimmed.
+
+## [2.12.23] - 2026-11-24
+
+### Changed
+- **Reimbursement lists ask the server less.** Each request card used to ask
+  for its own count of unread comments. The All, Review, Requests and Past
+  lists now ask once for every card on screen, so opening All with 20 ongoing
+  requests opens 39 live queries instead of 59. The counts and badges look
+  the same.
 
 ## [2.12.21] - 2026-11-23
 
