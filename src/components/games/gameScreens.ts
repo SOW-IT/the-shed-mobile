@@ -11,7 +11,7 @@ type GameScreenProps = {
   onLeaderboard?: () => void;
   /** False while another screen is in front: the game pauses and ignores keys. */
   active?: boolean;
-  /** Confirms the iOS swipe and browser back during a run, on a route. */
+  /** Confirms the browser's back during a run, on a route. */
   guard?: LeaveGuard;
   /** Test builds only: Mystic Man's still preview of these patterns. */
   preview?: readonly PatternKind[];

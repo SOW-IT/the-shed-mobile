@@ -3,9 +3,8 @@ import { backOr } from "@/lib/goBack";
 import { E2E_BUILD } from "@/env";
 import { isPatternKind } from "@/lib/games/runner";
 import { isGameId } from "@shared/games";
-import { Redirect, Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, usePreventRemove } from "expo-router";
+import { Redirect, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, usePreventRemove } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import { useWindowDimensions } from "react-native";
 
 export default function GameScreen() {
   const router = useRouter();
@@ -21,8 +20,9 @@ export default function GameScreen() {
       return () => setFocused(false);
     }, [])
   );
-  // During a run, the iOS swipe and the browser's back are held until the
-  // player confirms in the game's own dialog.
+  // There's no swipe back from a game (see the root layout). During a run,
+  // the browser's back is held until the player confirms in the game's own
+  // dialog, the same as the back button.
   const navigation = useNavigation();
   const [playing, setPlaying] = useState(false);
   const [leaveAsks, setLeaveAsks] = useState(0);
@@ -41,23 +41,15 @@ export default function GameScreen() {
   const onStay = useCallback(() => {
     blocked.current = null;
   }, []);
-  // Mystic Man is drawn sideways on a portrait screen, so its swipe up is a
-  // sideways swipe on the glass, which iOS would take for "go back". The
-  // back button still works, and still asks during a run.
-  const screen = useWindowDimensions();
-  const sideways = game === "runner" && screen.height > screen.width;
   if (!isGameId(game)) return <Redirect href="/games" />;
   const Game = GAME_SCREENS[game];
   return (
-    <>
-      <Stack.Screen options={{ gestureEnabled: !sideways }} />
-      <Game
-        active={focused}
-        preview={previewKinds.length ? previewKinds : undefined}
-        guard={{ onPlayingChange: setPlaying, leaveAsks, onStay }}
-        onExit={exit}
-        onLeaderboard={() => router.push({ pathname: "/games/leaderboard", params: { game } })}
-      />
-    </>
+    <Game
+      active={focused}
+      preview={previewKinds.length ? previewKinds : undefined}
+      guard={{ onPlayingChange: setPlaying, leaveAsks, onStay }}
+      onExit={exit}
+      onLeaderboard={() => router.push({ pathname: "/games/leaderboard", params: { game } })}
+    />
   );
 }

@@ -2,7 +2,9 @@ import { useOffline } from "@/hooks/useOffline";
 import { useLocalBests, useScoreQueue } from "@/lib/games/gameStorage";
 import { PagerCarousel } from "@/components/PagerCarousel";
 import type { PagerTab } from "@/components/PagerScreen";
-import { Btn, Card, EmptyState, LoadingState, styles as shared, TabBar } from "@/components/ui";
+import { Btn, Card, EmptyState, LoadingState, LoadMoreFooter, styles as shared, TabBar } from "@/components/ui";
+import { usePagedQuery } from "@/hooks/usePagedQuery";
+import { withRanks } from "@/lib/games/leaderboardRanks";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
@@ -13,26 +15,37 @@ import { api } from "../../../convex/_generated/api";
 import { OnlineBanner } from "./OnlineBanner";
 import { GAME_IDS, GAME_INFO, isGameId, type GameId } from "../../../shared/games";
 
+/** Rows per page; "Load more" fetches the next page until every score is shown. */
+const PAGE_SIZE = 25;
+
 const Board = ({ game }: { game: GameId }) => {
   const t = useAppTheme();
-  const board = useQuery(api.gameScores.leaderboard, { game });
-  if (board === undefined) return <LoadingState />;
+  const { isAuthenticated } = useConvexAuth();
+  const me = useQuery(api.gameScores.myLeaderboardPlace, { game });
+  const { rows, hasMore, loadMore, loadingFirstPage, loadingMore } = usePagedQuery(api.gameScores.leaderboardPage, {
+    scopeKey: `leaderboard:${game}:${isAuthenticated ? "signed-in" : "signed-out"}`,
+    args: (cursor) => ({ game, paginationOpts: { numItems: PAGE_SIZE, cursor } }),
+    rowsOf: (result) => result.page,
+    keyOf: (row) => row.id,
+  });
+  const ranked = useMemo(() => withRanks(rows), [rows]);
+  if (loadingFirstPage) return <LoadingState />;
   return (
     <View style={styles.boardGap}>
-      {board.me ? (
+      {me ? (
         <Card style={styles.mine}>
           <Text style={[typography.label, { color: t.muted }]}>Your best</Text>
-          <Text style={[typography.amount, { color: t.text }]}>{board.me.score.toLocaleString()}</Text>
+          <Text style={[typography.amount, { color: t.text }]}>{me.score.toLocaleString()}</Text>
           <Text style={[typography.caption, { color: t.muted }]}>
-            {board.me.rank === null ? "Outside the top 500" : `Number ${board.me.rank} on the leaderboard`}
+            {me.rank === null ? "Outside the top 500" : `Number ${me.rank} on the leaderboard`}
           </Text>
         </Card>
       ) : null}
-      {board.top.length === 0 ? (
+      {ranked.length === 0 ? (
         <EmptyState icon="trophy-outline" title="No scores yet" message="Play a round and yours will be the first." />
       ) : (
         <Card style={styles.list}>
-          {board.top.map((row, index) => (
+          {ranked.map((row, index) => (
             <View
               key={row.id}
               style={[
@@ -52,6 +65,17 @@ const Board = ({ game }: { game: GameId }) => {
           ))}
         </Card>
       )}
+      <LoadMoreFooter
+        loadingMore={loadingMore}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+        label="Load more"
+        end={
+          ranked.length > PAGE_SIZE ? (
+            <Text style={[typography.caption, styles.end, { color: t.faint }]}>That&apos;s everyone.</Text>
+          ) : null
+        }
+      />
     </View>
   );
 };
@@ -94,7 +118,7 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
   );
 };
 
-/** Each game's top scores, one per person, and your own best. */
+/** Each game's scores, one per person, a page at a time, and your own best. */
 export const Leaderboard = ({
   onBack,
   onPlay,
@@ -171,5 +195,6 @@ const styles = StyleSheet.create({
   rank: { width: 30, height: 30, borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
   name: { flex: 1 },
   me: { fontWeight: "700" },
+  end: { textAlign: "center", paddingVertical: spacing.sm },
   device: { borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
 });

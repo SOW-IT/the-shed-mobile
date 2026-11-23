@@ -150,8 +150,10 @@ const RootStack = () => {
             <Stack.Screen name="checkin/[token]" />
             <Stack.Screen name="e2e-auth" />
             <Stack.Screen name="games/index" />
-            {/* Swipe back works; during a run the game asks first (usePreventRemove). */}
-            <Stack.Screen name="games/[game]" />
+            {/* No swipe back from a game: a sideways swipe is a move in the game
+                (Sky Shooter steers that way). The back button at the top left is
+                the way out, and it asks first during a run. */}
+            <Stack.Screen name="games/[game]" options={{ gestureEnabled: false }} />
             <Stack.Screen name="games/leaderboard" />
             <Stack.Screen
               name="spotify-callback"
