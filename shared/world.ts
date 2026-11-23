@@ -404,9 +404,12 @@ export const tagName = (name: string): string => {
 };
 
 /** A chat line as it's kept: trimmed, one line, at most MAX_SAY_LENGTH. */
+const UNSEEN = /[\p{Cc}\u200B\u2060\uFEFF\u202A-\u202E\u2066-\u2069]/gu;
+const SEEN = /[^\p{Cf}\p{M}\s]/u;
+
 export const cleanLine = (raw: string): string | null => {
-  const text = raw.replace(/\s+/g, " ").trim();
-  if (!text) return null;
+  const text = raw.replace(UNSEEN, " ").replace(/\s+/g, " ").trim();
+  if (!SEEN.test(text)) return null;
   const chars = Array.from(text);
   return chars.length > MAX_SAY_LENGTH ? chars.slice(0, MAX_SAY_LENGTH).join("") : text;
 };

@@ -82,6 +82,11 @@ export const hud = {
 
 const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
 
+const lightness = (hex: string) => 0.2126 * channel(hex, 0) + 0.7152 * channel(hex, 1) + 0.0722 * channel(hex, 2);
+
+export const lightToDark = (colours: readonly string[]): number[] =>
+  colours.map((_, i) => i).sort((a, b) => lightness(colours[b]) - lightness(colours[a]));
+
 /**
  * A colour mixed toward white (amount > 0) or black (amount < 0): the steps
  * of the toon ramp on a face or a ball.

@@ -16,6 +16,7 @@ import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { api } from "../../convex/_generated/api";
+import { carryGait, restingGait, type Gait } from "./gait";
 import type { Id } from "../../convex/_generated/dataModel";
 
 type MemberId = Id<"worldMembers">;
@@ -28,6 +29,7 @@ export type WorldMember = {
   look: Look;
   isMe: boolean;
   walk: Walk | null;
+  gait?: Gait;
   say?: { text: string; at: number };
   act?: { emote: string; at: number };
   ask?: Ask;
@@ -47,6 +49,29 @@ const HOLD_SEND_MS = 500;
 const HOLD_SEND_MIN = 0.5;
 /** On release, a move is sent only if the spot differs from the last one by more than this. */
 const RELEASE_MIN = 0.05;
+const SAME_SPOT = 0.05;
+const TOO_FAR_TO_BLEND = 3;
+
+type LocalWalk = Walk & { gait: Gait };
+
+const headFor = (walk: LocalWalk | null, to: { x: number; z: number }, now: number): LocalWalk => {
+  const from = walk ? posAt(walk, now) : to;
+  const next = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
+  return { ...next, gait: carryGait(walk ? { walk, gait: walk.gait } : null, next, now) };
+};
+
+const blendIn = (walk: LocalWalk | null, server: Walk, now: number): LocalWalk => {
+  const { fromX, fromZ, toX, toZ, startedAt } = server;
+  const theirs = { fromX, fromZ, toX, toZ, startedAt };
+  if (!walk) return { ...theirs, gait: restingGait(theirs) };
+  if (Math.hypot(walk.toX - toX, walk.toZ - toZ) < SAME_SPOT) return walk;
+  const here = posAt(walk, now);
+  const there = posAt(theirs, now);
+  if (Math.hypot(here.x - there.x, here.z - there.z) > TOO_FAR_TO_BLEND) {
+    return { ...theirs, gait: carryGait({ walk, gait: walk.gait }, theirs, now) };
+  }
+  return headFor(walk, { x: toX, z: toZ }, now);
+};
 
 /**
  * Counts of what this phone sent, for measuring the write budget. Tests and
@@ -177,7 +202,8 @@ export const useWorld = (enabled: boolean) => {
   const [active, setActive] = useState(() => AppState.currentState !== "background");
   const [rejoin, setRejoin] = useState(0);
   // Your own walk, ahead of the server so a tap moves you at once.
-  const [myWalk, setMyWalk] = useState<Walk | null>(null);
+  const [myWalk, setMyWalk] = useState<LocalWalk | null>(null);
+  const [target, setTarget] = useState<{ x: number; z: number } | null>(null);
   const stats = useRef<WorldStats>(newStats());
 
   const lastAction = useRef(0);
@@ -248,6 +274,7 @@ export const useWorld = (enabled: boolean) => {
       holdTimer.current = null;
       // The next visit starts from its own spawn walk, not this one's.
       setMyWalk(null);
+      setTarget(null);
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       counts.leave++;
@@ -280,7 +307,6 @@ export const useWorld = (enabled: boolean) => {
   );
   const states = useQueries(requests);
 
-  const [target, setTarget] = useState<{ x: number; z: number } | null>(null);
   const myRow = session ? states[session.memberId] : undefined;
   const myServerWalk = myRow && !(myRow instanceof Error) ? (myRow as Walk) : null;
   useEffect(() => {
@@ -289,9 +315,10 @@ export const useWorld = (enabled: boolean) => {
     // replaces the prediction; otherwise any newer walk from the server does.
     const gap = predicting.current ? 1000 : 0;
     if (myServerWalk && (!myWalk || myServerWalk.startedAt > myWalk.startedAt + gap)) {
-      setMyWalk(myServerWalk);
+      const now = serverNow();
+      setMyWalk((walk) => blendIn(walk, myServerWalk, now));
     }
-  }, [myServerWalk, myWalk]);
+  }, [myServerWalk, myWalk, serverNow]);
 
   const flushRef = useRef<() => void>(() => undefined);
   const later = useCallback((ms: number) => {
@@ -317,7 +344,8 @@ export const useWorld = (enabled: boolean) => {
           const { fromX, fromZ, toX, toZ, startedAt } = reply;
           // While a finger is down the local walk leads; adopt the server's after release.
           if (!pending.current && !holding.current) {
-            setMyWalk({ fromX, fromZ, toX, toZ, startedAt });
+            const now = serverNow();
+            setMyWalk((walk) => blendIn(walk, { fromX, fromZ, toX, toZ, startedAt }, now));
             predicting.current = false;
           }
         } else {
@@ -335,7 +363,7 @@ export const useWorld = (enabled: boolean) => {
         inFlight.current = false;
         if (sentIn === visit.current && pending.current && !timer.current) later(COALESCE_MS);
       });
-  }, [moveM, heard, again, later]);
+  }, [moveM, heard, again, later, serverNow]);
   useEffect(() => {
     flushRef.current = flush;
   }, [flush]);
@@ -349,10 +377,7 @@ export const useWorld = (enabled: boolean) => {
       if (!session) return;
       const to = clampTarget(x, z);
       const now = serverNow();
-      setMyWalk((walk) => {
-        const from = walk ? posAt(walk, now) : to;
-        return { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
-      });
+      setMyWalk((walk) => headFor(walk, to, now));
       setTarget(to);
       pending.current = to;
       predicting.current = true;
@@ -367,10 +392,7 @@ export const useWorld = (enabled: boolean) => {
   const retarget = useCallback(
     (to: { x: number; z: number }) => {
       const now = serverNow();
-      setMyWalk((walk) => {
-        const from = walk ? posAt(walk, now) : to;
-        return { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
-      });
+      setMyWalk((walk) => headFor(walk, to, now));
       setTarget(to);
       fingerAt.current = to;
     },
@@ -559,6 +581,7 @@ export const useWorld = (enabled: boolean) => {
       look: m.look,
       isMe: m.isMe,
       walk: m.isMe ? (myWalk ?? state) : state,
+      gait: m.isMe ? myWalk?.gait : undefined,
       say: state?.say,
       act: state?.act,
       ask: state?.ask,

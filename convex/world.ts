@@ -550,9 +550,11 @@ export const chatLog = query({
       .order("desc")
       .take(CHAT_ROOM_CAP);
     const lines = [];
+    const hidden = new Map<string, boolean>();
     for (const row of rows) {
       if (lines.length === CHAT_LOG_SIZE) break;
-      if (await blockedEither(ctx, me.email, row.email)) continue;
+      if (!hidden.has(row.email)) hidden.set(row.email, await blockedEither(ctx, me.email, row.email));
+      if (hidden.get(row.email)) continue;
       lines.push({ id: row._id, memberId: row.memberId, name: row.name, text: row.text, at: row.at, isMe: row.email === me.email });
     }
     return lines;
@@ -633,7 +635,7 @@ export const report = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const email = await requireEmail(ctx);
-    const reason = args.reason.trim().slice(0, 500);
+    const reason = Array.from(args.reason.trim()).slice(0, 500).join("");
     if (!reason) throw new ConvexError("Say what happened.");
     const other = await ctx.db.get("worldMembers", args.memberId);
     if (!other) throw new ConvexError("They've already left the garden.");

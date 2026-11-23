@@ -17,6 +17,7 @@ const problem = (e: unknown) => (e instanceof ConvexError ? String(e.data) : "Th
  */
 export const PersonSheet = ({
   person,
+  safetyOnly = false,
   muted,
   near,
   onToggleMute,
@@ -27,6 +28,7 @@ export const PersonSheet = ({
   onDone,
 }: {
   person: WorldMember | null;
+  safetyOnly?: boolean;
   muted: boolean;
   /** Close enough for a high five. */
   near: boolean;
@@ -97,25 +99,29 @@ export const PersonSheet = ({
         </View>
       ) : (
         <View style={styles.stack}>
-          <Btn
-            title="High five"
-            icon="hand-right-outline"
-            disabled={!near}
-            onPress={() => {
-              onHighFive(person!.memberId);
-              close();
-            }}
-          />
-          {near ? null : <Muted>Walk a bit closer to high five.</Muted>}
-          <Btn
-            title={`Wave at ${name.split(" ")[0]}`}
-            icon="hand-left-outline"
-            variant="tonal"
-            onPress={() => {
-              onWave();
-              close();
-            }}
-          />
+          {safetyOnly ? null : (
+            <>
+            <Btn
+              title="High five"
+              icon="hand-right-outline"
+              disabled={!near}
+              onPress={() => {
+                onHighFive(person!.memberId);
+                close();
+              }}
+            />
+            {near ? null : <Muted>Walk a bit closer to high five.</Muted>}
+            <Btn
+              title={`Wave at ${name.split(" ")[0]}`}
+              icon="hand-left-outline"
+              variant="tonal"
+              onPress={() => {
+                onWave();
+                close();
+              }}
+            />
+            </>
+          )}
           <Btn
             title={muted ? "Unmute" : "Mute"}
             icon={muted ? "volume-high-outline" : "volume-mute-outline"}

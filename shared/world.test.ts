@@ -154,6 +154,16 @@ test("cleanLine trims, joins lines and caps the length", () => {
   expect(Array.from(cleanLine("🌸".repeat(200))!)).toHaveLength(MAX_SAY_LENGTH);
 });
 
+test("cleanLine drops characters nobody can see", () => {
+  expect(cleanLine("\u200B")).toBeNull();
+  expect(cleanLine("\u2060\uFEFF \u202E")).toBeNull();
+  expect(cleanLine("\u0301\u0301")).toBeNull();
+  expect(cleanLine("hi\u202Ethere\u0000")).toBe("hi there");
+  expect(cleanLine("👨\u200D👩\u200D👧")).toBe("👨\u200D👩\u200D👧");
+  expect(cleanLine("é")).toBe("é");
+});
+
+
 test("isEmote and isMutual know the choices, and nothing inherited", () => {
   expect(EMOTE_IDS).toContain("wave");
   expect([isEmote("wave"), isEmote("👋"), isEmote("toString")]).toEqual([true, false, false]);

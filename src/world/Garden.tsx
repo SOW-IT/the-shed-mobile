@@ -15,7 +15,6 @@ import {
   OBSTACLES,
   tagName,
   type Look,
-  type Pose,
   type Walk,
 } from "@shared/world";
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -25,6 +24,8 @@ import { buildGarden, type Prim, type Prop } from "./gardenScene";
 import { garden, hud } from "./palette";
 import { Avatar, figureFor, headTop, hitBox, Tag, touchK, type Doing } from "./Person";
 import { accepted } from "./announce";
+import type { DrawnPose, Gait } from "./gait";
+import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
 import { useGlide } from "./useGlide";
 
@@ -34,6 +35,7 @@ type GardenPerson = {
   look: Look;
   me: boolean;
   walk: Walk | null;
+  gait?: Gait;
   say?: { text: string; at: number };
   act?: { emote: string; at: number };
   ask?: Ask;
@@ -97,6 +99,8 @@ export const Garden = ({
   onDecline,
   declined,
   onHearing,
+  selected,
+  hudActions,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -116,7 +120,13 @@ export const Garden = ({
   declined: ReadonlySet<string>;
   /** How many others can hear you, whenever that changes. */
   onHearing: (count: number) => void;
+  selected: string | null;
+  hudActions: HudAction[];
 }) => {
+  const liveHud = selected ? { id: selected, actions: hudActions } : null;
+  const [keptHud, setKeptHud] = useState(liveHud);
+  if (liveHud && keptHud?.id !== liveHud.id) setKeptHud(liveHud);
+  const hudShown = liveHud ?? keptHud;
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -214,9 +224,12 @@ export const Garden = ({
       !declined.has(`${p.memberId}:${p.ask.at}`) &&
       !accepted(me >= 0 ? people[me] : undefined, p.memberId, p.ask.at)
   );
+  const bubbleFades = people.map((p) => (p.muted || !p.say ? 0 : bubbleFade(now - p.say.at)));
   const animating =
-    poses.some((pose) => pose && (pose.walking || (now - pose.arrivesAt < 800 && pose.heading !== 0))) ||
+    poses.some((pose) => pose && (pose.walking || pose.strideAmp > 0 || pose.turning)) ||
     doing.some((d) => d !== null) ||
+    asks.length > 0 ||
+    people.some((p) => !p.muted && p.say !== undefined && bubbleMoving(now - p.say.at)) ||
     (target !== null && placed !== null && Math.hypot(placed.x - target.x, placed.z - target.z) > 0.05);
   const t = useClock(animating) / 1000;
   const press = useRef<{
@@ -241,8 +254,8 @@ export const Garden = ({
     // People first, nearest the camera first.
     const hits = people
       .map((p, i) => ({ p, pose: poses[i] }))
-      .filter((h): h is { p: GardenPerson; pose: Pose } => h.pose !== null)
-      .map((h) => ({ ...h, box: hitBox(figureFor(cam, h.pose, t, hash(h.p.memberId) % 7), h.p.look), depth: cam.project([h.pose.x, 0, h.pose.z]).depth }))
+      .filter((h): h is { p: GardenPerson; pose: DrawnPose } => h.pose !== null)
+      .map((h) => ({ ...h, box: hitBox(figureFor(cam, h.pose), h.p.look), depth: cam.project([h.pose.x, 0, h.pose.z]).depth }))
       .filter((h) => x >= h.box.left && x <= h.box.right && y >= h.box.top && y <= h.box.bottom)
       .sort((a, b) => a.depth - b.depth);
     // The arcade cabinet as drawn (its faces stand well above the ground).
@@ -334,11 +347,10 @@ export const Garden = ({
     const pose = poses[i];
     if (!pose) return;
     const seed = hash(p.memberId) % 7;
-    const figure = figureFor(cam, pose, t, seed);
-    // Standing still, people turn back to face the camera, so their faces
-    // (and emotes) show; during a mutual action they face each other.
-    const settled = pose.walking ? pose.heading : turnToward(pose.heading, 0, Math.min(1, (now - pose.arrivesAt) / 700));
-    const turned = { ...pose, heading: facingOverride[i] ?? settled };
+    const figure = figureFor(cam, pose);
+    const turned = { ...pose, heading: facingOverride[i] ?? pose.heading };
+    const striding = pose.strideAmp > 0;
+    const stride = { stridePhase: striding ? pose.stridePhase : 0, strideAmp: pose.strideAmp };
     const touch = touches.find((c) => c.i === i || c.j === i);
     const planned = doing[i];
     const d: Doing =
@@ -350,10 +362,10 @@ export const Garden = ({
       key: p.memberId,
       // Only someone moving needs the clock; for the rest t stays 0, so their
       // memoized avatar isn't redrawn while others walk.
-      node: <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} doing={d} />,
+      node: <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} stride={stride} doing={d} />,
     });
     const far = !p.me && mePose !== null && !canHear(mePose, pose);
-    const line = !p.muted && recent(p.say?.at, BUBBLE_MS) ? p.say?.text : undefined;
+    const line = bubbleFades[i] > 0 ? p.say?.text : undefined;
     // The icon over the head: the emote's, or the mutual action's when hands meet.
     const emote =
       d?.kind === "emote"
@@ -374,7 +386,7 @@ export const Garden = ({
       key: p.memberId,
       depth: head.depth,
       ...tagBox(head.x, head.y, name, line ?? waiting, Boolean(emote)),
-      props: { name, me: p.me, line: line ?? waiting, far, emote, emoteRise: rise },
+      props: { name, me: p.me, line: line ?? waiting, far, emote, emoteRise: rise, lineFade: line ? bubbleFades[i] : 1 },
     });
   });
   // The contact pop where palms meet: a quick burst while they touch.
@@ -421,6 +433,11 @@ export const Garden = ({
     });
   }
   actors.sort((a, b) => b.depth - a.depth);
+
+  const hudIndex = hudShown ? people.findIndex((p) => p.memberId === hudShown.id) : -1;
+  const hudPose = hudIndex >= 0 ? poses[hudIndex] : null;
+  const hudHead = hudPose ? cam.project([hudPose.x, headTop(people[hudIndex].look), hudPose.z]) : null;
+  const hudAt = hudHead ? { x: hudHead.x, y: Math.max(HUD_HEIGHT + HUD_CLEAR_TOP, hudHead.y - NAME_TAG_CLEARANCE) } : null;
 
   // The hearing ring round you, on the ground under the scenery.
   let ring: ReactNode = null;
@@ -516,11 +533,30 @@ export const Garden = ({
             </View>
           );
         })}
+        {hudAt && hudShown ? (
+          <PersonHud
+            key={hudShown.id}
+            x={hudAt.x}
+            y={hudAt.y}
+            stageWidth={cam.width}
+            visible={liveHud !== null}
+            actions={hudShown.actions}
+            onHidden={() => setKeptHud(null)}
+          />
+        ) : null}
       </View>
     </View>
   );
 };
 
+const BUBBLE_IN_MS = 160;
+const BUBBLE_OUT_MS = 400;
+const bubbleFade = (age: number) =>
+  age < 0 || age >= BUBBLE_MS ? 0 : Math.min(1, (age + 16) / BUBBLE_IN_MS, (BUBBLE_MS - age) / BUBBLE_OUT_MS);
+const bubbleMoving = (age: number) => age < BUBBLE_IN_MS || (age > BUBBLE_MS - BUBBLE_OUT_MS - 1100 && age < BUBBLE_MS);
+
+const NAME_TAG_CLEARANCE = 30;
+const HUD_CLEAR_TOP = 112;
 /** An ask card's width (styles.ask), for keeping it on the stage. */
 const ASK_CARD_WIDTH = 220;
 /** Half the distance apart two people stand when their palms meet (world units). */
@@ -565,7 +601,7 @@ const PROMPT_HEIGHT = 128;
 const promptOffset = (
   asks: GardenPerson[],
   i: number,
-  poses: (Pose | null)[],
+  poses: (DrawnPose | null)[],
   people: GardenPerson[],
   cam: ReturnType<typeof makeCamera>
 ) => {
@@ -581,12 +617,6 @@ const promptOffset = (
     if (other && Math.abs(other.x - me.x) < 220 && Math.abs(other.y - me.y) < PROMPT_HEIGHT + lift) lift += PROMPT_HEIGHT;
   }
   return lift;
-};
-
-/** An angle part of the way to another, the short way round. */
-const turnToward = (from: number, to: number, k: number) => {
-  const diff = Math.atan2(Math.sin(to - from), Math.cos(to - from));
-  return from + diff * k;
 };
 
 type TagSpot = {
@@ -656,7 +686,7 @@ const styles = StyleSheet.create({
   askRow: { flexDirection: "row", gap: 8 },
   askYes: { flex: 1, backgroundColor: hud.accent, borderRadius: 999, paddingVertical: 8, alignItems: "center", borderWidth: 2, borderColor: hud.forest },
   askYesText: { color: hud.onAccent, fontWeight: "700", fontSize: 14 },
-  askNo: { flex: 1, backgroundColor: hud.primarySoft, borderRadius: 999, paddingVertical: 8, alignItems: "center" },
+  askNo: { flex: 1, backgroundColor: hud.primarySoft, borderRadius: 999, paddingVertical: 8, alignItems: "center", borderWidth: 2, borderColor: "transparent" },
   askNoText: { color: hud.forest, fontWeight: "600", fontSize: 14 },
   askTrack: { height: 4, borderRadius: 2, backgroundColor: hud.primarySoft, overflow: "hidden" },
   askLeft: { height: 4, backgroundColor: hud.accent },

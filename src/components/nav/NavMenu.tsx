@@ -68,6 +68,7 @@ const NAV_ICONS: Record<NavKey, { outline: AppIconName; filled: AppIconName }> =
       outline: "shield-checkmark-outline",
       filled: "shield-checkmark",
     },
+    garden: { outline: "leaf-outline", filled: "leaf" },
     admin: { outline: "settings-outline", filled: "settings" },
   };
 

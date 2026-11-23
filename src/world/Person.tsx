@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
 import { garden, hud, people, shade } from "./palette";
 import { Ellipse, quadTransform } from "./Shapes";
+import { strideBob, strideSwing } from "./gait";
 import { fonts } from "@/theme";
 
 /** The top of this person's head: taller people's tags sit higher. */
@@ -32,6 +33,8 @@ export const figureTop = (look: Look, up: number) => {
   return Math.max(head + above, spikes);
 };
 
+type Stride = { stridePhase: number; strideAmp: number };
+
 type Figure = {
   foot: ScreenPoint;
   /** Pixels per world unit, across and up. */
@@ -41,11 +44,10 @@ type Figure = {
 };
 
 /** Where someone stands on screen and how big they are. */
-export const figureFor = (cam: Camera, pose: Pose, t: number, seed: number): Figure => {
+export const figureFor = (cam: Camera, pose: Pose & Stride): Figure => {
   const foot = cam.project([pose.x, 0, pose.z]);
   const top = cam.project([pose.x, 1, pose.z]);
-  const bob = pose.walking ? Math.abs(Math.sin(t * 9 + seed)) * 0.14 : 0;
-  return { foot, s: foot.scale, up: foot.y - top.y, bob };
+  return { foot, s: foot.scale, up: foot.y - top.y, bob: strideBob(pose) };
 };
 
 /** The screen box a tap on someone lands in. */
@@ -230,6 +232,7 @@ const AvatarView = ({
   look,
   t,
   seed,
+  stride,
   doing = null,
   shadow = true,
 }: {
@@ -238,6 +241,7 @@ const AvatarView = ({
   look: Look;
   t: number;
   seed: number;
+  stride?: Stride;
   doing?: Doing;
   shadow?: boolean;
 }) => {
@@ -258,7 +262,7 @@ const AvatarView = ({
   const facing = Math.cos(pose.heading);
   const side = Math.sin(pose.heading);
   const ph = t * 9 + seed;
-  const swing = pose.walking ? Math.sin(ph) * 0.07 : 0;
+  const swing = stride ? strideSwing(stride) : pose.walking ? Math.sin(ph) * 0.07 : 0;
   const head = at(0, 1.0);
   const r = 0.42 * s;
   const inner = r - ink;
@@ -694,6 +698,8 @@ export const Avatar = memo(
     sameLook(a.look, b.look) &&
     a.t === b.t &&
     a.seed === b.seed &&
+    a.stride?.stridePhase === b.stride?.stridePhase &&
+    a.stride?.strideAmp === b.stride?.strideAmp &&
     a.shadow === b.shadow &&
     sameDoing(a.doing ?? null, b.doing ?? null)
 );
@@ -708,6 +714,7 @@ export const Tag = ({
   far,
   emote,
   emoteRise,
+  lineFade = 1,
 }: {
   x: number;
   y: number;
@@ -718,16 +725,25 @@ export const Tag = ({
   emote?: string;
   /** 0 when the emote starts, 1 when it's gone. */
   emoteRise: number;
+  lineFade?: number;
 }) => (
   <View pointerEvents="none" style={[styles.tag, { left: x - 120, top: y - 400 }]}>
     {emote ? (
       <Text style={[styles.emote, { opacity: 1 - emoteRise * emoteRise, transform: [{ translateY: -emoteRise * 26 }] }]}>{emote}</Text>
     ) : null}
     {line ? (
-      <View style={[styles.bubble, far && styles.farBubble]}>
+      <View
+        style={[
+          styles.bubble,
+          far && styles.farBubble,
+          { opacity: lineFade, transform: [{ translateY: (1 - lineFade) * 6 }, { scale: 0.92 + 0.08 * lineFade }] },
+        ]}
+      >
         <Text style={[styles.bubbleText, far && { color: hud.farText }]}>{line}</Text>
-        <View style={[styles.tailInk, far && { borderTopColor: hud.farEdge }]} />
-        <View style={[styles.tail, far && { borderTopColor: hud.farBubble }]} />
+        <View style={styles.tailRow}>
+          <View style={[styles.tailInk, far && { borderTopColor: hud.farEdge }]} />
+          <View style={[styles.tail, far && { borderTopColor: hud.farBubble }]} />
+        </View>
       </View>
     ) : null}
     <Text style={[styles.name, me && styles.meName, far && !me && { opacity: 0.8 }]} numberOfLines={1}>
@@ -757,11 +773,9 @@ const styles = StyleSheet.create({
   },
   farBubble: { backgroundColor: hud.farBubble, borderColor: hud.farEdge, borderStyle: "dashed", shadowOpacity: 0 },
   bubbleText: { color: hud.forest, fontSize: 14.5, lineHeight: 18.5, fontWeight: "600" },
+  tailRow: { position: "absolute", left: 0, right: 0, bottom: -14, height: 14, alignItems: "center" },
   tailInk: {
-    position: "absolute",
-    bottom: -14,
-    left: "50%",
-    marginLeft: -9,
+    marginTop: 2,
     borderLeftWidth: 9,
     borderRightWidth: 9,
     borderTopWidth: 12,
@@ -770,10 +784,7 @@ const styles = StyleSheet.create({
     borderTopColor: hud.forest,
   },
   tail: {
-    position: "absolute",
-    bottom: -8,
-    left: "50%",
-    marginLeft: -6,
+    marginTop: -14,
     borderLeftWidth: 6,
     borderRightWidth: 6,
     borderTopWidth: 8,

@@ -1,14 +1,16 @@
 import { useOffline } from "@/hooks/useOffline";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { distance, EMOTE_IDS, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, posAt } from "@shared/world";
-import { useEffect, useState } from "react";
+import { distance, EMOTE_IDS, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
+import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { announce } from "./announce";
+import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
 import { Garden } from "./Garden";
 import { hud } from "./palette";
+import type { HudAction } from "./PersonHud";
 import { PeopleSheet, PersonSheet } from "./Sheets";
 import { useWorld } from "./useWorld";
 import { hearingLabel, pickView, type WorldView } from "./view";
@@ -91,6 +93,8 @@ export const WorldScreen = ({
   const world = useWorld(!offline && active);
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [person, setPerson] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<{ memberId: string; safetyOnly: boolean } | null>(null);
+  const [approach, setApproach] = useState<{ to: string; since: number } | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [tray, setTray] = useState(false);
@@ -143,26 +147,142 @@ export const WorldScreen = ({
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
   const mePose = me?.walk ? posAt(me.walk, now) : null;
-  const tapped = world.people.find((p) => p.memberId === person) ?? null;
+  const selected = world.people.find((p) => p.memberId === person) ?? null;
+  if (person !== null && !selected && world.status === "in") setPerson(null);
+  const tapped = world.people.find((p) => p.memberId === sheet?.memberId) ?? null;
   const tappedPose = tapped?.walk ? posAt(tapped.walk, now) : null;
   const near = mePose !== null && tappedPose !== null && distance(mePose, tappedPose) <= INTERACT_RADIUS;
+  const firstName = (memberId: string) => world.people.find((p) => p.memberId === memberId)?.name.split(" ")[0] ?? "them";
+
+  const askHighFive = (to: string) => {
+    const other = world.people.find((p) => p.memberId === to);
+    if (other) void world.ask(other.memberId, "highFive").then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."));
+  };
+
+  const live = useRef({ world, askHighFive });
+  useEffect(() => {
+    live.current = { world, askHighFive };
+  });
+  const aimedAt = useRef<string | null>(null);
+  const stepToward = (to: string, since: number): boolean => {
+    const { world: latest, askHighFive: ask } = live.current;
+    const at = latest.serverNow();
+    const mine = latest.people.find((p) => p.isMe);
+    const theirs = latest.people.find((p) => p.memberId === to);
+    if (!mine?.walk || !theirs?.walk) {
+      setNote("They've left the garden.");
+      return false;
+    }
+    const step = approachStep({
+      mine: posAt(mine.walk, at),
+      theirs: posAt(theirs.walk, at),
+      theirGoal: { x: theirs.walk.toX, z: theirs.walk.toZ },
+      aimedAt: aimedAt.current,
+      now: at,
+    });
+    if (step.kind === "ask") {
+      ask(to);
+      return false;
+    }
+    if (step.kind === "giveUp" || Date.now() - since > APPROACH_MS) {
+      setNote(`Couldn't get close to ${theirs.name.split(" ")[0]}.`);
+      return false;
+    }
+    if (step.kind === "walk") {
+      aimedAt.current = step.aimedAt;
+      latest.walkTo(step.to.x, step.to.z);
+    }
+    return true;
+  };
+  useEffect(() => {
+    if (!approach) return;
+    const id = setInterval(() => {
+      if (!stepToward(approach.to, approach.since)) setApproach(null);
+    }, 150);
+    return () => clearInterval(id);
+  }, [approach]);
+
+  const highFive = (to: string) => {
+    setPerson(null);
+    aimedAt.current = null;
+    const since = Date.now();
+    if (!stepToward(to, since)) return setApproach(null);
+    setApproach({ to, since });
+    setNote(`Walking over to ${firstName(to)}…`);
+  };
+
+  const hudActions: HudAction[] = !selected
+    ? []
+    : selected.isMe
+      ? [
+          {
+            id: "customize",
+            label: "Outfit",
+            hint: "Customize your character",
+            icon: "shirt-outline",
+            onPress: () => {
+              setPerson(null);
+              setEditing(true);
+            },
+          },
+          {
+            id: "emotes",
+            label: "Emotes",
+            hint: "Emotes",
+            emoji: "🌸",
+            onPress: () => {
+              setPerson(null);
+              setTray(true);
+            },
+          },
+        ]
+      : [
+          {
+            id: "highfive",
+            label: MUTUALS.highFive.label,
+            hint: `${MUTUALS.highFive.label} with ${selected.name}`,
+            emoji: MUTUALS.highFive.icon,
+            onPress: () => highFive(selected.memberId),
+          },
+          {
+            id: "wave",
+            label: EMOTES.wave.label,
+            hint: `Wave at ${selected.name}`,
+            emoji: EMOTES.wave.icon,
+            onPress: () => {
+              setPerson(null);
+              void world.act("wave");
+            },
+          },
+          {
+            id: "more",
+            label: "More",
+            hint: `Mute, block or report ${selected.name}`,
+            icon: "ellipsis-horizontal",
+            onPress: () => {
+              setPerson(null);
+              setSheet({ memberId: selected.memberId, safetyOnly: true });
+            },
+          },
+        ];
 
   const sheets = (
     <>
       <PersonSheet
         // A report started for one person never carries over to another.
-        key={person ?? "nobody"}
+        key={sheet?.memberId ?? "nobody"}
         person={tapped}
-        muted={person !== null && muted.has(person)}
+        safetyOnly={sheet?.safetyOnly ?? false}
+        muted={sheet !== null && muted.has(sheet.memberId)}
         near={near}
         onToggleMute={toggleMute}
         onWave={() => void world.act("wave")}
-        onHighFive={(to) => void world.ask(to, "highFive").then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."))}
+        onHighFive={askHighFive}
         onCustomize={() => {
-          setPerson(null);
+          setSheet(null);
           setEditing(true);
         }}
-        onClose={() => setPerson(null)}
+        onClose={() => setSheet(null)}
         onDone={setNote}
       />
       {/* Only once your look has loaded, so a draft never starts from a placeholder. */}
@@ -182,7 +302,8 @@ export const WorldScreen = ({
         }}
         onPerson={(memberId) => {
           setPeopleOpen(false);
-          setPerson(memberId);
+          if (view === "list") setSheet({ memberId, safetyOnly: false });
+          else setPerson(memberId);
         }}
         onCustomize={() => {
           setPeopleOpen(false);
@@ -203,7 +324,7 @@ export const WorldScreen = ({
           onBack={onBack}
           onArcade={onArcade}
           onPeople={() => setPeopleOpen(true)}
-          onPerson={setPerson}
+          onPerson={(memberId) => setSheet({ memberId, safetyOnly: false })}
           note={note}
           onNote={setNote}
           declined={declined}
@@ -225,6 +346,7 @@ export const WorldScreen = ({
           look: p.look,
           me: p.isMe,
           walk: p.walk,
+          gait: p.gait,
           say: p.say,
           act: p.act,
           ask: p.ask,
@@ -236,11 +358,18 @@ export const WorldScreen = ({
         target={world.target}
         onHoldStart={(x, z) => {
           setTray(false);
+          setPerson(null);
+          setApproach(null);
           world.holdStart(x, z);
         }}
         onHoldMove={world.holdMove}
         onHoldEnd={world.holdEnd}
-        onTapPerson={setPerson}
+        onTapPerson={(memberId) => {
+          setTray(false);
+          setPerson((current) => (current === memberId ? null : memberId));
+        }}
+        selected={person}
+        hudActions={hudActions}
         onTapArcade={onArcade}
         onAccept={accept}
         onDecline={decline}
@@ -271,21 +400,27 @@ export const WorldScreen = ({
       <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
         {tray ? (
           <View style={styles.tray} testID="world-emote-tray">
-            {EMOTE_IDS.map((id) => (
-              <Pressable
-                key={id}
-                onPress={() => {
-                  setTray(false);
-                  void world.act(id);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Emote: ${EMOTES[id].label}`}
-                testID={`world-emote-${id}`}
-                style={({ pressed }) => [styles.trayItem, pressed && styles.pressed]}
-              >
-                <Text style={styles.trayEmoji}>{EMOTES[id].icon}</Text>
-                <Text style={styles.trayLabel}>{EMOTES[id].label}</Text>
-              </Pressable>
+            {trayRows.map((row) => (
+              <View key={row[0]} style={styles.trayRow}>
+                {row.map((id) => (
+                  <Pressable
+                    key={id}
+                    onPress={() => {
+                      setTray(false);
+                      void world.act(id);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Emote: ${EMOTES[id].label}`}
+                    testID={`world-emote-${id}`}
+                    style={({ pressed }) => [styles.trayItem, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.trayEmoji}>{EMOTES[id].icon}</Text>
+                    <Text style={styles.trayLabel} numberOfLines={1}>
+                      {EMOTES[id].label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             ))}
           </View>
         ) : null}
@@ -327,6 +462,13 @@ export const WorldScreen = ({
     </KeyboardAvoidingView>
   );
 };
+
+const TRAY_COLUMNS = 4;
+const trayRows = EMOTE_IDS.reduce<(typeof EMOTE_IDS)[number][][]>((rows, id, i) => {
+  if (i % TRAY_COLUMNS === 0) rows.push([]);
+  rows[rows.length - 1].push(id);
+  return rows;
+}, []);
 
 const ink = { borderWidth: 2.5, borderColor: hud.forest };
 const pop = { shadowColor: hud.forest, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 0 };
@@ -394,9 +536,6 @@ const styles = StyleSheet.create({
   bottom: { position: "absolute", left: 14, right: 14, bottom: 0, gap: 10 },
   side: { position: "absolute", right: 14 },
   tray: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
     gap: 6,
     backgroundColor: hud.card,
     borderRadius: 22,
@@ -404,7 +543,8 @@ const styles = StyleSheet.create({
     ...ink,
     ...pop,
   },
-  trayItem: { width: 54, height: 56, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: hud.accentSoft },
+  trayRow: { flexDirection: "row", gap: 6 },
+  trayItem: { flex: 1, height: 56, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: hud.accentSoft },
   trayEmoji: { fontSize: 22 },
   trayLabel: { fontSize: 10.5, fontWeight: "600", color: hud.forest, marginTop: 2 },
   chat: {
