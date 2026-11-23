@@ -12,6 +12,7 @@ import {
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
+import { useRequestUnreadCounts } from "@/hooks/useRequestUnreadCounts";
 import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
 import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import { ReceiptRecipientList } from "@/components/ReceiptRecipientList";
@@ -205,14 +206,16 @@ export const ReviewList = ({
   const t = useAppTheme();
   const data = useQuery(api.requests.toReview, {});
   const reviewed = useQuery(api.requests.reviewed, {});
+  const shownIds = [
+    ...(data
+      ? [...data.hod, ...data.budgetManager, ...data.director, ...data.financeHead, ...data.readyToPay]
+      : []),
+    ...(reviewed ?? []),
+  ].map((r) => r._id);
+  const unread = useRequestUnreadCounts(data != null && reviewed != null ? shownIds : undefined);
   const earlier = useEarlierYears(api.requests.reviewedHistory, {
     enabled: data != null && reviewed != null,
-    exclude: [
-      ...(data
-        ? [...data.hod, ...data.budgetManager, ...data.director, ...data.financeHead, ...data.readyToPay]
-        : []),
-      ...(reviewed ?? []),
-    ].map((r) => r._id),
+    exclude: shownIds,
     yearOf: requestStaffYear,
     newestOf: reviewedAtOf,
     loadMoreRef,
@@ -303,6 +306,7 @@ export const ReviewList = ({
                         <RequestCard
                           request={request}
                           showRequester
+                          unread={unread[request._id] ?? 0}
                           actionRequired={request.canAct}
                           waitingSince={request.waitingSince}
                           autoExpand={request._id === focusId}
@@ -344,6 +348,7 @@ export const ReviewList = ({
                       <RequestCard
                         request={request}
                         showRequester
+                        unread={unread[request._id] ?? 0}
                         actionRequired={request.canAct}
                         waitingSince={request.waitingSince}
                         autoExpand={request._id === focusId}
@@ -378,6 +383,7 @@ export const ReviewList = ({
                     request={request}
                     showRequester
                     collapsible
+                    unread={unread[request._id] ?? 0}
                     autoExpand={request._id === focusId}
                     autoOpenThread={request._id === focusId && focusThread}
                     deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}

@@ -24,6 +24,7 @@ export const PersonSheet = ({
   onToggleMute,
   onWave,
   onHighFive,
+  onDuel,
   onClose,
   onDone,
 }: {
@@ -33,6 +34,7 @@ export const PersonSheet = ({
   onToggleMute: (memberId: string) => void;
   onWave: () => void;
   onHighFive: (to: Id<"worldMembers">) => void;
+  onDuel: (to: Id<"worldMembers">) => void;
   onClose: () => void;
   onDone: (note: string) => void;
 }) => {
@@ -92,6 +94,15 @@ export const PersonSheet = ({
               icon="hand-right-outline"
               onPress={() => {
                 onHighFive(person!.memberId);
+                close();
+              }}
+            />
+            <Btn
+              title="Rock paper scissors"
+              icon="game-controller-outline"
+              variant="tonal"
+              onPress={() => {
+                onDuel(person!.memberId);
                 close();
               }}
             />

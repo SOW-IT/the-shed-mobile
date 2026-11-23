@@ -7,6 +7,7 @@ import { usePagedQuery } from "@/hooks/usePagedQuery";
 import type { RequestPrefill } from "@/components/MyRequests";
 import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import { RequestCard } from "@/components/RequestCard";
+import { useRequestUnreadCounts } from "@/hooks/useRequestUnreadCounts";
 import { useScrollBy } from "@/components/ui/scrollAnchor";
 import {
   EmptyState,
@@ -81,6 +82,7 @@ export const PastRequests = ({
     }
   );
   const shown = linked ? rows.filter((row) => row._id !== linked._id) : rows;
+  const unread = useRequestUnreadCounts([...(linked ? [linked._id] : []), ...shown.map((row) => row._id)]);
   const scrollBy = useScrollBy();
   const linkKey = linked ? `${linked._id}:${focusReopenKey ?? ""}` : null;
   useEffect(() => {
@@ -112,6 +114,7 @@ export const PastRequests = ({
     <RequestCard
       request={request}
       collapsible
+      unread={unread[request._id] ?? 0}
       autoExpand={isLinked}
       autoOpenThread={isLinked && focusThread}
       deepLinkOpenKey={isLinked ? focusReopenKey : undefined}
