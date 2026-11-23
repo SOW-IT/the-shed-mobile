@@ -1,4 +1,5 @@
 import { useOffline } from "@/hooks/useOffline";
+import { useWorldOnline } from "@/hooks/useWorldOnline";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
@@ -86,21 +87,29 @@ const RoundButton = ({
   label,
   onPress,
   testID,
+  badge = 0,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
   testID?: string;
+  /** A count in the corner; hidden at 0. */
+  badge?: number;
 }) => (
   <Pressable
     onPress={onPress}
     accessibilityRole="button"
-    accessibilityLabel={label}
+    accessibilityLabel={badge > 0 ? `${label}, ${badge} online` : label}
     testID={testID}
     hitSlop={6}
     style={({ pressed }) => [styles.round, pressed && styles.pressed]}
   >
     <Ionicons name={icon} size={20} color={hud.forest} />
+    {badge > 0 ? (
+      <View style={styles.badge} testID={testID ? `${testID}-badge` : undefined}>
+        <Text style={styles.badgeText}>{badge > 99 ? "99+" : badge}</Text>
+      </View>
+    ) : null}
   </Pressable>
 );
 
@@ -153,6 +162,7 @@ export const WorldScreen = ({
   const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const online = useWorldOnline();
   // A link to the editor opens it once your look has loaded.
   const [editorAsked, setEditorAsked] = useState(opening === "character");
   // The editor closes with the visit (your look goes with it); open it again after.
@@ -473,6 +483,7 @@ export const WorldScreen = ({
           onBack={onBack}
           onArcade={onArcade}
           onPeople={() => setPeopleOpen(true)}
+          online={online}
           onPerson={(memberId) => {
             if (world.people.some((p) => p.isMe && p.memberId === memberId)) setEditing(true);
             else setSheet({ memberId, safetyOnly: false });
@@ -538,7 +549,7 @@ export const WorldScreen = ({
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <RoundButton icon="chevron-back" label="Back" onPress={onBack} testID="world-back" />
         <TitlePill title={PLACE_TITLES[world.place]} instance={world.instance} />
-        <RoundButton icon="people-outline" label="People here" onPress={() => setPeopleOpen(true)} testID="world-people" />
+        <RoundButton icon="people-outline" label="People here" onPress={() => setPeopleOpen(true)} testID="world-people" badge={online} />
       </View>
       <View style={[styles.logRow, { top: insets.top + 66 }]} pointerEvents="box-none">
         <ChatLog
@@ -675,6 +686,21 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: hud.cream },
   veil: { backgroundColor: hud.cream },
   pressed: { opacity: 0.75 },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: hud.accent,
+    borderWidth: 2,
+    borderColor: hud.card,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: { color: hud.onAccent, fontFamily: fonts.display, fontSize: 11, lineHeight: 13 },
   top: {
     position: "absolute",
     left: 14,
