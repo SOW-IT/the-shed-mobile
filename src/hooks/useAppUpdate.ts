@@ -1,79 +1,58 @@
 import { useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { api } from "../../convex/_generated/api";
-import { appLinkForScheme } from "../../shared/appLinks";
+import { appLinkForScheme, updateRouteFor } from "../../shared/appLinks";
 import { appScheme, appVersion } from "@/hooks/useReportAppVersion";
 import { openExternalLink } from "@/lib/openExternalLink";
-import { otaUpdates } from "@/lib/otaUpdates";
+import { checkForUpdateOnce, restartIntoUpdate, useOtaState } from "@/lib/otaUpdates";
 
 const nativePlatform = (): "ios" | "android" | null =>
   Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : null;
 
-type UpdatePhase = "idle" | "checking" | "downloading" | "restarting";
-
-const PHASE_LABEL: Record<Exclude<UpdatePhase, "idle">, string> = {
-  checking: "Checking…",
-  downloading: "Downloading…",
-  restarting: "Restarting…",
-};
-
-const UPDATE_FAILED = "Couldn't update. Check your connection and try again.";
-
-const usableUpdates = () => (__DEV__ ? null : otaUpdates);
+const storeName = (platform: "ios" | "android" | null) => (platform === "android" ? "Play Store" : "App Store");
 
 export const useAppUpdate = () => {
   const platform = nativePlatform();
   const version = appVersion();
   const link = appLinkForScheme(appScheme());
   const storeUrl = platform === "ios" ? link.iosStore : platform === "android" ? link.androidStore : null;
-  const status = useQuery(
+  const check = useQuery(
     api.appInstalls.updateStatus,
     platform && version && storeUrl ? { platform, version } : "skip"
   );
-  const check = storeUrl ? status : undefined;
-  const [phase, setPhase] = useState<UpdatePhase>("idle");
-  const [error, setError] = useState<string | null>(null);
-
+  const ota = useOtaState();
+  const [restarting, setRestarting] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const status = storeUrl ? check?.status : undefined;
+  const behind = status === "recommended" || status === "required";
+  const route = behind ? updateRouteFor(check?.latest ?? null, ota) : null;
+  const waiting = route === "wait" && ota !== null && !ota.busy && !ota.checked;
+  useEffect(() => {
+    if (waiting) checkForUpdateOnce();
+  }, [waiting]);
+  const restart = () => {
+    if (restarting || !ota) return;
+    setRestarting(true);
+    setFailed(false);
+    restartIntoUpdate(ota.pending).catch(() => {
+      setRestarting(false);
+      setFailed(true);
+    });
+  };
   const openStore = () => {
     if (storeUrl) void openExternalLink(storeUrl);
   };
-
-  const update = async () => {
-    if (phase !== "idle") return;
-    setError(null);
-    const updates = usableUpdates();
-    if (!updates) {
-      openStore();
-      return;
-    }
-    try {
-      setPhase("checking");
-      const available = await updates.checkForUpdateAsync();
-      if (available.isAvailable || available.isRollBackToEmbedded) {
-        setPhase("downloading");
-        const fetched = await updates.fetchUpdateAsync();
-        if (fetched.isNew || fetched.isRollBackToEmbedded) {
-          setPhase("restarting");
-          await updates.reloadAsync();
-          return;
-        }
-      }
-      setPhase("idle");
-      openStore();
-    } catch {
-      setPhase("idle");
-      setError(UPDATE_FAILED);
-    }
-  };
-
   return {
-    check,
+    status,
+    route,
+    latest: check?.latest ?? null,
+    message: check?.message ?? null,
     version,
-    behind: check?.status === "recommended" || check?.status === "required",
-    busy: phase !== "idle",
-    label: phase === "idle" ? null : PHASE_LABEL[phase],
-    error,
-    update: () => void update(),
+    store: storeName(platform),
+    restart,
+    restarting,
+    failed,
+    openStore,
   };
 };
