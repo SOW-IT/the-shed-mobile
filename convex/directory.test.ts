@@ -258,6 +258,13 @@ describe("orgChart", () => {
     expect(clamped.year).toBe(YEAR);
   });
 
+  test("a past year without divisions is still in the year list once it's open", async () => {
+    const t = await setup();
+    const chart = (await t.query(api.directory.orgChart, { year: YEAR - 9 }))!;
+    expect(chart.year).toBe(YEAR - 9);
+    expect(chart.availableYears).toContain(YEAR - 9);
+  });
+
   test("uses directory name as fallback when profile and user have no name", async () => {
     const t = await setup();
     await t.run((ctx) =>

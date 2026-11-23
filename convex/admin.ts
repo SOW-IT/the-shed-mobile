@@ -23,7 +23,6 @@ import {
   STAFF_SIDE_ROLES,
   staffYearStartMs,
 } from "../shared/flow";
-import { staffProfileSearchText } from "../shared/orgChart";
 import { personDisplayName } from "../shared/rollcall";
 import {
   previousStaffYearByEmailKey,
@@ -65,6 +64,7 @@ import {
   rolesOf,
   setCachedDirectorEmail,
 } from "./model";
+import { staffSearchText, yearSearchContext } from "./orgSearch";
 import { hasSignedIn } from "./presence";
 import {
   attachMember,
@@ -152,7 +152,7 @@ const patchFromAssignments = async (
   const deduped = dedupeAssignments(assignments);
   await ctx.db.patch("staffProfiles", profile._id, {
     assignments: deduped,
-    searchText: staffProfileSearchText({ ...profile, assignments: deduped }),
+    searchText: await staffSearchText(ctx, { ...profile, assignments: deduped }),
   });
 };
 
@@ -170,7 +170,7 @@ const writeStaffProfile = async (
     importId: existing?.importId ?? identity.importId,
     name,
     userId: existing?.userId ?? identity.userId,
-    searchText: staffProfileSearchText({ email, name, assignments }),
+    searchText: await staffSearchText(ctx, { email, year, name, assignments }),
   };
   const profileId =
     existing?._id ??
@@ -266,12 +266,11 @@ const renameScopeInProfiles = async (
     .withIndex("by_year", (q) => q.eq("year", year))) {
     const current = assignmentsOf(profile);
     if (!current.some((a) => a[key] === oldName)) continue;
-    const assignments = remapScope(current, key, oldName, newName);
     await ctx.db.patch("staffProfiles", profile._id, {
-      assignments,
-      searchText: staffProfileSearchText({ ...profile, assignments }),
+      assignments: remapScope(current, key, oldName, newName),
     });
   }
+  await ctx.scheduler.runAfter(0, internal.orgSearch.refreshYearSearchText, { year });
 };
 
 // Saved acting-as choices are checked against the current year's departments,
@@ -1461,6 +1460,9 @@ export const updateDepartment = mutation({
         division: args.division,
         headEmail,
       });
+      if (existing.division !== args.division) {
+        await ctx.scheduler.runAfter(0, internal.orgSearch.refreshYearSearchText, { year: args.year });
+      }
     }
 
     if (headEmail) {
@@ -1894,6 +1896,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     }
     counts.roles++;
   }
+  const toSearch = await yearSearchContext(ctx, to);
   for await (const profile of ctx.db
     .query("staffProfiles")
     .withIndex("by_year", (q) => q.eq("year", from))) {
@@ -1921,14 +1924,14 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, {
         ...fields,
-        searchText: staffProfileSearchText({ ...fields, email: existing.email }),
+        searchText: await staffSearchText(ctx, { ...fields, email: existing.email, year: to }, toSearch),
       });
     } else {
       await ctx.db.insert("staffProfiles", {
         email: profile.email,
         year: to,
         ...fields,
-        searchText: staffProfileSearchText({ ...fields, email: profile.email }),
+        searchText: await staffSearchText(ctx, { ...fields, email: profile.email, year: to }, toSearch),
       });
     }
     counts.profiles++;
@@ -2224,7 +2227,7 @@ export const seed = internalMutation({
         email,
         year,
         assignments,
-        searchText: staffProfileSearchText({ email, assignments }),
+        searchText: await staffSearchText(ctx, { email, year, assignments }),
       });
     }
     return { year, admin: email };

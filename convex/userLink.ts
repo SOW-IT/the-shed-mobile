@@ -1,8 +1,8 @@
-import { staffProfileSearchText } from "../shared/orgChart";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
 import { isOrgEmail } from "./model";
+import { refreshSearchText, staffSearchText } from "./orgSearch";
 
 const LEGACY_EMAIL_DOMAINS = ["sowaustralia.com"];
 
@@ -25,7 +25,7 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
     } else {
       await ctx.db.patch("staffProfiles", profile._id, {
         email: newEmail,
-        searchText: staffProfileSearchText({ ...profile, email: newEmail }),
+        searchText: await staffSearchText(ctx, { ...profile, email: newEmail }),
       });
     }
   }
@@ -334,6 +334,7 @@ export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {
     .query("staffProfiles")
     .withIndex("by_userId", (q) => q.eq("userId", userId))
     .take(100);
+  await refreshSearchText(ctx, mine);
   for (const profile of mine) {
     if (profile.importId === undefined) {
       await ctx.db.patch("staffProfiles", profile._id, { importId: personKey });

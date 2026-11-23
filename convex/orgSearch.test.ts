@@ -200,6 +200,46 @@ describe("keeping searchText current", () => {
     expect(await found(t, "technology", ADMIN)).toEqual([`${YEAR + 1} ${DANIEL}`, `${YEAR} ${DANIEL}`]);
   });
 
+  test("a department's division is searchable, and moving the department updates it", async () => {
+    vi.useFakeTimers();
+    const t = await setup();
+    expect(await found(t, "engagement")).toEqual([`${YEAR} ${DANIEL}`]);
+    await asUser(t, ADMIN).mutation(api.admin.upsertDivision, { year: YEAR, name: "Outreach" });
+    await asUser(t, ADMIN).mutation(api.admin.updateDepartment, {
+      year: YEAR,
+      oldName: "Media",
+      newName: "Media",
+      division: "Outreach",
+      headEmail: DANIEL,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await found(t, "engagement")).toEqual([]);
+    expect(await found(t, "outreach")).toEqual([`${YEAR} ${DANIEL}`]);
+    vi.useRealTimers();
+  });
+
+  test("a year's role title becomes searchable once it is set", async () => {
+    vi.useFakeTimers();
+    const t = await setup();
+    expect(await found(t, "team member")).toEqual([]);
+    await t.mutation(internal.history.setRoleTitle, { year: YEAR - 1, title: "Team Member", standsFor: "Staff" });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await found(t, "team member")).toEqual([`${YEAR - 1} ${DANA}`, `${YEAR - 1} ${DANIEL}`]);
+    vi.useRealTimers();
+  });
+
+  test("the Google and directory names are searchable after a refresh", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: DANA, name: "Danielle Lee" });
+      await ctx.db.insert("directoryUsers", { email: KIMBERLY, name: "Kimmy Ong" });
+    });
+    expect(await found(t, "danielle")).toEqual([]);
+    expect(await t.mutation(internal.orgSearch.refreshYearSearchText, { year: YEAR - 1 })).toEqual({ updated: 2 });
+    expect(await found(t, "danielle")).toEqual([`${YEAR - 1} ${DANA}`]);
+    expect(await found(t, "kimmy")).toEqual([`${YEAR - 1} ${KIMBERLY}`]);
+  });
+
   test("the backfill fills in profiles saved before search, in batches", async () => {
     vi.useFakeTimers();
     const t = await setup();

@@ -16,9 +16,12 @@ only grows.
 
 ## Decision
 
-Each `staffProfiles` row carries `searchText`: its name, email, roles (with
-their acronyms) and its departments, divisions and campuses (with theirs),
-built by `staffProfileSearchText` in `shared/orgChart.ts`. A Convex search
+Each `staffProfiles` row carries `searchText`: its name plus the person's
+Google and Workspace directory names, email, roles (with acronyms and that
+year's role titles), and its departments (with each one's division),
+divisions and campuses (with acronyms). `staffSearchText` in
+`convex/orgSearch.ts` gathers those and `staffProfileSearchText` in
+`shared/orgChart.ts` builds the text. A Convex search
 index, `search_text`, covers it. A Convex search query matches any of its
 words and only treats the last as a prefix, so `orgSearch:searchAllYears`
 asks the index about one word at a time, longest first (up to three), each
@@ -31,15 +34,19 @@ and says more may match.
 
 Every write that changes a profile's name, email or assignments sets
 `searchText` in the same patch or insert: Admin's assign and head changes,
-renames of a department, division or campus, the year copy, the admin seed,
-`history:setPastAssignments` and the email rekey on sign-in. A new writer of
-those fields has to do the same. `orgSearch:backfillSearchText` recomputes
+the year copy, the admin seed, `history:setPastAssignments` and the email
+rekey on sign-in. Linking a profile to its account at sign-in refreshes it,
+which picks up the Google name. Changes that touch a whole year (renaming a
+department, division or campus, moving a department to another division,
+`history:setRoleTitle`) schedule `orgSearch:refreshYearSearchText` for that
+year. A new writer of those fields has to do one or the other. `orgSearch:backfillSearchText` recomputes
 every row in batches and only writes the ones that changed, so it fills the
 field after this release and repairs any row a future writer misses.
 
 Each word matches the start of a word in the text, so "dan ki" finds Daniel
-Kim, but "aniel" finds nothing. Year-specific role titles (ADR 0015) aren't in the text because they
-live in another table; results still show them.
+Kim, but "aniel" finds nothing. A Google or directory name that changes without a profile write (the weekly
+directory sync, a renamed Google account) stays stale until the backfill runs
+again.
 
 ## Consequences
 

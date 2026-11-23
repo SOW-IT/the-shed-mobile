@@ -5,7 +5,12 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { togglePicked } from "../../../shared/churches";
 import { universityColour } from "../../../shared/flow";
-import { departmentHeadTitle, filterOrgChart, isOrgSearchQuery } from "../../../shared/orgChart";
+import {
+  departmentHeadTitle,
+  filterOrgChart,
+  isOrgSearchQuery,
+  refinesOrgSearch,
+} from "../../../shared/orgChart";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import { FilterChip, FilterRow, FilterSummary, NoMatches } from "@/components/FilterChips";
@@ -82,7 +87,11 @@ export default function OrgChartScreen() {
     api.orgSearch.searchAllYears,
     searchingAllYears && isOrgSearchQuery(settledSearch) ? { query: settledSearch } : "skip"
   );
-  const { value: found, stale: foundStale } = useHeldValue(liveFound, "org-search");
+  const { value: held } = useHeldValue(
+    liveFound === undefined ? undefined : { query: settledSearch, found: liveFound },
+    "org-search"
+  );
+  const found = held && refinesOrgSearch(search, held.query) ? held.found : undefined;
 
   if (!chart) {
     return (
@@ -92,7 +101,7 @@ export default function OrgChartScreen() {
     );
   }
 
-  const { areas, active, counts, shown, people } = filterOrgChart(chart, focus?.email ?? "", picked);
+  const { areas, active, counts, shown, people } = filterOrgChart(chart, focus?.email ?? null, picked);
   const filtering = active.length > 0;
   const searching = focus !== null;
   const campuses = shown.universities.filter((u) => u.members.length > 0);
@@ -130,7 +139,7 @@ export default function OrgChartScreen() {
             value={search}
             onChangeText={setSearch}
             placeholder="Search people, roles or teams in every year"
-            loading={searchingAllYears && (found === undefined || foundStale || search.trim() !== settledSearch)}
+            loading={searchingAllYears && (liveFound === undefined || search.trim() !== settledSearch)}
           />
           {searchingAllYears ? null : areas.length > 1 ? (
             <FilterRow title="Teams and campuses">

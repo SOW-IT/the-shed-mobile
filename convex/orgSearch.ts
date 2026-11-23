@@ -9,9 +9,9 @@ import {
 } from "../shared/orgChart";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, type MutationCtx, query } from "./_generated/server";
 import { viewsAsAdmin } from "./actingAs";
-import { currentStaffYear, nextStaffYear, optionalProfile, roleTitlesForYear } from "./model";
+import { type Ctx, currentStaffYear, nextStaffYear, optionalProfile, roleTitlesForYear } from "./model";
 import { photoUrl } from "./photo";
 
 export const ORG_SEARCH_LIMIT = 40;
@@ -94,6 +94,74 @@ export const searchAllYears = query({
   },
 });
 
+type YearSearchContext = {
+  titles: RoleTitles;
+  departmentDivisions: Record<string, string>;
+};
+
+export async function yearSearchContext(ctx: Ctx, year: number): Promise<YearSearchContext> {
+  const departments = await ctx.db
+    .query("departments")
+    .withIndex("by_year_and_name", (q) => q.eq("year", year))
+    .take(500);
+  return {
+    titles: await roleTitlesForYear(ctx, year),
+    departmentDivisions: Object.fromEntries(departments.map((d) => [d.name, d.division])),
+  };
+}
+
+type ProfileFields = {
+  email: string;
+  year: number;
+  name?: string;
+  assignments?: Doc<"staffProfiles">["assignments"];
+};
+
+export async function staffSearchText(ctx: Ctx, profile: ProfileFields, year?: YearSearchContext) {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("email", (q) => q.eq("email", profile.email))
+    .first();
+  const dir = await ctx.db
+    .query("directoryUsers")
+    .withIndex("by_email", (q) => q.eq("email", profile.email))
+    .first();
+  return staffProfileSearchText({
+    ...profile,
+    otherNames: [user?.name, dir?.name],
+    ...(year ?? (await yearSearchContext(ctx, profile.year))),
+  });
+}
+
+export const refreshSearchText = async (ctx: MutationCtx, profiles: readonly Doc<"staffProfiles">[]) => {
+  const years = new Map<number, YearSearchContext>();
+  let updated = 0;
+  for (const profile of profiles) {
+    let year = years.get(profile.year);
+    if (!year) {
+      year = await yearSearchContext(ctx, profile.year);
+      years.set(profile.year, year);
+    }
+    const searchText = await staffSearchText(ctx, profile, year);
+    if (profile.searchText === searchText) continue;
+    await ctx.db.patch("staffProfiles", profile._id, { searchText });
+    updated++;
+  }
+  return updated;
+};
+
+export const refreshYearSearchText = internalMutation({
+  args: { year: v.number() },
+  returns: v.object({ updated: v.number() }),
+  handler: async (ctx, { year }) => {
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", year))
+      .take(2000);
+    return { updated: await refreshSearchText(ctx, profiles) };
+  },
+});
+
 export const backfillSearchText = internalMutation({
   args: { cursor: v.optional(v.union(v.string(), v.null())) },
   returns: v.object({ updated: v.number() }),
@@ -101,13 +169,7 @@ export const backfillSearchText = internalMutation({
     const batch = await ctx.db
       .query("staffProfiles")
       .paginate({ cursor: cursor ?? null, numItems: BACKFILL_BATCH_SIZE });
-    let updated = 0;
-    for (const profile of batch.page) {
-      const searchText = staffProfileSearchText(profile);
-      if (profile.searchText === searchText) continue;
-      await ctx.db.patch("staffProfiles", profile._id, { searchText });
-      updated++;
-    }
+    const updated = await refreshSearchText(ctx, batch.page);
     if (!batch.isDone) {
       await ctx.scheduler.runAfter(0, internal.orgSearch.backfillSearchText, {
         cursor: batch.continueCursor,

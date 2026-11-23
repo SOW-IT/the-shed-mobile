@@ -10,9 +10,10 @@ import {
   orgAreas,
   orgPeopleCount,
   orgSearchIndexWords,
+  refinesOrgSearch,
   orgSearchTerms,
   pickOrgAreas,
-  searchOrgChart,
+  focusOrgChart,
   STAFF_AREA,
   staffProfileSearchText,
   type OrgChartSections,
@@ -96,12 +97,44 @@ describe("staffProfileSearchText", () => {
         ],
       })
     ).toBe(
-      "Daniel Kim daniel.kim@sow.org.au Head of Department HOD Student Leader Staff Finance University of New South Wales UNSW Governance"
+      "Daniel Kim daniel.kim@sow.org.au Head of Department HOD Head of Dept Finance Student Leader University of New South Wales UNSW Staff Governance"
     );
+  });
+
+  test("adds the other names, the year's role titles and each department's division", () => {
+    expect(
+      staffProfileSearchText({
+        email: "ben.ng@sow.org.au",
+        name: "Ben Ng",
+        otherNames: ["Benjamin Ng", null, "Ben Ng"],
+        titles: { "Head of Department": "Department Overseer", Staff: "Team Member" },
+        departmentDivisions: { Finance: "Governance" },
+        assignments: [
+          { role: "Head of Department", department: "Finance" },
+          { role: "Staff", department: "Missions" },
+        ],
+      })
+    ).toBe(
+      "Ben Ng Benjamin Ng ben.ng@sow.org.au Head of Department Department Overseer HOD Finance Governance Staff Team Member Missions"
+    );
+  });
+
+  test("a head of department without a title is also a Head of Dept", () => {
+    expect(
+      staffProfileSearchText({ email: "a@sow.org.au", assignments: [{ role: "Head of Department", department: "Events" }] })
+    ).toBe("a@sow.org.au Head of Department HOD Head of Dept Events");
   });
 
   test("a profile with no name or roles is just its email", () => {
     expect(staffProfileSearchText({ email: "nora@sow.org.au" })).toBe("nora@sow.org.au");
+  });
+});
+
+describe("refinesOrgSearch", () => {
+  test("results stay while the typed text still starts with what was searched", () => {
+    expect(refinesOrgSearch("Dan Ki", "dan")).toBe(true);
+    expect(refinesOrgSearch("ma", "john")).toBe(false);
+    expect(refinesOrgSearch("joh", "john")).toBe(false);
   });
 });
 
@@ -120,67 +153,32 @@ describe("matchesOrgSearch", () => {
   });
 });
 
-describe("searchOrgChart", () => {
-  test("an empty search leaves the chart as it is", () => {
-    expect(searchOrgChart(chart, " ")).toBe(chart);
+describe("focusOrgChart", () => {
+  test("no email leaves the chart as it is", () => {
+    expect(focusOrgChart(chart, null)).toBe(chart);
   });
 
-  test("matches a name in any section and drops cards with no one left", () => {
-    const found = searchOrgChart(chart, "amy");
+  test("keeps only that exact email everywhere it appears, ignoring case", () => {
+    const found = focusOrgChart(chart, "AMY.PARK@sow.org.au");
     expect(found.director).toBeNull();
     expect(found.staff).toEqual([]);
     expect(found.divisions.map((d) => d.name)).toEqual(["Governance"]);
     expect(found.divisions[0].head).toBeNull();
-    expect(found.divisions[0].departments.map((d) => d.name)).toEqual(["Finance"]);
-    expect(names(found.divisions[0].departments[0].members)).toEqual(["Amy Park"]);
-    expect(names(found.universities.flatMap((u) => u.members))).toEqual(["Amy Park"]);
+    expect(found.divisions[0].departments.map((d) => [d.name, d.head, names(d.members)])).toEqual([
+      ["Finance", null, ["Amy Park"]],
+    ]);
+    expect(found.universities.map((u) => names(u.members))).toEqual([["Amy Park"], []]);
   });
 
-  test("every word has to match, across the person and where they sit", () => {
-    const found = searchOrgChart(chart, "unsw leader hana");
-    expect(names(found.universities[0].members)).toEqual(["Hana Kim"]);
-    expect(found.divisions).toEqual([]);
+  test("an email that only contains the target doesn't count", () => {
+    expect(orgPeopleCount(focusOrgChart(chart, "my.park@sow.org.au"))).toBe(0);
   });
 
-  test("a team's name finds everyone in it, the head included", () => {
-    const found = searchOrgChart(chart, "finance");
-    expect(found.divisions[0].head).toBeNull();
-    expect(found.divisions[0].departments[0].head?.name).toBe("Ben Ng");
-    expect(names(found.divisions[0].departments[0].members)).toEqual(["Amy Park", "Ruth Cho"]);
-  });
-
-  test("a division's name finds its head and departments", () => {
-    const found = searchOrgChart(chart, "governance");
-    expect(found.divisions[0].head?.name).toBe("Ruth Cho");
-    expect(found.divisions[0].departments.map((d) => d.name)).toEqual(["Finance"]);
-  });
-
-  test("a department head matches on the year's title for the role", () => {
-    const titled = { ...chart, roleTitles: { "Head of Department": "Department Overseer" } };
-    expect(searchOrgChart(titled, "overseer").divisions[0].departments[0].head?.name).toBe("Ben Ng");
-    expect(searchOrgChart(chart, "head of dept").divisions[0].departments[0].head?.name).toBe("Ben Ng");
-  });
-
-  test("a campus matches on its full name or its short one", () => {
-    expect(names(searchOrgChart(chart, "unsw hana").universities[0].members)).toEqual(["Hana Kim"]);
-    expect(names(searchOrgChart(chart, "new south wales").universities[0].members)).toEqual(["Hana Kim", "Amy Park"]);
-  });
-
-  test("the section names Staff and Campus match the people under them", () => {
-    expect(names(searchOrgChart(chart, "owen staff").staff)).toEqual(["Owen Tran"]);
-    expect(names(searchOrgChart(chart, "campus").universities[0].members)).toEqual(["Hana Kim", "Amy Park"]);
-  });
-
-  test("matches the Director by role, and by email", () => {
-    expect(searchOrgChart(chart, "director").director?.name).toBe("Grace Lim");
-    expect(searchOrgChart(chart, "grace.lim@").director?.name).toBe("Grace Lim");
-  });
-
-  test("keeps a division whose head matches though none of its departments do", () => {
-    const found = searchOrgChart(chart, "ruth head");
-    expect(found.divisions.map((d) => d.name)).toEqual(["Governance"]);
-    expect(found.divisions[0].head?.name).toBe("Ruth Cho");
-    expect(found.divisions[0].departments).toEqual([]);
+  test("finds heads and the director", () => {
+    expect(focusOrgChart(chart, "ben.ng@sow.org.au").divisions[0].departments[0].head?.name).toBe("Ben Ng");
+    expect(focusOrgChart(chart, "ruth.cho@sow.org.au").divisions[0].head?.name).toBe("Ruth Cho");
+    expect(focusOrgChart(chart, "grace.lim@sow.org.au").director?.name).toBe("Grace Lim");
+    expect(names(focusOrgChart(chart, "owen.tran@sow.org.au").staff)).toEqual(["Owen Tran"]);
   });
 });
 
@@ -243,8 +241,8 @@ describe("orgPeopleCount", () => {
 });
 
 describe("filterOrgChart", () => {
-  test("search and picked areas together, with counts after the search", () => {
-    const result = filterOrgChart(chart, "amy", [campusArea("University of New South Wales")]);
+  test("focus and picked areas together, with counts after the focus", () => {
+    const result = filterOrgChart(chart, "amy.park@sow.org.au", [campusArea("University of New South Wales")]);
     expect(result.active).toEqual([campusArea("University of New South Wales")]);
     expect(result.counts.get(divisionArea("Governance"))).toBe(1);
     expect(result.counts.get(campusArea("University of New South Wales"))).toBe(1);
@@ -254,14 +252,14 @@ describe("filterOrgChart", () => {
   });
 
   test("ignores a picked area this year doesn't have", () => {
-    const result = filterOrgChart(chart, "", [campusArea("USYD")]);
+    const result = filterOrgChart(chart, null, [campusArea("USYD")]);
     expect(result.active).toEqual([]);
     expect(result.shown).toBe(chart);
     expect(result.people).toBe(7);
   });
 
-  test("a picked area keeps its place in the chips when the search empties it", () => {
-    const result = filterOrgChart(chart, "owen", [divisionArea("Engagement")]);
+  test("a picked area keeps its place in the chips when the focus empties it", () => {
+    const result = filterOrgChart(chart, "owen.tran@sow.org.au", [divisionArea("Engagement")]);
     expect(result.areas.map((a) => a.name)).toContain("Engagement");
     expect(result.active).toEqual([divisionArea("Engagement")]);
     expect(result.people).toBe(0);
