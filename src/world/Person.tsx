@@ -35,6 +35,11 @@ export const figureTop = (look: Look, up: number) => {
 
 type Stride = { stridePhase: number; strideAmp: number };
 
+const ON_BENCH_ABOVE_SEAT = 0.1;
+const ON_GROUND_SINK = 0.08;
+export const sitRise = (seatHeight: number | undefined) =>
+  seatHeight === undefined ? 0 : seatHeight > 0 ? seatHeight - ON_BENCH_ABOVE_SEAT : -ON_GROUND_SINK;
+
 type Figure = {
   foot: ScreenPoint;
   /** Pixels per world unit, across and up. */
@@ -260,6 +265,7 @@ const AvatarView = ({
   t,
   seed,
   stride,
+  sit,
   doing = null,
   shadow = true,
 }: {
@@ -269,12 +275,13 @@ const AvatarView = ({
   t: number;
   seed: number;
   stride?: Stride;
+  sit?: number;
   doing?: Doing;
   shadow?: boolean;
 }) => {
   const { foot, s, up } = figure;
   const move = motion(doing, t);
-  const bob = figure.bob + move.lift - move.sink;
+  const bob = figure.bob + move.lift - move.sink + sitRise(sit);
   const ink = Math.max(1.2, 0.035 * s);
   const dx = move.shake + move.lean;
   // Height and build stretch the body; the head stays the same size.
@@ -308,15 +315,24 @@ const AvatarView = ({
   const ball = (key: string, x: number, y: number, rad: number, fill: string) =>
     parts.push(<Ellipse key={key} cx={x} cy={y} rx={rad} ry={rad} fill={fill} ink={ink * 0.8} inkColour={garden.ink} ramp />);
 
-  if (shadow) {
+  if (shadow && !(sit !== undefined && sit > 0)) {
     parts.push(
       <Ellipse key="shadow" cx={foot.x - 0.08 * s} cy={foot.y - 0.04 * s} rx={0.4 * s} ry={0.2 * s} fill={garden.shadow} />
     );
   }
-  for (const e of [-1, 1]) {
-    const p = { x: foot.x + 0.12 * e * s, y: foot.y - (0.08 + move.lift) * up };
-    parts.push(<Ellipse key={`foot${e}`} cx={p.x} cy={p.y} rx={0.1 * s} ry={0.09 * s} fill={people.feet} ink={ink * 0.8} inkColour={garden.ink} />);
-  }
+  const seated = sit !== undefined;
+  const feet = () => {
+    for (const e of [-1, 1]) {
+      const p = !seated
+        ? { x: foot.x + 0.12 * e * s, y: foot.y - (0.08 + move.lift) * up }
+        : sit > 0
+          ? { x: foot.x + (0.13 * e + side * 0.3) * s, y: foot.y - Math.max(0.08, sit - 0.12) * up + facing * 0.17 * s }
+          : { x: foot.x + (0.18 * e + side * 0.34) * s, y: foot.y - 0.06 * up + facing * 0.2 * s };
+      parts.push(<Ellipse key={`foot${e}`} cx={p.x} cy={p.y} rx={0.1 * s} ry={0.09 * s} fill={people.feet} ink={ink * 0.8} inkColour={garden.ink} />);
+    }
+  };
+  const feetInFront = seated && facing >= 0;
+  if (!feetInFront) feet();
   const accessory = look.accessory ?? 0;
   // A backpack shows behind the body from the front, over it from behind.
   const backpack = (key: string) =>
@@ -423,6 +439,7 @@ const AvatarView = ({
     parts.push(capsule(at(-0.24, 0.72), at(0.24, 0.72), 0.12 * s, people.scarf, "scarf"));
     parts.push(capsule(at(0.12, 0.7), at(0.16 + swing, 0.48), 0.1 * s, shade(people.scarf, -0.1), "scarfTail"));
   }
+  if (feetInFront) feet();
   arms("front");
 
   if (outfit === 5) ball("hood", head.x - side * 0.1 * s, head.y + r * 0.42, r * 0.86, shade(shirt, -0.1));
@@ -775,6 +792,7 @@ export const Avatar = memo(
     a.seed === b.seed &&
     a.stride?.stridePhase === b.stride?.stridePhase &&
     a.stride?.strideAmp === b.stride?.strideAmp &&
+    a.sit === b.sit &&
     a.shadow === b.shadow &&
     sameDoing(a.doing ?? null, b.doing ?? null)
 );

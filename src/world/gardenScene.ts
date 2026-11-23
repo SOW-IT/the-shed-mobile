@@ -4,9 +4,9 @@
 // ground) or a line (ink edges, the arch). Toon shading is a three-step ramp
 // per shape; ink outlines are drawn as lines.
 
-import { OBSTACLES } from "@shared/world";
+import { OBSTACLES, PORTAL_RADIUS, PORTALS, type Place } from "@shared/world";
 import type { Camera, Vec3 } from "./camera";
-import { garden, shade } from "./palette";
+import { garden, places, shade } from "./palette";
 
 type Pt = { x: number; y: number };
 export type Prim =
@@ -37,7 +37,7 @@ export type Prop = {
   box: { left: number; right: number; top: number; bottom: number };
 };
 
-const boxOf = (prims: Prim[]) => {
+export const boxOf = (prims: Prim[]) => {
   const xs: number[] = [];
   const ys: number[] = [];
   for (const p of prims) {
@@ -57,7 +57,8 @@ const boxOf = (prims: Prim[]) => {
   return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
 };
 
-interface GardenScene {
+export interface Scene {
+  sky: string;
   ground: Prim[];
   backdrop: Prim[];
   props: Prop[];
@@ -75,7 +76,7 @@ const rng = (seed: number) => {
   };
 };
 
-class Builder {
+export class Builder {
   prims: Prim[] = [];
   private n = 0;
   constructor(
@@ -133,6 +134,10 @@ class Builder {
       inkColour: garden.ink,
       ramp: true,
     });
+  }
+
+  face(corners: Vec3[], fill: string) {
+    this.prims.push({ kind: "quad", key: this.key(), pts: corners.map((corner) => this.cam.project(corner)), fill });
   }
 
   line(a: Vec3, b: Vec3, width: number, colour: string) {
@@ -201,10 +206,18 @@ class Builder {
   }
 }
 
-const depthOf = (cam: Camera, x: number, z: number) => cam.project([x, 0, z]).depth;
+export const depthOf = (cam: Camera, x: number, z: number) => cam.project([x, 0, z]).depth;
+
+export const drawPads = (g: Builder, place: Place) => {
+  for (const pad of PORTALS[place]) {
+    g.groundDisc(pad.x, pad.z, PORTAL_RADIUS + 0.07, PORTAL_RADIUS + 0.07, places.padRim, { y: 0.012 });
+    g.groundDisc(pad.x, pad.z, PORTAL_RADIUS, PORTAL_RADIUS, places.padFill, { y: 0.014 });
+    g.groundDisc(pad.x, pad.z, PORTAL_RADIUS * 0.62, PORTAL_RADIUS * 0.62, "transparent", { y: 0.016, ink: true, dashed: true });
+  }
+};
 
 /** Style C's courtyard, laid out as in the mockup, for this camera. */
-export const buildGarden = (cam: Camera): GardenScene => {
+export const buildGarden = (cam: Camera): Scene => {
   const r = rng(21);
   const g = new Builder(cam, "g");
 
@@ -235,6 +248,7 @@ export const buildGarden = (cam: Camera): GardenScene => {
     }
   }
   for (const [x, z, s] of TREES) g.groundDisc(x - 0.9 * s, z - 0.6 * s, 1.3 * s, 1.0 * s, garden.shadow);
+  drawPads(g, "garden");
   const ground = g.take();
 
   // Behind everyone: the trees, then the hedges and the arch.
@@ -339,7 +353,7 @@ export const buildGarden = (cam: Camera): GardenScene => {
     },
     "arcade"
   );
-  return { ground, backdrop, props };
+  return { sky: garden.sky, ground, backdrop, props };
 };
 
 /** Round trees behind the hedges: x, z, size. */

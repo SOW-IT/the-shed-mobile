@@ -2,7 +2,7 @@ import { Btn, Field, Muted, Sheet } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
-import { MAX_POKE_LENGTH, tagName } from "@shared/world";
+import { isPlace, MAX_POKE_LENGTH, PLACE_TITLES, PORTALS, tagName, type Place } from "@shared/world";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useEffect, useState } from "react";
@@ -270,11 +270,15 @@ export const PeopleSheet = ({
   onView,
   onPerson,
   onCustomize,
+  place,
+  onGo,
   onClose,
 }: {
   visible: boolean;
   people: WorldMember[];
   view: WorldView;
+  place: Place;
+  onGo: (to: Place) => void;
   onView: (view: WorldView) => void;
   onPerson: (memberId: string) => void;
   onCustomize: () => void;
@@ -282,6 +286,7 @@ export const PeopleSheet = ({
 }) => {
   const t = useAppTheme();
   const blocked = useQuery(api.world.myBlocks, visible ? {} : "skip");
+  const elsewhere = useQuery(api.world.elsewhere, visible ? {} : "skip");
   const unblock = useMutation(api.world.unblock);
   return (
     <Sheet visible={visible} onClose={onClose} title="People here">
@@ -308,6 +313,27 @@ export const PeopleSheet = ({
           onPress={() => onView(view === "garden" ? "list" : "garden")}
         />
         )}
+        <Text style={[typography.label, { color: t.muted }]}>In other places</Text>
+        {elsewhere && elsewhere.length === 0 ? <Muted>Nobody is anywhere else right now.</Muted> : null}
+        {elsewhere?.map((spot) => (
+          <View key={spot.place} style={[styles.elsewhere, { borderColor: t.border }]} testID={`world-elsewhere-${spot.place}`}>
+            <Text style={[typography.body, { color: t.text }]}>
+              {isPlace(spot.place) ? PLACE_TITLES[spot.place] : spot.place} · {spot.count}
+            </Text>
+            <Text style={[typography.caption, { color: t.muted }]}>
+              {spot.names.map(tagName).join(", ")}
+              {spot.count > spot.names.length ? ` and ${spot.count - spot.names.length} more` : ""}
+            </Text>
+          </View>
+        ))}
+        <Text style={[typography.label, { color: t.muted }]}>Go somewhere else</Text>
+        <View style={styles.places}>
+          {PORTALS[place].map((pad) => (
+            <View key={pad.to} style={styles.placeButton}>
+              <Btn title={PLACE_TITLES[pad.to]} icon="walk-outline" variant="tonal" onPress={() => onGo(pad.to)} />
+            </View>
+          ))}
+        </View>
         <OfflineList />
         {blocked && blocked.length > 0 ? (
           <>
@@ -328,6 +354,9 @@ export const PeopleSheet = ({
 const styles = StyleSheet.create({
   stack: { gap: spacing.md, paddingBottom: spacing.lg },
   offline: { gap: spacing.sm },
+  elsewhere: { paddingVertical: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, gap: 2 },
+  places: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  placeButton: { flexGrow: 1, flexBasis: "45%" },
   offlineRow: { paddingVertical: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, gap: spacing.sm },
   offlineHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   pokeButtons: { flexDirection: "row", gap: spacing.sm },
