@@ -1,7 +1,20 @@
 import { useOffline } from "@/hooks/useOffline";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { clampTarget, distance, EMOTE_TRAY, EMOTES, MAX_SAY_LENGTH, MUTUALS, OBSTACLES, posAt } from "@shared/world";
+import {
+  clampTarget,
+  distance,
+  EMOTE_TRAY,
+  EMOTES,
+  MAX_SAY_LENGTH,
+  MUTUALS,
+  OBSTACLES,
+  PLACE_TITLES,
+  SEATS,
+  portalAt,
+  posAt,
+  type Place,
+} from "@shared/world";
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -64,6 +77,7 @@ const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
 const ARCADE_SPOT = clampTarget(ARCADE.x + 0.9, ARCADE.z + 0.9);
 const AT_ARCADE = 0.3;
 const ARCADE_TRIP_MS = 20_000;
+const SAME_FURNITURE = 1.7;
 
 const RoundButton = ({
   icon,
@@ -95,10 +109,10 @@ const Mark = () => (
   </View>
 );
 
-const TitlePill = ({ instance }: { instance: number }) => (
+const TitlePill = ({ title, instance }: { title: string; instance: number }) => (
   <View style={styles.title} accessibilityRole="header">
     <Mark />
-    <Text style={styles.titleText}>{instance > 1 ? `The Garden · ${instance}` : "The Garden"}</Text>
+    <Text style={styles.titleText}>{instance > 1 ? `${title} · ${instance}` : title}</Text>
   </View>
 );
 
@@ -261,6 +275,60 @@ export const WorldScreen = ({
     return () => clearInterval(id);
   }, [arcadeTrip, onArcade]);
 
+  const [fade] = useState(() => new Animated.Value(0));
+  const triedFromWalk = useRef<number | null>(null);
+  const go = (to: Place) => {
+    setPerson(null);
+    setApproach(null);
+    setArcadeTrip(null);
+    setTray(false);
+    setPeopleOpen(false);
+    const veil = (toValue: number) =>
+      Animated.timing(fade, { toValue, duration: 180, useNativeDriver: Platform.OS !== "web" }).start();
+    veil(1);
+    void live.current.world.travel(to).then((problem) => {
+      veil(0);
+      if (problem) setNote(problem);
+      else announce(`You're in ${PLACE_TITLES[to]}.`);
+    });
+  };
+  const goRef = useRef(go);
+  useEffect(() => {
+    goRef.current = go;
+  });
+  useEffect(() => {
+    if (view !== "garden" || away) return;
+    const id = setInterval(() => {
+      const { world: latest } = live.current;
+      const mine = latest.people.find((p) => p.isMe);
+      if (!mine?.walk || triedFromWalk.current === mine.walk.startedAt) return;
+      const at = latest.serverNow();
+      const pose = posAt(mine.walk, at);
+      if (pose.walking || at - pose.arrivesAt < 150) return;
+      const pad = portalAt(latest.place, pose);
+      if (!pad) return;
+      triedFromWalk.current = mine.walk.startedAt;
+      goRef.current(pad.to);
+    }, 200);
+    return () => clearInterval(id);
+  }, [view, away]);
+
+  const sitNear = (seatId: string) => {
+    setPerson(null);
+    setApproach(null);
+    setArcadeTrip(null);
+    setTray(false);
+    const seats = SEATS[world.place];
+    const tapped = seats.find((seat) => seat.id === seatId);
+    if (!tapped) return;
+    const taken = new Set(world.people.filter((p) => !p.isMe && p.seat).map((p) => p.seat));
+    const free = seats
+      .filter((seat) => !taken.has(seat.id) && Math.hypot(seat.x - tapped.x, seat.z - tapped.z) <= SAME_FURNITURE)
+      .sort((a, b) => Math.hypot(a.x - tapped.x, a.z - tapped.z) - Math.hypot(b.x - tapped.x, b.z - tapped.z))[0];
+    if (free) world.sitOn(free.id);
+    else setNote("Those seats are taken.");
+  };
+
   const goToArcade = () => {
     setPerson(null);
     setApproach(null);
@@ -384,6 +452,8 @@ export const WorldScreen = ({
           setPeopleOpen(false);
           setEditing(true);
         }}
+        place={world.place}
+        onGo={go}
         onClose={() => setPeopleOpen(false)}
         pokeListOpen={opening === "poke"}
       />
@@ -432,6 +502,7 @@ export const WorldScreen = ({
           answered: p.answered,
           muted: muted.has(p.memberId),
           away: p.away !== undefined,
+          seat: p.seat,
         }))}
         serverNow={world.serverNow}
         target={world.target}
@@ -450,7 +521,10 @@ export const WorldScreen = ({
         }}
         selected={person}
         hudActions={hudActions}
+        place={world.place}
+        placeCounts={world.placeCounts}
         onTapArcade={goToArcade}
+        onTapSeat={sitNear}
         onAccept={accept}
         onDecline={decline}
         declined={declined}
@@ -458,14 +532,18 @@ export const WorldScreen = ({
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <RoundButton icon="chevron-back" label="Back" onPress={onBack} testID="world-back" />
-        <TitlePill instance={world.instance} />
+        <TitlePill title={PLACE_TITLES[world.place]} instance={world.instance} />
         <RoundButton icon="people-outline" label="People here" onPress={() => setPeopleOpen(true)} testID="world-people" />
       </View>
       <View style={[styles.chipRow, { top: insets.top + 66 }]} pointerEvents="none">
         <View style={styles.chip} testID="world-hearing">
           <View style={styles.chipRing} />
           <Text style={styles.chipText}>
-            {world.status === "joining" ? "Opening the garden…" : world.status === "error" ? world.error : hearingLabel(hearing)}
+            {world.status === "joining"
+              ? `Opening ${PLACE_TITLES[world.place].toLowerCase()}…`
+              : world.status === "error"
+                ? world.error
+                : hearingLabel(hearing)}
           </Text>
         </View>
         {note ? (
@@ -560,6 +638,7 @@ export const WorldScreen = ({
           </Pressable>
         </View>
       </Animated.View>
+      <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
       {sheets}
     </View>
   );
@@ -570,6 +649,7 @@ const pop = { shadowColor: hud.forest, shadowOffset: { width: 0, height: 3 }, sh
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: hud.cream },
+  veil: { backgroundColor: hud.cream },
   pressed: { opacity: 0.75 },
   top: {
     position: "absolute",

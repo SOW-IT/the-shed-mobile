@@ -36,6 +36,16 @@ import {
   PANTS,
   OLD_GLASSES,
   nudge,
+  PLACES,
+  PLACE_OBSTACLES,
+  PLACE_TITLES,
+  PORTALS,
+  PORTAL_RADIUS,
+  SEATS,
+  seatIn,
+  arrivalSpot,
+  isPlace,
+  portalAt,
   bodyScale,
   isValidLook,
   lookFor,
@@ -329,5 +339,99 @@ describe("takeToken", () => {
   test("never banks more than the burst", () => {
     const r = takeToken("say", { tokens: 0, at: 0 }, 10 * 60_000);
     expect(r).toEqual({ ok: true, bucket: { tokens: BUCKETS.say.burst - 1, at: 10 * 60_000 } });
+  });
+});
+
+describe("places and the pads between them", () => {
+  test("every place has a title, and only the listed ones are places", () => {
+    for (const place of PLACES) expect(PLACE_TITLES[place]).toMatch(/^The /);
+    expect(isPlace("chapel")).toBe(true);
+    expect(isPlace("moon")).toBe(false);
+    expect(isPlace(undefined)).toBe(false);
+  });
+
+  test("every pad is somewhere you can stand, and clear of the other pads", () => {
+    for (const place of PLACES) {
+      const pads = PORTALS[place];
+      for (const pad of pads) {
+        expect(clampTarget(pad.x, pad.z, place)).toEqual({ x: pad.x, z: pad.z });
+        expect(portalAt(place, pad)).toBe(pad);
+        for (const other of pads) {
+          if (other !== pad) expect(Math.hypot(other.x - pad.x, other.z - pad.z)).toBeGreaterThan(PORTAL_RADIUS * 3);
+        }
+      }
+    }
+    expect(portalAt("garden", { x: 0, z: 0 })).toBeNull();
+  });
+
+  test("the map: which places lead to which, and every way has a way back", () => {
+    const leadsTo = Object.fromEntries(PLACES.map((place) => [place, PORTALS[place].map((pad) => pad.to).sort()]));
+    expect(leadsTo).toEqual({
+      garden: ["beach", "campfire", "chapel"],
+      beach: ["campfire", "garden"],
+      campfire: ["beach", "cafe", "garden"],
+      chapel: ["cafe", "garden"],
+      cafe: ["campfire", "chapel"],
+    });
+    for (const place of PLACES) {
+      for (const pad of PORTALS[place]) expect(PORTALS[pad.to].some((back) => back.to === place)).toBe(true);
+    }
+  });
+
+  test("you arrive beside the pad that leads back, never on a pad", () => {
+    for (const from of PLACES) {
+      for (const pad of PORTALS[from]) {
+        const spot = arrivalSpot(from, pad.to);
+        expect(portalAt(pad.to, spot)).toBeNull();
+        expect(clampTarget(spot.x, spot.z, pad.to)).toEqual(spot);
+        const back = PORTALS[pad.to].find((p) => p.to === from)!;
+        expect(Math.hypot(spot.x - back.x, spot.z - back.z)).toBeLessThan(2.5);
+      }
+    }
+    expect(portalAt("beach", arrivalSpot("chapel", "beach"))).toBeNull();
+  });
+
+  test("each place keeps people out of its own furniture only", () => {
+    const pew = PLACE_OBSTACLES.chapel[0];
+    expect(clampTarget(pew.x, pew.z, "chapel")).not.toEqual({ x: pew.x, z: pew.z });
+    expect(clampTarget(pew.x, pew.z, "beach")).toEqual({ x: pew.x, z: pew.z });
+    const pond = PLACE_OBSTACLES.garden.find((o) => o.id === "pond")!;
+    expect(clampTarget(pond.x + 0.5, pond.z, "campfire")).toEqual({ x: pond.x + 0.5, z: pond.z });
+    expect(clampTarget(pond.x + 0.5, pond.z)).not.toEqual({ x: pond.x + 0.5, z: pond.z });
+  });
+});
+
+describe("seats", () => {
+  test("every seat is inside its place, has its own id, and is clear of the pads", () => {
+    for (const place of PLACES) {
+      const ids = SEATS[place].map((seat) => seat.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const seat of SEATS[place]) {
+        expect(seat.z).toBeGreaterThanOrEqual(WALK_BOUNDS.minZ);
+        expect(seat.z).toBeLessThanOrEqual(WALK_BOUNDS.maxZ);
+        expect(Math.abs(seat.x)).toBeLessThanOrEqual(halfWidthAt(seat.z));
+        expect(portalAt(place, seat)).toBeNull();
+        expect(seatIn(place, seat.id)).toBe(seat);
+      }
+    }
+  });
+
+  test("every place has somewhere to sit, and a seat belongs to one place", () => {
+    for (const place of PLACES) expect(SEATS[place].length).toBeGreaterThan(0);
+    expect(seatIn("garden", "blanket-0")).not.toBeNull();
+    expect(seatIn("beach", "blanket-0")).toBeNull();
+    expect(seatIn("garden", undefined)).toBeNull();
+  });
+
+  test("people sharing a bench have room, and bench seats sit inside the furniture", () => {
+    for (const place of PLACES) {
+      const seats = SEATS[place];
+      for (const a of seats) {
+        for (const b of seats) {
+          if (a !== b) expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(0.7);
+        }
+        if (a.height > 0) expect(clampTarget(a.x, a.z, place)).not.toEqual({ x: a.x, z: a.z });
+      }
+    }
   });
 });
