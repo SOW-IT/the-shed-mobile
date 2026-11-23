@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import React, { ReactNode, useEffect, useState } from "react";
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import {
   APPROVED,
   currentStep,
@@ -38,6 +38,28 @@ import { ReceiptRecipientList } from "./ReceiptRecipientList";
 import { eventLabel, RequestTimeline } from "./RequestTimeline";
 
 const WAITING_LONG_DAYS = 7;
+
+/** One sweep of the active step's fill, the connector then the circle. */
+const SWEEP_MS = 3000;
+const WEB_SWEEP = Platform.OS === "web";
+
+/**
+ * A looping CSS animation for react-native-web, which turns
+ * `animationKeyframes` into @keyframes. It works on a plain View only:
+ * Animated.View flattens its style inline, where keyframes can't go. The
+ * transforms are CSS strings, as react-native-web drops transform arrays
+ * inside keyframes.
+ * Native has no such style.
+ */
+const cssLoop = (frames: Record<string, { transform: string }>): ViewStyle =>
+  WEB_SWEEP
+    ? ({
+        animationKeyframes: frames,
+        animationDuration: `${SWEEP_MS}ms`,
+        animationTimingFunction: "linear",
+        animationIterationCount: "infinite",
+      } as unknown as ViewStyle)
+    : {};
 
 const stepStatus = (request: Doc<"requests">, step: ApprovalStep): ApprovalStatus | undefined =>
   request[STEP_FIELDS[step]];
@@ -131,12 +153,13 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const actors = useQuery(api.requests.stepActors, { requestId: request._id });
 
   const [fill] = useState(() => new Animated.Value(0));
-  const needsAnimation = active !== null;
+  // On web the sweep is a CSS animation (styles below), so it runs without
+  // waking JavaScript every frame for each card on screen.
+  const needsAnimation = active !== null && !WEB_SWEEP;
   useEffect(() => {
     if (!needsAnimation) return;
-    const native = Platform.OS !== "web";
     const loop = Animated.loop(
-      Animated.timing(fill, { toValue: 1, duration: 3000, useNativeDriver: native, easing: Easing.linear })
+      Animated.timing(fill, { toValue: 1, duration: SWEEP_MS, useNativeDriver: true, easing: Easing.linear })
     );
     loop.start();
     return () => loop.stop();
@@ -181,15 +204,16 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
               {index > 0 && (
                 isActive && isPending ? (
                   <View style={[styles.stepConnector, { backgroundColor: t.warningSoft, overflow: "hidden" }]}>
-                    <Animated.View
-                      style={{
-                        position: "absolute",
-                        width: 10,
-                        height: 2,
-                        backgroundColor: t.warning,
-                        transform: [{ translateX: connectorFillX }],
-                      }}
-                    />
+                    {WEB_SWEEP ? (
+                      <View style={[styles.connectorFill, styles.connectorSweep, { backgroundColor: t.warning }]} />
+                    ) : (
+                      <Animated.View
+                        style={[
+                          styles.connectorFill,
+                          { backgroundColor: t.warning, transform: [{ translateX: connectorFillX }] },
+                        ]}
+                      />
+                    )}
                   </View>
                 ) : (
                   <View style={[styles.stepConnector, { backgroundColor: connectorColor }]} />
@@ -202,15 +226,16 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
               >
                 {isActive && isPending ? (
                   <View style={[styles.stepCircle, { backgroundColor: t.warningSoft, overflow: "hidden" }]}>
-                    <Animated.View
-                      style={{
-                        position: "absolute",
-                        width: 22,
-                        height: 22,
-                        backgroundColor: t.warning,
-                        transform: [{ translateX: circleFillX }],
-                      }}
-                    />
+                    {WEB_SWEEP ? (
+                      <View style={[styles.circleFill, styles.circleSweep, { backgroundColor: t.warning }]} />
+                    ) : (
+                      <Animated.View
+                        style={[
+                          styles.circleFill,
+                          { backgroundColor: t.warning, transform: [{ translateX: circleFillX }] },
+                        ]}
+                      />
+                    )}
                     <View style={[styles.stepActiveDot, { backgroundColor: dotColor }]} />
                   </View>
                 ) : (
@@ -583,6 +608,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   stepActiveDot: { width: 8, height: 8, borderRadius: 4 },
+  connectorFill: { position: "absolute", width: 10, height: 2 },
+  circleFill: { position: "absolute", width: 22, height: 22 },
+  // The same sweep as the native interpolations: the connector fills in the
+  // first two thirds, then the circle fills from a third to the end.
+  connectorSweep: cssLoop({
+    "0%": { transform: "translateX(-10px)" },
+    "66.667%": { transform: "translateX(10px)" },
+    "100%": { transform: "translateX(10px)" },
+  }),
+  circleSweep: cssLoop({
+    "0%": { transform: "translateX(-22px)" },
+    "33.333%": { transform: "translateX(-22px)" },
+    "100%": { transform: "translateX(22px)" },
+  }),
   stepLabel: { fontSize: 10.5, letterSpacing: -0.1, textAlign: "center" },
   stepName: { fontSize: 10.5, lineHeight: 14, letterSpacing: -0.05, textAlign: "center" },
   stepTime: { fontSize: 10, lineHeight: 13, textAlign: "center" },
