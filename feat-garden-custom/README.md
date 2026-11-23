@@ -6,21 +6,21 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 15s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 290s |  |
+| native fingerprint | ✔ pass | 9s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 184s |  |
 | unused code (knip) | ✔ pass | 9s |  |
-| typecheck | ✔ pass | 35s |  |
-| unit tests with coverage | ✔ pass | 29s |  |
-| verify lock | ✔ pass | 993s | took it after waiting 993s for pid 38221, perf/shed-request-step-actors in /Users/xtectra/GitHub/worktrees/the-shed-mobile-step-actors, since 2026-11-23T16:53:57.324Z |
+| typecheck | ✔ pass | 28s |  |
+| unit tests with coverage | ✔ pass | 37s |  |
+| verify lock | ✔ pass | 250s | took it after waiting 250s for pid 22636, perf/shed-request-step-actors in /Users/xtectra/GitHub/worktrees/the-shed-mobile-step-actors, since 2026-11-23T21:28:04.565Z |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 24s | before functions on :3270 |
-| before: web | ✔ pass | 794s | 192 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: local backend | ✔ pass | 19s | before functions on :3270 |
+| before: web | ✔ pass | 687s | 192 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
 | before: iOS reset | ✔ pass | 2s |  |
-| before: iOS | ✔ pass | 332s | 48 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
-| after: local backend | ✔ pass | 17s | after functions on :3270 |
-| after: web | ✔ pass | 637s | 192 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
-| after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 257s | 48 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
+| before: iOS | ✔ pass | 340s | 48 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
+| after: local backend | ✔ pass | 16s | after functions on :3270 |
+| after: web | ✔ pass | 642s | 192 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| after: iOS reset | ✔ pass | 2s |  |
+| after: iOS | ✔ pass | 260s | 48 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
 
 ## Screenshots
 
