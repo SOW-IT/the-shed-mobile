@@ -16,6 +16,32 @@ const GAME_ICONS: Record<GameId, AppIconName> = {
   flappy: "egg",
 };
 
+// One plain line under each game's name. The how-to-play text
+// (GAME_INFO.blurb) stays on the game's start card.
+const GAME_LINES: Record<GameId, string> = {
+  shooter: "Fly and shoot.",
+  runner: "Run and jump.",
+  flappy: "Tap through the gaps.",
+};
+
+const LeaderboardButton = ({ onPress }: { onPress: () => void }) => {
+  const t = useAppTheme();
+  const color = t.dark ? t.text : t.primary;
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Leaderboard"
+      testID="games-open-leaderboard"
+      style={({ pressed }) => [styles.board, { backgroundColor: t.primarySoft }, pressed && { opacity: 0.7 }]}
+    >
+      <Ionicons name="trophy-outline" size={16} color={color} />
+      <Text style={[typography.caption, styles.boardText, { color }]}>Leaderboard</Text>
+    </Pressable>
+  );
+};
+
 const MenuRow = ({
   icon,
   title,
@@ -55,7 +81,7 @@ const MenuRow = ({
   );
 };
 
-/** The three games, each with this device's best, and the leaderboard. */
+/** The three games, each with this device's best, and the leaderboard at the top right. */
 export const GamesMenu = ({
   onOpen,
   onBack,
@@ -73,7 +99,12 @@ export const GamesMenu = ({
   const offline = useOffline();
   return (
     <View style={styles.fill}>
-    <Screen title="Games" onBack={onBack} maxWidth={640}>
+    <Screen
+      title="Games"
+      onBack={onBack}
+      maxWidth={640}
+      headerRight={<LeaderboardButton onPress={() => onOpen("leaderboard")} />}
+    >
       {intro}
       <View style={styles.list}>
         {onGarden && !offline ? (
@@ -90,19 +121,12 @@ export const GamesMenu = ({
             key={game}
             icon={GAME_ICONS[game]}
             title={GAME_INFO[game].title}
-            detail={GAME_INFO[game].blurb}
+            detail={GAME_LINES[game]}
             meta={bests[game] > 0 ? `Best ${bests[game].toLocaleString()}` : undefined}
             onPress={() => onOpen(game)}
             testID={`games-open-${game}`}
           />
         ))}
-        <MenuRow
-          icon="trophy-outline"
-          title="Leaderboard"
-          detail="The top scores of everyone at SOW."
-          onPress={() => onOpen("leaderboard")}
-          testID="games-open-leaderboard"
-        />
       </View>
       {waiting > 0 ? (
         <Muted>
@@ -122,4 +146,13 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   icon: { width: 44, height: 44, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   text: { flex: 1, gap: 2 },
+  board: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 34,
+    paddingHorizontal: 12,
+    borderRadius: 17,
+  },
+  boardText: { fontWeight: "700" },
 });
