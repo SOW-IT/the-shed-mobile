@@ -27,6 +27,14 @@ All notable changes to **The SHED** mobile app. This project follows
   From the same sheet you can go to any place the circles lead to without
   walking, which is also how you get around in the list view.
 
+### Changed
+- **The side menu calls it World,** since the Garden is now one place of
+  five.
+- **Your character's editor fills the screen.** The preview is bigger, the
+  tabs fit on one line and the pictures of each choice fill the width, so
+  more of them show at once. Once you turn your character by hand it stays
+  facing the way you left it, rather than starting to spin again.
+
 ## [2.12.12] - 2026-11-23
 
 ### Added

@@ -57,7 +57,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   mentoring: "Mentoring",
   announcements: "Announcements",
   grievances: "Grievances",
-  garden: "Garden",
+  garden: "World",
   admin: "Admin",
 };
 
