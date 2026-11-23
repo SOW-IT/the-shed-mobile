@@ -63,7 +63,7 @@ jobs:
           EXPO_PUBLIC_CONVEX_URL: https://giant-bloodhound-191.ap-southeast-2.convex.cloud
         run: |
           test -n "$EXPO_PUBLIC_CONVEX_URL"
-          eas update --channel production --environment production --auto --non-interactive
+          eas update --channel production --environment production --auto --non-interactive --json > "$RUNNER_TEMP/eas-update-production.json"
 
       - name: Publish to the staging channel
         if: steps.current.outputs.publish == 'true'
@@ -73,3 +73,15 @@ jobs:
         run: |
           test -n "$EXPO_PUBLIC_CONVEX_URL"
           eas update --channel staging --environment preview --auto --non-interactive
+
+      - name: Report the production update
+        if: ${{ always() && steps.current.outputs.publish == 'true' }}
+        env:
+          UPDATES_FILE: ${{ runner.temp }}/eas-update-production.json
+          CHANNEL: production
+          BUILD_PROFILE: production
+          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.workflow_run.head_sha || github.sha }}
+        run: node scripts/eas-update-report.mjs

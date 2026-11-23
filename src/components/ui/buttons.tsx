@@ -25,6 +25,7 @@ export const FooterAction = ({
   onInfo,
   note,
   cancel,
+  secondary,
   bottomOffset = 0,
   avoidKeyboard = true,
   hidden = false,
@@ -35,6 +36,14 @@ export const FooterAction = ({
   onInfo?: () => void;
   note?: string | null;
   cancel?: { onPress: () => void; disabled?: boolean; title?: string };
+  // A small extra action on the left, sized to its label.
+  secondary?: {
+    title: string;
+    onPress: () => void;
+    icon?: keyof typeof Ionicons.glyphMap;
+    accessibilityLabel?: string;
+    disabled?: boolean;
+  };
   bottomOffset?: number;
   avoidKeyboard?: boolean;
   // Faded out and untappable, e.g. Save and Cancel while nothing has changed.
@@ -158,7 +167,7 @@ export const FooterAction = ({
             </Text>
           </View>
         ) : null}
-        <View style={styles.footerRow}>
+        <View style={styles.inlineRow}>
           {onInfo && (
             <Pressable
               onPress={onInfo}
@@ -169,6 +178,31 @@ export const FooterAction = ({
               <Ionicons name="information-circle-outline" size={22} color={t.primary} />
             </Pressable>
           )}
+          {secondary ? (
+            <View style={[{ borderRadius: radius.lg - 2 }, t.shadowFloat]}>
+              <Pressable
+                onPress={secondary.onPress}
+                disabled={secondary.disabled}
+                accessibilityRole="button"
+                accessibilityLabel={secondary.accessibilityLabel ?? secondary.title}
+                accessibilityState={{ disabled: Boolean(secondary.disabled) }}
+                style={({ pressed }) => [
+                  styles.footerAction,
+                  styles.footerSecondary,
+                  { backgroundColor: t.card, borderColor: t.border },
+                  secondary.disabled && { opacity: 0.5 },
+                  pressed && !secondary.disabled && { opacity: 0.7 },
+                ]}
+              >
+                {secondary.icon ? (
+                  <Ionicons name={secondary.icon} size={16} color={t.dark ? t.text : t.primary} />
+                ) : null}
+                <Text style={[styles.footerSecondaryText, { color: t.dark ? t.text : t.primary }]}>
+                  {secondary.title}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
           {cancel ? (
             <View
               style={[
@@ -228,7 +262,7 @@ export const FooterAction = ({
   );
 };
 
-export type FooterIconAction = {
+type FooterIconAction = {
   icon: keyof typeof Ionicons.glyphMap;
   accessibilityLabel: string;
   onPress: () => void;
@@ -280,7 +314,7 @@ export const FooterIconActions = ({ actions }: { actions: FooterIconAction[] }) 
       onLayout={(e) => reportFooterHeight(footerReach(e.nativeEvent.layout.height))}
       style={styles.footerWrap}
     >
-      <View pointerEvents="box-none" style={[styles.footerRow, { justifyContent: "flex-end" }]}>
+      <View pointerEvents="box-none" style={[styles.inlineRow, { justifyContent: "flex-end" }]}>
         {actions.map((action) => (
           <FooterIconButton key={action.icon} {...action} />
         ))}

@@ -9,6 +9,7 @@ import {
   isFieldShown,
   normalizeAnswers,
   sydneyToday,
+  type FormAnswers,
   type FormField,
 } from "@shared/forms";
 import {
@@ -66,6 +67,36 @@ import {
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { backOr } from "@/lib/goBack";
+import { useMinuteTick } from "@/hooks/useMinuteTick";
+import { useRestartHold } from "@/hooks/useRestartHold";
+import { DAY_MS, timeAgo } from "@shared/datetime";
+import { andList } from "@shared/grievances";
+
+const remindedToday = (nudgedAt: number | undefined) =>
+  nudgedAt !== undefined && Date.now() - nudgedAt < DAY_MS;
+
+// Chases whoever is filling in the form, once a day; says who last did.
+const RemindButton = ({
+  nudgedAt,
+  nudgedByName,
+  onPress,
+}: {
+  nudgedAt: number | undefined;
+  nudgedByName: string | null;
+  onPress: () => void;
+}) => {
+  useMinuteTick();
+  const recent = remindedToday(nudgedAt);
+  return (
+    <Btn
+      title={recent ? `Reminded ${timeAgo(nudgedAt!)}${nudgedByName ? ` by ${nudgedByName}` : ""}` : "Send Reminder"}
+      variant="tonal"
+      icon="notifications-outline"
+      disabled={recent}
+      onPress={onPress}
+    />
+  );
+};
 
 type Drafts = { marketing?: FormDraft; risk?: RiskDraft; finance?: FinanceDraft };
 
@@ -74,17 +105,17 @@ const MarketingAnswers = ({
   answers,
 }: {
   fields: readonly FormField[];
-  answers: Record<string, unknown>;
+  answers: FormAnswers;
 }) => {
   const t = useAppTheme();
-  const shown = fields.filter((f) => isFieldShown(f, answers as never));
+  const shown = fields.filter((f) => isFieldShown(f, answers));
   return (
     <Card>
       {shown.map((field) => (
         <View key={field.key} style={{ gap: 4 }}>
           <Text style={[typography.label, { color: t.muted }]}>{field.shortLabel}</Text>
           <Text selectable style={[typography.body, { color: t.text }]}>
-            {formatAnswer(field, answers as never) ?? "—"}
+            {formatAnswer(field, answers) ?? "—"}
           </Text>
         </View>
       ))}
@@ -114,13 +145,16 @@ export default function EventSubFormScreen() {
   const approve = useMutation(api.eventSubForms.approve);
   const requestChanges = useMutation(api.eventSubForms.requestChanges);
   const reopen = useMutation(api.eventSubForms.reopen);
+  const remind = useMutation(api.eventSubForms.remind);
   const markNotificationsRead = useMutation(api.notifications.markReadForEventRequest);
 
   const [drafts, setDrafts] = useState<Drafts>({});
+  useRestartHold(Object.keys(drafts).length > 0);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [openedThreadLink, setOpenedThreadLink] = useState<string | null>(null);
   const [askingChanges, setAskingChanges] = useState(false);
   const [confirmReopen, setConfirmReopen] = useState(false);
+  const [confirmRemind, setConfirmRemind] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
@@ -322,6 +356,13 @@ export default function EventSubFormScreen() {
                   {current.can.reopen ? (
                     <Btn title="Reopen to Change" variant="ghost" onPress={() => setConfirmReopen(true)} />
                   ) : null}
+                  {current.can.remind ? (
+                    <RemindButton
+                      nudgedAt={current.nudgedAt}
+                      nudgedByName={current.nudgedByName}
+                      onPress={() => setConfirmRemind(true)}
+                    />
+                  ) : null}
                 </Row>
               </Card>
             </FadeInView>
@@ -379,6 +420,23 @@ export default function EventSubFormScreen() {
         cancelLabel="Keep It"
         onConfirm={() => void run(() => reopen({ id: event._id, form: kind }))}
         onClose={() => setConfirmReopen(false)}
+      />
+
+      <ConfirmDialog
+        visible={confirmRemind}
+        title="Send a reminder?"
+        message={`${andList(current.nudgeNames)} ${current.nudgeNames.length === 1 ? "gets" : "get"} a push and an email asking them to ${
+          current.status === "CHANGES_REQUESTED" ? "make the changes and resubmit" : "fill in and submit"
+        } the ${label} form. Once a day.`}
+        confirmLabel="Send Reminder"
+        destructive={false}
+        onConfirm={() =>
+          void run(
+            () => remind({ id: event._id, form: kind }),
+            () => setToast({ text: "Reminder sent" })
+          )
+        }
+        onClose={() => setConfirmRemind(false)}
       />
     </>
   );

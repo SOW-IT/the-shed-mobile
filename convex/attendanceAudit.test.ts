@@ -41,7 +41,7 @@ async function setup() {
   }
   await t.run(async (ctx) => {
     for (const row of await ctx.db.query("attendanceAuditLog").collect()) {
-      await ctx.db.delete(row._id);
+      await ctx.db.delete("attendanceAuditLog", row._id);
     }
   });
   return t;
@@ -114,7 +114,7 @@ describe("attendance audit logging", () => {
     expect(detail).toContain("Camp");
     const lines = detail.split("\n").slice(1);
     expect(lines).toHaveLength(2);
-    for (const line of lines) expect(line).toMatch(/ · .+\d{4}/);
+    for (const line of lines) expect(line).toMatch(/, .+\d{4}/);
   });
 
   test("deleting a member with no attendance says so rather than listing nothing", async () => {
@@ -138,7 +138,7 @@ describe("attendance audit logging", () => {
       name: "Sam Member",
     });
     await staff.mutation(api.attendance.signIn, { eventId, memberId });
-    await t.run((ctx) => ctx.db.delete(eventId));
+    await t.run((ctx) => ctx.db.delete("events", eventId));
 
     await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId });
 
@@ -170,7 +170,7 @@ describe("attendance audit logging", () => {
     }
 
     const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
-    expect(deletion!.detail).toContain("No ICU · ");
+    expect(deletion!.detail).toContain("No ICU, ");
     expect(deletion!.detail).toMatch(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/);
   });
 
@@ -512,7 +512,7 @@ describe("audit logging across attendance mutations", () => {
     expect(deletes).toHaveLength(2);
     const busy = deletes.find((l) => l.summary.includes("Busy"))!;
     expect(busy.eventId).toBe(withPeople);
-    expect(busy.detail).toMatch(/^Removed 1 attendance record:\nSam · /);
+    expect(busy.detail).toMatch(/^Removed 1 attendance record:\nSam, /);
     expect(deletes.find((l) => l.summary.includes("Empty"))?.detail).toBe(
       "Removed no attendance records"
     );
@@ -529,10 +529,10 @@ describe("audit logging across attendance mutations", () => {
         staff.mutation(api.attendance.updateRecord, { attendanceId, signInTime: bad })
       ).rejects.toThrow(/valid date/);
     }
-    await t.run((ctx) => ctx.db.patch(attendanceId, { signInTime: Number.NaN }));
+    await t.run((ctx) => ctx.db.patch("attendance", attendanceId, { signInTime: Number.NaN }));
     await staff.mutation(api.events.remove, { eventId });
     const del = (await allLogs(t)).find((l) => l.action === "event.delete");
-    expect(del?.detail).toBe("Removed 1 attendance record:\nSam · unknown time");
+    expect(del?.detail).toBe("Removed 1 attendance record:\nSam, unknown time");
   });
 
   test("event deletePreview names everyone who would lose attendance", async () => {
@@ -545,7 +545,7 @@ describe("audit logging across attendance mutations", () => {
     await t.run(async (ctx) => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
       await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: 1 });
-      await ctx.db.delete(gone);
+      await ctx.db.delete("attendanceMembers", gone);
     });
     const preview = await staff.query(api.events.deletePreview, { eventId });
     expect(preview?.total).toBe(3);
@@ -923,10 +923,10 @@ describe("attendance audit names the person by member", () => {
     const otherMember = await memberOf(t, OTHER);
     const ids = await t.run(async (ctx) => {
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
-      await ctx.db.delete(gone);
+      await ctx.db.delete("attendanceMembers", gone);
       const orphan = await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: dateStart });
       const staffRow = await ctx.db.insert("attendance", { eventId, memberId: otherMember, signInTime: dateStart });
-      await ctx.db.delete(eventId);
+      await ctx.db.delete("events", eventId);
       return { gone, orphan, staffRow };
     });
     await expect(
@@ -962,7 +962,7 @@ describe("attendance audit names the person by member", () => {
     const attendanceId = await t.run(async (ctx) => {
       const memberId = await ctx.db.insert("attendanceMembers", { name: "Brief" });
       const id = await ctx.db.insert("attendance", { eventId, memberId, signInTime: dateStart });
-      await ctx.db.delete(id);
+      await ctx.db.delete("attendance", id);
       return id;
     });
     await expect(
@@ -985,8 +985,8 @@ describe("audit entries say which campus and skip saves that change nothing", ()
     const labels = options.events.map((e) => e.label).sort();
     expect(labels).toHaveLength(2);
     expect(new Set(labels).size).toBe(2);
-    expect(labels[0]).toMatch(/^S2W5 · UNSW · \d{1,2} [A-Z][a-z]{2} \d{4}$/);
-    expect(labels[1]).toMatch(/^S2W5 · USYD · \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+    expect(labels[0]).toMatch(/^S2W5, UNSW, \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+    expect(labels[1]).toMatch(/^S2W5, USYD, \d{1,2} [A-Z][a-z]{2} \d{4}$/);
     expect(options.events.every((e) => e.name === "S2W5")).toBe(true);
   });
 
@@ -1025,7 +1025,7 @@ describe("audit entries say which campus and skip saves that change nothing", ()
     const eventId = await createEvent(staff, { name: "Night" });
     const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
     const attendanceId = await staff.mutation(api.attendance.signIn, { eventId, memberId });
-    const row = await t.run((ctx) => ctx.db.get(attendanceId));
+    const row = await t.run((ctx) => ctx.db.get("attendance", attendanceId));
     const edits = async () =>
       (await allLogs(t)).filter((l) => l.action === "attendance.update");
 
@@ -1043,7 +1043,7 @@ describe("audit entries say which campus and skip saves that change nothing", ()
     const after = await edits();
     expect(after).toHaveLength(1);
     expect(after[0].detail).toBe("Changed: notes");
-    expect((await t.run((ctx) => ctx.db.get(attendanceId)))?.notes).toBe("hi");
+    expect((await t.run((ctx) => ctx.db.get("attendance", attendanceId)))?.notes).toBe("hi");
 
     await staff.mutation(api.attendance.updateRecord, {
       attendanceId,
@@ -1052,7 +1052,7 @@ describe("audit entries say which campus and skip saves that change nothing", ()
     });
     const last = (await edits()).at(-1)!;
     expect(last.detail).toBe("Changed: notes, sign-in time");
-    const edited = await t.run((ctx) => ctx.db.get(attendanceId));
+    const edited = await t.run((ctx) => ctx.db.get("attendance", attendanceId));
     expect(edited?.notes).toBeUndefined();
     expect(edited?.signInTime).toBe(row!.signInTime + 1_000);
   });
@@ -1082,10 +1082,10 @@ describe("audit entries say which campus and skip saves that change nothing", ()
     });
     await t.run(async (ctx) => {
       for (const row of await ctx.db.query("attendanceAuditLog").collect()) {
-        await ctx.db.delete(row._id);
+        await ctx.db.delete("attendanceAuditLog", row._id);
       }
     });
-    const before = await t.run((ctx) => Promise.all([ctx.db.get(plain), ctx.db.get(overlay)]));
+    const before = await t.run((ctx) => Promise.all([ctx.db.get("attendanceMembers", plain), ctx.db.get("attendanceMembers", overlay)]));
 
     await staff.mutation(api.attendanceMembers.update, {
       memberId: plain,
@@ -1108,7 +1108,7 @@ describe("audit entries say which campus and skip saves that change nothing", ()
       staffYear: YEAR,
     });
     expect(await allLogs(t)).toEqual([]);
-    expect(await t.run((ctx) => Promise.all([ctx.db.get(plain), ctx.db.get(overlay)]))).toEqual(before);
+    expect(await t.run((ctx) => Promise.all([ctx.db.get("attendanceMembers", plain), ctx.db.get("attendanceMembers", overlay)]))).toEqual(before);
 
     await staff.mutation(api.attendanceMembers.update, {
       memberId: plain,
@@ -1125,6 +1125,6 @@ describe("audit entries say which campus and skip saves that change nothing", ()
       staffYear: YEAR,
     });
     expect((await allLogs(t)).map((l) => l.action)).toEqual(["member.update", "member.update"]);
-    expect((await t.run((ctx) => ctx.db.get(plain)))?.churchId).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", plain)))?.churchId).toBeUndefined();
   });
 });

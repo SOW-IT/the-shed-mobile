@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { TAG_COLOUR_HEX } from "./attendanceTags";
 import { universityColour } from "./flow";
 import {
   calendarCategoryLabel,
@@ -14,15 +15,19 @@ import {
   dayBlocks,
   eventsByDay,
   googleEventBody,
+  sowTagColourOf,
+  nearestGoogleColour,
   googleEventId,
   hourAfter,
   monthGrid,
   monthWindow,
   shiftDay,
+  monthNumber,
   shiftMonth,
   sydneyDayKey,
   sydneyMinutes,
   weekLayout,
+  weekNumber,
   weekOf,
 } from "./calendar";
 
@@ -120,6 +125,16 @@ describe("days", () => {
 });
 
 describe("week view", () => {
+  test("monthNumber and weekNumber count on by one, across years", () => {
+    expect(monthNumber(2027, 1) - monthNumber(2026, 12)).toBe(1);
+    const { year, month } = shiftMonth(2026, 11, 5);
+    expect(monthNumber(year, month) - monthNumber(2026, 11)).toBe(5);
+    expect(weekNumber("2026-11-08")).toBe(weekNumber("2026-11-02"));
+    expect(weekNumber("2026-11-09") - weekNumber("2026-11-08")).toBe(1);
+    expect(weekNumber("2027-01-04") - weekNumber("2026-12-28")).toBe(1);
+    expect(weekNumber("1970-01-04")).toBe(-1);
+  });
+
   test("weekOf is Monday to Sunday, across months and years", () => {
     expect(weekOf("2026-11-04")).toEqual(monthGrid(2026, 11)[1].map((d) => d.key));
     expect(weekOf("2026-11-08")[0]).toBe("2026-11-02");
@@ -321,6 +336,24 @@ describe("Google", () => {
     expect(colour("campus", ["Western Sydney University"])).toBe("11");
     expect(colour("weekly", ["USYD", "UNSW"])).toBe("7");
     expect(colour("campus", ["SOW"])).toBe("9");
+    expect(googleEventBody({ name: "x", dateStart: 0, dateEnd: 1, subgroups: ["SOW"] }, "sow", "link").colorId).toBe("8");
+    expect(
+      googleEventBody({ name: "x", dateStart: 0, dateEnd: 1, subgroups: ["SOW"], tags: [{}, { colour: "orange" }] }, "sow", "link").colorId
+    ).toBe("6");
+  });
+
+  test("a picked colour goes to Google as the nearest of its colours", () => {
+    const colour = (picked: string | undefined, category: "event" | "weekly" = "event", subgroups: string[] = []) =>
+      googleEventBody({ name: "x", dateStart: 0, dateEnd: 1, subgroups, colour: picked }, category, "link").colorId;
+    expect(colour("crimson")).toBe("11");
+    expect(colour("green")).toBe("2");
+    expect(colour("navy")).toBe("9");
+    expect(colour("yellow")).toBe("5");
+    // A picked colour wins over a campus's; an unknown one is ignored.
+    expect(colour("forest", "weekly", ["USYD"])).toBe("10");
+    expect(colour("not-a-colour")).toBe("1");
+    expect(colour(undefined)).toBe("1");
+    expect(nearestGoogleColour("#616161")).toBe("8");
   });
 
   test("a deadline is an all-day event on its Sydney day, with any time in its title", () => {
@@ -332,7 +365,7 @@ describe("Google", () => {
         "link"
       );
     expect(deadline("time")).toMatchObject({
-      summary: "Applications close · 11:59 pm",
+      summary: "Applications close at 11:59 pm",
       start: { date: "2026-11-20" },
       end: { date: "2026-11-21" },
     });
@@ -352,6 +385,9 @@ describe("calendar entries", () => {
     });
     // Present even when it's not a deadline, so saving an event clears an old one.
     expect(Object.keys(normalizeEntry(base))).toContain("due");
+    // The same for a colour, so picking the category's colour again clears it.
+    expect(Object.keys(normalizeEntry(base))).toContain("colour");
+    expect(normalizeEntry({ ...base, colour: "" }).colour).toBeUndefined();
   });
   test.each([
     [{ name: "" }, "Give it a name."],
@@ -360,11 +396,13 @@ describe("calendar entries", () => {
     [{ dateEnd: 1_000 + 32 * 86_400_000 }, "at most 31 days"],
     [{ notes: "x".repeat(1001) }, "Notes can be at most 1000 characters."],
     [{ due: "time" as const }, "A deadline is one moment, with no end."],
+    [{ colour: "chartreuse" }, "Choose one of the colours."],
   ])("%o → %s", (over, message) => {
     expect(entryProblem({ ...base, ...over })).toContain(message);
   });
   test("a good one passes", () => {
     expect(entryProblem({ ...base, notes: "Print 200" })).toBeNull();
+    expect(entryProblem({ ...base, colour: "plum" })).toBeNull();
     expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "day" })).toBeNull();
     expect(entryProblem({ ...base, dateEnd: base.dateStart, due: "time" })).toBeNull();
   });
@@ -373,5 +411,15 @@ describe("calendar entries", () => {
     expect(parseDayKey("2026-02-30")).toBeNull();
     expect(parseDayKey("tomorrow")).toBeNull();
     expect(parseDayKey(undefined)).toBeNull();
+  });
+});
+
+describe("sowTagColourOf", () => {
+  test("a SOW event takes its first coloured tag's colour; others, and untagged ones, take none", () => {
+    expect(sowTagColourOf("sow", [{ colour: null }, { colour: "orange" }, { colour: "blue" }])).toBe(TAG_COLOUR_HEX.orange);
+    expect(sowTagColourOf("sow", [{ colour: "#123456" }])).toBe("#123456");
+    expect(sowTagColourOf("sow", [{}])).toBeUndefined();
+    expect(sowTagColourOf("sow", [])).toBeUndefined();
+    expect(sowTagColourOf("campus", [{ colour: "orange" }])).toBeUndefined();
   });
 });

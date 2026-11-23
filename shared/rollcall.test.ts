@@ -13,6 +13,7 @@ import {
   endDateAfterStartChange,
   eventWindowFromInputs,
   capitalizeMemberName,
+  typedMemberName,
   displayNameFromEmail,
   eventHasEnded,
   canReverseSignIn,
@@ -51,6 +52,10 @@ describe("names", () => {
     ["", ""],
   ])("capitalizeMemberName(%j) is %j", (input, expected) => {
     expect(capitalizeMemberName(input)).toBe(expected);
+  });
+
+  test("a typed name is trimmed, single-spaced and capitalised", () => {
+    expect(typedMemberName("  jane   van  doe ")).toBe("Jane Van Doe");
   });
 
   test.each([
@@ -446,9 +451,9 @@ describe("event campus labels", () => {
     const lateUtc = Date.UTC(2026, 7, 11, 15, 30);
     expect(
       eventFilterLabel({ name: "S2W5", subgroups: ["University of Sydney"], dateStart: lateUtc })
-    ).toBe("S2W5 · USYD · 12 Aug 2026");
+    ).toBe("S2W5, USYD, 12 Aug 2026");
     expect(eventFilterLabel({ name: "Camp", subgroups: [], dateStart: Date.UTC(2026, 0, 5) })).toBe(
-      "Camp · 5 Jan 2026"
+      "Camp, 5 Jan 2026"
     );
   });
 });

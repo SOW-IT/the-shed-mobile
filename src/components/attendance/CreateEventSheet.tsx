@@ -1,8 +1,8 @@
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
+import { DeleteImpact } from "@/components/attendance/DeleteImpact";
 import { CampusMark } from "@/components/CampusMark";
 import {
   Btn,
-  CannotUndo,
   Checkbox,
   ConfirmDialog,
   dismissKeyboard,
@@ -27,6 +27,7 @@ import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
   addDaysToDateInputValue,
+  dateInputFromMs,
   minuteAfterTime,
   toDateInputValue,
   toTimeInputValue,
@@ -42,6 +43,7 @@ import {
   subgroupMatches,
   tagListOf,
 } from "../../../shared/rollcall";
+import { togglePicked } from "../../../shared/churches";
 import {
   DEFAULT_WEEKLY_SETTINGS,
   nextWeeklyInputs,
@@ -57,8 +59,6 @@ const nowWhen = () => {
   const now = defaultEventInputs();
   return { dateStr: now.startDate, endDateStr: now.endDate, startTime: now.startTime, endTime: now.endTime };
 };
-
-const dateInputFromMs = (ms: number): string => toDateInputValue(new Date(ms));
 
 const timeInputFromMs = (ms: number): string => toTimeInputValue(new Date(ms));
 
@@ -285,7 +285,7 @@ export function CreateEventSheet({
 
   const previous = suggestion?.previous ?? null;
   useEffect(() => {
-    if (!visible || isEditing || whenTouched) return;
+    if (!visible || isEditing || draft || whenTouched) return;
     if (weekly && previous) {
       if (whenFor === "weekly") return;
       const next = nextWeeklyInputs(previous, defaultDate());
@@ -310,7 +310,7 @@ export function CreateEventSheet({
     setStartTime(when.startTime);
     setEndTime(when.endTime);
     setWhenFor("event");
-  }, [visible, isEditing, whenTouched, weekly, previous, whenFor]);
+  }, [visible, isEditing, draft, whenTouched, weekly, previous, whenFor]);
 
   const termOptions = suggestion?.options ?? [];
   const termFits = (p: TermPick | null) =>
@@ -350,7 +350,7 @@ export function CreateEventSheet({
           w.slot === pickedTerm.slot &&
           w.week === Number(option.value)
       );
-    return held ? { ...option, label: `${option.label} · ${held.name}` } : option;
+    return held ? { ...option, label: `${option.label} (${held.name})` } : option;
   });
 
   const changeKind = (next: Kind) => {
@@ -364,9 +364,7 @@ export function CreateEventSheet({
   };
 
   const toggleTag = (id: Id<"attendanceTags">) => {
-    setSelectedTags((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setSelectedTags((prev) => togglePicked(prev, id));
   };
 
   const toggleCollaborator = (sg: string) => {
@@ -755,72 +753,33 @@ export function CreateEventSheet({
             <LoadingState />
           ) : (
             <>
-              <View
-                style={[
-                  styles.deleteWarning,
-                  { backgroundColor: t.dangerSoft, borderColor: t.danger },
-                ]}
-              >
-                <View style={styles.inline}>
-                  <Ionicons name="warning" size={20} color={t.danger} />
-                  <Txt style={[typography.headline, { color: t.danger, flex: 1 }]}>
-                    {deleteImpact && deleteImpact.total > 0
-                      ? `Removes ${deleteImpact.total} attendance record${
-                          deleteImpact.total === 1 ? "" : "s"
-                        }`
-                      : "No one is signed in to this event"}
-                  </Txt>
-                </View>
-                {deleteImpact && deleteImpact.total > 0 ? (
-                  <Txt style={[typography.body, { color: t.text }]}>
-                    It&apos;s deleted from rolls, exports and Insights.
-                  </Txt>
-                ) : null}
-                <CannotUndo />
-              </View>
+              <DeleteImpact
+                title={
+                  deleteImpact && deleteImpact.total > 0
+                    ? `Removes ${deleteImpact.total} attendance record${
+                        deleteImpact.total === 1 ? "" : "s"
+                      }`
+                    : "No one is signed in to this event"
+                }
+                body="It's deleted from rolls, exports and Insights."
+                rows={(deleteImpact?.people ?? []).map((p) => ({
+                  key: p.attendanceId,
+                  name: p.name,
+                  detail: new Date(p.signInTime).toLocaleString("en-AU", {
+                    timeZone: SYDNEY_TIME_ZONE,
+                    ...(event && isMultiDayEvent(event.dateStart, event.dateEnd)
+                      ? { weekday: "short", day: "numeric", month: "short" }
+                      : {}),
+                    hour: "numeric",
+                    minute: "2-digit",
+                  }),
+                }))}
+                total={deleteImpact?.total ?? 0}
+              />
               {deleteImpact && deleteImpact.total > 0 ? (
-                <>
-                  <Txt style={[typography.label, { color: t.muted, marginTop: spacing.sm }]}>
-                    Attendance deleted
-                  </Txt>
-                  <View
-                    style={[
-                      styles.deleteList,
-                      { borderColor: t.separator, backgroundColor: t.card },
-                    ]}
-                  >
-                    {deleteImpact.people.map((p) => (
-                      <View key={p.attendanceId} style={styles.inline}>
-                        <Ionicons name="close-circle" size={14} color={t.danger} />
-                        <Txt
-                          style={[typography.body, { color: t.text, flex: 1 }]}
-                          numberOfLines={1}
-                        >
-                          {p.name}
-                        </Txt>
-                        <Txt style={[typography.caption, { color: t.muted }]}>
-                          {new Date(p.signInTime).toLocaleString("en-AU", {
-                            timeZone: SYDNEY_TIME_ZONE,
-                            ...(event &&
-                            isMultiDayEvent(event.dateStart, event.dateEnd)
-                              ? { weekday: "short", day: "numeric", month: "short" }
-                              : {}),
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </Txt>
-                      </View>
-                    ))}
-                    {deleteImpact.total > deleteImpact.people.length ? (
-                      <Txt style={[typography.caption, { color: t.muted }]}>
-                        and {deleteImpact.total - deleteImpact.people.length} more
-                      </Txt>
-                    ) : null}
-                  </View>
-                  <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
-                    Duplicate event? Sign these people in to the right one first.
-                  </Txt>
-                </>
+                <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
+                  Duplicate event? Sign these people in to the right one first.
+                </Txt>
               ) : null}
               <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
                 Type <Txt style={{ fontWeight: "800" }}>{eventName.trim()}</Txt> to
@@ -880,17 +839,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: radius.full,
     borderWidth: 2,
-  },
-  deleteWarning: {
-    borderWidth: 1.5,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  deleteList: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: 6,
   },
 });

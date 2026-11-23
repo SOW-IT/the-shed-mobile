@@ -1,13 +1,17 @@
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorReporter } from "@/components/ErrorReporter";
-import { OtaUpdateBanner } from "@/components/OtaUpdateBanner";
+import { OtaRestartOnResume } from "@/components/OtaRestartOnResume";
+import { GameScoreSync } from "@/components/games/GameScoreSync";
+import { OfflineGames, OfflineScreen } from "@/components/games/OfflineGames";
+import { OfflinePill } from "@/components/games/OfflinePill";
 import { AppSidebar } from "@/components/nav/AppSidebar";
 import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
 import { LoadingState } from "@/components/ui";
 import { FONT_SOURCES } from "@/fonts";
 import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
+import { useOffline } from "@/hooks/useOffline";
 import { durations, useAppTheme } from "@/theme";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient, useConvexAuth } from "convex/react";
@@ -22,14 +26,17 @@ import {
 } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Modal, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { CONVEX_URL } from "@/env";
+import { notify } from "@/lib/notify";
 
 const DevMenuPreferences = requireOptionalNativeModule("DevMenuPreferences");
 
-const convex = process.env.EXPO_PUBLIC_CONVEX_URL
-  ? new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL, {
+const convex = CONVEX_URL
+  ? new ConvexReactClient(CONVEX_URL, {
       unsavedChangesWarning: false,
     })
   : null;
@@ -46,14 +53,17 @@ const secureStorage = {
   removeItem: (key: string) => SecureStore.deleteItemAsync(key),
 };
 
-const ConfigurationErrorScreen = () => (
-  <View style={configErrorStyles.container}>
-    <Text style={configErrorStyles.title}>Configuration error</Text>
-    <Text style={configErrorStyles.message}>
-      Missing Convex configuration. Set EXPO_PUBLIC_CONVEX_URL and rebuild.
-    </Text>
-  </View>
-);
+const ConfigurationErrorScreen = () => {
+  const t = useAppTheme();
+  return (
+    <View style={[configErrorStyles.container, { backgroundColor: t.background }]}>
+      <Text style={[configErrorStyles.title, { color: t.text }]}>Configuration error</Text>
+      <Text style={[configErrorStyles.message, { color: t.muted }]}>
+        Missing Convex configuration. Set EXPO_PUBLIC_CONVEX_URL and rebuild.
+      </Text>
+    </View>
+  );
+};
 
 const configErrorStyles = StyleSheet.create({
   container: {
@@ -62,10 +72,9 @@ const configErrorStyles = StyleSheet.create({
     alignItems: "center",
     padding: 24,
     gap: 12,
-    backgroundColor: "#F5F3E3",
   },
-  title: { fontSize: 20, fontWeight: "800", color: "#0F2523" },
-  message: { color: "#5C6B62", textAlign: "center" },
+  title: { fontSize: 20, fontWeight: "800" },
+  message: { textAlign: "center" },
 });
 
 const AuthGate = () => {
@@ -73,17 +82,17 @@ const AuthGate = () => {
   const { isLoading } = useConvexAuth();
   const { busy, error, rejected, clearError, clearRejected } =
     useWebAuthCodeExchange();
+  const offline = useOffline();
+  const [playingOffline, setPlayingOffline] = useState(false);
   useEffect(() => {
     if (error && typeof window !== "undefined") {
-      window.alert(`Sign-in didn't finish\n\n${error}`);
+      notify("Sign-in didn't finish", error);
       clearError();
     }
   }, [error, clearError]);
   useEffect(() => {
     if (!rejected || typeof window === "undefined") return;
-    window.alert(
-      "SOW account required\n\nOnly SOW organisation accounts can sign in here.",
-    );
+    notify("SOW account required", "Only SOW organisation accounts can sign in here.");
     clearRejected();
   }, [rejected, clearRejected]);
   // Allow Spotify OAuth callbacks to render immediately.
@@ -92,16 +101,25 @@ const AuthGate = () => {
     return <RootStack />;
   }
 
+  // Signed in but offline, the app would wait here for good. Offer the games.
+  if (playingOffline) {
+    return <OfflineGames online={!isLoading && !busy && !offline} onLeave={() => setPlayingOffline(false)} />;
+  }
+  if ((isLoading || busy) && offline) return <OfflineScreen onPlay={() => setPlayingOffline(true)} />;
   return isLoading || busy ? <LoadingState /> : <RootStack />;
 };
 
 const RootStack = () => {
   const wide = useWideLayout();
+  // The games are full screen: no sidebar beside them.
+  const inGames = usePathname().startsWith("/games");
   const { isAuthenticated } = useConvexAuth();
+  const offline = useOffline();
+  const [playingOffline, setPlayingOffline] = useState(false);
   return (
     <NavDrawerProvider>
       <View style={rootStackStyles.row}>
-        {wide ? <AppSidebar /> : null}
+        {wide && !inGames ? <AppSidebar /> : null}
         <View style={rootStackStyles.screens}>
           <Stack
             screenOptions={{
@@ -125,11 +143,18 @@ const RootStack = () => {
             <Stack.Screen name="attendance/event/[eventId]" />
             <Stack.Screen name="attendance/member/[key]" />
             <Stack.Screen name="review" />
+            <Stack.Screen name="calendar-history" />
             <Stack.Screen name="edit-home" />
             <Stack.Screen name="announcements/[id]" />
             <Stack.Screen name="all" />
             <Stack.Screen name="checkin/[token]" />
             <Stack.Screen name="e2e-auth" />
+            <Stack.Screen name="games/index" />
+            {/* No swipe back from a game: a sideways swipe is a move in the game
+                (Sky Shooter steers that way). The back button at the top left is
+                the way out, and it asks first during a run. */}
+            <Stack.Screen name="games/[game]" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="games/leaderboard" />
             <Stack.Screen
               name="spotify-callback"
               options={{
@@ -141,7 +166,20 @@ const RootStack = () => {
           </Stack>
         </View>
       </View>
+      <OfflinePill onPlay={() => setPlayingOffline(true)} />
       {!wide && isAuthenticated ? <AppDrawer /> : null}
+      {/* A modal over the app rather than a route: offline, a web page can't
+          fetch a route it hasn't loaded. The modal keeps focus inside it. */}
+      <Modal
+        visible={playingOffline}
+        animationType="fade"
+        onRequestClose={() => setPlayingOffline(false)}
+      >
+        {/* A modal is its own window on iOS: measure its safe area again. */}
+        <SafeAreaProvider>
+          <OfflineGames online={!offline} onLeave={() => setPlayingOffline(false)} canClose />
+        </SafeAreaProvider>
+      </Modal>
     </NavDrawerProvider>
   );
 };
@@ -180,8 +218,9 @@ export default function RootLayout() {
               >
                 <AuthGate />
                 <ErrorReporter />
+                <GameScoreSync />
                 <AppUpdatePrompt />
-                <OtaUpdateBanner />
+                <OtaRestartOnResume />
               </ConvexAuthProvider>
             ) : (
               <ConfigurationErrorScreen />

@@ -26,6 +26,7 @@ import { parseYouTubeSong } from "../../../convex/shared/youtube";
 import { useSpotifyPlaylist } from "./useSpotifyPlaylist";
 import { type SpotifySearchResult, useSpotifySearch } from "./useSpotifySearch";
 import { GuideSheet } from "@/components/ui/GuideSheet";
+import { keyed } from "@/lib/listKeys";
 
 export type MusicRequest = Doc<"musicRequests">;
 type SpotifySong = {
@@ -675,7 +676,7 @@ const MusicRequestSheetContent = ({
                       ? "Add to Playlist"
                       : "Submit Request"
               }
-              onPress={onSubmit}
+              onPress={() => void onSubmit()}
               disabled={
                 submitting ||
                 fetchingSpotify ||
@@ -767,7 +768,7 @@ const MusicRequestSheetContent = ({
                   {result.title}
                 </Text>
                 <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
-                  {[result.artist, result.releaseDate?.slice(0, 4)].filter(Boolean).join(" · ")}
+                  {[result.artist, result.releaseDate?.slice(0, 4)].filter(Boolean).join(", ")}
                 </Text>
               </View>
               <Ionicons name="add-circle-outline" size={22} color={t.primary} />
@@ -1095,9 +1096,9 @@ const MusicRequestSheetContent = ({
             )}
           </View>
 
-          {songs.map((song, index) => (
+          {keyed(songs, (song) => song.link || `${song.title}|${song.artist}`).map(({ item: song, key, index }) => (
             <View
-              key={`${song.link}-${index}`}
+              key={key}
               style={{
                 padding: spacing.sm,
                 borderRadius: radius.md,

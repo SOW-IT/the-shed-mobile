@@ -11,7 +11,7 @@ import {
 import { Animated, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { timeAgo as sharedTimeAgo } from "@shared/datetime";
+import { shortDate, timeAgo as sharedTimeAgo } from "@shared/datetime";
 import {
   Btn,
   EmptyState,
@@ -19,8 +19,10 @@ import {
   MultiSelect,
   SearchField,
   SowSpinner,
+  Facts,
 } from "@/components/ui";
 import { FilterBar } from "@/components/attendance/FilterBar";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
@@ -59,12 +61,7 @@ const ENTITY_LABEL: Record<AuditEntityType, string> = {
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 const timeAgo = (ms: number): string =>
-  Date.now() - ms < WEEK_MS
-    ? sharedTimeAgo(ms)
-    : new Date(ms).toLocaleDateString("en-AU", {
-        day: "numeric",
-        month: "short",
-      });
+  Date.now() - ms < WEEK_MS ? sharedTimeAgo(ms) : shortDate(ms);
 
 export function AuditTab({
   scrollProps,
@@ -76,7 +73,7 @@ export function AuditTab({
   const t = useAppTheme();
 
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 400);
   const [entityTypes, setEntityTypes] = useState<AuditEntityType[]>([]);
   const [actorEmails, setActorEmails] = useState<string[]>([]);
   const [eventIds, setEventIds] = useState<Id<"events">[]>([]);
@@ -105,11 +102,6 @@ export function AuditTab({
       live = false;
     };
   }, [convex, filtersOpen, optionsAttempt]);
-
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(search), 400);
-    return () => clearTimeout(id);
-  }, [search]);
 
   const scopeKey = JSON.stringify([debouncedSearch, entityTypes, actorEmails, eventIds]);
   const listRef = useRef<ScrollViewInstance>(null);
@@ -296,9 +288,7 @@ export function AuditTab({
                     {row.detail}
                   </Text>
                 ) : null}
-                <Text style={[typography.caption, { color: t.faint }]}>
-                  {row.actorName} · {timeAgo(row.at)}
-                </Text>
+                <Facts parts={[row.actorName, timeAgo(row.at)]} style={{ color: t.faint }} />
               </View>
             </View>
           ))}

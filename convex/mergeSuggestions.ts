@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { assignmentsOf } from "../shared/flow";
-import { resolveUniversity, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { metadataValueLabel, resolveUniversity, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import {
   campusCompatible,
   NAME_MATCHES,
@@ -98,13 +98,12 @@ export const list = query({
         if (!match || dismissed.has(`${staffKey}|${row._id}`)) continue;
         const campus = resolveUniversity(fields, row.metadata);
         if (!campusCompatible(universities, campus)) continue;
-        const rawRole = roleField ? row.metadata?.[roleField._id] : undefined;
         candidates.push({
           memberId: row._id,
           name: row.name,
           email: row.email,
           campus,
-          role: rawRole ? (roleField?.values?.[rawRole] ?? rawRole) : undefined,
+          role: metadataValueLabel(roleField, row.metadata),
           match,
           ...(await historyOf(row._id)),
         });
@@ -134,7 +133,7 @@ export const dismiss = mutation({
     const profile = await latestStaffProfile(ctx, staffEmail);
     if (!profile) throw new ConvexError("Staff profile not found.");
     const staffKey = canonicalEmailKey(profile.email)!;
-    const member = await ctx.db.get(memberId);
+    const member = await ctx.db.get("attendanceMembers", memberId);
     if (!member) throw new ConvexError("That member no longer exists.");
     const existing = await ctx.db
       .query("mergeSuggestionDismissals")

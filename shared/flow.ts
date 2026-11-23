@@ -31,6 +31,8 @@ export const UNIVERSITY_ROLES: readonly Role[] = [
   "Vice President",
   "Executive",
 ];
+export const normalEmail = (email: string) => email.trim().toLowerCase();
+
 export const roleNeedsUniversity = (role: string): boolean =>
   UNIVERSITY_ROLES.includes(role as Role);
 
@@ -188,7 +190,7 @@ export const formatAssignment = (a: Assignment, titles?: RoleTitles): string => 
   const scope = [department, a.division, a.university]
     .filter((s): s is string => !!s)
     .map(acronym)
-    .join(" · ");
+    .join(", ");
   const label = roleLabel(a.role, titles);
   return scope ? `${label} → ${scope}` : label;
 };
@@ -274,6 +276,9 @@ export const incomingStaffYear = (date: Date = new Date()): number => {
   const current = staffYearForDate(date);
   return sydneyYmd(date).month < 10 ? current + 1 : current;
 };
+
+export const yearLabel = (y: number, currentYear: number): string =>
+  y === currentYear ? `${y} (current)` : y === currentYear + 1 ? `${y} (from Oct 1)` : `${y}`;
 
 export const withinPrefillWindow = (now: Date = new Date()): boolean => {
   const { month, day, hour } = sydneyYmd(now);

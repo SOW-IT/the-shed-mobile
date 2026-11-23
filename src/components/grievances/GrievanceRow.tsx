@@ -5,6 +5,7 @@ import { GRIEVANCE_STATUS_LABELS, grievanceRef } from "@shared/grievances";
 import { sydneyDay } from "@/lib/sydneyTime";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { WaitingLine } from "@/components/design/DesignRequestRow";
+import { Facts } from "@/components/ui/primitives";
 import { GrievanceStatusPill } from "./GrievanceStatusPill";
 
 // Submitters' own rows come without the reference, which is for the team only.
@@ -19,14 +20,12 @@ export const GrievanceRow = ({
 }) => {
   const t = useAppTheme();
   const forTeam = grievance.ref !== undefined;
-  const meta = [forTeam ? grievance.name : null, `Raised ${sydneyDay(grievance.submittedAt)}`]
-    .filter(Boolean)
-    .join(" · ");
+  const meta = [forTeam ? grievance.name : null, `Raised ${sydneyDay(grievance.submittedAt)}`];
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Grievance about ${grievance.category}, ${meta}, ${GRIEVANCE_STATUS_LABELS[grievance.status]}`}
+      accessibilityLabel={`Grievance about ${grievance.category}, ${meta.filter(Boolean).join(", ")}, ${GRIEVANCE_STATUS_LABELS[grievance.status]}`}
       style={({ pressed }) => [
         styles.row,
         t.surfaceEdge,
@@ -43,9 +42,7 @@ export const GrievanceRow = ({
         <Text numberOfLines={2} style={[typography.headline, { color: t.text }]}>
           {grievance.category}
         </Text>
-        <Text numberOfLines={1} style={[typography.caption, { color: t.muted }]}>
-          {meta}
-        </Text>
+        <Facts parts={meta} numberOfLines={1} />
         {forTeam && grievance.status === "SUBMITTED" ? (
           <WaitingLine since={grievance.submittedAt} />
         ) : null}

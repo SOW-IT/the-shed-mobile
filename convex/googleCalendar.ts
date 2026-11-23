@@ -18,6 +18,7 @@ import {
 import { googleAccessToken, googleServiceAccountConfigured } from "./googleAuth";
 import { appUrl } from "./requests";
 import { DAY_MS } from "../shared/datetime";
+import { env } from "./environment";
 
 const EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const CALENDARS_SCOPE = "https://www.googleapis.com/auth/calendar";
@@ -30,16 +31,16 @@ const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 30 * 60_000];
 // The shared calendar's id: one made by createSharedCalendar below, or any
 // calendar shared with the service account with "Make changes to events".
 export const calendarSyncConfigured = (): boolean =>
-  !!process.env.GOOGLE_CALENDAR_ID && googleServiceAccountConfigured();
+  !!env("GOOGLE_CALENDAR_ID") && googleServiceAccountConfigured();
 
 type GoogleBody = ReturnType<typeof googleEventBody>;
 
 async function eventBodyFor(ctx: QueryCtx, event: Doc<"events">): Promise<GoogleBody> {
-  const tags = (await Promise.all((event.tagIds ?? []).map((id) => ctx.db.get(id)))).filter(
+  const tags = (await Promise.all((event.tagIds ?? []).map((id) => ctx.db.get("attendanceTags", id)))).filter(
     (tag): tag is Doc<"attendanceTags"> => tag !== null
   );
   return googleEventBody(
-    event,
+    { ...event, tags },
     calendarCategoryOf(event, tags),
     appUrl(`/attendance/event/${event._id}`)
   );
@@ -56,7 +57,7 @@ const entryBodyFor = (entry: Doc<"calendarEntries">): GoogleBody =>
 export const eventBody = internalQuery({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    const event = await ctx.db.get(eventId);
+    const event = await ctx.db.get("events", eventId);
     return event ? await eventBodyFor(ctx, event) : null;
   },
 });
@@ -64,7 +65,7 @@ export const eventBody = internalQuery({
 export const entryBody = internalQuery({
   args: { entryId: v.id("calendarEntries") },
   handler: async (ctx, { entryId }) => {
-    const entry = await ctx.db.get(entryId);
+    const entry = await ctx.db.get("calendarEntries", entryId);
     return entry ? entryBodyFor(entry) : null;
   },
 });
@@ -140,7 +141,7 @@ export const finishSync = internalMutation({
 });
 
 const eventsUrl = () =>
-  `${API}/calendars/${encodeURIComponent(process.env.GOOGLE_CALENDAR_ID as string)}/events`;
+  `${API}/calendars/${encodeURIComponent(env("GOOGLE_CALENDAR_ID") as string)}/events`;
 
 async function call(token: string, method: string, url: string, body?: object) {
   return await fetch(url, {

@@ -1,14 +1,16 @@
+import { useAppUpdate } from "@/hooks/useAppUpdate";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
+import { keyed } from "@/lib/listKeys";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
+import { withRestartHeld } from "@/lib/restartHold";
 import { uploadLocalFileToUrl } from "@/lib/uploadLocalFile";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { isSowStaffAddress } from "@shared/rollcallImport";
 import { useMutation, useQuery } from "convex/react";
 import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { ReactNode, useState } from "react";
+import { ReactNode, useRef, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { timeAgo } from "../../shared/datetime";
@@ -17,7 +19,7 @@ import {
   roleLabel,
   staffYearForDate,
 } from "../../shared/flow";
-import { radius, spacing, typography, useAppTheme } from "../theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "../theme";
 import { ChromeScreen } from "./ChromeScreen";
 import { ChurchDetails, ChurchPicker } from "./ChurchPicker";
 import { DeleteAccountCard } from "./DeleteAccountCard";
@@ -25,6 +27,7 @@ import { useSpotifyPlaylist } from "./music/useSpotifyPlaylist";
 import { SignInPrompt } from "./SignInPrompt";
 import {
   Avatar,
+  Btn,
   Card,
   ConfirmDialog,
   ErrorBanner,
@@ -36,7 +39,9 @@ import {
   SectionTitle,
   stagger,
   Txt,
+  Facts,
 } from "./ui";
+import { FontAwesomeSubsetIcons } from "./ui/subsetIcons";
 import { backOr } from "@/lib/goBack";
 
 const ProfileFrame = ({
@@ -97,12 +102,12 @@ function SpotifyConnectionCard() {
             width: 44,
             height: 44,
             borderRadius: 22,
-            backgroundColor: "#1DB954",
+            backgroundColor: fixedColours.spotifyGreen,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <FontAwesome name="spotify" size={27} color="#FFFFFF" />
+          <FontAwesomeSubsetIcons name="spotify" size={27} color={fixedColours.onColour} />
         </View>
 
         {/* Account status */}
@@ -199,6 +204,56 @@ function SpotifyConnectionCard() {
   );
 }
 
+/** Taps this close together count towards the three that open the games. */
+const TAP_WINDOW_MS = 600;
+
+/**
+ * The app version at the foot of your profile. Three quick taps open the
+ * games; it looks and reads the same as plain text.
+ */
+const VersionText = () => {
+  const t = useAppTheme();
+  const router = useRouter();
+  const taps = useRef({ count: 0, at: 0 });
+  const onPress = () => {
+    const now = Date.now();
+    const count = now - taps.current.at < TAP_WINDOW_MS ? taps.current.count + 1 : 1;
+    taps.current = { count: count === 3 ? 0 : count, at: now };
+    if (count === 3) router.push("/games");
+  };
+  return (
+    <Text
+      onPress={onPress}
+      suppressHighlighting
+      testID="profile-version"
+      style={[typography.caption, styles.versionText, { color: t.muted }]}
+    >
+      Version {Constants.expoConfig?.version ?? "—"}
+    </Text>
+  );
+};
+
+const AppUpdateButton = () => {
+  const update = useAppUpdate();
+  if (!update.route || update.route === "wait") return null;
+  return (
+    <View style={styles.updateApp} testID="profile-update">
+      {update.route === "restart" ? (
+        <Btn
+          title={update.restarting ? "Restarting…" : "Restart to update"}
+          icon="refresh"
+          variant="tonal"
+          disabled={update.restarting}
+          onPress={update.restart}
+        />
+      ) : (
+        <Btn title={`Open the ${update.store}`} icon="arrow-down-circle-outline" variant="tonal" onPress={update.openStore} />
+      )}
+      <ErrorBanner message={update.failed ? "The update didn't download. Check your connection and try again." : null} />
+    </View>
+  );
+};
+
 /**
  * A person's profile. Your own (`asTab`) is a root screen from the side menu,
  * with the top bar; anyone else's opens on top of the screen you came from,
@@ -241,6 +296,8 @@ export const ProfileView = ({
     return (
       <ProfileFrame asTab={asTab} onBack={goBack}>
         <SignInPrompt what="page" />
+        {email ? null : <VersionText />}
+        {email ? null : <AppUpdateButton />}
       </ProfileFrame>
     );
   }
@@ -252,12 +309,14 @@ export const ProfileView = ({
   const pickPhoto = async () => {
     setError(null);
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-      });
+      const result = await withRestartHeld(() =>
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 1,
+        })
+      );
       if (result.canceled) return;
       setUploading(true);
       const picked = result.assets[0];
@@ -333,21 +392,19 @@ export const ProfileView = ({
                 { backgroundColor: t.primarySoft },
               ]}
             >
-              <Text
-                style={[
-                  typography.caption,
-                  { color: t.dark ? t.text : t.primary, fontWeight: "600" },
+              <Facts
+                style={{ color: t.dark ? t.text : t.primary, fontWeight: "600" }}
+                parts={[
+                  (current.assignments ?? []).length > 0
+                    ? current.assignments
+                        .map((a) => formatAssignment(a, current.roleTitles))
+                        .join(", ")
+                    : current.roles
+                        .map((r) => roleLabel(r, current.roleTitles))
+                        .join(", "),
+                  current.year,
                 ]}
-              >
-                {(current.assignments ?? []).length > 0
-                  ? current.assignments
-                      .map((a) => formatAssignment(a, current.roleTitles))
-                      .join("  ·  ")
-                  : current.roles
-                      .map((r) => roleLabel(r, current.roleTitles))
-                      .join(", ")}{" "}
-                · {current.year}
-              </Text>
+              />
             </View>
           ) : neverStaff && !isSowStaffAddress(profile.email ?? undefined) ? (
             <Muted>Personal account</Muted>
@@ -462,9 +519,9 @@ export const ProfileView = ({
                 <View style={{ flex: 1 }}>
                   {(entry.assignments ?? []).length > 0 ? (
                     <View style={styles.assignmentChips}>
-                      {entry.assignments.map((a, i) => (
+                      {keyed(entry.assignments, (a) => formatAssignment(a, entry.roleTitles)).map(({ item: a, key }) => (
                         <View
-                          key={i}
+                          key={key}
                           style={[
                             styles.assignmentChip,
                             { backgroundColor: t.primarySoft },
@@ -500,18 +557,16 @@ export const ProfileView = ({
         </FadeInView>
       )}
       {profile.isMe && <DeleteAccountCard />}
-      {profile.isMe && (
-        <Text
-          style={[typography.caption, { color: t.muted, textAlign: "center" }]}
-        >
-          Version {Constants.expoConfig?.version ?? "—"}
-        </Text>
-      )}
+      {profile.isMe && <VersionText />}
+      {profile.isMe && <AppUpdateButton />}
     </ProfileFrame>
   );
 };
 
 const styles = StyleSheet.create({
+  // A plain cursor, so the easter egg doesn't show itself on web.
+  versionText: { textAlign: "center", cursor: "auto" },
+  updateApp: { alignItems: "center", gap: spacing.sm },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   syncChip: {
     flexDirection: "row",

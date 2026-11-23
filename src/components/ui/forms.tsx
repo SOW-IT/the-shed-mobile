@@ -1,7 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
-import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
+import { togglePicked } from "@shared/churches";
+import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme, fixedColours } from "@/theme";
+import { fieldTestID } from "./fieldTestID";
 import { useRegisterModal } from "./modalPresence";
 import { FastModal, SowSpinner, Txt } from "./primitives";
 import { useRevealFocusedInput } from "./revealFocus";
@@ -66,7 +68,7 @@ export const Field = ({
           autoCapitalize={autoCapitalize}
           autoCorrect={autoCorrect}
           maxLength={maxLength}
-          testID={testID}
+          testID={testID ?? fieldTestID(label || accessibilityLabel)}
           accessibilityLabel={accessibilityLabel ?? label}
           multiline={multiline}
           editable={!disabled}
@@ -237,6 +239,7 @@ export const OptionRow = ({
   multi,
   badge,
   icon,
+  detail,
 }: {
   label: string;
   selected: boolean;
@@ -244,6 +247,7 @@ export const OptionRow = ({
   multi?: boolean;
   badge?: string;
   icon?: keyof typeof Ionicons.glyphMap;
+  detail?: string;
 }) => {
   const t = useAppTheme();
   return (
@@ -256,7 +260,7 @@ export const OptionRow = ({
       onPress={onPress}
       accessibilityRole={multi ? "checkbox" : "radio"}
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={badge ? `${label}, ${badge.toLowerCase()}` : label}
+      accessibilityLabel={[label, detail, badge?.toLowerCase()].filter(Boolean).join(", ")}
     >
       <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         {icon ? <Ionicons name={icon} size={18} color={t.text} /> : null}
@@ -270,6 +274,11 @@ export const OptionRow = ({
         >
           {label}
         </Text>
+        {detail ? (
+          <Text numberOfLines={1} style={[typography.body, { color: t.muted, flexShrink: 1 }]}>
+            {detail}
+          </Text>
+        ) : null}
         {badge ? (
           <View
             style={{
@@ -398,7 +407,7 @@ const SelectFace = ({
         disabled={disabled}
         style={({ pressed }) => [
           styles.input,
-          styles.selectFace,
+          styles.inlineRow,
           { backgroundColor: t.inputBackground, borderColor: "transparent" },
           disabled && { opacity: 0.6 },
           !disabled && pressed && { opacity: 0.7 },
@@ -488,9 +497,7 @@ export const MultiSelect = ({
     .map((v) => normalized.find((o) => o.value === v)?.label ?? v)
     .join(", ");
   const toggle = (value: string) => {
-    onSelect(
-      values.includes(value) ? values.filter((v) => v !== value) : [...values, value]
-    );
+    onSelect(togglePicked(values, value));
   };
   return (
     <>
@@ -526,10 +533,13 @@ export const Segmented = ({
   segments,
   active,
   onChange,
+  pill = false,
 }: {
   segments: Segment[];
   active: string;
   onChange: (key: string) => void;
+  /** Fully rounded, for a toggle sitting in a pill of its own. */
+  pill?: boolean;
 }) => {
   const t = useAppTheme();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -552,13 +562,14 @@ export const Segmented = ({
   if (segments.length < 2) return null;
   return (
     <View
-      style={[styles.segmented, { backgroundColor: t.ghost }]}
+      style={[styles.segmented, { backgroundColor: t.ghost }, pill && styles.segmentedPill]}
       onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
     >
       {trackWidth > 0 && (
         <Animated.View
           style={[
             styles.segmentIndicator,
+            pill && styles.segmentedPill,
             {
               backgroundColor: t.card,
               width: segmentWidth,
@@ -594,10 +605,10 @@ export const Segmented = ({
               <View
                 style={[
                   styles.segmentBadge,
-                  { backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#cccccc" },
+                  { backgroundColor: fixedColours.messageBadge.bg, borderWidth: 1, borderColor: fixedColours.messageBadge.border },
                 ]}
               >
-                <Text style={[styles.segmentBadgeText, { color: "#333333" }]}>
+                <Text style={[styles.segmentBadgeText, { color: fixedColours.messageBadge.text }]}>
                   {segment.messageBadge}
                 </Text>
               </View>

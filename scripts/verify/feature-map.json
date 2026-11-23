@@ -1,0 +1,268 @@
+{
+  "static": [
+    "**/*.md",
+    "docs/**",
+    ".claude/**",
+    ".cursor/**",
+    ".github/**",
+    ".vscode/**",
+    "LICENSE",
+    ".gitattributes",
+    ".prettierignore",
+    "eslint.config.js",
+    ".coderabbit.yaml",
+    "knip.jsonc",
+    "skills-lock.json",
+    "vitest.config.ts",
+    "test/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.test.mjs",
+    "scripts/**",
+    "convex/storageBackup.ts",
+    "convex/cleanup.ts"
+  ],
+  "core": [
+    "package.json",
+    "package-lock.json",
+    ".gitignore",
+    "app.json",
+    "app.config.js",
+    "babel.config.js",
+    "fingerprint.config.js",
+    "metro.config.js",
+    "eas.json",
+    "store.config.json",
+    "tsconfig.json",
+    "vercel.json",
+    "assets/**",
+    "web/**",
+    "web/.vercelignore",
+    "web/.well-known/**",
+    "web-dev/.well-known/**",
+    "src/app/_layout.tsx",
+    "src/app/(tabs)/_layout.tsx",
+    "src/app/(tabs)/index.tsx",
+    "src/app/+html.tsx",
+    "src/app/+not-found.tsx",
+    "src/app/e2e-auth.tsx",
+    "src/components/nav/**",
+    "src/components/ui/**",
+    "src/components/{ErrorBoundary,ErrorReporter,AppUpdatePrompt,OtaRestartOnResume,ChromeScreen,PagerScreen,PagerCarousel,PagerCarousel.native,GroupedList,FilterChips,DateInputs,DateInputs.web,ReorderableList,HistoryTimeline,CommentsSheet,CommentThreadSheet,SignInPrompt,CampusMark}.tsx",
+    "src/components/{useTopBarCollapse,dateTimeDisplay}.ts",
+    "src/theme.ts",
+    "src/fonts.ts",
+    "src/env.ts",
+    "src/types/**",
+    "src/lib/{listKeys,errorReporting,appErrorKinds,staleRelease,restartHold,otaUpdates,deviceStorage,navMenu,goBack,footerClearance,swipePage,sydneyTime,visibleColour,externalLinks,openExternalLink,notify,imageCacheKey,uploadLocalFile,csv,csvDownload,pdfWriter,universityLogos}.ts",
+    "src/lib/pdfLibBundle.d.ts",
+    "src/hooks/{useRowIds,useRestartHold,useReportAppVersion,useAppUpdate,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync,useStaffWaitingBadge}.ts",
+    "convex/_generated/**",
+    "convex/shared/**",
+    "convex/tsconfig.json",
+    "convex/env.d.ts",
+    "convex/{environment,schema,auth,auth.config,http,crons,model,pagination,googleAuth,appleIdentity,appleRevoke,userLink,emails,comments,history,presence,actingAs,actingAsData,profile}.ts",
+    "shared/{datetime,numbers,deepLinks,appLinks,typedConfirm,staffOnly,actingAs}.ts"
+  ],
+  "smoke": ["/", "/home"],
+  "areas": {
+    "home": {
+      "files": [
+        "src/app/(tabs)/home.tsx",
+        "src/app/edit-home.tsx",
+        "src/components/home/**",
+        "convex/{homeContent,homeData,waitingOnMe}.ts",
+        "shared/homeContent.ts"
+      ],
+      "routes": ["/home", "/edit-home"]
+    },
+    "reimbursements": {
+      "files": [
+        "src/app/request/**",
+        "src/app/{review,all,finance-settings}.tsx",
+        "src/components/{AllRequestsList,MyRequests,PastRequests,RequestCard,RequestTimeline,ReviewList,StepTrack,ReceiptFilesNote,ReceiptRecipientList,ExportRequestsCard}.tsx",
+        "src/components/finance/**",
+        "src/lib/requestsCsv.ts",
+        "src/hooks/useReimbursementsBadge.ts",
+        "convex/{requests,categoryPeople,stepTiming,reminders}.ts",
+        "shared/{flow,money,reminders}.ts"
+      ],
+      "routes": ["/review", "/all", "/finance-settings"]
+    },
+    "design-requests": {
+      "files": [
+        "src/app/(tabs)/design-requests.tsx",
+        "src/app/design-requests/**",
+        "src/components/design/**",
+        "src/components/forms/**",
+        "src/lib/designRequestPdf.ts",
+        "convex/designRequest*.ts",
+        "shared/{designRequests,forms}.ts"
+      ],
+      "routes": ["/design-requests", "/design-requests/new"]
+    },
+    "event-requests": {
+      "files": [
+        "src/app/(tabs)/event-requests.tsx",
+        "src/app/event-requests/**",
+        "src/components/events/**",
+        "src/components/forms/**",
+        "src/lib/eventRequest*.ts",
+        "convex/{eventRequest*,eventSubForms,teams,teamJobs}.ts",
+        "shared/{eventRequests,forms,teams}.ts"
+      ],
+      "routes": ["/event-requests", "/event-requests/new"]
+    },
+    "grievances": {
+      "files": [
+        "src/app/(tabs)/grievances.tsx",
+        "src/app/grievances/**",
+        "src/components/grievances/**",
+        "src/hooks/useGrievancesBadge.ts",
+        "convex/grievance*.ts",
+        "shared/grievances.ts"
+      ],
+      "routes": ["/grievances", "/grievances/new", "/grievances?tab=settings"]
+    },
+    "praise-list": {
+      "files": [
+        "src/app/(tabs)/music.tsx",
+        "src/app/spotify-callback.tsx",
+        "src/components/music/**",
+        "src/hooks/useMusicRequestsBadge.ts",
+        "convex/{musicRequests,musicReleaseDates,spotify,spotifyConnections,spotifyCrypto,youtube}.ts",
+        "shared/praiseList.ts"
+      ],
+      "routes": ["/music"]
+    },
+    "attendance": {
+      "files": [
+        "src/app/(tabs)/attendance.tsx",
+        "src/app/attendance/**",
+        "src/app/checkin/**",
+        "src/components/attendance/**",
+        "src/components/AttendanceRow.tsx",
+        "src/lib/{attendanceCsv,checkInDevice,rollCallColumns}.ts",
+        "src/hooks/useAttendanceSubgroup.ts",
+        "convex/{attendance*,events,eventGuests,checkIn,memberCount,memberPairSuggestions,memberRoles,mergeSuggestions,rollCallOrder,rosterHistory,staffMembers}.ts",
+        "shared/{rollcall*,attendanceMemberMeta,attendanceTags,checkIn*,eventGuests,memberMerge,memberRole,mergeSuggestions,rollCallLikelihood}.ts"
+      ],
+      "routes": [
+        "/attendance",
+        "/attendance/event/{eventId}",
+        "/attendance/member/member%3A{memberId}",
+        "/attendance/merges",
+        "/checkin/{checkInToken}"
+      ]
+    },
+    "insights": {
+      "files": [
+        "src/app/(tabs)/insights.tsx",
+        "src/components/attendance/{GeneralMetricsTab,InsightsBlocks,InsightsSelectors,MetricsCharts,MetricsTab,WeeklyBlocks}.tsx",
+        "convex/{attendanceMetrics,generalMetrics,metricsData,sowInsights,weeklyInsights,weeklyInsightsData}.ts",
+        "shared/{attendanceMetrics,attendanceMetricsView,generalMetricsView,sowInsights,sowInsightsView,weeklyInsights,weeklyInsightsView}.ts"
+      ],
+      "routes": ["/insights?tab=general", "/insights?tab=attendance"]
+    },
+    "calendar": {
+      "files": [
+        "src/app/(tabs)/calendar.tsx",
+        "src/app/calendar-history.tsx",
+        "src/components/calendar/**",
+        "src/hooks/useCalendarView.ts",
+        "convex/{calendar,calendarAudit,calendarData,googleCalendar}.ts",
+        "shared/{calendar,calendarAudit}.ts"
+      ],
+      "routes": ["/calendar", "/calendar?view=week", "/calendar-history"]
+    },
+    "announcements": {
+      "files": [
+        "src/app/(tabs)/announcements.tsx",
+        "src/app/announcements/**",
+        "src/components/announcements/**",
+        "convex/{announcements,announcementData}.ts",
+        "shared/announcements.ts"
+      ],
+      "routes": ["/announcements"]
+    },
+    "notifications": {
+      "files": [
+        "src/app/notifications.tsx",
+        "src/hooks/usePushRegistration.ts",
+        "convex/{notifications,push}.ts"
+      ],
+      "routes": ["/notifications"]
+    },
+    "org": {
+      "files": [
+        "src/app/(tabs)/org.tsx",
+        "src/app/person/**",
+        "src/components/{EarlierYears,OrgSearchResults}.tsx",
+        "src/hooks/useGroupedProfiles.ts",
+        "convex/{directory,directorySync,staffLeavers,admins,contact,orgSearch}.ts",
+        "shared/orgChart.ts"
+      ],
+      "routes": ["/org"]
+    },
+    "churches": {
+      "files": [
+        "src/app/(tabs)/churches.tsx",
+        "src/components/{ChurchMap,ChurchMap.native,ChurchPicker,ChurchesView}.tsx",
+        "src/components/churchPins.ts",
+        "convex/churches.ts",
+        "shared/churches.ts"
+      ],
+      "routes": ["/churches"]
+    },
+    "profile": {
+      "files": [
+        "src/app/(tabs)/profile.tsx",
+        "src/components/{ProfileView,DeleteAccountCard,BankTab}.tsx",
+        "src/lib/shrinkPhotoForUpload.ts",
+        "src/hooks/useDeleteAccount.ts",
+        "convex/{account,bankAccounts,avatars,photo}.ts"
+      ],
+      "routes": ["/profile"]
+    },
+    "admin": {
+      "files": [
+        "src/app/(tabs)/admin.tsx",
+        "src/components/admin/**",
+        "src/hooks/useAdminMutations.ts",
+        "convex/{admin,appErrors,appInstalls}.ts",
+        "shared/userActivity.ts"
+      ],
+      "routes": ["/admin", "/admin?tab=teams", "/admin?tab=system"]
+    },
+    "mentoring": {
+      "files": [
+        "src/app/(tabs)/mentoring.tsx",
+        "src/components/mentoring/**",
+        "convex/mentoring.ts",
+        "shared/mentoring.ts"
+      ],
+      "routes": ["/mentoring"]
+    },
+    "games": {
+      "files": [
+        "src/app/games/**",
+        "src/components/games/**",
+        "src/lib/games/**",
+        "src/hooks/useOffline.ts",
+        "convex/{gameScores,gameScoreData}.ts",
+        "shared/games.ts"
+      ],
+      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang"]
+    },
+    "world": {
+      "files": [
+        "src/app/world.tsx",
+        "src/world/**",
+        "convex/{world,worldData}.ts",
+        "shared/world.ts"
+      ],
+      "routes": ["/world", "/games"]
+    }
+  },
+  "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]
+}

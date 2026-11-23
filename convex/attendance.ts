@@ -47,7 +47,7 @@ export type RosterEntry = {
 };
 
 const memberSubtitle = (role: string | undefined, details: string): string | undefined =>
-  [role, details].filter(Boolean).join(" · ") || undefined;
+  [role, details].filter(Boolean).join(", ") || undefined;
 
 export const ROSTER_LIMIT_MAX = 200;
 const SEARCH_MEMBER_LIMIT = 25;
@@ -74,10 +74,10 @@ async function staffEntry(
   memberYear: number
 ): Promise<RosterEntry> {
   const roles = [...new Set(assignmentsOf(profile).map((a) => a.role))];
-  const orgSubtitle = roles.length > 0 ? roles.join(" · ") : "";
+  const orgSubtitle = roles.length > 0 ? roles.join(", ") : "";
   const metaSubtitle = metadataSubtitle(fields, shadow?.metadata, memberYear, [ROLE_FIELD_KEY, CAMPUS_FIELD_KEY]);
-  const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
-  const user = profile.userId ? await ctx.db.get(profile.userId) : null;
+  const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(", ");
+  const user = profile.userId ? await ctx.db.get("users", profile.userId) : null;
   return {
     key: personKey({ email: profile.email }),
     kind: "staff",
@@ -230,7 +230,7 @@ export const roster = query({
   },
   handler: async (ctx, { year, subgroup, eventId, limit }) => {
     if (!(await optionalProfile(ctx))) return [];
-    const event = eventId ? await ctx.db.get(eventId) : null;
+    const event = eventId ? await ctx.db.get("events", eventId) : null;
     if (event && limit !== undefined) {
       return await likelyRoster(ctx, event, Math.max(1, Math.min(ROSTER_LIMIT_MAX, Math.floor(limit))));
     }
@@ -391,7 +391,7 @@ export const searchRoster = query({
   handler: async (ctx, { eventId, search }): Promise<RosterEntry[]> => {
     if (!(await optionalProfile(ctx))) return [];
     const text = search.trim();
-    const event = text ? await ctx.db.get(eventId) : null;
+    const event = text ? await ctx.db.get("events", eventId) : null;
     if (!event) return [];
     const scope = await searchScope(ctx, event);
     const found = await searchCandidates(ctx, scope, text, SEARCH_MEMBER_LIMIT);
@@ -407,7 +407,7 @@ export const searchRosterNames = query({
   handler: async (ctx, { eventId, names }): Promise<RosterEntry[]> => {
     if (!(await optionalProfile(ctx))) return [];
     const texts = [...new Set(names.map((name) => name.trim()).filter(Boolean))].slice(0, NAME_LOOKUP_LIMIT);
-    const event = texts.length > 0 ? await ctx.db.get(eventId) : null;
+    const event = texts.length > 0 ? await ctx.db.get("events", eventId) : null;
     if (!event) return [];
     const scope = await searchScope(ctx, event);
     const found = new Map<string, SearchCandidate>();
@@ -426,7 +426,7 @@ export const listByEvent = query({
     if (!(await optionalProfile(ctx))) return [];
     const eventId = ctx.db.normalizeId("events", rawEventId);
     if (!eventId) return [];
-    const event = await ctx.db.get(eventId);
+    const event = await ctx.db.get("events", eventId);
     if (!event) return [];
     const profileYear = eventStaffYear(event.dateStart);
     const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
@@ -447,7 +447,7 @@ export const listByEvent = query({
 
     const withNames = await Promise.all(
       rows.map(async (row) => {
-        const member = await ctx.db.get(row.memberId);
+        const member = await ctx.db.get("attendanceMembers", row.memberId);
         const profile = member ? await staffProfileOfMember(ctx, member._id, profileYear) : null;
         if (profile) {
           const email = profile.email.toLowerCase();
@@ -462,7 +462,7 @@ export const listByEvent = query({
               )
             ),
           ];
-          const user = profile.userId ? await ctx.db.get(profile.userId) : null;
+          const user = profile.userId ? await ctx.db.get("users", profile.userId) : null;
           return {
             ...row,
             email,
@@ -514,7 +514,7 @@ export const signIn = mutation({
   },
   handler: async (ctx, { eventId, email, memberId: memberArg }) => {
     const { email: actorEmail } = await requireProfile(ctx);
-    const event = await ctx.db.get(eventId);
+    const event = await ctx.db.get("events", eventId);
     if (!event) throw new ConvexError("Event not found.");
     if (!!email === !!memberArg) {
       throw new ConvexError("Provide either email or memberId.");
@@ -544,7 +544,7 @@ export async function signInMember(
   const now = Date.now();
   const eventId = event._id;
   const year = eventStaffYear(event.dateStart);
-  const member = await ctx.db.get(memberId);
+  const member = await ctx.db.get("attendanceMembers", memberId);
   if (!member) throw new ConvexError("Member not found.");
   const existing = await ctx.db
     .query("attendance")
@@ -581,7 +581,7 @@ export const updateRecord = mutation({
   },
   handler: async (ctx, { attendanceId, notes, signInTime }) => {
     const { email: actorEmail } = await requireProfile(ctx);
-    const row = await ctx.db.get(attendanceId);
+    const row = await ctx.db.get("attendance", attendanceId);
     if (!row) throw new ConvexError("Attendance record not found.");
     if (
       signInTime !== undefined &&
@@ -593,12 +593,12 @@ export const updateRecord = mutation({
     const notesChanged = nextNotes !== row.notes;
     const timeChanged = signInTime !== undefined && signInTime !== row.signInTime;
     if (!notesChanged && !timeChanged) return;
-    await ctx.db.patch(attendanceId, {
+    await ctx.db.patch("attendance", attendanceId, {
       ...(notesChanged ? { notes: nextNotes } : {}),
       ...(timeChanged ? { signInTime } : {}),
     });
-    const event = await ctx.db.get(row.eventId);
-    const member = await ctx.db.get(row.memberId);
+    const event = await ctx.db.get("events", row.eventId);
+    const member = await ctx.db.get("attendanceMembers", row.memberId);
     const who = member
       ? await memberAuditName(
           ctx,
@@ -641,7 +641,7 @@ export const signOut = mutation({
     if (!!email === !!memberArg) {
       throw new ConvexError("Provide either email or memberId.");
     }
-    const event = await ctx.db.get(eventId);
+    const event = await ctx.db.get("events", eventId);
     const year = event ? eventStaffYear(event.dateStart) : staffYearForDate(new Date());
     let memberId = memberArg ?? null;
     if (email) {
@@ -674,9 +674,9 @@ export async function signOutMember(
       "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
     );
   }
-  await ctx.db.delete(existing._id);
+  await ctx.db.delete("attendance", existing._id);
   await adjustEventAttendanceCount(ctx, eventId, -1);
-  const member = await ctx.db.get(memberId);
+  const member = await ctx.db.get("attendanceMembers", memberId);
   const who = member
     ? await memberAuditName(ctx, member, year)
     : { name: "A member", email: undefined };

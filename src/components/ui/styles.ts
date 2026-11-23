@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 import { FOOTER_GAP } from "@/lib/footerClearance";
-import { radius, spacing } from "@/theme";
+import { radius, spacing, fixedColours } from "@/theme";
 
 export const styles = StyleSheet.create({
   screen: { flex: 1 },
@@ -30,15 +30,6 @@ export const styles = StyleSheet.create({
     borderTopLeftRadius: 3,
     borderTopRightRadius: 3,
   },
-  tabBadge: {
-    borderRadius: radius.full,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 4,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tabBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
   floatingYearPicker: { position: "absolute", right: spacing.lg, bottom: spacing.md },
   scroll: {
     flexGrow: 1,
@@ -65,9 +56,24 @@ export const styles = StyleSheet.create({
     gap: spacing.sm + 2,
   },
   sectionTitle: { marginTop: spacing.lg, marginBottom: -spacing.xs },
+  inlineRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  sectionTitleText: { flexShrink: 1 },
+  chip: {
+    flexShrink: 0,
+    paddingHorizontal: spacing.sm,
+    minWidth: 24,
+    height: 22,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chipText: { fontSize: 12.5, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  facts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md, rowGap: 2 },
+  fact: { flexShrink: 1 },
   row: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", alignItems: "center" },
-  rowSpread: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   rowLoading: { minHeight: 42, alignItems: "center", justifyContent: "center" },
+  answer: { gap: 4 },
+  loadMore: { alignItems: "center", paddingVertical: spacing.md },
   yearPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -104,7 +110,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconBadgeText: { color: "#ffffff", fontSize: 10, fontWeight: "800" },
+  iconBadgeText: { color: fixedColours.onColour, fontSize: 10, fontWeight: "800" },
   field: { gap: 6 },
   input: {
     borderRadius: radius.md,
@@ -146,7 +152,6 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  selectFace: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   optionSheetHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -213,6 +218,7 @@ export const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: 3,
   },
+  segmentedPill: { borderRadius: radius.full },
   segmentIndicator: {
     position: "absolute",
     top: 3,
@@ -239,7 +245,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  segmentBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  segmentBadgeText: { color: fixedColours.onColour, fontSize: 11, fontWeight: "800" },
   dialogOuter: {
     flex: 1,
     justifyContent: "center",
@@ -288,11 +294,6 @@ export const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
-  footerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
   footerNote: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -319,6 +320,13 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
   },
   footerActionText: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
+  footerSecondary: {
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1.5,
+  },
+  footerSecondaryText: { fontSize: 14, fontWeight: "700" },
   footerIconBadge: {
     position: "absolute",
     top: -2,

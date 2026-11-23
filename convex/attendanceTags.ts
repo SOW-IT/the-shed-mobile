@@ -4,6 +4,8 @@ import { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireAttendanceManager } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
+import { syncToGoogle } from "./events";
+import { calendarSyncConfigured } from "./googleCalendar";
 
 export const list = query({
   args: {},
@@ -33,8 +35,10 @@ export const saveAll = mutation({
   },
   handler: async (ctx, { tags, deleteIds }) => {
     const { email: actorEmail } = await requireAttendanceManager(ctx);
+    const resyncEvents = new Set<Id<"events">>();
+    const resyncTags = new Set<Id<"attendanceTags">>();
     const deleteRows = (
-      await Promise.all(deleteIds.map((id) => ctx.db.get(id)))
+      await Promise.all(deleteIds.map((id) => ctx.db.get("attendanceTags", id)))
     ).filter((row): row is NonNullable<typeof row> => row !== null);
     if (deleteRows.some((row) => isWeekliesTagName(row.name))) {
       throw new ConvexError("The Weeklies tag can't be deleted; every weekly gets it.");
@@ -44,12 +48,13 @@ export const saveAll = mutation({
       for (const event of await ctx.db.query("events").collect()) {
         if (!event.tagIds?.some((tagId) => deleteSet.has(tagId))) continue;
         const tagIds = event.tagIds.filter((tagId) => !deleteSet.has(tagId));
-        await ctx.db.patch(event._id, {
+        await ctx.db.patch("events", event._id, {
           tagIds: tagIds.length > 0 ? tagIds : undefined,
         });
+        resyncEvents.add(event._id);
       }
       for (const row of deleteRows) {
-        await ctx.db.delete(row._id);
+        await ctx.db.delete("attendanceTags", row._id);
         await logAttendanceAction(ctx, {
           actorEmail,
           entityType: "tag",
@@ -84,7 +89,7 @@ export const saveAll = mutation({
         throw new ConvexError(`"${name}" is the automatic tag every weekly gets; pick another name.`);
       }
       if (tag.id) {
-        const existing = saved ?? (await ctx.db.get(tag.id));
+        const existing = saved ?? (await ctx.db.get("attendanceTags", tag.id));
         if (!existing) continue;
         if (isWeekliesTagName(existing.name) && existing.name !== name) {
           throw new ConvexError("The Weeklies tag can't be renamed; every weekly gets it.");
@@ -96,7 +101,14 @@ export const saveAll = mutation({
           (existing.colour ?? undefined) !== (tag.colour ?? undefined) ||
           JSON.stringify([...(existing.subgroups ?? [])].sort()) !==
             JSON.stringify([...(nextSubgroups ?? [])].sort());
-        await ctx.db.patch(tag.id, {
+        if (
+          existing.name !== name ||
+          tagListOf(existing) !== list ||
+          (existing.colour ?? undefined) !== (tag.colour ?? undefined)
+        ) {
+          resyncTags.add(tag.id);
+        }
+        await ctx.db.patch("attendanceTags", tag.id, {
           name,
           colour: tag.colour,
           subgroups: nextSubgroups,
@@ -128,5 +140,12 @@ export const saveAll = mutation({
         });
       }
     }
+    if (!calendarSyncConfigured()) return;
+    if (resyncTags.size > 0) {
+      for (const event of await ctx.db.query("events").collect()) {
+        if (event.tagIds?.some((tagId) => resyncTags.has(tagId))) resyncEvents.add(event._id);
+      }
+    }
+    for (const eventId of resyncEvents) await syncToGoogle(ctx, eventId);
   },
 });

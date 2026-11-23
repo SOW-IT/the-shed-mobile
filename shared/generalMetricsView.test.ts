@@ -223,7 +223,7 @@ describe("buildGeneralView: one staff year", () => {
     expect(retention.cards.map((c) => c.label)).toEqual(["Overall", "Staff", "Student leaders"]);
     expect(avgYears.cards[0]).toMatchObject({ value: "1.5", delta: { text: "+0.5y", direction: "up" } });
     expect(twoPlus.cards[0]).toMatchObject({ label: "Overall", value: "30%", delta: { text: "+20pp" } });
-    expect(blocks[13]).toEqual({ type: "label", text: "Weeklies average by campus · Jan–Dec 2026" });
+    expect(blocks[13]).toEqual({ type: "label", text: "Weeklies average by campus, Jan–Dec 2026" });
     expect(weekly.cards).toEqual([
       { label: "USYD", value: "44", delta: { text: "+10%", direction: "up" } },
     ]);

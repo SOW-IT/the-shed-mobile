@@ -10,7 +10,7 @@ import {
   Sheet,
 } from "@/components/ui";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
-import { radius, spacing, useAppTheme } from "@/theme";
+import { radius, spacing, useAppTheme, fixedColours } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useMutation } from "convex/react";
 import type { MutableRefObject, ReactNode } from "react";
@@ -200,7 +200,7 @@ function DeclineSheet({
             title="Decline"
             variant="danger"
             loading={submitting}
-            onPress={handleDecline}
+            onPress={() => void handleDecline()}
           />
           <Btn title="Back" variant="ghost" onPress={onClose} />
         </View>
@@ -314,7 +314,7 @@ function ReviewCard({
                 { backgroundColor: t.success, opacity: busy ? 0.5 : 1 },
               ]}
             >
-              <Ionicons name="checkmark" size={18} color="#fff" />
+              <Ionicons name="checkmark" size={18} color={fixedColours.onColour} />
               <Text style={styles.reviewActionText}>Approve</Text>
             </Pressable>
             <Pressable
@@ -327,7 +327,7 @@ function ReviewCard({
                 { backgroundColor: t.danger, opacity: busy ? 0.5 : 1 },
               ]}
             >
-              <Ionicons name="close" size={18} color="#fff" />
+              <Ionicons name="close" size={18} color={fixedColours.onColour} />
               <Text style={styles.reviewActionText}>Decline</Text>
             </Pressable>
           </View>
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: 12,
   },
-  reviewActionText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  reviewActionText: { color: fixedColours.onColour, fontWeight: "800", fontSize: 13 },
   emptyReview: {
     alignItems: "center",
     gap: 8,

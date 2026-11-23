@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema-jsonc.json",
+  // Metro picks .native/.web files by platform, which knip can't follow from
+  // the base import, so they're entries. Config files and scripts are run by
+  // tools and CI, not imported.
+  "entry": [
+    "src/**/*.{native,web}.tsx",
+    "scripts/*.{mjs,sh}",
+    "babel.config.js",
+    "fingerprint.config.js"
+  ],
+  // verify writes its run files (settle.js and others) under .verify, which git ignores.
+  "ignore": [".verify/**"],
+  // vite comes with vitest; the tests only import its types.
+  "ignoreDependencies": ["vite"]
+}

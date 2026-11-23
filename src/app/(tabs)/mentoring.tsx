@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { yearLabel } from "@shared/flow";
 import { matchesSearch } from "@shared/mentoring";
 import {
   Btn,
@@ -37,7 +38,7 @@ import {
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import { durations, spacing, useAppTheme } from "@/theme";
 
-const afterSheetCloses = (open: () => void) => setTimeout(open, durations.overlayOut + 80);
+const afterSheetCloses = (open: () => void) => setTimeout(open, durations.sheetHandoff);
 
 type Pairing = NonNullable<FunctionReturnType<typeof api.mentoring.pairings>>["pairs"][number];
 type MentoringTab = "pairings" | "externals" | "mine";
@@ -142,9 +143,6 @@ export default function MentoringScreen() {
     );
   }
 
-  const yearLabel = (y: number) =>
-    y === currentYear ? `${y} (current)` : y === currentYear + 1 ? `${y} (from Oct 1)` : `${y}`;
-
   const assign = async (mentee: { email: string; name: string }, mentor: MentorChoice, mentorName: string) => {
     setError(null);
     try {
@@ -235,7 +233,7 @@ export default function MentoringScreen() {
               <Card style={styles.pairCard}>
                 <PersonLine
                   name={external.name}
-                  line={[external.email, external.phone].filter(Boolean).join("  ·  ") || null}
+                  line={[external.email, external.phone].filter(Boolean).join(", ") || null}
                   showAvatar={false}
                   tags={[
                     {
@@ -329,7 +327,7 @@ export default function MentoringScreen() {
                 setSearch("");
                 setError(null);
               }}
-              formatLabel={yearLabel}
+              formatLabel={(y) => yearLabel(y, currentYear)}
             />
           ) : undefined
         }

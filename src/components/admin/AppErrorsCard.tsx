@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { sydneyDateTime } from "@/lib/sydneyTime";
-import { Card, IconButton, Muted, SectionTitle } from "@/components/ui";
+import { Card, Facts, IconButton, Muted, SectionTitle } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 export function AppErrorsCard() {
@@ -16,7 +16,7 @@ export function AppErrorsCard() {
   if (!recent) return null;
   return (
     <View style={{ gap: spacing.md }}>
-      <SectionTitle>App errors · last {recent.days} days</SectionTitle>
+      <SectionTitle chip={`Last ${recent.days} days`}>App errors</SectionTitle>
       <Card>
         {recent.errors.length === 0 ? (
           <Muted>Nothing reported.</Muted>
@@ -34,15 +34,17 @@ export function AppErrorsCard() {
                   <Text style={[typography.body, { color: t.text, fontWeight: "600" }]} numberOfLines={expanded ? undefined : 2}>
                     {error.message}
                   </Text>
-                  <Text style={[typography.caption, { color: t.muted }]}>
-                    {error.count === 1 ? "once" : `${error.count} times`} · {error.platform}
-                    {error.version ? ` ${error.version}` : ""}
-                    {error.route ? ` · ${error.route}` : ""}
-                  </Text>
-                  <Text style={[typography.caption, { color: t.faint }]}>
-                    Last {sydneyDateTime(error.lastAt)}
-                    {error.lastEmail ? ` · ${error.lastEmail}` : ""}
-                  </Text>
+                  <Facts
+                    parts={[
+                      error.count === 1 ? "once" : `${error.count} times`,
+                      `${error.platform}${error.version ? ` ${error.version}` : ""}`,
+                      error.route,
+                    ]}
+                  />
+                  <Facts
+                    parts={[`Last ${sydneyDateTime(error.lastAt)}`, error.lastEmail]}
+                    style={{ color: t.faint }}
+                  />
                   {expanded && error.stack ? (
                     <Text selectable style={[styles.stack, { color: t.muted, backgroundColor: t.inputBackground }]}>
                       {error.stack}

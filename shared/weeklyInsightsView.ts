@@ -2,6 +2,7 @@ import type { Infer } from "convex/values";
 import type { followRow, peopleRow, pill as pillValidator, weeklyBlockValidator } from "../convex/weeklyInsightsData";
 import { type ViewCard } from "./attendanceMetricsView";
 import { sydneyYmd } from "./flow";
+import { pctText } from "./numbers";
 import { subgroupLabel } from "./rollcall";
 import {
   CATEGORY_META,
@@ -67,8 +68,6 @@ export const pill = (category: WeeklyCategory): Pill => ({
   colour: CATEGORY_META[category].colour,
 });
 
-const pctText = (n: number) => `${Math.round(n * 100)}%`;
-
 export const dateText = (ms: number, year: number): string => {
   const y = sydneyYmd(new Date(ms)).year;
   return y === year ? dayLabel(ms) : `${dayLabel(ms)} ${y}`;
@@ -91,7 +90,7 @@ export function peopleRows(
     section: r.section,
     tags: [r.category, ...(r.noCampus ? ["noCampus"] : [])],
     category: pill(r.category),
-    primary: `${r.attended}/${r.held} · ${pctText(r.pct)}`,
+    primary: `${r.attended}/${r.held} (${pctText(r.pct)})`,
     secondary: r.window
       ? `${lastCame(r, year)}. Came to ${r.window.attended} of the last ${r.window.held}.`
       : lastCame(r, year),
@@ -269,7 +268,7 @@ export function weekLabels(weeklies: { week: number }[]): string[] {
   return weeklies.map(({ week }) => {
     const n = (seen.get(week) ?? 0) + 1;
     seen.set(week, n);
-    return n === 1 ? `W${week}` : `W${week}·${n}`;
+    return n === 1 ? `W${week}` : `W${week}-${n}`;
   });
 }
 
@@ -478,7 +477,7 @@ export function buildMemberBlocks(input: {
       category: latest ? pill(latest.row.category) : undefined,
       reason: latest
         ? [
-            `${latest.term.label}: ${latest.row.attended}/${latest.row.held} · ${pctText(latest.row.pct)}`,
+            `${latest.term.label}: ${latest.row.attended}/${latest.row.held} (${pctText(latest.row.pct)})`,
             lastCame(latest.row, input.year),
             ...(input.followUp ? [input.followUp.reason] : []),
           ].join("\n")
@@ -493,7 +492,7 @@ export function buildMemberBlocks(input: {
       rows: input.history.map(({ term, row }) => ({
         key: term.key,
         label: term.label,
-        primary: `${row.attended}/${row.held} · ${pctText(row.pct)}`,
+        primary: `${row.attended}/${row.held} (${pctText(row.pct)})`,
         category: pill(row.category),
       })),
     });
@@ -512,7 +511,7 @@ export function buildMemberBlocks(input: {
     title: "Events attended",
     rows: input.events.map((e) => ({
       title: e.name,
-      subtitle: `${dateText(e.at, input.year)} · ${e.campuses}`,
+      subtitle: `${dateText(e.at, input.year)} at ${e.campuses}`,
       tag: e.weekly ? "Weekly" : undefined,
     })),
     emptyText: "No events yet.",

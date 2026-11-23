@@ -76,7 +76,8 @@ rather than an `@sow.org.au` Google account (personal Google sign-in was
 removed in 2.4.7; guests who used it before keep their account but can't
 sign in with it again). A guest has an account and no profile. Guest is no
 longer a Role (2.9.9): a non-student at events, such as a parent or a church
-guest, is a hand-set Visitor.
+guest, is a hand-set Visitor, or an Event guest when they only come once (see
+[Attendance](./attendance.md)).
 Deleting a guest's account removes everything it had; deleting a staff
 member's account removes only the sign-in, and their profiles stay.
 _Avoid_: visitor (in Attendance that's someone from another campus), public
@@ -85,6 +86,17 @@ user, non-staff
 **Assignment**:
 A staff member's role plus its scope for one year — a department, a division or
 a university, depending on which the role requires.
+
+**Org search**:
+The Org Chart's search box. It looks through every staff year at once, not the
+year on screen, and lists each year a person matches as its own result with
+that year's roles, newest first, up to 40. A person matches on their names,
+email, roles (with that year's titles and HOD) and their department (with its
+division), division or campus (and its acronym); every word has to match the
+start of a word. Picking a result opens that year's chart showing just that
+person.
+See [ADR 0022](../adr/0022-org-search-stores-its-text.md).
+_Avoid_: directory search, people search
 
 ## Structure
 
@@ -185,7 +197,8 @@ e.g. Alumni). Home editors change the public Home tab's content.
 
 **Announcement**:
 A message an admin sends to leaders: a short title and a message, delivered
-to the bell, as a push to anyone with the app and, if ticked, by email. It is
+to the bell, as a push to anyone with the app and, if chosen, by email to
+everyone or just to those a push can't reach. It is
 **scheduled** until it goes out, then **sent**; a scheduled one can be
 **cancelled** and then never reaches anyone.
 _Avoid_: broadcast, blast, notice (in code)
@@ -203,6 +216,16 @@ group must be on the same assignment, so "Staff at UNSW" doesn't reach a
 Student Leader at UNSW who is Staff in Events. Worked out again when it goes
 out, from the staff year the sender chose it in, so a scheduled announcement
 reaches whoever is in the audience then, even after the 1 October rollover.
+The sender can instead pick **specific people**: a list of leaders by email,
+which takes the place of the groups. Anyone on it who has left the staff year
+by the time it goes out is dropped.
+
+**No push**:
+A recipient a push can't reach: no registered push token. If they have opened
+the app (an `appInstalls` row) they have **notifications off** (or are signed
+out on their phone); otherwise they have **no app**. Worked out when it goes
+out, so "email these people" emails whoever has no push at that moment.
+_Avoid_: unsubscribed, opted out
 
 
 ## Mentoring

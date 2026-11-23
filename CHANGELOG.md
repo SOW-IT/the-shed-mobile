@@ -6,6 +6,787 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.20] - 2026-11-23
+
+### Fixed
+- **Update restarts the app; it doesn't send you to the store.** When your
+  version is behind and there's an over-the-air update for your app, the
+  popup, the top-bar pill and the Update button on your profile now say
+  "Restart to update" and restart into it, downloading it first if needed.
+  The store is a separate prompt, "Open the App Store" (or Play Store),
+  shown only when no over-the-air update can bring you up to date and you
+  need a new build. The app checks for an over-the-air update before it
+  ever offers the store.
+
+## [2.12.19] - 2026-11-23
+
+### Changed
+- **Leaderboard moves to the top of Games.** It's now a small button at the
+  top right, next to the "Games" title, instead of its own card at the bottom
+  of the list. It opens the same leaderboard as before.
+- **Shorter lines under each game.** Each game in the list has one short line
+  ("Fly and shoot.", "Run and jump.", "Tap through the gaps.") instead of the
+  full how-to-play text, which still shows on the game's start card.
+
+## [2.12.18] - 2026-11-23
+
+### Changed
+- **See who's typing.** Three dots bounce over someone's head while they
+  write a line, and stop when they send it or stop typing.
+- **Leaving the app for a moment keeps you in the World.** Switching apps or
+  locking the phone no longer takes you out; you're still standing there when
+  you come back. Away for more than about a minute and a half, you're taken
+  out as before.
+- **You come back where you left.** Opening the World again puts you in the
+  place and on the spot you were in when you left, not back at the Garden
+  gate.
+- **No more hearing ring.** Everyone in the World sees the chat, so the ring
+  round you, the faded bubbles for people "out of earshot" and the list
+  view's "Can hear you" are gone.
+- **Tap a line in the chat log** to mute, block or report whoever said it,
+  even if they're somewhere else.
+- **Walking is faster,** about one and a half times the old pace, with
+  quicker steps to match.
+- **One chat for the whole World.** The chat log shows every place's
+  lines, with the place in brackets when it isn't yours, and includes
+  the last 15 minutes from before you arrived. Speech bubbles over heads
+  still only show in your own place.
+- **Name tags and speech bubbles stay over their owners' heads.** When
+  they overlap, the newest message draws on top and the rest go behind,
+  rather than being pushed up the screen.
+- **The chat log sits at the top of the World.** The last few lines show
+  over the scenery with the time and who said them, in place of the "can
+  hear you" pill, and you can scroll up through older lines. Speech
+  bubbles over heads are unchanged.
+- **Fewer buttons in People here.** Customize your character and Show as a
+  list are gone. Tap yourself and pick Outfit to change your look. In the
+  list view, tap your own name.
+- **Update from your profile.** When your app is behind the recommended
+  version, an Update button sits under the version number. It downloads
+  the latest update and restarts the app, and only sends you to the store
+  when a store update is needed. The update pill and the required-update
+  screen do the same.
+- **Delete account looks dangerous now:** a solid red card with a warning
+  sign. What it does hasn't changed.
+- **Admin, Users shows each person's app version and when they were last
+  online,** with versions behind the newest one marked.
+
+### Fixed
+- **Opening the character editor from People here could freeze the
+  screen** so nothing could be tapped. That way in is gone.
+- **Swiping up from the bottom of the screen no longer walks you there.**
+  Touches below the chat bar, where the iPhone's home swipe starts, are
+  ignored.
+- **Admin, Users shows activity for everyone** on very long lists, not just
+  the first 600 people.
+- **Update copes with an update being pulled** between checking and
+  downloading, and applies a rollback instead of sending you to the store.
+
+## [2.12.17] - 2026-11-23
+
+### Changed
+- **Mystic Man goes faster.** His top speed is a third higher than before, and
+  he keeps speeding up for longer to get there. Every obstacle is still sized
+  so the right move clears it at any speed.
+- **Mystic Man's scores start again.** The faster game made the old scores
+  unfair, so the leaderboard was cleared and everyone who was on it got a
+  push. A best saved on a phone before the reset no longer shows, and an old
+  run waiting to be sent from a phone that was offline is turned away, so the
+  old scores can't come back.
+- **An update you should install asks every time you open the app.** When
+  your version is older than the recommended one, a popup asks you to update
+  each time the app starts, until you do; "Not now" closes it until next
+  time, and the Update pill in the top bar works the same way. Update
+  installs an over-the-air update and restarts straight away when there is
+  one for your build, and opens the store when you need a new build.
+
+### Fixed
+- **Mystic Man's cards are sharp.** On a phone held upright, the game-over
+  card (and everything else in the game) could look slightly blurred,
+  because the sideways game sat half a pixel off. It now lines up exactly.
+- **Tapping a poke opens the Garden.** A poke's push opened the app but went
+  nowhere; it now takes you to the Garden. A push about a game opens that
+  game.
+
+## [2.12.16] - 2026-11-23
+
+### Changed
+- **Mystic Man plays in landscape.** Turn your phone sideways: on a phone held
+  upright the game is drawn turned a quarter turn, so it fills the screen when
+  you hold it sideways, and the rest of the app stays as it was. On a computer
+  it plays on a wide board, as before.
+- **A small hop and a big jump.** Tap for a small hop; swipe up for the big
+  jump; swipe down to duck. The hop starts the moment your finger touches the
+  screen, not when you lift it, and a swipe up in the same touch turns it into
+  the big jump, so nothing feels late. On a computer, tap ↑, W or space to hop, hold it (or
+  press Shift with it) for the big jump, and press ↓ or S to duck.
+- **More kinds of obstacle.** Besides the small rocks you can hop, there are
+  now tall rocks and long logs that need the big jump, pairs of rocks back to
+  back that need it too, and hanging vines you can only duck under. The
+  floating beam is still there: duck or jump it.
+- **Every run can be cleared.** Obstacles are sized from how high and far the
+  hop and the big jump really go at the speed you're running, and there's
+  always room to land and react before the next one, so nothing is ever
+  impossible with the right move.
+
+## [2.12.15] - 2026-11-23
+
+### Changed
+- **No swiping back out of a game.** In Sky Shooter, Mystic Man and Flap,
+  a sideways swipe is always a move in the game. Before, a swipe right in
+  Sky Shooter could be taken for "go back" and close the game. The way out
+  is the back button at the top left, which still asks "Leave this game?"
+  during a run. On the web, the browser's own swipe back (from the edge of
+  a phone's screen, or two fingers on a trackpad) is kept off the game the
+  same way; the browser's back button still asks first during a run.
+- **Back from a game is always the games menu.** Going from a game to the
+  leaderboard and playing again, over and over, used to pile up screens, so
+  getting back out took a tap of the back button per screen. Now Play on
+  the leaderboard swaps the old game and the leaderboard for the new game:
+  there's only ever one game open, with at most the leaderboard on top of it.
+- **The leaderboard shows everyone.** Each game's board used to stop at the
+  top 10. It now shows 25 at a time with **Load more** at the bottom, which
+  keeps going until every score is on the list ("That's everyone."). Your
+  own best and place stay at the top, and your row is marked "(you)" in the
+  list. Older versions of the app keep the top 10 as before.
+
+## [2.12.14] - 2026-11-23
+
+### Added
+- **Every merge is posted to Google Chat.** When a pull request lands on
+  `main`, a card in the team's Chat space says which version just went out,
+  the PR's title and author, who merged it, and links to the PR and the deploy
+  runs. It reminds you that web and the backend go live straight away and
+  phones follow over the air.
+
+### Changed
+- **Chat posts move to a new space.** Merges, over-the-air update reports,
+  EAS Production results and the backup and usage alerts all use one webhook,
+  which now points at a dedicated space instead of Data and IT.
+
+## [2.12.13] - 2026-11-23
+
+### Added
+- **Four more places to walk to.** Walk onto one of the labelled circles
+  and stop there, and you step through to that place, arriving beside the
+  circle that leads back. From the Garden, the Beach is through the gate at
+  the top, the Campfire is on the right and the Chapel is at the bottom
+  right. The Beach also leads to the Campfire, the Campfire to the Café,
+  and the Café to the Chapel, so you can walk the whole way round. Every
+  place is its own room, with its own chat, and up to 20 people before
+  another opens.
+- **Sit down.** Tap a seat and you walk over and sit: the pews in the
+  Chapel, the logs round the Campfire, the stools and the couch in the
+  Café, the picnic blanket in the Garden and the towel on the Beach.
+  Everyone sees you sitting. Tap the ground to get up and walk. If the seat
+  you tapped is taken, you get the nearest free one beside it.
+- **See where everyone is.** A circle's label shows how many people are
+  through it, and People here lists who is in each of the other places.
+  From the same sheet you can go to any place the circles lead to without
+  walking, which is also how you get around in the list view.
+
+### Changed
+- **The side menu calls it World,** since the Garden is now one place of
+  five.
+- **Your character's editor fills the screen.** The preview is bigger, the
+  tabs fit on one line and the pictures of each choice fill the width, so
+  more of them show at once. Once you turn your character by hand it stays
+  facing the way you left it, rather than starting to spin again.
+
+## [2.12.12] - 2026-11-23
+
+### Added
+- **See who's not in the Garden, and poke them.** People here now has "Not
+  here right now": everyone who has visited, with how long ago. Poke sends
+  them a notification asking them to join you, with a short message of your
+  own if you like. You can poke once an hour, and nobody gets poked more
+  than once in ten minutes.
+- **Outfits.** As well as a T-shirt you can wear a dress, a skirt, overalls,
+  a striped tee or a hoodie, in any of the colours.
+- **The arcade is somewhere you go.** Tap the cabinet and you walk over to
+  it before the games open. While you play, everyone else still sees you
+  there, faded, with "Playing" over your head. Come back and you're back to
+  normal, in the same spot.
+- **A check before you leave.** Going back from the Garden, by the button,
+  a swipe or the browser's back, asks "Leave the garden?" first.
+
+### Changed
+- **Tapping someone opens a small bubble over their head.** It has High
+  five, Wave and More, and pops up right where they are instead of a sheet
+  that covers the garden. More still has mute, block and report. Tap
+  yourself for Outfit and Emotes (the shirt button in the corner is gone).
+  Tap the ground, or the person again, and it goes away.
+- **High five from anywhere.** Choose High five on someone across the garden
+  and you walk over and stand beside them first. The ask goes out when you
+  get there. Tap the ground to change your mind on the way.
+- **Walking is smoother.** Steps start and stop gently instead of snapping,
+  characters turn to a new direction rather than flipping, you no longer
+  slip back a step just after you tap, and other people no longer flicker
+  for a moment each time they change direction. Speech bubbles fade in and
+  out, and the timer on a high-five ask runs smoothly.
+- **Dragging is smoother too.** While your finger is down, your walk and the
+  flower marker follow it on your own phone only. Everyone else sees where
+  you went when you let go.
+- **You keep facing the way you walked.** Characters used to turn back
+  toward the screen after stopping.
+- **Six emotes, acted out.** Wave, Laugh, Cheer, Sad, Angry and Pray. Your
+  character jumps, doubles up, slumps, stomps, or bows their head with
+  hands together, so you can read it from the body and not only the icon.
+  A new emote takes over from the one playing.
+- **Pick your character's features by looking at them.** Face shape, eyes,
+  eyebrows, nose, mouth, hairstyle, hat, extras, blush, freckles and beard
+  each show as little pictures on a plain character, instead of words like
+  "Short" or "Bun". Skin tones now run from lightest to darkest.
+- **The games leaderboard is easier to get around.** The Play button is at
+  the top of each game's page, and on a phone you can swipe left and right
+  between the games, the same as the tabs on Attendance.
+- **The Garden is in the side menu,** under Announcements, as well as in
+  Games. Praise List now sits under Churches. Profile is no longer a menu
+  item: tap your photo at the top of the menu.
+
+### Fixed
+- **Typing on iPhone.** The chat box now rises to sit just above the
+  keyboard, and the garden stays put behind it instead of being squashed.
+  Tap anywhere, or the cross, to put the keyboard away.
+- **An emote no longer flips back to the one before it.** Tapping emotes
+  quickly could show the new one and then swap it for the old.
+- **Speech bubble tails point at the right person on iPhone.** The little
+  tail under a short bubble such as "High five?" sat off to one side.
+- **Blank chat lines.** A message made only of invisible characters is no
+  longer sent, and characters that flip the direction of text are removed.
+- **The two buttons on a high-five ask line up.**
+- **The character editor's tabs are readable in dark mode.** Hair, Body,
+  Outfit and Extras were pale text on a pale button.
+- **The walk marker no longer lingers** at your feet after you come back to
+  the garden from another app.
+- **Opening the Garden from Games while you're at the arcade** takes you
+  back to where you were, not into a second copy of it.
+
+## [2.12.11] - 2026-11-23
+
+### Changed
+- **Org Chart search looks through every year.** Type a name, role or team
+  and the Org Chart lists each staff year it turns up in, newest first, with
+  the role and team held that year and the year on a chip. Searching "Daniel
+  Kim" lists every year from Student Leader at UNSW in 2020 to Head of
+  Division in 2027. Tap a result to open that year's chart showing just that
+  person, with "Show everyone" to see the whole year. Each word you type
+  matches the start of a word, so "dan ki" works, and a search shows up to 40
+  results. The search used to cover only the year on screen.
+
+## [2.12.9] - 2026-11-23
+
+### Changed
+- **Every over-the-air release now says whether phones will get it.** After
+  each merge, EAS Update compares the update's runtime on iOS and Android with
+  the newest store build's, puts a table in the run's summary and posts the
+  result to the Data and IT space in Google Chat, with links to each update.
+  When an update can't reach the store build (native code or a fingerprint
+  input such as `.gitignore` changed), the post says so and the run turns red,
+  instead of the log saying "Published!" while no phone can load it. A failed
+  publish is posted too. The post also reminds you that phones switch to the
+  update on their second launch after it, or after 10 minutes away.
+
+## [2.12.7] - 2026-11-23
+
+### Added
+- **The Garden: a place online to hang out.** Open Games and tap The Garden
+  to walk into a little courtyard with everyone else who's there. Tap the
+  ground to walk, and type to talk: what you say floats over your head. The
+  chip at the top says how many people can hear you; people further away
+  still show up, but their bubbles are faded. The flower button gives you
+  emotes, and the arcade cabinet in the corner opens the games. Up to 20
+  people share a garden, and more open another. Voices now carry half as far
+  again as in the first design, so you can talk to people a little further away.
+- **High fives.** Walk up to someone, tap them and choose High five. They see
+  "High five?" over your head and have 10 seconds to say yes; if they do, you
+  both turn to each other and slap hands. If they don't, it quietly goes away.
+- **Twelve emotes with faces.** Wave, smile, laugh, cheer, love, surprised,
+  think, pout, cry, angry, sleepy and pray. Your character's face and body act
+  each one out for a few seconds, with an icon over your head, for everyone
+  nearby to see.
+- **Make your character your own.** Tap the shirt button (or yourself) to
+  choose your skin, hairstyle, hair colour and shirt, plus a cap, beanie,
+  flower crown or sun hat, and glasses, a backpack or a scarf. A turning
+  preview shows it as you go, Randomise picks one for you, and Save shows it
+  to everyone in the garden. Until you save, you keep the look you were given.
+- **Walk by holding, not just tapping.** Press anywhere on the ground and you
+  start walking straight away; keep your finger down or drag it and you follow
+  it. A quick tap still walks there, and holding on someone never opens their
+  card by mistake. Other people glide smoothly after you instead of jumping.
+- **High fives that really touch.** When someone says yes, you both step in,
+  your hands meet above your heads with a little spark, and you step back.
+- **Make your character, Mii-style.** The editor now has tabs for Face, Hair,
+  Body, Outfit and Extras: face shape, eyes and eye colour, eyebrows, nose and
+  mouth; twelve hairstyles including buzz, ponytail, bald, bob and afro; height
+  and build sliders; blush, freckles and a beard or moustache. Swipe the
+  preview to turn your character around. Everyone else sees your new look.
+- **Everything you do shows instantly.** Your messages, emotes, high fives and
+  new look appear on your own screen straight away, while they're still on
+  their way. A message shows "Sending…" until it arrives, and if something
+  can't be sent it quietly goes back with a short note.
+- **Mute, block and report.** Tap someone to wave, mute their bubbles for
+  this visit, block them (you won't see each other in the garden again until
+  you unblock them under People here), or report them to the leaders. Chat is
+  cleared after 15 minutes, but a report keeps the last few lines, and the
+  reported person's own, so leaders can see what happened.
+- **A list view of the garden.** Under People here, "Show as a list" shows
+  who's here, who can hear you and what's been said, with the same chat and
+  emotes. It opens by itself with VoiceOver on, and when you're offline the
+  garden says so and offers the games instead.
+## [2.12.5] - 2026-11-23
+
+### Changed
+- **The app is smaller, and the Event Requests page loads faster on the
+  web.** The calendar-check icon on Event Requests and the Spotify logo on
+  Profile each came with a whole icon font: 1.3 MB and 166 KB for three
+  icons. They now use fonts cut down to just those icons, which draw exactly
+  the same. The loading spinner uses a smaller copy of the SOW mark instead
+  of the 1024-pixel splash image. Each over-the-air update and the app
+  download carry about 1.9 MB less, and a signed-in visit to Event Requests
+  on the web downloads 1.6 MB less. Nothing looks different.
+
+## [2.12.4] - 2026-11-22
+
+### Changed
+- **Going back mid-game asks first.** In the offline games, pressing back
+  during a run (the back button, swiping back on iPhone, or the browser's back
+  button) now pauses the game and asks "Leave this game?". **Continue** is the
+  main button and picks up where you left off; tapping outside the box or
+  pressing Escape does the same. **Leave game** ends the run without saving
+  its score. Before a run starts and after it ends, back works straight away,
+  as before.
+
+## [2.12.1] - 2026-11-22
+
+### Fixed
+- **Verify runs on this Mac take turns, for contributors.** A run of
+  `node scripts/verify.mjs` that takes screenshots now holds a lock for the
+  whole Mac (`~/.cache/theshed-verify/verify.lock`) while it uses the
+  simulator, Metro and the local Convex backend. A second run, from any
+  worktree or tmux session, says whose run has it and waits its turn by
+  itself, so nobody needs a `pgrep` waiter: two of those once matched each
+  other's shell text and waited for each other forever. Two runs starting at
+  the same moment can no longer both get going. The lock is given back when
+  a run ends, fails, or is interrupted, and a run killed outright leaves a
+  lock the next run takes over. Nothing changes for people using the app.
+
+## [2.12.0] - 2026-11-22
+
+### Added
+- **Three little games for when you're offline.** Sky Shooter: drag to fly a
+  plane that fires on its own while enemies come in from every edge. Mystic
+  Man: he runs faster and faster; swipe up to jump the rocks and swipe down to
+  slide under the floating beams (the up and down arrow keys on a computer).
+  Flap: tap to flap through the gaps. The longer you last, the higher your
+  score, and each game remembers your best on this device. They need no
+  internet and no sign-in.
+- **A way in when there's no connection.** If The SHED can't connect when you
+  open it, you now see "You're offline" with a button to play a game while you
+  wait, instead of a loading screen that never finishes. If the connection
+  drops while you're using the app, a small "Offline · Play a game" note
+  appears at the top. When the connection comes back, a small "Online" note
+  shows for a moment and the back button takes you into The SHED. Nothing
+  stops, reloads or closes a game you're playing.
+- **The games fill the screen.** While you play, the side menu and status bar
+  step aside; a small back button and the game-over card are the ways out.
+- **A leaderboard for each game.** It shows the top ten scores at SOW, one per
+  person and by name, plus your own best and your place. Anyone can look at
+  it, signed in or not. Scores you set
+  offline or signed out are kept on your device and go up on their own once
+  you're online and signed in. Sending the same score twice changes nothing,
+  and scores that can't be real are turned away.
+
+## [2.11.64] - 2026-11-22
+
+### Added
+- **Fix a guest's name after adding them.** On an event's attendance page, tap
+  the left side of a guest's row (or swipe it right) and tap the pencil to fix
+  a typo. The name changes on that event only, and the event's total stays the
+  same. You can do it after the event ends too, once editing is turned on.
+- **Total attendance in the page header.** The chip at the top right of an
+  event's attendance page now reads **Total**: everyone signed in plus guests,
+  the same number the event's export and averages use.
+
+### Changed
+- **Add a guest from beside "Not signed in".** The small **+ Guest** button now
+  sits next to the Not signed in heading, so you no longer scroll to the end of
+  Signed in to find it. The name box opens just below it.
+
+### Fixed
+- **"Not signed in" scrolls again after an event ends.** On a wide but short
+  window, such as a laptop browser window, the ended-event
+  note and Enable editing button left so little room that both lists grew to
+  their full length. They stopped scrolling, and "Not signed in" never loaded
+  past its first ten people. The lists now keep room for at least three people
+  each, and the page scrolls to show them.
+
+## [2.11.62] - 2026-11-22
+
+### Changed
+- **`pr-status` applies the big-PR CodeRabbit rule, for contributors.**
+  `node scripts/pr-status.mjs <number>` now works out whether the PR needs
+  a CodeRabbit review: more than 300 changed lines of app or Convex code, or
+  a change to the schema, deletion or migration, auth or permissions, or
+  notifications. Small, config and tooling PRs don't. A review still counts
+  when it covered the same app and Convex changes as the head, so a clean
+  merge of `main` doesn't need a new one. A big PR with no review covering
+  its head now reports NOT DONE. `--big` and `--not-big` override the path
+  rules. The pr-shepherd skill follows the same rule. Nothing changes for
+  people using the app.
+
+## [2.11.60] - 2026-11-22
+
+### Changed
+- **Environment variables are read in one place per runtime, for
+  contributors.** The app reads its build-time variables in `src/env.ts`,
+  and the backend reads its own through `env()` in `convex/environment.ts`,
+  which lists every name its functions use. Lint rejects `process.env`
+  anywhere else in `src/` and `convex/`, with two exceptions:
+  `convex/auth.config.ts` reads `CONVEX_SITE_URL` directly, the form Convex
+  documents for that file, and Convex tests may set `process.env` to stage a
+  variable. Nothing changes for people using the app.
+
+## [2.11.59] - 2026-11-22
+
+### Removed
+- **Duplicated and dead code, for contributors.**
+  - Code written twice is now one shared piece: about 20 components, hooks
+    and helpers, such as the delete warning on events and members, the
+    campus picker and pills, comment previews, "load more", the request
+    badges, short dates and search debouncing.
+  - Gone: a one-off church reminder nobody ran any more, an unused prop, two
+    file shims, and a finished release checklist.
+  - Screens look and behave the same.
+
+## [2.11.58] - 2026-11-22
+
+### Changed
+- **Backend reads and writes name their table.** Every `ctx.db.get`,
+  `patch`, `replace` and `delete` passes the table name with the id, as the
+  Convex guidelines ask, and lint now requires it. Nothing changes for people
+  using the app.
+
+## [2.11.57] - 2026-11-22
+
+### Removed
+- **Unused code, for contributors.** Exports and types that nothing imports
+  lose `export`, or go when nothing uses them at all. The `npx convex dev`
+  welcome page in `convex/` goes too. CI now runs `knip`, so unused files,
+  exports and dependencies fail the build. Nothing changes for people using
+  the app.
+
+## [2.11.55] - 2026-11-22
+
+### Added
+- **Add someone to one event without making them a member.** When someone
+  comes just once, say a member's parents, you can now count them without
+  adding them to the members list. While searching, tap the small **Guest**
+  button beside Create to add the name you typed. Or tap **Add a guest** under
+  Signed in and type a name. Guests are listed under Signed in with a "Guest"
+  label. They count toward the event's total, its export and campus averages,
+  but they never show up in Members, search for other events, merges or
+  Insights about people. Remove one the same way you undo a sign-in.
+
+## [2.11.54] - 2026-11-22
+
+### Added
+- **Announcements can go to specific people.** Under Send to, "People" opens a
+  searchable list of this year's leaders. Search by name, email or
+  department, tick people one by one, or select everyone the search shows.
+  All leaders and Groups work as before, and so do scheduling, the limits,
+  the preview and the history, which names the people it went to.
+- **See who won't get a push before you send.** The form lists everyone in
+  the audience a push can't reach, and why: no app, or notifications off.
+  One tap emails just those people, or you can email everyone. The
+  confirmation before sending always opens and shows the same list with both
+  options. If someone would get neither a push nor an email, it warns you
+  first.
+
+## [2.11.52] - 2026-11-22
+
+### Fixed
+- **Typecheck passes again once Metro has run, for contributors.** 2.11.30
+  removed two router casts that weren't needless. A notification's link and
+  an Insights link come from the backend, so typed routes can't check them,
+  and without a cast `npm run typecheck` failed in any checkout where Metro
+  had generated `.expo/types/router.d.ts`. CI doesn't generate that file, so
+  it didn't catch this. They're now `as Href`, the narrow cast a review
+  asked for in #161. Nothing changes for people using the app.
+
+## [2.11.49] - 2026-11-22
+
+### Changed
+- **Background jobs start a few minutes past the hour.** The morning
+  reminder digest now goes out at 22:07 UTC (9:07am in Sydney in summer,
+  8:07am in winter) instead of on the hour. The Monday directory sync, the
+  30 September prefill and receipt purge, the nightly Insights rebuild and
+  the church map refresh each move by 3 to 11 minutes too. Minute 0 is the
+  busiest minute for scheduled jobs, so they now start off-peak.
+- **Two database indexes that only repeated the start of a longer one are
+  gone,** on comment reactions and grievances. Their queries use the longer
+  index and return the same rows in the same order. The next Convex
+  production deploy drops them.
+- **Lint catches duplicate indexes and on-the-hour crons, for contributors.**
+  `@convex-dev/no-duplicate-indexes` and `@convex-dev/no-top-of-hour-crons`
+  are on. The eight indexes kept for their sort order say why next to them.
+
+## [2.11.46] - 2026-11-22
+
+### Changed
+- **Colours come from the theme, for contributors.** A colour written into a
+  screen is how a dark-mode miss happens, so lint now rejects hex and `rgb()`
+  literals outside `src/theme.ts` and the calendar palette. Colours that are
+  the same in both themes (white on a badge, shadows, the QR code) live in
+  `fixedColours`. The only screen that looks different is the "Configuration
+  error" screen, which now follows the dark theme too.
+
+## [2.11.45] - 2026-11-22
+
+### Changed
+- **List rows keep their own state when another row goes, for contributors.**
+  Lists were keyed by position, so removing a staff assignment or a church
+  service time handed that row's open picker to the row below it. Rows are
+  now keyed by what they show, editable lists keep an id per row
+  (`src/lib/listKeys.ts`, `useRowIds`), and lint rejects an index key
+  (`react/no-array-index-key`). Fixed positions, like the weekday header and
+  chart points, say why in a disable comment.
+
+## [2.11.44] - 2026-11-22
+
+### Changed
+- **Verify's before and after screenshots match when nothing changed, for
+  contributors.** Each screenshot waits until two frames in a row are
+  identical, on iOS and web, so none is caught mid-transition. The iOS status
+  bar shows 9:41 throughout, and seeded events sit at a round hour. Times the
+  server stamps can still differ (`docs/verification.md` → "Still open").
+  Verify also stops leaving the checkout's `.env.local` pointed at its
+  throwaway backend, which the Convex CLI wrote there on every run. Nothing
+  changes for people using the app.
+
+## [2.11.43] - 2026-11-22
+
+### Changed
+- **Form inputs have test ids, for contributors.** Every text field gets a
+  test id from its label, or its accessibility label when it shows none
+  (`field-title`, `field-phone`), so a Maestro flow on
+  the iOS Simulator or a Playwright script on web can fill in a form
+  (`docs/verification.md` → "Filling in a form"). Nothing changes for people
+  using the app.
+
+## [2.11.42] - 2026-11-22
+
+### Changed
+- **CodeRabbit only reviews big changes, for contributors.** Automatic
+  reviews are off. A review is requested only when a PR has more than 300
+  lines of app or Convex code, or it touches the schema, data deletion,
+  auth, or notification sending. Smaller PRs go through once CI and verify
+  pass. Nothing changes for people using the app.
+
+## [2.11.31] - 2026-11-21
+
+### Added
+- **Previous and next buttons beside the month or week on bigger screens.**
+  On a tablet or a computer, the calendar's month or week now has a ‹ button
+  on its left and a › button on its right, so you can go back or forward with
+  a click or a tap instead of a swipe or the arrow keys. They move the same way
+  a swipe does. Phones look the same as before: swipe to change the month or
+  week.
+
+## [2.11.30] - 2026-11-21
+
+### Changed
+- **No more `as never`, for contributors.** The cast fits any type, so it
+  switched type checking off where it was used. The six in the app weren't
+  needed or now name the real type, the tests' fixtures assert to the type
+  they stand in for, and lint rejects new ones. Nothing changes for people
+  using the app.
+
+## [2.11.21] - 2026-11-21
+
+### Fixed
+- **Sign-in and sign-out problems show a message on the web.** If signing
+  out fails, or a sign-in is turned away or goes wrong, the web app now says
+  so, as the phone apps already did. Before, nothing happened.
+
+### Changed
+- **Lint covers the whole repo, for contributors.** CI lints `convex/`,
+  `shared/` and `scripts/` too, warnings fail, and the new rules come from
+  mistakes that reviews kept catching.
+
+## [2.11.20] - 2026-11-21
+
+### Changed
+- **One command to check a branch, for contributors.** `node scripts/verify.mjs`
+  reads the diff and decides what to check from a feature map
+  (`scripts/verify/feature-map.json`). Then it opens the screens the change
+  affects on the web and the iOS Simulator, against a throwaway local
+  backend, with before and after screenshots (`docs/verification.md`). A
+  `pr-shepherd` skill and `scripts/pr-status.mjs` take a PR from open to green.
+  Nothing changes for people using the app.
+
+## [2.11.19] - 2026-11-19
+
+### Added
+- **Calendar history, for admins.** A "Calendar history" button under the
+  Calendar lists every calendar entry added, edited or deleted, newest
+  first: who did it and when, and for an edit, each field that changed from
+  what to what. An entry turned into an attendance event gets its own line,
+  with a link to the event. Entries that event requests add or update aren't
+  listed. Admins previewing another role don't see it.
+- **Connect someone's attendance record to their old staff profile, from
+  Admin.** Every staff card in Admin, including those in past years and
+  under "Previously staff", has a connect button. Search for the person
+  (for example signed in at an event under a personal email), review what
+  merges, and confirm: their attendance moves onto the record linked to that
+  staff profile, which keeps the personal email.
+
+### Changed
+- **SOW events on the Calendar wear their tag's colour,** instead of teal:
+  a Retreat in the Retreat tag's colour, Missions in Missions'. With more
+  than one coloured tag, the first one counts. A SOW event with no coloured
+  tag is black, SOW's own colour, and shows in the theme's light text colour
+  on the dark theme so it stays visible, as does SOW's dot in the Calendar's
+  filters. Google Calendar gets the nearest of its colours, or Graphite.
+
+### Fixed
+- **Taking attendance at a calendar entry keeps its dates and times.**
+  Ticking "Take attendance" and pressing Next used to open the attendance
+  form at today's date and the nearest half hour. It now carries over the
+  entry's start and end, and a multi-day entry stays multi-day.
+
+## [2.11.18] - 2026-11-19
+
+### Changed
+- **Updates install themselves, with no popup.** "An update is ready" is
+  gone. Once a new version has downloaded, The SHED restarts onto it when you
+  come back after being away for 10 minutes or more, so it never restarts
+  while you're using it. A quick trip to another app, Control Centre or the
+  notification shade doesn't count, and neither does choosing a photo or
+  file, sharing an export or signing in with Google. It also waits while a
+  request, receipt, event or design request, grievance, event form,
+  announcement or Edit Home is open, however long you were away, so nothing
+  you've typed is lost.
+
+## [2.11.17] - 2026-11-19
+
+### Added
+- **Raise a Grievance has a "How it works" button,** like Make Request on
+  Finance. It walks through the form, who sees it (only the grievance team's
+  departments), the emails that follow, being looked after, how it's closed,
+  and following along when signed in.
+- **Send Reminder on an event form that hasn't been submitted.** Whoever
+  reviews event forms, and the Head of the event's department, can chase a
+  Marketing, Risk or Finance form still being filled in, or sent back for
+  changes. The requester (and whoever submitted it before it was sent back)
+  gets a push and an email straight away, with how far off the event is and
+  any changes asked for. Once a day per form; the button says who last sent
+  one and when. The morning digest's reminders carry on as before.
+- **A calendar entry can have its own colour.** Adding or editing an event or
+  deadline on the Calendar offers the full palette, or its usual grey or red.
+  It shows in the month, the week and the day's list, and Google Calendar
+  gets the nearest of its colours.
+
+### Changed
+- **Attendance tags have 30 colours to choose from,** up from 17: slate,
+  stone, brown, maroon, crimson, coral, gold, olive, forest, sky, navy,
+  lavender and plum join the rest. They're picked from a grid of swatches
+  instead of a long list.
+- **Tapping a day on the Calendar no longer scrolls down to its events.** The
+  screen stays where it is; the day's events are just below the month.
+
+## [2.11.16] - 2026-11-18
+
+### Changed
+- **The Calendar's month is shorter, leaving more room for the day's events
+  below it.** Each week takes less height and the weeks sit closer together.
+  A day shows up to two events in the month, or one and "+N more"; tapping
+  the day lists them all just below.
+- **The Week view is as tall as the month,** so switching between them
+  doesn't move the day's events. The hours scroll inside it, opening at 7am.
+- **The date heading under the month is gone.** The picked day is already
+  highlighted in the month, so its events start straight away. A day with
+  nothing on says so in one short line instead of a large empty-state box.
+
+### Fixed
+- **The Month/Week switch's highlight is a pill like the switch around it,**
+  instead of a rounded rectangle inside an oval.
+
+## [2.11.15] - 2026-11-18
+
+### Changed
+- **The little dots between pieces of text are gone.** Lines of facts, like
+  a request's department, date and age, or who did something and when, are
+  separate pieces with space between them. Counts and years beside a heading
+  sit in a small grey chip, as in "Closed 2" and "Teams 2027". Status pills
+  no longer start with a dot; their colour already shows the state.
+- **Wording that ran together with dots reads as sentences.** Roles and
+  campuses are listed with commas, church service times put a semicolon
+  between days ("Sunday 9am and 6pm; Saturday 6:30pm"), attendance shows
+  "4/6 (67%)", a risk's rating reads "High (12)", a held week reads
+  "Week 3 (Weekly Bible Study)", and a push about a new event says where it
+  is ("Camp at UNSW"). A bank account shows as "Account ending 1234".
+- **A campus's programs on Home show as tags** instead of a bulleted list.
+
+## [2.11.14] - 2026-11-18
+
+### Added
+- **Whoever raised a grievance can email back and forth with the person
+  looking after it.** Once someone on the grievance team takes it on, every
+  email we send about it replies to them, so answering the email reaches
+  them directly, whether or not the person who raised it has an account.
+  The emails say so. If it's given to someone else, the person who raised it
+  is emailed who's looking after it now. The team gets an Email button on
+  each grievance that starts an email to the person who raised it.
+
+### Fixed
+- **Tapping a grievance notification opens the grievance.** It opened the
+  app and stayed on whatever screen was showing. This covers updates to the
+  person who raised it, the team's notices, and the reminder to hand over
+  last year's grievances.
+- **Someone given a grievance gets a notification meant for them.** It reads
+  "You're looking after grievance …" instead of the notice the rest of the
+  team gets.
+- **Phones Apple won't deliver to stop getting retried.** A device that
+  Apple rejects as a bad device is forgotten, as one that's no longer
+  registered already was. Opening the app on it again registers it afresh.
+
+## [2.11.13] - 2026-11-17
+
+### Changed
+- **The calendar puts its controls along the bottom.** The month (or week)
+  you're looking at is named in the top bar, and the calendar starts right
+  under it; swipe to move between months. A bar along the bottom stays put
+  as you scroll: Today on the left, always there, the Month/Week switch in
+  the middle, and a + to add an event on the right. The ‹ › arrows are gone;
+  with a screen reader, swipe up or down on the month's name to change it,
+  and on the web the ← → keys move between months or weeks.
+
+### Fixed
+- **Tapping a day scrolls down to its events again.** On a phone, the list
+  for the day you tapped now comes into view, with the bottom of the month
+  still showing above it.
+
+## [2.11.12] - 2026-11-16
+
+### Changed
+- **Swiping the calendar slides the next month or week in under your
+  finger.** Like moving between tabs, the month (or week) beside the one
+  you're on follows your finger into view, already showing its events, and
+  settles into place when you let go; a short swipe springs back. The ‹ ›
+  arrows slide the same way, and Today slides when it's next door and jumps
+  when it's further away. Before, a swipe nudged the calendar a little and
+  faded the new month in. With Reduce Motion on, it changes straight over.
+
+## [2.11.11] - 2026-11-13
+
+### Fixed
+- **A broken or mistyped event link says "Event not found" again.** Opening
+  an attendance event whose link isn't a real event id showed "Something went
+  wrong" and a server error. The check-in list on that screen refused the
+  link before the screen could say the event doesn't exist; it now treats it
+  as an event with nobody waiting, so the screen shows "Event not found".
+
 ## [2.11.10] - 2026-11-11
 
 ### Changed

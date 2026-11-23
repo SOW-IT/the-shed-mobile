@@ -5,7 +5,8 @@ import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { eventStaffYear } from "../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { formatAmount, LoadingBar, Muted, Row, Txt } from "@/components/ui";
+import { Facts, formatAmount, LoadingBar, Row, Txt } from "@/components/ui";
+import { keyed } from "@/lib/listKeys";
 import { openExternalLink } from "@/lib/openExternalLink";
 
 export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) => {
@@ -21,24 +22,22 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
   const staffYear = eventStaffYear(request._creationTime);
   return (
     <View style={{ gap: spacing.sm }}>
-      {receipt.recipients.map((recipient, i) => (
-        <View key={i} style={[styles.recipient, { backgroundColor: t.inputBackground }]}>
+      {keyed(receipt.recipients, (r) => `${r.accountName}|${r.bsb}|${r.accountNumber}`).map(({ item: recipient, key, index: i }) => (
+        <View key={key} style={[styles.recipient, { backgroundColor: t.inputBackground }]}>
           <Row>
             <Txt style={{ fontWeight: "700", flexGrow: 1 }}>{recipient.accountName}</Txt>
             <Txt style={{ fontWeight: "700" }}>${formatAmount(recipient.amount)}</Txt>
           </Row>
-          <Muted>
-            BSB {recipient.bsb} · Account {recipient.accountNumber}
-          </Muted>
+          <Facts parts={[`BSB ${recipient.bsb}`, `Account ${recipient.accountNumber}`]} />
           {files === undefined ? (
             <View style={styles.fileLink}>
               <Ionicons name="document-attach-outline" size={15} color={t.muted} />
               <LoadingBar width={140} height={11} />
             </View>
           ) : null}
-          {(files?.[i]?.attachments ?? []).map((file, j) =>
+          {keyed(files?.[i]?.attachments ?? [], (file) => file.name).map(({ item: file, key }) =>
             file.deleted ? (
-              <View key={j} style={styles.fileLink}>
+              <View key={key} style={styles.fileLink}>
                 <Ionicons name="document-outline" size={15} color={t.muted} />
                 <Text
                   numberOfLines={1}
@@ -52,7 +51,7 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
               </View>
             ) : file.url ? (
               <Pressable
-                key={j}
+                key={key}
                 style={({ pressed }) => [styles.fileLink, pressed && { opacity: 0.6 }]}
                 onPress={() => void openExternalLink(file.url!)}
                 accessibilityRole="button"

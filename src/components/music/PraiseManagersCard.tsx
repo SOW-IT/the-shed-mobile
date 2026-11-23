@@ -17,13 +17,12 @@ import {
   SectionTitle,
   Segmented,
 } from "@/components/ui";
+import { normalEmail } from "../../../shared/flow";
 import { spacing, typography, useAppTheme } from "@/theme";
 
 const MAX_MATCHES = 40;
 
 type Person = { email: string; name: string };
-
-const normalEmail = (email: string) => email.trim().toLowerCase();
 
 const matches = (person: Person, search: string) => {
   const needle = search.trim().toLowerCase();
@@ -65,7 +64,7 @@ const PraiseManagersCard = ({
   };
   return (
     <View style={{ gap: spacing.md }}>
-      <SectionTitle>Praise Managers · {year}</SectionTitle>
+      <SectionTitle chip={year}>Praise Managers</SectionTitle>
       <Card>
         <Muted>
           Praise Managers approve, decline, edit and delete Praise List songs, and their own songs go
@@ -108,7 +107,8 @@ const PraiseManagersCard = ({
         {shown.map((person) => (
           <OptionRow
             key={person.email}
-            label={person.name === person.email ? person.email : `${person.name} · ${person.email}`}
+            label={person.name}
+            detail={person.name === person.email ? undefined : person.email}
             selected={false}
             onPress={() => {
               closePicker();

@@ -84,6 +84,20 @@ Member signs in once, and its sign-ins show the day as well as the time.
 Insights and the staff year go by the day it starts.
 _Avoid_: per-day attendance (there isn't any), series
 
+**Event guest**:
+Someone signed in to one event by name only, such as a member's parents at a
+one-off night (`eventGuests`). They count toward that event's headcount
+(the event's count, its exports' totals, campus averages) but have no
+attendance member row, so they never appear in member lists, search, merges,
+roll-call order or Insights built from people. Added from the small "Guest"
+button beside Create while searching, or the "+ Guest" button beside the Not
+signed in header; renamed from the row's edit strip (`eventGuests.rename`, any
+time, since it doesn't change the count); removed like a sign-in, with the same
+10-minute rule after the event ends. The page header's "Total" chip is the
+headcount: members signed in plus guests.
+_Avoid_: guest (alone: that's an account, see [Org](./org.md)), temporary
+member (they aren't a Member), Visitor (a Member from another campus)
+
 **Merge**:
 Folding two records for one person into one. When the staff person being kept
 has no member row yet, the Member simply becomes theirs: their profile is
@@ -219,7 +233,8 @@ Someone whose Home campus is another campus and who has come to fewer than
 two of this campus's Weeklies this Term. With more, they're judged as
 Regular, Irregular or Newcomer like anyone else, but listed under other
 campuses.
-_Avoid_: guest (that's a signed-in non-staff account, see [Org](./org.md)), other campus
+_Avoid_: guest (that's a signed-in non-staff account, see [Org](./org.md), or an
+Event guest), other campus
 (for the person)
 
 **Needs follow-up**:

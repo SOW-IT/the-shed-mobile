@@ -1,7 +1,8 @@
 import { Children, ReactNode, useEffect, useState } from "react";
-import { Animated, Easing, Image, Modal, Platform, StyleProp, Text, TextProps, View, ViewStyle } from "react-native";
+import { Animated, Easing, Image, Modal, Platform, StyleProp, Text, TextProps, TextStyle, View, ViewStyle } from "react-native";
 import Reanimated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing as ReanimatedEasing } from "react-native-reanimated";
 import { USE_NATIVE_DRIVER, durations, typography, useAppTheme } from "@/theme";
+import { keyed } from "@/lib/listKeys";
 import { styles } from "./styles";
 
 const ReanimatedImage = Reanimated.createAnimatedComponent(Image);
@@ -102,12 +103,70 @@ export const Card = ({
   );
 };
 
-export const SectionTitle = ({ children }: { children: ReactNode }) => {
+export const Chip = ({ children }: { children: string | number }) => {
   const t = useAppTheme();
   return (
-    <Text accessibilityRole="header" style={[typography.section, styles.sectionTitle, { color: t.text }]}>
+    <View style={[styles.chip, { backgroundColor: t.ghost }]}>
+      <Text numberOfLines={1} style={[styles.chipText, { color: t.muted }]}>
+        {children}
+      </Text>
+    </View>
+  );
+};
+
+export const SectionTitle = ({
+  children,
+  chip,
+}: {
+  children: ReactNode;
+  chip?: string | number;
+}) => {
+  const t = useAppTheme();
+  const title = (
+    <Text
+      accessibilityRole="header"
+      style={[
+        typography.section,
+        chip === undefined ? styles.sectionTitle : styles.sectionTitleText,
+        { color: t.text },
+      ]}
+    >
       {children}
     </Text>
+  );
+  if (chip === undefined) return title;
+  return (
+    <View style={[styles.sectionTitle, styles.inlineRow]}>
+      {title}
+      <Chip>{chip}</Chip>
+    </View>
+  );
+};
+
+export const Facts = ({
+  parts,
+  style,
+  numberOfLines,
+}: {
+  parts: (string | number | null | undefined | false)[];
+  style?: StyleProp<TextStyle>;
+  numberOfLines?: number;
+}) => {
+  const t = useAppTheme();
+  const shown = parts.filter((part): part is string | number => part !== null && part !== undefined && part !== false && part !== "");
+  if (shown.length === 0) return null;
+  return (
+    <View style={styles.facts}>
+      {keyed(shown, String).map(({ item: part, key }) => (
+        <Text
+          key={key}
+          numberOfLines={numberOfLines}
+          style={[typography.caption, { color: t.muted }, style, styles.fact]}
+        >
+          {part}
+        </Text>
+      ))}
+    </View>
   );
 };
 
@@ -129,7 +188,7 @@ export const Row = ({
   }
   if (spread) {
     return (
-      <View style={styles.rowSpread}>
+      <View style={styles.inlineRow}>
         {Children.map(children, (child) => (
           <View style={{ flex: 1 }}>{child}</View>
         ))}
@@ -142,6 +201,18 @@ export const Row = ({
 export const Muted = ({ children }: { children: ReactNode }) => {
   const t = useAppTheme();
   return <Text style={[typography.caption, { color: t.muted }]}>{children}</Text>;
+};
+
+export const Answer = ({ label, children }: { label: string; children: ReactNode }) => {
+  const t = useAppTheme();
+  return (
+    <View style={styles.answer}>
+      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      <Text selectable style={[typography.body, { color: t.text }]}>
+        {children}
+      </Text>
+    </View>
+  );
 };
 
 export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: boolean }) => {
@@ -163,10 +234,12 @@ export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: bool
   }));
   return (
     <ReanimatedImage
+      // 256 px copies of the splash marks: the spinner is at most 64 pt, and
+      // the 1024 px originals cost about 4 MB of decoded bitmap each.
       source={
         dark
-          ? require("../../../assets/images/splash-icon-dark.png")
-          : require("../../../assets/images/splash-icon.png")
+          ? require("../../../assets/images/spinner-dark.png")
+          : require("../../../assets/images/spinner.png")
       }
       style={animatedStyle}
       resizeMode="contain"

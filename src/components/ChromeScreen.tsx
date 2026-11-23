@@ -14,11 +14,14 @@ export const ChromeScreen = ({
   floating,
   fullWidth = false,
   scrollRef,
+  title,
 }: {
   children?: ReactNode;
   floating?: ReactNode;
   fullWidth?: boolean;
   scrollRef?: Ref<ScrollViewInstance>;
+  // In the top bar; a wide screen has no top bar, so the screen shows it itself.
+  title?: ReactNode;
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
@@ -59,7 +62,7 @@ export const ChromeScreen = ({
             ]}
           >
             <Animated.View style={barOpacityStyle}>
-              <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
+              <TopBar photo={me?.photo ?? null} name={me?.name ?? null} title={title} />
             </Animated.View>
           </Animated.View>
         </View>

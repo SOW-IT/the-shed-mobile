@@ -2,9 +2,12 @@ import { Platform, TextStyle, useColorScheme, ViewStyle } from "react-native";
 
 export const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
+const OVERLAY_OUT = 100;
+
 export const durations = {
   overlayIn: 130,
-  overlayOut: 100,
+  overlayOut: OVERLAY_OUT,
+  sheetHandoff: OVERLAY_OUT + 80,
   screen: 220,
   fadeIn: 190,
 } as const;
@@ -66,11 +69,16 @@ export interface AppTheme {
   successSoft: string;
   danger: string;
   dangerSoft: string;
+  dangerStrong: string;
+  dangerStrongEdge: string;
+  onDanger: string;
   warning: string;
   warningSoft: string;
   ghost: string;
   ghostText: string;
   overlay: string;
+  /** The shade at a scrolled edge of a grid. */
+  edgeShade: string;
   chip: Record<"PAID" | "DECLINED" | "default", { bg: string; fg: string }>;
   errorBackground: string;
   errorText: string;
@@ -122,11 +130,15 @@ const light: AppTheme = {
   successSoft: "#DDEED6",
   danger: "#B03E37",
   dangerSoft: "#F5DED8",
+  dangerStrong: "#B3261E",
+  dangerStrongEdge: "#7A1712",
+  onDanger: "#FFFFFF",
   warning: "#7F5612",
   warningSoft: "#F2E2B4",
   ghost: "#EAE8D8",
   ghostText: "#0F2523",
   overlay: "rgba(15, 37, 35, 0.45)",
+  edgeShade: "rgba(15, 37, 35, 0.14)",
   chip: {
     PAID: { bg: "#E2F1DA", fg: "#2C5239" },
     DECLINED: { bg: "#F6DFD9", fg: "#9C3A23" },
@@ -157,11 +169,15 @@ const dark: AppTheme = {
   successSoft: "#1E4634",
   danger: "#E08A63",
   dangerSoft: "#46251B",
+  dangerStrong: "#8C1D18",
+  dangerStrongEdge: "#E5574B",
+  onDanger: "#FFF4F1",
   warning: "#E5AD66",
   warningSoft: "#4A3A1C",
   ghost: "#21403A",
   ghostText: "#F5F3E3",
   overlay: "rgba(0, 0, 0, 0.6)",
+  edgeShade: "rgba(0, 0, 0, 0.5)",
   chip: {
     PAID: { bg: "#1E4634", fg: "#DDF0DC" },
     DECLINED: { bg: "#52281A", fg: "#F2D4C6" },
@@ -172,6 +188,75 @@ const dark: AppTheme = {
   surfaceEdge: { borderWidth: 1, borderColor: "#1F3A35" },
   shadowFloat: darkShadowFloat,
 };
+
+// Colours that are the same in both themes. Lint keeps colour literals in
+// this file, so a colour that does change with the theme goes in AppTheme.
+export const fixedColours = {
+  /** Text and icons on a saturated fill: a badge, a tag, a filled action. */
+  onColour: "#ffffff",
+  shadow: "#000000",
+  /** Behind the nav drawer, faded in with its own opacity. */
+  backdrop: "#000000",
+  /** The unread-messages badge, white with a grey edge. */
+  messageBadge: { bg: "#ffffff", border: "#cccccc", text: "#333333" },
+  /** Scanners need dark modules on a light ground, whatever the theme. */
+  qr: { light: "#ffffff", dark: "#000000" },
+  spotifyGreen: "#1DB954",
+  /** The offline games draw their own scenes, the same in both themes. */
+  games: {
+    text: "#ffffff",
+    dim: "rgba(255, 255, 255, 0.72)",
+    scrim: "rgba(8, 14, 20, 0.62)",
+    panel: "rgba(8, 14, 20, 0.82)",
+    shooter: {
+      sky: "#0E1B3D",
+      star: "#C9D6FF",
+      plane: "#F5F3E3",
+      wing: "#BCDCCD",
+      core: "#FF4D6D",
+      shot: "#9BF6FF",
+      enemy: "#E08A63",
+      enemyBig: "#C9603A",
+      enemyEye: "#2B1B3F",
+      bullet: "#FF5C8A",
+      bulletCore: "#ffffff",
+    },
+    runner: {
+      sky: "#2B1B3F",
+      moon: "#F6E3D8",
+      hill: "#3F2A55",
+      ground: "#1E1430",
+      groundLine: "#E5AD66",
+      rock: "#8C6BA8",
+      rockEdge: "#5B3A7A",
+      beam: "#F2B84B",
+      beamEdge: "#B07A1C",
+      tall: "#A487BE",
+      log: "#7A5532",
+      logEdge: "#4E351F",
+      vine: "#3E6B3A",
+      leaf: "#6FA05A",
+      cloak: "#5A34A0",
+      cloakDark: "#3C2270",
+      trim: "#E5AD66",
+      face: "#1A0F2E",
+      eyes: "#9BF6FF",
+    },
+    flappy: {
+      sky: "#9FD8E0",
+      cloud: "#EAF7F6",
+      pipe: "#4E9A5E",
+      pipeEdge: "#2C6B3E",
+      ground: "#D9C38C",
+      grass: "#7FA650",
+      bird: "#F2B84B",
+      wing: "#E5AD66",
+      beak: "#C9603A",
+      eye: "#0F2523",
+      eyeWhite: "#ffffff",
+    },
+  },
+} as const;
 
 export const useAppTheme = (): AppTheme => {
   const scheme = useColorScheme();

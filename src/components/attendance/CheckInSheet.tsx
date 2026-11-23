@@ -1,25 +1,21 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import Constants from "expo-constants";
 import { appLinkForScheme } from "../../../shared/appLinks";
 import { type MemberChoice, searchMembers, suggestMembers, yearLevelLabel } from "../../../shared/checkInMatch";
 import { subgroupLabel } from "../../../shared/rollcall";
 import { sydneyDateTime, sydneyTime } from "@/lib/sydneyTime";
-import { Btn, ConfirmDialog, ErrorBanner, errorMessage, Muted, OptionSheet, SearchField, Sheet } from "@/components/ui";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { Btn, Chip, ConfirmDialog, ErrorBanner, errorMessage, Facts, Muted, OptionSheet, SearchField, Sheet } from "@/components/ui";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 import { QrCode } from "./QrCode";
 import { phaseBetween } from "../../../shared/checkInWindow";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { useHeldValue } from "@/hooks/useHeldValue";
-
-const appScheme = (): string | undefined => {
-  const scheme = Constants.expoConfig?.scheme;
-  return Array.isArray(scheme) ? scheme[0] : scheme;
-};
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { appScheme } from "@/hooks/useReportAppVersion";
 
 const webOrigin = (): string =>
   Platform.OS === "web" && typeof window !== "undefined"
@@ -65,12 +61,10 @@ const requestDetails = (row: PendingRow) =>
     row.campus ? subgroupLabel(row.campus) : null,
     row.yearLevel ? yearLevelLabel(row.yearLevel) : null,
     `checked in ${sydneyTime(row.requestedAt)}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  ];
 
 const memberLabel = (member: MemberChoice) =>
-  [member.name, member.university ? subgroupLabel(member.university) : null].filter(Boolean).join(" · ");
+  member.university ? `${member.name} (${subgroupLabel(member.university)})` : member.name;
 
 function Pill({
   label,
@@ -140,7 +134,7 @@ function RoundButton({
       <Ionicons
         name={icon}
         size={18}
-        color={tone === "success" ? (t.dark ? t.background : "#ffffff") : t.ghostText}
+        color={tone === "success" ? (t.dark ? t.background : fixedColours.onColour) : t.ghostText}
       />
     </Pressable>
   );
@@ -165,11 +159,7 @@ function MemberPicker({
 }) {
   const t = useAppTheme();
   const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(query.trim()), PICKER_DEBOUNCE_MS);
-    return () => clearTimeout(id);
-  }, [query]);
+  const debounced = useDebouncedValue(query, PICKER_DEBOUNCE_MS).trim();
   const close = () => {
     setQuery("");
     onClose();
@@ -248,16 +238,15 @@ function MemberPicker({
                 <Text style={[typography.body, { color: t.text, fontWeight: "700" }]} numberOfLines={1}>
                   {member.name}
                 </Text>
-                <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
-                  {[
+                <Facts
+                  numberOfLines={1}
+                  parts={[
                     current ? "Matched now" : null,
                     signedIn.has(member.memberId) ? "Already signed in" : null,
                     member.university ? subgroupLabel(member.university) : "No campus",
                     member.subtitle,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </Text>
+                  ]}
+                />
               </View>
               <Ionicons name="chevron-forward" size={18} color={t.faint} />
             </Pressable>
@@ -400,9 +389,10 @@ export function CheckInSheet({
           </>
         )}
 
-        <Text style={[typography.label, { color: t.muted, marginTop: spacing.sm }]}>
-          Waiting{pending && pending.length > 0 ? ` · ${pending.length}` : ""}
-        </Text>
+        <View style={styles.sectionHead}>
+          <Text style={[typography.label, { color: t.muted }]}>Waiting</Text>
+          {pending && pending.length > 0 ? <Chip>{pending.length}</Chip> : null}
+        </View>
         {!pending || pending.length === 0 ? (
           <Muted>No one is waiting.</Muted>
         ) : null}
@@ -410,7 +400,10 @@ export function CheckInSheet({
         {matched.length > 0 ? (
           <View style={{ gap: spacing.sm }}>
             <View style={styles.sectionHead}>
-              <Text style={[typography.headline, { color: t.text, flex: 1 }]}>Matched · {matched.length}</Text>
+              <View style={styles.headingWithCount}>
+                <Text style={[typography.headline, { color: t.text }]}>Matched</Text>
+                <Chip>{matched.length}</Chip>
+              </View>
               <Btn
                 title={matched.length === 1 ? "Sign in" : `Sign in all ${matched.length}`}
                 icon="checkmark-done-outline"
@@ -426,7 +419,7 @@ export function CheckInSheet({
               <View key={row.id} style={[styles.request, { backgroundColor: t.inputBackground }]}>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>{row.name}</Text>
-                  <Text style={[typography.caption, { color: t.muted }]}>{requestDetails(row)}</Text>
+                  <Facts parts={requestDetails(row)} />
                   <Text style={[typography.caption, { color: t.success }]}>
                     {row.match!.alreadySignedIn
                       ? `Already signed in as ${row.match!.name}`
@@ -467,14 +460,17 @@ export function CheckInSheet({
 
         {unmatched.length > 0 ? (
           <View style={{ gap: spacing.sm }}>
-            <Text style={[typography.headline, { color: t.text }]}>Needs a member · {unmatched.length}</Text>
+            <View style={styles.headingWithCount}>
+              <Text style={[typography.headline, { color: t.text }]}>Needs a member</Text>
+              <Chip>{unmatched.length}</Chip>
+            </View>
             {unmatched.map((row) => {
               const rowSuggestions: MemberChoice[] = suggestions.get(row.id) ?? [];
               return (
                 <View key={row.id} style={[styles.request, { backgroundColor: t.inputBackground }]}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>{row.name}</Text>
-                    <Text style={[typography.caption, { color: t.muted }]}>{requestDetails(row)}</Text>
+                    <Facts parts={requestDetails(row)} />
                     {rowSuggestions.length > 0 ? (
                       <View style={styles.pills}>
                         {rowSuggestions.map((member) => (
@@ -482,7 +478,7 @@ export function CheckInSheet({
                             key={member.memberId}
                             tone="primary"
                             icon="person-outline"
-                            label={`${memberLabel(member)}${signedIn.has(member.memberId) ? " · signed in" : ""}`}
+                            label={`${memberLabel(member)}${signedIn.has(member.memberId) ? ", signed in" : ""}`}
                             accessibilityLabel={`Sign in ${row.name} as ${memberLabel(member)}`}
                             disabled={busy !== null}
                             onPress={() => signIn(row, member.memberId as Id<"attendanceMembers">)}
@@ -549,6 +545,7 @@ const styles = StyleSheet.create({
   url: { textAlign: "center" },
   row: { flexDirection: "row", gap: spacing.sm, justifyContent: "center", flexWrap: "wrap" },
   sectionHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm },
+  headingWithCount: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm },
   request: {
     flexDirection: "row",
     alignItems: "flex-start",

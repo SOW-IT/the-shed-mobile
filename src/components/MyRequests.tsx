@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import { withRestartHeld } from "@/lib/restartHold";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Alert, Image, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
@@ -15,6 +16,7 @@ import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
+import { useRestartHold } from "@/hooks/useRestartHold";
 import { GuideSheet } from "@/components/ui/GuideSheet";
 import {
   getLocalFileSizeBytes,
@@ -125,6 +127,7 @@ const NewRequestSheet = ({
   directorThreshold: number;
 }) => {
   const submit = useMutation(api.requests.submit);
+  useRestartHold(visible);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [department, setDepartment] = useState(defaultDepartment);
@@ -174,7 +177,7 @@ const NewRequestSheet = ({
       footer={
         <Row spread>
           <Btn title="Cancel" variant="ghost" onPress={onClose} />
-          <Btn title="Submit Request" onPress={handleSubmit} loading={submitting} disabled={!complete} />
+          <Btn title="Submit Request" onPress={() => void handleSubmit()} loading={submitting} disabled={!complete} />
         </Row>
       }
     >
@@ -376,6 +379,7 @@ const ReceiptSheet = ({
   onClose: () => void;
 }) => {
   const submitReceipt = useMutation(api.requests.submitReceipt);
+  useRestartHold(request !== null);
   const generateUploadUrl = useMutation(api.requests.generateReceiptUploadUrl);
   const savedAccounts = useQuery(api.bankAccounts.listMine, {});
   const forgetAccount = useMutation(api.bankAccounts.remove);
@@ -408,7 +412,7 @@ const ReceiptSheet = ({
       files: [],
       saveAccount: false,
     }]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fills in the saved account when the request or accounts load; rerunning on every edit would refill a field the user cleared
   }, [request?._id, savedAccounts]);
 
   useEffect(() => {
@@ -487,11 +491,13 @@ const ReceiptSheet = ({
   const attachFromFiles = async (index: number) => {
     setError(null);
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        multiple: true,
-        type: ["image/*", "application/pdf"],
-        copyToCacheDirectory: true,
-      });
+      const result = await withRestartHeld(() =>
+        DocumentPicker.getDocumentAsync({
+          multiple: true,
+          type: ["image/*", "application/pdf"],
+          copyToCacheDirectory: true,
+        })
+      );
       if (result.canceled) return;
       await uploadPickedReceipts(
         index,
@@ -514,11 +520,13 @@ const ReceiptSheet = ({
         setError("Photo library access is needed to attach receipt photos.");
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsMultipleSelection: true,
-        quality: 0.9,
-      });
+      const result = await withRestartHeld(() =>
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsMultipleSelection: true,
+          quality: 0.9,
+        })
+      );
       if (result.canceled) return;
       await uploadPickedReceipts(
         index,
@@ -546,6 +554,7 @@ const ReceiptSheet = ({
       void attachFromFiles(index);
       return;
     }
+    // eslint-disable-next-line no-restricted-syntax -- a three-choice sheet on iOS and Android only; web returned above
     Alert.alert("Attach receipt", "Choose from your photo library or files.", [
       { text: "Photo Library", onPress: () => void attachFromGallery(index) },
       { text: "Files", onPress: () => void attachFromFiles(index) },
@@ -682,7 +691,7 @@ const ReceiptSheet = ({
             keyboardType="decimal-pad"
           />
           {recipient.files.map((file, fileIndex) => (
-            <Row key={`${file.storageId}-${fileIndex}`}>
+            <Row key={file.storageId}>
               {file.previewUri ? (
                 <Image
                   source={{ uri: file.previewUri }}

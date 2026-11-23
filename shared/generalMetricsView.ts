@@ -309,7 +309,7 @@ function yearView(
   if (attendance.length > 0) {
     blocks.push(
       { type: "heading", text: "Weeklies" },
-      { type: "label", text: `Weeklies average by campus · Jan–Dec ${year}` },
+      { type: "label", text: `Weeklies average by campus, Jan–Dec ${year}` },
       { type: "cards", layout: "grid", cards: attendance }
     );
   }

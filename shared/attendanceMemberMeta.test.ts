@@ -8,6 +8,7 @@ import {
   isLockedSelectOption,
   memberOwnMetadata,
   metadataSubtitle,
+  metadataValueLabel,
   metadataFieldAllowsCustomOptions,
   orderedSelectOptions,
   partitionSelectOptions,
@@ -283,8 +284,23 @@ describe("metadataSubtitle", () => {
         { role: "2", year: "2025", arc: "2", ask: "1", ig: "byexjj", zid: "z5689149" },
         2026
       )
-    ).toBe("Member · Year 2 · Arc Member · Coming? Maybe · @byexjj · z5689149");
+    ).toBe("Member, Year 2, Arc Member, Coming? Maybe, @byexjj, z5689149");
     expect(metadataSubtitle(fields, { arc: "3", ig: "@already" }, 2026)).toBe("@already");
     expect(metadataSubtitle(fields, { year: "2030" }, 2026)).toBe("");
+  });
+});
+
+describe("metadataValueLabel", () => {
+  const field = { _id: "f1", key: "campus", values: { o1: "UNSW" } };
+
+  test("reads an option id as its label and keeps typed text as-is", () => {
+    expect(metadataValueLabel(field, { f1: "o1" })).toBe("UNSW");
+    expect(metadataValueLabel(field, { f1: "Typed" })).toBe("Typed");
+  });
+
+  test("is undefined with no field, no metadata or an empty answer", () => {
+    expect(metadataValueLabel(undefined, { f1: "o1" })).toBeUndefined();
+    expect(metadataValueLabel(field, undefined)).toBeUndefined();
+    expect(metadataValueLabel(field, { f1: "" })).toBeUndefined();
   });
 });

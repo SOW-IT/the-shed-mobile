@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { CommentThreadSheet } from "@/components/CommentThreadSheet";
-import { useRetained, useThreadActive } from "@/components/CommentsSheet";
+import { optimisticComment, useRetained, useThreadActive } from "@/components/CommentsSheet";
 
 export const DesignCommentsSheet = ({
   id,
@@ -23,18 +23,9 @@ export const DesignCommentsSheet = ({
     (localStore, args) => {
       const current = localStore.getQuery(api.designRequestComments.list, { id: args.id });
       if (!current) return;
-      // eslint-disable-next-line react-hooks/purity -- optimistic id/timestamp
-      const now = Date.now();
       localStore.setQuery(api.designRequestComments.list, { id: args.id }, [
         ...current,
-        {
-          id: `optimistic-${now}` as unknown as Id<"designRequestComments">,
-          authorEmail: "",
-          authorName: "",
-          body: args.body.trim(),
-          at: now,
-          isMine: true,
-        },
+        optimisticComment("designRequestComments", args.body, { authorName: "" }),
       ]);
     }
   );

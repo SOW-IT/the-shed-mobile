@@ -8,12 +8,14 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import { spotifyTokenRequester } from "./spotify";
 import { decryptSpotifyToken, encryptSpotifyToken } from "./spotifyCrypto";
+import { env } from "./environment";
 
 export const getClientId = query({
   args: {},
   handler: async () => {
-    return process.env.SPOTIFY_CLIENT_ID ?? "";
+    return env("SPOTIFY_CLIENT_ID") ?? "";
   },
 });
 
@@ -61,7 +63,7 @@ export const disconnect = mutation({
       .collect();
 
     for (const connection of connections) {
-      await ctx.db.delete(connection._id);
+      await ctx.db.delete("spotifyConnections", connection._id);
     }
 
     return { success: true };
@@ -97,7 +99,7 @@ export const saveConnection = internalMutation({
   },
   handler: async (ctx, args) => {
     // The account may have been deleted while Spotify was answering.
-    if (!(await ctx.db.get(args.userId))) return null;
+    if (!(await ctx.db.get("users", args.userId))) return null;
 
     const existing = await ctx.db
       .query("spotifyConnections")
@@ -107,7 +109,7 @@ export const saveConnection = internalMutation({
     const now = Date.now();
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
+      await ctx.db.patch("spotifyConnections", existing._id, {
         encryptedAccessToken: args.encryptedAccessToken,
         encryptedRefreshToken: args.encryptedRefreshToken,
         expiresAt: args.expiresAt,
@@ -137,13 +139,13 @@ export const updateRefreshedConnection = internalMutation({
     expiresAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const connection = await ctx.db.get(args.connectionId);
+    const connection = await ctx.db.get("spotifyConnections", args.connectionId);
 
     if (!connection || connection.updatedAt !== args.expectedUpdatedAt) {
       return false;
     }
 
-    await ctx.db.patch(connection._id, {
+    await ctx.db.patch("spotifyConnections", connection._id, {
       encryptedAccessToken: args.encryptedAccessToken,
       encryptedRefreshToken: args.encryptedRefreshToken,
       expiresAt: args.expiresAt,
@@ -160,10 +162,10 @@ export const forgetRejectedConnection = internalMutation({
     encryptedAccessToken: v.string(),
   },
   handler: async (ctx, args) => {
-    const connection = await ctx.db.get(args.connectionId);
+    const connection = await ctx.db.get("spotifyConnections", args.connectionId);
 
     if (connection?.encryptedAccessToken === args.encryptedAccessToken) {
-      await ctx.db.delete(connection._id);
+      await ctx.db.delete("spotifyConnections", connection._id);
     }
 
     return null;
@@ -198,26 +200,16 @@ export const connect = action({
       throw new ConvexError("Invalid Spotify redirect URI.");
     }
 
-    const clientId = process.env.SPOTIFY_CLIENT_ID;
-    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+    const requestToken = spotifyTokenRequester();
 
-    if (!clientId || !clientSecret) {
-      throw new ConvexError("Spotify credentials are not configured.");
-    }
-
-    const response = await fetch("https://accounts.spotify.com/api/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
-      },
-      body: new URLSearchParams({
+    const response = await requestToken(
+      new URLSearchParams({
         grant_type: "authorization_code",
         code: args.code,
         redirect_uri: args.redirectUri,
         code_verifier: args.codeVerifier,
       }),
-    });
+    );
 
     if (!response.ok) {
       throw new ConvexError(
@@ -264,17 +256,17 @@ type SpotifyTrack = {
   name?: string;
   type?: string;
   is_local?: boolean;
-  artists?: Array<{ name: string }>;
-  album?: { images?: Array<{ url: string }> };
+  artists?: { name: string }[];
+  album?: { images?: { url: string }[] };
   external_ids?: { isrc?: string };
 };
 
 type PlaylistPage = {
   total?: number;
-  items?: Array<{
+  items?: {
     item?: SpotifyTrack | null;
     track?: SpotifyTrack | null;
-  }>;
+  }[];
 };
 
 function playlistId(link: string): string | null {
@@ -330,30 +322,17 @@ export const importPlaylist = action({
     };
 
     if (connection.expiresAt <= Date.now() + 60_000) {
-      const clientId = process.env.SPOTIFY_CLIENT_ID;
-      const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-
-      if (!clientId || !clientSecret) {
-        throw new ConvexError("Spotify credentials are not configured.");
-      }
+      const requestToken = spotifyTokenRequester();
 
       const refreshToken = await decryptSpotifyToken(
         connection.encryptedRefreshToken,
       );
 
-      const refreshResponse = await fetch(
-        "https://accounts.spotify.com/api/token",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: refreshToken,
-          }),
-        },
+      const refreshResponse = await requestToken(
+        new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+        }),
       );
 
       if (!refreshResponse.ok) {

@@ -92,7 +92,7 @@ const DeclineSheet = ({
             variant="danger"
             loading={submitting}
             disabled={reason.trim() === ""}
-            onPress={handleDecline}
+            onPress={() => void handleDecline()}
           />
           <Btn title="Back" variant="ghost" onPress={onClose} />
         </View>
@@ -159,7 +159,7 @@ const PaySheet = ({
             variant="success"
             loading={paying}
             disabled={!(Number(paidAmount) > 0)}
-            onPress={handlePay}
+            onPress={() => void handlePay()}
           />
           <Btn title="Back" variant="ghost" onPress={onClose} />
         </View>

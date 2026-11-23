@@ -26,7 +26,8 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
   `convex/eventRequests.ts`): asks of Marketing, and an event with its
   Marketing, Risk and Finance forms, each with comments and a timeline.
 - **Grievances** (`convex/grievances.ts`): confidential, seen only by the
-  submitter and the People and Culture and Compliance teams.
+  submitter and the People and Culture and Compliance teams; emails to the
+  submitter reply to whoever is looking after it.
 - **Praise List** (`convex/musicRequests.ts`, `/music`): songs requested and
   approved or declined by a Praise Manager, with Spotify search.
 - **Attendance** (`convex/attendance*.ts`, rules in `shared/rollcall.ts`): events,
@@ -44,8 +45,21 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
   everything waiting on them, by push and email.
 - **Accounts**: Google and Apple sign-in through Convex Auth, delete account
   from Profile, push notifications and the in-app bell.
-- **Releases**: over-the-air updates (`expo-updates`), an update prompt driven
-  by `appUpdatePolicy`, and app errors reported to the `appErrors` table.
+- **Games** (`src/components/games/`, `convex/gameScores.ts`, rules in
+  `shared/games.ts`): three endless mini-games that work offline, opened from
+  the offline screen or three taps on the version at the foot of Profile, with
+  a per-game leaderboard ([ADR 0020](docs/adr/0020-offline-games-leaderboard-keeps-each-best.md)).
+- **Shed World, the Garden** (`/world`, `src/world/`, `convex/world.ts`, rules
+  in `shared/world.ts`): an online courtyard, reached from Games, where
+  signed-in people walk by tapping and chat in bubbles over their heads, 20 to
+  a room. Drawn with plain views (no GL), one write per tap, chat kept 15
+  minutes, with high fives, emotes, a character editor, mute, block, report
+  and a list view
+  ([ADR 0021](docs/adr/0021-shed-world-garden-without-gl.md)).
+- **Releases**: over-the-air updates (`expo-updates`, applied by restarting
+  the app the next time it comes back from the background), a store update
+  prompt driven by `appUpdatePolicy`, and app errors reported to the
+  `appErrors` table.
 
 ## Getting started
 
@@ -82,7 +96,7 @@ For a fresh deployment, regenerate the JWT keys with
 
 ### Workspace directory sync (optional)
 
-Syncs the sow.org.au member list weekly (Mondays 21:00 UTC, and via the
+Syncs the sow.org.au member list weekly (Mondays 21:11 UTC, and via the
 admin screen's *Sync directory now* button) so admins assign people from a
 picker, and copies each staff member's Workspace photo. Setup:
 
@@ -181,18 +195,19 @@ npx convex run churches:locateAll '{}'
 
 ## CI/CD
 
-Eight workflows, in `.github/workflows/`:
+Nine workflows, in `.github/workflows/`:
 
 | Workflow | File | Trigger |
 | --- | --- | --- |
-| Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds). Also runs `expo install --check` with `EXPO_OFFLINE=1`, so an Expo package that drifts from the versions the installed `expo` lists fails here rather than in an iOS release build. Offline, the check reads that list from the locked `expo` package instead of Expo's server, so a new Expo patch release can't turn `main` red on its own; patches move with a deliberate `npx expo install --fix`. A second job, **Web sweep**, starts a throwaway local Convex backend, seeds it (`scripts/sweep-backend.sh`, `scripts/sweep-seed.mjs`), serves the web app and opens every screen signed out and as a leader, a Head and an admin (`scripts/sweep.mjs`, Playwright). It fails on a crash screen or a page error and keeps the screenshots as a run artifact |
+| Lint, Typecheck & Test | `ci.yml` | every PR and push to `main`. Lints the whole repo with warnings failing (`eslint . --max-warnings 0`), checks for unused files, exports and dependencies (`knip`), and runs the tests with coverage thresholds. Also runs `expo install --check` with `EXPO_OFFLINE=1`, so an Expo package that drifts from the versions the installed `expo` lists fails here rather than in an iOS release build. Offline, the check reads that list from the locked `expo` package instead of Expo's server, so a new Expo patch release can't turn `main` red on its own; patches move with a deliberate `npx expo install --fix`. A second job, **Web sweep**, starts a throwaway local Convex backend, seeds it (`scripts/sweep-backend.sh`, `scripts/sweep-seed.mjs`), serves the web app and opens every screen signed out and as a leader, a Head and an admin (`scripts/sweep.mjs`, Playwright). It fails on a crash screen or a page error and keeps the screenshots as a run artifact |
 | Convex Deploy | `convex-deploy.yml` | merges to `main` → deploys the **prod** backend. `workflow_dispatch` deploys prod **only when run from `main`**. From any other ref it deploys a *preview* named after the branch (`--preview-name`), not prod |
 | Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
 | Backup Convex to GCS | `convex-backup.yml` | weekly, Sundays at 15:17 UTC (Monday 01:17 AEST / 02:17 AEDT), and by hand. Weekly because each export reads the whole prod database, about 9.5 MB of database bandwidth a run. Database export as a zip, then Convex file storage (receipts, event attachments, avatars) copied incrementally to `storage/files/<sha256>` in the same bucket: each file is downloaded once, on the first run after it exists, and `storage/manifest.json` records what is there and which files Convex has since deleted. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped. The BigQuery job then checks the warehouse against the previous run (`scripts/warehouse-checks.mjs`): a core table missing or empty, a table that shrank by more than a fifth, or a report view missing posts to Google Chat and fails the step |
-| EAS Update | `eas-update.yml` | after each successful Convex Deploy of `main` (and by hand) → publishes the JavaScript bundle over the air to the `production` and `staging` channels. Only builds whose native fingerprint matches receive it, so a change to native code waits for the next store build |
+| EAS Update | `eas-update.yml` | after each successful Convex Deploy of `main` (and by hand) → publishes the JavaScript bundle over the air to the `production` and `staging` channels. Only builds whose native fingerprint matches receive it, so a change to native code waits for the next store build. Then checks each production update's runtime against the newest finished production store build, writes the result to the job summary and posts it to Google Chat (`scripts/eas-update-report.mjs`); the run fails when an update reaches no store build |
 | Convex usage check | `convex-usage.yml` | Sundays 22:00 UTC, Monday morning in Sydney (and by hand) → reads this billing period's usage and posts to Google Chat when database bandwidth or file storage passes 70% of the plan, or bandwidth is on track to exceed it (`scripts/convex-usage-alert.mjs`) |
 | EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app. A platform whose native code hasn't changed since its last store build gets the commit over the air (`eas update`) instead, or is skipped if it already has it |
-| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app. A platform whose native code hasn't changed since its last store build gets the commit over the air (`eas update`, from `main` only) instead, or is skipped if it already has it. Then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
+| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app. A platform whose native code hasn't changed since its last store build gets the commit over the air (`eas update`, from `main` only) instead, or is skipped if it already has it. Then posts the result (version, build numbers, commit, links) to Google Chat (`.github/scripts/eas-production-chat.sh`) |
+| PR Merged | `pr-merged-chat.yml` | each pull request merged into `main` → posts the new version, the PR title and author, who merged it and the merge commit to Google Chat (`.github/scripts/pr-merged-chat.sh`) |
 
 Both EAS workflows take a **platform** input (`both` / `ios` / `android`,
 default `both`) and are never triggered by a PR or a merge. Before building,
@@ -223,7 +238,9 @@ Repository secrets these need: `CONVEX_DEPLOY_KEY` (prod backend deploys and
 the GCS backup), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` +
 `GOOGLE_MAPS_WEB_KEY_DEV` (dev web), `EXPO_TOKEN` (EAS Update and both EAS
 builds), `CONVEX_ACCESS_TOKEN` (the usage check) and `GOOGLE_CHAT_WEBHOOK_URL`
-(the Data and IT space's incoming webhook, for EAS Production's Chat post).
+(the incoming webhook of the Google Chat space that gets merges, releases
+and alerts: PR Merged, EAS Update, EAS Production, the backup checks and the
+usage check all post there).
 Only **Deploy web (dev)** and the Chat post degrade gracefully when their
 secrets are missing. They skip. Convex Deploy, the backup, EAS Update, the
 usage check and both EAS builds have no such guard and will **fail** the run,
@@ -378,6 +395,10 @@ npm run test:coverage
 CI fails below 100% line and function coverage of `convex/` and `shared/`.
 The **web sweep** in CI (`scripts/sweep-backend.sh`, `scripts/sweep.mjs`) opens
 every screen against a seeded local backend, signed out and as three roles.
+
+`node scripts/verify.mjs` runs the checks and opens the screens a branch
+affects on web and the iOS Simulator, with before and after screenshots
+([docs/verification.md](docs/verification.md)).
 
 Signed-in testing uses the `e2e-auth` bypass: `src/app/e2e-auth.tsx` handles
 `/e2e-auth?email=…&secret=…` in dev builds (or with `EXPO_PUBLIC_E2E=1`), and

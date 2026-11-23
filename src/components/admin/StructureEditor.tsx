@@ -39,7 +39,7 @@ export const CardGrid = ({
 
 export type DeleteConfirm = { name: string; message?: string; onConfirm: () => void };
 
-export type StructureItem = { name: string; division?: string; headEmail?: string | null };
+type StructureItem = { name: string; division?: string; headEmail?: string | null };
 
 type StructureForm = { name: string; division: string; head: string };
 
@@ -197,9 +197,7 @@ export const StructureEditor = ({
 
   return (
     <>
-      <SectionTitle>
-        {title} · {year}
-      </SectionTitle>
+      <SectionTitle chip={year}>{title}</SectionTitle>
       <CardGrid>
         {editable && (
           <Card>

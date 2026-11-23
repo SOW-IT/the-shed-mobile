@@ -29,7 +29,7 @@ const stripFinanceHolders = (t: T) =>
   t.run(async (ctx) => {
     for (const profile of await ctx.db.query("staffProfiles").collect()) {
       if (profile.assignments?.some((a) => a.department === "Finance")) {
-        await ctx.db.patch(profile._id, { assignments: [] });
+        await ctx.db.patch("staffProfiles", profile._id, { assignments: [] });
       }
     }
   });
@@ -2631,7 +2631,7 @@ describe("staff profiles and their attendance member", () => {
       subjectEmail: BELLA,
       detail: `Not staff in ${YEAR}`,
     });
-    expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toEqual({});
+    expect((await t.run((ctx) => ctx.db.get("attendanceMembers", memberId)))?.metadata).toEqual({});
   });
 
   test("removing a profile leaves the member alone while they are still staff, or in another year", async () => {
@@ -2918,5 +2918,51 @@ describe("names the app relies on", () => {
     expect(await audienceOf(ids.lastYear)).toEqual(audience);
     expect(await audienceOf(ids.sent)).toEqual(audience);
     expect(await audienceOf(ids.everyone)).toEqual(everyone);
+  });
+});
+
+describe("userActivity", () => {
+  const ALIAS = "bella@sowaustralia.com";
+
+  test("lists each person's app versions and when they were last online, across their staff addresses", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("appInstalls", { email: BELLA, platform: "ios", version: "2.12.10", seenAt: 1_000 });
+      await ctx.db.insert("appInstalls", { email: ALIAS, platform: "ios", version: "2.12.13", seenAt: 3_000 });
+      await ctx.db.insert("appInstalls", { email: ALIAS, platform: "android", version: "2.12.9", seenAt: 500 });
+      await ctx.db.insert("appInstalls", { email: FIONA, platform: "android", version: "2.12.13", seenAt: 4_000 });
+      await ctx.db.insert("appInstalls", { email: "fiona@sowaustralia.com", platform: "android", version: "2.12.1", seenAt: 2_000 });
+      await ctx.db.insert("lastSeen", { email: BELLA, at: 5_000 });
+      await ctx.db.insert("lastSeen", { email: ALIAS, at: 4_000 });
+      await ctx.db.insert("lastSeen", { email: FIONA, at: 6_000 });
+      await ctx.db.insert("lastSeen", { email: "fiona@sowaustralia.com", at: 7_000 });
+    });
+    const rows = await asUser(t, ADMIN).query(api.admin.userActivity, {
+      emails: [BELLA, FIONA, BELLA, "nobody@sow.org.au"],
+    });
+    expect(rows).toEqual([
+      {
+        email: BELLA,
+        versions: [
+          { platform: "ios", version: "2.12.13", seenAt: 3_000 },
+          { platform: "android", version: "2.12.9", seenAt: 500 },
+        ],
+        lastSeenAt: 5_000,
+      },
+      {
+        email: FIONA,
+        versions: [{ platform: "android", version: "2.12.13", seenAt: 4_000 }],
+        lastSeenAt: 7_000,
+      },
+      { email: "nobody@sow.org.au", versions: [], lastSeenAt: null },
+    ]);
+  });
+
+  test("is for admins only", async () => {
+    const t = await setup();
+    expect(await t.query(api.admin.userActivity, { emails: [BELLA] })).toBeNull();
+    await expect(
+      asUser(t, BELLA).query(api.admin.userActivity, { emails: [BELLA] }),
+    ).rejects.toThrow(/Only admins can do this/);
   });
 });

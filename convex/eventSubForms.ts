@@ -33,9 +33,13 @@ import {
   subFormKindValidator,
 } from "./eventRequestData";
 import { MARKETING_FIELDS } from "./eventRequestForm";
+import { eventTimingText } from "../shared/reminders";
 import {
   accessTo,
   actsAs,
+  canNudge,
+  NUDGE_COOLDOWN_MS,
+  nudgeRecipients,
   approverTitleFor,
   stepApproverTitle,
   emailInbox,
@@ -398,6 +402,51 @@ export const requestChanges = mutation({
     );
     await tell(ctx, event, [event.requesterEmail, form.submittedBy], note);
     await emailInbox(ctx, args.form, note);
+    return null;
+  },
+});
+
+// Chases a form that hasn't been submitted, or was sent back and not
+// resubmitted, by push and email to whoever is filling it in.
+export const remind = mutation({
+  args: { id: v.id("eventRequests"), form: subFormKindValidator },
+  handler: async (ctx, args) => {
+    const caller = await requireEventStaff(ctx);
+    const event = await requireEvent(ctx, args.id);
+    const form = (await subFormsOf(ctx, event._id))[args.form];
+    if (!(await canNudge(ctx, caller, event, form, await accessTo(ctx, caller, event)))) {
+      throw new ConvexError(
+        event.status !== "IN_PROGRESS" || (form.status !== "DRAFT" && form.status !== "CHANGES_REQUESTED")
+          ? "This form isn't waiting to be filled in."
+          : "Only reviewers of event forms and the department's Head can send a reminder."
+      );
+    }
+    const now = Date.now();
+    if (form.nudgedAt !== undefined && now - form.nudgedAt < NUDGE_COOLDOWN_MS) {
+      throw new ConvexError("A reminder about this form went out in the last day. Try again tomorrow.");
+    }
+    await ctx.db.patch("eventSubForms", form._id, { nudgedAt: now, nudgedBy: caller.email });
+    const name = await displayName(ctx, caller.email, event.year);
+    const timing = eventTimingText(event.startsAt, sydneyToday(new Date(now)));
+    const changes = form.status === "CHANGES_REQUESTED";
+    const note = await message(
+      ctx,
+      event,
+      args.form,
+      caller.email,
+      changes
+        ? `Reminder: the ${formName(args.form)} for ${event.name} is waiting on your changes`
+        : `Reminder: the ${formName(args.form)} for ${event.name} isn't submitted yet`,
+      "Reminder",
+      [
+        `${name} is waiting on the ${formName(args.form)} for ${event.name}${timing ? `, and ${timing}` : ""}.`,
+        changes && form.changesReason ? `The changes asked for:\n${form.changesReason}` : "",
+        changes ? "Update the form and submit it again." : "Fill it in and submit it for approval.",
+      ]
+        .filter(Boolean)
+        .join("\n\n")
+    );
+    await tell(ctx, event, nudgeRecipients(event, form, caller), note);
     return null;
   },
 });

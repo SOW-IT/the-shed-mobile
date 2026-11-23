@@ -28,9 +28,11 @@ import {
   OptionSheet,
   Row,
   SectionTitle,
+  Facts,
 } from "@/components/ui";
+import { keyed } from "@/lib/listKeys";
 import { openExternalLink } from "@/lib/openExternalLink";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 import { RiskRatingPill } from "./EventPills";
 import { LabelledField } from "./LabelledField";
 
@@ -116,7 +118,7 @@ const Matrix = () => {
                   style={{
                     fontSize: 11,
                     fontWeight: "700",
-                    color: rating === "Extreme" ? "#ffffff" : t.text,
+                    color: rating === "Extreme" ? fixedColours.onColour : t.text,
                   }}
                 >
                   {score}
@@ -446,10 +448,10 @@ export const RiskView = ({ data, imported }: { data: RiskData; imported: boolean
           </Text>
         </Card>
       ) : null}
-      {data.risks.map((row, index) => {
+      {keyed(data.risks, (row) => row.description).map(({ item: row, key, index }) => {
         const score = rowScore(row);
         return (
-          <Card key={index}>
+          <Card key={key}>
             <View style={styles.rowHeader}>
               <Text style={[typography.headline, { color: t.text, flex: 1 }]}>Risk {index + 1}</Text>
               {score ? <RiskRatingPill score={score.score} rating={score.rating} /> : null}
@@ -461,11 +463,13 @@ export const RiskView = ({ data, imported }: { data: RiskData; imported: boolean
               {row.description}
             </Text>
             {row.category ? (
-              <Muted>
-                {RISK_CATEGORY_LABELS[row.category]}
-                {isRiskLevel(row.consequence) ? ` · consequence level ${row.consequence}` : ""}
-                {isRiskLevel(row.likelihood) ? ` · ${LIKELIHOOD_GUIDE[row.likelihood].label.toLowerCase()}` : ""}
-              </Muted>
+              <Facts
+                parts={[
+                  RISK_CATEGORY_LABELS[row.category],
+                  isRiskLevel(row.consequence) ? `consequence level ${row.consequence}` : null,
+                  isRiskLevel(row.likelihood) ? LIKELIHOOD_GUIDE[row.likelihood].label.toLowerCase() : null,
+                ]}
+              />
             ) : null}
             {row.mitigation ? (
               <Text selectable style={[typography.body, { color: t.text }]}>

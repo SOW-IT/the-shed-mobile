@@ -26,7 +26,6 @@ export const StatusPill = ({ label, tone }: { label: string; tone: Tone }) => {
   const { bg, fg } = toneColours(t, tone);
   return (
     <View style={[styles.pill, { backgroundColor: bg }]}>
-      <View style={[styles.dot, { backgroundColor: fg }]} />
       <Text numberOfLines={1} style={[styles.text, { color: fg }]}>
         {label}
       </Text>
@@ -38,12 +37,10 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: radius.full,
     alignSelf: "flex-start",
   },
-  dot: { width: 6, height: 6, borderRadius: 3 },
   text: { fontSize: 12, fontWeight: "700" },
 });

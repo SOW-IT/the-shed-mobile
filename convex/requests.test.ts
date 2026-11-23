@@ -1224,7 +1224,7 @@ describe("audit trail and reminders", () => {
       for await (const event of ctx.db
         .query("requestEvents")
         .withIndex("by_request", (q) => q.eq("requestId", waitingReceipt._id))) {
-        await ctx.db.delete(event._id);
+        await ctx.db.delete("requestEvents", event._id);
       }
     });
 
@@ -1353,7 +1353,7 @@ describe("audit trail and reminders", () => {
       approvedByDirector: undefined,
       approvedByFinanceHead: "PENDING",
       _creationTime: staffYearStartMs(YEAR - 1),
-    } as never as Parameters<typeof nextApproverEmail>[0];
+    } as Parameters<typeof nextApproverEmail>[0];
     const lastYear = { financeDepartment: "Finance", hodEmail: HENRY, budgetManagerEmail: undefined, financeHeadEmail: undefined };
     const thisYear = { financeDepartment: "Finance", hodEmail: HENRY, budgetManagerEmail: BELLA, financeHeadEmail: FIONA };
     expect(nextApproverEmail(carriedOver, lastYear, thisYear)).toBe(BELLA);
@@ -1381,7 +1381,7 @@ describe("audit trail and reminders", () => {
     ).toBeUndefined();
     expect(
       nextApproverEmail(
-        { ...carriedOver, approvedByBudgetManager: "APPROVED", approvedByFinanceHead: "APPROVED" } as never,
+        { ...carriedOver, approvedByBudgetManager: "APPROVED", approvedByFinanceHead: "APPROVED" },
         lastYear,
         thisYear
       )
@@ -1403,7 +1403,7 @@ describe("audit trail and reminders", () => {
       approvedByBudgetManager: "APPROVED",
       approvedByDirector: undefined,
       approvedByFinanceHead: "PENDING",
-    } as never as Parameters<typeof involvedApproverEmails>[0];
+    } as Parameters<typeof involvedApproverEmails>[0];
 
     expect(involvedApproverEmails(base, approvers, ["APPROVED"])).toEqual([
       HENRY,
@@ -1411,14 +1411,14 @@ describe("audit trail and reminders", () => {
     ]);
     expect(
       involvedApproverEmails(
-        { ...base, department: "Finance" } as never,
+        { ...base, department: "Finance" },
         approvers,
         ["APPROVED"]
       )
     ).toEqual([BELLA]);
     expect(
       involvedApproverEmails(
-        { ...base, requesterEmail: HENRY } as never,
+        { ...base, requesterEmail: HENRY },
         approvers,
         ["APPROVED"]
       )
@@ -3010,7 +3010,7 @@ describe("deleteDeclined", () => {
         await ctx.db.query("requestComments").withIndex("by_request", (q) => q.eq("requestId", id)).take(10)
       ).toHaveLength(0);
       expect(
-        await ctx.db.query("commentReactions").withIndex("by_comment", (q) => q.eq("commentId", comment.id)).take(10)
+        await ctx.db.query("commentReactions").withIndex("by_comment_user_emoji", (q) => q.eq("commentId", comment.id)).take(10)
       ).toHaveLength(0);
       expect(
         await ctx.db.query("commentReads").withIndex("by_request_and_user", (q) => q.eq("requestId", id)).take(10)

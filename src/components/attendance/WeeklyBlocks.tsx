@@ -8,6 +8,8 @@ import {
   type Pill,
   type WeeklyBlock,
 } from "../../../shared/weeklyInsightsView";
+import { togglePicked } from "../../../shared/churches";
+import { keyed } from "@/lib/listKeys";
 import { Avatar, Btn, ReadableColumn, ScrollCap, SearchField } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -91,8 +93,8 @@ function PersonRow({
           <CategoryPill pill={pill} />
           {badge ? <CategoryPill pill={badge} /> : null}
         </View>
-        {lines.map((line, i) => (
-          <Text key={i} style={[typography.caption, { color: t.muted }]} numberOfLines={2}>
+        {keyed(lines, (line) => line).map(({ item: line, key }) => (
+          <Text key={key} style={[typography.caption, { color: t.muted }]} numberOfLines={2}>
             {line}
           </Text>
         ))}
@@ -154,7 +156,7 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
   const max = all ? total : limit;
   const before = sections.map((_, i) => sections.slice(0, i).reduce((n, s) => n + s.rows.length, 0));
   const toggle = (key: string) => {
-    setChips((current) => (current.includes(key) ? current.filter((c) => c !== key) : [...current, key]));
+    setChips((current) => togglePicked(current, key));
     setLimit(PAGE);
   };
   const searchFor = (text: string) => {
@@ -311,7 +313,7 @@ export function renderWeeklyBlock(
           <Avatar photo={block.photo ?? null} name={block.name} size={72} />
           <Text style={[typography.title, { color: t.text, textAlign: "center" }]}>{block.name}</Text>
           {block.lines.length ? (
-            <Text style={[typography.body, { color: t.muted, textAlign: "center" }]}>{block.lines.join(" · ")}</Text>
+            <Text style={[typography.body, { color: t.muted, textAlign: "center" }]}>{block.lines.join(", ")}</Text>
           ) : null}
           {block.category ? (
             <View style={{ alignSelf: "center" }}>
@@ -371,9 +373,9 @@ export function renderWeeklyBlock(
         <Panel key={key} title={block.title} icon="grid-outline">
           {block.subtitle ? <Text style={[typography.caption, { color: t.muted }]}>{block.subtitle}</Text> : null}
           <View style={styles.grid}>
-            {block.weeks.map((w, i) => (
+            {keyed(block.weeks, (w) => w.label).map(({ item: w, key: weekKey }) => (
               <View
-                key={`${w.label}-${i}`}
+                key={weekKey}
                 accessibilityLabel={`${w.label}: ${w.came ? "came" : "missed"}`}
                 style={[
                   styles.week,
@@ -393,8 +395,8 @@ export function renderWeeklyBlock(
             <Text style={[typography.caption, { color: t.muted }]}>{block.emptyText}</Text>
           ) : (
             <ScrollCap maxHeight={LIST_HEIGHT} count={block.rows.length}>
-              {block.rows.map((row, i) => (
-                <View key={i} style={[styles.kv, { borderTopColor: t.separator }]}>
+              {keyed(block.rows, (row) => `${row.title}|${row.subtitle}`).map(({ item: row, key: rowKey }) => (
+                <View key={rowKey} style={[styles.kv, { borderTopColor: t.separator }]}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[typography.body, { color: t.text }]} numberOfLines={1}>
                       {row.title}

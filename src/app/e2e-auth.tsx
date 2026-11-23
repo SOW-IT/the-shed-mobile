@@ -2,8 +2,9 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { LoadingState } from "@/components/ui";
+import { E2E_BUILD } from "@/env";
 
-const E2E_ENABLED = __DEV__ || process.env.EXPO_PUBLIC_E2E === "1";
+const E2E_ENABLED = __DEV__ || E2E_BUILD;
 
 export default function E2eAuthScreen() {
   const { signIn, signOut } = useAuthActions();

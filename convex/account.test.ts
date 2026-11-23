@@ -58,6 +58,15 @@ async function seedAccount(
       accountNumber: "12345678",
       lastUsedAt: Date.now(),
     });
+    await ctx.db.insert("gameScores", {
+      email,
+      game: "runner",
+      score: 420,
+      runId: `run-${email}`,
+      durationMs: 30_000,
+      playedAt: Date.now(),
+      updatedAt: Date.now(),
+    });
     return { userId, sessionId, avatarId };
   });
 }
@@ -82,6 +91,9 @@ const counts = async (t: T, email: string) =>
     ).length,
     savedBankAccounts: (
       await ctx.db.query("savedBankAccounts").withIndex("by_email", (q) => q.eq("email", email)).take(10)
+    ).length,
+    gameScores: (
+      await ctx.db.query("gameScores").withIndex("by_email_and_game", (q) => q.eq("email", email)).take(10)
     ).length,
   }));
 
@@ -204,13 +216,14 @@ describe("account.deleteMine", () => {
       appInstalls: 0,
       notifications: 1,
       savedBankAccounts: 0,
+      gameScores: 0,
     });
     await t.run(async (ctx) => {
       const [profile] = await ctx.db.query("staffProfiles").take(10);
       expect(profile).toMatchObject({ email: STAFF, name: "Sam Smith", importId: "p-1" });
       expect(profile.userId).toBeUndefined();
       expect(await ctx.db.query("directoryUsers").take(10)).toHaveLength(1);
-      expect(await ctx.db.system.get(staff.avatarId)).toBeNull();
+      expect(await ctx.db.system.get("_storage", staff.avatarId)).toBeNull();
     });
 
     const again = await t.run(async (ctx) => ctx.db.insert("users", { email: STAFF, name: "Sam Smith" }));
@@ -418,6 +431,55 @@ describe("account.wipe", () => {
       expect(await ctx.db.query("authSessions").take(10)).toHaveLength(0);
       expect(await ctx.db.query("lastSeen").take(10)).toHaveLength(0);
     });
+  });
+
+  test("deletes the user's Garden look, kept rate limits and blocks both ways", async () => {
+    vi.useFakeTimers();
+    const t = newConvex();
+    const bucket = { tokens: 1, at: 0 };
+    const look = { skin: 1, hair: 1, hairColour: 1, shirt: 1 };
+    const userId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: GUEST, name: "Gina Guest" });
+      await ctx.db.insert("worldLooks", { email: GUEST, look, updatedAt: 0 });
+      await ctx.db.insert("worldThrottle", { email: GUEST, moveBucket: bucket, actBucket: bucket, sayBucket: bucket, joinBucket: bucket, at: 0 });
+      await ctx.db.insert("worldBlocks", { email: GUEST, blockedEmail: "other@sow.org.au", blockedName: "Other" });
+      await ctx.db.insert("worldBlocks", { email: "other@sow.org.au", blockedEmail: GUEST, blockedName: "Gina Guest" });
+      await ctx.db.insert("worldLooks", { email: "other@sow.org.au", look, updatedAt: 0 });
+      return userId;
+    });
+    await t.mutation(internal.account.wipe, { userId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("worldLooks").collect()).toMatchObject([{ email: "other@sow.org.au" }]);
+      expect(await ctx.db.query("worldThrottle").collect()).toEqual([]);
+      expect(await ctx.db.query("worldBlocks").collect()).toEqual([]);
+    });
+  });
+
+  test("someone still in the Garden is taken out, and a later sweep keeps nothing under their email", async () => {
+    vi.useFakeTimers();
+    const t = newConvex();
+    const userId = await t.run((ctx) => ctx.db.insert("users", { email: GUEST, name: "Gina Guest" }));
+    await t.withIdentity({ email: GUEST, subject: `${userId}|session`, issuer: "test" }).mutation(api.world.join, {});
+    const gardenRows = () =>
+      t.run(async (ctx) => ({
+        members: await ctx.db.query("worldMembers").collect(),
+        states: await ctx.db.query("worldState").collect(),
+        presence: await ctx.db.query("worldPresence").collect(),
+        rooms: await ctx.db.query("worldRooms").collect(),
+        throttles: await ctx.db.query("worldThrottle").collect(),
+        visitors: await ctx.db.query("worldVisitors").collect(),
+      }));
+    expect((await gardenRows()).visitors).toHaveLength(1);
+    const empty = { members: [], states: [], presence: [], rooms: [], throttles: [], visitors: [] };
+    await t.mutation(internal.account.wipe, { userId });
+    // Straight after the wipe, before any scheduled sweep runs: the wipe itself did it.
+    expect(await gardenRows()).toEqual(empty);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.setSystemTime(Date.now() + 10 * 60_000);
+    await t.mutation(internal.world.sweep, {});
+    // And no later sweep brings anything back.
+    expect(await gardenRows()).toEqual(empty);
   });
 
   test("deletes the user's saved Spotify connection and search count", async () => {

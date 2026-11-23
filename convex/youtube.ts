@@ -2,6 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { action } from "./_generated/server";
 import { parseYouTubeSong } from "./shared/youtube";
+import { env } from "./environment";
 
 type YouTubePlaylistItem = {
   snippet?: {
@@ -31,7 +32,7 @@ export const importPlaylist = action({
     if (!(await getAuthUserId(ctx))) {
       throw new ConvexError("You must be signed in.");
     }
-    const apiKey = process.env.YOUTUBE_API_KEY;
+    const apiKey = env("YOUTUBE_API_KEY");
 
     if (!apiKey) {
       throw new ConvexError("YouTube API key is not configured.");

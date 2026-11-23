@@ -19,12 +19,12 @@ import { markedRoleIn, type MarkedRole } from "../../../shared/memberRole";
 import { isSowStaffAddress } from "../../../shared/rollcallImport";
 import { capitalizeMemberName } from "../../../shared/rollcall";
 import { typedMatches } from "../../../shared/typedConfirm";
+import { DeleteImpact } from "@/components/attendance/DeleteImpact";
 import { MemberRoleField } from "@/components/attendance/MemberRoleField";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
 import { ChurchSelect } from "@/components/ChurchPicker";
 import {
   Btn,
-  CannotUndo,
   dismissKeyboard,
   ErrorBanner,
   errorMessage,
@@ -38,7 +38,7 @@ import {
   WarningBanner,
 } from "@/components/ui";
 import { sydneyDay } from "@/lib/sydneyTime";
-import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
+import { durations, spacing, typography, useAppTheme } from "@/theme";
 
 export function EditMemberSheet({
   visible,
@@ -123,7 +123,7 @@ export function EditMemberSheet({
     metadataFields
       .map((f) => formatMetadataFieldValue(f.key, meta[f._id] ?? "", year, f.values))
       .filter(Boolean)
-      .join(" · ");
+      .join(", ");
 
   useEffect(() => {
     if (!visible) return;
@@ -503,7 +503,7 @@ export function EditMemberSheet({
                     setDeleteOpen(false);
                     setMergeFromDelete(true);
                     setMergeStaff(null);
-                    setTimeout(() => setMergeOpen(true), durations.overlayOut + 80);
+                    setTimeout(() => setMergeOpen(true), durations.sheetHandoff);
                   }}
                 />
               </View>
@@ -513,74 +513,22 @@ export function EditMemberSheet({
               <LoadingState />
             ) : (
               <>
-                <View
-                  style={[
-                    styles.deleteWarning,
-                    { backgroundColor: t.dangerSoft, borderColor: t.danger },
-                  ]}
-                >
-                  <View style={styles.deleteWarningTitle}>
-                    <Ionicons name="warning" size={20} color={t.danger} />
-                    <Txt
-                      style={[typography.headline, { color: t.danger, flex: 1 }]}
-                    >
-                      {deleteImpact && deleteImpact.total > 0
-                        ? `Removes ${name.trim()} from ${
-                            deleteImpact.total === 1 ? "1 event" : `${deleteImpact.total} events`
-                          }`
-                        : `${name.trim()} has no attendance`}
-                    </Txt>
-                  </View>
-                  {deleteImpact && deleteImpact.total > 0 ? (
-                    <Txt style={[typography.body, { color: t.text }]}>
-                      Their attendance is deleted from rolls, exports and Insights.
-                    </Txt>
-                  ) : null}
-                  <CannotUndo />
-                </View>
-                {deleteImpact && deleteImpact.total > 0 ? (
-                  <>
-                    <Txt
-                      style={[
-                        typography.label,
-                        { color: t.muted, marginTop: spacing.sm },
-                      ]}
-                    >
-                      Attendance deleted
-                    </Txt>
-                    <View
-                      style={[
-                        styles.deleteList,
-                        { borderColor: t.separator, backgroundColor: t.card },
-                      ]}
-                    >
-                      {deleteImpact.events.map((e) => (
-                        <View key={e.attendanceId} style={styles.deleteListRow}>
-                          <Ionicons
-                            name="close-circle"
-                            size={14}
-                            color={t.danger}
-                          />
-                          <Txt
-                            style={[typography.body, { color: t.text, flex: 1 }]}
-                            numberOfLines={1}
-                          >
-                            {e.name}
-                          </Txt>
-                          <Txt style={[typography.caption, { color: t.muted }]}>
-                            {sydneyDay(e.dateStart)}
-                          </Txt>
-                        </View>
-                      ))}
-                      {deleteImpact.total > deleteImpact.events.length ? (
-                        <Txt style={[typography.caption, { color: t.muted }]}>
-                          and {deleteImpact.total - deleteImpact.events.length}{" "}
-                          more
-                        </Txt>
-                      ) : null}
-                    </View>
-                  </>
-                ) : null}
+                <DeleteImpact
+                  title={
+                    deleteImpact && deleteImpact.total > 0
+                      ? `Removes ${name.trim()} from ${
+                          deleteImpact.total === 1 ? "1 event" : `${deleteImpact.total} events`
+                        }`
+                      : `${name.trim()} has no attendance`
+                  }
+                  body="Their attendance is deleted from rolls, exports and Insights."
+                  rows={(deleteImpact?.events ?? []).map((e) => ({
+                    key: e.attendanceId,
+                    name: e.name,
+                    detail: sydneyDay(e.dateStart),
+                  }))}
+                  total={deleteImpact?.total ?? 0}
+                />
                 <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
                   {eventAttendance ? "Just this event? Remove their sign-in instead. " : ""}
                   Duplicate? Merge instead to keep their attendance.
@@ -695,22 +643,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  deleteWarning: {
-    borderWidth: 1.5,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  deleteWarningTitle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  deleteList: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: 6,
-  },
-  deleteListRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
 });

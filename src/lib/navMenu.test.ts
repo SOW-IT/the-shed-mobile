@@ -114,7 +114,7 @@ describe("showsReimbursements", () => {
 describe("who sees which pages", () => {
   const REQUESTS: NavKey[] = ["reimbursements", "eventRequests", "designRequests"];
   const PUBLIC: NavKey[] = ["home", "org", "churches", "grievances"];
-  const STAFF_PAGES: NavKey[] = ["profile", "music", "attendance", "calendar", "insights"];
+  const STAFF_PAGES: NavKey[] = ["garden", "music", "attendance", "calendar", "insights"];
   const ADMIN_PAGES: NavKey[] = ["mentoring", "announcements", "admin"];
 
   test.each([
@@ -122,12 +122,12 @@ describe("who sees which pages", () => {
       "signed-out people",
       signedOut,
       PUBLIC,
-      [...STAFF_PAGES, ...REQUESTS, ...ADMIN_PAGES],
+      [...STAFF_PAGES, ...REQUESTS, ...ADMIN_PAGES, "profile"],
     ],
     [
       "guests",
       guest,
-      [...PUBLIC, "profile"],
+      [...PUBLIC, "garden"],
       ["music", "attendance", "calendar", "insights", ...REQUESTS, ...ADMIN_PAGES],
     ],
     ["staff", staff, [...PUBLIC, ...STAFF_PAGES, ...REQUESTS], ADMIN_PAGES],
@@ -157,16 +157,16 @@ describe("who sees which pages", () => {
 
   test("the drawer holds only what the bottom tabs and sidebar leave out", () => {
     expect(drawerItems(signedOut)).toEqual([]);
-    expect(drawerItems(guest)).toEqual(["profile"]);
+    expect(drawerItems(guest)).toEqual(["garden"]);
     expect(drawerItems(financeHead)).toEqual(drawerItems(staff));
     for (const viewer of [staff, campusLeader, admin]) {
       const drawer = drawerItems(viewer);
       expect(drawer).toEqual(
-        expect.arrayContaining(["profile", "music", "churches", "insights"]),
+        expect.arrayContaining(["garden", "music", "churches", "insights"]),
       );
       expect(
         drawer.filter((key) =>
-          ["home", "attendance", "calendar", "org", "grievances"].includes(key),
+          ["home", "attendance", "calendar", "org", "grievances", "profile"].includes(key),
         ),
       ).toEqual([]);
     }
@@ -174,7 +174,7 @@ describe("who sees which pages", () => {
 });
 
 describe("Insights in the menus", () => {
-  test("sits at the bottom for everyone who has it there, with only Announcements and Admin below", () => {
+  test("sits at the bottom for everyone who has it there, with only Announcements, World and Admin below", () => {
     const viewers = [
       guest,
       staff,
@@ -191,10 +191,14 @@ describe("Insights in the menus", () => {
       if (!items.includes("insights")) continue;
       const below = items.slice(items.indexOf("insights") + 1);
       expect(
-        below.filter((key) => key !== "announcements" && key !== "admin"),
+        below.filter(
+          (key) => key !== "announcements" && key !== "garden" && key !== "admin",
+        ),
       ).toEqual([]);
-      if (items.includes("announcements"))
+      if (items.includes("announcements")) {
         expect(below[0]).toBe("announcements");
+        expect(below[1]).toBe("garden");
+      } else expect(below[0]).toBe("garden");
     }
   });
 });
@@ -202,9 +206,8 @@ describe("Insights in the menus", () => {
 describe("navEntries", () => {
   test("folds the three request pages into one Requests group where the first sat", () => {
     expect(navEntries(drawerItems(admin))).toEqual([
-      { kind: "item", key: "profile" },
-      { kind: "item", key: "music" },
       { kind: "item", key: "churches" },
+      { kind: "item", key: "music" },
       {
         kind: "group",
         key: "requests",
@@ -213,26 +216,29 @@ describe("navEntries", () => {
       { kind: "item", key: "mentoring" },
       { kind: "item", key: "insights" },
       { kind: "item", key: "announcements" },
+      { kind: "item", key: "garden" },
       { kind: "item", key: "admin" },
     ]);
-    expect(navEntries(sidebarItems(staff)).slice(0, 4)).toEqual([
+    expect(navEntries(sidebarItems(staff)).slice(0, 3)).toEqual([
       { kind: "item", key: "home" },
       {
         kind: "group",
         key: "requests",
         items: ["reimbursements", "eventRequests", "designRequests"],
       },
-      { kind: "item", key: "music" },
       { kind: "item", key: "attendance" },
     ]);
+    const sidebar = sidebarItems(staff);
+    expect(sidebar[sidebar.indexOf("churches") + 1]).toBe("music");
+    expect(sidebar).not.toContain("profile");
   });
 
   test("no group when there are no request pages", () => {
     expect(navEntries(drawerItems(campusLeader))).toEqual([
-      { kind: "item", key: "profile" },
-      { kind: "item", key: "music" },
       { kind: "item", key: "churches" },
+      { kind: "item", key: "music" },
       { kind: "item", key: "insights" },
+      { kind: "item", key: "garden" },
     ]);
   });
 });
@@ -284,7 +290,7 @@ describe("roleLine", () => {
           { role: "Staff", department: "Data and IT" },
         ],
       }),
-    ).toBe("HOD → Finance  ·  Staff → Data and IT");
+    ).toBe("HOD → Finance, Staff → Data and IT");
   });
 
   test("falls back to roles when there are no assignments", () => {

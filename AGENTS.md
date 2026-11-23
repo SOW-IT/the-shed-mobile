@@ -20,9 +20,17 @@ Convex agent skills for common tasks can be installed by running
 
 Expo (RN) + Convex; the same TS serves iOS/Android/web. Node 22, npm only.
 Commands are in `README.md` / `package.json`. Checks need no backend
-(`convex-test` is in-memory): `npm run lint`, `npm run typecheck`,
-`npm run test:coverage`. CI runs the same three with coverage thresholds, plus
-`EXPO_OFFLINE=1 npx expo install --check` and the web sweep.
+(`convex-test` is in-memory): `npx eslint . --max-warnings 0`, `npx knip`,
+`npm run typecheck`, `npm run test:coverage`. CI runs the same four with
+coverage thresholds, plus `EXPO_OFFLINE=1 npx expo install --check` and the
+web sweep. `npm run lint` (`expo lint`) only covers `src/`, and changing that
+script changes the native fingerprint; it moves to the full command with the
+next release that needs a store build.
+
+The lint rules encode mistakes that past reviews kept catching; the PR that
+added each rule cites them. Fix what a rule reports. When a site
+really is the exception, disable the rule on that line with a reason after
+`--`; a disable with no reason fails lint.
 
 No formatter runs on this code, and `.prettierignore` turns Prettier off so an
 editor's format-on-save can't rewrite a whole file (the music-form merge
@@ -37,13 +45,32 @@ Head, and a Budget Manager (Admin → "Other"; picker lists Finance members only
 1. **Clarify first** — ask the user about anything unclear (scope, UX, edge
    cases, permissions, data) before implementing. Then follow
    `.claude/skills/create-feature/SKILL.md`.
-2. **Verify** — run the checks, then exercise the change on the iOS Simulator
-   (baguette) and web. Take before/after screenshots of UI changes.
+2. **Verify** — `node scripts/verify.mjs` (the `verify` skill,
+   `docs/verification.md`): lint, typecheck and unit tests, then each
+   affected screen on the iOS Simulator and web with before/after
+   screenshots. Drive new interactions by hand with baguette and Playwright.
 3. **Open the PR** per `.claude/skills/create-pr/SKILL.md`, and add a link to a
    Netlify HTML explainer (with before/after screenshots when visible) to the
    PR description.
-4. **Babysit the PR** until merged or told to stop — fix failing CI, address
-   every review comment (fix or reply), re-verify UI changes on sim + web.
+4. **Shepherd the PR** per `.claude/skills/pr-shepherd/SKILL.md` until CI
+   and `verify` are green, and for a big PR (see CodeRabbit reviews below)
+   CodeRabbit has reviewed the head with nothing left open, then mark it
+   ready. `node scripts/pr-status.mjs <number>` says where it stands.
+
+## CodeRabbit reviews
+
+Automatic CodeRabbit reviews are off. Comment `@coderabbitai review` only
+when the PR is **big**:
+
+- more than 300 changed lines in app source or Convex code, not counting
+  tests, scripts, docs, config, or pure moves, or
+- it touches the Convex schema, data deletion or migration, auth or
+  permissions, or push or email notification sending.
+
+Do not request a review on any other PR. A commit that only merges `main`
+in cleanly, without conflicts and without `main` changing the same files or
+functions as the PR, does not need a new review. Non-big PRs are ready once
+CI and `verify` are green and no CodeRabbit threads are left open.
 
 ## This Mac
 

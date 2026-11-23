@@ -2,6 +2,7 @@ import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { AdminsCard } from "@/components/admin/AdminsCard";
 import { AppErrorsCard } from "@/components/admin/AppErrorsCard";
+import { ConnectStaffRecordSheet, type OldStaff } from "@/components/admin/ConnectStaffRecordSheet";
 import {
   CardGrid,
   type DeleteConfirm,
@@ -10,6 +11,7 @@ import {
   useStructureDraft,
 } from "@/components/admin/StructureEditor";
 import { TeamJobsCard } from "@/components/admin/TeamJobsCard";
+import { newestVersions, UserActivityLine } from "@/components/admin/UserActivityLine";
 import {
   Btn,
   Card,
@@ -31,9 +33,12 @@ import {
   Toast,
   type ToastState,
   Txt,
+  Facts,
 } from "@/components/ui";
 import { useAdminMutations } from "@/hooks/useAdminMutations";
 import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
+import { useRowIds } from "@/hooks/useRowIds";
+import { keysFor } from "@/lib/listKeys";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
   radius,
@@ -57,9 +62,12 @@ import {
   ROLES,
   scopeKindFor,
   universityColour,
+  yearLabel,
 } from "@shared/flow";
 import { canonicalEmailKey, uniqueStaffByEmail } from "@shared/rollcallImport";
-import { useMutation, useQuery } from "convex/react";
+import { activityBatches } from "@shared/userActivity";
+import { useMutation, useQueries, useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -136,6 +144,7 @@ const AssignmentEditor = ({
   const t = useAppTheme();
   const totalCount = startIndex + assignments.length;
   const [removeIndex, setRemoveIndex] = useState<number | null>(null);
+  const rowIds = useRowIds(assignments.length);
   return (
     <View style={{ gap: 8 }}>
       {assignments.map((a, i) => {
@@ -150,7 +159,7 @@ const AssignmentEditor = ({
         const rowRoles = roles.includes(a.role) ? roles : [a.role, ...roles];
         return (
           <View
-            key={i}
+            key={rowIds.keyAt(i)}
             style={{
               backgroundColor: t.ghost,
               borderRadius: radius.md,
@@ -221,7 +230,10 @@ const AssignmentEditor = ({
       <Btn
         title="+ Add assignment"
         variant="ghost"
-        onPress={() => onChange([...assignments, emptyDraft()])}
+        onPress={() => {
+          rowIds.add();
+          onChange([...assignments, emptyDraft()]);
+        }}
       />
       <ConfirmDialog
         visible={removeIndex !== null}
@@ -233,6 +245,7 @@ const AssignmentEditor = ({
         confirmLabel="Remove"
         onConfirm={() => {
           if (removeIndex !== null) {
+            rowIds.remove(removeIndex);
             onChange(assignments.filter((_, j) => j !== removeIndex));
           }
         }}
@@ -241,6 +254,8 @@ const AssignmentEditor = ({
     </View>
   );
 };
+
+const assignmentKey = (a: Assignment) => `${a.role}|${a.department ?? ""}|${a.university ?? ""}`;
 
 const LockedAssignmentRow = ({
   a,
@@ -384,6 +399,33 @@ export default function AdminScreen() {
     hasAccess ? { year: selectedYear } : "skip",
   );
   const lockedNames = useQuery(api.admin.lockedNames, hasAccess ? {} : "skip");
+  const activityEmails = [
+    ...new Set(
+      [...(profiles ?? []), ...(unassigned ?? []), ...(leavers ?? [])].map(
+        (user) => user.email,
+      ),
+    ),
+  ].sort();
+  const activityResults = useQueries(
+    Object.fromEntries(
+      (me?.isAdmin ? activityBatches(activityEmails) : []).map((emails, i) => [
+        String(i),
+        { query: api.admin.userActivity, args: { emails } },
+      ]),
+    ),
+  );
+  type ActivityRows = NonNullable<FunctionReturnType<typeof api.admin.userActivity>>;
+  const activity: ActivityRows = Object.values(activityResults).flatMap(
+    (rows: unknown) => (Array.isArray(rows) ? (rows as ActivityRows) : []),
+  );
+  const activityByEmail = new Map(activity.map((row) => [row.email, row]));
+  const newestVersion = newestVersions(activity);
+  const activityLine = (email: string) => (
+    <UserActivityLine
+      activity={activityByEmail.get(email)}
+      newest={newestVersion}
+    />
+  );
   const teamView = useQuery(
     api.teams.view,
     hasAccess ? { year: selectedYear } : "skip",
@@ -445,6 +487,7 @@ export default function AdminScreen() {
 
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
+  const [connecting, setConnecting] = useState<OldStaff | null>(null);
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
     try {
@@ -529,13 +572,6 @@ export default function AdminScreen() {
       </Screen>
     );
   }
-
-  const yearLabel = (y: number) =>
-    y === currentYear
-      ? `${y} (current)`
-      : y === currentYear + 1
-        ? `${y} (from Oct 1)`
-        : `${y}`;
 
   const yearRoles = structure?.roles ?? [];
   const yearAssignableRoles = yearRoles.filter(
@@ -663,7 +699,22 @@ export default function AdminScreen() {
               {user.previousYear ? (
                 <Muted>Last on staff in {user.previousYear}</Muted>
               ) : null}
+              {activityLine(user.email)}
             </View>
+            {me?.isAdmin && user.previousYear ? (
+              <IconButton
+                name="git-merge-outline"
+                size={40}
+                accessibilityLabel={`Connect an attendance record to ${user.name ?? user.email}`}
+                onPress={() =>
+                  setConnecting({
+                    email: user.email,
+                    name: user.name ?? user.email,
+                    year: user.previousYear as number,
+                  })
+                }
+              />
+            ) : null}
             <IconButton
               name="log-out-outline"
               size={40}
@@ -693,6 +744,7 @@ export default function AdminScreen() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
           {user.name ? <Muted>{user.email}</Muted> : null}
+          {activityLine(user.email)}
         </View>
         <Btn
           title="Retain"
@@ -724,6 +776,8 @@ export default function AdminScreen() {
     const lockedHeadAssignments = profile.assignments.filter(
       (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION,
     );
+    const lockedKeys = keysFor(lockedHeadAssignments.map(assignmentKey));
+    const savedKeys = keysFor(profile.assignments.map(assignmentKey));
     const savedAssignments: AssignmentDraft[] = profile.assignments
       .filter(
         (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION,
@@ -759,7 +813,7 @@ export default function AdminScreen() {
             {profile.name ? <Muted>{profile.email}</Muted> : null}
             {lockedHeadAssignments.map((a, i) => (
               <LockedAssignmentRow
-                key={i}
+                key={lockedKeys[i]}
                 a={a}
                 index={i}
                 totalCount={
@@ -848,10 +902,11 @@ export default function AdminScreen() {
                 )}
               </View>
               {profile.name ? <Muted>{profile.email}</Muted> : null}
+              {activityLine(profile.email)}
               {profile.assignments.length > 0 ? (
                 <View style={{ marginTop: 2 }}>
                   {profile.assignments.map((a, i) => (
-                    <Muted key={i}>
+                    <Muted key={savedKeys[i]}>
                       {formatAssignment(a, structure?.roleTitles)}
                     </Muted>
                   ))}
@@ -860,6 +915,20 @@ export default function AdminScreen() {
                 <Muted>—</Muted>
               )}
             </View>
+            {me?.isAdmin ? (
+              <IconButton
+                name="git-merge-outline"
+                size={40}
+                accessibilityLabel={`Connect an attendance record to ${profile.name ?? profile.email}`}
+                onPress={() =>
+                  setConnecting({
+                    email: profile.email,
+                    name: profile.name ?? profile.email,
+                    year: selectedYear,
+                  })
+                }
+              />
+            ) : null}
             {editable && (
               <>
                 <IconButton
@@ -950,9 +1019,7 @@ export default function AdminScreen() {
 
           {!showingNotSignedIn && editable && returningStaff.length > 0 && (
             <>
-              <SectionTitle>
-                Previously staff · {selectedYear} ({returningStaff.length})
-              </SectionTitle>
+              <SectionTitle chip={returningStaff.length}>Previously staff</SectionTitle>
               <CardGrid maxVisible={VISIBLE_USERS}>
                 {returningStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
@@ -961,10 +1028,7 @@ export default function AdminScreen() {
 
           {!showingNotSignedIn && editable && signedInNeverStaff.length > 0 && (
             <>
-              <SectionTitle>
-                Signed in, no assignment · {selectedYear} (
-                {signedInNeverStaff.length})
-              </SectionTitle>
+              <SectionTitle chip={signedInNeverStaff.length}>Signed in, no assignment</SectionTitle>
               <CardGrid maxVisible={VISIBLE_USERS}>
                 {signedInNeverStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
@@ -975,9 +1039,8 @@ export default function AdminScreen() {
             editable &&
             directoryNeverStaff.length > 0 && (
               <>
-                <SectionTitle>
-                  In directory, no assignment · {selectedYear} (
-                  {directoryNeverStaff.length})
+                <SectionTitle chip={directoryNeverStaff.length}>
+                  In directory, no assignment
                 </SectionTitle>
                 <CardGrid maxVisible={VISIBLE_USERS}>
                   {directoryNeverStaff.map((user) =>
@@ -989,9 +1052,7 @@ export default function AdminScreen() {
 
           {!showingNotSignedIn && editable && (leavers ?? []).length > 0 && (
             <>
-              <SectionTitle>
-                Leaving · {selectedYear} ({(leavers ?? []).length})
-              </SectionTitle>
+              <SectionTitle chip={(leavers ?? []).length}>Leaving</SectionTitle>
               <CardGrid maxVisible={VISIBLE_USERS}>
                 {(leavers ?? []).map((user) => renderLeaverCard(user))}
               </CardGrid>
@@ -1000,7 +1061,7 @@ export default function AdminScreen() {
 
           {director ? (
             <>
-              <SectionTitle>Director · {selectedYear}</SectionTitle>
+              <SectionTitle chip={selectedYear}>Director</SectionTitle>
               <CardGrid>{renderProfileCard(director, t.primary)}</CardGrid>
             </>
           ) : null}
@@ -1013,9 +1074,7 @@ export default function AdminScreen() {
             if (!hasAny) return null;
             return (
               <View key={group.division} style={{ gap: spacing.md }}>
-                <SectionTitle>
-                  {group.division} · {selectedYear}
-                </SectionTitle>
+                <SectionTitle chip={selectedYear}>{group.division}</SectionTitle>
                 {group.head ? (
                   <CardGrid>
                     {renderProfileCard(group.head, t.primary)}
@@ -1060,9 +1119,7 @@ export default function AdminScreen() {
               universityColour(group.university) ?? t.primary;
             return (
               <View key={group.university} style={accentContainerStyle}>
-                <SectionTitle>
-                  {group.university} · {selectedYear}
-                </SectionTitle>
+                <SectionTitle chip={selectedYear}>{group.university}</SectionTitle>
                 <CardGrid>
                   {group.profiles.map((profile) =>
                     renderProfileCard(profile, campusAccent),
@@ -1074,7 +1131,7 @@ export default function AdminScreen() {
 
           {nonCampusOtherProfiles.length > 0 && (
             <>
-              <SectionTitle>Other · {selectedYear}</SectionTitle>
+              <SectionTitle chip={selectedYear}>Other</SectionTitle>
               <CardGrid>
                 {nonCampusOtherProfiles.map((profile) =>
                   renderProfileCard(profile),
@@ -1276,10 +1333,7 @@ export default function AdminScreen() {
             <SectionTitle>Directory sync</SectionTitle>
             <Card>
               {syncState?.syncedAt ? (
-                <Muted>
-                  Last synced: {sydneyDateTime(syncState.syncedAt)} ·{" "}
-                  {syncState.status}
-                </Muted>
+                <Facts parts={[`Last synced ${sydneyDateTime(syncState.syncedAt)}`, syncState.status]} />
               ) : (
                 <Muted>Never synced.</Muted>
               )}
@@ -1316,7 +1370,7 @@ export default function AdminScreen() {
             year={selectedYear}
             years={years ?? [currentYear, currentYear + 1]}
             onSelect={onSelectYear}
-            formatLabel={yearLabel}
+            formatLabel={(y) => yearLabel(y, currentYear)}
           />
         }
       />
@@ -1358,6 +1412,12 @@ export default function AdminScreen() {
         onClose={() => setSyncConfirm(false)}
       />
       <Toast toast={toast} />
+      <ConnectStaffRecordSheet
+        staff={connecting}
+        currentYear={currentYear}
+        onClose={() => setConnecting(null)}
+        onConnected={(summary) => setToast({ text: summary })}
+      />
     </>
   );
 }

@@ -8,13 +8,12 @@ import {
   Avatar,
   ConfirmDialog,
 } from "@/components/ui";
-import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
-import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
 import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
 import { useMusicRequestsBadge } from "@/hooks/useMusicRequestsBadge";
 import { useNavGroupOpen } from "@/hooks/useNavGroupOpen";
 import { useSignOut } from "@/hooks/usePushRegistration";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
+import { useStaffWaitingBadge } from "@/hooks/useStaffWaitingBadge";
 import {
   activeNavKey,
   badgeText,
@@ -29,13 +28,12 @@ import {
   roleLine,
   sidebarItems,
 } from "@/lib/navMenu";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { type Href, usePathname, useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -44,6 +42,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
+import { notify } from "@/lib/notify";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -69,6 +68,7 @@ const NAV_ICONS: Record<NavKey, { outline: AppIconName; filled: AppIconName }> =
       outline: "shield-checkmark-outline",
       filled: "shield-checkmark",
     },
+    garden: { outline: "leaf-outline", filled: "leaf" },
     admin: { outline: "settings-outline", filled: "settings" },
   };
 
@@ -262,8 +262,8 @@ export const NavMenu = ({
   const me = useQuery(api.directory.me);
   const viewer = navViewer(isAuthenticated, me);
   const reimbursementsBadge = useReimbursementsBadge();
-  const designRequestsBadge = useDesignRequestsBadge();
-  const eventRequestsBadge = useEventRequestsBadge();
+  const designRequestsBadge = useStaffWaitingBadge(api.designRequests.waitingOnMe);
+  const eventRequestsBadge = useStaffWaitingBadge(api.eventRequests.waitingOnMe);
   const grievancesBadge = useGrievancesBadge();
   const musicRequestsBadge = useMusicRequestsBadge();
   const unread =
@@ -466,10 +466,9 @@ export const NavMenu = ({
               void signOut()
                 .then(() => router.replace("/home"))
                 .catch(() => {
-                  Alert.alert(
+                  notify(
                     "Sign-out failed",
                     "Something went wrong signing you out. Please try again.",
-                    [{ text: "OK" }],
                   );
                 });
             }}
@@ -554,7 +553,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  badgeText: { color: fixedColours.onColour, fontSize: 11, fontWeight: "800" },
   divider: {
     height: StyleSheet.hairlineWidth,
     marginHorizontal: spacing.sm,

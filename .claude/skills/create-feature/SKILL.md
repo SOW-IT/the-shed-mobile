@@ -20,11 +20,11 @@ skill.
 | Node | 22 + npm (`package-lock.json` only) |
 | Deps | `node_modules` present; `npm install` if a fresh worktree |
 | Convex | Shared cloud **dev** deployment via `.env.local` (`EXPO_PUBLIC_CONVEX_*`). Do **not** use `CONVEX_AGENT_MODE=anonymous` on this Mac unless the user asks for an isolated local backend. |
-| Metro | `http://localhost:8081` — usually `expo start --dev-client`. Restart from **this worktree** if the wrong tree is serving. |
+| Metro | `http://localhost:8081` may be another session's; check it serves **this** worktree before using it, and never restart it. For your own, use port 8092 when `verify` isn't running. |
 | Simulator | iOS sim with **The SHED** (`au.org.sow.theshed`); drive with **baguette** |
 | Chrome | Open Expo web at `http://localhost:8082` for web smoke |
 | Netlify | `NETLIFY_AUTH_TOKEN` in `~/.hermes/.env` for phone HTML explain pages |
-| Checks | `npm run lint`, `npm run typecheck`, `npm test` / `npm run test:coverage` (no backend required) |
+| Checks | `npx eslint . --max-warnings 0`, `npx knip`, `npm run typecheck`, `npm test` / `npm run test:coverage` (no backend required) |
 
 Read `AGENTS.md` (Expo v58 docs link + Convex guidelines + Mac section) before
 coding. For Convex API patterns, read `convex/_generated/ai/guidelines.md` first.
@@ -62,23 +62,19 @@ checkout at `~/GitHub/the-shed-mobile`.
 ## 3. Verify while building
 
 ```bash
-npm run lint
+npx eslint . --max-warnings 0
+npx knip
 npm run typecheck
 npm test                 # or npm run test:coverage before PR
 ```
 
-**UI (when the change is visible):**
-
-1. Confirm Metro is this worktree: `curl -s http://localhost:8081/status`.
-   If not, from the worktree: `npx expo start --dev-client --port 8081`
-   (`expo` is a local dependency — `npx` resolves the pinned workspace copy).
-2. Native: `baguette list` → use the `Booted` sim; tap/swipe via baguette.
-   Reload the app after JS changes.
-3. Web: `npx expo start --web --port 8082` and/or Playwright screenshots
-   (prefer Playwright over headless Chrome `--screenshot` for RN-web).
-4. Optional signed-in smoke without Google: e2e-auth bypass when
-   `E2E_AUTH_ENABLED` is set on the deployment (README → Tests and
-   `AGENTS.md`). Never enable that bypass on prod.
+**UI (when the change is visible):** `node scripts/verify.mjs --only <area>`
+opens that area's screens on web and the simulator with screenshots (see the
+`verify` skill). For interactions, drive the simulator with baguette and web
+with Playwright, against your own Metro from this worktree:
+`npx expo start --dev-client --port 8092` when no verify run is using that
+port. Port 8081 may be another session's Metro, so check it serves this
+worktree before using it, and never restart it.
 
 ## 4. Ship
 

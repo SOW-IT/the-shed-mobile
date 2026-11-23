@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { SWIPE_DISTANCE, SWIPE_SPEED, swipePage } from "./swipePage";
+import { heightBetween, SWIPE_DISTANCE, SWIPE_SPEED, swipePage } from "./swipePage";
 
 describe("swipePage", () => {
   test("a long drag left goes forward and a long drag right goes back", () => {
@@ -21,5 +21,23 @@ describe("swipePage", () => {
   test("flicking back the other way at the end cancels", () => {
     expect(swipePage(-(SWIPE_DISTANCE + 20), SWIPE_SPEED)).toBe(0);
     expect(swipePage(SWIPE_DISTANCE + 20, -SWIPE_SPEED)).toBe(0);
+  });
+});
+
+describe("heightBetween", () => {
+  test("is a page's own height when it's settled on it", () => {
+    expect(heightBetween({ 0: 500, 1: 600 }, 0)).toBe(500);
+    expect(heightBetween({ 0: 500, 1: 600 }, 1)).toBe(600);
+  });
+
+  test("moves from one page's height to the next as it slides, either way", () => {
+    expect(heightBetween({ 0: 500, 1: 600 }, 0.25)).toBe(525);
+    expect(heightBetween({ [-1]: 400, 0: 500 }, -0.5)).toBe(450);
+  });
+
+  test("uses whichever height is known", () => {
+    expect(heightBetween({ 1: 600 }, 0.5)).toBe(600);
+    expect(heightBetween({ 0: 500 }, 0.5)).toBe(500);
+    expect(heightBetween({}, 0)).toBeUndefined();
   });
 });

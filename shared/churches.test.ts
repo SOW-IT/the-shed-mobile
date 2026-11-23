@@ -16,6 +16,7 @@ import {
   NO_CAMPUS,
   NO_CHURCH_FILTER,
   sortServices,
+  toggleInSet,
   togglePicked,
   websiteLabel,
 } from "./churches";
@@ -84,7 +85,7 @@ describe("service times", () => {
         { day: 0, time: "18:00" },
         { day: 6, time: "18:30" },
       ])
-    ).toBe("Sunday 9am, 11am and 6pm · Saturday 6:30pm");
+    ).toBe("Sunday 9am, 11am and 6pm; Saturday 6:30pm");
   });
 });
 
@@ -148,6 +149,13 @@ describe("church filters", () => {
   test("a tap picks an option, and another unpicks it", () => {
     expect(togglePicked([], "UNSW")).toEqual(["UNSW"]);
     expect(togglePicked(["UNSW", "USYD"], "UNSW")).toEqual(["USYD"]);
+  });
+
+  test("a set toggle adds a missing key and removes a present one, leaving the original alone", () => {
+    const start = new Set(["a"]);
+    expect([...toggleInSet(start, "b")]).toEqual(["a", "b"]);
+    expect([...toggleInSet(start, "a")]).toEqual([]);
+    expect([...start]).toEqual(["a"]);
   });
 
   test("campuses are listed once, by label, with no campus last", () => {

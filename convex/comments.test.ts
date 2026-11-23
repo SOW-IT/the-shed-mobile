@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { staffYearStartMs } from "../shared/flow";
+import type { Id } from "./_generated/dataModel";
 import { api, internal } from "./_generated/api";
 import { actionOwnerEmail } from "./requests";
 import { type T, YEAR, ADMIN, newConvex, asUser } from "../test/convexFixture";
@@ -33,9 +34,9 @@ const submit = async (t: T, amount = 100) => {
   return request._id;
 };
 
-const owner = (t: T, requestId: string) =>
+const owner = (t: T, requestId: Id<"requests">) =>
   t.run(async (ctx) => {
-    const request = await ctx.db.get("requests", requestId as never);
+    const request = await ctx.db.get("requests", requestId);
     return actionOwnerEmail(ctx, request!);
   });
 
@@ -474,6 +475,17 @@ describe("toggleReaction + list grouping", () => {
     list = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
     expect(list[0].reactions.find((r) => r.emoji === "👍")?.count).toBe(1);
     expect(list[0].reactions.find((r) => r.emoji === "👍")?.mine).toBe(false);
+  });
+
+  test("emoji with the same count keep the order they were first used", async () => {
+    const t = await reimbursementSetup();
+    const id = await submit(t);
+    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "hello" });
+    const [comment] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
+    await asUser(t, RACHEL).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "🎉" });
+    await asUser(t, HENRY).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "👍" });
+    const [listed] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
+    expect(listed.reactions.map((r) => r.emoji)).toEqual(["🎉", "👍"]);
   });
 
   test("someone who can't see the request can't react to its comments", async () => {

@@ -265,7 +265,7 @@ async function userWithUpload(bytes: Uint8Array, type = "image/jpeg") {
 const avatarOf = (t: T, userId: Id<"users">) =>
   t.run(async (ctx) => {
     const user = await ctx.db.get("users", userId);
-    const file = user?.avatarId ? await ctx.db.system.get(user.avatarId) : null;
+    const file = user?.avatarId ? await ctx.db.system.get("_storage", user.avatarId) : null;
     return { avatarId: user?.avatarId ?? null, size: file?.size ?? null };
   });
 

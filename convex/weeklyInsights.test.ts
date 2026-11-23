@@ -29,7 +29,7 @@ async function setup() {
   });
   const ids = await t.run(async (ctx) => {
     const profile = (await ctx.db.query("staffProfiles").collect()).find((p) => p.email === LEADER)!;
-    await ctx.db.patch(profile._id, { name: "Lee Leader" });
+    await ctx.db.patch("staffProfiles", profile._id, { name: "Lee Leader" });
     const lee = profile.memberId!;
     const tag = await ctx.db.insert("attendanceTags", { name: "Weeklies" });
     const campus = await ctx.db.insert("attendanceMetadata", {
@@ -236,7 +236,7 @@ describe("first build and the view", () => {
     await rebuild(t);
     await t.run(async (ctx) => {
       const row = (await ctx.db.query("weeklyInsightViews").collect()).find((v) => v.periodKey === "2026-T2")!;
-      await ctx.db.delete(row._id);
+      await ctx.db.delete("weeklyInsightViews", row._id);
     });
     expect((await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!.blocks).toMatchObject([{ title: "Not ready yet" }]);
   });
@@ -302,9 +302,9 @@ describe("nightly builds only redo what changed", () => {
     vi.setSystemTime(NOW + 2 * DAY);
     await t.run(async (ctx) => {
       for (const row of await ctx.db.query("attendance").withIndex("by_member", (q) => q.eq("memberId", ids.ben)).collect()) {
-        await ctx.db.delete(row._id);
+        await ctx.db.delete("attendance", row._id);
       }
-      await ctx.db.delete(ids.ben);
+      await ctx.db.delete("attendanceMembers", ids.ben);
       await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "member", action: "delete", summary: "x", memberId: ids.ben });
     });
     await rebuild(t);
@@ -329,9 +329,9 @@ describe("nightly builds only redo what changed", () => {
     await t.run(async (ctx) => {
       const gone = ids.weeklies[0];
       for (const row of await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", gone)).collect()) {
-        await ctx.db.delete(row._id);
+        await ctx.db.delete("attendance", row._id);
       }
-      await ctx.db.delete(gone);
+      await ctx.db.delete("events", gone);
       await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "event", action: "delete", summary: "x", eventId: gone });
       const imported = await ctx.db.insert("events", {
         name: "Weeklies (imported)",
@@ -355,7 +355,7 @@ describe("nightly builds only redo what changed", () => {
     expect((await indexDoc(t))!.nextCompareAt).toBe(T2_2026[6] + 18 * DAY);
     await t.run(async (ctx) => {
       const index = (await ctx.db.query("weeklyInsightIndex").collect())[0];
-      await ctx.db.patch(index._id, { nextCompareAt: NOW });
+      await ctx.db.patch("weeklyInsightIndex", index._id, { nextCompareAt: NOW });
     });
     vi.setSystemTime(NOW + DAY);
     await rebuild(t);
@@ -409,7 +409,7 @@ describe("nightly builds only redo what changed", () => {
     const views = await viewDocs(t);
     await t.run(async (ctx) => {
       const index = (await ctx.db.query("weeklyInsightIndex").collect())[0];
-      await ctx.db.patch(index._id, { viewVersion: 0 });
+      await ctx.db.patch("weeklyInsightIndex", index._id, { viewVersion: 0 });
     });
     vi.setSystemTime(NOW + DAY);
     await rebuild(t);
@@ -442,7 +442,7 @@ describe("nightly builds only redo what changed", () => {
     vi.setSystemTime(NOW + DAY);
     await t.run(async (ctx) => {
       for (const id of ids.weeklies.slice(0, 3)) {
-        await ctx.db.patch(id, { tagIds: [], weekly: undefined });
+        await ctx.db.patch("events", id, { tagIds: [], weekly: undefined });
         await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "event", action: "update", summary: "x", eventId: id });
       }
     });
@@ -537,7 +537,7 @@ describe("a term that's gone", () => {
     await t.run(async (ctx) => {
       for (const eventId of ids.weeklies.slice(0, T2_2025.length)) {
         for (const row of await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()) {
-          await ctx.db.delete(row._id);
+          await ctx.db.delete("attendance", row._id);
         }
         await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "attendance", action: "delete", summary: "x", eventId });
       }
@@ -603,14 +603,14 @@ describe("sign-in tags", () => {
       { key: `member:${ids.newbie}`, label: "Newcomer", colour: "#8B5CF6" },
     ]);
     expect(await t.query(api.weeklyInsights.signInTags, { eventId: ids.mega })).toEqual([]);
-    await t.run((ctx) => ctx.db.delete(ids.social));
+    await t.run((ctx) => ctx.db.delete("events", ids.social));
     expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.social })).toEqual([]);
 
     vi.setSystemTime(NOW + DAY);
     await t.run(async (ctx) => {
       for (const eventId of ids.weeklies.slice(T2_2025.length + T1_2026.length)) {
         for (const row of await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()) {
-          await ctx.db.delete(row._id);
+          await ctx.db.delete("attendance", row._id);
         }
         await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "attendance", action: "delete", summary: "x", eventId });
       }
@@ -669,13 +669,13 @@ describe("member page", () => {
     expect(blocks[0]).toMatchObject({
       lines: ["UNSW"],
       category: { label: "Regular" },
-      reason: "T2 2026: 5/7 · 71%\nLast came T2W5 (1 Jul)\nCame to 5 of 5, then missed the last 2",
+      reason: "T2 2026: 5/7 (71%)\nLast came T2W5 (1 Jul)\nCame to 5 of 5, then missed the last 2",
       memberId: ids.ana,
     });
     expect(blocks[1]).toMatchObject({ rows: [{ label: "Email", value: "ana@example.com" }, { label: "Year", value: "2" }] });
     expect(block(blocks, "termHistory").rows.map((r) => r.label)).toEqual(["T2 2026", "T1 2026", "T2 2025"]);
     const events = block(blocks, "eventList").rows;
-    expect(events[0]).toEqual({ title: "Weeklies", subtitle: "5 Aug · UNSW", tag: "Weekly" });
+    expect(events[0]).toEqual({ title: "Weeklies", subtitle: "5 Aug at UNSW", tag: "Weekly" });
     expect(events.find((e) => e.title === "Social")!.tag).toBeUndefined();
     expect(block(blocks, "weekGrid")).toMatchObject({ title: "T2 2026", subtitle: "Weeklies attended this term" });
   });
@@ -708,7 +708,7 @@ describe("member page", () => {
       await ctx.db.insert("attendance", { eventId: ids.social, memberId: ids.ana, signInTime: 1 });
       const gone = await ctx.db.insert("events", { name: "Gone", dateStart: NOW, dateEnd: NOW, subgroups: [UNSW] });
       await ctx.db.insert("attendance", { eventId: gone, memberId: ids.ana, signInTime: 1 });
-      await ctx.db.delete(gone);
+      await ctx.db.delete("events", gone);
     });
     expect(await events()).toEqual(before);
   });
@@ -772,7 +772,7 @@ describe("combined weeklies, marks and suggestions", () => {
 
   test("a weekly's own term and week win over dates", async () => {
     const { t, ids } = await setup();
-    await t.run((ctx) => ctx.db.patch(ids.weeklies[12], { weekly: { year: 2026, slot: 1, week: 11 } }));
+    await t.run((ctx) => ctx.db.patch("events", ids.weeklies[12], { weekly: { year: 2026, slot: 1, week: 11 } }));
     await rebuild(t);
     const facts = await factDocs(t);
     expect(facts[`${UNSW}|2026-T1`].weeklies.map((w) => [w.at, w.week])).toEqual([
@@ -807,13 +807,13 @@ describe("creating an event as a Weekly", () => {
   test("stores its term and week and adds the Weeklies tag", async () => {
     const { t, leader, ids } = await setup();
     const id = await leader.mutation(api.events.create, { ...base, weekly: { year: 2026, slot: 2, week: 11 } });
-    const saved = await t.run((ctx) => ctx.db.get(id));
+    const saved = await t.run((ctx) => ctx.db.get("events", id));
     expect(saved).toMatchObject({ weekly: { year: 2026, slot: 2, week: 11 }, tagIds: [ids.tag] });
 
     await leader.mutation(api.events.update, { eventId: id, ...base, name: "Renamed", tagIds: [ids.tag] });
-    expect((await t.run((ctx) => ctx.db.get(id)))!.weekly).toEqual({ year: 2026, slot: 2, week: 11 });
+    expect((await t.run((ctx) => ctx.db.get("events", id)))!.weekly).toEqual({ year: 2026, slot: 2, week: 11 });
     await leader.mutation(api.events.update, { eventId: id, ...base, tagIds: [ids.tag], weekly: null });
-    const plain = await t.run((ctx) => ctx.db.get(id));
+    const plain = await t.run((ctx) => ctx.db.get("events", id));
     expect(plain!.weekly).toBeUndefined();
     expect(plain!.tagIds).toBeUndefined();
     const log = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
@@ -832,11 +832,11 @@ describe("creating an event as a Weekly", () => {
     await expect(bad({ year: 2028, slot: 1, week: 1 })).rejects.toThrow("The term should be in 2026, the year of the date.");
     await expect(bad({ year: 2027, slot: 1, week: 1 })).rejects.toThrow(/should be in 2026/);
     await expect(bad({ year: 2025, slot: 2, week: 1 }, [USYD])).rejects.toThrow("The semester should be in 2026, the year of the date.");
-    await t.run((ctx) => ctx.db.delete(ids.tag));
+    await t.run((ctx) => ctx.db.delete("attendanceTags", ids.tag));
     const id = await leader.mutation(api.events.create, { ...base, weekly: { year: 2026, slot: 2, week: 11 } });
     const tags = await t.run((ctx) => ctx.db.query("attendanceTags").collect());
     expect(tags.map((tag) => tag.name)).toEqual(["Weeklies"]);
-    expect((await t.run((ctx) => ctx.db.get(id)))!.tagIds).toEqual([tags[0]._id]);
+    expect((await t.run((ctx) => ctx.db.get("events", id)))!.tagIds).toEqual([tags[0]._id]);
   });
 
   test("switching off Weekly keeps the event's other tags", async () => {
@@ -844,13 +844,13 @@ describe("creating an event as a Weekly", () => {
     const social = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Social" }));
     const id = await leader.mutation(api.events.create, { ...base, tagIds: [social], weekly: { year: 2026, slot: 2, week: 11 } });
     await leader.mutation(api.events.update, { eventId: id, ...base, tagIds: [social, ids.tag], weekly: null });
-    expect((await t.run((ctx) => ctx.db.get(id)))!.tagIds).toEqual([social]);
+    expect((await t.run((ctx) => ctx.db.get("events", id)))!.tagIds).toEqual([social]);
   });
 });
 
 describe("the Weeklies tag on events", () => {
   const base = { name: "T2W11", dateStart: wed(2026, 8, 12), dateEnd: wed(2026, 8, 12) + 7_200_000, subgroups: [UNSW] };
-  const saved = (t: T, id: Id<"events">) => t.run(async (ctx) => (await ctx.db.get(id))!);
+  const saved = (t: T, id: Id<"events">) => t.run(async (ctx) => (await ctx.db.get("events", id))!);
   const tagNames = (t: T) =>
     t.run(async (ctx) => (await ctx.db.query("attendanceTags").collect()).map((tag) => tag.name));
 

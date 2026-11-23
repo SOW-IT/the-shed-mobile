@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { useFocusEffect, useRouter } from "expo-router";
+import { type Href, useFocusEffect, useRouter } from "expo-router";
 import { appVersion } from "@/hooks/useReportAppVersion";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { SignInPrompt } from "@/components/SignInPrompt";
@@ -11,12 +11,11 @@ import { Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { compactAgo } from "@shared/datetime";
 import {
-  Btn,
   EmptyState,
   FadeInView,
   LoadingState,
+  LoadMoreFooter,
   Screen,
-  SowSpinner,
   stagger,
   Txt,
 } from "@/components/ui";
@@ -92,7 +91,8 @@ export default function NotificationsScreen() {
       const separator = url.includes("?") ? "&" : "?";
       reopenCounter.current += 1;
       const reopen = encodeURIComponent(`${id}:${reopenCounter.current}`);
-      router.push(`${url}${separator}reopen=${reopen}` as never);
+      // The backend stores the notification's link; typed routes can't check it here.
+      router.push(`${url}${separator}reopen=${reopen}` as Href);
     }
   };
 
@@ -184,19 +184,18 @@ export default function NotificationsScreen() {
               {read.map((n, i) => renderRow(n, unread.length + i, false))}
             </>
           ) : null}
-          {loadingMore ? (
-            <View style={styles.more}>
-              <SowSpinner size={36} />
-            </View>
-          ) : hasMore ? (
-            <View style={styles.more}>
-              <Btn title="Show earlier" variant="ghost" onPress={loadMore} />
-            </View>
-          ) : rows.length >= PAGE_SIZE ? (
-            <Text style={[typography.caption, styles.end, { color: t.faint }]}>
-              {"That's everything."}
-            </Text>
-          ) : null}
+          <LoadMoreFooter
+            loadingMore={loadingMore}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            end={
+              rows.length >= PAGE_SIZE ? (
+                <Text style={[typography.caption, styles.end, { color: t.faint }]}>
+                  {"That's everything."}
+                </Text>
+              ) : null
+            }
+          />
         </>
       )}
     </Screen>
@@ -221,6 +220,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   unreadDot: { width: 9, height: 9, borderRadius: 5 },
-  more: { alignItems: "center", paddingVertical: spacing.md },
   end: { textAlign: "center", paddingVertical: spacing.md },
 });

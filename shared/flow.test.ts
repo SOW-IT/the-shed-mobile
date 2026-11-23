@@ -1,6 +1,7 @@
 import { describe, expect, it, test } from "vitest";
 import {
   acronym,
+  normalEmail,
   ALLOWED_REACTIONS,
   APPROVED,
   currentStep,
@@ -28,6 +29,7 @@ import {
   rolesNeedUniversity,
   staffYearForDate,
   staffYearStartMs,
+  yearLabel,
   stepsForRequest,
   sydneyCalendarYear,
   type ApprovalState,
@@ -176,6 +178,14 @@ describe("requestStaffYear", () => {
     expect(requestStaffYear({ _creationTime: made })).toBe(2026);
     expect(requestStaffYear({ _creationTime: made + 120_000 })).toBe(2027);
     expect(requestCreatedAt({ _creationTime: made })).toBe(made);
+  });
+});
+
+describe("yearLabel", () => {
+  test("marks the current year and the one starting Oct 1", () => {
+    expect(yearLabel(2026, 2026)).toBe("2026 (current)");
+    expect(yearLabel(2027, 2026)).toBe("2027 (from Oct 1)");
+    expect(yearLabel(2025, 2026)).toBe("2025");
   });
 });
 
@@ -363,5 +373,11 @@ describe("role titles", () => {
     expect(formatAssignment({ role: "Head of Department", department: "Campus" })).toBe(
       "HOD → Campus"
     );
+  });
+});
+
+describe("normalEmail", () => {
+  test("trims and lowercases an address", () => {
+    expect(normalEmail("  Jane.Doe@SOW.org.au ")).toBe("jane.doe@sow.org.au");
   });
 });

@@ -14,6 +14,7 @@ import {
 } from "../../../shared/attendanceMemberMeta";
 import { subgroupColour, subgroupLabel } from "../../../shared/rollcall";
 import { typedMatches } from "../../../shared/typedConfirm";
+import { toggleInSet } from "../../../shared/churches";
 import { CampusMark } from "@/components/CampusMark";
 import { ReorderableList } from "@/components/ReorderableList";
 import { SubgroupScopePicker } from "@/components/attendance/SubgroupScopePicker";
@@ -194,12 +195,7 @@ export function MetadataTab({
   }, [metadata]);
 
   const toggleExpanded = (key: string) => {
-    setExpandedKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+    setExpandedKeys((prev) => toggleInSet(prev, key));
   };
 
   const metadataChanged =
@@ -240,7 +236,7 @@ export function MetadataTab({
       revert: revertMeta,
       error,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reports when the draft changes; the parent's callback and the save and revert closures are not watched
   }, [metadataChanged, saving, metaDrafts, metaDeletes, savedFields, error]);
 
   if (metadata === undefined) return <LoadingState />;

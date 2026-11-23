@@ -18,7 +18,7 @@ import {
   type Pill,
   type WeeklyBlock,
 } from "./weeklyInsightsView";
-import { round1 } from "./numbers";
+import { pctText, round1 } from "./numbers";
 import { plural } from "./reminders";
 
 const THIS_COLOUR = "primary";
@@ -37,8 +37,6 @@ const REGULAR_FILTER = { key: "regular", label: "Regular", colour: "#16A34A" };
 const NOT_YET_FILTER = { key: "notYet", label: "Not yet", colour: "#DC2626" };
 
 const fullDate = (at: number) => `${dayLabel(at)} ${sydneyYmd(new Date(at)).year}`;
-
-const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 const campusName = (campus: string | null) => (campus ? subgroupLabel(campus) : "No campus");
 
@@ -128,7 +126,7 @@ function twigRows(result: TwigResult, people: SowPeople): PeopleRow[] {
       section: r.role,
       tags: [r.role, ...(r.regular ? ["regular"] : []), ...(r.attended === 0 ? ["notYet"] : [])],
       category: rolePill(r),
-      primary: `${r.attended}/${r.held} · ${pct(r.pct)}`,
+      primary: `${r.attended}/${r.held} (${pctText(r.pct)})`,
       secondary: r.attended === 0 ? "Hasn't come to a TWIG this staff year" : lastCame(r.lastAt),
       warning: r.role === "none" ? `No staff profile for ${result.year}` : undefined,
       badge: r.regular ? { label: REGULAR_FILTER.label, colour: REGULAR_FILTER.colour } : undefined,
@@ -326,7 +324,7 @@ export function buildPpnBlocks(input: { result: PpnResult; earlierYear?: number 
       cards: [
         {
           label: "Campus leaders",
-          value: pct(totals.byRole.leader / totals.signIns),
+          value: pctText(totals.byRole.leader / totals.signIns),
           hint: `${totals.byRole.leader} of ${plural(totals.signIns, "sign-in")}`,
           info: { title: "Campus leaders", body: "The share of sign-ins from campus leaders." },
         },

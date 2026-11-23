@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import { resolveUniversity, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { metadataValueLabel, resolveUniversity, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import {
   duplicatePairs,
   memberNameMatch,
@@ -64,15 +64,6 @@ const signInsOf = (ctx: Ctx, memberId: MemberId) =>
     .take(MAX_SIGN_INS);
 
 const metadataFields = (ctx: Ctx) => ctx.db.query("attendanceMetadata").take(MAX_FIELDS);
-
-const roleLabel = (
-  roleField: MetadataField | undefined,
-  metadata: Record<string, string> | undefined
-): string | undefined => {
-  if (!roleField) return undefined;
-  const raw = metadata?.[roleField._id];
-  return raw ? (roleField.values?.[raw] ?? raw) : undefined;
-};
 
 export const memberPage = internalQuery({
   args: { paginationOpts: paginationOptsValidator },
@@ -142,7 +133,7 @@ export const writePairs = internalMutation({
   handler: async (ctx, { builtAt, pairs }) => {
     const year = currentStaffYear();
     for (const { memberA, memberB } of pairs) {
-      const [a, b] = await Promise.all([ctx.db.get(memberA), ctx.db.get(memberB)]);
+      const [a, b] = await Promise.all([ctx.db.get("attendanceMembers", memberA), ctx.db.get("attendanceMembers", memberB)]);
       if (!a || !b) continue;
       if ((await staffRecently(ctx, memberA, year)) || (await staffRecently(ctx, memberB, year))) {
         continue;
@@ -155,7 +146,7 @@ export const writePairs = internalMutation({
       if (existing?.status === "dismissed") continue;
       const stats = { statsA: statsOf(signInsA), statsB: statsOf(signInsB) };
       if (existing) {
-        await ctx.db.patch(existing._id, { builtAt, ...stats });
+        await ctx.db.patch("memberPairSuggestions", existing._id, { builtAt, ...stats });
       } else {
         await ctx.db.insert("memberPairSuggestions", { memberA, memberB, status: "open", builtAt, ...stats });
       }
@@ -173,7 +164,7 @@ export const prune = internalMutation({
         .query("memberPairSuggestions")
         .withIndex("by_status_and_builtAt", (q) => q.eq("status", "open").lt("builtAt", builtAt))
         .take(PRUNE_BATCH);
-      for (const row of stale) await ctx.db.delete(row._id);
+      for (const row of stale) await ctx.db.delete("memberPairSuggestions", row._id);
       if (stale.length < PRUNE_BATCH) break;
     }
     const dismissed = await ctx.db
@@ -181,8 +172,8 @@ export const prune = internalMutation({
       .withIndex("by_status_and_builtAt", (q) => q.eq("status", "dismissed"))
       .take(MAX_DISMISSED);
     for (const row of dismissed) {
-      const [a, b] = await Promise.all([ctx.db.get(row.memberA), ctx.db.get(row.memberB)]);
-      if (!a || !b) await ctx.db.delete(row._id);
+      const [a, b] = await Promise.all([ctx.db.get("attendanceMembers", row.memberA), ctx.db.get("attendanceMembers", row.memberB)]);
+      if (!a || !b) await ctx.db.delete("memberPairSuggestions", row._id);
     }
     return null;
   },
@@ -198,7 +189,7 @@ const sideOf = (
   name: row.name,
   email: row.email,
   campus,
-  role: roleLabel(roleField, row.metadata),
+  role: metadataValueLabel(roleField, row.metadata),
   ...(stats ?? NO_STATS),
 });
 
@@ -215,7 +206,7 @@ export const list = query({
       .take(MAX_LISTED);
     const suggestions: MemberPairSuggestion[] = [];
     for (const row of rows) {
-      const [a, b] = await Promise.all([ctx.db.get(row.memberA), ctx.db.get(row.memberB)]);
+      const [a, b] = await Promise.all([ctx.db.get("attendanceMembers", row.memberA), ctx.db.get("attendanceMembers", row.memberB)]);
       if (!a || !b) continue;
       const match = memberNameMatch(nameWords(a.name), nameWords(b.name));
       if (!match) continue;
@@ -241,14 +232,14 @@ export const dismiss = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const [memberA, memberB] = orderPair(args.memberA, args.memberB);
     if (memberA === memberB) throw new ConvexError("Pick two different people.");
-    const [a, b] = await Promise.all([ctx.db.get(memberA), ctx.db.get(memberB)]);
+    const [a, b] = await Promise.all([ctx.db.get("attendanceMembers", memberA), ctx.db.get("attendanceMembers", memberB)]);
     if (!a || !b) throw new ConvexError("That member no longer exists.");
     const existing = await pairRow(ctx, memberA, memberB);
     if (existing?.status === "dismissed") return null;
     const now = Date.now();
     const dismissal = { status: "dismissed" as const, dismissedBy: actorEmail, dismissedAt: now };
     if (existing) {
-      await ctx.db.patch(existing._id, dismissal);
+      await ctx.db.patch("memberPairSuggestions", existing._id, dismissal);
     } else {
       await ctx.db.insert("memberPairSuggestions", { memberA, memberB, builtAt: now, ...dismissal });
     }

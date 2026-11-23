@@ -20,6 +20,7 @@ export type NavKey =
   | "mentoring"
   | "announcements"
   | "grievances"
+  | "garden"
   | "admin";
 
 export const NAV_HREFS = {
@@ -37,6 +38,7 @@ export const NAV_HREFS = {
   mentoring: "/mentoring",
   announcements: "/announcements",
   grievances: "/grievances",
+  garden: "/world",
   admin: "/admin",
 } as const satisfies Record<NavKey, string>;
 
@@ -55,6 +57,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   mentoring: "Mentoring",
   announcements: "Announcements",
   grievances: "Grievances",
+  garden: "World",
   admin: "Admin",
 };
 
@@ -102,7 +105,7 @@ export const NAV_GROUP_LABELS: Record<NavGroupKey, string> = {
   requests: "Requests",
 };
 
-export type NavEntry =
+type NavEntry =
   | { kind: "item"; key: NavKey }
   | { kind: "group"; key: NavGroupKey; items: NavKey[] };
 
@@ -125,13 +128,14 @@ export const showsReimbursements = (viewer: NavViewer) =>
 
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
-  const items: NavKey[] = ["profile"];
-  if (viewer.isStaff) items.push("music", "churches");
+  const items: NavKey[] = [];
+  if (viewer.isStaff) items.push("churches", "music");
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.canMentoring) items.push("mentoring");
   // Staff have the Calendar as a bottom tab, so Insights moves in here.
   if (viewer.isStaff) items.push("insights");
   if (viewer.canAnnounce) items.push("announcements");
+  items.push("garden");
   if (viewer.canAdmin) items.push("admin");
   return items;
 };
@@ -139,13 +143,14 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
 export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
-  if (viewer.isStaff) items.push("music");
   if (viewer.isStaff) items.push("attendance", "calendar");
-  items.push("org", "churches", "grievances");
-  if (viewer.signedIn) items.push("profile");
+  items.push("org", "churches");
+  if (viewer.isStaff) items.push("music");
+  items.push("grievances");
   if (viewer.canMentoring) items.push("mentoring");
   if (viewer.isStaff) items.push("insights");
   if (viewer.canAnnounce) items.push("announcements");
+  if (viewer.signedIn) items.push("garden");
   if (viewer.canAdmin) items.push("admin");
   return items;
 };
@@ -182,6 +187,7 @@ export const activeNavKey = (pathname: string): NavKey | null => {
   if (pathname === "/mentoring") return "mentoring";
   if (pathname === "/grievances" || pathname.startsWith("/grievances/"))
     return "grievances";
+  if (pathname === "/world") return "garden";
   if (pathname === "/admin") return "admin";
   if (pathname === "/music" || pathname.startsWith("/music/")) {
     return "music";
@@ -200,7 +206,7 @@ export const roleLine = (
   const assignments = profile.assignments ?? [];
   const text =
     assignments.length > 0
-      ? assignments.map((a) => formatAssignment(a, titles)).join("  ·  ")
+      ? assignments.map((a) => formatAssignment(a, titles)).join(", ")
       : profile.roles.map((r) => roleLabel(r, titles)).join(", ");
   return text || null;
 };

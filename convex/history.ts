@@ -1,7 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { dedupeAssignments, ROLES } from "../shared/flow";
+import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { currentStaffYear, findProfileForYear } from "./model";
+import { staffSearchText } from "./orgSearch";
 
 const assignmentValidator = v.object({
   role: v.string(),
@@ -31,6 +33,7 @@ export const setRoleTitle = internalMutation({
       .query("roles")
       .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", title))
       .unique();
+    await ctx.scheduler.runAfter(0, internal.orgSearch.refreshYearSearchText, { year: args.year });
     if (existing) {
       await ctx.db.patch("roles", existing._id, { standsFor: args.standsFor });
       return existing._id;
@@ -58,7 +61,10 @@ export const setPastAssignments = internalMutation({
     const assignments = dedupeAssignments(args.assignments);
     const existing = await findProfileForYear(ctx, email, args.year);
     if (existing) {
-      await ctx.db.patch("staffProfiles", existing._id, { assignments });
+      await ctx.db.patch("staffProfiles", existing._id, {
+        assignments,
+        searchText: await staffSearchText(ctx, { ...existing, assignments }),
+      });
       return existing._id;
     }
     return await ctx.db.insert("staffProfiles", {
@@ -67,6 +73,7 @@ export const setPastAssignments = internalMutation({
       assignments,
       name: args.name,
       importId: args.importId,
+      searchText: await staffSearchText(ctx, { email, year: args.year, name: args.name, assignments }),
     });
   },
 });

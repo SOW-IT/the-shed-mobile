@@ -1,0 +1,398 @@
+import { Btn, hapticSelect } from "@/components/ui";
+import { useRestartHold } from "@/hooks/useRestartHold";
+import { useLocalBests, recordRun } from "@/lib/games/gameStorage";
+import { OnlineBanner } from "./OnlineBanner";
+import { LeaveGameDialog } from "./LeaveGameDialog";
+import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
+import { fitScale, type Size } from "@/lib/games/fit";
+import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useConvexAuth } from "convex/react";
+import { StatusBar } from "expo-status-bar";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+  GestureResponderHandlers,
+  LayoutChangeEvent,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleProp,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { GAME_INFO, type GameId } from "../../../shared/games";
+
+const g = fixedColours.games;
+
+type Phase = "ready" | "playing" | "over";
+
+/** A key press this soon after a crash doesn't restart: you were still mashing. */
+const RESTART_LOCK_MS = 700;
+
+type Run = { over: boolean; score: number; time: number };
+
+/**
+ * One game's run: null before the first touch, then the game's state until
+ * it's over. Saves the score on the device when a run ends.
+ */
+export const useGameSession = <S extends Run>(game: GameId) => {
+  const [run, setRun] = useState<S | null>(null);
+  const [bestAtStart, setBestAtStart] = useState(0);
+  const best = useLocalBests()[game];
+  const recorded = useRef<S | null>(null);
+  const overAt = useRef(0);
+  const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
+  // An update waiting to install restarts the app when it comes back from
+  // the background; never in the middle of a run.
+  useRestartHold(phase === "playing");
+
+  useEffect(() => {
+    if (!run?.over || recorded.current === run) return;
+    recorded.current = run;
+    overAt.current = Date.now();
+    hapticSelect();
+    void recordRun(game, run.score, run.time * 1000);
+  }, [run, game]);
+
+  const begin = useCallback(
+    (state: S) => {
+      setBestAtStart(best);
+      setRun(state);
+    },
+    [best]
+  );
+  const restart = useCallback(() => setRun(null), []);
+  const canRestartByKey = useCallback(() => Date.now() - overAt.current > RESTART_LOCK_MS, []);
+  // Asking whether to leave a run in progress. The game is paused meanwhile.
+  const [askingToLeave, setAskingToLeave] = useState(false);
+  const askToLeave = useCallback(() => setAskingToLeave(true), []);
+  const keepPlaying = useCallback(() => setAskingToLeave(false), []);
+  const paused = askingToLeave && phase === "playing";
+  const result = run?.over ? { score: run.score, previousBest: bestAtStart } : null;
+  return { run, setRun, phase, paused, result, best, begin, restart, canRestartByKey, askToLeave, keepPlaying };
+};
+
+type GameSession = Pick<
+  ReturnType<typeof useGameSession>,
+  "phase" | "paused" | "result" | "best" | "restart" | "askToLeave" | "keepPlaying"
+>;
+
+/**
+ * A screen that can be left by other means than the game's own back button
+ * (the browser's back) watches whether a run is in progress,
+ * asks the game to confirm when one of those is tried, and hears whether
+ * the player stayed.
+ */
+export type LeaveGuard = {
+  onPlayingChange: (playing: boolean) => void;
+  /** Goes up by one each time leaving was tried and blocked. */
+  leaveAsks: number;
+  onStay: () => void;
+};
+
+/** The latest value, for handlers made once. Written after each render. */
+export const useLatest = <T,>(value: T) => {
+  const ref = useRef(value);
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref;
+};
+
+/**
+ * On web, keeps the browser's own swipe back and forward off a game: a
+ * sideways swipe is a move in the game, and the way out is the back button.
+ * The trackpad's two-finger swipe stops at the page, and a touch that starts
+ * at the screen's edge (where a phone's browser starts its swipe back) is
+ * kept from the browser. A touch on a button there still presses it.
+ */
+const useNoSwipeBack = () => {
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const pages = [document.documentElement, document.body];
+    const before = pages.map((page) => page.style.overscrollBehaviorX);
+    for (const page of pages) page.style.overscrollBehaviorX = "none";
+    const onTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch || !atSwipeEdge(touch.clientX, window.innerWidth)) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('button, a, [role="button"]')) return;
+      event.preventDefault();
+    };
+    document.addEventListener("touchstart", onTouchStart, { passive: false });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      pages.forEach((page, i) => {
+        page.style.overscrollBehaviorX = before[i];
+      });
+    };
+  }, []);
+};
+
+/** The stage's size, once it has been laid out. */
+export const useStage = () => {
+  const [stage, setStage] = useState<Size | null>(null);
+  const onLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setStage((current) =>
+      current && current.width === width && current.height === height ? current : { width, height }
+    );
+  }, []);
+  return [stage, onLayout] as const;
+};
+
+
+const Stat = ({ label, value, ink }: { label: string; value: number; ink: string }) => (
+  <View style={styles.stat}>
+    <Text style={[styles.statLabel, { color: ink }]}>{label}</Text>
+    <Text style={[styles.statValue, { color: ink }]} testID={`game-${label.toLowerCase()}`}>
+      {value.toLocaleString()}
+    </Text>
+  </View>
+);
+
+/**
+ * A game's screen: the score bar, the stage that takes touches, the board,
+ * and the start and game-over cards over it.
+ */
+export const GameFrame = ({
+  game,
+  background,
+  ink = g.text,
+  session,
+  score,
+  board,
+  world = null,
+  onStageLayout,
+  stageHandlers,
+  startHint,
+  onExit,
+  onLeaderboard,
+  guard,
+  insets,
+  hideStartCard = false,
+  children,
+}: {
+  game: GameId;
+  background: string;
+  /** The score bar's text colour, for a light scene. */
+  ink?: string;
+  session: GameSession;
+  score: number;
+  board: Size | null;
+  /** The running game's own size, when it has one; the scene is scaled to the board. */
+  world?: Size | null;
+  onStageLayout: (event: LayoutChangeEvent) => void;
+  stageHandlers?: GestureResponderHandlers;
+  startHint: string;
+  onExit: () => void;
+  onLeaderboard?: () => void;
+  guard?: LeaveGuard;
+  /**
+   * Set when the game is drawn turned sideways: the device's safe area, in
+   * the game's own directions. The frame pads by these instead of measuring,
+   * and asks to leave in place rather than in a modal.
+   */
+  insets?: { top: number; right: number; bottom: number; left: number };
+  /** A still preview board, for screenshots: nothing over it. */
+  hideStartCard?: boolean;
+  children: ReactNode;
+}) => {
+  const { isAuthenticated } = useConvexAuth();
+  useNoSwipeBack();
+  const { phase, result, best, askToLeave, keepPlaying } = session;
+  const playing = phase === "playing";
+  const onPlayingChange = guard?.onPlayingChange;
+  useEffect(() => {
+    onPlayingChange?.(playing);
+  }, [onPlayingChange, playing]);
+  // A swipe or browser back was blocked: ask, the same as the back button.
+  const leaveAsks = guard?.leaveAsks ?? 0;
+  const seenAsks = useRef(leaveAsks);
+  useEffect(() => {
+    if (leaveAsks === seenAsks.current) return;
+    seenAsks.current = leaveAsks;
+    if (playing) askToLeave();
+  }, [leaveAsks, playing, askToLeave]);
+  const back = () => (needsLeaveConfirm(phase) ? askToLeave() : onExit());
+  const stay = () => {
+    keepPlaying();
+    guard?.onStay();
+  };
+  const scale = fitScale(world, board);
+  const info = GAME_INFO[game];
+  const newBest = result !== null && result.score > result.previousBest && result.score > 0;
+  return (
+    <Frame insets={insets} style={[styles.screen, { backgroundColor: background }]}>
+      {/* Full screen while playing; the safe area still keeps clear of the notch. */}
+      <StatusBar hidden={phase === "playing"} animated />
+      <View style={styles.bar}>
+        <Pressable
+          onPress={back}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Back to the games"
+          style={({ pressed }) => [styles.back, pressed && { opacity: 0.6 }]}
+        >
+          <Ionicons name="chevron-back" size={24} color={g.text} />
+        </Pressable>
+        <Text style={[styles.title, { color: ink }]} numberOfLines={1}>
+          {info.title}
+        </Text>
+        <Stat label="Score" value={score} ink={ink} />
+        <Stat label="Best" value={Math.max(best, result?.score ?? 0)} ink={ink} />
+      </View>
+      <View style={styles.stage} onLayout={onStageLayout} {...stageHandlers}>
+        {board ? (
+          <View
+            style={[
+              styles.board,
+              world
+                ? { width: world.width * scale, height: world.height * scale }
+                : { width: board.width, height: board.height },
+              { backgroundColor: background },
+            ]}
+            pointerEvents="box-none"
+          >
+            {world && scale !== 1 ? (
+              <View
+                pointerEvents="box-none"
+                style={{
+                  position: "absolute",
+                  width: world.width,
+                  height: world.height,
+                  left: (world.width * scale - world.width) / 2,
+                  top: (world.height * scale - world.height) / 2,
+                  transform: [{ scale }],
+                }}
+              >
+                {children}
+              </View>
+            ) : (
+              children
+            )}
+          </View>
+        ) : null}
+        {/* The cards cover the whole stage, not the board, so a short board
+            can't cut off their buttons; a stage shorter than a card scrolls. */}
+        {phase === "ready" && !hideStartCard ? (
+          <View style={[StyleSheet.absoluteFill, styles.overlay]} pointerEvents="none">
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{info.title}</Text>
+              <Text style={styles.cardBody}>{info.blurb}</Text>
+              <Text style={styles.hint}>{startHint}</Text>
+            </View>
+          </View>
+        ) : null}
+        {phase === "over" && result ? (
+          <ScrollView
+            style={[StyleSheet.absoluteFill, { backgroundColor: g.scrim }]}
+            contentContainerStyle={styles.overlayScroll}
+          >
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{newBest ? "New best!" : "Game over"}</Text>
+              <Text style={styles.bigScore} testID="game-final-score">
+                {result.score.toLocaleString()}
+              </Text>
+              <Text style={styles.cardBody}>
+                Best {Math.max(result.previousBest, result.score).toLocaleString()}
+              </Text>
+              <Text style={styles.note}>
+                {isAuthenticated
+                  ? "Saved. It goes on the leaderboard when you're online."
+                  : "Saved on this device. Sign in and it goes on the leaderboard."}
+              </Text>
+              <View style={styles.actions}>
+                <Btn title="Play again" icon="refresh" onPress={session.restart} />
+                {onLeaderboard ? (
+                  <Btn title="Leaderboard" icon="trophy-outline" variant="ghost" onPress={onLeaderboard} />
+                ) : null}
+              </View>
+            </View>
+          </ScrollView>
+        ) : null}
+      </View>
+      <OnlineBanner />
+      <LeaveGameDialog visible={session.paused} onLeave={onExit} onContinue={stay} inline={!!insets} />
+    </Frame>
+  );
+};
+
+/** The screen's outer box: the measured safe area, or the insets given. */
+const Frame = ({
+  insets,
+  style,
+  children,
+}: {
+  insets?: { top: number; right: number; bottom: number; left: number };
+  style: StyleProp<ViewStyle>;
+  children: ReactNode;
+}) =>
+  insets ? (
+    <View
+      style={[
+        style,
+        { paddingTop: insets.top, paddingRight: insets.right, paddingBottom: insets.bottom, paddingLeft: insets.left },
+      ]}
+    >
+      {children}
+    </View>
+  ) : (
+    <SafeAreaView style={style} edges={["top", "bottom"]}>
+      {children}
+    </SafeAreaView>
+  );
+
+export const startHintFor = (touch: string, keys: string) =>
+  Platform.OS === "web" ? `${touch}, or ${keys}, to start` : `${touch} to start`;
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  bar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  back: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: g.panel,
+  },
+  title: { ...typography.headline, flex: 1 },
+  stat: { alignItems: "flex-end", minWidth: 56 },
+  statLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, opacity: 0.75, textTransform: "uppercase" },
+  statValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 24 },
+  stage: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    ...(Platform.OS === "web" ? { userSelect: "none", touchAction: "none", cursor: "pointer" } : null),
+  },
+  // Full screen: the board meets the edges, so no rounded corners.
+  board: { overflow: "hidden" },
+  overlay: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  overlayScroll: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  card: {
+    maxWidth: 320,
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.xl,
+    borderRadius: radius.xl,
+    backgroundColor: g.panel,
+  },
+  cardTitle: { ...typography.title, color: g.text, textAlign: "center" },
+  cardBody: { ...typography.body, color: g.dim, textAlign: "center" },
+  bigScore: { ...typography.largeTitle, fontSize: 44, lineHeight: 50, color: g.text },
+  hint: { ...typography.label, color: g.text, marginTop: spacing.xs },
+  note: { ...typography.caption, color: g.dim, textAlign: "center" },
+  actions: { gap: spacing.sm, alignSelf: "stretch", marginTop: spacing.sm },
+});

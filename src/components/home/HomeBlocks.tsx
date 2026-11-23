@@ -15,6 +15,7 @@ import {
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { CampusMark } from "@/components/CampusMark";
 import { openExternalLink } from "@/lib/openExternalLink";
+import { keyed } from "@/lib/listKeys";
 import {
   Btn,
   Card,
@@ -39,10 +40,10 @@ const open = (url: string) => void openExternalLink(url);
 export function HomeBlocks({ blocks }: { blocks: HomeBlock[] }) {
   return (
     <View style={styles.page}>
-      {groupListCards(blocks).map((item, i) => {
-        const node = Array.isArray(item) ? <ListCard blocks={item} /> : renderBlock(item, i);
+      {keyed(groupListCards(blocks), (item) => JSON.stringify(item)).map(({ item, key, index: i }) => {
+        const node = Array.isArray(item) ? <ListCard blocks={item} /> : renderBlock(item);
         return node ? (
-          <FadeInView key={i} delay={i === 0 ? 40 : stagger(i)}>
+          <FadeInView key={key} delay={i === 0 ? 40 : stagger(i)}>
             {node}
           </FadeInView>
         ) : null;
@@ -75,9 +76,9 @@ const ListCard = ({ blocks }: { blocks: CardBlock[] }) => {
   const t = useAppTheme();
   return (
     <Card style={{ paddingVertical: spacing.xs, gap: 0 }}>
-      {blocks.map((block, i) => (
+      {keyed(blocks, (block) => `${block.title}|${block.body}`).map(({ item: block, key, index: i }) => (
         <View
-          key={i}
+          key={key}
           style={[styles.listItem, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.separator }]}
         >
           {block.title ? (
@@ -86,8 +87,8 @@ const ListCard = ({ blocks }: { blocks: CardBlock[] }) => {
               <Txt style={styles.cardTitle}>{block.title}</Txt>
             </View>
           ) : null}
-          {paragraphs(block.body).map((para, j) => (
-            <Muted key={j}>{para}</Muted>
+          {keyed(paragraphs(block.body), (para) => para).map(({ item: para, key: paraKey }) => (
+            <Muted key={paraKey}>{para}</Muted>
           ))}
         </View>
       ))}
@@ -95,7 +96,7 @@ const ListCard = ({ blocks }: { blocks: CardBlock[] }) => {
   );
 };
 
-const renderBlock = (block: HomeBlock, index: number) => {
+const renderBlock = (block: HomeBlock) => {
   switch (block.type) {
     case "hero":
       return <Hero eyebrow={block.eyebrow} text={block.text} />;
@@ -108,8 +109,8 @@ const renderBlock = (block: HomeBlock, index: number) => {
     case "links":
       return block.links.length > 0 ? (
         <Card>
-          {block.links.map((link, i) => (
-            <LinkRow key={`${index}-${i}`} link={link} />
+          {keyed(block.links, (link) => `${link.name}|${link.url}`).map(({ item: link, key }) => (
+            <LinkRow key={key} link={link} />
           ))}
         </Card>
       ) : null;
@@ -148,9 +149,9 @@ const Hero = ({ eyebrow, text }: { eyebrow: string; text: string }) => {
 const Buttons = ({ buttons, onPrimary }: { buttons: HomeButton[]; onPrimary?: boolean }) =>
   buttons.length > 0 ? (
     <View style={styles.buttonRow}>
-      {buttons.map((button, i) => (
+      {keyed(buttons, (button) => `${button.label}|${button.url}`).map(({ item: button, key }) => (
         <Btn
-          key={i}
+          key={key}
           title={button.label}
           variant={onPrimary && button.style === "primary" ? "ghost" : button.style}
           icon={button.icon ? iconOr(button.icon, "open-outline") : undefined}
@@ -169,8 +170,8 @@ const HomeCard = ({ block }: { block: Extract<HomeBlock, { type: "card" }> }) =>
         {block.title ? (
           <Txt style={[styles.cardTitle, { color: t.onPrimary }]}>{block.title}</Txt>
         ) : null}
-        {body.map((para, i) => (
-          <Text key={i} style={[typography.body, { color: t.onPrimary, opacity: 0.85 }]}>
+        {keyed(body, (para) => para).map(({ item: para, key }) => (
+          <Text key={key} style={[typography.body, { color: t.onPrimary, opacity: 0.85 }]}>
             {para}
           </Text>
         ))}
@@ -193,8 +194,8 @@ const HomeCard = ({ block }: { block: Extract<HomeBlock, { type: "card" }> }) =>
           <Txt style={styles.cardTitle}>{block.title}</Txt>
         </View>
       ) : null}
-      {body.map((para, i) => (
-        <Muted key={i}>{para}</Muted>
+      {keyed(body, (para) => para).map(({ item: para, key }) => (
+        <Muted key={key}>{para}</Muted>
       ))}
       <Buttons buttons={block.buttons} />
     </Card>
@@ -244,9 +245,9 @@ const Socials = ({
   return (
     <Card>
       <View style={styles.socialRow}>
-        {links.map((social, i) => (
+        {keyed(links, (social) => `${social.label}|${social.url}`).map(({ item: social, key }) => (
           <Pressable
-            key={i}
+            key={key}
             accessibilityRole="link"
             accessibilityLabel={`Open ${social.label}`}
             onPress={() => open(social.url)}
@@ -274,8 +275,8 @@ const Campuses = ({ campuses }: { campuses: HomeCampus[] }) => {
   const [selected, setSelected] = useState<HomeCampus | null>(null);
   return (
     <View style={styles.page}>
-      {campuses.map((campus, i) => (
-        <FadeInView key={`${campus.name}-${i}`} delay={stagger(i)}>
+      {keyed(campuses, (campus) => campus.name).map(({ item: campus, key, index: i }) => (
+        <FadeInView key={key} delay={stagger(i)}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${campus.name}, open details`}
@@ -328,8 +329,8 @@ const CampusDetailSheet = ({
     <Sheet visible={!!campus} onClose={onClose} title={campus ? campus.name : ""}>
       {campus ? (
         <View style={{ gap: spacing.md }}>
-          {paragraphs(campus.about).map((para, i) => (
-            <Muted key={i}>{para}</Muted>
+          {keyed(paragraphs(campus.about), (para) => para).map(({ item: para, key }) => (
+            <Muted key={key}>{para}</Muted>
           ))}
           {campus.meeting ? (
             <View style={{ gap: spacing.xs }}>
@@ -342,11 +343,13 @@ const CampusDetailSheet = ({
           {campus.programs.length > 0 ? (
             <View style={{ gap: spacing.xs }}>
               <Text style={[typography.label, { color: t.muted }]}>Programs</Text>
-              <View style={{ gap: 4 }}>
-                {campus.programs.map((program, i) => (
-                  <Text key={i} style={[typography.body, { color: t.text }]}>
-                    • {program}
-                  </Text>
+              <View style={styles.programs}>
+                {keyed(campus.programs, (program) => program).map(({ item: program, key }) => (
+                  <View key={key} style={[styles.program, { backgroundColor: t.primarySoft }]}>
+                    <Text style={[typography.caption, styles.programText, { color: t.dark ? t.text : t.primary }]}>
+                      {program}
+                    </Text>
+                  </View>
                 ))}
               </View>
             </View>
@@ -457,6 +460,9 @@ const ContactCard = ({ title, body }: { title: string; body: string }) => {
 };
 
 const styles = StyleSheet.create({
+  programs: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  program: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
+  programText: { fontWeight: "600" },
   page: { gap: spacing.md },
   hero: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.lg },
   heroMark: { width: 72, height: 72 },

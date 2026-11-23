@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { radius, spacing, typography, useAppTheme } from "../theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "../theme";
 import { compactAgo } from "@shared/datetime";
 import { QUICK_REACTION_EMOJIS, REACTION_EMOJIS } from "@shared/flow";
 import {
@@ -301,11 +301,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: fixedColours.messageBadge.bg,
     borderWidth: 1,
-    borderColor: "#cccccc",
+    borderColor: fixedColours.messageBadge.border,
   },
-  unreadBadgeText: { color: "#333333", fontSize: 11, fontWeight: "800" },
+  unreadBadgeText: { color: fixedColours.messageBadge.text, fontSize: 11, fontWeight: "800" },
   loading: { alignSelf: "flex-start", paddingVertical: 2 },
   commentRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
   commentHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

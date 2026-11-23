@@ -47,7 +47,7 @@ export const isChunkLoadError = (error: unknown): boolean => {
 export const isStaleReleaseError = (error: unknown): boolean =>
   isChunkLoadError(error) || isUnknownModuleError(error);
 
-export type ScriptErrorEvent = {
+type ScriptErrorEvent = {
   message?: string;
   filename?: string;
   error?: unknown;

@@ -16,14 +16,14 @@ export const campusLeaderLine = (profile: ProfileLike, titles?: RoleTitles): str
   const text = assignmentsOf(profile)
     .filter((a) => roleNeedsUniversity(a.role))
     .map((a) => formatAssignment(a, titles))
-    .join("  ·  ");
+    .join(", ");
   return text || null;
 };
 
 export const profileLine = (profile: ProfileLike, titles?: RoleTitles): string | null => {
   const text = assignmentsOf(profile)
     .map((a) => formatAssignment(a, titles))
-    .join("  ·  ");
+    .join(", ");
   return text || null;
 };
 
@@ -48,7 +48,7 @@ export type ExternalMentorDraft = {
   notes: string;
 };
 
-export type CleanExternalMentor = {
+type CleanExternalMentor = {
   name: string;
   email?: string;
   phone?: string;

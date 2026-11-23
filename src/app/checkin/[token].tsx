@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
-import { capitalizeMemberName, formatEventRange } from "../../../shared/rollcall";
+import { formatEventRange, typedMemberName } from "../../../shared/rollcall";
 import { phaseBetween } from "../../../shared/checkInWindow";
 import {
   CHECK_IN_YEAR_LEVELS,
@@ -33,8 +33,6 @@ type Done = {
 type FormValues = { name: string; campus: string | null; level: CheckInYearLevel | null };
 
 const BLANK: FormValues = { name: "", campus: null, level: null };
-
-const cleanName = (raw: string) => capitalizeMemberName(raw.trim().replace(/\s+/g, " "));
 
 const useCheckInDevice = () => {
   const [device, setDevice] = useState<Device | null>(null);
@@ -158,7 +156,7 @@ function CheckInBody({ token }: { token: string | undefined }) {
         ...(values.level ? { yearLevel: values.level } : {}),
         ...(remember ? {} : { forSomeoneElse: true }),
       });
-      const name = cleanName(values.name);
+      const name = typedMemberName(values.name);
       if (remember) {
         const rememberedYear = remembered?.commencementYear ?? null;
         const sameLevel =
@@ -213,7 +211,7 @@ function CheckInBody({ token }: { token: string | undefined }) {
     if (!autoMode || autoTried.current) return;
     if (autoMode === "phone" && returning !== true) return;
     autoTried.current = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the automatic sign-in runs once per visit (autoTried) and sets state when it finishes
     if (autoMode === "leader") void leaderSignIn();
     else void submitDetails(rememberedValues(), "phone", true);
   });

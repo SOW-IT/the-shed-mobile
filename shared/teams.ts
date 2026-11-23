@@ -53,7 +53,7 @@ export const TEAM_JOB_INFO: Record<TeamJob, { title: string; does: string }> = {
   },
 };
 
-export type FormKindForTeams = "marketing" | "risk" | "finance";
+type FormKindForTeams = "marketing" | "risk" | "finance";
 
 export const SUB_FORM_JOBS: Record<FormKindForTeams, TeamJob> = {
   marketing: "marketingForm",

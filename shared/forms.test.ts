@@ -14,6 +14,7 @@ import {
   offeredOptions,
   questionNumber,
   sydneyDateTimeAnswer,
+  type FormAnswers,
   type FormField,
 } from "./forms";
 
@@ -55,7 +56,7 @@ describe("the field kinds event requests added", () => {
 
   test("checks choices, counts, date-times and links", () => {
     const problem = (over: Record<string, unknown>, previous?: Record<string, string>) =>
-      answersProblem(FIELDS, { ...good, ...over } as never, TODAY, previous);
+      answersProblem(FIELDS, { ...good, ...over } as FormAnswers, TODAY, previous);
     expect(problem({})).toBeNull();
     expect(answersProblem(FIELDS, {}, TODAY)).toMatch(/Pick an answer for "Audience"/);
     expect(problem({ goal: undefined })).toMatch(/Enter a number for "Goal"/);
@@ -69,7 +70,7 @@ describe("the field kinds event requests added", () => {
     expect(problem({ end: "2026-11-01T21:00" })).toBeNull();
     expect(problem({ end: good.start })).toBeNull();
     const ending = FIELDS.map((f) => (f.key === "end" ? { ...f, role: "end" as const } : f));
-    expect(answersProblem(ending, { ...good, end: good.start } as never, TODAY)).toBe(
+    expect(answersProblem(ending, { ...good, end: good.start }, TODAY)).toBe(
       '"Ends" has to be after "Starts".'
     );
     expect(minuteAfterTime("18:00")).toBe("18:01");

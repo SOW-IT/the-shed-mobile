@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
+import type { ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
@@ -11,21 +12,23 @@ import { useNavDrawer } from "@/components/nav/NavDrawer";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
-import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
-import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
 import { useMusicRequestsBadge } from "@/hooks/useMusicRequestsBadge";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
+import { useStaffWaitingBadge } from "@/hooks/useStaffWaitingBadge";
 import { badgeText } from "@/lib/navMenu";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 
 const EDGE_CONTROLS_WIDTH = 60;
 
 export const TopBar = ({
   photo,
   name,
+  title,
 }: {
   photo: string | null;
   name: string | null;
+  // Shown in the middle, e.g. the month the calendar is on.
+  title?: ReactNode;
 }) => {
   const t = useAppTheme();
   const router = useRouter();
@@ -40,12 +43,13 @@ export const TopBar = ({
     useQuery(api.notifications.unreadCount, isStaff ? {} : "skip") ?? 0;
   const badge =
     useReimbursementsBadge() +
-    useDesignRequestsBadge() +
-    useEventRequestsBadge() +
+    useStaffWaitingBadge(api.designRequests.waitingOnMe) +
+    useStaffWaitingBadge(api.eventRequests.waitingOnMe) +
     useMusicRequestsBadge();
   return (
     <View style={styles.topBar}>
       <View style={styles.center} pointerEvents="box-none">
+        {title}
         <View style={styles.chipRow} pointerEvents="box-none">
           <TestEnvironmentChip />
           <ActingAsChip />
@@ -157,5 +161,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeText: { color: "#ffffff", fontSize: 10, fontWeight: "800" },
+  badgeText: { color: fixedColours.onColour, fontSize: 10, fontWeight: "800" },
 });

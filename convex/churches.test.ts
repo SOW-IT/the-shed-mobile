@@ -224,7 +224,7 @@ describe("the Churches page", () => {
       await ctx.db.insert("users", { email: "fay@sow.org.au", name: "Fay Former", churchId: grace });
       const fay = await ctx.db.insert("attendanceMembers", { name: "Fay F", metadata: { [role]: "a" } });
       const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
-      await ctx.db.delete(gone);
+      await ctx.db.delete("attendanceMembers", gone);
       await staff("fay@sowaustralia.com", [{ role: "Staff" }], undefined, gone, YEAR - 1);
       await staff("fay@sow.org.au", [{ role: "Staff" }], undefined, fay, YEAR - 2);
       await ctx.db.insert("users", { email: "gus@sow.org.au", name: "Gus Gone", churchId: grace });
@@ -555,51 +555,6 @@ describe("your church in your Profile", () => {
     await expect(sam.mutation(api.profile.setChurch, { churchId: grace })).rejects.toThrow(
       "isn't in the list any more"
     );
-  });
-});
-
-describe("the reminder", () => {
-  test("goes to this year's staff without a church: a notification and a push", async () => {
-    const { t, sam } = await setup();
-    const grace = await sam.mutation(api.churches.add, { name: "Grace Church" });
-    await sam.mutation(api.profile.setChurch, { churchId: grace });
-    await t.run(async (ctx) => {
-      await ctx.db.insert("staffProfiles", { email: "new.one@sow.org.au", year: YEAR, assignments: [{ role: "Staff" }] });
-      await ctx.db.insert("staffProfiles", { email: "gone@sow.org.au", year: YEAR - 1, assignments: [{ role: "Staff" }] });
-    });
-
-    const dry = await t.mutation(internal.churches.remindToSetChurch, {});
-    expect(dry).toEqual({ staff: 3, withoutChurch: 2, reminded: 0 });
-    expect(await t.run((ctx) => ctx.db.query("notifications").collect())).toEqual([]);
-
-    const sent = await t.mutation(internal.churches.remindToSetChurch, { dryRun: false });
-    expect(sent).toEqual({ staff: 3, withoutChurch: 2, reminded: 2 });
-    const notes = await t.run((ctx) => ctx.db.query("notifications").collect());
-    expect(notes.map((n) => n.userEmail).sort()).toEqual([ADMIN, "new.one@sow.org.au"]);
-    expect(notes[0]).toMatchObject({ title: "Set your local church", url: "/profile", read: false });
-    const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
-    expect(scheduled.map((s) => s.name)).toContain("push:sendMany");
-    expect(scheduled.find((s) => s.name === "push:sendMany")!.args[0]).toMatchObject({
-      to: expect.arrayContaining([ADMIN, "new.one@sow.org.au"]),
-      title: "Set your local church",
-      url: "/profile",
-    });
-  });
-
-  test("nobody to remind: nothing is sent", async () => {
-    const { t, sam } = await setup();
-    const grace = await sam.mutation(api.churches.add, { name: "Grace Church" });
-    await sam.mutation(api.profile.setChurch, { churchId: grace });
-    await t.run(async (ctx) => {
-      const admin = (await ctx.db.query("staffProfiles").collect()).find((p) => p.email === ADMIN)!;
-      await ctx.db.delete("staffProfiles", admin._id);
-    });
-    expect(await t.mutation(internal.churches.remindToSetChurch, { dryRun: false })).toEqual({
-      staff: 1,
-      withoutChurch: 0,
-      reminded: 0,
-    });
-    expect(await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).toEqual([]);
   });
 });
 

@@ -195,7 +195,14 @@ describe("the event", () => {
     expect(data.forms.marketing.approverName).toBe(MIKE);
     expect(data.forms.finance.approverTitle).toBe("the Finance Head");
     expect(data.can).toEqual({ edit: true, cancel: true });
-    expect(data.forms.risk.can).toEqual({ fill: true, decide: false, reopen: false, comment: true });
+    // Someone on the Events team can chase a colleague's forms.
+    expect(data.forms.risk.can).toEqual({
+      fill: true,
+      decide: false,
+      reopen: false,
+      comment: true,
+      remind: true,
+    });
     expect(data.directorThreshold).toBe(5000);
     expect((await get(t, first, MARY)).can).toEqual({ edit: false, cancel: false });
     expect(await actions(t, first)).toEqual(["created"]);
@@ -991,3 +998,65 @@ describe("the forms", () => {
   });
 });
 
+
+describe("reminding someone to fill in a form", () => {
+  const remind = (t: T, id: Id<"eventRequests">, email: string, form: "marketing" | "risk" = "marketing") =>
+    asUser(t, email).mutation(api.eventSubForms.remind, { id, form });
+
+  test("a reviewer chases the requester, once a day, until it's submitted", async () => {
+    const t = await setup();
+    const id = await create(t);
+    // Not the requester, who'd only be reminding themselves, nor anyone who can't see it.
+    expect((await get(t, id)).forms.marketing.can.remind).toBe(false);
+    expect((await get(t, id, MARY)).forms.marketing.can.remind).toBe(true);
+    await expect(remind(t, id, OLLIE)).rejects.toThrow(/Only reviewers of event forms/);
+
+    await remind(t, id, CORA);
+    expect(await emailsTo(t, EVA)).toContain(
+      "Reminder: the Marketing form for [TEST] SAF27 isn't submitted yet"
+    );
+    const reminder = (await notificationsFor(t, EVA)).find((n) => n.title === "Reminder");
+    expect(reminder?.body).toMatch(/is waiting on the Marketing form for \[TEST\] SAF27, and the event is in 40 days\.$/);
+    expect((await get(t, id, MARY)).forms.marketing).toMatchObject({
+      nudgedBy: CORA,
+      nudgedByName: expect.any(String),
+      nudgedAt: expect.any(Number),
+    });
+    await expect(remind(t, id, MARY)).rejects.toThrow(/in the last day/);
+
+    const sent = (await get(t, id, MARY)).forms.marketing.nudgedAt!;
+    vi.setSystemTime(sent + DAY + 1000);
+    await remind(t, id, MARY);
+    await submitMarketing(t, id);
+    expect((await get(t, id, MARY)).forms.marketing.can.remind).toBe(false);
+    await expect(remind(t, id, MARY)).rejects.toThrow(/isn't waiting to be filled in/);
+  });
+
+  test("a form sent back reminds whoever submitted it of the changes", async () => {
+    const t = await setup();
+    const id = await create(t);
+    await submitRisk(t, id, risks(), ELLA);
+    await asUser(t, CORA).mutation(api.eventSubForms.requestChanges, {
+      id,
+      form: "risk",
+      reason: "Add crowd control",
+    });
+    await remind(t, id, MARY, "risk");
+    // It goes to the requester and whoever submitted it, leaving out whoever sends it.
+    expect((await get(t, id, MARY)).forms.risk.nudgeNames).toHaveLength(2);
+    expect((await get(t, id, ELLA)).forms.risk.nudgeNames).toEqual([EVA]);
+    const subject = "Reminder: the Risk form for [TEST] SAF27 is waiting on your changes";
+    expect(await emailsTo(t, EVA)).toContain(subject);
+    expect(await emailsTo(t, ELLA)).toContain(subject);
+    const email = (await emails(t)).find((e) => e.to === ELLA && e.subject === subject);
+    expect(email?.body).toContain("The changes asked for:\nAdd crowd control");
+  });
+
+  test("not once the event is cancelled", async () => {
+    const t = await setup();
+    const id = await create(t);
+    await asUser(t, EVA).mutation(api.eventRequests.cancel, { id, note: "Moved online" });
+    expect((await get(t, id, MARY)).forms.marketing.can.remind).toBe(false);
+    await expect(remind(t, id, MARY)).rejects.toThrow(/isn't waiting to be filled in/);
+  });
+});

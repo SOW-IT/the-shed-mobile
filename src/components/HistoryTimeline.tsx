@@ -2,13 +2,15 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import React, { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { formatDuration, timelineGapHeight } from "@shared/datetime";
+import { keysFor } from "@/lib/listKeys";
 import { sydneyDateTime } from "@/lib/sydneyTime";
-import { spacing, typography, useAppTheme, type AppTheme } from "@/theme";
+import { spacing, typography, useAppTheme, type AppTheme, fixedColours } from "@/theme";
+import { Card, Facts, SectionTitle } from "@/components/ui";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type Tone = "primary" | "success" | "danger" | "quiet";
 
-export type HistoryEntry = {
+type HistoryEntry = {
   at: number;
   action: string;
   label: string;
@@ -69,7 +71,8 @@ export const HistoryTimeline = ({
   pending?: { label: string; note?: ReactNode };
 }) => {
   const t = useAppTheme();
-  const onCircle = t.dark ? t.background : "#ffffff";
+  const onCircle = t.dark ? t.background : fixedColours.onColour;
+  const keys = keysFor(entries.map((entry) => `${entry.at}|${entry.action}`));
   return (
     <View>
       {pending ? (
@@ -92,7 +95,7 @@ export const HistoryTimeline = ({
         const look = lookOf(entry.action);
         const older = entries[index + 1];
         return (
-          <React.Fragment key={index}>
+          <React.Fragment key={keys[index]}>
             <View style={styles.row}>
               <View style={styles.railColumn}>
                 <View style={[styles.circle, { backgroundColor: toneColour(t, look.tone) }]}>
@@ -102,10 +105,7 @@ export const HistoryTimeline = ({
               </View>
               <View style={styles.content}>
                 <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>{entry.label}</Text>
-                <Text style={[typography.caption, { color: t.muted }]}>
-                  {entry.who ? `${entry.who} · ` : ""}
-                  {sydneyDateTime(entry.at)}
-                </Text>
+                <Facts parts={[entry.who, sydneyDateTime(entry.at)]} />
                 {entry.detail ? (
                   <Text
                     style={[
@@ -123,6 +123,32 @@ export const HistoryTimeline = ({
         );
       })}
     </View>
+  );
+};
+
+export const TimelineSection = <E extends Omit<HistoryEntry, "label" | "who"> & { actorName: string | null }>({
+  events,
+  labelOf,
+}: {
+  events: E[] | null | undefined;
+  labelOf: (event: E) => string;
+}) => {
+  if (!events || events.length === 0) return null;
+  return (
+    <>
+      <SectionTitle>History</SectionTitle>
+      <Card>
+        <HistoryTimeline
+          entries={events.map((event) => ({
+            at: event.at,
+            action: event.action,
+            label: labelOf(event),
+            who: event.actorName,
+            detail: event.detail,
+          }))}
+        />
+      </Card>
+    </>
   );
 };
 

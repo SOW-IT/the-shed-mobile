@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { personaInDepartment } from "../shared/actingAs";
 import type { Audience } from "../shared/announcements";
+import { ACTIVITY_EMAIL_LIMIT } from "../shared/userActivity";
 import {
   Assignment,
   assignmentFor,
@@ -64,6 +65,7 @@ import {
   rolesOf,
   setCachedDirectorEmail,
 } from "./model";
+import { staffSearchText, yearSearchContext } from "./orgSearch";
 import { hasSignedIn } from "./presence";
 import {
   attachMember,
@@ -78,6 +80,7 @@ import {
   teamsFor,
 } from "./teamJobs";
 import { sameEmail } from "../shared/memberMerge";
+import { env } from "./environment";
 
 const syncDirectorCacheAfterProfileChange = async (
   ctx: MutationCtx,
@@ -147,8 +150,10 @@ const patchFromAssignments = async (
   profile: Doc<"staffProfiles">,
   assignments: Assignment[],
 ) => {
+  const deduped = dedupeAssignments(assignments);
   await ctx.db.patch("staffProfiles", profile._id, {
-    assignments: dedupeAssignments(assignments),
+    assignments: deduped,
+    searchText: await staffSearchText(ctx, { ...profile, assignments: deduped }),
   });
 };
 
@@ -160,11 +165,13 @@ const writeStaffProfile = async (
   assignments: Assignment[],
 ): Promise<Id<"staffProfiles">> => {
   const identity = await resolveStaffIdentity(ctx, email);
+  const name = existing?.name ?? identity.name;
   const fields = {
     assignments,
     importId: existing?.importId ?? identity.importId,
-    name: existing?.name ?? identity.name,
+    name,
     userId: existing?.userId ?? identity.userId,
+    searchText: await staffSearchText(ctx, { email, year, name, assignments }),
   };
   const profileId =
     existing?._id ??
@@ -264,6 +271,7 @@ const renameScopeInProfiles = async (
       assignments: remapScope(current, key, oldName, newName),
     });
   }
+  await ctx.scheduler.runAfter(0, internal.orgSearch.refreshYearSearchText, { year });
 };
 
 // Saved acting-as choices are checked against the current year's departments,
@@ -879,6 +887,65 @@ export const listLeavers = query({
   },
 });
 
+
+const appPlatformValidator = v.union(v.literal("ios"), v.literal("android"));
+
+const userActivityValidator = v.object({
+  email: v.string(),
+  versions: v.array(
+    v.object({
+      platform: appPlatformValidator,
+      version: v.string(),
+      seenAt: v.number(),
+    }),
+  ),
+  lastSeenAt: v.union(v.number(), v.null()),
+});
+
+const activityFor = async (ctx: QueryCtx, email: string) => {
+  const byPlatform = new Map<
+    Doc<"appInstalls">["platform"],
+    Doc<"appInstalls">
+  >();
+  let lastSeenAt: number | null = null;
+  for (const candidate of staffEmailCandidates(email)) {
+    const installs = await ctx.db
+      .query("appInstalls")
+      .withIndex("by_email_and_platform", (q) => q.eq("email", candidate))
+      .take(2);
+    for (const install of installs) {
+      const known = byPlatform.get(install.platform);
+      if (!known || install.seenAt > known.seenAt) {
+        byPlatform.set(install.platform, install);
+      }
+    }
+    const seen = await ctx.db
+      .query("lastSeen")
+      .withIndex("by_email", (q) => q.eq("email", candidate))
+      .unique();
+    if (seen && (lastSeenAt === null || seen.at > lastSeenAt)) {
+      lastSeenAt = seen.at;
+    }
+  }
+  const versions = [...byPlatform.values()]
+    .sort((a, b) => b.seenAt - a.seenAt)
+    .map(({ platform, version, seenAt }) => ({ platform, version, seenAt }));
+  return { email, versions, lastSeenAt };
+};
+
+export const userActivity = query({
+  args: { emails: v.array(v.string()) },
+  returns: v.union(v.array(userActivityValidator), v.null()),
+  handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return null;
+    await requireAdmin(ctx);
+    const emails = [...new Set(args.emails)].slice(0, ACTIVITY_EMAIL_LIMIT);
+    const rows = [];
+    for (const email of emails) rows.push(await activityFor(ctx, email));
+    return rows;
+  },
+});
+
 export const markLeaving = mutation({
   args: { email: v.string(), year: v.number() },
   handler: async (ctx, args) => {
@@ -1453,6 +1520,9 @@ export const updateDepartment = mutation({
         division: args.division,
         headEmail,
       });
+      if (existing.division !== args.division) {
+        await ctx.scheduler.runAfter(0, internal.orgSearch.refreshYearSearchText, { year: args.year });
+      }
     }
 
     if (headEmail) {
@@ -1886,6 +1956,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     }
     counts.roles++;
   }
+  const toSearch = await yearSearchContext(ctx, to);
   for await (const profile of ctx.db
     .query("staffProfiles")
     .withIndex("by_year", (q) => q.eq("year", from))) {
@@ -1911,12 +1982,16 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
         )
         .first());
     if (existing) {
-      await ctx.db.patch("staffProfiles", existing._id, fields);
+      await ctx.db.patch("staffProfiles", existing._id, {
+        ...fields,
+        searchText: await staffSearchText(ctx, { ...fields, email: existing.email, year: to }, toSearch),
+      });
     } else {
       await ctx.db.insert("staffProfiles", {
         email: profile.email,
         year: to,
         ...fields,
+        searchText: await staffSearchText(ctx, { ...fields, email: profile.email, year: to }, toSearch),
       });
     }
     counts.profiles++;
@@ -2101,7 +2176,7 @@ const prefillNextStaffYearHandler = async (ctx: MutationCtx) => {
   }
   const counts: CopyYearCounts = await copyYearData(ctx, from, to);
   const subject = `THE SHED: staff year prefill, ${from} copied to ${to}`;
-  const siteUrl = process.env.SITE_URL ?? process.env.APP_URL ?? "unknown";
+  const siteUrl = env("SITE_URL") ?? env("APP_URL") ?? "unknown";
   const body = [
     `The annual staff-year prefill ran and copied ${from} into ${to}.`,
     "",
@@ -2207,10 +2282,12 @@ export const seed = internalMutation({
 
     const profile = await getProfile(ctx, email, year);
     if (!profile) {
+      const assignments = [{ role: STAFF_ROLE, department: "Data and IT" }];
       await ctx.db.insert("staffProfiles", {
         email,
         year,
-        assignments: [{ role: STAFF_ROLE, department: "Data and IT" }],
+        assignments,
+        searchText: await staffSearchText(ctx, { email, year, assignments }),
       });
     }
     return { year, admin: email };

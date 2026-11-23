@@ -4,13 +4,23 @@ import {
   announcementPath,
   audienceSummary,
   cleanDraft,
+  cleanEmails,
+  emailChoiceOf,
+  emailDeliverySummary,
+  emailFlags,
+  emailRecipients,
   EVERYONE,
   inAudience,
   isEveryone,
   MESSAGE_MAX,
+  missesSomeone,
+  nameList,
+  personMatches,
   rateLimitError,
   scheduleError,
   sortRoles,
+  withAll,
+  withoutAll,
 } from "./announcements";
 
 const MINUTE = 60_000;
@@ -56,7 +66,7 @@ test("audienceSummary names the groups, then the roles", () => {
     })
   ).toBe("UNSW, Governance, Events");
   expect(audienceSummary({ ...EVERYONE, roles: ["Head of Department", "Staff"] })).toBe(
-    "All leaders · HOD, Staff"
+    "HOD, Staff"
   );
 });
 
@@ -119,5 +129,74 @@ test("the email carries the message, who sent it and the link", () => {
   ).toEqual({
     subject: "T",
     body: "M\n\n— Ada, via THE SHED\n\nOpen in THE SHED: https://x/announcements/abc",
+  });
+});
+
+describe("choosing people", () => {
+  const fiona = { email: "fiona@sow.org.au", name: "Fiona Ng", detail: "Finance" };
+  const luke = { email: "luke@sow.org.au", name: "Luke", detail: "UNSW, Events" };
+
+  test("emails are trimmed, lowercased and deduped, keeping their order", () => {
+    expect(cleanEmails([" Luke@SOW.org.au", "fiona@sow.org.au", "luke@sow.org.au", " "])).toEqual([
+      "luke@sow.org.au",
+      "fiona@sow.org.au",
+    ]);
+  });
+
+  test("search matches every word against name, email or what they do", () => {
+    expect(personMatches(fiona, "")).toBe(true);
+    expect(personMatches(fiona, "fiona ng")).toBe(true);
+    expect(personMatches(fiona, "ng finance")).toBe(true);
+    expect(personMatches(luke, "unsw")).toBe(true);
+    expect(personMatches(luke, "luke@")).toBe(true);
+    expect(personMatches(luke, "luke finance")).toBe(false);
+  });
+
+  test("select all adds the shown people; deselect takes just them off", () => {
+    expect(withAll([luke.email], [fiona, luke])).toEqual([luke.email, fiona.email]);
+    expect(withoutAll([luke.email, fiona.email, "x@sow.org.au"], [fiona, luke])).toEqual([
+      "x@sow.org.au",
+    ]);
+  });
+
+  test("a few names are listed; past three the rest are counted", () => {
+    expect(nameList([])).toBe("");
+    expect(nameList(["Ada"])).toBe("Ada");
+    expect(nameList(["Ada", "Ben"])).toBe("Ada and Ben");
+    expect(nameList(["Ada", "Ben", "Cal"])).toBe("Ada, Ben and Cal");
+    expect(nameList(["Ada", "Ben", "Cal", "Dee"])).toBe("Ada, Ben, Cal and 1 more");
+    expect(nameList(["Ada", "Ben", "Cal"], 7)).toBe("Ada, Ben, Cal and 4 more");
+  });
+});
+
+describe("email choice", () => {
+  const recipients = ["a@x", "b@x", "c@x"];
+  const withApp = new Set(["b@x"]);
+
+  test("round-trips through the stored flags", () => {
+    for (const choice of ["none", "withoutApp", "everyone"] as const) {
+      expect(emailChoiceOf(emailFlags(choice))).toBe(choice);
+    }
+    expect(emailChoiceOf({ sendEmail: true, emailWithoutApp: true })).toBe("everyone");
+    expect(emailFlags("none")).toEqual({ sendEmail: false });
+  });
+
+  test("decides who gets an email", () => {
+    expect(emailRecipients(recipients, withApp, "none")).toEqual([]);
+    expect(emailRecipients(recipients, withApp, "withoutApp")).toEqual(["a@x", "c@x"]);
+    expect(emailRecipients(recipients, withApp, "everyone")).toEqual(recipients);
+  });
+
+  test("warns only when someone would get neither a push nor an email", () => {
+    expect(missesSomeone(2, "none")).toBe(true);
+    expect(missesSomeone(2, "withoutApp")).toBe(false);
+    expect(missesSomeone(2, "everyone")).toBe(false);
+    expect(missesSomeone(0, "none")).toBe(false);
+  });
+
+  test("sums up how it goes out", () => {
+    expect(emailDeliverySummary("none")).toBe("Push only");
+    expect(emailDeliverySummary("withoutApp")).toBe("Push, and email to anyone without it");
+    expect(emailDeliverySummary("everyone")).toBe("Push and email");
   });
 });

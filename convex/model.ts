@@ -15,6 +15,7 @@ import {
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
+import { env } from "./environment";
 
 export type Ctx = QueryCtx | MutationCtx;
 
@@ -32,10 +33,10 @@ export const assertManagedYear = (year: number) => {
   }
 };
 
-export const nightlyJobsPaused = (): boolean => process.env.NIGHTLY_JOBS_PAUSED === "true";
+export const nightlyJobsPaused = (): boolean => env("NIGHTLY_JOBS_PAUSED") === "true";
 
 export const allowedDomain = () =>
-  process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
+  env("AUTH_ALLOWED_DOMAIN") ?? "sow.org.au";
 
 export const isOrgEmail = (email: string | null | undefined): boolean =>
   !!email && email.toLowerCase().endsWith(`@${allowedDomain()}`);
@@ -150,6 +151,9 @@ export async function displayName(
   return (await resolveName(ctx, email, year)) ?? email;
 }
 
+export const nameOf = (ctx: Ctx, email: string | undefined, year = currentStaffYear()) =>
+  email ? displayName(ctx, email, year) : Promise.resolve(null);
+
 export const commentBody = (raw: string): string => {
   const body = raw.trim();
   if (!body) throw new ConvexError("Write a comment first.");
@@ -173,10 +177,10 @@ export const memoAsync = <A extends unknown[], V>(load: (...args: A) => Promise<
 export async function commentRows<
   T extends { _id: string; authorEmail: string; body: string; postedAt: number },
 >(ctx: Ctx, comments: T[], year: number, callerEmail: string) {
-  const nameOf = memoAsync((email: string) => displayName(ctx, email, year));
+  const cachedName = memoAsync((email: string) => displayName(ctx, email, year));
   return await Promise.all(
     comments.map(async (comment) => {
-      const name = nameOf(comment.authorEmail);
+      const name = cachedName(comment.authorEmail);
       return {
         id: comment._id,
         authorEmail: comment.authorEmail,

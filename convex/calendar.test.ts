@@ -194,6 +194,54 @@ describe("googleCalendar.syncEvent", () => {
   });
 });
 
+describe("tags and Google", () => {
+  test("recolouring, renaming, moving or deleting a tag recopies the events wearing it to Google, and an unchanged save doesn't", async () => {
+    const { t, twig, ppn } = await setup();
+    await configureGoogle();
+    googleFetch([]);
+    const withTwig = await create(t, { name: "Leaders' retreat", subgroups: ["SOW"], tagIds: [twig] });
+    const withPpn = await create(t, { name: "PPN night", tagIds: [ppn] });
+    const untagged = await create(t, { name: "Stall" });
+    const syncsOf = async (eventId: Id<"events">) =>
+      (await scheduledSyncs(t)).filter((f) => f.name === "googleCalendar:syncEvent" && f.args[0].eventId === eventId)
+        .length;
+    const before = await Promise.all([withTwig, withPpn, untagged].map(syncsOf));
+
+    await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: twig, name: "TWIG", colour: "orange" }],
+      deleteIds: [],
+    });
+    expect(await Promise.all([withTwig, withPpn, untagged].map(syncsOf))).toEqual([
+      before[0] + 1,
+      before[1],
+      before[2],
+    ]);
+
+    await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: twig, name: "TWIG", colour: "orange", list: "weeklies" }],
+      deleteIds: [],
+    });
+    expect(await Promise.all([withTwig, withPpn, untagged].map(syncsOf))).toEqual([
+      before[0] + 2,
+      before[1],
+      before[2],
+    ]);
+
+    await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: twig, name: "TWIG", colour: "orange", list: "weeklies" }],
+      deleteIds: [],
+    });
+    expect(await syncsOf(withTwig)).toBe(before[0] + 2);
+
+    await asUser(t, ADMIN).mutation(api.attendanceTags.saveAll, { tags: [], deleteIds: [ppn] });
+    expect(await Promise.all([withTwig, withPpn, untagged].map(syncsOf))).toEqual([
+      before[0] + 2,
+      before[1] + 1,
+      before[2],
+    ]);
+  });
+});
+
 describe("googleCalendar.backfill", () => {
   test("copies events from the chosen number of days back", async () => {
     const { t } = await setup();
@@ -293,6 +341,24 @@ describe("calendar entries", () => {
     expect(saved!.dateEnd).toBeGreaterThan(saved!.dateStart);
   });
 
+  test("an entry can wear a colour from the palette, and lose it again", async () => {
+    const { t } = await setupWithStaff();
+    await expect(
+      asUser(t, STAFF).mutation(api.calendar.addEntry, entry({ colour: "chartreuse" }))
+    ).rejects.toThrow("Choose one of the colours.");
+    const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, entry({ colour: "plum" }));
+    const window = { from: NOW, to: NOW + 10 * DAY };
+    await create(t, { name: "Stall" });
+    const listed = await asUser(t, STAFF).query(api.calendar.range, window);
+    expect(listed!.map((e) => [e.name, e.colour])).toEqual([
+      ["Stall", null],
+      ["Camp posters due", "plum"],
+    ]);
+
+    await asUser(t, STAFF).mutation(api.calendar.updateEntry, { id, ...entry() });
+    expect(await t.run((ctx) => ctx.db.get("calendarEntries", id))).not.toHaveProperty("colour");
+  });
+
   test("an entry needs no campus", async () => {
     const { t } = await setupWithStaff();
     const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, entry());
@@ -368,6 +434,15 @@ describe("googleCalendar for entries", () => {
     await t.action(internal.googleCalendar.syncEntry, { entryId: id });
     expect(calls[0].body).toMatchObject({ summary: "Camp posters due", start: { date: expect.any(String) } });
     expect(calls[0].body).not.toHaveProperty("start.dateTime");
+  });
+
+  test("a picked colour goes to Google", async () => {
+    const { t } = await setupWithStaff();
+    const id = await asUser(t, STAFF).mutation(api.calendar.addEntry, entry({ colour: "forest" }));
+    await configureGoogle();
+    const calls = googleFetch([200]);
+    await t.action(internal.googleCalendar.syncEntry, { entryId: id });
+    expect(calls[0].body).toMatchObject({ colorId: "10" });
   });
 
   test("the backfill includes entries", async () => {

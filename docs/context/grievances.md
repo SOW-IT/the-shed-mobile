@@ -37,15 +37,19 @@ _Avoid_: categories (in user-facing copy)
 **Submitter**:
 Whoever raised the grievance. Signed in, the grievance is filed under their
 account and they follow it under Mine with push notifications; signed out,
-they hear only by email. Either way they get an email at each stage.
+they hear only by email. Either way they get an email at each stage. Once
+someone has taken it on, those emails reply to that person, so the submitter
+and the team member can email back and forth; the conversation lives in
+their inboxes, not in THE SHED.
 _Avoid_: complainant, requester
 
 **Stage**:
 Submitted, then In progress (someone on the team has taken it on or been
 given it), then Resolved (with an outcome note emailed to the submitter).
 The team can instead close it as **Not proceeding** at any open stage, with a
-reason. Passing a grievance to someone else on the team isn't a stage and
-doesn't email the submitter.
+reason. Passing a grievance to someone else on the team isn't a stage, but
+the submitter is emailed who's looking after it now, so their replies reach
+the right person, and the person it was given to gets a push of their own.
 _Avoid_: status (in user-facing copy), received, approved, declined
 
 **Staff year** (of a grievance):

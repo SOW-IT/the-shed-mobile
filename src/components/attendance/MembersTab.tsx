@@ -6,6 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { FilterBar } from "@/components/attendance/FilterBar";
 import { MemberRow } from "@/components/attendance/MemberRow";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
@@ -56,7 +57,7 @@ export function MembersTab({
   const metadata = useQuery(api.attendanceMetadata.list, {});
 
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 400);
   const [sortKey, setSortKey] = useState("name");
   const [sortAsc, setSortAsc] = useState(true);
   const [filters, setFilters] = useState<Record<string, string[]>>({});
@@ -65,11 +66,6 @@ export function MembersTab({
   useEffect(() => {
     void ensureDefaults({}).catch(() => {});
   }, [ensureDefaults]);
-
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(search), 400);
-    return () => clearTimeout(id);
-  }, [search]);
 
   const scopeKey = JSON.stringify([year, debouncedSearch, sortKey, sortAsc, filters]);
   const listRef = useRef<ScrollViewInstance>(null);
@@ -197,10 +193,10 @@ export function MembersTab({
       {mergeCount > 0 ? (
         <View style={styles.mergesRow}>
           <Btn
-            title={`${mergeCount} may be the same person · Review`}
+            title={`Review ${mergeCount} who may be the same person`}
             variant="tonal"
             icon="git-merge-outline"
-            onPress={() => router.push("/attendance/merges" as never)}
+            onPress={() => router.push("/attendance/merges")}
           />
         </View>
       ) : null}

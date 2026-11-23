@@ -1,6 +1,6 @@
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
@@ -15,8 +15,11 @@ import { LabelledField } from "@/components/events/LabelledField";
 import { GrievanceStatusPill } from "@/components/grievances/GrievanceStatusPill";
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { StepTrack } from "@/components/StepTrack";
+import { keysFor } from "@/lib/listKeys";
+import { openExternalLink } from "@/lib/openExternalLink";
 import { sydneyDateTime } from "@/lib/sydneyTime";
 import {
+  Answer,
   Btn,
   Card,
   EmptyState,
@@ -32,6 +35,7 @@ import {
   Screen,
   SectionTitle,
   Sheet,
+  Facts,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { backOr } from "@/lib/goBack";
@@ -45,22 +49,10 @@ const EVENT_LABELS: Record<string, string> = {
   "not-proceeding": "Closed, not proceeding",
 };
 
-const Answer = ({ label, children }: { label: string; children: ReactNode }) => {
-  const t = useAppTheme();
-  return (
-    <View style={styles.answer}>
-      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
-      <Text selectable style={[typography.body, { color: t.text }]}>
-        {children}
-      </Text>
-    </View>
-  );
-};
-
 const Details = ({ g }: { g: Omit<Doc<"grievances">, "ref"> }) => (
   <Card>
     <Answer label="Raised by">
-      {[g.name, g.email, g.phone].filter(Boolean).join(" · ")}
+      {[g.name, g.email, g.phone].filter(Boolean).join(", ")}
     </Answer>
     <Answer label="About">{g.category}</Answer>
     {g.campus ? <Answer label="Campus or area">{g.campus}</Answer> : null}
@@ -75,21 +67,19 @@ const History = ({ id }: { id: Id<"grievances"> }) => {
   const t = useAppTheme();
   const events = useQuery(api.grievances.timeline, { id });
   if (!events || events.length === 0) return null;
+  const keys = keysFor(events.map((event) => `${event.at}|${event.action}`));
   return (
     <>
       <SectionTitle>History</SectionTitle>
       <Card>
         {events.map((event, index) => (
-          <View key={index} style={styles.event}>
+          <View key={keys[index]} style={styles.event}>
             <View style={[styles.eventDot, { backgroundColor: t.faint }]} />
             <View style={{ flex: 1 }}>
               <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>
                 {EVENT_LABELS[event.action] ?? event.action}
               </Text>
-              <Text style={[typography.caption, { color: t.muted }]}>
-                {sydneyDateTime(event.at)} · {event.actorName}
-                {event.detail ? ` · ${event.detail}` : ""}
-              </Text>
+              <Facts parts={[sydneyDateTime(event.at), event.actorName, event.detail]} />
             </View>
           </View>
         ))}
@@ -226,9 +216,19 @@ export default function GrievanceScreen() {
                         }}
                       />
                     ) : null}
+                    <Btn
+                      title={`Email ${g.name.split(" ")[0] || g.name}`}
+                      variant="tonal"
+                      icon="mail-outline"
+                      onPress={() =>
+                        void openExternalLink(
+                          `mailto:${encodeURIComponent(g.email)}?subject=${encodeURIComponent("About your grievance")}`
+                        )
+                      }
+                    />
                   </Row>
                 ) : isOpenGrievance(g.status) ? (
-                  <Muted>{`We'll email ${g.email} each time this moves along.`}</Muted>
+                  <Muted>{`We'll email ${g.email} each time this moves along. Reply to those emails to reach whoever is looking after it.`}</Muted>
                 ) : null}
               </Card>
             </FadeInView>
@@ -294,7 +294,6 @@ export default function GrievanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  answer: { gap: 4 },
   event: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
   eventDot: { width: 7, height: 7, borderRadius: 4, marginTop: 6 },
 });

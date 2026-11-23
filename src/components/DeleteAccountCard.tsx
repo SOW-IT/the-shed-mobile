@@ -1,11 +1,13 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, Platform, Text } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { useDeleteAccount } from "@/hooks/useDeleteAccount";
 import { typography, useAppTheme } from "../theme";
-import { Btn, Card, ConfirmDialog, ErrorBanner, Muted } from "./ui";
+import { Btn, Card, ConfirmDialog, ErrorBanner } from "./ui";
+import { notify } from "@/lib/notify";
 
 const WHAT_HAPPENS = {
   sow:
@@ -32,14 +34,23 @@ export const DeleteAccountCard = () => {
   const confirm = async () => {
     if (!(await deleteAccount(account.kind, account.name))) return;
     router.replace("/home");
-    if (Platform.OS === "web") window.alert(`${DELETED_TITLE}\n\n${DELETED_MESSAGE}`);
-    else Alert.alert(DELETED_TITLE, DELETED_MESSAGE, [{ text: "OK" }]);
+    notify(DELETED_TITLE, DELETED_MESSAGE);
   };
 
   return (
-    <Card style={{ gap: 10 }}>
-      <Text style={[typography.label, { color: t.danger }]}>Delete account</Text>
-      <Muted>{WHAT_HAPPENS[account.kind]}</Muted>
+    <Card
+      style={[
+        styles.card,
+        { backgroundColor: t.dangerStrong, borderColor: t.dangerStrongEdge },
+      ]}
+    >
+      <View style={styles.header}>
+        <Ionicons name="nuclear" size={26} color={t.onDanger} />
+        <Text style={[typography.section, { color: t.onDanger }]}>Delete account</Text>
+      </View>
+      <Text style={[typography.body, styles.body, { color: t.onDanger }]}>
+        {WHAT_HAPPENS[account.kind]}
+      </Text>
       <ErrorBanner message={error} />
       <Btn
         title={busy ? "Deleting…" : "Delete account"}
@@ -61,3 +72,9 @@ export const DeleteAccountCard = () => {
     </Card>
   );
 };
+
+const styles = StyleSheet.create({
+  card: { gap: 10, borderWidth: 2 },
+  header: { flexDirection: "row", alignItems: "center", gap: 8 },
+  body: { fontWeight: "600" },
+});

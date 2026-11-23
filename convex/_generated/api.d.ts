@@ -31,6 +31,7 @@ import type * as auth from "../auth.js";
 import type * as avatars from "../avatars.js";
 import type * as bankAccounts from "../bankAccounts.js";
 import type * as calendar from "../calendar.js";
+import type * as calendarAudit from "../calendarAudit.js";
 import type * as calendarData from "../calendarData.js";
 import type * as categoryPeople from "../categoryPeople.js";
 import type * as checkIn from "../checkIn.js";
@@ -46,6 +47,8 @@ import type * as designRequests from "../designRequests.js";
 import type * as directory from "../directory.js";
 import type * as directorySync from "../directorySync.js";
 import type * as emails from "../emails.js";
+import type * as environment from "../environment.js";
+import type * as eventGuests from "../eventGuests.js";
 import type * as eventRequestAccess from "../eventRequestAccess.js";
 import type * as eventRequestComments from "../eventRequestComments.js";
 import type * as eventRequestData from "../eventRequestData.js";
@@ -54,6 +57,8 @@ import type * as eventRequestLinks from "../eventRequestLinks.js";
 import type * as eventRequests from "../eventRequests.js";
 import type * as eventSubForms from "../eventSubForms.js";
 import type * as events from "../events.js";
+import type * as gameScoreData from "../gameScoreData.js";
+import type * as gameScores from "../gameScores.js";
 import type * as generalMetrics from "../generalMetrics.js";
 import type * as googleAuth from "../googleAuth.js";
 import type * as googleCalendar from "../googleCalendar.js";
@@ -73,6 +78,7 @@ import type * as model from "../model.js";
 import type * as musicReleaseDates from "../musicReleaseDates.js";
 import type * as musicRequests from "../musicRequests.js";
 import type * as notifications from "../notifications.js";
+import type * as orgSearch from "../orgSearch.js";
 import type * as pagination from "../pagination.js";
 import type * as photo from "../photo.js";
 import type * as presence from "../presence.js";
@@ -98,6 +104,8 @@ import type * as userLink from "../userLink.js";
 import type * as waitingOnMe from "../waitingOnMe.js";
 import type * as weeklyInsights from "../weeklyInsights.js";
 import type * as weeklyInsightsData from "../weeklyInsightsData.js";
+import type * as world from "../world.js";
+import type * as worldData from "../worldData.js";
 import type * as youtube from "../youtube.js";
 
 import type {
@@ -130,6 +138,7 @@ declare const fullApi: ApiFromModules<{
   avatars: typeof avatars;
   bankAccounts: typeof bankAccounts;
   calendar: typeof calendar;
+  calendarAudit: typeof calendarAudit;
   calendarData: typeof calendarData;
   categoryPeople: typeof categoryPeople;
   checkIn: typeof checkIn;
@@ -145,6 +154,8 @@ declare const fullApi: ApiFromModules<{
   directory: typeof directory;
   directorySync: typeof directorySync;
   emails: typeof emails;
+  environment: typeof environment;
+  eventGuests: typeof eventGuests;
   eventRequestAccess: typeof eventRequestAccess;
   eventRequestComments: typeof eventRequestComments;
   eventRequestData: typeof eventRequestData;
@@ -153,6 +164,8 @@ declare const fullApi: ApiFromModules<{
   eventRequests: typeof eventRequests;
   eventSubForms: typeof eventSubForms;
   events: typeof events;
+  gameScoreData: typeof gameScoreData;
+  gameScores: typeof gameScores;
   generalMetrics: typeof generalMetrics;
   googleAuth: typeof googleAuth;
   googleCalendar: typeof googleCalendar;
@@ -172,6 +185,7 @@ declare const fullApi: ApiFromModules<{
   musicReleaseDates: typeof musicReleaseDates;
   musicRequests: typeof musicRequests;
   notifications: typeof notifications;
+  orgSearch: typeof orgSearch;
   pagination: typeof pagination;
   photo: typeof photo;
   presence: typeof presence;
@@ -197,6 +211,8 @@ declare const fullApi: ApiFromModules<{
   waitingOnMe: typeof waitingOnMe;
   weeklyInsights: typeof weeklyInsights;
   weeklyInsightsData: typeof weeklyInsightsData;
+  world: typeof world;
+  worldData: typeof worldData;
   youtube: typeof youtube;
 }>;
 

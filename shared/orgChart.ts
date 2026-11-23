@@ -1,8 +1,8 @@
-import { acronym, HEAD_OF_DEPARTMENT, type RoleTitles } from "./flow";
+import { acronym, type Assignment, HEAD_OF_DEPARTMENT, roleTitle, type RoleTitles } from "./flow";
 
 export type OrgPerson = { email: string; name: string | null; photo: string | null; role: string | null };
 
-export type OrgDepartment = {
+type OrgDepartment = {
   name: string;
   colour: string | null;
   head: OrgPerson | null;
@@ -21,12 +21,11 @@ export type OrgChartSections = {
   universities: readonly OrgCampus[];
 };
 
-export type OrgAreaKind = "staff" | "division" | "campus";
+type OrgAreaKind = "staff" | "division" | "campus";
 
-export type OrgArea = { key: string; kind: OrgAreaKind; name: string; label: string };
+type OrgArea = { key: string; kind: OrgAreaKind; name: string; label: string };
 
-export const STAFF_SECTION = "Staff";
-export const CAMPUS_SECTION = "Campus";
+const STAFF_SECTION = "Staff";
 export const STAFF_AREA = "staff";
 
 export const divisionArea = (name: string) => `division:${name}`;
@@ -36,9 +35,51 @@ export const departmentHeadTitle = (titles: RoleTitles) => titles[HEAD_OF_DEPART
 
 export const orgSearchTerms = (query: string) => query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
-const matches = (terms: readonly string[], person: OrgPerson, ...context: string[]) => {
-  const text = [person.name, person.email, person.role, ...context].join(" ").toLowerCase();
-  return terms.every((term) => text.includes(term));
+const ORG_SEARCH_MIN_LENGTH = 2;
+
+export const isOrgSearchQuery = (query: string) => query.trim().length >= ORG_SEARCH_MIN_LENGTH;
+
+export const refinesOrgSearch = (typed: string, searched: string) =>
+  typed.trim().toLowerCase().startsWith(searched.trim().toLowerCase());
+
+type SearchableProfile = {
+  email: string;
+  name?: string;
+  otherNames?: readonly (string | null | undefined)[];
+  assignments?: readonly Assignment[];
+  titles?: RoleTitles;
+  departmentDivisions?: Readonly<Record<string, string>>;
+};
+
+export const staffProfileSearchText = (profile: SearchableProfile) => {
+  const titles = profile.titles ?? {};
+  const words = [
+    profile.name,
+    ...(profile.otherNames ?? []),
+    profile.email,
+    ...(profile.assignments ?? []).flatMap((a) => [
+      a.role,
+      roleTitle(a.role, titles),
+      acronym(a.role),
+      a.role === HEAD_OF_DEPARTMENT ? departmentHeadTitle(titles) : null,
+      ...[a.department, a.division, a.university, a.department && profile.departmentDivisions?.[a.department]].flatMap(
+        (scope) => (scope ? [scope, acronym(scope)] : [])
+      ),
+    ]),
+  ];
+  return [...new Set(words.filter((word): word is string => !!word))].join(" ");
+};
+
+const ORG_SEARCH_INDEX_WORDS = 3;
+
+export const orgSearchIndexWords = (terms: readonly string[]) =>
+  [...new Set(terms.flatMap((term) => term.split(/[^\p{L}\p{N}]+/u)).filter(Boolean))]
+    .sort((a, b) => b.length - a.length)
+    .slice(0, ORG_SEARCH_INDEX_WORDS);
+
+export const matchesOrgSearch = (terms: readonly string[], text: string) => {
+  const haystack = text.toLowerCase();
+  return terms.every((term) => haystack.includes(term));
 };
 
 const divisionPeople = (division: OrgDivision) => [
@@ -49,37 +90,29 @@ const divisionPeople = (division: OrgDivision) => [
 const countPeople = (people: readonly (OrgPerson | null)[]) =>
   new Set(people.flatMap((person) => (person ? [person.email] : []))).size;
 
-export const searchOrgChart = (chart: OrgChartSections, query: string): OrgChartSections => {
-  const terms = orgSearchTerms(query);
-  if (terms.length === 0) return chart;
-  const found = (person: OrgPerson | null, ...context: string[]) =>
-    person && matches(terms, person, ...context) ? person : null;
-  const headTitle = departmentHeadTitle(chart.roleTitles);
+export const focusOrgChart = (chart: OrgChartSections, email: string | null): OrgChartSections => {
+  if (!email) return chart;
+  const target = email.toLowerCase();
+  const isTarget = (person: OrgPerson) => person.email.toLowerCase() === target;
+  const kept = (person: OrgPerson | null) => (person && isTarget(person) ? person : null);
   return {
     roleTitles: chart.roleTitles,
-    director: found(chart.director),
-    staff: chart.staff.filter((person) => matches(terms, person, STAFF_SECTION)),
+    director: kept(chart.director),
+    staff: chart.staff.filter(isTarget),
     divisions: chart.divisions
       .map((division) => ({
         ...division,
-        head: found(division.head, division.name),
+        head: kept(division.head),
         departments: division.departments
           .map((department) => ({
             ...department,
-            head: found(department.head, headTitle, department.name, division.name),
-            members: department.members.filter((person) =>
-              matches(terms, person, department.name, division.name)
-            ),
+            head: kept(department.head),
+            members: department.members.filter(isTarget),
           }))
           .filter((department) => department.head || department.members.length > 0),
       }))
       .filter((division) => division.head || division.departments.length > 0),
-    universities: chart.universities.map((campus) => ({
-      ...campus,
-      members: campus.members.filter((person) =>
-        matches(terms, person, campus.name, acronym(campus.name), CAMPUS_SECTION)
-      ),
-    })),
+    universities: chart.universities.map((campus) => ({ ...campus, members: campus.members.filter(isTarget) })),
   };
 };
 
@@ -131,10 +164,10 @@ export const orgPeopleCount = (chart: OrgChartSections) =>
     ...chart.universities.flatMap((campus) => campus.members),
   ]);
 
-export const filterOrgChart = (chart: OrgChartSections, query: string, picked: readonly string[]) => {
+export const filterOrgChart = (chart: OrgChartSections, focusEmail: string | null, picked: readonly string[]) => {
   const areas = orgAreas(chart);
   const active = picked.filter((key) => areas.some((area) => area.key === key));
-  const searched = searchOrgChart(chart, query);
-  const shown = pickOrgAreas(searched, active);
-  return { areas, active, counts: orgAreaCounts(searched), shown, people: orgPeopleCount(shown) };
+  const focused = focusOrgChart(chart, focusEmail);
+  const shown = pickOrgAreas(focused, active);
+  return { areas, active, counts: orgAreaCounts(focused), shown, people: orgPeopleCount(shown) };
 };

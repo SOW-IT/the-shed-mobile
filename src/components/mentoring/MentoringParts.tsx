@@ -28,7 +28,7 @@ import {
 } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
 
-export type Candidates = NonNullable<FunctionReturnType<typeof api.mentoring.candidates>>;
+type Candidates = NonNullable<FunctionReturnType<typeof api.mentoring.candidates>>;
 export type ExternalMentor = NonNullable<
   FunctionReturnType<typeof api.mentoring.externalMentors>
 >[number];
@@ -306,7 +306,7 @@ export const ExternalMentorSheet = ({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmShown, setConfirmShown] = useState(false);
   const deleting = useRef(false);
-  const afterSheetCloses = (open: () => void) => setTimeout(open, durations.overlayOut + 80);
+  const afterSheetCloses = (open: () => void) => setTimeout(open, durations.sheetHandoff);
   const set = (key: keyof ExternalMentorDraft) => (value: string) =>
     setDraft((current) => ({ ...current, [key]: value }));
 

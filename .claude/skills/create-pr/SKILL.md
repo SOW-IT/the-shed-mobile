@@ -90,7 +90,8 @@ coverage test and the offline Expo version check (plus a web sweep job). Run
 these locally before opening the PR:
 
 ```bash
-npm run lint
+npx eslint . --max-warnings 0   # not `npm run lint`, which only lints src/
+npx knip
 npx tsc --noEmit
 npm run test:coverage
 EXPO_OFFLINE=1 npx expo install --check
@@ -103,53 +104,21 @@ convex/shared code) and rerun. Do not open the PR until all three pass.
 
 ## 4. Verify on this Mac before opening the PR (required)
 
-CI + unit tests are necessary but **not sufficient**. Before `gh pr create`,
-exercise the change the way a reviewer would: baguette on the sim and/or web.
-
-### 4a. Point Metro at this worktree
+CI and unit tests are necessary but **not sufficient**. Run the `verify`
+skill (`.claude/skills/verify/SKILL.md`):
 
 ```bash
-curl -s http://localhost:8081/status   # expect packager-status:running
-# If wrong tree / stale: from THIS worktree
-npx expo start --dev-client --port 8081 --clear
+node scripts/verify.mjs --dry-run   # read the tier and steps first
+node scripts/verify.mjs --publish   # run it; screenshots go to the verification-artifacts branch
 ```
 
-For a dedicated web smoke (avoids fighting the native dev client), also:
-
-```bash
-npx expo start --web --port 8082
-```
-
-### 4b. Native — baguette + simulator
-
-- Prefer **baguette** over `idb`.
-- `baguette list` → use the `Booted` sim (The SHED: `au.org.sow.theshed`).
-- Tap API needs screen points + size, e.g.:
-
-```bash
-UDID=$(baguette list | rg Booted | head -1 | python3 -c 'import sys,json; print(json.loads(sys.stdin.read())["udid"])')
-baguette tap --udid "$UDID" --x <x> --y <y> --width 390 --height 844
-xcrun simctl io "$UDID" screenshot /tmp/pr-verify/sim-<screen>.png
-```
-
-- Walk the screens the PR touches (and a quick adjacent smoke: Home / Requests /
-  Insights / Org / Admin as relevant). Reload after JS changes.
-- Capture screenshots of the paths you actually hit.
-
-### 4c. Web — Chrome / Playwright
-
-- Prefer Playwright for reliable screenshots of RN-web (headless Chrome
-  `--screenshot` often captures a blank compositor frame):
-
-```bash
-npx --yes playwright screenshot --wait-for-timeout=8000 \
-  --viewport-size=1280,900 \
-  "http://localhost:8082" /tmp/pr-verify/web-home.png
-```
-
-- Optional signed-in smoke: e2e-auth when `E2E_AUTH_ENABLED` is set on the
-  deployment (README → Tests). Never enable that bypass on prod.
-- Do **not** print `E2E_AUTH_SECRET` or Netlify tokens in chat or HTML.
+It opens every affected screen on web and the iOS Simulator against a
+throwaway local backend, before and after, and writes `summary.md` and
+`screenshots.md` for the PR body. Route flows open screens; they don't fill in
+forms. For every interaction the change adds **or changes** (a message, a
+form, a confirmation), drive it by hand with **baguette** on the simulator and
+Playwright on web, and record what you saw. If you can't reach it, say so
+under "Not verified".
 
 ### 4d. What to record
 
@@ -232,7 +201,12 @@ npx --yes netlify-cli deploy \
    (e.g. `https://the-shed-pr-<n>-explain.netlify.app`).
 5. Give the user the **production HTTPS URL** plus the GitHub PR URL.
 
-## 8. Report back
+## 8. Shepherd it
+
+Follow the `pr-shepherd` skill until the PR is ready (CI and verify green;
+a CodeRabbit review only when the PR is big, see AGENTS.md), then report.
+
+## 9. Report back
 
 Give the user:
 

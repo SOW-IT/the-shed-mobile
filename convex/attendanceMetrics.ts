@@ -16,7 +16,7 @@ import {
   SOW_SUBGROUP,
   subgroupLabel,
 } from "../shared/rollcall";
-import { CAMPUS_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { CAMPUS_FIELD_KEY, metadataValueLabel } from "../shared/attendanceMemberMeta";
 import {
   computeSubgroupMetrics,
   RANGE_WEEKS,
@@ -259,9 +259,7 @@ async function resolvePersons(
   const memberCampus = (
     metadata: Record<string, string> | undefined
   ): string | undefined => {
-    const raw = campusField ? metadata?.[campusField._id] : undefined;
-    if (!raw) return undefined;
-    const label = campusField?.values?.[raw] ?? raw;
+    const label = metadataValueLabel(campusField, metadata);
     return label && label !== "Other" ? label : undefined;
   };
   const persons: MetricsPerson[] = [];
@@ -269,7 +267,7 @@ async function resolvePersons(
     if (!key.startsWith(MEMBER_PREFIX)) continue;
     const memberKey = key.slice(MEMBER_PREFIX.length);
     const id = ctx.db.normalizeId("attendanceMembers", memberKey);
-    const member = id ? await ctx.db.get(id) : null;
+    const member = id ? await ctx.db.get("attendanceMembers", id) : null;
     const latest = [...years].reverse().map((y) => matchProfile(memberKey, y)).find(Boolean);
     if (!latest) {
       const campus = memberCampus(member?.metadata);
@@ -287,7 +285,7 @@ async function resolvePersons(
     const profile = matchProfile(memberKey, year);
     const roles = profile ? [...new Set(assignmentsOf(profile).map((a) => a.role))] : [];
     const campuses = profile ? campusesLed(profile) : [];
-    const user = latest.userId ? await ctx.db.get(latest.userId) : null;
+    const user = latest.userId ? await ctx.db.get("users", latest.userId) : null;
     const breakdownByYear: Record<string, Record<string, string>> = {};
     const leaderByYear: Record<string, boolean> = {};
     const campusesByYear: Record<string, string[]> = {};
@@ -307,7 +305,7 @@ async function resolvePersons(
       key,
       kind: profile ? "staff" : "member",
       name: personDisplayName(latest.name ?? member?.name, latest.email),
-      subtitle: profile ? roles.join(" · ") || undefined : undefined,
+      subtitle: profile ? roles.join(", ") || undefined : undefined,
       photo: await photoFor(ctx, user, latest.email),
       breakdown: profile
         ? buildBreakdown(roles[0], campuses[0])
@@ -369,8 +367,8 @@ export const writeSnapshots = internalMutation({
       if (matches.length === 0) {
         await ctx.db.insert("attendanceMetricsSnapshots", doc);
       } else {
-        await ctx.db.patch(matches[0]._id, doc);
-        for (const extra of matches.slice(1)) await ctx.db.delete(extra._id);
+        await ctx.db.patch("attendanceMetricsSnapshots", matches[0]._id, doc);
+        for (const extra of matches.slice(1)) await ctx.db.delete("attendanceMetricsSnapshots", extra._id);
       }
     }
     return null;

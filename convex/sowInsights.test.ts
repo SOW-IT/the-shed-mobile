@@ -44,7 +44,7 @@ async function setup() {
         email,
         year,
         memberId,
-        name: (await ctx.db.get(memberId))!.name,
+        name: (await ctx.db.get("attendanceMembers", memberId))!.name,
         assignments: [{ role, ...(university ? { university } : { department: "Ministry" }) }],
       });
     await profile(lee, "lee@sow.org.au", 2026, "Student Leader", UNSW);
@@ -133,12 +133,12 @@ describe("SOW TWIG and PPN Insights", () => {
         .map((r) => [r.name, r.section, r.primary, r.warning ?? null])
         .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
     ).toEqual([
-      ["Lee Leader", "leader", "2/4 · 50%", null],
-      ["Nina None", "none", "1/4 · 25%", "No staff profile for 2027"],
-      ["Olly Organiser", "staff", "1/4 · 25%", null],
-      ["Pat Placeholder", "none", "1/4 · 25%", "No staff profile for 2027"],
-      ["Uma Usyd", "leader", "4/4 · 100%", null],
-      ["Zara Zero", "leader", "0/4 · 0%", null],
+      ["Lee Leader", "leader", "2/4 (50%)", null],
+      ["Nina None", "none", "1/4 (25%)", "No staff profile for 2027"],
+      ["Olly Organiser", "staff", "1/4 (25%)", null],
+      ["Pat Placeholder", "none", "1/4 (25%)", "No staff profile for 2027"],
+      ["Uma Usyd", "leader", "4/4 (100%)", null],
+      ["Zara Zero", "leader", "0/4 (0%)", null],
     ]);
     expect(everyone.rows.find((r) => r.name === "Zara Zero")).toMatchObject({
       secondary: "Hasn't come to a TWIG this staff year",

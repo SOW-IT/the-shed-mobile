@@ -1,3 +1,4 @@
+import { isTagColour, TAG_COLOUR_HEX, tagHexOf } from "./attendanceTags";
 import { DAY_MS, pad2 } from "./datetime";
 import { acronym, SYDNEY_TIME_ZONE, universityColour } from "./flow";
 import { isOrgWideSubgroup, SOW_SUBGROUP, subgroupLabel, type TagList } from "./rollcall";
@@ -61,12 +62,21 @@ export const campusColourOf = (
     ? universityColour(subgroups[0])
     : undefined;
 
-export type EntryInput = {
+export type ColouredTag = { colour?: string | null };
+
+export const sowTagColourOf = (
+  category: CalendarCategory,
+  tags: readonly ColouredTag[]
+): string | undefined =>
+  category === "sow" ? tags.map((tag) => tagHexOf(tag.colour)).find((hex) => hex !== undefined) : undefined;
+
+type EntryInput = {
   name: string;
   dateStart: number;
   dateEnd: number;
   notes?: string;
   due?: Due;
+  colour?: string;
 };
 
 export const normalizeEntry = <E extends EntryInput>(entry: E): E => ({
@@ -75,6 +85,7 @@ export const normalizeEntry = <E extends EntryInput>(entry: E): E => ({
   notes: entry.notes?.trim() || undefined,
   // Always present, so turning a deadline back into an event clears it.
   due: entry.due,
+  colour: entry.colour || undefined,
 });
 
 export const entryProblem = (entry: EntryInput): string | null => {
@@ -87,6 +98,7 @@ export const entryProblem = (entry: EntryInput): string | null => {
   } else if (entry.dateEnd - entry.dateStart > MAX_SPAN_DAYS * DAY_MS) {
     return `It can run for at most ${MAX_SPAN_DAYS} days.`;
   }
+  if (entry.colour !== undefined && !isTagColour(entry.colour)) return "Choose one of the colours.";
   if ((entry.notes?.length ?? 0) > MAX_ENTRY_NOTES) {
     return `Notes can be at most ${MAX_ENTRY_NOTES} characters.`;
   }
@@ -107,7 +119,7 @@ const keyOfUtc = (ms: number) => {
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 };
 
-export type GridDay = { key: string; day: number; inMonth: boolean };
+type GridDay = { key: string; day: number; inMonth: boolean };
 
 // Weeks start on Monday. `month` is 1-12.
 export const monthGrid = (year: number, month: number): GridDay[][] => {
@@ -157,6 +169,15 @@ export const shiftMonth = (year: number, month: number, by: number) => {
   return { year: Math.floor(index / 12), month: (index % 12) + 1 };
 };
 
+// Months and Monday-to-Sunday weeks counted from a fixed start, so the next one is +1.
+export const monthNumber = (year: number, month: number): number => year * 12 + month - 1;
+
+const FIRST_MONDAY = Date.UTC(1970, 0, 5);
+export const weekNumber = (key: string): number => {
+  const [y, m, d] = key.split("-").map(Number);
+  return Math.floor((Date.UTC(y, m - 1, d) - FIRST_MONDAY) / (7 * DAY_MS));
+};
+
 const MAX_SPAN_DAYS = 31;
 // Only guards against a runaway loop: attendance events have no length limit.
 const MAX_DAYS_SHOWN = 366;
@@ -194,7 +215,7 @@ export const eventsByDay = <E extends { dateStart: number; dateEnd: number }>(
   return byDay;
 };
 
-export type WeekBar<E> = {
+type WeekBar<E> = {
   event: E;
   // Columns, Monday = 0.
   start: number;
@@ -265,7 +286,7 @@ export const sydneyMinutes = (ms: number): number => {
   return (num("hour") % 24) * 60 + num("minute");
 };
 
-export type DayBlock<E> = {
+type DayBlock<E> = {
   event: E;
   // Minutes since midnight.
   from: number;
@@ -339,7 +360,7 @@ const GOOGLE_COLOURS: Record<CalendarCategory, string> = {
   ppn: "2",
   weekly: "7",
   campus: "9",
-  sow: "11",
+  sow: "8",
   event: "1",
   deadline: "4",
 };
@@ -354,9 +375,48 @@ const GOOGLE_CAMPUS_COLOURS: Record<string, string> = {
   WSU: "11",
 };
 
-const googleColourOf = (category: CalendarCategory, subgroups: string[]): string =>
-  (campusColourOf(category, subgroups) && GOOGLE_CAMPUS_COLOURS[acronym(subgroups[0])]) ||
-  GOOGLE_COLOURS[category];
+// Google's own shades of its colours, to find the nearest to a picked one.
+const GOOGLE_COLOUR_HEX: Record<string, string> = {
+  "1": "#7986CB",
+  "2": "#33B679",
+  "3": "#8E24AA",
+  "4": "#E67C73",
+  "5": "#F6BF26",
+  "6": "#F4511E",
+  "7": "#039BE5",
+  "8": "#616161",
+  "9": "#3F51B5",
+  "10": "#0B8043",
+  "11": "#D50000",
+};
+
+const rgbOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+export const nearestGoogleColour = (hex: string): string => {
+  const [r, g, b] = rgbOf(hex);
+  let best = "1";
+  let bestDistance = Infinity;
+  for (const [id, google] of Object.entries(GOOGLE_COLOUR_HEX)) {
+    const [gr, gg, gb] = rgbOf(google);
+    const distance = (r - gr) ** 2 + (g - gg) ** 2 + (b - gb) ** 2;
+    if (distance < bestDistance) [best, bestDistance] = [id, distance];
+  }
+  return best;
+};
+
+const googleColourOf = (
+  category: CalendarCategory,
+  subgroups: string[],
+  colour: string | undefined,
+  tags: readonly ColouredTag[]
+): string => {
+  const sowTag = sowTagColourOf(category, tags);
+  return (
+    (isTagColour(colour) ? nearestGoogleColour(TAG_COLOUR_HEX[colour]) : undefined) ??
+    ((campusColourOf(category, subgroups) && GOOGLE_CAMPUS_COLOURS[acronym(subgroups[0])]) ||
+      (sowTag ? nearestGoogleColour(sowTag) : GOOGLE_COLOURS[category]))
+  );
+};
 
 // Google gets a deadline as an all-day event on its day, with any time in its
 // title, rather than an event with no length.
@@ -372,13 +432,21 @@ const googleWhen = (event: { dateStart: number; dateEnd: number; due?: Due }) =>
 };
 
 export const googleEventBody = (
-  event: { name: string; dateStart: number; dateEnd: number; subgroups?: string[]; due?: Due },
+  event: {
+    name: string;
+    dateStart: number;
+    dateEnd: number;
+    subgroups?: string[];
+    due?: Due;
+    colour?: string;
+    tags?: readonly ColouredTag[];
+  },
   category: CalendarCategory,
   link: string,
   notes?: string
 ) => ({
   summary:
-    event.due === "time" ? `${event.name} · ${clockTime(sydneyMinutes(event.dateStart))}` : event.name,
+    event.due === "time" ? `${event.name} at ${clockTime(sydneyMinutes(event.dateStart))}` : event.name,
   description: [
     calendarCategoryLabel(category),
     (event.subgroups ?? []).map(subgroupLabel).join(", "),
@@ -388,6 +456,6 @@ export const googleEventBody = (
     .filter(Boolean)
     .join("\n"),
   ...googleWhen(event),
-  colorId: googleColourOf(category, event.subgroups ?? []),
+  colorId: googleColourOf(category, event.subgroups ?? [], event.colour, event.tags ?? []),
   status: "confirmed",
 });

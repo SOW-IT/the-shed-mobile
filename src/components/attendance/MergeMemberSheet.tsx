@@ -6,6 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { formatMetadataFieldValue, metadataSubtitle } from "../../../shared/attendanceMemberMeta";
 import type { MergeResolutions, MergeSide } from "../../../shared/memberMerge";
+import { plural } from "../../../shared/reminders";
 import { typedMatches } from "../../../shared/typedConfirm";
 import { MemberRow } from "@/components/attendance/MemberRow";
 import {
@@ -35,14 +36,12 @@ type Picked = {
   memberId?: Id<"attendanceMembers">;
 };
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
 type History = { events: number; lastAttended: number | null };
 
 const historyLine = (h: History) =>
   h.events === 0
     ? "Not signed in to any events"
-    : `${plural(h.events, "event")} · last ${sydneyDay(h.lastAttended!)}`;
+    : `${plural(h.events, "event")}, last ${sydneyDay(h.lastAttended!)}`;
 
 export function MergeMemberSheet({
   visible,
@@ -56,6 +55,7 @@ export function MergeMemberSheet({
   removeViewedByDefault = false,
   initialStaff,
   initialMember,
+  onChooseSomeoneElse,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -68,6 +68,7 @@ export function MergeMemberSheet({
   removeViewedByDefault?: boolean;
   initialStaff?: { email: string; name: string } | null;
   initialMember?: { memberId: Id<"attendanceMembers">; name: string; email?: string } | null;
+  onChooseSomeoneElse?: () => void;
 }) {
   const t = useAppTheme();
   const merge = useMutation(api.attendanceMembers.merge);
@@ -274,6 +275,7 @@ export function MergeMemberSheet({
               title="Choose someone else"
               variant="ghost"
               onPress={() => {
+                if (onChooseSomeoneElse) return onChooseSomeoneElse();
                 setPicked(null);
                 setRemoveViewed(removeViewedByDefault);
                 setOrientedFor(null);
@@ -288,6 +290,7 @@ export function MergeMemberSheet({
             title="Choose someone else"
             variant="ghost"
             onPress={() => {
+              if (onChooseSomeoneElse) return onChooseSomeoneElse();
               setPicked(null);
               setRemoveViewed(removeViewedByDefault);
               setOrientedFor(null);

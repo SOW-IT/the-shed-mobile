@@ -177,11 +177,11 @@ export const setAvatar = mutation({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, args) => {
     const user = await requireOwnUser(ctx);
-    if (user.avatarId && (await ctx.db.system.get(user.avatarId))) {
+    if (user.avatarId && (await ctx.db.system.get("_storage", user.avatarId))) {
       await ctx.storage.delete(user.avatarId);
     }
     await ctx.db.patch("users", user._id, { avatarId: args.storageId });
-    const file = await ctx.db.system.get(args.storageId);
+    const file = await ctx.db.system.get("_storage", args.storageId);
     if (file && file.size > AVATAR_SMALL_ENOUGH_BYTES) {
       await ctx.scheduler.runAfter(0, internal.avatars.shrink, {
         userId: user._id,

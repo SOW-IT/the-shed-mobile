@@ -173,15 +173,15 @@ describe("suggested member pairs", () => {
     await s.rebuild();
     expect(await s.pairs()).toEqual([["Hana Doe", "Hana Doe"]]);
 
-    await s.t.run((ctx) => ctx.db.patch(b, { metadata: { [s.campusField]: "unsw" } }));
+    await s.t.run((ctx) => ctx.db.patch("attendanceMembers", b, { metadata: { [s.campusField]: "unsw" } }));
     expect(await s.pairs()).toEqual([]);
 
     await s.t.run((ctx) =>
-      ctx.db.patch(b, { name: "Zed Quill", metadata: { [s.campusField]: "usyd" } })
+      ctx.db.patch("attendanceMembers", b, { name: "Zed Quill", metadata: { [s.campusField]: "usyd" } })
     );
     expect(await s.pairs()).toEqual([]);
 
-    await s.t.run((ctx) => ctx.db.delete(a));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMembers", a));
     expect(await s.pairs()).toEqual([]);
   });
 
@@ -248,7 +248,7 @@ describe("suggested member pairs", () => {
       resolutions: {},
       staffYear: YEAR,
     });
-    await s.t.run((ctx) => ctx.db.delete(d));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMembers", d));
     expect(await s.pairs()).toEqual([]);
     expect(await s.rows()).toHaveLength(2);
 
@@ -260,7 +260,7 @@ describe("suggested member pairs", () => {
     const s = await setup();
     const a = await s.onCampus("Hana Doe");
     const b = await s.onCampus("Hana Doe");
-    await s.t.run((ctx) => ctx.db.delete(b));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMembers", b));
     await s.t.mutation(internal.memberPairSuggestions.writePairs, {
       builtAt: Date.now(),
       pairs: [{ memberA: a, memberB: b }],
@@ -270,7 +270,7 @@ describe("suggested member pairs", () => {
 
   test("without a Role field, members carry no role", async () => {
     const s = await setup();
-    await s.t.run((ctx) => ctx.db.delete(s.roleField));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMetadata", s.roleField));
     await s.onCampus("Hana Doe", { [s.roleField]: "member" });
     await s.onCampus("Hana Doe", { [s.roleField]: "member" });
     await s.rebuild();
@@ -297,7 +297,7 @@ describe("suggested member pairs", () => {
     await expect(
       s.admin.mutation(api.memberPairSuggestions.dismiss, { memberA: a, memberB: a })
     ).rejects.toThrow(/two different people/);
-    await s.t.run((ctx) => ctx.db.delete(b));
+    await s.t.run((ctx) => ctx.db.delete("attendanceMembers", b));
     await expect(
       s.admin.mutation(api.memberPairSuggestions.dismiss, { memberA: a, memberB: b })
     ).rejects.toThrow(/no longer exists/);

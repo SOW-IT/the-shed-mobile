@@ -7,7 +7,7 @@ import {
   announcementStatusValidator,
   audienceValidator,
 } from "./announcementData";
-import { entryFields } from "./calendarData";
+import { calendarAuditActionValidator, entryChangeValidator, entryFields } from "./calendarData";
 import {
   designAnswersValidator,
   designStatusValidator,
@@ -20,6 +20,15 @@ import {
   subFormKindValidator,
   subFormStatusValidator,
 } from "./eventRequestData";
+import { gameIdValidator } from "./gameScoreData";
+import {
+  worldAskValidator,
+  worldBucketValidator,
+  worldLookValidator,
+  worldReplyValidator,
+  worldReportLineValidator,
+  worldWalkFields,
+} from "./worldData";
 import { grievanceFields, grievanceStatusValidator } from "./grievanceData";
 import { homeBlockValidator } from "./homeData";
 import { metricsDataValidator, staffTrendsValidator } from "./metricsData";
@@ -88,12 +97,14 @@ export default defineSchema({
     userId: v.optional(v.id("users")),
     importId: v.optional(v.string()),
     memberId: v.optional(v.id("attendanceMembers")),
+    searchText: v.optional(v.string()),
   })
     .index("by_email_and_year", ["email", "year"])
     .index("by_year", ["year"])
     .index("by_userId", ["userId"])
     .index("by_importId", ["importId"])
-    .index("by_memberId_and_year", ["memberId", "year"]),
+    .index("by_memberId_and_year", ["memberId", "year"])
+    .searchIndex("search_text", { searchField: "searchText" }),
 
   divisions: defineTable({
     year: v.number(),
@@ -126,6 +137,159 @@ export default defineSchema({
     version: v.string(),
     seenAt: v.number(),
   }).index("by_email_and_platform", ["email", "platform"]),
+
+  // Each person's best run of each offline mini-game, for its leaderboard.
+  // Shed World, the Garden (convex/world.ts). Storage grows with the people
+  // in the world, not with time: per-person rows are upserted and deleted
+  // when they leave, chat lines last CHAT_TTL_MS, and empty rooms go.
+
+  // One room per instance of a place: ("garden", 1), ("garden", 2)…
+  worldRooms: defineTable({
+    place: v.string(),
+    instance: v.number(),
+    // Kept in step by join and leave; it enforces ROOM_CAP.
+    memberCount: v.number(),
+  }).index("by_place_and_instance", ["place", "instance"]),
+
+  // Who's in a room. Written on join and leave only.
+  worldMembers: defineTable({
+    roomId: v.id("worldRooms"),
+    email: v.string(),
+    name: v.string(),
+    look: worldLookValidator,
+    joinedAt: v.number(),
+    place: v.optional(v.string()),
+    // Open visits sharing this member (tabs, devices). Leave removes the
+    // member only when the last one goes. Missing means one.
+    visits: v.optional(v.number()),
+  })
+    .index("by_roomId", ["roomId"])
+    .index("by_email", ["email"]),
+
+  // Each member's latest walk, emote and line: upserted, never appended. The
+  // rate-limit buckets live here too, so checking one writes nothing.
+  worldState: defineTable({
+    memberId: v.id("worldMembers"),
+    ...worldWalkFields,
+    act: v.optional(v.object({ emote: v.string(), at: v.number() })),
+    say: v.optional(v.object({ text: v.string(), at: v.number() })),
+    // A high five (or later another mutual action) asked of someone nearby,
+    // and the answer to one asked of you. Overwritten, never appended.
+    ask: v.optional(worldAskValidator),
+    reply: v.optional(worldReplyValidator),
+    // The asks this person accepted that are still open, so accepting one
+    // again replays nothing even after they've accepted another since.
+    answered: v.optional(v.array(worldReplyValidator)),
+    away: v.optional(v.literal("arcade")),
+    seat: v.optional(v.string()),
+    typing: v.optional(v.object({ at: v.number(), on: v.boolean() })),
+    moveBucket: worldBucketValidator,
+    actBucket: worldBucketValidator,
+    sayBucket: worldBucketValidator,
+  })
+    .index("by_memberId", ["memberId"])
+    // For clearing lines older than the chat TTL off the state rows.
+    .index("by_say_at", ["say.at"]),
+
+  // Someone's rate limits, kept for THROTTLE_KEEP_MS after they leave, so
+  // leaving and joining again can't refill them. Swept after that.
+  worldThrottle: defineTable({
+    email: v.string(),
+    moveBucket: worldBucketValidator,
+    actBucket: worldBucketValidator,
+    sayBucket: worldBucketValidator,
+    joinBucket: worldBucketValidator,
+    at: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_at", ["at"]),
+
+  // When each member was last heard from. No query reads this table for the
+  // app, so marking someone present pushes nothing to anyone.
+  worldPresence: defineTable({
+    memberId: v.id("worldMembers"),
+    lastSeen: v.number(),
+  })
+    .index("by_memberId", ["memberId"])
+    .index("by_lastSeen", ["lastSeen"]),
+
+  // The room's recent lines, for the list view. Capped per room, swept after
+  // CHAT_TTL_MS. Name and email are copied so a line outlives its member.
+  worldChat: defineTable({
+    roomId: v.id("worldRooms"),
+    place: v.optional(v.string()),
+    memberId: v.id("worldMembers"),
+    email: v.string(),
+    name: v.string(),
+    text: v.string(),
+    at: v.number(),
+  })
+    .index("by_roomId_and_at", ["roomId", "at"])
+    .index("by_roomId_and_email_and_at", ["roomId", "email", "at"])
+    .index("by_at", ["at"]),
+
+  // A look someone saved in the character editor, kept across visits. The
+  // roster reads it, so a save shows on everyone's screen with no new query.
+  worldLooks: defineTable({
+    email: v.string(),
+    look: worldLookValidator,
+    updatedAt: v.number(),
+  }).index("by_email", ["email"]),
+
+  // Someone a person never wants to see in the world, in either direction.
+  worldBlocks: defineTable({
+    email: v.string(),
+    blockedEmail: v.string(),
+    blockedName: v.string(),
+  })
+    .index("by_email_and_blockedEmail", ["email", "blockedEmail"])
+    .index("by_blockedEmail", ["blockedEmail"]),
+
+  worldVisitors: defineTable({
+    email: v.string(),
+    name: v.string(),
+    lastSeenAt: v.number(),
+    lastPlace: v.optional(v.string()),
+    lastX: v.optional(v.number()),
+    lastZ: v.optional(v.number()),
+    lastPokeAt: v.optional(v.number()),
+    lastPokedAt: v.optional(v.number()),
+  })
+    .index("by_email", ["email"])
+    .index("by_lastSeenAt", ["lastSeenAt"]),
+
+  // A report keeps its lines after the chat is swept, for leaders to review.
+  worldReports: defineTable({
+    reporterEmail: v.string(),
+    reportedEmail: v.string(),
+    reportedName: v.string(),
+    place: v.string(),
+    instance: v.number(),
+    reason: v.string(),
+    lines: v.array(worldReportLineValidator),
+    createdAt: v.number(),
+  })
+    .index("by_reporterEmail_and_createdAt", ["reporterEmail", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
+
+  // Singleton bookkeeping: when the self-scheduling sweeper next runs.
+  worldMeta: defineTable({
+    key: v.literal("sweeper"),
+    sweepAt: v.optional(v.number()),
+  }).index("by_key", ["key"]),
+
+  gameScores: defineTable({
+    email: v.string(),
+    game: gameIdValidator,
+    score: v.number(),
+    // The phone's id for the run, so a retried submit changes nothing.
+    runId: v.string(),
+    durationMs: v.number(),
+    playedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_email_and_game", ["email", "game"])
+    .index("by_game_and_score", ["game", "score"]),
 
   appUpdatePolicy: defineTable({
     platform: v.union(v.literal("ios"), v.literal("android")),
@@ -176,8 +340,10 @@ export default defineSchema({
     fromEmail: v.string(),
     toEmail: v.string(),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- listDelegations takes the first 500 in creation order; the longer index would pick by email once it hits the cap
     .index("by_year", ["year"])
     .index("by_year_and_to", ["year", "toEmail"])
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- delegatesForYear takes the first 500 in creation order; the longer index would pick by toEmail once it hits the cap
     .index("by_year_and_from", ["year", "fromEmail"])
     .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
 
@@ -217,6 +383,7 @@ export default defineSchema({
     year: v.number(),
     email: v.string(),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the Leaving list and leaverEmailSet take the first 1,000 in creation order; the longer index would pick by email once it hits the cap
     .index("by_year", ["year"])
     .index("by_year_and_email", ["year", "email"]),
 
@@ -228,6 +395,7 @@ export default defineSchema({
     lastUsedAt: v.number(),
     preferred: v.optional(v.boolean()),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- saved-account reads take the first 100 in creation order; the longer index would pick by BSB once it hits the cap
     .index("by_email", ["email"])
     .index("by_email_bsb_accountNumber", ["email", "bsb", "accountNumber"]),
 
@@ -241,9 +409,7 @@ export default defineSchema({
     commentId: v.id("requestComments"),
     userEmail: v.string(),
     emoji: v.string(),
-  })
-    .index("by_comment", ["commentId"])
-    .index("by_comment_user_emoji", ["commentId", "userEmail", "emoji"]),
+  }).index("by_comment_user_emoji", ["commentId", "userEmail", "emoji"]),
 
   commentReads: defineTable({
     requestId: v.id("requests"),
@@ -320,6 +486,7 @@ export default defineSchema({
     grievanceId: v.optional(v.id("grievances")),
     read: v.boolean(),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the feed paginates newest first, which no longer index can give
     .index("by_user", ["userEmail"])
     .index("by_user_and_read", ["userEmail", "read"])
     .index("by_user_and_request_and_read", ["userEmail", "requestId", "read"])
@@ -352,7 +519,9 @@ export default defineSchema({
     title: v.string(),
     message: v.string(),
     audience: audienceValidator,
+    people: v.optional(v.array(v.string())),
     sendEmail: v.boolean(),
+    emailWithoutApp: v.optional(v.boolean()),
     status: announcementStatusValidator,
     sendAt: v.number(),
     jobId: v.optional(v.id("_scheduled_functions")),
@@ -465,6 +634,9 @@ export default defineSchema({
     changesReason: v.optional(v.string()),
     lastReminderAt: v.optional(v.number()),
     reminderCount: v.optional(v.number()),
+    // The last reminder someone sent by hand to finish it (see eventSubForms.remind).
+    nudgedAt: v.optional(v.number()),
+    nudgedBy: v.optional(v.string()),
   }).index("by_eventRequest_and_kind", ["eventRequestId", "kind"]),
 
   eventRequestEvents: defineTable({
@@ -544,6 +716,16 @@ export default defineSchema({
     // The approved event request this calendar event comes from.
     eventRequestId: v.optional(v.id("eventRequests")),
   }).index("by_dateStart", ["dateStart"]),
+
+  calendarAuditLog: defineTable({
+    actorEmail: v.string(),
+    action: calendarAuditActionValidator,
+    entryId: v.id("calendarEntries"),
+    name: v.string(),
+    when: v.string(),
+    changes: v.optional(v.array(entryChangeValidator)),
+    eventId: v.optional(v.id("events")),
+  }),
 
   eventAttendanceCounts: defineTable({
     eventId: v.id("events"),
@@ -666,9 +848,20 @@ export default defineSchema({
     addedAt: v.optional(v.number()),
     notes: v.optional(v.string()),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the Insights builds take the first 2,000 and 5,000 sign-ins in creation order; the longer index would pick by member once it hits the cap
     .index("by_event", ["eventId"])
     .index("by_event_and_member", ["eventId", "memberId"])
     .index("by_member", ["memberId"]),
+
+  // People signed in to one event by name only, e.g. someone's parents. They
+  // count toward that event's headcount but aren't attendance members, so they
+  // never show in member lists, search or member stats.
+  eventGuests: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    addedAt: v.number(),
+    addedBy: v.string(),
+  }).index("by_event", ["eventId"]),
 
   grievances: defineTable({
     ref: v.string(),
@@ -685,7 +878,6 @@ export default defineSchema({
     closingNote: v.optional(v.string()),
   })
     .index("by_year", ["year"])
-    .index("by_status", ["status"])
     .index("by_status_and_year", ["status", "year"])
     .index("by_accountEmail", ["accountEmail"])
     .index("by_assigneeEmail_and_status", ["assigneeEmail", "status"]),
@@ -894,8 +1086,10 @@ export default defineSchema({
     searchText: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
   })
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- "My requests" paginates newest first; by_requester_and_status would group by status
     .index("by_requester", ["requesterEmail"])
     .index("by_requester_and_status", ["requesterEmail", "status"])
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the review, declined and approved lists paginate newest first
     .index("by_status", ["status"])
     .index("by_status_and_reviewed_time", ["status", "reviewedTime"])
     .index("by_status_and_release_date", ["status", "releaseDate"])
