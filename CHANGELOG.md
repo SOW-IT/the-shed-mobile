@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.23] - 2026-11-24
+## [2.12.25] - 2026-11-24
 
 ### Added
 - **Move, size and tilt your eyes, brows and mouth.** The character editor
