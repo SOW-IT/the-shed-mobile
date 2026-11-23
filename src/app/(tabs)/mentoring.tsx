@@ -22,6 +22,7 @@ import {
   OptionSheet,
   Screen,
   SearchField,
+  SectionTitle,
   Toast,
   type ToastState,
 } from "@/components/ui";
@@ -185,9 +186,6 @@ export default function MentoringScreen() {
         <EmptyState
           icon="compass-outline"
           title={`No pairings in ${selectedYear}`}
-          message={
-            editable ? "Pair a Campus leader with a mentor to start." : "Nobody was paired this year."
-          }
         />
       ) : (
         <>
@@ -256,7 +254,7 @@ export default function MentoringScreen() {
 
   const renderMine = () => (
     <>
-      <Muted>{`People you mentor in ${mine?.year ?? currentYear}.`}</Muted>
+      <SectionTitle chip={mine?.year ?? currentYear}>My mentees</SectionTitle>
       {(mine?.mentees ?? []).map((mentee) => (
         <Card key={mentee.id} style={styles.pairCard}>
           <PersonLine name={mentee.name} line={mentee.line} photo={mentee.photo} />

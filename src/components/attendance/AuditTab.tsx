@@ -252,13 +252,11 @@ export function AuditTab({
         <EmptyState
           icon="search-outline"
           title="No matches"
-          message="Nothing in the audit trail matches this search or these filters."
         />
       ) : accumulated.length === 0 ? (
         <EmptyState
           icon="document-text-outline"
           title="No activity yet"
-          message="Attendance changes will appear here as they happen."
         />
       ) : (
         <>

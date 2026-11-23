@@ -285,7 +285,6 @@ export const ReviewList = ({
         <EmptyState
           icon="checkmark-done-outline"
           title="All caught up"
-          message="Nothing is waiting on your review."
         />
       ) : (
         <>
@@ -296,8 +295,8 @@ export const ReviewList = ({
               {SECTIONS.map(({ key, title }) =>
                 data[key].length === 0 ? null : (
                   <View key={key} style={{ gap: spacing.md }}>
-                    <SectionTitle>
-                      {sectionTitle(title, data[key])} ({data[key].length})
+                    <SectionTitle chip={data[key].length}>
+                      {sectionTitle(title, data[key])}
                     </SectionTitle>
                     {data[key].map((request, index) => (
                       <FadeInView key={request._id} delay={stagger(index)}>
@@ -339,7 +338,7 @@ export const ReviewList = ({
               )}
               {data.readyToPay.length > 0 && (
                 <View testID="review-ready-to-pay" style={{ gap: spacing.md }}>
-                  <SectionTitle>Ready to Pay ({data.readyToPay.length})</SectionTitle>
+                  <SectionTitle chip={data.readyToPay.length}>Ready to Pay</SectionTitle>
                   {data.readyToPay.map((request, index) => (
                     <FadeInView key={request._id} delay={stagger(index)}>
                       <RequestCard

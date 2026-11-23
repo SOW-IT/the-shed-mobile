@@ -55,7 +55,7 @@ const About = ({ signedIn }: { signedIn: boolean }) => {
     <Card>
       <Txt style={typography.headline}>Confidential</Txt>
       <Muted>
-        {`Raise a grievance with SOW's grievance team (${andList(departments)}). Only they can see it, and you'll get an email each time it moves along.`}
+        {`Only ${departments.length > 0 ? andList(departments) : "SOW's grievance team"} can see it. You're emailed each time it moves along.`}
       </Muted>
       {signedIn ? null : (
         <Muted>
@@ -75,7 +75,7 @@ const GrievanceList = ({
   rows: GrievanceListRow[] | null | undefined;
   groups: Group[];
   header?: ReactNode;
-  empty: { title: string; message: string };
+  empty: { title: string; message?: string };
 }) => {
   const router = useRouter();
   return (
@@ -137,10 +137,7 @@ export default function GrievancesScreen() {
             rows={mine}
             groups={MINE_GROUPS}
             header={<About signedIn />}
-            empty={{
-              title: "No grievances",
-              message: "Grievances you raise while signed in show up here with their progress.",
-            }}
+            empty={{ title: "No grievances" }}
           />
         ) : (
           <ReadableColumn>
@@ -184,8 +181,8 @@ export default function GrievancesScreen() {
                   </View>
                 }
                 empty={{
-                  title: "Nothing here",
-                  message: `No grievances in ${year ?? "this year"}. Open ones from earlier years move here on 1 October.`,
+                  title: `No grievances in ${year ?? "this year"}`,
+                  message: "Open ones from earlier years move here on 1 October.",
                 }}
               />
             ),

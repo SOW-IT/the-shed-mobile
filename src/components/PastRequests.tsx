@@ -100,7 +100,6 @@ export const PastRequests = ({
       <EmptyState
         icon="time-outline"
         title="No past requests"
-        message="Requests you made in earlier staff years show up here."
       />
     );
   }

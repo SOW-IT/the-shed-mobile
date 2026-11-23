@@ -140,20 +140,13 @@ export const AllRequestsList = ({
         active={filter}
         onChange={(key) => setFilter(key as "ongoing" | "completed")}
       />
-      <SectionTitle>
-        All {isCompleted ? "Completed" : "Ongoing"} Requests ({filtered.length})
-      </SectionTitle>
+      <SectionTitle chip={filtered.length}>Requests</SectionTitle>
       {requests == null ? (
         <LoadingState />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon="file-tray-outline"
           title={`No ${filter} requests`}
-          message={
-            isCompleted
-              ? "Paid and declined requests will appear here."
-              : "New requests will appear here as staff submit them."
-          }
         />
       ) : (
         <Grid minColumnWidth={380}>
