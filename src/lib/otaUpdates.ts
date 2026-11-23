@@ -14,24 +14,3 @@ export const otaUpdates: UpdatesModule | null = (() => {
   const updates = loadUpdates();
   return updates?.isEnabled ? updates : null;
 })();
-
-/**
- * Updates the app the quickest way there is: an over-the-air update for this
- * build if one is waiting, installed and restarted into straight away, or
- * else the store, for a version that needs a new build.
- */
-export const updateApp = async (openStore: () => void): Promise<void> => {
-  if (otaUpdates) {
-    try {
-      const { isAvailable } = await otaUpdates.checkForUpdateAsync();
-      if (isAvailable) {
-        await otaUpdates.fetchUpdateAsync();
-        await otaUpdates.reloadAsync();
-        return;
-      }
-    } catch {
-      // Offline, or the update server is down: the store still works.
-    }
-  }
-  openStore();
-};
