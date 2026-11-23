@@ -1,25 +1,26 @@
 # verify: full
 
 - because core: src/app/_layout.tsx
+- because core: src/components/ui/feedback.tsx
 
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 5s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 65s |  |
-| unused code (knip) | ✔ pass | 5s |  |
-| typecheck | ✔ pass | 34s |  |
-| unit tests with coverage | ✔ pass | 30s |  |
-| verify lock | ✔ pass | 157s | took it after waiting 157s for pid 54367, feat/mystic-man-landscape in /Users/xtectra/GitHub/worktrees/the-shed-mobile-games-back-confirm, since 2026-11-23T03:58:44.504Z |
+| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 48s |  |
+| unused code (knip) | ✔ pass | 4s |  |
+| typecheck | ✔ pass | 14s |  |
+| unit tests with coverage | ✔ pass | 20s |  |
+| verify lock | ✔ pass | 0s | free, taken at once |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 17s | before functions on :3270 |
-| before: web | ✔ pass | 699s | 168 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
-| before: iOS reset | ✔ pass | 2s |  |
-| before: iOS | ✔ pass | 248s | 42 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
+| before: local backend | ✔ pass | 15s | before functions on :3270 |
+| before: web | ✔ pass | 559s | 168 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: iOS reset | ✔ pass | 1s |  |
+| before: iOS | ✔ pass | 227s | 42 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
 | after: local backend | ✔ pass | 15s | after functions on :3270 |
-| after: web | ✔ pass | 613s | 168 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
-| after: iOS reset | ✔ pass | 2s |  |
-| after: iOS | ✔ pass | 299s | 42 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
+| after: web | ✔ pass | 576s | 168 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| after: iOS reset | ✔ pass | 1s |  |
+| after: iOS | ✔ pass | 223s | 42 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
 
 ## Screenshots
 
