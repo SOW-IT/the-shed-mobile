@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.19] - 2026-11-23
+## [2.12.23] - 2026-11-24
 
 ### Added
 - **Move, size and tilt your eyes, brows and mouth.** The character editor
@@ -32,13 +32,52 @@ All notable changes to **The SHED** mobile app. This project follows
   with Load more until you reach the end, not just a few people who'd been
   in before. You can poke someone who has never visited; the limits are the
   same (one poke an hour, and nobody poked twice in ten minutes).
+- **See who's in the World.** The side menu shows "3 online" next to World,
+  the Games list card says how many people are in right now, and the People
+  button in the World has a badge with the count. Nothing shows when
+  nobody's in.
 
 ### Changed
+- **The Games list card is called World**, like the side menu.
+- **One way into the character editor.** The Customise buttons are gone
+  from the People list and your own card. Tap your character and press
+  Outfit (or tap yourself in the list view) to change your look.
 - **Randomise** picks from all the new choices too, with glasses, makeup,
   moles and the rest kept rare so not everyone gets everything.
 - **Looks saved before this update don't change.** Every new part starts
   where it was drawn before, and an older app shows a newer look with the
   parts it knows.
+
+## [2.12.21] - 2026-11-23
+
+### Changed
+- **The website opens faster.** The code that makes Event Request and Design
+  Request PDFs (about a fifth of the shared code every page loaded) is now
+  fetched only when you press Download PDF. Every page downloads about 208 KB
+  less, and on a slow connection the sign-in screen is ready about a quarter
+  of a second sooner. The PDFs and the app on phones are unchanged.
+
+## [2.12.20] - 2026-11-23
+
+### Fixed
+- **Update restarts the app; it doesn't send you to the store.** When your
+  version is behind and there's an over-the-air update for your app, the
+  popup, the top-bar pill and the Update button on your profile now say
+  "Restart to update" and restart into it, downloading it first if needed.
+  The store is a separate prompt, "Open the App Store" (or Play Store),
+  shown only when no over-the-air update can bring you up to date and you
+  need a new build. The app checks for an over-the-air update before it
+  ever offers the store.
+
+## [2.12.19] - 2026-11-23
+
+### Changed
+- **Leaderboard moves to the top of Games.** It's now a small button at the
+  top right, next to the "Games" title, instead of its own card at the bottom
+  of the list. It opens the same leaderboard as before.
+- **Shorter lines under each game.** Each game in the list has one short line
+  ("Fly and shoot.", "Run and jump.", "Tap through the gaps.") instead of the
+  full how-to-play text, which still shows on the game's start card.
 
 ## [2.12.18] - 2026-11-23
 

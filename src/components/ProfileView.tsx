@@ -234,18 +234,22 @@ const VersionText = () => {
 };
 
 const AppUpdateButton = () => {
-  const { check, behind, busy, label, error, update } = useAppUpdate();
-  if (!behind) return null;
+  const update = useAppUpdate();
+  if (!update.route || update.route === "wait") return null;
   return (
     <View style={styles.updateApp} testID="profile-update">
-      <Btn
-        title={label ?? (check?.latest ? `Update to ${check.latest}` : "Update")}
-        icon="arrow-down-circle-outline"
-        variant="tonal"
-        disabled={busy}
-        onPress={update}
-      />
-      <ErrorBanner message={error} />
+      {update.route === "restart" ? (
+        <Btn
+          title={update.restarting ? "Restarting…" : "Restart to update"}
+          icon="refresh"
+          variant="tonal"
+          disabled={update.restarting}
+          onPress={update.restart}
+        />
+      ) : (
+        <Btn title={`Open the ${update.store}`} icon="arrow-down-circle-outline" variant="tonal" onPress={update.openStore} />
+      )}
+      <ErrorBanner message={update.failed ? "The update didn't download. Check your connection and try again." : null} />
     </View>
   );
 };
