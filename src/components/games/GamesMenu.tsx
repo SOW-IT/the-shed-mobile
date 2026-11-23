@@ -110,7 +110,7 @@ export const GamesMenu = ({
         {onGarden && !offline ? (
           <MenuRow
             icon="leaf-outline"
-            title="The Garden"
+            title="World"
             detail="Walk around and chat with whoever's online."
             onPress={onGarden}
             testID="games-open-garden"

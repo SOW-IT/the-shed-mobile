@@ -1,10 +1,12 @@
 import { Btn, hapticSelect } from "@/components/ui";
+import { useOffline } from "@/hooks/useOffline";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { useLocalBests, recordRun } from "@/lib/games/gameStorage";
 import { OnlineBanner } from "./OnlineBanner";
 import { LeaveGameDialog } from "./LeaveGameDialog";
 import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
 import { fitScale, type Size } from "@/lib/games/fit";
+import { savedNote } from "@/lib/games/savedNote";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth } from "convex/react";
@@ -202,6 +204,7 @@ export const GameFrame = ({
   children: ReactNode;
 }) => {
   const { isAuthenticated } = useConvexAuth();
+  const offline = useOffline();
   useNoSwipeBack();
   const { phase, result, best, askToLeave, keepPlaying } = session;
   const playing = phase === "playing";
@@ -300,10 +303,8 @@ export const GameFrame = ({
               <Text style={styles.cardBody}>
                 Best {Math.max(result.previousBest, result.score).toLocaleString()}
               </Text>
-              <Text style={styles.note}>
-                {isAuthenticated
-                  ? "Saved. It goes on the leaderboard when you're online."
-                  : "Saved on this device. Sign in and it goes on the leaderboard."}
+              <Text style={styles.note} testID="game-saved-note">
+                {savedNote({ signedIn: isAuthenticated, offline })}
               </Text>
               <View style={styles.actions}>
                 <Btn title="Play again" icon="refresh" tint={g.button} onPress={session.restart} />

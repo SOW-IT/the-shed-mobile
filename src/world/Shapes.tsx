@@ -111,7 +111,7 @@ export const Ellipse = ({
           borderColor: inkColour,
           borderStyle: dashed ? "dashed" : undefined,
           opacity,
-          transform: squash === 1 ? undefined : [{ scaleY: squash }],
+          transform: [{ scaleY: squash }],
         },
       ]}
     >
