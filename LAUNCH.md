@@ -39,11 +39,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       Google Cloud until the minimum app version reaches 2.10.0, because
       2.9.25 to 2.9.29 still draw Google Maps with it.
 
-- [ ] **Point `GOOGLE_CHAT_WEBHOOK_URL` at the new Chat space** (space
-      `AAQACw7jNqg`, from 2.12.14): set the repository secret to that space's
-      incoming webhook. Every Chat post (merges, OTA updates, EAS Production,
-      backup and usage alerts) moves with it.
-
 - [ ] **Add the 2025–26 and 2026–27 mentor lists** once 2.10.4 is live:
       `npx convex run --prod mentoring:setPairings` for 2026 and 2027, eight
       pairings each, from the lists given on 2026-10-23.
