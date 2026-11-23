@@ -1,3 +1,4 @@
+import { useAppUpdate } from "@/hooks/useAppUpdate";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { keyed } from "@/lib/listKeys";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
@@ -26,6 +27,7 @@ import { useSpotifyPlaylist } from "./music/useSpotifyPlaylist";
 import { SignInPrompt } from "./SignInPrompt";
 import {
   Avatar,
+  Btn,
   Card,
   ConfirmDialog,
   ErrorBanner,
@@ -231,6 +233,27 @@ const VersionText = () => {
   );
 };
 
+const AppUpdateButton = () => {
+  const update = useAppUpdate();
+  if (!update.route || update.route === "wait") return null;
+  return (
+    <View style={styles.updateApp} testID="profile-update">
+      {update.route === "restart" ? (
+        <Btn
+          title={update.restarting ? "Restarting…" : "Restart to update"}
+          icon="refresh"
+          variant="tonal"
+          disabled={update.restarting}
+          onPress={update.restart}
+        />
+      ) : (
+        <Btn title={`Open the ${update.store}`} icon="arrow-down-circle-outline" variant="tonal" onPress={update.openStore} />
+      )}
+      <ErrorBanner message={update.failed ? "The update didn't download. Check your connection and try again." : null} />
+    </View>
+  );
+};
+
 /**
  * A person's profile. Your own (`asTab`) is a root screen from the side menu,
  * with the top bar; anyone else's opens on top of the screen you came from,
@@ -274,6 +297,7 @@ export const ProfileView = ({
       <ProfileFrame asTab={asTab} onBack={goBack}>
         <SignInPrompt what="page" />
         {email ? null : <VersionText />}
+        {email ? null : <AppUpdateButton />}
       </ProfileFrame>
     );
   }
@@ -534,6 +558,7 @@ export const ProfileView = ({
       )}
       {profile.isMe && <DeleteAccountCard />}
       {profile.isMe && <VersionText />}
+      {profile.isMe && <AppUpdateButton />}
     </ProfileFrame>
   );
 };
@@ -541,6 +566,7 @@ export const ProfileView = ({
 const styles = StyleSheet.create({
   // A plain cursor, so the easter egg doesn't show itself on web.
   versionText: { textAlign: "center", cursor: "auto" },
+  updateApp: { alignItems: "center", gap: spacing.sm },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   syncChip: {
     flexDirection: "row",

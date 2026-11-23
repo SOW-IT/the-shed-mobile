@@ -11,6 +11,7 @@ import {
   useStructureDraft,
 } from "@/components/admin/StructureEditor";
 import { TeamJobsCard } from "@/components/admin/TeamJobsCard";
+import { newestVersions, UserActivityLine } from "@/components/admin/UserActivityLine";
 import {
   Btn,
   Card,
@@ -64,7 +65,9 @@ import {
   yearLabel,
 } from "@shared/flow";
 import { canonicalEmailKey, uniqueStaffByEmail } from "@shared/rollcallImport";
-import { useMutation, useQuery } from "convex/react";
+import { activityBatches } from "@shared/userActivity";
+import { useMutation, useQueries, useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -396,6 +399,33 @@ export default function AdminScreen() {
     hasAccess ? { year: selectedYear } : "skip",
   );
   const lockedNames = useQuery(api.admin.lockedNames, hasAccess ? {} : "skip");
+  const activityEmails = [
+    ...new Set(
+      [...(profiles ?? []), ...(unassigned ?? []), ...(leavers ?? [])].map(
+        (user) => user.email,
+      ),
+    ),
+  ].sort();
+  const activityResults = useQueries(
+    Object.fromEntries(
+      (me?.isAdmin ? activityBatches(activityEmails) : []).map((emails, i) => [
+        String(i),
+        { query: api.admin.userActivity, args: { emails } },
+      ]),
+    ),
+  );
+  type ActivityRows = NonNullable<FunctionReturnType<typeof api.admin.userActivity>>;
+  const activity: ActivityRows = Object.values(activityResults).flatMap(
+    (rows: unknown) => (Array.isArray(rows) ? (rows as ActivityRows) : []),
+  );
+  const activityByEmail = new Map(activity.map((row) => [row.email, row]));
+  const newestVersion = newestVersions(activity);
+  const activityLine = (email: string) => (
+    <UserActivityLine
+      activity={activityByEmail.get(email)}
+      newest={newestVersion}
+    />
+  );
   const teamView = useQuery(
     api.teams.view,
     hasAccess ? { year: selectedYear } : "skip",
@@ -669,6 +699,7 @@ export default function AdminScreen() {
               {user.previousYear ? (
                 <Muted>Last on staff in {user.previousYear}</Muted>
               ) : null}
+              {activityLine(user.email)}
             </View>
             {me?.isAdmin && user.previousYear ? (
               <IconButton
@@ -713,6 +744,7 @@ export default function AdminScreen() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
           {user.name ? <Muted>{user.email}</Muted> : null}
+          {activityLine(user.email)}
         </View>
         <Btn
           title="Retain"
@@ -870,6 +902,7 @@ export default function AdminScreen() {
                 )}
               </View>
               {profile.name ? <Muted>{profile.email}</Muted> : null}
+              {activityLine(profile.email)}
               {profile.assignments.length > 0 ? (
                 <View style={{ marginTop: 2 }}>
                   {profile.assignments.map((a, i) => (
