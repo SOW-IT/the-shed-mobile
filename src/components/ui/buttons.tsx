@@ -338,7 +338,7 @@ export const Btn = ({
   disabled?: boolean;
   loading?: boolean;
   icon?: AppIconName;
-  tint?: { bg: string; text: string };
+  tint?: { bg: string; text: string; onDark: boolean };
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
@@ -391,7 +391,7 @@ export const Btn = ({
         ]}
       >
         {loading ? (
-          <SowSpinner size={20} onDark={variant === "primary" ? !t.dark : t.dark} />
+          <SowSpinner size={20} onDark={tint ? tint.onDark : variant === "primary" ? !t.dark : t.dark} />
         ) : icon ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
             <AppIcon name={icon} size={17} color={textColor} />

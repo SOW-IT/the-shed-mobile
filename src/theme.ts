@@ -209,8 +209,8 @@ export const fixedColours = {
     panel: "rgba(8, 14, 20, 0.82)",
     card: "#121A23",
     cardEdge: "#2E3A48",
-    button: { bg: "#BCDCCD", text: "#0B1D1B" },
-    buttonGhost: { bg: "#2E3A48", text: "#ffffff" },
+    button: { bg: "#BCDCCD", text: "#0B1D1B", onDark: false },
+    buttonGhost: { bg: "#2E3A48", text: "#ffffff", onDark: true },
     shooter: {
       sky: "#0E1B3D",
       star: "#C9D6FF",
