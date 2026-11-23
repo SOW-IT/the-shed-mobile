@@ -229,7 +229,8 @@
         "src/app/(tabs)/admin.tsx",
         "src/components/admin/**",
         "src/hooks/useAdminMutations.ts",
-        "convex/{admin,appErrors,appInstalls}.ts"
+        "convex/{admin,appErrors,appInstalls}.ts",
+        "shared/userActivity.ts"
       ],
       "routes": ["/admin", "/admin?tab=teams", "/admin?tab=system"]
     },
