@@ -107,7 +107,7 @@ Daniel's items 5 to 9 (2026-11-23):
   duplicates) and a refusal rolls it back. A pending chat line is marked by
   its id. Moves were already local.
 
-## Changed in 2.12.8: a review pass and Daniel's next list
+## Changed in 2.12.10: a review pass and Daniel's next list
 
 - **Touch, revised.** A held or dragged finger is now drawn on the phone only:
   the walk follows it once a frame and nothing is sent until the finger
