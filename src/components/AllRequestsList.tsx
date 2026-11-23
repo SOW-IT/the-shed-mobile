@@ -11,6 +11,7 @@ import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { spacing } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
+import { useRequestUnreadCounts } from "@/hooks/useRequestUnreadCounts";
 import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
 import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import {
@@ -62,11 +63,7 @@ export const AllRequestsList = ({
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) => {
   const requests = useQuery(api.requests.allRequests, {});
-  const unread =
-    useQuery(
-      api.comments.unreadCountsForRequests,
-      requests ? { requestIds: requests.map((r) => r._id) } : "skip"
-    ) ?? {};
+  const unread = useRequestUnreadCounts(requests?.map((r) => r._id));
   const [pickedFilter, setFilter] = useState<"ongoing" | "completed" | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- opening a link to another request clears the filter so that request shows
@@ -163,6 +160,7 @@ export const AllRequestsList = ({
                 request={request}
                 showRequester
                 collapsible={isCompleted}
+                unread={unread[request._id] ?? 0}
                 autoExpand={request._id === focusId}
                 autoOpenThread={request._id === focusId && focusThread}
                 deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
