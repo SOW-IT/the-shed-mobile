@@ -330,6 +330,7 @@ export const Btn = ({
   disabled,
   loading,
   icon,
+  tint,
 }: {
   title: string;
   onPress: () => void;
@@ -337,23 +338,28 @@ export const Btn = ({
   disabled?: boolean;
   loading?: boolean;
   icon?: AppIconName;
+  tint?: { bg: string; text: string; onDark: boolean };
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
-  const background = {
-    primary: t.primary,
-    success: t.successSoft,
-    danger: t.dangerSoft,
-    ghost: t.ghost,
-    tonal: t.primarySoft,
-  }[variant];
-  const textColor = {
-    primary: t.onPrimary,
-    success: t.success,
-    danger: t.danger,
-    ghost: t.ghostText,
-    tonal: t.dark ? t.text : t.primary,
-  }[variant];
+  const background =
+    tint?.bg ??
+    {
+      primary: t.primary,
+      success: t.successSoft,
+      danger: t.dangerSoft,
+      ghost: t.ghost,
+      tonal: t.primarySoft,
+    }[variant];
+  const textColor =
+    tint?.text ??
+    {
+      primary: t.onPrimary,
+      success: t.success,
+      danger: t.danger,
+      ghost: t.ghostText,
+      tonal: t.dark ? t.text : t.primary,
+    }[variant];
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
@@ -385,7 +391,7 @@ export const Btn = ({
         ]}
       >
         {loading ? (
-          <SowSpinner size={20} onDark={variant === "primary" ? !t.dark : t.dark} />
+          <SowSpinner size={20} onDark={tint ? tint.onDark : variant === "primary" ? !t.dark : t.dark} />
         ) : icon ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
             <AppIcon name={icon} size={17} color={textColor} />
