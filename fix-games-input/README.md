@@ -5,21 +5,21 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| native fingerprint | ✔ pass | 5s | unchanged on iOS and Android: over-the-air updates reach current builds |
 | lint | ✔ pass | 65s |  |
 | unused code (knip) | ✔ pass | 5s |  |
-| typecheck | ✔ pass | 19s |  |
-| unit tests with coverage | ✔ pass | 33s |  |
-| verify lock | ✔ pass | 0s | free, taken at once |
+| typecheck | ✔ pass | 34s |  |
+| unit tests with coverage | ✔ pass | 30s |  |
+| verify lock | ✔ pass | 157s | took it after waiting 157s for pid 54367, feat/mystic-man-landscape in /Users/xtectra/GitHub/worktrees/the-shed-mobile-games-back-confirm, since 2026-11-23T03:58:44.504Z |
 | Playwright Chromium | ✔ pass | 1s |  |
 | before: local backend | ✔ pass | 17s | before functions on :3270 |
-| before: web | ✔ pass | 647s | 168 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: web | ✔ pass | 699s | 168 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
 | before: iOS reset | ✔ pass | 2s |  |
-| before: iOS | ✔ pass | 301s | 42 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
-| after: local backend | ✔ pass | 21s | after functions on :3270 |
-| after: web | ✔ pass | 667s | 168 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: iOS | ✔ pass | 248s | 42 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
+| after: local backend | ✔ pass | 15s | after functions on :3270 |
+| after: web | ✔ pass | 613s | 168 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
 | after: iOS reset | ✔ pass | 2s |  |
-| after: iOS | ✔ pass | 265s | 42 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
+| after: iOS | ✔ pass | 299s | 42 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
 
 ## Screenshots
 
