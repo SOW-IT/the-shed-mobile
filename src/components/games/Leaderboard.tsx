@@ -1,10 +1,14 @@
 import { useOffline } from "@/hooks/useOffline";
 import { useLocalBests, useScoreQueue } from "@/lib/games/gameStorage";
-import { Btn, Card, EmptyState, LoadingState, Screen, TabBar } from "@/components/ui";
+import { PagerCarousel } from "@/components/PagerCarousel";
+import type { PagerTab } from "@/components/PagerScreen";
+import { Btn, Card, EmptyState, LoadingState, styles as shared, TabBar } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
-import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { OnlineBanner } from "./OnlineBanner";
 import { GAME_IDS, GAME_INFO, isGameId, type GameId } from "../../../shared/games";
@@ -52,32 +56,20 @@ const Board = ({ game }: { game: GameId }) => {
   );
 };
 
-/** Each game's top scores, one per person, and your own best. */
-export const Leaderboard = ({
-  onBack,
-  onPlay,
-  initialGame,
-}: {
-  onBack: () => void;
-  onPlay: (game: GameId) => void;
-  initialGame?: string;
-}) => {
+const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => void }) => {
   const t = useAppTheme();
-  const [game, setGame] = useState<GameId>(initialGame && isGameId(initialGame) ? initialGame : "shooter");
   const { isAuthenticated, isLoading } = useConvexAuth();
   const offline = useOffline();
   const localBest = useLocalBests()[game];
   const waiting = useScoreQueue().some((queued) => queued.game === game);
   return (
-    <View style={styles.fill}>
-    <Screen title="Leaderboard" subtitle="Games" onBack={onBack} maxWidth={640}>
-      <TabBar
-        segments={GAME_IDS.map((id) => ({ key: id, label: GAME_INFO[id].title }))}
-        active={game}
-        onChange={(key) => {
-          if (isGameId(key)) setGame(key);
-        }}
-      />
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      style={{ backgroundColor: t.background }}
+      contentContainerStyle={[shared.scroll, styles.page]}
+      testID={`leaderboard-page-${game}`}
+    >
+      <Btn title={`Play ${GAME_INFO[game].title}`} icon="play" onPress={() => onPlay(game)} />
       <View style={[styles.device, { backgroundColor: t.primarySoft }]}>
         <Text style={[typography.caption, { color: t.dark ? t.text : t.primary }]}>
           On this device: best {localBest.toLocaleString()}
@@ -98,17 +90,80 @@ export const Leaderboard = ({
       ) : (
         <Board game={game} />
       )}
-      <View style={styles.play}>
-        <Btn title={`Play ${GAME_INFO[game].title}`} icon="play" variant="tonal" onPress={() => onPlay(game)} />
-      </View>
-    </Screen>
-    <OnlineBanner />
+    </ScrollView>
+  );
+};
+
+/** Each game's top scores, one per person, and your own best. */
+export const Leaderboard = ({
+  onBack,
+  onPlay,
+  initialGame,
+}: {
+  onBack: () => void;
+  onPlay: (game: GameId) => void;
+  initialGame?: string;
+}) => {
+  const t = useAppTheme();
+  const [game, setGame] = useState<GameId>(initialGame && isGameId(initialGame) ? initialGame : "shooter");
+  const [position] = useState(() => new Animated.Value(GAME_IDS.indexOf(game)));
+  const tabs: PagerTab[] = useMemo(
+    () =>
+      GAME_IDS.map((id) => ({
+        key: id,
+        label: GAME_INFO[id].title,
+        render: () => <GamePage game={id} onPlay={onPlay} />,
+      })),
+    [onPlay]
+  );
+  const choose = (key: string) => {
+    if (isGameId(key)) setGame(key);
+  };
+  return (
+    <View style={styles.fill}>
+      <SafeAreaView style={[shared.screen, { backgroundColor: t.background }]} edges={["top"]}>
+        <View style={styles.top}>
+          <View style={shared.header}>
+            <Pressable
+              onPress={onBack}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              style={({ pressed }) => [shared.headerBack, pressed && styles.pressed]}
+            >
+              <Ionicons name="chevron-back" size={26} color={t.text} />
+            </Pressable>
+            <View style={shared.headerText}>
+              <Text style={[typography.caption, styles.subtitle, { color: t.muted }]}>Games</Text>
+              <Text style={[typography.largeTitle, { color: t.text }]}>Leaderboard</Text>
+            </View>
+          </View>
+          <TabBar
+            segments={tabs.map((tab) => ({ key: tab.key, label: tab.label }))}
+            active={game}
+            onChange={choose}
+            position={position}
+          />
+        </View>
+        <PagerCarousel
+          tabs={tabs}
+          activeKey={game}
+          onActiveKeyChange={choose}
+          renderPage={(tab) => tab.render()}
+          position={position}
+        />
+      </SafeAreaView>
+      <OnlineBanner />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  top: { width: "100%", maxWidth: 640, alignSelf: "center", paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  subtitle: { marginBottom: 2 },
+  pressed: { opacity: 0.6 },
+  page: { maxWidth: 640, paddingTop: spacing.md },
   boardGap: { gap: spacing.md },
   mine: { alignItems: "center", gap: 2 },
   list: { paddingVertical: spacing.xs, gap: 0 },
@@ -117,5 +172,4 @@ const styles = StyleSheet.create({
   name: { flex: 1 },
   me: { fontWeight: "700" },
   device: { borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  play: { alignItems: "flex-start" },
 });

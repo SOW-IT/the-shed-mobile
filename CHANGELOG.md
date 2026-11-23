@@ -50,6 +50,9 @@ All notable changes to **The SHED** mobile app. This project follows
   eyebrows, nose, mouth, hairstyle, hat, extras, blush, freckles and beard
   each show as little pictures on a plain character, instead of words like
   "Short" or "Bun". Skin tones now run from lightest to darkest.
+- **The games leaderboard is easier to get around.** The Play button is at
+  the top of each game's page, and on a phone you can swipe left and right
+  between the games, the same as the tabs on Attendance.
 - **The Garden is in the side menu,** under Announcements, as well as in
   Games. Praise List now sits under Churches. Profile is no longer a menu
   item: tap your photo at the top of the menu.
