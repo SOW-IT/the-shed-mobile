@@ -88,6 +88,8 @@ const useKeyboardLift = (bottomInset: number) => {
 const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
 const ARCADE_SPOT = clampTarget(ARCADE.x + 0.9, ARCADE.z + 0.9);
 const AT_ARCADE = 0.3;
+const BESIDE = 1.2;
+const FOLLOW_MS = 12_000;
 const ARCADE_TRIP_MS = 20_000;
 const SAME_FURNITURE = 1.7;
 
@@ -187,6 +189,8 @@ const PingBars = ({ ms }: { ms: number | null }) => {
  */
 export const WorldScreen = ({
   onBack,
+  leaveAsked = false,
+  onStay,
   onLeave,
   onArcade,
   active = true,
@@ -194,6 +198,8 @@ export const WorldScreen = ({
   opening,
 }: {
   onBack: () => void;
+  leaveAsked?: boolean;
+  onStay: () => void;
   onLeave: () => void;
   onArcade: () => void;
   /** A sheet to open on arrival, from a link: the character editor or the poke list. */
@@ -448,6 +454,48 @@ export const WorldScreen = ({
   };
   const highFive = (to: string) => walkOverAndAsk(to, "highFive");
 
+  const walkOver = (to: string) => {
+    setPeopleOpen(false);
+    setPerson(null);
+    const { world: latest } = live.current;
+    const at = latest.serverNow();
+    const mine = latest.people.find((p) => p.isMe);
+    const theirs = latest.people.find((p) => p.memberId === to);
+    if (!mine?.walk || !theirs?.walk) return;
+    const from = posAt(mine.walk, at);
+    const there = posAt(theirs.walk, at);
+    const gap = Math.hypot(there.x - from.x, there.z - from.z);
+    if (gap <= BESIDE) return;
+    const k = (gap - BESIDE) / gap;
+    latest.walkTo(from.x + (there.x - from.x) * k, from.z + (there.z - from.z) * k);
+    setNote(`Walking over to ${theirs.name.split(" ")[0]}…`);
+  };
+  const walkOverRef = useRef(walkOver);
+  useEffect(() => {
+    walkOverRef.current = walkOver;
+  });
+  const [following, setFollowing] = useState<{ memberId: string; since: number } | null>(null);
+  const follow = (to: Place, memberId: string) => {
+    if (to === world.place) return walkOver(memberId);
+    setFollowing({ memberId, since: Date.now() });
+    go(to);
+  };
+  useEffect(() => {
+    if (!following) return;
+    const id = setInterval(() => {
+      const { world: latest } = live.current;
+      const arrived =
+        latest.status === "in" &&
+        latest.people.some((p) => p.isMe && p.walk) &&
+        latest.people.some((p) => p.memberId === following.memberId && p.walk);
+      if (arrived) {
+        setFollowing(null);
+        walkOverRef.current(following.memberId);
+      } else if (Date.now() - following.since > FOLLOW_MS) setFollowing(null);
+    }, 300);
+    return () => clearInterval(id);
+  }, [following]);
+
   const hudActions: HudAction[] = !selected
     ? []
     : selected.isMe
@@ -548,9 +596,22 @@ export const WorldScreen = ({
         }}
         place={world.place}
         onGo={go}
+        onWalkOver={walkOver}
+        onFollow={follow}
         onClose={() => setPeopleOpen(false)}
         pokeListOpen={opening === "poke"}
         showPlaces={view === "list"}
+      />
+      <LeaveDialog
+        open={leaving || leaveAsked}
+        onStay={() => {
+          setLeaving(false);
+          onStay();
+        }}
+        onLeave={() => {
+          setLeaving(false);
+          onLeave();
+        }}
       />
     </>
   );
@@ -803,14 +864,7 @@ export const WorldScreen = ({
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
       <WorldMenu open={placesOpen} top={insets.top + TOP_BAR_GAP} entries={menuEntries} onClose={() => setPlacesOpen(false)} />
-      <LeaveDialog
-        open={leaving}
-        onStay={() => setLeaving(false)}
-        onLeave={() => {
-          setLeaving(false);
-          onLeave();
-        }}
-      />
+
       {sheets}
     </View>
   );

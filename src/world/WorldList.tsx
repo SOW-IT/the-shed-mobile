@@ -299,7 +299,7 @@ export const WorldList = ({
             </Pressable>
           ))}
         </View>
-        <Muted>Lines are kept for 15 minutes, unless someone reports them.</Muted>
+        <Muted>Lines are kept for an hour, unless someone reports them.</Muted>
       </Card>
     </Screen>
   );

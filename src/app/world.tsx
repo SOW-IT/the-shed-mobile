@@ -1,5 +1,5 @@
 import { SignInPrompt } from "@/components/SignInPrompt";
-import { Btn, LoadingState, Muted, OptionSheet, Row, Screen } from "@/components/ui";
+import { LoadingState, Screen } from "@/components/ui";
 import { backOr } from "@/lib/goBack";
 import { useConvexAuth } from "convex/react";
 import { useFocusEffect, useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from "expo-router";
@@ -58,6 +58,8 @@ export default function World() {
         active={focused || atArcade}
         away={atArcade && !focused}
         onBack={() => setAsking(true)}
+        leaveAsked={asking}
+        onStay={stay}
         onLeave={leave}
         opening={sheet === "character" || sheet === "poke" ? sheet : undefined}
         onArcade={() => {
@@ -65,19 +67,6 @@ export default function World() {
           router.push("/games");
         }}
       />
-      <OptionSheet
-        visible={asking}
-        title="Leave the garden?"
-        onClose={stay}
-        footer={
-          <Row spread>
-            <Btn title="Leave" variant="danger" onPress={leave} />
-            <Btn title="Stay" onPress={stay} />
-          </Row>
-        }
-      >
-        <Muted>Everyone here will see you go. You can come back any time.</Muted>
-      </OptionSheet>
     </Suspense>
   );
 }

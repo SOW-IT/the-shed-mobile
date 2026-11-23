@@ -9,7 +9,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions,
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { blurBehind, Bust, connectionLabel, GlassPill, itemStyle, placeLabel, popStyle, scrimStyle, SignalBars, useOverlayClock } from "./Overlays";
-import { glass, hud, signal } from "./palette";
+import { glass, signal } from "./palette";
 import { problem } from "./Sheets";
 import type { WorldMember } from "./useWorld";
 
@@ -34,26 +34,28 @@ const PersonRow = ({
   action?: ReactNode;
   testID?: string;
 }) => (
-  <Pressable
-    onPress={onPress}
-    disabled={!onPress}
-    accessibilityRole={onPress ? "button" : undefined}
-    accessibilityLabel={`${label}. ${connectionLabel(ping)}`}
-    testID={testID}
-    style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-  >
-    <Bust look={look} size={40} />
-    <View style={styles.grow}>
-      <Text style={styles.name} numberOfLines={1}>
-        {name}
-      </Text>
-      <Text style={styles.where} numberOfLines={1}>
-        {where}
-      </Text>
-    </View>
+  <View style={styles.row}>
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={`${label}. ${connectionLabel(ping)}`}
+      testID={testID}
+      style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
+    >
+      <Bust look={look} size={40} />
+      <View style={styles.grow}>
+        <Text style={styles.name} numberOfLines={1}>
+          {name}
+        </Text>
+        <Text style={styles.where} numberOfLines={1}>
+          {where}
+        </Text>
+      </View>
+    </Pressable>
     {action}
     <SignalBars bars={ping} />
-  </Pressable>
+  </View>
 );
 
 const Section = ({ children }: { children: string }) => <Text style={styles.section}>{children}</Text>;
@@ -193,6 +195,8 @@ export const PeoplePanel = ({
   online,
   onPerson,
   onGo,
+  onWalkOver,
+  onFollow,
   onClose,
   pokeListOpen = false,
   showPlaces = false,
@@ -204,6 +208,8 @@ export const PeoplePanel = ({
   online: number;
   onPerson: (memberId: string) => void;
   onGo: (to: Place) => void;
+  onWalkOver: (memberId: string) => void;
+  onFollow: (to: Place, memberId: string) => void;
   onClose: () => void;
   pokeListOpen?: boolean;
   showPlaces?: boolean;
@@ -256,6 +262,17 @@ export const PeoplePanel = ({
                 ping={p.ping}
                 label={p.isMe ? `${p.name} (you)` : p.name}
                 onPress={p.isMe ? undefined : () => onPerson(p.memberId)}
+                action={
+                  p.isMe ? null : (
+                    <GlassPill
+                      icon="walk"
+                      tone="accent"
+                      onPress={() => onWalkOver(p.memberId)}
+                      accessibilityLabel={`Walk over to ${p.name}`}
+                      testID={`world-walk-${p.memberId}`}
+                    />
+                  )
+                }
                 testID={`world-person-${p.isMe ? "me" : p.memberId}`}
               />
             </Animated.View>
@@ -274,9 +291,19 @@ export const PeoplePanel = ({
                   name={tagName(row.name)}
                   where={row.at ? placeLabel(row.at) : "Somewhere else"}
                   ping={row.ping}
-                  label={row.at ? `${row.name}, in ${PLACE_TITLES[row.at]}. Go there` : row.name}
-                  onPress={row.at ? () => onGo(row.at!) : undefined}
-                  action={row.at ? <Ionicons name="arrow-forward-circle" size={24} color={hud.accent} /> : null}
+                  label={row.at ? `${row.name}, in ${PLACE_TITLES[row.at]}` : row.name}
+                  onPress={row.at ? () => onFollow(row.at!, row.memberId) : undefined}
+                  action={
+                    row.at ? (
+                      <GlassPill
+                        icon="navigate"
+                        tone="accent"
+                        onPress={() => onFollow(row.at!, row.memberId)}
+                        accessibilityLabel={`Go to ${row.name} in ${PLACE_TITLES[row.at]}`}
+                        testID={`world-follow-${row.memberId}`}
+                      />
+                    ) : null
+                  }
                 />
               )}
             </Animated.View>
@@ -332,6 +359,7 @@ const styles = StyleSheet.create({
   stack: { gap: 8, paddingHorizontal: 12, paddingBottom: 14 },
   section: { color: glass.muted, fontSize: 12, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase", marginTop: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 8, borderRadius: 16, backgroundColor: glass.row },
+  rowMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   pressed: { opacity: 0.7 },
   grow: { flex: 1 },
   name: { color: glass.text, fontFamily: fonts.display, fontSize: 15 },

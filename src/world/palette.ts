@@ -224,6 +224,7 @@ export const signal = {
 export const signalColour = (bars: number) => (bars >= 3 ? signal.good : bars === 2 ? signal.fair : signal.poor);
 
 export const chatLog = {
+  backing: "rgba(10, 14, 13, 0.38)",
   text: "#FFFFFF",
   shadow: "rgba(20, 20, 20, 0.85)",
   time: "#D4D4D4",

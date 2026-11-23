@@ -476,7 +476,7 @@ export const elsewhere = query({
       place: v.string(),
       count: v.number(),
       names: v.array(v.string()),
-      people: v.array(v.object({ name: v.string(), look: worldLookValidator, ping: v.optional(v.number()) })),
+      people: v.array(v.object({ memberId: v.id("worldMembers"), name: v.string(), look: worldLookValidator, ping: v.optional(v.number()) })),
     })
   ),
   handler: async (ctx) => {
@@ -501,7 +501,7 @@ export const elsewhere = query({
         .withIndex("by_place_and_instance", (q) => q.eq("place", place))
         .take(ROOM_SCAN);
       const names: string[] = [];
-      const people: { name: string; look: Doc<"worldMembers">["look"]; ping?: number }[] = [];
+      const people: { memberId: Id<"worldMembers">; name: string; look: Doc<"worldMembers">["look"]; ping?: number }[] = [];
       let count = 0;
       for (const room of rooms) {
         if (room._id === me?.roomId) continue;
@@ -516,7 +516,7 @@ export const elsewhere = query({
           if (names.length < ELSEWHERE_NAMES) {
             names.push(member.name);
             const look = (await savedLook(ctx, member.email))?.look ?? member.look;
-            people.push({ name: member.name, look, ping: member.ping });
+            people.push({ memberId: member._id, name: member.name, look, ping: member.ping });
           }
         }
       }

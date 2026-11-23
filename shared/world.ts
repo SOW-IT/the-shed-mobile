@@ -21,11 +21,11 @@ export const ASK_MS = 10_000;
 export const MUTUAL_MS = 2600;
 export const MAX_SAY_LENGTH = 120;
 /** How long a chat line is kept, unless someone reports it. */
-export const CHAT_TTL_MS = 15 * 60_000;
+export const CHAT_TTL_MS = 60 * 60_000;
 /** Lines kept per room, whatever their age. */
-export const CHAT_ROOM_CAP = 50;
+export const CHAT_ROOM_CAP = 150;
 /** Lines the chat sheet and list view show. */
-export const CHAT_LOG_SIZE = 50;
+export const CHAT_LOG_SIZE = 150;
 /** Lines copied into a report, for context. */
 export const REPORT_CONTEXT_LINES = 10;
 /** The reported person's own recent lines kept in a report. */

@@ -367,7 +367,7 @@ describe("places", () => {
     expect(await anna.query(api.world.elsewhere, {})).toMatchObject([
       { place: "chapel", count: 2, names: [expect.any(String), expect.any(String)], people: [{ look: expect.any(Object) }, { look: expect.any(Object) }] },
     ]);
-    expect(await ben.query(api.world.elsewhere, {})).toMatchObject([{ place: "garden", count: 1, names: [expect.any(String)], people: [{ name: expect.any(String) }] }]);
+    expect(await ben.query(api.world.elsewhere, {})).toMatchObject([{ place: "garden", count: 1, names: [expect.any(String)], people: [{ name: expect.any(String), memberId: expect.any(String) }] }]);
 
     await t.run(async (ctx) => {
       await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: BEN, blockedName: "Ben" });
@@ -1184,7 +1184,7 @@ describe("review fixes", () => {
     const { memberId } = await anna.mutation(api.world.join, {});
     await anna.mutation(api.world.say, { text: "hello" });
     // Anna stays (heartbeats) past the TTL.
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i <= Math.ceil(CHAT_TTL_MS / (PRESENCE_TTL_MS - 1000)); i++) {
       later(PRESENCE_TTL_MS - 1000);
       await anna.mutation(api.world.heartbeat, {});
     }
@@ -1777,5 +1777,21 @@ describe("ping", () => {
     await anna.mutation(api.world.join, {});
     await expect(anna.mutation(api.world.ping, { bars: 7 })).rejects.toThrow(/1 to 4/);
     await expect(anna.mutation(api.world.ping, { bars: 2.5 })).rejects.toThrow(/1 to 4/);
+  });
+});
+
+describe("an hour of chat", () => {
+  test("a line from 59 minutes ago is still in the log, and one from 61 minutes ago is not", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    await t.run(async (ctx) => {
+      await ctx.db.insert("worldChat", { roomId: a.roomId, memberId: a.memberId, email: ANNA, name: "anna", text: "59 minutes", at: Date.now() - 59 * 60_000 });
+      await ctx.db.insert("worldChat", { roomId: a.roomId, memberId: a.memberId, email: ANNA, name: "anna", text: "61 minutes", at: Date.now() - 61 * 60_000 });
+    });
+    const texts = said((await anna.query(api.world.chatLog, { roomId: a.roomId }))!).map((line) => line.text);
+    expect(texts).toContain("59 minutes");
+    expect(texts).not.toContain("61 minutes");
+    expect(CHAT_TTL_MS).toBe(60 * 60_000);
   });
 });

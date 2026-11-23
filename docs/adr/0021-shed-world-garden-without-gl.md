@@ -38,7 +38,7 @@ What we weighed:
   view.
 - **Keeping storage bounded.** Rows grow with people present, not with time:
   `worldState` is upserted, a member's rows are deleted when they leave or
-  go quiet for 90 seconds, chat lines go after 15 minutes (and past 50 per
+  go quiet for 90 seconds, chat lines go after an hour (and past 150 per
   room), and empty rooms are deleted. The sweeper schedules itself every 30
   seconds while anyone is in, stops when the garden is empty, and a daily
   cron restarts it if a run was ever lost. A report copies the room's last
@@ -240,8 +240,11 @@ of simulated play against the real mutations, counting writes per code path
 | At every rate limit (scripted, not the app) | about 151 accepted | at most 152, 158 in a full chat room |
 | Idle | about 1.3 heartbeats | at most 1.3 |
 
-A line in a room already holding 50 lines also deletes the oldest, one more
-write (at most 6 a minute at the line limit, so at most 53 then). A
+A line in a room already holding 150 lines also deletes the oldest, one more
+write (at most 6 a minute at the line limit). Chat is kept an hour: each
+`chatLog` run reads at most 150 lines (newest first, by index, scanning at
+most 2000) plus two block lookups per distinct sender, and each line said
+reads up to 155 of its room's lines to keep the room at 150. A
 high-five ask or accept is one write, like an emote, on the same rate limit;
 saving a look is one write. Ping costs at most 2 writes a minute and
 usually none: each app times its own round trips to Convex, smooths them,

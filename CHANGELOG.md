@@ -40,8 +40,9 @@ All notable changes to **The SHED** mobile app. This project follows
   dark panel over the World instead of a white sheet. Each row has the
   person's character, their name ("Daniel K."), where they are, and their
   connection as one to four bars (green, amber or red). Tap someone here to
-  wave, high five, duel, mute, block or report; tap someone in another place
-  to go there. The poke list and your blocked people are at the bottom.
+  wave, high five, duel, mute, block or report. The button on the right of
+  each row walks you over to someone here, or takes you to someone's place
+  and walks you over to them there. The poke list and your blocked people are at the bottom.
 - **Your connection at the top.** Wi-fi bars sit next to the People
   button; tap them to see your ping in milliseconds for a moment. Each
   phone times its own round trips to the server and shares its bars only
@@ -53,7 +54,16 @@ All notable changes to **The SHED** mobile app. This project follows
   close the menu.
 
 ### Changed
-- **No back button in the World.** Leave from the place menu instead.
+- **No back button in the World.** Leave from the place menu instead. Going
+  back with a swipe or the back button asks with the same World-styled
+  "Leave the World?" dialog.
+- **Chat history lasts an hour**, not 15 minutes, and the log keeps up to
+  150 lines (it was 50), so a busy hour still fits. Speech bubbles still go
+  after 8 seconds.
+- **The chat log reads on every backdrop.** It sits on a faint dark band,
+  so the white and yellow text shows on the Café's and Chapel's cream walls
+  and windows, and it shows whole messages only: no stray end of a wrapped
+  line at the top.
 - **Smoother World menus.** The People list, the place menu and the Leave
   dialog slide and fade in with their rows one after another, and ease out
   when they close. With Reduce Motion on, they appear and go without
