@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.29] - 2026-11-24
+
+### Changed
+- **Reimbursement lists on the website stop using the computer while you
+  read.** The moving fill on each request's current approval step was
+  redrawn by the page's code every frame, once per card, so a list of
+  requests kept the computer or phone busy (about half of a slow phone's
+  processor on All) even when nothing changed. On the website it's now a
+  CSS animation the browser runs by itself. It looks the same. The app on
+  phones already ran it this way.
+
 ## [2.12.25] - 2026-11-24
 
 ### Changed
