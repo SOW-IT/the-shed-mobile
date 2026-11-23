@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.9] - 2026-11-23
+
+### Changed
+- **Every over-the-air release now says whether phones will get it.** After
+  each merge, EAS Update compares the update's runtime on iOS and Android with
+  the newest store build's, puts a table in the run's summary and posts the
+  result to the Data and IT space in Google Chat, with links to each update.
+  When an update can't reach the store build (native code or a fingerprint
+  input such as `.gitignore` changed), the post says so and the run turns red,
+  instead of the log saying "Published!" while no phone can load it. A failed
+  publish is posted too. The post also reminds you that phones switch to the
+  update on their second launch after it, or after 10 minutes away.
+
 ## [2.12.7] - 2026-11-23
 
 ### Added
