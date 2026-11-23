@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.22] - 2026-11-24
+## [2.12.25] - 2026-11-24
 
 ### Changed
 - **Swim in the pond and the sea.** Walk into the Garden pond or past the
@@ -23,7 +23,8 @@ All notable changes to **The SHED** mobile app. This project follows
   comes into the World and when they leave, in yellow like a game server:
   "[12:04] Daniel K. joined the Garden", "[12:09] Daniel K. left". Moving
   between places writes no line, and you don't see these lines for anyone
-  you've blocked.
+  you've blocked. A leave line from another place says where they left,
+  and VoiceOver reads that place out too.
 - **Last-name initials on name tags.** Name tags in the World show your
   first name and the first letter of your last name, "Daniel K." instead of
   "Daniel", so two people with the same first name can be told apart. Your

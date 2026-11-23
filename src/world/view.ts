@@ -34,7 +34,11 @@ type LogLine = { isMe: boolean; name: string; text: string; here: boolean; place
 export const systemLine = (line: Pick<LogLine, "name" | "text">) => `${tagName(line.name)} ${line.text}`;
 
 export const saidLabel = (line: LogLine) => {
-  if (line.kind) return systemLine(line);
   const where = lineWhere(line);
+  if (line.kind) {
+    // A join line's text already names the place; a leave line's doesn't.
+    if (line.kind === "join" || !where) return systemLine(line);
+    return `${systemLine(line)}${where === "elsewhere" ? ", elsewhere" : ` ${where}`}`;
+  }
   return `${line.isMe ? "You" : line.name} said ${line.text}${where ? `, ${where === "elsewhere" ? "elsewhere" : `in ${where}`}` : ""}`;
 };
