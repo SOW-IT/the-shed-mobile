@@ -14,8 +14,9 @@ All notable changes to **The SHED** mobile app. This project follows
   you hold it sideways, and the rest of the app stays as it was. On a computer
   it plays on a wide board, as before.
 - **A small hop and a big jump.** Tap for a small hop; swipe up for the big
-  jump; swipe down to duck. The big jump starts as soon as your finger moves,
-  so it never feels late. On a computer, tap ↑, W or space to hop, hold it (or
+  jump; swipe down to duck. The hop starts the moment your finger touches the
+  screen, not when you lift it, and a swipe up in the same touch turns it into
+  the big jump, so nothing feels late. On a computer, tap ↑, W or space to hop, hold it (or
   press Shift with it) for the big jump, and press ↓ or S to duck.
 - **More kinds of obstacle.** Besides the small rocks you can hop, there are
   now tall rocks and long logs that need the big jump, pairs of rocks back to

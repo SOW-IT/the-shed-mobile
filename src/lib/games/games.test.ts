@@ -175,6 +175,16 @@ describe("runner", () => {
     expect(runFor(place(blank(1, 30), "hang"), 2, stepRunner, at(duck)).over).toBe(false);
   });
 
+  test("a swipe down in the same touch as the hop, before he leaves the ground, slides at once", () => {
+    const pressed = hop(blank());
+    const ducked = duck(pressed);
+    expect(sliding(ducked)).toBe(true);
+    expect(ducked.vy).toBe(0);
+    const later = runFor(ducked, 0.1, stepRunner);
+    expect(onGround(later)).toBe(true);
+    expect(runnerHeight(later)).toBe(RUNNER.slideHeight);
+  });
+
   test("can't jump again in the air; a swipe down there dives and slides on landing", () => {
     let state = runFor(jump(blank()), 0.2, stepRunner);
     expect(onGround(state)).toBe(false);

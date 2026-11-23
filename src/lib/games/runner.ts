@@ -149,6 +149,10 @@ export const jump = (state: RunnerState): RunnerState => {
 export const duck = (state: RunnerState): RunnerState => {
   if (state.over) return state;
   if (onGround(state)) return { ...state, slideFor: RUNNER.slideSeconds };
+  // The hop from the same touch hasn't left the ground yet: slide instead.
+  if (state.y <= 0) {
+    return { ...state, vy: 0, jumpAge: null, bigJump: false, slideFor: RUNNER.slideSeconds, slideOnLanding: false };
+  }
   return { ...state, vy: Math.min(state.vy, -RUNNER.diveSpeed), slideOnLanding: true };
 };
 
