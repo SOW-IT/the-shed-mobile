@@ -197,9 +197,9 @@
       "files": [
         "src/app/(tabs)/org.tsx",
         "src/app/person/**",
-        "src/components/EarlierYears.tsx",
+        "src/components/{EarlierYears,OrgSearchResults}.tsx",
         "src/hooks/useGroupedProfiles.ts",
-        "convex/{directory,directorySync,staffLeavers,admins,contact}.ts",
+        "convex/{directory,directorySync,staffLeavers,admins,contact,orgSearch}.ts",
         "shared/orgChart.ts"
       ],
       "routes": ["/org"]
@@ -252,6 +252,15 @@
         "shared/games.ts"
       ],
       "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang"]
+    },
+    "world": {
+      "files": [
+        "src/app/world.tsx",
+        "src/world/**",
+        "convex/{world,worldData}.ts",
+        "shared/world.ts"
+      ],
+      "routes": ["/world", "/games"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]

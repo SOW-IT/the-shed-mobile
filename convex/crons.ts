@@ -35,4 +35,8 @@ crons.cron("purge old app errors", "45 17 * * *", internal.appErrors.purgeOld, {
 
 crons.cron("recount attendance members", "15 17 * * *", internal.memberCount.recount, { nightly: true });
 
+// The garden's sweeper schedules itself while anyone is in it; this restarts
+// it if a scheduled run was ever lost.
+crons.cron("shed world sweep backstop", "23 18 * * *", internal.world.sweep, {});
+
 export default crons;

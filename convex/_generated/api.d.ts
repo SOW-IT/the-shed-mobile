@@ -77,6 +77,7 @@ import type * as model from "../model.js";
 import type * as musicReleaseDates from "../musicReleaseDates.js";
 import type * as musicRequests from "../musicRequests.js";
 import type * as notifications from "../notifications.js";
+import type * as orgSearch from "../orgSearch.js";
 import type * as pagination from "../pagination.js";
 import type * as photo from "../photo.js";
 import type * as presence from "../presence.js";
@@ -102,6 +103,8 @@ import type * as userLink from "../userLink.js";
 import type * as waitingOnMe from "../waitingOnMe.js";
 import type * as weeklyInsights from "../weeklyInsights.js";
 import type * as weeklyInsightsData from "../weeklyInsightsData.js";
+import type * as world from "../world.js";
+import type * as worldData from "../worldData.js";
 import type * as youtube from "../youtube.js";
 
 import type {
@@ -180,6 +183,7 @@ declare const fullApi: ApiFromModules<{
   musicReleaseDates: typeof musicReleaseDates;
   musicRequests: typeof musicRequests;
   notifications: typeof notifications;
+  orgSearch: typeof orgSearch;
   pagination: typeof pagination;
   photo: typeof photo;
   presence: typeof presence;
@@ -205,6 +209,8 @@ declare const fullApi: ApiFromModules<{
   waitingOnMe: typeof waitingOnMe;
   weeklyInsights: typeof weeklyInsights;
   weeklyInsightsData: typeof weeklyInsightsData;
+  world: typeof world;
+  worldData: typeof worldData;
   youtube: typeof youtube;
 }>;
 

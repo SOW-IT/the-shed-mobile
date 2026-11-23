@@ -252,7 +252,7 @@ export const orgChart = query({
 
     const allDivisions = await ctx.db.query("divisions").take(1000);
     const availableYears = [
-      ...new Set([...allDivisions.map((d) => d.year), thisYear]),
+      ...new Set([...allDivisions.map((d) => d.year), thisYear, year]),
     ]
       .filter((y) => y <= thisYear || (canSeeNextYear && y === nextYear))
       .sort((a, b) => b - a);

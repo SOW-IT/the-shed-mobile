@@ -1,4 +1,5 @@
 import { AppIcon, Card, Muted, Screen, type AppIconName } from "@/components/ui";
+import { useOffline } from "@/hooks/useOffline";
 import { useLocalBests, useScoreQueue } from "@/lib/games/gameStorage";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -59,18 +60,31 @@ export const GamesMenu = ({
   onOpen,
   onBack,
   intro,
+  onGarden,
 }: {
   onOpen: (target: GameId | "leaderboard") => void;
   onBack?: () => void;
   intro?: ReactNode;
+  /** Opens the online garden; left out where it can't open (offline). */
+  onGarden?: () => void;
 }) => {
   const bests = useLocalBests();
   const waiting = useScoreQueue().length;
+  const offline = useOffline();
   return (
     <View style={styles.fill}>
     <Screen title="Games" onBack={onBack} maxWidth={640}>
       {intro}
       <View style={styles.list}>
+        {onGarden && !offline ? (
+          <MenuRow
+            icon="leaf-outline"
+            title="The Garden"
+            detail="Walk around and chat with whoever's online."
+            onPress={onGarden}
+            testID="games-open-garden"
+          />
+        ) : null}
         {GAME_IDS.map((game) => (
           <MenuRow
             key={game}

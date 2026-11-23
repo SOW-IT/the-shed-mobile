@@ -21,6 +21,14 @@ import {
   subFormStatusValidator,
 } from "./eventRequestData";
 import { gameIdValidator } from "./gameScoreData";
+import {
+  worldAskValidator,
+  worldBucketValidator,
+  worldLookValidator,
+  worldReplyValidator,
+  worldReportLineValidator,
+  worldWalkFields,
+} from "./worldData";
 import { grievanceFields, grievanceStatusValidator } from "./grievanceData";
 import { homeBlockValidator } from "./homeData";
 import { metricsDataValidator, staffTrendsValidator } from "./metricsData";
@@ -89,12 +97,14 @@ export default defineSchema({
     userId: v.optional(v.id("users")),
     importId: v.optional(v.string()),
     memberId: v.optional(v.id("attendanceMembers")),
+    searchText: v.optional(v.string()),
   })
     .index("by_email_and_year", ["email", "year"])
     .index("by_year", ["year"])
     .index("by_userId", ["userId"])
     .index("by_importId", ["importId"])
-    .index("by_memberId_and_year", ["memberId", "year"]),
+    .index("by_memberId_and_year", ["memberId", "year"])
+    .searchIndex("search_text", { searchField: "searchText" }),
 
   divisions: defineTable({
     year: v.number(),
@@ -129,6 +139,140 @@ export default defineSchema({
   }).index("by_email_and_platform", ["email", "platform"]),
 
   // Each person's best run of each offline mini-game, for its leaderboard.
+  // Shed World, the Garden (convex/world.ts). Storage grows with the people
+  // in the world, not with time: per-person rows are upserted and deleted
+  // when they leave, chat lines last CHAT_TTL_MS, and empty rooms go.
+
+  // One room per instance of a place: ("garden", 1), ("garden", 2)…
+  worldRooms: defineTable({
+    place: v.string(),
+    instance: v.number(),
+    // Kept in step by join and leave; it enforces ROOM_CAP.
+    memberCount: v.number(),
+  }).index("by_place_and_instance", ["place", "instance"]),
+
+  // Who's in a room. Written on join and leave only.
+  worldMembers: defineTable({
+    roomId: v.id("worldRooms"),
+    email: v.string(),
+    name: v.string(),
+    look: worldLookValidator,
+    joinedAt: v.number(),
+    place: v.optional(v.string()),
+    // Open visits sharing this member (tabs, devices). Leave removes the
+    // member only when the last one goes. Missing means one.
+    visits: v.optional(v.number()),
+  })
+    .index("by_roomId", ["roomId"])
+    .index("by_email", ["email"]),
+
+  // Each member's latest walk, emote and line: upserted, never appended. The
+  // rate-limit buckets live here too, so checking one writes nothing.
+  worldState: defineTable({
+    memberId: v.id("worldMembers"),
+    ...worldWalkFields,
+    act: v.optional(v.object({ emote: v.string(), at: v.number() })),
+    say: v.optional(v.object({ text: v.string(), at: v.number() })),
+    // A high five (or later another mutual action) asked of someone nearby,
+    // and the answer to one asked of you. Overwritten, never appended.
+    ask: v.optional(worldAskValidator),
+    reply: v.optional(worldReplyValidator),
+    // The asks this person accepted that are still open, so accepting one
+    // again replays nothing even after they've accepted another since.
+    answered: v.optional(v.array(worldReplyValidator)),
+    away: v.optional(v.literal("arcade")),
+    seat: v.optional(v.string()),
+    moveBucket: worldBucketValidator,
+    actBucket: worldBucketValidator,
+    sayBucket: worldBucketValidator,
+  })
+    .index("by_memberId", ["memberId"])
+    // For clearing lines older than the chat TTL off the state rows.
+    .index("by_say_at", ["say.at"]),
+
+  // Someone's rate limits, kept for THROTTLE_KEEP_MS after they leave, so
+  // leaving and joining again can't refill them. Swept after that.
+  worldThrottle: defineTable({
+    email: v.string(),
+    moveBucket: worldBucketValidator,
+    actBucket: worldBucketValidator,
+    sayBucket: worldBucketValidator,
+    joinBucket: worldBucketValidator,
+    at: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_at", ["at"]),
+
+  // When each member was last heard from. No query reads this table for the
+  // app, so marking someone present pushes nothing to anyone.
+  worldPresence: defineTable({
+    memberId: v.id("worldMembers"),
+    lastSeen: v.number(),
+  })
+    .index("by_memberId", ["memberId"])
+    .index("by_lastSeen", ["lastSeen"]),
+
+  // The room's recent lines, for the list view. Capped per room, swept after
+  // CHAT_TTL_MS. Name and email are copied so a line outlives its member.
+  worldChat: defineTable({
+    roomId: v.id("worldRooms"),
+    memberId: v.id("worldMembers"),
+    email: v.string(),
+    name: v.string(),
+    text: v.string(),
+    at: v.number(),
+  })
+    .index("by_roomId_and_at", ["roomId", "at"])
+    .index("by_roomId_and_email_and_at", ["roomId", "email", "at"])
+    .index("by_at", ["at"]),
+
+  // A look someone saved in the character editor, kept across visits. The
+  // roster reads it, so a save shows on everyone's screen with no new query.
+  worldLooks: defineTable({
+    email: v.string(),
+    look: worldLookValidator,
+    updatedAt: v.number(),
+  }).index("by_email", ["email"]),
+
+  // Someone a person never wants to see in the world, in either direction.
+  worldBlocks: defineTable({
+    email: v.string(),
+    blockedEmail: v.string(),
+    blockedName: v.string(),
+  })
+    .index("by_email_and_blockedEmail", ["email", "blockedEmail"])
+    .index("by_blockedEmail", ["blockedEmail"]),
+
+  worldVisitors: defineTable({
+    email: v.string(),
+    name: v.string(),
+    lastSeenAt: v.number(),
+    lastPokeAt: v.optional(v.number()),
+    lastPokedAt: v.optional(v.number()),
+  })
+    .index("by_email", ["email"])
+    .index("by_lastSeenAt", ["lastSeenAt"]),
+
+  // A report keeps its lines after the chat is swept, for leaders to review.
+  worldReports: defineTable({
+    reporterEmail: v.string(),
+    reportedEmail: v.string(),
+    reportedName: v.string(),
+    place: v.string(),
+    instance: v.number(),
+    reason: v.string(),
+    lines: v.array(worldReportLineValidator),
+    createdAt: v.number(),
+  })
+    .index("by_reporterEmail_and_createdAt", ["reporterEmail", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
+
+  // Singleton bookkeeping: when the self-scheduling sweeper next runs.
+  worldMeta: defineTable({
+    key: v.literal("sweeper"),
+    sweepAt: v.optional(v.number()),
+  }).index("by_key", ["key"]),
+
   gameScores: defineTable({
     email: v.string(),
     game: gameIdValidator,

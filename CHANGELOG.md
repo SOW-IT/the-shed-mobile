@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.8] - 2026-11-23
+## [2.12.15] - 2026-11-23
 
 ### Changed
 - **Mystic Man plays in landscape.** Turn your phone sideways: on a phone held
@@ -30,6 +30,176 @@ All notable changes to **The SHED** mobile app. This project follows
   because a swipe up there would read as "go back". The back button still
   works, and still asks before leaving a game in progress.
 
+## [2.12.13] - 2026-11-23
+
+### Added
+- **Four more places to walk to.** Walk onto one of the labelled circles
+  and stop there, and you step through to that place, arriving beside the
+  circle that leads back. From the Garden, the Beach is through the gate at
+  the top, the Campfire is on the right and the Chapel is at the bottom
+  right. The Beach also leads to the Campfire, the Campfire to the Café,
+  and the Café to the Chapel, so you can walk the whole way round. Every
+  place is its own room, with its own chat, and up to 20 people before
+  another opens.
+- **Sit down.** Tap a seat and you walk over and sit: the pews in the
+  Chapel, the logs round the Campfire, the stools and the couch in the
+  Café, the picnic blanket in the Garden and the towel on the Beach.
+  Everyone sees you sitting. Tap the ground to get up and walk. If the seat
+  you tapped is taken, you get the nearest free one beside it.
+- **See where everyone is.** A circle's label shows how many people are
+  through it, and People here lists who is in each of the other places.
+  From the same sheet you can go to any place the circles lead to without
+  walking, which is also how you get around in the list view.
+
+### Changed
+- **The side menu calls it World,** since the Garden is now one place of
+  five.
+- **Your character's editor fills the screen.** The preview is bigger, the
+  tabs fit on one line and the pictures of each choice fill the width, so
+  more of them show at once. Once you turn your character by hand it stays
+  facing the way you left it, rather than starting to spin again.
+
+## [2.12.12] - 2026-11-23
+
+### Added
+- **See who's not in the Garden, and poke them.** People here now has "Not
+  here right now": everyone who has visited, with how long ago. Poke sends
+  them a notification asking them to join you, with a short message of your
+  own if you like. You can poke once an hour, and nobody gets poked more
+  than once in ten minutes.
+- **Outfits.** As well as a T-shirt you can wear a dress, a skirt, overalls,
+  a striped tee or a hoodie, in any of the colours.
+- **The arcade is somewhere you go.** Tap the cabinet and you walk over to
+  it before the games open. While you play, everyone else still sees you
+  there, faded, with "Playing" over your head. Come back and you're back to
+  normal, in the same spot.
+- **A check before you leave.** Going back from the Garden, by the button,
+  a swipe or the browser's back, asks "Leave the garden?" first.
+
+### Changed
+- **Tapping someone opens a small bubble over their head.** It has High
+  five, Wave and More, and pops up right where they are instead of a sheet
+  that covers the garden. More still has mute, block and report. Tap
+  yourself for Outfit and Emotes (the shirt button in the corner is gone).
+  Tap the ground, or the person again, and it goes away.
+- **High five from anywhere.** Choose High five on someone across the garden
+  and you walk over and stand beside them first. The ask goes out when you
+  get there. Tap the ground to change your mind on the way.
+- **Walking is smoother.** Steps start and stop gently instead of snapping,
+  characters turn to a new direction rather than flipping, you no longer
+  slip back a step just after you tap, and other people no longer flicker
+  for a moment each time they change direction. Speech bubbles fade in and
+  out, and the timer on a high-five ask runs smoothly.
+- **Dragging is smoother too.** While your finger is down, your walk and the
+  flower marker follow it on your own phone only. Everyone else sees where
+  you went when you let go.
+- **You keep facing the way you walked.** Characters used to turn back
+  toward the screen after stopping.
+- **Six emotes, acted out.** Wave, Laugh, Cheer, Sad, Angry and Pray. Your
+  character jumps, doubles up, slumps, stomps, or bows their head with
+  hands together, so you can read it from the body and not only the icon.
+  A new emote takes over from the one playing.
+- **Pick your character's features by looking at them.** Face shape, eyes,
+  eyebrows, nose, mouth, hairstyle, hat, extras, blush, freckles and beard
+  each show as little pictures on a plain character, instead of words like
+  "Short" or "Bun". Skin tones now run from lightest to darkest.
+- **The games leaderboard is easier to get around.** The Play button is at
+  the top of each game's page, and on a phone you can swipe left and right
+  between the games, the same as the tabs on Attendance.
+- **The Garden is in the side menu,** under Announcements, as well as in
+  Games. Praise List now sits under Churches. Profile is no longer a menu
+  item: tap your photo at the top of the menu.
+
+### Fixed
+- **Typing on iPhone.** The chat box now rises to sit just above the
+  keyboard, and the garden stays put behind it instead of being squashed.
+  Tap anywhere, or the cross, to put the keyboard away.
+- **An emote no longer flips back to the one before it.** Tapping emotes
+  quickly could show the new one and then swap it for the old.
+- **Speech bubble tails point at the right person on iPhone.** The little
+  tail under a short bubble such as "High five?" sat off to one side.
+- **Blank chat lines.** A message made only of invisible characters is no
+  longer sent, and characters that flip the direction of text are removed.
+- **The two buttons on a high-five ask line up.**
+- **The character editor's tabs are readable in dark mode.** Hair, Body,
+  Outfit and Extras were pale text on a pale button.
+- **The walk marker no longer lingers** at your feet after you come back to
+  the garden from another app.
+- **Opening the Garden from Games while you're at the arcade** takes you
+  back to where you were, not into a second copy of it.
+
+## [2.12.11] - 2026-11-23
+
+### Changed
+- **Org Chart search looks through every year.** Type a name, role or team
+  and the Org Chart lists each staff year it turns up in, newest first, with
+  the role and team held that year and the year on a chip. Searching "Daniel
+  Kim" lists every year from Student Leader at UNSW in 2020 to Head of
+  Division in 2027. Tap a result to open that year's chart showing just that
+  person, with "Show everyone" to see the whole year. Each word you type
+  matches the start of a word, so "dan ki" works, and a search shows up to 40
+  results. The search used to cover only the year on screen.
+
+## [2.12.9] - 2026-11-23
+
+### Changed
+- **Every over-the-air release now says whether phones will get it.** After
+  each merge, EAS Update compares the update's runtime on iOS and Android with
+  the newest store build's, puts a table in the run's summary and posts the
+  result to the Data and IT space in Google Chat, with links to each update.
+  When an update can't reach the store build (native code or a fingerprint
+  input such as `.gitignore` changed), the post says so and the run turns red,
+  instead of the log saying "Published!" while no phone can load it. A failed
+  publish is posted too. The post also reminds you that phones switch to the
+  update on their second launch after it, or after 10 minutes away.
+
+## [2.12.7] - 2026-11-23
+
+### Added
+- **The Garden: a place online to hang out.** Open Games and tap The Garden
+  to walk into a little courtyard with everyone else who's there. Tap the
+  ground to walk, and type to talk: what you say floats over your head. The
+  chip at the top says how many people can hear you; people further away
+  still show up, but their bubbles are faded. The flower button gives you
+  emotes, and the arcade cabinet in the corner opens the games. Up to 20
+  people share a garden, and more open another. Voices now carry half as far
+  again as in the first design, so you can talk to people a little further away.
+- **High fives.** Walk up to someone, tap them and choose High five. They see
+  "High five?" over your head and have 10 seconds to say yes; if they do, you
+  both turn to each other and slap hands. If they don't, it quietly goes away.
+- **Twelve emotes with faces.** Wave, smile, laugh, cheer, love, surprised,
+  think, pout, cry, angry, sleepy and pray. Your character's face and body act
+  each one out for a few seconds, with an icon over your head, for everyone
+  nearby to see.
+- **Make your character your own.** Tap the shirt button (or yourself) to
+  choose your skin, hairstyle, hair colour and shirt, plus a cap, beanie,
+  flower crown or sun hat, and glasses, a backpack or a scarf. A turning
+  preview shows it as you go, Randomise picks one for you, and Save shows it
+  to everyone in the garden. Until you save, you keep the look you were given.
+- **Walk by holding, not just tapping.** Press anywhere on the ground and you
+  start walking straight away; keep your finger down or drag it and you follow
+  it. A quick tap still walks there, and holding on someone never opens their
+  card by mistake. Other people glide smoothly after you instead of jumping.
+- **High fives that really touch.** When someone says yes, you both step in,
+  your hands meet above your heads with a little spark, and you step back.
+- **Make your character, Mii-style.** The editor now has tabs for Face, Hair,
+  Body, Outfit and Extras: face shape, eyes and eye colour, eyebrows, nose and
+  mouth; twelve hairstyles including buzz, ponytail, bald, bob and afro; height
+  and build sliders; blush, freckles and a beard or moustache. Swipe the
+  preview to turn your character around. Everyone else sees your new look.
+- **Everything you do shows instantly.** Your messages, emotes, high fives and
+  new look appear on your own screen straight away, while they're still on
+  their way. A message shows "Sending…" until it arrives, and if something
+  can't be sent it quietly goes back with a short note.
+- **Mute, block and report.** Tap someone to wave, mute their bubbles for
+  this visit, block them (you won't see each other in the garden again until
+  you unblock them under People here), or report them to the leaders. Chat is
+  cleared after 15 minutes, but a report keeps the last few lines, and the
+  reported person's own, so leaders can see what happened.
+- **A list view of the garden.** Under People here, "Show as a list" shows
+  who's here, who can hear you and what's been said, with the same chat and
+  emotes. It opens by itself with VoiceOver on, and when you're offline the
+  garden says so and offers the games instead.
 ## [2.12.5] - 2026-11-23
 
 ### Changed
