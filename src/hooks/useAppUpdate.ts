@@ -3,9 +3,9 @@ import { useState } from "react";
 import { Platform } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { appLinkForScheme } from "../../shared/appLinks";
-import { updatesModule } from "@/components/OtaRestartOnResume";
 import { appScheme, appVersion } from "@/hooks/useReportAppVersion";
 import { openExternalLink } from "@/lib/openExternalLink";
+import { otaUpdates } from "@/lib/otaUpdates";
 
 export const nativePlatform = (): "ios" | "android" | null =>
   Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : null;
@@ -20,7 +20,7 @@ const PHASE_LABEL: Record<Exclude<UpdatePhase, "idle">, string> = {
 
 const UPDATE_FAILED = "Couldn't update. Check your connection and try again.";
 
-const otaUpdates = () => (updatesModule?.isEnabled && !__DEV__ ? updatesModule : null);
+const usableUpdates = () => (__DEV__ ? null : otaUpdates);
 
 export const useAppUpdate = () => {
   const platform = nativePlatform();
@@ -42,7 +42,7 @@ export const useAppUpdate = () => {
   const update = async () => {
     if (phase !== "idle") return;
     setError(null);
-    const updates = otaUpdates();
+    const updates = usableUpdates();
     if (!updates) {
       openStore();
       return;
@@ -50,12 +50,14 @@ export const useAppUpdate = () => {
     try {
       setPhase("checking");
       const available = await updates.checkForUpdateAsync();
-      if (available.isAvailable) {
+      if (available.isAvailable || available.isRollBackToEmbedded) {
         setPhase("downloading");
-        await updates.fetchUpdateAsync();
-        setPhase("restarting");
-        await updates.reloadAsync();
-        return;
+        const fetched = await updates.fetchUpdateAsync();
+        if (fetched.isNew || fetched.isRollBackToEmbedded) {
+          setPhase("restarting");
+          await updates.reloadAsync();
+          return;
+        }
       }
       setPhase("idle");
       openStore();

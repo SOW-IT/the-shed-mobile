@@ -1,6 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { MAX_SCORES_PER_SUBMIT, scoreProblem, type GameId } from "../shared/games";
 import { gameIdValidator } from "./gameScoreData";
 import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
@@ -165,5 +166,37 @@ export const myLeaderboardPlace = query({
   handler: async (ctx, { game }) => {
     const email = await optionalEmail(ctx);
     return email ? await placeOf(ctx, email, game) : null;
+  },
+});
+
+/** How many bests one call of `resetScores` deletes before it calls itself again. */
+export const RESET_BATCH = 500;
+
+/**
+ * Wipes a game's leaderboard and tells everyone who was on it, by push, in
+ * the given words. Each person has one best per game, so every batch tells
+ * different people. Set the game's `SCORES_RESET_AT` first, so phones can't
+ * publish the old runs again. Run by hand:
+ * `npx convex run gameScores:resetScores '{"game":"runner","title":"…","body":"…"}'`.
+ */
+export const resetScores = internalMutation({
+  args: { game: gameIdValidator, title: v.string(), body: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("gameScores")
+      .withIndex("by_game_and_score", (q) => q.eq("game", args.game))
+      .take(RESET_BATCH);
+    for (const row of rows) await ctx.db.delete("gameScores", row._id);
+    if (rows.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.push.sendMany, {
+        to: rows.map((row) => row.email),
+        title: args.title,
+        body: args.body,
+        url: `/games/${args.game}`,
+      });
+    }
+    if (rows.length === RESET_BATCH) await ctx.scheduler.runAfter(0, internal.gameScores.resetScores, args);
+    return null;
   },
 });

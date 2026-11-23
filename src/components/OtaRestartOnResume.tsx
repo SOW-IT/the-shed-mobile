@@ -1,20 +1,12 @@
-import { requireOptionalNativeModule } from "expo";
 import { useEffect } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState } from "react-native";
+import { otaUpdates } from "@/lib/otaUpdates";
 import { readyToRestart } from "@/lib/restartHold";
 
 type UpdatesModule = typeof import("expo-updates");
 
-const loadUpdates = (): UpdatesModule | null => {
-  if (Platform.OS === "web" || !requireOptionalNativeModule("ExpoUpdates")) return null;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- loaded only when the native module exists, so web and builds without expo-updates never import it
-  return require("expo-updates") as UpdatesModule;
-};
-
-export const updatesModule = loadUpdates();
-
 export function OtaRestartOnResume() {
-  return updatesModule?.isEnabled ? <RestartWhenResumed updates={updatesModule} /> : null;
+  return otaUpdates ? <RestartWhenResumed updates={otaUpdates} /> : null;
 }
 
 function RestartWhenResumed({

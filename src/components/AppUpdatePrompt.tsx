@@ -1,41 +1,52 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import * as SecureStore from "expo-secure-store";
 import { useSyncExternalStore } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Btn, ErrorBanner } from "@/components/ui";
-import { nativePlatform, useAppUpdate } from "@/hooks/useAppUpdate";
+import { Btn, ErrorBanner, Muted, OptionSheet, Row } from "@/components/ui";
+import { useAppUpdate } from "@/hooks/useAppUpdate";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-const DISMISSED_KEY = "updatePromptDismissedFor";
-
-let dismissedFor: string | null | undefined;
-let loadingDismissed = false;
+/**
+ * What's been closed since the app launched: the update popup and the pill
+ * in the top bar. Nothing is saved, so both come back at the next launch for
+ * as long as this version is behind the recommended one.
+ */
+type Dismissed = { popup: boolean; pill: boolean };
+let dismissed: Dismissed = { popup: false, pill: false };
 const dismissListeners = new Set<() => void>();
 
-const setDismissedFor = (value: string | null) => {
-  dismissedFor = value;
+const dismiss = (which: keyof Dismissed) => {
+  dismissed = { ...dismissed, [which]: true };
   dismissListeners.forEach((listener) => listener());
 };
 
 const subscribeDismissed = (listener: () => void) => {
   dismissListeners.add(listener);
-  if (dismissedFor === undefined && !loadingDismissed && nativePlatform()) {
-    loadingDismissed = true;
-    SecureStore.getItemAsync(DISMISSED_KEY).then(
-      (value) => setDismissedFor(value),
-      () => setDismissedFor(null)
-    );
-  }
   return () => {
     dismissListeners.delete(listener);
   };
 };
 
-const getDismissed = () => dismissedFor;
+const getDismissed = () => dismissed;
+
+const useDismissed = () => useSyncExternalStore(subscribeDismissed, getDismissed, getDismissed);
 
 export function AppUpdatePrompt() {
   const t = useAppTheme();
   const { check, version, busy, label, error, update } = useAppUpdate();
+  const closed = useDismissed();
+  if (check?.status === "recommended") {
+    const recommended = check.latest ?? "the latest version";
+    return (
+      <OptionSheet visible={!closed.popup} title="Update The SHED" onClose={() => dismiss("popup")}>
+        <Muted>{check.message ?? `There's a newer version of The SHED (${recommended}). Update to get the latest.`}</Muted>
+        <ErrorBanner message={error} />
+        <Row spread>
+          <Btn title="Not now" variant="ghost" onPress={() => dismiss("popup")} />
+          <Btn title={label ?? "Update"} icon="arrow-down-circle-outline" onPress={update} disabled={busy} />
+        </Row>
+      </OptionSheet>
+    );
+  }
   if (check?.status !== "required") return null;
   return (
     <View
@@ -48,12 +59,7 @@ export function AppUpdatePrompt() {
         {check.message ??
           `This version (${version}) is no longer supported. Update to ${check.latest ?? "the latest version"} to keep using The SHED.`}
       </Text>
-      <Btn
-        title={label ?? "Update"}
-        icon="arrow-down-circle-outline"
-        disabled={busy}
-        onPress={update}
-      />
+      <Btn title={label ?? "Update"} icon="arrow-down-circle-outline" disabled={busy} onPress={update} />
       <ErrorBanner message={error} />
     </View>
   );
@@ -62,14 +68,9 @@ export function AppUpdatePrompt() {
 export function UpdatePill() {
   const t = useAppTheme();
   const { check, busy, label, error, update } = useAppUpdate();
-  const dismissed = useSyncExternalStore(subscribeDismissed, getDismissed, getDismissed);
-  if (check?.status !== "recommended") return null;
+  const closed = useDismissed();
+  if (check?.status !== "recommended" || closed.pill) return null;
   const recommended = check.latest ?? "";
-  if (dismissed === undefined || dismissed === recommended) return null;
-  const dismiss = () => {
-    setDismissedFor(recommended);
-    void SecureStore.setItemAsync(DISMISSED_KEY, recommended).catch(() => {});
-  };
   return (
     <View style={[styles.pill, { backgroundColor: t.primary }]}>
       <Pressable
@@ -85,7 +86,7 @@ export function UpdatePill() {
           {label ?? (error ? "Retry update" : recommended ? `Update ${recommended}` : "Update")}
         </Text>
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="Not now" hitSlop={10} onPress={dismiss}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Not now" hitSlop={10} onPress={() => dismiss("pill")}>
         <Ionicons name="close" size={16} color={t.onPrimary} />
       </Pressable>
     </View>
