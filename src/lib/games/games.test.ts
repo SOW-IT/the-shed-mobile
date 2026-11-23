@@ -14,8 +14,9 @@ import {
   makePattern,
   minimumGap,
   comboGap,
-  COMBOS,
-  LONG_COMBOS,
+  COMBO_FROM_SECONDS,
+  longestCombo,
+  MAX_COMBO,
   type PatternKind,
   newRunner,
   onGround,
@@ -257,7 +258,8 @@ describe("runner", () => {
     const pattern = group[0].pattern;
     if (pattern === "hang" || pattern === "beam") {
       if (!onGround(s)) return enter < 0.3 - late ? duck(s) : s;
-      return enter <= 0.08 - late && !sliding(s) ? duck(s) : s;
+      // Swipe down as it arrives, again if a slide under the last one won't last past it.
+      return enter <= 0.08 - late && (!sliding(s) || s.slideFor < exit) ? duck(s) : s;
     }
     const speed = pattern === "rock" ? RUNNER.hopSpeed : RUNNER.jumpSpeed;
     const takeoff = (enter + exit) / 2 - speed / RUNNER.gravity;
@@ -285,21 +287,34 @@ describe("runner", () => {
     for (const kind of ["rock", "tall", "wide", "double", "beam", "hang"]) expect(passed[kind]).toBeGreaterThan(20);
   });
 
+  test("combos start as pairs and grow the longer you last, up to a cap", () => {
+    expect(longestCombo(COMBO_FROM_SECONDS - 1)).toBe(0);
+    expect(longestCombo(COMBO_FROM_SECONDS)).toBe(2);
+    expect(longestCombo(60)).toBeGreaterThan(longestCombo(30));
+    expect(longestCombo(10_000)).toBe(MAX_COMBO);
+  });
+
   test("combos leave room for a human: a little early or a little late still clears them", () => {
     let combos = 0;
+    let longest = 0;
     for (const late of [-0.05, 0.05]) {
-      for (const time of [20, 45, 90]) {
+      for (const time of [20, 45, 90, 150]) {
         for (let seed = 1; seed <= 30; seed++) {
           let state: RunnerState = { ...newRunner(760, seed), time, speed: runnerSpeed(time) };
           for (let i = 0; i < 60 * 40 && !state.over; i++) {
             if (state.chain.length > 0 && state.nextIn <= state.speed * FRAME) combos++;
+            const before = state.chain.length;
             state = stepRunner(autopilot(state, late), FRAME);
+            // A new combo just started: its first pattern is out, the rest queued.
+            if (before === 0 && state.chain.length > 0) longest = Math.max(longest, state.chain.length + 1);
           }
           expect(state.over, `${late > 0 ? "late" : "early"}, seed ${seed} from ${time}s died at ${state.time.toFixed(1)}s`).toBe(false);
         }
       }
     }
     expect(combos).toBeGreaterThan(100);
+    // Late in a run they reach the longest there is.
+    expect(longest).toBe(MAX_COMBO);
   });
 
   test("a preview board shows the asked-for patterns in order, sized for the given time", () => {
@@ -311,8 +326,6 @@ describe("runner", () => {
   });
 
   test("patterns are spaced to land the big jump and react, or, inside a combo, to land and go again", () => {
-    const inCombo = (first: string, second: string) =>
-      [...COMBOS, ...LONG_COMBOS].some((combo) => combo.some((kind, k) => kind === first && combo[k + 1] === second));
     let tight = 0;
     for (const time of [0, 20, 60, 90]) {
       for (let seed = 1; seed <= 10; seed++) {
@@ -333,7 +346,6 @@ describe("runner", () => {
           const gap = after.front - before.back;
           if (gap >= minimumGap(before.speed) - 1) continue;
           tight++;
-          expect(inCombo(before.kind, after.kind), `${before.kind} then ${after.kind}`).toBe(true);
           expect(gap).toBeGreaterThanOrEqual(comboGap(before.kind as PatternKind, after.kind as PatternKind, before.speed) - 1);
         }
       }

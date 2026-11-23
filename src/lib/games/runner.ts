@@ -188,40 +188,35 @@ const PATTERN_RULES = {
 
 /**
  * Combos: patterns that come close behind each other, so one move leads
- * straight into the next. Each is spaced by `comboGap`, so it's tight but
- * always clearable.
+ * straight into the next, in a random order. Each gap is `comboGap`, worked
+ * out from the moves either side, so any order is tight but clearable. They
+ * start at 15 seconds as pairs, come more often and run longer the longer
+ * you last: one more pattern every `COMBO_GROWTH_SECONDS`, up to
+ * `MAX_COMBO`.
  */
-export const COMBOS: readonly (readonly PatternKind[])[] = [
-  // A hop, then straight down under the vines.
-  ["rock", "hang"],
-  // A hop, then the big jump.
-  ["rock", "tall"],
-  ["rock", "wide"],
-  // Two hops in a row.
-  ["rock", "rock"],
-  // Out of a slide and straight into a hop.
-  ["hang", "rock"],
-  // A hop, then duck the beam.
-  ["rock", "beam"],
-];
-/** Longer combos, later in a run. */
-export const LONG_COMBOS: readonly (readonly PatternKind[])[] = [
-  ["rock", "rock", "tall"],
-  ["rock", "hang", "rock"],
-  ["tall", "rock", "hang"],
-];
+export const COMBO_FROM_SECONDS = 15;
+const COMBO_GROWTH_SECONDS = 15;
+export const MAX_COMBO = 10;
 
-/** Which pattern, or combo, comes next, by seconds into the run. */
+/** The longest combo that can come at this point in a run, or 0 before they start. */
+export const longestCombo = (time: number) =>
+  time < COMBO_FROM_SECONDS
+    ? 0
+    : Math.min(MAX_COMBO, 2 + Math.floor((time - COMBO_FROM_SECONDS) / COMBO_GROWTH_SECONDS));
+
+/** How often the next pattern is a combo: a quarter at first, up to two thirds. */
+const comboChance = (time: number) => Math.min(0.66, 0.25 + (time - COMBO_FROM_SECONDS) * 0.004);
+
+/** Each pattern of a combo, weighted: mostly hops, which lead into the rest. */
+const COMBO_KINDS: readonly PatternKind[] = ["rock", "rock", "rock", "tall", "wide", "double", "beam", "hang", "hang"];
+
+/** Which pattern, or combo, comes next. */
 const patternsFor = (state: RunnerState): readonly PatternKind[] => {
-  if (state.time >= 15) {
-    const roll = random(state);
-    const comboChance = state.time < 40 ? 0.25 : 0.4;
-    if (roll < comboChance) {
-      const pool = state.time >= 40 && random(state) < 0.4 ? LONG_COMBOS : COMBOS;
-      return pool[Math.floor(random(state) * pool.length) % pool.length];
-    }
-  }
-  return [patternFor(state)];
+  const longest = longestCombo(state.time);
+  if (longest < 2 || random(state) >= comboChance(state.time)) return [patternFor(state)];
+  // Mostly as long as it gets by now, sometimes one shorter.
+  const length = Math.max(2, longest - (random(state) < 0.35 ? 1 : 0));
+  return Array.from({ length }, () => COMBO_KINDS[Math.floor(random(state) * COMBO_KINDS.length) % COMBO_KINDS.length]);
 };
 
 /** Which single pattern can appear, by seconds into the run. */
