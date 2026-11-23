@@ -1133,6 +1133,8 @@ export const Avatar = memo(
     sameDoing(a.doing ?? null, b.doing ?? null)
 );
 
+const TYPING_DOTS = [0, 1, 2];
+
 /** The name, line and emote over someone's head, above all the scenery. */
 export const Tag = ({
   x,
@@ -1140,7 +1142,7 @@ export const Tag = ({
   name,
   me,
   line,
-  far,
+  typing,
   emote,
   emoteRise,
   lineFade = 1,
@@ -1151,7 +1153,7 @@ export const Tag = ({
   name: string;
   me: boolean;
   line?: string;
-  far: boolean;
+  typing?: number;
   emote?: string;
   /** 0 when the emote starts, 1 when it's gone. */
   emoteRise: number;
@@ -1166,14 +1168,23 @@ export const Tag = ({
       <View
         style={[
           styles.bubble,
-          far && styles.farBubble,
           { opacity: lineFade, transform: [{ translateY: (1 - lineFade) * 6 }, { scale: 0.92 + 0.08 * lineFade }] },
         ]}
       >
-        <Text style={[styles.bubbleText, far && { color: hud.farText }]}>{line}</Text>
+        <Text style={styles.bubbleText}>{line}</Text>
         <View style={styles.tailRow}>
-          <View style={[styles.tailInk, far && { borderTopColor: hud.farEdge }]} />
-          <View style={[styles.tail, far && { borderTopColor: hud.farBubble }]} />
+          <View style={styles.tailInk} />
+          <View style={styles.tail} />
+        </View>
+      </View>
+    ) : typing !== undefined ? (
+      <View style={[styles.bubble, styles.typingBubble]} accessibilityLabel={`${name} is typing`} testID="world-typing">
+        {TYPING_DOTS.map((i) => (
+          <View key={i} style={[styles.typingDot, { transform: [{ translateY: -3 * Math.max(0, Math.sin(typing * 7 - i * 0.9)) }] }]} />
+        ))}
+        <View style={styles.tailRow}>
+          <View style={styles.tailInk} />
+          <View style={styles.tail} />
         </View>
       </View>
     ) : null}
@@ -1182,7 +1193,7 @@ export const Tag = ({
         {status}
       </Text>
     ) : null}
-    <Text style={[styles.name, me && styles.meName, far && !me && { opacity: 0.8 }]} numberOfLines={1}>
+    <Text style={[styles.name, me && styles.meName]} numberOfLines={1}>
       {name}
     </Text>
   </View>
@@ -1207,7 +1218,8 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     marginBottom: 2,
   },
-  farBubble: { backgroundColor: hud.farBubble, borderColor: hud.farEdge, borderStyle: "dashed", shadowOpacity: 0 },
+  typingBubble: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 11 },
+  typingDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: hud.forest },
   bubbleText: { color: hud.forest, fontSize: 14.5, lineHeight: 18.5, fontWeight: "600" },
   status: {
     fontSize: 11,

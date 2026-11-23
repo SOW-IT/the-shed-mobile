@@ -1,10 +1,14 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { MAX_SCORES_PER_SUBMIT, scoreProblem } from "../shared/games";
+import { internal } from "./_generated/api";
+import { internalMutation, mutation, query } from "./_generated/server";
+import { MAX_SCORES_PER_SUBMIT, scoreProblem, type GameId } from "../shared/games";
 import { gameIdValidator } from "./gameScoreData";
 import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
 
 export const LEADERBOARD_SIZE = 10;
+/** The most rows one page of the full leaderboard may ask for. */
+export const MAX_PAGE_SIZE = 50;
 /** Past this many people ahead of you, the board says "500+" for your place. */
 export const RANK_LIMIT = 500;
 
@@ -68,6 +72,8 @@ const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
   return user?.name?.trim() || email.split("@")[0];
 };
 
+const meValidator = v.union(v.null(), v.object({ score: v.number(), rank: v.union(v.number(), v.null()) }));
+
 const entryValidator = v.object({
   id: v.id("gameScores"),
   rank: v.number(),
@@ -85,10 +91,7 @@ export const leaderboard = query({
   args: { game: gameIdValidator },
   returns: v.object({
     top: v.array(entryValidator),
-    me: v.union(
-      v.null(),
-      v.object({ score: v.number(), rank: v.union(v.number(), v.null()) })
-    ),
+    me: meValidator,
   }),
   handler: async (ctx, { game }) => {
     const email = await optionalEmail(ctx);
@@ -108,20 +111,92 @@ export const leaderboard = query({
         isMe: email !== null && row.email === email,
       });
     }
-    const mine = email
-      ? await ctx.db
-          .query("gameScores")
-          .withIndex("by_email_and_game", (q) => q.eq("email", email).eq("game", game))
-          .unique()
-      : null;
-    if (!mine) return { top, me: null };
-    const ahead = await ctx.db
+    return { top, me: email ? await placeOf(ctx, email, game) : null };
+  },
+});
+
+/** Someone's best at a game and their place, or null before they've a score. */
+const placeOf = async (ctx: Ctx, email: string, game: GameId) => {
+  const mine = await ctx.db
+    .query("gameScores")
+    .withIndex("by_email_and_game", (q) => q.eq("email", email).eq("game", game))
+    .unique();
+  if (!mine) return null;
+  const ahead = await ctx.db
+    .query("gameScores")
+    .withIndex("by_game_and_score", (q) => q.eq("game", game).gt("score", mine.score))
+    .take(RANK_LIMIT);
+  return { score: mine.score, rank: ahead.length < RANK_LIMIT ? ahead.length + 1 : null };
+};
+
+/**
+ * One page of a game's whole leaderboard, best first, one row per person.
+ * The app numbers the rows from the pages it has, so equal scores share a
+ * place across pages too. Anyone can read it, as with `leaderboard`.
+ */
+export const leaderboardPage = query({
+  args: { game: gameIdValidator, paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { game, paginationOpts }) => {
+    if (paginationOpts.numItems > MAX_PAGE_SIZE) {
+      throw new ConvexError(`Ask for at most ${MAX_PAGE_SIZE} scores at a time.`);
+    }
+    const email = await optionalEmail(ctx);
+    const result = await ctx.db
       .query("gameScores")
-      .withIndex("by_game_and_score", (q) => q.eq("game", game).gt("score", mine.score))
-      .take(RANK_LIMIT);
-    return {
-      top,
-      me: { score: mine.score, rank: ahead.length < RANK_LIMIT ? ahead.length + 1 : null },
-    };
+      .withIndex("by_game_and_score", (q) => q.eq("game", game))
+      .order("desc")
+      .paginate(paginationOpts);
+    const page = [];
+    for (const row of result.page) {
+      page.push({
+        id: row._id,
+        name: await nameFor(ctx, row.email),
+        score: row.score,
+        isMe: email !== null && row.email === email,
+      });
+    }
+    return { ...result, page };
+  },
+});
+
+/** The caller's best at a game and their place, for the top of the leaderboard. */
+export const myLeaderboardPlace = query({
+  args: { game: gameIdValidator },
+  returns: meValidator,
+  handler: async (ctx, { game }) => {
+    const email = await optionalEmail(ctx);
+    return email ? await placeOf(ctx, email, game) : null;
+  },
+});
+
+/** How many bests one call of `resetScores` deletes before it calls itself again. */
+export const RESET_BATCH = 500;
+
+/**
+ * Wipes a game's leaderboard and tells everyone who was on it, by push, in
+ * the given words. Each person has one best per game, so every batch tells
+ * different people. Set the game's `SCORES_RESET_AT` first, so phones can't
+ * publish the old runs again. Run by hand:
+ * `npx convex run gameScores:resetScores '{"game":"runner","title":"…","body":"…"}'`.
+ */
+export const resetScores = internalMutation({
+  args: { game: gameIdValidator, title: v.string(), body: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("gameScores")
+      .withIndex("by_game_and_score", (q) => q.eq("game", args.game))
+      .take(RESET_BATCH);
+    for (const row of rows) await ctx.db.delete("gameScores", row._id);
+    if (rows.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.push.sendMany, {
+        to: rows.map((row) => row.email),
+        title: args.title,
+        body: args.body,
+        url: `/games/${args.game}`,
+      });
+    }
+    if (rows.length === RESET_BATCH) await ctx.scheduler.runAfter(0, internal.gameScores.resetScores, args);
+    return null;
   },
 });

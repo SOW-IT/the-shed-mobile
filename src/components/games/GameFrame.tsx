@@ -3,7 +3,7 @@ import { useRestartHold } from "@/hooks/useRestartHold";
 import { useLocalBests, recordRun } from "@/lib/games/gameStorage";
 import { OnlineBanner } from "./OnlineBanner";
 import { LeaveGameDialog } from "./LeaveGameDialog";
-import { needsLeaveConfirm } from "@/lib/games/leave";
+import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
 import { fitScale, type Size } from "@/lib/games/fit";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -16,9 +16,11 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   View,
+  ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GAME_INFO, type GameId } from "../../../shared/games";
@@ -80,7 +82,7 @@ type GameSession = Pick<
 
 /**
  * A screen that can be left by other means than the game's own back button
- * (the iOS swipe, the browser's back) watches whether a run is in progress,
+ * (the browser's back) watches whether a run is in progress,
  * asks the game to confirm when one of those is tried, and hears whether
  * the player stayed.
  */
@@ -98,6 +100,36 @@ export const useLatest = <T,>(value: T) => {
     ref.current = value;
   });
   return ref;
+};
+
+/**
+ * On web, keeps the browser's own swipe back and forward off a game: a
+ * sideways swipe is a move in the game, and the way out is the back button.
+ * The trackpad's two-finger swipe stops at the page, and a touch that starts
+ * at the screen's edge (where a phone's browser starts its swipe back) is
+ * kept from the browser. A touch on a button there still presses it.
+ */
+const useNoSwipeBack = () => {
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const pages = [document.documentElement, document.body];
+    const before = pages.map((page) => page.style.overscrollBehaviorX);
+    for (const page of pages) page.style.overscrollBehaviorX = "none";
+    const onTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch || !atSwipeEdge(touch.clientX, window.innerWidth)) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('button, a, [role="button"]')) return;
+      event.preventDefault();
+    };
+    document.addEventListener("touchstart", onTouchStart, { passive: false });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      pages.forEach((page, i) => {
+        page.style.overscrollBehaviorX = before[i];
+      });
+    };
+  }, []);
 };
 
 /** The stage's size, once it has been laid out. */
@@ -140,6 +172,8 @@ export const GameFrame = ({
   onExit,
   onLeaderboard,
   guard,
+  insets,
+  hideStartCard = false,
   children,
 }: {
   game: GameId;
@@ -157,9 +191,18 @@ export const GameFrame = ({
   onExit: () => void;
   onLeaderboard?: () => void;
   guard?: LeaveGuard;
+  /**
+   * Set when the game is drawn turned sideways: the device's safe area, in
+   * the game's own directions. The frame pads by these instead of measuring,
+   * and asks to leave in place rather than in a modal.
+   */
+  insets?: { top: number; right: number; bottom: number; left: number };
+  /** A still preview board, for screenshots: nothing over it. */
+  hideStartCard?: boolean;
   children: ReactNode;
 }) => {
   const { isAuthenticated } = useConvexAuth();
+  useNoSwipeBack();
   const { phase, result, best, askToLeave, keepPlaying } = session;
   const playing = phase === "playing";
   const onPlayingChange = guard?.onPlayingChange;
@@ -183,7 +226,7 @@ export const GameFrame = ({
   const info = GAME_INFO[game];
   const newBest = result !== null && result.score > result.previousBest && result.score > 0;
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: background }]} edges={["top", "bottom"]}>
+    <Frame insets={insets} style={[styles.screen, { backgroundColor: background }]}>
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
       <StatusBar hidden={phase === "playing"} animated />
       <View style={styles.bar}>
@@ -235,7 +278,7 @@ export const GameFrame = ({
         ) : null}
         {/* The cards cover the whole stage, not the board, so a short board
             can't cut off their buttons; a stage shorter than a card scrolls. */}
-        {phase === "ready" ? (
+        {phase === "ready" && !hideStartCard ? (
           <View style={[StyleSheet.absoluteFill, styles.overlay]} pointerEvents="none">
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{info.title}</Text>
@@ -273,10 +316,35 @@ export const GameFrame = ({
         ) : null}
       </View>
       <OnlineBanner />
-      <LeaveGameDialog visible={session.paused} onLeave={onExit} onContinue={stay} />
-    </SafeAreaView>
+      <LeaveGameDialog visible={session.paused} onLeave={onExit} onContinue={stay} inline={!!insets} />
+    </Frame>
   );
 };
+
+/** The screen's outer box: the measured safe area, or the insets given. */
+const Frame = ({
+  insets,
+  style,
+  children,
+}: {
+  insets?: { top: number; right: number; bottom: number; left: number };
+  style: StyleProp<ViewStyle>;
+  children: ReactNode;
+}) =>
+  insets ? (
+    <View
+      style={[
+        style,
+        { paddingTop: insets.top, paddingRight: insets.right, paddingBottom: insets.bottom, paddingLeft: insets.left },
+      ]}
+    >
+      {children}
+    </View>
+  ) : (
+    <SafeAreaView style={style} edges={["top", "bottom"]}>
+      {children}
+    </SafeAreaView>
+  );
 
 export const startHintFor = (touch: string, keys: string) =>
   Platform.OS === "web" ? `${touch}, or ${keys}, to start` : `${touch} to start`;

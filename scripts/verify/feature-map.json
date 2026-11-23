@@ -54,9 +54,9 @@
     "src/fonts.ts",
     "src/env.ts",
     "src/types/**",
-    "src/lib/{listKeys,errorReporting,appErrorKinds,staleRelease,restartHold,deviceStorage,navMenu,goBack,footerClearance,swipePage,sydneyTime,visibleColour,externalLinks,openExternalLink,notify,imageCacheKey,uploadLocalFile,csv,csvDownload,pdfWriter,universityLogos}.ts",
+    "src/lib/{listKeys,errorReporting,appErrorKinds,staleRelease,restartHold,otaUpdates,deviceStorage,navMenu,goBack,footerClearance,swipePage,sydneyTime,visibleColour,externalLinks,openExternalLink,notify,imageCacheKey,uploadLocalFile,csv,csvDownload,pdfWriter,universityLogos}.ts",
     "src/lib/pdfLibBundle.d.ts",
-    "src/hooks/{useRowIds,useRestartHold,useReportAppVersion,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync,useStaffWaitingBadge}.ts",
+    "src/hooks/{useRowIds,useRestartHold,useReportAppVersion,useAppUpdate,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync,useStaffWaitingBadge}.ts",
     "convex/_generated/**",
     "convex/shared/**",
     "convex/tsconfig.json",
@@ -229,7 +229,8 @@
         "src/app/(tabs)/admin.tsx",
         "src/components/admin/**",
         "src/hooks/useAdminMutations.ts",
-        "convex/{admin,appErrors,appInstalls}.ts"
+        "convex/{admin,appErrors,appInstalls}.ts",
+        "shared/userActivity.ts"
       ],
       "routes": ["/admin", "/admin?tab=teams", "/admin?tab=system"]
     },
@@ -251,7 +252,7 @@
         "convex/{gameScores,gameScoreData}.ts",
         "shared/games.ts"
       ],
-      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/leaderboard", "/games/leaderboard?game=runner"]
+      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang"]
     },
     "world": {
       "files": [

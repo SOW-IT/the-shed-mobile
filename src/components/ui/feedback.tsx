@@ -141,11 +141,14 @@ export const LoadMoreFooter = ({
   hasMore,
   onLoadMore,
   end = null,
+  label = "Show earlier",
 }: {
   loadingMore: boolean;
   hasMore: boolean;
   onLoadMore: () => void;
   end?: ReactNode;
+  /** The button's words, for a list that isn't going back in time. */
+  label?: string;
 }) =>
   loadingMore ? (
     <View style={styles.loadMore}>
@@ -153,7 +156,7 @@ export const LoadMoreFooter = ({
     </View>
   ) : hasMore ? (
     <View style={styles.loadMore}>
-      <Btn title="Show earlier" variant="ghost" onPress={onLoadMore} />
+      <Btn title={label} variant="ghost" onPress={onLoadMore} />
     </View>
   ) : (
     end

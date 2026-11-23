@@ -37,3 +37,11 @@ What we weighed:
   offline pill open the games over the app rather than navigating to
   `/games`, because a web page that has lost its connection can't fetch a
   route it hasn't loaded yet.
+- **Resetting a board.** Daniel asked (2026-11-23) to clear Mystic Man's
+  scores when it got faster. Deleting the rows alone isn't enough: a phone
+  that was offline still holds its old best and may have an old run queued.
+  So each reset is a date in `SCORES_RESET_AT` (`shared/games.ts`): the
+  server turns away runs played before it, and the phone saves its bests
+  with the resets they were made after, so a best from before a reset reads
+  as zero. `gameScores:resetScores` then deletes the rows and pushes to
+  everyone who had one.

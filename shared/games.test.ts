@@ -10,7 +10,9 @@ import {
   parseQueue,
   removeSettled,
   SCORE_LIMITS,
+  SCORES_RESET_AT,
   scoreProblem,
+  stringifyBests,
   withBest,
   type QueuedScore,
 } from "./games";
@@ -50,6 +52,7 @@ describe("scoreProblem", () => {
     ["a run in the future", { playedAt: NOW + CLOCK_SKEW_MS + 1 }, /future/],
     ["a NaN end time", { playedAt: Number.NaN }, /future/],
     ["a stale run", { playedAt: NOW - MAX_SCORE_AGE_MS - 1 }, /too old/],
+    ["a run from before its game was reset", { playedAt: SCORES_RESET_AT.runner! - 1 }, /reset/],
   ])("turns away %s", (_label, overrides, problem) => {
     expect(scoreProblem(entry(overrides), NOW)).toMatch(problem);
   });
@@ -112,6 +115,15 @@ describe("local bests", () => {
     });
     expect(parseBests("null")).toEqual(NO_BESTS);
     expect(parseBests("{")).toEqual(NO_BESTS);
+  });
+
+  test("a best saved before its game was reset no longer counts; others carry over", () => {
+    const old = JSON.stringify({ shooter: 50, runner: 900, flappy: 30 });
+    expect(parseBests(old)).toEqual({ shooter: 50, runner: 0, flappy: 30 });
+    const saved = { shooter: 50, runner: 40, flappy: 30 };
+    expect(parseBests(stringifyBests(saved))).toEqual(saved);
+    const beforeLastReset = JSON.stringify({ ...saved, resets: { runner: SCORES_RESET_AT.runner! - 1 } });
+    expect(parseBests(beforeLastReset)).toEqual({ ...saved, runner: 0 });
   });
 
   test("only a higher score replaces a best", () => {

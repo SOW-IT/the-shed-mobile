@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { api } from "./_generated/api";
-import { LEADERBOARD_SIZE, RANK_LIMIT } from "./gameScores";
+import { api, internal } from "./_generated/api";
+import { LEADERBOARD_SIZE, MAX_PAGE_SIZE, RANK_LIMIT, RESET_BATCH } from "./gameScores";
 import { asUser, newConvex, YEAR, type T } from "../test/convexFixture";
 import { MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
 
@@ -127,5 +127,138 @@ describe("leaderboard", () => {
     expect(board?.top).toHaveLength(LEADERBOARD_SIZE);
     expect(board?.top[0]).toMatchObject({ rank: 1, score: 1000 + RANK_LIMIT - 1 });
     expect(board?.me).toEqual({ score: 5, rank: null });
+  });
+});
+
+describe("leaderboard pages", () => {
+  /** Puts in `count` people's bests at flappy, scoring 100, 101, … */
+  const seed = (t: T, count: number) =>
+    t.run(async (ctx) => {
+      for (let i = 0; i < count; i++) {
+        await ctx.db.insert("gameScores", {
+          email: `p${i}@sow.org.au`,
+          game: "flappy",
+          score: 100 + i,
+          runId: `run-p${i}-0000`,
+          durationMs: 60_000,
+          playedAt: 0,
+          updatedAt: 0,
+        });
+      }
+    });
+
+  test("an empty game has one empty, finished page", async () => {
+    const t = newConvex();
+    const page = await t.query(api.gameScores.leaderboardPage, {
+      game: "runner",
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(page.page).toEqual([]);
+    expect(page.isDone).toBe(true);
+  });
+
+  test("pages through every score, best first, until the last one", async () => {
+    const t = newConvex();
+    await seed(t, 23);
+    const scores: number[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    for (;;) {
+      const result: { page: { score: number }[]; isDone: boolean; continueCursor: string } = await t.query(
+        api.gameScores.leaderboardPage,
+        { game: "flappy", paginationOpts: { numItems: 10, cursor } }
+      );
+      pages++;
+      scores.push(...result.page.map((row) => row.score));
+      if (result.isDone) break;
+      cursor = result.continueCursor;
+    }
+    expect(pages).toBe(3);
+    expect(scores).toEqual(Array.from({ length: 23 }, (_, i) => 122 - i));
+  });
+
+  test("names each person and marks the caller's own row", async () => {
+    const t = newConvex();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", { email: ANNA, year: YEAR, name: "Anna Lee" });
+    });
+    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 500)] });
+    await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [run("run-ben-01", 700)] });
+    const args = { game: "runner" as const, paginationOpts: { numItems: 10, cursor: null } };
+    const mine = await asUser(t, ANNA).query(api.gameScores.leaderboardPage, args);
+    expect(mine.page.map(({ name, score, isMe }) => [name, score, isMe])).toEqual([
+      ["ben", 700, false],
+      ["Anna Lee", 500, true],
+    ]);
+    const signedOut = await t.query(api.gameScores.leaderboardPage, args);
+    expect(signedOut.page.every((row) => !row.isMe)).toBe(true);
+  });
+
+  test("refuses a page bigger than the limit", async () => {
+    const t = newConvex();
+    await expect(
+      t.query(api.gameScores.leaderboardPage, {
+        game: "runner",
+        paginationOpts: { numItems: MAX_PAGE_SIZE + 1, cursor: null },
+      })
+    ).rejects.toThrow(/at most/);
+  });
+
+  test("the caller's own best and place, ties sharing it; nothing signed out or before a score", async () => {
+    const t = newConvex();
+    await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [run("run-ben-01", 700)] });
+    await asUser(t, CARA).mutation(api.gameScores.submitScores, { scores: [run("run-cara-1", 500)] });
+    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 500)] });
+    expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { game: "runner" })).toEqual({
+      score: 500,
+      rank: 2,
+    });
+    expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { game: "shooter" })).toBeNull();
+    expect(await t.query(api.gameScores.myLeaderboardPlace, { game: "runner" })).toBeNull();
+  });
+});
+
+describe("resetScores", () => {
+  const scheduled = (t: T) => t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+  const notice = { title: "Scores reset", body: "Play again." };
+
+  test("wipes one game's board, keeps the others, and pushes to everyone who was on it", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 500)] });
+    await asUser(t, BEN).mutation(api.gameScores.submitScores, {
+      scores: [run("run-ben-01", 700), run("run-ben-02", 9, "flappy")],
+    });
+    await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
+    expect(await bests(t)).toEqual([[BEN, "flappy", 9, "run-ben-02"]]);
+    const jobs = await scheduled(t);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].name).toBe("push:sendMany");
+    expect(jobs[0].args[0]).toEqual({ to: [ANNA, BEN].sort(), ...notice, url: "/games/runner" });
+  });
+
+  test("a board already empty pushes to nobody", async () => {
+    const t = newConvex();
+    await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
+    expect(await scheduled(t)).toEqual([]);
+  });
+
+  test("a big board is wiped a batch at a time", async () => {
+    const t = newConvex();
+    await t.run(async (ctx) => {
+      for (let i = 0; i <= RESET_BATCH; i++) {
+        await ctx.db.insert("gameScores", {
+          email: `p${i}@sow.org.au`,
+          game: "runner",
+          score: i + 1,
+          runId: `run-p${i}-0000`,
+          durationMs: 60_000,
+          playedAt: 0,
+          updatedAt: 0,
+        });
+      }
+    });
+    await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
+    expect(await bests(t)).toHaveLength(1);
+    expect((await scheduled(t)).map((job) => job.name).sort()).toEqual(["gameScores:resetScores", "push:sendMany"]);
   });
 });

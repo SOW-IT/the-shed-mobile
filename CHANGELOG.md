@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.16] - 2026-11-23
+## [2.12.19] - 2026-11-23
 
 ### Added
 - **Move, size and tilt your eyes, brows and mouth.** The character editor
@@ -39,6 +39,142 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Looks saved before this update don't change.** Every new part starts
   where it was drawn before, and an older app shows a newer look with the
   parts it knows.
+
+## [2.12.18] - 2026-11-23
+
+### Changed
+- **See who's typing.** Three dots bounce over someone's head while they
+  write a line, and stop when they send it or stop typing.
+- **Leaving the app for a moment keeps you in the World.** Switching apps or
+  locking the phone no longer takes you out; you're still standing there when
+  you come back. Away for more than about a minute and a half, you're taken
+  out as before.
+- **You come back where you left.** Opening the World again puts you in the
+  place and on the spot you were in when you left, not back at the Garden
+  gate.
+- **No more hearing ring.** Everyone in the World sees the chat, so the ring
+  round you, the faded bubbles for people "out of earshot" and the list
+  view's "Can hear you" are gone.
+- **Tap a line in the chat log** to mute, block or report whoever said it,
+  even if they're somewhere else.
+- **Walking is faster,** about one and a half times the old pace, with
+  quicker steps to match.
+- **One chat for the whole World.** The chat log shows every place's
+  lines, with the place in brackets when it isn't yours, and includes
+  the last 15 minutes from before you arrived. Speech bubbles over heads
+  still only show in your own place.
+- **Name tags and speech bubbles stay over their owners' heads.** When
+  they overlap, the newest message draws on top and the rest go behind,
+  rather than being pushed up the screen.
+- **The chat log sits at the top of the World.** The last few lines show
+  over the scenery with the time and who said them, in place of the "can
+  hear you" pill, and you can scroll up through older lines. Speech
+  bubbles over heads are unchanged.
+- **Fewer buttons in People here.** Customize your character and Show as a
+  list are gone. Tap yourself and pick Outfit to change your look. In the
+  list view, tap your own name.
+- **Update from your profile.** When your app is behind the recommended
+  version, an Update button sits under the version number. It downloads
+  the latest update and restarts the app, and only sends you to the store
+  when a store update is needed. The update pill and the required-update
+  screen do the same.
+- **Delete account looks dangerous now:** a solid red card with a warning
+  sign. What it does hasn't changed.
+- **Admin, Users shows each person's app version and when they were last
+  online,** with versions behind the newest one marked.
+
+### Fixed
+- **Opening the character editor from People here could freeze the
+  screen** so nothing could be tapped. That way in is gone.
+- **Swiping up from the bottom of the screen no longer walks you there.**
+  Touches below the chat bar, where the iPhone's home swipe starts, are
+  ignored.
+- **Admin, Users shows activity for everyone** on very long lists, not just
+  the first 600 people.
+- **Update copes with an update being pulled** between checking and
+  downloading, and applies a rollback instead of sending you to the store.
+
+## [2.12.17] - 2026-11-23
+
+### Changed
+- **Mystic Man goes faster.** His top speed is a third higher than before, and
+  he keeps speeding up for longer to get there. Every obstacle is still sized
+  so the right move clears it at any speed.
+- **Mystic Man's scores start again.** The faster game made the old scores
+  unfair, so the leaderboard was cleared and everyone who was on it got a
+  push. A best saved on a phone before the reset no longer shows, and an old
+  run waiting to be sent from a phone that was offline is turned away, so the
+  old scores can't come back.
+- **An update you should install asks every time you open the app.** When
+  your version is older than the recommended one, a popup asks you to update
+  each time the app starts, until you do; "Not now" closes it until next
+  time, and the Update pill in the top bar works the same way. Update
+  installs an over-the-air update and restarts straight away when there is
+  one for your build, and opens the store when you need a new build.
+
+### Fixed
+- **Mystic Man's cards are sharp.** On a phone held upright, the game-over
+  card (and everything else in the game) could look slightly blurred,
+  because the sideways game sat half a pixel off. It now lines up exactly.
+- **Tapping a poke opens the Garden.** A poke's push opened the app but went
+  nowhere; it now takes you to the Garden. A push about a game opens that
+  game.
+
+## [2.12.16] - 2026-11-23
+
+### Changed
+- **Mystic Man plays in landscape.** Turn your phone sideways: on a phone held
+  upright the game is drawn turned a quarter turn, so it fills the screen when
+  you hold it sideways, and the rest of the app stays as it was. On a computer
+  it plays on a wide board, as before.
+- **A small hop and a big jump.** Tap for a small hop; swipe up for the big
+  jump; swipe down to duck. The hop starts the moment your finger touches the
+  screen, not when you lift it, and a swipe up in the same touch turns it into
+  the big jump, so nothing feels late. On a computer, tap ↑, W or space to hop, hold it (or
+  press Shift with it) for the big jump, and press ↓ or S to duck.
+- **More kinds of obstacle.** Besides the small rocks you can hop, there are
+  now tall rocks and long logs that need the big jump, pairs of rocks back to
+  back that need it too, and hanging vines you can only duck under. The
+  floating beam is still there: duck or jump it.
+- **Every run can be cleared.** Obstacles are sized from how high and far the
+  hop and the big jump really go at the speed you're running, and there's
+  always room to land and react before the next one, so nothing is ever
+  impossible with the right move.
+
+## [2.12.15] - 2026-11-23
+
+### Changed
+- **No swiping back out of a game.** In Sky Shooter, Mystic Man and Flap,
+  a sideways swipe is always a move in the game. Before, a swipe right in
+  Sky Shooter could be taken for "go back" and close the game. The way out
+  is the back button at the top left, which still asks "Leave this game?"
+  during a run. On the web, the browser's own swipe back (from the edge of
+  a phone's screen, or two fingers on a trackpad) is kept off the game the
+  same way; the browser's back button still asks first during a run.
+- **Back from a game is always the games menu.** Going from a game to the
+  leaderboard and playing again, over and over, used to pile up screens, so
+  getting back out took a tap of the back button per screen. Now Play on
+  the leaderboard swaps the old game and the leaderboard for the new game:
+  there's only ever one game open, with at most the leaderboard on top of it.
+- **The leaderboard shows everyone.** Each game's board used to stop at the
+  top 10. It now shows 25 at a time with **Load more** at the bottom, which
+  keeps going until every score is on the list ("That's everyone."). Your
+  own best and place stay at the top, and your row is marked "(you)" in the
+  list. Older versions of the app keep the top 10 as before.
+
+## [2.12.14] - 2026-11-23
+
+### Added
+- **Every merge is posted to Google Chat.** When a pull request lands on
+  `main`, a card in the team's Chat space says which version just went out,
+  the PR's title and author, who merged it, and links to the PR and the deploy
+  runs. It reminds you that web and the backend go live straight away and
+  phones follow over the air.
+
+### Changed
+- **Chat posts move to a new space.** Merges, over-the-air update reports,
+  EAS Production results and the backup and usage alerts all use one webhook,
+  which now points at a dedicated space instead of Data and IT.
 
 ## [2.12.13] - 2026-11-23
 
