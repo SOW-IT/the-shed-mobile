@@ -260,6 +260,7 @@
       "files": [
         "src/app/world.tsx",
         "src/world/**",
+        "src/hooks/useWorldOnline.ts",
         "convex/{world,worldData}.ts",
         "shared/world.ts"
       ],

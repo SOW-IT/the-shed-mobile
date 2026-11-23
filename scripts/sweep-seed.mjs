@@ -42,7 +42,7 @@ run("admin:setBudgetManager", { year, email: SWEEP_PEOPLE.finance }, admin);
 run("admin:upsertUniversity", { year, name: UNSW }, admin);
 run("admin:setStaffProfile", { year, email: SWEEP_PEOPLE.leader, roles: ["Student Leader"], university: UNSW }, admin);
 
-// Forty more people on staff who have never been in the Garden, so its
+// Forty more people on staff who have never been in the World, so its
 // "Not here right now" list has more than one page to load. One import, not
 // forty runs.
 const POKE_LIST = [
@@ -51,13 +51,20 @@ const POKE_LIST = [
   "Uma", "Vic", "Wren", "Xavi", "Yara", "Zed", "Ari", "Bo", "Cleo", "Dev",
   "Esme", "Finn", "Gia", "Hugo", "Isla", "Joon", "Kai", "Lior", "Mae", "Noor",
 ];
-const staffDir = mkdtempSync(join(tmpdir(), "sweep-staff-"));
-const staffFile = join(staffDir, "staff.jsonl");
-writeFileSync(staffFile, POKE_LIST.map((first, i) => JSON.stringify({ email: `sweep.person${i}@sow.org.au`, name: `${first} Sweep`, year })).join("\n"));
-const importArgs = ["convex", "import", "--table", "staffProfiles", "--append", "-y", staffFile];
-if (process.env.CONVEX_ENV_FILE) importArgs.push("--env-file", process.env.CONVEX_ENV_FILE);
-execFileSync("npx", importArgs, { stdio: ["ignore", "ignore", "inherit"] });
-rmSync(staffDir, { recursive: true, force: true });
+/** Appends rows to a table in one `convex import`, from a temporary file. */
+const importRows = (table, rows) => {
+  const dir = mkdtempSync(join(tmpdir(), `sweep-${table}-`));
+  const file = join(dir, `${table}.jsonl`);
+  writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
+  const args = ["convex", "import", "--table", table, "--append", "--yes", file];
+  if (process.env.CONVEX_ENV_FILE) args.push("--env-file", process.env.CONVEX_ENV_FILE);
+  try {
+    execFileSync("npx", args, { stdio: ["ignore", "ignore", "inherit"] });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+importRows("staffProfiles", POKE_LIST.map((first, i) => ({ email: `sweep.person${i}@sow.org.au`, name: `${first} Sweep`, year })));
 
 const now = Number(process.env.SWEEP_NOW) || Date.now();
 const eventId = run(
@@ -93,19 +100,10 @@ for (const game of ["shooter", "runner"]) {
   }
 }
 scores.push({ email: admin, game: "runner", score: 2050, runId: "seed-runner-admin" });
-const scoreDir = mkdtempSync(join(tmpdir(), "sweep-scores-"));
-const scoreFile = join(scoreDir, "gameScores.jsonl");
-writeFileSync(
-  scoreFile,
-  scores.map((row) => JSON.stringify({ ...row, durationMs: 60_000, playedAt: now - DAY, updatedAt: now - DAY })).join("\n")
+importRows(
+  "gameScores",
+  scores.map((row) => ({ ...row, durationMs: 60_000, playedAt: now - DAY, updatedAt: now - DAY }))
 );
-const importArgs = ["convex", "import", "--table", "gameScores", "--append", "--yes", scoreFile];
-if (process.env.CONVEX_ENV_FILE) importArgs.push("--env-file", process.env.CONVEX_ENV_FILE);
-try {
-  execFileSync("npx", importArgs, { stdio: ["ignore", "ignore", "inherit"] });
-} finally {
-  rmSync(scoreDir, { recursive: true, force: true });
-}
 
 const seeded = { year, eventId, memberId, checkInToken, people: SWEEP_PEOPLE };
 writeFileSync(process.env.SWEEP_SEED_OUT ?? "sweep-seed.json", JSON.stringify(seeded, null, 2));
