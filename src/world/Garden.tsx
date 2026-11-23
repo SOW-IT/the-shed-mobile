@@ -13,16 +13,23 @@ import {
   HEAR_RADIUS,
   ASK_MS,
   OBSTACLES,
+  PLACE_TITLES,
+  PORTAL_RADIUS,
+  PORTALS,
+  SEATS,
+  seatIn,
   tagName,
+  type Place,
   type Look,
   type Walk,
 } from "@shared/world";
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { makeCamera } from "./camera";
-import { buildGarden, type Prim, type Prop } from "./gardenScene";
-import { garden, hud } from "./palette";
-import { Avatar, figureFor, headTop, hitBox, Tag, touchK, type Doing } from "./Person";
+import type { Prim, Prop } from "./gardenScene";
+import { garden, hud, places } from "./palette";
+import { buildScene } from "./placeScenes";
+import { Avatar, figureFor, headTop, hitBox, sitRise, Tag, touchK, type Doing } from "./Person";
 import { accepted } from "./announce";
 import type { DrawnPose, Gait } from "./gait";
 import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
@@ -44,6 +51,7 @@ type GardenPerson = {
   answered?: Reply[];
   muted: boolean;
   away?: boolean;
+  seat?: string;
 };
 
 /** What the camera looks at: style C's framing of the courtyard. */
@@ -96,12 +104,15 @@ export const Garden = ({
   onHoldEnd,
   onTapPerson,
   onTapArcade,
+  onTapSeat,
   onAccept,
   onDecline,
   declined,
   onHearing,
   selected,
   hudActions,
+  place,
+  placeCounts,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -113,6 +124,7 @@ export const Garden = ({
   onHoldEnd: (x: number, z: number) => void;
   onTapPerson: (memberId: string) => void;
   onTapArcade: () => void;
+  onTapSeat: (seatId: string) => void;
   /** Accept the ask `from` made of you at `askAt`. */
   onAccept: (from: string, askAt: number) => void;
   /** Hide an ask made of you; it lapses on its own, so nothing is sent. */
@@ -123,6 +135,8 @@ export const Garden = ({
   onHearing: (count: number) => void;
   selected: string | null;
   hudActions: HudAction[];
+  place: Place;
+  placeCounts?: Record<string, number>;
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -134,7 +148,7 @@ export const Garden = ({
     if (!size || size.width !== width || size.height !== height) setSize({ width, height });
   };
   const cam = useMemo(() => size && makeCamera(size.width, size.height, FOCUS), [size]);
-  const scene = useMemo(() => cam && buildGarden(cam), [cam]);
+  const scene = useMemo(() => cam && buildScene(place, cam), [cam, place]);
 
   const now = serverNow();
   // Your own walk as it is; others glide toward each new walk from the server.
@@ -158,6 +172,11 @@ export const Garden = ({
     if (!same) setFirstStarts(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the replies, not the arrays
   }, [replyKeys]);
+  const sitting = people.map((p, i) => {
+    const pose = poses[i];
+    const seat = seatIn(place, p.seat);
+    return seat && pose && !pose.walking && Math.hypot(pose.x - seat.x, pose.z - seat.z) < SEATED_WITHIN ? seat : null;
+  });
   const me = people.findIndex((p) => p.me);
   // Where you're walking (before any high-five step), for the target marker.
   const placed = me >= 0 ? poses[me] : null;
@@ -236,7 +255,7 @@ export const Garden = ({
   const press = useRef<{
     x: number;
     y: number;
-    hit: { kind: "person"; id: string } | { kind: "arcade" } | { kind: "ground" };
+    hit: Hit;
     walking: boolean;
     timer: ReturnType<typeof setTimeout> | null;
     /** The last point of this press that was on the ground. */
@@ -251,13 +270,16 @@ export const Garden = ({
   };
 
   /** What a point on the stage would be a tap on: a person, the arcade, or the ground. */
-  const hitAt = (x: number, y: number): { kind: "person"; id: string } | { kind: "arcade" } | { kind: "ground" } => {
+  const hitAt = (x: number, y: number): Hit => {
     if (!cam || !scene) return { kind: "ground" };
     // People first, nearest the camera first.
     const hits = people
-      .map((p, i) => ({ p, pose: poses[i] }))
-      .filter((h): h is { p: GardenPerson; pose: DrawnPose } => h.pose !== null)
-      .map((h) => ({ ...h, box: hitBox(figureFor(cam, h.pose), h.p.look), depth: cam.project([h.pose.x, 0, h.pose.z]).depth }))
+      .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height) }))
+      .filter((h): h is { p: GardenPerson; pose: DrawnPose; rise: number } => h.pose !== null)
+      .map((h) => {
+        const figure = figureFor(cam, h.pose);
+        return { ...h, box: hitBox({ ...figure, bob: figure.bob + h.rise }, h.p.look), depth: figure.foot.depth };
+      })
       .filter((h) => x >= h.box.left && x <= h.box.right && y >= h.box.top && y <= h.box.bottom)
       .sort((a, b) => a.depth - b.depth);
     // The arcade cabinet as drawn (its faces stand well above the ground).
@@ -266,8 +288,16 @@ export const Garden = ({
     const onArcade = arcade && x >= arcade.box.left && x <= arcade.box.right && y >= arcade.box.top && y <= arcade.box.bottom;
     if (hits[0] && !(onArcade && arcade.depth < hits[0].depth)) return { kind: "person", id: hits[0].p.memberId };
     if (onArcade) return { kind: "arcade" };
+    const seat = SEATS[place]
+      .map((candidate) => {
+        const at = cam.project([candidate.x, candidate.height + SEAT_TAP_HEIGHT, candidate.z]);
+        return { id: candidate.id, miss: Math.hypot(at.x - x, at.y - y) / at.scale };
+      })
+      .filter((candidate) => candidate.miss < SEAT_TAP_RADIUS)
+      .sort((a, b) => a.miss - b.miss)[0];
+    if (seat) return { kind: "seat", id: seat.id };
     const spot = cam.ground(x, y);
-    if (spot && Math.hypot(spot.x - ARCADE.x, spot.z - ARCADE.z) < 0.75) return { kind: "arcade" };
+    if (place === "garden" && spot && Math.hypot(spot.x - ARCADE.x, spot.z - ARCADE.z) < 0.75) return { kind: "arcade" };
     return { kind: "ground" };
   };
 
@@ -327,6 +357,7 @@ export const Garden = ({
     if (p.walking) return walkFrom(at.x, at.y, "end");
     if (p.hit.kind === "person") onTapPerson(p.hit.id);
     else if (p.hit.kind === "arcade") onTapArcade();
+    else if (p.hit.kind === "seat") onTapSeat(p.hit.id);
   };
   // The system took the touch away (a call, a system gesture): it was no tap,
   // so open nothing; a walk in progress ends where the finger last was.
@@ -353,8 +384,10 @@ export const Garden = ({
     if (!pose) return;
     const seed = hash(p.memberId) % 7;
     const figure = figureFor(cam, pose);
+    const seat = sitting[i];
+    const seatRise = sitRise(seat?.height);
     const atArcade = p.away ? Math.atan2(ARCADE.x - pose.x, ARCADE.z - pose.z) : null;
-    const turned = { ...pose, heading: facingOverride[i] ?? atArcade ?? pose.heading };
+    const turned = { ...pose, heading: facingOverride[i] ?? atArcade ?? seat?.heading ?? pose.heading };
     const striding = pose.strideAmp > 0;
     const stride = { stridePhase: striding ? pose.stridePhase : 0, strideAmp: pose.strideAmp };
     const touch = touches.find((c) => c.i === i || c.j === i);
@@ -373,7 +406,7 @@ export const Garden = ({
           <Avatar figure={figure} pose={turned} look={p.look} t={0} seed={seed} stride={stride} />
         </View>
       ) : (
-        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} stride={stride} doing={d} />
+        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} />
       ),
     });
     const far = !p.me && mePose !== null && !canHear(mePose, pose);
@@ -392,7 +425,7 @@ export const Garden = ({
       p.ask !== undefined && people.some((o) => o.memberId === p.ask?.to && accepted(o, p.memberId, p.ask.at));
     const waiting =
       p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${MUTUALS[p.ask.kind as keyof typeof MUTUALS]?.ask ?? "…"}` : undefined;
-    const head = cam.project([pose.x, headTop(p.look) + figure.bob, pose.z]);
+    const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise, pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     tags.push({
       key: p.memberId,
@@ -448,7 +481,9 @@ export const Garden = ({
 
   const hudIndex = hudShown ? people.findIndex((p) => p.memberId === hudShown.id) : -1;
   const hudPose = hudIndex >= 0 ? poses[hudIndex] : null;
-  const hudHead = hudPose ? cam.project([hudPose.x, headTop(people[hudIndex].look), hudPose.z]) : null;
+  const hudHead = hudPose
+    ? cam.project([hudPose.x, headTop(people[hudIndex].look) + sitRise(sitting[hudIndex]?.height), hudPose.z])
+    : null;
   const hudAt = hudHead ? { x: hudHead.x, y: Math.max(HUD_HEIGHT + HUD_CLEAR_TOP, hudHead.y - NAME_TAG_CLEARANCE) } : null;
 
   // The hearing ring round you, on the ground under the scenery.
@@ -474,7 +509,7 @@ export const Garden = ({
   }
 
   return (
-    <View style={[styles.fill, { backgroundColor: garden.sky }]} onLayout={onLayout}>
+    <View style={[styles.fill, { backgroundColor: scene.sky }]} onLayout={onLayout}>
       {/* The ground takes taps; the asks sit beside it, not inside it, so
           on iOS a tap on an ask's button never reaches the ground. */}
       <View
@@ -493,6 +528,22 @@ export const Garden = ({
         <Layer prims={scene.ground} />
         {ring}
         <Layer prims={scene.backdrop} />
+        {PORTALS[place].map((pad) => {
+          const below = cam.project([pad.x, 0, pad.z + PORTAL_RADIUS + 0.45]);
+          const above = cam.project([pad.x, 0, pad.z - PORTAL_RADIUS - 0.45]);
+          const at = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM ? { x: above.x, y: above.y - 14 } : below;
+          const here = placeCounts?.[pad.to] ?? 0;
+          return (
+            <View
+              key={`pad-${pad.to}`}
+              style={[styles.padLabel, { left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4), top: at.y - 10 }]}
+            >
+              <Text style={styles.padLabelText} numberOfLines={1}>
+                {here > 0 ? `${PLACE_TITLES[pad.to]} · ${here}` : PLACE_TITLES[pad.to]}
+              </Text>
+            </View>
+          );
+        })}
         {actors.map((a) => (
           <Fragment key={a.key}>{a.node}</Fragment>
         ))}
@@ -567,7 +618,13 @@ const bubbleFade = (age: number) =>
   age < 0 || age >= BUBBLE_MS ? 0 : Math.min(1, (age + 16) / BUBBLE_IN_MS, (BUBBLE_MS - age) / BUBBLE_OUT_MS);
 const bubbleMoving = (age: number) => age < BUBBLE_IN_MS || (age > BUBBLE_MS - BUBBLE_OUT_MS - 1100 && age < BUBBLE_MS);
 
+type Hit = { kind: "person"; id: string } | { kind: "arcade" } | { kind: "seat"; id: string } | { kind: "ground" };
+const SEATED_WITHIN = 0.25;
+const SEAT_TAP_HEIGHT = 0.3;
+const SEAT_TAP_RADIUS = 0.5;
 const AWAY_STATUS = "🕹️ Playing";
+const PAD_LABEL_WIDTH = 132;
+const PAD_LABEL_CLEAR_BOTTOM = 130;
 const NAME_TAG_CLEARANCE = 30;
 const HUD_CLEAR_TOP = 112;
 /** An ask card's width (styles.ask), for keeping it on the stage. */
@@ -683,6 +740,17 @@ const stackTags = (tags: TagSpot[]): TagSpot[] => {
 const styles = StyleSheet.create({
   fill: { flex: 1, overflow: "hidden" },
   away: { opacity: 0.45 },
+  padLabel: { position: "absolute", width: PAD_LABEL_WIDTH, alignItems: "center" },
+  padLabelText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: places.padLabelText,
+    backgroundColor: places.padLabel,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
   ask: {
     position: "absolute",
     width: ASK_CARD_WIDTH,

@@ -3,7 +3,10 @@ import {
   clampTarget,
   cleanLine,
   fullBucket,
+  isPlace,
+  seatIn,
   takeToken,
+  type Place,
   type Look,
   type Ask,
   type Reply,
@@ -23,7 +26,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 type MemberId = Id<"worldMembers">;
 type StateRow = NonNullable<FunctionReturnType<typeof api.world.state>>;
-type Session = { roomId: Id<"worldRooms">; memberId: MemberId; instance: number };
+type Session = { roomId: Id<"worldRooms">; memberId: MemberId; instance: number; place: Place };
+
+const placeFrom = (value: string): Place => (isPlace(value) ? value : "garden");
 
 export type WorldMember = {
   memberId: MemberId;
@@ -39,6 +44,7 @@ export type WorldMember = {
   /** The asks this person accepted that are still open. */
   answered?: Reply[];
   away?: "arcade";
+  seat?: string;
 };
 
 /** The id prefix of a chat line shown before the server has it. */
@@ -185,6 +191,10 @@ export const useWorld = (enabled: boolean, away = false) => {
   const moveM = useMutation(api.world.move);
   const heartbeatM = useMutation(api.world.heartbeat);
   const awayM = useMutation(api.world.away);
+  const travelM = useMutation(api.world.travel);
+  const sitM = useMutation(api.world.sit);
+  const [mySeat, setMySeat] = useState<string | null>(null);
+  const travelling = useRef(false);
   // Every action shows at once on this phone (optimistic updates, below),
   // before the server answers.
   const actM = useMutation(api.world.act).withOptimisticUpdate(showEmote);
@@ -206,7 +216,7 @@ export const useWorld = (enabled: boolean, away = false) => {
 
   const lastAction = useRef(0);
   // The spot waiting to be sent, whether a move is on its way, and its timer.
-  const pending = useRef<{ x: number; z: number } | null>(null);
+  const pending = useRef<{ x: number; z: number; seat?: string } | null>(null);
   const inFlight = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Bumped when a visit ends, so a reply from the last visit can't queue a move in this one.
@@ -251,7 +261,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       .then((joined) => {
         if (cancelled) return;
         heard(joined.serverNow, sentAt);
-        setSession({ roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance });
+        setSession({ roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance, place: placeFrom(joined.place) });
         setError(null);
       })
       .catch((e: unknown) => {
@@ -271,6 +281,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       // The next visit starts from its own spawn walk, not this one's.
       setMyWalk(null);
       setTarget(null);
+      setMySeat(null);
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       counts.leave++;
@@ -310,8 +321,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   const roster = useQuery(api.world.roster, session ? { roomId: session.roomId } : "skip");
   // Swept while away (a long background, a lost signal): come back in.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the server says we're gone; join again once
-    if (session && roster === null) again();
+    if (session && roster === null && !travelling.current) again();
   }, [session, roster, again]);
 
   const members = roster?.members ?? [];
@@ -340,6 +350,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     if (myServerWalk && (!myWalk || myServerWalk.startedAt > myWalk.startedAt + gap)) {
       const now = serverNow();
       setMyWalk((walk) => blendIn(walk, myServerWalk, now));
+      setMySeat((myServerWalk as { seat?: string }).seat ?? null);
     }
   }, [myServerWalk, myWalk, serverNow]);
 
@@ -352,6 +363,10 @@ export const useWorld = (enabled: boolean, away = false) => {
 
   const flush = useCallback(() => {
     timer.current = null;
+    if (travelling.current) {
+      pending.current = null;
+      return;
+    }
     const to = pending.current;
     if (!to || inFlight.current) return;
     pending.current = null;
@@ -359,7 +374,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     const sentAt = Date.now();
     const sentIn = visit.current;
     stats.current.move++;
-    moveM({ toX: to.x, toZ: to.z })
+    (to.seat ? sitM({ seat: to.seat }) : moveM({ toX: to.x, toZ: to.z }))
       .then((reply) => {
         if (sentIn !== visit.current) return;
         heard(reply.serverNow, sentAt);
@@ -386,7 +401,7 @@ export const useWorld = (enabled: boolean, away = false) => {
         inFlight.current = false;
         if (sentIn === visit.current && pending.current && !timer.current) later(COALESCE_MS);
       });
-  }, [moveM, heard, again, later, serverNow]);
+  }, [moveM, sitM, heard, again, later, serverNow]);
   useEffect(() => {
     flushRef.current = flush;
   }, [flush]);
@@ -398,11 +413,29 @@ export const useWorld = (enabled: boolean, away = false) => {
   const walkTo = useCallback(
     (x: number, z: number) => {
       if (!session) return;
-      const to = clampTarget(x, z);
+      const to = clampTarget(x, z, session.place);
       const now = serverNow();
       setMyWalk((walk) => headFor(walk, to, now));
       setTarget(to);
+      setMySeat(null);
       pending.current = to;
+      predicting.current = true;
+      lastAction.current = Date.now();
+      if (timer.current) clearTimeout(timer.current);
+      later(COALESCE_MS);
+    },
+    [session, serverNow, later]
+  );
+
+  const sitOn = useCallback(
+    (seatId: string) => {
+      const seat = session && seatIn(session.place, seatId);
+      if (!seat) return;
+      const now = serverNow();
+      setMyWalk((walk) => headFor(walk, seat, now));
+      setTarget(null);
+      setMySeat(seat.id);
+      pending.current = { x: seat.x, z: seat.z, seat: seat.id };
       predicting.current = true;
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
@@ -440,7 +473,8 @@ export const useWorld = (enabled: boolean, away = false) => {
       if (!session) return;
       holding.current = true;
       predicting.current = true;
-      retarget(clampTarget(x, z));
+      setMySeat(null);
+      retarget(clampTarget(x, z, session.place));
     },
     [session, retarget]
   );
@@ -448,7 +482,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   const holdMove = useCallback(
     (x: number, z: number) => {
       if (!session || !holding.current) return;
-      fingerAt.current = clampTarget(x, z);
+      fingerAt.current = clampTarget(x, z, session.place);
       if (holdFrame.current !== null) return;
       holdFrame.current = requestAnimationFrame(() => {
         holdFrame.current = null;
@@ -464,7 +498,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       holding.current = false;
       if (holdFrame.current !== null) cancelAnimationFrame(holdFrame.current);
       holdFrame.current = null;
-      const to = clampTarget(x, z);
+      const to = clampTarget(x, z, session.place);
       retarget(to);
       sendNow(to);
     },
@@ -542,6 +576,46 @@ export const useWorld = (enabled: boolean, away = false) => {
     [acceptM, heard, again, spendAct]
   );
 
+  const travel = useCallback(
+    async (to: Place): Promise<string | null> => {
+      if (!session || travelling.current) return null;
+      travelling.current = true;
+      pending.current = null;
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      const sentAt = Date.now();
+      const sentIn = visit.current;
+      try {
+        const reply = await travelM({ to });
+        if (sentIn !== visit.current) return null;
+        heard(reply.serverNow, sentAt);
+        if (!reply.ok) return turnedAwayText(reply);
+        spendAct();
+        pending.current = null;
+        predicting.current = false;
+        holding.current = false;
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = null;
+        const { fromX, fromZ, toX, toZ, startedAt } = reply;
+        const arrived = { fromX, fromZ, toX, toZ, startedAt };
+        setMyWalk({ ...arrived, gait: restingGait(arrived) });
+        setTarget(null);
+        setMySeat(null);
+        setSession({ roomId: reply.roomId, memberId: session.memberId, instance: reply.instance, place: placeFrom(reply.place) });
+        return null;
+      } catch (e) {
+        if (sentIn !== visit.current) return null;
+        if (leftGarden(e)) again();
+        return e instanceof ConvexError ? String(e.data) : "Couldn't get there.";
+      } finally {
+        travelling.current = false;
+      }
+    },
+    [session, travelM, heard, again, spendAct]
+  );
+
+  const placeCounts = useQuery(api.world.places, session ? {} : "skip");
+
   /** Saves a look from the editor: one write, only when Save is pressed. */
   const saveLook = useCallback(
     async (look: Look): Promise<string | null> => {
@@ -575,7 +649,11 @@ export const useWorld = (enabled: boolean, away = false) => {
   }, [session, heartbeatM, heard, again]);
 
   const people: WorldMember[] = members.map((m) => {
-    const row = states[m.memberId] as (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away">) | null | undefined | Error;
+    const row = states[m.memberId] as
+      | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "seat">)
+      | null
+      | undefined
+      | Error;
     const state = row && !(row instanceof Error) ? row : null;
     return {
       memberId: m.memberId,
@@ -590,6 +668,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       reply: state?.reply,
       answered: state?.answered,
       away: state?.away,
+      seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
     };
   });
 
@@ -625,6 +704,9 @@ export const useWorld = (enabled: boolean, away = false) => {
     status: error ? ("error" as const) : roster ? ("in" as const) : ("joining" as const),
     error,
     instance: roster?.instance ?? session?.instance ?? 1,
+    place: session?.place ?? ("garden" as Place),
+    placeCounts,
+    travel,
     roomId: session?.roomId ?? null,
     memberId: session?.memberId ?? null,
     people,
@@ -632,6 +714,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     target,
     serverNow,
     walkTo,
+    sitOn,
     holdStart,
     holdMove,
     holdEnd,

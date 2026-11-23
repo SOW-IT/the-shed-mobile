@@ -9,13 +9,42 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [2.12.14] - 2026-11-23
 
 ### Changed
-- **No swiping back out of a game.** In Sky Shooter, Mystic Man and Flappy,
+- **No swiping back out of a game.** In Sky Shooter, Mystic Man and Flap,
   a sideways swipe is always a move in the game. Before, a swipe right in
   Sky Shooter could be taken for "go back" and close the game. The way out
   is the back button at the top left, which still asks "Leave this game?"
   during a run. On the web, the browser's own swipe back (from the edge of
   a phone's screen, or two fingers on a trackpad) is kept off the game the
   same way; the browser's back button still asks first during a run.
+
+## [2.12.13] - 2026-11-23
+
+### Added
+- **Four more places to walk to.** Walk onto one of the labelled circles
+  and stop there, and you step through to that place, arriving beside the
+  circle that leads back. From the Garden, the Beach is through the gate at
+  the top, the Campfire is on the right and the Chapel is at the bottom
+  right. The Beach also leads to the Campfire, the Campfire to the Café,
+  and the Café to the Chapel, so you can walk the whole way round. Every
+  place is its own room, with its own chat, and up to 20 people before
+  another opens.
+- **Sit down.** Tap a seat and you walk over and sit: the pews in the
+  Chapel, the logs round the Campfire, the stools and the couch in the
+  Café, the picnic blanket in the Garden and the towel on the Beach.
+  Everyone sees you sitting. Tap the ground to get up and walk. If the seat
+  you tapped is taken, you get the nearest free one beside it.
+- **See where everyone is.** A circle's label shows how many people are
+  through it, and People here lists who is in each of the other places.
+  From the same sheet you can go to any place the circles lead to without
+  walking, which is also how you get around in the list view.
+
+### Changed
+- **The side menu calls it World,** since the Garden is now one place of
+  five.
+- **Your character's editor fills the screen.** The preview is bigger, the
+  tabs fit on one line and the pictures of each choice fill the width, so
+  more of them show at once. Once you turn your character by hand it stays
+  facing the way you left it, rather than starting to spin again.
 
 ## [2.12.12] - 2026-11-23
 

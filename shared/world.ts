@@ -167,7 +167,133 @@ export const OBSTACLES = [
   { id: "arcade", x: -3.1, z: 5.7, rx: 0.6, rz: 0.5 },
   { id: "sign", x: 3.7, z: -6.4, rx: 0.3, rz: 0.3 },
 ] as const;
-type Obstacle = (typeof OBSTACLES)[number];
+type Obstacle = { id: string; x: number; z: number; rx: number; rz: number };
+
+export const PLACES = ["garden", "chapel", "campfire", "cafe", "beach"] as const;
+export type Place = (typeof PLACES)[number];
+export const isPlace = (value: unknown): value is Place => (PLACES as readonly unknown[]).includes(value);
+
+export const PLACE_TITLES: Record<Place, string> = {
+  garden: "The Garden",
+  chapel: "The Chapel",
+  campfire: "The Campfire",
+  cafe: "The Café",
+  beach: "The Beach",
+};
+
+export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
+  garden: OBSTACLES,
+  chapel: [
+    ...[-5.4, -3.2, -1, 1.2].flatMap((z) => [
+      { id: `pew-left-${z}`, x: -2.3, z, rx: 1.35, rz: 0.5 },
+      { id: `pew-right-${z}`, x: 2.3, z, rx: 1.35, rz: 0.5 },
+    ]),
+    { id: "lectern", x: 1.3, z: -8.4, rx: 0.5, rz: 0.45 },
+    { id: "piano", x: -2.5, z: -9.2, rx: 1.0, rz: 0.6 },
+  ],
+  campfire: [
+    { id: "fire", x: 0, z: -1.6, rx: 1.0, rz: 0.9 },
+    { id: "log-back", x: 0, z: -4.3, rx: 1.1, rz: 0.4 },
+    { id: "log-left", x: -2.6, z: -1.6, rx: 0.4, rz: 1.1 },
+    { id: "log-right", x: 2.6, z: -1.6, rx: 0.4, rz: 1.1 },
+    { id: "tent-left", x: -2.4, z: -8.6, rx: 1.3, rz: 1.0 },
+    { id: "tent-right", x: 2.5, z: -8.0, rx: 1.3, rz: 1.0 },
+  ],
+  cafe: [
+    { id: "counter", x: 0, z: -9.6, rx: 2.9, rz: 0.8 },
+    { id: "table-a", x: -2.1, z: -5.2, rx: 0.8, rz: 0.75 },
+    { id: "table-b", x: 2.0, z: -4.4, rx: 0.8, rz: 0.75 },
+    { id: "table-c", x: -1.9, z: -0.6, rx: 0.8, rz: 0.75 },
+    { id: "couch", x: -2.4, z: 4.6, rx: 1.2, rz: 0.6 },
+    { id: "plant", x: 3.3, z: -7.4, rx: 0.4, rz: 0.4 },
+  ],
+  beach: [
+    { id: "umbrella", x: -2.4, z: -0.8, rx: 0.3, rz: 0.3 },
+    { id: "castle", x: 2.3, z: -2.6, rx: 0.7, rz: 0.6 },
+    { id: "net-left", x: -1.7, z: 3.0, rx: 0.2, rz: 0.2 },
+    { id: "net-right", x: 1.7, z: 3.0, rx: 0.2, rz: 0.2 },
+    { id: "palm", x: -3.0, z: 5.4, rx: 0.35, rz: 0.35 },
+  ],
+};
+
+type Portal = { to: Place; x: number; z: number };
+
+export const PORTAL_RADIUS = 0.75;
+export const ELSEWHERE_NAMES = 12;
+const ARRIVE_BESIDE = 2.1;
+const MIDDLE = { x: 0, z: -1.6 };
+
+export const PORTALS: Record<Place, readonly Portal[]> = {
+  garden: [
+    { to: "beach", x: 0, z: -10 },
+    { to: "campfire", x: 3.2, z: -0.4 },
+    { to: "chapel", x: 2, z: 7 },
+  ],
+  beach: [
+    { to: "garden", x: 0, z: 7 },
+    { to: "campfire", x: 3.2, z: 1.2 },
+  ],
+  campfire: [
+    { to: "garden", x: -3.2, z: 3 },
+    { to: "beach", x: 0, z: -10 },
+    { to: "cafe", x: 1.8, z: 7 },
+  ],
+  chapel: [
+    { to: "garden", x: 0, z: 7 },
+    { to: "cafe", x: 3.2, z: 3.4 },
+  ],
+  cafe: [
+    { to: "chapel", x: 0.4, z: 7 },
+    { to: "campfire", x: 3.2, z: -2 },
+  ],
+};
+
+type Seat = { id: string; x: number; z: number; heading: number; height: number };
+
+const FACING_CAMERA = 0;
+const FACING_AWAY = Math.PI;
+const FACING_RIGHT = Math.PI / 2;
+const FACING_LEFT = -Math.PI / 2;
+const PEW_HEIGHT = 0.4;
+const LOG_HEIGHT = 0.44;
+const STOOL_HEIGHT = 0.45;
+const COUCH_HEIGHT = 0.56;
+const ON_THE_GROUND = 0;
+
+const along = (id: string, spots: [number, number][], heading: number, height: number): Seat[] =>
+  spots.map(([x, z], i) => ({ id: `${id}-${i}`, x, z, heading, height }));
+
+const stools = (table: string): Seat[] => {
+  const at = PLACE_OBSTACLES.cafe.find((o) => o.id === table)!;
+  return [
+    { id: `${table}-left`, x: at.x - 0.6, z: at.z + 0.1, heading: FACING_RIGHT, height: STOOL_HEIGHT },
+    { id: `${table}-right`, x: at.x + 0.6, z: at.z + 0.1, heading: FACING_LEFT, height: STOOL_HEIGHT },
+  ];
+};
+
+export const SEATS: Record<Place, readonly Seat[]> = {
+  garden: [
+    { id: "blanket-0", x: 2.5, z: 2.4, heading: 0.4, height: ON_THE_GROUND },
+    { id: "blanket-1", x: 3.25, z: 2.9, heading: -0.5, height: ON_THE_GROUND },
+    { id: "blanket-2", x: 2.55, z: 3.45, heading: 0.2, height: ON_THE_GROUND },
+  ],
+  chapel: PLACE_OBSTACLES.chapel
+    .filter((o) => o.id.startsWith("pew"))
+    .flatMap((pew) => along(pew.id, [[pew.x - 0.8, pew.z - 0.05], [pew.x, pew.z - 0.05], [pew.x + 0.8, pew.z - 0.05]], FACING_AWAY, PEW_HEIGHT)),
+  campfire: [
+    ...along("log-back", [[-0.5, -4.3], [0.5, -4.3]], FACING_CAMERA, LOG_HEIGHT),
+    ...along("log-left", [[-2.6, -2.1], [-2.6, -1.1]], FACING_RIGHT, LOG_HEIGHT),
+    ...along("log-right", [[2.6, -2.1], [2.6, -1.1]], FACING_LEFT, LOG_HEIGHT),
+  ],
+  cafe: [...stools("table-a"), ...stools("table-b"), ...stools("table-c"), ...along("couch", [[-2.9, 4.7], [-1.9, 4.7]], FACING_CAMERA, COUCH_HEIGHT)],
+  beach: along("towel", [[-1.34, -0.55], [-1.34, 0.2]], FACING_CAMERA, ON_THE_GROUND),
+};
+
+export const seatIn = (place: Place, id: string | undefined): Seat | null =>
+  SEATS[place].find((seat) => seat.id === id) ?? null;
+
+export const portalAt = (place: Place, at: { x: number; z: number }): Portal | null =>
+  PORTALS[place].find((portal) => Math.hypot(portal.x - at.x, portal.z - at.z) <= PORTAL_RADIUS) ?? null;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -180,6 +306,16 @@ const inBounds = (x: number, z: number) => {
 
 const inside = (o: Obstacle, p: { x: number; z: number }) => Math.hypot((p.x - o.x) / o.rx, (p.z - o.z) / o.rz) < 1;
 
+/** Where someone arriving from `from` stands in `to`: beside the pad that leads back. */
+export const arrivalSpot = (from: Place, to: Place): { x: number; z: number } => {
+  const pad = PORTALS[to].find((portal) => portal.to === from);
+  if (!pad) return clampTarget(SPAWN.x, SPAWN.z, to);
+  const dx = MIDDLE.x - pad.x;
+  const dz = MIDDLE.z - pad.z;
+  const length = Math.hypot(dx, dz);
+  return clampTarget(pad.x + (dx / length) * ARRIVE_BESIDE, pad.z + (dz / length) * ARRIVE_BESIDE, to);
+};
+
 /** A spot just outside an obstacle's rim, at angle `a` round it. */
 const onRim = (o: Obstacle, a: number) => ({ x: o.x + Math.cos(a) * o.rx * 1.02, z: o.z + Math.sin(a) * o.rz * 1.02 });
 
@@ -187,10 +323,11 @@ const onRim = (o: Obstacle, a: number) => ({ x: o.x + Math.cos(a) * o.rx * 1.02,
  * The nearest place someone can stand to (x, z): inside the courtyard and
  * outside every obstacle. A bad number lands at the spawn point.
  */
-export const clampTarget = (x: number, z: number): { x: number; z: number } => {
+export const clampTarget = (x: number, z: number, place: Place = "garden"): { x: number; z: number } => {
   if (!Number.isFinite(x) || !Number.isFinite(z)) return { ...SPAWN };
+  const obstacles = PLACE_OBSTACLES[place];
   let p = inBounds(x, z);
-  for (const o of OBSTACLES) {
+  for (const o of obstacles) {
     if (!inside(o, p)) continue;
     // Out along the line from the obstacle's middle; straight down from its
     // middle when the tap was dead centre.
@@ -199,7 +336,7 @@ export const clampTarget = (x: number, z: number): { x: number; z: number } => {
     const rim = ux === 0 && uz === 0 ? onRim(o, Math.PI / 2) : onRim(o, Math.atan2(uz, ux));
     p = inBounds(rim.x, rim.z);
   }
-  const stuck = OBSTACLES.find((o) => inside(o, p));
+  const stuck = obstacles.find((o) => inside(o, p));
   if (!stuck) return p;
   // The courtyard's edge pushed it back in (the pond reaches past the west
   // edge): the nearest free spot on that rim inside the courtyard.
@@ -207,7 +344,7 @@ export const clampTarget = (x: number, z: number): { x: number; z: number } => {
   for (let i = 0; i < 64; i++) {
     const q = onRim(stuck, (i / 64) * Math.PI * 2);
     const b = inBounds(q.x, q.z);
-    if (b.x !== q.x || b.z !== q.z || OBSTACLES.some((o) => inside(o, q))) continue;
+    if (b.x !== q.x || b.z !== q.z || obstacles.some((o) => inside(o, q))) continue;
     if (!best || Math.hypot(q.x - x, q.z - z) < Math.hypot(best.x - x, best.z - z)) best = q;
   }
   return best ?? { ...SPAWN };

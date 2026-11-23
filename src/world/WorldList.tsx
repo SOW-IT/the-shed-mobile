@@ -1,6 +1,6 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { ASK_MS, canHear, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
+import { ASK_MS, canHear, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, PLACE_TITLES, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -62,7 +62,8 @@ export const WorldList = ({
     }
   }, [log, muted]);
 
-  const title = world.instance > 1 ? `The Garden · ${world.instance}` : "The Garden";
+  const place = PLACE_TITLES[world.place];
+  const title = world.instance > 1 ? `${place} · ${world.instance}` : place;
 
   // Asks made of you that are open: announced once each (VoiceOver), since
   // they lapse in 10 seconds wherever focus is.

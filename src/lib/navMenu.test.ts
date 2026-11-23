@@ -174,7 +174,7 @@ describe("who sees which pages", () => {
 });
 
 describe("Insights in the menus", () => {
-  test("sits at the bottom for everyone who has it there, with only Announcements, the Garden and Admin below", () => {
+  test("sits at the bottom for everyone who has it there, with only Announcements, World and Admin below", () => {
     const viewers = [
       guest,
       staff,

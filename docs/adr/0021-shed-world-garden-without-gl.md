@@ -141,6 +141,52 @@ Daniel's items 5 to 9 (2026-11-23):
   notification and a push linking to `/world`: one poke an hour per sender,
   and nobody is poked more than once in ten minutes.
 
+## Places
+
+There are five places (`PLACES` in `shared/world.ts`), joined by pads
+(`PORTALS`) the way Daniel laid them out: the Garden leads to the Beach (at
+the gate), the Campfire and the Chapel; the Beach to the Campfire; the
+Campfire to the Café; the Café to the Chapel. Every pad has one going back,
+so the five make a loop with the Garden to Campfire path across it.
+
+- **Same floor everywhere.** Every place uses the Garden's walkable outline
+  and camera, so the camera, taps, clamping and the narrow-phone fit are
+  shared. Only the furniture differs (`PLACE_OBSTACLES`), and `clampTarget`
+  takes the place.
+- **Rooms already had a place.** `worldRooms.place` was always there; rooms
+  are now found per place, each with its own instances and cap.
+  `worldMembers.place` (optional, missing means the Garden) saves `move` a
+  read of the room.
+- **Travel is one mutation.** `world.travel` moves the member row to a room
+  of the target place, fixes both rooms' counts (closing the old one if it
+  empties), puts the walk beside the pad that leads back (`arrivalSpot`),
+  and clears any open ask. It spends an act token and keeps the member id,
+  so the app only swaps its room. The server does not check that you stood
+  on a pad: changing rooms gains nothing, and the list view travels from a
+  button.
+- **Pads are an app rule.** The app travels when your own walk has ended
+  inside a pad (`portalAt`), once per walk, behind a short fade.
+- **Who is where.** `world.places` gives a head count per place for the pad
+  labels, and `world.elsewhere` gives the names by place for the people
+  sheet, reading your blocks once instead of per person. Both rerun when
+  anyone joins, leaves or travels; the second is subscribed only while the
+  sheet is open.
+- **Scenes** are built with the Garden's `Builder` (`placeScenes.ts`); each
+  place has its own colours in `palette.ts`.
+- **Sitting is a move.** `SEATS` lists each place's seats (where, which way
+  they face, how high). `world.sit` takes a seat id, starts a walk from
+  where the server has you straight to the seat, and sets
+  `worldState.seat`; it spends a move token and writes only your own row.
+  Every phone draws the sitting pose once that walk has arrived, turned the
+  seat's way and lifted to its height. Any `move` or `travel` clears it, so
+  standing up is just walking off. Bench seats are inside the furniture's
+  no-standing outline on purpose: only `sit` can put you there. The server
+  does not check whether a seat is taken (that would read the whole room on
+  every sit); the app sends you to the nearest free seat on the same piece
+  of furniture, and two people tapping the same seat in the same instant
+  would overlap. A seat's furniture is drawn in two parts where it has a
+  back (the pews), so the sitter sorts between seat and backrest.
+
 ## Write budget
 
 Estimated by `convex/world.test.ts` ("write budget per player"), ten minutes
