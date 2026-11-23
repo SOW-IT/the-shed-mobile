@@ -330,6 +330,7 @@ export const Btn = ({
   disabled,
   loading,
   icon,
+  tint,
 }: {
   title: string;
   onPress: () => void;
@@ -337,23 +338,28 @@ export const Btn = ({
   disabled?: boolean;
   loading?: boolean;
   icon?: AppIconName;
+  tint?: { bg: string; text: string };
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
-  const background = {
-    primary: t.primary,
-    success: t.successSoft,
-    danger: t.dangerSoft,
-    ghost: t.ghost,
-    tonal: t.primarySoft,
-  }[variant];
-  const textColor = {
-    primary: t.onPrimary,
-    success: t.success,
-    danger: t.danger,
-    ghost: t.ghostText,
-    tonal: t.dark ? t.text : t.primary,
-  }[variant];
+  const background =
+    tint?.bg ??
+    {
+      primary: t.primary,
+      success: t.successSoft,
+      danger: t.dangerSoft,
+      ghost: t.ghost,
+      tonal: t.primarySoft,
+    }[variant];
+  const textColor =
+    tint?.text ??
+    {
+      primary: t.onPrimary,
+      success: t.success,
+      danger: t.danger,
+      ghost: t.ghostText,
+      tonal: t.dark ? t.text : t.primary,
+    }[variant];
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable

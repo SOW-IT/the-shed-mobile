@@ -22,6 +22,16 @@ All notable changes to **The SHED** mobile app. This project follows
   tight but possible, even a little early or late.
 - **Obstacles come closer together.** The clear run between patterns is
   shorter, with less extra space thrown in.
+- **Mystic Man wears coral.** His cloak is a warm coral with a light trim
+  and a light outline, so he stands out from the night sky, the hills, the
+  ground and every obstacle, even at full speed.
+
+### Fixed
+- **The start and game-over cards are crisp.** In Mystic Man, Sky Shooter
+  and Flap, the card is solid instead of letting the game show through, its
+  text is full white, and Play again and Leaderboard have their own bright
+  colours instead of the app's dark green. Only the game around the card is
+  dimmed.
 
 ## [2.12.20] - 2026-11-23
 

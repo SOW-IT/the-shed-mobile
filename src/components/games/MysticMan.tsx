@@ -11,11 +11,11 @@ export const MysticMan = ({ sliding, stride, airborne }: { sliding: boolean; str
   if (sliding) {
     return (
       <View style={styles.slide} pointerEvents="none">
-        <View style={[styles.slideCape, { backgroundColor: c.cloakDark }]} />
-        <View style={[styles.slideBody, { backgroundColor: c.cloak }]}>
+        <View style={[styles.slideCape, styles.rim, { backgroundColor: c.cloakDark }]} />
+        <View style={[styles.slideBody, styles.rim, { backgroundColor: c.cloak }]}>
           <View style={[styles.slideTrim, { backgroundColor: c.trim }]} />
         </View>
-        <View style={[styles.slideHead, { backgroundColor: c.cloak }]}>
+        <View style={[styles.slideHead, styles.rim, { backgroundColor: c.cloak }]}>
           <View style={[styles.face, styles.slideFace, { backgroundColor: c.face }]}>
             <View style={[styles.eye, { backgroundColor: c.eyes }]} />
             <View style={[styles.eye, { backgroundColor: c.eyes }]} />
@@ -28,15 +28,15 @@ export const MysticMan = ({ sliding, stride, airborne }: { sliding: boolean; str
   const front = Math.round((swing - 0.5) * 10);
   return (
     <View style={styles.stand} pointerEvents="none">
-      <View style={[styles.cape, { backgroundColor: c.cloakDark, transform: [{ skewX: `${-12 - front}deg` }] }]} />
-      <View style={[styles.leg, { backgroundColor: c.face, left: 9 + front }]} />
-      <View style={[styles.leg, { backgroundColor: c.face, left: 15 - front }]} />
-      <View style={[styles.body, { backgroundColor: c.cloak }]}>
+      <View style={[styles.cape, styles.rim, { backgroundColor: c.cloakDark, transform: [{ skewX: `${-12 - front}deg` }] }]} />
+      <View style={[styles.leg, { backgroundColor: c.cloakDark, left: 9 + front }]} />
+      <View style={[styles.leg, { backgroundColor: c.cloakDark, left: 15 - front }]} />
+      <View style={[styles.body, styles.rim, { backgroundColor: c.cloak }]}>
         <View style={[styles.trim, { backgroundColor: c.trim }]} />
         <View style={[styles.star, { backgroundColor: c.trim }]} />
       </View>
-      <View style={[styles.hoodTip, { borderBottomColor: c.cloak }]} />
-      <View style={[styles.hood, { backgroundColor: c.cloak }]}>
+      <View style={[styles.hoodTip, { borderBottomColor: c.rim }]} />
+      <View style={[styles.hood, styles.rim, { backgroundColor: c.cloak }]}>
         <View style={[styles.face, { backgroundColor: c.face }]}>
           <View style={[styles.eye, { backgroundColor: c.eyes }]} />
           <View style={[styles.eye, { backgroundColor: c.eyes }]} />
@@ -62,7 +62,8 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 3,
     alignItems: "center",
   },
-  trim: { position: "absolute", bottom: 3, width: 20, height: 3 },
+  rim: { borderWidth: 1.5, borderColor: c.rim },
+  trim: { position: "absolute", bottom: 3, left: 0, right: 0, height: 3 },
   star: { marginTop: 7, width: 6, height: 6, transform: [{ rotate: "45deg" }] },
   hoodTip: {
     position: "absolute",
@@ -108,7 +109,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     overflow: "hidden",
   },
-  slideTrim: { position: "absolute", left: 0, bottom: 3, width: 24, height: 3 },
+  slideTrim: { position: "absolute", left: 0, right: 0, bottom: 3, height: 3 },
   slideHead: {
     position: "absolute",
     right: 0,

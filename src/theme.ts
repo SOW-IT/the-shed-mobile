@@ -205,9 +205,12 @@ export const fixedColours = {
   /** The offline games draw their own scenes, the same in both themes. */
   games: {
     text: "#ffffff",
-    dim: "rgba(255, 255, 255, 0.72)",
     scrim: "rgba(8, 14, 20, 0.62)",
     panel: "rgba(8, 14, 20, 0.82)",
+    card: "#121A23",
+    cardEdge: "#2E3A48",
+    button: { bg: "#BCDCCD", text: "#0B1D1B" },
+    buttonGhost: { bg: "#2E3A48", text: "#ffffff" },
     shooter: {
       sky: "#0E1B3D",
       star: "#C9D6FF",
@@ -236,9 +239,10 @@ export const fixedColours = {
       logEdge: "#4E351F",
       vine: "#3E6B3A",
       leaf: "#6FA05A",
-      cloak: "#5A34A0",
-      cloakDark: "#3C2270",
-      trim: "#E5AD66",
+      cloak: "#FF6F59",
+      cloakDark: "#D9503F",
+      trim: "#FFF1E6",
+      rim: "#FFE2D6",
       face: "#1A0F2E",
       eyes: "#9BF6FF",
     },
