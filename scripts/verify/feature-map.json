@@ -251,7 +251,7 @@
         "convex/{gameScores,gameScoreData}.ts",
         "shared/games.ts"
       ],
-      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/runner?preview=double", "/games/runner?preview=tall,wide", "/games/runner?preview=hang,beam"]
+      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]
