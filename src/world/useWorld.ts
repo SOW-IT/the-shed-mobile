@@ -3,7 +3,9 @@ import {
   clampTarget,
   cleanLine,
   fullBucket,
+  isPlace,
   takeToken,
+  type Place,
   type Look,
   type Ask,
   type Reply,
@@ -23,7 +25,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 type MemberId = Id<"worldMembers">;
 type StateRow = NonNullable<FunctionReturnType<typeof api.world.state>>;
-type Session = { roomId: Id<"worldRooms">; memberId: MemberId; instance: number };
+type Session = { roomId: Id<"worldRooms">; memberId: MemberId; instance: number; place: Place };
+
+const placeFrom = (value: string): Place => (isPlace(value) ? value : "garden");
 
 export type WorldMember = {
   memberId: MemberId;
@@ -185,6 +189,8 @@ export const useWorld = (enabled: boolean, away = false) => {
   const moveM = useMutation(api.world.move);
   const heartbeatM = useMutation(api.world.heartbeat);
   const awayM = useMutation(api.world.away);
+  const travelM = useMutation(api.world.travel);
+  const travelling = useRef(false);
   // Every action shows at once on this phone (optimistic updates, below),
   // before the server answers.
   const actM = useMutation(api.world.act).withOptimisticUpdate(showEmote);
@@ -251,7 +257,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       .then((joined) => {
         if (cancelled) return;
         heard(joined.serverNow, sentAt);
-        setSession({ roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance });
+        setSession({ roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance, place: placeFrom(joined.place) });
         setError(null);
       })
       .catch((e: unknown) => {
@@ -310,8 +316,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   const roster = useQuery(api.world.roster, session ? { roomId: session.roomId } : "skip");
   // Swept while away (a long background, a lost signal): come back in.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the server says we're gone; join again once
-    if (session && roster === null) again();
+    if (session && roster === null && !travelling.current) again();
   }, [session, roster, again]);
 
   const members = roster?.members ?? [];
@@ -398,7 +403,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   const walkTo = useCallback(
     (x: number, z: number) => {
       if (!session) return;
-      const to = clampTarget(x, z);
+      const to = clampTarget(x, z, session.place);
       const now = serverNow();
       setMyWalk((walk) => headFor(walk, to, now));
       setTarget(to);
@@ -440,7 +445,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       if (!session) return;
       holding.current = true;
       predicting.current = true;
-      retarget(clampTarget(x, z));
+      retarget(clampTarget(x, z, session.place));
     },
     [session, retarget]
   );
@@ -448,7 +453,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   const holdMove = useCallback(
     (x: number, z: number) => {
       if (!session || !holding.current) return;
-      fingerAt.current = clampTarget(x, z);
+      fingerAt.current = clampTarget(x, z, session.place);
       if (holdFrame.current !== null) return;
       holdFrame.current = requestAnimationFrame(() => {
         holdFrame.current = null;
@@ -464,7 +469,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       holding.current = false;
       if (holdFrame.current !== null) cancelAnimationFrame(holdFrame.current);
       holdFrame.current = null;
-      const to = clampTarget(x, z);
+      const to = clampTarget(x, z, session.place);
       retarget(to);
       sendNow(to);
     },
@@ -541,6 +546,39 @@ export const useWorld = (enabled: boolean, away = false) => {
     },
     [acceptM, heard, again, spendAct]
   );
+
+  const travel = useCallback(
+    async (to: Place): Promise<string | null> => {
+      if (!session || travelling.current) return null;
+      travelling.current = true;
+      const sentAt = Date.now();
+      try {
+        const reply = await travelM({ to });
+        heard(reply.serverNow, sentAt);
+        if (!reply.ok) return turnedAwayText(reply);
+        spendAct();
+        pending.current = null;
+        predicting.current = false;
+        holding.current = false;
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = null;
+        const { fromX, fromZ, toX, toZ, startedAt } = reply;
+        const arrived = { fromX, fromZ, toX, toZ, startedAt };
+        setMyWalk({ ...arrived, gait: restingGait(arrived) });
+        setTarget(null);
+        setSession({ roomId: reply.roomId, memberId: session.memberId, instance: reply.instance, place: placeFrom(reply.place) });
+        return null;
+      } catch (e) {
+        if (leftGarden(e)) again();
+        return e instanceof ConvexError ? String(e.data) : "Couldn't get there.";
+      } finally {
+        travelling.current = false;
+      }
+    },
+    [session, travelM, heard, again, spendAct]
+  );
+
+  const placeCounts = useQuery(api.world.places, session ? {} : "skip");
 
   /** Saves a look from the editor: one write, only when Save is pressed. */
   const saveLook = useCallback(
@@ -625,6 +663,9 @@ export const useWorld = (enabled: boolean, away = false) => {
     status: error ? ("error" as const) : roster ? ("in" as const) : ("joining" as const),
     error,
     instance: roster?.instance ?? session?.instance ?? 1,
+    place: session?.place ?? ("garden" as Place),
+    placeCounts,
+    travel,
     roomId: session?.roomId ?? null,
     memberId: session?.memberId ?? null,
     people,

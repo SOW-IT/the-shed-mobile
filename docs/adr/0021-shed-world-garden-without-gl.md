@@ -141,6 +141,37 @@ Daniel's items 5 to 9 (2026-11-23):
   notification and a push linking to `/world`: one poke an hour per sender,
   and nobody is poked more than once in ten minutes.
 
+## Places
+
+The Garden is the hub of five places (`PLACES` in `shared/world.ts`): the
+Chapel, the Campfire, the Café and the Beach hang off it, each with one pad
+back.
+
+- **Same floor everywhere.** Every place uses the Garden's walkable outline
+  and camera, so the camera, taps, clamping and the narrow-phone fit are
+  shared. Only the furniture differs (`PLACE_OBSTACLES`), and `clampTarget`
+  takes the place.
+- **Rooms already had a place.** `worldRooms.place` was always there; rooms
+  are now found per place, each with its own instances and cap.
+  `worldMembers.place` (optional, missing means the Garden) saves `move` a
+  read of the room.
+- **Travel is one mutation.** `world.travel` moves the member row to a room
+  of the target place, fixes both rooms' counts (closing the old one if it
+  empties), puts the walk beside the pad that leads back (`arrivalSpot`),
+  and clears any open ask. It spends an act token and keeps the member id,
+  so the app only swaps its room. The server does not check that you stood
+  on a pad: changing rooms gains nothing, and the list view travels from a
+  button.
+- **Pads are an app rule.** The app travels when your own walk has ended
+  inside a pad (`portalAt`), once per walk, behind a short fade.
+- **Who is where.** `world.places` gives a head count per place for the pad
+  labels, and `world.elsewhere` gives the names by place for the people
+  sheet, reading your blocks once instead of per person. Both rerun when
+  anyone joins, leaves or travels; the second is subscribed only while the
+  sheet is open.
+- **Scenes** are built with the Garden's `Builder` (`placeScenes.ts`); each
+  place has its own colours in `palette.ts`.
+
 ## Write budget
 
 Estimated by `convex/world.test.ts` ("write budget per player"), ten minutes

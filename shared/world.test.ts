@@ -18,6 +18,14 @@ import {
   openAsk,
   LOOK_SIZES,
   OUTFITS,
+  PLACES,
+  PLACE_OBSTACLES,
+  PLACE_TITLES,
+  PORTALS,
+  PORTAL_RADIUS,
+  arrivalSpot,
+  isPlace,
+  portalAt,
   bodyScale,
   isValidLook,
   lookFor,
@@ -218,5 +226,57 @@ describe("takeToken", () => {
   test("never banks more than the burst", () => {
     const r = takeToken("say", { tokens: 0, at: 0 }, 10 * 60_000);
     expect(r).toEqual({ ok: true, bucket: { tokens: BUCKETS.say.burst - 1, at: 10 * 60_000 } });
+  });
+});
+
+describe("places and the pads between them", () => {
+  test("every place has a title, and only the listed ones are places", () => {
+    for (const place of PLACES) expect(PLACE_TITLES[place]).toMatch(/^The /);
+    expect(isPlace("chapel")).toBe(true);
+    expect(isPlace("moon")).toBe(false);
+    expect(isPlace(undefined)).toBe(false);
+  });
+
+  test("every pad is somewhere you can stand, and clear of the other pads", () => {
+    for (const place of PLACES) {
+      const pads = PORTALS[place];
+      for (const pad of pads) {
+        expect(clampTarget(pad.x, pad.z, place)).toEqual({ x: pad.x, z: pad.z });
+        expect(portalAt(place, pad)).toBe(pad);
+        for (const other of pads) {
+          if (other !== pad) expect(Math.hypot(other.x - pad.x, other.z - pad.z)).toBeGreaterThan(PORTAL_RADIUS * 3);
+        }
+      }
+    }
+    expect(portalAt("garden", { x: 0, z: 0 })).toBeNull();
+  });
+
+  test("the garden leads everywhere, and everywhere leads back", () => {
+    expect(PORTALS.garden.map((pad) => pad.to).sort()).toEqual(PLACES.filter((place) => place !== "garden").sort());
+    for (const place of PLACES) {
+      if (place !== "garden") expect(PORTALS[place].map((pad) => pad.to)).toEqual(["garden"]);
+    }
+  });
+
+  test("you arrive beside the pad that leads back, never on a pad", () => {
+    for (const from of PLACES) {
+      for (const pad of PORTALS[from]) {
+        const spot = arrivalSpot(from, pad.to);
+        expect(portalAt(pad.to, spot)).toBeNull();
+        expect(clampTarget(spot.x, spot.z, pad.to)).toEqual(spot);
+        const back = PORTALS[pad.to].find((p) => p.to === from)!;
+        expect(Math.hypot(spot.x - back.x, spot.z - back.z)).toBeLessThan(2.5);
+      }
+    }
+    expect(portalAt("beach", arrivalSpot("chapel", "beach"))).toBeNull();
+  });
+
+  test("each place keeps people out of its own furniture only", () => {
+    const pew = PLACE_OBSTACLES.chapel[0];
+    expect(clampTarget(pew.x, pew.z, "chapel")).not.toEqual({ x: pew.x, z: pew.z });
+    expect(clampTarget(pew.x, pew.z, "beach")).toEqual({ x: pew.x, z: pew.z });
+    const pond = PLACE_OBSTACLES.garden.find((o) => o.id === "pond")!;
+    expect(clampTarget(pond.x + 0.5, pond.z, "campfire")).toEqual({ x: pond.x + 0.5, z: pond.z });
+    expect(clampTarget(pond.x + 0.5, pond.z)).not.toEqual({ x: pond.x + 0.5, z: pond.z });
   });
 });

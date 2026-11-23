@@ -13,6 +13,11 @@ import {
   POKE_EVERY_MS,
   POKED_GAP_MS,
   tagName,
+  arrivalSpot,
+  ELSEWHERE_NAMES,
+  isPlace,
+  PLACES,
+  type Place,
   clampTarget,
   distance,
   fullBucket,
@@ -196,10 +201,12 @@ const ensureSweeper = async (ctx: MutationCtx, now: number) => {
   await ctx.scheduler.runAt(sweepAt, internal.world.sweep, {});
 };
 
-const roomWithSpace = async (ctx: MutationCtx): Promise<Doc<"worldRooms">> => {
+const placeOf = (member: Doc<"worldMembers">): Place => (isPlace(member.place) ? member.place : WORLD_PLACE);
+
+const roomWithSpace = async (ctx: MutationCtx, place: Place = WORLD_PLACE): Promise<Doc<"worldRooms">> => {
   const rooms = await ctx.db
     .query("worldRooms")
-    .withIndex("by_place_and_instance", (q) => q.eq("place", WORLD_PLACE))
+    .withIndex("by_place_and_instance", (q) => q.eq("place", place))
     .take(ROOM_SCAN);
   const open = rooms.find((room) => room.memberCount < ROOM_CAP);
   if (open) return open;
@@ -212,12 +219,12 @@ const roomWithSpace = async (ctx: MutationCtx): Promise<Doc<"worldRooms">> => {
     // More rooms than the scan: one past the highest, which is never taken.
     const highest = await ctx.db
       .query("worldRooms")
-      .withIndex("by_place_and_instance", (q) => q.eq("place", WORLD_PLACE))
+      .withIndex("by_place_and_instance", (q) => q.eq("place", place))
       .order("desc")
       .first();
     instance = (highest?.instance ?? 0) + 1;
   }
-  const roomId = await ctx.db.insert("worldRooms", { place: WORLD_PLACE, instance, memberCount: 0 });
+  const roomId = await ctx.db.insert("worldRooms", { place, instance, memberCount: 0 });
   return (await ctx.db.get("worldRooms", roomId))!;
 };
 
@@ -231,6 +238,7 @@ export const join = mutation({
     roomId: v.id("worldRooms"),
     memberId: v.id("worldMembers"),
     instance: v.number(),
+    place: v.string(),
     serverNow: v.number(),
   }),
   handler: async (ctx) => {
@@ -283,7 +291,7 @@ export const join = mutation({
     }
     await touchPresence(ctx, member._id, now);
     await ensureSweeper(ctx, now);
-    return { roomId: room._id, memberId: member._id, instance: room.instance, serverNow: now };
+    return { roomId: room._id, memberId: member._id, instance: room.instance, place: placeOf(member), serverNow: now };
   },
 });
 
@@ -323,7 +331,7 @@ export const move = mutation({
     const token = spend("move", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     const from = posAt(state, now);
-    const to = clampTarget(toX, toZ);
+    const to = clampTarget(toX, toZ, placeOf(member));
     const walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
     await ctx.db.patch("worldState", state._id, { ...walk, away: undefined, moveBucket: token.bucket });
     await touchPresence(ctx, member._id, now);
@@ -332,6 +340,113 @@ export const move = mutation({
 });
 
 const done = v.union(v.object({ ok: v.literal(true), serverNow: v.number() }), turnedAway);
+
+export const travel = mutation({
+  args: { to: v.string() },
+  returns: v.union(
+    v.object({
+      ok: v.literal(true),
+      roomId: v.id("worldRooms"),
+      instance: v.number(),
+      place: v.string(),
+      ...worldWalkFields,
+      serverNow: v.number(),
+    }),
+    turnedAway
+  ),
+  handler: async (ctx, { to }) => {
+    if (!isPlace(to)) throw new ConvexError("That isn't somewhere you can go.");
+    const { member, state } = await requireMe(ctx);
+    const now = Date.now();
+    const from = placeOf(member);
+    const here = (await ctx.db.get("worldRooms", member.roomId))!;
+    if (from === to) {
+      const { fromX, fromZ, toX, toZ, startedAt } = state;
+      return { ok: true as const, roomId: here._id, instance: here.instance, place: from, fromX, fromZ, toX, toZ, startedAt, serverNow: now };
+    }
+    const token = spend("act", state, now);
+    if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    const room = await roomWithSpace(ctx, to);
+    await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
+    if (here.memberCount <= 1) await ctx.db.delete("worldRooms", here._id);
+    else await ctx.db.patch("worldRooms", here._id, { memberCount: here.memberCount - 1 });
+    await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place: to });
+    const spot = arrivalSpot(from, to);
+    const walk = { fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z, startedAt: now };
+    await ctx.db.patch("worldState", state._id, {
+      ...walk,
+      ask: undefined,
+      reply: undefined,
+      answered: undefined,
+      away: undefined,
+      actBucket: token.bucket,
+    });
+    await touchPresence(ctx, member._id, now);
+    return { ok: true as const, roomId: room._id, instance: room.instance, place: to, ...walk, serverNow: now };
+  },
+});
+
+const BLOCKED_BY_SCAN = 200;
+
+export const elsewhere = query({
+  args: {},
+  returns: v.array(v.object({ place: v.string(), count: v.number(), names: v.array(v.string()) })),
+  handler: async (ctx) => {
+    const email = await requireEmail(ctx);
+    const me = await memberByEmail(ctx, email);
+    const hidden = new Set<string>([email]);
+    const mine = await ctx.db
+      .query("worldBlocks")
+      .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email))
+      .take(MAX_BLOCKS);
+    for (const row of mine) hidden.add(row.blockedEmail);
+    const ofMe = await ctx.db
+      .query("worldBlocks")
+      .withIndex("by_blockedEmail", (q) => q.eq("blockedEmail", email))
+      .take(BLOCKED_BY_SCAN);
+    for (const row of ofMe) hidden.add(row.email);
+    const found = [];
+    for (const place of PLACES) {
+      const rooms = await ctx.db
+        .query("worldRooms")
+        .withIndex("by_place_and_instance", (q) => q.eq("place", place))
+        .take(ROOM_SCAN);
+      const names: string[] = [];
+      let count = 0;
+      for (const room of rooms) {
+        if (room._id === me?.roomId) continue;
+        const members = await ctx.db
+          .query("worldMembers")
+          .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
+          .take(ROOM_CAP);
+        for (const member of members) {
+          if (hidden.has(member.email)) continue;
+          count++;
+          if (names.length < ELSEWHERE_NAMES) names.push(member.name);
+        }
+      }
+      if (count > 0) found.push({ place, count, names });
+    }
+    return found;
+  },
+});
+
+export const places = query({
+  args: {},
+  returns: v.record(v.string(), v.number()),
+  handler: async (ctx) => {
+    await requireEmail(ctx);
+    const counts: Record<string, number> = {};
+    for (const place of PLACES) {
+      const rooms = await ctx.db
+        .query("worldRooms")
+        .withIndex("by_place_and_instance", (q) => q.eq("place", place))
+        .take(ROOM_SCAN);
+      counts[place] = rooms.reduce((total, room) => total + room.memberCount, 0);
+    }
+    return counts;
+  },
+});
 
 export const away = mutation({
   args: { at: v.union(v.literal("arcade"), v.null()) },
@@ -506,6 +621,7 @@ export const roster = query({
     v.null(),
     v.object({
       instance: v.number(),
+      place: v.string(),
       members: v.array(
         v.object({ memberId: v.id("worldMembers"), name: v.string(), look: worldLookValidator, isMe: v.boolean() })
       ),
@@ -525,7 +641,7 @@ export const roster = query({
       const look = (await savedLook(ctx, row.email))?.look ?? row.look;
       members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id });
     }
-    return { instance: room.instance, members };
+    return { instance: room.instance, place: room.place, members };
   },
 });
 

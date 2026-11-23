@@ -13,15 +13,20 @@ import {
   HEAR_RADIUS,
   ASK_MS,
   OBSTACLES,
+  PLACE_TITLES,
+  PORTAL_RADIUS,
+  PORTALS,
   tagName,
+  type Place,
   type Look,
   type Walk,
 } from "@shared/world";
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { makeCamera } from "./camera";
-import { buildGarden, type Prim, type Prop } from "./gardenScene";
-import { garden, hud } from "./palette";
+import type { Prim, Prop } from "./gardenScene";
+import { garden, hud, places } from "./palette";
+import { buildScene } from "./placeScenes";
 import { Avatar, figureFor, headTop, hitBox, Tag, touchK, type Doing } from "./Person";
 import { accepted } from "./announce";
 import type { DrawnPose, Gait } from "./gait";
@@ -102,6 +107,8 @@ export const Garden = ({
   onHearing,
   selected,
   hudActions,
+  place,
+  placeCounts,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -123,6 +130,8 @@ export const Garden = ({
   onHearing: (count: number) => void;
   selected: string | null;
   hudActions: HudAction[];
+  place: Place;
+  placeCounts?: Record<string, number>;
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -134,7 +143,7 @@ export const Garden = ({
     if (!size || size.width !== width || size.height !== height) setSize({ width, height });
   };
   const cam = useMemo(() => size && makeCamera(size.width, size.height, FOCUS), [size]);
-  const scene = useMemo(() => cam && buildGarden(cam), [cam]);
+  const scene = useMemo(() => cam && buildScene(place, cam), [cam, place]);
 
   const now = serverNow();
   // Your own walk as it is; others glide toward each new walk from the server.
@@ -267,7 +276,7 @@ export const Garden = ({
     if (hits[0] && !(onArcade && arcade.depth < hits[0].depth)) return { kind: "person", id: hits[0].p.memberId };
     if (onArcade) return { kind: "arcade" };
     const spot = cam.ground(x, y);
-    if (spot && Math.hypot(spot.x - ARCADE.x, spot.z - ARCADE.z) < 0.75) return { kind: "arcade" };
+    if (place === "garden" && spot && Math.hypot(spot.x - ARCADE.x, spot.z - ARCADE.z) < 0.75) return { kind: "arcade" };
     return { kind: "ground" };
   };
 
@@ -474,7 +483,7 @@ export const Garden = ({
   }
 
   return (
-    <View style={[styles.fill, { backgroundColor: garden.sky }]} onLayout={onLayout}>
+    <View style={[styles.fill, { backgroundColor: scene.sky }]} onLayout={onLayout}>
       {/* The ground takes taps; the asks sit beside it, not inside it, so
           on iOS a tap on an ask's button never reaches the ground. */}
       <View
@@ -496,6 +505,22 @@ export const Garden = ({
         {actors.map((a) => (
           <Fragment key={a.key}>{a.node}</Fragment>
         ))}
+        {PORTALS[place].map((pad) => {
+          const below = cam.project([pad.x, 0, pad.z + PORTAL_RADIUS + 0.45]);
+          const above = cam.project([pad.x, 0, pad.z - PORTAL_RADIUS - 0.45]);
+          const at = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM ? { x: above.x, y: above.y - 14 } : below;
+          const here = placeCounts?.[pad.to] ?? 0;
+          return (
+            <View
+              key={`pad-${pad.to}`}
+              style={[styles.padLabel, { left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4), top: at.y - 10 }]}
+            >
+              <Text style={styles.padLabelText} numberOfLines={1}>
+                {here > 0 ? `${PLACE_TITLES[pad.to]} · ${here}` : PLACE_TITLES[pad.to]}
+              </Text>
+            </View>
+          );
+        })}
         {stackTags(tags).map((tag) => (
           <Tag key={tag.key} x={tag.x} y={tag.bottom} {...tag.props} />
         ))}
@@ -568,6 +593,8 @@ const bubbleFade = (age: number) =>
 const bubbleMoving = (age: number) => age < BUBBLE_IN_MS || (age > BUBBLE_MS - BUBBLE_OUT_MS - 1100 && age < BUBBLE_MS);
 
 const AWAY_STATUS = "🕹️ Playing";
+const PAD_LABEL_WIDTH = 132;
+const PAD_LABEL_CLEAR_BOTTOM = 130;
 const NAME_TAG_CLEARANCE = 30;
 const HUD_CLEAR_TOP = 112;
 /** An ask card's width (styles.ask), for keeping it on the stage. */
@@ -683,6 +710,17 @@ const stackTags = (tags: TagSpot[]): TagSpot[] => {
 const styles = StyleSheet.create({
   fill: { flex: 1, overflow: "hidden" },
   away: { opacity: 0.45 },
+  padLabel: { position: "absolute", width: PAD_LABEL_WIDTH, alignItems: "center" },
+  padLabelText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: places.padLabelText,
+    backgroundColor: places.padLabel,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
   ask: {
     position: "absolute",
     width: ASK_CARD_WIDTH,

@@ -156,6 +156,7 @@ export default defineSchema({
     name: v.string(),
     look: worldLookValidator,
     joinedAt: v.number(),
+    place: v.optional(v.string()),
     // Open visits sharing this member (tabs, devices). Leave removes the
     // member only when the last one goes. Missing means one.
     visits: v.optional(v.number()),

@@ -8,6 +8,9 @@ import {
   CHAT_LOG_SIZE,
   CHAT_ROOM_CAP,
   CHAT_TTL_MS,
+  arrivalSpot,
+  ELSEWHERE_NAMES,
+  PLACE_OBSTACLES,
   clampTarget,
   INTERACT_RADIUS,
   MAX_BLOCKS,
@@ -241,6 +244,115 @@ const stateRow = (t: T, memberId: Id<"worldMembers">) =>
       .withIndex("by_memberId", (q) => q.eq("memberId", memberId))
       .unique()
   );
+
+describe("places", () => {
+  const two = async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    const b = await ben.mutation(api.world.join, {});
+    return { t, anna, ben, a, b };
+  };
+
+  test("everyone starts in the garden", async () => {
+    const { anna, a } = await two();
+    expect(a.place).toBe("garden");
+    expect(await anna.query(api.world.roster, { roomId: a.roomId })).toMatchObject({ place: "garden" });
+    expect(await anna.query(api.world.places, {})).toEqual({ garden: 2, chapel: 0, campfire: 0, cafe: 0, beach: 0 });
+  });
+
+  test("travelling moves you to a room of that place, beside the way back", async () => {
+    const { t, anna, ben, a, b } = await two();
+    await standAt(t, a.memberId, 0, 0);
+    await standAt(t, b.memberId, 1, 0);
+    await ben.mutation(api.world.ask, { to: a.memberId, kind: "highFive" });
+    await anna.mutation(api.world.ask, { to: b.memberId, kind: "highFive" });
+    later(1000);
+    const moved = await anna.mutation(api.world.travel, { to: "chapel" });
+    const spot = arrivalSpot("garden", "chapel");
+    expect(moved).toMatchObject({ ok: true, place: "chapel", instance: 1, toX: spot.x, toZ: spot.z, fromX: spot.x, fromZ: spot.z });
+    if (!moved.ok) throw new Error("travel refused");
+    expect(moved.roomId).not.toBe(a.roomId);
+    expect(await anna.query(api.world.roster, { roomId: a.roomId })).toBeNull();
+    const there = await anna.query(api.world.roster, { roomId: moved.roomId });
+    expect(there).toMatchObject({ place: "chapel", members: [{ memberId: a.memberId, isMe: true }] });
+    expect((await stateRow(t, a.memberId))!.ask).toBeUndefined();
+    expect(await anna.query(api.world.places, {})).toMatchObject({ garden: 1, chapel: 1 });
+    expect((await ben.query(api.world.roster, { roomId: b.roomId }))!.members).toHaveLength(1);
+    expect(await ben.query(api.world.state, { memberId: a.memberId })).toBeNull();
+  });
+
+  test("going where you already are changes nothing and costs nothing", async () => {
+    const { t, anna, a } = await two();
+    const before = (await stateRow(t, a.memberId))!;
+    expect(await anna.mutation(api.world.travel, { to: "garden" })).toMatchObject({ ok: true, roomId: a.roomId, place: "garden" });
+    expect((await stateRow(t, a.memberId))!.actBucket).toEqual(before.actBucket);
+    await expect(anna.mutation(api.world.travel, { to: "moon" })).rejects.toThrow(/somewhere you can go/);
+  });
+
+  test("the last one out closes the room, and hopping about is rate limited", async () => {
+    const { t, anna, ben } = await two();
+    await anna.mutation(api.world.travel, { to: "beach" });
+    await ben.mutation(api.world.travel, { to: "beach" });
+    expect((await rows(t)).rooms.map((room) => room.place)).toEqual(["beach"]);
+    expect((await rows(t)).rooms[0].memberCount).toBe(2);
+    await anna.mutation(api.world.travel, { to: "garden" });
+    await anna.mutation(api.world.travel, { to: "cafe" });
+    expect(await anna.mutation(api.world.travel, { to: "garden" })).toMatchObject({ ok: false, retryInMs: expect.any(Number) });
+    expect(await anna.query(api.world.places, {})).toMatchObject({ beach: 1, cafe: 1, garden: 0 });
+  });
+
+  test("a walk is kept clear of the furniture of the place you're in", async () => {
+    const { t, anna, a } = await two();
+    const pew = PLACE_OBSTACLES.chapel[0];
+    expect(await anna.mutation(api.world.move, { toX: pew.x, toZ: pew.z })).toMatchObject({ ok: true, toX: pew.x, toZ: pew.z });
+    await anna.mutation(api.world.travel, { to: "chapel" });
+    const walked = await anna.mutation(api.world.move, { toX: pew.x, toZ: pew.z });
+    expect(walked).toMatchObject({ ok: true });
+    if (!walked.ok) throw new Error("move refused");
+    expect({ x: walked.toX, z: walked.toZ }).toEqual(clampTarget(pew.x, pew.z, "chapel"));
+    expect({ x: walked.toX, z: walked.toZ }).not.toEqual({ x: pew.x, z: pew.z });
+    expect((await stateRow(t, a.memberId))!.toX).toBe(walked.toX);
+  });
+
+  test("the people list can show who is in the other places", async () => {
+    const { t, anna, ben } = await two();
+    const cara = asUser(t, CARA);
+    await cara.mutation(api.world.join, {});
+    expect(await anna.query(api.world.elsewhere, {})).toEqual([]);
+    await ben.mutation(api.world.travel, { to: "chapel" });
+    await cara.mutation(api.world.travel, { to: "chapel" });
+    expect(await anna.query(api.world.elsewhere, {})).toEqual([{ place: "chapel", count: 2, names: [expect.any(String), expect.any(String)] }]);
+    expect(await ben.query(api.world.elsewhere, {})).toEqual([{ place: "garden", count: 1, names: [expect.any(String)] }]);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: BEN, blockedName: "Ben" });
+      await ctx.db.insert("worldBlocks", { email: CARA, blockedEmail: ANNA, blockedName: "Anna" });
+    });
+    expect(await anna.query(api.world.elsewhere, {})).toEqual([]);
+
+    await t.run(async (ctx) => {
+      const room = (await ctx.db.query("worldRooms").collect()).find((r) => r.place === "chapel")!;
+      for (let i = 0; i < ELSEWHERE_NAMES + 3; i++) {
+        await ctx.db.insert("worldMembers", { roomId: room._id, email: `guest${i}@sow.org.au`, name: `Guest ${i}`, look: { skin: 0, hair: 0, hairColour: 0, shirt: 0 }, joinedAt: 0 });
+      }
+    });
+    const [chapel] = await anna.query(api.world.elsewhere, {});
+    expect(chapel.count).toBe(ELSEWHERE_NAMES + 3);
+    expect(chapel.names).toHaveLength(ELSEWHERE_NAMES);
+  });
+
+  test("another tab joins you where you are, and leaving from anywhere tidies up", async () => {
+    const { t, anna } = await two();
+    const moved = await anna.mutation(api.world.travel, { to: "campfire" });
+    if (!moved.ok) throw new Error("travel refused");
+    expect(await anna.mutation(api.world.join, {})).toMatchObject({ place: "campfire", roomId: moved.roomId });
+    await anna.mutation(api.world.leave, {});
+    await anna.mutation(api.world.leave, {});
+    expect((await rows(t)).rooms.map((room) => room.place)).toEqual(["garden"]);
+  });
+});
 
 describe("the offline list and pokes", () => {
   const trio = async () => {

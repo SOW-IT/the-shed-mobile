@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+### Added
+- **Four more places to go from the Garden.** The Chapel is through the arch
+  at the back, the Café is to the left, the Campfire to the right, and the
+  Beach is out the front. Walk onto one of the labelled circles and stop
+  there, and you step through. Each place has a circle that takes you back
+  to the Garden, and you arrive beside it. Every place is its own room, with
+  its own chat, and up to 20 people before another opens.
+- **See where everyone is.** A circle's label shows how many people are
+  through it, and People here lists who is in each of the other places.
+  From the same sheet you can go to any place the circles lead to without
+  walking, which is also how you get around in the list view.
+
 ## [2.12.10] - 2026-11-23
 
 ### Added
