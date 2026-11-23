@@ -35,7 +35,9 @@ const useScreenReader = () => {
   return on;
 };
 
-const useKeyboardLift = () => {
+const KEYBOARD_GAP = 8;
+
+const useKeyboardLift = (bottomInset: number) => {
   const [lift] = useState(() => new Animated.Value(0));
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -44,7 +46,7 @@ const useKeyboardLift = () => {
       Animated.timing(lift, { toValue, duration: duration || 250, useNativeDriver: true }).start();
     const show = Keyboard.addListener("keyboardWillShow", (e) => {
       setOpen(true);
-      move(e.endCoordinates.height, e.duration);
+      move(-Math.max(0, e.endCoordinates.height - bottomInset + KEYBOARD_GAP), e.duration);
     });
     const hide = Keyboard.addListener("keyboardWillHide", (e) => {
       setOpen(false);
@@ -54,7 +56,7 @@ const useKeyboardLift = () => {
       show.remove();
       hide.remove();
     };
-  }, [lift]);
+  }, [lift, bottomInset]);
   return { lift, open };
 };
 
@@ -121,7 +123,6 @@ export const WorldScreen = ({
   const [chosen, setChosen] = useState<WorldView | null>(null);
   const view = pickView({ offline, screenReader, chosen, canDraw: Platform.OS !== "android" });
   const world = useWorld(!offline && active, away);
-  const keyboard = useKeyboardLift();
   const [arcadeTrip, setArcadeTrip] = useState<number | null>(null);
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [person, setPerson] = useState<string | null>(null);
@@ -139,6 +140,7 @@ export const WorldScreen = ({
   // the ask just runs out.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
   // How many can hear you, as the garden draws it.
   const [hearing, setHearing] = useState(0);
 
@@ -476,7 +478,7 @@ export const WorldScreen = ({
         style={[
           styles.bottom,
           { paddingBottom: Math.max(insets.bottom, 12) },
-          { transform: [{ translateY: keyboard.lift.interpolate({ inputRange: [0, insets.bottom + 1, 2000], outputRange: [0, 0, insets.bottom + 1 - 2000 - 8], extrapolate: "clamp" }) }] },
+          { transform: [{ translateY: keyboard.lift }] },
         ]}
         pointerEvents="box-none"
       >

@@ -241,7 +241,8 @@ export const Garden = ({
     timer: ReturnType<typeof setTimeout> | null;
     /** The last point of this press that was on the ground. */
     spot: { x: number; z: number } | null;
-  }>({ x: 0, y: 0, hit: { kind: "ground" }, walking: false, timer: null, spot: null });
+    backSwipe: boolean;
+  }>({ x: 0, y: 0, hit: { kind: "ground" }, walking: false, timer: null, spot: null, backSwipe: false });
 
   /** Where a touch is on the stage. Children don't take touches, so it's the stage's own. */
   const where = (e: GestureResponderEvent) => {
@@ -291,7 +292,9 @@ export const Garden = ({
     if (!at) return;
     const hit = hitAt(at.x, at.y);
     if (press.current.timer) clearTimeout(press.current.timer);
-    press.current = { ...at, hit, walking: hit.kind === "ground", timer: null, spot: null };
+    const backSwipe = Platform.OS === "ios" && at.x < BACK_SWIPE_EDGE && hit.kind === "ground";
+    press.current = { ...at, hit, walking: hit.kind === "ground" && !backSwipe, timer: null, spot: null, backSwipe };
+    if (backSwipe) return;
     if (hit.kind === "ground") walkFrom(at.x, at.y, "start");
     else {
       press.current.timer = setTimeout(() => {
@@ -305,7 +308,7 @@ export const Garden = ({
   const onMove = (e: GestureResponderEvent) => {
     const at = where(e);
     const p = press.current;
-    if (!at) return;
+    if (!at || p.backSwipe) return;
     if (!p.walking) {
       if (Math.hypot(at.x - p.x, at.y - p.y) < TAP_SLOP) return;
       if (p.timer) clearTimeout(p.timer);
@@ -320,6 +323,7 @@ export const Garden = ({
     if (p.timer) clearTimeout(p.timer);
     p.timer = null;
     const at = where(e) ?? p;
+    if (p.backSwipe) return;
     if (p.walking) return walkFrom(at.x, at.y, "end");
     if (p.hit.kind === "person") onTapPerson(p.hit.id);
     else if (p.hit.kind === "arcade") onTapArcade();
@@ -592,6 +596,7 @@ const Spark = ({ x, y, size, t }: { x: number; y: number; size: number; t: numbe
   );
 };
 
+const BACK_SWIPE_EDGE = 24;
 /** Holding this long on a person or the arcade walks instead of opening them. */
 const HOLD_TO_WALK_MS = 300;
 /** A finger that moves this far (pixels) is dragging, not tapping. */
