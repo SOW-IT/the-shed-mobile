@@ -6,6 +6,8 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.13] - 2026-11-23
+
 ### Added
 - **Four more places to walk to.** Walk onto one of the labelled circles
   and stop there, and you step through to that place, arriving beside the
@@ -15,6 +17,11 @@ All notable changes to **The SHED** mobile app. This project follows
   and the Café to the Chapel, so you can walk the whole way round. Every
   place is its own room, with its own chat, and up to 20 people before
   another opens.
+- **Sit down.** Tap a seat and you walk over and sit: the pews in the
+  Chapel, the logs round the Campfire, the stools and the couch in the
+  Café, the picnic blanket in the Garden and the towel on the Beach.
+  Everyone sees you sitting. Tap the ground to get up and walk. If the seat
+  you tapped is taken, you get the nearest free one beside it.
 - **See where everyone is.** A circle's label shows how many people are
   through it, and People here lists who is in each of the other places.
   From the same sheet you can go to any place the circles lead to without

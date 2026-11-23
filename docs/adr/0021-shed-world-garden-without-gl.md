@@ -173,6 +173,19 @@ so the five make a loop with the Garden to Campfire path across it.
   sheet is open.
 - **Scenes** are built with the Garden's `Builder` (`placeScenes.ts`); each
   place has its own colours in `palette.ts`.
+- **Sitting is a move.** `SEATS` lists each place's seats (where, which way
+  they face, how high). `world.sit` takes a seat id, starts a walk from
+  where the server has you straight to the seat, and sets
+  `worldState.seat`; it spends a move token and writes only your own row.
+  Every phone draws the sitting pose once that walk has arrived, turned the
+  seat's way and lifted to its height. Any `move` or `travel` clears it, so
+  standing up is just walking off. Bench seats are inside the furniture's
+  no-standing outline on purpose: only `sit` can put you there. The server
+  does not check whether a seat is taken (that would read the whole room on
+  every sit); the app sends you to the nearest free seat on the same piece
+  of furniture, and two people tapping the same seat in the same instant
+  would overlap. A seat's furniture is drawn in two parts where it has a
+  back (the pews), so the sitter sorts between seat and backrest.
 
 ## Write budget
 

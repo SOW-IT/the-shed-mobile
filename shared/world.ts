@@ -248,7 +248,7 @@ export const PORTALS: Record<Place, readonly Portal[]> = {
   ],
 };
 
-export type Seat = { id: string; x: number; z: number; heading: number; height: number };
+type Seat = { id: string; x: number; z: number; heading: number; height: number };
 
 const FACING_CAMERA = 0;
 const FACING_AWAY = Math.PI;
