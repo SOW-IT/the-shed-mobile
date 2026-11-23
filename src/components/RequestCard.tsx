@@ -299,6 +299,7 @@ export const RequestCard = ({
   deepLinkOpenKey,
   onAutoOpenThread,
   waitingSince,
+  unread,
   children,
 }: {
   request: Doc<"requests">;
@@ -310,6 +311,11 @@ export const RequestCard = ({
   deepLinkOpenKey?: string;
   onAutoOpenThread?: () => void;
   waitingSince?: number;
+  /**
+   * The card's unread comment count, when its list fetched every card's count
+   * in one query. Without it the card asks for its own.
+   */
+  unread?: number;
   collapsible?: boolean;
   children?: ReactNode;
 }) => {
@@ -324,9 +330,11 @@ export const RequestCard = ({
       ? { email: request.requesterEmail, year: eventStaffYear(request._creationTime) }
       : "skip"
   );
-  const unreadComments = useQuery(api.comments.unreadCount, {
-    requestId: request._id,
-  });
+  const ownUnread = useQuery(
+    api.comments.unreadCount,
+    unread === undefined ? { requestId: request._id } : "skip"
+  );
+  const unreadComments = unread ?? ownUnread;
   const status = requestDisplayStatus(request);
   const chip = statusChip(status, t);
 
