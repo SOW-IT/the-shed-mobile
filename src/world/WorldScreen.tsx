@@ -378,7 +378,7 @@ export const WorldScreen = ({
 
   const [fade] = useState(() => new Animated.Value(0));
   const triedFromWalk = useRef<number | null>(null);
-  const go = (to: Place) => {
+  const go = (to: Place, toMember?: Id<"worldMembers">) => {
     setPerson(null);
     setApproach(null);
     setArcadeTrip(null);
@@ -388,7 +388,7 @@ export const WorldScreen = ({
     const veil = (toValue: number) =>
       Animated.timing(fade, { toValue, duration: 180, useNativeDriver: Platform.OS !== "web" }).start();
     veil(1);
-    void live.current.world.travel(to).then((problem) => {
+    void live.current.world.travel(to, toMember).then((problem) => {
       veil(0);
       if (problem) setNote(problem);
       else announce(`You're in ${PLACE_TITLES[to]}.`);
@@ -457,6 +457,8 @@ export const WorldScreen = ({
   const walkOver = (to: string) => {
     setPeopleOpen(false);
     setPerson(null);
+    setApproach(null);
+    setArcadeTrip(null);
     const { world: latest } = live.current;
     const at = latest.serverNow();
     const mine = latest.people.find((p) => p.isMe);
@@ -476,9 +478,9 @@ export const WorldScreen = ({
   });
   const [following, setFollowing] = useState<{ memberId: string; since: number } | null>(null);
   const follow = (to: Place, memberId: string) => {
-    if (to === world.place) return walkOver(memberId);
+    if (world.people.some((p) => p.memberId === memberId)) return walkOver(memberId);
     setFollowing({ memberId, since: Date.now() });
-    go(to);
+    go(to, memberId as Id<"worldMembers">);
   };
   useEffect(() => {
     if (!following) return;

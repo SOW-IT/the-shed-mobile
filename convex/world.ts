@@ -420,7 +420,7 @@ export const sit = mutation({
 const done = v.union(v.object({ ok: v.literal(true), serverNow: v.number() }), turnedAway);
 
 export const travel = mutation({
-  args: { to: v.string() },
+  args: { to: v.string(), toMember: v.optional(v.id("worldMembers")) },
   returns: v.union(
     v.object({
       ok: v.literal(true),
@@ -432,24 +432,30 @@ export const travel = mutation({
     }),
     turnedAway
   ),
-  handler: async (ctx, { to }) => {
+  handler: async (ctx, { to, toMember }) => {
     if (!isPlace(to)) throw new ConvexError("That isn't somewhere you can go.");
-    const { member, state } = await requireMe(ctx);
+    const { email, member, state } = await requireMe(ctx);
     const now = Date.now();
     const from = placeOf(member);
     const here = (await ctx.db.get("worldRooms", member.roomId))!;
-    if (from === to) {
+    const target = toMember ? await ctx.db.get("worldMembers", toMember) : null;
+    const theirRoom =
+      target && target.roomId !== member.roomId && placeOf(target) === to && !(await blockedEither(ctx, email, target.email))
+        ? await ctx.db.get("worldRooms", target.roomId)
+        : null;
+    const joinable = theirRoom && theirRoom.memberCount < ROOM_CAP ? theirRoom : null;
+    if (from === to && !joinable) {
       const { fromX, fromZ, toX, toZ, startedAt } = state;
       return { ok: true as const, roomId: here._id, instance: here.instance, place: from, fromX, fromZ, toX, toZ, startedAt, serverNow: now };
     }
     const token = spend("act", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
-    const room = await roomWithSpace(ctx, to);
+    const room = joinable ?? (await roomWithSpace(ctx, to));
     await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
     if (here.memberCount <= 1) await ctx.db.delete("worldRooms", here._id);
     else await ctx.db.patch("worldRooms", here._id, { memberCount: here.memberCount - 1 });
     await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place: to });
-    const spot = arrivalSpot(from, to);
+    const spot = from === to ? posAt(state, now) : arrivalSpot(from, to);
     const walk = { fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z, startedAt: now };
     await ctx.db.patch("worldState", state._id, {
       ...walk,

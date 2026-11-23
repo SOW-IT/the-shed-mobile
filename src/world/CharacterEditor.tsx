@@ -112,6 +112,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
     let prev = start;
     // Each opening starts facing you, and only turns by itself after a moment.
     spin.current = { down: false, lastX: 0, lastAt: start, velocity: 0, heading: 0, openedAt: start, touched: false };
+    let wasClose = closeUpNow.current;
     const glide = { from: { s: goalNow.current.s, y: goalNow.current.y }, to: { s: goalNow.current.s, y: goalNow.current.y }, at: start, now: { s: goalNow.current.s, y: goalNow.current.y } };
     const tick = () => {
       const now = Date.now();
@@ -126,6 +127,11 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
       const k = target.still ? 1 : easeInOut(Math.min(1, (now - glide.at) / GLIDE_MS));
       glide.now = { s: glide.from.s + (glide.to.s - glide.from.s) * k, y: glide.from.y + (glide.to.y - glide.from.y) * k };
       const d = spin.current;
+      if (closeUpNow.current && !wasClose && !d.down) {
+        d.touched = false;
+        d.velocity = 0;
+      }
+      wasClose = closeUpNow.current;
       if (!d.down) {
         if (Math.abs(d.velocity) > 0.05) {
           d.heading += d.velocity * dt;
@@ -133,7 +139,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
         } else if (!d.touched && closeUpNow.current) {
           // Close up on the face, it turns back to face you instead.
           const front = Math.round(d.heading / (Math.PI * 2)) * Math.PI * 2;
-          d.heading += (front - d.heading) * Math.min(1, dt * 3);
+          d.heading = target.still ? front : d.heading + (front - d.heading) * Math.min(1, dt * 3);
         } else if (!d.touched && now - d.openedAt > AUTO_START_MS) d.heading += AUTO_TURN * dt;
       }
       setFrame({ heading: d.heading, t: (now - start) / 1000, s: glide.now.s, y: glide.now.y });
@@ -212,6 +218,7 @@ const Swatches = ({
   label,
   order,
   firstIcon,
+  firstLabel,
 }: {
   colours: readonly string[];
   value: number;
@@ -220,6 +227,7 @@ const Swatches = ({
   order?: readonly number[];
   /** An icon on the first swatch, when it means something other than its colour. */
   firstIcon?: keyof typeof Ionicons.glyphMap;
+  firstLabel?: string;
 }) => {
   const t = useAppTheme();
   const shown = order ?? colours.map((_, i) => i);
@@ -231,7 +239,7 @@ const Swatches = ({
           onPress={() => onPick(i)}
           accessibilityRole="radio"
           accessibilityState={{ selected: i === value }}
-          accessibilityLabel={`${label} ${place + 1}`}
+          accessibilityLabel={i === 0 && firstLabel ? firstLabel : `${label} ${place + 1}`}
           testID={`world-editor-${label.toLowerCase().replace(" ", "-")}-${i}`}
           style={[styles.swatch, { backgroundColor: colours[i] }, i === value && [styles.swatchOn, { borderColor: t.text }]]}
         >
@@ -609,6 +617,7 @@ export const CharacterEditor = ({
             onPick={set("browColour")}
             label="Brow colour"
             firstIcon="link"
+            firstLabel="Brow colour: match hair colour"
           />
           <Text style={[typography.caption, { color: t.muted }]}>The first one matches your hair. Brows move with your eyes.</Text>
           {nudges("Brows")}

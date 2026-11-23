@@ -419,7 +419,36 @@ describe("places", () => {
       for (let i = 0; i < 200; i++) await ctx.db.insert("worldBlocks", { email: `stranger${i}@sow.org.au`, blockedEmail: ANNA, blockedName: "Anna" });
       await ctx.db.insert("worldBlocks", { email: CARA, blockedEmail: ANNA, blockedName: "Anna" });
     });
-    expect(await anna.query(api.world.elsewhere, {})).toMatchObject([{ place: "chapel", count: 1, names: [expect.any(String)] }]);
+    const caraId = await t.run(async (ctx) => (await ctx.db.query("worldMembers").collect()).find((m) => m.email === CARA)!._id);
+    const found = await anna.query(api.world.elsewhere, {});
+    expect(found).toMatchObject([{ place: "chapel", count: 1, names: [expect.any(String)] }]);
+    expect(found[0]!.people.map((p) => p.memberId)).not.toContain(caraId);
+  });
+
+  test("following someone lands in their room, even in the same place or with space elsewhere", async () => {
+    const { t, anna, ben, a, b } = await two();
+    const second = await t.run(async (ctx) => {
+      const roomId = await ctx.db.insert("worldRooms", { place: "garden", instance: 2, memberCount: 1 });
+      await ctx.db.patch("worldMembers", b.memberId, { roomId });
+      await ctx.db.patch("worldRooms", a.roomId, { memberCount: 1 });
+      return roomId;
+    });
+    const same = await anna.mutation(api.world.travel, { to: "garden", toMember: b.memberId });
+    expect(same).toMatchObject({ ok: true, roomId: second, place: "garden", instance: 2 });
+    later(5000);
+    await ben.mutation(api.world.travel, { to: "beach" });
+    const beachRooms = await t.run(async (ctx) => {
+      const ben2 = (await ctx.db.get("worldMembers", b.memberId))!;
+      const other = await ctx.db.insert("worldRooms", { place: "beach", instance: 2, memberCount: 1 });
+      const old = (await ctx.db.get("worldRooms", ben2.roomId))!;
+      await ctx.db.patch("worldMembers", b.memberId, { roomId: other });
+      if (old.memberCount <= 1) await ctx.db.patch("worldRooms", old._id, { memberCount: 0 });
+      return { other, old: old._id };
+    });
+    later(5000);
+    const beach = await anna.mutation(api.world.travel, { to: "beach", toMember: b.memberId });
+    expect(beach).toMatchObject({ ok: true, roomId: beachRooms.other, place: "beach" });
+    expect(await anna.query(api.world.roster, { roomId: beachRooms.other })).toMatchObject({ members: expect.arrayContaining([expect.objectContaining({ memberId: b.memberId })]) });
   });
 
   test("another tab joins you where you are, and leaving from anywhere tidies up", async () => {
@@ -567,6 +596,7 @@ describe("how many are online", () => {
     await ben.mutation(api.world.join, {});
     await cara.mutation(api.world.join, {});
     expect(await anna.query(api.world.onlineCount, {})).toBe(3);
+    expect(await t.query(api.world.onlineCount, {})).toBe(0);
     // Travelling doesn't change the count; leaving does.
     await ben.mutation(api.world.travel, { to: "chapel" });
     expect(await cara.query(api.world.onlineCount, {})).toBe(3);

@@ -42,7 +42,7 @@ All notable changes to **The SHED** mobile app. This project follows
   connection as one to four bars (green, amber or red). Tap someone here to
   wave, high five, duel, mute, block or report. The button on the right of
   each row walks you over to someone here, or takes you to someone's place
-  and walks you over to them there. The poke list and your blocked people are at the bottom.
+  (into the same room as them, when there's space) and walks you over. The poke list and your blocked people are at the bottom.
 - **Your connection at the top.** Wi-fi bars sit next to the People
   button; tap them to see your ping in milliseconds for a moment. Each
   phone times its own round trips to the server and shares its bars only

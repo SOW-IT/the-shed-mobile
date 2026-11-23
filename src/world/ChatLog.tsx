@@ -48,11 +48,17 @@ export const ChatLog = ({
   const scroller = useRef<ScrollViewInstance>(null);
   const atEnd = useRef(true);
   const [heights, setHeights] = useState<Record<string, number>>({});
+  const lines = (log ?? []).filter((line) => !muted.has(line.memberId) && now - line.at < CHAT_TTL_MS).reverse();
+  const showing = new Set(["status", ...lines.map((line) => line.id)]);
   const measure = (id: string) => (e: LayoutChangeEvent) => {
     const height = Math.round(e.nativeEvent.layout.height);
-    setHeights((known) => (known[id] === height ? known : { ...known, [id]: height }));
+    setHeights((known) => {
+      if (known[id] === height) return known;
+      const kept: Record<string, number> = { [id]: height };
+      for (const key of Object.keys(known)) if (key !== id && showing.has(key)) kept[key] = known[key];
+      return kept;
+    });
   };
-  const lines = (log ?? []).filter((line) => !muted.has(line.memberId) && now - line.at < CHAT_TTL_MS).reverse();
   if (!status && lines.length === 0) return null;
   const shown = fitWhole([...(status ? [heights.status ?? LINE_HEIGHT] : []), ...lines.map((line) => heights[line.id] ?? LINE_HEIGHT)]);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {

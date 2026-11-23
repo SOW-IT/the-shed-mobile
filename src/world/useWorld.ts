@@ -597,7 +597,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   );
 
   const travel = useCallback(
-    async (to: Place): Promise<string | null> => {
+    async (to: Place, toMember?: MemberId): Promise<string | null> => {
       if (!session || travelling.current) return null;
       travelling.current = true;
       pending.current = null;
@@ -606,7 +606,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       const sentAt = Date.now();
       const sentIn = visit.current;
       try {
-        const reply = await travelM({ to });
+        const reply = await travelM(toMember ? { to, toMember } : { to });
         if (sentIn !== visit.current) return null;
         heard(reply.serverNow, sentAt);
         if (!reply.ok) return turnedAwayText(reply);

@@ -56,7 +56,7 @@ export const figureTop = (look: Look, up: number) => {
     hair === 12 && !hidesCrest(hat) ? 0.62 : 0,
     hat === 2 ? 0.55 : 0,
     hat === 4 ? 0.5 : 0,
-    hat === 5 ? 0.55 : 0,
+    hat === 5 ? 0.62 : 0,
     hat === 8 ? 0.77 : 0,
     hat === 9 ? 0.6 : 0
   );
@@ -1063,7 +1063,7 @@ const AvatarView = ({
     boxed(
       "mouth",
       mx,
-      my,
+      m === "tongue" ? Math.min(my, icy + ih / 2 - (0.1 * mouthScale + 0.015) * s) : my,
       -mouthTurn,
       mouthScale,
       m === "cat" ? (
@@ -1292,7 +1292,7 @@ const AvatarView = ({
     const span = sideOn ? r * 2.2 : r * 2.1 * Math.abs(facing);
     const bandTop = head.y - r * 1.12 - lift;
     const edge = sideOn ? "transparent" : people.headphones;
-    parts.push(<View key="band" pointerEvents="none" style={[styles.abs, { left: head.x - span / 2, top: bandTop, width: span, height: sideOn ? span : head.y + r * 0.1 - bandTop, borderRadius: span / 2, borderTopWidth: 0.06 * s, borderLeftWidth: 0.06 * s, borderRightWidth: 0.06 * s, borderColor: people.headphones, borderLeftColor: edge, borderRightColor: edge, borderBottomColor: "transparent" }]} />);
+    parts.push(<View key="headphoneBand" pointerEvents="none" style={[styles.abs, { left: head.x - span / 2, top: bandTop, width: span, height: sideOn ? span : head.y + r * 0.1 - bandTop, borderRadius: span / 2, borderTopWidth: 0.06 * s, borderLeftWidth: 0.06 * s, borderRightWidth: 0.06 * s, borderColor: people.headphones, borderLeftColor: edge, borderRightColor: edge, borderBottomColor: "transparent" }]} />);
     for (const e of [-1, 1]) {
       if (-e * side < -0.3) continue;
       const cup = { x: head.x + r * 0.98 * e * facing, y: head.y + r * 0.05 };
