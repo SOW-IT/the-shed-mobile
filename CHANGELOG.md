@@ -6,14 +6,110 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.21] - 2026-11-24
+## [2.12.32] - 2026-11-24
 
 ### Changed
-- **Unread comment badges cost far less to work out.** The red comment counts
-  on Home, the Reimbursements tab and Finance's All requests list now look at
-  a request's approvals only when it has comments you haven't read. Most
-  requests have no comments, so a Head of Department's badge reads about a
-  fourteenth of what it did. The numbers shown are the same.
+- **Unread comment counts cost far less to work out.** The red comment counts
+  on Home, the Reimbursements tab and the All, Review, Requests and Past lists
+  now look at a request's approvals only when it has comments you haven't
+  read. Most requests have no comments, so over 40 requests a Head of
+  Department's count reads 25 records instead of 365. The numbers shown are
+  the same.
+
+## [2.12.31] - 2026-11-24
+
+### Changed
+- **Loading spinners on the website stop using the computer.** The spinning
+  SOW mark and the pulsing grey placeholders were redrawn by the page's code
+  every frame. On the website they're now animations the browser runs by
+  itself, so a spinner left on screen (like the one at the bottom of a long
+  All list) no longer keeps a laptop or phone busy. They look the same, and
+  the app on phones is unchanged.
+
+## [2.12.30] - 2026-11-24
+
+### Fixed
+- **Hats, hair and the scarf look right in the World.** Every hair style,
+  hat, outfit and accessory was checked from the front, side and back:
+  - The cap's peak sits at the cap's lower edge, not across the forehead,
+    and from behind the cap no longer covers the whole head like a helmet.
+  - The beanie's cuff runs along its lower edge instead of near the top.
+  - On the oval and long face shapes, the beanie's pompom, the sun hat and
+    the flower crown sit on top of the head instead of sinking into it.
+  - Curly hair, a bun and an afro tuck under a cap, beanie or sun hat
+    instead of showing through or ballooning above it.
+  - A ponytail and an afro show from behind.
+  - Spiky hair has proper spikes, and the side-swept fringe falls over the
+    forehead instead of floating off the head.
+  - The scarf wraps under the chin, where you can see it.
+
+## [2.12.29] - 2026-11-24
+
+### Changed
+- **Reimbursement lists on the website stop using the computer while you
+  read.** The moving fill on each request's current approval step was
+  redrawn by the page's code every frame, once per card, so a list of
+  requests kept the computer or phone busy (about half of a slow phone's
+  processor on All) even when nothing changed. On the website it's now a
+  CSS animation the browser runs by itself. It looks the same. The app on
+  phones already ran it this way.
+
+## [2.12.25] - 2026-11-24
+
+### Changed
+- **Swim in the pond and the sea.** Walk into the Garden pond or past the
+  shallows at the Beach and you swim: you sink to your shoulders with a
+  ripple round you, and your arms stroke as you move.
+- **Rock paper scissors duels.** Tap someone and pick Duel: you walk over and
+  ask "Rock paper scissors?". If they accept, you both get five seconds to
+  pick rock, paper or scissors, while you both shout "Scissors… Paper…
+  Rock!" over your heads (not in the chat). On "Rock!" your picks show over
+  your heads, then the winner cheers and the loser cries. A draw goes again
+  with three seconds to pick. Nobody sees a pick until the reveal, and
+  anyone who doesn't pick in time gets one picked for them.
+- **Join and leave lines in the chat.** The chat log now says when someone
+  comes into the World and when they leave, in yellow like a game server:
+  "[12:04] Daniel K. joined the Garden", "[12:09] Daniel K. left". Moving
+  between places writes no line, and you don't see these lines for anyone
+  you've blocked. A leave line from another place says where they left,
+  and VoiceOver reads that place out too.
+- **Last-name initials on name tags.** Name tags in the World show your
+  first name and the first letter of your last name, "Daniel K." instead of
+  "Daniel", so two people with the same first name can be told apart. Your
+  own tag still says "You".
+- **Randomise asks first.** In the character editor, Randomise now asks
+  "Randomise your character?" before it replaces your look.
+- **Duels in the list view.** Someone's sheet in the list view has a Rock
+  paper scissors button, and the list shows the picks and who won (read
+  aloud by VoiceOver).
+
+### Fixed
+- **Praying looks like praying.** The Pray emote now shows two small hands
+  held together under the chin, instead of a long loop down the chest.
+- **Duel fixes.** A pick sent just as a round ends can't count in the next
+  round, each player has their own limit on changes of mind, a late reveal
+  still gives the next round its full time, a new duel straight after another
+  shows its buttons at once, and you don't see duels of someone you've
+  blocked.
+- **Swimmers keep swimming when they stop,** treading water instead of
+  freezing.
+## [2.12.23] - 2026-11-24
+
+### Changed
+- **Reimbursement lists ask the server less.** Each request card used to ask
+  for its own count of unread comments. The All, Review, Requests and Past
+  lists now ask once for every card on screen, so opening All with 20 ongoing
+  requests opens 39 live queries instead of 59. The counts and badges look
+  the same.
+
+## [2.12.21] - 2026-11-23
+
+### Changed
+- **The website opens faster.** The code that makes Event Request and Design
+  Request PDFs (about a fifth of the shared code every page loaded) is now
+  fetched only when you press Download PDF. Every page downloads about 208 KB
+  less, and on a slow connection the sign-in screen is ready about a quarter
+  of a second sooner. The PDFs and the app on phones are unchanged.
 
 ## [2.12.20] - 2026-11-23
 

@@ -84,6 +84,7 @@
         "src/components/finance/**",
         "src/lib/requestsCsv.ts",
         "src/hooks/useReimbursementsBadge.ts",
+        "src/hooks/useRequestUnreadCounts.ts",
         "convex/{requests,categoryPeople,stepTiming,reminders}.ts",
         "shared/{flow,money,reminders}.ts"
       ],
@@ -96,6 +97,7 @@
         "src/components/design/**",
         "src/components/forms/**",
         "src/lib/designRequestPdf.ts",
+        "src/lib/requestPdfs.ts",
         "convex/designRequest*.ts",
         "shared/{designRequests,forms}.ts"
       ],
@@ -108,6 +110,7 @@
         "src/components/events/**",
         "src/components/forms/**",
         "src/lib/eventRequest*.ts",
+        "src/lib/requestPdfs.ts",
         "convex/{eventRequest*,eventSubForms,teams,teamJobs}.ts",
         "shared/{eventRequests,forms,teams}.ts"
       ],

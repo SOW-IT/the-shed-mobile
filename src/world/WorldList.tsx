@@ -1,14 +1,14 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { ASK_MS, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, PLACE_TITLES, MAX_SAY_LENGTH, MUTUALS, posAt } from "@shared/world";
+import { ASK_MS, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, PLACE_TITLES, MAX_SAY_LENGTH, askInfo, posAt } from "@shared/world";
 import { useQuery } from "convex/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { accepted, announce } from "./announce";
 import { PENDING, type useWorld } from "./useWorld";
-import { clock, lineWhere, saidLabel } from "./view";
+import { clock, lineWhere, saidLabel, systemLine } from "./view";
 
 
 /**
@@ -27,6 +27,7 @@ export const WorldList = ({
   note,
   onNote,
   onLine,
+  duelCard,
   declined,
   onAccept,
   onDecline,
@@ -41,6 +42,7 @@ export const WorldList = ({
   note: string | null;
   onNote: (note: string | null) => void;
   onLine: (memberId: Id<"worldMembers">, name: string) => void;
+  duelCard?: ReactNode;
   /** Asks declined, as `${from}:${askAt}`. */
   declined: ReadonlySet<string>;
   onAccept: (from: string, askAt: number) => void;
@@ -85,7 +87,7 @@ export const WorldList = ({
       const key = `${p.memberId}:${p.ask?.at}`;
       if (told.current.has(key)) continue;
       told.current.add(key);
-      const info = MUTUALS[p.ask?.kind as keyof typeof MUTUALS];
+      const info = askInfo(p.ask?.kind);
       if (info) announce(`${p.name}: ${info.ask} You have 10 seconds to answer.`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on which asks are open, not the array
@@ -143,13 +145,14 @@ export const WorldList = ({
       maxWidth={640}
       headerRight={<Btn title="People" icon="people-outline" variant="tonal" onPress={onPeople} />}
     >
+      {duelCard}
       {/* Asks made of you, with time to answer: the same as over heads in the
           garden. A polite live region on the web; announced on iOS. */}
       <View aria-live="polite" style={styles.lines}>
       {openAsks
         .map((p) => {
           const askAt = p.ask!.at;
-          const info = MUTUALS[p.ask!.kind as keyof typeof MUTUALS];
+          const info = askInfo(p.ask!.kind);
           if (!info) return null;
           const left = Math.max(0, Math.ceil((ASK_MS - (now - askAt)) / 1000));
           return (
@@ -261,7 +264,17 @@ export const WorldList = ({
         {/* On the web, a polite live region reads new lines out. */}
         <View aria-live="polite" style={styles.lines}>
         {shown
-          .map((line) => (
+          .map((line) => line.kind ? (
+            <Text
+              key={line.id}
+              style={[typography.caption, styles.line, { color: t.warning, fontWeight: "700" }]}
+              accessibilityLabel={saidLabel(line)}
+              testID="world-list-system"
+            >
+              [{clock(line.at)}] {systemLine(line)}
+              {line.here ? "" : ` · ${lineWhere(line)}`}
+            </Text>
+          ) : (
             <Pressable
               key={line.id}
               style={styles.line}
