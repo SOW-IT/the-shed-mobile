@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { birdX, FLAPPY, flap, gapHeight, MAX_GAP_RISE, newFlappy, pipeSpeed, stepFlappy, type FlappyState } from "./flappy";
 import { fitBoard, fitScale } from "./fit";
-import { needsLeaveConfirm } from "./leave";
+import { atSwipeEdge, needsLeaveConfirm, SWIPE_EDGE } from "./leave";
 import { between, random } from "./random";
 import {
   duck,
@@ -232,5 +232,13 @@ describe("leaving a game", () => {
     expect(needsLeaveConfirm("playing")).toBe(true);
     expect(needsLeaveConfirm("ready")).toBe(false);
     expect(needsLeaveConfirm("over")).toBe(false);
+  });
+
+  test("on web, a touch at either edge of the screen is where the browser's swipe back starts", () => {
+    expect(atSwipeEdge(0, 390)).toBe(true);
+    expect(atSwipeEdge(SWIPE_EDGE, 390)).toBe(true);
+    expect(atSwipeEdge(390 - SWIPE_EDGE, 390)).toBe(true);
+    expect(atSwipeEdge(SWIPE_EDGE + 1, 390)).toBe(false);
+    expect(atSwipeEdge(195, 390)).toBe(false);
   });
 });
