@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.25] - 2026-11-24
+## [2.12.27] - 2026-11-24
 
 ### Added
 - **Move, size and tilt your eyes, brows and mouth.** The character editor
@@ -47,6 +47,15 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Looks saved before this update don't change.** Every new part starts
   where it was drawn before, and an older app shows a newer look with the
   parts it knows.
+
+## [2.12.23] - 2026-11-24
+
+### Changed
+- **Reimbursement lists ask the server less.** Each request card used to ask
+  for its own count of unread comments. The All, Review, Requests and Past
+  lists now ask once for every card on screen, so opening All with 20 ongoing
+  requests opens 39 live queries instead of 59. The counts and badges look
+  the same.
 
 ## [2.12.21] - 2026-11-23
 
