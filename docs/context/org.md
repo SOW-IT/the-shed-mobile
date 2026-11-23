@@ -87,6 +87,16 @@ user, non-staff
 A staff member's role plus its scope for one year — a department, a division or
 a university, depending on which the role requires.
 
+**Org search**:
+The Org Chart's search box. It looks through every staff year at once, not the
+year on screen, and lists each year a person matches as its own result with
+that year's roles, newest first, up to 40. A person matches on their name,
+email, the app's role names (and HOD) and their department, division or
+campus (and its acronym); every word has to match the start of a word. A year's own role titles show in the results but aren't
+searched. Picking a result opens that year's chart showing just that person.
+See [ADR 0022](../adr/0022-org-search-stores-its-text.md).
+_Avoid_: directory search, people search
+
 ## Structure
 
 **Division**:

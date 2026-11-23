@@ -3,10 +3,12 @@ import { assignmentsOf, formatAssignment, type RoleTitles } from "../shared/flow
 import {
   isOrgSearchQuery,
   matchesOrgSearch,
+  orgSearchIndexWords,
   orgSearchTerms,
   staffProfileSearchText,
 } from "../shared/orgChart";
 import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, query } from "./_generated/server";
 import { viewsAsAdmin } from "./actingAs";
 import { currentStaffYear, nextStaffYear, optionalProfile, roleTitlesForYear } from "./model";
@@ -26,11 +28,19 @@ export const searchAllYears = query({
     const canSeeNextYear = await viewsAsAdmin(ctx, await optionalProfile(ctx));
     const visible = (year: number) => year <= thisYear || (canSeeNextYear && year === nextYear);
 
-    const candidates = await ctx.db
-      .query("staffProfiles")
-      .withSearchIndex("search_text", (q) => q.search("searchText", terms.join(" ")))
-      .take(ORG_SEARCH_CANDIDATES);
-    const matched = candidates
+    const candidates = new Map<Id<"staffProfiles">, Doc<"staffProfiles">>();
+    let complete = true;
+    for (const word of orgSearchIndexWords(terms)) {
+      const found = await ctx.db
+        .query("staffProfiles")
+        .withSearchIndex("search_text", (q) => q.search("searchText", word))
+        .take(ORG_SEARCH_CANDIDATES);
+      complete = found.length < ORG_SEARCH_CANDIDATES;
+      if (complete) candidates.clear();
+      for (const profile of found) candidates.set(profile._id, profile);
+      if (complete) break;
+    }
+    const matched = [...candidates.values()]
       .filter(
         (profile) =>
           visible(profile.year) &&
@@ -80,7 +90,7 @@ export const searchAllYears = query({
         (a, b) =>
           b.year - a.year || (a.name ?? a.email).localeCompare(b.name ?? b.email)
       );
-    return { results, more: matched.length > ORG_SEARCH_LIMIT };
+    return { results, more: matched.length > ORG_SEARCH_LIMIT || !complete };
   },
 });
 

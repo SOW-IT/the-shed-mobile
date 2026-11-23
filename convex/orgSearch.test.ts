@@ -68,6 +68,23 @@ describe("searchAllYears", () => {
     expect(await found(t, "daniel fin")).toEqual([`${YEAR - 1} ${DANIEL}`]);
   });
 
+  test("a common word doesn't crowd out a rarer one", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 120; i++) {
+        await ctx.db.insert("staffProfiles", {
+          email: `kira${i}@sow.org.au`,
+          year: YEAR - 1,
+          name: `Kira Number${i}`,
+          assignments: [{ role: "Staff", department: "Events" }],
+          searchText: `Kira Number${i} kira${i}@sow.org.au Staff Events`,
+        });
+      }
+    });
+    expect(await found(t, "dan ki")).toEqual([`${YEAR} ${DANIEL}`, `${YEAR - 1} ${DANIEL}`, `${YEAR - 2} ${DANIEL}`]);
+    expect(await found(t, "--")).toEqual([]);
+  });
+
   test("finds people by team, campus acronym and role", async () => {
     const t = await setup();
     expect(await found(t, "finance")).toEqual([`${YEAR - 1} ${DANA}`, `${YEAR - 1} ${DANIEL}`]);
@@ -143,6 +160,26 @@ describe("searchAllYears", () => {
     const { results, more } = await search(t, "events");
     expect(results).toHaveLength(ORG_SEARCH_LIMIT);
     expect(results[0].email).toBe("newest@sow.org.au");
+    expect(more).toBe(true);
+  });
+
+  test("says more may match when every word is too common to search in full", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      const add = (name: string, department: string) =>
+        ctx.db.insert("staffProfiles", {
+          email: `${name.toLowerCase().replace(" ", ".")}@sow.org.au`,
+          year: YEAR - 1,
+          name,
+          assignments: [{ role: "Staff", department }],
+          searchText: `${name} Staff ${department}`,
+        });
+      for (let i = 0; i < 3; i++) await add(`Kira Filer${i}`, "Archive");
+      for (let i = 0; i < 110; i++) await add(`Kira Planner${i}`, "Events");
+      for (let i = 0; i < 110; i++) await add(`Zed Filer${i}`, "Archive");
+    });
+    const { results, more } = await search(t, "kira archive");
+    expect(results.map((r) => r.name)).toEqual(["Kira Filer0", "Kira Filer1", "Kira Filer2"]);
     expect(more).toBe(true);
   });
 });

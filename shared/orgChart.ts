@@ -55,6 +55,13 @@ export const staffProfileSearchText = (profile: SearchableProfile) => {
   return [...new Set(words.filter((word): word is string => !!word))].join(" ");
 };
 
+const ORG_SEARCH_INDEX_WORDS = 3;
+
+export const orgSearchIndexWords = (terms: readonly string[]) =>
+  [...new Set(terms.flatMap((term) => term.split(/[^\p{L}\p{N}]+/u)).filter(Boolean))]
+    .sort((a, b) => b.length - a.length)
+    .slice(0, ORG_SEARCH_INDEX_WORDS);
+
 export const matchesOrgSearch = (terms: readonly string[], text: string) => {
   const haystack = text.toLowerCase();
   return terms.every((term) => haystack.includes(term));

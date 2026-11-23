@@ -52,7 +52,7 @@ export function OrgSearchResults({
       ))}
       {found.more ? (
         <Text style={[typography.caption, styles.more, { color: t.faint }]}>
-          Showing the first {found.results.length}. Add another word to narrow it down.
+          More people may match. Add another word, or more of a name, to narrow it down.
         </Text>
       ) : null}
     </View>

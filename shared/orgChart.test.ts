@@ -9,6 +9,7 @@ import {
   orgAreaCounts,
   orgAreas,
   orgPeopleCount,
+  orgSearchIndexWords,
   orgSearchTerms,
   pickOrgAreas,
   searchOrgChart,
@@ -101,6 +102,14 @@ describe("staffProfileSearchText", () => {
 
   test("a profile with no name or roles is just its email", () => {
     expect(staffProfileSearchText({ email: "nora@sow.org.au" })).toBe("nora@sow.org.au");
+  });
+});
+
+describe("orgSearchIndexWords", () => {
+  test("splits on punctuation, drops repeats and keeps the three longest", () => {
+    expect(orgSearchIndexWords(["daniel.kim@sow.org.au"])).toEqual(["daniel", "kim", "sow"]);
+    expect(orgSearchIndexWords(["dan", "ki", "dan"])).toEqual(["dan", "ki"]);
+    expect(orgSearchIndexWords(["--"])).toEqual([]);
   });
 });
 
