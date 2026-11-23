@@ -33,6 +33,45 @@ All notable changes to **The SHED** mobile app. This project follows
   colours instead of the app's dark green. Only the game around the card is
   dimmed.
 
+## [2.12.25] - 2026-11-24
+
+### Changed
+- **Swim in the pond and the sea.** Walk into the Garden pond or past the
+  shallows at the Beach and you swim: you sink to your shoulders with a
+  ripple round you, and your arms stroke as you move.
+- **Rock paper scissors duels.** Tap someone and pick Duel: you walk over and
+  ask "Rock paper scissors?". If they accept, you both get five seconds to
+  pick rock, paper or scissors, while you both shout "Scissors… Paper…
+  Rock!" over your heads (not in the chat). On "Rock!" your picks show over
+  your heads, then the winner cheers and the loser cries. A draw goes again
+  with three seconds to pick. Nobody sees a pick until the reveal, and
+  anyone who doesn't pick in time gets one picked for them.
+- **Join and leave lines in the chat.** The chat log now says when someone
+  comes into the World and when they leave, in yellow like a game server:
+  "[12:04] Daniel K. joined the Garden", "[12:09] Daniel K. left". Moving
+  between places writes no line, and you don't see these lines for anyone
+  you've blocked. A leave line from another place says where they left,
+  and VoiceOver reads that place out too.
+- **Last-name initials on name tags.** Name tags in the World show your
+  first name and the first letter of your last name, "Daniel K." instead of
+  "Daniel", so two people with the same first name can be told apart. Your
+  own tag still says "You".
+- **Randomise asks first.** In the character editor, Randomise now asks
+  "Randomise your character?" before it replaces your look.
+- **Duels in the list view.** Someone's sheet in the list view has a Rock
+  paper scissors button, and the list shows the picks and who won (read
+  aloud by VoiceOver).
+
+### Fixed
+- **Praying looks like praying.** The Pray emote now shows two small hands
+  held together under the chin, instead of a long loop down the chest.
+- **Duel fixes.** A pick sent just as a round ends can't count in the next
+  round, each player has their own limit on changes of mind, a late reveal
+  still gives the next round its full time, a new duel straight after another
+  shows its buttons at once, and you don't see duels of someone you've
+  blocked.
+- **Swimmers keep swimming when they stop,** treading water instead of
+  freezing.
 ## [2.12.23] - 2026-11-24
 
 ### Changed
