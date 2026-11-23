@@ -306,9 +306,9 @@ export const GameFrame = ({
                   : "Saved on this device. Sign in and it goes on the leaderboard."}
               </Text>
               <View style={styles.actions}>
-                <Btn title="Play again" icon="refresh" onPress={session.restart} />
+                <Btn title="Play again" icon="refresh" tint={g.button} onPress={session.restart} />
                 {onLeaderboard ? (
-                  <Btn title="Leaderboard" icon="trophy-outline" variant="ghost" onPress={onLeaderboard} />
+                  <Btn title="Leaderboard" icon="trophy-outline" tint={g.buttonGhost} onPress={onLeaderboard} />
                 ) : null}
               </View>
             </View>
@@ -387,12 +387,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.xl,
     borderRadius: radius.xl,
-    backgroundColor: g.panel,
+    borderWidth: 1,
+    borderColor: g.cardEdge,
+    backgroundColor: g.card,
   },
   cardTitle: { ...typography.title, color: g.text, textAlign: "center" },
-  cardBody: { ...typography.body, color: g.dim, textAlign: "center" },
+  cardBody: { ...typography.body, color: g.text, textAlign: "center" },
   bigScore: { ...typography.largeTitle, fontSize: 44, lineHeight: 50, color: g.text },
   hint: { ...typography.label, color: g.text, marginTop: spacing.xs },
-  note: { ...typography.caption, color: g.dim, textAlign: "center" },
+  note: { ...typography.caption, color: g.text, textAlign: "center" },
   actions: { gap: spacing.sm, alignSelf: "stretch", marginTop: spacing.sm },
 });
