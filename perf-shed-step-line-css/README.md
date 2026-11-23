@@ -4,22 +4,22 @@
 
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
-| base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 5s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 92s |  |
-| unused code (knip) | ✔ pass | 7s |  |
-| typecheck | ✔ pass | 49s |  |
-| related unit tests | ✔ pass | 10s |  |
-| verify lock | ✔ pass | 2495s | took it after waiting 2495s for pid 3233, perf/shed-request-card-queries in /Users/xtectra/GitHub/worktrees/the-shed-mobile-request-card-queries, since 2026-11-23T12:31:18.492Z |
+| base tree | ✔ pass | 2s |  |
+| native fingerprint | ✔ pass | 23s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 371s |  |
+| unused code (knip) | ✔ pass | 15s |  |
+| typecheck | ✔ pass | 108s |  |
+| related unit tests | ✔ pass | 4s |  |
+| verify lock | ✔ pass | 3906s | took it after waiting 3906s for pid 62522, feat/garden-custom in /Users/xtectra/GitHub/worktrees/the-shed-mobile-garden-custom, since 2026-11-23T17:01:19.969Z |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 18s | before functions on :3270 |
-| before: web | ✔ pass | 90s | 10 screens, 0 broken, still moving: admin-review, admin-all. |
-| before: iOS reset | ✔ pass | 16s |  |
-| before: iOS | ✔ pass | 103s | 7 screenshots; still moving after 10 frames: admin-review, admin-all |
-| after: local backend | ✔ pass | 16s | after functions on :3270 |
-| after: web | ✔ pass | 70s | 10 screens, 0 broken, still moving: admin-review, admin-all. |
+| before: local backend | ✔ pass | 16s | before functions on :3270 |
+| before: web | ✔ pass | 70s | 10 screens, 0 broken, still moving: admin-review, admin-all. |
+| before: iOS reset | ✔ pass | 1s |  |
+| before: iOS | ✔ pass | 77s | 7 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: local backend | ✔ pass | 15s | after functions on :3270 |
+| after: web | ✔ pass | 67s | 10 screens, 0 broken, still moving: admin-review, admin-all. |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 77s | 7 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: iOS | ✔ pass | 78s | 7 screenshots; still moving after 10 frames: admin-review, admin-all |
 
 ## Screenshots
 
