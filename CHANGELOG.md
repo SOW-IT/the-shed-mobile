@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.26] - 2026-11-24
+## [2.12.32] - 2026-11-24
 
 ### Changed
 - **Mystic Man is faster again.** His top speed is a quarter higher (960 to
@@ -32,6 +32,34 @@ All notable changes to **The SHED** mobile app. This project follows
   text is full white, and Play again and Leaderboard have their own bright
   colours instead of the app's dark green. Only the game around the card is
   dimmed.
+
+## [2.12.30] - 2026-11-24
+
+### Fixed
+- **Hats, hair and the scarf look right in the World.** Every hair style,
+  hat, outfit and accessory was checked from the front, side and back:
+  - The cap's peak sits at the cap's lower edge, not across the forehead,
+    and from behind the cap no longer covers the whole head like a helmet.
+  - The beanie's cuff runs along its lower edge instead of near the top.
+  - On the oval and long face shapes, the beanie's pompom, the sun hat and
+    the flower crown sit on top of the head instead of sinking into it.
+  - Curly hair, a bun and an afro tuck under a cap, beanie or sun hat
+    instead of showing through or ballooning above it.
+  - A ponytail and an afro show from behind.
+  - Spiky hair has proper spikes, and the side-swept fringe falls over the
+    forehead instead of floating off the head.
+  - The scarf wraps under the chin, where you can see it.
+
+## [2.12.29] - 2026-11-24
+
+### Changed
+- **Reimbursement lists on the website stop using the computer while you
+  read.** The moving fill on each request's current approval step was
+  redrawn by the page's code every frame, once per card, so a list of
+  requests kept the computer or phone busy (about half of a slow phone's
+  processor on All) even when nothing changed. On the website it's now a
+  CSS animation the browser runs by itself. It looks the same. The app on
+  phones already ran it this way.
 
 ## [2.12.25] - 2026-11-24
 
