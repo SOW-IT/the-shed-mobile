@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.14] - 2026-11-23
+
+### Changed
+- **No swiping back out of a game.** In Sky Shooter, Mystic Man and Flappy,
+  a sideways swipe is always a move in the game. Before, a swipe right in
+  Sky Shooter could be taken for "go back" and close the game. The way out
+  is the back button at the top left, which still asks "Leave this game?"
+  during a run. On the web, the browser's own swipe back (from the edge of
+  a phone's screen, or two fingers on a trackpad) is kept off the game the
+  same way; the browser's back button still asks first during a run.
+
 ## [2.12.12] - 2026-11-23
 
 ### Added
