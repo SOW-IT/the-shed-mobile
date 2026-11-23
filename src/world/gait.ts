@@ -53,7 +53,7 @@ export const carryGait = (before: { walk: Walk; gait: Gait } | null, walk: Walk,
   };
 };
 
-const STRIDE_RATE = 9;
+const STRIDE_RATE = 12;
 export const strideBob = (pose: { stridePhase: number; strideAmp: number }) =>
   Math.abs(Math.sin(pose.stridePhase * STRIDE_RATE)) * 0.14 * pose.strideAmp;
 export const strideSwing = (pose: { stridePhase: number; strideAmp: number }) =>

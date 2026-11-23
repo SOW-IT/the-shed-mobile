@@ -1,18 +1,19 @@
 import { expect, test } from "vitest";
-import { hearingLabel, pickView } from "./view";
+import { lineWhere, pickView, saidLabel } from "./view";
 
-test("offline always shows the list; otherwise a choice wins, then VoiceOver", () => {
-  expect(pickView({ offline: true, screenReader: false, chosen: "garden" })).toBe("list");
-  expect(pickView({ offline: false, screenReader: true, chosen: "garden" })).toBe("garden");
-  expect(pickView({ offline: false, screenReader: true, chosen: null })).toBe("list");
-  expect(pickView({ offline: false, screenReader: false, chosen: null })).toBe("garden");
-  expect(pickView({ offline: false, screenReader: false, chosen: "garden", canDraw: false })).toBe("list");
+test("offline or Android always shows the list; otherwise VoiceOver picks it", () => {
+  expect(pickView({ offline: true, screenReader: false })).toBe("list");
+  expect(pickView({ offline: false, screenReader: true })).toBe("list");
+  expect(pickView({ offline: false, screenReader: false })).toBe("garden");
+  expect(pickView({ offline: false, screenReader: false, canDraw: false })).toBe("list");
 });
 
-test("hearingLabel counts people", () => {
-  expect([0, 1, 2].map(hearingLabel)).toEqual([
-    "Nobody can hear you yet",
-    "1 person can hear you",
-    "2 people can hear you",
-  ]);
+test("a line from another place says where it was said, for screen readers too", () => {
+  const base = { isMe: false, name: "Ben", text: "hi" };
+  expect(saidLabel({ ...base, here: true, place: "garden" })).toBe("Ben said hi");
+  expect(saidLabel({ ...base, here: false, place: "chapel" })).toBe("Ben said hi, in The Chapel");
+  expect(saidLabel({ ...base, here: false })).toBe("Ben said hi, elsewhere");
+  expect(saidLabel({ ...base, isMe: true, here: true })).toBe("You said hi");
+  expect(lineWhere({ here: true, place: "chapel" })).toBeNull();
+  expect(lineWhere({ here: false, place: "moon" })).toBe("elsewhere");
 });

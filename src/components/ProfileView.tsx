@@ -1,3 +1,4 @@
+import { useAppUpdate } from "@/hooks/useAppUpdate";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { keyed } from "@/lib/listKeys";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhotoForUpload";
@@ -26,6 +27,7 @@ import { useSpotifyPlaylist } from "./music/useSpotifyPlaylist";
 import { SignInPrompt } from "./SignInPrompt";
 import {
   Avatar,
+  Btn,
   Card,
   ConfirmDialog,
   ErrorBanner,
@@ -231,6 +233,23 @@ const VersionText = () => {
   );
 };
 
+const AppUpdateButton = () => {
+  const { check, behind, busy, label, error, update } = useAppUpdate();
+  if (!behind) return null;
+  return (
+    <View style={styles.updateApp} testID="profile-update">
+      <Btn
+        title={label ?? (check?.latest ? `Update to ${check.latest}` : "Update")}
+        icon="arrow-down-circle-outline"
+        variant="tonal"
+        disabled={busy}
+        onPress={update}
+      />
+      <ErrorBanner message={error} />
+    </View>
+  );
+};
+
 /**
  * A person's profile. Your own (`asTab`) is a root screen from the side menu,
  * with the top bar; anyone else's opens on top of the screen you came from,
@@ -274,6 +293,7 @@ export const ProfileView = ({
       <ProfileFrame asTab={asTab} onBack={goBack}>
         <SignInPrompt what="page" />
         {email ? null : <VersionText />}
+        {email ? null : <AppUpdateButton />}
       </ProfileFrame>
     );
   }
@@ -534,6 +554,7 @@ export const ProfileView = ({
       )}
       {profile.isMe && <DeleteAccountCard />}
       {profile.isMe && <VersionText />}
+      {profile.isMe && <AppUpdateButton />}
     </ProfileFrame>
   );
 };
@@ -541,6 +562,7 @@ export const ProfileView = ({
 const styles = StyleSheet.create({
   // A plain cursor, so the easter egg doesn't show itself on web.
   versionText: { textAlign: "center", cursor: "auto" },
+  updateApp: { alignItems: "center", gap: spacing.sm },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   syncChip: {
     flexDirection: "row",

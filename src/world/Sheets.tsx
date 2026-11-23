@@ -6,11 +6,10 @@ import { isPlace, MAX_POKE_LENGTH, PLACE_TITLES, PORTALS, tagName, type Place } 
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { WorldMember } from "./useWorld";
-import type { WorldView } from "./view";
 
 const problem = (e: unknown) => (e instanceof ConvexError ? String(e.data) : "That didn't work. Try again.");
 
@@ -25,18 +24,15 @@ export const PersonSheet = ({
   onToggleMute,
   onWave,
   onHighFive,
-  onCustomize,
   onClose,
   onDone,
 }: {
-  person: WorldMember | null;
+  person: Pick<WorldMember, "memberId" | "name"> | null;
   safetyOnly?: boolean;
   muted: boolean;
   onToggleMute: (memberId: string) => void;
   onWave: () => void;
   onHighFive: (to: Id<"worldMembers">) => void;
-  /** Your own sheet's way into the character editor. */
-  onCustomize: () => void;
   onClose: () => void;
   onDone: (note: string) => void;
 }) => {
@@ -68,16 +64,6 @@ export const PersonSheet = ({
   };
   const visible = person !== null;
   const name = person?.name ?? "";
-  if (person?.isMe) {
-    return (
-      <Sheet visible={visible} onClose={close} title="You">
-        <View style={styles.stack}>
-          <Btn title="Customize your character" icon="shirt-outline" variant="tonal" onPress={onCustomize} />
-          <Muted>Change your skin, hair, shirt, hat and extras. Everyone here sees it when you save.</Muted>
-        </View>
-      </Sheet>
-    );
-  }
   return (
     <Sheet visible={visible} onClose={close} title={name}>
       {reporting ? (
@@ -266,22 +252,16 @@ const OfflineList = () => {
 export const PeopleSheet = ({
   visible,
   people,
-  view,
-  onView,
   onPerson,
-  onCustomize,
   place,
   onGo,
   onClose,
 }: {
   visible: boolean;
   people: WorldMember[];
-  view: WorldView;
   place: Place;
   onGo: (to: Place) => void;
-  onView: (view: WorldView) => void;
   onPerson: (memberId: string) => void;
-  onCustomize: () => void;
   onClose: () => void;
 }) => {
   const t = useAppTheme();
@@ -304,15 +284,6 @@ export const PeopleSheet = ({
             <Text style={[typography.body, { color: t.text, flex: 1 }]}>{p.isMe ? `${p.name} (you)` : p.name}</Text>
           </Pressable>
         ))}
-        <Btn title="Customize your character" icon="shirt-outline" variant="tonal" onPress={onCustomize} />
-        {Platform.OS === "android" ? null : (
-        <Btn
-          title={view === "garden" ? "Show as a list" : "Show the garden"}
-          icon={view === "garden" ? "list-outline" : "leaf-outline"}
-          variant="tonal"
-          onPress={() => onView(view === "garden" ? "list" : "garden")}
-        />
-        )}
         <Text style={[typography.label, { color: t.muted }]}>In other places</Text>
         {elsewhere && elsewhere.length === 0 ? <Muted>Nobody is anywhere else right now.</Muted> : null}
         {elsewhere?.map((spot) => (
