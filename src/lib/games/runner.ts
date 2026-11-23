@@ -25,7 +25,7 @@ export const RUNNER = {
   slideSeconds: 0.6,
   startSpeed: 300,
   speedGain: 9,
-  topSpeed: 960,
+  topSpeed: 1200,
   /** Distance per point. */
   stride: 12,
   /** The floating beam: over a slide, into a standing head; a big jump clears it too. */
@@ -75,6 +75,8 @@ export type RunnerState = {
   obstacles: Obstacle[];
   /** Distance until the next pattern appears at the right edge. */
   nextIn: number;
+  /** The rest of a combo under way: patterns still to come, close behind. */
+  chain: PatternKind[];
   nextId: number;
   seed: number;
 };
@@ -94,6 +96,7 @@ export const newRunner = (width: number, seed: number): RunnerState => ({
   slideOnLanding: false,
   obstacles: [],
   nextIn: width * 0.6,
+  chain: [],
   nextId: 1,
   seed,
 });
@@ -163,7 +166,9 @@ export const runnerSpeed = (time: number) => Math.min(RUNNER.topSpeed, RUNNER.st
 /** How much of a jump's reach a pattern may use, so a human has slack. */
 export const REACH_SHARE = 0.75;
 /** Seconds to see the next pattern and act, on top of landing a big jump. */
-const REACTION_SECONDS = 0.4;
+const REACTION_SECONDS = 0.3;
+/** Within a combo, seconds between landing one move and starting the next. */
+const COMBO_REACTION_SECONDS = 0.25;
 
 const HOP_HEIGHT = apex(RUNNER.hopSpeed);
 
@@ -181,7 +186,40 @@ const PATTERN_RULES = {
   hang: { width: [30, 48] },
 } as const;
 
-/** Which patterns can appear, by seconds into the run. */
+/**
+ * Combos: patterns that come close behind each other, so one move leads
+ * straight into the next, in a random order. Each gap is `comboGap`, worked
+ * out from the moves either side, so any order is tight but clearable. They
+ * start at 15 seconds as pairs, come more often and run longer the longer
+ * you last: one more pattern every `COMBO_GROWTH_SECONDS`, up to
+ * `MAX_COMBO`.
+ */
+export const COMBO_FROM_SECONDS = 15;
+const COMBO_GROWTH_SECONDS = 15;
+export const MAX_COMBO = 10;
+
+/** The longest combo that can come at this point in a run, or 0 before they start. */
+export const longestCombo = (time: number) =>
+  time < COMBO_FROM_SECONDS
+    ? 0
+    : Math.min(MAX_COMBO, 2 + Math.floor((time - COMBO_FROM_SECONDS) / COMBO_GROWTH_SECONDS));
+
+/** How often the next pattern is a combo: a quarter at first, up to two thirds. */
+const comboChance = (time: number) => Math.min(0.66, 0.25 + (time - COMBO_FROM_SECONDS) * 0.004);
+
+/** Each pattern of a combo, weighted: mostly hops, which lead into the rest. */
+const COMBO_KINDS: readonly PatternKind[] = ["rock", "rock", "rock", "tall", "wide", "double", "beam", "hang", "hang"];
+
+/** Which pattern, or combo, comes next. */
+const patternsFor = (state: RunnerState): readonly PatternKind[] => {
+  const longest = longestCombo(state.time);
+  if (longest < 2 || random(state) >= comboChance(state.time)) return [patternFor(state)];
+  // Mostly as long as it gets by now, sometimes one shorter.
+  const length = Math.max(2, longest - (random(state) < 0.35 ? 1 : 0));
+  return Array.from({ length }, () => COMBO_KINDS[Math.floor(random(state) * COMBO_KINDS.length) % COMBO_KINDS.length]);
+};
+
+/** Which single pattern can appear, by seconds into the run. */
 const patternFor = (state: RunnerState): PatternKind => {
   const roll = random(state);
   if (state.time < 5) return "rock";
@@ -263,7 +301,23 @@ export const patternSpan = (obstacles: readonly Obstacle[]) =>
  */
 export const minimumGap = (speed: number) => speed * (airtime(RUNNER.jumpSpeed) + REACTION_SECONDS) + 40;
 
-const gapAfter = (state: RunnerState) => minimumGap(state.speed) + state.speed * between(state, 0, 0.8);
+const gapAfter = (state: RunnerState) => minimumGap(state.speed) + state.speed * between(state, 0, 0.5);
+
+const DUCKS: readonly PatternKind[] = ["hang", "beam"];
+/** The jump each pattern takes: the hop, the big jump, or none (a slide). */
+const takeoffSpeed = (kind: PatternKind) =>
+  DUCKS.includes(kind) ? 0 : kind === "rock" ? RUNNER.hopSpeed : RUNNER.jumpSpeed;
+
+/**
+ * The clear run between two patterns of a combo: time to come down from the
+ * first (a slide needs none: a hop or jump cuts it short), react, and set up
+ * the second (take off early enough for its jump, or start the slide).
+ */
+export const comboGap = (first: PatternKind, second: PatternKind, speed: number) => {
+  const landing = airtime(takeoffSpeed(first)) * 0.6;
+  const setUp = DUCKS.includes(second) ? 0.1 : airtime(takeoffSpeed(second)) / 2;
+  return speed * (landing + COMBO_REACTION_SECONDS + setUp) + HIT_WIDTH;
+};
 
 const hits = (state: RunnerState, obstacle: Obstacle) => {
   const f = RUNNER.forgive;
@@ -304,9 +358,11 @@ export const stepRunner = (previous: RunnerState, dt: number): RunnerState => {
     .filter((obstacle) => obstacle.x + obstacle.width > -10);
   state.nextIn -= travelled;
   if (state.nextIn <= 0) {
-    const pattern = makePattern(state, patternFor(state), state.width + 10);
+    const [kind, ...rest] = state.chain.length > 0 ? state.chain : patternsFor(state);
+    const pattern = makePattern(state, kind, state.width + 10);
     obstacles.push(...pattern);
-    state.nextIn = patternSpan(pattern) + gapAfter(state);
+    state.chain = rest;
+    state.nextIn = patternSpan(pattern) + (rest.length > 0 ? comboGap(kind, rest[0], state.speed) : gapAfter(state));
   }
   state.obstacles = obstacles;
   state.over = obstacles.some((obstacle) => hits(state, obstacle));
