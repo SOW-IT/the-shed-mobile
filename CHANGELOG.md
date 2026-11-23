@@ -18,6 +18,16 @@ All notable changes to **The SHED** mobile app. This project follows
   need a new build. The app checks for an over-the-air update before it
   ever offers the store.
 
+## [2.12.19] - 2026-11-23
+
+### Changed
+- **Leaderboard moves to the top of Games.** It's now a small button at the
+  top right, next to the "Games" title, instead of its own card at the bottom
+  of the list. It opens the same leaderboard as before.
+- **Shorter lines under each game.** Each game in the list has one short line
+  ("Fly and shoot.", "Run and jump.", "Tap through the gaps.") instead of the
+  full how-to-play text, which still shows on the game's start card.
+
 ## [2.12.18] - 2026-11-23
 
 ### Changed
