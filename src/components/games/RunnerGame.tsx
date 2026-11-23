@@ -285,13 +285,17 @@ export const RunnerGame = ({
   if (!turned) return frame;
   return (
     <View style={[styles.fill, { backgroundColor: c.sky }]}>
+      {/* Turned about its top-left corner, not its middle: with an odd screen
+          width the middle sits on half a point, which puts everything drawn
+          inside half a pixel off the grid and blurs it (the cards most). */}
       <View
         style={{
           position: "absolute",
           width: screen.height,
           height: screen.width,
-          left: (screen.width - screen.height) / 2,
-          top: (screen.height - screen.width) / 2,
+          left: screen.width,
+          top: 0,
+          transformOrigin: "top left",
           transform: [{ rotate: "90deg" }],
         }}
       >
