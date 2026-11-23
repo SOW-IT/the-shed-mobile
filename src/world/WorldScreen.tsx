@@ -111,9 +111,12 @@ export const WorldScreen = ({
   onArcade,
   active = true,
   away = false,
+  opening,
 }: {
   onBack: () => void;
   onArcade: () => void;
+  /** A sheet to open on arrival, from a link: the character editor or the poke list. */
+  opening?: "character" | "poke";
   /** False while another screen covers this one: the visit ends until it's back. */
   active?: boolean;
   away?: boolean;
@@ -128,11 +131,13 @@ export const WorldScreen = ({
   const [person, setPerson] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ memberId: string; safetyOnly: boolean } | null>(null);
   const [approach, setApproach] = useState<{ to: string; since: number } | null>(null);
-  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(opening === "poke");
   const [draft, setDraft] = useState("");
   const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  // A link to the editor opens it once your look has loaded.
+  const [editorAsked, setEditorAsked] = useState(opening === "character");
   // The editor closes with the visit (your look goes with it); open it again after.
   const hasMe = world.people.some((p) => p.isMe);
   if (editing && !hasMe && world.status !== "in") setEditing(false);
@@ -180,6 +185,10 @@ export const WorldScreen = ({
 
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
+  if (editorAsked && me) {
+    setEditorAsked(false);
+    setEditing(true);
+  }
   const mePose = me?.walk ? posAt(me.walk, now) : null;
   const selected = world.people.find((p) => p.memberId === person) ?? null;
   if (person !== null && !selected && world.status === "in") setPerson(null);
@@ -376,6 +385,7 @@ export const WorldScreen = ({
           setEditing(true);
         }}
         onClose={() => setPeopleOpen(false)}
+        pokeListOpen={opening === "poke"}
       />
     </>
   );

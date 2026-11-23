@@ -41,22 +41,51 @@ export const garden = {
 
 // Choices grow by appending, so a saved index keeps its colour.
 export const people = {
-  skins: ["#F0C7A5", "#F6D9C2", "#B27B58", "#F2CDAE", "#C9926C", "#EFCBA9", "#8D5A3B", "#5E3A26"],
-  hairColours: ["#3A2A20", "#D49A5A", "#1C1714", "#7A4A2C", "#2A201A", "#141414", "#E8C77A", "#B8473A", "#8A8F98"],
+  // Then porcelain, golden, deep brown and the deepest.
+  skins: ["#F0C7A5", "#F6D9C2", "#B27B58", "#F2CDAE", "#C9926C", "#EFCBA9", "#8D5A3B", "#5E3A26", "#FCE9DE", "#DDAA80", "#734730", "#42291B"],
+  // Then pink, blue and platinum.
+  hairColours: ["#3A2A20", "#D49A5A", "#1C1714", "#7A4A2C", "#2A201A", "#141414", "#E8C77A", "#B8473A", "#8A8F98", "#E896B4", "#5E86C2", "#ECE6D8"],
   shirts: ["#C9603A", "#F6E3D8", "#BCDCCD", "#F4A6B8", "#9DC5E0", "#D9CDEE", "#F6D365", "#A9D8A6", "#1D4A41", "#FFFEF8"],
-  hats: { cap: "#C9603A", beanie: "#9DC5E0", pompom: "#FFFEF8", sunHat: "#F1D9A6", band: "#C9603A" },
+  hats: {
+    cap: "#C9603A",
+    beanie: "#9DC5E0",
+    pompom: "#FFFEF8",
+    sunHat: "#F1D9A6",
+    band: "#C9603A",
+    // Worn in the favourite colour; these until one is picked.
+    beret: "#B8473A",
+    bow: "#F4A6B8",
+    headband: "#9DC5E0",
+    party: "#9DC5E0",
+    crown: "#F6C744",
+  },
   denim: "#5B7FA6",
   drawstring: "#FFFEF8",
   backpack: "#E5AD66",
   backpackStrap: "#8A5A2C",
   scarf: "#B8473A",
   glasses: "#1F2A28",
+  shades: "#26302E",
+  collar: "#FFFEF8",
+  headphones: "#3F4A46",
+  pearl: "#FFFEF8",
+  mole: "#5A3B2C",
+  // Bottoms: denim, charcoal, khaki, navy, brown, cream, olive and pink.
+  pants: ["#5B7FA6", "#3F4A46", "#C9B48A", "#2E3F5E", "#7A5238", "#F1ECE0", "#6E7F4E", "#E8A0B8"],
+  // Makeup, after "None": lilac, peach, teal, gold and rose eyeshadow, and
+  // rose, red, coral, plum and pink lipstick.
+  eyeshadow: ["#B9A3E3", "#F2B48C", "#6FC1B8", "#E2C36A", "#E89AAE"],
+  lipstick: ["#D46A7E", "#C9302C", "#EE7B62", "#8A3A5C", "#F08FB4"],
+  tongue: "#E8828A",
   mouth: "#7A2E2A",
   tear: "#8DCFE0",
   freckle: "#B07A5A",
   // Eye colours: dark, brown, blue, green, hazel, grey.
   eyeColours: ["#1F2A28", "#6B4226", "#3A6EA5", "#3E7D4F", "#8A6A2F", "#5F6B73"],
-  feet: "#3F4A46",
+  // Favourite colours, worn as shoes. The first is the shoes everyone had
+  // before, then red, orange, yellow, lime, green, sky, blue, purple, pink,
+  // brown and white.
+  favourites: ["#3F4A46", "#D9473A", "#F08A3C", "#F6CF45", "#A6D65A", "#3E9A5A", "#7EC8E8", "#3A64B8", "#8A5CC2", "#F08FB4", "#8A5A3A", "#F5F3EC"],
   eye: "#1F2A28",
   eyeShine: "#FFFFFF",
   cheek: "#F4A0A0",
@@ -85,6 +114,9 @@ export const hud = {
 const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
 
 const lightness = (hex: string) => 0.2126 * channel(hex, 0) + 0.7152 * channel(hex, 1) + 0.0722 * channel(hex, 2);
+
+/** Whether a colour is pale enough that something on it should be dark. */
+export const isLight = (hex: string) => lightness(hex) > 200;
 
 export const lightToDark = (colours: readonly string[]): number[] =>
   colours.map((_, i) => i).sort((a, b) => lightness(colours[b]) - lightness(colours[a]));

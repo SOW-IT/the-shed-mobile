@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 export const SWEEP_PEOPLE = {
   admin: "sweep.admin@sow.org.au",
@@ -39,6 +41,23 @@ run("admin:setStaffProfile", { year, email: SWEEP_PEOPLE.finance, roles: ["Head 
 run("admin:setBudgetManager", { year, email: SWEEP_PEOPLE.finance }, admin);
 run("admin:upsertUniversity", { year, name: UNSW }, admin);
 run("admin:setStaffProfile", { year, email: SWEEP_PEOPLE.leader, roles: ["Student Leader"], university: UNSW }, admin);
+
+// Forty more people on staff who have never been in the Garden, so its
+// "Not here right now" list has more than one page to load. One import, not
+// forty runs.
+const POKE_LIST = [
+  "Abel", "Bree", "Cody", "Dara", "Eli", "Fern", "Gus", "Hana", "Ira", "Jae",
+  "Kit", "Lena", "Milo", "Nia", "Otis", "Pia", "Quinn", "Remy", "Sol", "Tess",
+  "Uma", "Vic", "Wren", "Xavi", "Yara", "Zed", "Ari", "Bo", "Cleo", "Dev",
+  "Esme", "Finn", "Gia", "Hugo", "Isla", "Joon", "Kai", "Lior", "Mae", "Noor",
+];
+const staffDir = mkdtempSync(join(tmpdir(), "sweep-staff-"));
+const staffFile = join(staffDir, "staff.jsonl");
+writeFileSync(staffFile, POKE_LIST.map((first, i) => JSON.stringify({ email: `sweep.person${i}@sow.org.au`, name: `${first} Sweep`, year })).join("\n"));
+const importArgs = ["convex", "import", "--table", "staffProfiles", "--append", "-y", staffFile];
+if (process.env.CONVEX_ENV_FILE) importArgs.push("--env-file", process.env.CONVEX_ENV_FILE);
+execFileSync("npx", importArgs, { stdio: ["ignore", "ignore", "inherit"] });
+rmSync(staffDir, { recursive: true, force: true });
 
 const now = Number(process.env.SWEEP_NOW) || Date.now();
 const eventId = run(

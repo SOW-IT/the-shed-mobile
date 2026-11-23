@@ -3,7 +3,7 @@ import { spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
 import { MAX_POKE_LENGTH, tagName } from "@shared/world";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -147,12 +147,21 @@ export const PersonSheet = ({
   );
 };
 
-const OfflineList = () => {
+/** Staff profiles one tap of "Load more" asks for. */
+const OFFLINE_PAGE = 25;
+
+/**
+ * Everyone on staff who isn't in the garden, by name, a page at a time, so
+ * anyone can be found and poked. Nothing loads until it's opened.
+ */
+const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   const t = useAppTheme();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [now, setNow] = useState(0);
-  const list = useQuery(api.world.offline, open ? {} : "skip");
-  const poke = useMutation(api.world.poke);
+  const people = usePaginatedQuery(api.world.offlineStaff, open ? {} : "skip", { initialNumItems: OFFLINE_PAGE });
+  const wait = useQuery(api.world.pokeWait, open ? {} : "skip");
+  const list = wait && people.status !== "LoadingFirstPage" ? { people: people.results, pokeAgainAt: wait.pokeAgainAt } : undefined;
+  const poke = useMutation(api.world.pokeStaff);
   const [writingTo, setWritingTo] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -170,11 +179,11 @@ const OfflineList = () => {
       clearTimeout(whenAllowed);
     };
   }, [open, pokeAgainAt]);
-  const send = async (visitorId: Id<"worldVisitors">, name: string) => {
+  const send = async (profileId: Id<"staffProfiles">, name: string) => {
     setBusy(true);
     setError(null);
     try {
-      const reply = await poke({ visitorId, message: message.trim() || undefined });
+      const reply = await poke({ profileId, message: message.trim() || undefined });
       if (!reply.ok) return setError(`You can poke again in ${Math.ceil(reply.retryInMs / 60_000)} min.`);
       setWritingTo(null);
       setMessage("");
@@ -202,7 +211,7 @@ const OfflineList = () => {
         <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={t.muted} />
       </Pressable>
       {open && list === undefined ? <Muted>Loading…</Muted> : null}
-      {open && list?.people.length === 0 ? <Muted>Nobody else has been in the garden yet.</Muted> : null}
+      {open && list?.people.length === 0 && people.status === "Exhausted" ? <Muted>Everyone on staff is here right now.</Muted> : null}
       {open && list && list.people.length > 0 ? (
         <Muted>
           {waitMs > 0
@@ -218,7 +227,7 @@ const OfflineList = () => {
                 <Text style={[typography.body, { color: t.text, flex: 1 }]} numberOfLines={1}>
                   {p.name}
                 </Text>
-                <Text style={[typography.caption, { color: t.muted }]}>{timeAgo(p.lastSeenAt, now)}</Text>
+                <Text style={[typography.caption, { color: t.muted }]}>{p.lastSeenAt === null ? "Not been yet" : timeAgo(p.lastSeenAt, now)}</Text>
                 {writingTo === p.id ? null : (
                   <Btn
                     title="Poke"
@@ -258,6 +267,12 @@ const OfflineList = () => {
             </View>
           ))
         : null}
+      {open && people.status === "CanLoadMore" ? (
+        <View testID="world-offline-more">
+          <Btn title="Load more" icon="chevron-down" variant="tonal" onPress={() => people.loadMore(OFFLINE_PAGE)} />
+        </View>
+      ) : null}
+      {open && people.status === "LoadingMore" ? <Muted>Loading more…</Muted> : null}
     </View>
   );
 };
@@ -271,6 +286,7 @@ export const PeopleSheet = ({
   onPerson,
   onCustomize,
   onClose,
+  pokeListOpen = false,
 }: {
   visible: boolean;
   people: WorldMember[];
@@ -279,6 +295,8 @@ export const PeopleSheet = ({
   onPerson: (memberId: string) => void;
   onCustomize: () => void;
   onClose: () => void;
+  /** Start with "Not here right now" open (a link to the poke list). */
+  pokeListOpen?: boolean;
 }) => {
   const t = useAppTheme();
   const blocked = useQuery(api.world.myBlocks, visible ? {} : "skip");
@@ -308,7 +326,7 @@ export const PeopleSheet = ({
           onPress={() => onView(view === "garden" ? "list" : "garden")}
         />
         )}
-        <OfflineList />
+        <OfflineList startOpen={pokeListOpen} />
         {blocked && blocked.length > 0 ? (
           <>
             <Text style={[typography.label, { color: t.muted }]}>Blocked</Text>

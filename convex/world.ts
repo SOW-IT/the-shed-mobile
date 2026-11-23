@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import {
   ASK_MS,
   CHAT_LOG_SIZE,
@@ -666,6 +667,8 @@ export const myBlocks = query({
 });
 
 const OFFLINE_SCAN_MAX = 200;
+/** The most staff profiles one page of the offline list reads. */
+const OFFLINE_PAGE_MAX = 50;
 
 export const offline = query({
   args: {},
@@ -690,31 +693,107 @@ export const offline = query({
   },
 });
 
+const pokedOf = (ctx: Ctx, email: string) =>
+  ctx.db
+    .query("worldPoked")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
+
+/**
+ * Sends one poke from someone in the garden to someone who isn't, within
+ * the limits: one poke an hour each, and nobody poked twice in
+ * POKED_GAP_MS. The two pokes (by visitor or by staff profile) share it.
+ */
+const sendPoke = async (ctx: MutationCtx, target: { email: string; name: string }, message: string | undefined) => {
+  const me = await requireMe(ctx);
+  const now = Date.now();
+  if (target.email === me.email || (await blockedEither(ctx, me.email, target.email))) {
+    throw new ConvexError("They can't be poked right now.");
+  }
+  if (await memberByEmail(ctx, target.email)) throw new ConvexError(`${tagName(target.name)} is already in the garden.`);
+  const visitor = await visitorOf(ctx, target.email);
+  const poked = await pokedOf(ctx, target.email);
+  const lastPokedAt = Math.max(visitor?.lastPokedAt ?? -Infinity, poked?.lastPokedAt ?? -Infinity);
+  if (now - lastPokedAt < POKED_GAP_MS) {
+    throw new ConvexError(`${tagName(target.name)} was poked a moment ago. Give them a few minutes.`);
+  }
+  const mine = await visitorOf(ctx, me.email);
+  const waited = now - (mine?.lastPokeAt ?? 0);
+  if (waited < POKE_EVERY_MS) return { ok: false as const, retryInMs: POKE_EVERY_MS - waited };
+  await markSeen(ctx, me.email, me.member.name, now);
+  await ctx.db.patch("worldVisitors", (await visitorOf(ctx, me.email))!._id, { lastPokeAt: now });
+  if (visitor) await ctx.db.patch("worldVisitors", visitor._id, { lastPokedAt: now });
+  else if (poked) await ctx.db.patch("worldPoked", poked._id, { lastPokedAt: now });
+  else await ctx.db.insert("worldPoked", { email: target.email, lastPokedAt: now });
+  const title = `${tagName(me.member.name)} poked you`;
+  const body = (message === undefined ? null : cleanPoke(message)) ?? "Come and join me in the Garden.";
+  await ctx.db.insert("notifications", { userEmail: target.email, title, body, url: "/world", read: false });
+  await ctx.scheduler.runAfter(0, internal.push.send, { to: target.email, title, body, url: "/world" });
+  return { ok: true as const };
+};
+
+const pokeReply = v.union(v.object({ ok: v.literal(true) }), v.object({ ok: v.literal(false), retryInMs: v.number() }));
+
+/** Pokes someone who has been in the garden before (older apps' list). */
 export const poke = mutation({
   args: { visitorId: v.id("worldVisitors"), message: v.optional(v.string()) },
-  returns: v.union(v.object({ ok: v.literal(true) }), v.object({ ok: v.literal(false), retryInMs: v.number() })),
+  returns: pokeReply,
   handler: async (ctx, args) => {
-    const me = await requireMe(ctx);
-    const now = Date.now();
     const target = await ctx.db.get("worldVisitors", args.visitorId);
-    if (!target || target.email === me.email || (await blockedEither(ctx, me.email, target.email))) {
-      throw new ConvexError("They can't be poked right now.");
+    if (!target) throw new ConvexError("They can't be poked right now.");
+    return await sendPoke(ctx, target, args.message);
+  },
+});
+
+/** Pokes anyone with a staff profile, whether or not they've been in the garden. */
+export const pokeStaff = mutation({
+  args: { profileId: v.id("staffProfiles"), message: v.optional(v.string()) },
+  returns: pokeReply,
+  handler: async (ctx, args) => {
+    const profile = await ctx.db.get("staffProfiles", args.profileId);
+    if (!profile) throw new ConvexError("They can't be poked right now.");
+    return await sendPoke(ctx, { email: profile.email, name: profileName(profile) }, args.message);
+  },
+});
+
+const profileName = (profile: Doc<"staffProfiles">) => profile.name?.trim() || profile.email.split("@")[0];
+
+/**
+ * Everyone with a staff profile this year who isn't in the garden, by name,
+ * a page at a time: not you, not anyone online, nobody blocked either way. A
+ * page can come back shorter than asked when it skipped people; keep loading
+ * until it's done.
+ */
+export const offlineStaff = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(
+    v.object({ id: v.id("staffProfiles"), name: v.string(), lastSeenAt: v.union(v.number(), v.null()) })
+  ),
+  handler: async (ctx, { paginationOpts }) => {
+    const email = await requireEmail(ctx);
+    const result = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear()))
+      .paginate({ ...paginationOpts, numItems: Math.min(OFFLINE_PAGE_MAX, Math.max(1, paginationOpts.numItems)) });
+    const page = [];
+    for (const row of result.page) {
+      if (row.email === email) continue;
+      if (await memberByEmail(ctx, row.email)) continue;
+      if (await blockedEither(ctx, email, row.email)) continue;
+      const visitor = await visitorOf(ctx, row.email);
+      page.push({ id: row._id, name: profileName(row), lastSeenAt: visitor?.lastSeenAt ?? null });
     }
-    if (await memberByEmail(ctx, target.email)) throw new ConvexError(`${tagName(target.name)} is already in the garden.`);
-    if (target.lastPokedAt !== undefined && now - target.lastPokedAt < POKED_GAP_MS) {
-      throw new ConvexError(`${tagName(target.name)} was poked a moment ago. Give them a few minutes.`);
-    }
-    const mine = await visitorOf(ctx, me.email);
-    const waited = now - (mine?.lastPokeAt ?? 0);
-    if (waited < POKE_EVERY_MS) return { ok: false as const, retryInMs: POKE_EVERY_MS - waited };
-    await markSeen(ctx, me.email, me.member.name, now);
-    await ctx.db.patch("worldVisitors", (await visitorOf(ctx, me.email))!._id, { lastPokeAt: now });
-    await ctx.db.patch("worldVisitors", target._id, { lastPokedAt: now });
-    const title = `${tagName(me.member.name)} poked you`;
-    const body = (args.message === undefined ? null : cleanPoke(args.message)) ?? "Come and join me in the Garden.";
-    await ctx.db.insert("notifications", { userEmail: target.email, title, body, url: "/world", read: false });
-    await ctx.scheduler.runAfter(0, internal.push.send, { to: target.email, title, body, url: "/world" });
-    return { ok: true as const };
+    return { ...result, page };
+  },
+});
+
+/** When the caller can poke again (0 when they can now). */
+export const pokeWait = query({
+  args: {},
+  returns: v.object({ pokeAgainAt: v.number() }),
+  handler: async (ctx) => {
+    const mine = await visitorOf(ctx, await requireEmail(ctx));
+    return { pokeAgainAt: mine?.lastPokeAt === undefined ? 0 : mine.lastPokeAt + POKE_EVERY_MS };
   },
 });
 

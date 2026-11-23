@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
+import { currentStaffYear } from "./model";
 import {
   ASK_MS,
   BUCKETS,
@@ -365,6 +366,116 @@ describe("the offline list and pokes", () => {
   });
 });
 
+describe("everyone on staff who isn't here", () => {
+  const year = () => currentStaffYear();
+  const staff = (t: T, people: { email: string; name?: string; year?: number }[]) =>
+    t.run(async (ctx) => {
+      const ids: Id<"staffProfiles">[] = [];
+      for (const p of people) ids.push(await ctx.db.insert("staffProfiles", { email: p.email, name: p.name, year: p.year ?? year() }));
+      return ids;
+    });
+  const all = async (who: ReturnType<typeof asUser>, numItems: number) => {
+    const found = [];
+    let cursor: string | null = null;
+    for (let pages = 0; pages < 100; pages++) {
+      const page: { page: { id: Id<"staffProfiles">; name: string; lastSeenAt: number | null }[]; isDone: boolean; continueCursor: string } =
+        await who.query(api.world.offlineStaff, { paginationOpts: { numItems, cursor } });
+      found.push(...page.page);
+      if (page.isDone) return found;
+      cursor = page.continueCursor;
+    }
+    throw new Error("never finished");
+  };
+
+  test("pages through this year's staff by name, leaving out you, anyone here and anyone blocked", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    await anna.mutation(api.world.join, {});
+    await ben.mutation(api.world.join, {});
+    later(1000);
+    await ben.mutation(api.world.leave, {});
+    const many = Array.from({ length: 60 }, (_, i) => ({ email: `staff${i}@sow.org.au`, name: `Staff ${String(i).padStart(2, "0")}` }));
+    await staff(t, [{ email: ANNA, name: "Anna" }, { email: BEN, name: "Ben" }, { email: CARA, name: "Cara" }, { email: "nameless@sow.org.au" }, { email: "old@sow.org.au", name: "Old", year: year() - 1 }, ...many]);
+    await asUser(t, CARA).mutation(api.world.join, {});
+    await t.run((ctx) => ctx.db.insert("worldBlocks", { email: "staff7@sow.org.au", blockedEmail: ANNA, blockedName: "Anna" }));
+
+    const found = await all(anna, 25);
+    const names = found.map((p) => p.name);
+    expect(names).toContain("Ben");
+    expect(names).toContain("nameless");
+    expect(names).not.toContain("Anna");
+    expect(names).not.toContain("Cara");
+    expect(names).not.toContain("Old");
+    expect(names).not.toContain("Staff 07");
+    expect(names.filter((n) => n.startsWith("Staff "))).toHaveLength(59);
+    // By name, and everyone exactly once.
+    expect(new Set(found.map((p) => p.id)).size).toBe(found.length);
+    const named = names.filter((n) => n !== "nameless");
+    expect(named).toEqual([...named].sort());
+    expect(found.find((p) => p.name === "Ben")!.lastSeenAt).toEqual(near(PINNED_NOW + 1000));
+    expect(found.find((p) => p.name === "Staff 00")!.lastSeenAt).toBeNull();
+  });
+
+  test("a page reads a bounded number of profiles", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await staff(t, Array.from({ length: 70 }, (_, i) => ({ email: `s${i}@sow.org.au`, name: `S${i}` })));
+    expect((await anna.query(api.world.offlineStaff, { paginationOpts: { numItems: 500, cursor: null } })).page).toHaveLength(50);
+    expect((await anna.query(api.world.offlineStaff, { paginationOpts: { numItems: 0, cursor: null } })).page).toHaveLength(1);
+    await expect(t.query(api.world.offlineStaff, { paginationOpts: { numItems: 5, cursor: null } })).rejects.toThrow(/signed in/);
+  });
+
+  test("anyone on staff can be poked, even if they've never been here, within the same limits", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const cara = asUser(t, CARA);
+    await anna.mutation(api.world.join, {});
+    await cara.mutation(api.world.join, {});
+    const [dana, ben] = await staff(t, [{ email: "dana@sow.org.au", name: "Dana Lee" }, { email: BEN, name: "Ben" }]);
+    expect(await anna.query(api.world.pokeWait, {})).toEqual({ pokeAgainAt: 0 });
+
+    expect(await anna.mutation(api.world.pokeStaff, { profileId: dana, message: "hi" })).toEqual({ ok: true });
+    const notes = await t.run((ctx) => ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", "dana@sow.org.au")).collect());
+    expect(notes).toMatchObject([{ title: "anna poked you", body: "hi", url: "/world" }]);
+    expect(await t.run((ctx) => ctx.db.query("worldPoked").collect())).toMatchObject([{ email: "dana@sow.org.au", lastPokedAt: near(PINNED_NOW) }]);
+    expect((await anna.query(api.world.pokeWait, {})).pokeAgainAt).toEqual(near(PINNED_NOW + POKE_EVERY_MS));
+    // One poke an hour each, and nobody poked twice in a few minutes.
+    expect(await anna.mutation(api.world.pokeStaff, { profileId: ben })).toEqual({ ok: false, retryInMs: near(POKE_EVERY_MS) });
+    await expect(cara.mutation(api.world.pokeStaff, { profileId: dana })).rejects.toThrow(/a moment ago/);
+    later(POKED_GAP_MS + 1);
+    expect(await cara.mutation(api.world.pokeStaff, { profileId: dana })).toEqual({ ok: true });
+    expect(await t.run((ctx) => ctx.db.query("worldPoked").collect())).toMatchObject([{ lastPokedAt: near(PINNED_NOW + POKED_GAP_MS + 1) }]);
+
+    // Someone who has been here keeps the gap on their visitor row, for both pokes.
+    const benUser = asUser(t, BEN);
+    await benUser.mutation(api.world.join, {});
+    await expect(cara.mutation(api.world.pokeStaff, { profileId: ben })).rejects.toThrow(/already in the garden/);
+    await benUser.mutation(api.world.leave, {});
+    later(POKE_EVERY_MS);
+    expect(await anna.mutation(api.world.pokeStaff, { profileId: ben })).toEqual({ ok: true });
+    const benVisitor = await t.run(async (ctx) => (await ctx.db.query("worldVisitors").collect()).find((r) => r.email === BEN)!);
+    expect(benVisitor.lastPokedAt).toEqual(near(Date.now()));
+    later(POKE_EVERY_MS);
+    await expect(cara.mutation(api.world.poke, { visitorId: benVisitor._id })).resolves.toEqual({ ok: true });
+  });
+
+  test("never yourself, nobody blocked, and nobody whose profile has gone", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    const [me, blocked, gone] = await staff(t, [{ email: ANNA, name: "Anna" }, { email: BEN, name: "Ben" }, { email: CARA, name: "Cara" }]);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: BEN, blockedName: "Ben" });
+      await ctx.db.delete("staffProfiles", gone);
+    });
+    await expect(anna.mutation(api.world.pokeStaff, { profileId: me })).rejects.toThrow(/can't be poked/);
+    await expect(anna.mutation(api.world.pokeStaff, { profileId: blocked })).rejects.toThrow(/can't be poked/);
+    await expect(anna.mutation(api.world.pokeStaff, { profileId: gone })).rejects.toThrow(/can't be poked/);
+    await expect(asUser(t, BEN).mutation(api.world.pokeStaff, { profileId: me })).rejects.toThrow(/left the garden/);
+  });
+});
+
 describe("at the arcade", () => {
   const pair = async () => {
     const t = newConvex();
@@ -540,10 +651,31 @@ describe("character editor", () => {
     await expect(anna.mutation(api.world.saveLook, { look: { ...v2, v: 9 } })).rejects.toThrow(/doesn't exist/);
   });
 
+  test("a version 3 look (sliders, makeup, bottoms, favourite colour) saves in one write; a version 2 one still saves", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    await ben.mutation(api.world.join, {});
+    const v3 = {
+      v: 3, skin: 11, hair: 17, hairColour: 11, shirt: 3, hat: 8, accessory: 6, eyes: 6, mouth: 6, freckles: 3, blush: 4, beard: 5, outfit: 9,
+      browColour: 4, eyeY: 0, eyeGap: 6, eyeSize: 5, eyeTilt: 1, browY: 6, browGap: 2, browSize: 4, browTilt: 0, mouthY: 2, mouthSize: 6, mouthTilt: 3,
+      glasses: 3, eyeshadow: 2, lipstick: 5, mole: 4, pants: 2, pantsColour: 7, favourite: 9,
+    };
+    expect(await anna.mutation(api.world.saveLook, { look: v3 })).toEqual({ ok: true });
+    expect(await t.run((ctx) => ctx.db.query("worldLooks").collect())).toHaveLength(1);
+    const seen = await ben.query(api.world.roster, { roomId: a.roomId });
+    expect(seen!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(v3);
+    later(3100);
+    const v2 = { v: 2, skin: 2, hair: 10, hairColour: 4, shirt: 3, accessory: 1 };
+    expect(await anna.mutation(api.world.saveLook, { look: v2 })).toEqual({ ok: true });
+    expect((await ben.query(api.world.roster, { roomId: a.roomId }))!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(v2);
+  });
+
   test("turns away a choice that doesn't exist", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
-    for (const bad of [{ ...look, skin: 8 }, { ...look, hat: -1 }, { ...look, shirt: 1.5 }, { ...look, accessory: 4 }]) {
+    for (const bad of [{ ...look, skin: 12 }, { ...look, hat: -1 }, { ...look, shirt: 1.5 }, { ...look, accessory: 8 }, { ...look, eyeY: 7 }, { ...look, mouthTilt: -1 }, { ...look, pants: 4 }, { ...look, favourite: 12 }]) {
       await expect(anna.mutation(api.world.saveLook, { look: bad })).rejects.toThrow(/doesn't exist/);
     }
     await expect(t.mutation(api.world.saveLook, { look })).rejects.toThrow(/signed in/);

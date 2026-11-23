@@ -100,7 +100,10 @@ export default defineSchema({
     searchText: v.optional(v.string()),
   })
     .index("by_email_and_year", ["email", "year"])
+    // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- many readers rely on by_year; this PR only adds indexes
     .index("by_year", ["year"])
+    // The Garden's "Not here right now" list pages through a year by name.
+    .index("by_year_and_name", ["year", "name"])
     .index("by_userId", ["userId"])
     .index("by_importId", ["importId"])
     .index("by_memberId_and_year", ["memberId", "year"])
@@ -250,6 +253,13 @@ export default defineSchema({
   })
     .index("by_email", ["email"])
     .index("by_lastSeenAt", ["lastSeenAt"]),
+
+  // When someone who has never been in the Garden was last poked, so they
+  // aren't poked twice in a few minutes. Visitors keep it on their own row.
+  worldPoked: defineTable({
+    email: v.string(),
+    lastPokedAt: v.number(),
+  }).index("by_email", ["email"]),
 
   // A report keeps its lines after the chat is swept, for leaders to review.
   worldReports: defineTable({

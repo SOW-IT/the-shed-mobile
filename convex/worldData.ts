@@ -23,6 +23,27 @@ export const worldLookValidator = v.object({
   blush: v.optional(v.number()),
   beard: v.optional(v.number()),
   outfit: v.optional(v.number()),
+  // Version 3: placement sliders, brow colour, glasses, makeup, moles,
+  // bottoms and a favourite colour. Optional too, for the same reason.
+  browColour: v.optional(v.number()),
+  eyeY: v.optional(v.number()),
+  eyeGap: v.optional(v.number()),
+  eyeSize: v.optional(v.number()),
+  eyeTilt: v.optional(v.number()),
+  browY: v.optional(v.number()),
+  browGap: v.optional(v.number()),
+  browSize: v.optional(v.number()),
+  browTilt: v.optional(v.number()),
+  mouthY: v.optional(v.number()),
+  mouthSize: v.optional(v.number()),
+  mouthTilt: v.optional(v.number()),
+  glasses: v.optional(v.number()),
+  eyeshadow: v.optional(v.number()),
+  lipstick: v.optional(v.number()),
+  mole: v.optional(v.number()),
+  pants: v.optional(v.number()),
+  pantsColour: v.optional(v.number()),
+  favourite: v.optional(v.number()),
 });
 
 export const worldBucketValidator = v.object({ tokens: v.number(), at: v.number() });
