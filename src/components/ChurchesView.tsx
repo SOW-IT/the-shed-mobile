@@ -217,16 +217,9 @@ export function ChurchesView() {
   return (
     <ChromeScreen scrollRef={scrollRef}>
       <View style={styles.header}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text accessibilityRole="header" style={[typography.largeTitle, { color: t.text }]}>
-            Churches
-          </Text>
-          <Text style={[typography.caption, { color: t.muted }]}>
-            {canEdit
-              ? "Where staff, campus leaders and members go to church."
-              : "Where staff and campus leaders go to church."}
-          </Text>
-        </View>
+        <Text accessibilityRole="header" style={[typography.largeTitle, { color: t.text, flex: 1 }]}>
+          Churches
+        </Text>
         {canEdit ? (
           <Btn title="Add" icon="add" variant="tonal" onPress={() => setForm({ church: null })} />
         ) : null}

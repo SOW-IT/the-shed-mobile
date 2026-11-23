@@ -42,7 +42,7 @@ const Board = ({ game }: { game: GameId }) => {
         </Card>
       ) : null}
       {ranked.length === 0 ? (
-        <EmptyState icon="trophy-outline" title="No scores yet" message="Play a round and yours will be the first." />
+        <EmptyState icon="trophy-outline" title="No scores yet" />
       ) : (
         <Card style={styles.list}>
           {ranked.map((row, index) => (
@@ -109,7 +109,7 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
         <EmptyState
           icon="cloud-offline-outline"
           title="You're offline"
-          message="The leaderboard shows up when you're back online. Your scores are saved on this device until then."
+          message="Your scores are saved on this device until you're back online."
         />
       ) : (
         <Board game={game} />

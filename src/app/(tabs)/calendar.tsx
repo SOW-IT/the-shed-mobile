@@ -39,7 +39,7 @@ import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 import { useCalendarView } from "@/hooks/useCalendarView";
 import { sydneyTime } from "@/lib/sydneyTime";
 import { visibleColour } from "@/lib/visibleColour";
-import { Btn, Card, IconButton, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts } from "@/components/ui";
+import { Card, IconButton, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
 
 type CalendarEvent = NonNullable<ReturnType<typeof useRange>>[number];
@@ -415,7 +415,21 @@ export default function CalendarScreen() {
             }}
           />
         </View>
-        <View style={[styles.side, { alignItems: "flex-end" }]} pointerEvents="box-none">
+        <View style={[styles.side, styles.sideEnd]} pointerEvents="box-none">
+          {me?.isAdmin ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Calendar history"
+              onPress={() => router.push("/calendar-history")}
+              style={({ pressed }) => [
+                styles.historyButton,
+                t.surfaceEdge,
+                { backgroundColor: t.card, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Ionicons name="time-outline" size={20} color={t.text} />
+            </Pressable>
+          ) : null}
           {subgroup ? (
             <Pressable
               accessibilityRole="button"
@@ -618,16 +632,6 @@ export default function CalendarScreen() {
               </FilterRow>
             ) : null}
 
-            {me?.isAdmin ? (
-              <View style={{ alignItems: "flex-start" }}>
-                <Btn
-                  title="Calendar history"
-                  variant="ghost"
-                  icon="time-outline"
-                  onPress={() => router.push("/calendar-history")}
-                />
-              </View>
-            ) : null}
             {events && events.length >= 500 ? (
               <Muted>Showing the first 500 events this month.</Muted>
             ) : null}
@@ -693,6 +697,8 @@ const styles = StyleSheet.create({
   // The same width either side, so the toggle sits in the middle and shrinks
   // to fit between them on a narrow phone.
   side: { flexGrow: 1, flexBasis: 72, alignItems: "flex-start" },
+  sideEnd: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: spacing.xs },
+  historyButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   viewToggle: {
     width: 180,
     flexShrink: 1,

@@ -56,7 +56,7 @@ const EventList = ({
   rows: EventRequestListRow[] | null | undefined;
   groups?: Group[];
   unread: Unread;
-  empty: { title: string; message: string; action?: { label: string; onPress: () => void } };
+  empty: { title: string; message?: string; action?: { label: string; onPress: () => void } };
   header?: ReactNode;
   footer?: ReactNode;
 }) => (
@@ -164,8 +164,6 @@ export default function EventRequestsScreen() {
           footer={<EarlierEvents history={earlierMine} unread={unread} />}
           empty={{
             title: earlierMine.groups.length > 0 ? "Nothing this year yet" : "No event requests",
-            message:
-              "Planning an event? Make an event request: it covers the event's marketing, risks and budget.",
           }}
         />
       ),
@@ -182,10 +180,7 @@ export default function EventRequestsScreen() {
                 rows={review}
                 groups={[{ title: "Waiting for approval", statuses: ["IN_PROGRESS"] }]}
                 unread={unread}
-                empty={{
-                  title: "All caught up",
-                  message: "Event forms waiting for your team's approval show up here.",
-                }}
+                empty={{ title: "All caught up" }}
               />
             ),
           },
@@ -203,10 +198,7 @@ export default function EventRequestsScreen() {
                 unread={unread}
                 header={<FinanceSettingsButton year={me.year} />}
                 footer={<EarlierEvents history={earlierAll} unread={unread} />}
-                empty={{
-                  title: "Nothing here",
-                  message: `No event requests yet in ${me.year}.`,
-                }}
+                empty={{ title: `No event requests in ${me.year}` }}
               />
             ),
           },

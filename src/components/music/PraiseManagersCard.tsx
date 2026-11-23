@@ -67,8 +67,8 @@ const PraiseManagersCard = ({
       <SectionTitle chip={year}>Praise Managers</SectionTitle>
       <Card>
         <Muted>
-          Praise Managers approve, decline, edit and delete Praise List songs, and their own songs go
-          straight onto the list. Each staff year has its own, carried over on 1 October.
+          They approve, decline, edit and delete songs, and their own songs skip review. Carried over
+          each 1 October.
         </Muted>
         {chosen.length === 0 ? <Muted>Nobody yet.</Muted> : null}
         {chosen.map((person) => (
