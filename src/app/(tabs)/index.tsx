@@ -318,7 +318,6 @@ export default function RequestsScreen() {
               prefill={requestPrefill}
               onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
               onNewClose={() => setNewRequestOpen(false)}
-              onMakeRequest={showMakeRequest ? openNewRequest : undefined}
               directorThreshold={directorThreshold}
               focusId={focusId}
               focusThread={focusThread}

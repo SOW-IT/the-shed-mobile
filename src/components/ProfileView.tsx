@@ -188,9 +188,7 @@ function SpotifyConnectionCard() {
           </Pressable>
         )}
       </View>
-      <Muted>
-        Lets you import your Spotify playlists into Praise List requests.
-      </Muted>
+      <Muted>Imports playlists into Praise List requests.</Muted>
       <ErrorBanner message={error ?? spotify.error} />
       <ConfirmDialog
         visible={confirmingDisconnect}

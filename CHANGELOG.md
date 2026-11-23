@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.33] - 2026-11-24
+## [2.12.35] - 2026-11-24
 
 ### Added
 - **Move, size and tilt your eyes, brows and mouth.** The character editor
@@ -87,6 +87,35 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Looks saved before this update don't change.** Every new part starts
   where it was drawn before, and an older app shows a newer look with the
   parts it knows.
+
+## [2.12.34] - 2026-11-24
+
+### Changed
+- **Unread comment counts cost far less to work out.** The red comment counts
+  on Home, the Reimbursements tab and the All, Review, Requests and Past lists
+  now look at a request's approvals only when it has comments you haven't
+  read. Most requests have no comments, so over 40 requests a Head of
+  Department's count reads 25 records instead of 365. The numbers shown are
+  the same.
+
+## [2.12.33] - 2026-11-24
+
+### Changed
+- **Calendar history is a small button at the top.** Admins open it from a
+  clock button next to the Month and Week switch, instead of a button under
+  the calendar.
+- **Counts are chips.** The Review sections, Ready to Pay and the All list's
+  "Requests" heading show their count as a chip instead of "(2)" in the title. My mentees on Mentoring shows its year the same way.
+- **Shorter text across the app.** Empty lists say what's empty and stop
+  there ("All caught up", "No notifications", "No past requests") instead of
+  adding a sentence about what would show up. Helper lines on Churches,
+  Mentoring, Grievances, Profile (Spotify), Admin (Teams, Step timing, App
+  errors, directory sync), Finance settings, Praise Managers and Acting as are
+  cut to the part you need. What each role can see or change, what gets
+  deleted, and dates like 1 October stay.
+- **No duplicate Make a request button.** An empty Mine tab on Requests no
+  longer repeats the "+ Make Request" button already at the bottom; "See past
+  requests" stays when you have some.
 
 ## [2.12.32] - 2026-11-24
 
