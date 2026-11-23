@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.17] - 2026-11-23
+
+### Changed
+- **Mystic Man goes faster.** His top speed is a third higher than before, and
+  he keeps speeding up for longer to get there. Every obstacle is still sized
+  so the right move clears it at any speed.
+- **Mystic Man's scores start again.** The faster game made the old scores
+  unfair, so the leaderboard was cleared and everyone who was on it got a
+  push. A best saved on a phone before the reset no longer shows, and an old
+  run waiting to be sent from a phone that was offline is turned away, so the
+  old scores can't come back.
+
 ## [2.12.16] - 2026-11-23
 
 ### Changed

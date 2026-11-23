@@ -263,7 +263,7 @@ describe("runner", () => {
 
   test("every generated sequence can be cleared with the right input, at every speed (seeded)", () => {
     const passed: Record<string, number> = {};
-    for (const time of [0, 8, 20, 35, 50, 70]) {
+    for (const time of [0, 8, 20, 35, 50, 70, 90]) {
       for (let seed = 1; seed <= 40; seed++) {
         let state: RunnerState = { ...newRunner(760, seed), time, speed: runnerSpeed(time) };
         const seen = new Set<number>();
@@ -290,7 +290,7 @@ describe("runner", () => {
   });
 
   test("patterns are always spaced far enough to land the big jump and react", () => {
-    for (const time of [0, 20, 60]) {
+    for (const time of [0, 20, 60, 90]) {
       for (let seed = 1; seed <= 10; seed++) {
         let state: RunnerState = { ...newRunner(760, seed), time, speed: runnerSpeed(time) };
         // Each pattern's front and back in distance run, and the speed it came at.
