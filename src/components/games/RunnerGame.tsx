@@ -41,6 +41,10 @@ const START_HINT =
     ? "Tap or press ↑ to start. Tap ↑ or space to hop, hold it (or Shift) for a big jump, ↓ to duck."
     : "Tap to start. Tap to hop, swipe up for a big jump, swipe down to duck.";
 
+/** Whether the main pointer is a finger (a phone or tablet browser). */
+const touchScreen = () =>
+  typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+
 const ObstacleView = ({ o, groundY }: { o: Obstacle; groundY: number }) => {
   if (o.kind === "hang") {
     // Vines down from the top of the board, ending in a leafy clump.
@@ -162,7 +166,9 @@ export const RunnerGame = ({
   const { run, setRun, phase } = session;
   const screen = useWindowDimensions();
   const safe = useSafeAreaInsets();
-  const turned = screen.height > screen.width;
+  // Turned on a phone held upright: the app, or a phone's browser. A desktop
+  // browser window that happens to be tall keeps the wide board.
+  const turned = screen.height > screen.width && (Platform.OS !== "web" || touchScreen());
   const [stage, onStageLayout] = useStage();
   const board = stage && fitBoard(stage, MAX_BOARD);
   const width = board?.width ?? 0;
@@ -174,7 +180,8 @@ export const RunnerGame = ({
   );
   // The board height the run started on; a shorter board later scales the scene.
   const [runHeight, setRunHeight] = useState(0);
-  const latest = useLatest({ session, width, height, turned });
+  const inputOn = active && !session.paused;
+  const latest = useLatest({ session, width, height, turned, inputOn });
 
   useGameLoop(phase === "playing" && active && !session.paused, (dt) => setRun((state) => state && advance(state, dt, stepRunner)));
 
@@ -217,6 +224,10 @@ export const RunnerGame = ({
     hold.current = null;
   };
   useEffect(() => stopHold, []);
+  // A pending hold must not fire into a paused run or a screen that's behind.
+  useEffect(() => {
+    if (!inputOn) stopHold();
+  }, [inputOn]);
 
   useWebKeys(
     (key, down, event) => {
@@ -233,14 +244,21 @@ export const RunnerGame = ({
         if (key === " " && current.canRestartByKey()) current.restart();
         return;
       }
-      if (!isJump) return act("duck");
+      if (!isJump) {
+        // A duck cancels a big jump still waiting on the held key.
+        stopHold();
+        return act("duck");
+      }
       if (current.phase === "ready" || event.shiftKey) return act(current.phase === "ready" ? "hop" : "jump");
       act("hop");
       stopHold();
-      hold.current = setTimeout(() => act("jump"), HOLD_MS);
+      hold.current = setTimeout(() => {
+        hold.current = null;
+        if (latest.current.inputOn) act("jump");
+      }, HOLD_MS);
     },
     stopHold,
-    active && !session.paused
+    inputOn
   );
 
   const frame = (
