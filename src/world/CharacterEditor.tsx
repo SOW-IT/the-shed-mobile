@@ -1,4 +1,4 @@
-import { Btn, FastModal } from "@/components/ui";
+import { Btn, ConfirmDialog, FastModal } from "@/components/ui";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { spacing, typography, useAppTheme } from "@/theme";
 import {
@@ -438,6 +438,7 @@ export const CharacterEditor = ({
   const [draft, setDraft] = useState<Look>(() => withOwnGlasses(look));
   const [tab, setTab] = useState<Tab>("Face");
   const closeUp = CLOSE_TABS.includes(tab);
+  const [confirmingRandom, setConfirmingRandom] = useState(false);
   // Start from your current look each time the editor opens, so a cancelled
   // change doesn't come back.
   const [wasVisible, setWasVisible] = useState(visible);
@@ -445,6 +446,8 @@ export const CharacterEditor = ({
     setWasVisible(visible);
     if (visible) {
       setDraft(withOwnGlasses(look));
+    } else {
+      setConfirmingRandom(false);
     }
   }
   const set = (name: LookPart) => (value: number) => setDraft((d) => ({ ...d, [name]: value }));
@@ -624,7 +627,7 @@ export const CharacterEditor = ({
     <View style={styles.footer}>
       <View style={styles.buttons}>
         <View style={styles.grow}>
-          <Btn title="Randomise" icon="shuffle" variant="tonal" onPress={() => setDraft(randomLook())} />
+          <Btn title="Randomise" icon="shuffle" variant="tonal" onPress={() => setConfirmingRandom(true)} />
         </View>
         <View style={styles.grow}>
           <Btn title="Save" icon="checkmark" onPress={save} />
@@ -675,6 +678,15 @@ export const CharacterEditor = ({
           )}
         </View>
       </View>
+      <ConfirmDialog
+        visible={confirmingRandom}
+        title="Randomise your character?"
+        message="This replaces your current look. You can still cancel before saving."
+        confirmLabel="Randomise"
+        destructive={false}
+        onConfirm={() => setDraft(randomLook())}
+        onClose={() => setConfirmingRandom(false)}
+      />
     </FastModal>
   );
 };
