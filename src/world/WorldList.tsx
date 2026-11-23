@@ -23,6 +23,7 @@ export const WorldList = ({
   onBack,
   onArcade,
   onPeople,
+  online = 0,
   onPerson,
   note,
   onNote,
@@ -38,6 +39,8 @@ export const WorldList = ({
   onBack: () => void;
   onArcade: () => void;
   onPeople: () => void;
+  /** People in the World right now, shown on the People button when above 0. */
+  online?: number;
   onPerson: (memberId: string) => void;
   note: string | null;
   onNote: (note: string | null) => void;
@@ -143,7 +146,7 @@ export const WorldList = ({
       title={title}
       onBack={onBack}
       maxWidth={640}
-      headerRight={<Btn title="People" icon="people-outline" variant="tonal" onPress={onPeople} />}
+      headerRight={<Btn title={online > 0 ? `People · ${online}` : "People"} icon="people-outline" variant="tonal" onPress={onPeople} />}
     >
       {duelCard}
       {/* Asks made of you, with time to answer: the same as over heads in the
@@ -296,7 +299,7 @@ export const WorldList = ({
             </Pressable>
           ))}
         </View>
-        <Muted>Lines are kept for 15 minutes, unless someone reports them.</Muted>
+        <Muted>Lines are kept for an hour, unless someone reports them.</Muted>
       </Card>
     </Screen>
   );

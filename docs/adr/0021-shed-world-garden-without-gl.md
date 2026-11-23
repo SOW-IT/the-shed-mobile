@@ -38,7 +38,7 @@ What we weighed:
   view.
 - **Keeping storage bounded.** Rows grow with people present, not with time:
   `worldState` is upserted, a member's rows are deleted when they leave or
-  go quiet for 90 seconds, chat lines go after 15 minutes (and past 50 per
+  go quiet for 90 seconds, chat lines go after an hour (and past 150 per
   room), and empty rooms are deleted. The sweeper schedules itself every 30
   seconds while anyone is in, stops when the garden is empty, and a daily
   cron restarts it if a run was ever lost. A report copies the room's last
@@ -141,6 +141,46 @@ Daniel's items 5 to 9 (2026-11-23):
   notification and a push linking to `/world`: one poke an hour per sender,
   and nobody is poked more than once in ten minutes.
 
+## Look version 3 and everyone on the poke list
+
+- **Look version 3.** Nineteen more optional look parts, still one small
+  object and one write on Save: Mii-style placement sliders for the eyes,
+  brows and mouth (`eyeY`, `eyeGap`, `eyeSize`, `eyeTilt`, `browY`,
+  `browGap`, `browSize`, `browTilt`, `mouthY`, `mouthSize`, `mouthTilt`),
+  `browColour`, `glasses`, `eyeshadow`, `lipstick`, `mole`, `pants`,
+  `pantsColour` and `favourite`. Every slider has seven steps and its
+  middle step is where the part was drawn before, so a missing slider draws
+  the old face. The existing palettes grew by appending (hairstyles, hair
+  colours, skin tones, hats, extras, eyes, mouths, blush, freckles, facial
+  hair, tops). `isValidLook` bounds every part on the server and accepts
+  versions 1 to 3.
+- **A newer look on an older app.** `lookPart` treats a choice outside this
+  app's range as the default, and unknown fields are ignored, so an older
+  app draws a newer look with the parts it knows.
+- **Glasses got their own part.** They were extra number 1, so glasses and
+  a backpack couldn't go together. A missing `glasses` still means round
+  glasses when the extra is 1; the editor moves them across when it opens
+  and no longer offers that extra.
+- **Brows follow the eyes.** The brow sliders are offsets from the eyes, so
+  moving the eyes carries the brows with them and the two can't collide.
+- **The poke list is everyone on staff.** `world.offlineStaff` pages through
+  this staff year's profiles by name (`staffProfiles.by_year_and_name`),
+  leaving out the caller, anyone in the world and anyone blocked either way.
+  A page reads at most 50 profiles and can come back shorter than asked when
+  it skipped people; the app keeps loading with "Load more" until it's done.
+  `world.pokeStaff` pokes by staff profile, so people who have never been in
+  the world can be invited, with the same limits as `world.poke`. Someone
+  never seen has no `worldVisitors` row, so their ten-minute gap is kept in
+  `worldPoked` instead. `world.offline` and `world.poke` stay for older
+  apps.
+- **One online count.** `world.onlineCount` adds up `memberCount` on the
+  rooms (`worldRooms`, read by index, at most 500 rooms), the same presence
+  the world draws from, so it moves with joins, travel, leaves and the
+  sweeper. It reads a handful of small rows instead of every member, and
+  one subscription serves the side menu, the Games list card and the People
+  button badge (`useWorldOnline`). It's 0 when signed out, and the app shows
+  nothing at 0.
+
 ## Places
 
 There are five places (`PLACES` in `shared/world.ts`), joined by pads
@@ -200,9 +240,17 @@ of simulated play against the real mutations, counting writes per code path
 | At every rate limit (scripted, not the app) | about 151 accepted | at most 152, 158 in a full chat room |
 | Idle | about 1.3 heartbeats | at most 1.3 |
 
-A line in a room already holding 50 lines also deletes the oldest, one more
-write (at most 6 a minute at the line limit, so at most 53 then). A
+A line in a room already holding 150 lines also deletes the oldest, one more
+write (at most 6 a minute at the line limit). Chat is kept an hour: each
+`chatLog` run reads at most 150 lines (newest first, by index, scanning at
+most 2000) plus two block lookups per distinct sender, and each line said
+reads up to 155 of its room's lines to keep the room at 150. A
 high-five ask or accept is one write, like an emote, on the same rate limit;
-saving a look is one write. Join and leave are a handful of writes
+saving a look is one write. Ping costs at most 2 writes a minute and
+usually none: each app times its own round trips to Convex, smooths them,
+and writes its signal bars (1 to 4) onto its `worldMembers` row only when
+the bucket changes, at most once every 30 s (`world.ping`, checked on the
+server too). An idle app probes with a call that writes nothing every 15 s.
+Join and leave are a handful of writes
 once per visit (leave also keeps the rate limits in `worldThrottle`), and the
 sweeper adds two calls a minute while anyone is in.

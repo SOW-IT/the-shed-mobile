@@ -1,4 +1,5 @@
 import { useOffline } from "@/hooks/useOffline";
+import { useWorldOnline } from "@/hooks/useWorldOnline";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
@@ -10,7 +11,9 @@ import {
   MUTUALS,
   OBSTACLES,
   PLACE_TITLES,
+  PLACES,
   SEATS,
+  pingBars,
   portalAt,
   posAt,
   ASKS,
@@ -19,7 +22,7 @@ import {
   type Place,
 } from "@shared/world";
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { announce } from "./announce";
 import { APPROACH_MS, approachStep } from "./approach";
@@ -27,7 +30,9 @@ import { CharacterEditor } from "./CharacterEditor";
 import { Garden } from "./Garden";
 import { hud } from "./palette";
 import type { HudAction } from "./PersonHud";
-import { PeopleSheet, PersonSheet } from "./Sheets";
+import { PersonSheet } from "./Sheets";
+import { PeoplePanel } from "./People";
+import { connectionLabel, LeaveDialog, PLACE_ICONS, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
 import { useWorld } from "./useWorld";
 import { pickView } from "./view";
 import { ChatLog } from "./ChatLog";
@@ -83,6 +88,8 @@ const useKeyboardLift = (bottomInset: number) => {
 const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
 const ARCADE_SPOT = clampTarget(ARCADE.x + 0.9, ARCADE.z + 0.9);
 const AT_ARCADE = 0.3;
+const BESIDE = 1.2;
+const FOLLOW_MS = 12_000;
 const ARCADE_TRIP_MS = 20_000;
 const SAME_FURNITURE = 1.7;
 
@@ -91,21 +98,29 @@ const RoundButton = ({
   label,
   onPress,
   testID,
+  badge = 0,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
   testID?: string;
+  /** A count in the corner; hidden at 0. */
+  badge?: number;
 }) => (
   <Pressable
     onPress={onPress}
     accessibilityRole="button"
-    accessibilityLabel={label}
+    accessibilityLabel={badge > 0 ? `${label}, ${badge} online` : label}
     testID={testID}
     hitSlop={6}
     style={({ pressed }) => [styles.round, pressed && styles.pressed]}
   >
     <Ionicons name={icon} size={20} color={hud.forest} />
+    {badge > 0 ? (
+      <View style={styles.badge} testID={testID ? `${testID}-badge` : undefined}>
+        <Text style={styles.badgeText}>{badge > 99 ? "99+" : badge}</Text>
+      </View>
+    ) : null}
   </Pressable>
 );
 
@@ -116,12 +131,57 @@ const Mark = () => (
   </View>
 );
 
-const TitlePill = ({ title, instance }: { title: string; instance: number }) => (
-  <View style={styles.title} accessibilityRole="header">
-    <Mark />
-    <Text style={styles.titleText}>{instance > 1 ? `${title} · ${instance}` : title}</Text>
-  </View>
-);
+const TitlePill = ({ title, instance, open, onPress }: { title: string; instance: number; open: boolean; onPress: () => void }) => {
+  const [turn] = useState(() => new Animated.Value(open ? 1 : 0));
+  useEffect(() => {
+    Animated.timing(turn, { toValue: open ? 1 : 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
+  }, [open, turn]);
+  const label = instance > 1 ? `${title} · ${instance}` : title;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}. Places and leave`}
+      accessibilityState={{ expanded: open }}
+      testID="world-title"
+      style={({ pressed }) => [styles.title, pressed && styles.pressed]}
+    >
+      <Mark />
+      <Text style={styles.titleText} numberOfLines={1}>
+        {label}
+      </Text>
+      <Animated.View style={{ transform: [{ rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "180deg"] }) }] }}>
+        <Ionicons name="chevron-down" size={16} color={hud.forest} />
+      </Animated.View>
+    </Pressable>
+  );
+};
+
+const PingBars = ({ ms }: { ms: number | null }) => {
+  const bars = ms === null ? undefined : pingBars(ms);
+  const [showMs, setShowMs] = useState(false);
+  useEffect(() => {
+    if (!showMs) return;
+    const id = setTimeout(() => setShowMs(false), 2500);
+    return () => clearTimeout(id);
+  }, [showMs]);
+  return (
+    <Pressable
+      onPress={() => setShowMs(true)}
+      onLongPress={() => setShowMs(true)}
+      accessibilityRole="button"
+      accessibilityLabel={ms === null ? "Your connection: measuring" : `Your connection: ${ms} milliseconds. ${connectionLabel(bars)}`}
+      testID="world-ping"
+      hitSlop={10}
+      style={styles.ping}
+    >
+      <WifiBars bars={bars} size={26} />
+      {showMs && ms !== null ? (
+        <Text style={styles.pingText}>{`${Math.min(999, ms)} ms`}</Text>
+      ) : null}
+    </Pressable>
+  );
+};
 
 /**
  * Shed World, the Garden. Tap the ground to walk; type to talk to people
@@ -129,12 +189,21 @@ const TitlePill = ({ title, instance }: { title: string; instance: number }) => 
  */
 export const WorldScreen = ({
   onBack,
+  leaveAsked = false,
+  onStay,
+  onLeave,
   onArcade,
   active = true,
   away = false,
+  opening,
 }: {
   onBack: () => void;
+  leaveAsked?: boolean;
+  onStay: () => void;
+  onLeave: () => void;
   onArcade: () => void;
+  /** A sheet to open on arrival, from a link: the character editor or the poke list. */
+  opening?: "character" | "poke";
   /** False while another screen covers this one: the visit ends until it's back. */
   active?: boolean;
   away?: boolean;
@@ -148,13 +217,18 @@ export const WorldScreen = ({
   const [person, setPerson] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ memberId: string; safetyOnly: boolean; name?: string } | null>(null);
   const [approach, setApproach] = useState<{ to: string; since: number; kind: AskKind } | null>(null);
-  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(opening === "poke");
+  const [placesOpen, setPlacesOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [draft, setDraft] = useState("");
   const [composing, setComposing] = useState(false);
   const typingNow = composing && draft.trim() !== "";
   const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const online = useWorldOnline() ?? 0;
+  // A link to the editor opens it once your look has loaded.
+  const [editorAsked, setEditorAsked] = useState(opening === "character");
   // The editor closes with the visit (your look goes with it); open it again after.
   const hasMe = world.people.some((p) => p.isMe);
   if (editing && !hasMe && world.status !== "in") setEditing(false);
@@ -206,6 +280,10 @@ export const WorldScreen = ({
 
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
+  if (editorAsked && me) {
+    setEditorAsked(false);
+    setEditing(true);
+  }
   const mePose = me?.walk ? posAt(me.walk, now) : null;
   const selected = world.people.find((p) => p.memberId === person) ?? null;
   if (person !== null && !selected && world.status === "in") setPerson(null);
@@ -300,16 +378,17 @@ export const WorldScreen = ({
 
   const [fade] = useState(() => new Animated.Value(0));
   const triedFromWalk = useRef<number | null>(null);
-  const go = (to: Place) => {
+  const go = (to: Place, toMember?: Id<"worldMembers">) => {
     setPerson(null);
     setApproach(null);
     setArcadeTrip(null);
     setTray(false);
     setPeopleOpen(false);
+    setPlacesOpen(false);
     const veil = (toValue: number) =>
       Animated.timing(fade, { toValue, duration: 180, useNativeDriver: Platform.OS !== "web" }).start();
     veil(1);
-    void live.current.world.travel(to).then((problem) => {
+    void live.current.world.travel(to, toMember).then((problem) => {
       veil(0);
       if (problem) setNote(problem);
       else announce(`You're in ${PLACE_TITLES[to]}.`);
@@ -374,6 +453,50 @@ export const WorldScreen = ({
     setNote(`Walking over to ${firstName(to)}…`);
   };
   const highFive = (to: string) => walkOverAndAsk(to, "highFive");
+
+  const walkOver = (to: string) => {
+    setPeopleOpen(false);
+    setPerson(null);
+    setApproach(null);
+    setArcadeTrip(null);
+    const { world: latest } = live.current;
+    const at = latest.serverNow();
+    const mine = latest.people.find((p) => p.isMe);
+    const theirs = latest.people.find((p) => p.memberId === to);
+    if (!mine?.walk || !theirs?.walk) return;
+    const from = posAt(mine.walk, at);
+    const there = posAt(theirs.walk, at);
+    const gap = Math.hypot(there.x - from.x, there.z - from.z);
+    if (gap <= BESIDE) return;
+    const k = (gap - BESIDE) / gap;
+    latest.walkTo(from.x + (there.x - from.x) * k, from.z + (there.z - from.z) * k);
+    setNote(`Walking over to ${theirs.name.split(" ")[0]}…`);
+  };
+  const walkOverRef = useRef(walkOver);
+  useEffect(() => {
+    walkOverRef.current = walkOver;
+  });
+  const [following, setFollowing] = useState<{ memberId: string; since: number } | null>(null);
+  const follow = (to: Place, memberId: string) => {
+    if (world.people.some((p) => p.memberId === memberId)) return walkOver(memberId);
+    setFollowing({ memberId, since: Date.now() });
+    go(to, memberId as Id<"worldMembers">);
+  };
+  useEffect(() => {
+    if (!following) return;
+    const id = setInterval(() => {
+      const { world: latest } = live.current;
+      const arrived =
+        latest.status === "in" &&
+        latest.people.some((p) => p.isMe && p.walk) &&
+        latest.people.some((p) => p.memberId === following.memberId && p.walk);
+      if (arrived) {
+        setFollowing(null);
+        walkOverRef.current(following.memberId);
+      } else if (Date.now() - following.since > FOLLOW_MS) setFollowing(null);
+    }, 300);
+    return () => clearInterval(id);
+  }, [following]);
 
   const hudActions: HudAction[] = !selected
     ? []
@@ -463,9 +586,11 @@ export const WorldScreen = ({
           onSave={(look) => world.saveLook(look).then((problem) => problem && setNote(`Your new look didn't save. ${problem}`))}
           onClose={() => setEditing(false)}
         /> : null}
-      <PeopleSheet
-        visible={peopleOpen}
+      <PeoplePanel
+        open={peopleOpen}
+        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
         people={world.people}
+        online={online}
         onPerson={(memberId) => {
           setPeopleOpen(false);
           if (view === "list") setSheet({ memberId, safetyOnly: false });
@@ -473,10 +598,50 @@ export const WorldScreen = ({
         }}
         place={world.place}
         onGo={go}
+        onWalkOver={walkOver}
+        onFollow={follow}
         onClose={() => setPeopleOpen(false)}
+        pokeListOpen={opening === "poke"}
+        showPlaces={view === "list"}
+      />
+      <LeaveDialog
+        open={leaving || leaveAsked}
+        onStay={() => {
+          setLeaving(false);
+          onStay();
+        }}
+        onLeave={() => {
+          setLeaving(false);
+          onLeave();
+        }}
       />
     </>
   );
+
+  const menuEntries: MenuEntry[] = [
+    ...PLACES.filter((to) => to !== world.place).map((to) => {
+      const count = world.placeCounts?.[to] ?? 0;
+      return {
+        id: to,
+        label: PLACE_TITLES[to],
+        emoji: PLACE_ICONS[to],
+        count,
+        accessibilityLabel: `Go to ${PLACE_TITLES[to]}, ${count} ${count === 1 ? "person" : "people"} there`,
+        onPress: () => go(to),
+      };
+    }),
+    {
+      id: "leave",
+      label: "Leave",
+      icon: "exit-outline",
+      tone: "leave",
+      accessibilityLabel: "Leave the World",
+      onPress: () => {
+        setPlacesOpen(false);
+        setLeaving(true);
+      },
+    },
+  ];
 
   if (away) return <View style={styles.fill} />;
 
@@ -490,6 +655,7 @@ export const WorldScreen = ({
           onBack={onBack}
           onArcade={onArcade}
           onPeople={() => setPeopleOpen(true)}
+          online={online}
           onPerson={(memberId) => {
             if (world.people.some((p) => p.isMe && p.memberId === memberId)) setEditing(true);
             else setSheet({ memberId, safetyOnly: false });
@@ -555,9 +721,28 @@ export const WorldScreen = ({
         declined={declined}
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
-        <RoundButton icon="chevron-back" label="Back" onPress={onBack} testID="world-back" />
-        <TitlePill title={PLACE_TITLES[world.place]} instance={world.instance} />
-        <RoundButton icon="people-outline" label="People here" onPress={() => setPeopleOpen(true)} testID="world-people" />
+        <TitlePill
+          title={PLACE_TITLES[world.place]}
+          instance={world.instance}
+          open={placesOpen}
+          onPress={() => {
+            setPeopleOpen(false);
+            setPlacesOpen((was) => !was);
+          }}
+        />
+        <View style={styles.right}>
+          <PingBars ms={world.ping} />
+          <RoundButton
+            icon="people-outline"
+            label="People"
+            onPress={() => {
+              setPlacesOpen(false);
+              setPeopleOpen((was) => !was);
+            }}
+            testID="world-people"
+            badge={online}
+          />
+        </View>
       </View>
       <View style={[styles.logRow, { top: insets.top + 66 }]} pointerEvents="box-none">
         <ChatLog
@@ -680,12 +865,15 @@ export const WorldScreen = ({
         </View>
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
+      <WorldMenu open={placesOpen} top={insets.top + TOP_BAR_GAP} entries={menuEntries} onClose={() => setPlacesOpen(false)} />
+
       {sheets}
     </View>
   );
 };
 
 const CHAT_BAR_HEIGHT = 54;
+const TOP_BAR_GAP = 62;
 const UNDER_CHAT_SLACK = 10;
 
 const ink = { borderWidth: 2.5, borderColor: hud.forest };
@@ -695,6 +883,21 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: hud.cream },
   veil: { backgroundColor: hud.cream },
   pressed: { opacity: 0.75 },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: hud.accent,
+    borderWidth: 2,
+    borderColor: hud.card,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: { color: hud.onAccent, fontFamily: fonts.display, fontSize: 11, lineHeight: 13 },
   top: {
     position: "absolute",
     left: 14,
@@ -722,13 +925,16 @@ const styles = StyleSheet.create({
     backgroundColor: hud.card,
     borderRadius: 999,
     paddingLeft: 6,
-    paddingRight: 16,
+    paddingRight: 12,
     paddingVertical: 6,
     ...ink,
     ...pop,
   },
   mark: { width: 30, height: 30, borderRadius: 15, backgroundColor: hud.primary, alignItems: "center", justifyContent: "center" },
-  titleText: { fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.3, color: hud.forest },
+  titleText: { flexShrink: 1, fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.3, color: hud.forest },
+  right: { flexDirection: "row", alignItems: "center", gap: 10 },
+  ping: { width: 30, height: 44, alignItems: "center", justifyContent: "center" },
+  pingText: { position: "absolute", top: 36, left: -25, width: 80, textAlign: "center", fontSize: 11, fontWeight: "800", color: hud.forest },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
   note: {
     backgroundColor: hud.card,

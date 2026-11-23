@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.35] - 2026-11-24
+## [2.12.36] - 2026-11-24
 
 ### Fixed
 - **Going from the Chapel back to the Garden no longer crashes test
@@ -15,14 +15,94 @@ All notable changes to **The SHED** mobile app. This project follows
   now always send one, and a lint rule stops a transform from being left
   out like that again. A full-screen attendance chart had the same pattern
   when the phone turned back upright, and is fixed the same way.
-- **The Games menu calls it the World.** The entry that opens it said "The
-  Garden"; places inside keep their names.
 - **Mystic Man's start card says the controls once.** On a phone it ends
   with "Tap to start." instead of repeating them; on the web it lists only
   the keys.
 - **The game-over card says where your score went.** Online and signed in
   it says "Saved to the leaderboard."; it only says it'll go on when you're
   online when you're offline.
+
+## [2.12.35] - 2026-11-24
+
+### Added
+- **Move, size and tilt your eyes, brows and mouth.** The character editor
+  has Eyes, Brows and Mouth tabs, each with Mii-style sliders: up and down,
+  spacing, size and tilt (the mouth has up and down, size and tilt). Reset
+  puts them back. The preview comes in close on your face while you're on
+  the face tabs, and turns back to face you.
+- **More ways to look like you.** Six more hairstyles (mohawk, space buns,
+  a braid, curtains, a mullet, wavy), pink, blue and platinum hair, four
+  more skin tones, a brow colour, lashes and almond eyes, a cat mouth and a
+  tongue out, round and line blush, more freckles, moles, eyeshadow and
+  lipstick, a goatee, a wide moustache and a chin strap.
+- **Glasses of your own.** Round, square, sunglasses or big round, worn
+  with any extra, so glasses and a backpack can go together now.
+- **Hats and extras.** A beret, a bow, a headband, a party hat and a crown;
+  a bow tie, a necklace, headphones and a flower behind your ear.
+- **Tops and bottoms.** A collared shirt, a jacket, a jumper and polka dots,
+  and trousers, shorts or a skirt in a colour of your own.
+- **A favourite colour.** You wear it as your shoes, and on a beret, bow,
+  headband, party hat, bow tie or necklace.
+- **Poke anyone on staff.** "Not here right now" in People here now lists
+  everyone with a staff profile this year who isn't in the world, by name,
+  with Load more until you reach the end, not just a few people who'd been
+  in before. You can poke someone who has never visited; the limits are the
+  same (one poke an hour, and nobody poked twice in ten minutes).
+- **See who's in the World.** The side menu shows "3 online" next to World,
+  the Games list card says how many people are in right now, and the People
+  button in the World has a badge with the count. Nothing shows when
+  nobody's in.
+- **A game-style People list.** People in the World opens a see-through
+  dark panel over the World instead of a white sheet. Each row has the
+  person's character, their name ("Daniel K."), where they are, and their
+  connection as one to four bars (green, amber or red). Tap someone here to
+  wave, high five, duel, mute, block or report. The button on the right of
+  each row walks you over to someone here, or takes you to someone's place
+  (into the same room as them, when there's space) and walks you over. The poke list and your blocked people are at the bottom.
+- **Your connection at the top.** Wi-fi bars sit next to the People
+  button; tap them to see your ping in milliseconds for a moment. Each
+  phone times its own round trips to the server and shares its bars only
+  when they change, at most once every 30 seconds.
+- **One menu from the place button.** The place button ("The Garden") is
+  at the top left now. Tap it for a menu that drops down with every other
+  place (and how many people are in each) and Leave at the bottom. Leave
+  asks first, in a World-styled dialog. Tap outside or the button again to
+  close the menu.
+
+### Changed
+- **No back button in the World.** Leave from the place menu instead. Going
+  back with a swipe or the back button asks with the same World-styled
+  "Leave the World?" dialog.
+- **Chat history lasts an hour**, not 15 minutes, and the log keeps up to
+  150 lines (it was 50), so a busy hour still fits. Speech bubbles still go
+  after 8 seconds.
+- **The chat log reads on every backdrop.** It sits on a faint dark band,
+  so the white and yellow text shows on the Café's and Chapel's cream walls
+  and windows, and it shows whole messages only: no stray end of a wrapped
+  line at the top.
+- **Smoother World menus.** The People list, the place menu and the Leave
+  dialog slide and fade in with their rows one after another, and ease out
+  when they close. With Reduce Motion on, they appear and go without
+  moving.
+- **The editor's camera glides.** Switching tabs moves the preview smoothly
+  between a close-up of the face (face, eyes, brows, mouth), head and
+  shoulders (hair and hats) and the whole body (body, outfit, extras),
+  instead of jumping. Hats moved into the Hair tab, now called Hair & hat.
+- **The cap fits the head.** Its crown follows the head and comes down the
+  sides to just above the ears, the hair only shows below its edge, and the
+  peak points the way you face, turning with you and going behind your head
+  when you face away. Buns and space buns tuck under it, curls peek out
+  below it, and long hair, a bob, wavy hair and a ponytail start under its
+  edge.
+- **The Games list card is called World**, like the side menu.
+- **One way into the character editor.** The Customise buttons are gone
+  from the People list and your own card. Tap your character and press
+  Outfit (or tap yourself in the list view) to change your look.
+- **Randomise** picks from all the new choices too, with glasses, makeup,
+  moles and the rest kept rare so not everyone gets everything.
+- **Looks saved before this update don't change.** Every new part starts
+  where it was drawn before, and an older app shows a newer look with the
+  parts it knows.
 
 ## [2.12.34] - 2026-11-24
 
