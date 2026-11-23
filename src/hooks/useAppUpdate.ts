@@ -7,7 +7,7 @@ import { appScheme, appVersion } from "@/hooks/useReportAppVersion";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { otaUpdates } from "@/lib/otaUpdates";
 
-export const nativePlatform = (): "ios" | "android" | null =>
+const nativePlatform = (): "ios" | "android" | null =>
   Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : null;
 
 type UpdatePhase = "idle" | "checking" | "downloading" | "restarting";

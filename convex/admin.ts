@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { personaInDepartment } from "../shared/actingAs";
 import type { Audience } from "../shared/announcements";
+import { ACTIVITY_EMAIL_LIMIT } from "../shared/userActivity";
 import {
   Assignment,
   assignmentFor,
@@ -886,7 +887,6 @@ export const listLeavers = query({
   },
 });
 
-const ACTIVITY_EMAIL_LIMIT = 600;
 
 const appPlatformValidator = v.union(v.literal("ios"), v.literal("android"));
 

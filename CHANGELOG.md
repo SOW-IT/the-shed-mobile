@@ -9,6 +9,20 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [2.12.18] - 2026-11-23
 
 ### Changed
+- **See who's typing.** Three dots bounce over someone's head while they
+  write a line, and stop when they send it or stop typing.
+- **Leaving the app for a moment keeps you in the World.** Switching apps or
+  locking the phone no longer takes you out; you're still standing there when
+  you come back. Away for more than about a minute and a half, you're taken
+  out as before.
+- **You come back where you left.** Opening the World again puts you in the
+  place and on the spot you were in when you left, not back at the Garden
+  gate.
+- **No more hearing ring.** Everyone in the World sees the chat, so the ring
+  round you, the faded bubbles for people "out of earshot" and the list
+  view's "Can hear you" are gone.
+- **Tap a line in the chat log** to mute, block or report whoever said it,
+  even if they're somewhere else.
 - **Walking is faster,** about one and a half times the old pace, with
   quicker steps to match.
 - **One chat for the whole World.** The chat log shows every place's
@@ -38,6 +52,13 @@ All notable changes to **The SHED** mobile app. This project follows
 ### Fixed
 - **Opening the character editor from People here could freeze the
   screen** so nothing could be tapped. That way in is gone.
+- **Swiping up from the bottom of the screen no longer walks you there.**
+  Touches below the chat bar, where the iPhone's home swipe starts, are
+  ignored.
+- **Admin, Users shows activity for everyone** on very long lists, not just
+  the first 600 people.
+- **Update copes with an update being pulled** between checking and
+  downloading, and applies a rollback instead of sending you to the store.
 
 ## [2.12.17] - 2026-11-23
 

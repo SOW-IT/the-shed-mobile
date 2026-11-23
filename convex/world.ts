@@ -41,6 +41,7 @@ import {
   SWEEP_EVERY_MS,
   takeToken,
   THROTTLE_KEEP_MS,
+  TYPING_REFRESH_MS,
   WORLD_PLACE,
   type BucketKind,
 } from "../shared/world";
@@ -135,10 +136,17 @@ const visitorOf = (ctx: Ctx, email: string) =>
     .withIndex("by_email", (q) => q.eq("email", email))
     .unique();
 
-const markSeen = async (ctx: MutationCtx, email: string, name: string, now: number) => {
+type LeftAt = { lastPlace: Place; lastX: number; lastZ: number };
+
+const markSeen = async (ctx: MutationCtx, email: string, name: string, now: number, leftAt?: LeftAt) => {
   const row = await visitorOf(ctx, email);
-  if (row) await ctx.db.patch("worldVisitors", row._id, { name, lastSeenAt: now });
-  else await ctx.db.insert("worldVisitors", { email, name, lastSeenAt: now });
+  if (row) await ctx.db.patch("worldVisitors", row._id, { name, lastSeenAt: now, ...leftAt });
+  else await ctx.db.insert("worldVisitors", { email, name, lastSeenAt: now, ...leftAt });
+};
+
+const cameBackTo = (visitor: Doc<"worldVisitors"> | null): { place: Place; spot: { x: number; z: number } } | null => {
+  if (!visitor || !isPlace(visitor.lastPlace) || visitor.lastX === undefined || visitor.lastZ === undefined) return null;
+  return { place: visitor.lastPlace, spot: clampTarget(visitor.lastX, visitor.lastZ, visitor.lastPlace) };
 };
 
 const throttleOf = (ctx: Ctx, email: string) =>
@@ -170,7 +178,12 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
       });
     }
   }
-  if (keepLimits) await markSeen(ctx, member.email, member.name, Date.now());
+  if (keepLimits) {
+    const now = Date.now();
+    const spot = state ? posAt(state, now) : null;
+    const leftAt = spot ? { lastPlace: placeOf(member), lastX: spot.x, lastZ: spot.z } : undefined;
+    await markSeen(ctx, member.email, member.name, now, leftAt);
+  }
   if (state) await ctx.db.delete("worldState", state._id);
   const presence = await presenceOf(ctx, member._id);
   if (presence) await ctx.db.delete("worldPresence", presence._id);
@@ -265,15 +278,17 @@ export const join = mutation({
         await ctx.db.patch("worldThrottle", kept._id, { joinBucket: token.bucket, at: now });
         buckets = { moveBucket: kept.moveBucket, actBucket: kept.actBucket, sayBucket: kept.sayBucket };
       }
-      room = await roomWithSpace(ctx);
+      const back = cameBackTo(await visitorOf(ctx, email));
+      room = await roomWithSpace(ctx, back?.place);
       const memberId = await ctx.db.insert("worldMembers", {
         roomId: room._id,
         email,
         name: await nameFor(ctx, email),
         look: (await savedLook(ctx, email))?.look ?? lookFor(email),
         joinedAt: now,
+        ...(back && back.place !== WORLD_PLACE ? { place: back.place } : {}),
       });
-      const spawn = spawnFor(email);
+      const spawn = back?.spot ?? spawnFor(email);
       await ctx.db.insert("worldState", {
         memberId,
         fromX: spawn.x,
@@ -400,6 +415,7 @@ export const travel = mutation({
       answered: undefined,
       away: undefined,
       seat: undefined,
+      typing: undefined,
       actBucket: token.bucket,
     });
     await touchPresence(ctx, member._id, now);
@@ -518,7 +534,7 @@ export const say = mutation({
     if (state.say?.text === text && now - state.say.at < 5000) return { ok: true as const, serverNow: now };
     const token = spend("say", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
-    await ctx.db.patch("worldState", state._id, { say: { text, at: now }, sayBucket: token.bucket });
+    await ctx.db.patch("worldState", state._id, { say: { text, at: now }, typing: undefined, sayBucket: token.bucket });
     await ctx.db.insert("worldChat", { roomId: member.roomId, place: placeOf(member), memberId: member._id, email, name: member.name, text, at: now });
     // Keep the room within CHAT_ROOM_CAP lines as each one arrives.
     const lines = await ctx.db
@@ -529,6 +545,24 @@ export const say = mutation({
     for (const row of lines.slice(CHAT_ROOM_CAP)) await ctx.db.delete("worldChat", row._id);
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
+  },
+});
+
+export const typing = mutation({
+  args: { on: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, { on }) => {
+    const { member, state } = await requireMe(ctx);
+    const now = Date.now();
+    const was = state.typing;
+    if (on) {
+      if (was && now - was.at < TYPING_REFRESH_MS) return null;
+      await ctx.db.patch("worldState", state._id, { typing: { at: now, on: true } });
+      await touchPresence(ctx, member._id, now);
+    } else if (was?.on) {
+      await ctx.db.patch("worldState", state._id, { typing: { at: was.at, on: false } });
+    }
+    return null;
   },
 });
 
@@ -688,6 +722,7 @@ export const state = query({
       answered: v.optional(v.array(worldReplyValidator)),
       away: v.optional(v.literal("arcade")),
       seat: v.optional(v.string()),
+      typing: v.optional(v.number()),
     })
   ),
   handler: async (ctx, { memberId }) => {
@@ -697,12 +732,13 @@ export const state = query({
     const row = await stateOf(ctx, memberId);
     if (!row) return null;
     const { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt, seat } = row;
-    return { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt, seat };
+    const typingAt = row.typing?.on ? row.typing.at : undefined;
+    return { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt, seat, typing: typingAt };
   },
 });
 
 /** The room's latest lines, newest first, for the list view. */
-const CHAT_SCAN = 200;
+const CHAT_SCAN = 2000;
 
 export const chatLog = query({
   args: { roomId: v.id("worldRooms") },
@@ -726,15 +762,15 @@ export const chatLog = query({
     if (!me) return null;
     // Lines past the chat TTL aren't shown, even before the sweeper deletes
     // them.
-    const rows = await ctx.db
+    const rows = ctx.db
       .query("worldChat")
       .withIndex("by_at", (q) => q.gt("at", Date.now() - CHAT_TTL_MS))
-      .order("desc")
-      .take(CHAT_SCAN);
+      .order("desc");
     const lines = [];
     const hidden = new Map<string, boolean>();
-    for (const row of rows) {
-      if (lines.length === CHAT_LOG_SIZE) break;
+    let scanned = 0;
+    for await (const row of rows) {
+      if (lines.length === CHAT_LOG_SIZE || scanned++ === CHAT_SCAN) break;
       if (!hidden.has(row.email)) hidden.set(row.email, await blockedEither(ctx, me.email, row.email));
       if (hidden.get(row.email)) continue;
       lines.push({

@@ -166,9 +166,6 @@ export const hud = {
   chip: "rgba(29, 74, 65, 0.92)",
   chipRing: "#BCDCCD",
   nameBg: "rgba(255, 254, 248, 0.92)",
-  farBubble: "#E9EEE4",
-  farText: "#6A7A72",
-  farEdge: "#8FA197",
   scrim: "rgba(15, 37, 35, 0.35)",
 } as const;
 

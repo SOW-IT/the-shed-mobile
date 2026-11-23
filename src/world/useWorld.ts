@@ -11,6 +11,7 @@ import {
   type Ask,
   type Reply,
   HEARTBEAT_IDLE_MS,
+  TYPING_REFRESH_MS,
   posAt,
   type Walk,
 } from "@shared/world";
@@ -45,6 +46,7 @@ export type WorldMember = {
   answered?: Reply[];
   away?: "arcade";
   seat?: string;
+  typing?: number;
 };
 
 /** The id prefix of a chat line shown before the server has it. */
@@ -193,6 +195,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   const awayM = useMutation(api.world.away);
   const travelM = useMutation(api.world.travel);
   const sitM = useMutation(api.world.sit);
+  const typingM = useMutation(api.world.typing);
   const [mySeat, setMySeat] = useState<string | null>(null);
   const travelling = useRef(false);
   // Every action shows at once on this phone (optimistic updates, below),
@@ -207,7 +210,6 @@ export const useWorld = (enabled: boolean, away = false) => {
 
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [active, setActive] = useState(() => AppState.currentState !== "background");
   const [rejoin, setRejoin] = useState(0);
   // Your own walk, ahead of the server so a tap moves you at once.
   const [myWalk, setMyWalk] = useState<LocalWalk | null>(null);
@@ -245,13 +247,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   }, []);
 
   useEffect(() => {
-    const sub = AppState.addEventListener("change", (state) => setActive(state !== "background"));
-    return () => sub.remove();
-  }, []);
-
-  // Join while open and in the foreground; leave otherwise.
-  useEffect(() => {
-    if (!enabled || !active) return;
+    if (!enabled) return;
     let cancelled = false;
     const sentAt = Date.now();
     const counts = stats.current;
@@ -287,7 +283,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       counts.leave++;
       leaveM({}).catch(() => undefined);
     };
-  }, [enabled, active, rejoin, joinM, leaveM, heard]);
+  }, [enabled, rejoin, joinM, leaveM, heard]);
 
   const again = useCallback(() => setRejoin((n) => n + 1), []);
 
@@ -614,6 +610,23 @@ export const useWorld = (enabled: boolean, away = false) => {
     [session, travelM, heard, again, spendAct]
   );
 
+  const typingSentAt = useRef<number | null>(null);
+  const typing = useCallback(
+    (on: boolean) => {
+      if (!session) return;
+      const now = Date.now();
+      if (on) {
+        if (typingSentAt.current !== null && now - typingSentAt.current < TYPING_REFRESH_MS) return;
+        typingSentAt.current = now;
+      } else {
+        if (typingSentAt.current === null) return;
+        typingSentAt.current = null;
+      }
+      typingM({ on }).catch(() => undefined);
+    },
+    [session, typingM]
+  );
+
   const placeCounts = useQuery(api.world.places, session ? {} : "skip");
 
   /** Saves a look from the editor: one write, only when Save is pressed. */
@@ -633,8 +646,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   // "Still here", only after a quiet spell. No query reads it, so it pushes nothing.
   useEffect(() => {
     if (!session) return;
-    const id = setInterval(() => {
-      if (Date.now() - lastAction.current < HEARTBEAT_IDLE_MS) return;
+    const checkIn = () => {
       const sentAt = Date.now();
       lastAction.current = sentAt;
       stats.current.heartbeat++;
@@ -644,13 +656,22 @@ export const useWorld = (enabled: boolean, away = false) => {
           if (!reply.present) again();
         })
         .catch(() => undefined);
+    };
+    const id = setInterval(() => {
+      if (Date.now() - lastAction.current >= HEARTBEAT_IDLE_MS) checkIn();
     }, 5000);
-    return () => clearInterval(id);
+    const resumed = AppState.addEventListener("change", (state) => {
+      if (state === "active") checkIn();
+    });
+    return () => {
+      clearInterval(id);
+      resumed.remove();
+    };
   }, [session, heartbeatM, heard, again]);
 
   const people: WorldMember[] = members.map((m) => {
     const row = states[m.memberId] as
-      | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "seat">)
+      | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "seat" | "typing">)
       | null
       | undefined
       | Error;
@@ -669,6 +690,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       answered: state?.answered,
       away: state?.away,
       seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
+      typing: state?.typing,
     };
   });
 
@@ -719,6 +741,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     holdMove,
     holdEnd,
     say,
+    typing,
     act,
     ask,
     accept,

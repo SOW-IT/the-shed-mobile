@@ -65,7 +65,9 @@ import {
   yearLabel,
 } from "@shared/flow";
 import { canonicalEmailKey, uniqueStaffByEmail } from "@shared/rollcallImport";
-import { useMutation, useQuery } from "convex/react";
+import { activityBatches } from "@shared/userActivity";
+import { useMutation, useQueries, useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -404,16 +406,20 @@ export default function AdminScreen() {
       ),
     ),
   ].sort();
-  const activity = useQuery(
-    api.admin.userActivity,
-    me?.isAdmin && activityEmails.length > 0
-      ? { emails: activityEmails }
-      : "skip",
+  const activityResults = useQueries(
+    Object.fromEntries(
+      (me?.isAdmin ? activityBatches(activityEmails) : []).map((emails, i) => [
+        String(i),
+        { query: api.admin.userActivity, args: { emails } },
+      ]),
+    ),
   );
-  const activityByEmail = new Map(
-    (activity ?? []).map((row) => [row.email, row]),
+  type ActivityRows = NonNullable<FunctionReturnType<typeof api.admin.userActivity>>;
+  const activity: ActivityRows = Object.values(activityResults).flatMap(
+    (rows: unknown) => (Array.isArray(rows) ? (rows as ActivityRows) : []),
   );
-  const newestVersion = newestVersions(activity ?? []);
+  const activityByEmail = new Map(activity.map((row) => [row.email, row]));
+  const newestVersion = newestVersions(activity);
   const activityLine = (email: string) => (
     <UserActivityLine
       activity={activityByEmail.get(email)}

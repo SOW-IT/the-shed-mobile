@@ -1,6 +1,6 @@
 import {
   BUBBLE_MS,
-  canHear,
+  TYPING_MS,
   EMOTE_MS,
   EMOTES,
   isEmote,
@@ -10,7 +10,6 @@ import {
   type Ask,
   type Reply,
   hash,
-  HEAR_RADIUS,
   ASK_MS,
   OBSTACLES,
   PLACE_TITLES,
@@ -52,6 +51,7 @@ type GardenPerson = {
   muted: boolean;
   away?: boolean;
   seat?: string;
+  typing?: number;
 };
 
 /** What the camera looks at: style C's framing of the courtyard. */
@@ -219,9 +219,6 @@ export const Garden = ({
     const contact = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, k, i, j };
     touches.push(contact);
   });
-  // Where you're drawn, stepped in for a high five or not: the hearing ring,
-  // the chip and the faded bubbles all go by that.
-  const mePose = me >= 0 ? poses[me] : null;
   people.forEach((p, i) => {
     if (doing[i] || p.muted || !p.act || !isEmote(p.act.emote) || !recent(p.act.at, EMOTE_MS)) return;
     doing[i] = { kind: "emote", id: p.act.emote, p: (now - p.act.at) / EMOTE_MS };
@@ -236,10 +233,14 @@ export const Garden = ({
       !accepted(me >= 0 ? people[me] : undefined, p.memberId, p.ask.at)
   );
   const bubbleFades = people.map((p) => (p.muted || !p.say ? 0 : bubbleFade(now - p.say.at)));
+  const typingSince = people.map((p) =>
+    !p.muted && p.typing !== undefined && now - p.typing < TYPING_MS && (!p.say || p.say.at < p.typing) ? p.typing : undefined
+  );
   const animating =
     poses.some((pose) => pose && (pose.walking || pose.strideAmp > 0 || pose.turning)) ||
     doing.some((d) => d !== null) ||
     asks.length > 0 ||
+    typingSince.some((at) => at !== undefined) ||
     people.some((p) => !p.muted && p.say !== undefined && bubbleMoving(now - p.say.at)) ||
     (target !== null && placed !== null && Math.hypot(placed.x - target.x, placed.z - target.z) > 0.05);
   const t = useClock(animating) / 1000;
@@ -400,7 +401,6 @@ export const Garden = ({
         <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} />
       ),
     });
-    const far = !p.me && mePose !== null && !canHear(mePose, pose);
     const line = bubbleFades[i] > 0 ? p.say?.text : undefined;
     // The icon over the head: the emote's, or the mutual action's when hands meet.
     const emote =
@@ -418,12 +418,22 @@ export const Garden = ({
       p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${MUTUALS[p.ask.kind as keyof typeof MUTUALS]?.ask ?? "…"}` : undefined;
     const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise, pose.z]);
     const name = p.me ? "You" : tagName(p.name);
+    const typing = line || waiting ? undefined : typingSince[i];
     tags.push({
       key: p.memberId,
       depth: head.depth,
-      spokeAt: line ? p.say?.at : waiting ? p.ask?.at : undefined,
-      ...tagBox(head.x, head.y, name, line ?? waiting, Boolean(emote), p.away === true),
-      props: { name, me: p.me, line: line ?? waiting, far, emote, emoteRise: rise, lineFade: line ? bubbleFades[i] : 1, status: p.away ? AWAY_STATUS : undefined },
+      spokeAt: line ? p.say?.at : waiting ? p.ask?.at : typing,
+      ...tagBox(head.x, head.y, name, line ?? waiting ?? (typing === undefined ? undefined : TYPING_BOX), Boolean(emote), p.away === true),
+      props: {
+        name,
+        me: p.me,
+        line: line ?? waiting,
+        typing: typing === undefined ? undefined : t,
+        emote,
+        emoteRise: rise,
+        lineFade: line ? bubbleFades[i] : 1,
+        status: p.away ? AWAY_STATUS : undefined,
+      },
     });
   });
   // The contact pop where palms meet: a quick burst while they touch.
@@ -478,28 +488,6 @@ export const Garden = ({
     : null;
   const hudAt = hudHead ? { x: hudHead.x, y: Math.max(HUD_HEIGHT + HUD_CLEAR_TOP, hudHead.y - NAME_TAG_CLEARANCE) } : null;
 
-  // The hearing ring round you, on the ground under the scenery.
-  let ring: ReactNode = null;
-  if (mePose) {
-    const l = cam.project([mePose.x - HEAR_RADIUS, 0, mePose.z]);
-    const r = cam.project([mePose.x + HEAR_RADIUS, 0, mePose.z]);
-    const f = cam.project([mePose.x, 0, mePose.z + HEAR_RADIUS]);
-    const b = cam.project([mePose.x, 0, mePose.z - HEAR_RADIUS]);
-    ring = (
-      <Ellipse
-        cx={(l.x + r.x) / 2}
-        cy={(f.y + b.y) / 2}
-        rx={(r.x - l.x) / 2}
-        ry={(f.y - b.y) / 2}
-        fill="transparent"
-        ink={2.4}
-        inkColour={garden.ring}
-        dashed
-        opacity={0.85}
-      />
-    );
-  }
-
   return (
     <View style={[styles.fill, { backgroundColor: scene.sky }]} onLayout={onLayout}>
       {/* The ground takes taps; the asks sit beside it, not inside it, so
@@ -518,7 +506,6 @@ export const Garden = ({
       >
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Layer prims={scene.ground} />
-        {ring}
         <Layer prims={scene.backdrop} />
         {PORTALS[place].map((pad) => {
           const below = cam.project([pad.x, 0, pad.z + PORTAL_RADIUS + 0.45]);
@@ -702,6 +689,8 @@ const tagBox = (x: number, bottom: number, name: string, line: string | undefine
   const lines = Math.ceil(chars / 24);
   return { x, bottom, width: Math.max(nameWidth, Math.min(214, chars * 8 + 32)), height: 24 + 10 + lines * 18.5 + 21 + icon };
 };
+
+const TYPING_BOX = "•••";
 
 const drawOrder = (tag: TagSpot) => (tag.spokeAt === undefined ? [0, -tag.depth] : [1, tag.spokeAt]);
 

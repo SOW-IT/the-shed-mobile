@@ -29,6 +29,7 @@ import { useWorld } from "./useWorld";
 import { pickView } from "./view";
 import { ChatLog } from "./ChatLog";
 import { WorldList } from "./WorldList";
+import type { Id } from "../../convex/_generated/dataModel";
 
 const useScreenReader = () => {
   const [on, setOn] = useState(false);
@@ -140,10 +141,12 @@ export const WorldScreen = ({
   const [arcadeTrip, setArcadeTrip] = useState<number | null>(null);
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [person, setPerson] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<{ memberId: string; safetyOnly: boolean } | null>(null);
+  const [sheet, setSheet] = useState<{ memberId: string; safetyOnly: boolean; name?: string } | null>(null);
   const [approach, setApproach] = useState<{ to: string; since: number } | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [composing, setComposing] = useState(false);
+  const typingNow = composing && draft.trim() !== "";
   const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -178,10 +181,16 @@ export const WorldScreen = ({
       return next;
     });
 
+  const editDraft = (text: string) => {
+    setDraft(text);
+    world.typing(text.trim() !== "");
+  };
+
   const send = async () => {
     const text = draft.trim();
     if (!text) return;
     setDraft("");
+    world.typing(false);
     const problem = await world.say(text);
     if (problem) {
       setNote(problem);
@@ -195,7 +204,14 @@ export const WorldScreen = ({
   const mePose = me?.walk ? posAt(me.walk, now) : null;
   const selected = world.people.find((p) => p.memberId === person) ?? null;
   if (person !== null && !selected && world.status === "in") setPerson(null);
-  const tapped = world.people.find((p) => p.memberId === sheet?.memberId) ?? null;
+  const tapped =
+    world.people.find((p) => p.memberId === sheet?.memberId) ??
+    (sheet?.name ? { memberId: sheet.memberId as Id<"worldMembers">, name: sheet.name } : null);
+  const openSpeaker = (memberId: string, name: string) => {
+    if (world.people.some((p) => p.isMe && p.memberId === memberId)) return;
+    setPerson(null);
+    setSheet({ memberId, safetyOnly: true, name });
+  };
   const firstName = (memberId: string) => world.people.find((p) => p.memberId === memberId)?.name.split(" ")[0] ?? "them";
 
   const askHighFive = (to: string) => {
@@ -453,6 +469,7 @@ export const WorldScreen = ({
           }}
           note={note}
           onNote={setNote}
+          onLine={openSpeaker}
           declined={declined}
           onAccept={accept}
           onDecline={decline}
@@ -481,6 +498,7 @@ export const WorldScreen = ({
           muted: muted.has(p.memberId),
           away: p.away !== undefined,
           seat: p.seat,
+          typing: p.isMe ? (typingNow ? world.serverNow() : undefined) : p.typing,
         }))}
         serverNow={world.serverNow}
         target={world.target}
@@ -515,6 +533,7 @@ export const WorldScreen = ({
       <View style={[styles.logRow, { top: insets.top + 66 }]} pointerEvents="box-none">
         <ChatLog
           roomId={world.status === "in" ? world.roomId : null}
+          onLine={openSpeaker}
           muted={muted}
           now={world.serverNow()}
           status={
@@ -540,6 +559,11 @@ export const WorldScreen = ({
           testID="world-keyboard-dismiss"
         />
       ) : null}
+      <View
+        style={[styles.underChat, { height: Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + UNDER_CHAT_SLACK }]}
+        onStartShouldSetResponder={() => true}
+        testID="world-under-chat"
+      />
       <Animated.View
         style={[
           styles.bottom,
@@ -594,16 +618,24 @@ export const WorldScreen = ({
           )}
           <TextInput
             value={draft}
-            onChangeText={setDraft}
-            onFocus={() => setTray(false)}
-            placeholder="Talk to people nearby…"
+            onChangeText={editDraft}
+            onFocus={() => {
+              setTray(false);
+              setComposing(true);
+              if (draft.trim()) world.typing(true);
+            }}
+            onBlur={() => {
+              setComposing(false);
+              world.typing(false);
+            }}
+            placeholder="Talk to everyone in the World…"
             placeholderTextColor={hud.placeholder}
             maxLength={MAX_SAY_LENGTH}
             returnKeyType="send"
             onSubmitEditing={() => void send()}
             submitBehavior="submit"
             style={styles.input}
-            accessibilityLabel="Talk to people nearby"
+            accessibilityLabel="Talk to everyone in the World"
             testID="world-chat-input"
           />
           <Pressable
@@ -622,6 +654,9 @@ export const WorldScreen = ({
     </View>
   );
 };
+
+const CHAT_BAR_HEIGHT = 54;
+const UNDER_CHAT_SLACK = 10;
 
 const ink = { borderWidth: 2.5, borderColor: hud.forest };
 const pop = { shadowColor: hud.forest, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 0 };
@@ -689,8 +724,9 @@ const styles = StyleSheet.create({
   trayItem: { flex: 1, height: 56, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: hud.accentSoft },
   trayEmoji: { fontSize: 22 },
   trayLabel: { fontSize: 10.5, fontWeight: "600", color: hud.forest, marginTop: 2 },
+  underChat: { position: "absolute", left: 0, right: 0, bottom: 0 },
   chat: {
-    height: 54,
+    height: CHAT_BAR_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,

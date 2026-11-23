@@ -6,7 +6,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { chatLog } from "./palette";
 import { PENDING } from "./useWorld";
-import { clock } from "./view";
+import { clock, saidLabel } from "./view";
 
 const LINE_HEIGHT = 19;
 const SHOWN_LINES = 5;
@@ -25,8 +25,10 @@ export const ChatLog = ({
   muted,
   now,
   status,
+  onLine,
 }: {
   roomId: Id<"worldRooms"> | null;
+  onLine: (memberId: Id<"worldMembers">, name: string) => void;
   muted: ReadonlySet<string>;
   now: number;
   status: string | null;
@@ -64,7 +66,10 @@ export const ChatLog = ({
         <Text
           key={line.id}
           style={styles.line}
-          accessibilityLabel={`${line.isMe ? "You" : line.name} said ${line.text}`}
+          accessibilityLabel={saidLabel(line)}
+          accessibilityHint={line.isMe ? undefined : `Mute, block or report ${line.name}`}
+          onPress={line.isMe ? undefined : () => onLine(line.memberId, line.name)}
+          suppressHighlighting
           testID="world-chat-line"
         >
           <Text style={styles.time}>[{line.id.startsWith(PENDING) ? "…" : clock(line.at)}] </Text>

@@ -27,6 +27,7 @@ import {
   ROOM_CAP,
   spawnFor,
   SWEEP_EVERY_MS,
+  TYPING_REFRESH_MS,
   WALK_SPEED,
 } from "../shared/world";
 
@@ -1214,4 +1215,124 @@ describe("write budget per player", () => {
     expect(typical.writesPerMinute).toBeLessThanOrEqual(16);
     expect(typical.mutationsPerMinute).toBe(11);
   }, 120_000);
+});
+
+describe("typing", () => {
+  const typingOf = async (t: T, viewer: ReturnType<typeof asUser>, memberId: Id<"worldMembers">) =>
+    (await viewer.query(api.world.state, { memberId }))?.typing;
+
+  test("shows while someone types, refreshes at most every few seconds, and clears on send or stop", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    await ben.mutation(api.world.join, {});
+    expect(await typingOf(t, ben, a.memberId)).toBeUndefined();
+
+    await anna.mutation(api.world.typing, { on: true });
+    const started = await typingOf(t, ben, a.memberId);
+    expect(started).toEqual(near(Date.now()));
+
+    later(TYPING_REFRESH_MS - 500);
+    await anna.mutation(api.world.typing, { on: true });
+    expect(await typingOf(t, ben, a.memberId)).toBe(started);
+
+    later(1000);
+    await anna.mutation(api.world.typing, { on: true });
+    expect(await typingOf(t, ben, a.memberId)).toBeGreaterThan(started!);
+
+    await anna.mutation(api.world.typing, { on: false });
+    expect(await typingOf(t, ben, a.memberId)).toBeUndefined();
+    await anna.mutation(api.world.typing, { on: true });
+    expect(await typingOf(t, ben, a.memberId)).toBeUndefined();
+
+    later(TYPING_REFRESH_MS);
+    await anna.mutation(api.world.typing, { on: true });
+    expect(await typingOf(t, ben, a.memberId)).toBeDefined();
+    await anna.mutation(api.world.say, { text: "hello" });
+    expect(await typingOf(t, ben, a.memberId)).toBeUndefined();
+    expect((await stateRow(t, a.memberId))?.typing).toBeUndefined();
+  });
+
+  test("someone who left can't type", async () => {
+    const t = newConvex();
+    await expect(asUser(t, ANNA).mutation(api.world.typing, { on: true })).rejects.toThrow(/left the garden/);
+  });
+});
+
+describe("coming back", () => {
+  test("you come back to the place and spot you left from", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    const moved = await anna.mutation(api.world.travel, { to: "campfire" });
+    if (!moved.ok) throw new Error("travel refused");
+    const spot = clampTarget(1.1, 2.3, "campfire");
+    const memberId = (await rows(t)).members[0]._id;
+    await standAt(t, memberId, spot.x, spot.z);
+    await anna.mutation(api.world.leave, {});
+    expect((await rows(t)).members).toEqual([]);
+
+    later(60 * 60_000);
+    const back = await anna.mutation(api.world.join, {});
+    expect(back.place).toBe("campfire");
+    expect(await stateRow(t, back.memberId)).toMatchObject({ fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z });
+    expect(await anna.query(api.world.roster, { roomId: back.roomId })).toMatchObject({ place: "campfire" });
+  });
+
+  test("a sweep saves where you were standing too, mid-walk", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const joined = await anna.mutation(api.world.join, {});
+    const to = clampTarget(2, 1);
+    await anna.mutation(api.world.move, { toX: to.x, toZ: to.z });
+    later(PRESENCE_TTL_MS + SWEEP_EVERY_MS);
+    await t.mutation(internal.world.sweep, {});
+    expect((await rows(t)).members).toEqual([]);
+    const back = await anna.mutation(api.world.join, {});
+    expect(back.place).toBe("garden");
+    const state = await stateRow(t, back.memberId);
+    expect(state).toMatchObject({ fromX: to.x, fromZ: to.z });
+    expect(joined.memberId).not.toBe(back.memberId);
+  });
+
+  test("a saved spot inside something is moved out of it", async () => {
+    const t = newConvex();
+    await t.run((ctx) =>
+      ctx.db.insert("worldVisitors", { email: ANNA, name: "anna", lastSeenAt: Date.now(), lastPlace: "garden", lastX: 999, lastZ: -999 })
+    );
+    const back = await asUser(t, ANNA).mutation(api.world.join, {});
+    const fixed = clampTarget(999, -999);
+    expect(await stateRow(t, back.memberId)).toMatchObject({ fromX: fixed.x, fromZ: fixed.z });
+  });
+
+  test("an unknown saved place falls back to the garden spawn", async () => {
+    const t = newConvex();
+    await t.run((ctx) =>
+      ctx.db.insert("worldVisitors", { email: ANNA, name: "anna", lastSeenAt: Date.now(), lastPlace: "moon", lastX: 1, lastZ: 1 })
+    );
+    const back = await asUser(t, ANNA).mutation(api.world.join, {});
+    const spawn = spawnFor(ANNA);
+    expect(back.place).toBe("garden");
+    expect(await stateRow(t, back.memberId)).toMatchObject({ fromX: spawn.x, fromZ: spawn.z });
+  });
+});
+
+describe("chat log and blocked senders", () => {
+  test("lines from blocked people don't use up the log", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    const b = await ben.mutation(api.world.join, {});
+    await ben.mutation(api.world.say, { text: "still here" });
+    later(1000);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: CARA, blockedName: "cara" });
+      for (let i = 0; i < 300; i++) {
+        await ctx.db.insert("worldChat", { roomId: b.roomId, memberId: b.memberId, email: CARA, name: "cara", text: `spam ${i}`, at: Date.now() + i });
+      }
+    });
+    expect((await anna.query(api.world.chatLog, { roomId: a.roomId }))!.map((line) => line.text)).toEqual(["still here"]);
+  });
 });

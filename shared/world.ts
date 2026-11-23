@@ -44,6 +44,8 @@ export const HEARTBEAT_IDLE_MS = 45_000;
 /** An action marks you present only when the last mark is older than this. */
 export const PRESENCE_TOUCH_MS = 20_000;
 export const SWEEP_EVERY_MS = 30_000;
+export const TYPING_MS = 6000;
+export const TYPING_REFRESH_MS = 3000;
 /** How long a chat bubble stays over someone's head. */
 export const BUBBLE_MS = 8000;
 /** How long an emote plays: the face, the body and the icon over the head. */

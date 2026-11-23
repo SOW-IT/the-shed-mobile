@@ -1,3 +1,5 @@
+import { isPlace, PLACE_TITLES } from "../../shared/world";
+
 // Which way the world shows: the drawn garden, or a plain list of who's here
 // and what they said. The list is the fallback for VoiceOver, for being
 // offline, and for anyone who'd rather have it.
@@ -23,3 +25,11 @@ export const pickView = ({
 
 export const clock = (at: number) =>
   new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+export const lineWhere = (line: { here: boolean; place?: string }) =>
+  line.here ? null : line.place && isPlace(line.place) ? PLACE_TITLES[line.place] : "elsewhere";
+
+export const saidLabel = (line: { isMe: boolean; name: string; text: string; here: boolean; place?: string }) => {
+  const where = lineWhere(line);
+  return `${line.isMe ? "You" : line.name} said ${line.text}${where ? `, ${where === "elsewhere" ? "elsewhere" : `in ${where}`}` : ""}`;
+};

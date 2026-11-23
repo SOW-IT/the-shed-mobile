@@ -27,7 +27,7 @@ export const PersonSheet = ({
   onClose,
   onDone,
 }: {
-  person: WorldMember | null;
+  person: Pick<WorldMember, "memberId" | "name"> | null;
   safetyOnly?: boolean;
   muted: boolean;
   onToggleMute: (memberId: string) => void;
