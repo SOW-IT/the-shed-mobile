@@ -330,21 +330,26 @@ describe("runner", () => {
     for (const time of [0, 20, 60, 90]) {
       for (let seed = 1; seed <= 10; seed++) {
         let state: RunnerState = { ...newRunner(760, seed), time, speed: runnerSpeed(time) };
-        // Each pattern's front and back in distance run, and the speed it came at.
-        const spawned: { group: number; kind: string; front: number; back: number; speed: number }[] = [];
+        // Each pattern's front and back in distance run, the speed it came at,
+        // and whether it was the next of a combo already under way.
+        const spawned: { kind: string; front: number; back: number; speed: number; inCombo: boolean }[] = [];
         for (let i = 0; i < 60 * 30; i++) {
           const before = new Set(state.obstacles.map((o) => o.group));
+          const inCombo = state.chain.length > 0;
           state = stepRunner(autopilot(state), FRAME);
           const fresh = state.obstacles.filter((o) => !before.has(o.group));
           if (fresh.length) {
             const front = state.distance + Math.min(...fresh.map((o) => o.x));
-            spawned.push({ group: fresh[0].group, kind: fresh[0].pattern, front, back: state.distance + Math.max(...fresh.map((o) => o.x + o.width)), speed: state.speed });
+            spawned.push({ kind: fresh[0].pattern, front, back: state.distance + Math.max(...fresh.map((o) => o.x + o.width)), speed: state.speed, inCombo });
           }
         }
         for (let k = 1; k < spawned.length; k++) {
           const [before, after] = [spawned[k - 1], spawned[k]];
           const gap = after.front - before.back;
-          if (gap >= minimumGap(before.speed) - 1) continue;
+          if (!after.inCombo) {
+            expect(gap).toBeGreaterThanOrEqual(minimumGap(before.speed) - 1);
+            continue;
+          }
           tight++;
           expect(gap).toBeGreaterThanOrEqual(comboGap(before.kind as PatternKind, after.kind as PatternKind, before.speed) - 1);
         }
