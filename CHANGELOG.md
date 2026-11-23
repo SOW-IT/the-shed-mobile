@@ -21,6 +21,11 @@ All notable changes to **The SHED** mobile app. This project follows
   getting back out took a tap of the back button per screen. Now Play on
   the leaderboard swaps the old game and the leaderboard for the new game:
   there's only ever one game open, with at most the leaderboard on top of it.
+- **The leaderboard shows everyone.** Each game's board used to stop at the
+  top 10. It now shows 25 at a time with **Load more** at the bottom, which
+  keeps going until every score is on the list ("That's everyone."). Your
+  own best and place stay at the top, and your row is marked "(you)" in the
+  list. Older versions of the app keep the top 10 as before.
 
 ## [2.12.14] - 2026-11-23
 
