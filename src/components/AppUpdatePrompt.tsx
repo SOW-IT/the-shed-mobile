@@ -1,17 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useQuery } from "convex/react";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { api } from "../../convex/_generated/api";
-import { appLinkForScheme, updateRouteFor } from "../../shared/appLinks";
+import { useSyncExternalStore } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Btn, Muted, OptionSheet, Row } from "@/components/ui";
-import { appScheme, appVersion } from "@/hooks/useReportAppVersion";
-import { openExternalLink } from "@/lib/openExternalLink";
-import { checkForUpdateOnce, restartIntoUpdate, useOtaState } from "@/lib/otaUpdates";
+import { useAppUpdate } from "@/hooks/useAppUpdate";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-
-const nativePlatform = (): "ios" | "android" | null =>
-  Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : null;
 
 /**
  * What's been closed since the app launched: the update popup and the pill
@@ -36,60 +28,10 @@ const subscribeDismissed = (listener: () => void) => {
 
 const getDismissed = () => dismissed;
 
-const storeName = (platform: "ios" | "android" | null) => (platform === "android" ? "Play Store" : "App Store");
-
-/**
- * Whether this phone is behind the version it should be on, and how it gets
- * there: a restart into an over-the-air update when there's one for this
- * build, or the store when it needs a new build. The two never mix: the
- * restart never opens the store, and the store prompt only shows once the
- * phone knows no over-the-air update will do.
- */
 const useUpdateCheck = () => {
-  const platform = nativePlatform();
-  const version = appVersion();
-  const link = appLinkForScheme(appScheme());
-  const storeUrl = platform === "ios" ? link.iosStore : platform === "android" ? link.androidStore : null;
-  const check = useQuery(
-    api.appInstalls.updateStatus,
-    platform && version && storeUrl ? { platform, version } : "skip"
-  );
-  const ota = useOtaState();
+  const update = useAppUpdate();
   const closed = useSyncExternalStore(subscribeDismissed, getDismissed, getDismissed);
-  const [restarting, setRestarting] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const status = storeUrl ? check?.status : undefined;
-  const behind = status === "recommended" || status === "required";
-  const route = behind ? updateRouteFor(check?.latest ?? null, ota) : null;
-  const waiting = route === "wait" && ota !== null && !ota.busy && !ota.checked;
-  useEffect(() => {
-    if (waiting) checkForUpdateOnce();
-  }, [waiting]);
-  const restart = () => {
-    if (restarting || !ota) return;
-    setRestarting(true);
-    setFailed(false);
-    restartIntoUpdate(ota.pending).catch(() => {
-      setRestarting(false);
-      setFailed(true);
-    });
-  };
-  const openStore = () => {
-    if (storeUrl) void openExternalLink(storeUrl);
-  };
-  return {
-    status,
-    route,
-    latest: check?.latest ?? null,
-    message: check?.message ?? null,
-    version,
-    store: storeName(platform),
-    closed,
-    restart,
-    restarting,
-    failed,
-    openStore,
-  };
+  return { ...update, closed };
 };
 
 type UpdateCheck = ReturnType<typeof useUpdateCheck>;

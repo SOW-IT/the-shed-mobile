@@ -69,6 +69,9 @@ export interface AppTheme {
   successSoft: string;
   danger: string;
   dangerSoft: string;
+  dangerStrong: string;
+  dangerStrongEdge: string;
+  onDanger: string;
   warning: string;
   warningSoft: string;
   ghost: string;
@@ -127,6 +130,9 @@ const light: AppTheme = {
   successSoft: "#DDEED6",
   danger: "#B03E37",
   dangerSoft: "#F5DED8",
+  dangerStrong: "#B3261E",
+  dangerStrongEdge: "#7A1712",
+  onDanger: "#FFFFFF",
   warning: "#7F5612",
   warningSoft: "#F2E2B4",
   ghost: "#EAE8D8",
@@ -163,6 +169,9 @@ const dark: AppTheme = {
   successSoft: "#1E4634",
   danger: "#E08A63",
   dangerSoft: "#46251B",
+  dangerStrong: "#8C1D18",
+  dangerStrongEdge: "#E5574B",
+  onDanger: "#FFF4F1",
   warning: "#E5AD66",
   warningSoft: "#4A3A1C",
   ghost: "#21403A",

@@ -182,6 +182,7 @@ export default defineSchema({
     answered: v.optional(v.array(worldReplyValidator)),
     away: v.optional(v.literal("arcade")),
     seat: v.optional(v.string()),
+    typing: v.optional(v.object({ at: v.number(), on: v.boolean() })),
     moveBucket: worldBucketValidator,
     actBucket: worldBucketValidator,
     sayBucket: worldBucketValidator,
@@ -216,6 +217,7 @@ export default defineSchema({
   // CHAT_TTL_MS. Name and email are copied so a line outlives its member.
   worldChat: defineTable({
     roomId: v.id("worldRooms"),
+    place: v.optional(v.string()),
     memberId: v.id("worldMembers"),
     email: v.string(),
     name: v.string(),
@@ -247,6 +249,9 @@ export default defineSchema({
     email: v.string(),
     name: v.string(),
     lastSeenAt: v.number(),
+    lastPlace: v.optional(v.string()),
+    lastX: v.optional(v.number()),
+    lastZ: v.optional(v.number()),
     lastPokeAt: v.optional(v.number()),
     lastPokedAt: v.optional(v.number()),
   })
