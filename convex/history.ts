@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { dedupeAssignments, ROLES } from "../shared/flow";
+import { staffProfileSearchText } from "../shared/orgChart";
 import { internalMutation } from "./_generated/server";
 import { currentStaffYear, findProfileForYear } from "./model";
 
@@ -58,7 +59,10 @@ export const setPastAssignments = internalMutation({
     const assignments = dedupeAssignments(args.assignments);
     const existing = await findProfileForYear(ctx, email, args.year);
     if (existing) {
-      await ctx.db.patch("staffProfiles", existing._id, { assignments });
+      await ctx.db.patch("staffProfiles", existing._id, {
+        assignments,
+        searchText: staffProfileSearchText({ ...existing, assignments }),
+      });
       return existing._id;
     }
     return await ctx.db.insert("staffProfiles", {
@@ -67,6 +71,7 @@ export const setPastAssignments = internalMutation({
       assignments,
       name: args.name,
       importId: args.importId,
+      searchText: staffProfileSearchText({ email, name: args.name, assignments }),
     });
   },
 });

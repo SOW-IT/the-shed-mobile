@@ -4,6 +4,8 @@ import {
   departmentHeadTitle,
   divisionArea,
   filterOrgChart,
+  isOrgSearchQuery,
+  matchesOrgSearch,
   orgAreaCounts,
   orgAreas,
   orgPeopleCount,
@@ -11,6 +13,7 @@ import {
   pickOrgAreas,
   searchOrgChart,
   STAFF_AREA,
+  staffProfileSearchText,
   type OrgChartSections,
   type OrgPerson,
 } from "./orgChart";
@@ -69,6 +72,42 @@ describe("orgSearchTerms", () => {
   test("lower-cases and splits on whitespace, ignoring blanks", () => {
     expect(orgSearchTerms("  Amy   PARK ")).toEqual(["amy", "park"]);
     expect(orgSearchTerms("   ")).toEqual([]);
+  });
+});
+
+describe("isOrgSearchQuery", () => {
+  test("needs two characters after trimming", () => {
+    expect(isOrgSearchQuery(" d ")).toBe(false);
+    expect(isOrgSearchQuery("da")).toBe(true);
+  });
+});
+
+describe("staffProfileSearchText", () => {
+  test("holds the name, email, roles and teams, with acronyms, once each", () => {
+    expect(
+      staffProfileSearchText({
+        email: "daniel.kim@sow.org.au",
+        name: "Daniel Kim",
+        assignments: [
+          { role: "Head of Department", department: "Finance" },
+          { role: "Student Leader", university: "University of New South Wales" },
+          { role: "Staff", department: "Finance", division: "Governance" },
+        ],
+      })
+    ).toBe(
+      "Daniel Kim daniel.kim@sow.org.au Head of Department HOD Student Leader Staff Finance University of New South Wales UNSW Governance"
+    );
+  });
+
+  test("a profile with no name or roles is just its email", () => {
+    expect(staffProfileSearchText({ email: "nora@sow.org.au" })).toBe("nora@sow.org.au");
+  });
+});
+
+describe("matchesOrgSearch", () => {
+  test("every term has to appear somewhere, ignoring case", () => {
+    expect(matchesOrgSearch(["dan", "fin"], "Daniel Kim Staff Finance")).toBe(true);
+    expect(matchesOrgSearch(["dan", "unsw"], "Daniel Kim Staff Finance")).toBe(false);
   });
 });
 

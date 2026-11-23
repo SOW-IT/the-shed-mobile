@@ -1,3 +1,4 @@
+import { staffProfileSearchText } from "../shared/orgChart";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
@@ -22,7 +23,10 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
     if (existing) {
       await ctx.db.delete("staffProfiles", profile._id);
     } else {
-      await ctx.db.patch("staffProfiles", profile._id, { email: newEmail });
+      await ctx.db.patch("staffProfiles", profile._id, {
+        email: newEmail,
+        searchText: staffProfileSearchText({ ...profile, email: newEmail }),
+      });
     }
   }
 

@@ -5,10 +5,13 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { togglePicked } from "../../../shared/churches";
 import { universityColour } from "../../../shared/flow";
-import { departmentHeadTitle, filterOrgChart } from "../../../shared/orgChart";
+import { departmentHeadTitle, filterOrgChart, isOrgSearchQuery } from "../../../shared/orgChart";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import { FilterChip, FilterRow, FilterSummary, NoMatches } from "@/components/FilterChips";
+import { OrgSearchResults, type OrgSearchResult } from "@/components/OrgSearchResults";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useHeldValue } from "@/hooks/useHeldValue";
 import {
   Avatar,
   FadeInView,
@@ -23,6 +26,9 @@ import {
 } from "@/components/ui";
 
 const ORG_CARD_WIDTH = 340;
+const SEARCH_DEBOUNCE_MS = 250;
+
+type Focus = { email: string; name: string | null };
 
 const Person = ({
   person,
@@ -65,10 +71,18 @@ export default function OrgChartScreen() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
+  const [focus, setFocus] = useState<Focus | null>(null);
   const chart = useQuery(
     api.directory.orgChart,
     selectedYear === null ? {} : { year: selectedYear }
   );
+  const settledSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
+  const searchingAllYears = isOrgSearchQuery(search);
+  const liveFound = useQuery(
+    api.orgSearch.searchAllYears,
+    searchingAllYears && isOrgSearchQuery(settledSearch) ? { query: settledSearch } : "skip"
+  );
+  const { value: found, stale: foundStale } = useHeldValue(liveFound, "org-search");
 
   if (!chart) {
     return (
@@ -78,14 +92,21 @@ export default function OrgChartScreen() {
     );
   }
 
-  const { areas, active, counts, shown, people } = filterOrgChart(chart, search, picked);
+  const { areas, active, counts, shown, people } = filterOrgChart(chart, focus?.email ?? "", picked);
   const filtering = active.length > 0;
-  const searching = search.trim() !== "";
+  const searching = focus !== null;
   const campuses = shown.universities.filter((u) => u.members.length > 0);
   const showEveryone = () => {
     setPicked([]);
+    setFocus(null);
+  };
+  const openResult = (result: OrgSearchResult) => {
+    setSelectedYear(result.year);
+    setFocus({ email: result.email, name: result.name });
+    setPicked([]);
     setSearch("");
   };
+  const focusName = focus ? (focus.name ?? focus.email) : null;
 
   return (
     <ChromeScreen
@@ -105,8 +126,13 @@ export default function OrgChartScreen() {
     >
       <ReadableColumn>
         <View style={styles.finder}>
-          <SearchField value={search} onChangeText={setSearch} placeholder="Search people, roles or teams" />
-          {areas.length > 1 ? (
+          <SearchField
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search people, roles or teams in every year"
+            loading={searchingAllYears && (found === undefined || foundStale || search.trim() !== settledSearch)}
+          />
+          {searchingAllYears ? null : areas.length > 1 ? (
             <FilterRow title="Teams and campuses">
               {areas.map((area) => (
                 <FilterChip
@@ -120,139 +146,146 @@ export default function OrgChartScreen() {
               ))}
             </FilterRow>
           ) : null}
-          <FilterSummary onShowEveryone={filtering || searching ? showEveryone : undefined}>
-            <Text style={[typography.caption, { color: t.muted, flex: 1 }]} accessibilityLiveRegion="polite">
-              {people === 1 ? "1 person" : `${people} people`}
-            </Text>
-          </FilterSummary>
+          {searchingAllYears ? null : (
+            <FilterSummary onShowEveryone={filtering || searching ? showEveryone : undefined}>
+              <Text style={[typography.caption, { color: t.muted, flex: 1 }]} accessibilityLiveRegion="polite">
+                {focusName ? `${focusName} in ${chart.year}` : people === 1 ? "1 person" : `${people} people`}
+              </Text>
+            </FilterSummary>
+          )}
         </View>
+        {searchingAllYears && found ? <OrgSearchResults found={found} onOpen={openResult} /> : null}
       </ReadableColumn>
 
-      {shown.director ? (
-        <FadeInView delay={40}>
-          <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
-            <View style={[styles.directorCard, t.surfaceEdge, { backgroundColor: t.card }]}>
-              <Person person={shown.director} bold tag={shown.director.role ?? "Director"} size={46} />
-            </View>
-          </ReadableColumn>
-        </FadeInView>
-      ) : filtering || searching ? null : (
-        <Muted>No Director assigned for {chart.year} yet.</Muted>
-      )}
-
-      {(filtering || searching) && people === 0 ? (
-        <NoMatches
-          message={searching ? "Nobody matches that search." : "Nobody matches these filters."}
-          onShowEveryone={showEveryone}
-        />
-      ) : null}
-
-      {shown.staff.length > 0 && (
-        <FadeInView delay={stagger(1)}>
-          <View style={styles.divisionBlock}>
-            <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
-              Staff
-            </Text>
-            <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
-              <View
-                style={[
-                  styles.deptCard,
-                  t.surfaceEdge,
-                  { backgroundColor: t.card, borderLeftColor: t.primary },
-                ]}
-              >
-                {shown.staff.map((member) => (
-                  <Person key={member.email} person={member} />
-                ))}
-              </View>
-            </ReadableColumn>
-          </View>
-        </FadeInView>
-      )}
-
-      {shown.divisions.map((division, divisionIndex) => (
-        <FadeInView key={division.name} delay={stagger(divisionIndex + 2)}>
-          <View style={styles.divisionBlock}>
-            <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
-              {division.name}
-            </Text>
-
-            {division.head ? (
+      {searchingAllYears ? null : (
+        <>
+          {shown.director ? (
+            <FadeInView delay={40}>
               <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
-                <View style={[styles.divisionHeadRow, t.surfaceEdge, { backgroundColor: t.card }]}>
-                  <Person
-                    person={division.head}
-                    bold
-                    tag={division.head.role ?? "Head of Division"}
-                    size={34}
-                  />
+                <View style={[styles.directorCard, t.surfaceEdge, { backgroundColor: t.card }]}>
+                  <Person person={shown.director} bold tag={shown.director.role ?? "Director"} size={46} />
                 </View>
               </ReadableColumn>
-            ) : null}
+            </FadeInView>
+          ) : filtering || searching ? null : (
+            <Muted>No Director assigned for {chart.year} yet.</Muted>
+          )}
 
-            {division.departments.length === 0 ? (
-              searching ? null : <Muted>No departments.</Muted>
-            ) : (
-              <Grid fixedWidth={ORG_CARD_WIDTH}>
-                {division.departments.map((dept) => (
+          {(filtering || searching) && people === 0 ? (
+            <NoMatches
+              message={focusName ? `${focusName} isn't on the ${chart.year} chart.` : "Nobody matches these filters."}
+              onShowEveryone={showEveryone}
+            />
+          ) : null}
+
+          {shown.staff.length > 0 && (
+            <FadeInView delay={stagger(1)}>
+              <View style={styles.divisionBlock}>
+                <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
+                  Staff
+                </Text>
+                <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
                   <View
-                    key={dept.name}
                     style={[
                       styles.deptCard,
                       t.surfaceEdge,
-                      { backgroundColor: t.card, borderLeftColor: dept.colour ?? t.primary },
+                      { backgroundColor: t.card, borderLeftColor: t.primary },
                     ]}
                   >
-                    <Text style={[typography.label, { color: t.faint }]}>{dept.name}</Text>
-                    {dept.head ? (
-                      <Person
-                        person={dept.head}
-                        bold
-                        tag={departmentHeadTitle(chart.roleTitles)}
-                      />
-                    ) : null}
-                    {dept.members.map((member) => (
+                    {shown.staff.map((member) => (
                       <Person key={member.email} person={member} />
                     ))}
-                    {dept.members.length === 0 && !dept.head ? (
-                      <Muted>No members yet</Muted>
-                    ) : null}
                   </View>
-                ))}
-              </Grid>
-            )}
-          </View>
-        </FadeInView>
-      ))}
+                </ReadableColumn>
+              </View>
+            </FadeInView>
+          )}
 
-      {campuses.length > 0 && (
-        <FadeInView delay={stagger(shown.divisions.length + 2)}>
-          <View style={styles.divisionBlock}>
-            <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
-              Campus
-            </Text>
-            <Grid fixedWidth={ORG_CARD_WIDTH}>
-              {campuses.map((u) => (
-                <View
-                  key={u.name}
-                  style={[
-                    styles.deptCard,
-                    t.surfaceEdge,
-                    {
-                      backgroundColor: t.card,
-                      borderLeftColor: universityColour(u.name) ?? t.primary,
-                    },
-                  ]}
-                >
-                  <Text style={[typography.label, { color: t.faint }]}>{u.name}</Text>
-                  {u.members.map((member) => (
-                    <Person key={member.email} person={member} />
+          {shown.divisions.map((division, divisionIndex) => (
+            <FadeInView key={division.name} delay={stagger(divisionIndex + 2)}>
+              <View style={styles.divisionBlock}>
+                <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
+                  {division.name}
+                </Text>
+
+                {division.head ? (
+                  <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
+                    <View style={[styles.divisionHeadRow, t.surfaceEdge, { backgroundColor: t.card }]}>
+                      <Person
+                        person={division.head}
+                        bold
+                        tag={division.head.role ?? "Head of Division"}
+                        size={34}
+                      />
+                    </View>
+                  </ReadableColumn>
+                ) : null}
+
+                {division.departments.length === 0 ? (
+                  searching ? null : <Muted>No departments.</Muted>
+                ) : (
+                  <Grid fixedWidth={ORG_CARD_WIDTH}>
+                    {division.departments.map((dept) => (
+                      <View
+                        key={dept.name}
+                        style={[
+                          styles.deptCard,
+                          t.surfaceEdge,
+                          { backgroundColor: t.card, borderLeftColor: dept.colour ?? t.primary },
+                        ]}
+                      >
+                        <Text style={[typography.label, { color: t.faint }]}>{dept.name}</Text>
+                        {dept.head ? (
+                          <Person
+                            person={dept.head}
+                            bold
+                            tag={departmentHeadTitle(chart.roleTitles)}
+                          />
+                        ) : null}
+                        {dept.members.map((member) => (
+                          <Person key={member.email} person={member} />
+                        ))}
+                        {dept.members.length === 0 && !dept.head ? (
+                          <Muted>No members yet</Muted>
+                        ) : null}
+                      </View>
+                    ))}
+                  </Grid>
+                )}
+              </View>
+            </FadeInView>
+          ))}
+
+          {campuses.length > 0 && (
+            <FadeInView delay={stagger(shown.divisions.length + 2)}>
+              <View style={styles.divisionBlock}>
+                <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
+                  Campus
+                </Text>
+                <Grid fixedWidth={ORG_CARD_WIDTH}>
+                  {campuses.map((u) => (
+                    <View
+                      key={u.name}
+                      style={[
+                        styles.deptCard,
+                        t.surfaceEdge,
+                        {
+                          backgroundColor: t.card,
+                          borderLeftColor: universityColour(u.name) ?? t.primary,
+                        },
+                      ]}
+                    >
+                      <Text style={[typography.label, { color: t.faint }]}>{u.name}</Text>
+                      {u.members.map((member) => (
+                        <Person key={member.email} person={member} />
+                      ))}
+                    </View>
                   ))}
-                </View>
-              ))}
-            </Grid>
-          </View>
-        </FadeInView>
+                </Grid>
+              </View>
+            </FadeInView>
+          )}
+        </>
       )}
     </ChromeScreen>
   );

@@ -23,6 +23,7 @@ import {
   STAFF_SIDE_ROLES,
   staffYearStartMs,
 } from "../shared/flow";
+import { staffProfileSearchText } from "../shared/orgChart";
 import { personDisplayName } from "../shared/rollcall";
 import {
   previousStaffYearByEmailKey,
@@ -148,8 +149,10 @@ const patchFromAssignments = async (
   profile: Doc<"staffProfiles">,
   assignments: Assignment[],
 ) => {
+  const deduped = dedupeAssignments(assignments);
   await ctx.db.patch("staffProfiles", profile._id, {
-    assignments: dedupeAssignments(assignments),
+    assignments: deduped,
+    searchText: staffProfileSearchText({ ...profile, assignments: deduped }),
   });
 };
 
@@ -161,11 +164,13 @@ const writeStaffProfile = async (
   assignments: Assignment[],
 ): Promise<Id<"staffProfiles">> => {
   const identity = await resolveStaffIdentity(ctx, email);
+  const name = existing?.name ?? identity.name;
   const fields = {
     assignments,
     importId: existing?.importId ?? identity.importId,
-    name: existing?.name ?? identity.name,
+    name,
     userId: existing?.userId ?? identity.userId,
+    searchText: staffProfileSearchText({ email, name, assignments }),
   };
   const profileId =
     existing?._id ??
@@ -261,8 +266,10 @@ const renameScopeInProfiles = async (
     .withIndex("by_year", (q) => q.eq("year", year))) {
     const current = assignmentsOf(profile);
     if (!current.some((a) => a[key] === oldName)) continue;
+    const assignments = remapScope(current, key, oldName, newName);
     await ctx.db.patch("staffProfiles", profile._id, {
-      assignments: remapScope(current, key, oldName, newName),
+      assignments,
+      searchText: staffProfileSearchText({ ...profile, assignments }),
     });
   }
 };
@@ -1912,12 +1919,16 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
         )
         .first());
     if (existing) {
-      await ctx.db.patch("staffProfiles", existing._id, fields);
+      await ctx.db.patch("staffProfiles", existing._id, {
+        ...fields,
+        searchText: staffProfileSearchText({ ...fields, email: existing.email }),
+      });
     } else {
       await ctx.db.insert("staffProfiles", {
         email: profile.email,
         year: to,
         ...fields,
+        searchText: staffProfileSearchText({ ...fields, email: profile.email }),
       });
     }
     counts.profiles++;
@@ -2208,10 +2219,12 @@ export const seed = internalMutation({
 
     const profile = await getProfile(ctx, email, year);
     if (!profile) {
+      const assignments = [{ role: STAFF_ROLE, department: "Data and IT" }];
       await ctx.db.insert("staffProfiles", {
         email,
         year,
-        assignments: [{ role: STAFF_ROLE, department: "Data and IT" }],
+        assignments,
+        searchText: staffProfileSearchText({ email, assignments }),
       });
     }
     return { year, admin: email };

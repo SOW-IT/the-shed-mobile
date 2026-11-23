@@ -97,12 +97,14 @@ export default defineSchema({
     userId: v.optional(v.id("users")),
     importId: v.optional(v.string()),
     memberId: v.optional(v.id("attendanceMembers")),
+    searchText: v.optional(v.string()),
   })
     .index("by_email_and_year", ["email", "year"])
     .index("by_year", ["year"])
     .index("by_userId", ["userId"])
     .index("by_importId", ["importId"])
-    .index("by_memberId_and_year", ["memberId", "year"]),
+    .index("by_memberId_and_year", ["memberId", "year"])
+    .searchIndex("search_text", { searchField: "searchText" }),
 
   divisions: defineTable({
     year: v.number(),

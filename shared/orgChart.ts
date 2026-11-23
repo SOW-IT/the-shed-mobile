@@ -1,4 +1,4 @@
-import { acronym, HEAD_OF_DEPARTMENT, type RoleTitles } from "./flow";
+import { acronym, type Assignment, HEAD_OF_DEPARTMENT, type RoleTitles } from "./flow";
 
 export type OrgPerson = { email: string; name: string | null; photo: string | null; role: string | null };
 
@@ -36,10 +36,32 @@ export const departmentHeadTitle = (titles: RoleTitles) => titles[HEAD_OF_DEPART
 
 export const orgSearchTerms = (query: string) => query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
-const matches = (terms: readonly string[], person: OrgPerson, ...context: string[]) => {
-  const text = [person.name, person.email, person.role, ...context].join(" ").toLowerCase();
-  return terms.every((term) => text.includes(term));
+const ORG_SEARCH_MIN_LENGTH = 2;
+
+export const isOrgSearchQuery = (query: string) => query.trim().length >= ORG_SEARCH_MIN_LENGTH;
+
+type SearchableProfile = { email: string; name?: string; assignments?: readonly Assignment[] };
+
+export const staffProfileSearchText = (profile: SearchableProfile) => {
+  const scopes = (profile.assignments ?? []).flatMap((a) =>
+    [a.department, a.division, a.university].filter((scope): scope is string => !!scope)
+  );
+  const words = [
+    profile.name,
+    profile.email,
+    ...(profile.assignments ?? []).flatMap((a) => [a.role, acronym(a.role)]),
+    ...scopes.flatMap((scope) => [scope, acronym(scope)]),
+  ];
+  return [...new Set(words.filter((word): word is string => !!word))].join(" ");
 };
+
+export const matchesOrgSearch = (terms: readonly string[], text: string) => {
+  const haystack = text.toLowerCase();
+  return terms.every((term) => haystack.includes(term));
+};
+
+const matches = (terms: readonly string[], person: OrgPerson, ...context: string[]) =>
+  matchesOrgSearch(terms, [person.name, person.email, person.role, ...context].join(" "));
 
 const divisionPeople = (division: OrgDivision) => [
   division.head,

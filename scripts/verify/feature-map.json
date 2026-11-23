@@ -197,9 +197,9 @@
       "files": [
         "src/app/(tabs)/org.tsx",
         "src/app/person/**",
-        "src/components/EarlierYears.tsx",
+        "src/components/{EarlierYears,OrgSearchResults}.tsx",
         "src/hooks/useGroupedProfiles.ts",
-        "convex/{directory,directorySync,staffLeavers,admins,contact}.ts",
+        "convex/{directory,directorySync,staffLeavers,admins,contact,orgSearch}.ts",
         "shared/orgChart.ts"
       ],
       "routes": ["/org"]

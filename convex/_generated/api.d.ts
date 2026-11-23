@@ -77,6 +77,7 @@ import type * as model from "../model.js";
 import type * as musicReleaseDates from "../musicReleaseDates.js";
 import type * as musicRequests from "../musicRequests.js";
 import type * as notifications from "../notifications.js";
+import type * as orgSearch from "../orgSearch.js";
 import type * as pagination from "../pagination.js";
 import type * as photo from "../photo.js";
 import type * as presence from "../presence.js";
@@ -182,6 +183,7 @@ declare const fullApi: ApiFromModules<{
   musicReleaseDates: typeof musicReleaseDates;
   musicRequests: typeof musicRequests;
   notifications: typeof notifications;
+  orgSearch: typeof orgSearch;
   pagination: typeof pagination;
   photo: typeof photo;
   presence: typeof presence;
