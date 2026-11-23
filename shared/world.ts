@@ -21,11 +21,11 @@ export const ASK_MS = 10_000;
 export const MUTUAL_MS = 2600;
 export const MAX_SAY_LENGTH = 120;
 /** How long a chat line is kept, unless someone reports it. */
-export const CHAT_TTL_MS = 15 * 60_000;
+export const CHAT_TTL_MS = 60 * 60_000;
 /** Lines kept per room, whatever their age. */
-export const CHAT_ROOM_CAP = 50;
+export const CHAT_ROOM_CAP = 150;
 /** Lines the chat sheet and list view show. */
-export const CHAT_LOG_SIZE = 50;
+export const CHAT_LOG_SIZE = 150;
 /** Lines copied into a report, for context. */
 export const REPORT_CONTEXT_LINES = 10;
 /** The reported person's own recent lines kept in a report. */
@@ -46,6 +46,35 @@ export const PRESENCE_TOUCH_MS = 20_000;
 export const SWEEP_EVERY_MS = 30_000;
 export const TYPING_MS = 6000;
 export const TYPING_REFRESH_MS = 3000;
+export const PING_PUBLISH_MS = 30_000;
+export const PING_PROBE_MS = 15_000;
+export const PING_MAX_SAMPLE_MS = 10_000;
+const PING_STEPS_MS = [150, 300, 600] as const;
+export type PingBars = 1 | 2 | 3 | 4;
+
+export const isPingBars = (value: unknown): value is PingBars => value === 1 || value === 2 || value === 3 || value === 4;
+
+export const pingBars = (ms: number): PingBars => {
+  const [great, good, slow] = PING_STEPS_MS;
+  return ms <= great ? 4 : ms <= good ? 3 : ms <= slow ? 2 : 1;
+};
+
+export const smoothPing = (smoothed: number | null, sample: number): number => {
+  const clamped = Math.min(PING_MAX_SAMPLE_MS, Math.max(0, sample));
+  return smoothed === null ? clamped : smoothed * 0.7 + clamped * 0.3;
+};
+
+export const shouldPublishPing = ({
+  bars,
+  published,
+  publishedAt,
+  now,
+}: {
+  bars: PingBars;
+  published: PingBars | null;
+  publishedAt: number | null;
+  now: number;
+}): boolean => bars !== published && (publishedAt === null || now - publishedAt >= PING_PUBLISH_MS);
 /** How long a chat bubble stays over someone's head. */
 export const BUBBLE_MS = 8000;
 /** How long an emote plays: the face, the body and the icon over the head. */
@@ -426,7 +455,6 @@ export const hash = (text: string): number => {
   return h >>> 0;
 };
 
-/** How many choices each part of a look has. Palettes grow by appending. */
 /**
  * How many choices each part of a look has. Palettes grow by appending, so a
  * saved index keeps its meaning. The first four are in every look; the rest
@@ -434,27 +462,50 @@ export const hash = (text: string): number => {
  * app) is still valid and draws with their defaults.
  */
 export const LOOK_SIZES = {
-  skin: 8,
-  hair: 12,
-  hairColour: 9,
+  skin: 12,
+  hair: 18,
+  hairColour: 12,
   shirt: 10,
-  hat: 5,
-  accessory: 4,
+  hat: 10,
+  accessory: 8,
   face: 5,
-  eyes: 6,
+  eyes: 8,
   eyeColour: 6,
   brows: 5,
   nose: 4,
-  mouth: 5,
+  mouth: 7,
   height: 5,
   build: 5,
-  freckles: 2,
-  blush: 3,
-  beard: 4,
-  outfit: 6,
+  freckles: 4,
+  blush: 5,
+  beard: 7,
+  outfit: 10,
+  // Version 3.
+  browColour: 13,
+  eyeY: 7,
+  eyeGap: 7,
+  eyeSize: 7,
+  eyeTilt: 7,
+  browY: 7,
+  browGap: 7,
+  browSize: 7,
+  browTilt: 7,
+  mouthY: 7,
+  mouthSize: 7,
+  mouthTilt: 7,
+  glasses: 5,
+  eyeshadow: 6,
+  lipstick: 6,
+  mole: 6,
+  pants: 4,
+  pantsColour: 8,
+  favourite: 12,
 } as const;
-/** The look's shape: version 2 added the face, body and extras. */
-export const LOOK_VERSION = 2;
+/**
+ * The look's shape: version 2 added the face, body and extras; version 3 the
+ * placement sliders, glasses, makeup, moles, bottoms and a favourite colour.
+ */
+export const LOOK_VERSION = 3;
 export type Look = {
   skin: number;
   hair: number;
@@ -476,32 +527,66 @@ export type Look = {
   blush?: number;
   beard?: number;
   outfit?: number;
+  /** 0 matches the hair; otherwise one of the hair colours, less one. */
+  browColour?: number;
+  eyeY?: number;
+  eyeGap?: number;
+  eyeSize?: number;
+  eyeTilt?: number;
+  browY?: number;
+  browGap?: number;
+  browSize?: number;
+  browTilt?: number;
+  mouthY?: number;
+  mouthSize?: number;
+  mouthTilt?: number;
+  glasses?: number;
+  eyeshadow?: number;
+  lipstick?: number;
+  mole?: number;
+  pants?: number;
+  pantsColour?: number;
+  favourite?: number;
 };
 export type LookPart = keyof typeof LOOK_SIZES;
 const LOOK_PARTS = Object.keys(LOOK_SIZES) as LookPart[];
 const REQUIRED: readonly LookPart[] = ["skin", "hair", "hairColour", "shirt"];
 
+/**
+ * The placement sliders: seven steps each, and the middle one is where the
+ * part was drawn before the sliders existed.
+ */
+export const NUDGES = ["eyeY", "eyeGap", "eyeSize", "eyeTilt", "browY", "browGap", "browSize", "browTilt", "mouthY", "mouthSize", "mouthTilt"] as const;
+export type NudgePart = (typeof NUDGES)[number];
+const NUDGE_MIDDLE = 3;
+
 /** What a missing optional part means: the look from before it existed. */
-const LOOK_DEFAULTS = {
-  hat: 0,
-  accessory: 0,
-  face: 0,
-  eyes: 0,
-  eyeColour: 0,
-  brows: 0,
-  nose: 0,
-  mouth: 0,
+const LOOK_DEFAULTS: Partial<Record<LookPart, number>> = {
   height: 2,
   build: 2,
-  freckles: 0,
   blush: 1,
-  beard: 0,
-} as const;
-/** A part of a look, or its default when the look predates it. */
+  ...Object.fromEntries(NUDGES.map((part) => [part, NUDGE_MIDDLE])),
+};
+const inRange = (part: LookPart, value: number | undefined): value is number =>
+  value !== undefined && Number.isInteger(value) && value >= 0 && value < LOOK_SIZES[part];
+
+/**
+ * A part of a look, or its default when the look predates it. A choice this
+ * app doesn't have (saved by a newer one) draws as the default too.
+ */
 export const lookPart = (look: Look, part: LookPart): number => {
   const value = look[part];
-  return value ?? (LOOK_DEFAULTS as Record<string, number>)[part] ?? 0;
+  if (inRange(part, value)) return value;
+  // Glasses were one of the extras before they had their own part.
+  if (part === "glasses") return look.accessory === 1 ? 1 : 0;
+  return LOOK_DEFAULTS[part] ?? 0;
 };
+
+/** A slider's steps either side of the middle: -3 to 3. */
+export const nudge = (look: Look, part: NudgePart): number => lookPart(look, part) - NUDGE_MIDDLE;
+
+/** Every slider back in the middle. */
+export const NUDGES_RESET: Readonly<Record<NudgePart, number>> = Object.fromEntries(NUDGES.map((part) => [part, NUDGE_MIDDLE])) as Record<NudgePart, number>;
 
 export const HAIR_STYLES = [
   "Short",
@@ -516,18 +601,33 @@ export const HAIR_STYLES = [
   "Bob",
   "Afro",
   "Side swept",
+  "Mohawk",
+  "Space buns",
+  "Braid",
+  "Curtains",
+  "Mullet",
+  "Wavy",
 ] as const;
-export const HATS = ["None", "Cap", "Beanie", "Flower crown", "Sun hat"] as const;
-export const OUTFITS = ["T-shirt", "Dress", "Skirt", "Overalls", "Striped tee", "Hoodie"] as const;
-export const ACCESSORIES = ["None", "Glasses", "Backpack", "Scarf"] as const;
+export const HATS = ["None", "Cap", "Beanie", "Flower crown", "Sun hat", "Beret", "Bow", "Headband", "Party hat", "Crown"] as const;
+export const OUTFITS = ["T-shirt", "Dress", "Skirt", "Overalls", "Striped tee", "Hoodie", "Collared", "Jacket", "Jumper", "Polka dots"] as const;
+/** Outfits that come with their own bottoms, so the bottoms choice doesn't show. */
+export const FULL_OUTFITS: readonly number[] = [1, 2, 3];
+/** Index 1 was glasses, which are their own part now; the editor doesn't offer it. */
+export const ACCESSORIES = ["None", "Glasses", "Backpack", "Scarf", "Bow tie", "Necklace", "Headphones", "Ear flower"] as const;
+export const OLD_GLASSES = 1;
+export const GLASSES = ["None", "Round", "Square", "Sunglasses", "Big round"] as const;
 export const FACES = ["Round", "Oval", "Square", "Heart", "Long"] as const;
-export const EYES = ["Dots", "Round", "Sleepy", "Sparkly", "Wide", "Narrow"] as const;
+export const EYES = ["Dots", "Round", "Sleepy", "Sparkly", "Wide", "Narrow", "Lashes", "Almond"] as const;
 export const BROWS = ["None", "Soft", "Straight", "Arched", "Thick"] as const;
 export const NOSES = ["None", "Dot", "Button", "Pointy"] as const;
-export const MOUTHS = ["None", "Smile", "Grin", "Small", "Flat"] as const;
-export const BLUSH = ["None", "Light", "Rosy"] as const;
-export const BEARDS = ["None", "Stubble", "Beard", "Moustache"] as const;
-export const ON_OFF = ["Off", "On"] as const;
+export const MOUTHS = ["None", "Smile", "Grin", "Small", "Flat", "Cat", "Tongue out"] as const;
+export const BLUSH = ["None", "Light", "Rosy", "Round", "Lines"] as const;
+export const BEARDS = ["None", "Stubble", "Beard", "Moustache", "Goatee", "Wide moustache", "Chin strap"] as const;
+export const FRECKLES = ["None", "Cheeks", "Lots", "Across the nose"] as const;
+export const MOLES = ["None", "Cheek", "Other cheek", "By the lip", "Under an eye", "Chin"] as const;
+export const EYESHADOW = ["None", "Lilac", "Peach", "Teal", "Gold", "Rose"] as const;
+export const LIPSTICK = ["None", "Rose", "Red", "Coral", "Plum", "Pink"] as const;
+export const PANTS = ["Match top", "Trousers", "Shorts", "Skirt"] as const;
 
 /**
  * How tall and how broad someone is drawn, from their height and build
@@ -561,7 +661,7 @@ export const isValidLook = (look: Look): boolean =>
   LOOK_PARTS.every((part) => {
     const value = look[part];
     if (value === undefined) return !REQUIRED.includes(part);
-    return Number.isInteger(value) && value >= 0 && value < LOOK_SIZES[part];
+    return inRange(part, value);
   });
 
 /** A look picked at random, for the editor's Randomise button. */
@@ -569,6 +669,9 @@ export const randomLook = (random: () => number = Math.random): Look => {
   const pick = (part: LookPart) => Math.floor(random() * LOOK_SIZES[part]);
   // Mostly none, so not everyone gets a hat, a beard and freckles at once.
   const rarely = (part: LookPart, chance: number) => (random() < chance ? pick(part) : 0);
+  // Sliders stay a step either side of the middle, so a random face still reads.
+  const near = () => NUDGE_MIDDLE - 1 + Math.floor(random() * 3);
+  const accessory = rarely("accessory", 0.4);
   return {
     v: LOOK_VERSION,
     skin: pick("skin"),
@@ -576,7 +679,8 @@ export const randomLook = (random: () => number = Math.random): Look => {
     hairColour: pick("hairColour"),
     shirt: pick("shirt"),
     hat: rarely("hat", 0.5),
-    accessory: rarely("accessory", 0.4),
+    // Glasses have their own part now.
+    accessory: accessory === OLD_GLASSES ? 0 : accessory,
     face: pick("face"),
     eyes: pick("eyes"),
     eyeColour: pick("eyeColour"),
@@ -585,10 +689,19 @@ export const randomLook = (random: () => number = Math.random): Look => {
     mouth: pick("mouth"),
     height: pick("height"),
     build: pick("build"),
-    freckles: rarely("freckles", 0.5),
+    freckles: rarely("freckles", 0.4),
     blush: pick("blush"),
     beard: rarely("beard", 0.3),
     outfit: pick("outfit"),
+    browColour: rarely("browColour", 0.2),
+    ...(Object.fromEntries(NUDGES.map((part) => [part, near()])) as Record<NudgePart, number>),
+    glasses: rarely("glasses", 0.3),
+    eyeshadow: rarely("eyeshadow", 0.2),
+    lipstick: rarely("lipstick", 0.2),
+    mole: rarely("mole", 0.2),
+    pants: pick("pants"),
+    pantsColour: pick("pantsColour"),
+    favourite: pick("favourite"),
   };
 };
 

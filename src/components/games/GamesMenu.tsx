@@ -1,5 +1,6 @@
 import { AppIcon, Card, Muted, Screen, type AppIconName } from "@/components/ui";
 import { useOffline } from "@/hooks/useOffline";
+import { onlineNow, useWorldOnline } from "@/hooks/useWorldOnline";
 import { useLocalBests, useScoreQueue } from "@/lib/games/gameStorage";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -62,7 +63,7 @@ const MenuRow = ({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={meta ? `${title}, ${meta}` : title}
       testID={testID}
       style={({ pressed }) => pressed && { opacity: 0.7 }}
     >
@@ -91,12 +92,13 @@ export const GamesMenu = ({
   onOpen: (target: GameId | "leaderboard") => void;
   onBack?: () => void;
   intro?: ReactNode;
-  /** Opens the online garden; left out where it can't open (offline). */
+  /** Opens the World; left out where it can't open (offline). */
   onGarden?: () => void;
 }) => {
   const bests = useLocalBests();
   const waiting = useScoreQueue().length;
   const offline = useOffline();
+  const online = useWorldOnline(!!onGarden && !offline);
   return (
     <View style={styles.fill}>
     <Screen
@@ -110,8 +112,9 @@ export const GamesMenu = ({
         {onGarden && !offline ? (
           <MenuRow
             icon="leaf-outline"
-            title="The Garden"
+            title="World"
             detail="Walk around and chat with whoever's online."
+            meta={onlineNow(online)}
             onPress={onGarden}
             testID="games-open-garden"
           />

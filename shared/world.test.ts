@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import {
   ASK_MS,
+  isPingBars,
+  PING_MAX_SAMPLE_MS,
+  PING_PUBLISH_MS,
+  pingBars,
+  shouldPublishPing,
+  smoothPing,
   BUCKETS,
   canHear,
   cleanLine,
@@ -17,7 +23,25 @@ import {
   MUTUAL_MS,
   openAsk,
   LOOK_SIZES,
+  LOOK_VERSION,
+  NUDGES,
+  NUDGES_RESET,
   OUTFITS,
+  HAIR_STYLES,
+  HATS,
+  ACCESSORIES,
+  GLASSES,
+  EYES,
+  MOUTHS,
+  BLUSH,
+  BEARDS,
+  FRECKLES,
+  MOLES,
+  EYESHADOW,
+  LIPSTICK,
+  PANTS,
+  OLD_GLASSES,
+  nudge,
   PLACES,
   PLACE_OBSTACLES,
   PLACE_TITLES,
@@ -131,14 +155,15 @@ test("lookFor picks a stable look in range", () => {
 test("isValidLook checks every part, and randomLook stays in range", () => {
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0 })).toBe(true);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, hat: 4, accessory: 3 })).toBe(true);
-  expect(isValidLook({ skin: 0, hair: 11, hairColour: 0, shirt: 0 })).toBe(true);
-  expect(isValidLook({ skin: 0, hair: 12, hairColour: 0, shirt: 0 })).toBe(false);
+  expect(isValidLook({ skin: 0, hair: 17, hairColour: 0, shirt: 0 })).toBe(true);
+  expect(isValidLook({ skin: 0, hair: 18, hairColour: 0, shirt: 0 })).toBe(false);
   // Version 2's face, body and extras: each bounded, all optional.
   const v2 = { v: 2, skin: 0, hair: 0, hairColour: 0, shirt: 0, face: 4, eyes: 5, eyeColour: 5, brows: 4, nose: 3, mouth: 4, height: 4, build: 4, freckles: 1, blush: 2, beard: 3 };
   expect(isValidLook(v2)).toBe(true);
   expect(isValidLook({ ...v2, height: 5 })).toBe(false);
-  expect(isValidLook({ ...v2, freckles: 2 })).toBe(false);
-  expect(isValidLook({ ...v2, v: 3 })).toBe(false);
+  expect(isValidLook({ ...v2, freckles: 4 })).toBe(false);
+  expect(isValidLook({ ...v2, v: 3 })).toBe(true);
+  expect(isValidLook({ ...v2, v: 4 })).toBe(false);
   expect(isValidLook({ ...v2, v: 1.5 })).toBe(false);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, hat: 0.5 })).toBe(false);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, outfit: OUTFITS.length - 1 })).toBe(true);
@@ -161,6 +186,98 @@ test("a look from before version 2 draws with the old defaults, and the body sta
   expect(small.height).toBeCloseTo(0.88);
   expect(tall.width).toBeCloseTo(1.15);
   expect(small.width).toBeCloseTo(0.85);
+});
+
+test("every choice list has one name per choice", () => {
+  const lists = { hair: HAIR_STYLES, hat: HATS, accessory: ACCESSORIES, glasses: GLASSES, eyes: EYES, mouth: MOUTHS, blush: BLUSH, beard: BEARDS, freckles: FRECKLES, mole: MOLES, eyeshadow: EYESHADOW, lipstick: LIPSTICK, pants: PANTS, outfit: OUTFITS } as const;
+  for (const [part, names] of Object.entries(lists)) expect([part, names.length]).toEqual([part, LOOK_SIZES[part as keyof typeof lists]]);
+});
+
+describe("version 3 looks", () => {
+  const v2 = { v: 2, skin: 2, hair: 10, hairColour: 4, shirt: 3, face: 3, eyes: 3, eyeColour: 2, brows: 2, nose: 1, mouth: 2, height: 4, build: 0, freckles: 1, blush: 2, beard: 3, accessory: 2 };
+  const v3 = {
+    ...v2,
+    v: LOOK_VERSION,
+    hair: 17,
+    skin: 11,
+    hat: 9,
+    accessory: 7,
+    browColour: 12,
+    eyeY: 0,
+    eyeGap: 6,
+    eyeSize: 6,
+    eyeTilt: 0,
+    browY: 6,
+    browGap: 0,
+    browSize: 0,
+    browTilt: 6,
+    mouthY: 0,
+    mouthSize: 6,
+    mouthTilt: 6,
+    glasses: 4,
+    eyeshadow: 5,
+    lipstick: 5,
+    mole: 5,
+    pants: 3,
+    pantsColour: 7,
+    favourite: 11,
+  };
+
+  test("the new parts are bounded, and the version goes up to 3", () => {
+    expect(LOOK_VERSION).toBe(3);
+    expect(isValidLook(v3)).toBe(true);
+    for (const part of ["browColour", "glasses", "eyeshadow", "lipstick", "mole", "pants", "pantsColour", "favourite", ...NUDGES] as const) {
+      expect([part, isValidLook({ ...v3, [part]: LOOK_SIZES[part] })]).toEqual([part, false]);
+      expect([part, isValidLook({ ...v3, [part]: -1 })]).toEqual([part, false]);
+      expect([part, isValidLook({ ...v3, [part]: 1.5 })]).toEqual([part, false]);
+    }
+  });
+
+  test("a look from before version 3 keeps how it looked", () => {
+    expect(isValidLook(v2)).toBe(true);
+    // Every slider in the middle, which is where each part was drawn before.
+    for (const part of NUDGES) expect([part, nudge(v2, part)]).toEqual([part, 0]);
+    for (const part of ["browColour", "glasses", "eyeshadow", "lipstick", "mole", "pants", "pantsColour", "favourite"] as const) {
+      expect([part, lookPart(v2, part)]).toEqual([part, 0]);
+    }
+    expect(NUDGES_RESET.eyeY).toBe(3);
+  });
+
+  test("old glasses (an extra) still count as round glasses until glasses are picked", () => {
+    const old = { skin: 0, hair: 0, hairColour: 0, shirt: 0, accessory: OLD_GLASSES };
+    expect(lookPart(old, "glasses")).toBe(1);
+    expect(lookPart({ ...old, glasses: 0 }, "glasses")).toBe(0);
+    expect(lookPart({ ...old, glasses: 3 }, "glasses")).toBe(3);
+    expect(lookPart({ ...old, accessory: 2 }, "glasses")).toBe(0);
+  });
+
+  test("a choice this app doesn't know (from a newer one) draws as the default", () => {
+    const future = { ...v3, hat: 99, eyeY: 40, favourite: 2.5, height: -3 };
+    expect(lookPart(future, "hat")).toBe(0);
+    expect(nudge(future, "eyeY")).toBe(0);
+    expect(lookPart(future, "favourite")).toBe(0);
+    expect(lookPart(future, "height")).toBe(2);
+    expect(bodyScale(future).height).toBeCloseTo(1);
+  });
+
+  test("randomise covers the new parts, keeps sliders near the middle and never picks the old glasses extra", () => {
+    for (const r of [0, 0.1, 0.25, 0.5, 0.75, 0.99]) {
+      const look = randomLook(() => r);
+      expect(isValidLook(look)).toBe(true);
+      expect(look.v).toBe(LOOK_VERSION);
+      for (const part of NUDGES) expect(Math.abs(nudge(look, part))).toBeLessThanOrEqual(1);
+      expect(look.accessory).not.toBe(OLD_GLASSES);
+      for (const part of ["glasses", "eyeshadow", "lipstick", "mole", "pants", "pantsColour", "favourite", "browColour"] as const) expect(look[part]).toBeDefined();
+    }
+    // Extras are rare: a high roll means none.
+    const plain = randomLook(() => 0.99);
+    expect([plain.glasses, plain.eyeshadow, plain.lipstick, plain.mole, plain.hat]).toEqual([0, 0, 0, 0, 0]);
+    // Index 1 (the old glasses) comes out as no extra: the extra is rolled
+    // first (0.3 says "have one", 0.15 picks index 1).
+    let i = 0;
+    const rolls = [0.3, 0.15];
+    expect(randomLook(() => rolls[i++] ?? 0.5).accessory).toBe(0);
+  });
 });
 
 test("tagName shows a short first name and the last name's initial", () => {
@@ -375,5 +492,42 @@ describe("rock paper scissors", () => {
     expect(askInfo("highFive")?.ask).toBe("High five?");
     expect(askInfo("nope")).toBeNull();
     expect(askInfo(undefined)).toBeNull();
+  });
+});
+
+describe("ping", () => {
+  test("round trips bucket into one to four bars", () => {
+    expect(pingBars(0)).toBe(4);
+    expect(pingBars(150)).toBe(4);
+    expect(pingBars(151)).toBe(3);
+    expect(pingBars(300)).toBe(3);
+    expect(pingBars(301)).toBe(2);
+    expect(pingBars(600)).toBe(2);
+    expect(pingBars(601)).toBe(1);
+    expect(pingBars(9000)).toBe(1);
+  });
+
+  test("only one to four counts as bars", () => {
+    expect([0, 1, 2, 3, 4, 5, 2.5, "3", null].map(isPingBars)).toEqual([false, true, true, true, true, false, false, false, false]);
+  });
+
+  test("smoothing starts at the first sample and moves 30% toward each new one", () => {
+    expect(smoothPing(null, 120)).toBe(120);
+    expect(smoothPing(100, 200)).toBeCloseTo(130);
+    expect(smoothPing(null, -5)).toBe(0);
+    expect(smoothPing(null, 60_000)).toBe(PING_MAX_SAMPLE_MS);
+  });
+
+  test("a new bucket is published at once the first time", () => {
+    expect(shouldPublishPing({ bars: 3, published: null, publishedAt: null, now: 1000 })).toBe(true);
+  });
+
+  test("the same bucket is never published again", () => {
+    expect(shouldPublishPing({ bars: 3, published: 3, publishedAt: 0, now: 10 * PING_PUBLISH_MS })).toBe(false);
+  });
+
+  test("a changed bucket waits until 30 s after the last publish", () => {
+    expect(shouldPublishPing({ bars: 2, published: 3, publishedAt: 1000, now: 1000 + PING_PUBLISH_MS - 1 })).toBe(false);
+    expect(shouldPublishPing({ bars: 2, published: 3, publishedAt: 1000, now: 1000 + PING_PUBLISH_MS })).toBe(true);
   });
 });

@@ -11,6 +11,11 @@ import {
   type Ask,
   type Reply,
   HEARTBEAT_IDLE_MS,
+  PING_PROBE_MS,
+  pingBars,
+  shouldPublishPing,
+  smoothPing,
+  type PingBars,
   TYPING_REFRESH_MS,
   posAt,
   type Walk,
@@ -47,6 +52,7 @@ export type WorldMember = {
   away?: "arcade";
   seat?: string;
   typing?: number;
+  ping?: number;
 };
 
 /** The id prefix of a chat line shown before the server has it. */
@@ -92,6 +98,7 @@ type WorldStats = {
   accept: number;
   saveLook: number;
   heartbeat: number;
+  ping: number;
   leave: number;
   since: number;
 };
@@ -105,6 +112,7 @@ const newStats = (): WorldStats => ({
   accept: 0,
   saveLook: 0,
   heartbeat: 0,
+  ping: 0,
   leave: 0,
   since: Date.now(),
 });
@@ -196,6 +204,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   const travelM = useMutation(api.world.travel);
   const sitM = useMutation(api.world.sit);
   const typingM = useMutation(api.world.typing);
+  const pingM = useMutation(api.world.ping);
   const [mySeat, setMySeat] = useState<string | null>(null);
   const travelling = useRef(false);
   // Every action shows at once on this phone (optimistic updates, below),
@@ -234,13 +243,27 @@ export const useWorld = (enabled: boolean, away = false) => {
   const fingerAt = useRef<{ x: number; z: number } | null>(null);
 
   const serverNow = useCallback(() => Date.now() + (offset.current ?? 0), []);
-  const heard = useCallback((serverTime: number, sentAt: number) => {
+  const [pingMs, setPingMs] = useState<number | null>(null);
+  const smoothed = useRef<number | null>(null);
+  const lastRoundTrip = useRef(0);
+  const publishedPing = useRef<{ bars: PingBars | null; at: number | null }>({ bars: null, at: null });
+  const pinging = useRef(false);
+  const publishRef = useRef<() => void>(() => undefined);
+  const roundTrip = useCallback((sentAt: number) => {
+    const received = Date.now();
+    smoothed.current = smoothPing(smoothed.current, received - sentAt);
+    lastRoundTrip.current = received;
+    setPingMs(Math.round(smoothed.current));
+    publishRef.current();
+  }, []);
+  const heard = useCallback((serverTime: number, sentAt: number, timed = true) => {
     const received = Date.now();
     const sample = serverTime - (sentAt + received) / 2;
     offset.current = offset.current === null ? sample : offset.current * 0.8 + sample * 0.2;
     serverOffset = offset.current;
     lastAction.current = received;
-  }, []);
+    if (timed) roundTrip(sentAt);
+  }, [roundTrip]);
 
   useEffect(() => {
     (globalThis as { __shedWorld?: WorldStats }).__shedWorld = stats.current;
@@ -256,7 +279,8 @@ export const useWorld = (enabled: boolean, away = false) => {
     joinM({})
       .then((joined) => {
         if (cancelled) return;
-        heard(joined.serverNow, sentAt);
+        heard(joined.serverNow, sentAt, false);
+        publishedPing.current = { bars: null, at: null };
         setSession({ roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance, place: placeFrom(joined.place) });
         setError(null);
       })
@@ -573,7 +597,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   );
 
   const travel = useCallback(
-    async (to: Place): Promise<string | null> => {
+    async (to: Place, toMember?: MemberId): Promise<string | null> => {
       if (!session || travelling.current) return null;
       travelling.current = true;
       pending.current = null;
@@ -582,7 +606,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       const sentAt = Date.now();
       const sentIn = visit.current;
       try {
-        const reply = await travelM({ to });
+        const reply = await travelM(toMember ? { to, toMember } : { to });
         if (sentIn !== visit.current) return null;
         heard(reply.serverNow, sentAt);
         if (!reply.ok) return turnedAwayText(reply);
@@ -663,6 +687,45 @@ export const useWorld = (enabled: boolean, away = false) => {
     [saveLookM]
   );
 
+  const sendPing = useCallback(
+    (bars?: PingBars) => {
+      if (pinging.current) return;
+      pinging.current = true;
+      const sentAt = Date.now();
+      stats.current.ping++;
+      if (bars !== undefined) publishedPing.current = { bars: publishedPing.current.bars, at: sentAt };
+      pingM(bars === undefined ? {} : { bars })
+        .then((reply) => {
+          if (reply.published && bars !== undefined) publishedPing.current = { bars, at: publishedPing.current.at };
+          pinging.current = false;
+          roundTrip(sentAt);
+        })
+        .catch(() => {
+          pinging.current = false;
+        });
+    },
+    [pingM, roundTrip]
+  );
+  const publishPing = useCallback(() => {
+    if (!session || smoothed.current === null) return;
+    const bars = pingBars(smoothed.current);
+    const { bars: published, at: publishedAt } = publishedPing.current;
+    if (shouldPublishPing({ bars, published, publishedAt, now: Date.now() })) sendPing(bars);
+  }, [session, sendPing]);
+  useEffect(() => {
+    publishRef.current = publishPing;
+  }, [publishPing]);
+  useEffect(() => {
+    if (!session) return;
+    const probe = () => {
+      if (AppState.currentState !== "active" || Date.now() - lastRoundTrip.current < PING_PROBE_MS) return;
+      sendPing();
+    };
+    probe();
+    const id = setInterval(probe, 5000);
+    return () => clearInterval(id);
+  }, [session, sendPing]);
+
   // "Still here", only after a quiet spell. No query reads it, so it pushes nothing.
   useEffect(() => {
     if (!session) return;
@@ -711,6 +774,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       away: state?.away,
       seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
       typing: state?.typing,
+      ping: m.isMe && pingMs !== null ? pingBars(pingMs) : m.ping,
     };
   });
 
@@ -748,6 +812,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     instance: roster?.instance ?? session?.instance ?? 1,
     place: session?.place ?? ("garden" as Place),
     placeCounts,
+    ping: pingMs,
     travel,
     roomId: session?.roomId ?? null,
     memberId: session?.memberId ?? null,

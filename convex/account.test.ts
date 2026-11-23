@@ -433,7 +433,7 @@ describe("account.wipe", () => {
     });
   });
 
-  test("deletes the user's Garden look, kept rate limits and blocks both ways", async () => {
+  test("deletes the user's World look, kept rate limits, last poke and blocks both ways", async () => {
     vi.useFakeTimers();
     const t = newConvex();
     const bucket = { tokens: 1, at: 0 };
@@ -445,6 +445,8 @@ describe("account.wipe", () => {
       await ctx.db.insert("worldBlocks", { email: GUEST, blockedEmail: "other@sow.org.au", blockedName: "Other" });
       await ctx.db.insert("worldBlocks", { email: "other@sow.org.au", blockedEmail: GUEST, blockedName: "Gina Guest" });
       await ctx.db.insert("worldLooks", { email: "other@sow.org.au", look, updatedAt: 0 });
+      await ctx.db.insert("worldPoked", { email: GUEST, lastPokedAt: 0 });
+      await ctx.db.insert("worldPoked", { email: "other@sow.org.au", lastPokedAt: 0 });
       return userId;
     });
     await t.mutation(internal.account.wipe, { userId });
@@ -453,6 +455,7 @@ describe("account.wipe", () => {
       expect(await ctx.db.query("worldLooks").collect()).toMatchObject([{ email: "other@sow.org.au" }]);
       expect(await ctx.db.query("worldThrottle").collect()).toEqual([]);
       expect(await ctx.db.query("worldBlocks").collect()).toEqual([]);
+      expect(await ctx.db.query("worldPoked").collect()).toMatchObject([{ email: "other@sow.org.au" }]);
     });
   });
 
