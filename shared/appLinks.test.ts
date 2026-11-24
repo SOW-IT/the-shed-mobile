@@ -120,19 +120,64 @@ describe.each([
     ).toEqual([...webOnly, { "/": "*" }]);
   });
 
+  const SEEN = 5_000;
+  const idle = { available: false, checked: true, answeredAt: SEEN + 1, inFlight: null };
+
   test("an over-the-air update is a restart; only a new build sends you to the store", () => {
-    const idle = { available: false, checked: true, busy: false };
     // An update for this build that reaches the target: restart, never the store.
-    expect(updateRouteFor("2.12.17", { ...idle, available: true, version: "2.12.17" })).toBe("restart");
-    expect(updateRouteFor("2.12.17", { ...idle, available: true, version: "2.13.0" })).toBe("restart");
-    expect(updateRouteFor("2.12.17", { ...idle, available: true, busy: true })).toBe("restart");
-    expect(updateRouteFor(null, { ...idle, available: true, version: "garbage" })).toBe("restart");
+    expect(updateRouteFor("2.12.17", { ...idle, available: true, version: "2.12.17" }, SEEN)).toBe("restart");
+    expect(updateRouteFor("2.12.17", { ...idle, available: true, version: "2.13.0" }, SEEN)).toBe("restart");
+    expect(updateRouteFor(null, { ...idle, available: true, version: "garbage" }, SEEN)).toBe("restart");
     // Still asking the update server: don't send anyone to the store yet.
-    expect(updateRouteFor("2.12.17", { ...idle, checked: false })).toBe("wait");
-    expect(updateRouteFor("2.12.17", { ...idle, busy: true })).toBe("wait");
+    expect(updateRouteFor("2.12.17", { ...idle, checked: false, answeredAt: null }, SEEN)).toBe("wait");
+    expect(
+      updateRouteFor("2.12.17", { ...idle, available: true, version: "2.12.16", checked: false, answeredAt: null }, SEEN)
+    ).toBe("wait");
     // Nothing over the air for this build, or nothing new enough: the store.
-    expect(updateRouteFor("2.12.17", idle)).toBe("store");
-    expect(updateRouteFor("2.13.0", { ...idle, available: true, version: "2.12.17" })).toBe("store");
-    expect(updateRouteFor("2.12.17", null)).toBe("store");
+    expect(updateRouteFor("2.12.17", idle, SEEN)).toBe("store");
+    expect(updateRouteFor("2.13.0", { ...idle, available: true, version: "2.12.17" }, SEEN)).toBe("store");
+    expect(updateRouteFor("2.12.17", null, null)).toBe("store");
+  });
+
+  test("waits while a retry is running after the first check failed", () => {
+    const failed = { available: false, checked: true, answeredAt: null, inFlight: null };
+    expect(updateRouteFor("2.12.17", failed, SEEN)).toBe("store");
+    expect(updateRouteFor("2.12.17", { ...failed, inFlight: "check" }, SEEN)).toBe("wait");
+    expect(updateRouteFor("2.12.17", { ...failed, inFlight: "check", available: true, version: "2.12.16" }, SEEN)).toBe(
+      "wait"
+    );
+    expect(updateRouteFor("2.12.17", { ...failed, inFlight: "check", available: true, version: "2.12.17" }, SEEN)).toBe(
+      "restart"
+    );
+  });
+
+  test("a regular check after a fresh answer keeps that answer until the new one arrives", () => {
+    const noUpdate = { ...idle, inFlight: "check" as const };
+    expect(updateRouteFor("2.12.17", noUpdate, SEEN)).toBe("store");
+    const tooOld = { ...noUpdate, available: true, version: "2.12.16" };
+    expect(updateRouteFor("2.12.17", tooOld, SEEN)).toBe("store");
+    expect(updateRouteFor("2.12.16", tooOld, SEEN)).toBe("restart");
+  });
+
+  test("waits while a download or the startup procedure is running", () => {
+    const downloading = { ...idle, available: true, version: "2.12.16", inFlight: "download" as const };
+    expect(updateRouteFor("2.12.17", downloading, SEEN)).toBe("wait");
+    expect(updateRouteFor("2.12.17", { ...downloading, available: false, version: undefined }, SEEN)).toBe("wait");
+    expect(updateRouteFor("2.12.17", { ...downloading, checked: false, answeredAt: null }, SEEN)).toBe("wait");
+    expect(updateRouteFor("2.12.16", downloading, SEEN)).toBe("restart");
+  });
+
+  test("a target raised after the last answer waits for a fresh check", () => {
+    const stale = { ...idle, answeredAt: SEEN - 1 };
+    // Just published: the target moved past the phone's last answer.
+    expect(updateRouteFor("2.12.18", stale, SEEN)).toBe("wait");
+    expect(updateRouteFor("2.12.18", { ...stale, inFlight: "check" }, SEEN)).toBe("wait");
+    // Not yet noted when the phone saw the target: wait too.
+    expect(updateRouteFor("2.12.18", idle, null)).toBe("wait");
+    // The fresh check finds the update: restart. Finds nothing: the store.
+    expect(updateRouteFor("2.12.18", { ...idle, available: true, version: "2.12.18" }, SEEN)).toBe("restart");
+    expect(updateRouteFor("2.12.18", idle, SEEN)).toBe("store");
+    // The fresh check fails: the store, as for any failed check.
+    expect(updateRouteFor("2.12.18", { ...stale, answeredAt: null }, SEEN)).toBe("store");
   });
 });

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
-import { UpdatePill } from "@/components/AppUpdatePrompt";
+import { UpdateButton } from "@/components/AppUpdatePrompt";
 import { Avatar, usePressScale } from "@/components/ui";
 import { ActingAsChip } from "@/components/nav/ActingAs";
 import { useNavDrawer } from "@/components/nav/NavDrawer";
@@ -53,8 +53,8 @@ export const TopBar = ({
         <View style={styles.chipRow} pointerEvents="box-none">
           <TestEnvironmentChip />
           <ActingAsChip />
+          <UpdateButton />
         </View>
-        <UpdatePill />
       </View>
       {isAuthenticated ? (
         <Animated.View style={{ transform: [{ scale: menu.scale }] }}>
