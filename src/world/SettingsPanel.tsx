@@ -109,7 +109,7 @@ export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; t
               label="Chat names"
               options={[
                 { value: "initials", text: chatName(name, "initials"), hint: "Initials" },
-                { value: "first", text: chatName(name, "first"), hint: "First name" },
+                { value: "first", text: chatName(name, "first"), hint: "First name and initial" },
               ]}
             />
           </Row>

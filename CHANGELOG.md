@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.47] - 2026-11-25
+
+### Changed
+- **The World and the games show a first name and a last initial.** Where a
+  name showed in full ("Daniel Kim"), it now reads "Daniel K." (a one-word
+  name stays as it is): the people lists and sheets, chat log lines (with the
+  "first name" style), the World list, action hints, the person sheet, duel
+  prompts, invite cards and the game leaderboards. Name tags already did this.
+  Your own still shows as "You" where it did.
+
+### Fixed
+- **The newer hats sit right on curly hair, an afro and a bun.**
+  - With an afro, the bow, party hat and crown sit on top of it instead of
+    sinking into it, and the beret squashes it so it puffs out at the sides.
+  - With curly hair, the headband shows across the top instead of hiding
+    under the curls.
+  - A bun is tucked under a beret instead of poking out above it.
+
 ## [2.12.46] - 2026-11-24
 
 ### Added

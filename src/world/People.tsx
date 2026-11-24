@@ -2,7 +2,8 @@ import { Btn, Field } from "@/components/ui";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
-import { isPlace, MAX_POKE_LENGTH, PLACE_TITLES, PLACES, tagName, type Look, type Place } from "@shared/world";
+import { isPlace, MAX_POKE_LENGTH, PLACE_TITLES, PLACES, type Look, type Place } from "@shared/world";
+import { shortName } from "@shared/names";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
@@ -97,7 +98,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
       if (!reply.ok) return setError(`You can poke again in ${Math.ceil(reply.retryInMs / 60_000)} min.`);
       setWritingTo(null);
       setMessage("");
-      setSent(inviting ? `Invited ${tagName(name)} home.` : `Poked ${tagName(name)}. They'll get a notification.`);
+      setSent(inviting ? `Invited ${shortName(name)} home.` : `Poked ${shortName(name)}. They'll get a notification.`);
     } catch (e) {
       setError(problem(e));
     } finally {
@@ -138,7 +139,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                 </View>
                 <View style={styles.grow}>
                   <Text style={styles.name} numberOfLines={1}>
-                    {tagName(p.name)}
+                    {shortName(p.name)}
                   </Text>
                   <Text style={styles.where}>{p.lastSeenAt === null ? "Not been yet" : timeAgo(p.lastSeenAt, now)}</Text>
                 </View>
@@ -147,7 +148,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                     <GlassPill
                       icon="mail"
                       disabled={waitMs > 0}
-                      accessibilityLabel={`Invite ${p.name} to your home`}
+                      accessibilityLabel={`Invite ${shortName(p.name)} to your home`}
                       testID={`world-invite-offline-${p.id}`}
                       onPress={() => {
                         setError(null);
@@ -161,7 +162,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                       label="Poke"
                       icon="notifications-outline"
                       disabled={waitMs > 0}
-                      accessibilityLabel={`Poke ${p.name}`}
+                      accessibilityLabel={`Poke ${shortName(p.name)}`}
                       onPress={() => {
                         setError(null);
                         setSent(null);
@@ -286,20 +287,20 @@ export const PeoplePanel = ({
             <Animated.View key={p.memberId} style={itemStyle(overlay, next())}>
               <PersonRow
                 look={p.look}
-                name={p.isMe ? `${tagName(p.name)} (you)` : tagName(p.name)}
+                name={p.isMe ? `${shortName(p.name)} (you)` : shortName(p.name)}
                 where={p.away ? "🕹️ At the arcade" : placeLabel(place)}
                 ping={p.isMe ? p.ping : barsOf.get(p.memberId)}
-                label={p.isMe ? `${p.name} (you)` : p.name}
+                label={p.isMe ? `${shortName(p.name)} (you)` : shortName(p.name)}
                 onPress={p.isMe ? undefined : () => onPerson(p.memberId)}
                 action={
                   p.isMe ? null : (
                     <>
-                      <GlassPill icon="mail" onPress={() => onInvite(p.memberId, p.name)} accessibilityLabel={`Invite ${p.name} to your home`} testID={`world-invite-${p.memberId}`} />
+                      <GlassPill icon="mail" onPress={() => onInvite(p.memberId, p.name)} accessibilityLabel={`Invite ${shortName(p.name)} to your home`} testID={`world-invite-${p.memberId}`} />
                       <GlassPill
                         icon="walk"
                         tone="accent"
                         onPress={() => onWalkOver(p.memberId)}
-                        accessibilityLabel={`Walk over to ${p.name}`}
+                        accessibilityLabel={`Walk over to ${shortName(p.name)}`}
                         testID={`world-walk-${p.memberId}`}
                       />
                     </>
@@ -320,20 +321,20 @@ export const PeoplePanel = ({
               ) : (
                 <PersonRow
                   look={row.look}
-                  name={tagName(row.name)}
+                  name={shortName(row.name)}
                   where={row.at ? placeLabel(row.at) : "Somewhere else"}
                   ping={row.ping}
-                  label={row.at ? `${row.name}, in ${PLACE_TITLES[row.at]}` : row.name}
+                  label={row.at ? `${shortName(row.name)}, in ${PLACE_TITLES[row.at]}` : shortName(row.name)}
                   onPress={row.at ? () => onFollow(row.at!, row.memberId) : undefined}
                   action={
                     row.at ? (
                       <>
-                      <GlassPill icon="mail" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${row.name} to your home`} testID={`world-invite-${row.memberId}`} />
+                      <GlassPill icon="mail" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${shortName(row.name)} to your home`} testID={`world-invite-${row.memberId}`} />
                       <GlassPill
                         icon="navigate"
                         tone="accent"
                         onPress={() => onFollow(row.at!, row.memberId)}
-                        accessibilityLabel={`Go to ${row.name} in ${PLACE_TITLES[row.at]}`}
+                        accessibilityLabel={`Go to ${shortName(row.name)} in ${PLACE_TITLES[row.at]}`}
                         testID={`world-follow-${row.memberId}`}
                       />
                       </>
@@ -359,7 +360,7 @@ export const PeoplePanel = ({
               <Section>Blocked</Section>
               {blocked.map((b) => (
                 <View key={b.id} style={styles.offlineHead}>
-                  <Text style={[styles.name, styles.grow]}>{b.name}</Text>
+                  <Text style={[styles.name, styles.grow]}>{shortName(b.name)}</Text>
                   <GlassPill label="Unblock" onPress={() => void unblock({ blockId: b.id as Id<"worldBlocks"> })} />
                 </View>
               ))}

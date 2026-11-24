@@ -8,6 +8,7 @@ import { useWorldSetting } from "./settings";
 import { useChatLog } from "./useChatLog";
 import { PENDING } from "./useWorld";
 import { saidLabel } from "./view";
+import { shortName } from "@shared/names";
 
 const LINE_HEIGHT = 19;
 const SHOWN_LINES = 5;
@@ -115,7 +116,7 @@ export const ChatLog = ({
             style={styles.line}
             onLayout={measure(line.id)}
             accessibilityLabel={saidLabel(line)}
-            accessibilityHint={line.isMe ? undefined : `Mute, block or report ${line.name}`}
+            accessibilityHint={line.isMe ? undefined : `Mute, block or report ${shortName(line.name)}`}
             onPress={line.isMe ? undefined : () => onLine(line.memberId, line.name)}
             suppressHighlighting
             testID="world-chat-line"

@@ -1,17 +1,13 @@
+import { shortName } from "../../shared/names";
 import { isPlace, PLACE_TITLES } from "../../shared/world";
 import { clock, lineText } from "./view";
 
 type ChatNameStyle = "initials" | "first";
 
-const FIRST_NAME_MOST = 14;
-
 export const chatName = (name: string, style: ChatNameStyle): string => {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return style === "initials" ? "?" : "Someone";
-  if (style === "first") {
-    const first = Array.from(words[0]);
-    return first.length > FIRST_NAME_MOST ? `${first.slice(0, FIRST_NAME_MOST - 1).join("")}…` : words[0];
-  }
+  if (style === "first") return shortName(name);
   const ends = words.length > 1 ? [words[0], words[words.length - 1]] : [words[0]];
   return ends.map((word) => Array.from(word)[0].toUpperCase()).join("");
 };

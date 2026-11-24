@@ -11,10 +11,10 @@ test("initials take the first and last names", () => {
   expect(chatName("   ", "initials")).toBe("?");
 });
 
-test("first names stay whole unless they're very long", () => {
-  expect(chatName("Daniel Kim", "first")).toBe("Daniel");
+test("the name style is the first name and last initial, as everywhere else in the World", () => {
+  expect(chatName("Daniel Kim", "first")).toBe("Daniel K.");
   expect(chatName("Sijin", "first")).toBe("Sijin");
-  expect(chatName("Bartholomewsworth Jones", "first")).toBe("Bartholomewsw…");
+  expect(chatName("Bartholomewsworth Jones", "first")).toBe("Bartholomewsw… J.");
   expect(chatName("", "first")).toBe("Someone");
 });
 
@@ -22,7 +22,7 @@ const line = { at: Date.UTC(2026, 10, 24, 3, 15), name: "Daniel Kim", text: "hi"
 
 test("chat lines hide the time by default and show it when asked", () => {
   expect(chatLineParts(line, { times: false, names: "initials" })).toEqual({ time: null, place: null, name: "DK", text: "hi" });
-  expect(chatLineParts(line, { times: true, names: "first" })).toEqual({ time: clock(line.at), place: null, name: "Daniel", text: "hi" });
+  expect(chatLineParts(line, { times: true, names: "first" })).toEqual({ time: clock(line.at), place: null, name: "Daniel K.", text: "hi" });
 });
 
 test("a line still sending shows dots for its time, only when times are on", () => {

@@ -254,7 +254,7 @@
         "src/lib/games/**",
         "src/hooks/useOffline.ts",
         "convex/{gameScores,gameScoreData,gameCharacters}.ts",
-        "shared/{games,gameCharacters}.ts"
+        "shared/{games,gameCharacters,names}.ts"
       ],
       "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=world", "/games/glider?preview=night"]
     },
@@ -266,7 +266,7 @@
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
         "convex/{world,worldData,worldHome,coins}.ts",
-        "shared/{world,worldPath,home,coins,ball}.ts"
+        "shared/{world,worldPath,home,coins,ball,names}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise"]
     },

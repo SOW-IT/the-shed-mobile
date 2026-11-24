@@ -7,6 +7,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { WorldMember } from "./useWorld";
+import { shortName } from "@shared/names";
 
 export const problem = (e: unknown) => (e instanceof ConvexError ? String(e.data) : "That didn't work. Try again.");
 
@@ -62,7 +63,7 @@ export const PersonSheet = ({
     }
   };
   const visible = person !== null;
-  const name = person?.name ?? "";
+  const name = person ? shortName(person.name) : "";
   return (
     <Sheet visible={visible} onClose={close} title={name}>
       {reporting ? (

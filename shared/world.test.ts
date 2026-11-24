@@ -76,7 +76,6 @@ import {
   posAt,
   SPAWN,
   spawnFor,
-  tagName,
   takeToken,
   WALK_BOUNDS,
   WALK_SPEED,
@@ -330,16 +329,6 @@ describe("version 3 looks", () => {
     const rolls = [0.3, 0.15];
     expect(randomLook(() => rolls[i++] ?? 0.5).accessory).toBe(0);
   });
-});
-
-test("tagName shows a short first name and the last name's initial", () => {
-  expect(tagName("  Grace   Lee ")).toBe("Grace L.");
-  expect(tagName("Daniel Chan kim")).toBe("Daniel K.");
-  expect(tagName("Grace")).toBe("Grace");
-  expect(tagName("Maximiliannnnnnnn Ng")).toBe("Maximiliannnn… N.");
-  expect(tagName("")).toBe("Someone");
-  expect(tagName("Maximiliannnnnnnn")).toBe("Maximiliannnn…");
-  expect(tagName("abcdefghijkl😀zzz")).toBe("abcdefghijkl😀…");
 });
 
 test("cleanLine trims, joins lines and caps the length", () => {

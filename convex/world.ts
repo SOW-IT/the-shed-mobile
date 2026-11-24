@@ -13,7 +13,6 @@ import {
   OFFLINE_LIST_SIZE,
   POKE_EVERY_MS,
   POKED_GAP_MS,
-  tagName,
   arrivalSpot,
   clearSpot,
   coversPadLabel,
@@ -67,6 +66,7 @@ import {
   type StateBucket,
   JOINED_WORLD,
 } from "../shared/world";
+import { shortName } from "../shared/names";
 import { HOME_CAP, homeObstacles } from "../shared/home";
 import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
 import { sanitizePath } from "../shared/worldPath";
@@ -1473,12 +1473,12 @@ const sendPoke = async (
   if (target.email === me.email || (await blockedEither(ctx, me.email, target.email))) {
     throw new ConvexError("They can't be poked right now.");
   }
-  if (await memberByEmail(ctx, target.email)) throw new ConvexError(`${tagName(target.name)} is already in the garden.`);
+  if (await memberByEmail(ctx, target.email)) throw new ConvexError(`${shortName(target.name)} is already in the garden.`);
   const visitor = await visitorOf(ctx, target.email);
   const poked = await pokedOf(ctx, target.email);
   const lastPokedAt = Math.max(visitor?.lastPokedAt ?? -Infinity, poked?.lastPokedAt ?? -Infinity);
   if (now - lastPokedAt < POKED_GAP_MS) {
-    throw new ConvexError(`${tagName(target.name)} was poked a moment ago. Give them a few minutes.`);
+    throw new ConvexError(`${shortName(target.name)} was poked a moment ago. Give them a few minutes.`);
   }
   const mine = await visitorOf(ctx, me.email);
   const waited = now - (mine?.lastPokeAt ?? 0);
@@ -1495,14 +1495,14 @@ const sendPoke = async (
   let fallback: string;
   if (kind === "invite") {
     url = `/world?invite=${await upsertInvite(ctx, me, target.email, now)}`;
-    title = `${tagName(me.member.name)} invited you home`;
+    title = `${shortName(me.member.name)} invited you home`;
     fallback = "Come over to my home.";
   } else {
     const spot = posAt(me.state, now);
     if (owner === me.email) await upsertInvite(ctx, me, target.email, now);
     const pokeId = await ctx.db.insert("worldPokes", { from: me.email, to: target.email, place, owner, x: spot.x, z: spot.z, at: now });
     url = `/world?poke=${pokeId}`;
-    title = `${tagName(me.member.name)} poked you`;
+    title = `${shortName(me.member.name)} poked you`;
     fallback = `Come and join me in ${placeWords(place)}.`;
   }
   const body = (message === undefined ? null : cleanPoke(message)) ?? fallback;
