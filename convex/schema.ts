@@ -380,10 +380,15 @@ export default defineSchema({
     runId: v.optional(v.string()),
     game: v.optional(v.string()),
     item: v.optional(v.string()),
+    // A game payout's leaderboard place (1 to 3) and board (`boardOf`).
+    // Payouts from before 2.12.49 paid by score and have neither.
+    place: v.optional(v.number()),
+    board: v.optional(v.string()),
     at: v.number(),
   })
     .index("by_email_and_runId", ["email", "runId"])
-    .index("by_email_and_at", ["email", "at"]),
+    .index("by_email_and_at", ["email", "at"])
+    .index("by_email_and_board", ["email", "board"]),
 
   // Singleton bookkeeping: when the self-scheduling sweeper next runs.
   worldMeta: defineTable({

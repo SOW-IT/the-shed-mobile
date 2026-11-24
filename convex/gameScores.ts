@@ -3,7 +3,8 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { MAX_SCORES_PER_SUBMIT, scoreProblem, type GameId } from "../shared/games";
-import { awardRun } from "./coins";
+import { PLACE_COINS } from "../shared/coins";
+import { awardPlace, paidForRun, type RunPayout } from "./coins";
 import { gameIdValidator } from "./gameScoreData";
 import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
 
@@ -26,14 +27,16 @@ const queuedScoreValidator = v.object({
  * phone sends the same run id on every retry, and a run that isn't better
  * than the saved best changes nothing, so sending a run twice is harmless.
  * Every run comes back as accepted or rejected, so the phone can stop
- * sending it either way.
+ * sending it either way. A run that becomes someone's best and puts them in
+ * the game's top 3 pays coins for that place (`awardPlace`); `coins` lists
+ * what each run paid, and a resent run gets the same answer.
  */
 export const submitScores = mutation({
   args: { scores: v.array(queuedScoreValidator) },
   returns: v.object({
     accepted: v.array(v.string()),
     rejected: v.array(v.object({ runId: v.string(), reason: v.string() })),
-    coins: v.array(v.object({ runId: v.string(), coins: v.number() })),
+    coins: v.array(v.object({ runId: v.string(), coins: v.number(), place: v.optional(v.number()) })),
   }),
   handler: async (ctx, { scores }) => {
     const email = await requireEmail(ctx);
@@ -43,7 +46,7 @@ export const submitScores = mutation({
     const now = Date.now();
     const accepted: string[] = [];
     const rejected: { runId: string; reason: string }[] = [];
-    const coins: { runId: string; coins: number }[] = [];
+    const coins: ({ runId: string } & RunPayout)[] = [];
     for (const entry of scores) {
       const reason = scoreProblem(entry, now);
       if (reason) {
@@ -51,21 +54,36 @@ export const submitScores = mutation({
         continue;
       }
       accepted.push(entry.runId);
-      const paid = await awardRun(ctx, email, entry, now);
-      if (paid !== null && !coins.some((c) => c.runId === entry.runId)) coins.push({ runId: entry.runId, coins: paid });
+      if (coins.some((c) => c.runId === entry.runId)) continue;
+      const before = await paidForRun(ctx, email, entry.runId);
       const best = await ctx.db
         .query("gameScores")
         .withIndex("by_email_and_game", (q) => q.eq("email", email).eq("game", entry.game))
         .unique();
       const run = { ...entry, updatedAt: now };
+      let newBest = true;
       if (!best) await ctx.db.insert("gameScores", { email, ...run });
       else if (best.runId !== entry.runId && entry.score > best.score) {
         await ctx.db.patch("gameScores", best._id, run);
-      }
+      } else newBest = false;
+      const paid = before ?? (newBest ? await awardPlace(ctx, email, entry, await topPlace(ctx, entry.game, entry.score), now) : null);
+      if (paid) coins.push({ runId: entry.runId, ...paid });
     }
     return { accepted, rejected, coins };
   },
 });
+
+/**
+ * The place a score holds on its game's board, as the board numbers it
+ * (equal scores share a place), or past the paying places when it's below 3rd.
+ */
+const topPlace = async (ctx: Ctx, game: GameId, score: number): Promise<number> => {
+  const ahead = await ctx.db
+    .query("gameScores")
+    .withIndex("by_game_and_score", (q) => q.eq("game", game).gt("score", score))
+    .take(PLACE_COINS.length);
+  return ahead.length + 1;
+};
 
 const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
   const resolved = await resolveName(ctx, email, currentStaffYear());

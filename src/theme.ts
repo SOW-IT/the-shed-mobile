@@ -213,7 +213,7 @@ export const fixedColours = {
     buttonGhost: { bg: "#2E3A48", text: "#ffffff", onDark: true },
     /** A character's face while its drawing loads. */
     loadingFace: "rgba(255, 255, 255, 0.18)",
-    coin: { face: "#F8D25C", rim: "#B8860B", mark: "#9A6B08", text: "#F6D365", chip: "rgba(248, 210, 92, 0.16)", capped: "rgba(255, 255, 255, 0.1)", cappedText: "rgba(255, 255, 255, 0.7)" },
+    coin: { face: "#F8D25C", rim: "#B8860B", mark: "#9A6B08", text: "#F6D365", chip: "rgba(248, 210, 92, 0.16)" },
     shooter: {
       sky: "#0E1B3D",
       star: "#C9D6FF",

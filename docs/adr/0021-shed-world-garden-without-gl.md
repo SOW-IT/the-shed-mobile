@@ -273,10 +273,18 @@ home also invites them in. An offline invite is the same push with
 `/world?invite=<id>` and shares the poke limits.
 
 Coins live on `worldWallets` (balance, what you own, today's earnings) with
-every change in `coinLedger`. `submitScores` pays for a run once, by run id,
-and only for the highest tier passed, up to `DAILY_COIN_CAP` (200) a Sydney
-day. The phone queues every paying run (up to 20) as well as each game's
-best, so offline runs pay when they sync. Buying reads the wallet on the
+every change in `coinLedger`. Since 2.12.49 games pay only for a top-3 place
+on the game's leaderboard (1st 50, 2nd 25, 3rd 10, `PLACE_COINS`), when a run
+becomes your best and lands you there. The board is the one the app shows:
+one per game for everyone, not per staff year, named by the game's last
+reset (`boardOf`), so a wipe starts a new board. A board pays a place at most
+once and a climb pays the difference, so it pays one person at most 50 in
+all; each payout's ledger row carries its `place` and `board`. A run pays
+once, by run id, and a resent run gets the same answer. With every board
+capped at 50 a person, the old daily cap had nothing left to limit and went.
+Before 2.12.49 runs paid 10 or 20 coins for passing a score; those ledger
+rows have no board and count against none. The phone queues each game's best
+unpublished run, the only run that could pay. Buying reads the wallet on the
 server; the app's balance is only for show.
 
 What each new action writes:
@@ -289,7 +297,7 @@ What each new action writes:
 | `travel` to a home | as any travel, plus the home room the first time | the act bucket |
 | `buy` | 2: wallet, ledger (3 with the wallet made on first use) | once per tap |
 | `placeItem`, `moveItem`, `removeItem`, `setWallpaper` | 1: the home row, bucket included (2 the first time, making it) | 6 at once, one a second after |
-| A paying run in `submitScores` | 2: wallet, ledger (a run already paid writes nothing) | 200 coins a day |
+| A paying run in `submitScores` | 2: wallet, ledger (a run already paid writes nothing) | 50 coins a person per game board, ever |
 
 A player decorating flat out writes at most 60 documents a minute, and
 decorating replaces walking, so it doesn't add to the 152 above.
