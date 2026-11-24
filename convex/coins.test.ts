@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
-import { boardOf, START_COINS } from "../shared/coins";
+import { boardOf, coinDay, START_COINS } from "../shared/coins";
 import type { GameId } from "../shared/games";
 
 const ANNA = "anna@sow.org.au";
@@ -162,6 +162,15 @@ describe("coins", () => {
     const t = newConvex();
     await submit(t, [run("flappy", 800), run("shooter", 5000), run("runner", 3000), run("glider", 3000)]);
     expect(await asUser(t, ANNA).query(api.coins.mine, {})).toMatchObject({ balance: START_COINS + 200, earnedToday: 200 });
+  });
+
+  test("a place still pays after 200 coins earned today", async () => {
+    const t = newConvex();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("worldWallets", { email: ANNA, balance: START_COINS + 200, earnedDay: coinDay(Date.now()), earnedToday: 200, items: {}, wallpapers: [] });
+    });
+    expect((await submit(t, [run("flappy", 800, "run-past-200")])).coins).toEqual([{ runId: "run-past-200", coins: 50, place: 1 }]);
+    expect(await asUser(t, ANNA).query(api.coins.mine, {})).toMatchObject({ balance: START_COINS + 250, earnedToday: 250 });
   });
 
   test("score-band payouts from before keep their answer and don't count against a board", async () => {

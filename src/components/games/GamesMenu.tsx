@@ -8,6 +8,7 @@ import { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { GAME_IDS, GAME_INFO, type GameId } from "../../../shared/games";
 import { OnlineBanner } from "./OnlineBanner";
+import { usePreloadAvatarArt } from "./GameCharacter";
 
 // Ionicons only: the app has already loaded that font, and offline on web
 // another icon font can't be fetched.
@@ -97,6 +98,7 @@ export const GamesMenu = ({
   /** Opens the World; left out where it can't open (offline). */
   onGarden?: () => void;
 }) => {
+  usePreloadAvatarArt();
   const bests = useLocalBests();
   const waiting = useScoreQueue().length;
   const offline = useOffline();
