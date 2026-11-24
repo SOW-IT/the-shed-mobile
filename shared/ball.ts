@@ -5,7 +5,7 @@ export type Ball = { x: number; z: number; vx: number; vz: number; at: number };
 export type RollingBall = { x: number; z: number; vx: number; vz: number; rolling: boolean; floating: boolean; travelled: number };
 
 export const BALL_HOME = { x: 0.9, z: 1.0 } as const;
-export const BALL_RADIUS = 0.24;
+export const BALL_RADIUS = 0.32;
 export const KICK_SPEED = 5.5;
 export const KICK_GAP_MS = 400;
 export const KICK_REACH = 2.5;

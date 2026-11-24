@@ -31,7 +31,38 @@ All notable changes to **The SHED** mobile app. This project follows
   orange plaid, over a black tee.
 - **Tap the signal bars to show or hide the milliseconds.** Off by default,
   and remembered on this phone or browser.
-- **Sijin wears the Flannel.**
+- **Sijin looks like Sijin.** Bald, with a short beard, a big grin and
+  narrow smiling eyes, in the Flannel. The shop and anywhere else that draws
+  him show the same look.
+- **A Short beard** in the character editor: a close beard along the jaw
+  with a moustache.
+- **Tap your coins to see how to get more.** A card pops up with your
+  balance and a spinning coin: the scores that earn 10 or 20 coins in Flap,
+  Mystic Man and Sky Shooter, the 200 a day limit, and that Sijin in the
+  Café sells furniture.
+- **Mouths move when people talk.** Whoever says something opens and closes
+  their mouth for a moment, longer for a longer line, on everyone's screen.
+- **A beach ball.** Walk into it at the Beach, or tap it when you're close,
+  and it rolls, slows down, bounces off the edges and can float out to sea.
+  Everyone in the room sees it in the same place.
+- **Rock paper scissors shows the picks.** At the reveal each player's
+  bubble shows their ✊, ✋ or ✌️ instead of "Rock!".
+
+### Changed
+- **"joined the World".** Join lines in the chat log say someone joined the
+  World, not a place. Leave lines still say "left".
+- **Name tags and bubbles stay over their owners.** They're no longer pushed
+  aside or stacked; someone standing in front is drawn over the tag of
+  someone behind them.
+- **The invite button is an envelope.** Inviting someone to your home uses
+  a mail icon instead of a house.
+
+### Fixed
+- **You can sit on the Campfire's back log.** Tapping it used to walk you to
+  it; now it sits you down like the side logs.
+- **The web sweep waits for the World to load.** The first visit compiles
+  the World's code on demand, which took longer on CI than a screen gets to
+  settle; the timer now starts once that code has arrived.
 
 ## [2.12.39] - 2026-11-24
 

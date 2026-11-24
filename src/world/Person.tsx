@@ -1504,6 +1504,7 @@ export const Tag = ({
   emoteRise,
   lineFade = 1,
   status,
+  shout = false,
 }: {
   x: number;
   y: number;
@@ -1516,6 +1517,7 @@ export const Tag = ({
   emoteRise: number;
   lineFade?: number;
   status?: string;
+  shout?: boolean;
 }) => (
   <View pointerEvents="none" style={[styles.tag, { left: x - 120, top: y - 400 }]}>
     {emote ? (
@@ -1528,7 +1530,7 @@ export const Tag = ({
           { opacity: lineFade, transform: [{ translateY: (1 - lineFade) * 6 }, { scale: 0.92 + 0.08 * lineFade }] },
         ]}
       >
-        <Text style={styles.bubbleText}>{line}</Text>
+        <Text style={[styles.bubbleText, shout && styles.shoutText]}>{line}</Text>
         <View style={styles.tailRow}>
           <View style={styles.tailInk} />
           <View style={styles.tail} />
@@ -1579,6 +1581,7 @@ const styles = StyleSheet.create({
   typingBubble: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 11 },
   typingDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: hud.forest },
   bubbleText: { color: hud.forest, fontSize: 14.5, lineHeight: 18.5, fontWeight: "600" },
+  shoutText: { fontSize: 30, lineHeight: 36 },
   status: {
     fontSize: 11,
     fontWeight: "700",

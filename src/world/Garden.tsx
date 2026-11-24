@@ -18,6 +18,7 @@ import {
   PORTAL_RADIUS,
   PORTALS,
   NPC,
+  DUEL_PICKS,
   seatIn,
   tagName,
   type Place,
@@ -41,7 +42,7 @@ import { layerOrder } from "./tags";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
 import { mouthAt } from "./talk";
-import { BALL_PLACE, BALL_RADIUS, ballAt, KICK_TAP_REACH, KICK_TOUCH, kickDirection, restingBall, type Ball, type RollingBall } from "@shared/ball";
+import { BALL_PLACE, BALL_RADIUS, ballAt, KICK_GAP_MS, KICK_TAP_REACH, KICK_TOUCH, kickDirection, restingBall, type Ball, type RollingBall } from "@shared/ball";
 
 type GardenPerson = {
   memberId: string;
@@ -277,13 +278,15 @@ export const Garden = ({
   const meTouching = rolled !== null && placed !== null && placed.walking && Math.hypot(placed.x - rolled.x, placed.z - rolled.z) < KICK_TOUCH;
   const kickRef = useRef(onKick);
   const kickFrom = useRef({ me: placed, ball: rolled });
+  const keptAt = useRef(0);
   useEffect(() => {
     kickRef.current = onKick;
     kickFrom.current = { me: placed, ball: rolled };
   });
   useEffect(() => {
     const { me: at, ball: there } = kickFrom.current;
-    if (!meTouching || !at || !there) return;
+    if (!meTouching || !at || !there || Date.now() - keptAt.current < KICK_GAP_MS) return;
+    keptAt.current = Date.now();
     const dir = kickDirection(at, there, { x: Math.sin(at.heading), z: Math.cos(at.heading) });
     kickRef.current?.(dir.x, dir.z);
   }, [meTouching]);
@@ -539,6 +542,7 @@ export const Garden = ({
           emoteRise={rise}
           lineFade={line && !chant ? bubbleFades[i] : 1}
           status={p.away ? AWAY_STATUS : undefined}
+          shout={chant !== undefined && SHOUTS.has(chant)}
         />
       ),
     });
@@ -720,6 +724,7 @@ const ITEM = "item:";
 const NPC_POSE = { x: NPC.x, z: NPC.z, heading: NPC.heading, walking: false, arrivesAt: 0, stridePhase: 0, strideAmp: 0 };
 const NPC_TAG = "☕ Sijin Y.";
 const SEATED_WITHIN = 0.25;
+const SHOUTS = new Set<string>(Object.values(DUEL_PICKS).map((pick) => pick.icon));
 const AWAY_STATUS = "🕹️ Playing";
 const PAD_LABEL_WIDTH = 132;
 const PAD_LABEL_CLEAR_BOTTOM = 130;

@@ -71,7 +71,7 @@ const SPARKS = [
 ];
 
 const tierText = (tiers: readonly { over: number; coins: number }[]) =>
-  tiers.map((tier) => `${tier.over.toLocaleString()}+ → ${tier.coins}`).join("  ·  ");
+  tiers.map((tier) => `${tier.over.toLocaleString()}+ → ${tier.coins} coins`).join("  ·  ");
 
 export const CoinsPanel = ({
   open,
@@ -201,9 +201,9 @@ const styles = StyleSheet.create({
   balance: { fontFamily: fonts.display, fontSize: 30, color: hud.forest, marginTop: 2 },
   unit: { fontSize: 13, fontWeight: "700", color: gold.text, marginBottom: 12 },
   heading: { alignSelf: "stretch", fontFamily: fonts.display, fontSize: 16, color: hud.forest, marginBottom: 6 },
-  row: { alignSelf: "stretch", flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingVertical: 7, paddingHorizontal: 10, marginBottom: 6, borderRadius: 14, backgroundColor: hud.primarySoft },
+  row: { alignSelf: "stretch", gap: 2, paddingVertical: 7, paddingHorizontal: 12, marginBottom: 6, borderRadius: 14, backgroundColor: hud.primarySoft },
   game: { fontWeight: "800", fontSize: 14, color: hud.forest },
-  tiers: { fontWeight: "700", fontSize: 13, color: gold.text, flexShrink: 1, textAlign: "right" },
+  tiers: { fontWeight: "700", fontSize: 13, color: gold.text },
   note: { alignSelf: "stretch", fontSize: 13, lineHeight: 18, color: hud.primary, marginTop: 4 },
   shop: { alignSelf: "stretch", flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12, padding: 8, borderRadius: 16, backgroundColor: hud.accentSoft },
   shopText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: "600", color: hud.forest },
