@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.48] - 2026-11-25
+
+### Changed
+- **Games pay coins only for a top-3 place on the leaderboard.** 1st pays 50
+  coins, 2nd 25 and 3rd 10, on each game's leaderboard (Sky Shooter, Mystic
+  Man, Flap, and any game added later). You're paid when a new best puts you
+  in a place, and each place pays you once per game: climbing from 3rd to 1st
+  pays the 40 you haven't had yet, and being knocked off 1st and winning it
+  back pays nothing more. Equal scores share a place, as the leaderboard
+  shows. Scoring past a mark no longer pays, and the 200-a-day limit is gone,
+  since no game can pay anyone more than 50. Coins you already have stay. If
+  a game's leaderboard is ever wiped, its places can be won again.
+- **The game-over card says why you earned coins**, such as "2nd place on
+  Flap: +25", and the coins card in the World lists what each place pays.
+
 ## [2.12.45] - 2026-11-24
 
 ### Added

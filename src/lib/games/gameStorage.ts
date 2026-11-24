@@ -102,13 +102,16 @@ export const recordRun = (game: GameId, score: number, durationMs: number): Prom
   ]).then(() => entry.runId);
 };
 
-const paid = new Map<string, number>();
+/** What a run earned, and the leaderboard place it earned it for. */
+type Payout = { coins: number; place?: number };
+
+const paid = new Map<string, Payout>();
 const paidListeners = new Set<() => void>();
 let paidVersion = 0;
 
-export const notePaid = (coins: readonly { runId: string; coins: number }[]) => {
+export const notePaid = (coins: readonly ({ runId: string } & Payout)[]) => {
   if (coins.length === 0) return;
-  for (const { runId, coins: amount } of coins) paid.set(runId, amount);
+  for (const { runId, coins: amount, place } of coins) paid.set(runId, { coins: amount, place });
   paidVersion++;
   paidListeners.forEach((listener) => listener());
 };
@@ -120,7 +123,7 @@ const subscribePaid = (listener: () => void) => {
   };
 };
 
-export const usePaid = (runId: string | null): number | undefined => {
+export const usePaid = (runId: string | null): Payout | undefined => {
   useSyncExternalStore(subscribePaid, () => paidVersion, () => paidVersion);
   return runId === null ? undefined : paid.get(runId);
 };

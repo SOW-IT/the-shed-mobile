@@ -3,7 +3,6 @@ import {
   CLOCK_SKEW_MS,
   enqueueScore,
   isGameId,
-  MAX_PAYING_RUNS,
   MAX_RUN_MS,
   MAX_SCORE_AGE_MS,
   NO_BESTS,
@@ -85,43 +84,17 @@ describe("enqueueScore", () => {
     expect(enqueueScore([good], endless, NOW)).toEqual([good]);
   });
 
-  test("keeps every run that earns coins, as well as the best", () => {
-    const low = entry({ runId: "run-low-1", game: "flappy", score: 100, durationMs: 600_000 });
-    const pays = entry({ runId: "run-pays-1", game: "flappy", score: 600, durationMs: 600_000 });
-    const paysLess = entry({ runId: "run-pays-2", game: "flappy", score: 520, durationMs: 600_000 });
-    let queue = enqueueScore([], low, NOW);
-    queue = enqueueScore(queue, pays, NOW);
-    queue = enqueueScore(queue, paysLess, NOW);
-    expect(queue).toEqual([pays, paysLess]);
+  test("a queued run that can no longer publish gives way to any new run of its game", () => {
+    const stale = entry({ runId: "run-stale-2", game: "runner", score: 13_000, durationMs: 600_000, playedAt: SCORES_RESET_AT.runner! - 1 });
+    const fresh = entry({ runId: "run-fresh-2", game: "runner", score: 50 });
+    expect(enqueueScore([stale], fresh, NOW)).toEqual([fresh]);
   });
 
-  test(`keeps at most ${MAX_PAYING_RUNS} paying runs`, () => {
-    let queue: QueuedScore[] = [];
-    for (let i = 0; i < MAX_PAYING_RUNS + 3; i++) {
-      queue = enqueueScore(queue, entry({ runId: `run-many-${i}`, game: "flappy", score: 600, durationMs: 600_000 }), NOW);
-    }
-    expect(queue).toHaveLength(MAX_PAYING_RUNS);
-  });
-
-  test("a new best still fits when the paying runs are full, in place of the lowest", () => {
-    let queue: QueuedScore[] = [];
-    for (let i = 0; i < MAX_PAYING_RUNS; i++) {
-      queue = enqueueScore(queue, entry({ runId: `run-full-${i}`, game: "flappy", score: 600 + (i === 3 ? -1 : 0), durationMs: 600_000 }), NOW);
-    }
-    for (let i = 0; i < 3; i++) {
-      queue = enqueueScore(queue, entry({ runId: `run-best-${i}`, game: "flappy", score: 601 + i, durationMs: 600_000 }), NOW);
-    }
-    expect(queue).toHaveLength(MAX_PAYING_RUNS);
-    expect(queue.map((queued) => queued.runId)).not.toContain("run-full-3");
-    expect(queue.map((queued) => queued.runId)).toEqual(expect.arrayContaining(["run-best-0", "run-best-1", "run-best-2"]));
-  });
-
-  test("runs that can no longer publish don't take a paying run's place", () => {
-    const stale = Array.from({ length: MAX_PAYING_RUNS }, (_, i) =>
-      entry({ runId: `run-stale-${i}`, game: "runner", score: 13_000, durationMs: 600_000, playedAt: SCORES_RESET_AT.runner! - 1 })
-    );
-    const fresh = entry({ runId: "run-fresh-1", game: "flappy", score: 600, durationMs: 600_000 });
-    expect(enqueueScore(stale, fresh, NOW)).toEqual([fresh]);
+  test("a bad run still clears out queued runs that can no longer publish", () => {
+    const stale = entry({ runId: "run-stale-3", game: "runner", score: 13_000, durationMs: 600_000, playedAt: SCORES_RESET_AT.runner! - 1 });
+    const good = entry({ runId: "run-good-02", game: "flappy", score: 20 });
+    const endless = entry({ runId: "run-endless2", score: 900, durationMs: MAX_RUN_MS + 1 });
+    expect(enqueueScore([stale, good], endless, NOW)).toEqual([good]);
   });
 
   test("never queues a zero score", () => {

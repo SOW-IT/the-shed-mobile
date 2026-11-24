@@ -776,7 +776,6 @@ export const WorldScreen = ({
         open={coinsOpen}
         top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
         balance={wallet?.balance}
-        earnedToday={wallet?.earnedToday}
         onClose={() => setCoinsOpen(false)}
       />
       <PersonSheet

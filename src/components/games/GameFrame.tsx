@@ -274,7 +274,7 @@ export const GameFrame = ({
         <Text style={styles.cardBody}>
           Best {Math.max(result.previousBest, result.score).toLocaleString()}
         </Text>
-        {isAuthenticated ? <CoinGain runId={result.runId} /> : null}
+        {isAuthenticated ? <CoinGain runId={result.runId} game={game} /> : null}
         <Text style={styles.note} testID="game-saved-note">
           {savedNote({ signedIn: isAuthenticated, offline })}
         </Text>
