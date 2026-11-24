@@ -1,16 +1,32 @@
 import { useQuery } from "convex/react";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { appLinkForScheme, updateRouteFor } from "../../shared/appLinks";
 import { appScheme, appVersion } from "@/hooks/useReportAppVersion";
 import { openExternalLink } from "@/lib/openExternalLink";
-import { checkForUpdateOnce, restartIntoUpdate, useOtaState } from "@/lib/otaUpdates";
+import { restartIntoUpdate, useOtaState } from "@/lib/otaUpdates";
+import {
+  previewFromSearch,
+  runUpdate,
+  startPreview,
+  subscribeUpdatePhase,
+  updateButtonFor,
+  updatePhase,
+} from "@/lib/otaUpdateButton";
 
 const nativePlatform = (): "ios" | "android" | null =>
   Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : null;
 
 const storeName = (platform: "ios" | "android" | null) => (platform === "android" ? "Play Store" : "App Store");
+
+const PREVIEW_FAIL_AFTER_MS = 1500;
+
+const preview = __DEV__ ? previewFromSearch(globalThis.location?.search) : null;
+startPreview(preview);
+
+const previewRestart = () =>
+  new Promise<void>((_, reject) => setTimeout(() => reject(new Error("preview")), PREVIEW_FAIL_AFTER_MS));
 
 export const useAppUpdate = () => {
   const platform = nativePlatform();
@@ -22,37 +38,29 @@ export const useAppUpdate = () => {
     platform && version && storeUrl ? { platform, version } : "skip"
   );
   const ota = useOtaState();
-  const [restarting, setRestarting] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const phase = useSyncExternalStore(subscribeUpdatePhase, updatePhase, updatePhase);
   const status = storeUrl ? check?.status : undefined;
+  const latest = check?.latest ?? null;
   const behind = status === "recommended" || status === "required";
-  const route = behind ? updateRouteFor(check?.latest ?? null, ota) : null;
-  const waiting = route === "wait" && ota !== null && !ota.busy && !ota.checked;
-  useEffect(() => {
-    if (waiting) checkForUpdateOnce();
-  }, [waiting]);
-  const restart = () => {
-    if (restarting || !ota) return;
-    setRestarting(true);
-    setFailed(false);
-    restartIntoUpdate(ota.pending).catch(() => {
-      setRestarting(false);
-      setFailed(true);
-    });
-  };
+  const route = behind ? updateRouteFor(latest, ota) : null;
+  const button =
+    preview?.kind ?? updateButtonFor({ dev: __DEV__, web: Platform.OS === "web", ota, status, latest });
+  const restart = () => runUpdate(preview ? previewRestart : () => restartIntoUpdate(ota?.pending ?? false));
   const openStore = () => {
     if (storeUrl) void openExternalLink(storeUrl);
   };
   return {
     status,
     route,
-    latest: check?.latest ?? null,
+    button,
+    latest,
     message: check?.message ?? null,
     version,
+    platform,
     store: storeName(platform),
     restart,
-    restarting,
-    failed,
+    restarting: phase === "updating",
+    failed: phase === "failed",
     openStore,
   };
 };

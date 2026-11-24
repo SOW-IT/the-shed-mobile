@@ -6,6 +6,26 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.37] - 2026-11-24
+
+### Changed
+- **An Update button at the top whenever there's an update.** It sits in
+  the top bar on every screen that has one, as soon as there's a newer
+  over-the-air update for your phone than the one it's running. Tap it and
+  The SHED downloads the update if it hasn't yet and restarts into it,
+  showing "Updating…" meanwhile. If the download fails it says so and you
+  can tap again. It never sends you to the store when a restart will do.
+- **The store when only a new build will do.** When your version is behind
+  and nothing over the air reaches it, the same button shows with the App
+  Store or Play Store icon and opens the store. It waits until the phone
+  has heard back from the update server first.
+- **The phone asks for updates while it's open.** On launch, when you come
+  back to the app and every 15 minutes, at most once per 15 minutes.
+- **No more update popup.** The "Update The SHED" popup at each launch and
+  the pill with a close button are gone; the button above replaces them.
+  The profile's Update button follows the same rule. Versions below the
+  minimum still get the full-screen update screen.
+
 ## [2.12.36] - 2026-11-24
 
 ### Fixed

@@ -233,12 +233,12 @@ const VersionText = () => {
 
 const AppUpdateButton = () => {
   const update = useAppUpdate();
-  if (!update.route || update.route === "wait") return null;
+  if (!update.button) return null;
   return (
     <View style={styles.updateApp} testID="profile-update">
-      {update.route === "restart" ? (
+      {update.button === "restart" ? (
         <Btn
-          title={update.restarting ? "Restarting…" : "Restart to update"}
+          title={update.restarting ? "Updating…" : "Update"}
           icon="refresh"
           variant="tonal"
           disabled={update.restarting}
@@ -247,7 +247,7 @@ const AppUpdateButton = () => {
       ) : (
         <Btn title={`Open the ${update.store}`} icon="arrow-down-circle-outline" variant="tonal" onPress={update.openStore} />
       )}
-      <ErrorBanner message={update.failed ? "The update didn't download. Check your connection and try again." : null} />
+      <ErrorBanner message={update.button === "restart" && update.failed ? "The update didn't download. Check your connection and try again." : null} />
     </View>
   );
 };

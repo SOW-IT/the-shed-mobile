@@ -43,16 +43,6 @@ export const useOtaState: () => (OtaState & { pending: boolean }) | null = otaUp
         pending: state.isUpdatePending,
         version: manifestVersion(update?.manifest),
         checked: state.lastCheckForUpdateTimeSinceRestart !== undefined || state.checkError !== undefined,
-        busy: state.isChecking || state.isDownloading || state.isStartupProcedureRunning,
       };
     }
   : () => null;
-
-let askedServer = false;
-
-/** Asks the update server once per launch, when nothing else has yet. */
-export const checkForUpdateOnce = () => {
-  if (!otaUpdates || askedServer) return;
-  askedServer = true;
-  otaUpdates.checkForUpdateAsync().catch(() => undefined);
-};

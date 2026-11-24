@@ -63,10 +63,8 @@ export type OtaState = {
   available: boolean;
   /** The update's version, when its manifest says. */
   version?: string;
-  /** The phone has asked the update server since it started. */
+  /** The phone has heard back from the update server since it started. */
   checked: boolean;
-  /** It's asking, or downloading, right now. */
-  busy: boolean;
 };
 
 /**
@@ -86,7 +84,7 @@ export const updateRouteFor = (
     const reaches = !target || !ota.version || !isAppVersion(ota.version) || compareVersions(ota.version, target) >= 0;
     if (reaches) return "restart";
   }
-  if (!ota.checked || ota.busy) return "wait";
+  if (!ota.checked) return "wait";
   return "store";
 };
 
