@@ -74,6 +74,24 @@ export const makeCamera = (width: number, height: number, focus: { x: number; z:
   return { width, height, eye, project, ground };
 };
 
+export const closeCamera = (width: number, height: number, span: number): Camera => {
+  const target: Vec3 = [0, span * 0.28, 0];
+  const away = norm(OFFSET);
+  const distance = span * 3.2;
+  const eye: Vec3 = [target[0] + away[0] * distance, target[1] + away[1] * distance, target[2] + away[2] * distance];
+  const back = norm(sub(eye, target));
+  const right = norm(cross([0, 1, 0], back));
+  const up = cross(back, right);
+  const focal = (Math.min(width, height) * distance) / (span * 1.55);
+  const project = (p: Vec3): ScreenPoint => {
+    const d = sub(p, eye);
+    const depth = -dot(d, back);
+    const scale = focal / depth;
+    return { x: width / 2 + dot(d, right) * scale, y: height / 2 - dot(d, up) * scale, depth, scale };
+  };
+  return { width, height, eye, project, ground: () => null };
+};
+
 /** The view size a quad is drawn at before it's warped into place. */
 export const QUAD_SIZE = 100;
 

@@ -206,6 +206,7 @@ const WATER: Record<Place, readonly Water[]> = {
   campfire: [],
   cafe: [],
   beach: [{ kind: "sea", beyondZ: -7.4 }],
+  home: [],
 };
 
 export const inWater = (place: Place, at: { x: number; z: number }) =>
@@ -272,8 +273,10 @@ export const OBSTACLES = [
 type Obstacle = { id: string; x: number; z: number; rx: number; rz: number };
 
 export const PLACES = ["garden", "chapel", "campfire", "cafe", "beach"] as const;
-export type Place = (typeof PLACES)[number];
-export const isPlace = (value: unknown): value is Place => (PLACES as readonly unknown[]).includes(value);
+export type PublicPlace = (typeof PLACES)[number];
+export const HOME = "home";
+export type Place = PublicPlace | typeof HOME;
+export const isPlace = (value: unknown): value is Place => value === HOME || (PLACES as readonly unknown[]).includes(value);
 
 export const PLACE_TITLES: Record<Place, string> = {
   garden: "The Garden",
@@ -281,6 +284,7 @@ export const PLACE_TITLES: Record<Place, string> = {
   campfire: "The Campfire",
   cafe: "The Café",
   beach: "The Beach",
+  home: "Home",
 };
 
 export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
@@ -308,6 +312,7 @@ export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
     { id: "table-c", x: -1.9, z: -0.6, rx: 0.8, rz: 0.75 },
     { id: "couch", x: -2.4, z: 4.6, rx: 1.2, rz: 0.6 },
     { id: "plant", x: 3.3, z: -7.4, rx: 0.4, rz: 0.4 },
+    { id: "sijin", x: -3.35, z: -9.7, rx: 0.4, rz: 0.3 },
   ],
   beach: [
     { id: "umbrella", x: -2.4, z: -0.8, rx: 0.3, rz: 0.3 },
@@ -316,6 +321,7 @@ export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
     { id: "net-right", x: 1.7, z: 3.0, rx: 0.2, rz: 0.2 },
     { id: "palm", x: -3.0, z: 5.4, rx: 0.35, rz: 0.35 },
   ],
+  home: [],
 };
 
 type Portal = { to: Place; x: number; z: number };
@@ -348,6 +354,7 @@ export const PORTALS: Record<Place, readonly Portal[]> = {
     { to: "chapel", x: 0.4, z: 7 },
     { to: "campfire", x: 3.2, z: -2 },
   ],
+  home: [{ to: "garden", x: 0, z: 7 }],
 };
 
 type Seat = { id: string; x: number; z: number; heading: number; height: number };
@@ -356,10 +363,10 @@ const FACING_CAMERA = 0;
 const FACING_AWAY = Math.PI;
 const FACING_RIGHT = Math.PI / 2;
 const FACING_LEFT = -Math.PI / 2;
-const PEW_HEIGHT = 0.4;
-const LOG_HEIGHT = 0.44;
-const STOOL_HEIGHT = 0.45;
-const COUCH_HEIGHT = 0.56;
+const PEW_HEIGHT = 0.3;
+const LOG_HEIGHT = 0.3;
+const STOOL_HEIGHT = 0.32;
+const COUCH_HEIGHT = 0.34;
 const ON_THE_GROUND = 0;
 
 const along = (id: string, spots: [number, number][], heading: number, height: number): Seat[] =>
@@ -389,6 +396,7 @@ export const SEATS: Record<Place, readonly Seat[]> = {
   ],
   cafe: [...stools("table-a"), ...stools("table-b"), ...stools("table-c"), ...along("couch", [[-2.9, 4.7], [-1.9, 4.7]], FACING_CAMERA, COUCH_HEIGHT)],
   beach: along("towel", [[-1.34, -0.55], [-1.34, 0.2]], FACING_CAMERA, ON_THE_GROUND),
+  home: [],
 };
 
 export const seatIn = (place: Place, id: string | undefined): Seat | null =>
@@ -410,12 +418,59 @@ const inside = (o: Obstacle, p: { x: number; z: number }) => Math.hypot((p.x - o
 
 /** Where someone arriving from `from` stands in `to`: beside the pad that leads back. */
 export const arrivalSpot = (from: Place, to: Place): { x: number; z: number } => {
+  if (to === HOME) return { ...HOME_ARRIVAL };
   const pad = PORTALS[to].find((portal) => portal.to === from);
-  if (!pad) return clampTarget(SPAWN.x, SPAWN.z, to);
+  if (!pad) return clearSpot(to, clampTarget(SPAWN.x, SPAWN.z, to), { labels: true });
   const dx = MIDDLE.x - pad.x;
   const dz = MIDDLE.z - pad.z;
   const length = Math.hypot(dx, dz);
-  return clampTarget(pad.x + (dx / length) * ARRIVE_BESIDE, pad.z + (dz / length) * ARRIVE_BESIDE, to);
+  let spot = clampTarget(pad.x + (dx / length) * ARRIVE_BESIDE, pad.z + (dz / length) * ARRIVE_BESIDE, to);
+  for (let away = ARRIVE_BESIDE; away <= ARRIVE_BESIDE + 4 && coversPadLabel(to, spot); away += 0.3) {
+    spot = clampTarget(pad.x + (dx / length) * away, pad.z + (dz / length) * away, to);
+  }
+  return spot;
+};
+
+const PAD_LABEL_GAP = PORTAL_RADIUS + 0.45;
+const LABEL_HALF_WIDTH = 1.7;
+const LABEL_HALF_DEPTH = 0.3;
+const FIGURE_HALF_WIDTH = 0.55;
+const FIGURE_REACH_BACK = 2.5;
+
+export const coversPadLabel = (place: Place, at: { x: number; z: number }) =>
+  PORTALS[place].some((pad) =>
+    [pad.z + PAD_LABEL_GAP, pad.z - PAD_LABEL_GAP].some(
+      (labelZ) =>
+        Math.abs(at.x - pad.x) < LABEL_HALF_WIDTH + FIGURE_HALF_WIDTH &&
+        labelZ + LABEL_HALF_DEPTH > at.z - FIGURE_REACH_BACK &&
+        labelZ - LABEL_HALF_DEPTH < at.z + 0.2
+    )
+  );
+
+export const ARRIVE_APART = FIGURE_HALF_WIDTH * 2;
+
+const RING_TURNS = [0, Math.PI, Math.PI / 2, -Math.PI / 2, Math.PI / 4, (3 * Math.PI) / 4, -Math.PI / 4, (-3 * Math.PI) / 4];
+
+/**
+ * The nearest spot to `start` that is at least a body width from everyone
+ * in `taken` and, when asked, clear of the pad labels.
+ */
+export const clearSpot = (
+  place: Place,
+  start: { x: number; z: number },
+  { taken = [], extra = [], labels = false }: { taken?: readonly { x: number; z: number }[]; extra?: readonly Obstacle[]; labels?: boolean } = {}
+): { x: number; z: number } => {
+  const fine = (at: { x: number; z: number }) =>
+    !(labels && coversPadLabel(place, at)) && taken.every((other) => Math.hypot(other.x - at.x, other.z - at.z) >= ARRIVE_APART);
+  const from = clampTarget(start.x, start.z, place, extra);
+  if (fine(from)) return from;
+  for (let r = 0.4; r <= 6; r += 0.4) {
+    for (const turn of RING_TURNS) {
+      const at = clampTarget(from.x + Math.cos(turn) * r, from.z + Math.sin(turn) * r, place, extra);
+      if (fine(at)) return at;
+    }
+  }
+  return from;
 };
 
 /** A spot just outside an obstacle's rim, at angle `a` round it. */
@@ -425,9 +480,9 @@ const onRim = (o: Obstacle, a: number) => ({ x: o.x + Math.cos(a) * o.rx * 1.02,
  * The nearest place someone can stand to (x, z): inside the courtyard and
  * outside every obstacle. A bad number lands at the spawn point.
  */
-export const clampTarget = (x: number, z: number, place: Place = "garden"): { x: number; z: number } => {
+export const clampTarget = (x: number, z: number, place: Place = "garden", extra: readonly Obstacle[] = []): { x: number; z: number } => {
   if (!Number.isFinite(x) || !Number.isFinite(z)) return { ...SPAWN };
-  const obstacles = PLACE_OBSTACLES[place];
+  const obstacles = extra.length > 0 ? [...PLACE_OBSTACLES[place], ...extra] : PLACE_OBSTACLES[place];
   let p = inBounds(x, z);
   for (const o of obstacles) {
     if (!inside(o, p)) continue;
@@ -451,6 +506,8 @@ export const clampTarget = (x: number, z: number, place: Place = "garden"): { x:
   }
   return best ?? { ...SPAWN };
 };
+
+export const HOME_ARRIVAL = { x: 0, z: 5.2 } as const;
 
 /** Where people arrive: on the path at the front of the garden. */
 export const SPAWN = { x: 0.2, z: 6.2 } as const;
@@ -737,6 +794,10 @@ export const POKE_EVERY_MS = 60 * 60_000;
 export const POKED_GAP_MS = 10 * 60_000;
 export const MAX_POKE_LENGTH = 80;
 export const OFFLINE_LIST_SIZE = 30;
+export const POKE_ARRIVAL_MS = 24 * 60 * 60_000;
+export const INVITE_MS = 24 * 60 * 60_000;
+export const INVITE_CARD_MS = 2 * 60_000;
+export const ARRIVE_NEAR = 1.4;
 
 export const cleanPoke = (raw: string): string | null => {
   const line = cleanLine(raw);
@@ -774,10 +835,12 @@ export const BUCKETS = {
   move: { burst: 4, refillMs: 500 },
   act: { burst: 3, refillMs: 4000 },
   say: { burst: 3, refillMs: 10_000 },
+  decorate: { burst: 6, refillMs: 1000 },
   /** Joining again after leaving, so coming and going can't refill the others. */
   join: { burst: 4, refillMs: 30_000 },
 } as const;
 export type BucketKind = keyof typeof BUCKETS;
+export type StateBucket = Exclude<BucketKind, "join" | "decorate">;
 type Bucket = { tokens: number; at: number };
 
 export const fullBucket = (kind: BucketKind, now: number): Bucket => ({ tokens: BUCKETS[kind].burst, at: now });
@@ -791,3 +854,32 @@ export const takeToken = (kind: BucketKind, bucket: Bucket, now: number): TakeRe
   // Rounded up, less a hair, so float noise doesn't add a millisecond.
   return { ok: false, retryInMs: Math.ceil((1 - tokens) * refillMs - 1e-6) };
 };
+
+export const NPC = {
+  id: "npc:sijin",
+  name: "Sijin Yang",
+  place: "cafe",
+  x: -3.35,
+  z: -9.7,
+  heading: 0.35,
+  look: {
+    v: LOOK_VERSION,
+    skin: 3,
+    hair: 6,
+    hairColour: 2,
+    shirt: 4,
+    face: 0,
+    eyes: 2,
+    eyeColour: 0,
+    brows: 2,
+    nose: 2,
+    mouth: 2,
+    height: 3,
+    build: 2,
+    beard: 2,
+    outfit: 10,
+    pants: 1,
+    pantsColour: 0,
+    favourite: 0,
+  } satisfies Look,
+} as const;

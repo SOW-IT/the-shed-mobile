@@ -37,6 +37,7 @@ import type * as categoryPeople from "../categoryPeople.js";
 import type * as checkIn from "../checkIn.js";
 import type * as churches from "../churches.js";
 import type * as cleanup from "../cleanup.js";
+import type * as coins from "../coins.js";
 import type * as comments from "../comments.js";
 import type * as contact from "../contact.js";
 import type * as crons from "../crons.js";
@@ -106,6 +107,7 @@ import type * as weeklyInsights from "../weeklyInsights.js";
 import type * as weeklyInsightsData from "../weeklyInsightsData.js";
 import type * as world from "../world.js";
 import type * as worldData from "../worldData.js";
+import type * as worldHome from "../worldHome.js";
 import type * as youtube from "../youtube.js";
 
 import type {
@@ -144,6 +146,7 @@ declare const fullApi: ApiFromModules<{
   checkIn: typeof checkIn;
   churches: typeof churches;
   cleanup: typeof cleanup;
+  coins: typeof coins;
   comments: typeof comments;
   contact: typeof contact;
   crons: typeof crons;
@@ -213,6 +216,7 @@ declare const fullApi: ApiFromModules<{
   weeklyInsightsData: typeof weeklyInsightsData;
   world: typeof world;
   worldData: typeof worldData;
+  worldHome: typeof worldHome;
   youtube: typeof youtube;
 }>;
 

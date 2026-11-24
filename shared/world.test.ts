@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
   ASK_MS,
+  coversPadLabel,
+  HOME,
+  HOME_ARRIVAL,
   isPingBars,
   PING_MAX_SAMPLE_MS,
   PING_PUBLISH_MS,
@@ -57,6 +60,8 @@ import {
   SEATS,
   seatIn,
   arrivalSpot,
+  ARRIVE_APART,
+  clearSpot,
   isPlace,
   portalAt,
   bodyScale,
@@ -444,7 +449,7 @@ describe("places and the pads between them", () => {
         expect(portalAt(pad.to, spot)).toBeNull();
         expect(clampTarget(spot.x, spot.z, pad.to)).toEqual(spot);
         const back = PORTALS[pad.to].find((p) => p.to === from)!;
-        expect(Math.hypot(spot.x - back.x, spot.z - back.z)).toBeLessThan(2.5);
+        expect(Math.hypot(spot.x - back.x, spot.z - back.z)).toBeLessThan(4.5);
       }
     }
     expect(portalAt("beach", arrivalSpot("chapel", "beach"))).toBeNull();
@@ -602,5 +607,59 @@ describe("ping", () => {
   test("a changed bucket waits until 30 s after the last publish", () => {
     expect(shouldPublishPing({ bars: 2, published: 3, publishedAt: 1000, now: 1000 + PING_PUBLISH_MS - 1 })).toBe(false);
     expect(shouldPublishPing({ bars: 2, published: 3, publishedAt: 1000, now: 1000 + PING_PUBLISH_MS })).toBe(true);
+  });
+});
+describe("arriving by a pad", () => {
+  test("never stands over a pad's name, by a pad or from the place menu", () => {
+    for (const to of [...PLACES, HOME] as const) {
+      for (const from of [...PLACES, HOME] as const) {
+        if (from === to) continue;
+        expect(coversPadLabel(to, arrivalSpot(from, to)), `${from} to ${to}`).toBe(false);
+      }
+    }
+  });
+
+  test("every place reached from home leaves its labels clear", () => {
+    for (const to of PLACES) {
+      const spot = arrivalSpot(HOME, to);
+      expect(coversPadLabel(to, spot), to).toBe(false);
+      expect(clampTarget(spot.x, spot.z, to)).toEqual(spot);
+    }
+  });
+
+  test("a home puts you just inside the door", () => {
+    expect(arrivalSpot("garden", HOME)).toEqual(HOME_ARRIVAL);
+  });
+});
+
+describe("arriving among people", () => {
+  test("lands a body width from everyone already there", () => {
+    const taken = [{ ...HOME_ARRIVAL }, { x: HOME_ARRIVAL.x + 0.5, z: HOME_ARRIVAL.z }];
+    const spot = clearSpot(HOME, { ...HOME_ARRIVAL }, { taken });
+    for (const other of taken) expect(Math.hypot(spot.x - other.x, spot.z - other.z)).toBeGreaterThanOrEqual(ARRIVE_APART);
+    expect(Math.hypot(spot.x - HOME_ARRIVAL.x, spot.z - HOME_ARRIVAL.z)).toBeLessThan(3);
+  });
+
+  test("a spot on furniture is moved off it even with nobody around", () => {
+    const table = { id: "table", x: 0, z: -4, rx: 1, rz: 0.6 };
+    const spot = clearSpot(HOME, { x: 0, z: -4 }, { extra: [table] });
+    expect(Math.hypot(spot.x / table.rx, (spot.z + 4) / table.rz)).toBeGreaterThanOrEqual(1);
+  });
+
+  test("an empty spot is kept", () => {
+    expect(clearSpot("garden", { x: 1, z: 1 }, { taken: [{ x: 4, z: 4 }] })).toEqual({ x: 1, z: 1 });
+  });
+
+  test("with nowhere clear it stays put", () => {
+    const crowd = [];
+    for (let x = -12; x <= 12; x += 0.5) for (let z = -16; z <= 12; z += 0.5) crowd.push({ x, z });
+    expect(clearSpot("garden", { x: 1, z: 1 }, { taken: crowd })).toEqual({ x: 1, z: 1 });
+  });
+});
+
+describe("extra obstacles", () => {
+  test("a spot inside one is pushed to its rim", () => {
+    const at = clampTarget(0, -4, HOME, [{ id: "table", x: 0, z: -4, rx: 1, rz: 0.6 }]);
+    expect(Math.hypot(at.x / 1, (at.z + 4) / 0.6)).toBeGreaterThanOrEqual(1);
   });
 });

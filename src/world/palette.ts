@@ -103,6 +103,14 @@ export const places = {
     pot: "#C9603A",
     plant: "#5FA066",
   },
+  home: {
+    sky: "#EFE6D6",
+    floor: "#C99A6B",
+    plank: "#BF8F60",
+    mat: "#B8473A",
+    window: "#BFE3EE",
+    frame: "#F6D365",
+  },
   beach: {
     sky: "#BFE6F2",
     sand: "#F3E2B3",
@@ -212,6 +220,50 @@ export const glass = {
   scrim: "rgba(6, 16, 15, 0.32)",
   scrimDeep: "rgba(6, 16, 15, 0.55)",
   bust: "#BFE3DA",
+} as const;
+
+export const home = {
+  rug: "#5B8DB8",
+  rugInner: "#F6D365",
+  pot: "#C9603A",
+  leaf: "#5FA066",
+  leafLight: "#7DBB7F",
+  metal: "#5E6B66",
+  shade: "#F6E3B4",
+  wood: "#C89B6B",
+  woodDark: "#8A5A3A",
+  cup: "#FFFEF8",
+  books: ["#B8473A", "#5B8DB8", "#F6D365", "#5FA066", "#D9CDEE"],
+  screen: "#22303F",
+  tvFrame: "#26302E",
+  sofa: "#C9603A",
+  sofaDark: "#A84E2E",
+  cushion: "#F6D365",
+  brick: "#B8604A",
+  mantel: "#F1E6CC",
+  flame: "#F0703A",
+  flameHot: "#F6D365",
+  sheet: "#FFFEF8",
+  blanket: "#9DC5E0",
+  pillow: "#F6E3D8",
+  beanbag: "#D9CDEE",
+} as const;
+
+export const gold = {
+  light: "#F6D365",
+  text: "#B07A10",
+} as const;
+
+export const wallpapers = {
+  plain: { base: "#F6ECDC", accent: "#F6ECDC", pattern: "plain" },
+  mint: { base: "#D8EFE2", accent: "#A9D8BC", pattern: "stripes" },
+  rose: { base: "#F8E1E6", accent: "#E89AAE", pattern: "dots" },
+  sky: { base: "#CFE8F5", accent: "#FFFFFF", pattern: "dots" },
+  sunset: { base: "#F8D9B8", accent: "#E9946A", pattern: "stripes" },
+  lavender: { base: "#E6DDF4", accent: "#C4B2E4", pattern: "check" },
+  forest: { base: "#2F5A4A", accent: "#3D6E5B", pattern: "stripes" },
+  stars: { base: "#22305A", accent: "#F6D365", pattern: "stars" },
+  lemon: { base: "#FBF1BE", accent: "#F2D86A", pattern: "check" },
 } as const;
 
 export const signal = {

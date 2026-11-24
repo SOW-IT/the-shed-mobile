@@ -36,7 +36,7 @@ describe("submitScores", () => {
       await anna.mutation(api.gameScores.submitScores, {
         scores: [run("run-anna-1", 300), run("run-anna-2", 50, "flappy")],
       })
-    ).toEqual({ accepted: ["run-anna-1", "run-anna-2"], rejected: [] });
+    ).toEqual({ accepted: ["run-anna-1", "run-anna-2"], rejected: [], coins: [] });
     await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 300)] });
     await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-3", 200)] });
     expect(await bests(t)).toEqual([

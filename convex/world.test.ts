@@ -540,7 +540,7 @@ describe("the offline list and pokes", () => {
     const ben = (await anna.query(api.world.offline, {})).people[0];
     expect(await anna.mutation(api.world.poke, { visitorId: ben.id, message: `  come\nplay ${"x".repeat(200)}` })).toEqual({ ok: true });
     const [note] = await notes(t, BEN);
-    expect(note).toMatchObject({ title: expect.stringMatching(/poked you$/), url: "/world", read: false });
+    expect(note).toMatchObject({ title: expect.stringMatching(/poked you$/), url: expect.stringMatching(/^\/world\?poke=/), read: false });
     expect(note.body.startsWith("come play x")).toBe(true);
     expect(Array.from(note.body)).toHaveLength(MAX_POKE_LENGTH);
     expect(await pushes(t)).toEqual(expect.arrayContaining([expect.objectContaining({ name: "push:send" })]));
@@ -684,7 +684,7 @@ describe("everyone on staff who isn't here", () => {
 
     expect(await anna.mutation(api.world.pokeStaff, { profileId: dana, message: "hi" })).toEqual({ ok: true });
     const notes = await t.run((ctx) => ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", "dana@sow.org.au")).collect());
-    expect(notes).toMatchObject([{ title: "anna poked you", body: "hi", url: "/world" }]);
+    expect(notes).toMatchObject([{ title: "anna poked you", body: "hi", url: expect.stringMatching(/^\/world\?poke=/) }]);
     expect(await t.run((ctx) => ctx.db.query("worldPoked").collect())).toMatchObject([{ email: "dana@sow.org.au", lastPokedAt: near(PINNED_NOW) }]);
     expect((await anna.query(api.world.pokeWait, {})).pokeAgainAt).toEqual(near(PINNED_NOW + POKE_EVERY_MS));
     // One poke an hour each, and nobody poked twice in a few minutes.

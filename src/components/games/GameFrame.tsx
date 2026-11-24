@@ -3,6 +3,7 @@ import { useOffline } from "@/hooks/useOffline";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { useLocalBests, recordRun } from "@/lib/games/gameStorage";
 import { OnlineBanner } from "./OnlineBanner";
+import { CoinGain } from "./CoinGain";
 import { LeaveGameDialog } from "./LeaveGameDialog";
 import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
 import { fitScale, type Size } from "@/lib/games/fit";
@@ -45,6 +46,8 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const [bestAtStart, setBestAtStart] = useState(0);
   const best = useLocalBests()[game];
   const recorded = useRef<S | null>(null);
+  const [runId, setRunId] = useState<string | null>(null);
+  const generation = useRef(0);
   const overAt = useRef(0);
   const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
   // An update waiting to install restarts the app when it comes back from
@@ -56,12 +59,17 @@ export const useGameSession = <S extends Run>(game: GameId) => {
     recorded.current = run;
     overAt.current = Date.now();
     hapticSelect();
-    void recordRun(game, run.score, run.time * 1000);
+    const started = generation.current;
+    void recordRun(game, run.score, run.time * 1000).then((id) => {
+      if (generation.current === started) setRunId(id);
+    });
   }, [run, game]);
 
   const begin = useCallback(
     (state: S) => {
+      generation.current++;
       setBestAtStart(best);
+      setRunId(null);
       setRun(state);
     },
     [best]
@@ -73,7 +81,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const askToLeave = useCallback(() => setAskingToLeave(true), []);
   const keepPlaying = useCallback(() => setAskingToLeave(false), []);
   const paused = askingToLeave && phase === "playing";
-  const result = run?.over ? { score: run.score, previousBest: bestAtStart } : null;
+  const result = run?.over ? { score: run.score, previousBest: bestAtStart, runId } : null;
   return { run, setRun, phase, paused, result, best, begin, restart, canRestartByKey, askToLeave, keepPlaying };
 };
 
@@ -303,6 +311,7 @@ export const GameFrame = ({
               <Text style={styles.cardBody}>
                 Best {Math.max(result.previousBest, result.score).toLocaleString()}
               </Text>
+              {isAuthenticated ? <CoinGain runId={result.runId} /> : null}
               <Text style={styles.note} testID="game-saved-note">
                 {savedNote({ signedIn: isAuthenticated, offline })}
               </Text>

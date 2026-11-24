@@ -459,6 +459,35 @@ describe("account.wipe", () => {
     });
   });
 
+  test("deletes the user's coins, home, invites and pokes, keeping everyone else's", async () => {
+    vi.useFakeTimers();
+    const t = newConvex();
+    const bucket = { tokens: 1, at: 0 };
+    const OTHER = "other@sow.org.au";
+    const userId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: GUEST, name: "Gina Guest" });
+      for (const email of [GUEST, OTHER]) {
+        await ctx.db.insert("worldWallets", { email, balance: 50, earnedDay: "2026-11-24", earnedToday: 0, items: {}, wallpapers: [] });
+        await ctx.db.insert("coinLedger", { email, delta: 50, kind: "start", at: 0 });
+        await ctx.db.insert("worldHomes", { owner: email, wallpaper: "plain", items: [], bucket });
+      }
+      await ctx.db.insert("worldInvites", { owner: GUEST, ownerName: "Gina", guest: OTHER, at: 0, expiresAt: 1 });
+      await ctx.db.insert("worldInvites", { owner: OTHER, ownerName: "Other", guest: GUEST, at: 0, expiresAt: 1 });
+      await ctx.db.insert("worldPokes", { from: GUEST, to: OTHER, place: "garden", x: 0, z: 0, at: 0 });
+      await ctx.db.insert("worldPokes", { from: OTHER, to: GUEST, place: "garden", x: 0, z: 0, at: 0 });
+      return userId;
+    });
+    await t.mutation(internal.account.wipe, { userId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("worldWallets").collect()).toMatchObject([{ email: OTHER }]);
+      expect(await ctx.db.query("coinLedger").collect()).toMatchObject([{ email: OTHER }]);
+      expect(await ctx.db.query("worldHomes").collect()).toMatchObject([{ owner: OTHER }]);
+      expect(await ctx.db.query("worldInvites").collect()).toEqual([]);
+      expect(await ctx.db.query("worldPokes").collect()).toEqual([]);
+    });
+  });
+
   test("someone still in the Garden is taken out, and a later sweep keeps nothing under their email", async () => {
     vi.useFakeTimers();
     const t = newConvex();
