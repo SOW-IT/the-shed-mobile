@@ -102,7 +102,13 @@ Everything a run starts lives under `.verify/`, which ignores itself
 
    A screenshot waits until the screen has stopped moving: it keeps taking
    frames until two in a row are identical, up to ten
-   (`scripts/lib/stableFrames.mjs`). A still frame identical to the screen
+   (`scripts/lib/stableFrames.mjs`). On iOS, after a frame that differs from
+   the one before, the flow waits up to two seconds before the next, so a
+   screen that is still loading gets about 20 seconds. Metro starts with a
+   cleared cache, so a lazy screen is built the first time it opens: World's
+   code takes about 10 seconds, and without the wait its spinner was judged
+   as still moving. A still screen settles on its second frame and doesn't
+   wait. A still frame identical to the screen
    before counts only after five frames, because under load the app can sit
    on the old screen before it starts to move to the new one. On iOS the Maestro flow asks verify
    after each frame whether that screen has settled. The simulator's status
@@ -110,6 +116,14 @@ Everything a run starts lives under `.verify/`, which ignores itself
    back to normal afterwards. A screen still moving after ten frames, like
    one with a spinner, is kept as it was and named in the step's detail.
 7. Stops everything it started and frees the ports, even when a step fails.
+
+Before Maestro starts, the run stops any Maestro (and its `xcodebuild`
+driver) that a run which has since gone left on the same simulator: launchd
+has adopted it, so nothing owns it, but it stays attached and makes the next
+run's screenshots hang or its Maestro quit with no output. The run holds the
+verify lock at that point, so such a process is always stale
+(`scripts/lib/strayMaestro.mjs`). One was found on 24 Nov 2026, attached for
+about five hours.
 
 ### One run at a time
 
