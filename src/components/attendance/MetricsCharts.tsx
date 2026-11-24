@@ -603,7 +603,7 @@ function FullscreenChartModal({
           style={{
             width: panelW,
             height: panelH,
-            transform: rotate ? [{ rotate: "90deg" }] : undefined,
+            transform: rotate ? [{ rotate: "90deg" }] : [],
             backgroundColor: t.background,
             paddingHorizontal: spacing.xxxl,
             paddingVertical: spacing.sm,
