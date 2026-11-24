@@ -5,7 +5,7 @@ import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { currentStaffYear } from "./model";
 import { START_COINS } from "../shared/coins";
 import { DOOR_CLEAR, FURNITURE, HOME_CAP, HOME_DOOR, placementProblem } from "../shared/home";
-import { BUCKETS, HOME_ARRIVAL, INVITE_MS, NPC, POKE_EVERY_MS, POKE_ARRIVAL_MS, ROOM_CAP, WALK_BOUNDS, distance, posAt } from "../shared/world";
+import { ARRIVE_APART, BUCKETS, HOME_ARRIVAL, INVITE_MS, NPC, POKE_EVERY_MS, POKE_ARRIVAL_MS, ROOM_CAP, WALK_BOUNDS, distance, posAt } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -112,6 +112,51 @@ describe("homes are invite only", () => {
     expect((await memberOf(t, BEN)).room?.owner).toBe(BEN);
   });
 
+  test("following someone in with their invite lands beside them, not on them", async () => {
+    const t = newConvex();
+    const { memberId: annaId } = await asUser(t, ANNA).mutation(api.world.join, {});
+    const ben = asUser(t, BEN);
+    const { memberId: benId } = await ben.mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await asUser(t, ANNA).mutation(api.world.invite, { memberId: benId });
+    const [card] = await ben.query(api.world.invites, {});
+    await ben.mutation(api.world.travel, { to: "home", toMember: annaId, invite: card.id });
+    const anna = await memberOf(t, ANNA);
+    const guest = await memberOf(t, BEN);
+    expect(guest.room?._id).toBe(anna.room?._id);
+    expect(distance(posAt(guest.state!, Date.now()), posAt(anna.state!, Date.now()))).toBeGreaterThanOrEqual(ARRIVE_APART);
+  });
+
+  test("an invite for someone else, or a made-up one, doesn't open the home on join", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    const caras = await t.run((ctx) => ctx.db.insert("worldInvites", { owner: ANNA, ownerName: "Anna", guest: CARA, at: Date.now(), expiresAt: Date.now() + INVITE_MS }));
+    await asUser(t, BEN).mutation(api.world.join, { invite: caras });
+    expect((await memberOf(t, BEN)).room?.owner).toBeUndefined();
+    await asUser(t, BEN).mutation(api.world.leave, {});
+    later(60_000);
+    await asUser(t, BEN).mutation(api.world.join, { invite: "not-an-id" });
+    expect((await memberOf(t, BEN)).room?.owner).toBeUndefined();
+  });
+
+  test("a guest's poke from someone else's home doesn't let the poked person in", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.world.join, {});
+    const ben = asUser(t, BEN);
+    const { memberId: benId } = await ben.mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await asUser(t, ANNA).mutation(api.world.invite, { memberId: benId });
+    const [card] = await ben.query(api.world.invites, {});
+    await ben.mutation(api.world.travel, { to: "home", invite: card.id });
+    later(10_000);
+    await ben.mutation(api.world.pokeStaff, { profileId: await staffProfile(t, CARA) });
+    const [poke] = await t.run((ctx) => ctx.db.query("worldPokes").collect());
+    expect(poke).toMatchObject({ place: "home", owner: ANNA });
+    await asUser(t, CARA).mutation(api.world.join, { poke: poke._id });
+    expect((await memberOf(t, CARA)).room?.owner).toBeUndefined();
+  });
+
   test("following someone in with their invite stops at a full home", async () => {
     const t = newConvex();
     const { memberId: annaId } = await asUser(t, ANNA).mutation(api.world.join, {});
@@ -200,6 +245,21 @@ describe("a poke brings them to you", () => {
     expect(ben.member).toMatchObject({ place: "beach", roomId: anna.member?.roomId, visits: 2 });
     expect(distance(posAt(ben.state!, Date.now()), posAt(anna.state!, Date.now()))).toBeLessThan(2);
     expect(await t.run((ctx) => ctx.db.query("worldRooms").withIndex("by_place_and_instance", (q) => q.eq("place", "garden")).collect())).toEqual([]);
+  });
+
+  test("an invited guest lands beside the host, not on top of them", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await anna.mutation(api.world.inviteStaff, { profileId: await staffProfile(t, BEN) });
+    const [note] = await t.run((ctx) => ctx.db.query("notifications").collect());
+    const invite = new URL(note.url!, "https://x").searchParams.get("invite")!;
+    await asUser(t, BEN).mutation(api.world.join, { invite });
+    const host = await memberOf(t, ANNA);
+    const guest = await memberOf(t, BEN);
+    expect(guest.room?._id).toBe(host.room?._id);
+    expect(distance(posAt(guest.state!, Date.now()), posAt(host.state!, Date.now()))).toBeGreaterThanOrEqual(ARRIVE_APART);
   });
 
   test("an invite brings someone already in the garden into the home", async () => {

@@ -653,9 +653,25 @@ export const WorldScreen = ({
           },
         ];
 
+  const overlayOpen = shopOpen || peopleOpen || sheet !== null || editing;
+  const noteOver =
+    note && overlayOpen ? (
+      <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
+        <Text style={styles.note} accessibilityLiveRegion="polite" aria-live="polite">
+          {note}
+        </Text>
+      </View>
+    ) : null;
   const sheets = (
     <>
-      <ShopPanel open={shopOpen} top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP} wallet={wallet} onClose={() => setShopOpen(false)} onBought={setNote} />
+      <ShopPanel
+        open={shopOpen}
+        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        bottom={Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + SHOP_CHAT_GAP}
+        wallet={wallet}
+        onClose={() => setShopOpen(false)}
+        onBought={setNote}
+      />
       <PersonSheet
         // A report started for one person never carries over to another.
         key={sheet?.memberId ?? "nobody"}
@@ -788,7 +804,7 @@ export const WorldScreen = ({
             if (world.people.some((p) => p.isMe && p.memberId === memberId)) setEditing(true);
             else setSheet({ memberId, safetyOnly: false });
           }}
-          note={note}
+          note={overlayOpen ? null : note}
           onNote={setNote}
           onLine={openSpeaker}
           duelCard={<DuelCard {...duelProps} showResult />}
@@ -797,6 +813,7 @@ export const WorldScreen = ({
           onDecline={decline}
         />
         {sheets}
+        {noteOver}
       </>
     );
   }
@@ -853,7 +870,11 @@ export const WorldScreen = ({
           setTray(false);
           setShopOpen(true);
         }}
-        decor={decorating ? { selected: chosenItem, onItem: setChosenItem, onFloor: moveChosen, actions: itemActions } : null}
+        decor={
+          decorating
+            ? { selected: chosenItem, onItem: setChosenItem, onFloor: moveChosen, actions: itemActions, hudTop: insets.top + (coinsBeside ? 66 : 104) + 8 }
+            : null
+        }
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <View style={styles.left}>
@@ -888,20 +909,22 @@ export const WorldScreen = ({
         </View>
       )}
       <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }]} pointerEvents="box-none">
-        <ChatLog
-          roomId={world.status === "in" ? world.roomId : null}
-          onLine={openSpeaker}
-          muted={muted}
-          now={world.serverNow()}
-          status={
-            world.status === "joining"
-              ? `Opening ${PLACE_TITLES[world.place].toLowerCase()}…`
-              : world.status === "error"
-                ? world.error
-                : null
-          }
-        />
-        {note ? (
+        {decorating ? null : (
+          <ChatLog
+            roomId={world.status === "in" ? world.roomId : null}
+            onLine={openSpeaker}
+            muted={muted}
+            now={world.serverNow()}
+            status={
+              world.status === "joining"
+                ? `Opening ${PLACE_TITLES[world.place].toLowerCase()}…`
+                : world.status === "error"
+                  ? world.error
+                  : null
+            }
+          />
+        )}
+        {note && !overlayOpen ? (
           <Text style={styles.note} accessibilityLiveRegion="polite" aria-live="polite">
             {note}
           </Text>
@@ -1039,6 +1062,7 @@ export const WorldScreen = ({
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
       <WorldMenu open={placesOpen} top={insets.top + TOP_BAR_GAP} entries={menuEntries} onClose={() => setPlacesOpen(false)} />
       {sheets}
+      {noteOver}
     </View>
   );
 };
@@ -1047,6 +1071,7 @@ const CHAT_BAR_HEIGHT = 54;
 const COINS_BESIDE_FROM = 400;
 const TOP_BAR_GAP = 62;
 const UNDER_CHAT_SLACK = 10;
+const SHOP_CHAT_GAP = 14;
 
 const ink = { borderWidth: 2.5, borderColor: hud.forest };
 const pop = { shadowColor: hud.forest, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 0 };
@@ -1113,6 +1138,7 @@ const styles = StyleSheet.create({
   ping: { width: 30, height: 44, alignItems: "center", justifyContent: "center" },
   pingText: { position: "absolute", top: 36, left: -25, width: 80, textAlign: "center", fontSize: 11, fontWeight: "800", color: hud.forest },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
+  noteOver: { position: "absolute", left: 14, right: 14, alignItems: "center" },
   note: {
     backgroundColor: hud.card,
     color: hud.forest,

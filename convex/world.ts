@@ -15,6 +15,8 @@ import {
   POKED_GAP_MS,
   tagName,
   arrivalSpot,
+  clearSpot,
+  coversPadLabel,
   ELSEWHERE_NAMES,
   seatIn,
   isPlace,
@@ -381,6 +383,22 @@ const switchRoom = async (ctx: MutationCtx, member: Doc<"worldMembers">, here: D
   await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place });
 };
 
+const landIn = async (ctx: MutationCtx, room: Doc<"worldRooms">, spot: { x: number; z: number }, now: number, except?: Id<"worldMembers">) => {
+  const members = await ctx.db
+    .query("worldMembers")
+    .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
+    .take(ROOM_CAP);
+  const taken = [];
+  for (const other of members) {
+    if (other._id === except) continue;
+    const state = await stateOf(ctx, other._id);
+    if (state) taken.push(posAt(state, now));
+  }
+  const place = isPlace(room.place) ? room.place : WORLD_PLACE;
+  const extra = room.owner ? homeObstacles((await homeRowOf(ctx, room.owner))?.items ?? []) : [];
+  return clearSpot(place, spot, { taken, extra, labels: !coversPadLabel(place, spot) });
+};
+
 const FRESH_IN_ROOM = {
   say: undefined,
   ask: undefined,
@@ -430,6 +448,7 @@ export const join = mutation({
       const wantedRoom = wanted && (await arrivalRoom(ctx, wanted));
       const back = wantedRoom ? wanted : null;
       room = wantedRoom ?? (await roomWithSpace(ctx));
+      const spawn = await landIn(ctx, room, back?.spot ?? spawnFor(email), now);
       const memberId = await ctx.db.insert("worldMembers", {
         roomId: room._id,
         email,
@@ -438,7 +457,6 @@ export const join = mutation({
         joinedAt: now,
         ...(back && back.place !== WORLD_PLACE ? { place: back.place } : {}),
       });
-      const spawn = back?.spot ?? spawnFor(email);
       await ctx.db.insert("worldState", {
         memberId,
         fromX: spawn.x,
@@ -460,7 +478,7 @@ export const join = mutation({
       if (asked && there && there._id !== room._id) {
         await switchRoom(ctx, member, room, there, asked.place);
         const state = (await stateOf(ctx, member._id))!;
-        const { x, z } = asked.spot;
+        const { x, z } = await landIn(ctx, there, asked.spot, now, member._id);
         await ctx.db.patch("worldState", state._id, { fromX: x, fromZ: z, toX: x, toZ: z, startedAt: now, ...FRESH_IN_ROOM });
         room = (await ctx.db.get("worldRooms", there._id))!;
         member = (await ctx.db.get("worldMembers", member._id))!;
@@ -583,7 +601,7 @@ export const travel = mutation({
     const room = joinable ?? (await roomFor(ctx, to, owner));
     if (!room) throw new ConvexError("Their home is full. Try again in a bit.");
     await switchRoom(ctx, member, here, room, to);
-    const spot = from === to ? posAt(state, now) : arrivalSpot(from, to);
+    const spot = await landIn(ctx, room, from === to ? posAt(state, now) : arrivalSpot(from, to), now, member._id);
     const walk = { fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z, startedAt: now };
     await ctx.db.patch("worldState", state._id, { ...walk, ...FRESH_IN_ROOM, actBucket: token.bucket });
     await touchPresence(ctx, member._id, now);

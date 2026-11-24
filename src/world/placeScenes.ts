@@ -1,5 +1,5 @@
-import { isFurniture, wallpaperOr, type FurnitureId, type Placed, type WallpaperId } from "@shared/home";
-import { PLACE_OBSTACLES, type Place } from "@shared/world";
+import { isFurniture, wallpaperOr, type FurnitureId, type Placed, type WallpaperId } from "../../shared/home";
+import { PLACE_OBSTACLES, type Place } from "../../shared/world";
 import type { Camera, Vec3 } from "./camera";
 import { drawFurniture, WALLPAPER_LOOKS } from "./furniture";
 import { boxOf, buildGarden, Builder, depthOf, drawPads, type Prop, type Scene } from "./gardenScene";

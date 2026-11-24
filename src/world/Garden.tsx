@@ -28,7 +28,7 @@ import {
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { makeCamera } from "./camera";
-import type { Prim, Prop } from "./gardenScene";
+import { itemAt, type Prim, type Prop } from "./gardenScene";
 import { garden, hud, places } from "./palette";
 import { buildScene, type HomeLook } from "./placeScenes";
 import { footprint, isFurniture } from "@shared/home";
@@ -147,7 +147,13 @@ export const Garden = ({
   duels?: readonly DuelView[];
   home?: HomeLook | null;
   onTapNpc?: () => void;
-  decor?: { selected: string | null; onItem: (key: string) => void; onFloor: (x: number, z: number) => void; actions: HudAction[] } | null;
+  decor?: {
+    selected: string | null;
+    onItem: (key: string) => void;
+    onFloor: (x: number, z: number) => void;
+    actions: HudAction[];
+    hudTop: number;
+  } | null;
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -315,10 +321,8 @@ export const Garden = ({
       if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) return { kind: "npc" };
     }
     if (decor) {
-      const item = scene.props
-        .filter((prop) => prop.tap?.startsWith(ITEM) && x >= prop.box.left && x <= prop.box.right && y >= prop.box.top && y <= prop.box.bottom)
-        .sort((a, b) => a.depth - b.depth)[0];
-      if (item?.tap) return { kind: "item", key: item.tap.slice(ITEM.length) };
+      const item = itemAt(scene.props, x, y);
+      if (item) return { kind: "item", key: item };
       if (decor.selected) return { kind: "floor" };
     }
     const seat = SEATS[place]
@@ -422,11 +426,15 @@ export const Garden = ({
     node: <PropView prop={prop} />,
   }));
   const tags: TagSpot[] = [];
+  const heads: { x: number; bottom: number; width: number; height: number }[] = [];
   if (npcHere) {
     const figure = figureFor(cam, NPC_POSE);
     actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={0} seed={3} /> });
     const head = cam.project([NPC.x, headTop(NPC.look), NPC.z]);
     tags.push({ key: NPC.id, depth: head.depth, spokeAt: undefined, ...tagBox(head.x, head.y, NPC_TAG, undefined, false), props: { name: NPC_TAG, me: false, emoteRise: 0 } });
+    const body = hitBox(figure, NPC.look);
+    const headHeight = (body.bottom - body.top) * HEAD_SHARE;
+    heads.push({ x: head.x, bottom: head.y + HEAD_GAP + headHeight, width: (body.right - body.left) * HEAD_SHARE * 2, height: headHeight });
   }
   const selectedItem = decor?.selected ? home?.items.find((p) => p.key === decor.selected) : undefined;
   if (selectedItem && isFurniture(selectedItem.item)) {
@@ -561,7 +569,8 @@ export const Garden = ({
     : null;
   const hudAt = hudHead ? { x: hudHead.x, y: Math.max(HUD_HEIGHT + HUD_CLEAR_TOP, hudHead.y - NAME_TAG_CLEARANCE) } : null;
   const itemProp = selectedItem ? scene.props.find((prop) => prop.tap === `${ITEM}${selectedItem.key}`) : undefined;
-  const itemTop = itemProp ? { x: (itemProp.box.left + itemProp.box.right) / 2, y: Math.max(HUD_HEIGHT + HUD_CLEAR_TOP, itemProp.box.top - 8) } : null;
+  const itemTop =
+    itemProp && decor ? { x: (itemProp.box.left + itemProp.box.right) / 2, y: Math.max(HUD_HEIGHT + Math.max(HUD_CLEAR_TOP, decor.hudTop), itemProp.box.top - 8) } : null;
 
   return (
     <View style={[styles.fill, { backgroundColor: scene.sky }]} onLayout={onLayout}>
@@ -601,7 +610,7 @@ export const Garden = ({
         {actors.map((a) => (
           <Fragment key={a.key}>{a.node}</Fragment>
         ))}
-        {layerTags(tags).map((tag) => (
+        {layerTags(tags, heads).map((tag) => (
           <Tag key={tag.key} x={tag.x} y={tag.bottom} {...tag.props} />
         ))}
       </View>
@@ -784,13 +793,17 @@ const drawOrder = (tag: TagSpot) => (tag.spokeAt === undefined ? [0, -tag.depth]
 
 const TAG_TOP = 4;
 
-const layerTags = (tags: TagSpot[]): TagSpot[] =>
+const HEAD_SHARE = 0.38;
+const HEAD_GAP = 6;
+
+const layerTags = (tags: TagSpot[], heads: { x: number; bottom: number; width: number; height: number }[]): TagSpot[] =>
   spreadTags(
     [...tags].sort((a, b) => {
       const [x, y] = [drawOrder(a), drawOrder(b)];
       return x[0] - y[0] || x[1] - y[1];
     }),
-    TAG_TOP
+    TAG_TOP,
+    heads
   );
 
 const styles = StyleSheet.create({

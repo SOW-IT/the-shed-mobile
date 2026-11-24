@@ -22,7 +22,21 @@ const Price = ({ amount }: { amount: number }) => (
   </View>
 );
 
-export const ShopPanel = ({ open, top, wallet, onClose, onBought }: { open: boolean; top: number; wallet: Wallet | null | undefined; onClose: () => void; onBought: (text: string) => void }) => {
+export const ShopPanel = ({
+  open,
+  top,
+  bottom,
+  wallet,
+  onClose,
+  onBought,
+}: {
+  open: boolean;
+  top: number;
+  bottom: number;
+  wallet: Wallet | null | undefined;
+  onClose: () => void;
+  onBought: (text: string) => void;
+}) => {
   const { mounted, clock } = useOverlayClock(open);
   const { width, height } = useWindowDimensions();
   const [tab, setTab] = useState<Tab>("furniture");
@@ -58,7 +72,7 @@ export const ShopPanel = ({ open, top, wallet, onClose, onBought }: { open: bool
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close the shop" testID="world-shop-close">
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(clock)]} />
       </Pressable>
-      <Animated.View style={[styles.panel, blurBehind, { top, width: panelWidth, maxHeight: Math.max(300, height - top - 24) }, popStyle(clock)]} testID="world-shop">
+      <Animated.View style={[styles.panel, blurBehind, { top, width: panelWidth, maxHeight: Math.max(300, height - top - bottom) }, popStyle(clock)]} testID="world-shop">
         <Animated.View style={[styles.header, itemStyle(clock, 0)]}>
           <Bust look={NPC.look} size={40} />
           <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>

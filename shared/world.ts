@@ -404,7 +404,7 @@ const inside = (o: Obstacle, p: { x: number; z: number }) => Math.hypot((p.x - o
 export const arrivalSpot = (from: Place, to: Place): { x: number; z: number } => {
   if (to === HOME) return { ...HOME_ARRIVAL };
   const pad = PORTALS[to].find((portal) => portal.to === from);
-  if (!pad) return clampTarget(SPAWN.x, SPAWN.z, to);
+  if (!pad) return clearSpot(to, clampTarget(SPAWN.x, SPAWN.z, to), { labels: true });
   const dx = MIDDLE.x - pad.x;
   const dz = MIDDLE.z - pad.z;
   const length = Math.hypot(dx, dz);
@@ -430,6 +430,31 @@ export const coversPadLabel = (place: Place, at: { x: number; z: number }) =>
         labelZ - LABEL_HALF_DEPTH < at.z + 0.2
     )
   );
+
+export const ARRIVE_APART = FIGURE_HALF_WIDTH * 2;
+
+const RING_TURNS = [0, Math.PI, Math.PI / 2, -Math.PI / 2, Math.PI / 4, (3 * Math.PI) / 4, -Math.PI / 4, (-3 * Math.PI) / 4];
+
+/**
+ * The nearest spot to `start` that is at least a body width from everyone
+ * in `taken` and, when asked, clear of the pad labels.
+ */
+export const clearSpot = (
+  place: Place,
+  start: { x: number; z: number },
+  { taken = [], extra = [], labels = false }: { taken?: readonly { x: number; z: number }[]; extra?: readonly Obstacle[]; labels?: boolean } = {}
+): { x: number; z: number } => {
+  const fine = (at: { x: number; z: number }) =>
+    !(labels && coversPadLabel(place, at)) && taken.every((other) => Math.hypot(other.x - at.x, other.z - at.z) >= ARRIVE_APART);
+  if (fine(start)) return start;
+  for (let r = 0.4; r <= 6; r += 0.4) {
+    for (const turn of RING_TURNS) {
+      const at = clampTarget(start.x + Math.cos(turn) * r, start.z + Math.sin(turn) * r, place, extra);
+      if (fine(at)) return at;
+    }
+  }
+  return start;
+};
 
 /** A spot just outside an obstacle's rim, at angle `a` round it. */
 const onRim = (o: Obstacle, a: number) => ({ x: o.x + Math.cos(a) * o.rx * 1.02, z: o.z + Math.sin(a) * o.rz * 1.02 });
@@ -746,7 +771,7 @@ export const OFFLINE_LIST_SIZE = 30;
 export const POKE_ARRIVAL_MS = 24 * 60 * 60_000;
 export const INVITE_MS = 24 * 60 * 60_000;
 export const INVITE_CARD_MS = 2 * 60_000;
-export const ARRIVE_NEAR = 1.1;
+export const ARRIVE_NEAR = 1.4;
 
 export const cleanPoke = (raw: string): string | null => {
   const line = cleanLine(raw);

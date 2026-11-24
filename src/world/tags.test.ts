@@ -54,6 +54,17 @@ describe("tags kept apart", () => {
     expect(spread[0]).toEqual(tag(100));
   });
 
+  test("a tag in front of a fixed head moves off it, and the head stays put", () => {
+    const head = { x: 100, bottom: 140, width: 40, height: 36 };
+    const [you] = spreadTags([tag(104, 50, 130)], 4, [head]);
+    apart([you, head]);
+    expect(Math.abs(you.x - 104)).toBeLessThanOrEqual(50 * MAX_NUDGE);
+  });
+
+  test("a head clear of every tag changes nothing", () => {
+    expect(spreadTags([tag(100), tag(300)], 4, [{ x: 500, bottom: 100, width: 40, height: 36 }])).toEqual([tag(100), tag(300)]);
+  });
+
   test("tags near the top stay on screen and still apart", () => {
     const spread = spreadTags([tag(100, 60, 10), tag(101, 60, 10)], 4);
     apart(spread);

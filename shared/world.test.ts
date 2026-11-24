@@ -53,6 +53,8 @@ import {
   SEATS,
   seatIn,
   arrivalSpot,
+  ARRIVE_APART,
+  clearSpot,
   isPlace,
   portalAt,
   bodyScale,
@@ -535,17 +537,44 @@ describe("ping", () => {
   });
 });
 describe("arriving by a pad", () => {
-  test("never stands over a pad's name", () => {
+  test("never stands over a pad's name, by a pad or from the place menu", () => {
     for (const to of [...PLACES, HOME] as const) {
-      for (const from of PLACES) {
-        if (!PORTALS[to].some((pad) => pad.to === from)) continue;
+      for (const from of [...PLACES, HOME] as const) {
+        if (from === to) continue;
         expect(coversPadLabel(to, arrivalSpot(from, to)), `${from} to ${to}`).toBe(false);
       }
     }
   });
 
+  test("every place reached from home leaves its labels clear", () => {
+    for (const to of PLACES) {
+      const spot = arrivalSpot(HOME, to);
+      expect(coversPadLabel(to, spot), to).toBe(false);
+      expect(clampTarget(spot.x, spot.z, to)).toEqual(spot);
+    }
+  });
+
   test("a home puts you just inside the door", () => {
     expect(arrivalSpot("garden", HOME)).toEqual(HOME_ARRIVAL);
+  });
+});
+
+describe("arriving among people", () => {
+  test("lands a body width from everyone already there", () => {
+    const taken = [{ ...HOME_ARRIVAL }, { x: HOME_ARRIVAL.x + 0.5, z: HOME_ARRIVAL.z }];
+    const spot = clearSpot(HOME, { ...HOME_ARRIVAL }, { taken });
+    for (const other of taken) expect(Math.hypot(spot.x - other.x, spot.z - other.z)).toBeGreaterThanOrEqual(ARRIVE_APART);
+    expect(Math.hypot(spot.x - HOME_ARRIVAL.x, spot.z - HOME_ARRIVAL.z)).toBeLessThan(3);
+  });
+
+  test("an empty spot is kept", () => {
+    expect(clearSpot("garden", { x: 1, z: 1 }, { taken: [{ x: 4, z: 4 }] })).toEqual({ x: 1, z: 1 });
+  });
+
+  test("with nowhere clear it stays put", () => {
+    const crowd = [];
+    for (let x = -12; x <= 12; x += 0.5) for (let z = -16; z <= 12; z += 0.5) crowd.push({ x, z });
+    expect(clearSpot("garden", { x: 1, z: 1 }, { taken: crowd })).toEqual({ x: 1, z: 1 });
   });
 });
 

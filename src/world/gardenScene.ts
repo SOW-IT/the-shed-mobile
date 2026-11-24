@@ -4,7 +4,7 @@
 // ground) or a line (ink edges, the arch). Toon shading is a three-step ramp
 // per shape; ink outlines are drawn as lines.
 
-import { OBSTACLES, PORTAL_RADIUS, PORTALS, type Place } from "@shared/world";
+import { OBSTACLES, PORTAL_RADIUS, PORTALS, type Place } from "../../shared/world";
 import type { Camera, Vec3 } from "./camera";
 import { garden, places, shade } from "./palette";
 
@@ -55,6 +55,15 @@ export const boxOf = (prims: Prim[]) => {
     }
   }
   return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+};
+
+const ITEM_TAP = "item:";
+
+export const itemAt = (props: readonly Prop[], x: number, y: number): string | null => {
+  const hit = props
+    .filter((prop) => prop.tap?.startsWith(ITEM_TAP) && x >= prop.box.left && x <= prop.box.right && y >= prop.box.top && y <= prop.box.bottom)
+    .sort((a, b) => a.depth - b.depth)[0];
+  return hit?.tap ? hit.tap.slice(ITEM_TAP.length) : null;
 };
 
 export interface Scene {

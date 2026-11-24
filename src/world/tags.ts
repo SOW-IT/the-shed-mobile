@@ -9,14 +9,15 @@ const overlap = (a: Box, b: Box) => {
   return across > 0 && up > 0 ? across : 0;
 };
 
-export const spreadTags = <T extends Box>(tags: readonly T[], top = -Infinity): T[] => {
-  const out = tags.map((tag) => ({ ...tag, bottom: Math.max(tag.bottom, top + tag.height) }));
+export const spreadTags = <T extends Box>(tags: readonly T[], top = -Infinity, fixed: readonly Box[] = []): T[] => {
+  const pinned = fixed.length;
+  const out: Box[] = [...fixed.map((box) => ({ ...box })), ...tags.map((tag) => ({ ...tag, bottom: Math.max(tag.bottom, top + tag.height) }))];
   const home = out.map((tag) => tag.x);
   const floor = out.map((tag) => tag.bottom);
-  const room = (k: number) => out[k].width * MAX_NUDGE - Math.abs(out[k].x - home[k]);
+  const room = (k: number) => (k < pinned ? 0 : out[k].width * MAX_NUDGE - Math.abs(out[k].x - home[k]));
   const clashesBefore = (k: number, x: number, until: number, skip: number) =>
     out.some((other, n) => n < until && n !== k && n !== skip && overlap({ ...out[k], x }, other) > 0 && overlap(out[k], other) === 0);
-  for (let i = 1; i < out.length; i++) {
+  for (let i = Math.max(1, pinned); i < out.length; i++) {
     for (let j = 0; j < i; j++) {
       const a = out[j];
       const b = out[i];
@@ -39,5 +40,5 @@ export const spreadTags = <T extends Box>(tags: readonly T[], top = -Infinity): 
       } else if (dropped - floor[i] <= reach) b.bottom = Math.max(b.bottom, dropped);
     }
   }
-  return out;
+  return out.slice(pinned) as T[];
 };
