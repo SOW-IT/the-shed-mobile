@@ -54,14 +54,14 @@ export const raisedOutcome = (platform, output) => {
   const text = (output ?? "").trim();
   const start = text.indexOf("{");
   const result = JSON.parse(start > 0 ? text.slice(start) : text);
-  if (typeof result?.raised !== "boolean" || typeof result?.recommended !== "string") {
-    throw new Error("appInstalls:raiseRecommended returned something other than a recommended version.");
+  if (typeof result?.raised !== "boolean" || typeof result?.latestOta !== "string") {
+    throw new Error("appInstalls:raiseLatestOta returned something other than a latest over-the-air version.");
   }
   return {
     platform,
     action: result.raised ? "raised" : "kept",
     previous: typeof result.previous === "string" ? result.previous : null,
-    recommended: result.recommended,
+    latestOta: result.latestOta,
   };
 };
 
@@ -70,15 +70,15 @@ export const recommendationFailed = (outcomes) => outcomes.filter((outcome) => o
 const recommendationText = (version, outcome) => {
   switch (outcome.action) {
     case "raised":
-      return outcome.previous ? `raised from ${outcome.previous} to ${outcome.recommended}` : `set to ${outcome.recommended}`;
+      return outcome.previous ? `raised from ${outcome.previous} to ${outcome.latestOta}` : `set to ${outcome.latestOta}`;
     case "kept":
-      return `stays ${outcome.recommended}, already at or past ${version}`;
+      return `stays ${outcome.latestOta}, already at or past ${version}`;
     case "stranded":
       return "not changed, because this update reaches no store build";
     case "no-key":
       return "not changed, because the workflow has no production Convex deploy key";
     default:
-      return `not changed: ${outcome.error ?? "appInstalls:raiseRecommended failed"}`;
+      return `not changed: ${outcome.error ?? "appInstalls:raiseLatestOta failed"}`;
   }
 };
 
@@ -129,7 +129,7 @@ export const summaryMarkdown = ({ version, channel, commit, project, checks, rec
   if (recommendations.length > 0) {
     lines.push(
       "",
-      "**Recommended version** (phones below it see the update prompt):",
+      "**Latest over-the-air version** (phones below it fetch it and restart; the store prompt follows the recommended version set by hand):",
       "",
       ...recommendationLines(version, recommendations).map((line) => `- ${line}`)
     );
@@ -178,7 +178,7 @@ export const chatMessage = ({ version, channel, commit, subject, commitUrl, runU
                   ? [
                       {
                         decoratedText: {
-                          topLabel: "Recommended version",
+                          topLabel: "Latest over-the-air version",
                           text: html(recommendationLines(version, recommendations).join("; ")),
                           wrapText: true,
                         },

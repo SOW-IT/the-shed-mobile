@@ -268,13 +268,13 @@ describe("app update policy", () => {
     ).rejects.toThrow(/isn't an app version/);
     expect(
       await t.mutation(internal.appInstalls.setUpdatePolicy, { platform: "ios", recommended: "2.9.0" })
-    ).toEqual({ minimum: null, recommended: "2.9.0", message: null });
+    ).toEqual({ minimum: null, recommended: "2.9.0", latestOta: null, message: null });
     expect(await status("ios", "2.8.0")).toEqual({ status: "recommended", latest: "2.9.0", message: null });
     expect(await status("android", "2.8.0")).toEqual({ status: "ok", latest: null, message: null });
 
     expect(
       await t.mutation(internal.appInstalls.setUpdatePolicy, { platform: "ios", minimum: "2.8.0" })
-    ).toEqual({ minimum: "2.8.0", recommended: "2.9.0", message: null });
+    ).toEqual({ minimum: "2.8.0", recommended: "2.9.0", latestOta: null, message: null });
     expect(await status("ios", "2.7.0")).toEqual({ status: "required", latest: "2.9.0", message: null });
     expect(await status("ios", "2.9.0")).toEqual({ status: "ok", latest: "2.9.0", message: null });
 
@@ -284,7 +284,7 @@ describe("app update policy", () => {
         recommended: null,
         message: "  Update for the new TWIG and PPN Insights.  ",
       })
-    ).toEqual({ minimum: "2.8.0", recommended: null, message: "Update for the new TWIG and PPN Insights." });
+    ).toEqual({ minimum: "2.8.0", recommended: null, latestOta: null, message: "Update for the new TWIG and PPN Insights." });
     expect(await status("ios", "2.7.0")).toEqual({
       status: "required",
       latest: "2.8.0",
@@ -292,6 +292,6 @@ describe("app update policy", () => {
     });
     expect(
       await t.mutation(internal.appInstalls.setUpdatePolicy, { platform: "ios", message: " " })
-    ).toEqual({ minimum: "2.8.0", recommended: null, message: null });
+    ).toEqual({ minimum: "2.8.0", recommended: null, latestOta: null, message: null });
   });
 });

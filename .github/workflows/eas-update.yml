@@ -75,7 +75,7 @@ jobs:
           test -n "$EXPO_PUBLIC_CONVEX_URL"
           eas update --channel staging --environment preview --auto --non-interactive
 
-      - name: Report the production update and raise the recommended version
+      - name: Report the production update and raise the latest over-the-air version
         if: ${{ always() && steps.current.outputs.publish == 'true' }}
         env:
           UPDATES_FILE: ${{ runner.temp }}/eas-update-production.json

@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.41] - 2026-11-24
+## [2.12.42] - 2026-11-24
 
 ### Fixed
 - **Height shows.** The editor preview used to shrink taller characters to
@@ -25,6 +25,13 @@ All notable changes to **The SHED** mobile app. This project follows
   which wait for the server to save and send everyone's updates back, so it
   read about 130 ms from Sydney. It now times a small read, which is what
   the trip to the server takes, and shows the middle of the last five.
+- **Round avatars are centred.** The small round avatars in the People
+  list, invites and the shop sat a couple of pixels right of the middle.
+- **You can sit on the Campfire's back log.** Tapping it used to walk you to
+  it; now it sits you down like the side logs.
+- **The web sweep waits for the World to load.** The first visit compiles
+  the World's code on demand, which took longer on CI than a screen gets to
+  settle; the timer now starts once that code has arrived.
 
 ### Added
 - **A Flannel outfit.** An open flannel shirt in your shirt colour with an
@@ -60,14 +67,16 @@ All notable changes to **The SHED** mobile app. This project follows
 - **The invite button is an envelope.** Inviting someone to your home uses
   a mail icon instead of a house.
 
+## [2.12.41] - 2026-11-24
+
 ### Fixed
-- **Round avatars are centred.** The small round avatars in the People
-  list, invites and the shop sat a couple of pixels right of the middle.
-- **You can sit on the Campfire's back log.** Tapping it used to walk you to
-  it; now it sits you down like the side logs.
-- **The web sweep waits for the World to load.** The first visit compiles
-  the World's code on demand, which took longer on CI than a screen gets to
-  settle; the timer now starts once that code has arrived.
+- **Phones that only need an over-the-air update are no longer sent to the
+  App Store.** After 2.12.40, a phone on the newest store build running an
+  older update could be told to update in the App Store or Play Store when a
+  restart was all it needed. The version each over-the-air update publishes
+  is now kept apart from the recommended store version. Phones from 2.12.41
+  on hear about both and restart into the update; older phones only see the
+  store version, and pick up the update the next time the app starts.
 
 ## [2.12.40] - 2026-11-24
 
