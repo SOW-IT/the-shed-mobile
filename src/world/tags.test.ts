@@ -54,6 +54,10 @@ describe("tags kept apart", () => {
     expect(spread[0]).toEqual(tag(100));
   });
 
+  test("a lift too far for one level drops the tag below instead", () => {
+    apart(spreadTags([tag(100, 60, 100), tag(101, 60, 120)], 4));
+  });
+
   test("stacking a tag never lands it on an earlier one", () => {
     apart(spreadTags([tag(100, 60, 72), tag(100, 60, 100), tag(100, 60, 100)], 4));
   });

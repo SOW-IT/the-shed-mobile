@@ -446,14 +446,15 @@ export const clearSpot = (
 ): { x: number; z: number } => {
   const fine = (at: { x: number; z: number }) =>
     !(labels && coversPadLabel(place, at)) && taken.every((other) => Math.hypot(other.x - at.x, other.z - at.z) >= ARRIVE_APART);
-  if (fine(start)) return start;
+  const from = clampTarget(start.x, start.z, place, extra);
+  if (fine(from)) return from;
   for (let r = 0.4; r <= 6; r += 0.4) {
     for (const turn of RING_TURNS) {
-      const at = clampTarget(start.x + Math.cos(turn) * r, start.z + Math.sin(turn) * r, place, extra);
+      const at = clampTarget(from.x + Math.cos(turn) * r, from.z + Math.sin(turn) * r, place, extra);
       if (fine(at)) return at;
     }
   }
-  return start;
+  return from;
 };
 
 /** A spot just outside an obstacle's rim, at angle `a` round it. */

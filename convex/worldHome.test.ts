@@ -5,7 +5,7 @@ import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { currentStaffYear } from "./model";
 import { removeFromWorld } from "./world";
 import { START_COINS } from "../shared/coins";
-import { DOOR_CLEAR, FURNITURE, HOME_CAP, HOME_DOOR, placementProblem } from "../shared/home";
+import { DOOR_CLEAR, FURNITURE, HOME_CAP, HOME_DOOR, footprint, placementProblem } from "../shared/home";
 import { ARRIVE_APART, BUCKETS, HOME_ARRIVAL, INVITE_MS, NPC, POKE_EVERY_MS, POKE_ARRIVAL_MS, ROOM_CAP, WALK_BOUNDS, distance, posAt } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
@@ -156,6 +156,30 @@ describe("homes are invite only", () => {
     expect(poke).toMatchObject({ place: "home", owner: ANNA });
     await asUser(t, CARA).mutation(api.world.join, { poke: poke._id });
     expect((await memberOf(t, CARA)).room?.owner).toBeUndefined();
+  });
+
+  test("going from one home to another never leaves you standing in their furniture", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    const { memberId: benId } = await asUser(t, BEN).mutation(api.world.join, {});
+    await goTo(t, BEN, "home");
+    await asUser(t, BEN).mutation(api.world.move, { toX: 0, toZ: -4 });
+    later(30_000);
+    await t.run((ctx) =>
+      ctx.db.insert("worldHomes", { owner: ANNA, wallpaper: "plain", items: [{ key: "t", item: "table", x: 0, z: -4, turn: 0 }], bucket: { tokens: 1, at: 0 } })
+    );
+    await goTo(t, ANNA, "home");
+    await anna.mutation(api.world.move, { toX: 3, toZ: 3 });
+    later(30_000);
+    await anna.mutation(api.world.invite, { memberId: benId });
+    const [card] = await asUser(t, BEN).query(api.world.invites, {});
+    await asUser(t, BEN).mutation(api.world.travel, { to: "home", invite: card.id });
+    const ben = await memberOf(t, BEN);
+    expect(ben.room?.owner).toBe(ANNA);
+    const at = posAt(ben.state!, Date.now());
+    const { hw, hd } = footprint("table", 0);
+    expect(Math.abs(at.x) < hw && Math.abs(at.z + 4) < hd).toBe(false);
   });
 
   test("following someone in with their invite stops at a full home", async () => {

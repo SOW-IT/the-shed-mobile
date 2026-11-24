@@ -99,14 +99,15 @@ export const enqueueScore = (queue: readonly QueuedScore[], entry: QueuedScore, 
   // has become unpublishable can't hold its place.
   if (scoreProblem(entry, now) !== null) return [...queue];
   const pays = (queued: QueuedScore) => coinsForRun(queued.game, queued.score) > 0;
-  const sameGame = queue.filter((queued) => queued.game === entry.game && scoreProblem(queued, now) === null);
+  const live = queue.filter((queued) => scoreProblem(queued, now) === null);
+  const sameGame = live.filter((queued) => queued.game === entry.game);
   const beaten = (queued: QueuedScore) => queued.game === entry.game && !pays(queued) && queued.score < entry.score;
-  if (pays(entry) && queue.filter(pays).length < MAX_PAYING_RUNS) return [...queue.filter((queued) => !beaten(queued)), entry];
-  if (sameGame.some((queued) => queued.score >= entry.score)) return [...queue];
-  const kept = queue.filter((queued) => queued.game !== entry.game || pays(queued));
+  if (pays(entry) && live.filter(pays).length < MAX_PAYING_RUNS) return [...live.filter((queued) => !beaten(queued)), entry];
+  if (sameGame.some((queued) => queued.score >= entry.score)) return [...live];
+  const kept = live.filter((queued) => queued.game !== entry.game || pays(queued));
   if (!pays(entry) || kept.filter(pays).length < MAX_PAYING_RUNS) return [...kept, entry];
   const lowest = kept.filter((queued) => queued.game === entry.game && pays(queued)).sort((x, y) => x.score - y.score)[0];
-  return lowest ? [...kept.filter((queued) => queued !== lowest), entry] : [...queue];
+  return lowest ? [...kept.filter((queued) => queued !== lowest), entry] : [...live];
 };
 
 /**

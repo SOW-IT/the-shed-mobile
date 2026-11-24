@@ -567,6 +567,12 @@ describe("arriving among people", () => {
     expect(Math.hypot(spot.x - HOME_ARRIVAL.x, spot.z - HOME_ARRIVAL.z)).toBeLessThan(3);
   });
 
+  test("a spot on furniture is moved off it even with nobody around", () => {
+    const table = { id: "table", x: 0, z: -4, rx: 1, rz: 0.6 };
+    const spot = clearSpot(HOME, { x: 0, z: -4 }, { extra: [table] });
+    expect(Math.hypot(spot.x / table.rx, (spot.z + 4) / table.rz)).toBeGreaterThanOrEqual(1);
+  });
+
   test("an empty spot is kept", () => {
     expect(clearSpot("garden", { x: 1, z: 1 }, { taken: [{ x: 4, z: 4 }] })).toEqual({ x: 1, z: 1 });
   });

@@ -116,6 +116,14 @@ describe("enqueueScore", () => {
     expect(queue.map((queued) => queued.runId)).toEqual(expect.arrayContaining(["run-best-0", "run-best-1", "run-best-2"]));
   });
 
+  test("runs that can no longer publish don't take a paying run's place", () => {
+    const stale = Array.from({ length: MAX_PAYING_RUNS }, (_, i) =>
+      entry({ runId: `run-stale-${i}`, game: "runner", score: 13_000, durationMs: 600_000, playedAt: SCORES_RESET_AT.runner! - 1 })
+    );
+    const fresh = entry({ runId: "run-fresh-1", game: "flappy", score: 600, durationMs: 600_000 });
+    expect(enqueueScore(stale, fresh, NOW)).toEqual([fresh]);
+  });
+
   test("never queues a zero score", () => {
     expect(enqueueScore([], entry({ score: 0 }), NOW)).toEqual([]);
   });

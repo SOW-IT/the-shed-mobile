@@ -403,7 +403,7 @@ export const WorldScreen = ({
 
   const [fade] = useState(() => new Animated.Value(0));
   const triedFromWalk = useRef<number | null>(null);
-  const go = (to: Place, toMember?: Id<"worldMembers">, invite?: Id<"worldInvites">) => {
+  const go = (to: Place, toMember?: Id<"worldMembers">, invite?: Id<"worldInvites">, onArrived?: () => void) => {
     setPerson(null);
     setApproach(null);
     setArcadeTrip(null);
@@ -419,7 +419,10 @@ export const WorldScreen = ({
     void live.current.world.travel(to, { toMember, invite }).then((problem) => {
       veil(0);
       if (problem) setNote(problem);
-      else announce(to === "home" ? (invite ? "You're at their home." : "You're home.") : `You're in ${PLACE_TITLES[to]}.`);
+      else {
+        announce(to === "home" ? (invite ? "You're at their home." : "You're home.") : `You're in ${PLACE_TITLES[to]}.`);
+        onArrived?.();
+      }
     });
   };
   const goHome = () => go("home");
@@ -768,8 +771,8 @@ export const WorldScreen = ({
       name={invite.ownerName}
       look={invite.look}
       onGo={() => {
-        setDismissedInvites((set) => new Set(set).add(`${invite.id}:${invite.at}`));
-        go("home", undefined, invite.id);
+        const shown = `${invite.id}:${invite.at}`;
+        go("home", undefined, invite.id, () => setDismissedInvites((set) => new Set(set).add(shown)));
       }}
       onLater={() => setDismissedInvites((set) => new Set(set).add(`${invite.id}:${invite.at}`))}
     />
