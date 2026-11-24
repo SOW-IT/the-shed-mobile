@@ -9,7 +9,7 @@ import { Shape } from "./Shapes";
 export const FurnitureThumb = memo(function FurnitureThumb({ item, size }: { item: FurnitureId; size: number }) {
   const prims = useMemo(() => {
     const { w, d } = FURNITURE[item];
-    const cam = closeCamera(size, size, Math.max(w, d, 1.1));
+    const cam = closeCamera(size, size, Math.max(w, d, 1.4));
     const b = new Builder(cam, `thumb-${item}`);
     drawFurniture(b, item, 0, 0, 0);
     return b.take();
