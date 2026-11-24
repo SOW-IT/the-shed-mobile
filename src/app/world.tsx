@@ -1,5 +1,6 @@
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { LoadingState, Screen } from "@/components/ui";
+import { useRestartHold } from "@/hooks/useRestartHold";
 import { backOr } from "@/lib/goBack";
 import { useConvexAuth } from "convex/react";
 import { useFocusEffect, useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from "expo-router";
@@ -26,6 +27,7 @@ export default function World() {
       return () => setFocused(false);
     }, [])
   );
+  useRestartHold(isAuthenticated && (focused || atArcade));
   const [asking, setAsking] = useState(false);
   const held = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
   const letGo = usePreventRemove(isAuthenticated, ({ data }) => {

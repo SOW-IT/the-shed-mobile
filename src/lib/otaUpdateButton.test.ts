@@ -1,16 +1,12 @@
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   CHECK_INTERVAL_MS,
   checkDue,
   latestOf,
   previewFromSearch,
-  runUpdate,
-  startPreview,
-  subscribeUpdatePhase,
   updateButtonFor,
-  updatePhase,
+  updateButtonState,
 } from "./otaUpdateButton";
-import { restartHeld } from "./restartHold";
 
 const phone = { dev: false, web: false };
 const heardBack = { available: false, checked: true, answered: true, inFlight: null };
@@ -114,6 +110,7 @@ describe("previewFromSearch", () => {
   test("reads each state from otaPreview", () => {
     expect(previewFromSearch("?otaPreview=restart")).toEqual({ kind: "restart", phase: "idle" });
     expect(previewFromSearch("?otaPreview=updating")).toEqual({ kind: "restart", phase: "updating" });
+    expect(previewFromSearch("?otaPreview=ready")).toEqual({ kind: "restart", phase: "ready" });
     expect(previewFromSearch("?otaPreview=failed")).toEqual({ kind: "restart", phase: "failed" });
     expect(previewFromSearch("?otaPreview=store")).toEqual({ kind: "store", phase: "idle" });
   });
@@ -126,43 +123,161 @@ describe("previewFromSearch", () => {
   });
 });
 
-describe("runUpdate", () => {
-  test("one update at a time, held from the automatic restart, and tappable again after a failure", async () => {
+describe("updateButtonState", () => {
+  const restart = { kind: "restart" as const, downloading: false, downloaded: false };
+
+  test("Update, Updating, Update ready, Retry update, or the store", () => {
+    expect(updateButtonState({ ...restart, phase: "idle" })).toBe("update");
+    expect(updateButtonState({ ...restart, phase: "updating" })).toBe("updating");
+    expect(updateButtonState({ ...restart, phase: "idle", downloading: true })).toBe("updating");
+    expect(updateButtonState({ ...restart, phase: "ready" })).toBe("ready");
+    expect(updateButtonState({ ...restart, phase: "ready", downloading: true })).toBe("ready");
+    expect(updateButtonState({ ...restart, phase: "idle", downloaded: true })).toBe("ready");
+    expect(updateButtonState({ ...restart, phase: "failed" })).toBe("failed");
+    expect(updateButtonState({ ...restart, kind: "store", phase: "failed" })).toBe("store");
+  });
+});
+
+type Controller = typeof import("./otaUpdateButton");
+type Hold = typeof import("./restartHold");
+
+const settle = async () => {
+  for (let i = 0; i < 5; i += 1) await Promise.resolve();
+};
+
+describe("automatic update", () => {
+  let ota: Controller;
+  let hold: Hold;
+  let active: boolean;
+  let fetches: number;
+  let reloads: number;
+  let fetchResult: () => Promise<boolean>;
+  let reloadResult: () => Promise<void>;
+  const driver = {
+    fetch: () => {
+      fetches += 1;
+      return fetchResult();
+    },
+    reload: () => {
+      reloads += 1;
+      return reloadResult();
+    },
+    isActive: () => active,
+  };
+
+  beforeEach(async () => {
+    vi.resetModules();
+    ota = await import("./otaUpdateButton");
+    hold = await import("./restartHold");
+    active = true;
+    fetches = 0;
+    reloads = 0;
+    fetchResult = () => Promise.resolve(true);
+    reloadResult = () => new Promise<void>(() => undefined);
+  });
+
+  test("an update that's found downloads, then restarts by itself", async () => {
     const seen: string[] = [];
-    const unsubscribe = subscribeUpdatePhase(() => seen.push(updatePhase()));
-    startPreview(null);
-    startPreview({ kind: "restart", phase: "idle" });
-    expect(updatePhase()).toBe("idle");
+    ota.subscribeUpdatePhase(() => seen.push(ota.updatePhase()));
+    ota.downloadUpdate(driver);
+    expect(ota.updatePhase()).toBe("updating");
+    ota.downloadUpdate(driver);
+    expect(fetches).toBe(1);
+    await settle();
+    expect(reloads).toBe(1);
+    ota.restartWhenFree(driver);
+    expect(reloads).toBe(1);
+    expect(seen).toEqual(["updating", "updating"]);
+  });
 
-    let fail: (error: Error) => void = () => undefined;
-    let calls = 0;
-    const restart = () => {
-      calls += 1;
-      return new Promise<void>((_, reject) => (fail = reject));
-    };
-    runUpdate(restart);
-    runUpdate(restart);
-    expect(calls).toBe(1);
-    expect(updatePhase()).toBe("updating");
-    expect(restartHeld()).toBe(true);
+  test("a screen holding restarts keeps it at Update ready, then it restarts once let go", async () => {
+    const release = hold.holdRestart();
+    ota.downloadUpdate(driver);
+    await settle();
+    expect(reloads).toBe(0);
+    expect(ota.updatePhase()).toBe("ready");
+    ota.restartWhenFree(driver);
+    expect(reloads).toBe(0);
+    release();
+    expect(reloads).toBe(1);
+    expect(ota.updatePhase()).toBe("updating");
+  });
 
-    fail(new Error("offline"));
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(updatePhase()).toBe("failed");
-    expect(restartHeld()).toBe(false);
+  test("a hold let go while the app is away restarts it when you come back", async () => {
+    const release = hold.holdRestart();
+    ota.downloadUpdate(driver);
+    await settle();
+    active = false;
+    release();
+    expect(reloads).toBe(0);
+    expect(ota.updatePhase()).toBe("ready");
+    active = true;
+    ota.restartWhenFree(driver);
+    expect(reloads).toBe(1);
+  });
 
-    runUpdate(restart);
-    expect(calls).toBe(2);
-    expect(updatePhase()).toBe("updating");
-    fail(new Error("offline"));
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(seen).toEqual(["updating", "failed", "updating", "failed"]);
+  test("still held when you come back: no restart until it's let go", async () => {
+    const release = hold.holdRestart();
+    ota.downloadUpdate(driver);
+    await settle();
+    ota.restartWhenFree(driver);
+    expect(reloads).toBe(0);
+    release();
+    expect(reloads).toBe(1);
+  });
 
-    unsubscribe();
-    startPreview({ kind: "restart", phase: "updating" });
-    expect(seen).toHaveLength(4);
-    expect(updatePhase()).toBe("updating");
+  test("a tap restarts into a downloaded update straight away, even while held", () => {
+    hold.holdRestart();
+    ota.updateNow(driver, true);
+    expect(fetches).toBe(0);
+    expect(reloads).toBe(1);
+  });
+
+  test("a tap downloads first, then restarts even while held", async () => {
+    hold.holdRestart();
+    ota.updateNow(driver, false);
+    ota.updateNow(driver, false);
+    expect(fetches).toBe(1);
+    await settle();
+    expect(reloads).toBe(1);
+  });
+
+  test("a failed download shows the error and the next try downloads again", async () => {
+    fetchResult = () => Promise.reject(new Error("offline"));
+    ota.downloadUpdate(driver);
+    await settle();
+    expect(ota.updatePhase()).toBe("failed");
+    expect(reloads).toBe(0);
+    fetchResult = () => Promise.resolve(true);
+    ota.downloadUpdate(driver);
+    expect(ota.updatePhase()).toBe("updating");
+    await settle();
+    expect(fetches).toBe(2);
+    expect(reloads).toBe(1);
+  });
+
+  test("a failed restart can be tapped again", async () => {
+    reloadResult = () => Promise.reject(new Error("no"));
+    ota.updateNow(driver, true);
+    await settle();
+    expect(ota.updatePhase()).toBe("failed");
+    ota.updateNow(driver, true);
+    expect(reloads).toBe(2);
+  });
+
+  test("nothing new on the server leaves it as it was", async () => {
+    fetchResult = () => Promise.resolve(false);
+    ota.downloadUpdate(driver);
+    await settle();
+    expect(ota.updatePhase()).toBe("idle");
+    expect(reloads).toBe(0);
+  });
+
+  test("a preview starts in its state", () => {
+    ota.startPreview(null);
+    ota.startPreview({ kind: "restart", phase: "idle" });
+    expect(ota.updatePhase()).toBe("idle");
+    ota.startPreview({ kind: "restart", phase: "ready" });
+    expect(ota.updatePhase()).toBe("ready");
   });
 });

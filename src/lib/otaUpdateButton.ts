@@ -1,11 +1,11 @@
 import { type OtaState, updateRouteFor } from "../../shared/appLinks";
-import { withRestartHeld } from "./restartHold";
+import { onRestartFree, restartHeld } from "./restartHold";
 
 export const CHECK_INTERVAL_MS = 15 * 60_000;
 export const CHECK_TICK_MS = 60_000;
 
 type UpdateButtonKind = "restart" | "store";
-type UpdatePhase = "idle" | "updating" | "failed";
+type UpdatePhase = "idle" | "updating" | "ready" | "failed";
 type ServerStatus = "ok" | "recommended" | "required" | undefined;
 
 export const updateButtonFor = ({
@@ -50,10 +50,69 @@ export const subscribeUpdatePhase = (listener: () => void) => {
 
 export const updatePhase = (): UpdatePhase => phase;
 
-export const runUpdate = (restart: () => Promise<void>): void => {
-  if (phase === "updating") return;
+export type UpdateDriver = {
+  fetch: () => Promise<boolean>;
+  reload: () => Promise<void>;
+  isActive: () => boolean;
+};
+
+let reloading = false;
+let stopWaiting: (() => void) | null = null;
+
+const reload = (driver: UpdateDriver) => {
+  if (reloading) return;
+  reloading = true;
+  stopWaiting?.();
+  stopWaiting = null;
   setPhase("updating");
-  withRestartHeld(restart).catch(() => setPhase("failed"));
+  driver.reload().catch(() => {
+    reloading = false;
+    setPhase("failed");
+  });
+};
+
+export const restartWhenFree = (driver: UpdateDriver): void => {
+  if (reloading) return;
+  if (!restartHeld() && driver.isActive()) {
+    reload(driver);
+    return;
+  }
+  setPhase("ready");
+  stopWaiting ??= onRestartFree(() => restartWhenFree(driver));
+};
+
+const download = (driver: UpdateDriver, then: () => void) => {
+  if (reloading || phase === "updating" || phase === "ready") return;
+  setPhase("updating");
+  driver.fetch().then(
+    (fetched) => (fetched ? then() : setPhase("idle")),
+    () => setPhase("failed")
+  );
+};
+
+export const downloadUpdate = (driver: UpdateDriver): void => download(driver, () => restartWhenFree(driver));
+
+export const updateNow = (driver: UpdateDriver, downloaded: boolean): void => {
+  if (downloaded) reload(driver);
+  else download(driver, () => reload(driver));
+};
+
+export const updateButtonState = ({
+  kind,
+  phase: current,
+  downloading,
+  downloaded,
+}: {
+  kind: UpdateButtonKind;
+  phase: UpdatePhase;
+  downloading: boolean;
+  downloaded: boolean;
+}): "store" | "update" | "updating" | "ready" | "failed" => {
+  if (kind === "store") return "store";
+  if (current === "updating" || (downloading && current !== "ready")) return "updating";
+  if (current === "failed") return "failed";
+  if (current === "ready" || downloaded) return "ready";
+  return "update";
 };
 
 type UpdateButtonPreview = { kind: UpdateButtonKind; phase: UpdatePhase };
@@ -61,6 +120,7 @@ type UpdateButtonPreview = { kind: UpdateButtonKind; phase: UpdatePhase };
 const PREVIEWS = new Map<string, UpdateButtonPreview>([
   ["restart", { kind: "restart", phase: "idle" }],
   ["updating", { kind: "restart", phase: "updating" }],
+  ["ready", { kind: "restart", phase: "ready" }],
   ["failed", { kind: "restart", phase: "failed" }],
   ["store", { kind: "store", phase: "idle" }],
 ]);

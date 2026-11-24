@@ -48,29 +48,37 @@ export function AppUpdatePrompt() {
 const storeIcon = (platform: UpdateCheck["platform"]) =>
   platform === "android" ? "logo-google-playstore" : "logo-apple-appstore";
 
+const LABELS = {
+  store: "Update",
+  update: "Update",
+  updating: "Updating…",
+  ready: "Update ready",
+  failed: "Retry update",
+} as const;
+
+const DESCRIPTIONS = {
+  update: "Update The SHED",
+  updating: "Updating The SHED",
+  ready: "Update ready. Restart The SHED now",
+  failed: "The update didn't download. Try again",
+} as const;
+
 export function UpdateButton() {
   const t = useAppTheme();
   const check = useAppUpdate();
-  if (!check.button) return null;
-  const store = check.button === "store";
-  const failed = !store && check.failed;
-  const updating = !store && check.restarting;
+  const state = check.state;
+  if (!state) return null;
+  const failed = state === "failed";
+  const updating = state === "updating";
   const colour = failed ? fixedColours.onColour : t.onPrimary;
-  const label = updating ? "Updating…" : failed ? "Retry update" : "Update";
-  const accessibilityLabel = store
-    ? `Update The SHED in the ${check.store}`
-    : failed
-      ? "The update didn't download. Try again"
-      : updating
-        ? "Updating The SHED"
-        : "Update The SHED";
+  const icon = state === "store" ? storeIcon(check.platform) : failed ? "alert-circle" : "refresh";
   return (
     <Pressable
       testID="top-bar-update"
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={state === "store" ? `Update The SHED in the ${check.store}` : DESCRIPTIONS[state]}
       accessibilityState={{ busy: updating, disabled: updating }}
-      onPress={store ? check.openStore : check.restart}
+      onPress={state === "store" ? check.openStore : check.restart}
       disabled={updating}
       hitSlop={6}
       style={({ pressed }) => [
@@ -82,9 +90,9 @@ export function UpdateButton() {
       {updating ? (
         <ActivityIndicator size="small" color={colour} style={styles.spinner} />
       ) : (
-        <Ionicons name={store ? storeIcon(check.platform) : failed ? "alert-circle" : "refresh"} size={14} color={colour} />
+        <Ionicons name={icon} size={14} color={colour} />
       )}
-      <Text style={[styles.label, { color: colour }]}>{label}</Text>
+      <Text style={[styles.label, { color: colour }]}>{LABELS[state]}</Text>
     </Pressable>
   );
 }

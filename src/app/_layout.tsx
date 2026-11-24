@@ -1,8 +1,7 @@
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorReporter } from "@/components/ErrorReporter";
-import { OtaRestartOnResume } from "@/components/OtaRestartOnResume";
-import { OtaUpdateChecks } from "@/components/OtaUpdateChecks";
+import { OtaAutoUpdate } from "@/components/OtaAutoUpdate";
 import { GameScoreSync } from "@/components/games/GameScoreSync";
 import { OfflineGames, OfflineScreen } from "@/components/games/OfflineGames";
 import { OfflinePill } from "@/components/games/OfflinePill";
@@ -221,8 +220,7 @@ export default function RootLayout() {
                 <ErrorReporter />
                 <GameScoreSync />
                 <AppUpdatePrompt />
-                <OtaRestartOnResume />
-                <OtaUpdateChecks />
+                <OtaAutoUpdate />
               </ConvexAuthProvider>
             ) : (
               <ConfigurationErrorScreen />

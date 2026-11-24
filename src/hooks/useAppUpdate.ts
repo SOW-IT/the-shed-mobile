@@ -5,13 +5,15 @@ import { api } from "../../convex/_generated/api";
 import { appLinkForScheme, updateRouteFor } from "../../shared/appLinks";
 import { appScheme, appVersion } from "@/hooks/useReportAppVersion";
 import { openExternalLink } from "@/lib/openExternalLink";
-import { restartIntoUpdate, useOtaState } from "@/lib/otaUpdates";
+import { otaUpdateDriver, useOtaState } from "@/lib/otaUpdates";
 import {
   previewFromSearch,
-  runUpdate,
   startPreview,
   subscribeUpdatePhase,
+  type UpdateDriver,
   updateButtonFor,
+  updateButtonState,
+  updateNow,
   updatePhase,
 } from "@/lib/otaUpdateButton";
 
@@ -25,8 +27,10 @@ const PREVIEW_FAIL_AFTER_MS = 1500;
 const preview = __DEV__ ? previewFromSearch(globalThis.location?.search) : null;
 startPreview(preview);
 
-const previewRestart = () =>
-  new Promise<void>((_, reject) => setTimeout(() => reject(new Error("preview")), PREVIEW_FAIL_AFTER_MS));
+const failLater = () =>
+  new Promise<never>((_, reject) => setTimeout(() => reject(new Error("preview")), PREVIEW_FAIL_AFTER_MS));
+
+const previewDriver: UpdateDriver = { fetch: failLater, reload: failLater, isActive: () => true };
 
 export const useAppUpdate = () => {
   const platform = nativePlatform();
@@ -45,7 +49,14 @@ export const useAppUpdate = () => {
   const route = behind ? updateRouteFor(latest, ota) : null;
   const button =
     preview?.kind ?? updateButtonFor({ dev: __DEV__, web: Platform.OS === "web", ota, status, latest });
-  const restart = () => runUpdate(preview ? previewRestart : () => restartIntoUpdate(ota?.pending ?? false));
+  const driver = preview ? previewDriver : otaUpdateDriver;
+  const downloaded = preview ? preview.phase === "ready" : (ota?.pending ?? false);
+  const restart = () => {
+    if (driver) updateNow(driver, downloaded);
+  };
+  const state = button
+    ? updateButtonState({ kind: button, phase, downloading: !preview && !!ota?.downloading, downloaded })
+    : null;
   const openStore = () => {
     if (storeUrl) void openExternalLink(storeUrl);
   };
@@ -59,7 +70,8 @@ export const useAppUpdate = () => {
     platform,
     store: storeName(platform),
     restart,
-    restarting: phase === "updating",
+    state,
+    restarting: phase === "updating" || state === "updating",
     failed: phase === "failed",
     openStore,
   };

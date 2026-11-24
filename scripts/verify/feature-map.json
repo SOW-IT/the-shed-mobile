@@ -48,7 +48,7 @@
     "src/app/e2e-auth.tsx",
     "src/components/nav/**",
     "src/components/ui/**",
-    "src/components/{ErrorBoundary,ErrorReporter,AppUpdatePrompt,OtaRestartOnResume,OtaUpdateChecks,ChromeScreen,PagerScreen,PagerCarousel,PagerCarousel.native,GroupedList,FilterChips,DateInputs,DateInputs.web,ReorderableList,HistoryTimeline,CommentsSheet,CommentThreadSheet,SignInPrompt,CampusMark}.tsx",
+    "src/components/{ErrorBoundary,ErrorReporter,AppUpdatePrompt,OtaAutoUpdate,ChromeScreen,PagerScreen,PagerCarousel,PagerCarousel.native,GroupedList,FilterChips,DateInputs,DateInputs.web,ReorderableList,HistoryTimeline,CommentsSheet,CommentThreadSheet,SignInPrompt,CampusMark}.tsx",
     "src/components/{useTopBarCollapse,dateTimeDisplay}.ts",
     "src/theme.ts",
     "src/fonts.ts",

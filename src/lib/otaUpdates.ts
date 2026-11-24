@@ -1,6 +1,7 @@
 import { requireOptionalNativeModule } from "expo";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import type { OtaState } from "../../shared/appLinks";
+import type { UpdateDriver } from "@/lib/otaUpdateButton";
 
 type UpdatesModule = typeof import("expo-updates");
 
@@ -16,16 +17,16 @@ export const otaUpdates: UpdatesModule | null = (() => {
   return updates?.isEnabled ? updates : null;
 })();
 
-/**
- * Restarts into the over-the-air update for this build, downloading it
- * first if it isn't on the phone yet. Never opens the store: that's a
- * separate prompt, for a version that needs a new build.
- */
-export const restartIntoUpdate = async (pending: boolean): Promise<void> => {
-  if (!otaUpdates) return;
-  if (!pending) await otaUpdates.fetchUpdateAsync();
-  await otaUpdates.reloadAsync();
-};
+const driverFor = (updates: UpdatesModule): UpdateDriver => ({
+  fetch: async () => {
+    const result = await updates.fetchUpdateAsync();
+    return result.isNew || result.isRollBackToEmbedded;
+  },
+  reload: () => updates.reloadAsync(),
+  isActive: () => AppState.currentState === "active",
+});
+
+export const otaUpdateDriver: UpdateDriver | null = otaUpdates ? driverFor(otaUpdates) : null;
 
 const manifestVersion = (manifest: unknown): string | undefined => {
   const extra = (manifest as { extra?: { expoClient?: { version?: unknown } } } | undefined)?.extra;
@@ -34,13 +35,14 @@ const manifestVersion = (manifest: unknown): string | undefined => {
 };
 
 /** The over-the-air update state, or null in a build without expo-updates. */
-export const useOtaState: () => (OtaState & { pending: boolean }) | null = otaUpdates
+export const useOtaState: () => (OtaState & { pending: boolean; downloading: boolean }) | null = otaUpdates
   ? () => {
       const state = otaUpdates.useUpdates();
       const update = state.downloadedUpdate ?? state.availableUpdate;
       return {
         available: state.isUpdateAvailable || state.isUpdatePending,
         pending: state.isUpdatePending,
+        downloading: state.isDownloading,
         version: manifestVersion(update?.manifest),
         checked: state.lastCheckForUpdateTimeSinceRestart !== undefined || state.checkError !== undefined,
         answered: state.lastCheckForUpdateTimeSinceRestart !== undefined && state.checkError === undefined,

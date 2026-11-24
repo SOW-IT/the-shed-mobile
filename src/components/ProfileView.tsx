@@ -238,7 +238,7 @@ const AppUpdateButton = () => {
     <View style={styles.updateApp} testID="profile-update">
       {update.button === "restart" ? (
         <Btn
-          title={update.restarting ? "Updating…" : "Update"}
+          title={update.restarting ? "Updating…" : update.state === "ready" ? "Update ready" : "Update"}
           icon="refresh"
           variant="tonal"
           disabled={update.restarting}
