@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import { LEADERBOARD_SIZE, MAX_PAGE_SIZE, RANK_LIMIT, RESET_BATCH } from "./gameScores";
 import { asUser, newConvex, YEAR, type T } from "../test/convexFixture";
-import { MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
+import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -56,12 +56,18 @@ describe("submitScores", () => {
       scores: [
         { ...run("run-anna-fast", 1_000_000), durationMs: 1000 },
         { ...run("run-anna-future", 10), playedAt: Date.now() + 60 * 60 * 1000 },
+        { ...run("run-anna-swoop-fast", 600_000, "glider"), durationMs: MAX_RUN_MS },
         run("run-anna-ok", 10),
+        { ...run("run-anna-swoop", 9_000, "glider"), durationMs: 120_000 },
       ],
     });
-    expect(result.accepted).toEqual(["run-anna-ok"]);
-    expect(result.rejected.map((r) => r.runId)).toEqual(["run-anna-fast", "run-anna-future"]);
-    expect(await bests(t)).toEqual([[ANNA, "runner", 10, "run-anna-ok"]]);
+    expect(result.accepted).toEqual(["run-anna-ok", "run-anna-swoop"]);
+    expect(result.rejected.map((r) => r.runId)).toEqual(["run-anna-fast", "run-anna-future", "run-anna-swoop-fast"]);
+    expect(await bests(t)).toEqual([
+      [ANNA, "runner", 10, "run-anna-ok"],
+      [ANNA, "glider", 9_000, "run-anna-swoop"],
+    ]);
+    expect((await t.query(api.gameScores.leaderboard, { game: "glider" })).top.map((row) => row.score)).toEqual([9_000]);
   });
 
   test("refuses an oversized batch", async () => {

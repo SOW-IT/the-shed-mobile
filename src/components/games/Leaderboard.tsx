@@ -19,6 +19,12 @@ import { shortName } from "@shared/names";
 /** Rows per page; "Load more" fetches the next page until every score is shown. */
 const PAGE_SIZE = 25;
 
+/**
+ * The tabs share a phone's width four ways, where "Sky Shooter" doesn't
+ * fit; its page's Play button still says the whole name.
+ */
+const TAB_LABELS: Partial<Record<GameId, string>> = { shooter: "Shooter" };
+
 const Board = ({ game }: { game: GameId }) => {
   const t = useAppTheme();
   const { isAuthenticated } = useConvexAuth();
@@ -136,7 +142,7 @@ export const Leaderboard = ({
     () =>
       GAME_IDS.map((id) => ({
         key: id,
-        label: GAME_INFO[id].title,
+        label: TAB_LABELS[id] ?? GAME_INFO[id].title,
         render: () => <GamePage game={id} onPlay={onPlay} />,
       })),
     [onPlay]
