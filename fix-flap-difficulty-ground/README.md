@@ -8,21 +8,21 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 90s |  |
-| unused code (knip) | ✔ pass | 7s |  |
-| typecheck | ✔ pass | 25s |  |
-| related unit tests | ✔ pass | 3s | 32 passed (32) |
-| verify lock | ✔ pass | 111s | took it after waiting 111s for pid 22197, feat/hill-glider in /Users/xtectra/GitHub/worktrees/the-shed-mobile-hill-glider, since 2026-11-24T07:10:10.529Z |
+| native fingerprint | ✔ pass | 6s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 103s |  |
+| unused code (knip) | ✔ pass | 5s |  |
+| typecheck | ✔ pass | 18s |  |
+| related unit tests | ✔ pass | 2s | 32 passed (32) |
+| verify lock | ✔ pass | 548s | took it after waiting 548s for pid 29450, fix/world-looks-ping in /Users/xtectra/GitHub/worktrees/the-shed-mobile-world-ping, since 2026-11-24T08:02:49.200Z |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 17s | before functions on :3270 |
-| before: web | ✔ pass | 108s | 24 screens, 0 broken. |
+| before: local backend | ✔ pass | 27s | before functions on :3270 |
+| before: web | ✔ pass | 107s | 24 screens, 0 broken. |
 | before: iOS reset | ✔ pass | 2s |  |
-| before: iOS | ✔ pass | 104s | 14 screenshots, every one settled |
-| after: local backend | ✔ pass | 17s | after functions on :3270 |
-| after: web | ✔ pass | 108s | 24 screens, 0 broken. |
+| before: iOS | ✔ pass | 93s | 14 screenshots, every one settled |
+| after: local backend | ✔ pass | 16s | after functions on :3270 |
+| after: web | ✔ pass | 106s | 24 screens, 0 broken. |
 | after: iOS reset | ✔ pass | 2s |  |
-| after: iOS | ✔ pass | 106s | 14 screenshots, every one settled |
+| after: iOS | ✔ pass | 92s | 14 screenshots, every one settled |
 
 ## Screenshots
 
