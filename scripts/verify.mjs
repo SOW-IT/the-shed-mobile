@@ -50,7 +50,7 @@ const parseArgs = (argv) => {
     const name = argv[i].replace(/^--/, "");
     if (["only", "base", "device", "app"].includes(name)) {
       const value = argv[++i];
-      if (value === undefined || value.startsWith("--")) throw new Error(`--${name} needs a value`);
+      if (!value || value.startsWith("--")) throw new Error(`--${name} needs a value`);
       values[name] = value;
     }
     else flags.add(name);
