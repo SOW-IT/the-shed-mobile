@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.46] - 2026-11-24
+## [2.12.47] - 2026-11-24
 
 ### Fixed
 - **The newer hats sit right on curly hair, an afro and a bun.**
