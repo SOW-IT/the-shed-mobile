@@ -13,7 +13,7 @@ const NATIVE = Platform.OS !== "web";
 const STEPS = [0, 0.25, 0.5, 0.75, 1];
 const EASE_OUT = STEPS.map((k) => 1 - (1 - k) ** 3);
 
-export const PLACE_ICONS: Record<Place, string> = {
+const PLACE_ICONS: Record<Place, string> = {
   garden: "🌿",
   chapel: "⛪",
   campfire: "🔥",
@@ -161,9 +161,7 @@ export const WifiBars = ({ bars, size = 20, off = signal.offOnCard }: { bars?: n
 export type MenuEntry = {
   id: string;
   label: string;
-  emoji?: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-  count?: number;
+  icon: keyof typeof Ionicons.glyphMap;
   tone?: "leave";
   accessibilityLabel?: string;
   onPress: () => void;
@@ -198,18 +196,11 @@ export const WorldMenu = ({
               style={({ pressed }) => [styles.place, entry.tone === "leave" && styles.leave, pressed && styles.rowPressed]}
             >
               <View style={[styles.placeIcon, entry.tone === "leave" && styles.leaveIcon]}>
-                {entry.emoji ? <Text style={styles.placeEmoji}>{entry.emoji}</Text> : null}
-                {entry.icon ? <Ionicons name={entry.icon} size={19} color={glass.text} /> : null}
+                <Ionicons name={entry.icon} size={19} color={glass.text} />
               </View>
               <Text style={styles.placeTitle} numberOfLines={1}>
                 {entry.label}
               </Text>
-              {entry.count !== undefined ? (
-                <View style={[styles.count, entry.count === 0 && styles.countEmpty]}>
-                  <Ionicons name="person" size={11} color={glass.text} />
-                  <Text style={styles.countText}>{entry.count}</Text>
-                </View>
-              ) : null}
             </Pressable>
           </Animated.View>
         ))}
@@ -388,11 +379,7 @@ const styles = StyleSheet.create({
   place: { flexDirection: "row", alignItems: "center", gap: 10, height: 52, paddingHorizontal: 8, borderRadius: 16, backgroundColor: glass.row },
   rowPressed: { opacity: 0.7 },
   placeIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
-  placeEmoji: { fontSize: 19 },
   placeTitle: { flex: 1, fontFamily: fonts.display, fontSize: 16, color: glass.text },
-  count: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, height: 22, borderRadius: 11, backgroundColor: hud.primary },
-  countEmpty: { backgroundColor: glass.row },
-  countText: { color: glass.text, fontSize: 12, fontWeight: "800" },
   pill: { flexDirection: "row", alignItems: "center", gap: 4, height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: glass.row, borderWidth: 1, borderColor: glass.edge },
   pillAccent: { backgroundColor: hud.accent, borderColor: hud.accent },
   pillDisabled: { opacity: 0.45 },

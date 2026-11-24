@@ -1,6 +1,6 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { ASK_MS, CHAT_LOG_SIZE, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, PLACE_TITLES, MAX_SAY_LENGTH, askInfo, posAt } from "@shared/world";
+import { ASK_MS, CHAT_LOG_SIZE, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, askInfo, placeName, posAt } from "@shared/world";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -75,7 +75,7 @@ export const WorldList = ({
     }
   }, [log, muted, names]);
 
-  const place = placeTitle ?? PLACE_TITLES[world.place];
+  const place = placeTitle ?? placeName(world.place);
   const title = world.instance > 1 ? `${place} · ${world.instance}` : place;
 
   // Asks made of you that are open: announced once each (VoiceOver), since

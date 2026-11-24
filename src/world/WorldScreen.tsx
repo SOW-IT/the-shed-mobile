@@ -10,7 +10,7 @@ import {
   OBSTACLES,
   PLACE_OBSTACLES,
   PLACE_TITLES,
-  PLACES,
+  placeName,
   SEATS,
   pingBars,
   portalAt,
@@ -36,7 +36,7 @@ import { hud } from "./palette";
 import type { HudAction } from "./PersonHud";
 import { PersonSheet } from "./Sheets";
 import { PeoplePanel } from "./People";
-import { connectionLabel, DevotionalPromptDialog, LeaveDialog, PLACE_ICONS, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
+import { connectionLabel, DevotionalPromptDialog, LeaveDialog, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
 import { useWorld } from "./useWorld";
 import { useForeground } from "./useForeground";
 import { pickView } from "./view";
@@ -166,7 +166,7 @@ const TitlePill = ({ title, instance, open, onPress }: { title: string; instance
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${label}. Places and leave`}
+      accessibilityLabel={`${label}. Outfit, home, settings and leave`}
       accessibilityState={{ expanded: open }}
       testID="world-title"
       style={({ pressed }) => [styles.title, pressed && styles.pressed]}
@@ -549,7 +549,7 @@ export const WorldScreen = ({
     const id = setTimeout(() => setInviteExpired((n) => n + 1), Math.max(0, inviteEnds - live.current.world.serverNow()) + 1);
     return () => clearTimeout(id);
   }, [inviteEnds]);
-  const placeTitle = world.place === "home" ? (world.home ? (world.home.mine ? "Your home" : `${worldName(world.home.ownerName)}'s home`) : "Home") : PLACE_TITLES[world.place];
+  const placeTitle = world.place === "home" ? (world.home ? (world.home.mine ? "Your home" : `${worldName(world.home.ownerName)}'s home`) : "Home") : placeName(world.place);
   const goRef = useRef(go);
   useEffect(() => {
     goRef.current = go;
@@ -683,31 +683,9 @@ export const WorldScreen = ({
     return () => clearInterval(id);
   }, [following]);
 
-  const hudActions: HudAction[] = !selected
+  // Only someone else is ever selected: tapping yourself opens nothing.
+  const hudActions: HudAction[] = !selected || selected.isMe
     ? []
-    : selected.isMe
-      ? [
-          {
-            id: "customize",
-            label: "Outfit",
-            hint: "Customize your character",
-            icon: "shirt-outline",
-            onPress: () => {
-              setPerson(null);
-              setEditing(true);
-            },
-          },
-          {
-            id: "emotes",
-            label: "Emotes",
-            hint: "Emotes",
-            emoji: "🌸",
-            onPress: () => {
-              setPerson(null);
-              setTray(true);
-            },
-          },
-        ]
       : [
           ...(selected.away || selected.reading
             ? []
@@ -848,18 +826,19 @@ export const WorldScreen = ({
     </>
   );
 
+  // No trips from here: you walk to a place. Outfit sits above Your home.
   const menuEntries: MenuEntry[] = [
-    ...PLACES.filter((to) => to !== world.place).map((to) => {
-      const count = world.placeCounts?.[to] ?? 0;
-      return {
-        id: to,
-        label: PLACE_TITLES[to],
-        emoji: PLACE_ICONS[to],
-        count,
-        accessibilityLabel: `Go to ${PLACE_TITLES[to]}, ${count} ${count === 1 ? "person" : "people"} there`,
-        onPress: () => go(to),
-      };
-    }),
+    {
+      id: "outfit",
+      label: "Outfit",
+      icon: "shirt-outline",
+      accessibilityLabel: "Outfit. Change your look",
+      onPress: () => {
+        setPlacesOpen(false);
+        setPerson(null);
+        setEditing(true);
+      },
+    },
     ...(myHome
       ? []
       : [
@@ -986,6 +965,12 @@ export const WorldScreen = ({
         onHoldMove={world.holdMove}
         onHoldEnd={world.holdEnd}
         onTapPerson={(memberId) => {
+          // Tapping yourself opens nothing; it only puts away what was open.
+          if (live.current.world.people.some((p) => p.isMe && p.memberId === memberId)) {
+            setTray(false);
+            setPerson(null);
+            return;
+          }
           setTray(false);
           setPropTrip(null);
           setSeatTrip(null);

@@ -362,6 +362,9 @@ export const PLACE_TITLES: Record<Place, string> = {
   home: "Home",
 };
 
+/** A place's name on its own, as the World's title shows it: "Garden", "Café". */
+export const placeName = (place: Place) => PLACE_TITLES[place].replace(/^The /, "");
+
 export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
   garden: OBSTACLES,
   chapel: [
