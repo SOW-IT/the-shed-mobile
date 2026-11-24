@@ -54,6 +54,10 @@ describe("tags kept apart", () => {
     expect(spread[0]).toEqual(tag(100));
   });
 
+  test("stacking a tag never lands it on an earlier one", () => {
+    apart(spreadTags([tag(100, 60, 72), tag(100, 60, 100), tag(100, 60, 100)], 4));
+  });
+
   test("a tag in front of a fixed head moves off it, and the head stays put", () => {
     const head = { x: 100, bottom: 140, width: 40, height: 36 };
     const [you] = spreadTags([tag(104, 50, 130)], 4, [head]);

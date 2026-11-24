@@ -17,7 +17,7 @@ import {
 } from "../shared/home";
 import { fullBucket, takeToken, NPC } from "../shared/world";
 import { ensureWallet, walletOf } from "./coins";
-import { requireEmail } from "./model";
+import { optionalEmail } from "./model";
 import { homeOf, homeRowOf, memberByEmail, nameFor, requireMe, placeOf } from "./world";
 import { worldPlacedValidator } from "./worldData";
 
@@ -31,7 +31,8 @@ export const home = query({
     v.object({ ownerName: v.string(), mine: v.boolean(), wallpaper: v.string(), items: v.array(worldPlacedValidator) })
   ),
   handler: async (ctx, { roomId }) => {
-    const email = await requireEmail(ctx);
+    const email = await optionalEmail(ctx);
+    if (!email) return null;
     const me = await memberByEmail(ctx, email);
     const room = await ctx.db.get("worldRooms", roomId);
     if (!me || me.roomId !== roomId || !room?.owner) return null;

@@ -149,6 +149,23 @@ export const touchPresence = async (ctx: MutationCtx, memberId: Id<"worldMembers
 export const removeFromWorld = async (ctx: MutationCtx, email: string) => {
   const member = await memberByEmail(ctx, email);
   if (member) await removeMember(ctx, member, { keepLimits: false });
+  const now = Date.now();
+  for (const home of await ctx.db.query("worldRooms").withIndex("by_owner", (q) => q.eq("owner", email)).take(HOME_CAP)) {
+    const guests = await ctx.db
+      .query("worldMembers")
+      .withIndex("by_roomId", (q) => q.eq("roomId", home._id))
+      .take(HOME_CAP);
+    for (const guest of guests) {
+      const here = await ctx.db.get("worldRooms", home._id);
+      const state = await stateOf(ctx, guest._id);
+      if (!here || !state) continue;
+      const garden = await roomWithSpace(ctx);
+      await switchRoom(ctx, guest, here, garden, WORLD_PLACE);
+      const { x, z } = await landIn(ctx, garden, spawnFor(guest.email), now, guest._id);
+      await ctx.db.patch("worldState", state._id, { fromX: x, fromZ: z, toX: x, toZ: z, startedAt: now, ...FRESH_IN_ROOM });
+    }
+    if (await ctx.db.get("worldRooms", home._id)) await ctx.db.delete("worldRooms", home._id);
+  }
 };
 
 const visitorOf = (ctx: Ctx, email: string) =>
@@ -369,7 +386,9 @@ const invitedTo = async (ctx: MutationCtx, email: string, rawId: string, now: nu
   return { place: HOME, owner: invite.owner, spot: { ...HOME_ARRIVAL } };
 };
 
-const arrivalRoom = async (ctx: MutationCtx, wanted: Arrival) => {
+const arrivalRoom = async (ctx: MutationCtx, wanted: Arrival, current?: Doc<"worldRooms">) => {
+  const stays = current && current.place === wanted.place && current.owner === wanted.owner;
+  if (stays && (wanted.roomId === undefined || wanted.roomId === current._id)) return current;
   const kept = wanted.roomId ? await ctx.db.get("worldRooms", wanted.roomId) : null;
   const cap = wanted.place === HOME ? HOME_CAP : ROOM_CAP;
   if (kept && kept.place === wanted.place && kept.owner === wanted.owner && kept.memberCount < cap) return kept;
@@ -474,9 +493,9 @@ export const join = mutation({
       // Another tab or device joining the same member: count the visit.
       await ctx.db.patch("worldMembers", member._id, { visits: (member.visits ?? 1) + 1 });
       const asked = await askedFor();
-      const there = asked && (await arrivalRoom(ctx, asked));
-      if (asked && there && there._id !== room._id) {
-        await switchRoom(ctx, member, room, there, asked.place);
+      const there = asked && (await arrivalRoom(ctx, asked, room));
+      if (asked && there) {
+        if (there._id !== room._id) await switchRoom(ctx, member, room, there, asked.place);
         const state = (await stateOf(ctx, member._id))!;
         const { x, z } = await landIn(ctx, there, asked.spot, now, member._id);
         await ctx.db.patch("worldState", state._id, { fromX: x, fromZ: z, toX: x, toZ: z, startedAt: now, ...FRESH_IN_ROOM });

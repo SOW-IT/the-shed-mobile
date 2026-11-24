@@ -3,6 +3,7 @@ import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { currentStaffYear } from "./model";
+import { removeFromWorld } from "./world";
 import { START_COINS } from "../shared/coins";
 import { DOOR_CLEAR, FURNITURE, HOME_CAP, HOME_DOOR, placementProblem } from "../shared/home";
 import { ARRIVE_APART, BUCKETS, HOME_ARRIVAL, INVITE_MS, NPC, POKE_EVERY_MS, POKE_ARRIVAL_MS, ROOM_CAP, WALK_BOUNDS, distance, posAt } from "../shared/world";
@@ -247,6 +248,26 @@ describe("a poke brings them to you", () => {
     expect(await t.run((ctx) => ctx.db.query("worldRooms").withIndex("by_place_and_instance", (q) => q.eq("place", "garden")).collect())).toEqual([]);
   });
 
+  test("a poke opened on a second phone, already in the poker's full room, keeps the room and moves beside them", async () => {
+    const t = newConvex();
+    const { poke } = await pokeBen(t);
+    const annaNow = await memberOf(t, ANNA);
+    await t.run((ctx) => ctx.db.patch("worldRooms", annaNow.room!._id, { memberCount: ROOM_CAP - 1 }));
+    await asUser(t, BEN).mutation(api.world.join, {});
+    await asUser(t, BEN).mutation(api.world.travel, { to: "beach", toMember: annaNow.member!._id });
+    later(5000);
+    await asUser(t, BEN).mutation(api.world.move, { toX: -4, toZ: 4 });
+    later(30_000);
+    expect((await memberOf(t, ANNA)).room?.memberCount).toBe(ROOM_CAP);
+    await asUser(t, BEN).mutation(api.world.join, { poke });
+    const ben = await memberOf(t, BEN);
+    const anna = await memberOf(t, ANNA);
+    expect(ben.member?.roomId).toBe(anna.member?.roomId);
+    const apart = distance(posAt(ben.state!, Date.now()), posAt(anna.state!, Date.now()));
+    expect(apart).toBeGreaterThanOrEqual(ARRIVE_APART);
+    expect(apart).toBeLessThan(2.5);
+  });
+
   test("an invited guest lands beside the host, not on top of them", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
@@ -322,6 +343,34 @@ describe("a poke brings them to you", () => {
     const invite = new URL(note.url!, "https://x").searchParams.get("invite")!;
     await asUser(t, BEN).mutation(api.world.join, { invite });
     expect((await memberOf(t, BEN)).room?.owner).toBe(ANNA);
+  });
+});
+
+describe("leaving for good", () => {
+  test("deleting an account sends guests in that home back to the garden and removes the room", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    const { memberId: benId } = await asUser(t, BEN).mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await anna.mutation(api.world.invite, { memberId: benId });
+    const [card] = await asUser(t, BEN).query(api.world.invites, {});
+    await asUser(t, BEN).mutation(api.world.travel, { to: "home", invite: card.id });
+    const homeId = (await memberOf(t, BEN)).room!._id;
+    await t.run((ctx) => removeFromWorld(ctx, ANNA));
+    const ben = await memberOf(t, BEN);
+    expect(ben.member?.place).toBe("garden");
+    expect(ben.room).toMatchObject({ place: "garden", memberCount: 1 });
+    expect(await t.run((ctx) => ctx.db.get("worldRooms", homeId))).toBeNull();
+    expect(await asUser(t, BEN).query(api.worldHome.home, { roomId: homeId })).toBeNull();
+  });
+
+  test("the home query is empty once signed out", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    const { room } = await memberOf(t, ANNA);
+    expect(await t.query(api.worldHome.home, { roomId: room!._id })).toBeNull();
   });
 });
 
