@@ -510,7 +510,7 @@ export const LOOK_SIZES = {
   freckles: 4,
   blush: 5,
   beard: 7,
-  outfit: 11,
+  outfit: 10,
   // Version 3.
   browColour: 13,
   eyeY: 7,
@@ -640,7 +640,7 @@ export const HAIR_STYLES = [
   "Wavy",
 ] as const;
 export const HATS = ["None", "Cap", "Beanie", "Flower crown", "Sun hat", "Beret", "Bow", "Headband", "Party hat", "Crown"] as const;
-export const OUTFITS = ["T-shirt", "Dress", "Skirt", "Overalls", "Striped tee", "Hoodie", "Collared", "Jacket", "Jumper", "Polka dots", "Flannel"] as const;
+export const OUTFITS = ["T-shirt", "Dress", "Skirt", "Overalls", "Striped tee", "Hoodie", "Collared", "Jacket", "Jumper", "Polka dots"] as const;
 /** Outfits that come with their own bottoms, so the bottoms choice doesn't show. */
 export const FULL_OUTFITS: readonly number[] = [1, 2, 3];
 /** Index 1 was glasses, which are their own part now; the editor doesn't offer it. */
@@ -667,11 +667,9 @@ export const PANTS = ["Match top", "Trousers", "Shorts", "Skirt"] as const;
  * can hear them.
  */
 export const bodyScale = (look: Look) => ({
-  height: 0.7 + lookPart(look, "height") * 0.15,
+  height: 0.88 + lookPart(look, "height") * 0.06,
   width: 0.85 + lookPart(look, "build") * 0.075,
 });
-
-const DEFAULT_HEIGHTS = [0, 0, 1, 1, 2, 3, 3, 4, 4] as const;
 
 /**
  * Someone's look until they save their own, picked from their email so it's
@@ -685,7 +683,6 @@ export const lookFor = (seed: string): Look => {
     hair: (h >>> 4) % 3,
     hairColour: (h >>> 8) % 6,
     shirt: (h >>> 12) % 8,
-    height: DEFAULT_HEIGHTS[(h >>> 16) % DEFAULT_HEIGHTS.length],
   };
 };
 
@@ -829,7 +826,7 @@ export const NPC = {
     height: 3,
     build: 2,
     beard: 2,
-    outfit: 10,
+    outfit: 7,
     pants: 1,
     pantsColour: 0,
     favourite: 0,

@@ -35,8 +35,6 @@ All notable changes to **The SHED** mobile app. This project follows
   couch, the Chapel pews, lectern, altar and piano, the Campfire logs and
   lantern, and the Beach umbrella, sandcastle and net are lower, and seats
   sit at the new heights.
-- **More heights.** People range from much shorter to much taller, and
-  anyone who never picked a height gets one of their own.
 - **Name tags side by side move apart.** Two people standing together no
   longer have their names on top of each other.
 - **Arriving by a pad never covers a pad's name.**

@@ -32,7 +32,7 @@ import type { Prim, Prop } from "./gardenScene";
 import { garden, hud, places } from "./palette";
 import { buildScene, type HomeLook } from "./placeScenes";
 import { footprint, isFurniture } from "@shared/home";
-import { Avatar, figureFor, headTop, hitBox, sitRise, swimSink, Tag, touchK, type Doing } from "./Person";
+import { Avatar, figureFor, headTop, hitBox, sitRise, SWIM_SINK, Tag, touchK, type Doing } from "./Person";
 import { accepted } from "./announce";
 import type { DrawnPose, Gait } from "./gait";
 import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
@@ -296,7 +296,7 @@ export const Garden = ({
     if (!cam || !scene) return { kind: "ground" };
     // People first, nearest the camera first.
     const hits = people
-      .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height, p.look) }))
+      .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height) }))
       .filter((h): h is { p: GardenPerson; pose: DrawnPose; rise: number } => h.pose !== null)
       .map((h) => {
         const figure = figureFor(cam, h.pose);
@@ -446,7 +446,7 @@ export const Garden = ({
     const seed = hash(p.memberId) % 7;
     const figure = figureFor(cam, pose);
     const seat = sitting[i];
-    const seatRise = sitRise(seat?.height, p.look);
+    const seatRise = sitRise(seat?.height);
     const atArcade = p.away ? Math.atan2(ARCADE.x - pose.x, ARCADE.z - pose.z) : null;
     const swimming = swimmers[i];
     const turned = { ...pose, heading: facingOverride[i] ?? atArcade ?? seat?.heading ?? pose.heading };
@@ -489,7 +489,7 @@ export const Garden = ({
       p.ask !== undefined && people.some((o) => o.memberId === p.ask?.to && accepted(o, p.memberId, p.ask.at));
     const waiting =
       p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${askInfo(p.ask.kind)?.ask ?? "…"}` : undefined;
-    const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? swimSink(p.look) : 0), pose.z]);
+    const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? SWIM_SINK : 0), pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
     tags.push({
@@ -557,7 +557,7 @@ export const Garden = ({
   const hudIndex = hudShown ? people.findIndex((p) => p.memberId === hudShown.id) : -1;
   const hudPose = hudIndex >= 0 ? poses[hudIndex] : null;
   const hudHead = hudPose
-    ? cam.project([hudPose.x, headTop(people[hudIndex].look) + sitRise(sitting[hudIndex]?.height, people[hudIndex].look), hudPose.z])
+    ? cam.project([hudPose.x, headTop(people[hudIndex].look) + sitRise(sitting[hudIndex]?.height), hudPose.z])
     : null;
   const hudAt = hudHead ? { x: hudHead.x, y: Math.max(HUD_HEIGHT + HUD_CLEAR_TOP, hudHead.y - NAME_TAG_CLEARANCE) } : null;
   const itemProp = selectedItem ? scene.props.find((prop) => prop.tap === `${ITEM}${selectedItem.key}`) : undefined;

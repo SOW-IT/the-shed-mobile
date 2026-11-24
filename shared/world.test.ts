@@ -185,8 +185,8 @@ test("a look from before version 2 draws with the old defaults, and the body sta
   expect(bodyScale(old)).toEqual({ height: 1, width: 1 });
   const tall = bodyScale({ ...old, height: 4, build: 4 });
   const small = bodyScale({ ...old, height: 0, build: 0 });
-  expect(tall.height).toBeCloseTo(1.3);
-  expect(small.height).toBeCloseTo(0.7);
+  expect(tall.height).toBeCloseTo(1.12);
+  expect(small.height).toBeCloseTo(0.88);
   expect(tall.width).toBeCloseTo(1.15);
   expect(small.width).toBeCloseTo(0.85);
 });
@@ -546,19 +546,6 @@ describe("arriving by a pad", () => {
 
   test("a home puts you just inside the door", () => {
     expect(arrivalSpot("garden", HOME)).toEqual(HOME_ARRIVAL);
-  });
-});
-
-describe("heights", () => {
-  test("the tallest is about half as tall again as the shortest", () => {
-    const shortest = bodyScale({ ...lookFor("a"), height: 0 }).height;
-    const tallest = bodyScale({ ...lookFor("a"), height: LOOK_SIZES.height - 1 }).height;
-    expect(tallest / shortest).toBeGreaterThan(1.8);
-  });
-
-  test("people who never picked a height aren't all the same", () => {
-    const heights = new Set(Array.from({ length: 40 }, (_, i) => lookFor(`person${i}@sow.org.au`).height));
-    expect(heights.size).toBeGreaterThanOrEqual(4);
   });
 });
 

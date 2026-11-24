@@ -165,8 +165,6 @@ export const people = {
   scarf: "#B8473A",
   glasses: "#1F2A28",
   shades: "#26302E",
-  plaid: "#E8955A",
-  flannelTee: "#1E1E22",
   collar: "#FFFEF8",
   headphones: "#3F4A46",
   pearl: "#FFFEF8",
