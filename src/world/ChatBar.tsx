@@ -42,6 +42,8 @@ export const ChatBar = ({
   onTypingAt,
   serverNow,
   onNote,
+  savedDraft,
+  keepDraft,
 }: {
   keyboardOpen: boolean;
   tray: boolean;
@@ -52,8 +54,14 @@ export const ChatBar = ({
   onTypingAt: (at: number | null) => void;
   serverNow: () => number;
   onNote: (note: string) => void;
+  savedDraft: () => string;
+  keepDraft: (text: string, onlyIfEmpty?: boolean) => void;
 }) => {
-  const [draft, setDraft] = useState("");
+  const [draft, setDraftState] = useState(savedDraft);
+  const setDraft = (text: string) => {
+    setDraftState(text);
+    keepDraft(text);
+  };
   const shownAt = useRef<number | null>(null);
 
   const markTyping = (on: boolean) => {
@@ -82,7 +90,8 @@ export const ChatBar = ({
     const problem = await say(text);
     if (problem) {
       onNote(problem);
-      setDraft((current) => (current === "" ? text : current));
+      keepDraft(text, true);
+      setDraftState((current) => (current === "" ? text : current));
     }
   };
 

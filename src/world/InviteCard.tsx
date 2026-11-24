@@ -1,6 +1,6 @@
 import { fonts } from "@/theme";
 import { tagName, type Look } from "@shared/world";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Bust, usePresence } from "./Overlays";
 import { hud } from "./palette";
@@ -8,8 +8,10 @@ import { hud } from "./palette";
 export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: Look; onGo: () => void; onLater: () => void }) => {
   const [answer, setAnswer] = useState<"go" | "later" | null>(null);
   const { mounted, shown: pop, calm } = usePresence(answer === null);
+  const fired = useRef(false);
   useEffect(() => {
-    if (mounted || answer === null) return;
+    if (mounted || answer === null || fired.current) return;
+    fired.current = true;
     if (answer === "go") onGo();
     else onLater();
   }, [mounted, answer, onGo, onLater]);

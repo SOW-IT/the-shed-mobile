@@ -278,6 +278,7 @@ export const Garden = ({
         p.act && p.act.at + EMOTE_MS,
         p.typing === undefined ? undefined : p.typing + TYPING_MS,
         p.ask && p.ask.at + ASK_MS,
+        p.reply && p.reply.at,
       ]),
     }),
     serverNow,

@@ -242,6 +242,11 @@ export const WorldScreen = ({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [typingAt, setTypingAt] = useState<number | null>(null);
+  const draftKept = useRef("");
+  const savedDraft = () => draftKept.current;
+  const keepDraft = (text: string, onlyIfEmpty = false) => {
+    if (!onlyIfEmpty || draftKept.current === "") draftKept.current = text;
+  };
   const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -712,6 +717,7 @@ export const WorldScreen = ({
         pokeListOpen={opening === "poke"}
         showPlaces={view === "list"}
       />
+      <SettingsPanel open={settingsOpen} top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP} myName={me?.name ?? ""} onClose={() => setSettingsOpen(false)} />
       <LeaveDialog
         open={leaving || leaveAsked}
         onStay={() => {
@@ -805,6 +811,7 @@ export const WorldScreen = ({
                 {world.place === NPC.place ? (
                   <RoundButton icon="cart-outline" label={`Shop with ${NPC.name}`} onPress={() => setShopOpen(true)} testID="world-list-shop" />
                 ) : null}
+                <RoundButton icon="settings-outline" label="Settings" onPress={() => setSettingsOpen(true)} testID="world-list-settings" />
               </View>
               {inviteCard}
             </View>
@@ -1012,11 +1019,13 @@ export const WorldScreen = ({
           onTypingAt={setTypingAt}
           serverNow={world.serverNow}
           onNote={setNote}
+          savedDraft={savedDraft}
+          keepDraft={keepDraft}
         />
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
       <WorldMenu open={placesOpen} top={insets.top + TOP_BAR_GAP} entries={menuEntries} onClose={() => setPlacesOpen(false)} />
-      <SettingsPanel open={settingsOpen} top={insets.top + TOP_BAR_GAP} myName={me?.name ?? ""} onClose={() => setSettingsOpen(false)} />
+
       {sheets}
       {noteOver}
     </View>
