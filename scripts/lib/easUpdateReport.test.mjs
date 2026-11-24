@@ -1,5 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { chatMessage, checkUpdate, dashboardLink, publishedUpdates, stranded, summaryMarkdown } from "./easUpdateReport.mjs";
+import {
+  chatMessage,
+  checkUpdate,
+  dashboardLink,
+  publishedUpdates,
+  raisedOutcome,
+  recommendationFailed,
+  recommendationPlan,
+  stranded,
+  summaryMarkdown,
+} from "./easUpdateReport.mjs";
 
 const IOS_RUNTIME = "d1da5791a67cef4d58e462cffe8ce268bbbe7bc3";
 const ANDROID_RUNTIME = "ff959e96ad34947a1d94fc4014d4d61227cb222b";
@@ -161,5 +171,131 @@ describe("chatMessage", () => {
     expect(message.cardsV2[0].card.sections[0].widgets[1].decoratedText.text).toBe(
       "No finished store build to compare with: runtime ff959e9, store build none"
     );
+  });
+});
+
+const PROD_KEY = "prod:giant-bloodhound-191|secret";
+
+describe("recommendationPlan", () => {
+  test("raises every platform whose update reaches its store build", () => {
+    expect(recommendationPlan({ checks: matching, published: true, deployKey: PROD_KEY })).toEqual([
+      { platform: "ios", action: "raise" },
+      { platform: "android", action: "raise" },
+    ]);
+  });
+
+  test("leaves a stranded platform alone", () => {
+    expect(recommendationPlan({ checks: strandedIos, published: true, deployKey: PROD_KEY })).toEqual([
+      { platform: "ios", action: "stranded" },
+      { platform: "android", action: "raise" },
+    ]);
+  });
+
+  test("does nothing when the production publish didn't succeed", () => {
+    expect(recommendationPlan({ checks: matching, published: false, deployKey: PROD_KEY })).toEqual([]);
+  });
+
+  test.each([[undefined], [""], ["dev:successful-lynx-56|secret"], ["preview:sow:the-shed|secret"]])(
+    "won't raise with deploy key %j",
+    (deployKey) => {
+      expect(
+        recommendationPlan({ checks: matching, published: true, deployKey }).map((step) => step.action)
+      ).toEqual(["no-key", "no-key"]);
+    }
+  );
+});
+
+describe("raisedOutcome", () => {
+  test("reads convex run output", () => {
+    const output = JSON.stringify({ raised: true, previous: "2.12.9", recommended: "2.12.10" }, null, 2);
+    expect(raisedOutcome("ios", output)).toEqual({
+      platform: "ios",
+      action: "raised",
+      previous: "2.12.9",
+      recommended: "2.12.10",
+    });
+  });
+
+  test("skips anything printed before the JSON and keeps a version already past", () => {
+    const output = `Running...\n${JSON.stringify({ raised: false, previous: "2.12.40", recommended: "2.12.40" })}`;
+    expect(raisedOutcome("android", output)).toMatchObject({ action: "kept", recommended: "2.12.40" });
+  });
+
+  test("reads a first recommended version", () => {
+    expect(raisedOutcome("ios", JSON.stringify({ raised: true, previous: null, recommended: "2.12.10" }))).toMatchObject({
+      previous: null,
+    });
+  });
+
+  test("refuses output without a recommended version", () => {
+    expect(() => raisedOutcome("ios", "null")).toThrow("recommended version");
+    expect(() => raisedOutcome("ios", JSON.stringify({ raised: true }))).toThrow("recommended version");
+  });
+});
+
+describe("recommended version in the report", () => {
+  const recommendations = [
+    { platform: "ios", action: "raised", previous: "2.12.6", recommended: "2.12.7" },
+    { platform: "android", action: "raised", previous: null, recommended: "2.12.7" },
+  ];
+
+  test("lists what each platform's recommended version is now", () => {
+    const summary = summaryMarkdown({ ...details, checks: matching, recommendations });
+    expect(summary).toContain("**Recommended version** (phones below it see the update prompt):");
+    expect(summary).toContain("- iOS raised from 2.12.6 to 2.12.7");
+    expect(summary).toContain("- Android set to 2.12.7");
+  });
+
+  test("says why a version wasn't raised", () => {
+    const summary = summaryMarkdown({
+      ...details,
+      checks: strandedIos,
+      recommendations: [
+        { platform: "ios", action: "stranded" },
+        { platform: "android", action: "kept", previous: "2.12.8", recommended: "2.12.8" },
+      ],
+    });
+    expect(summary).toContain("- iOS not changed, because this update reaches no store build");
+    expect(summary).toContain("- Android stays 2.12.8, already at or past 2.12.7");
+    expect(
+      summaryMarkdown({ ...details, checks: matching, recommendations: [{ platform: "ios", action: "no-key" }] })
+    ).toContain("- iOS not changed, because the workflow has no production Convex deploy key");
+    expect(
+      summaryMarkdown({
+        ...details,
+        checks: matching,
+        recommendations: [{ platform: "ios", action: "failed", error: "Command failed" }],
+      })
+    ).toContain("- iOS not changed: Command failed");
+    expect(
+      summaryMarkdown({ ...details, checks: matching, recommendations: [{ platform: "ios", action: "failed" }] })
+    ).toContain("- iOS not changed: appInstalls:raiseRecommended failed");
+  });
+
+  test("leaves the section out when nothing was planned", () => {
+    expect(summaryMarkdown({ ...details, checks: matching })).not.toContain("Recommended version");
+  });
+
+  test("adds a row to the Chat card", () => {
+    const message = chatMessage({
+      ...details,
+      subject: "Merge",
+      commitUrl: "https://c",
+      runUrl: "https://r",
+      checks: matching,
+      recommendations,
+    });
+    const row = message.cardsV2[0].card.sections[0].widgets.find(
+      (widget) => widget.decoratedText?.topLabel === "Recommended version"
+    );
+    expect(row.decoratedText.text).toBe("iOS raised from 2.12.6 to 2.12.7; Android set to 2.12.7");
+  });
+
+  test("picks out the failures", () => {
+    expect(
+      recommendationFailed([...recommendations, { platform: "ios", action: "failed", error: "x" }]).map(
+        (outcome) => outcome.platform
+      )
+    ).toEqual(["ios"]);
   });
 });
