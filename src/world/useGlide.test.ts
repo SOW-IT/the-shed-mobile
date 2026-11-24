@@ -34,6 +34,13 @@ describe("followWalks", () => {
     expect(later?.x).toBeCloseTo(turn.toX);
   });
 
+  test("a fresh copy of the same walk keeps the track; a new walk stamped the same millisecond replaces it", () => {
+    const tracks = followWalks(none, [{ memberId: "b", me: false, walk: east }], 1000);
+    expect(followWalks(tracks, [{ memberId: "b", me: false, walk: { ...east } }], 1100)).toBe(tracks);
+    const sameStamp: Walk = { ...east, toX: 0, toZ: 1 };
+    expect(followWalks(tracks, [{ memberId: "b", me: false, walk: sameStamp }], 1100).get("b")?.walk).toBe(sameStamp);
+  });
+
   test("a far jump snaps instead of gliding", () => {
     const tracks = followWalks(none, [{ memberId: "b", me: false, walk: east }], 1000);
     const far: Walk = { fromX: 40, fromZ: 40, toX: 40, toZ: 40, startedAt: 2000 };

@@ -210,12 +210,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
     };
 
     wakeRef.current = schedule;
-    const now = Date.now();
-    if (previewNeedsFrame({ glide: glideRef.current, spin: spin.current, target: goalNow.current, closeUp: closeUpNow.current, now })) {
-      schedule();
-    } else {
-      scheduleAuto(now);
-    }
+    schedule();
 
     return () => {
       wakeRef.current = () => undefined;

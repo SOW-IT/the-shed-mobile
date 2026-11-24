@@ -84,7 +84,7 @@ export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; t
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(overlay)]} />
       </Pressable>
       <Animated.View
-        style={[styles.panel, blurBehind, { top, width: Math.min(380, width - 28), maxHeight: Math.max(280, height - top - 24) }, popStyle(overlay)]}
+        style={[styles.panel, blurBehind, { top, width: Math.min(380, width - 28), maxHeight: Math.max(0, height - top - 24) }, popStyle(overlay)]}
         testID="world-settings"
       >
         <Animated.View style={[styles.header, itemStyle(overlay, 0)]}>

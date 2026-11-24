@@ -1,5 +1,10 @@
 import { choosing, type DuelView } from "./duel";
 
+export const duelWakeDelay = (duel: DuelView | null, shownAt: number, at: number, showResult: boolean): number | null => {
+  const due = nextDuelWakeMs(duel, shownAt, showResult);
+  return due === null ? null : Math.max(0, shownAt + due - at);
+};
+
 export const nextDuelWakeMs = (
   duel: DuelView | null,
   now: number,

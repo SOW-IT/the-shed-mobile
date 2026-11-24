@@ -71,7 +71,7 @@ const SPARKS = [
 ];
 
 const tierText = (tiers: readonly { over: number; coins: number }[]) =>
-  tiers.map((tier) => `${tier.over.toLocaleString()}+ → ${tier.coins} coins`).join("  ·  ");
+  tiers.map((tier) => `over ${tier.over.toLocaleString()} → ${tier.coins} coins`).join("  ·  ");
 
 export const CoinsPanel = ({
   open,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DuelView } from "./duel";
-import { nextDuelWakeMs } from "./duelTiming";
+import { duelWakeDelay, nextDuelWakeMs } from "./duelTiming";
 
 const baseDuel: DuelView = {
   id: "d1",
@@ -40,5 +40,21 @@ describe("nextDuelWakeMs", () => {
     expect(nextDuelWakeMs(doneDuel, 15_100, false)).toBeNull();
     expect(nextDuelWakeMs(doneDuel, 15_100, true)).toBe(400);
     expect(nextDuelWakeMs(doneDuel, 15_500, true)).toBeNull();
+  });
+});
+
+describe("duelWakeDelay", () => {
+  it("counts from the real time, so a duel that arrives after a long quiet still starts on time", () => {
+    expect(duelWakeDelay(baseDuel, 1_000, 9_500, false)).toBe(500);
+    expect(duelWakeDelay(baseDuel, 1_000, 12_000, false)).toBe(0);
+  });
+
+  it("wakes again after each countdown step, even when the step is the same length", () => {
+    expect(duelWakeDelay(baseDuel, 11_001, 11_001, false)).toBe(1000);
+    expect(duelWakeDelay(baseDuel, 12_001, 12_001, false)).toBe(1000);
+  });
+
+  it("does nothing without a duel", () => {
+    expect(duelWakeDelay(null, 0, 0, false)).toBeNull();
   });
 });

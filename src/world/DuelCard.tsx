@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { announce } from "./announce";
 import { choosing, type DuelView } from "./duel";
-import { nextDuelWakeMs } from "./duelTiming";
+import { duelWakeDelay } from "./duelTiming";
 import { hud } from "./palette";
 
 const NATIVE = Platform.OS !== "web";
@@ -31,12 +31,12 @@ export const DuelCard = ({
   const startsAt = duel?.startsAt ?? 0;
   const endsAt = duel?.endsAt ?? 0;
   const round = duel?.round ?? 1;
-  const wakeMs = nextDuelWakeMs(duel, now, showResult);
   useEffect(() => {
-    if (wakeMs === null) return;
-    const id = setTimeout(() => setNow(serverNow()), wakeMs);
+    const wait = duelWakeDelay(duel, now, serverNow(), showResult);
+    if (wait === null) return;
+    const id = setTimeout(() => setNow(serverNow()), wait);
     return () => clearTimeout(id);
-  }, [wakeMs, duel, serverNow]);
+  }, [duel, now, showResult, serverNow]);
   useEffect(() => {
     if (!live || endsAt <= startsAt) return;
     const current = serverNow();

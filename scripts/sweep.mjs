@@ -56,7 +56,6 @@ const watchBundles = (page) => {
   page.on("request", (request) => isBundle(request) && bundling.set(request, Date.now()));
   page.on("requestfinished", (request) => bundling.delete(request));
   page.on("requestfailed", (request) => bundling.delete(request));
-  page.on("framenavigated", (frame) => frame === page.mainFrame() && bundling.clear());
 };
 
 const waitUntilSettled = async () => {

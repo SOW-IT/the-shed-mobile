@@ -107,7 +107,7 @@ export const ChatLog = ({
         return line.kind ? (
           <Text key={line.id} style={[styles.line, styles.system]} onLayout={measure(line.id)} accessibilityLabel={saidLabel(line)} testID="world-chat-system">
             <ChatLineHead parts={parts} />
-            {`${parts.name} ${line.text}`}
+            {`${parts.name} ${parts.text}`}
           </Text>
         ) : (
           <Text

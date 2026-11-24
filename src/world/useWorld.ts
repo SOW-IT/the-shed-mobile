@@ -302,7 +302,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
 
   const serverNow = useCallback(() => Date.now() + (offset.current ?? 0), []);
   const [pingReading, setPingReading] = useState<PingReading | null>(null);
-  const pingVisit = useRef<string | null>(null);
+  const pingVisit = useRef<{ key: string } | null>(null);
   const pingSamples = useRef<number[]>([]);
   const probedAt = useRef<number | null>(null);
   const probing = useRef(false);
@@ -589,13 +589,14 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       try {
         const reply = await sayM({ text });
         heard(reply.serverNow, sentAt);
+        if (!reply.ok) typingM({ on: false }).catch(() => undefined);
         return reply.ok ? null : `Slow down a little. Try again in ${Math.ceil(reply.retryInMs / 1000)}s.`;
       } catch (e) {
         if (leftGarden(e)) again();
         return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
-    [sayM, heard, again]
+    [sayM, typingM, heard, again]
   );
 
   const act = useCallback(
@@ -731,6 +732,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   const kickM = useMutation(api.world.kickBall).withOptimisticUpdate(showKick);
   const kick = useCallback(
     (dirX: number, dirZ: number) => {
+      if (holding.current) return;
       const sentAt = Date.now();
       stats.current.kick++;
       kickM({ dirX, dirZ })
@@ -804,7 +806,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
         pingSamples.current = addPingSample(pingSamples.current, performance.now() - sentAt);
         const ms = pingEstimate(pingSamples.current);
         if (ms === null) return;
-        setPingReading({ visit: sentIn, ms: Math.round(ms) });
+        setPingReading({ visit: sentIn.key, ms: Math.round(ms) });
         publishPing(pingBars(ms));
       })
       .catch(() => undefined)
@@ -814,7 +816,8 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   }, [convex, publishPing]);
   useEffect(() => {
     if (!session) return;
-    pingVisit.current = pingVisitKey(session);
+    const visitNow = { key: pingVisitKey(session) };
+    pingVisit.current = visitNow;
     pingSamples.current = [];
     probedAt.current = null;
     let id: ReturnType<typeof setTimeout>;
@@ -825,7 +828,11 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       id = setTimeout(probe, active ? Math.max(PING_RECHECK_MS, pingProbeWait(due())) : PING_PROBE_MS);
     };
     probe();
-    return () => clearTimeout(id);
+    return () => {
+      clearTimeout(id);
+      if (pingVisit.current === visitNow) pingVisit.current = null;
+      setPingReading(null);
+    };
   }, [session, probePing]);
 
   useEffect(() => {

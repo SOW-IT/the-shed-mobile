@@ -20,6 +20,9 @@ const glidePose = (track: Track, now: number): DrawnPose => {
   return k < 0.01 ? pose : { ...pose, x: pose.x + o.dx * k, z: pose.z + o.dz * k, walking: true };
 };
 
+const sameWalk = (a: Walk, b: Walk) =>
+  a.startedAt === b.startedAt && a.fromX === b.fromX && a.fromZ === b.fromZ && a.toX === b.toX && a.toZ === b.toZ;
+
 export const followWalks = (tracks: Tracks, people: Glider[], now: number): Tracks => {
   let next: Map<string, Track> | null = null;
   let kept = 0;
@@ -27,7 +30,7 @@ export const followWalks = (tracks: Tracks, people: Glider[], now: number): Trac
     if (p.me) continue;
     const before = tracks.get(p.memberId);
     if (before) kept++;
-    if (!p.walk || before?.walk.startedAt === p.walk.startedAt) continue;
+    if (!p.walk || (before && sameWalk(before.walk, p.walk))) continue;
     let offset: Offset | undefined;
     if (before) {
       const was = glidePose(before, now);
