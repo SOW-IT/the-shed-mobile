@@ -27,6 +27,7 @@ import {
   worldLookValidator,
   worldReplyValidator,
   worldReportLineValidator,
+  worldPlacedValidator,
   worldWalkFields,
 } from "./worldData";
 import { grievanceFields, grievanceStatusValidator } from "./grievanceData";
@@ -152,7 +153,10 @@ export default defineSchema({
     instance: v.number(),
     // Kept in step by join and leave; it enforces ROOM_CAP.
     memberCount: v.number(),
-  }).index("by_place_and_instance", ["place", "instance"]),
+    owner: v.optional(v.string()),
+  })
+    .index("by_place_and_instance", ["place", "instance"])
+    .index("by_owner", ["owner"]),
 
   // Who's in a room. Written on join and leave only.
   worldMembers: defineTable({
@@ -310,6 +314,58 @@ export default defineSchema({
   })
     .index("by_reporterEmail_and_createdAt", ["reporterEmail", "createdAt"])
     .index("by_createdAt", ["createdAt"]),
+
+  worldPokes: defineTable({
+    from: v.string(),
+    to: v.string(),
+    place: v.string(),
+    owner: v.optional(v.string()),
+    x: v.number(),
+    z: v.number(),
+    at: v.number(),
+  })
+    .index("by_at", ["at"])
+    .index("by_from", ["from"])
+    .index("by_to", ["to"]),
+
+  worldInvites: defineTable({
+    owner: v.string(),
+    ownerName: v.string(),
+    guest: v.string(),
+    at: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_owner_and_guest", ["owner", "guest"])
+    .index("by_guest_and_at", ["guest", "at"])
+    .index("by_expiresAt", ["expiresAt"]),
+
+  worldHomes: defineTable({
+    owner: v.string(),
+    wallpaper: v.string(),
+    items: v.array(worldPlacedValidator),
+    bucket: worldBucketValidator,
+  }).index("by_owner", ["owner"]),
+
+  worldWallets: defineTable({
+    email: v.string(),
+    balance: v.number(),
+    earnedDay: v.string(),
+    earnedToday: v.number(),
+    items: v.record(v.string(), v.number()),
+    wallpapers: v.array(v.string()),
+  }).index("by_email", ["email"]),
+
+  coinLedger: defineTable({
+    email: v.string(),
+    delta: v.number(),
+    kind: v.union(v.literal("start"), v.literal("game"), v.literal("buy")),
+    runId: v.optional(v.string()),
+    game: v.optional(v.string()),
+    item: v.optional(v.string()),
+    at: v.number(),
+  })
+    .index("by_email_and_runId", ["email", "runId"])
+    .index("by_email_and_at", ["email", "at"]),
 
   // Singleton bookkeeping: when the self-scheduling sweeper next runs.
   worldMeta: defineTable({
