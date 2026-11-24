@@ -1255,6 +1255,44 @@ describe("review fixes", () => {
     expect(await anna.query(api.world.state, { memberId })).not.toHaveProperty("say");
   });
 
+  test("state leaves out a line past the chat TTL before the sweeper clears it", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const { memberId } = await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.say, { text: "hello" });
+    expect((await anna.query(api.world.state, { memberId }))!.say).toMatchObject({ text: "hello" });
+    later(CHAT_TTL_MS + 1000);
+    await anna.mutation(api.world.heartbeat, {});
+    expect((await stateRow(t, memberId))!.say).toMatchObject({ text: "hello" });
+    expect((await anna.query(api.world.state, { memberId }))!.say).toBeUndefined();
+  });
+
+  test("more expired lines on state rows than one batch are cleared in follow-up runs", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout"] });
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    const long = Date.now() - CHAT_TTL_MS - 1000;
+    await t.run(async (ctx) => {
+      const { roomId, look } = (await ctx.db.query("worldMembers").first())!;
+      const { _id, _creationTime, ...state } = (await ctx.db.query("worldState").first())!;
+      for (let i = 0; i < 120; i++) {
+        const memberId = await ctx.db.insert("worldMembers", { roomId, email: `p${i}@sow.org.au`, name: `P${i}`, look, joinedAt: long });
+        await ctx.db.insert("worldState", { ...state, memberId, say: { text: "old", at: long + i } });
+      }
+    });
+    await t.mutation(internal.world.sweep, {});
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const left = await t.run((ctx) => ctx.db.query("worldState").collect());
+    expect(left.filter((row) => row.say !== undefined)).toEqual([]);
+  });
+
+  test("clearSays stops when nothing is left", async () => {
+    const t = newConvex();
+    await t.mutation(internal.world.clearSays, {});
+    expect((await rows(t)).chat).toEqual([]);
+  });
+
   test("expired chat is purged in follow-up runs, and the sweeper waits for the last line once the garden empties", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);

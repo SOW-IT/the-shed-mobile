@@ -1283,7 +1283,9 @@ export const state = query({
     if (!row) return null;
     const { fromX, fromZ, toX, toZ, startedAt, path, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat } = row;
     const typingAt = row.typing?.on ? row.typing.at : undefined;
-    return { fromX, fromZ, toX, toZ, startedAt, path, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat, typing: typingAt };
+    // A line past the chat TTL is gone, even before the sweeper clears it.
+    const said = say && Date.now() - say.at < CHAT_TTL_MS ? say : undefined;
+    return { fromX, fromZ, toX, toZ, startedAt, path, act, say: said, ask, reply, answered, away: awayAt, reading: readingFlag, seat, typing: typingAt };
   },
 });
 
@@ -1724,6 +1726,30 @@ export const purgeChat = internalMutation({
 });
 
 /**
+ * A line someone said long ago stays on their state row until they say
+ * another; take it off once it's past the chat TTL. Says whether more may be
+ * left (a full batch).
+ */
+const clearOldSays = async (ctx: MutationCtx, now: number) => {
+  const oldSay = await ctx.db
+    .query("worldState")
+    .withIndex("by_say_at", (q) => q.gt("say.at", 0).lt("say.at", now - CHAT_TTL_MS))
+    .take(SWEEP_BATCH);
+  for (const row of oldSay) await ctx.db.patch("worldState", row._id, { say: undefined });
+  return oldSay.length === SWEEP_BATCH;
+};
+
+/** Carries on clearing expired lines from state rows until none are left. */
+export const clearSays = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    if (await clearOldSays(ctx, Date.now())) await ctx.scheduler.runAfter(0, internal.world.clearSays, {});
+    return null;
+  },
+});
+
+/**
  * When the sweeper next needs to run: soon while anyone is in, at the next
  * expiry while only chat lines or kept rate limits are left, or never.
  */
@@ -1768,13 +1794,7 @@ export const sweep = internalMutation({
         .take(CHAT_ROOM_CAP + SWEEP_BATCH);
       for (const row of lines.slice(CHAT_ROOM_CAP)) await ctx.db.delete("worldChat", row._id);
     }
-    // A line someone said long ago stays on their state row until they say
-    // another; take it off once it's past the chat TTL.
-    const oldSay = await ctx.db
-      .query("worldState")
-      .withIndex("by_say_at", (q) => q.gt("say.at", 0).lt("say.at", now - CHAT_TTL_MS))
-      .take(SWEEP_BATCH);
-    for (const row of oldSay) await ctx.db.patch("worldState", row._id, { say: undefined });
+    if (await clearOldSays(ctx, now)) await ctx.scheduler.runAfter(0, internal.world.clearSays, {});
     const oldThrottles = await ctx.db
       .query("worldThrottle")
       .withIndex("by_at", (q) => q.lt("at", now - THROTTLE_KEEP_MS))
