@@ -1,25 +1,26 @@
 # verify: scoped
 
 - because world: src/world/Person.tsx
+- because world: src/world/hatHeight.ts
 
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
 | native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 78s |  |
+| lint | ✔ pass | 83s |  |
 | unused code (knip) | ✔ pass | 5s |  |
-| typecheck | ✔ pass | 18s |  |
-| related unit tests | ✔ pass | 2s |  |
-| verify lock | ✔ pass | 1771s | took it after waiting 1771s for pid 15421, feat/hill-glider in /Users/xtectra/GitHub/worktrees/the-shed-mobile-hill-glider, since 2026-11-24T11:12:53.491Z |
+| typecheck | ✔ pass | 17s |  |
+| related unit tests | ✔ pass | 1s | 4 passed (4) |
+| verify lock | ✔ pass | 412s | took it after waiting 412s for pid 54277, feat/hill-glider in /Users/xtectra/GitHub/worktrees/the-shed-mobile-hill-glider, since 2026-11-24T11:55:00.767Z |
 | Playwright Chromium | ✔ pass | 1s |  |
 | before: local backend | ✔ pass | 16s | before functions on :3270 |
-| before: web | ✔ pass | 95s | 16 screens, 0 broken. |
-| before: iOS reset | ✔ pass | 1s |  |
-| before: iOS | ✔ pass | 115s | 10 screenshots, every one settled |
-| after: local backend | ✔ pass | 18s | after functions on :3270 |
-| after: web | ✔ pass | 112s | 16 screens, 0 broken. |
+| before: web | ✔ pass | 106s | 16 screens, 0 broken. |
+| before: iOS reset | ✔ pass | 2s |  |
+| before: iOS | ✔ pass | 129s | 10 screenshots, every one settled |
+| after: local backend | ✔ pass | 16s | after functions on :3270 |
+| after: web | ✔ pass | 93s | 16 screens, 0 broken. |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 122s | 10 screenshots, every one settled |
+| after: iOS | ✔ pass | 109s | 10 screenshots, every one settled |
 
 ## Screenshots
 
