@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.51] - 2026-11-25
+
+### Fixed
+- **Review items left open on merged PRs (#480 to #544).** A poke-list link
+  that reaches an open World now closes the character editor and opens the
+  list. A walk the system interrupts ends where your finger last was. Notes
+  and asks in World are read out once by web screen readers, and moving into
+  a home doesn't read its old lines out. The character preview faces you
+  again going from Hair to a face tab. A line said over an hour ago no longer
+  comes back from the server. Travelling to your own room keeps the route you
+  were walking. Local game bests save in order. A devotional edit made while
+  a save is out isn't lost. Verify and pr-status tooling fixes.
+
 ## [2.12.50] - 2026-11-25
 
 ### Changed
