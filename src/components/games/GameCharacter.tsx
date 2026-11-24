@@ -5,8 +5,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { characterLook, CHARACTERS, type Character, type CharacterGame } from "@shared/gameCharacters";
 import { NPC, type Look } from "@shared/world";
 import { useQuery } from "convex/react";
-import { useEffect, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Platform, Pressable, StyleSheet, Text, View, type ViewInstance } from "react-native";
 import { api } from "../../../convex/_generated/api";
 
 const g = fixedColours.games;
@@ -50,6 +50,15 @@ export const useGameLook = (game: CharacterGame): Look | null => {
   return characterLook(choice, mine);
 };
 
+const STEP_KEYS: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+const PICK_KEYS = new Set([" ", "Enter"]);
+
+type KeyEvent = { key: string; target: unknown; preventDefault: () => void; stopPropagation: () => void };
+
+const OPTION_WIDTH = 72;
+const OPTION_GAP = spacing.sm;
+export const PICKER_WIDTH = CHARACTERS.length * OPTION_WIDTH + (CHARACTERS.length - 1) * OPTION_GAP;
+
 const LABELS: Record<Character, string> = { mine: "You", sij: "Sij", original: "Original" };
 const A11Y: Record<Character, string> = {
   mine: "Your World character",
@@ -70,18 +79,46 @@ export const CharacterPicker = ({
   const mine = useMyLook();
   const art = useAvatarArt(true);
   const looks: Record<Character, Look | null> = { mine: characterLook("mine", mine), sij: NPC.look, original: null };
+  const options = useRef<(ViewInstance | null)[]>([]);
+  const pick = (character: Character) => {
+    hapticSelect();
+    void chooseCharacter(game, character);
+  };
+  const keys =
+    Platform.OS === "web"
+      ? ({
+          onKeyDown: (event: KeyEvent) => {
+            const step = STEP_KEYS[event.key];
+            if (step === undefined && !PICK_KEYS.has(event.key)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (step === undefined) {
+              const focused = options.current.findIndex((option) => option === event.target);
+              if (focused >= 0) pick(CHARACTERS[focused]);
+              return;
+            }
+            const next = (CHARACTERS.indexOf(choice) + step + CHARACTERS.length) % CHARACTERS.length;
+            pick(CHARACTERS[next]);
+            options.current[next]?.focus();
+          },
+          onKeyUp: (event: KeyEvent) => {
+            if (STEP_KEYS[event.key] !== undefined || PICK_KEYS.has(event.key)) event.stopPropagation();
+          },
+        } as object)
+      : {};
   return (
-    <View style={styles.picker} role="radiogroup" testID={`character-picker-${game}`}>
-      {CHARACTERS.map((character) => {
+    <View style={styles.picker} role="radiogroup" testID={`character-picker-${game}`} {...keys}>
+      {CHARACTERS.map((character, index) => {
         const look = looks[character];
         const selected = choice === character;
         return (
           <Pressable
             key={character}
-            onPress={() => {
-              hapticSelect();
-              void chooseCharacter(game, character);
+            ref={(option) => {
+              options.current[index] = option;
             }}
+            focusable={selected}
+            onPress={() => pick(character)}
             role="radio"
             aria-checked={selected}
             accessibilityLabel={A11Y[character]}
@@ -105,9 +142,9 @@ export const CharacterPicker = ({
 };
 
 const styles = StyleSheet.create({
-  picker: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  picker: { flexDirection: "row", gap: OPTION_GAP, marginTop: spacing.sm },
   option: {
-    width: 72,
+    width: OPTION_WIDTH,
     alignItems: "center",
     gap: 4,
     paddingVertical: spacing.sm,

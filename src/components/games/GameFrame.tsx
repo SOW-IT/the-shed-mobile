@@ -5,6 +5,7 @@ import { useLocalBests, recordRun } from "@/lib/games/gameStorage";
 import { OnlineBanner } from "./OnlineBanner";
 import { CoinGain } from "./CoinGain";
 import { LeaveGameDialog } from "./LeaveGameDialog";
+import { PICKER_WIDTH } from "./GameCharacter";
 import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
 import { fitScale, type Size } from "@/lib/games/fit";
 import { savedNote } from "@/lib/games/savedNote";
@@ -18,6 +19,7 @@ import {
   LayoutChangeEvent,
   Platform,
   Pressable,
+  ScrollView,
   StyleProp,
   StyleSheet,
   Text,
@@ -29,6 +31,11 @@ import { GAME_INFO, type GameId } from "../../../shared/games";
 
 const g = fixedColours.games;
 const SHORT_STAGE = 440;
+const ACTIONS_WIDTH = 200;
+const MIN_TEXT_COLUMN = 180;
+const CARD_EDGE = 1;
+const WIDE_MIN_WIDTH =
+  Math.max(PICKER_WIDTH, ACTIONS_WIDTH) + MIN_TEXT_COLUMN + spacing.xl * 3 + CARD_EDGE * 2 + spacing.md * 2;
 
 type Phase = "ready" | "playing" | "over";
 
@@ -240,10 +247,34 @@ export const GameFrame = ({
     onStageLayout(event);
     onOwnStageLayout(event);
   };
-  const wide = stage !== null && stage.height < SHORT_STAGE && stage.width > stage.height;
+  const short = stage !== null && stage.height < SHORT_STAGE;
+  const wide = short && stage.width >= WIDE_MIN_WIDTH;
   const scale = fitScale(world, board);
   const info = GAME_INFO[game];
   const newBest = result !== null && result.score > result.previousBest && result.score > 0;
+  const overCard = result ? (
+    <View style={[styles.card, wide && styles.cardWide]}>
+      <View style={[styles.cardMain, wide && styles.cardMainWide]}>
+        <Text style={styles.cardTitle}>{newBest ? "New best!" : "Game over"}</Text>
+        <Text style={[styles.bigScore, wide && styles.bigScoreWide]} testID="game-final-score">
+          {result.score.toLocaleString()}
+        </Text>
+        <Text style={styles.cardBody}>
+          Best {Math.max(result.previousBest, result.score).toLocaleString()}
+        </Text>
+        {isAuthenticated ? <CoinGain runId={result.runId} /> : null}
+        <Text style={styles.note} testID="game-saved-note">
+          {savedNote({ signedIn: isAuthenticated, offline })}
+        </Text>
+      </View>
+      <View style={[styles.actions, wide && styles.actionsWide]}>
+        <Btn title="Play again" icon="refresh" tint={g.button} onPress={session.restart} />
+        {onLeaderboard ? (
+          <Btn title="Leaderboard" icon="trophy-outline" tint={g.buttonGhost} onPress={onLeaderboard} />
+        ) : null}
+      </View>
+    </View>
+  ) : null;
   return (
     <Frame insets={insets} style={[styles.screen, { backgroundColor: background }]}>
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
@@ -308,32 +339,22 @@ export const GameFrame = ({
           </View>
         ) : null}
         {phase === "over" && result ? (
-          <View
-            style={[StyleSheet.absoluteFill, styles.overlay, wide && styles.overlayWide, { backgroundColor: g.scrim }]}
-            testID="game-over"
-          >
-            <View style={[styles.card, wide && styles.cardWide]}>
-              <View style={[styles.cardMain, wide && styles.cardMainWide]}>
-                <Text style={styles.cardTitle}>{newBest ? "New best!" : "Game over"}</Text>
-                <Text style={[styles.bigScore, wide && styles.bigScoreWide]} testID="game-final-score">
-                  {result.score.toLocaleString()}
-                </Text>
-                <Text style={styles.cardBody}>
-                  Best {Math.max(result.previousBest, result.score).toLocaleString()}
-                </Text>
-                {isAuthenticated ? <CoinGain runId={result.runId} /> : null}
-                <Text style={styles.note} testID="game-saved-note">
-                  {savedNote({ signedIn: isAuthenticated, offline })}
-                </Text>
-              </View>
-              <View style={[styles.actions, wide && styles.actionsWide]}>
-                <Btn title="Play again" icon="refresh" tint={g.button} onPress={session.restart} />
-                {onLeaderboard ? (
-                  <Btn title="Leaderboard" icon="trophy-outline" tint={g.buttonGhost} onPress={onLeaderboard} />
-                ) : null}
-              </View>
+          short && !wide ? (
+            <ScrollView
+              style={[StyleSheet.absoluteFill, { backgroundColor: g.scrim }]}
+              contentContainerStyle={styles.overlayScroll}
+              testID="game-over"
+            >
+              {overCard}
+            </ScrollView>
+          ) : (
+            <View
+              style={[StyleSheet.absoluteFill, styles.overlay, wide && styles.overlayWide, { backgroundColor: g.scrim }]}
+              testID="game-over"
+            >
+              {overCard}
             </View>
-          </View>
+          )
         ) : null}
       </View>
       <OnlineBanner />
@@ -402,13 +423,14 @@ const styles = StyleSheet.create({
   board: { overflow: "hidden" },
   overlay: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
   overlayWide: { padding: spacing.md },
+  overlayScroll: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   card: {
     maxWidth: 320,
     alignItems: "center",
     gap: spacing.sm,
     padding: spacing.xl,
     borderRadius: radius.xl,
-    borderWidth: 1,
+    borderWidth: CARD_EDGE,
     borderColor: g.cardEdge,
     backgroundColor: g.card,
   },
@@ -422,5 +444,5 @@ const styles = StyleSheet.create({
   hint: { ...typography.label, color: g.text, marginTop: spacing.xs },
   note: { ...typography.caption, color: g.text, textAlign: "center" },
   actions: { gap: spacing.sm, alignSelf: "stretch", marginTop: spacing.sm },
-  actionsWide: { alignSelf: "center", width: 200, marginTop: 0 },
+  actionsWide: { alignSelf: "center", width: ACTIONS_WIDTH, marginTop: 0 },
 });
