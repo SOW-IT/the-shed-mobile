@@ -407,11 +407,14 @@ export const GliderGame = ({
   const shown = run ?? preview;
   const progress = dayProgress(shown);
   const sky = colourAt(c.sky, progress);
+  // Past dusk the sky is dark: white score bar and status bar.
+  const dark = progress > 0.86;
   const frame = (
     <GameFrame
       game="glider"
       background={sky}
-      ink={progress > 0.86 ? c.label : c.ink}
+      ink={dark ? c.label : c.ink}
+      statusBar={dark ? "light" : "dark"}
       session={session}
       score={run?.score ?? 0}
       board={board}
