@@ -42,18 +42,24 @@ const newestOf = (...versions: (string | undefined)[]): string | null =>
     );
 
 export const updateStatus = query({
-  args: { platform: platformValidator, version: v.string() },
+  args: { platform: platformValidator, version: v.string(), ota: v.optional(v.literal(true)) },
   returns: v.object({
     status: v.union(v.literal("ok"), v.literal("recommended"), v.literal("required")),
     latest: v.union(v.string(), v.null()),
     message: v.union(v.string(), v.null()),
+    storeVersion: v.optional(v.union(v.string(), v.null())),
   }),
-  handler: async (ctx, { platform, version }) => {
+  handler: async (ctx, { platform, version, ota }) => {
     const policy = await policyFor(ctx, platform);
+    const storeVersion = newestOf(policy?.recommended, policy?.minimum);
+    const message = policy?.message ?? null;
+    if (!ota) return { status: updateStatusFor(version, policy), latest: storeVersion, message };
+    const recommended = newestOf(policy?.recommended, policy?.latestOta) ?? undefined;
     return {
-      status: updateStatusFor(version, policy),
-      latest: newestOf(policy?.recommended, policy?.minimum),
-      message: policy?.message ?? null,
+      status: updateStatusFor(version, policy && { minimum: policy.minimum, recommended }),
+      latest: newestOf(recommended, policy?.minimum),
+      message,
+      storeVersion,
     };
   },
 });
@@ -63,21 +69,24 @@ export const setUpdatePolicy = internalMutation({
     platform: platformValidator,
     minimum: v.optional(v.union(v.string(), v.null())),
     recommended: v.optional(v.union(v.string(), v.null())),
+    latestOta: v.optional(v.union(v.string(), v.null())),
     message: v.optional(v.union(v.string(), v.null())),
   },
   returns: v.object({
     minimum: v.union(v.string(), v.null()),
     recommended: v.union(v.string(), v.null()),
+    latestOta: v.union(v.string(), v.null()),
     message: v.union(v.string(), v.null()),
   }),
-  handler: async (ctx, { platform, minimum, recommended, message }) => {
-    for (const value of [minimum, recommended]) {
+  handler: async (ctx, { platform, minimum, recommended, latestOta, message }) => {
+    for (const value of [minimum, recommended, latestOta]) {
       if (value && !isAppVersion(value)) throw new ConvexError(`"${value}" isn't an app version like 2.9.0.`);
     }
     const existing = await policyFor(ctx, platform);
     const next = {
       minimum: (minimum === undefined ? existing?.minimum : minimum) ?? undefined,
       recommended: (recommended === undefined ? existing?.recommended : recommended) ?? undefined,
+      latestOta: (latestOta === undefined ? existing?.latestOta : latestOta) ?? undefined,
       message: (message === undefined ? existing?.message : message?.trim() || null) ?? undefined,
     };
     if (existing) await ctx.db.replace("appUpdatePolicy", existing._id, { platform, ...next });
@@ -85,25 +94,26 @@ export const setUpdatePolicy = internalMutation({
     return {
       minimum: next.minimum ?? null,
       recommended: next.recommended ?? null,
+      latestOta: next.latestOta ?? null,
       message: next.message ?? null,
     };
   },
 });
 
-export const raiseRecommended = internalMutation({
+export const raiseLatestOta = internalMutation({
   args: { platform: platformValidator, version: v.string() },
   returns: v.object({
     raised: v.boolean(),
     previous: v.union(v.string(), v.null()),
-    recommended: v.string(),
+    latestOta: v.string(),
   }),
   handler: async (ctx, { platform, version }) => {
     if (!isAppVersion(version)) throw new ConvexError(`"${version}" isn't an app version like 2.9.0.`);
     const existing = await policyFor(ctx, platform);
-    const previous = existing?.recommended ?? null;
-    if (previous && compareVersions(version, previous) <= 0) return { raised: false, previous, recommended: previous };
-    if (existing) await ctx.db.patch("appUpdatePolicy", existing._id, { recommended: version });
-    else await ctx.db.insert("appUpdatePolicy", { platform, recommended: version });
-    return { raised: true, previous, recommended: version };
+    const previous = existing?.latestOta ?? null;
+    if (previous && compareVersions(version, previous) <= 0) return { raised: false, previous, latestOta: previous };
+    if (existing) await ctx.db.patch("appUpdatePolicy", existing._id, { latestOta: version });
+    else await ctx.db.insert("appUpdatePolicy", { platform, latestOta: version });
+    return { raised: true, previous, latestOta: version };
   },
 });

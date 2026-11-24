@@ -44,6 +44,7 @@ export const worldLookValidator = v.object({
   pants: v.optional(v.number()),
   pantsColour: v.optional(v.number()),
   favourite: v.optional(v.number()),
+  backdrop: v.optional(v.number()),
 });
 
 export const worldBucketValidator = v.object({ tokens: v.number(), at: v.number() });

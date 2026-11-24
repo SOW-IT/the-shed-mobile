@@ -207,41 +207,43 @@ describe("recommendationPlan", () => {
 
 describe("raisedOutcome", () => {
   test("reads convex run output", () => {
-    const output = JSON.stringify({ raised: true, previous: "2.12.9", recommended: "2.12.10" }, null, 2);
+    const output = JSON.stringify({ raised: true, previous: "2.12.9", latestOta: "2.12.10" }, null, 2);
     expect(raisedOutcome("ios", output)).toEqual({
       platform: "ios",
       action: "raised",
       previous: "2.12.9",
-      recommended: "2.12.10",
+      latestOta: "2.12.10",
     });
   });
 
   test("skips anything printed before the JSON and keeps a version already past", () => {
-    const output = `Running...\n${JSON.stringify({ raised: false, previous: "2.12.40", recommended: "2.12.40" })}`;
-    expect(raisedOutcome("android", output)).toMatchObject({ action: "kept", recommended: "2.12.40" });
+    const output = `Running...\n${JSON.stringify({ raised: false, previous: "2.12.40", latestOta: "2.12.40" })}`;
+    expect(raisedOutcome("android", output)).toMatchObject({ action: "kept", latestOta: "2.12.40" });
   });
 
-  test("reads a first recommended version", () => {
-    expect(raisedOutcome("ios", JSON.stringify({ raised: true, previous: null, recommended: "2.12.10" }))).toMatchObject({
+  test("reads a first latest over-the-air version", () => {
+    expect(raisedOutcome("ios", JSON.stringify({ raised: true, previous: null, latestOta: "2.12.10" }))).toMatchObject({
       previous: null,
     });
   });
 
-  test("refuses output without a recommended version", () => {
-    expect(() => raisedOutcome("ios", "null")).toThrow("recommended version");
-    expect(() => raisedOutcome("ios", JSON.stringify({ raised: true }))).toThrow("recommended version");
+  test("refuses output without a latest over-the-air version", () => {
+    expect(() => raisedOutcome("ios", "null")).toThrow("latest over-the-air version");
+    expect(() => raisedOutcome("ios", JSON.stringify({ raised: true }))).toThrow("latest over-the-air version");
   });
 });
 
-describe("recommended version in the report", () => {
+describe("latest over-the-air version in the report", () => {
   const recommendations = [
-    { platform: "ios", action: "raised", previous: "2.12.6", recommended: "2.12.7" },
-    { platform: "android", action: "raised", previous: null, recommended: "2.12.7" },
+    { platform: "ios", action: "raised", previous: "2.12.6", latestOta: "2.12.7" },
+    { platform: "android", action: "raised", previous: null, latestOta: "2.12.7" },
   ];
 
-  test("lists what each platform's recommended version is now", () => {
+  test("lists what each platform's latest over-the-air version is now", () => {
     const summary = summaryMarkdown({ ...details, checks: matching, recommendations });
-    expect(summary).toContain("**Recommended version** (phones below it see the update prompt):");
+    expect(summary).toContain(
+      "**Latest over-the-air version** (phones below it fetch it and restart; the store prompt follows the recommended version set by hand):"
+    );
     expect(summary).toContain("- iOS raised from 2.12.6 to 2.12.7");
     expect(summary).toContain("- Android set to 2.12.7");
   });
@@ -252,7 +254,7 @@ describe("recommended version in the report", () => {
       checks: strandedIos,
       recommendations: [
         { platform: "ios", action: "stranded" },
-        { platform: "android", action: "kept", previous: "2.12.8", recommended: "2.12.8" },
+        { platform: "android", action: "kept", previous: "2.12.8", latestOta: "2.12.8" },
       ],
     });
     expect(summary).toContain("- iOS not changed, because this update reaches no store build");
@@ -269,11 +271,11 @@ describe("recommended version in the report", () => {
     ).toContain("- iOS not changed: Command failed");
     expect(
       summaryMarkdown({ ...details, checks: matching, recommendations: [{ platform: "ios", action: "failed" }] })
-    ).toContain("- iOS not changed: appInstalls:raiseRecommended failed");
+    ).toContain("- iOS not changed: appInstalls:raiseLatestOta failed");
   });
 
   test("leaves the section out when nothing was planned", () => {
-    expect(summaryMarkdown({ ...details, checks: matching })).not.toContain("Recommended version");
+    expect(summaryMarkdown({ ...details, checks: matching })).not.toContain("Latest over-the-air version");
   });
 
   test("adds a row to the Chat card", () => {
@@ -286,7 +288,7 @@ describe("recommended version in the report", () => {
       recommendations,
     });
     const row = message.cardsV2[0].card.sections[0].widgets.find(
-      (widget) => widget.decoratedText?.topLabel === "Recommended version"
+      (widget) => widget.decoratedText?.topLabel === "Latest over-the-air version"
     );
     expect(row.decoratedText.text).toBe("iOS raised from 2.12.6 to 2.12.7; Android set to 2.12.7");
   });

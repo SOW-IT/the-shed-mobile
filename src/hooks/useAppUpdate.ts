@@ -2,10 +2,10 @@ import { useQuery } from "convex/react";
 import { useEffect, useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 import { api } from "../../convex/_generated/api";
-import { appLinkForScheme, updateRouteFor } from "../../shared/appLinks";
+import { appLinkForScheme, updateRouteFor, updateStatusArgs } from "../../shared/appLinks";
 import { appScheme, appVersion } from "@/hooks/useReportAppVersion";
 import { openExternalLink } from "@/lib/openExternalLink";
-import { otaUpdateDriver, useOtaState } from "@/lib/otaUpdates";
+import { otaUpdateDriver, otaUpdates, useOtaState } from "@/lib/otaUpdates";
 import {
   behindKey,
   behindSnapshot,
@@ -44,7 +44,7 @@ export const useAppUpdate = () => {
   const storeUrl = platform === "ios" ? link.iosStore : platform === "android" ? link.androidStore : null;
   const check = useQuery(
     api.appInstalls.updateStatus,
-    platform && version && storeUrl ? { platform, version } : "skip"
+    platform && version && storeUrl ? updateStatusArgs(platform, version, otaUpdates !== null) : "skip"
   );
   const ota = useOtaState();
   const phase = useSyncExternalStore(subscribeUpdatePhase, updatePhase, updatePhase);
@@ -76,6 +76,7 @@ export const useAppUpdate = () => {
     route,
     button,
     latest,
+    storeVersion: check?.storeVersion ?? latest,
     message: check?.message ?? null,
     version,
     platform,

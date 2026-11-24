@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { hud } from "./palette";
+import { useBatterySaver } from "./settings";
 
 export type HudAction = {
   id: string;
@@ -39,20 +40,23 @@ export const PersonHud = ({
   onHidden: () => void;
 }) => {
   const [shown] = useState(() => new Animated.Value(0));
+  const calm = useBatterySaver();
   const hidden = useRef(onHidden);
   useEffect(() => {
     hidden.current = onHidden;
   });
   useEffect(() => {
     if (visible) {
-      const pop = Animated.spring(shown, { toValue: 1, friction: 6, tension: 140, useNativeDriver: nativeDriver });
+      const pop = calm
+        ? Animated.timing(shown, { toValue: 1, duration: 140, useNativeDriver: nativeDriver })
+        : Animated.spring(shown, { toValue: 1, friction: 6, tension: 140, useNativeDriver: nativeDriver });
       pop.start();
       return () => pop.stop();
     }
     const leave = Animated.timing(shown, { toValue: 0, duration: 130, easing: Easing.in(Easing.quad), useNativeDriver: nativeDriver });
     leave.start(({ finished }) => finished && hidden.current());
     return () => leave.stop();
-  }, [visible, shown]);
+  }, [visible, shown, calm]);
 
   const width = hudWidth(actions.length);
   const left = Math.min(Math.max(EDGE, x - width / 2), Math.max(EDGE, stageWidth - width - EDGE));
@@ -68,10 +72,12 @@ export const PersonHud = ({
           top,
           width,
           opacity: shown.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 1, 1], extrapolate: "clamp" }),
-          transform: [
-            { translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
-            { scale: shown.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) },
-          ],
+          transform: calm
+            ? []
+            : [
+                { translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
+                { scale: shown.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) },
+              ],
         },
       ]}
       testID="world-person-hud"

@@ -323,10 +323,6 @@ const buildBeach = (cam: Camera): Scene => {
     for (const y of [1.28, 1.02, 0.76]) p.line([left.x, y, left.z], [right.x, y, right.z], y === 1.28 ? 3 : 1.5, c.net);
     for (let x = left.x + 0.34; x < right.x; x += 0.34) p.line([x, 1.28, left.z], [x, 0.76, left.z], 1.2, c.net);
   });
-  add("ball", 0.9, 1.0, (p) => {
-    p.groundDisc(0.8, 0.9, 0.26, 0.18, garden.shadow);
-    p.ball([0.9, 0.2, 1.0], 0.2, c.ball, { ink: 0.03 });
-  });
   const inBounds = obstacle("beach", "palm");
   add("palm", inBounds.x, inBounds.z, (p) => {
     p.groundDisc(inBounds.x - 0.5, inBounds.z - 0.3, 0.9, 0.6, garden.shadow);

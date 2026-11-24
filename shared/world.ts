@@ -20,6 +20,7 @@ export const ASK_MS = 10_000;
 /** How long a mutual action plays once accepted. */
 export const MUTUAL_MS = 2600;
 export const MAX_SAY_LENGTH = 120;
+export const JOINED_WORLD = "joined the World";
 /** How long a chat line is kept, unless someone reports it. */
 export const CHAT_TTL_MS = 60 * 60_000;
 /** Lines kept per room, whatever their age. */
@@ -49,7 +50,10 @@ export const TYPING_REFRESH_MS = 3000;
 export const PING_PUBLISH_MS = 30_000;
 export const PING_PROBE_MS = 15_000;
 export const PING_MAX_SAMPLE_MS = 10_000;
-const PING_STEPS_MS = [150, 300, 600] as const;
+export const PING_SAMPLES = 5;
+const PING_FIRST_SAMPLES = 3;
+const PING_FIRST_GAP_MS = 1000;
+const PING_STEPS_MS = [100, 200, 400] as const;
 export type PingBars = 1 | 2 | 3 | 4;
 
 export const isPingBars = (value: unknown): value is PingBars => value === 1 || value === 2 || value === 3 || value === 4;
@@ -59,10 +63,25 @@ export const pingBars = (ms: number): PingBars => {
   return ms <= great ? 4 : ms <= good ? 3 : ms <= slow ? 2 : 1;
 };
 
-export const smoothPing = (smoothed: number | null, sample: number): number => {
-  const clamped = Math.min(PING_MAX_SAMPLE_MS, Math.max(0, sample));
-  return smoothed === null ? clamped : smoothed * 0.7 + clamped * 0.3;
+export const addPingSample = (samples: readonly number[], sample: number): number[] =>
+  [...samples, Math.min(PING_MAX_SAMPLE_MS, Math.max(0, sample))].slice(-PING_SAMPLES);
+
+export const pingEstimate = (samples: readonly number[]): number | null => {
+  if (samples.length === 0) return null;
+  const sorted = [...samples].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
+
+export type PingReading = { visit: string; ms: number };
+
+export const shownPing = (reading: PingReading | null, visit: string | null): number | null =>
+  reading !== null && visit !== null && reading.visit === visit ? reading.ms : null;
+
+export const pingProbeWait = ({ taken, lastAt, now }: { taken: number; lastAt: number | null; now: number }): number =>
+  lastAt === null ? 0 : Math.max(0, lastAt + (taken < PING_FIRST_SAMPLES ? PING_FIRST_GAP_MS : PING_PROBE_MS) - now);
+
+export const pingProbeDue = (at: { taken: number; lastAt: number | null; now: number }): boolean => pingProbeWait(at) === 0;
 
 export const shouldPublishPing = ({
   bars,
@@ -535,8 +554,8 @@ export const LOOK_SIZES = {
   build: 5,
   freckles: 4,
   blush: 5,
-  beard: 7,
-  outfit: 10,
+  beard: 8,
+  outfit: 11,
   // Version 3.
   browColour: 13,
   eyeY: 7,
@@ -557,6 +576,7 @@ export const LOOK_SIZES = {
   pants: 4,
   pantsColour: 8,
   favourite: 12,
+  backdrop: 10,
 } as const;
 /**
  * The look's shape: version 2 added the face, body and extras; version 3 the
@@ -604,6 +624,7 @@ export type Look = {
   pants?: number;
   pantsColour?: number;
   favourite?: number;
+  backdrop?: number;
 };
 export type LookPart = keyof typeof LOOK_SIZES;
 const LOOK_PARTS = Object.keys(LOOK_SIZES) as LookPart[];
@@ -666,7 +687,7 @@ export const HAIR_STYLES = [
   "Wavy",
 ] as const;
 export const HATS = ["None", "Cap", "Beanie", "Flower crown", "Sun hat", "Beret", "Bow", "Headband", "Party hat", "Crown"] as const;
-export const OUTFITS = ["T-shirt", "Dress", "Skirt", "Overalls", "Striped tee", "Hoodie", "Collared", "Jacket", "Jumper", "Polka dots"] as const;
+export const OUTFITS = ["T-shirt", "Dress", "Skirt", "Overalls", "Striped tee", "Hoodie", "Collared", "Jacket", "Jumper", "Polka dots", "Flannel"] as const;
 /** Outfits that come with their own bottoms, so the bottoms choice doesn't show. */
 export const FULL_OUTFITS: readonly number[] = [1, 2, 3];
 /** Index 1 was glasses, which are their own part now; the editor doesn't offer it. */
@@ -679,12 +700,14 @@ export const BROWS = ["None", "Soft", "Straight", "Arched", "Thick"] as const;
 export const NOSES = ["None", "Dot", "Button", "Pointy"] as const;
 export const MOUTHS = ["None", "Smile", "Grin", "Small", "Flat", "Cat", "Tongue out"] as const;
 export const BLUSH = ["None", "Light", "Rosy", "Round", "Lines"] as const;
-export const BEARDS = ["None", "Stubble", "Beard", "Moustache", "Goatee", "Wide moustache", "Chin strap"] as const;
+export const BEARDS = ["None", "Stubble", "Beard", "Moustache", "Goatee", "Wide moustache", "Chin strap", "Short beard"] as const;
 export const FRECKLES = ["None", "Cheeks", "Lots", "Across the nose"] as const;
 export const MOLES = ["None", "Cheek", "Other cheek", "By the lip", "Under an eye", "Chin"] as const;
 export const EYESHADOW = ["None", "Lilac", "Peach", "Teal", "Gold", "Rose"] as const;
 export const LIPSTICK = ["None", "Rose", "Red", "Coral", "Plum", "Pink"] as const;
 export const PANTS = ["Match top", "Trousers", "Shorts", "Skirt"] as const;
+
+export const HEIGHT_SCALES = [0.8, 0.9, 1, 1.1, 1.2] as const;
 
 /**
  * How tall and how broad someone is drawn, from their height and build
@@ -693,9 +716,15 @@ export const PANTS = ["Match top", "Trousers", "Shorts", "Skirt"] as const;
  * can hear them.
  */
 export const bodyScale = (look: Look) => ({
-  height: 0.88 + lookPart(look, "height") * 0.06,
+  height: HEIGHT_SCALES[lookPart(look, "height")] ?? 1,
   width: 0.85 + lookPart(look, "build") * 0.075,
 });
+
+const UNCHOSEN_HEIGHTS = [0, 1, 1, 2, 2, 3, 3, 4] as const;
+
+const heightFor = (seed: string): number => UNCHOSEN_HEIGHTS[(hash(seed) >>> 16) % UNCHOSEN_HEIGHTS.length];
+
+export const withHeight = (look: Look, seed: string): Look => (look.height === undefined ? { ...look, height: heightFor(seed) } : look);
 
 /**
  * Someone's look until they save their own, picked from their email so it's
@@ -709,6 +738,7 @@ export const lookFor = (seed: string): Look => {
     hair: (h >>> 4) % 3,
     hairColour: (h >>> 8) % 6,
     shirt: (h >>> 12) % 8,
+    height: heightFor(seed),
   };
 };
 
@@ -759,6 +789,7 @@ export const randomLook = (random: () => number = Math.random): Look => {
     pants: pick("pants"),
     pantsColour: pick("pantsColour"),
     favourite: pick("favourite"),
+    backdrop: pick("backdrop"),
   };
 };
 
@@ -840,19 +871,19 @@ export const NPC = {
   look: {
     v: LOOK_VERSION,
     skin: 3,
-    hair: 6,
+    hair: 8,
     hairColour: 2,
     shirt: 4,
     face: 0,
-    eyes: 2,
+    eyes: 5,
     eyeColour: 0,
     brows: 2,
     nose: 2,
     mouth: 2,
     height: 3,
     build: 2,
-    beard: 2,
-    outfit: 7,
+    beard: 7,
+    outfit: 10,
     pants: 1,
     pantsColour: 0,
     favourite: 0,

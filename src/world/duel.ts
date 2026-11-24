@@ -24,7 +24,6 @@ export type DuelView = {
 type DuelLook = {
   opponent: string;
   chant: string | null;
-  pickIcon: string | null;
   result: { emote: EmoteId; p: number } | null;
 };
 
@@ -44,14 +43,14 @@ export const duelLookFor = (duels: readonly DuelView[], memberId: string, now: n
   const shown = duel.shown;
   const revealing = shown !== undefined && now >= shown.at && now < shown.at + DUEL_REVEAL_MS;
   const mine = shown?.[side];
-  const pickIcon = revealing && isDuelPick(mine) ? DUEL_PICKS[mine].icon : null;
-  const chant = revealing ? chantAt(shown.at, now) : duel.done ? null : chantAt(duel.endsAt, now);
+  const shout = revealing && isDuelPick(mine) ? DUEL_PICKS[mine].icon : null;
+  const chant = shout ?? (revealing ? chantAt(shown.at, now) : duel.done ? null : chantAt(duel.endsAt, now));
   const resultFrom = shown ? shown.at + DUEL_REVEAL_MS : 0;
   const result =
     duel.done && shown && shown.winner !== "draw" && now >= resultFrom && now < resultFrom + EMOTE_MS
       ? { emote: shown.winner === side ? DUEL_WINNER_EMOTE : DUEL_LOSER_EMOTE, p: (now - resultFrom) / EMOTE_MS }
       : null;
-  return { opponent, chant, pickIcon, result };
+  return { opponent, chant, result };
 };
 
 export const choosing = (duel: DuelView | null, now: number) =>
