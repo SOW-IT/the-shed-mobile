@@ -45,7 +45,9 @@ import {
   previewEaseInOut,
   previewGoalMoved,
   previewNeedsFrame,
+  previewRecenters,
   type PreviewGlide,
+  type PreviewShot,
   type PreviewSpin,
 } from "./previewMotion";
 import { useBatterySaver } from "./settings";
@@ -63,7 +65,7 @@ const SHORT_PREVIEW = 110;
 const CLOSE_UP = 140;
 const HEAD_SHOT = 118;
 
-type Shot = "face" | "head" | "full";
+type Shot = PreviewShot;
 
 const shotFor = (shot: Shot, look: Look, height: number) => {
   const zoom = height / BASE_PREVIEW;
@@ -107,6 +109,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
   const [frame, setFrame] = useState({ heading: 0, s: goal.s, y: goal.y });
   const spin = useRef<PreviewSpin>({ down: false, lastX: 0, lastAt: 0, velocity: 0, heading: 0, openedAt: 0, touched: false });
   const closeUpNow = useRef(shot !== "full");
+  const shotNow = useRef(shot);
   const goalNow = useRef({ s: goal.s, y: goal.y, still: reduceMotion });
   const glideRef = useRef<PreviewGlide>({
     from: { s: goal.s, y: goal.y },
@@ -130,7 +133,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
     let rafId = 0;
     let autoTimer: ReturnType<typeof setTimeout> | null = null;
     let prev = Date.now();
-    let wasClose = closeUpNow.current;
+    let wasShot = shotNow.current;
 
     const clearAuto = () => {
       if (autoTimer !== null) {
@@ -173,11 +176,11 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
         y: glide.from.y + (glide.to.y - glide.from.y) * k,
       };
       const d = spin.current;
-      if (closeUpNow.current && !wasClose && !d.down) {
+      if (previewRecenters(wasShot, shotNow.current) && !d.down) {
         d.touched = false;
         d.velocity = 0;
       }
-      wasClose = closeUpNow.current;
+      wasShot = shotNow.current;
       if (!d.down) {
         if (Math.abs(d.velocity) > PREVIEW_SPIN_STOP) {
           d.heading += d.velocity * dt;
@@ -221,6 +224,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
 
   useEffect(() => {
     closeUpNow.current = shot !== "full";
+    shotNow.current = shot;
     goalNow.current = { s: goal.s, y: goal.y, still: reduceMotion };
     wakeRef.current();
   }, [shot, goal.s, goal.y, reduceMotion]);
