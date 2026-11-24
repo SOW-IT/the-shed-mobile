@@ -13,6 +13,7 @@ import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
 import { useRequestUnreadCounts } from "@/hooks/useRequestUnreadCounts";
+import { useRequestStepActors } from "@/hooks/useRequestStepActors";
 import { EarlierYears, useEarlierYears } from "@/components/EarlierYears";
 import { ReceiptFilesNote } from "@/components/ReceiptFilesNote";
 import { ReceiptRecipientList } from "@/components/ReceiptRecipientList";
@@ -213,6 +214,11 @@ export const ReviewList = ({
     ...(reviewed ?? []),
   ].map((r) => r._id);
   const unread = useRequestUnreadCounts(data != null && reviewed != null ? shownIds : undefined);
+  const stepActorsOf = useRequestStepActors(
+    data
+      ? [...data.hod, ...data.budgetManager, ...data.director, ...data.financeHead, ...data.readyToPay].map((r) => r._id)
+      : undefined
+  );
   const earlier = useEarlierYears(api.requests.reviewedHistory, {
     enabled: data != null && reviewed != null,
     exclude: shownIds,
@@ -307,6 +313,7 @@ export const ReviewList = ({
                           request={request}
                           showRequester
                           unread={unread[request._id] ?? 0}
+                          stepActors={stepActorsOf(request._id)}
                           actionRequired={request.canAct}
                           waitingSince={request.waitingSince}
                           autoExpand={request._id === focusId}
@@ -349,6 +356,7 @@ export const ReviewList = ({
                         request={request}
                         showRequester
                         unread={unread[request._id] ?? 0}
+                        stepActors={stepActorsOf(request._id)}
                         actionRequired={request.canAct}
                         waitingSince={request.waitingSince}
                         autoExpand={request._id === focusId}
