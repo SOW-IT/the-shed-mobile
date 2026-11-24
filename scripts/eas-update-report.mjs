@@ -2,7 +2,16 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { platformName } from "./lib/easFingerprintGate.mjs";
-import { chatMessage, checkUpdate, publishedUpdates, stranded, summaryMarkdown } from "./lib/easUpdateReport.mjs";
+import {
+  chatMessage,
+  checkUpdate,
+  publishedUpdates,
+  raisedOutcome,
+  recommendationFailed,
+  recommendationPlan,
+  stranded,
+  summaryMarkdown,
+} from "./lib/easUpdateReport.mjs";
 
 const eas = (args) =>
   JSON.parse(
@@ -37,6 +46,26 @@ const newestStoreBuild = (platform, profile) => {
   return build ?? null;
 };
 
+const raiseRecommended = (platform, version) => {
+  try {
+    const output = execFileSync(
+      "npx",
+      ["convex", "run", "appInstalls:raiseRecommended", JSON.stringify({ platform, version })],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }
+    );
+    return raisedOutcome(platform, output);
+  } catch (error) {
+    return { platform, action: "failed", error: error instanceof Error ? error.message : String(error) };
+  }
+};
+
+const recommend = (checks, version) =>
+  recommendationPlan({
+    checks,
+    published: process.env.PUBLISH_OUTCOME === "success",
+    deployKey: process.env.CONVEX_DEPLOY_KEY,
+  }).map((step) => (step.action === "raise" ? raiseRecommended(step.platform, version) : step));
+
 const postToChat = async (message) => {
   const webhookUrl = (process.env.GOOGLE_CHAT_WEBHOOK_URL ?? "").replace(/\s+/g, "");
   if (!webhookUrl) {
@@ -69,7 +98,9 @@ const run = async () => {
   const updates = updatesFile && existsSync(updatesFile) ? publishedUpdates(readFileSync(updatesFile, "utf8")) : [];
   const checks = updates.map((update) => checkUpdate(update, newestStoreBuild(update.platform, profile)));
 
-  const details = { version: expo.version, channel, commit, project, checks };
+  const recommendations = recommend(checks, expo.version);
+
+  const details = { version: expo.version, channel, commit, project, checks, recommendations };
   const summary = summaryMarkdown(details);
   console.log(summary);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
@@ -92,6 +123,13 @@ const run = async () => {
         }, so no phone on that build gets it.`
       );
     }
+    process.exitCode = 1;
+  }
+
+  for (const outcome of recommendationFailed(recommendations)) {
+    console.log(
+      `::error title=Recommended version not raised::${platformName(outcome.platform)} recommended version wasn't raised to ${expo.version}: ${outcome.error}`
+    );
     process.exitCode = 1;
   }
 };
