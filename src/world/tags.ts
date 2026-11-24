@@ -9,10 +9,13 @@ const overlap = (a: Box, b: Box) => {
   return across > 0 && up > 0 ? across : 0;
 };
 
-export const spreadTags = <T extends Box>(tags: readonly T[]): T[] => {
-  const out = tags.map((tag) => ({ ...tag }));
+export const spreadTags = <T extends Box>(tags: readonly T[], top = -Infinity): T[] => {
+  const out = tags.map((tag) => ({ ...tag, bottom: Math.max(tag.bottom, top + tag.height) }));
   const home = out.map((tag) => tag.x);
   const floor = out.map((tag) => tag.bottom);
+  const room = (k: number) => out[k].width * MAX_NUDGE - Math.abs(out[k].x - home[k]);
+  const clashesBefore = (k: number, x: number, until: number, skip: number) =>
+    out.some((other, n) => n < until && n !== k && n !== skip && overlap({ ...out[k], x }, other) > 0 && overlap(out[k], other) === 0);
   for (let i = 1; i < out.length; i++) {
     for (let j = 0; j < i; j++) {
       const a = out[j];
@@ -20,14 +23,20 @@ export const spreadTags = <T extends Box>(tags: readonly T[]): T[] => {
       const across = overlap(a, b);
       if (across === 0) continue;
       const side = b.x >= a.x ? 1 : -1;
-      const room = (tag: T, k: number) => tag.width * MAX_NUDGE - Math.abs(tag.x - home[k]);
       const half = across / 2;
-      const moveB = Math.min(half, Math.max(0, room(b, i)));
-      const moveA = Math.min(across - moveB, Math.max(0, room(a, j)));
+      const wantA = Math.min(half, Math.max(0, room(j)));
+      const moveA = clashesBefore(j, a.x - side * wantA, i, i) ? 0 : wantA;
+      const wantB = Math.min(across - moveA, Math.max(0, room(i)));
+      const moveB = clashesBefore(i, b.x + side * wantB, i, j) ? 0 : wantB;
       b.x += side * moveB;
       a.x -= side * moveA;
+      if (overlap(a, b) === 0) continue;
+      const reach = Math.max(a.height, b.height) + GAP * 3;
       const lifted = a.bottom - a.height - GAP;
-      if (overlap(a, b) > 0 && floor[i] - lifted <= Math.max(a.height, b.height) + GAP * 3) b.bottom = Math.min(b.bottom, lifted);
+      const dropped = a.bottom + b.height + GAP;
+      if (lifted - b.height >= top) {
+        if (floor[i] - lifted <= reach) b.bottom = Math.min(b.bottom, lifted);
+      } else if (dropped - floor[i] <= reach) b.bottom = Math.max(b.bottom, dropped);
     }
   }
   return out;

@@ -103,7 +103,10 @@ export const enqueueScore = (queue: readonly QueuedScore[], entry: QueuedScore, 
   const beaten = (queued: QueuedScore) => queued.game === entry.game && !pays(queued) && queued.score < entry.score;
   if (pays(entry) && queue.filter(pays).length < MAX_PAYING_RUNS) return [...queue.filter((queued) => !beaten(queued)), entry];
   if (sameGame.some((queued) => queued.score >= entry.score)) return [...queue];
-  return [...queue.filter((queued) => queued.game !== entry.game || pays(queued)), entry];
+  const kept = queue.filter((queued) => queued.game !== entry.game || pays(queued));
+  if (!pays(entry) || kept.filter(pays).length < MAX_PAYING_RUNS) return [...kept, entry];
+  const lowest = kept.filter((queued) => queued.game === entry.game && pays(queued)).sort((x, y) => x.score - y.score)[0];
+  return lowest ? [...kept.filter((queued) => queued !== lowest), entry] : [...queue];
 };
 
 /**

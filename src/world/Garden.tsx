@@ -782,13 +782,16 @@ const TYPING_BOX = "•••";
 
 const drawOrder = (tag: TagSpot) => (tag.spokeAt === undefined ? [0, -tag.depth] : [1, tag.spokeAt]);
 
+const TAG_TOP = 4;
+
 const layerTags = (tags: TagSpot[]): TagSpot[] =>
   spreadTags(
     [...tags].sort((a, b) => {
       const [x, y] = [drawOrder(a), drawOrder(b)];
       return x[0] - y[0] || x[1] - y[1];
-    })
-  ).map((tag) => ({ ...tag, bottom: Math.max(tag.bottom, tag.height + 4) }));
+    }),
+    TAG_TOP
+  );
 
 const styles = StyleSheet.create({
   fill: { flex: 1, overflow: "hidden" },

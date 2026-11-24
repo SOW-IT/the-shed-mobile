@@ -230,6 +230,14 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   }, [obstacles]);
   const [error, setError] = useState<string | null>(null);
   const [rejoin, setRejoin] = useState(0);
+  const [arrivalSeen, setArrivalSeen] = useState(arrival);
+  if (arrival !== arrivalSeen) {
+    setArrivalSeen(arrival);
+    if (arrival) setRejoin((n) => n + 1);
+  }
+  useEffect(() => {
+    if (arrival) arrivalRef.current = arrival;
+  }, [arrival]);
   // Your own walk, ahead of the server so a tap moves you at once.
   const [myWalk, setMyWalk] = useState<LocalWalk | null>(null);
   const [target, setTarget] = useState<{ x: number; z: number } | null>(null);
@@ -297,7 +305,9 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
         setError(null);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof ConvexError ? String(e.data) : "Couldn't open the garden.");
+        if (cancelled) return;
+        arrivalRef.current ??= asked;
+        setError(e instanceof ConvexError ? String(e.data) : "Couldn't open the garden.");
       });
     return () => {
       cancelled = true;

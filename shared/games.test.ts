@@ -103,6 +103,19 @@ describe("enqueueScore", () => {
     expect(queue).toHaveLength(MAX_PAYING_RUNS);
   });
 
+  test("a new best still fits when the paying runs are full, in place of the lowest", () => {
+    let queue: QueuedScore[] = [];
+    for (let i = 0; i < MAX_PAYING_RUNS; i++) {
+      queue = enqueueScore(queue, entry({ runId: `run-full-${i}`, game: "flappy", score: 600 + (i === 3 ? -1 : 0), durationMs: 600_000 }), NOW);
+    }
+    for (let i = 0; i < 3; i++) {
+      queue = enqueueScore(queue, entry({ runId: `run-best-${i}`, game: "flappy", score: 601 + i, durationMs: 600_000 }), NOW);
+    }
+    expect(queue).toHaveLength(MAX_PAYING_RUNS);
+    expect(queue.map((queued) => queued.runId)).not.toContain("run-full-3");
+    expect(queue.map((queued) => queued.runId)).toEqual(expect.arrayContaining(["run-best-0", "run-best-1", "run-best-2"]));
+  });
+
   test("never queues a zero score", () => {
     expect(enqueueScore([], entry({ score: 0 }), NOW)).toEqual([]);
   });

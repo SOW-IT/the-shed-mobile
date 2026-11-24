@@ -335,6 +335,8 @@ const buildBeach = (cam: Camera): Scene => {
   return { sky: c.sky, ground, backdrop, props };
 };
 
+const UNDERFOOT = 1e6;
+
 const buildHome = (cam: Camera, inside: HomeLook): Scene => {
   const c = places.home;
   const paper = WALLPAPER_LOOKS[wallpaperOr(inside.wallpaper)];
@@ -358,7 +360,13 @@ const buildHome = (cam: Camera, inside: HomeLook): Scene => {
 
   const { props, add } = propsFor(cam);
   for (const p of inside.items) {
-    if (p.item === "rug" || !isFurniture(p.item)) continue;
+    if (!isFurniture(p.item)) continue;
+    if (p.item === "rug") {
+      const shape = new Builder(cam, `rug:${p.key}`);
+      drawFurniture(shape, "rug", p.x, p.z, p.turn);
+      props.push({ id: `item:${p.key}`, depth: depthOf(cam, p.x, p.z) + UNDERFOOT, prims: [], box: boxOf(shape.take()), tap: `item:${p.key}` });
+      continue;
+    }
     add(`item:${p.key}`, p.x, p.z, (q) => drawFurniture(q, p.item as FurnitureId, p.x, p.z, p.turn), `item:${p.key}`);
   }
   return { sky: c.sky, ground, backdrop, props };

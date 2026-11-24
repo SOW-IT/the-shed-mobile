@@ -36,7 +36,8 @@ describe("placing furniture", () => {
     for (const [x, z] of [[40, 40], [-40, -40], [0, 7], [3.9, 7.6]] as const) {
       for (const turn of [0, 1] as const) {
         const spot = fitInRoom("bed", x, z, turn);
-        expect(spot && placementProblem("bed", spot.x, spot.z, turn)).toBeNull();
+        expect(spot).not.toBeNull();
+        expect(placementProblem("bed", spot!.x, spot!.z, turn)).toBeNull();
       }
     }
   });

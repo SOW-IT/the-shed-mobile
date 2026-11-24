@@ -35,3 +35,28 @@ describe("a crowd's name tags", () => {
     for (const t of spread) expect(t.bottom).toBeGreaterThanOrEqual(100 - 24 - 4);
   });
 });
+
+describe("tags kept apart", () => {
+  const apart = (tags: { x: number; bottom: number; width: number; height: number }[]) => {
+    for (let i = 0; i < tags.length; i++) {
+      for (let j = 0; j < i; j++) {
+        const [a, b] = [tags[i], tags[j]];
+        const across = (a.width + b.width) / 2 - Math.abs(a.x - b.x);
+        const up = Math.min(a.bottom, b.bottom) - Math.max(a.bottom - a.height, b.bottom - b.height);
+        expect(across > 0 && up > 0, `tags ${j} and ${i}`).toBe(false);
+      }
+    }
+  };
+
+  test("nudging one pair doesn't push into a pair already apart", () => {
+    const spread = spreadTags([tag(100), tag(164), tag(200)]);
+    apart(spread);
+    expect(spread[0]).toEqual(tag(100));
+  });
+
+  test("tags near the top stay on screen and still apart", () => {
+    const spread = spreadTags([tag(100, 60, 10), tag(101, 60, 10)], 4);
+    apart(spread);
+    for (const t of spread) expect(t.bottom - t.height).toBeGreaterThanOrEqual(4);
+  });
+});

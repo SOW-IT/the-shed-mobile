@@ -47,6 +47,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const best = useLocalBests()[game];
   const recorded = useRef<S | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
+  const generation = useRef(0);
   const overAt = useRef(0);
   const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
   // An update waiting to install restarts the app when it comes back from
@@ -58,11 +59,15 @@ export const useGameSession = <S extends Run>(game: GameId) => {
     recorded.current = run;
     overAt.current = Date.now();
     hapticSelect();
-    void recordRun(game, run.score, run.time * 1000).then(setRunId);
+    const started = generation.current;
+    void recordRun(game, run.score, run.time * 1000).then((id) => {
+      if (generation.current === started) setRunId(id);
+    });
   }, [run, game]);
 
   const begin = useCallback(
     (state: S) => {
+      generation.current++;
       setBestAtStart(best);
       setRunId(null);
       setRun(state);

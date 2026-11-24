@@ -5,7 +5,7 @@ import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { currentStaffYear } from "./model";
 import { START_COINS } from "../shared/coins";
 import { DOOR_CLEAR, FURNITURE, HOME_CAP, HOME_DOOR, placementProblem } from "../shared/home";
-import { BUCKETS, HOME_ARRIVAL, INVITE_MS, NPC, POKE_EVERY_MS, POKE_ARRIVAL_MS, WALK_BOUNDS, distance, posAt } from "../shared/world";
+import { BUCKETS, HOME_ARRIVAL, INVITE_MS, NPC, POKE_EVERY_MS, POKE_ARRIVAL_MS, ROOM_CAP, WALK_BOUNDS, distance, posAt } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -103,6 +103,28 @@ describe("homes are invite only", () => {
     await expect(ben.mutation(api.world.travel, { to: "home", invite: id })).rejects.toThrow(/full/);
   });
 
+  test("following someone into a home still needs that home's invite", async () => {
+    const t = newConvex();
+    const { memberId: annaId } = await asUser(t, ANNA).mutation(api.world.join, {});
+    await asUser(t, BEN).mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await asUser(t, BEN).mutation(api.world.travel, { to: "home", toMember: annaId });
+    expect((await memberOf(t, BEN)).room?.owner).toBe(BEN);
+  });
+
+  test("following someone in with their invite stops at a full home", async () => {
+    const t = newConvex();
+    const { memberId: annaId } = await asUser(t, ANNA).mutation(api.world.join, {});
+    const ben = asUser(t, BEN);
+    const { memberId: benId } = await ben.mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await asUser(t, ANNA).mutation(api.world.invite, { memberId: benId });
+    const [card] = await ben.query(api.world.invites, {});
+    const { room } = await memberOf(t, ANNA);
+    await t.run((ctx) => ctx.db.patch("worldRooms", room!._id, { memberCount: HOME_CAP }));
+    await expect(ben.mutation(api.world.travel, { to: "home", toMember: annaId, invite: card.id })).rejects.toThrow(/full/);
+  });
+
   test("what's said at home stays in that home", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
@@ -157,6 +179,40 @@ describe("a poke brings them to you", () => {
     expect(ben.member?.roomId).toBe(annaNow.member?.roomId);
     expect(distance(posAt(ben.state!, Date.now()), posAt(annaNow.state!, Date.now()))).toBeLessThan(2);
     void anna;
+  });
+
+  test("they arrive in your room of the place, even when another has space", async () => {
+    const t = newConvex();
+    const full = await t.run((ctx) => ctx.db.insert("worldRooms", { place: "beach", instance: 1, memberCount: ROOM_CAP }));
+    const { poke } = await pokeBen(t);
+    await t.run((ctx) => ctx.db.patch("worldRooms", full, { memberCount: 1 }));
+    await asUser(t, BEN).mutation(api.world.join, { poke });
+    expect((await memberOf(t, BEN)).member?.roomId).toBe((await memberOf(t, ANNA)).member?.roomId);
+  });
+
+  test("someone already in the garden on another phone is brought over too", async () => {
+    const t = newConvex();
+    const { poke } = await pokeBen(t);
+    await asUser(t, BEN).mutation(api.world.join, {});
+    await asUser(t, BEN).mutation(api.world.join, { poke });
+    const ben = await memberOf(t, BEN);
+    const anna = await memberOf(t, ANNA);
+    expect(ben.member).toMatchObject({ place: "beach", roomId: anna.member?.roomId, visits: 2 });
+    expect(distance(posAt(ben.state!, Date.now()), posAt(anna.state!, Date.now()))).toBeLessThan(2);
+    expect(await t.run((ctx) => ctx.db.query("worldRooms").withIndex("by_place_and_instance", (q) => q.eq("place", "garden")).collect())).toEqual([]);
+  });
+
+  test("an invite brings someone already in the garden into the home", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await anna.mutation(api.world.inviteStaff, { profileId: await staffProfile(t, BEN) });
+    const [note] = await t.run((ctx) => ctx.db.query("notifications").collect());
+    const invite = new URL(note.url!, "https://x").searchParams.get("invite")!;
+    await asUser(t, BEN).mutation(api.world.join, {});
+    await asUser(t, BEN).mutation(api.world.join, { invite });
+    expect((await memberOf(t, BEN)).room?.owner).toBe(ANNA);
   });
 
   test("they arrive where you poked from once you've gone", async () => {

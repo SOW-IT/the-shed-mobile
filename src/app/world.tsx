@@ -3,7 +3,7 @@ import { LoadingState, Screen } from "@/components/ui";
 import { backOr } from "@/lib/goBack";
 import { useConvexAuth } from "convex/react";
 import { useFocusEffect, useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from "expo-router";
-import { lazy, Suspense, useCallback, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 
 // Loaded when someone opens the garden, not at startup. On web it's its own
 // chunk; on iOS it's in the bundle but isn't run until now.
@@ -15,7 +15,7 @@ export default function World() {
   // `?sheet=character` opens the character editor and `?sheet=poke` the list
   // of people to poke.
   const { sheet, poke, invite } = useLocalSearchParams<{ sheet?: string; poke?: string; invite?: string }>();
-  const [arrival] = useState(() => (poke || invite ? { poke: poke || undefined, invite: invite || undefined } : undefined));
+  const arrival = useMemo(() => (poke || invite ? { poke: poke || undefined, invite: invite || undefined } : undefined), [poke, invite]);
   const { isAuthenticated, isLoading } = useConvexAuth();
   // Leave the garden while another screen (the games) covers it; come back on return.
   const [focused, setFocused] = useState(true);
