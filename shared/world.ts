@@ -215,6 +215,8 @@ const WATER: Record<Place, readonly Water[]> = {
 export const inWater = (place: Place, at: { x: number; z: number }) =>
   WATER[place].some((w) => (w.kind === "sea" ? at.z < w.beyondZ : Math.hypot((at.x - w.x) / w.rx, (at.z - w.z) / w.rz) < 1));
 
+export type Waypoint = { x: number; z: number };
+
 /** The latest walk of one person: everything a phone needs to place them. */
 export interface Walk {
   fromX: number;
@@ -222,6 +224,7 @@ export interface Walk {
   toX: number;
   toZ: number;
   startedAt: number;
+  path?: readonly Waypoint[];
 }
 
 export interface Pose {
@@ -233,19 +236,88 @@ export interface Pose {
   arrivesAt: number;
 }
 
+const walkPoints = (walk: Walk): Waypoint[] => [
+  { x: walk.fromX, z: walk.fromZ },
+  ...(walk.path ?? []),
+  { x: walk.toX, z: walk.toZ },
+];
+
+export const walkLength = (walk: Walk): number => {
+  if (!walk.path || walk.path.length === 0) return Math.hypot(walk.toX - walk.fromX, walk.toZ - walk.fromZ);
+  const pts = walkPoints(walk);
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+  return total;
+};
+
+export const pathAhead = (walk: Walk, now: number): Waypoint[] => {
+  if (!walk.path || walk.path.length === 0) return [];
+  const pts = walkPoints(walk);
+  let left = (Math.max(0, now - walk.startedAt) / 1000) * WALK_SPEED;
+  for (let i = 1; i < pts.length - 1; i++) {
+    left -= Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+    if (left < 0) return walk.path.slice(i - 1);
+  }
+  return [];
+};
+
 /** Where someone is at `now`: a straight line at WALK_SPEED from the walk's start. */
 export const posAt = (walk: Walk, now: number): Pose => {
-  const dx = walk.toX - walk.fromX;
-  const dz = walk.toZ - walk.fromZ;
-  const dist = Math.hypot(dx, dz);
-  const duration = (dist / WALK_SPEED) * 1000;
-  const k = duration === 0 ? 1 : Math.min(1, Math.max(0, (now - walk.startedAt) / duration));
+  if (!walk.path || walk.path.length === 0) {
+    const dx = walk.toX - walk.fromX;
+    const dz = walk.toZ - walk.fromZ;
+    const dist = Math.hypot(dx, dz);
+    const duration = (dist / WALK_SPEED) * 1000;
+    const k = duration === 0 ? 1 : Math.min(1, Math.max(0, (now - walk.startedAt) / duration));
+    return {
+      x: walk.fromX + dx * k,
+      z: walk.fromZ + dz * k,
+      walking: k < 1,
+      heading: dist === 0 ? 0 : Math.atan2(dx, dz),
+      arrivesAt: walk.startedAt + duration,
+    };
+  }
+  const pts = walkPoints(walk);
+  const segLengths: number[] = [];
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const len = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+    segLengths.push(len);
+    total += len;
+  }
+  const duration = (total / WALK_SPEED) * 1000;
+  const arrivesAt = walk.startedAt + duration;
+  if (total === 0) return { x: walk.toX, z: walk.toZ, walking: false, heading: 0, arrivesAt };
+  const elapsed = Math.max(0, now - walk.startedAt);
+  if (elapsed >= duration) {
+    let lastHeading = 0;
+    for (let i = segLengths.length - 1; i >= 0; i--) {
+      if (segLengths[i] > 0) {
+        lastHeading = Math.atan2(pts[i + 1].x - pts[i].x, pts[i + 1].z - pts[i].z);
+        break;
+      }
+    }
+    return { x: walk.toX, z: walk.toZ, walking: false, heading: lastHeading, arrivesAt };
+  }
+  let remaining = (elapsed / 1000) * WALK_SPEED;
+  let active = segLengths.length - 1;
+  for (let i = 0; i < segLengths.length; i++) {
+    const len = segLengths[i];
+    if (len === 0) continue;
+    active = i;
+    if (remaining <= len) break;
+    remaining -= len;
+  }
+  const len = segLengths[active];
+  const k = len === 0 ? 1 : Math.min(1, remaining / len);
+  const a = pts[active];
+  const b = pts[active + 1];
   return {
-    x: walk.fromX + dx * k,
-    z: walk.fromZ + dz * k,
-    walking: k < 1,
-    heading: dist === 0 ? 0 : Math.atan2(dx, dz),
-    arrivesAt: walk.startedAt + duration,
+    x: a.x + (b.x - a.x) * k,
+    z: a.z + (b.z - a.z) * k,
+    walking: true,
+    heading: Math.atan2(b.x - a.x, b.z - a.z),
+    arrivesAt,
   };
 };
 
@@ -271,9 +343,9 @@ export const halfWidthAt = (z: number) => WALK_BOUNDS.maxX - Math.max(0, z - NAR
 export const OBSTACLES = [
   { id: "birdbath", x: 0, z: -2.4, rx: 0.8, rz: 0.8 },
   { id: "arcade", x: -3.1, z: 5.7, rx: 0.6, rz: 0.5 },
-  { id: "sign", x: 3.7, z: -6.4, rx: 0.3, rz: 0.3 },
+  { id: "noticeboard", x: 3.0, z: -6.0, rx: 0.65, rz: 0.4 },
 ] as const;
-type Obstacle = { id: string; x: number; z: number; rx: number; rz: number };
+export type Obstacle = { id: string; x: number; z: number; rx: number; rz: number };
 
 export const PLACES = ["garden", "chapel", "campfire", "cafe", "beach"] as const;
 export type PublicPlace = (typeof PLACES)[number];

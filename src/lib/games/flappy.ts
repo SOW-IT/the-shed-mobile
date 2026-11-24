@@ -14,6 +14,12 @@ export const FLAPPY = {
   spacing: 230,
   groundHeight: 56,
   pointsPerGap: 10,
+  startSpeed: 150,
+  topSpeed: 200,
+  widestGap: 180,
+  narrowestGap: 150,
+  /** The score by which about two thirds of the speed-up and narrowing is done. */
+  rampScore: 250,
 } as const;
 
 export type Pipe = { id: number; x: number; gapTop: number; gapHeight: number; passed: boolean };
@@ -54,9 +60,10 @@ export const birdX = (state: FlappyState) => state.width * FLAPPY.xShare;
 export const flap = (state: FlappyState): FlappyState =>
   state.over ? state : { ...state, vy: -FLAPPY.flapSpeed };
 
-export const pipeSpeed = (time: number) => Math.min(240, 150 + time * 1.5);
-/** The gap narrows from 180 to 130 over the first forty seconds. */
-export const gapHeight = (time: number) => Math.max(130, 180 - time * 1.25);
+/** From 0 at the start towards 1, levelling off so a high score stays playable. */
+const ramp = (score: number) => 1 - Math.exp(-Math.max(0, score) / FLAPPY.rampScore);
+export const pipeSpeed = (score: number) => FLAPPY.startSpeed + (FLAPPY.topSpeed - FLAPPY.startSpeed) * ramp(score);
+export const gapHeight = (score: number) => FLAPPY.widestGap - (FLAPPY.widestGap - FLAPPY.narrowestGap) * ramp(score);
 
 const flappyScore = (gaps: number, time: number) => gaps * FLAPPY.pointsPerGap + Math.floor(time);
 
@@ -65,10 +72,10 @@ const flappyScore = (gaps: number, time: number) => gaps * FLAPPY.pointsPerGap +
  * can climb about 320, so this leaves room to react; falling is easy.
  */
 export const MAX_GAP_RISE = 240;
-const MAX_GAP_DROP = 320;
+export const MAX_GAP_DROP = 320;
 
 const newPipe = (state: FlappyState): Pipe => {
-  const gap = gapHeight(state.time);
+  const gap = gapHeight(state.score);
   const floor = state.height - FLAPPY.groundHeight;
   const previous = state.pipes.at(-1)?.gapTop;
   let low = 60;
@@ -99,7 +106,7 @@ export const stepFlappy = (previous: FlappyState, dt: number): FlappyState => {
     state.vy = Math.max(0, state.vy);
   }
 
-  const travelled = pipeSpeed(state.time) * dt;
+  const travelled = pipeSpeed(state.score) * dt;
   const x = birdX(state);
   const pipes = previous.pipes
     .map((pipe) => ({ ...pipe, x: pipe.x - travelled }))

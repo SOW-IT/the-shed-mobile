@@ -8,6 +8,7 @@ import {
 export type NavKey =
   | "home"
   | "music"
+  | "devotionals"
   | "reimbursements"
   | "designRequests"
   | "eventRequests"
@@ -26,6 +27,7 @@ export type NavKey =
 export const NAV_HREFS = {
   home: "/home",
   music: "/music",
+  devotionals: "/devotionals",
   reimbursements: "/",
   designRequests: "/design-requests",
   eventRequests: "/event-requests",
@@ -48,6 +50,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   designRequests: "Design Requests",
   eventRequests: "Event Requests",
   music: "Praise List",
+  devotionals: "Devotionals",
   attendance: "Attendance",
   calendar: "Calendar",
   insights: "Insights",
@@ -130,6 +133,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = [];
   if (viewer.isStaff) items.push("churches", "music");
+  items.push("devotionals");
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.canMentoring) items.push("mentoring");
   // Staff have the Calendar as a bottom tab, so Insights moves in here.
@@ -146,6 +150,7 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   if (viewer.isStaff) items.push("attendance", "calendar");
   items.push("org", "churches");
   if (viewer.isStaff) items.push("music");
+  if (viewer.signedIn) items.push("devotionals");
   items.push("grievances");
   if (viewer.canMentoring) items.push("mentoring");
   if (viewer.isStaff) items.push("insights");
@@ -191,6 +196,9 @@ export const activeNavKey = (pathname: string): NavKey | null => {
   if (pathname === "/admin") return "admin";
   if (pathname === "/music" || pathname.startsWith("/music/")) {
     return "music";
+  }
+  if (pathname === "/devotionals" || pathname.startsWith("/devotionals/")) {
+    return "devotionals";
   }
   return null;
 };

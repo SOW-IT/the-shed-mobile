@@ -1,4 +1,4 @@
-import { posAt, type Pose, type Walk } from "../../shared/world";
+import { posAt, walkLength, type Pose, type Walk } from "../../shared/world";
 
 export type Gait = {
   movingSince: number;
@@ -23,7 +23,7 @@ const easeOut = (k: number) => 1 - (1 - k) ** 3;
 const turnToward = (from: number, to: number, k: number) =>
   from + Math.atan2(Math.sin(to - from), Math.cos(to - from)) * k;
 
-const length = (walk: Walk) => Math.hypot(walk.toX - walk.fromX, walk.toZ - walk.fromZ);
+const length = (walk: Walk) => walkLength(walk);
 
 export const restingGait = (walk: Walk): Gait => {
   const heading = length(walk) < STILL ? 0 : posAt(walk, walk.startedAt).heading;
@@ -33,12 +33,13 @@ export const restingGait = (walk: Walk): Gait => {
 export const drawnPose = (walk: Walk, gait: Gait, now: number): DrawnPose => {
   const pose = posAt(walk, now);
   const turned = clamp01((now - gait.turnAt) / TURN_MS);
+  const targetHeading = walk.path && walk.path.length > 0 && length(walk) >= STILL ? pose.heading : gait.heading;
   return {
     ...pose,
-    heading: turnToward(gait.turnFrom, gait.heading, easeOut(turned)),
+    heading: turnToward(gait.turnFrom, targetHeading, easeOut(turned)),
     stridePhase: Math.max(0, now - gait.movingSince) / 1000,
     strideAmp: pose.walking ? 1 : clamp01(1 - (now - pose.arrivesAt) / STOP_MS),
-    turning: turned < 1 && gait.turnFrom !== gait.heading,
+    turning: turned < 1 && gait.turnFrom !== targetHeading,
   };
 };
 

@@ -51,6 +51,7 @@ const NAV_ICONS: Record<NavKey, { outline: AppIconName; filled: AppIconName }> =
   {
     home: { outline: "home-outline", filled: "home" },
     music: { outline: "musical-notes-outline", filled: "musical-notes" },
+    devotionals: { outline: "book-outline", filled: "book" },
     reimbursements: { outline: "receipt-outline", filled: "receipt" },
     designRequests: {
       outline: "color-palette-outline",
@@ -76,6 +77,7 @@ const NAV_ICONS: Record<NavKey, { outline: AppIconName; filled: AppIconName }> =
 const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "home",
   "music",
+  "devotionals",
   "reimbursements",
   "designRequests",
   "eventRequests",

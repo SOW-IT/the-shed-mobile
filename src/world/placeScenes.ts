@@ -98,25 +98,41 @@ const buildChapel = (cam: Camera): Scene => {
     add(`${pew.id}-back`, pew.x, pew.z + 0.36, (p) => p.box(pew.x, 0.34, pew.z + 0.28, 2.5, 0.68, 0.14, c.wood));
   }
   const lectern = obstacle("chapel", "lectern");
-  add("lectern", lectern.x, lectern.z, (p) => {
-    p.box(lectern.x, 0.43, lectern.z, 0.55, 0.86, 0.45, c.woodDark);
-    p.box(lectern.x, 0.91, lectern.z, 0.75, 0.1, 0.6, c.wood);
-    p.face(
-      [
-        [lectern.x - 0.25, 0.97, lectern.z - 0.2],
-        [lectern.x + 0.25, 0.97, lectern.z - 0.2],
-        [lectern.x + 0.25, 0.97, lectern.z + 0.2],
-        [lectern.x - 0.25, 0.97, lectern.z + 0.2],
-      ],
-      c.cloth
-    );
-  });
+  add(
+    "lectern",
+    lectern.x,
+    lectern.z,
+    (p) => {
+      p.box(lectern.x, 0.43, lectern.z, 0.55, 0.86, 0.45, c.woodDark);
+      p.box(lectern.x, 0.91, lectern.z, 0.75, 0.1, 0.6, c.wood);
+      p.face(
+        [
+          [lectern.x - 0.25, 0.97, lectern.z - 0.2],
+          [lectern.x + 0.25, 0.97, lectern.z - 0.2],
+          [lectern.x + 0.25, 0.97, lectern.z + 0.2],
+          [lectern.x - 0.25, 0.97, lectern.z + 0.2],
+        ],
+        c.cloth
+      );
+    },
+    "lectern"
+  );
   const piano = obstacle("chapel", "piano");
-  add("piano", piano.x, piano.z, (p) => {
-    p.box(piano.x, 0.46, piano.z, 1.8, 0.92, 0.8, c.piano);
-    p.box(piano.x, 0.56, piano.z + 0.5, 1.6, 0.08, 0.24, c.keys);
-    p.cylinder(piano.x, piano.z + 1.0, 0, 0.32, 0.22, 0.24, c.carpet);
-  });
+  add(
+    "piano",
+    piano.x,
+    piano.z,
+    (p) => {
+      p.box(piano.x, 0.46, piano.z, 1.8, 0.92, 0.8, c.piano);
+      p.box(piano.x, 0.56, piano.z + 0.5, 1.6, 0.08, 0.24, c.keys);
+      for (const offset of [-0.55, -0.35, -0.05, 0.15, 0.35, 0.55]) {
+        p.box(piano.x + offset, 0.61, piano.z + 0.44, 0.08, 0.04, 0.12, c.piano);
+      }
+      p.box(piano.x, 1.05, piano.z + 0.1, 0.7, 0.26, 0.06, c.cloth);
+      p.cylinder(piano.x, piano.z + 1.0, 0, 0.32, 0.22, 0.24, c.carpet);
+    },
+    "piano"
+  );
   return { sky: c.sky, ground, backdrop, props };
 };
 

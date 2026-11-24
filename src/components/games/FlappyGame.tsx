@@ -12,6 +12,7 @@ import type { Look } from "@shared/world";
 
 const c = fixedColours.games.flappy;
 const MAX_BOARD = { width: 720, height: 1400 };
+const GRASS_HEIGHT = 14;
 const FLAP_KEYS = new Set([" ", "ArrowUp", "w", "W"]);
 const CLOUDS = [
   { id: "a", x: 0.12, y: 0.12, w: 90 },
@@ -132,6 +133,7 @@ export const FlappyGame = ({
   const height = board?.height ?? 0;
   const preview = useMemo(() => newFlappy(width, height, 1), [width, height]);
   const latest = useLatest({ session, width, height });
+  const scene = run ?? preview;
 
   useGameLoop(phase === "playing" && active && !session.paused, (dt) => setRun((state) => state && advance(state, dt, stepFlappy)));
 
@@ -179,8 +181,13 @@ export const FlappyGame = ({
       onExit={onExit}
       guard={guard}
       onLeaderboard={onLeaderboard}
+      ground={{
+        top: scene.height - FLAPPY.groundHeight,
+        colour: c.ground,
+        band: { colour: c.grass, height: GRASS_HEIGHT },
+      }}
     >
-      {board ? <Scene state={run ?? preview} look={look} /> : null}
+      {board ? <Scene state={scene} look={look} /> : null}
     </GameFrame>
   );
 };
@@ -196,7 +203,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   ground: { position: "absolute", left: 0, right: 0, bottom: 0 },
-  grass: { height: 14, overflow: "hidden" },
+  grass: { height: GRASS_HEIGHT, overflow: "hidden" },
   tufts: { flexDirection: "row", gap: 14, marginTop: 9 },
   tuft: { width: 10, height: 5, borderRadius: 2 },
   bird: { position: "absolute", left: 0, top: 0 },

@@ -49,12 +49,19 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
   `shared/games.ts`): three endless mini-games that work offline, opened from
   the offline screen or three taps on the version at the foot of Profile, with
   a per-game leaderboard ([ADR 0020](docs/adr/0020-offline-games-leaderboard-keeps-each-best.md)).
+- **Devotionals** (`src/components/devotionals/`, `convex/devotionals.ts`, rules
+  in `shared/devotionals.ts` and `shared/bible.ts`): private daily devotionals
+  with Protestant canon passage reference validation, separate notes and prayer
+  points, month and week history views, and immediate local saves with online
+  sync.
 - **Shed World, the Garden** (`/world`, `src/world/`, `convex/world.ts`, rules
-  in `shared/world.ts`): an online courtyard, reached from Games, where
-  signed-in people walk by tapping and chat in bubbles over their heads, 20 to
-  a room. Drawn with plain views (no GL), one write per tap, chat kept 15
-  minutes, with high fives, emotes, a character editor, mute, block, report
-  and a list view
+  in `shared/world.ts` and `shared/worldPath.ts`): an online world, reached from
+  Games, where signed-in people walk around obstacles by tapping, highlight
+  interactive objects (Garden notice board for Calendar, Chapel piano for Praise
+  List, Chapel pews and pulpit for daily devotionals with an open-book presence
+  icon), and chat in bubbles over their heads, 20 to a room. Drawn with plain
+  views (no GL), one write per tap, chat kept 15 minutes, with high fives,
+  emotes, a character editor, mute, block, report and a list view
   ([ADR 0021](docs/adr/0021-shed-world-garden-without-gl.md)).
 - **Releases**: over-the-air updates (`expo-updates`, applied by restarting
   the app the next time it comes back from the background), an update

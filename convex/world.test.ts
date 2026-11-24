@@ -2036,3 +2036,80 @@ describe("the beach ball", () => {
     expect(await balls(t)).toEqual([]);
   });
 });
+
+describe("path waypoints and devotional presence", () => {
+  test("stores sanitized path waypoints on move and sit, and clears them on straight moves and travel", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const joined = await anna.mutation(api.world.join, {});
+    const moved = await anna.mutation(api.world.move, {
+      toX: 0,
+      toZ: -6,
+      path: [
+        { x: 1.4, z: -1 },
+        { x: 1.4, z: -4 },
+      ],
+    });
+    expect(moved).toMatchObject({
+      ok: true,
+      path: [
+        { x: 1.4, z: -1 },
+        { x: 1.4, z: -4 },
+      ],
+    });
+    const state1 = await anna.query(api.world.state, { memberId: joined.memberId });
+    expect(state1?.path).toEqual([
+      { x: 1.4, z: -1 },
+      { x: 1.4, z: -4 },
+    ]);
+
+    const samePlace = await anna.mutation(api.world.travel, { to: "garden" });
+    expect(samePlace).toMatchObject({
+      ok: true,
+      path: [
+        { x: 1.4, z: -1 },
+        { x: 1.4, z: -4 },
+      ],
+    });
+
+    await anna.mutation(api.world.travel, { to: "chapel" });
+    const sat = await anna.mutation(api.world.sit, {
+      seat: SEATS.chapel[0].id,
+      path: [{ x: 0, z: -3 }],
+    });
+    expect(sat).toMatchObject({ ok: true, path: [{ x: 0, z: -3 }] });
+    const satState = await anna.query(api.world.state, { memberId: joined.memberId });
+    expect(satState?.path).toEqual([{ x: 0, z: -3 }]);
+
+    await anna.mutation(api.world.move, { toX: 0, toZ: 4 });
+    const straightState = await anna.query(api.world.state, { memberId: joined.memberId });
+    expect(straightState?.path).toBeUndefined();
+  });
+
+  test("sets and clears the devotional reading flag, blocks mutual asks, and clears on move", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const aJoin = await anna.mutation(api.world.join, {});
+    const bJoin = await ben.mutation(api.world.join, {});
+    await anna.mutation(api.world.travel, { to: "chapel" });
+    await ben.mutation(api.world.travel, { to: "chapel" });
+
+    expect(await anna.mutation(api.world.reading, { on: true })).toMatchObject({ ok: true });
+    expect(await anna.mutation(api.world.reading, { on: true })).toMatchObject({ ok: true });
+    const readingState = await ben.query(api.world.state, { memberId: aJoin.memberId });
+    expect(readingState?.reading).toBe(true);
+
+    const asked = await ben.mutation(api.world.ask, { to: aJoin.memberId, kind: "highFive" });
+    expect(asked).toMatchObject({ ok: false, reason: "They're doing their devotional." });
+
+    expect(await anna.mutation(api.world.reading, { on: false })).toMatchObject({ ok: true });
+    const clearedState = await ben.query(api.world.state, { memberId: aJoin.memberId });
+    expect(clearedState?.reading).toBeUndefined();
+
+    await anna.mutation(api.world.reading, { on: true });
+    await anna.mutation(api.world.move, { toX: 0, toZ: 4 });
+    expect((await ben.query(api.world.state, { memberId: aJoin.memberId }))?.reading).toBeUndefined();
+    expect(bJoin.memberId).toBeTruthy();
+  });
+});
