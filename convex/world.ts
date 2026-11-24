@@ -40,6 +40,7 @@ import {
   LOOK_SAVE_GAP_MS,
   MAX_BLOCKS,
   lookFor,
+  withHeight,
   posAt,
   PRESENCE_TOUCH_MS,
   PRESENCE_TTL_MS,
@@ -324,7 +325,7 @@ export const join = mutation({
         roomId: room._id,
         email,
         name: await nameFor(ctx, email),
-        look: (await savedLook(ctx, email))?.look ?? lookFor(email),
+        look: withHeight((await savedLook(ctx, email))?.look ?? lookFor(email), email),
         joinedAt: now,
         ...(back && back.place !== WORLD_PLACE ? { place: back.place } : {}),
       });
@@ -521,7 +522,7 @@ export const elsewhere = query({
           count++;
           if (names.length < ELSEWHERE_NAMES) {
             names.push(member.name);
-            const look = (await savedLook(ctx, member.email))?.look ?? member.look;
+            const look = withHeight((await savedLook(ctx, member.email))?.look ?? member.look, member.email);
             people.push({ memberId: member._id, name: member.name, look, ping: member.ping });
           }
         }
@@ -958,7 +959,7 @@ export const roster = query({
     const members = [];
     for (const row of rows) {
       if (await blockedEither(ctx, me.email, row.email)) continue;
-      const look = (await savedLook(ctx, row.email))?.look ?? row.look;
+      const look = withHeight((await savedLook(ctx, row.email))?.look ?? row.look, row.email);
       members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id, ping: row.ping });
     }
     return { instance: room.instance, place: room.place, members };

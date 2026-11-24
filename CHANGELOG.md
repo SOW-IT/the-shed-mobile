@@ -6,6 +6,30 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.37] - 2026-11-24
+
+### Fixed
+- **Height shows.** The editor preview used to shrink taller characters to
+  fit, so moving the Height slider changed nothing you could see. Now the
+  tallest stands about 1.3 times the height of the shortest, in the editor
+  and in the World. Anyone who never picked a height gets one from their email,
+  so a crowd isn't all one size. Name tags, tap areas, seats, swimming and
+  high fives follow each height.
+- **Caps, straw hats and headphones sit on the head.** The cap's crown
+  follows the head down to above the ears and its peak points the way you
+  face, from the front, side and back. The straw hat's crown sits on the head
+  with a wide brim around it, above the eyes. Headphones have a band over the
+  top of the head (over an afro, too) and a cup on each ear, the far one
+  hidden behind the head.
+- **Ping shows your real connection.** It used to time the World's writes,
+  which wait for the server to save and send everyone's updates back, so it
+  read about 130 ms from Sydney. It now times a small read, which is what
+  the trip to the server takes, and shows the middle of the last five.
+
+### Added
+- **Tap the signal bars to show or hide the milliseconds.** Off by default,
+  and remembered on this phone or browser.
+
 ## [2.12.36] - 2026-11-24
 
 ### Fixed

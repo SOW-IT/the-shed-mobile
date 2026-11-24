@@ -62,7 +62,8 @@ const shotFor = (shot: Shot, look: Look, height: number) => {
   if (shot === "full") {
     // Full size, unless the tallest looks (a tall afro, say) would poke out of
     // the top: then just small enough to fit.
-    const s = Math.min(100 * zoom, (footY - 6) / figureTop(look, 0.86));
+    const tallest = { ...look, height: LOOK_SIZES.height - 1 };
+    const s = Math.min(100 * zoom, (footY - 6) / figureTop(tallest, 0.86));
     return { s, y: footY };
   }
   if (shot === "face") {

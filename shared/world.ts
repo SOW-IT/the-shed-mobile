@@ -49,7 +49,10 @@ export const TYPING_REFRESH_MS = 3000;
 export const PING_PUBLISH_MS = 30_000;
 export const PING_PROBE_MS = 15_000;
 export const PING_MAX_SAMPLE_MS = 10_000;
-const PING_STEPS_MS = [150, 300, 600] as const;
+export const PING_SAMPLES = 5;
+const PING_FIRST_SAMPLES = 3;
+const PING_FIRST_GAP_MS = 1000;
+const PING_STEPS_MS = [100, 200, 400] as const;
 export type PingBars = 1 | 2 | 3 | 4;
 
 export const isPingBars = (value: unknown): value is PingBars => value === 1 || value === 2 || value === 3 || value === 4;
@@ -59,10 +62,18 @@ export const pingBars = (ms: number): PingBars => {
   return ms <= great ? 4 : ms <= good ? 3 : ms <= slow ? 2 : 1;
 };
 
-export const smoothPing = (smoothed: number | null, sample: number): number => {
-  const clamped = Math.min(PING_MAX_SAMPLE_MS, Math.max(0, sample));
-  return smoothed === null ? clamped : smoothed * 0.7 + clamped * 0.3;
+export const addPingSample = (samples: readonly number[], sample: number): number[] =>
+  [...samples, Math.min(PING_MAX_SAMPLE_MS, Math.max(0, sample))].slice(-PING_SAMPLES);
+
+export const pingEstimate = (samples: readonly number[]): number | null => {
+  if (samples.length === 0) return null;
+  const sorted = [...samples].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
+
+export const pingProbeDue = ({ taken, lastAt, now }: { taken: number; lastAt: number | null; now: number }): boolean =>
+  lastAt === null || now - lastAt >= (taken < PING_FIRST_SAMPLES ? PING_FIRST_GAP_MS : PING_PROBE_MS);
 
 export const shouldPublishPing = ({
   bars,
@@ -629,6 +640,8 @@ export const EYESHADOW = ["None", "Lilac", "Peach", "Teal", "Gold", "Rose"] as c
 export const LIPSTICK = ["None", "Rose", "Red", "Coral", "Plum", "Pink"] as const;
 export const PANTS = ["Match top", "Trousers", "Shorts", "Skirt"] as const;
 
+export const HEIGHT_SCALES = [0.8, 0.9, 1, 1.1, 1.2] as const;
+
 /**
  * How tall and how broad someone is drawn, from their height and build
  * steps. Clamped to a narrow range so everyone stays readable; it changes
@@ -636,9 +649,15 @@ export const PANTS = ["Match top", "Trousers", "Shorts", "Skirt"] as const;
  * can hear them.
  */
 export const bodyScale = (look: Look) => ({
-  height: 0.88 + lookPart(look, "height") * 0.06,
+  height: HEIGHT_SCALES[lookPart(look, "height")] ?? 1,
   width: 0.85 + lookPart(look, "build") * 0.075,
 });
+
+const UNCHOSEN_HEIGHTS = [0, 1, 1, 2, 2, 3, 3, 4] as const;
+
+const heightFor = (seed: string): number => UNCHOSEN_HEIGHTS[(hash(seed) >>> 16) % UNCHOSEN_HEIGHTS.length];
+
+export const withHeight = (look: Look, seed: string): Look => (look.height === undefined ? { ...look, height: heightFor(seed) } : look);
 
 /**
  * Someone's look until they save their own, picked from their email so it's
@@ -652,6 +671,7 @@ export const lookFor = (seed: string): Look => {
     hair: (h >>> 4) % 3,
     hairColour: (h >>> 8) % 6,
     shirt: (h >>> 12) % 8,
+    height: heightFor(seed),
   };
 };
 

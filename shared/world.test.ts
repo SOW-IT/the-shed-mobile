@@ -6,7 +6,13 @@ import {
   PING_PUBLISH_MS,
   pingBars,
   shouldPublishPing,
-  smoothPing,
+  addPingSample,
+  pingEstimate,
+  pingProbeDue,
+  PING_PROBE_MS,
+  PING_SAMPLES,
+  HEIGHT_SCALES,
+  withHeight,
   BUCKETS,
   canHear,
   cleanLine,
@@ -182,10 +188,44 @@ test("a look from before version 2 draws with the old defaults, and the body sta
   expect(bodyScale(old)).toEqual({ height: 1, width: 1 });
   const tall = bodyScale({ ...old, height: 4, build: 4 });
   const small = bodyScale({ ...old, height: 0, build: 0 });
-  expect(tall.height).toBeCloseTo(1.12);
-  expect(small.height).toBeCloseTo(0.88);
+  expect(tall.height).toBeCloseTo(1.2);
+  expect(small.height).toBeCloseTo(0.8);
   expect(tall.width).toBeCloseTo(1.15);
   expect(small.width).toBeCloseTo(0.85);
+});
+
+describe("height", () => {
+  const plain = { skin: 1, hair: 2, hairColour: 3, shirt: 4 };
+  const headAbove = 0.49;
+
+  test("every step is a tenth taller than the one before, from 0.8 to 1.2", () => {
+    expect(HEIGHT_SCALES.length).toBe(LOOK_SIZES.height);
+    const steps = HEIGHT_SCALES.map((_, height) => bodyScale({ ...plain, height }).height);
+    expect(steps).toEqual([0.8, 0.9, 1, 1.1, 1.2]);
+  });
+
+  test("the tallest stands about 1.3 times the shortest, head included", () => {
+    const top = (height: number) => bodyScale({ ...plain, height }).height + headAbove;
+    expect(top(4) / top(0)).toBeGreaterThan(1.28);
+    expect(top(4) / top(0)).toBeLessThan(1.35);
+    expect(bodyScale({ ...plain, height: 4 }).height / bodyScale({ ...plain, height: 0 }).height).toBeCloseTo(1.5);
+  });
+
+  test("someone who never chose a height gets one from their email, the same everywhere", () => {
+    const emails = Array.from({ length: 200 }, (_, i) => `person${i}@sow.org.au`);
+    const heights = emails.map((email) => withHeight(plain, email).height);
+    expect(new Set(heights)).toEqual(new Set([0, 1, 2, 3, 4]));
+    expect(heights.filter((h) => h === 2).length).toBeGreaterThan(heights.filter((h) => h === 0).length);
+    for (const email of emails.slice(0, 10)) expect(withHeight(plain, email)).toEqual(withHeight(plain, email));
+    for (const email of emails.slice(0, 10)) expect(lookFor(email).height).toBe(withHeight(plain, email).height);
+  });
+
+  test("a chosen height is kept, even the middle one", () => {
+    expect(withHeight({ ...plain, height: 2 }, "person0@sow.org.au").height).toBe(2);
+    expect(withHeight({ ...plain, height: 0 }, "person1@sow.org.au").height).toBe(0);
+    const look = { ...plain, height: 4 };
+    expect(withHeight(look, "x")).toBe(look);
+  });
 });
 
 test("every choice list has one name per choice", () => {
@@ -498,12 +538,13 @@ describe("rock paper scissors", () => {
 describe("ping", () => {
   test("round trips bucket into one to four bars", () => {
     expect(pingBars(0)).toBe(4);
-    expect(pingBars(150)).toBe(4);
-    expect(pingBars(151)).toBe(3);
-    expect(pingBars(300)).toBe(3);
-    expect(pingBars(301)).toBe(2);
-    expect(pingBars(600)).toBe(2);
-    expect(pingBars(601)).toBe(1);
+    expect(pingBars(20)).toBe(4);
+    expect(pingBars(100)).toBe(4);
+    expect(pingBars(101)).toBe(3);
+    expect(pingBars(200)).toBe(3);
+    expect(pingBars(201)).toBe(2);
+    expect(pingBars(400)).toBe(2);
+    expect(pingBars(401)).toBe(1);
     expect(pingBars(9000)).toBe(1);
   });
 
@@ -511,11 +552,30 @@ describe("ping", () => {
     expect([0, 1, 2, 3, 4, 5, 2.5, "3", null].map(isPingBars)).toEqual([false, true, true, true, true, false, false, false, false]);
   });
 
-  test("smoothing starts at the first sample and moves 30% toward each new one", () => {
-    expect(smoothPing(null, 120)).toBe(120);
-    expect(smoothPing(100, 200)).toBeCloseTo(130);
-    expect(smoothPing(null, -5)).toBe(0);
-    expect(smoothPing(null, 60_000)).toBe(PING_MAX_SAMPLE_MS);
+  test("the ping is the median of the last five probes, so one slow frame doesn't move it", () => {
+    expect(pingEstimate([])).toBeNull();
+    expect(pingEstimate([30])).toBe(30);
+    expect(pingEstimate([30, 50])).toBe(40);
+    expect(pingEstimate([28, 31, 140, 29, 33])).toBe(31);
+    let samples: number[] = [];
+    for (const ms of [500, 30, 32, 29, 31, 35]) samples = addPingSample(samples, ms);
+    expect(samples).toEqual([30, 32, 29, 31, 35]);
+    expect(samples.length).toBe(PING_SAMPLES);
+    expect(pingEstimate(samples)).toBe(31);
+  });
+
+  test("a probe's time is clamped to a sane range", () => {
+    expect(addPingSample([], -5)).toEqual([0]);
+    expect(addPingSample([], 60_000)).toEqual([PING_MAX_SAMPLE_MS]);
+  });
+
+  test("the first three probes go a second apart, then one every 15 s", () => {
+    expect(pingProbeDue({ taken: 0, lastAt: null, now: 0 })).toBe(true);
+    expect(pingProbeDue({ taken: 1, lastAt: 1000, now: 1999 })).toBe(false);
+    expect(pingProbeDue({ taken: 2, lastAt: 1000, now: 2000 })).toBe(true);
+    expect(pingProbeDue({ taken: 3, lastAt: 1000, now: 2000 })).toBe(false);
+    expect(pingProbeDue({ taken: 5, lastAt: 1000, now: 1000 + PING_PROBE_MS - 1 })).toBe(false);
+    expect(pingProbeDue({ taken: 5, lastAt: 1000, now: 1000 + PING_PROBE_MS })).toBe(true);
   });
 
   test("a new bucket is published at once the first time", () => {

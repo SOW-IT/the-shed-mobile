@@ -36,6 +36,9 @@ import {
   TYPING_REFRESH_MS,
   PING_PUBLISH_MS,
   WALK_SPEED,
+  LOOK_SIZES,
+  lookFor,
+  withHeight,
 } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
@@ -870,7 +873,7 @@ describe("character editor", () => {
     await ben.mutation(api.world.join, {});
     expect(await anna.mutation(api.world.saveLook, { look })).toEqual({ ok: true });
     const seen = await ben.query(api.world.roster, { roomId: a.roomId });
-    expect(seen!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(look);
+    expect(seen!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(withHeight(look, ANNA));
     // Saving again straight away writes nothing.
     expect(await anna.mutation(api.world.saveLook, { look: { ...look, hat: 0 } })).toEqual({ ok: false });
     later(3100);
@@ -878,7 +881,27 @@ describe("character editor", () => {
     expect(await t.run((ctx) => ctx.db.query("worldLooks").collect())).toHaveLength(1);
     await anna.mutation(api.world.leave, {});
     await anna.mutation(api.world.join, {});
-    expect((await rows(t)).members.find((m) => m.email === ANNA)!.look).toEqual({ ...look, hat: 0 });
+    expect((await rows(t)).members.find((m) => m.email === ANNA)!.look).toEqual(withHeight({ ...look, hat: 0 }, ANNA));
+  });
+
+  test("anyone who never picked a height is drawn at one picked from their email; a picked one is kept", async () => {
+    const t = newConvex();
+    const emails = Array.from({ length: 12 }, (_, i) => `walker${i}@sow.org.au`);
+    const joined: { roomId: Id<"worldRooms">; memberId: Id<"worldMembers"> }[] = [];
+    for (const email of emails) joined.push(await asUser(t, email).mutation(api.world.join, {}));
+    const first = joined[0];
+    const roster = await asUser(t, emails[0]).query(api.world.roster, { roomId: first.roomId });
+    const heights = roster!.members.map((m) => m.look.height);
+    expect(heights.every((h) => h !== undefined && h >= 0 && h < LOOK_SIZES.height)).toBe(true);
+    expect(new Set(heights).size).toBeGreaterThan(2);
+    const walker = asUser(t, emails[1]);
+    expect(await walker.mutation(api.world.saveLook, { look: { ...lookFor(emails[1]), height: undefined } })).toEqual({ ok: true });
+    const after = await walker.query(api.world.roster, { roomId: first.roomId });
+    expect(after!.members.find((m) => m.memberId === joined[1].memberId)!.look.height).toBe(lookFor(emails[1]).height);
+    later(3100);
+    expect(await walker.mutation(api.world.saveLook, { look: { ...lookFor(emails[1]), height: 0 } })).toEqual({ ok: true });
+    const picked = await walker.query(api.world.roster, { roomId: first.roomId });
+    expect(picked!.members.find((m) => m.memberId === joined[1].memberId)!.look.height).toBe(0);
   });
 
   test("a version 2 look (face, body, extras) saves in one write and reaches everyone through the roster", async () => {
@@ -909,11 +932,11 @@ describe("character editor", () => {
     expect(await anna.mutation(api.world.saveLook, { look: v3 })).toEqual({ ok: true });
     expect(await t.run((ctx) => ctx.db.query("worldLooks").collect())).toHaveLength(1);
     const seen = await ben.query(api.world.roster, { roomId: a.roomId });
-    expect(seen!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(v3);
+    expect(seen!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(withHeight(v3, ANNA));
     later(3100);
     const v2 = { v: 2, skin: 2, hair: 10, hairColour: 4, shirt: 3, accessory: 1 };
     expect(await anna.mutation(api.world.saveLook, { look: v2 })).toEqual({ ok: true });
-    expect((await ben.query(api.world.roster, { roomId: a.roomId }))!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(v2);
+    expect((await ben.query(api.world.roster, { roomId: a.roomId }))!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(withHeight(v2, ANNA));
   });
 
   test("turns away a choice that doesn't exist", async () => {

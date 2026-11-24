@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
 import { garden, hud, isLight, people, shade } from "./palette";
 import { Ellipse, quadTransform } from "./Shapes";
+import { bandOverHead, capShape, earCup, HAT_PITCH, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
 import { strideBob, strideSwing } from "./gait";
 import { fonts } from "@/theme";
 
@@ -75,18 +76,28 @@ const hidesCrest = (hat: number) => hat !== 0 && hat !== 6 && hat !== 7;
 const coversFringe = (hat: number) => hat === 1 || hat === 2 || hat === 4;
 
 const CAP_HAIR_TOP = 0.2;
-const CAP_PEAK_BEHIND = -0.2;
-const CAP_BAND = 0.5;
-const CAP_SIDE = 0.22;
 
 type Stride = { stridePhase: number; strideAmp: number };
 
+const SUN_HAT = { brimY: 0.6, brimRadius: 1.7, bandY: 0.86, topY: 1.22, baseRadius: 0.86, topRadius: 0.68 };
+const HEADPHONES = { across: 1.04, top: 1.03, ears: -0.12, cup: 1.02 };
+const OVER_AFRO = { across: 1.3, top: 1.55, ears: -0.12, cup: 1.26 };
+
 const ON_BENCH_ABOVE_SEAT = 0.1;
 const ON_GROUND_SINK = 0.08;
-export const SWIM_SINK = 0.4;
+const SWIM_SINK = 0.4;
+const LAP_HEIGHT = 0.24;
+const SHOULDER_HEIGHT = 0.6;
+const ARM_RAISED = 0.85;
 
-export const sitRise = (seatHeight: number | undefined) =>
-  seatHeight === undefined ? 0 : seatHeight > 0 ? seatHeight - ON_BENCH_ABOVE_SEAT : -ON_GROUND_SINK;
+export const sitRise = (seatHeight: number | undefined, look: Look) =>
+  seatHeight === undefined
+    ? 0
+    : (seatHeight > 0 ? seatHeight - ON_BENCH_ABOVE_SEAT : -ON_GROUND_SINK) + LAP_HEIGHT * (1 - bodyScale(look).height);
+
+export const swimSink = (look: Look) => SWIM_SINK * bodyScale(look).height;
+
+export const palmHeight = (look: Look) => SHOULDER_HEIGHT * bodyScale(look).height + ARM_RAISED;
 
 type Figure = {
   foot: ScreenPoint;
@@ -120,6 +131,76 @@ const quad = (pts: { x: number; y: number }[], fill: string, key: string, radius
     style={[styles.quad, { backgroundColor: fill, borderRadius: radius, transform: quadTransform(pts) }]}
   />
 );
+
+const stretch = (v: Point, by: number) => {
+  const length = Math.hypot(v.x, v.y);
+  const k = length > 0.01 ? Math.max(0.01, length + by) / length : 1;
+  return { x: v.x * k, y: v.y * k };
+};
+
+const discCorners = ({ centre, a, b }: Disc, grow: number, times = 1) => {
+  const ga = stretch(a, grow);
+  const gb = stretch(b, grow);
+  const A = { x: ga.x * times, y: ga.y * times };
+  const B = { x: gb.x * times, y: gb.y * times };
+  return [
+    { x: centre.x - A.x - B.x, y: centre.y - A.y - B.y },
+    { x: centre.x + A.x - B.x, y: centre.y + A.y - B.y },
+    { x: centre.x + A.x + B.x, y: centre.y + A.y + B.y },
+    { x: centre.x - A.x + B.x, y: centre.y - A.y + B.y },
+  ];
+};
+
+const disc = (d: Disc, fill: string, key: string, grow: number) => quad(discCorners(d, grow), fill, key, QUAD_SIZE / 2);
+
+const CRESCENT_REACH = [3, 40] as const;
+
+const crescent = (centre: Point, across: Point, up: Point, cover: number, fill: string, key: string, grow: number) => {
+  const a = stretch(across, -grow);
+  const u = stretch(up, -grow);
+  const reach = Math.max(CRESCENT_REACH[0], cover / Math.max(0.01, Math.hypot(u.x, u.y)));
+  if (reach > CRESCENT_REACH[1]) return null;
+  const k = { x: u.x * reach, y: u.y * reach };
+  return (
+    <View
+      key={key}
+      pointerEvents="none"
+      style={[
+        styles.quad,
+        {
+          borderRadius: QUAD_SIZE / 2,
+          borderTopWidth: (QUAD_SIZE / 2) * (1 - 1 / reach),
+          borderColor: fill,
+          transform: quadTransform([
+            { x: centre.x - a.x + k.x, y: centre.y - a.y + k.y },
+            { x: centre.x + a.x + k.x, y: centre.y + a.y + k.y },
+            { x: centre.x + a.x - k.x, y: centre.y + a.y - k.y },
+            { x: centre.x - a.x - k.x, y: centre.y - a.y - k.y },
+          ]),
+        },
+      ]}
+    />
+  );
+};
+
+const HALF_PLANE = 2000;
+
+const halfPlane = (key: string, from: Point, to: Point, keep: Point, children: ReactNode, grow = 0) => {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const flip = dx * (keep.y - from.y) - dy * (keep.x - from.x) > 0;
+  const turn = Math.atan2(dy, dx) + (flip ? Math.PI : 0);
+  const at = { x: from.x - Math.sin(turn) * grow, y: from.y + Math.cos(turn) * grow };
+  return (
+    <View key={key} pointerEvents="none" style={[styles.abs, { left: at.x, top: at.y, width: 0, height: 0, transform: [{ rotate: `${turn}rad` }] }]}>
+      <View style={[styles.abs, { left: -HALF_PLANE, top: -HALF_PLANE, width: HALF_PLANE * 2, height: HALF_PLANE, overflow: "hidden" }]}>
+        <View style={[styles.abs, { left: HALF_PLANE, top: HALF_PLANE, width: 0, height: 0, transform: [{ rotate: `${-turn}rad` }] }]}>
+          <View style={[styles.abs, { left: -at.x, top: -at.y, width: 0, height: 0 }]}>{children}</View>
+        </View>
+      </View>
+    </View>
+  );
+};
 
 const capsule = (a: { x: number; y: number }, b: { x: number; y: number }, width: number, fill: string, key: string) => {
   const dx = b.x - a.x;
@@ -341,7 +422,7 @@ const AvatarView = ({
     }
     move.hands.front = true;
   }
-  const bob = figure.bob + move.lift - move.sink + sitRise(sit) - (swim ? SWIM_SINK : 0);
+  const bob = figure.bob + move.lift - move.sink + sitRise(sit, look) - (swim ? swimSink(look) : 0);
   const ink = Math.max(1.2, 0.035 * s);
   const dx = move.shake + move.lean;
   // Height and build stretch the body; the head stays the same size.
@@ -377,23 +458,18 @@ const AvatarView = ({
   const capped = hat === 1;
   const innerLeft = head.x - hw / 2 + ink;
   const innerTop = head.y - hh / 2 - (hh - r * 2) * 0.25 + ink;
-  const capFront = Math.min(iw, Math.max(0, icx + 0.39 * side * s));
-  const capBand = icy - CAP_BAND * inner;
-  const capSide = icy - CAP_SIDE * inner;
-  const capWindow = facing > CAP_PEAK_BEHIND ? inner * (0.25 + 0.4 * Math.max(0, facing)) : 0;
-  const capCorner = Math.min(capSide - capBand, capWindow * 1.5);
+  const headView = (x: number, y: number): HeadView => ({ cx: x + hw / 2, cy: y + hh / 2, rx: hw / 2, ry: hh / 2, facing, side });
+  const headLeft = head.x - hw / 2;
+  const headTopY = head.y - hh / 2 - (hh - r * 2) * 0.25;
+  const onScreen = headView(headLeft, headTopY);
   const capColour = people.hats.cap;
-  const crownPieces = (fill: string, grow: number, key: string) => [
-    <View key={`${key}Band`} style={[styles.abs, { left: -iw, top: -ih, width: iw * 3, height: ih + capBand + grow, backgroundColor: fill }]} />,
-    <View
-      key={`${key}Left`}
-      style={[styles.abs, { left: -iw, top: -ih, width: iw + capFront - capWindow + grow, height: ih + capSide + grow, borderBottomRightRadius: capCorner, backgroundColor: fill }]}
-    />,
-    <View
-      key={`${key}Right`}
-      style={[styles.abs, { left: capFront + capWindow - grow, top: -ih, width: iw * 2, height: ih + capSide + grow, borderBottomLeftRadius: capCorner, backgroundColor: fill }]}
-    />,
-  ];
+  const crownLayer = (fill: string, grow: number, key: string) => {
+    const cap = capShape(headView(-ink, -ink));
+    const cover = <View key={`${key}Cover`} style={[styles.abs, { left: -iw, top: -ih, width: iw * 3, height: ih * 3, backgroundColor: fill }]} />;
+    const above = (child: ReactNode) => (cap.edge ? halfPlane(`${key}Top`, cap.edge[0], cap.edge[1], cap.top, child, grow) : child);
+    if (cap.rimIsCrown) return [disc(cap.rim, fill, `${key}Rim`, grow), above(cover)];
+    return [crescent(cap.rim.centre, cap.rimAcross, cap.rimUp, Math.max(iw, ih) * 1.2, fill, `${key}Rim`, grow) ?? above(cover)];
+  };
   const crown = () => (
     <View
       key="capCrown"
@@ -413,29 +489,55 @@ const AvatarView = ({
         },
       ]}
     >
-      {crownPieces(garden.ink, ink * 0.9, "capInk")}
-      {crownPieces(capColour, 0, "cap")}
-      <View style={[styles.abs, { left: capFront - inner * 0.75, top: icy - inner * 0.98, width: inner * 0.6, height: inner * 0.3, borderRadius: inner, backgroundColor: shade(capColour, 0.2) }]} />
-      {facing > 0 ? (
-        <View style={[styles.abs, { left: capFront - ink * 0.3, top: 0, width: ink * 0.6, height: capBand, backgroundColor: shade(capColour, -0.25), opacity: facing }]} />
-      ) : null}
+      {crownLayer(garden.ink, ink * 0.9, "capInk")}
+      {crownLayer(capColour, 0, "cap")}
     </View>
   );
   const peak = () => {
-    const away = Math.abs(side);
-    const rx = r * (0.85 - 0.35 * away);
-    const ry = r * (0.15 + 0.13 * Math.max(0, facing));
-    const cx = head.x + side * away * 1.05 * r;
-    const cy = innerTop + capBand;
-    const cut = Math.min(1, Math.max(0, 1 - facing / 0.7));
-    const top = cy - ry * cut - ink;
+    const cap = capShape(onScreen);
+    const { centre, a, b } = cap.peak;
     const fill = shade(capColour, -0.12);
     parts.push(
-      <View key="peak" pointerEvents="none" style={[styles.abs, { left: cx - rx - ink, top, width: (rx + ink) * 2, height: cy + ry + ink - top, overflow: "hidden" }]}>
-        <Ellipse cx={rx + ink} cy={cy - top} rx={rx} ry={ry} fill={fill} ink={ink} inkColour={garden.ink} />
+      halfPlane("peak", { x: centre.x - a.x, y: centre.y - a.y }, { x: centre.x + a.x, y: centre.y + a.y }, { x: centre.x + b.x, y: centre.y + b.y }, [
+        disc(cap.peak, garden.ink, "peakInk", ink),
+        disc(cap.peak, fill, "peakFill", 0),
+      ])
+    );
+    ball("capButton", cap.top.x, cap.top.y + ink * 0.4, 0.045 * s, shade(capColour, -0.1));
+  };
+  const capPeakInFront = capped && capShape(onScreen).peakInFront;
+  const level = (y: number, radius: number) => {
+    const c = projectOnHead(onScreen, [0, y, 0]);
+    return { cx: c.x, cy: c.y, rx: onScreen.rx * radius, ry: onScreen.ry * radius * Math.sin(HAT_PITCH) };
+  };
+  const brimHalf = (key: string, fill: string, half: "back" | "front") => {
+    const brim = level(SUN_HAT.brimY, SUN_HAT.brimRadius);
+    const reach = brim.rx + ink * 2;
+    const box = { left: brim.cx - reach, top: half === "back" ? brim.cy - reach : brim.cy, width: reach * 2, height: reach };
+    parts.push(
+      <View key={key} pointerEvents="none" style={[styles.abs, box, { overflow: "hidden" }]}>
+        <Ellipse cx={brim.cx - box.left} cy={brim.cy - box.top} rx={brim.rx} ry={brim.ry} fill={fill} ink={ink} inkColour={garden.ink} />
       </View>
     );
-    ball("capButton", head.x - side * 0.04 * s, innerTop + ink * 0.2, 0.045 * s, shade(capColour, -0.1));
+  };
+  const headphones = (layer: "back" | "front") => {
+    const fit = phonesOverAfro ? OVER_AFRO : HEADPHONES;
+    const band = bandOverHead(onScreen, fit);
+    const width = 0.055 * s;
+    for (const [pass, colour, grow] of [["Ink", garden.ink, ink * 2], ["", people.headphones, 0]] as const) {
+      band.forEach((point, i) => {
+        const next = band[i + 1];
+        if (!next || (point.front && next.front ? "front" : "back") !== layer) return;
+        parts.push(capsule(point.at, next.at, width + grow, colour, `band${pass}${layer}${i}`));
+      });
+    }
+    for (const e of [-1, 1] as const) {
+      const cup = earCup(onScreen, e, fit.cup, fit.ears);
+      if ((cup.near ? "front" : "back") !== layer) continue;
+      const rx = (0.07 + 0.07 * cup.facing) * s;
+      parts.push(<Ellipse key={`cup${e}`} cx={cup.at.x} cy={cup.at.y} rx={rx} ry={0.15 * s} fill={fav(people.headphones)} ink={ink} inkColour={garden.ink} />);
+      if (cup.near && cup.facing > 0.5) parts.push(<Ellipse key={`cupPad${e}`} cx={cup.at.x} cy={cup.at.y} rx={rx * 0.55} ry={0.09 * s} fill={shade(fav(people.headphones), -0.18)} />);
+    }
   };
   const corner = (k: number, size: number) => (Math.min(size === hw ? hw : iw, size === hw ? hh : ih) / 2) * k;
   const expression: Expression =
@@ -711,6 +813,8 @@ const AvatarView = ({
       : flattensAfro(hat)
       ? parts.push(<Ellipse key="afro" cx={head.x - side * 0.08 * s} cy={head.y - r * 0.1} rx={r * 1.32} ry={r * 0.9} fill={hair} ink={ink * 0.8} inkColour={garden.ink} ramp />)
       : ball("afro", head.x - side * 0.08 * s, head.y - r * 0.25, r * 1.28, hair);
+  const phonesOverAfro = accessory === 6 && look.hair === 10 && !flattensAfro(hat);
+  if (phonesOverAfro) headphones("back");
   if (look.hair === 10 && !afroOver) afro();
   // Curls: over the hair, or just the side ones peeking out under a cap or beanie.
   const curlsTucked = hat === 1 || hat === 2;
@@ -799,11 +903,12 @@ const AvatarView = ({
     ball("flowerMiddle", fx, fy, 0.04 * s, garden.blooms[1]);
   };
   if (accessory === 7 && side >= 0.3) earFlower();
-  if (capped && facing < CAP_PEAK_BEHIND) peak();
+  if (capped && !capPeakInFront) peak();
   if (hat === 4) {
     // The sun hat's brim behind the head.
-    parts.push(<Ellipse key="brimBack" cx={head.x} cy={head.y - r * 0.5 - lift} rx={r * 1.65} ry={r * 0.42} fill={people.hats.sunHat} ink={ink} inkColour={garden.ink} />);
+    brimHalf("brimBack", people.hats.sunHat, "back");
   }
+  if (accessory === 6 && !phonesOverAfro) headphones("back");
 
   // The head: ink disc, skin, the face, and the hair cap clipped to the head.
   const capDrop = 0.73 + 0.55 * facing;
@@ -1218,7 +1323,7 @@ const AvatarView = ({
   if (look.hair === 7 && facing < -0.2) ponytail();
   if (look.hair === 3 && !curlsTucked) curls(() => true);
   if (capped) parts.push(crown());
-  if (capped && facing >= CAP_PEAK_BEHIND) peak();
+  if (capped && capPeakInFront) peak();
   if (look.hair === 12 && !hidesCrest(hat)) {
     // A mohawk's crest, front to back along the top.
     for (let i = 0; i < 5; i++) {
@@ -1237,11 +1342,22 @@ const AvatarView = ({
     }
   }
   if (hat === 4) {
-    parts.push(<Ellipse key="brimFront" cx={head.x} cy={head.y - r * 0.42 - lift} rx={r * 1.6} ry={r * 0.22} fill={shade(people.hats.sunHat, 0.08)} ink={ink} inkColour={garden.ink} />);
-    parts.push(
-      <View key="crownTop" pointerEvents="none" style={[styles.abs, { left: head.x - r * 0.75, top: head.y - r * 1.15 - lift, width: r * 1.5, height: r * 0.72, borderTopLeftRadius: r, borderTopRightRadius: r, backgroundColor: people.hats.sunHat, borderWidth: ink, borderColor: garden.ink }]} />
-    );
-    parts.push(<View key="band" pointerEvents="none" style={[styles.abs, { left: head.x - r * 0.75, top: head.y - r * 0.62 - lift, width: r * 1.5, height: r * 0.16, backgroundColor: people.hats.band }]} />);
+    const base = level(SUN_HAT.brimY, SUN_HAT.baseRadius);
+    const band = level(SUN_HAT.bandY, (SUN_HAT.baseRadius + SUN_HAT.topRadius) / 2 + 0.04);
+    const top = level(SUN_HAT.topY, SUN_HAT.topRadius);
+    const side = (from: typeof base, to: typeof base, grow: number) => [
+      { x: to.cx - to.rx - grow, y: to.cy - grow },
+      { x: to.cx + to.rx + grow, y: to.cy - grow },
+      { x: from.cx + from.rx + grow, y: from.cy + grow },
+      { x: from.cx - from.rx - grow, y: from.cy + grow },
+    ];
+    parts.push(quad(side(base, top, ink), garden.ink, "sunCrownInk"));
+    parts.push(<Ellipse key="sunTopInk" cx={top.cx} cy={top.cy} rx={top.rx + ink} ry={top.ry + ink} fill={garden.ink} />);
+    parts.push(quad(side(base, band, 0), people.hats.band, "sunBand"));
+    parts.push(<Ellipse key="sunBandTop" cx={band.cx} cy={band.cy} rx={band.rx} ry={band.ry} fill={people.hats.sunHat} />);
+    parts.push(quad(side(band, top, 0), people.hats.sunHat, "sunCrown"));
+    parts.push(<Ellipse key="sunTop" cx={top.cx} cy={top.cy} rx={top.rx} ry={top.ry} fill={shade(people.hats.sunHat, 0.08)} />);
+    brimHalf("brimFront", shade(people.hats.sunHat, 0.08), "front");
   }
   if (hat === 5) {
     // A beret in their favourite colour: a soft dome pulled down over the
@@ -1288,16 +1404,7 @@ const AvatarView = ({
   if (accessory === 6) {
     // Headphones: a band over the top and a cup over each ear. Side-on, the
     // band is an arc along the top of the head.
-    const sideOn = Math.abs(facing) < 0.55;
-    const span = sideOn ? r * 2.2 : r * 2.1 * Math.abs(facing);
-    const bandTop = head.y - r * 1.12 - lift;
-    const edge = sideOn ? "transparent" : people.headphones;
-    parts.push(<View key="headphoneBand" pointerEvents="none" style={[styles.abs, { left: head.x - span / 2, top: bandTop, width: span, height: sideOn ? span : head.y + r * 0.1 - bandTop, borderRadius: span / 2, borderTopWidth: 0.06 * s, borderLeftWidth: 0.06 * s, borderRightWidth: 0.06 * s, borderColor: people.headphones, borderLeftColor: edge, borderRightColor: edge, borderBottomColor: "transparent" }]} />);
-    for (const e of [-1, 1]) {
-      if (-e * side < -0.3) continue;
-      const cup = { x: head.x + r * 0.98 * e * facing, y: head.y + r * 0.05 };
-      parts.push(<Ellipse key={`cup${e}`} cx={cup.x} cy={cup.y} rx={0.1 * s} ry={0.14 * s} fill={fav(people.headphones)} ink={ink} inkColour={garden.ink} />);
-    }
+    headphones("front");
   }
   if (accessory === 7 && side < 0.3) earFlower();
   arms("over");

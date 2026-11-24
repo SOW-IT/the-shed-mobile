@@ -30,7 +30,7 @@ import { makeCamera } from "./camera";
 import type { Prim, Prop } from "./gardenScene";
 import { garden, hud, places } from "./palette";
 import { buildScene } from "./placeScenes";
-import { Avatar, figureFor, headTop, hitBox, sitRise, SWIM_SINK, Tag, touchK, type Doing } from "./Person";
+import { Avatar, figureFor, headTop, hitBox, palmHeight, sitRise, swimSink, Tag, touchK, type Doing } from "./Person";
 import { accepted } from "./announce";
 import type { DrawnPose, Gait } from "./gait";
 import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
@@ -188,7 +188,7 @@ export const Garden = ({
   const doing: Doing[] = people.map(() => null);
   const startedAt = firstStarts;
   // Where each high five's palms meet (world), and how far into the reach.
-  const touches: { x: number; z: number; k: number; i: number; j: number }[] = [];
+  const touches: { x: number; y: number; z: number; k: number; i: number; j: number }[] = [];
   const facingOverride: (number | null)[] = people.map(() => null);
   people.forEach((asker, i) => {
     if (!asker.ask) return;
@@ -221,7 +221,7 @@ export const Garden = ({
     const dz = (b.z - a.z) * step;
     poses[i] = { ...a, x: a.x + dx, z: a.z + dz };
     poses[j] = { ...b, x: b.x - dx, z: b.z - dz };
-    const contact = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, k, i, j };
+    const contact = { x: (a.x + b.x) / 2, y: palmsMeetAt(asker.look, people[j].look), z: (a.z + b.z) / 2, k, i, j };
     touches.push(contact);
   });
   const duelLooks = people.map((p) => duelLookFor(duels, p.memberId, now));
@@ -286,7 +286,7 @@ export const Garden = ({
     if (!cam || !scene) return { kind: "ground" };
     // People first, nearest the camera first.
     const hits = people
-      .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height) }))
+      .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height, p.look) }))
       .filter((h): h is { p: GardenPerson; pose: DrawnPose; rise: number } => h.pose !== null)
       .map((h) => {
         const figure = figureFor(cam, h.pose);
@@ -397,7 +397,7 @@ export const Garden = ({
     const seed = hash(p.memberId) % 7;
     const figure = figureFor(cam, pose);
     const seat = sitting[i];
-    const seatRise = sitRise(seat?.height);
+    const seatRise = sitRise(seat?.height, p.look);
     const atArcade = p.away ? Math.atan2(ARCADE.x - pose.x, ARCADE.z - pose.z) : null;
     const swimming = swimmers[i];
     const turned = { ...pose, heading: facingOverride[i] ?? atArcade ?? seat?.heading ?? pose.heading };
@@ -407,7 +407,7 @@ export const Garden = ({
     const planned = doing[i];
     const d: Doing =
       planned?.kind === "mutual" && touch
-        ? { ...planned, reach: (({ x, y }) => ({ x, y }))(cam.project([touch.x, PALM_HEIGHT + figure.bob, touch.z])) }
+        ? { ...planned, reach: (({ x, y }) => ({ x, y }))(cam.project([touch.x, touch.y + figure.bob, touch.z])) }
         : planned;
     actors.push({
       depth: figure.foot.depth,
@@ -440,7 +440,7 @@ export const Garden = ({
       p.ask !== undefined && people.some((o) => o.memberId === p.ask?.to && accepted(o, p.memberId, p.ask.at));
     const waiting =
       p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${askInfo(p.ask.kind)?.ask ?? "…"}` : undefined;
-    const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? SWIM_SINK : 0), pose.z]);
+    const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? swimSink(p.look) : 0), pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
     tags.push({
@@ -463,7 +463,7 @@ export const Garden = ({
   // The contact pop where palms meet: a quick burst while they touch.
   for (const c of touches) {
     if (c.k < 1) continue;
-    const at = cam.project([c.x, PALM_HEIGHT, c.z]);
+    const at = cam.project([c.x, c.y, c.z]);
     const a = poses[c.i];
     const b = poses[c.j];
     const front = Math.min(a ? cam.project([a.x, 0, a.z]).depth : at.depth, b ? cam.project([b.x, 0, b.z]).depth : at.depth);
@@ -508,7 +508,7 @@ export const Garden = ({
   const hudIndex = hudShown ? people.findIndex((p) => p.memberId === hudShown.id) : -1;
   const hudPose = hudIndex >= 0 ? poses[hudIndex] : null;
   const hudHead = hudPose
-    ? cam.project([hudPose.x, headTop(people[hudIndex].look) + sitRise(sitting[hudIndex]?.height), hudPose.z])
+    ? cam.project([hudPose.x, headTop(people[hudIndex].look) + sitRise(sitting[hudIndex]?.height, people[hudIndex].look), hudPose.z])
     : null;
   const hudAt = hudHead ? { x: hudHead.x, y: Math.max(HUD_HEIGHT + HUD_CLEAR_TOP, hudHead.y - NAME_TAG_CLEARANCE) } : null;
 
@@ -635,7 +635,7 @@ const ASK_CARD_WIDTH = 220;
 /** Half the distance apart two people stand when their palms meet (world units). */
 const TOUCH_HALF_GAP = 0.55;
 /** How high the palms meet (world units). */
-const PALM_HEIGHT = 1.45;
+const palmsMeetAt = (a: Look, b: Look) => (palmHeight(a) + palmHeight(b)) / 2;
 
 /** A little star burst where two palms meet. */
 const Spark = ({ x, y, size, t }: { x: number; y: number; size: number; t: number }) => {

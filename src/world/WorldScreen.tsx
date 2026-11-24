@@ -39,6 +39,7 @@ import { ChatLog } from "./ChatLog";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
+import { useShowPingMs } from "./pingMs";
 import type { Id } from "../../convex/_generated/dataModel";
 
 const useScreenReader = () => {
@@ -159,26 +160,24 @@ const TitlePill = ({ title, instance, open, onPress }: { title: string; instance
 
 const PingBars = ({ ms }: { ms: number | null }) => {
   const bars = ms === null ? undefined : pingBars(ms);
-  const [showMs, setShowMs] = useState(false);
-  useEffect(() => {
-    if (!showMs) return;
-    const id = setTimeout(() => setShowMs(false), 2500);
-    return () => clearTimeout(id);
-  }, [showMs]);
+  const [showMs, setShowMs] = useShowPingMs();
   return (
     <Pressable
-      onPress={() => setShowMs(true)}
-      onLongPress={() => setShowMs(true)}
-      accessibilityRole="button"
+      onPress={() => setShowMs(!showMs)}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: showMs }}
       accessibilityLabel={ms === null ? "Your connection: measuring" : `Your connection: ${ms} milliseconds. ${connectionLabel(bars)}`}
+      accessibilityHint="Shows or hides the milliseconds"
       testID="world-ping"
       hitSlop={10}
       style={styles.ping}
     >
-      <WifiBars bars={bars} size={26} />
-      {showMs && ms !== null ? (
-        <Text style={styles.pingText}>{`${Math.min(999, ms)} ms`}</Text>
+      {showMs ? (
+        <Text style={styles.pingText} testID="world-ping-ms">
+          {ms === null ? "… ms" : `${Math.min(999, ms)} ms`}
+        </Text>
       ) : null}
+      <WifiBars bars={bars} size={26} />
     </Pressable>
   );
 };
@@ -933,8 +932,8 @@ const styles = StyleSheet.create({
   mark: { width: 30, height: 30, borderRadius: 15, backgroundColor: hud.primary, alignItems: "center", justifyContent: "center" },
   titleText: { flexShrink: 1, fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.3, color: hud.forest },
   right: { flexDirection: "row", alignItems: "center", gap: 10 },
-  ping: { width: 30, height: 44, alignItems: "center", justifyContent: "center" },
-  pingText: { position: "absolute", top: 36, left: -25, width: 80, textAlign: "center", fontSize: 11, fontWeight: "800", color: hud.forest },
+  ping: { minWidth: 30, height: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  pingText: { fontSize: 12, fontWeight: "800", color: hud.forest, fontVariant: ["tabular-nums"] },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
   note: {
     backgroundColor: hud.card,

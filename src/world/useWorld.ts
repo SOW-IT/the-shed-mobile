@@ -11,16 +11,17 @@ import {
   type Ask,
   type Reply,
   HEARTBEAT_IDLE_MS,
-  PING_PROBE_MS,
+  addPingSample,
   pingBars,
+  pingEstimate,
+  pingProbeDue,
   shouldPublishPing,
-  smoothPing,
   type PingBars,
   TYPING_REFRESH_MS,
   posAt,
   type Walk,
 } from "@shared/world";
-import { useMutation, useQueries, useQuery } from "convex/react";
+import { useConvex, useMutation, useQueries, useQuery } from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
 import type { FunctionReturnType } from "convex/server";
 import { ConvexError } from "convex/values";
@@ -99,6 +100,7 @@ type WorldStats = {
   saveLook: number;
   heartbeat: number;
   ping: number;
+  probe: number;
   leave: number;
   since: number;
 };
@@ -113,6 +115,7 @@ const newStats = (): WorldStats => ({
   saveLook: 0,
   heartbeat: 0,
   ping: 0,
+  probe: 0,
   leave: 0,
   since: Date.now(),
 });
@@ -196,6 +199,7 @@ const showLook = (store: OptimisticLocalStore, { look }: { look: Look }) => {
  * never sent per frame; each phone walks people along their latest walk.
  */
 export const useWorld = (enabled: boolean, away = false) => {
+  const convex = useConvex();
   const joinM = useMutation(api.world.join);
   const leaveM = useMutation(api.world.leave);
   const moveM = useMutation(api.world.move);
@@ -244,26 +248,18 @@ export const useWorld = (enabled: boolean, away = false) => {
 
   const serverNow = useCallback(() => Date.now() + (offset.current ?? 0), []);
   const [pingMs, setPingMs] = useState<number | null>(null);
-  const smoothed = useRef<number | null>(null);
-  const lastRoundTrip = useRef(0);
+  const pingSamples = useRef<number[]>([]);
+  const probedAt = useRef<number | null>(null);
+  const probing = useRef(false);
   const publishedPing = useRef<{ bars: PingBars | null; at: number | null }>({ bars: null, at: null });
-  const pinging = useRef(false);
-  const publishRef = useRef<() => void>(() => undefined);
-  const roundTrip = useCallback((sentAt: number) => {
-    const received = Date.now();
-    smoothed.current = smoothPing(smoothed.current, received - sentAt);
-    lastRoundTrip.current = received;
-    setPingMs(Math.round(smoothed.current));
-    publishRef.current();
-  }, []);
-  const heard = useCallback((serverTime: number, sentAt: number, timed = true) => {
+  const publishing = useRef(false);
+  const heard = useCallback((serverTime: number, sentAt: number) => {
     const received = Date.now();
     const sample = serverTime - (sentAt + received) / 2;
     offset.current = offset.current === null ? sample : offset.current * 0.8 + sample * 0.2;
     serverOffset = offset.current;
     lastAction.current = received;
-    if (timed) roundTrip(sentAt);
-  }, [roundTrip]);
+  }, []);
 
   useEffect(() => {
     (globalThis as { __shedWorld?: WorldStats }).__shedWorld = stats.current;
@@ -279,7 +275,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     joinM({})
       .then((joined) => {
         if (cancelled) return;
-        heard(joined.serverNow, sentAt, false);
+        heard(joined.serverNow, sentAt);
         publishedPing.current = { bars: null, at: null };
         setSession({ roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance, place: placeFrom(joined.place) });
         setError(null);
@@ -687,44 +683,56 @@ export const useWorld = (enabled: boolean, away = false) => {
     [saveLookM]
   );
 
-  const sendPing = useCallback(
-    (bars?: PingBars) => {
-      if (pinging.current) return;
-      pinging.current = true;
-      const sentAt = Date.now();
+  const publishPing = useCallback(
+    (bars: PingBars) => {
+      const { bars: published, at: publishedAt } = publishedPing.current;
+      if (publishing.current || !shouldPublishPing({ bars, published, publishedAt, now: Date.now() })) return;
+      publishing.current = true;
       stats.current.ping++;
-      if (bars !== undefined) publishedPing.current = { bars: publishedPing.current.bars, at: sentAt };
-      pingM(bars === undefined ? {} : { bars })
+      publishedPing.current = { bars: published, at: Date.now() };
+      pingM({ bars })
         .then((reply) => {
-          if (reply.published && bars !== undefined) publishedPing.current = { bars, at: publishedPing.current.at };
-          pinging.current = false;
-          roundTrip(sentAt);
+          if (reply.published) publishedPing.current = { bars, at: publishedPing.current.at };
         })
-        .catch(() => {
-          pinging.current = false;
+        .catch(() => undefined)
+        .finally(() => {
+          publishing.current = false;
         });
     },
-    [pingM, roundTrip]
+    [pingM]
   );
-  const publishPing = useCallback(() => {
-    if (!session || smoothed.current === null) return;
-    const bars = pingBars(smoothed.current);
-    const { bars: published, at: publishedAt } = publishedPing.current;
-    if (shouldPublishPing({ bars, published, publishedAt, now: Date.now() })) sendPing(bars);
-  }, [session, sendPing]);
-  useEffect(() => {
-    publishRef.current = publishPing;
-  }, [publishPing]);
+  const probePing = useCallback(() => {
+    if (probing.current || convex.watchQuery(api.auth.isAuthenticated, {}).localQueryResult() !== undefined) return;
+    probing.current = true;
+    stats.current.probe++;
+    const sentAt = performance.now();
+    probedAt.current = Date.now();
+    convex
+      .query(api.auth.isAuthenticated, {})
+      .then(() => {
+        pingSamples.current = addPingSample(pingSamples.current, performance.now() - sentAt);
+        const ms = pingEstimate(pingSamples.current);
+        if (ms === null) return;
+        setPingMs(Math.round(ms));
+        publishPing(pingBars(ms));
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        probing.current = false;
+      });
+  }, [convex, publishPing]);
   useEffect(() => {
     if (!session) return;
+    pingSamples.current = [];
+    probedAt.current = null;
     const probe = () => {
-      if (AppState.currentState !== "active" || Date.now() - lastRoundTrip.current < PING_PROBE_MS) return;
-      sendPing();
+      if (AppState.currentState !== "active") return;
+      if (pingProbeDue({ taken: pingSamples.current.length, lastAt: probedAt.current, now: Date.now() })) probePing();
     };
     probe();
-    const id = setInterval(probe, 5000);
+    const id = setInterval(probe, 1000);
     return () => clearInterval(id);
-  }, [session, sendPing]);
+  }, [session, probePing]);
 
   // "Still here", only after a quiet spell. No query reads it, so it pushes nothing.
   useEffect(() => {
