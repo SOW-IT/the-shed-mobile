@@ -32,7 +32,6 @@ import {
   type NudgePart,
 } from "@shared/world";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useReducedMotion } from "react-native-reanimated";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { garden, hud, lightToDark, people, shade } from "./palette";
@@ -50,6 +49,7 @@ import {
   type PreviewSpin,
 } from "./previewMotion";
 import { useProgressive } from "./progressive";
+import { useBatterySaver } from "./settings";
 import { Ellipse } from "./Shapes";
 import { useForeground } from "./useForeground";
 
@@ -100,7 +100,7 @@ const MAX_SPIN = 12;
  * sheet. All on this phone; nothing is sent.
  */
 const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; height: number; shot: Shot }) => {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useBatterySaver();
   const foreground = useForeground();
   const running = active && foreground;
   const [width, setWidth] = useState(0);

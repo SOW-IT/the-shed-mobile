@@ -17,8 +17,9 @@ All notable changes to **The SHED** mobile app. This project follows
   - Ping: shows the milliseconds next to the bars. Off by default.
   - Battery saver: draws at 30 frames a second, the walk marker and typing
     dots stand still, bubbles appear without the bounce, people standing in
-    water stop paddling, and menus fade instead of sliding. Until you set
-    it, it follows the phone's Reduce Motion.
+    water stop paddling, the editor preview doesn't turn by itself, the
+    coins card doesn't spin, and menus fade instead of sliding. Until you
+    set it, it follows the phone's Reduce Motion.
   - Name tags: everyone, or only people near you. Anyone talking, typing,
     emoting or playing keeps their tag.
 - **A Flannel outfit.** An open flannel shirt in your shirt colour with an
@@ -80,10 +81,9 @@ All notable changes to **The SHED** mobile app. This project follows
   seconds stops receiving World updates and picks them up again when you come
   back; you stay in the room the whole time.
 - **The character editor is lighter.** The preview only animates while it
-  turns or zooms, so it no longer redraws 60 times a second at rest; with
-  Reduce Motion on it no longer turns by itself. Tabs with many choices,
-  like Hair, draw the first tiles straight away and the rest over the next
-  few frames.
+  turns or zooms, so it no longer redraws 60 times a second at rest. Tabs
+  with many choices, like Hair, draw the first tiles straight away and the
+  rest over the next few frames.
 - **Less network traffic.** A new chat line sends only the newest lines
   instead of the whole log, the floating chat log asks for 30 lines instead
   of 150, sending a line no longer sends a separate "stopped typing" first,

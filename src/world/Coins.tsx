@@ -6,11 +6,11 @@ import { NPC } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { useReducedMotion } from "react-native-reanimated";
 import { api } from "../../convex/_generated/api";
 import { GoldCoin } from "@/components/games/GoldCoin";
 import { Bust } from "./Overlays";
 import { gold, hud } from "./palette";
+import { useBatterySaver } from "./settings";
 
 const NATIVE = Platform.OS !== "web";
 
@@ -86,7 +86,7 @@ export const CoinsPanel = ({
   earnedToday: number | undefined;
   onClose: () => void;
 }) => {
-  const reduce = useReducedMotion();
+  const reduce = useBatterySaver();
   const { width } = useWindowDimensions();
   const [mounted, setMounted] = useState(open);
   const [shown] = useState(() => new Animated.Value(0));
