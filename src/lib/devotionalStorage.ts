@@ -21,6 +21,10 @@ const defaultBackend: DevotionalStorageBackend = {
     if (!file.exists) return null;
     return await file.text();
   },
+  exclusive: (key, run) => {
+    const locks = onWeb() ? window.navigator.locks : undefined;
+    return locks ? locks.request(key, run) : run();
+  },
   write: async (key, value) => {
     try {
       if (onWeb()) {

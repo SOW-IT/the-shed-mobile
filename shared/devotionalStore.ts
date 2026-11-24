@@ -10,6 +10,7 @@ import {
 export type DevotionalStorageBackend = {
   read: (key: string) => Promise<string | null>;
   write: (key: string, value: string) => Promise<boolean>;
+  exclusive?: <T>(key: string, run: () => Promise<T>) => Promise<T>;
 };
 
 type SavedOnServer = { passage: string; deleted: boolean; updatedAt: number };
@@ -61,6 +62,7 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
   type Bucket = {
     drafts: Record<string, LocalDevotionalDraft>;
     removed: Record<string, number>;
+    touched: Set<string>;
     dirty: LocalDevotionalDraft[];
     loaded: boolean;
     loading: Promise<void> | null;
@@ -87,6 +89,7 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
       bucket = {
         drafts: {},
         removed: {},
+        touched: new Set(),
         dirty: [],
         loaded: false,
         loading: null,
@@ -102,6 +105,26 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
   const stamp = () => {
     lastStamp = Math.max(Date.now(), lastStamp + 1);
     return lastStamp;
+  };
+
+  const catchUp = (raw: string | null) => {
+    if (!raw) return;
+    for (const at of Object.values(parseRemoved(raw))) lastStamp = Math.max(lastStamp, at);
+    for (const stored of Object.values(parseDraftStore(raw))) lastStamp = Math.max(lastStamp, stampOf(stored));
+  };
+
+  const restampTouched = (bucket: Bucket) => {
+    const touched = [...bucket.touched];
+    bucket.touched = new Set();
+    const drafts = { ...bucket.drafts };
+    const removed = { ...bucket.removed };
+    for (const date of touched) {
+      if (drafts[date]) drafts[date] = { ...drafts[date], savedAt: stamp() };
+      else if (removed[date] !== undefined) removed[date] = stamp();
+    }
+    bucket.drafts = drafts;
+    bucket.removed = removed;
+    return touched;
   };
 
   const mergeStored = (bucket: Bucket, raw: string | null) => {
@@ -155,19 +178,26 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     return bucket.loading;
   };
 
+  const readMergeWrite = async (key: string, bucket: Bucket, onlyIfBehind: boolean): Promise<boolean> => {
+    let touched: string[] = [];
+    const attempt = async () => {
+      const raw = await backend.read(key);
+      catchUp(raw);
+      touched = restampTouched(bucket);
+      mergeStored(bucket, raw);
+      bucket.loaded = true;
+      const next = serialize(bucket.drafts, bucket.removed);
+      if (onlyIfBehind && next === raw) return true;
+      return await backend.write(key, next);
+    };
+    const ok = await attempt().catch(() => false);
+    if (!ok) for (const date of touched) bucket.touched.add(date);
+    return ok;
+  };
+
   const persist = (key: string, bucket: Bucket, onlyIfBehind = false): Promise<boolean> => {
-    const write = bucket.writing.then(async () => {
-      try {
-        const raw = await backend.read(key);
-        mergeStored(bucket, raw);
-        bucket.loaded = true;
-        const next = serialize(bucket.drafts, bucket.removed);
-        if (onlyIfBehind && next === raw) return true;
-        return await backend.write(key, next);
-      } catch {
-        return false;
-      }
-    });
+    const run = () => readMergeWrite(key, bucket, onlyIfBehind);
+    const write = bucket.writing.then(() => (backend.exclusive ? backend.exclusive(key, run) : run()).catch(() => false));
     bucket.writing = write;
     return write;
   };
@@ -188,6 +218,7 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
       bucket.removed = { ...bucket.removed, [date]: at };
     }
     bucket.drafts = drafts;
+    bucket.touched.add(date);
     recomputeDirty(bucket);
     notify(bucket);
     return persist(keyFor(email), bucket);
@@ -213,7 +244,8 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
       conflict: current?.dirty === true && current.conflict,
     });
     const draft = bucket.drafts[date];
-    return { draft, persisted: await pending };
+    const persisted = await pending;
+    return { draft: bucket.drafts[date] ?? draft, persisted };
   };
 
   const markSynced = async (

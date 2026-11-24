@@ -220,6 +220,48 @@ describe("devotional local storage and sync", () => {
     expect(await tabA.storedElsewhere("devotionals.drafts.nobody@sow.org.au")).toBe(true);
   });
 
+  test("with a cross-tab lock, overlapping writes from two tabs both land", async () => {
+    const { backend, data } = memoryBackend();
+    let queue: Promise<unknown> = Promise.resolve();
+    const locked: DevotionalStorageBackend = {
+      ...backend,
+      read: async (key) => {
+        const value = await backend.read(key);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return value;
+      },
+      exclusive: (_key, run) => {
+        const next = queue.then(run);
+        queue = next.catch(() => undefined);
+        return next;
+      },
+    };
+    const tabA = createDevotionalStore(locked);
+    const tabB = createDevotionalStore(locked);
+    await Promise.all([
+      tabA.saveLocal(ANNA, "2026-11-20", { passage: "", notes: "A", prayerPoints: "" }, null),
+      tabB.saveLocal(ANNA, "2026-11-21", { passage: "", notes: "B", prayerPoints: "" }, null),
+    ]);
+    expect(Object.keys(stored(data)).filter((k) => k !== "removed").sort()).toEqual(["2026-11-20", "2026-11-21"]);
+
+    const noLock = createDevotionalStore({ ...backend, exclusive: () => Promise.reject(new Error("no lock")) });
+    expect((await noLock.saveLocal(ANNA, DAY, { passage: "", notes: "x", prayerPoints: "" }, null)).persisted).toBe(false);
+  });
+
+  test("an edit made before this tab read another tab's later tombstone is still kept", async () => {
+    const { backend, data } = memoryBackend();
+    const store = createDevotionalStore(backend);
+    await store.load(ANNA);
+    await store.saveLocal(ANNA, "2026-11-20", { passage: "", notes: "first", prayerPoints: "" }, null);
+    const key = [...data.keys()][0];
+    const ahead = Date.now() + 60_000;
+    data.set(key, JSON.stringify({ removed: { [DAY]: ahead } }));
+
+    await store.saveLocal(ANNA, DAY, { passage: "", notes: "Written after", prayerPoints: "" }, null);
+    expect(stored(data)[DAY]).toMatchObject({ notes: "Written after" });
+    expect(store.getDrafts(ANNA)[DAY].savedAt).toBeGreaterThan(ahead);
+  });
+
   test("re-adding a day another tab deleted in the same millisecond keeps the new draft", async () => {
     const { backend, data } = memoryBackend();
     const key = "devotionals.drafts.anna@sow.org.au";
