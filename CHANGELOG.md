@@ -6,6 +6,26 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.43] - 2026-11-24
+
+### Added
+- **Play Mystic Man and Flap as yourself.** Mystic Man runs as your World
+  character, and in Flap your character's head flaps through the gaps.
+  The start card has three pictures to pick from: you, Sij from the Café,
+  or the original Mystic Man or bird. Each game keeps its own pick on this
+  phone, so it's still there next time. If you haven't made a World
+  character yet, "You" plays the original.
+
+### Fixed
+- **The game-over card no longer looks blurred at the top.** On a phone
+  held sideways the card was taller than the space for it, so it sat in a
+  scrolling area pushed up against the top edge, where iPhones on iOS 26
+  blur and fade whatever scrolls under it. On smaller screens the bottom
+  button was cut off too. When the space is short, the card now lays out
+  side by side (score on the left, Play again and Leaderboard on the
+  right) and always fits, with nothing scrolling. The start card does the
+  same.
+
 ## [2.12.42] - 2026-11-24
 
 ### Added
