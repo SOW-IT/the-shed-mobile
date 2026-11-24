@@ -193,6 +193,7 @@ export const GameFrame = ({
   ground,
   hideStartCard = false,
   startExtra = null,
+  overDetail = null,
   children,
 }: {
   game: GameId;
@@ -225,6 +226,8 @@ export const GameFrame = ({
   /** A still preview board, for screenshots: nothing over it. */
   hideStartCard?: boolean;
   startExtra?: ReactNode;
+  /** A line on the game-over card about how the run ended. */
+  overDetail?: string | null;
   children: ReactNode;
 }) => {
   const { isAuthenticated } = useConvexAuth();
@@ -268,6 +271,11 @@ export const GameFrame = ({
     <View style={[styles.card, wide && styles.cardWide]}>
       <View style={[styles.cardMain, wide && styles.cardMainWide]}>
         <Text style={styles.cardTitle}>{newBest ? "New best!" : "Game over"}</Text>
+        {overDetail ? (
+          <Text style={styles.cardBody} testID="game-over-detail">
+            {overDetail}
+          </Text>
+        ) : null}
         <Text style={[styles.bigScore, wide && styles.bigScoreWide]} testID="game-final-score">
           {result.score.toLocaleString()}
         </Text>

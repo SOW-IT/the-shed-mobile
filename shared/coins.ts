@@ -17,6 +17,10 @@ export const COIN_TIERS: Record<GameId, readonly { over: number; coins: number }
     { over: 10_000, coins: 10 },
     { over: 12_000, coins: 20 },
   ],
+  glider: [
+    { over: 8_000, coins: 10 },
+    { over: 12_000, coins: 20 },
+  ],
 };
 
 export const coinsForRun = (game: GameId, score: number): number => {

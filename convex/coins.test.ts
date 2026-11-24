@@ -41,6 +41,10 @@ describe("coins", () => {
     ["shooter", 10_001, 10],
     ["shooter", 12_000, 10],
     ["shooter", 12_001, 20],
+    ["glider", 8_000, 0],
+    ["glider", 8_001, 10],
+    ["glider", 12_000, 10],
+    ["glider", 12_001, 20],
   ] as const)("%s at %i earns %i", async (game, score, coins) => {
     const t = newConvex();
     const result = await submit(t, [run(game, score, "run-tier-1")]);

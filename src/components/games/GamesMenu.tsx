@@ -15,6 +15,7 @@ const GAME_ICONS: Record<GameId, AppIconName> = {
   shooter: "airplane",
   runner: "footsteps",
   flappy: "egg",
+  glider: "partly-sunny",
 };
 
 // One plain line under each game's name. The how-to-play text
@@ -23,6 +24,7 @@ const GAME_LINES: Record<GameId, string> = {
   shooter: "Fly and shoot.",
   runner: "Run and jump.",
   flappy: "Tap through the gaps.",
+  glider: "Swoop over the hills before dark.",
 };
 
 const LeaderboardButton = ({ onPress }: { onPress: () => void }) => {
@@ -82,7 +84,7 @@ const MenuRow = ({
   );
 };
 
-/** The three games, each with this device's best, and the leaderboard at the top right. */
+/** The games, each with this device's best, and the leaderboard at the top right. */
 export const GamesMenu = ({
   onOpen,
   onBack,
