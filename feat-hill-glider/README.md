@@ -5,21 +5,21 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 3s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 68s |  |
-| unused code (knip) | ✔ pass | 9s |  |
-| typecheck | ✔ pass | 25s |  |
-| unit tests with coverage | ✔ pass | 24s |  |
-| verify lock | ✔ pass | 0s | free, taken at once |
+| native fingerprint | ✔ pass | 6s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 88s |  |
+| unused code (knip) | ✔ pass | 5s |  |
+| typecheck | ✔ pass | 24s |  |
+| unit tests with coverage | ✔ pass | 31s |  |
+| verify lock | ✔ pass | 302s | took it after waiting 302s for pid 65457, fix/world-looks-part3 in /Users/xtectra/GitHub/worktrees/the-shed-mobile-looks-part3, since 2026-11-24T12:22:21.337Z |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 19s | before functions on :3270 |
-| before: web | ✔ pass | 736s | 216 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
-| before: iOS reset | ✔ pass | 2s |  |
-| before: iOS | ✔ pass | 294s | 54 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
-| after: local backend | ✔ pass | 16s | after functions on :3270 |
-| after: web | ✔ pass | 704s | 216 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: local backend | ✔ pass | 15s | before functions on :3270 |
+| before: web | ✔ pass | 765s | 228 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: iOS reset | ✔ pass | 1s |  |
+| before: iOS | ✔ pass | 369s | 57 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: local backend | ✔ pass | 15s | after functions on :3270 |
+| after: web | ✔ pass | 738s | 228 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 265s | 54 screenshots; still moving after 10 frames: admin-review, admin-all, admin-world |
+| after: iOS | ✔ pass | 356s | 57 screenshots; still moving after 10 frames: admin-review, admin-all |
 
 ## Screenshots
 
@@ -42,6 +42,7 @@
 | web `admin-churches` | <img src="before/web/admin-churches.png" width="260"> | <img src="after/web/admin-churches.png" width="260"> |
 | web `admin-design_requests` | <img src="before/web/admin-design_requests.png" width="260"> | <img src="after/web/admin-design_requests.png" width="260"> |
 | web `admin-design_requests_new` | <img src="before/web/admin-design_requests_new.png" width="260"> | <img src="after/web/admin-design_requests_new.png" width="260"> |
+| web `admin-devotionals` | <img src="before/web/admin-devotionals.png" width="260"> | <img src="after/web/admin-devotionals.png" width="260"> |
 | web `admin-edit_home` | <img src="before/web/admin-edit_home.png" width="260"> | <img src="after/web/admin-edit_home.png" width="260"> |
 | web `admin-event_requests` | <img src="before/web/admin-event_requests.png" width="260"> | <img src="after/web/admin-event_requests.png" width="260"> |
 | web `admin-event_requests_new` | <img src="before/web/admin-event_requests_new.png" width="260"> | <img src="after/web/admin-event_requests_new.png" width="260"> |
@@ -77,6 +78,8 @@
 | web `admin-review` | <img src="before/web/admin-review.png" width="260"> | <img src="after/web/admin-review.png" width="260"> |
 | web `admin-root` | <img src="before/web/admin-root.png" width="260"> | <img src="after/web/admin-root.png" width="260"> |
 | web `admin-world` | <img src="before/web/admin-world.png" width="260"> | <img src="after/web/admin-world.png" width="260"> |
+| web `admin-world_calendar` | <img src="before/web/admin-world_calendar.png" width="260"> | <img src="after/web/admin-world_calendar.png" width="260"> |
+| web `admin-world_praise` | <img src="before/web/admin-world_praise.png" width="260"> | <img src="after/web/admin-world_praise.png" width="260"> |
 | web `admin-world_sheet_character` | <img src="before/web/admin-world_sheet_character.png" width="260"> | <img src="after/web/admin-world_sheet_character.png" width="260"> |
 | web `admin-world_sheet_poke` | <img src="before/web/admin-world_sheet_poke.png" width="260"> | <img src="after/web/admin-world_sheet_poke.png" width="260"> |
 | web `leader-admin` | <img src="before/web/leader-admin.png" width="260"> | <img src="after/web/leader-admin.png" width="260"> |
@@ -96,6 +99,7 @@
 | web `leader-churches` | <img src="before/web/leader-churches.png" width="260"> | <img src="after/web/leader-churches.png" width="260"> |
 | web `leader-design_requests` | <img src="before/web/leader-design_requests.png" width="260"> | <img src="after/web/leader-design_requests.png" width="260"> |
 | web `leader-design_requests_new` | <img src="before/web/leader-design_requests_new.png" width="260"> | <img src="after/web/leader-design_requests_new.png" width="260"> |
+| web `leader-devotionals` | <img src="before/web/leader-devotionals.png" width="260"> | <img src="after/web/leader-devotionals.png" width="260"> |
 | web `leader-edit_home` | <img src="before/web/leader-edit_home.png" width="260"> | <img src="after/web/leader-edit_home.png" width="260"> |
 | web `leader-event_requests` | <img src="before/web/leader-event_requests.png" width="260"> | <img src="after/web/leader-event_requests.png" width="260"> |
 | web `leader-event_requests_new` | <img src="before/web/leader-event_requests_new.png" width="260"> | <img src="after/web/leader-event_requests_new.png" width="260"> |
@@ -131,6 +135,8 @@
 | web `leader-review` | <img src="before/web/leader-review.png" width="260"> | <img src="after/web/leader-review.png" width="260"> |
 | web `leader-root` | <img src="before/web/leader-root.png" width="260"> | <img src="after/web/leader-root.png" width="260"> |
 | web `leader-world` | <img src="before/web/leader-world.png" width="260"> | <img src="after/web/leader-world.png" width="260"> |
+| web `leader-world_calendar` | <img src="before/web/leader-world_calendar.png" width="260"> | <img src="after/web/leader-world_calendar.png" width="260"> |
+| web `leader-world_praise` | <img src="before/web/leader-world_praise.png" width="260"> | <img src="after/web/leader-world_praise.png" width="260"> |
 | web `leader-world_sheet_character` | <img src="before/web/leader-world_sheet_character.png" width="260"> | <img src="after/web/leader-world_sheet_character.png" width="260"> |
 | web `leader-world_sheet_poke` | <img src="before/web/leader-world_sheet_poke.png" width="260"> | <img src="after/web/leader-world_sheet_poke.png" width="260"> |
 | web `out-admin` | <img src="before/web/out-admin.png" width="260"> | <img src="after/web/out-admin.png" width="260"> |
@@ -150,6 +156,7 @@
 | web `out-churches` | <img src="before/web/out-churches.png" width="260"> | <img src="after/web/out-churches.png" width="260"> |
 | web `out-design_requests` | <img src="before/web/out-design_requests.png" width="260"> | <img src="after/web/out-design_requests.png" width="260"> |
 | web `out-design_requests_new` | <img src="before/web/out-design_requests_new.png" width="260"> | <img src="after/web/out-design_requests_new.png" width="260"> |
+| web `out-devotionals` | <img src="before/web/out-devotionals.png" width="260"> | <img src="after/web/out-devotionals.png" width="260"> |
 | web `out-edit_home` | <img src="before/web/out-edit_home.png" width="260"> | <img src="after/web/out-edit_home.png" width="260"> |
 | web `out-event_requests` | <img src="before/web/out-event_requests.png" width="260"> | <img src="after/web/out-event_requests.png" width="260"> |
 | web `out-event_requests_new` | <img src="before/web/out-event_requests_new.png" width="260"> | <img src="after/web/out-event_requests_new.png" width="260"> |
@@ -185,6 +192,8 @@
 | web `out-review` | <img src="before/web/out-review.png" width="260"> | <img src="after/web/out-review.png" width="260"> |
 | web `out-root` | <img src="before/web/out-root.png" width="260"> | <img src="after/web/out-root.png" width="260"> |
 | web `out-world` | <img src="before/web/out-world.png" width="260"> | <img src="after/web/out-world.png" width="260"> |
+| web `out-world_calendar` | <img src="before/web/out-world_calendar.png" width="260"> | <img src="after/web/out-world_calendar.png" width="260"> |
+| web `out-world_praise` | <img src="before/web/out-world_praise.png" width="260"> | <img src="after/web/out-world_praise.png" width="260"> |
 | web `out-world_sheet_character` | <img src="before/web/out-world_sheet_character.png" width="260"> | <img src="after/web/out-world_sheet_character.png" width="260"> |
 | web `out-world_sheet_poke` | <img src="before/web/out-world_sheet_poke.png" width="260"> | <img src="after/web/out-world_sheet_poke.png" width="260"> |
 | web `staff-admin` | <img src="before/web/staff-admin.png" width="260"> | <img src="after/web/staff-admin.png" width="260"> |
@@ -204,6 +213,7 @@
 | web `staff-churches` | <img src="before/web/staff-churches.png" width="260"> | <img src="after/web/staff-churches.png" width="260"> |
 | web `staff-design_requests` | <img src="before/web/staff-design_requests.png" width="260"> | <img src="after/web/staff-design_requests.png" width="260"> |
 | web `staff-design_requests_new` | <img src="before/web/staff-design_requests_new.png" width="260"> | <img src="after/web/staff-design_requests_new.png" width="260"> |
+| web `staff-devotionals` | <img src="before/web/staff-devotionals.png" width="260"> | <img src="after/web/staff-devotionals.png" width="260"> |
 | web `staff-edit_home` | <img src="before/web/staff-edit_home.png" width="260"> | <img src="after/web/staff-edit_home.png" width="260"> |
 | web `staff-event_requests` | <img src="before/web/staff-event_requests.png" width="260"> | <img src="after/web/staff-event_requests.png" width="260"> |
 | web `staff-event_requests_new` | <img src="before/web/staff-event_requests_new.png" width="260"> | <img src="after/web/staff-event_requests_new.png" width="260"> |
@@ -239,6 +249,8 @@
 | web `staff-review` | <img src="before/web/staff-review.png" width="260"> | <img src="after/web/staff-review.png" width="260"> |
 | web `staff-root` | <img src="before/web/staff-root.png" width="260"> | <img src="after/web/staff-root.png" width="260"> |
 | web `staff-world` | <img src="before/web/staff-world.png" width="260"> | <img src="after/web/staff-world.png" width="260"> |
+| web `staff-world_calendar` | <img src="before/web/staff-world_calendar.png" width="260"> | <img src="after/web/staff-world_calendar.png" width="260"> |
+| web `staff-world_praise` | <img src="before/web/staff-world_praise.png" width="260"> | <img src="after/web/staff-world_praise.png" width="260"> |
 | web `staff-world_sheet_character` | <img src="before/web/staff-world_sheet_character.png" width="260"> | <img src="after/web/staff-world_sheet_character.png" width="260"> |
 | web `staff-world_sheet_poke` | <img src="before/web/staff-world_sheet_poke.png" width="260"> | <img src="after/web/staff-world_sheet_poke.png" width="260"> |
 | ios `admin-admin` | <img src="before/ios/admin-admin.png" width="260"> | <img src="after/ios/admin-admin.png" width="260"> |
@@ -257,6 +269,7 @@
 | ios `admin-churches` | <img src="before/ios/admin-churches.png" width="260"> | <img src="after/ios/admin-churches.png" width="260"> |
 | ios `admin-design_requests` | <img src="before/ios/admin-design_requests.png" width="260"> | <img src="after/ios/admin-design_requests.png" width="260"> |
 | ios `admin-design_requests_new` | <img src="before/ios/admin-design_requests_new.png" width="260"> | <img src="after/ios/admin-design_requests_new.png" width="260"> |
+| ios `admin-devotionals` | <img src="before/ios/admin-devotionals.png" width="260"> | <img src="after/ios/admin-devotionals.png" width="260"> |
 | ios `admin-edit_home` | <img src="before/ios/admin-edit_home.png" width="260"> | <img src="after/ios/admin-edit_home.png" width="260"> |
 | ios `admin-event_requests` | <img src="before/ios/admin-event_requests.png" width="260"> | <img src="after/ios/admin-event_requests.png" width="260"> |
 | ios `admin-event_requests_new` | <img src="before/ios/admin-event_requests_new.png" width="260"> | <img src="after/ios/admin-event_requests_new.png" width="260"> |
@@ -291,6 +304,8 @@
 | ios `admin-review` | <img src="before/ios/admin-review.png" width="260"> | <img src="after/ios/admin-review.png" width="260"> |
 | ios `admin-root` | <img src="before/ios/admin-root.png" width="260"> | <img src="after/ios/admin-root.png" width="260"> |
 | ios `admin-world` | <img src="before/ios/admin-world.png" width="260"> | <img src="after/ios/admin-world.png" width="260"> |
+| ios `admin-world_calendar` | <img src="before/ios/admin-world_calendar.png" width="260"> | <img src="after/ios/admin-world_calendar.png" width="260"> |
+| ios `admin-world_praise` | <img src="before/ios/admin-world_praise.png" width="260"> | <img src="after/ios/admin-world_praise.png" width="260"> |
 | ios `admin-world_sheet_character` | <img src="before/ios/admin-world_sheet_character.png" width="260"> | <img src="after/ios/admin-world_sheet_character.png" width="260"> |
 | ios `admin-world_sheet_poke` | <img src="before/ios/admin-world_sheet_poke.png" width="260"> | <img src="after/ios/admin-world_sheet_poke.png" width="260"> |
 | ios `out-home` | <img src="before/ios/out-home.png" width="260"> | <img src="after/ios/out-home.png" width="260"> |
