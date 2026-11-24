@@ -14,18 +14,52 @@ export const updateButtonFor = ({
   ota,
   status,
   latest,
+  targetSeenAt,
 }: {
   dev: boolean;
   web: boolean;
   ota: OtaState | null;
   status: ServerStatus;
   latest: string | null;
+  targetSeenAt: number | null;
 }): UpdateButtonKind | null => {
   if (dev || web) return null;
   if (ota?.available) return "restart";
   if (status !== "recommended" && status !== "required") return null;
-  return updateRouteFor(latest, ota) === "store" ? "store" : null;
+  return updateRouteFor(latest, ota, targetSeenAt) === "store" ? "store" : null;
 };
+
+type BehindSeen = { target: string; at: number };
+
+let behindSeen: BehindSeen | null = null;
+const behindListeners = new Set<() => void>();
+
+export const behindKey = (status: ServerStatus, latest: string | null): string | null =>
+  status === "recommended" || status === "required" ? `${status} ${latest ?? ""}` : null;
+
+export const noteBehind = (target: string, now: number): void => {
+  if (behindSeen?.target === target) return;
+  behindSeen = { target, at: now };
+  behindListeners.forEach((listener) => listener());
+};
+
+export const subscribeBehind = (listener: () => void) => {
+  behindListeners.add(listener);
+  return () => {
+    behindListeners.delete(listener);
+  };
+};
+
+export const behindSnapshot = (): BehindSeen | null => behindSeen;
+
+export const seenAtFor = (seen: BehindSeen | null, target: string | null): number | null =>
+  target !== null && seen?.target === target ? seen.at : null;
+
+export const freshCheckDue = (
+  seen: BehindSeen | null,
+  askedAt: number | null,
+  lastCheckedAt: number | null
+): boolean => seen !== null && (askedAt ?? -Infinity) < seen.at && (lastCheckedAt ?? -Infinity) < seen.at;
 
 export const latestOf = (...times: (number | null | undefined)[]): number | null =>
   times.reduce<number | null>((latest, time) => (time == null || (latest !== null && latest >= time) ? latest : time), null);

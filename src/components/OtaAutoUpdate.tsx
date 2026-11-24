@@ -1,12 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import { otaUpdateDriver, otaUpdates } from "@/lib/otaUpdates";
 import {
+  behindSnapshot,
   CHECK_TICK_MS,
   checkDue,
   downloadUpdate,
+  freshCheckDue,
   latestOf,
   restartWhenFree,
+  subscribeBehind,
   type UpdateDriver,
 } from "@/lib/otaUpdateButton";
 
@@ -33,6 +36,13 @@ function AutoUpdate({
   const foundId = found ? (state.availableUpdate?.updateId ?? "rollback") : null;
   const downloaded = state.isUpdatePending;
   const lastCheckedAt = state.lastCheckForUpdateTimeSinceRestart?.getTime() ?? null;
+  const behindSeen = useSyncExternalStore(subscribeBehind, behindSnapshot, behindSnapshot);
+
+  useEffect(() => {
+    if (!quiet || found || !freshCheckDue(behindSeen, askedAt, lastCheckedAt)) return;
+    askedAt = Date.now();
+    updates.checkForUpdateAsync().catch(() => undefined);
+  }, [quiet, found, behindSeen, lastCheckedAt, updates]);
 
   useEffect(() => {
     if (!quiet || !foundId || fetchedOnce === foundId) return;

@@ -65,8 +65,8 @@ export type OtaState = {
   version?: string;
   /** The phone has heard back from the update server since it started, with an answer or an error. */
   checked: boolean;
-  /** The last check to finish got an answer from the server, not an error. */
-  answered: boolean;
+  /** When the last check to finish got an answer from the server (ms), or null if it ended in an error. */
+  answeredAt: number | null;
   /** What's running now: a check, or a download (the startup procedure counts, since it may download). */
   inFlight: "check" | "download" | null;
 };
@@ -74,17 +74,24 @@ export type OtaState = {
 /**
  * How a phone behind the version it should be on gets there: restarting into
  * an over-the-air update when there's one for its build that reaches the
- * target, or the store when only a new build will. "wait" while the phone
- * hasn't heard back from the update server, while a download is running, and
- * while a check is running after the last one failed, so it never sends
- * someone to the store for something a restart would fix. A check running
- * after one that got an answer doesn't wait: that answer stands until the new
- * one arrives, so the regular checks don't hide the store. A build without
+ * target, or the store when only a new build will. A build without
  * over-the-air updates (`ota` null) can only use the store.
+ *
+ * "wait" means don't offer the store yet, because a check may still find an
+ * update a restart would apply. It waits while the phone hasn't heard back
+ * from the update server, while a download is running, while a check is
+ * running after the last one failed, and while the last answer is older than
+ * `targetSeenAt`, when the phone first saw it was behind this target (an
+ * update published just now raises the target before the phone's next
+ * check). A check running after a fresh answer doesn't wait: that answer
+ * stands until the new one arrives, so the regular checks don't hide the
+ * store. A last check that failed with nothing running falls back to the
+ * store.
  */
 export const updateRouteFor = (
   target: string | null,
-  ota: OtaState | null
+  ota: OtaState | null,
+  targetSeenAt: number | null
 ): "restart" | "store" | "wait" => {
   if (!ota) return "store";
   if (ota.available) {
@@ -92,7 +99,8 @@ export const updateRouteFor = (
     if (reaches) return "restart";
   }
   if (!ota.checked || ota.inFlight === "download") return "wait";
-  if (ota.inFlight === "check" && !ota.answered) return "wait";
+  if (ota.answeredAt === null) return ota.inFlight === "check" ? "wait" : "store";
+  if (targetSeenAt === null || ota.answeredAt < targetSeenAt) return "wait";
   return "store";
 };
 

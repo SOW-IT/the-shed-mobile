@@ -45,7 +45,8 @@ export const useOtaState: () => (OtaState & { pending: boolean; downloading: boo
         downloading: state.isDownloading,
         version: manifestVersion(update?.manifest),
         checked: state.lastCheckForUpdateTimeSinceRestart !== undefined || state.checkError !== undefined,
-        answered: state.lastCheckForUpdateTimeSinceRestart !== undefined && state.checkError === undefined,
+        answeredAt:
+          state.checkError === undefined ? (state.lastCheckForUpdateTimeSinceRestart?.getTime() ?? null) : null,
         inFlight:
           state.isDownloading || state.isStartupProcedureRunning ? "download" : state.isChecking ? "check" : null,
       };

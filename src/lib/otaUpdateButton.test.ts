@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
+  behindKey,
   CHECK_INTERVAL_MS,
   checkDue,
+  freshCheckDue,
   latestOf,
   previewFromSearch,
+  seenAtFor,
   updateButtonFor,
   updateButtonState,
 } from "./otaUpdateButton";
 
-const phone = { dev: false, web: false };
-const heardBack = { available: false, checked: true, answered: true, inFlight: null };
+const SEEN = 5_000;
+const phone = { dev: false, web: false, targetSeenAt: SEEN };
+const heardBack = { available: false, checked: true, answeredAt: SEEN + 1, inFlight: null };
 const downloadable = { ...heardBack, available: true, version: "2.12.40" };
 
 describe("updateButtonFor", () => {
@@ -40,12 +44,12 @@ describe("updateButtonFor", () => {
   });
 
   test("nothing while the phone is still asking the update server", () => {
-    const asking = { ...heardBack, checked: false, answered: false };
+    const asking = { ...heardBack, checked: false, answeredAt: null };
     expect(updateButtonFor({ ...phone, ota: asking, status: "recommended", latest: "2.13.0" })).toBeNull();
   });
 
   test("nothing while a retry runs after a failed check, then the store once it answers", () => {
-    const retrying = { ...heardBack, answered: false, inFlight: "check" as const };
+    const retrying = { ...heardBack, answeredAt: null, inFlight: "check" as const };
     expect(updateButtonFor({ ...phone, ota: retrying, status: "required", latest: "2.13.0" })).toBeNull();
     expect(updateButtonFor({ ...phone, ota: heardBack, status: "required", latest: "2.13.0" })).toBe("store");
   });
@@ -62,6 +66,16 @@ describe("updateButtonFor", () => {
     expect(updateButtonFor({ ...phone, ota: fetching, status: "recommended", latest: "2.13.0" })).toBe("restart");
   });
 
+  test("an update published after the last check: nothing until a fresh check answers, then restart or store", () => {
+    const stale = { ...heardBack, answeredAt: SEEN - 60_000 };
+    const behind = { ...phone, status: "recommended" as const, latest: "2.12.41" };
+    expect(updateButtonFor({ ...behind, ota: stale })).toBeNull();
+    expect(updateButtonFor({ ...behind, ota: { ...stale, inFlight: "check" } })).toBeNull();
+    expect(updateButtonFor({ ...behind, ota: heardBack, targetSeenAt: null })).toBeNull();
+    expect(updateButtonFor({ ...behind, ota: { ...heardBack, available: true, version: "2.12.41" } })).toBe("restart");
+    expect(updateButtonFor({ ...behind, ota: heardBack })).toBe("store");
+  });
+
   test("nothing when up to date", () => {
     expect(updateButtonFor({ ...phone, ota: heardBack, status: "ok", latest: "2.13.0" })).toBeNull();
     expect(updateButtonFor({ ...phone, ota: heardBack, status: undefined, latest: null })).toBeNull();
@@ -70,8 +84,8 @@ describe("updateButtonFor", () => {
 
   test("never in a dev build or on the web", () => {
     for (const where of [
-      { dev: true, web: false },
-      { dev: false, web: true },
+      { dev: true, web: false, targetSeenAt: SEEN },
+      { dev: false, web: true, targetSeenAt: SEEN },
     ]) {
       expect(updateButtonFor({ ...where, ota: downloadable, status: "ok", latest: null })).toBeNull();
       expect(updateButtonFor({ ...where, ota: null, status: "required", latest: "2.13.0" })).toBeNull();
@@ -103,6 +117,33 @@ describe("checkDue", () => {
     expect(latestOf(at, at + 5)).toBe(at + 5);
     expect(latestOf(at + 5, at)).toBe(at + 5);
     expect(checkDue(latestOf(at, at + CHECK_INTERVAL_MS), at + CHECK_INTERVAL_MS + 1)).toBe(false);
+  });
+});
+
+describe("behind the server's version", () => {
+  test("a key per status and target, none when up to date", () => {
+    expect(behindKey("recommended", "2.12.41")).toBe("recommended 2.12.41");
+    expect(behindKey("required", "2.12.41")).toBe("required 2.12.41");
+    expect(behindKey("required", null)).toBe("required ");
+    expect(behindKey("ok", "2.12.41")).toBeNull();
+    expect(behindKey(undefined, null)).toBeNull();
+  });
+
+  test("when it was first seen, only for the same target", () => {
+    const seen = { target: "recommended 2.12.41", at: SEEN };
+    expect(seenAtFor(seen, "recommended 2.12.41")).toBe(SEEN);
+    expect(seenAtFor(seen, "recommended 2.12.42")).toBeNull();
+    expect(seenAtFor(seen, null)).toBeNull();
+    expect(seenAtFor(null, "recommended 2.12.41")).toBeNull();
+  });
+
+  test("a fresh check once, as soon as the target moves past the last check", () => {
+    const seen = { target: "recommended 2.12.41", at: SEEN };
+    expect(freshCheckDue(seen, null, null)).toBe(true);
+    expect(freshCheckDue(seen, SEEN - 10, SEEN - 5)).toBe(true);
+    expect(freshCheckDue(seen, SEEN + 1, SEEN - 5)).toBe(false);
+    expect(freshCheckDue(seen, null, SEEN + 1)).toBe(false);
+    expect(freshCheckDue(null, null, null)).toBe(false);
   });
 });
 
@@ -271,6 +312,18 @@ describe("automatic update", () => {
     await settle();
     expect(ota.updatePhase()).toBe("idle");
     expect(reloads).toBe(0);
+  });
+
+  test("notes the first time it sees each target", () => {
+    const seen: (string | undefined)[] = [];
+    ota.subscribeBehind(() => seen.push(ota.behindSnapshot()?.target));
+    expect(ota.behindSnapshot()).toBeNull();
+    ota.noteBehind("recommended 2.12.41", 100);
+    ota.noteBehind("recommended 2.12.41", 200);
+    expect(ota.behindSnapshot()).toEqual({ target: "recommended 2.12.41", at: 100 });
+    ota.noteBehind("required 2.12.41", 300);
+    expect(ota.behindSnapshot()).toEqual({ target: "required 2.12.41", at: 300 });
+    expect(seen).toEqual(["recommended 2.12.41", "required 2.12.41"]);
   });
 
   test("a preview starts in its state", () => {

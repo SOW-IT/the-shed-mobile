@@ -23,7 +23,9 @@ All notable changes to **The SHED** mobile app. This project follows
 - **The store when only a new build will do.** When your version is behind
   and nothing over the air reaches it, the same button shows with the App
   Store or Play Store icon and opens the store. It waits until the phone
-  has heard back from the update server first.
+  has heard back from the update server first, and when the version it
+  should be on goes up (as it does after every update is published), it
+  asks the update server again straight away before offering the store.
 - **The phone asks for updates while it's open.** On launch, when you come
   back to the app and every 15 minutes, at most once per 15 minutes.
 - **No more update popup.** The "Update The SHED" popup at each launch and

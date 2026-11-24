@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { appLinkForScheme, updateRouteFor } from "../../shared/appLinks";
@@ -7,7 +7,12 @@ import { appScheme, appVersion } from "@/hooks/useReportAppVersion";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { otaUpdateDriver, useOtaState } from "@/lib/otaUpdates";
 import {
+  behindKey,
+  behindSnapshot,
+  noteBehind,
   previewFromSearch,
+  seenAtFor,
+  subscribeBehind,
   startPreview,
   subscribeUpdatePhase,
   type UpdateDriver,
@@ -45,10 +50,16 @@ export const useAppUpdate = () => {
   const phase = useSyncExternalStore(subscribeUpdatePhase, updatePhase, updatePhase);
   const status = storeUrl ? check?.status : undefined;
   const latest = check?.latest ?? null;
-  const behind = status === "recommended" || status === "required";
-  const route = behind ? updateRouteFor(latest, ota) : null;
+  const target = behindKey(status, latest);
+  const seen = useSyncExternalStore(subscribeBehind, behindSnapshot, behindSnapshot);
+  useEffect(() => {
+    if (target) noteBehind(target, Date.now());
+  }, [target]);
+  const targetSeenAt = seenAtFor(seen, target);
+  const route = target ? updateRouteFor(latest, ota, targetSeenAt) : null;
   const button =
-    preview?.kind ?? updateButtonFor({ dev: __DEV__, web: Platform.OS === "web", ota, status, latest });
+    preview?.kind ??
+    updateButtonFor({ dev: __DEV__, web: Platform.OS === "web", ota, status, latest, targetSeenAt });
   const driver = preview ? previewDriver : otaUpdateDriver;
   const downloaded = preview ? preview.phase === "ready" : (ota?.pending ?? false);
   const restart = () => {
