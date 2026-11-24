@@ -75,6 +75,9 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   const conflict = localDraft?.conflict === true && remote !== undefined ? { theirs: remote } : null;
 
   const dirtyOnEdit = useRef(false);
+  // Counts edits as they're made (not after the next render), so a save that
+  // finishes after an edit it didn't carry leaves the editor dirty.
+  const edits = useRef(0);
   const latestRef = useRef({ passage, notes, prayerPoints, email, validDate, offline, baseIfNew });
   useEffect(() => {
     latestRef.current = { passage, notes, prayerPoints, email, validDate, offline, baseIfNew };
@@ -87,12 +90,14 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   const updateContent = (next: { passage: string; notes: string; prayerPoints: string }) => {
     if (!validDate || !email || !canEdit) return;
     dirtyOnEdit.current = true;
+    edits.current += 1;
     void saveLocalDevotional(email, validDate, next, baseIfNew);
   };
 
   const syncToServer = useCallback(
     async (showFeedback: boolean) => {
       const latest = latestRef.current;
+      const editsSent = edits.current;
       if (!latest.email || !latest.validDate) return;
       const checked = validateDevotionalInput({
         passage: latest.passage,
@@ -139,7 +144,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         }
         await markDevotionalSynced(latest.email, latest.validDate, content, result);
         const now = latestRef.current;
-        if (now.validDate === latest.validDate && sameDevotionalContent(now, content)) {
+        if (edits.current === editsSent && now.validDate === latest.validDate && sameDevotionalContent(now, content)) {
           dirtyOnEdit.current = false;
         }
         if (showFeedback) setToast({ text: "Saved" });
