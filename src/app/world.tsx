@@ -2,6 +2,7 @@ import { SignInPrompt } from "@/components/SignInPrompt";
 import { LoadingState, Screen } from "@/components/ui";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { backOr } from "@/lib/goBack";
+import { todayDevotionalDate } from "@shared/devotionals";
 import { useConvexAuth } from "convex/react";
 import { useFocusEffect, useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from "expo-router";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
@@ -9,6 +10,8 @@ import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 // Loaded when someone opens the garden, not at startup. On web it's its own
 // chunk; on iOS it's in the bundle but isn't run until now.
 const WorldScreen = lazy(() => import("@/world/WorldScreen").then((m) => ({ default: m.WorldScreen })));
+
+type AwayKind = "arcade" | "devotional" | "browse";
 
 export default function World() {
   const router = useRouter();
@@ -20,15 +23,15 @@ export default function World() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   // Leave the garden while another screen (the games) covers it; come back on return.
   const [focused, setFocused] = useState(true);
-  const [atArcade, setAtArcade] = useState(false);
+  const [awayKind, setAwayKind] = useState<AwayKind | null>(null);
   useFocusEffect(
     useCallback(() => {
       setFocused(true);
-      setAtArcade(false);
+      setAwayKind(null);
       return () => setFocused(false);
     }, [])
   );
-  useRestartHold(isAuthenticated && (focused || atArcade));
+  useRestartHold(isAuthenticated && (focused || awayKind !== null));
   const [asking, setAsking] = useState(false);
   const held = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
   const letGo = usePreventRemove(isAuthenticated, ({ data }) => {
@@ -58,8 +61,8 @@ export default function World() {
   return (
     <Suspense fallback={<LoadingState />}>
       <WorldScreen
-        active={focused || atArcade}
-        away={atArcade && !focused}
+        active={focused || awayKind !== null}
+        awayKind={awayKind && !focused ? awayKind : null}
         onBack={() => setAsking(true)}
         leaveAsked={asking}
         onStay={stay}
@@ -67,8 +70,20 @@ export default function World() {
         arrival={arrival}
         opening={sheet === "character" || sheet === "poke" ? sheet : undefined}
         onArcade={() => {
-          setAtArcade(true);
+          setAwayKind("arcade");
           router.push("/games");
+        }}
+        onCalendar={() => {
+          setAwayKind("browse");
+          router.push("/world-calendar");
+        }}
+        onPraise={() => {
+          setAwayKind("browse");
+          router.push("/world-praise");
+        }}
+        onDevotional={() => {
+          setAwayKind("devotional");
+          router.push(`/devotionals/${todayDevotionalDate()}`);
         }}
       />
     </Suspense>

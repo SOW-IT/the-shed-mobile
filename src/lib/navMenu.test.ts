@@ -114,7 +114,7 @@ describe("showsReimbursements", () => {
 describe("who sees which pages", () => {
   const REQUESTS: NavKey[] = ["reimbursements", "eventRequests", "designRequests"];
   const PUBLIC: NavKey[] = ["home", "org", "churches", "grievances"];
-  const STAFF_PAGES: NavKey[] = ["garden", "music", "attendance", "calendar", "insights"];
+  const STAFF_PAGES: NavKey[] = ["garden", "devotionals", "music", "attendance", "calendar", "insights"];
   const ADMIN_PAGES: NavKey[] = ["mentoring", "announcements", "admin"];
 
   test.each([
@@ -127,7 +127,7 @@ describe("who sees which pages", () => {
     [
       "guests",
       guest,
-      [...PUBLIC, "garden"],
+      [...PUBLIC, "garden", "devotionals"],
       ["music", "attendance", "calendar", "insights", ...REQUESTS, ...ADMIN_PAGES],
     ],
     ["staff", staff, [...PUBLIC, ...STAFF_PAGES, ...REQUESTS], ADMIN_PAGES],
@@ -157,12 +157,12 @@ describe("who sees which pages", () => {
 
   test("the drawer holds only what the bottom tabs and sidebar leave out", () => {
     expect(drawerItems(signedOut)).toEqual([]);
-    expect(drawerItems(guest)).toEqual(["garden"]);
+    expect(drawerItems(guest)).toEqual(["devotionals", "garden"]);
     expect(drawerItems(financeHead)).toEqual(drawerItems(staff));
     for (const viewer of [staff, campusLeader, admin]) {
       const drawer = drawerItems(viewer);
       expect(drawer).toEqual(
-        expect.arrayContaining(["garden", "music", "churches", "insights"]),
+        expect.arrayContaining(["garden", "devotionals", "music", "churches", "insights"]),
       );
       expect(
         drawer.filter((key) =>
@@ -208,6 +208,7 @@ describe("navEntries", () => {
     expect(navEntries(drawerItems(admin))).toEqual([
       { kind: "item", key: "churches" },
       { kind: "item", key: "music" },
+      { kind: "item", key: "devotionals" },
       {
         kind: "group",
         key: "requests",
@@ -237,6 +238,7 @@ describe("navEntries", () => {
     expect(navEntries(drawerItems(campusLeader))).toEqual([
       { kind: "item", key: "churches" },
       { kind: "item", key: "music" },
+      { kind: "item", key: "devotionals" },
       { kind: "item", key: "insights" },
       { kind: "item", key: "garden" },
     ]);
@@ -264,6 +266,7 @@ describe("activeNavKey", () => {
     expect(activeNavKey("/attendance/event/abc123")).toBe("attendance");
     expect(activeNavKey("/edit-home")).toBe("home");
     expect(activeNavKey("/announcements/abc123")).toBe("announcements");
+    expect(activeNavKey("/devotionals/2026-11-24")).toBe("devotionals");
   });
 
   test("screens outside any section highlight nothing", () => {

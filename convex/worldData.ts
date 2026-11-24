@@ -49,12 +49,15 @@ export const worldLookValidator = v.object({
 
 export const worldBucketValidator = v.object({ tokens: v.number(), at: v.number() });
 
+export const worldWaypointValidator = v.object({ x: v.number(), z: v.number() });
+
 export const worldWalkFields = {
   fromX: v.number(),
   fromZ: v.number(),
   toX: v.number(),
   toZ: v.number(),
   startedAt: v.number(),
+  path: v.optional(v.array(worldWaypointValidator)),
 };
 
 export const worldReportLineValidator = v.object({

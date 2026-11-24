@@ -29,7 +29,7 @@ import {
 } from "./MyMusicRequests";
 import { PraiseManagersTab } from "./PraiseManagersCard";
 
-export default function MusicScreen() {
+export default function MusicScreen({ onBack }: { onBack?: () => void } = {}) {
   const convex = useConvex();
   const me = useQuery(api.directory.me);
   const { tab } = useLocalSearchParams<{ tab?: string }>();
@@ -194,21 +194,21 @@ export default function MusicScreen() {
 
   if (me === undefined) {
     return (
-      <Screen>
+      <Screen onBack={onBack}>
         <LoadingState />
       </Screen>
     );
   }
   if (me === null) {
     return (
-      <ChromeScreen>
+      <ChromeScreen onBack={onBack}>
         <SignInPrompt what="page" />
       </ChromeScreen>
     );
   }
   if (me.profile === null) {
     return (
-      <ChromeScreen>
+      <ChromeScreen onBack={onBack}>
         <Card>
           <Txt style={typography.section}>Praise List</Txt>
           <Muted>{staffOnlyMessage("Praise List", me)}</Muted>
@@ -220,6 +220,7 @@ export default function MusicScreen() {
   return (
     <>
       <PagerScreen
+        onBack={onBack}
         tabs={tabs}
         activeKey={active}
         onActiveKeyChange={setSelectedTab}

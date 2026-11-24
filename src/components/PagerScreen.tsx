@@ -10,7 +10,8 @@ import {
   useTopBarCollapse,
 } from "@/components/useTopBarCollapse";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
-import { spacing, useAppTheme } from "@/theme";
+import { spacing, typography, useAppTheme } from "@/theme";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
 import {
   createContext,
@@ -28,7 +29,9 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
+  Pressable,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -101,6 +104,7 @@ export const PagerScreen = ({
   floating,
   floatingAboveFooter = false,
   fullWidth = false,
+  onBack,
 }: {
   tabs: PagerTab[];
   activeKey: string;
@@ -112,6 +116,7 @@ export const PagerScreen = ({
   floating?: ReactNode;
   floatingAboveFooter?: boolean;
   fullWidth?: boolean;
+  onBack?: () => void;
 }) => {
   const t = useAppTheme();
   const wide = useWideLayout();
@@ -124,6 +129,7 @@ export const PagerScreen = ({
   );
   const [pagerPosition] = useState(() => new Animated.Value(initialIndex));
   const [tabBarHeight, setTabBarHeight] = useState(48);
+  const [backRowHeight, setBackRowHeight] = useState(0);
   const footerAnimsRef = useRef<Record<string, Animated.Value>>({});
   const footerScrollState = useRef<PagerScrollState>("idle");
   const { collapseStyle, barOpacityStyle, makeScrollHandler, syncToScrollY } =
@@ -358,7 +364,7 @@ export const PagerScreen = ({
   return (
     <PagerTopBarInsetContext.Provider value={topBarInset}>
       <View style={[styles.screen, { backgroundColor: t.background }]}>
-        <View style={{ height: insets.top + tabBarHeight }} />
+        <View style={{ height: insets.top + tabBarHeight + (wide && onBack ? backRowHeight : 0) }} />
         <PagerCarousel
           tabs={tabs}
           activeKey={activeKey}
@@ -379,9 +385,24 @@ export const PagerScreen = ({
             ]}
             pointerEvents="box-none"
           >
-            {wide ? null : (
+            {wide ? (
+              onBack ? (
+                <View style={styles.topBarWrap} onLayout={(e) => setBackRowHeight(e.nativeEvent.layout.height)}>
+                  <Pressable
+                    onPress={onBack}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                    testID="top-bar-back"
+                    style={({ pressed }) => [styles.wideBack, pressed && { opacity: 0.6 }]}
+                  >
+                    <Ionicons name="chevron-back" size={20} color={t.text} />
+                    <Text style={[typography.label, { color: t.text }]}>Back</Text>
+                  </Pressable>
+                </View>
+              ) : null
+            ) : (
               <Animated.View style={[styles.topBarWrap, barOpacityStyle]}>
-                <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
+                <TopBar photo={me?.photo ?? null} name={me?.name ?? null} onBack={onBack} />
               </Animated.View>
             )}
             <View
@@ -420,7 +441,7 @@ export const PagerScreen = ({
           );
         })}
         {/* eslint-enable react-hooks/refs */}
-        <DrawerEdgeSwipe top={insets.top + TOP_BAR_HEIGHT} />
+        {onBack ? null : <DrawerEdgeSwipe top={insets.top + TOP_BAR_HEIGHT} />}
         {floatingAboveFooter && floating ? (
           <View
             pointerEvents="box-none"
@@ -456,6 +477,13 @@ const styles = StyleSheet.create({
   },
   chromeGroup: { width: "100%" },
   topBarWrap: { paddingHorizontal: spacing.lg },
+  wideBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
   page: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,

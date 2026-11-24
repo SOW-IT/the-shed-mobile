@@ -45,6 +45,7 @@ import type * as designRequestComments from "../designRequestComments.js";
 import type * as designRequestData from "../designRequestData.js";
 import type * as designRequestForm from "../designRequestForm.js";
 import type * as designRequests from "../designRequests.js";
+import type * as devotionals from "../devotionals.js";
 import type * as directory from "../directory.js";
 import type * as directorySync from "../directorySync.js";
 import type * as emails from "../emails.js";
@@ -155,6 +156,7 @@ declare const fullApi: ApiFromModules<{
   designRequestData: typeof designRequestData;
   designRequestForm: typeof designRequestForm;
   designRequests: typeof designRequests;
+  devotionals: typeof devotionals;
   directory: typeof directory;
   directorySync: typeof directorySync;
   emails: typeof emails;

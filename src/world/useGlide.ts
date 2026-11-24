@@ -20,8 +20,24 @@ const glidePose = (track: Track, now: number): DrawnPose => {
   return k < 0.01 ? pose : { ...pose, x: pose.x + o.dx * k, z: pose.z + o.dz * k, walking: true };
 };
 
+const samePath = (a: Walk["path"], b: Walk["path"]) => {
+  const la = a?.length ?? 0;
+  const lb = b?.length ?? 0;
+  if (la !== lb) return false;
+  if (!a || !b) return true;
+  for (let i = 0; i < la; i++) {
+    if (a[i].x !== b[i].x || a[i].z !== b[i].z) return false;
+  }
+  return true;
+};
+
 const sameWalk = (a: Walk, b: Walk) =>
-  a.startedAt === b.startedAt && a.fromX === b.fromX && a.fromZ === b.fromZ && a.toX === b.toX && a.toZ === b.toZ;
+  a.startedAt === b.startedAt &&
+  a.fromX === b.fromX &&
+  a.fromZ === b.fromZ &&
+  a.toX === b.toX &&
+  a.toZ === b.toZ &&
+  samePath(a.path, b.path);
 
 export const followWalks = (tracks: Tracks, people: Glider[], now: number): Tracks => {
   let next: Map<string, Track> | null = null;
