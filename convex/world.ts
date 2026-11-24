@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import {
   ASK_MS,
   CHAT_LOG_SIZE,
@@ -52,11 +53,13 @@ import {
   takeToken,
   THROTTLE_KEEP_MS,
   TYPING_REFRESH_MS,
+  isPingBars,
+  PING_PUBLISH_MS,
   WORLD_PLACE,
   type BucketKind,
 } from "../shared/world";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields } from "./worldData";
-import { Ctx, currentStaffYear, requireEmail, resolveName } from "./model";
+import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
 // Every mutation writes at most the caller's own state row, plus their
@@ -417,7 +420,7 @@ export const sit = mutation({
 const done = v.union(v.object({ ok: v.literal(true), serverNow: v.number() }), turnedAway);
 
 export const travel = mutation({
-  args: { to: v.string() },
+  args: { to: v.string(), toMember: v.optional(v.id("worldMembers")) },
   returns: v.union(
     v.object({
       ok: v.literal(true),
@@ -429,24 +432,30 @@ export const travel = mutation({
     }),
     turnedAway
   ),
-  handler: async (ctx, { to }) => {
+  handler: async (ctx, { to, toMember }) => {
     if (!isPlace(to)) throw new ConvexError("That isn't somewhere you can go.");
-    const { member, state } = await requireMe(ctx);
+    const { email, member, state } = await requireMe(ctx);
     const now = Date.now();
     const from = placeOf(member);
     const here = (await ctx.db.get("worldRooms", member.roomId))!;
-    if (from === to) {
+    const target = toMember ? await ctx.db.get("worldMembers", toMember) : null;
+    const theirRoom =
+      target && target.roomId !== member.roomId && placeOf(target) === to && !(await blockedEither(ctx, email, target.email))
+        ? await ctx.db.get("worldRooms", target.roomId)
+        : null;
+    const joinable = theirRoom && theirRoom.memberCount < ROOM_CAP ? theirRoom : null;
+    if (from === to && !joinable) {
       const { fromX, fromZ, toX, toZ, startedAt } = state;
       return { ok: true as const, roomId: here._id, instance: here.instance, place: from, fromX, fromZ, toX, toZ, startedAt, serverNow: now };
     }
     const token = spend("act", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
-    const room = await roomWithSpace(ctx, to);
+    const room = joinable ?? (await roomWithSpace(ctx, to));
     await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
     if (here.memberCount <= 1) await ctx.db.delete("worldRooms", here._id);
     else await ctx.db.patch("worldRooms", here._id, { memberCount: here.memberCount - 1 });
     await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place: to });
-    const spot = arrivalSpot(from, to);
+    const spot = from === to ? posAt(state, now) : arrivalSpot(from, to);
     const walk = { fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z, startedAt: now };
     await ctx.db.patch("worldState", state._id, {
       ...walk,
@@ -468,7 +477,14 @@ const BLOCKED_BY_SCAN = 200;
 
 export const elsewhere = query({
   args: {},
-  returns: v.array(v.object({ place: v.string(), count: v.number(), names: v.array(v.string()) })),
+  returns: v.array(
+    v.object({
+      place: v.string(),
+      count: v.number(),
+      names: v.array(v.string()),
+      people: v.array(v.object({ memberId: v.id("worldMembers"), name: v.string(), look: worldLookValidator, ping: v.optional(v.number()) })),
+    })
+  ),
   handler: async (ctx) => {
     const email = await requireEmail(ctx);
     const me = await memberByEmail(ctx, email);
@@ -491,6 +507,7 @@ export const elsewhere = query({
         .withIndex("by_place_and_instance", (q) => q.eq("place", place))
         .take(ROOM_SCAN);
       const names: string[] = [];
+      const people: { memberId: Id<"worldMembers">; name: string; look: Doc<"worldMembers">["look"]; ping?: number }[] = [];
       let count = 0;
       for (const room of rooms) {
         if (room._id === me?.roomId) continue;
@@ -502,12 +519,37 @@ export const elsewhere = query({
           if (hidden.has(member.email)) continue;
           if (askEach && (await blocks(ctx, member.email, email))) continue;
           count++;
-          if (names.length < ELSEWHERE_NAMES) names.push(member.name);
+          if (names.length < ELSEWHERE_NAMES) {
+            names.push(member.name);
+            const look = (await savedLook(ctx, member.email))?.look ?? member.look;
+            people.push({ memberId: member._id, name: member.name, look, ping: member.ping });
+          }
         }
       }
-      if (count > 0) found.push({ place, count, names });
+      if (count > 0) found.push({ place, count, names, people });
     }
     return found;
+  },
+});
+
+/** Rooms read when counting everyone online, across every place. */
+const ONLINE_ROOM_SCAN = 500;
+
+/**
+ * How many people are in the world right now, in every place: the sum of
+ * the rooms' member counts, which join, leave, travel and the presence sweep
+ * keep in step. One indexed read of the live rooms (empty rooms are deleted),
+ * and it reruns only when someone comes, goes or travels, never per step.
+ * The sidebar, the Games list and the People button share it. Zero when
+ * signed out.
+ */
+export const onlineCount = query({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    if (!(await optionalEmail(ctx))) return 0;
+    const rooms = await ctx.db.query("worldRooms").withIndex("by_place_and_instance").take(ONLINE_ROOM_SCAN);
+    return rooms.reduce((total, room) => total + room.memberCount, 0);
   },
 });
 
@@ -598,6 +640,22 @@ export const typing = mutation({
       await ctx.db.patch("worldState", state._id, { typing: { at: was.at, on: false } });
     }
     return null;
+  },
+});
+
+export const ping = mutation({
+  args: { bars: v.optional(v.number()) },
+  returns: v.object({ published: v.boolean(), serverNow: v.number() }),
+  handler: async (ctx, { bars }) => {
+    const email = await requireEmail(ctx);
+    const now = Date.now();
+    if (bars === undefined) return { published: false, serverNow: now };
+    if (!isPingBars(bars)) throw new ConvexError("Ping bars go from 1 to 4.");
+    const member = await memberByEmail(ctx, email);
+    if (!member || member.ping === bars) return { published: false, serverNow: now };
+    if (member.pingAt !== undefined && now - member.pingAt < PING_PUBLISH_MS) return { published: false, serverNow: now };
+    await ctx.db.patch("worldMembers", member._id, { ping: bars, pingAt: now });
+    return { published: true, serverNow: now };
   },
 });
 
@@ -879,7 +937,13 @@ export const roster = query({
       instance: v.number(),
       place: v.string(),
       members: v.array(
-        v.object({ memberId: v.id("worldMembers"), name: v.string(), look: worldLookValidator, isMe: v.boolean() })
+        v.object({
+          memberId: v.id("worldMembers"),
+          name: v.string(),
+          look: worldLookValidator,
+          isMe: v.boolean(),
+          ping: v.optional(v.number()),
+        })
       ),
     })
   ),
@@ -895,7 +959,7 @@ export const roster = query({
     for (const row of rows) {
       if (await blockedEither(ctx, me.email, row.email)) continue;
       const look = (await savedLook(ctx, row.email))?.look ?? row.look;
-      members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id });
+      members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id, ping: row.ping });
     }
     return { instance: room.instance, place: room.place, members };
   },
@@ -1055,6 +1119,8 @@ export const myBlocks = query({
 });
 
 const OFFLINE_SCAN_MAX = 200;
+/** The most staff profiles one page of the offline list reads. */
+const OFFLINE_PAGE_MAX = 50;
 
 export const offline = query({
   args: {},
@@ -1079,31 +1145,107 @@ export const offline = query({
   },
 });
 
+const pokedOf = (ctx: Ctx, email: string) =>
+  ctx.db
+    .query("worldPoked")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
+
+/**
+ * Sends one poke from someone in the garden to someone who isn't, within
+ * the limits: one poke an hour each, and nobody poked twice in
+ * POKED_GAP_MS. The two pokes (by visitor or by staff profile) share it.
+ */
+const sendPoke = async (ctx: MutationCtx, target: { email: string; name: string }, message: string | undefined) => {
+  const me = await requireMe(ctx);
+  const now = Date.now();
+  if (target.email === me.email || (await blockedEither(ctx, me.email, target.email))) {
+    throw new ConvexError("They can't be poked right now.");
+  }
+  if (await memberByEmail(ctx, target.email)) throw new ConvexError(`${tagName(target.name)} is already in the garden.`);
+  const visitor = await visitorOf(ctx, target.email);
+  const poked = await pokedOf(ctx, target.email);
+  const lastPokedAt = Math.max(visitor?.lastPokedAt ?? -Infinity, poked?.lastPokedAt ?? -Infinity);
+  if (now - lastPokedAt < POKED_GAP_MS) {
+    throw new ConvexError(`${tagName(target.name)} was poked a moment ago. Give them a few minutes.`);
+  }
+  const mine = await visitorOf(ctx, me.email);
+  const waited = now - (mine?.lastPokeAt ?? 0);
+  if (waited < POKE_EVERY_MS) return { ok: false as const, retryInMs: POKE_EVERY_MS - waited };
+  await markSeen(ctx, me.email, me.member.name, now);
+  await ctx.db.patch("worldVisitors", (await visitorOf(ctx, me.email))!._id, { lastPokeAt: now });
+  if (visitor) await ctx.db.patch("worldVisitors", visitor._id, { lastPokedAt: now });
+  else if (poked) await ctx.db.patch("worldPoked", poked._id, { lastPokedAt: now });
+  else await ctx.db.insert("worldPoked", { email: target.email, lastPokedAt: now });
+  const title = `${tagName(me.member.name)} poked you`;
+  const body = (message === undefined ? null : cleanPoke(message)) ?? "Come and join me in the Garden.";
+  await ctx.db.insert("notifications", { userEmail: target.email, title, body, url: "/world", read: false });
+  await ctx.scheduler.runAfter(0, internal.push.send, { to: target.email, title, body, url: "/world" });
+  return { ok: true as const };
+};
+
+const pokeReply = v.union(v.object({ ok: v.literal(true) }), v.object({ ok: v.literal(false), retryInMs: v.number() }));
+
+/** Pokes someone who has been in the garden before (older apps' list). */
 export const poke = mutation({
   args: { visitorId: v.id("worldVisitors"), message: v.optional(v.string()) },
-  returns: v.union(v.object({ ok: v.literal(true) }), v.object({ ok: v.literal(false), retryInMs: v.number() })),
+  returns: pokeReply,
   handler: async (ctx, args) => {
-    const me = await requireMe(ctx);
-    const now = Date.now();
     const target = await ctx.db.get("worldVisitors", args.visitorId);
-    if (!target || target.email === me.email || (await blockedEither(ctx, me.email, target.email))) {
-      throw new ConvexError("They can't be poked right now.");
+    if (!target) throw new ConvexError("They can't be poked right now.");
+    return await sendPoke(ctx, target, args.message);
+  },
+});
+
+/** Pokes anyone with a staff profile, whether or not they've been in the garden. */
+export const pokeStaff = mutation({
+  args: { profileId: v.id("staffProfiles"), message: v.optional(v.string()) },
+  returns: pokeReply,
+  handler: async (ctx, args) => {
+    const profile = await ctx.db.get("staffProfiles", args.profileId);
+    if (!profile) throw new ConvexError("They can't be poked right now.");
+    return await sendPoke(ctx, { email: profile.email, name: profileName(profile) }, args.message);
+  },
+});
+
+const profileName = (profile: Doc<"staffProfiles">) => profile.name?.trim() || profile.email.split("@")[0];
+
+/**
+ * Everyone with a staff profile this year who isn't in the garden, by name,
+ * a page at a time: not you, not anyone online, nobody blocked either way. A
+ * page can come back shorter than asked when it skipped people; keep loading
+ * until it's done.
+ */
+export const offlineStaff = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(
+    v.object({ id: v.id("staffProfiles"), name: v.string(), lastSeenAt: v.union(v.number(), v.null()) })
+  ),
+  handler: async (ctx, { paginationOpts }) => {
+    const email = await requireEmail(ctx);
+    const result = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear()))
+      .paginate({ ...paginationOpts, numItems: Math.min(OFFLINE_PAGE_MAX, Math.max(1, paginationOpts.numItems)) });
+    const page = [];
+    for (const row of result.page) {
+      if (row.email === email) continue;
+      if (await memberByEmail(ctx, row.email)) continue;
+      if (await blockedEither(ctx, email, row.email)) continue;
+      const visitor = await visitorOf(ctx, row.email);
+      page.push({ id: row._id, name: profileName(row), lastSeenAt: visitor?.lastSeenAt ?? null });
     }
-    if (await memberByEmail(ctx, target.email)) throw new ConvexError(`${tagName(target.name)} is already in the garden.`);
-    if (target.lastPokedAt !== undefined && now - target.lastPokedAt < POKED_GAP_MS) {
-      throw new ConvexError(`${tagName(target.name)} was poked a moment ago. Give them a few minutes.`);
-    }
-    const mine = await visitorOf(ctx, me.email);
-    const waited = now - (mine?.lastPokeAt ?? 0);
-    if (waited < POKE_EVERY_MS) return { ok: false as const, retryInMs: POKE_EVERY_MS - waited };
-    await markSeen(ctx, me.email, me.member.name, now);
-    await ctx.db.patch("worldVisitors", (await visitorOf(ctx, me.email))!._id, { lastPokeAt: now });
-    await ctx.db.patch("worldVisitors", target._id, { lastPokedAt: now });
-    const title = `${tagName(me.member.name)} poked you`;
-    const body = (args.message === undefined ? null : cleanPoke(args.message)) ?? "Come and join me in the Garden.";
-    await ctx.db.insert("notifications", { userEmail: target.email, title, body, url: "/world", read: false });
-    await ctx.scheduler.runAfter(0, internal.push.send, { to: target.email, title, body, url: "/world" });
-    return { ok: true as const };
+    return { ...result, page };
+  },
+});
+
+/** When the caller can poke again (0 when they can now). */
+export const pokeWait = query({
+  args: {},
+  returns: v.object({ pokeAgainAt: v.number() }),
+  handler: async (ctx) => {
+    const mine = await visitorOf(ctx, await requireEmail(ctx));
+    return { pokeAgainAt: mine?.lastPokeAt === undefined ? 0 : mine.lastPokeAt + POKE_EVERY_MS };
   },
 });
 

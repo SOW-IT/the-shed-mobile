@@ -38,8 +38,8 @@ const DUCK_KEYS = new Set(["ArrowDown", "s", "S"]);
 
 const START_HINT =
   Platform.OS === "web"
-    ? "Tap or press ↑ to start. Tap ↑ or space to hop, hold it (or Shift) for a big jump, ↓ to duck."
-    : "Tap to start. Tap to hop, swipe up for a big jump, swipe down to duck.";
+    ? "Tap or press ↑ to start. Keys: ↑ or space to hop, hold for a big jump, ↓ to duck."
+    : "Tap to start.";
 
 /** Whether the main pointer is a finger (a phone or tablet browser). */
 const touchScreen = () =>

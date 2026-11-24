@@ -1,10 +1,12 @@
 import { Btn, hapticSelect } from "@/components/ui";
+import { useOffline } from "@/hooks/useOffline";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { useLocalBests, recordRun } from "@/lib/games/gameStorage";
 import { OnlineBanner } from "./OnlineBanner";
 import { LeaveGameDialog } from "./LeaveGameDialog";
 import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
 import { fitScale, type Size } from "@/lib/games/fit";
+import { savedNote } from "@/lib/games/savedNote";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth } from "convex/react";
@@ -202,6 +204,7 @@ export const GameFrame = ({
   children: ReactNode;
 }) => {
   const { isAuthenticated } = useConvexAuth();
+  const offline = useOffline();
   useNoSwipeBack();
   const { phase, result, best, askToLeave, keepPlaying } = session;
   const playing = phase === "playing";
@@ -300,15 +303,13 @@ export const GameFrame = ({
               <Text style={styles.cardBody}>
                 Best {Math.max(result.previousBest, result.score).toLocaleString()}
               </Text>
-              <Text style={styles.note}>
-                {isAuthenticated
-                  ? "Saved. It goes on the leaderboard when you're online."
-                  : "Saved on this device. Sign in and it goes on the leaderboard."}
+              <Text style={styles.note} testID="game-saved-note">
+                {savedNote({ signedIn: isAuthenticated, offline })}
               </Text>
               <View style={styles.actions}>
-                <Btn title="Play again" icon="refresh" onPress={session.restart} />
+                <Btn title="Play again" icon="refresh" tint={g.button} onPress={session.restart} />
                 {onLeaderboard ? (
-                  <Btn title="Leaderboard" icon="trophy-outline" variant="ghost" onPress={onLeaderboard} />
+                  <Btn title="Leaderboard" icon="trophy-outline" tint={g.buttonGhost} onPress={onLeaderboard} />
                 ) : null}
               </View>
             </View>
@@ -387,12 +388,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.xl,
     borderRadius: radius.xl,
-    backgroundColor: g.panel,
+    borderWidth: 1,
+    borderColor: g.cardEdge,
+    backgroundColor: g.card,
   },
   cardTitle: { ...typography.title, color: g.text, textAlign: "center" },
-  cardBody: { ...typography.body, color: g.dim, textAlign: "center" },
+  cardBody: { ...typography.body, color: g.text, textAlign: "center" },
   bigScore: { ...typography.largeTitle, fontSize: 44, lineHeight: 50, color: g.text },
   hint: { ...typography.label, color: g.text, marginTop: spacing.xs },
-  note: { ...typography.caption, color: g.dim, textAlign: "center" },
+  note: { ...typography.caption, color: g.text, textAlign: "center" },
   actions: { gap: spacing.sm, alignSelf: "stretch", marginTop: spacing.sm },
 });

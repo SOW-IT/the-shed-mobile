@@ -138,6 +138,12 @@ async function unreadCountFor(
   requestId: Id<"requests">,
   email: string
 ): Promise<number> {
+  const newest = await ctx.db
+    .query("requestComments")
+    .withIndex("by_request", (q) => q.eq("requestId", requestId))
+    .order("desc")
+    .first();
+  if (!newest) return 0;
   const read = await ctx.db
     .query("commentReads")
     .withIndex("by_request_and_user", (q) =>
@@ -176,17 +182,19 @@ export const unreadCount = query({
   },
 });
 
-async function threadsOf(
+async function unreadInVisibleThreads(
   ctx: QueryCtx,
   caller: CallerContext,
   requestIds: Id<"requests">[]
-): Promise<Id<"requests">[]> {
-  const own: Id<"requests">[] = [];
+): Promise<Map<Id<"requests">, number>> {
+  const unreadByRequest = new Map<Id<"requests">, number>();
   for (const id of new Set(requestIds)) {
+    const unread = await unreadCountFor(ctx, id, caller.email);
+    if (unread === 0) continue;
     const request = await ctx.db.get("requests", id);
-    if (request && (await canSeeRequest(ctx, caller, request))) own.push(id);
+    if (request && (await canSeeRequest(ctx, caller, request))) unreadByRequest.set(id, unread);
   }
-  return own;
+  return unreadByRequest;
 }
 
 export const unreadTotalForRequests = query({
@@ -195,8 +203,8 @@ export const unreadTotalForRequests = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return 0;
     let total = 0;
-    for (const requestId of await threadsOf(ctx, caller, args.requestIds)) {
-      total += await unreadCountFor(ctx, requestId, caller.email);
+    for (const unread of (await unreadInVisibleThreads(ctx, caller, args.requestIds)).values()) {
+      total += unread;
     }
     return total;
   },
@@ -208,9 +216,8 @@ export const unreadCountsForRequests = query({
     const caller = await optionalProfile(ctx);
     const counts: Record<Id<"requests">, number> = {};
     if (!caller) return counts;
-    for (const requestId of await threadsOf(ctx, caller, args.requestIds)) {
-      const unread = await unreadCountFor(ctx, requestId, caller.email);
-      if (unread > 0) counts[requestId] = unread;
+    for (const [requestId, unread] of await unreadInVisibleThreads(ctx, caller, args.requestIds)) {
+      counts[requestId] = unread;
     }
     return counts;
   },

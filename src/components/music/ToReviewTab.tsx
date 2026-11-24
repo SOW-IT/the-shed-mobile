@@ -99,13 +99,7 @@ export const ToReviewTab = ({
           />
 
           <Text style={{ color: t.text, fontWeight: "700" }}>
-            {showingPending ? "You're all caught up!" : "No declined requests"}
-          </Text>
-
-          <Text style={{ color: t.faint, fontSize: 13 }}>
-            {showingPending
-              ? "No requests need reviewing."
-              : "Previously declined songs will appear here."}
+            {showingPending ? "All caught up" : "No declined requests"}
           </Text>
         </View>
       ) : (

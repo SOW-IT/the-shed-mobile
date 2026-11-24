@@ -262,10 +262,11 @@
       "files": [
         "src/app/world.tsx",
         "src/world/**",
+        "src/hooks/useWorldOnline.ts",
         "convex/{world,worldData}.ts",
         "shared/world.ts"
       ],
-      "routes": ["/world", "/games"]
+      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]

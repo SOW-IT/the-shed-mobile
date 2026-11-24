@@ -21,9 +21,7 @@ export const TeamJobsCard = ({ year }: { year: number }) => {
       <SectionTitle chip={year}>Teams</SectionTitle>
       <Card>
         <Muted>
-          Which department does each job this staff year. A year keeps the year before&apos;s choices
-          until you change them, so 1 October changes nothing, and renaming a department keeps its
-          jobs.
+          Each year starts with the year before&apos;s choices. Renaming a department keeps its jobs.
         </Muted>
         <ErrorBanner message={error} />
         {view.jobs.map((job) => (

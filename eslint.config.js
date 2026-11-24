@@ -40,6 +40,13 @@ const asNever = {
   message: "`as never` turns type checking off. Give the value its real type, or assert to the type the call expects.",
 };
 
+const droppedTransform = {
+  selector:
+    "Property[key.name='transform'] > ConditionalExpression.value > :matches(Identifier[name='undefined'], Literal[raw='null']), Property[key.name='transform'] > LogicalExpression.value",
+  message:
+    "A transform that goes from a list to undefined reaches React Native as null and crashes the render (\"Cannot read property 'forEach' of null\"). Always pass a list: [] or the identity transform.",
+};
+
 // Icon fonts that would ship whole. Shared by every no-restricted-imports
 // below: a later block's options replace an earlier one's for its files.
 const iconFontPaths = [
@@ -98,7 +105,7 @@ module.exports = defineConfig([
   {
     files: ["src/**/*.ts", "src/**/*.tsx"],
     rules: {
-      "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking, colourLiteral, asNever],
+      "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking, colourLiteral, asNever, droppedTransform],
       // An index key hands a row's state to its neighbour when a row is added
       // or removed above it. Key on the item (keysFor/keyed in
       // src/lib/listKeys.ts), or useRowIds for an editable list.
@@ -108,7 +115,7 @@ module.exports = defineConfig([
   {
     // The palettes themselves.
     files: ["src/theme.ts", "src/components/calendar/categoryColours.ts", "src/world/palette.ts"],
-    rules: { "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking, asNever] },
+    rules: { "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking, asNever, droppedTransform] },
   },
   {
     // The garden loads lazily (src/app/world.tsx imports it with import()).
