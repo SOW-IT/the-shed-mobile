@@ -1824,4 +1824,27 @@ describe("an hour of chat", () => {
     expect(texts).not.toContain("61 minutes");
     expect(CHAT_TTL_MS).toBe(60 * 60_000);
   });
+
+  test("chatLog honors an optional limit and clamps it", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 10; i++) {
+        await ctx.db.insert("worldChat", {
+          roomId: a.roomId,
+          memberId: a.memberId,
+          email: ANNA,
+          name: "anna",
+          text: `msg ${i}`,
+          at: Date.now() + i,
+        });
+      }
+    });
+    const capped = (await anna.query(api.world.chatLog, { roomId: a.roomId, limit: 3 }))!;
+    expect(capped).toHaveLength(3);
+    expect(capped.map((l) => l.text)).toEqual(["msg 9", "msg 8", "msg 7"]);
+    const minCapped = (await anna.query(api.world.chatLog, { roomId: a.roomId, limit: 0 }))!;
+    expect(minCapped).toHaveLength(1);
+  });
 });

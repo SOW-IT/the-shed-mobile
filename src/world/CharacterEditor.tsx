@@ -31,13 +31,26 @@ import {
   type LookPart,
   type NudgePart,
 } from "@shared/world";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReducedMotion } from "react-native-reanimated";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { garden, hud, lightToDark, people, shade } from "./palette";
 import { Avatar, figureTop } from "./Person";
+import {
+  PREVIEW_AUTO_TURN,
+  PREVIEW_GLIDE_MS,
+  PREVIEW_SPIN_DECAY,
+  PREVIEW_SPIN_STOP,
+  previewAutoWaitMs,
+  previewEaseInOut,
+  previewGoalMoved,
+  previewNeedsFrame,
+  type PreviewGlide,
+  type PreviewSpin,
+} from "./previewMotion";
 import { Ellipse } from "./Shapes";
+import { useForeground } from "./useForeground";
 
 const BASE_PREVIEW = 148;
 const MAX_PREVIEW = 300;
@@ -49,11 +62,8 @@ const SHORT_PREVIEW = 110;
 /** The preview's scale close up on the face, at the base preview height. */
 const CLOSE_UP = 140;
 const HEAD_SHOT = 118;
-const GLIDE_MS = 520;
 
 type Shot = "face" | "head" | "full";
-
-const easeInOut = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2);
 
 const shotFor = (shot: Shot, look: Look, height: number) => {
   const zoom = height / BASE_PREVIEW;
@@ -78,12 +88,7 @@ const shotFor = (shot: Shot, look: Look, height: number) => {
 
 /** Turns per pixel dragged (radians). */
 const TURN_PER_PX = 0.012;
-/** The slow turn on its own (radians a second). */
-const AUTO_TURN = 0.6;
 const AUTO_START_MS = 3000;
-/** How quickly a flick's spin dies away (per second). */
-const SPIN_DECAY = 3;
-/** The fastest a flick can spin it (radians a second). */
 const MAX_SPIN = 12;
 
 /**
@@ -94,38 +99,78 @@ const MAX_SPIN = 12;
  */
 const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; height: number; shot: Shot }) => {
   const reduceMotion = useReducedMotion();
+  const foreground = useForeground();
+  const running = active && foreground;
   const [width, setWidth] = useState(0);
   const goal = shotFor(shot, look, height);
-  const [frame, setFrame] = useState({ heading: 0, t: 0, s: goal.s, y: goal.y });
-  const spin = useRef({ down: false, lastX: 0, lastAt: 0, velocity: 0, heading: 0, openedAt: 0, touched: false });
-  // Read by the animation without restarting it.
+  const [frame, setFrame] = useState({ heading: 0, s: goal.s, y: goal.y });
+  const spin = useRef<PreviewSpin>({ down: false, lastX: 0, lastAt: 0, velocity: 0, heading: 0, openedAt: 0, touched: false });
   const closeUpNow = useRef(shot !== "full");
-  const goalNow = useRef({ ...goal, still: reduceMotion });
-  useEffect(() => {
-    closeUpNow.current = shot !== "full";
-    goalNow.current = { s: goal.s, y: goal.y, still: reduceMotion };
-  }, [shot, goal.s, goal.y, reduceMotion]);
+  const goalNow = useRef({ s: goal.s, y: goal.y, still: reduceMotion });
+  const glideRef = useRef<PreviewGlide>({
+    from: { s: goal.s, y: goal.y },
+    to: { s: goal.s, y: goal.y },
+    at: 0,
+    now: { s: goal.s, y: goal.y },
+  });
+  const wakeRef = useRef<() => void>(() => undefined);
+
   useEffect(() => {
     if (!active) return;
-    let id = 0;
     const start = Date.now();
-    let prev = start;
-    // Each opening starts facing you, and only turns by itself after a moment.
     spin.current = { down: false, lastX: 0, lastAt: start, velocity: 0, heading: 0, openedAt: start, touched: false };
+    const init = { s: goalNow.current.s, y: goalNow.current.y };
+    glideRef.current = { from: init, to: init, at: start - PREVIEW_GLIDE_MS, now: init };
+    setFrame({ heading: 0, s: init.s, y: init.y });
+  }, [active]);
+
+  useEffect(() => {
+    if (!running) return;
+    let rafId = 0;
+    let autoTimer: ReturnType<typeof setTimeout> | null = null;
+    let prev = Date.now();
     let wasClose = closeUpNow.current;
-    const glide = { from: { s: goalNow.current.s, y: goalNow.current.y }, to: { s: goalNow.current.s, y: goalNow.current.y }, at: start, now: { s: goalNow.current.s, y: goalNow.current.y } };
+
+    const clearAuto = () => {
+      if (autoTimer !== null) {
+        clearTimeout(autoTimer);
+        autoTimer = null;
+      }
+    };
+
+    const scheduleAuto = (now: number) => {
+      clearAuto();
+      const wait = previewAutoWaitMs({
+        spin: spin.current,
+        closeUp: closeUpNow.current,
+        still: goalNow.current.still,
+        now,
+      });
+      if (wait !== null) {
+        autoTimer = setTimeout(() => {
+          autoTimer = null;
+          schedule();
+        }, wait);
+      }
+    };
+
     const tick = () => {
+      rafId = 0;
       const now = Date.now();
-      const dt = (now - prev) / 1000;
+      const dt = Math.min(0.1, (now - prev) / 1000);
       prev = now;
       const target = goalNow.current;
-      if (Math.abs(target.s - glide.to.s) > 0.01 || Math.abs(target.y - glide.to.y) > 0.01) {
+      const glide = glideRef.current;
+      if (previewGoalMoved(glide, target)) {
         glide.from = glide.now;
         glide.to = { s: target.s, y: target.y };
         glide.at = now;
       }
-      const k = target.still ? 1 : easeInOut(Math.min(1, (now - glide.at) / GLIDE_MS));
-      glide.now = { s: glide.from.s + (glide.to.s - glide.from.s) * k, y: glide.from.y + (glide.to.y - glide.from.y) * k };
+      const k = target.still ? 1 : previewEaseInOut(Math.min(1, (now - glide.at) / PREVIEW_GLIDE_MS));
+      glide.now = {
+        s: glide.from.s + (glide.to.s - glide.from.s) * k,
+        y: glide.from.y + (glide.to.y - glide.from.y) * k,
+      };
       const d = spin.current;
       if (closeUpNow.current && !wasClose && !d.down) {
         d.touched = false;
@@ -133,21 +178,57 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
       }
       wasClose = closeUpNow.current;
       if (!d.down) {
-        if (Math.abs(d.velocity) > 0.05) {
+        if (Math.abs(d.velocity) > PREVIEW_SPIN_STOP) {
           d.heading += d.velocity * dt;
-          d.velocity *= Math.exp(-SPIN_DECAY * dt);
+          d.velocity *= Math.exp(-PREVIEW_SPIN_DECAY * dt);
+          if (Math.abs(d.velocity) <= PREVIEW_SPIN_STOP) d.velocity = 0;
         } else if (!d.touched && closeUpNow.current) {
-          // Close up on the face, it turns back to face you instead.
           const front = Math.round(d.heading / (Math.PI * 2)) * Math.PI * 2;
           d.heading = target.still ? front : d.heading + (front - d.heading) * Math.min(1, dt * 3);
-        } else if (!d.touched && now - d.openedAt > AUTO_START_MS) d.heading += AUTO_TURN * dt;
+        } else if (!d.touched && !target.still && now - d.openedAt >= AUTO_START_MS) {
+          d.heading += PREVIEW_AUTO_TURN * dt;
+        }
       }
-      setFrame({ heading: d.heading, t: (now - start) / 1000, s: glide.now.s, y: glide.now.y });
-      id = requestAnimationFrame(tick);
+      setFrame((cur) =>
+        cur.heading === d.heading && cur.s === glide.now.s && cur.y === glide.now.y
+          ? cur
+          : { heading: d.heading, s: glide.now.s, y: glide.now.y }
+      );
+      if (previewNeedsFrame({ glide, spin: d, target, closeUp: closeUpNow.current, now })) {
+        rafId = requestAnimationFrame(tick);
+      } else {
+        scheduleAuto(now);
+      }
     };
-    id = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(id);
-  }, [active]);
+
+    const schedule = () => {
+      if (rafId !== 0) return;
+      clearAuto();
+      prev = Date.now();
+      rafId = requestAnimationFrame(tick);
+    };
+
+    wakeRef.current = schedule;
+    const now = Date.now();
+    if (previewNeedsFrame({ glide: glideRef.current, spin: spin.current, target: goalNow.current, closeUp: closeUpNow.current, now })) {
+      schedule();
+    } else {
+      scheduleAuto(now);
+    }
+
+    return () => {
+      wakeRef.current = () => undefined;
+      if (rafId !== 0) cancelAnimationFrame(rafId);
+      clearAuto();
+    };
+  }, [running]);
+
+  useEffect(() => {
+    closeUpNow.current = shot !== "full";
+    goalNow.current = { s: goal.s, y: goal.y, still: reduceMotion };
+    wakeRef.current();
+  }, [shot, goal.s, goal.y, reduceMotion]);
+
   const onGrant = (e: GestureResponderEvent) => {
     const d = spin.current;
     d.down = true;
@@ -166,12 +247,13 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
     d.velocity = d.velocity * 0.6 + v * 0.4;
     d.lastX = e.nativeEvent.pageX;
     d.lastAt = now;
+    setFrame((cur) => (cur.heading === d.heading ? cur : { ...cur, heading: d.heading }));
   };
   const onEnd = () => {
     const d = spin.current;
     d.down = false;
-    // A finger that stopped before lifting leaves no spin.
     if (Date.now() - d.lastAt > 80) d.velocity = 0;
+    if (Math.abs(d.velocity) > PREVIEW_SPIN_STOP) wakeRef.current();
   };
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
   const s = frame.s;
@@ -184,7 +266,6 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
       accessible
       accessibilityLabel="Your character. Swipe left or right to turn it."
       onStartShouldSetResponder={() => true}
-      // Capture moves too, so a swipe here never scrolls the choices or the sheet.
       onMoveShouldSetResponderCapture={() => true}
       onResponderTerminationRequest={() => false}
       onResponderGrant={onGrant}
@@ -199,7 +280,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
             figure={{ foot, s, up: s * 0.86, bob: 0 }}
             pose={{ x: 0, z: 0, walking: false, heading: frame.heading, arrivesAt: 0 }}
             look={look}
-            t={frame.t}
+            t={0}
             seed={0}
           />
         ) : null}
@@ -301,11 +382,12 @@ const mannequin = (draft: Look): Look => ({
 
 const STILL = { x: 0, z: 0, walking: false, arrivesAt: 0 };
 
-const Choices = ({
+const Choices = memo(function Choices({
   names,
   part,
   framing,
-  draft,
+  value,
+  blank,
   onPick,
   testID,
   tile,
@@ -314,16 +396,14 @@ const Choices = ({
   names: readonly string[];
   part: LookPart;
   framing: Framing;
-  draft: Look;
-  onPick: (index: number) => void;
+  value: number;
+  blank: Look;
+  onPick: (part: LookPart, index: number) => void;
   testID: string;
   tile: number;
-  /** Choices kept for saved looks but no longer offered. */
   hidden?: readonly number[];
-}) => {
+}) {
   const t = useAppTheme();
-  const value = lookPart(draft, part);
-  const blank = mannequin(draft);
   const frame = FRAMES[framing];
   const stage = tile - TILE_INK;
   const s = frame.s * (stage / TILE);
@@ -334,7 +414,7 @@ const Choices = ({
       {names.map((name, i) => hidden.includes(i) ? null : (
         <Pressable
           key={name}
-          onPress={() => onPick(i)}
+          onPress={() => onPick(part, i)}
           accessibilityRole="radio"
           accessibilityState={{ selected: i === value }}
           accessibilityLabel={name}
@@ -360,7 +440,7 @@ const Choices = ({
       ))}
     </View>
   );
-};
+});
 
 /**
  * A step slider: drag the thumb or tap a step. Takes the touch so a drag here
@@ -511,7 +591,33 @@ export const CharacterEditor = ({
     }
   }
   const set = (name: LookPart) => (value: number) => setDraft((d) => ({ ...d, [name]: value }));
+  const pickPart = useCallback((name: LookPart, value: number) => {
+    setDraft((d) => ({ ...d, [name]: value }));
+  }, []);
   const part = (name: LookPart) => lookPart(draft, name);
+  const blankSkin = draft.skin;
+  const blankHairColour = draft.hairColour;
+  const blankShirt = draft.shirt;
+  const blankEyeColour = lookPart(draft, "eyeColour");
+  const blankPants = lookPart(draft, "pants");
+  const blankPantsColour = lookPart(draft, "pantsColour");
+  const blankBrowColour = lookPart(draft, "browColour");
+  const blankFavourite = lookPart(draft, "favourite");
+  const blank = useMemo(
+    () =>
+      mannequin({
+        skin: blankSkin,
+        hair: 0,
+        hairColour: blankHairColour,
+        shirt: blankShirt,
+        eyeColour: blankEyeColour,
+        pants: blankPants,
+        pantsColour: blankPantsColour,
+        browColour: blankBrowColour,
+        favourite: blankFavourite,
+      }),
+    [blankSkin, blankHairColour, blankShirt, blankEyeColour, blankPants, blankPantsColour, blankBrowColour, blankFavourite]
+  );
   const section = (title: string) => <Text style={[typography.label, { color: t.muted }]}>{title}</Text>;
   const nudges = (group: keyof typeof NUDGE_ROWS) => (
     <>
@@ -582,34 +688,34 @@ export const CharacterEditor = ({
           {section("Skin")}
           <Swatches colours={people.skins} value={draft.skin} onPick={set("skin")} label="Skin" order={SKINS_LIGHT_TO_DARK} />
           {section("Face shape")}
-          <Choices names={FACES} part="face" framing="face" draft={draft} onPick={set("face")} tile={tile} testID="world-editor-face" />
+          <Choices names={FACES} part="face" framing="face" value={part("face")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-face" />
           {section("Nose")}
-          <Choices names={NOSES} part="nose" framing="face" draft={draft} onPick={set("nose")} tile={tile} testID="world-editor-nose" />
+          <Choices names={NOSES} part="nose" framing="face" value={part("nose")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-nose" />
           {section("Blush")}
-          <Choices names={BLUSH} part="blush" framing="face" draft={draft} onPick={set("blush")} tile={tile} testID="world-editor-blush" />
+          <Choices names={BLUSH} part="blush" framing="face" value={part("blush")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-blush" />
           {section("Freckles")}
-          <Choices names={FRECKLES} part="freckles" framing="zoom" draft={draft} onPick={set("freckles")} tile={tile} testID="world-editor-freckles" />
+          <Choices names={FRECKLES} part="freckles" framing="zoom" value={part("freckles")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-freckles" />
           {section("Mole")}
-          <Choices names={MOLES} part="mole" framing="zoom" draft={draft} onPick={set("mole")} tile={tile} testID="world-editor-mole" />
+          <Choices names={MOLES} part="mole" framing="zoom" value={part("mole")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-mole" />
         </>
       ) : null}
       {tab === "Eyes" ? (
         <>
           {section("Eyes")}
-          <Choices names={EYES} part="eyes" framing="face" draft={draft} onPick={set("eyes")} tile={tile} testID="world-editor-eyes" />
+          <Choices names={EYES} part="eyes" framing="face" value={part("eyes")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-eyes" />
           {section("Eye colour")}
           <Swatches colours={people.eyeColours} value={part("eyeColour")} onPick={set("eyeColour")} label="Eye colour" />
           {nudges("Eyes")}
           {section("Eyeshadow")}
-          <Choices names={EYESHADOW} part="eyeshadow" framing="zoom" draft={draft} onPick={set("eyeshadow")} tile={tile} testID="world-editor-eyeshadow" />
+          <Choices names={EYESHADOW} part="eyeshadow" framing="zoom" value={part("eyeshadow")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-eyeshadow" />
           {section("Glasses")}
-          <Choices names={GLASSES} part="glasses" framing="face" draft={draft} onPick={set("glasses")} tile={tile} testID="world-editor-glasses" />
+          <Choices names={GLASSES} part="glasses" framing="face" value={part("glasses")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-glasses" />
         </>
       ) : null}
       {tab === "Brows" ? (
         <>
           {section("Eyebrows")}
-          <Choices names={BROWS} part="brows" framing="face" draft={draft} onPick={set("brows")} tile={tile} testID="world-editor-brows" />
+          <Choices names={BROWS} part="brows" framing="face" value={part("brows")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-brows" />
           {section("Brow colour")}
           <Swatches
             colours={[shade(people.hairColours[draft.hairColour] ?? people.hairColours[0], -0.3), ...people.hairColours.map((c) => shade(c, -0.3))]}
@@ -626,22 +732,22 @@ export const CharacterEditor = ({
       {tab === "Mouth" ? (
         <>
           {section("Mouth")}
-          <Choices names={MOUTHS} part="mouth" framing="face" draft={draft} onPick={set("mouth")} tile={tile} testID="world-editor-mouth" />
+          <Choices names={MOUTHS} part="mouth" framing="face" value={part("mouth")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-mouth" />
           {nudges("Mouth")}
           {section("Lipstick")}
-          <Choices names={LIPSTICK} part="lipstick" framing="zoom" draft={draft} onPick={set("lipstick")} tile={tile} testID="world-editor-lipstick" />
+          <Choices names={LIPSTICK} part="lipstick" framing="zoom" value={part("lipstick")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-lipstick" />
           {section("Facial hair")}
-          <Choices names={BEARDS} part="beard" framing="face" draft={draft} onPick={set("beard")} tile={tile} testID="world-editor-beard" />
+          <Choices names={BEARDS} part="beard" framing="face" value={part("beard")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-beard" />
         </>
       ) : null}
       {tab === "Hair" ? (
         <>
           {section("Hairstyle")}
-          <Choices names={HAIR_STYLES} part="hair" framing="hair" draft={draft} onPick={set("hair")} tile={tile} testID="world-editor-hair" />
+          <Choices names={HAIR_STYLES} part="hair" framing="hair" value={part("hair")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-hair" />
           {section("Hair colour")}
           <Swatches colours={people.hairColours} value={draft.hairColour} onPick={set("hairColour")} label="Hair colour" />
           {section("Hat")}
-          <Choices names={HATS} part="hat" framing="hat" draft={draft} onPick={set("hat")} tile={tile} testID="world-editor-hat" />
+          <Choices names={HATS} part="hat" framing="hat" value={part("hat")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-hat" />
         </>
       ) : null}
       {tab === "Body" ? (
@@ -661,7 +767,7 @@ export const CharacterEditor = ({
       {tab === "Outfit" ? (
         <>
           {section("Top")}
-          <Choices names={OUTFITS} part="outfit" framing="outfit" draft={draft} onPick={set("outfit")} tile={tile} testID="world-editor-outfit" />
+          <Choices names={OUTFITS} part="outfit" framing="outfit" value={part("outfit")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-outfit" />
           {section("Colour")}
           <Swatches colours={people.shirts} value={draft.shirt} onPick={set("shirt")} label="Shirt" />
           {section("Bottoms")}
@@ -669,7 +775,7 @@ export const CharacterEditor = ({
             <Text style={[typography.caption, { color: t.muted }]}>A dress, skirt or overalls comes with its own bottoms.</Text>
           ) : (
             <>
-              <Choices names={PANTS} part="pants" framing="outfit" draft={draft} onPick={set("pants")} tile={tile} testID="world-editor-pants" />
+              <Choices names={PANTS} part="pants" framing="outfit" value={part("pants")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-pants" />
               {section("Bottoms colour")}
               <Swatches colours={people.pants} value={part("pantsColour")} onPick={set("pantsColour")} label="Bottoms colour" />
             </>
@@ -679,7 +785,7 @@ export const CharacterEditor = ({
       {tab === "Extras" ? (
         <>
           {section("Extra")}
-          <Choices names={ACCESSORIES} part="accessory" framing="body" draft={draft} onPick={set("accessory")} tile={tile} testID="world-editor-extra" hidden={[OLD_GLASSES]} />
+          <Choices names={ACCESSORIES} part="accessory" framing="body" value={part("accessory")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-extra" hidden={[OLD_GLASSES]} />
         </>
       ) : null}
     </ScrollView>

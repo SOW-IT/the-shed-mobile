@@ -630,6 +630,27 @@ export const travel = mutation({
 
 const BLOCKED_BY_SCAN = 200;
 
+const loadBlockFilter = async (ctx: Ctx, email: string) => {
+  const hidden = new Set<string>();
+  const mine = await ctx.db
+    .query("worldBlocks")
+    .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email))
+    .take(MAX_BLOCKS + 1);
+  for (const row of mine) hidden.add(row.blockedEmail);
+  const askMine = mine.length > MAX_BLOCKS;
+  const ofMe = await ctx.db
+    .query("worldBlocks")
+    .withIndex("by_blockedEmail", (q) => q.eq("blockedEmail", email))
+    .take(BLOCKED_BY_SCAN + 1);
+  for (const row of ofMe) hidden.add(row.email);
+  const askOfMe = ofMe.length > BLOCKED_BY_SCAN;
+  return async (other: string) =>
+    other !== email &&
+    (hidden.has(other) ||
+      (askMine && (await blocks(ctx, email, other))) ||
+      (askOfMe && (await blocks(ctx, other, email))));
+};
+
 export const elsewhere = query({
   args: {},
   returns: v.array(
@@ -643,18 +664,7 @@ export const elsewhere = query({
   handler: async (ctx) => {
     const email = await requireEmail(ctx);
     const me = await memberByEmail(ctx, email);
-    const hidden = new Set<string>([email]);
-    const mine = await ctx.db
-      .query("worldBlocks")
-      .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email))
-      .take(MAX_BLOCKS);
-    for (const row of mine) hidden.add(row.blockedEmail);
-    const ofMe = await ctx.db
-      .query("worldBlocks")
-      .withIndex("by_blockedEmail", (q) => q.eq("blockedEmail", email))
-      .take(BLOCKED_BY_SCAN + 1);
-    for (const row of ofMe) hidden.add(row.email);
-    const askEach = ofMe.length > BLOCKED_BY_SCAN;
+    const isBlocked = await loadBlockFilter(ctx, email);
     const found = [];
     for (const place of PLACES) {
       const rooms = await ctx.db
@@ -671,13 +681,11 @@ export const elsewhere = query({
           .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
           .take(ROOM_CAP);
         for (const member of members) {
-          if (hidden.has(member.email)) continue;
-          if (askEach && (await blocks(ctx, member.email, email))) continue;
+          if (member.email === email || (await isBlocked(member.email))) continue;
           count++;
           if (names.length < ELSEWHERE_NAMES) {
             names.push(member.name);
-            const look = (await savedLook(ctx, member.email))?.look ?? member.look;
-            people.push({ memberId: member._id, name: member.name, look, ping: member.ping });
+            people.push({ memberId: member._id, name: member.name, look: member.look, ping: member.ping });
           }
         }
       }
@@ -713,13 +721,10 @@ export const places = query({
   returns: v.record(v.string(), v.number()),
   handler: async (ctx) => {
     await requireEmail(ctx);
-    const counts: Record<string, number> = {};
-    for (const place of PLACES) {
-      const rooms = await ctx.db
-        .query("worldRooms")
-        .withIndex("by_place_and_instance", (q) => q.eq("place", place))
-        .take(ROOM_SCAN);
-      counts[place] = rooms.reduce((total, room) => total + room.memberCount, 0);
+    const counts: Record<string, number> = Object.fromEntries(PLACES.map((place) => [place, 0]));
+    const rooms = await ctx.db.query("worldRooms").withIndex("by_place_and_instance").take(ONLINE_ROOM_SCAN);
+    for (const room of rooms) {
+      if (Object.hasOwn(counts, room.place)) counts[room.place] += room.memberCount;
     }
     return counts;
   },
@@ -1030,13 +1035,14 @@ export const duels = query({
       .query("worldDuels")
       .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
       .take(DUEL_SCAN);
+    const isBlocked = rows.length > 0 ? await loadBlockFilter(ctx, me.email) : null;
     const hidden = new Map<Id<"worldMembers">, boolean>();
     const hides = async (memberId: Id<"worldMembers">) => {
       if (memberId === me._id) return false;
       const known = hidden.get(memberId);
       if (known !== undefined) return known;
       const member = await ctx.db.get("worldMembers", memberId);
-      const hide = !member || (await blockedEither(ctx, me.email, member.email));
+      const hide = !member || (isBlocked !== null && (await isBlocked(member.email)));
       hidden.set(memberId, hide);
       return hide;
     };
@@ -1110,11 +1116,11 @@ export const roster = query({
       .query("worldMembers")
       .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
       .take(ROOM_CAP);
+    const isBlocked = await loadBlockFilter(ctx, me.email);
     const members = [];
     for (const row of rows) {
-      if (await blockedEither(ctx, me.email, row.email)) continue;
-      const look = (await savedLook(ctx, row.email))?.look ?? row.look;
-      members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id, ping: row.ping });
+      if (await isBlocked(row.email)) continue;
+      members.push({ memberId: row._id, name: row.name, look: row.look, isMe: row._id === me._id, ping: row.ping });
     }
     return { instance: room.instance, place: room.place, members };
   },
@@ -1146,7 +1152,7 @@ export const state = query({
   handler: async (ctx, { memberId }) => {
     const member = await ctx.db.get("worldMembers", memberId);
     const me = member && (await meIn(ctx, member.roomId));
-    if (!member || !me || (await blockedEither(ctx, me.email, member.email))) return null;
+    if (!member || !me || (member._id !== me._id && (await blockedEither(ctx, me.email, member.email)))) return null;
     const row = await stateOf(ctx, memberId);
     if (!row) return null;
     const { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt, seat } = row;
@@ -1159,7 +1165,7 @@ export const state = query({
 const CHAT_SCAN = 2000;
 
 export const chatLog = query({
-  args: { roomId: v.id("worldRooms") },
+  args: { roomId: v.id("worldRooms"), limit: v.optional(v.number()) },
   returns: v.union(
     v.null(),
     v.array(
@@ -1176,11 +1182,11 @@ export const chatLog = query({
       })
     )
   ),
-  handler: async (ctx, { roomId }) => {
+  handler: async (ctx, { roomId, limit }) => {
     const me = await meIn(ctx, roomId);
     if (!me) return null;
-    // Lines past the chat TTL aren't shown, even before the sweeper deletes
-    // them.
+    const cap = limit === undefined ? CHAT_LOG_SIZE : Math.min(CHAT_LOG_SIZE, Math.max(1, Math.floor(limit)));
+    const isBlocked = await loadBlockFilter(ctx, me.email);
     const rows = ctx.db
       .query("worldChat")
       .withIndex("by_at", (q) => q.gt("at", Date.now() - CHAT_TTL_MS))
@@ -1189,9 +1195,9 @@ export const chatLog = query({
     const hidden = new Map<string, boolean>();
     let scanned = 0;
     for await (const row of rows) {
-      if (lines.length === CHAT_LOG_SIZE || scanned++ === CHAT_SCAN) break;
+      if (lines.length === cap || scanned++ === CHAT_SCAN) break;
       if (row.place === HOME && row.roomId !== roomId) continue;
-      if (!hidden.has(row.email)) hidden.set(row.email, await blockedEither(ctx, me.email, row.email));
+      if (!hidden.has(row.email)) hidden.set(row.email, await isBlocked(row.email));
       if (hidden.get(row.email)) continue;
       lines.push({
         id: row._id,
@@ -1209,10 +1215,6 @@ export const chatLog = query({
   },
 });
 
-/**
- * Saves the caller's look from the character editor: one write, kept across
- * visits. The roster reads it, so everyone in the room sees it at once.
- */
 export const saveLook = mutation({
   args: { look: worldLookValidator },
   returns: v.object({ ok: v.boolean() }),
@@ -1224,6 +1226,8 @@ export const saveLook = mutation({
     if (!row) await ctx.db.insert("worldLooks", { email, look, updatedAt: now });
     else if (now - row.updatedAt < LOOK_SAVE_GAP_MS) return { ok: false };
     else await ctx.db.patch("worldLooks", row._id, { look, updatedAt: now });
+    const member = await memberByEmail(ctx, email);
+    if (member) await ctx.db.patch("worldMembers", member._id, { look });
     return { ok: true };
   },
 });
@@ -1286,6 +1290,7 @@ export const offline = query({
   }),
   handler: async (ctx) => {
     const email = await requireEmail(ctx);
+    const isBlocked = await loadBlockFilter(ctx, email);
     const people = [];
     let scanned = 0;
     for await (const row of ctx.db.query("worldVisitors").withIndex("by_lastSeenAt").order("desc")) {
@@ -1293,7 +1298,7 @@ export const offline = query({
       scanned++;
       if (row.email === email) continue;
       if (await memberByEmail(ctx, row.email)) continue;
-      if (await blockedEither(ctx, email, row.email)) continue;
+      if (await isBlocked(row.email)) continue;
       people.push({ id: row._id, name: row.name, lastSeenAt: row.lastSeenAt });
     }
     const mine = await visitorOf(ctx, email);
@@ -1417,9 +1422,10 @@ export const invites = query({
       .withIndex("by_guest_and_at", (q) => q.eq("guest", email))
       .order("desc")
       .take(INVITES_SHOWN);
+    const isBlocked = rows.length > 0 ? await loadBlockFilter(ctx, email) : null;
     const out = [];
     for (const row of rows) {
-      if (await blockedEither(ctx, email, row.owner)) continue;
+      if (isBlocked !== null && (await isBlocked(row.owner))) continue;
       const look = (await savedLook(ctx, row.owner))?.look ?? lookFor(row.owner);
       out.push({ id: row._id, ownerName: row.ownerName, look, at: row.at, expiresAt: row.expiresAt });
     }
@@ -1466,6 +1472,7 @@ export const offlineStaff = query({
   ),
   handler: async (ctx, { paginationOpts }) => {
     const email = await requireEmail(ctx);
+    const isBlocked = await loadBlockFilter(ctx, email);
     const result = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear()))
@@ -1474,7 +1481,7 @@ export const offlineStaff = query({
     for (const row of result.page) {
       if (row.email === email) continue;
       if (await memberByEmail(ctx, row.email)) continue;
-      if (await blockedEither(ctx, email, row.email)) continue;
+      if (await isBlocked(row.email)) continue;
       const visitor = await visitorOf(ctx, row.email);
       page.push({ id: row._id, name: profileName(row), lastSeenAt: visitor?.lastSeenAt ?? null });
     }

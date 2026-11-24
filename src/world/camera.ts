@@ -120,34 +120,20 @@ export const quadMatrix = (q: readonly { x: number; y: number }[]): number[] => 
   const c = p0.x, f = p0.y;
   const k = 1 / QUAD_SIZE;
   const m = QUAD_SIZE / 2;
-  // H maps (u, v) in pixels of the square: x = (a u/S + b v/S + c) / (g u/S + h v/S + 1).
-  // Wanted: T(-m) · H · T(m) in row-vector order, i.e. H applied after moving
-  // the centre back to the corner, then moved back for React Native's origin.
-  const H = [
-    a * k, d * k, 0, g * k,
-    b * k, e * k, 0, h * k,
-    0, 0, 1, 0,
-    c, f, 0, 1,
+  const ak = a * k;
+  const dk = d * k;
+  const gk = g * k;
+  const bk = b * k;
+  const ek = e * k;
+  const hk = h * k;
+  const r30 = m * (ak + bk) + c;
+  const r31 = m * (dk + ek) + f;
+  const r33 = m * (gk + hk) + 1;
+  return [
+    ak - m * gk, dk - m * gk, 0, gk,
+    bk - m * hk, ek - m * hk, 0, hk,
+    0, 0, 1, 1e-9,
+    r30 - m * r33, r31 - m * r33, 0, r33,
   ];
-  // Row vectors: p' = p · T(m) · H · T(-m), with T(m) moving (−S/2) back to 0.
-  const pre = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, m, m, 0, 1];
-  const post = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -m, -m, 0, 1];
-  const out = mul(mul(pre, H), post);
-  // A hair of z-perspective: it changes nothing (every point has z = 0), but
-  // it makes iOS smooth the warped edges.
-  out[11] = 1e-9;
-  return out;
-};
-
-const mul = (A: number[], B: number[]): number[] => {
-  const out = new Array<number>(16).fill(0);
-  for (let r = 0; r < 4; r++) {
-    for (let c = 0; c < 4; c++) {
-      let s = 0;
-      for (let i = 0; i < 4; i++) s += A[r * 4 + i] * B[i * 4 + c];
-      out[r * 4 + c] = s;
-    }
-  }
-  return out;
 };
 

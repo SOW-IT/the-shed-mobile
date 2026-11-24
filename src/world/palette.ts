@@ -301,14 +301,20 @@ export const lightToDark = (colours: readonly string[]): number[] =>
  * A colour mixed toward white (amount > 0) or black (amount < 0): the steps
  * of the toon ramp on a face or a ball.
  */
+const SHADE_CACHE_MAX = 512;
+const shadeCache = new Map<string, string>();
+
 export const shade = (hex: string, amount: number): string => {
+  const key = `${hex}:${amount}`;
+  const cached = shadeCache.get(key);
+  if (cached !== undefined) return cached;
   const target = amount > 0 ? 255 : 0;
   const k = Math.min(1, Math.abs(amount));
-  const parts = [0, 1, 2].map((i) => {
-    const c = channel(hex, i);
-    return Math.round(c + (target - c) * k)
-      .toString(16)
-      .padStart(2, "0");
-  });
-  return `#${parts.join("")}`;
+  const r = Math.round(channel(hex, 0) + (target - channel(hex, 0)) * k).toString(16).padStart(2, "0");
+  const g = Math.round(channel(hex, 1) + (target - channel(hex, 1)) * k).toString(16).padStart(2, "0");
+  const b = Math.round(channel(hex, 2) + (target - channel(hex, 2)) * k).toString(16).padStart(2, "0");
+  const result = `#${r}${g}${b}`;
+  if (shadeCache.size >= SHADE_CACHE_MAX) shadeCache.clear();
+  shadeCache.set(key, result);
+  return result;
 };

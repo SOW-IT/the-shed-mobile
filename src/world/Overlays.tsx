@@ -1,7 +1,7 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { bodyScale, PLACE_TITLES, type Look, type Place } from "@shared/world";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { glass, hud, signal, signalColour } from "./palette";
@@ -72,7 +72,9 @@ export const itemStyle = (clock: Clock, index: number) => {
 
 export const blurBehind = (Platform.OS === "web" ? { backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" } : {}) as unknown as ViewStyle;
 
-export const Bust = ({ look, size }: { look: Look; size: number }) => {
+const BUST_POSE = { x: 0, z: 0, walking: false, arrivesAt: 0, heading: 0 };
+
+export const Bust = memo(function Bust({ look, size }: { look: Look; size: number }) {
   const s = size * 0.62;
   const up = s * 0.86;
   const foot = { x: size / 2, y: size * 0.5 + bodyScale(look).height * up, depth: 1, scale: s };
@@ -80,7 +82,7 @@ export const Bust = ({ look, size }: { look: Look; size: number }) => {
     <View pointerEvents="none" style={[styles.bust, { width: size, height: size, borderRadius: size / 2 }]}>
       <Avatar
         figure={{ foot, s, up, bob: 0 }}
-        pose={{ x: 0, z: 0, walking: false, arrivesAt: 0, heading: 0 }}
+        pose={BUST_POSE}
         look={look}
         t={0}
         seed={0}
@@ -88,7 +90,7 @@ export const Bust = ({ look, size }: { look: Look; size: number }) => {
       />
     </View>
   );
-};
+});
 
 const QUALITY = ["unknown", "poor", "fair", "good", "great"] as const;
 

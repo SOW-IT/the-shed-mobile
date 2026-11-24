@@ -31,6 +31,8 @@ const blocky = Platform.select({
   default: "ui-monospace, Menlo, Consolas, monospace",
 });
 
+const HUD_CHAT_LIMIT = 30;
+
 export const ChatLog = ({
   roomId,
   muted,
@@ -44,7 +46,7 @@ export const ChatLog = ({
   now: number;
   status: string | null;
 }) => {
-  const log = useQuery(api.world.chatLog, roomId ? { roomId } : "skip");
+  const log = useQuery(api.world.chatLog, roomId ? { roomId, limit: HUD_CHAT_LIMIT } : "skip");
   const scroller = useRef<ScrollViewInstance>(null);
   const atEnd = useRef(true);
   const [heights, setHeights] = useState<Record<string, number>>({});

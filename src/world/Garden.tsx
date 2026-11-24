@@ -78,12 +78,15 @@ const PropView = memo(function PropView({ prop }: { prop: Prop }) {
   return <Layer prims={prop.prims} />;
 });
 
-/** Redraws every animation frame while `on`, and once a second otherwise. */
-const useClock = (on: boolean): number => {
+type ClockMode = "fast" | "ambient" | "idle";
+const AMBIENT_MS = 67;
+
+const useClock = (mode: ClockMode, paused: boolean): number => {
   const [t, setT] = useState(() => Date.now());
   useEffect(() => {
-    if (!on) {
-      const id = setInterval(() => setT(Date.now()), 1000);
+    if (paused) return;
+    if (mode !== "fast") {
+      const id = setInterval(() => setT(Date.now()), mode === "ambient" ? AMBIENT_MS : 1000);
       return () => clearInterval(id);
     }
     let frame = 0;
@@ -93,7 +96,7 @@ const useClock = (on: boolean): number => {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [on]);
+  }, [mode, paused]);
   return t;
 };
 
@@ -122,6 +125,7 @@ export const Garden = ({
   home = null,
   onTapNpc,
   decor = null,
+  paused = false,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -154,6 +158,7 @@ export const Garden = ({
     actions: HudAction[];
     hudTop: number;
   } | null;
+  paused?: boolean;
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -166,6 +171,33 @@ export const Garden = ({
   };
   const cam = useMemo(() => size && makeCamera(size.width, size.height, FOCUS), [size]);
   const scene = useMemo(() => cam && buildScene(place, cam, home ?? undefined), [cam, place, home]);
+  const propActors = useMemo(
+    () =>
+      scene
+        ? scene.props.map((prop) => ({
+            depth: prop.depth,
+            key: prop.id,
+            node: <PropView prop={prop} />,
+          }))
+        : [],
+    [scene]
+  );
+  const padSpots = useMemo(
+    () =>
+      cam
+        ? PORTALS[place].map((pad) => {
+            const below = cam.project([pad.x, 0, pad.z + PORTAL_RADIUS + 0.45]);
+            const above = cam.project([pad.x, 0, pad.z - PORTAL_RADIUS - 0.45]);
+            const at = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM ? { x: above.x, y: above.y - 14 } : below;
+            return {
+              to: pad.to,
+              left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4),
+              top: at.y - 10,
+            };
+          })
+        : [],
+    [cam, place]
+  );
   const npcHere = place === NPC.place;
 
   const now = serverNow();
@@ -272,14 +304,14 @@ export const Garden = ({
   });
   const animating =
     poses.some((pose) => pose && (pose.walking || pose.strideAmp > 0 || pose.turning)) ||
-    swimmers.some(Boolean) ||
     doing.some((d) => d !== null) ||
     asks.length > 0 ||
     typingSince.some((at) => at !== undefined) ||
     duelLooks.some((look) => look !== null) ||
     people.some((p) => !p.muted && p.say !== undefined && bubbleMoving(now - p.say.at)) ||
     (target !== null && placed !== null && Math.hypot(placed.x - target.x, placed.z - target.z) > 0.05);
-  const t = useClock(animating) / 1000;
+  const clockMode: ClockMode = animating ? "fast" : swimmers.some(Boolean) ? "ambient" : "idle";
+  const t = useClock(clockMode, paused) / 1000;
   const press = useRef<{
     x: number;
     y: number;
@@ -419,12 +451,7 @@ export const Garden = ({
 
   if (!cam || !scene) return <View style={styles.fill} onLayout={onLayout} />;
 
-  // Props and people, far to near.
-  const actors: { depth: number; key: string; node: ReactNode }[] = scene.props.map((prop) => ({
-    depth: prop.depth,
-    key: prop.id,
-    node: <PropView prop={prop} />,
-  }));
+  const actors: { depth: number; key: string; node: ReactNode }[] = [...propActors];
   const tags: TagSpot[] = [];
   const heads: { x: number; bottom: number; width: number; height: number }[] = [];
   if (npcHere) {
@@ -591,15 +618,12 @@ export const Garden = ({
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Layer prims={scene.ground} />
         <Layer prims={scene.backdrop} />
-        {PORTALS[place].map((pad) => {
-          const below = cam.project([pad.x, 0, pad.z + PORTAL_RADIUS + 0.45]);
-          const above = cam.project([pad.x, 0, pad.z - PORTAL_RADIUS - 0.45]);
-          const at = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM ? { x: above.x, y: above.y - 14 } : below;
+        {padSpots.map((pad) => {
           const here = placeCounts?.[pad.to] ?? 0;
           return (
             <View
               key={`pad-${pad.to}`}
-              style={[styles.padLabel, { left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4), top: at.y - 10 }]}
+              style={[styles.padLabel, { left: pad.left, top: pad.top }]}
             >
               <Text style={styles.padLabelText} numberOfLines={1}>
                 {here > 0 ? `${PLACE_TITLES[pad.to]} · ${here}` : PLACE_TITLES[pad.to]}
