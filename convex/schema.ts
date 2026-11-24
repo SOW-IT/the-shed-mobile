@@ -228,6 +228,23 @@ export default defineSchema({
     .index("by_b", ["b"])
     .index("by_endsAt", ["endsAt"]),
 
+  // The Beach's ball, one per room: where the last kick left it and how fast.
+  // Every phone rolls it on from there, so each kick is the only write.
+  worldBalls: defineTable({
+    roomId: v.id("worldRooms"),
+    x: v.number(),
+    z: v.number(),
+    vx: v.number(),
+    vz: v.number(),
+    at: v.number(),
+  }).index("by_roomId", ["roomId"]),
+
+  worldPings: defineTable({
+    memberId: v.id("worldMembers"),
+    bars: v.number(),
+    at: v.number(),
+  }).index("by_memberId", ["memberId"]),
+
   worldThrottle: defineTable({
     email: v.string(),
     moveBucket: worldBucketValidator,

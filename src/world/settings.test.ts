@@ -1,0 +1,87 @@
+import { afterEach, expect, test, vi } from "vitest";
+
+vi.mock("react-native", () => ({ Platform: { OS: "web" } }));
+vi.mock("react-native-reanimated", () => ({ useReducedMotion: () => false }));
+vi.mock("expo-secure-store", () => ({}));
+
+const saved = new Map<string, string>();
+
+const fresh = async (stored: Record<string, string> = {}) => {
+  vi.resetModules();
+  saved.clear();
+  for (const [key, value] of Object.entries(stored)) saved.set(key, value);
+  vi.stubGlobal("window", {
+    localStorage: {
+      getItem: (key: string) => saved.get(key) ?? null,
+      setItem: (key: string, value: string) => saved.set(key, value),
+      removeItem: (key: string) => saved.delete(key),
+    },
+  });
+  const settings = await import("./settings");
+  for (const store of Object.values(settings.WORLD_SETTINGS)) store.subscribe(() => undefined);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  return settings;
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+test("a new device starts with times and ping off, initials, motion following the phone, and every tag", async () => {
+  const { WORLD_SETTINGS } = await fresh();
+  expect(WORLD_SETTINGS.chatTimes.get()).toBe("off");
+  expect(WORLD_SETTINGS.chatNames.get()).toBe("initials");
+  expect(WORLD_SETTINGS.pingMs.get()).toBe("off");
+  expect(WORLD_SETTINGS.motion.get()).toBe("auto");
+  expect(WORLD_SETTINGS.nameTags.get()).toBe("all");
+  expect(saved.size).toBe(0);
+});
+
+test("each choice is saved on this device and comes back next time", async () => {
+  const first = await fresh();
+  first.WORLD_SETTINGS.chatTimes.set("on");
+  first.WORLD_SETTINGS.chatNames.set("first");
+  first.WORLD_SETTINGS.pingMs.set("on");
+  first.WORLD_SETTINGS.motion.set("saver");
+  first.WORLD_SETTINGS.nameTags.set("near");
+  expect(Object.fromEntries(saved)).toEqual({
+    worldChatTimes: "on",
+    worldChatNames: "first",
+    worldPingMs: "on",
+    worldMotion: "saver",
+    worldNameTags: "near",
+  });
+  const next = await fresh(Object.fromEntries(saved));
+  expect(next.WORLD_SETTINGS.chatTimes.get()).toBe("on");
+  expect(next.WORLD_SETTINGS.chatNames.get()).toBe("first");
+  expect(next.WORLD_SETTINGS.pingMs.get()).toBe("on");
+  expect(next.WORLD_SETTINGS.motion.get()).toBe("saver");
+  expect(next.WORLD_SETTINGS.nameTags.get()).toBe("near");
+});
+
+test("anything else saved under a key is ignored", async () => {
+  const { WORLD_SETTINGS } = await fresh({ worldChatNames: "nickname", worldPingMs: "maybe", worldMotion: "fast" });
+  expect(WORLD_SETTINGS.chatNames.get()).toBe("initials");
+  expect(WORLD_SETTINGS.pingMs.get()).toBe("off");
+  expect(WORLD_SETTINGS.motion.get()).toBe("auto");
+});
+
+test("battery saver follows Reduce Motion until it's set by hand", async () => {
+  const { saverOn } = await fresh();
+  expect(saverOn("auto", false)).toBe(false);
+  expect(saverOn("auto", true)).toBe(true);
+  expect(saverOn("full", true)).toBe(false);
+  expect(saverOn("saver", false)).toBe(true);
+});
+
+test("near-me tags hide only far people who aren't saying or doing anything", async () => {
+  const { tagShown } = await fresh();
+  const near = 5;
+  const far = near + 1;
+  expect(tagShown({ mode: "all", me: false, distance: far, speaking: false })).toBe(true);
+  expect(tagShown({ mode: "near", me: false, distance: far, speaking: false })).toBe(false);
+  expect(tagShown({ mode: "near", me: false, distance: near, speaking: false })).toBe(true);
+  expect(tagShown({ mode: "near", me: false, distance: far, speaking: true })).toBe(true);
+  expect(tagShown({ mode: "near", me: true, distance: null, speaking: false })).toBe(true);
+  expect(tagShown({ mode: "near", me: false, distance: null, speaking: false })).toBe(false);
+});

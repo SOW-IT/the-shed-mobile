@@ -15,6 +15,7 @@ test("every palette has a colour for each choice of its part", () => {
   expect(people.shirts).toHaveLength(LOOK_SIZES.shirt);
   expect(people.pants).toHaveLength(LOOK_SIZES.pantsColour);
   expect(people.favourites).toHaveLength(LOOK_SIZES.favourite);
+  expect(people.backdrops).toHaveLength(LOOK_SIZES.backdrop);
   // After "None".
   expect(people.eyeshadow).toHaveLength(LOOK_SIZES.eyeshadow - 1);
   expect(people.lipstick).toHaveLength(LOOK_SIZES.lipstick - 1);
