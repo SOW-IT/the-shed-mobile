@@ -288,6 +288,25 @@ export const WorldScreen = ({
   const online = useWorldOnline() ?? 0;
   // A link to the editor opens it once your look has loaded.
   const [editorAsked, setEditorAsked] = useState(opening === "character");
+  // A link that reaches World while it's already open (`?sheet=`) switches
+  // to that sheet: a poke link closes the editor and opens the poke list.
+  const [openedFor, setOpenedFor] = useState(opening);
+  if (opening !== openedFor) {
+    setOpenedFor(opening);
+    if (opening === "poke") {
+      setEditorAsked(false);
+      setEditing(false);
+      setSheet(null);
+      setShopOpen(false);
+      setCoinsOpen(false);
+      setPlacesOpen(false);
+      setSettingsOpen(false);
+      setPeopleOpen(true);
+    } else if (opening === "character") {
+      setPeopleOpen(false);
+      setEditorAsked(true);
+    }
+  }
   // The editor closes with the visit (your look goes with it); open it again after.
   const hasMe = world.people.some((p) => p.isMe);
   if (editing && !hasMe && world.status !== "in") setEditing(false);

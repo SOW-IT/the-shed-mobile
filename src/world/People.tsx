@@ -65,6 +65,12 @@ const Section = ({ children }: { children: string }) => <Text style={styles.sect
 
 const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   const [open, setOpen] = useState(startOpen);
+  // A poke link that arrives while the panel is up opens the list too.
+  const [asked, setAsked] = useState(startOpen);
+  if (startOpen !== asked) {
+    setAsked(startOpen);
+    if (startOpen) setOpen(true);
+  }
   const [now, setNow] = useState(0);
   const people = usePaginatedQuery(api.world.offlineStaff, open ? {} : "skip", { initialNumItems: OFFLINE_PAGE });
   const wait = useQuery(api.world.pokeWait, open ? {} : "skip");
