@@ -3,6 +3,13 @@
 
 /** How many frames to take before giving up on a screen that keeps moving. */
 export const FRAME_TRIES = 10;
+/**
+ * After a frame that hasn't settled, the iOS flow waits up to this long
+ * before the next one, so a screen still loading (World's code is built by
+ * Metro the first time it opens, about 10 s from a cleared cache) gets about
+ * 20 s in all. A still screen settles on its second frame and never waits.
+ */
+export const FRAME_GAP_MS = 2000;
 
 const HOUR = 60 * 60 * 1000;
 
