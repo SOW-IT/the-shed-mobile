@@ -166,7 +166,11 @@ export const WorldList = ({
               <Text style={[typography.headline, { color: t.text }]} accessibilityRole="header" testID="world-list-ask">
                 {info.icon} {p.name}: {info.ask}
               </Text>
-              <Muted>{`${left} second${left === 1 ? "" : "s"} to answer.`}</Muted>
+              {/* The countdown changes every second: kept out of the live
+                  region, so only the new ask is read out, not each tick. */}
+              <View aria-live="off">
+                <Muted>{`${left} second${left === 1 ? "" : "s"} to answer.`}</Muted>
+              </View>
               <View style={styles.compose}>
                 <Btn title={`${info.label}!`} onPress={() => onAccept(p.memberId, askAt)} />
                 <Btn title="Not now" variant="tonal" onPress={() => onDecline(p.memberId, askAt)} />
@@ -268,7 +272,7 @@ export const WorldList = ({
           ))}
         </View>
         {note ? (
-          <Text style={[typography.caption, { color: t.danger }]} aria-live="polite">
+          <Text style={[typography.caption, { color: t.danger }]}>
             {note}
           </Text>
         ) : null}

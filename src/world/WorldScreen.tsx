@@ -782,7 +782,7 @@ export const WorldScreen = ({
   const noteOver =
     note && overlayOpen ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
-        <Text style={styles.note} accessibilityLiveRegion="polite" aria-live="polite">
+        <Text style={styles.note} accessibilityLiveRegion="polite">
           {note}
         </Text>
       </View>
@@ -926,11 +926,21 @@ export const WorldScreen = ({
     />
   ) : null;
 
+  // On the web, one polite live region that is always mounted reads each note
+  // out: a region mounted with its text already in it may not be announced.
+  const liveNote =
+    Platform.OS === "web" ? (
+      <Text style={styles.offscreen} aria-live="polite">
+        {note ?? ""}
+      </Text>
+    ) : null;
+
   if (away) return <View style={styles.fill} />;
 
   if (view === "list") {
     return (
       <>
+        {liveNote}
         <WorldList
           world={world}
           offline={offline}
@@ -973,6 +983,7 @@ export const WorldScreen = ({
 
   return (
     <View style={styles.fill}>
+      {liveNote}
       <Garden
         people={world.people.map((p) => ({
           memberId: p.memberId,
@@ -1098,7 +1109,7 @@ export const WorldScreen = ({
           />
         )}
         {note && !overlayOpen ? (
-          <Text style={styles.note} accessibilityLiveRegion="polite" aria-live="polite">
+          <Text style={styles.note} accessibilityLiveRegion="polite">
             {note}
           </Text>
         ) : null}
@@ -1251,6 +1262,7 @@ const styles = StyleSheet.create({
   pingText: { fontSize: 12, fontWeight: "800", color: hud.forest, fontVariant: ["tabular-nums"] },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
   noteOver: { position: "absolute", left: 14, right: 14, alignItems: "center" },
+  offscreen: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   note: {
     backgroundColor: hud.card,
     color: hud.forest,
