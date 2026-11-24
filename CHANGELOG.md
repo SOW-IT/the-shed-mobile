@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.44] - 2026-11-24
+## [2.12.45] - 2026-11-24
 
 ### Added
 - **Walking around objects in the World.** Tapping across the Garden, Chapel, Campfire, Café, Beach or your home now routes around tables, fires, pews, the arcade, the notice board, the piano and the pulpit instead of walking straight through them, and everyone else in the room sees the same path.
@@ -14,6 +14,24 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Garden notice board and Chapel piano.** The Garden now has a calendar notice board that opens the Calendar, and the Chapel piano opens the Praise List. Going back returns you to your spot in the World without leaving it.
 - **Daily devotionals.** Sitting in the Chapel or tapping the pulpit asks whether you want to open today's private daily devotional, and shows a small open-book icon over your head in the World while you're doing it. You can also open Devotionals from the side menu.
 - **Devotionals screen and history.** Enter and validate Protestant canon Bible passage references (such as Psalm 23 or John 15:1-17) in a top passage container, with separate Notes and Prayer points sections below. Changes save on your phone straight away and sync online when you press Save, go back, or come back online. If the same day was changed on another device in the meantime, you choose which version to keep instead of one silently replacing the other. Browse past devotionals in Month view (marked days) and Week view (passage references), paged by month, for today and earlier days only.
+
+## [2.12.44] - 2026-11-24
+
+### Changed
+- **Flap stops speeding up before it gets impossible.** The pipes used to
+  keep speeding up and the gaps kept narrowing until a minute in, which is
+  about a score of 500, and by then the game was too fast to play. Now the
+  speed and the gap follow your score and level off: the pipes start at the
+  same speed, are a fifth faster by 250, and never go faster than a third
+  above where they started (200 instead of 240). The narrowest gap is 150
+  instead of 130. It's still harder at 500 than at the start, but a good run
+  can keep going.
+
+### Fixed
+- **No sky under the ground in Flap.** On phones with a home bar, on iPads,
+  in landscape and on wide browser windows, a light blue strip of sky showed
+  below the ground or beside it. The ground now runs to the bottom and the
+  sides of the screen.
 
 ## [2.12.43] - 2026-11-24
 

@@ -17,3 +17,15 @@ export const fitScale = (world: Size | null, board: Size | null): number =>
   world && board && world.width > 0 && world.height > 0
     ? Math.min(board.width / world.width, board.height / world.height)
     : 1;
+
+/**
+ * Where a scene's ground starts on the screen, measured from the top of the
+ * game's screen: the stage's top, then the board centred in the stage, then
+ * the ground's place in the scaled scene.
+ */
+export const groundLine = (
+  stage: { y: number; height: number },
+  shownHeight: number,
+  groundTop: number,
+  scale: number
+): number => stage.y + (stage.height - shownHeight) / 2 + groundTop * scale;

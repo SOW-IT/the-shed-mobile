@@ -7,7 +7,7 @@ import { CoinGain } from "./CoinGain";
 import { LeaveGameDialog } from "./LeaveGameDialog";
 import { PICKER_WIDTH } from "./GameCharacter";
 import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
-import { fitScale, type Size } from "@/lib/games/fit";
+import { fitScale, groundLine, type Size } from "@/lib/games/fit";
 import { savedNote } from "@/lib/games/savedNote";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -190,6 +190,7 @@ export const GameFrame = ({
   onLeaderboard,
   guard,
   insets,
+  ground,
   hideStartCard = false,
   startExtra = null,
   children,
@@ -215,6 +216,12 @@ export const GameFrame = ({
    * and asks to leave in place rather than in a modal.
    */
   insets?: { top: number; right: number; bottom: number; left: number };
+  /**
+   * The scene's ground, carried on to the screen's edges so no sky shows
+   * under it or beside it: where it starts in the scene, its colour, and the
+   * band along its top.
+   */
+  ground?: { top: number; colour: string; band?: { colour: string; height: number } };
   /** A still preview board, for screenshots: nothing over it. */
   hideStartCard?: boolean;
   startExtra?: ReactNode;
@@ -243,13 +250,18 @@ export const GameFrame = ({
     guard?.onStay();
   };
   const [stage, onOwnStageLayout] = useStage();
+  const [stageBox, setStageBox] = useState<{ y: number; height: number } | null>(null);
   const onLayout = (event: LayoutChangeEvent) => {
+    const { y, height } = event.nativeEvent.layout;
+    setStageBox((current) => (current && current.y === y && current.height === height ? current : { y, height }));
     onStageLayout(event);
     onOwnStageLayout(event);
   };
   const short = stage !== null && stage.height < SHORT_STAGE;
   const wide = short && stage.width >= WIDE_MIN_WIDTH;
   const scale = fitScale(world, board);
+  const shownHeight = world ? world.height * scale : (board?.height ?? 0);
+  const groundAt = ground && board && stageBox ? groundLine(stageBox, shownHeight, ground.top, scale) : null;
   const info = GAME_INFO[game];
   const newBest = result !== null && result.score > result.previousBest && result.score > 0;
   const overCard = result ? (
@@ -277,6 +289,13 @@ export const GameFrame = ({
   ) : null;
   return (
     <Frame insets={insets} style={[styles.screen, { backgroundColor: background }]}>
+      {ground && groundAt !== null ? (
+        <View pointerEvents="none" style={[styles.ground, { top: groundAt, backgroundColor: ground.colour }]}>
+          {ground.band ? (
+            <View style={{ height: ground.band.height * scale, backgroundColor: ground.band.colour }} />
+          ) : null}
+        </View>
+      ) : null}
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
       <StatusBar hidden={phase === "playing"} animated />
       <View style={styles.bar}>
@@ -419,6 +438,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...(Platform.OS === "web" ? { userSelect: "none", touchAction: "none", cursor: "pointer" } : null),
   },
+  ground: { position: "absolute", left: 0, right: 0, bottom: 0 },
   // Full screen: the board meets the edges, so no rounded corners.
   board: { overflow: "hidden" },
   overlay: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
