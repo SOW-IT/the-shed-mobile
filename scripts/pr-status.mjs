@@ -5,7 +5,7 @@
 // and Convex changes have had a CodeRabbit review (scripts/lib/coderabbitGate.mjs);
 // 1 otherwise.
 import { execFileSync } from "node:child_process";
-import { assessSize, coveringReview } from "./lib/coderabbitGate.mjs";
+import { assessSize, coveringReview, reviewedCommits, skipReason } from "./lib/coderabbitGate.mjs";
 
 const gh = (args) => execFileSync("gh", args, { encoding: "utf8" });
 const number = process.argv[2];
@@ -58,14 +58,11 @@ const comments = paged(`repos/${owner}/${repo}/issues/${number}/comments?per_pag
 const reviews = paged(`repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`, "[.[] | {id, login: .user.login, at: .submitted_at, commit: .commit_id, body}]");
 const plain = (body) => body.replace(/<[^>]+>/g, " ").replace(/[>#*]/g, " ").replace(/\s+/g, " ");
 const rabbitComments = comments.filter((c) => isRabbit(c.login)).map((c) => ({ at: c.at, text: plain(c.body), body: c.body }));
-// Evidence CodeRabbit reviewed this exact head: a review on that commit, or
-// its summary saying it reviewed up to it ("... between <base> and <head>").
-// A rate-limit notice names the head too, so it doesn't count.
-const reviewedHead =
-  reviews.some((r) => isRabbit(r.login) && r.commit === pr.headRefOid) ||
-  rabbitComments.some(
-    (c) => new RegExp(`and ${pr.headRefOid}\\b`).test(c.body) && !/rate limited|review limit reached|review skipped/i.test(c.text),
-  );
+// The commits CodeRabbit finished reviewing: a review submitted on one, or
+// its summary saying it found nothing to add up to it. A range named while a
+// review runs, or in a rate-limit notice, doesn't count.
+const reviewedShas = reviewedCommits({ reviews: reviews.filter((r) => isRabbit(r.login)), comments: rabbitComments });
+const reviewedHead = reviewedShas.includes(pr.headRefOid);
 const latest = (items) => items.reduce((a, b) => (!a || b.at > a.at ? b : a), null);
 const restriction = latest(rabbitComments.filter((c) => /rate limited|review limit reached|review skipped/i.test(c.text)));
 const cleared = latest([
@@ -75,7 +72,7 @@ const cleared = latest([
 const active = restriction && (!cleared || restriction.at > cleared.at) ? restriction : null;
 const limited = Boolean(active && /rate limited|review limit reached/i.test(active.text));
 const minutes = Number(active?.text.match(/available in:?\s*(\d+) minutes?/i)?.[1] ?? 60);
-const skipped = active && !limited ? (active.text.match(/Review skipped:?\s*(.{0,100})/i)?.[1]?.trim() ?? "review skipped") : null;
+const skipped = active && !limited ? skipReason(active.text) : null;
 
 // Does this PR need a CodeRabbit review (AGENTS.md's big-PR rule), and if so
 // has one covered the head? A review of an earlier commit covers it when the
@@ -84,12 +81,6 @@ const fileFields = "{filename, status, sha, changes, patch, previous_filename}";
 const headFiles = paged(`repos/${owner}/${repo}/pulls/${number}/files?per_page=100`, `[.[] | ${fileFields}]`);
 const override = process.argv.includes("--big") ? true : process.argv.includes("--not-big") ? false : null;
 const size = assessSize(headFiles, override);
-const reviewedShas = [
-  ...reviews.filter((r) => isRabbit(r.login) && r.commit).sort((a, b) => (b.at ?? "").localeCompare(a.at ?? "")).map((r) => r.commit),
-  ...rabbitComments
-    .filter((c) => !/rate limited|review limit reached|review skipped/i.test(c.text))
-    .flatMap((c) => [...c.body.matchAll(/\band ([0-9a-f]{40})\b/g)].map((m) => m[1])),
-];
 // The reviewed commit's own changes against the base, as GitHub compares
 // them now. Null if GitHub can't (the commit is gone).
 const filesAt = (sha) => {
