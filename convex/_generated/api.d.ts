@@ -58,6 +58,7 @@ import type * as eventRequestLinks from "../eventRequestLinks.js";
 import type * as eventRequests from "../eventRequests.js";
 import type * as eventSubForms from "../eventSubForms.js";
 import type * as events from "../events.js";
+import type * as gameCharacters from "../gameCharacters.js";
 import type * as gameScoreData from "../gameScoreData.js";
 import type * as gameScores from "../gameScores.js";
 import type * as generalMetrics from "../generalMetrics.js";
@@ -167,6 +168,7 @@ declare const fullApi: ApiFromModules<{
   eventRequests: typeof eventRequests;
   eventSubForms: typeof eventSubForms;
   events: typeof events;
+  gameCharacters: typeof gameCharacters;
   gameScoreData: typeof gameScoreData;
   gameScores: typeof gameScores;
   generalMetrics: typeof generalMetrics;
