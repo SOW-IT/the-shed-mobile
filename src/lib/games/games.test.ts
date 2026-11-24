@@ -1,6 +1,17 @@
 import { describe, expect, test } from "vitest";
-import { birdX, FLAPPY, flap, gapHeight, MAX_GAP_RISE, newFlappy, pipeSpeed, stepFlappy, type FlappyState } from "./flappy";
-import { fitBoard, fitScale } from "./fit";
+import {
+  birdX,
+  FLAPPY,
+  flap,
+  gapHeight,
+  MAX_GAP_DROP,
+  MAX_GAP_RISE,
+  newFlappy,
+  pipeSpeed,
+  stepFlappy,
+  type FlappyState,
+} from "./flappy";
+import { fitBoard, fitScale, groundLine } from "./fit";
 import { atSwipeEdge, needsLeaveConfirm, SWIPE_EDGE } from "./leave";
 import { between, random } from "./random";
 import {
@@ -373,10 +384,20 @@ describe("flappy", () => {
     expect(state.y).toBeLessThan(640 * 0.42);
   });
 
-  test("each gap passed scores ten, and the gaps narrow and speed up over time", () => {
-    expect(gapHeight(0)).toBeGreaterThan(gapHeight(30));
-    expect(gapHeight(1000)).toBe(130);
-    expect(pipeSpeed(1000)).toBeGreaterThan(pipeSpeed(0));
+  test("the pipes speed up and the gaps narrow with the score, then level off", () => {
+    expect(pipeSpeed(0)).toBe(150);
+    expect(pipeSpeed(250)).toBeCloseTo(181.6, 1);
+    expect(pipeSpeed(500)).toBeCloseTo(193.2, 1);
+    expect(pipeSpeed(1000)).toBeCloseTo(199.1, 1);
+    expect(pipeSpeed(1_000_000)).toBeCloseTo(FLAPPY.topSpeed, 6);
+    expect(gapHeight(0)).toBe(180);
+    expect(gapHeight(250)).toBeCloseTo(161.0, 1);
+    expect(gapHeight(500)).toBeCloseTo(154.1, 1);
+    expect(gapHeight(1000)).toBeCloseTo(150.5, 1);
+    expect(gapHeight(1_000_000)).toBeCloseTo(FLAPPY.narrowestGap, 6);
+  });
+
+  test("each gap passed scores ten", () => {
     const autopilot = (s: FlappyState) => {
       const next = s.pipes.find((p) => p.x + FLAPPY.pipeWidth > birdX(s) - FLAPPY.radius);
       const target = next ? next.gapTop + next.gapHeight * 0.62 : s.height * 0.45;
@@ -388,10 +409,40 @@ describe("flappy", () => {
     expect(state.score).toBe(state.gaps * FLAPPY.pointsPerGap + Math.floor(state.time));
   });
 
+  test("at the top speed a flap fits in the narrowest gap, and the steepest runs of gaps can be flown", () => {
+    const hitRadius = FLAPPY.radius - 2;
+    const flapRise = FLAPPY.flapSpeed ** 2 / (2 * FLAPPY.gravity);
+    expect(flapRise).toBeLessThan(FLAPPY.narrowestGap - 2 * hitRadius);
+
+    // Gaps as far apart as they may be, with the score far past where the speed
+    // levels off, flown by a player whose taps only land every 0.15 seconds.
+    // Before 2.12.43 (240 a second, gaps of 130) the run of drops couldn't be.
+    const gap = gapHeight(10_000);
+    const runs = [
+      [500, 500 - MAX_GAP_RISE, 500 - MAX_GAP_RISE + MAX_GAP_DROP, 500 + MAX_GAP_DROP - 2 * MAX_GAP_RISE],
+      [300, 300 + MAX_GAP_DROP, 300 + MAX_GAP_DROP - MAX_GAP_RISE, 300 + 2 * MAX_GAP_DROP - MAX_GAP_RISE],
+      [800, 800 - MAX_GAP_RISE, 800 - 2 * MAX_GAP_RISE, 800 - 3 * MAX_GAP_RISE],
+      [60, 60 + MAX_GAP_DROP, 60 + 2 * MAX_GAP_DROP, 60 + 2 * MAX_GAP_DROP],
+    ];
+    const beat = (s: FlappyState) => {
+      let next = s;
+      for (let i = 0; i < 9 && !next.over; i++) next = stepFlappy(next, FRAME);
+      return next;
+    };
+    const through = (s: FlappyState, goal: number): boolean =>
+      !s.over && (s.gaps === goal || through(beat(s), goal) || through(beat(flap(s)), goal));
+    for (const tops of runs) {
+      const pipes = tops.map((gapTop, i) => ({ id: i + 1, x: 300 + i * FLAPPY.spacing, gapTop, gapHeight: gap, passed: false }));
+      const state: FlappyState = { ...newFlappy(720, 1000, 1), gaps: 1000, y: tops[0] + gap / 2, nextIn: 1e9, pipes };
+      expect(pipeSpeed(state.gaps * FLAPPY.pointsPerGap)).toBeCloseTo(FLAPPY.topSpeed, 0);
+      expect(through(state, 1000 + tops.length)).toBe(true);
+    }
+  });
+
   test("a gap never sits higher than the bird can climb to from the one before", () => {
-    // A tall board after a minute is where an unbounded gap could be out of reach.
+    // A tall board at the top speed is where an unbounded gap could be out of reach.
     for (const seed of [1, 2, 3, 4, 5]) {
-      let state: FlappyState = { ...newFlappy(480, 820, seed), time: 60 };
+      let state: FlappyState = { ...newFlappy(480, 820, seed), gaps: 100 };
       const tops: number[] = [];
       for (let i = 0; i < 30_000 && tops.length < 120; i++) {
         const known = new Set(state.pipes.map((p) => p.id));
@@ -414,6 +465,11 @@ describe("fitting the board", () => {
   test("the board is the stage, up to the game's largest size", () => {
     expect(fitBoard({ width: 390.6, height: 700 }, { width: 720, height: 1400 })).toEqual({ width: 390, height: 700 });
     expect(fitBoard({ width: 1400, height: 900 }, { width: 1200, height: 400 })).toEqual({ width: 1200, height: 400 });
+  });
+
+  test("the ground line is found from the stage, the centred board and the scale", () => {
+    expect(groundLine({ y: 60, height: 700 }, 700, 644, 1)).toBe(704);
+    expect(groundLine({ y: 60, height: 800 }, 600, 644, 0.5)).toBe(60 + 100 + 322);
   });
 
   test("a run that started on another size is scaled to fit, keeping its shape", () => {

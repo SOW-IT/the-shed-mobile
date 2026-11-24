@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.43] - 2026-11-24
+
+### Changed
+- **Flap stops speeding up before it gets impossible.** The pipes used to
+  keep speeding up and the gaps kept narrowing until a minute in, which is
+  about a score of 500, and by then the game was too fast to play. Now the
+  speed and the gap follow your score and level off: the pipes start at the
+  same speed, are a fifth faster by 250, and never go faster than a third
+  above where they started (200 instead of 240). The narrowest gap is 150
+  instead of 130. It's still harder at 500 than at the start, but a good run
+  can keep going.
+
+### Fixed
+- **No sky under the ground in Flap.** On phones with a home bar, on iPads,
+  in landscape and on wide browser windows, a light blue strip of sky showed
+  below the ground or beside it. The ground now runs to the bottom and the
+  sides of the screen.
+
 ## [2.12.41] - 2026-11-24
 
 ### Fixed
