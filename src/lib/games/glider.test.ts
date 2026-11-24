@@ -294,12 +294,33 @@ describe("worlds", () => {
     expect(done).toBeGreaterThan(0);
     const next = frames[done];
     expect(next.worldStart).toBe(frames[done - 1].worldEnd);
-    expect(next.daylight).toBeCloseTo(worldRules(2).day - FRAME, 5);
+    expect(next.daylight).toBeGreaterThan(worldRules(2).day - FRAME - 1e-9);
+    expect(next.daylight).toBeLessThanOrEqual(worldRules(2).day);
     expect(next.regained).toBe(0);
     expect(next.bonus - frames[done - 1].bonus).toBeGreaterThanOrEqual(GLIDER.worldPoints);
     expect(next.popups.some((p) => p.kind === "world" && p.text.startsWith("World 1 done"))).toBe(true);
     expect(state.ended).toBe("night");
     expect(state.world).toBe(2);
+  });
+
+  test("reaching the flag counts only before night falls, even inside one frame", () => {
+    const start = newGlider(1, 2);
+    const atFlag = (daylight: number): GliderState => ({
+      ...start,
+      x: start.worldEnd - 1,
+      y: groundAt(start.hills, start.worldEnd - 1).y,
+      speed: 220,
+      daylight,
+    });
+    // One unit at 220 a second takes under 5 ms: a frame is 17.
+    const late = stepGlider(atFlag(0.001), FRAME);
+    expect(late.over).toBe(true);
+    expect(late.ended).toBe("night");
+    expect(late.world).toBe(1);
+    const inTime = stepGlider(atFlag(0.01), FRAME);
+    expect(inTime.over).toBe(false);
+    expect(inTime.world).toBe(2);
+    expect(inTime.daylight).toBeGreaterThan(worldRules(2).day - FRAME);
   });
 
   test("practised flying, timing dives and flights, gets several worlds further", () => {
@@ -403,6 +424,9 @@ describe("controls", () => {
     expect(resize(state, 2)).toBe(state);
     expect(resize(state, 0)).toBe(state);
     expect(resize(state, 0.6).aspect).toBe(0.6);
+    // A finished run is never remade, or it would be recorded twice.
+    const over = { ...state, over: true };
+    expect(resize(over, 0.6)).toBe(over);
   });
 
   test("a long frame is split, so it lands the same as short ones", () => {

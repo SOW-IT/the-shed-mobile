@@ -364,6 +364,12 @@ export const GliderGame = ({
     if (height > 0) setRun((state) => state && resize(state, aspect));
   }, [aspect, height, setRun]);
 
+  // Input switched off (the leave dialog, another screen in front): a
+  // release in the meantime goes unheard, so the bird lets go now.
+  useEffect(() => {
+    if (!inputOn) setRun((state) => state && hold(state, false));
+  }, [inputOn, setRun]);
+
   const press = (down: boolean) => {
     const { session: current, aspect: ratio } = latest.current;
     if (current.phase === "ready") {

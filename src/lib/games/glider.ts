@@ -367,8 +367,9 @@ export const newGlider = (seed: number, aspect = 2): GliderState => {
 export const hold = (state: GliderState, heavy: boolean): GliderState =>
   state.over || state.heavy === heavy ? state : { ...state, heavy };
 
+/** A finished run stays the very same state, so it's never taken for a new finished run. */
 export const resize = (state: GliderState, aspect: number): GliderState =>
-  aspect > 0 && Math.abs(state.aspect - aspect) > 1e-3 ? { ...state, aspect } : state;
+  !state.over && aspect > 0 && Math.abs(state.aspect - aspect) > 1e-3 ? { ...state, aspect } : state;
 
 /** How far through the day it is, from 0 at sunrise to 1 at nightfall. */
 export const dayProgress = (state: Pick<GliderState, "daylight" | "world">) =>
@@ -467,27 +468,37 @@ const nextWorld = (state: GliderState) => {
   popup(state, "world", `World ${rules.world} done +${earned.toLocaleString()}`);
 };
 
-/** One step of the run. Steps longer than a 120th of a second are split. */
+/** The longest piece a step is moved in. */
+const SUBSTEP = 1 / 120;
+
+/**
+ * One step of the run, moved in pieces no longer than SUBSTEP. Daylight runs
+ * down piece by piece, and a piece stops at sunset, so reaching the flag
+ * counts only when it happens before night falls.
+ */
 export const stepGlider = (previous: GliderState, dt: number): GliderState => {
   if (previous.over) return previous;
   const state: GliderState = { ...previous };
-  const steps = Math.max(1, Math.ceil(dt * 120 - 1e-9));
+  const steps = Math.max(1, Math.ceil(dt / SUBSTEP - 1e-9));
   const slice = dt / steps;
-  for (let i = 0; i < steps; i++) {
-    state.time += slice;
-    if (state.grounded) moveOnGround(state, slice);
-    else moveInAir(state, slice);
+  let left = dt;
+  while (left > 1e-9 && !state.over) {
+    const piece = Math.min(slice, left, state.daylight);
+    state.time += piece;
+    if (state.grounded) moveOnGround(state, piece);
+    else moveInAir(state, piece);
+    state.daylight -= piece;
+    left -= piece;
+    if (state.x >= state.worldEnd) nextWorld(state);
+    else if (state.daylight <= 1e-9) {
+      state.daylight = 0;
+      state.over = true;
+      state.ended = "night";
+    }
   }
-  if (state.x >= state.worldEnd) nextWorld(state);
-  state.daylight -= dt;
   state.popups = state.popups.filter((p) => state.time - p.born < GLIDER.popupSeconds);
   state.camera = followCamera(state.camera, state, dt);
   state.score = gliderScore(state);
-  if (state.daylight <= 0) {
-    state.daylight = 0;
-    state.over = true;
-    state.ended = "night";
-  }
   return state;
 };
 
