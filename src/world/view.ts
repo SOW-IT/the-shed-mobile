@@ -31,8 +31,9 @@ export const lineWhere = (line: { here: boolean; place?: string }) =>
 
 type LogLine = { isMe: boolean; name: string; text: string; here: boolean; place?: string; kind?: "join" | "leave" };
 
-export const systemLine = (line: Pick<LogLine, "name" | "text" | "kind">) =>
-  `${tagName(line.name)} ${line.kind === "join" && line.text.startsWith("joined ") ? JOINED_WORLD : line.text}`;
+export const lineText = (line: Pick<LogLine, "text" | "kind">) => (line.kind === "join" && line.text.startsWith("joined ") ? JOINED_WORLD : line.text);
+
+export const systemLine = (line: Pick<LogLine, "name" | "text" | "kind">) => `${tagName(line.name)} ${lineText(line)}`;
 
 export const saidLabel = (line: LogLine) => {
   const where = lineWhere(line);

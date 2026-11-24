@@ -34,5 +34,5 @@ test("a line from another place is tagged with that place", () => {
   expect(chatLineParts({ ...line, here: false, place: "chapel" }, { times: false, names: "first" }).place).toBe("Chapel");
   expect(chatLineParts({ ...line, here: false }, { times: false, names: "first" }).place).toBe("Elsewhere");
   expect(placeTag("moon")).toBe("Elsewhere");
-  expect(chatLineParts({ ...line, kind: "join", text: "joined the Garden" }, { times: false, names: "initials" })).toMatchObject({ name: "DK", text: "joined the Garden" });
+  expect(chatLineParts({ ...line, kind: "join", text: "joined the Garden" }, { times: false, names: "initials" })).toMatchObject({ name: "DK", text: "joined the World" });
 });

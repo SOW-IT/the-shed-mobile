@@ -1,5 +1,5 @@
 import { isPlace, PLACE_TITLES } from "../../shared/world";
-import { clock } from "./view";
+import { clock, lineText } from "./view";
 
 type ChatNameStyle = "initials" | "first";
 
@@ -24,5 +24,5 @@ export const chatLineParts = (line: Line, { times, names, pending = false }: { t
   time: times ? (pending ? "…" : clock(line.at)) : null,
   place: line.here ? null : placeTag(line.place),
   name: chatName(line.name, names),
-  text: line.text,
+  text: lineText(line),
 });
