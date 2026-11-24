@@ -78,8 +78,10 @@ export type PingReading = { visit: string; ms: number };
 export const shownPing = (reading: PingReading | null, visit: string | null): number | null =>
   reading !== null && visit !== null && reading.visit === visit ? reading.ms : null;
 
-export const pingProbeDue = ({ taken, lastAt, now }: { taken: number; lastAt: number | null; now: number }): boolean =>
-  lastAt === null || now - lastAt >= (taken < PING_FIRST_SAMPLES ? PING_FIRST_GAP_MS : PING_PROBE_MS);
+export const pingProbeWait = ({ taken, lastAt, now }: { taken: number; lastAt: number | null; now: number }): number =>
+  lastAt === null ? 0 : Math.max(0, lastAt + (taken < PING_FIRST_SAMPLES ? PING_FIRST_GAP_MS : PING_PROBE_MS) - now);
+
+export const pingProbeDue = (at: { taken: number; lastAt: number | null; now: number }): boolean => pingProbeWait(at) === 0;
 
 export const shouldPublishPing = ({
   bars,

@@ -15,7 +15,9 @@ import {
   addPingSample,
   pingBars,
   pingEstimate,
+  PING_PROBE_MS,
   pingProbeDue,
+  pingProbeWait,
   shouldPublishPing,
   shownPing,
   type PingReading,
@@ -220,6 +222,7 @@ const showLook = (store: OptimisticLocalStore, { look }: { look: Look }) => {
  * never sent per frame; each phone walks people along their latest walk.
  */
 const NO_OBSTACLES: ReturnType<typeof homeObstacles> = [];
+const PING_RECHECK_MS = 1000;
 const NO_MEMBERS: NonNullable<FunctionReturnType<typeof api.world.roster>>["members"] = [];
 const NO_REQUESTS = {};
 
@@ -814,13 +817,15 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     pingVisit.current = pingVisitKey(session);
     pingSamples.current = [];
     probedAt.current = null;
+    let id: ReturnType<typeof setTimeout>;
     const probe = () => {
-      if (AppState.currentState !== "active") return;
-      if (pingProbeDue({ taken: pingSamples.current.length, lastAt: probedAt.current, now: Date.now() })) probePing();
+      const active = AppState.currentState === "active";
+      const due = () => ({ taken: pingSamples.current.length, lastAt: probedAt.current, now: Date.now() });
+      if (active && pingProbeDue(due())) probePing();
+      id = setTimeout(probe, active ? Math.max(PING_RECHECK_MS, pingProbeWait(due())) : PING_PROBE_MS);
     };
     probe();
-    const id = setInterval(probe, 1000);
-    return () => clearInterval(id);
+    return () => clearTimeout(id);
   }, [session, probePing]);
 
   useEffect(() => {

@@ -12,6 +12,7 @@ import {
   addPingSample,
   pingEstimate,
   pingProbeDue,
+  pingProbeWait,
   shownPing,
   PING_PROBE_MS,
   PING_SAMPLES,
@@ -597,6 +598,10 @@ describe("ping", () => {
     expect(pingProbeDue({ taken: 3, lastAt: 1000, now: 2000 })).toBe(false);
     expect(pingProbeDue({ taken: 5, lastAt: 1000, now: 1000 + PING_PROBE_MS - 1 })).toBe(false);
     expect(pingProbeDue({ taken: 5, lastAt: 1000, now: 1000 + PING_PROBE_MS })).toBe(true);
+    expect(pingProbeWait({ taken: 0, lastAt: null, now: 50 })).toBe(0);
+    expect(pingProbeWait({ taken: 1, lastAt: 1000, now: 1400 })).toBe(600);
+    expect(pingProbeWait({ taken: 5, lastAt: 1000, now: 1000 })).toBe(PING_PROBE_MS);
+    expect(pingProbeWait({ taken: 5, lastAt: 1000, now: 1000 + PING_PROBE_MS + 50 })).toBe(0);
   });
 
   test("a new bucket is published at once the first time", () => {
