@@ -31,4 +31,3 @@ Web at 402 x 874 (and 375 x 812 for the last shot), signed in through /e2e-auth 
 | web `campfire-stand` | <img src="before/web/campfire-stand.png" width="260"> | <img src="after/web/campfire-stand.png" width="260"> |
 | web `chapel-sit` | <img src="before/web/chapel-sit.png" width="260"> | <img src="after/web/chapel-sit.png" width="260"> |
 | web `chapel-stand` | <img src="before/web/chapel-stand.png" width="260"> | <img src="after/web/chapel-stand.png" width="260"> |
-| web `heights` | <img src="before/web/heights.png" width="260"> | <img src="after/web/heights.png" width="260"> |
