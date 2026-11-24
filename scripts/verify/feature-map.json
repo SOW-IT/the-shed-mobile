@@ -276,10 +276,10 @@
         "src/app/devotionals/**",
         "src/components/devotionals/**",
         "src/lib/devotionalStorage.ts",
-        "convex/devotionals.ts",
-        "shared/{bible,devotionals,devotionalStore}.ts"
+        "convex/{devotionals,devotionalGroups,devotionalGroupData}.ts",
+        "shared/{bible,devotionals,devotionalStore,devotionalGroups}.ts"
       ],
-      "routes": ["/devotionals", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"]
+      "routes": ["/devotionals", "/devotionals?tab=groups", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]

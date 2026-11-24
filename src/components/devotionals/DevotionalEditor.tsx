@@ -1,5 +1,5 @@
 import { SignInPrompt } from "@/components/SignInPrompt";
-import { Btn, Card, LoadingState, Muted, Screen, type ToastState } from "@/components/ui";
+import { Btn, Card, LoadingState, Muted, Screen, Segmented, type ToastState } from "@/components/ui";
 import { useOffline } from "@/hooks/useOffline";
 import {
   getLocalDevotional,
@@ -14,6 +14,11 @@ import {
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { parseBibleReference } from "@shared/bible";
+import {
+  DEVOTIONAL_SHARING_LEVELS,
+  SHARING_LEVEL_LABELS,
+  type DevotionalSharingLevel,
+} from "@shared/devotionalGroups";
 import {
   MAX_NOTES_LENGTH,
   MAX_PRAYER_LENGTH,
@@ -60,9 +65,14 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
     api.devotionals.byDate,
     isAuthenticated && validDate ? { date: validDate } : "skip"
   );
+  const sharingCtx = useQuery(
+    api.devotionalGroups.mySharingContext,
+    isAuthenticated && validDate ? { date: validDate } : "skip"
+  );
   const drafts = useLocalDevotionals(email);
   const localDraft = validDate ? drafts[validDate] : undefined;
   const saveOnline = useMutation(api.devotionals.save);
+  const setPersonalSharing = useMutation(api.devotionalGroups.setPersonalSharingLevel);
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
@@ -276,6 +286,35 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
           </Card>
         ) : null}
 
+        {sharingCtx && sharingCtx.groupCount > 0 ? (
+          <Card style={styles.sharingCard}>
+            <View style={styles.sharingHeader}>
+              <View style={styles.sharingLabelRow}>
+                <Ionicons name="people-outline" size={16} color={t.primary} />
+                <Text style={[typography.label, { color: t.text }]}>Share with groups</Text>
+              </View>
+              <Text style={[typography.caption, { color: t.muted }]}>
+                {sharingCtx.personalLevel ? "Your default" : "Group default"}
+              </Text>
+            </View>
+            <View testID="devotional-sharing-control">
+              <Segmented
+                segments={DEVOTIONAL_SHARING_LEVELS.map((level) => ({
+                  key: level,
+                  label: SHARING_LEVEL_LABELS[level],
+                }))}
+                active={sharingCtx.personalLevel ?? sharingCtx.defaultGroupLevel ?? "everything"}
+                onChange={(next) => {
+                  const level = next as DevotionalSharingLevel;
+                  void setPersonalSharing({ level })
+                    .then(() => setToast({ text: `Sharing: ${SHARING_LEVEL_LABELS[level]}` }))
+                    .catch(() => setToast({ text: "Couldn't update sharing." }));
+                }}
+              />
+            </View>
+          </Card>
+        ) : null}
+
         <Card style={styles.sectionCard}>
           <Text style={[typography.label, { color: t.muted }]}>Passage</Text>
           <PassagePicker
@@ -338,17 +377,17 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         </Card>
 
         <Card style={styles.sectionCard}>
-          <Text style={[typography.section, { color: t.text }]}>Prayer points</Text>
+          <Text style={[typography.section, { color: t.text }]}>Prayer</Text>
           <TextInput
             value={prayerPoints}
             onChangeText={(value) => updateContent({ passage, notes, prayerPoints: value })}
-            placeholder="Prayer points"
+            placeholder="Prayer"
             placeholderTextColor={t.faint}
             multiline
             maxLength={MAX_PRAYER_LENGTH}
             textAlignVertical="top"
             editable={canEdit}
-            accessibilityLabel="Prayer points"
+            accessibilityLabel="Prayer"
             testID="devotional-prayer-input"
             style={[
               styles.multiInput,
@@ -394,6 +433,14 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxxl,
   },
   sectionCard: { gap: spacing.sm },
+  sharingCard: { gap: spacing.xs, paddingVertical: spacing.md },
+  sharingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  sharingLabelRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   otherVersion: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md, gap: spacing.xs },
   conflictButtons: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   passageContainer: {

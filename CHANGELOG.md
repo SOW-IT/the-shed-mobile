@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.51] - 2026-11-25
+
+### Added
+- **Devotional groups.** Open the new **Groups** tab inside Devotionals to create a group with a name, start and end dates, and a sharing level (**Count only**, **Passage**, or **Everything**). Group owners can invite anyone with an account in THE SHED (with search), view pending invites, rename or edit the group, remove members, or delete the group. Invitees get a push notification and email with a link into the app to accept or decline, and only see the group name and owner until they accept.
+- **Shared group progress calendar.** Inside a group, see today's progress at the top and browse a month-by-month calendar coloured from red to green by how many members completed each day (with a green highlight and check when everyone is done, and neutral styling for upcoming days). Tap any day in range to see who has and hasn't done it, along with passages, Notes, and Prayer up to each member's effective sharing level.
+- **Personal sharing level.** Choose Count only, Passage, or Everything from the devotional editor or from group settings. It applies across all your groups, and others always see the lower of the group's setting and yours (defaulting to each group's level until you change it).
+- **8 pm Sydney devotional reminders.** Members of an active group who haven't chosen a passage for today receive one push reminder at 8 pm Sydney time across both AEST and AEDT. Turn it off any time under **Devotional reminders** on your Profile or in group settings.
+
+### Changed
+- **Renamed "Prayer points" to "Prayer"** in the devotional editor and validation messages.
+
 ## [2.12.50] - 2026-11-25
 
 ### Changed
@@ -96,7 +107,7 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Interactive object highlights.** Tapping a seat, the arcade, the notice board, the piano or the pulpit highlights it with a soft outline until you arrive and interact. Tapping somewhere else clears the highlight, and battery saver / reduced motion keeps it still and subtle.
 - **Garden notice board and Chapel piano.** The Garden now has a calendar notice board that opens the Calendar, and the Chapel piano opens the Praise List. Going back returns you to your spot in the World without leaving it.
 - **Daily devotionals.** Sitting in the Chapel or tapping the pulpit asks whether you want to open today's private daily devotional, and shows a small open-book icon over your head in the World while you're doing it. You can also open Devotionals from the side menu.
-- **Devotionals screen and history.** Enter and validate Protestant canon Bible passage references (such as Psalm 23 or John 15:1-17) in a top passage container, with separate Notes and Prayer points sections below. Changes save on your phone straight away and sync online when you press Save, go back, or come back online. If the same day was changed on another device in the meantime, you choose which version to keep instead of one silently replacing the other. Browse past devotionals in Month view (marked days) and Week view (passage references), paged by month, for today and earlier days only.
+- **Devotionals screen and history.** Enter and validate Protestant canon Bible passage references (such as Psalm 23 or John 15:1-17) in a top passage container, with separate Notes and Prayer sections below. Changes save on your phone straight away and sync online when you press Save, go back, or come back online. If the same day was changed on another device in the meantime, you choose which version to keep instead of one silently replacing the other. Browse past devotionals in Month view (marked days) and Week view (passage references), paged by month, for today and earlier days only.
 
 ## [2.12.44] - 2026-11-24
 
