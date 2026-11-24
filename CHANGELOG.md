@@ -6,7 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.47] - 2026-11-24
+## [2.12.47] - 2026-11-25
+
+### Changed
+- **The World and the games show a first name and a last initial.** Where a
+  name showed in full ("Daniel Kim"), it now reads "Daniel K." (a one-word
+  name stays as it is): the people lists and sheets, chat log lines (with the
+  "first name" style), the World list, action hints, the person sheet, duel
+  prompts, invite cards and the game leaderboards. Name tags already did this.
+  Your own still shows as "You" where it did.
 
 ### Fixed
 - **The newer hats sit right on curly hair, an afro and a bun.**

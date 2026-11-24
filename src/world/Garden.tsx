@@ -21,11 +21,11 @@ import {
   NPC,
   DUEL_PICKS,
   seatIn,
-  tagName,
   type Place,
   type Look,
   type Walk,
 } from "@shared/world";
+import { shortName } from "@shared/names";
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { makeCamera } from "./camera";
@@ -626,7 +626,7 @@ export const Garden = ({
     const waiting =
       p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${askInfo(p.ask.kind)?.ask ?? "…"}` : undefined;
     const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? swimSink(p.look) : 0), pose.z]);
-    const name = p.me ? "You" : tagName(p.name);
+    const name = p.me ? "You" : shortName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
     const speaking = Boolean(line || waiting || emote || p.away || p.reading) || typing !== undefined;
     if (!tagShown({ mode: tagMode, me: p.me, distance: mine ? Math.hypot(pose.x - mine.x, pose.z - mine.z) : null, speaking })) return;
@@ -737,13 +737,13 @@ export const Garden = ({
           return (
             <View key={`ask-${p.memberId}`} style={[styles.ask, { left: Math.min(Math.max(4, head.x - ASK_CARD_WIDTH / 2), cam.width - ASK_CARD_WIDTH - 4), top }]} testID="world-ask">
               <Text style={styles.askText} numberOfLines={1}>
-                {info.icon} {tagName(p.name)}: {info.ask}
+                {info.icon} {shortName(p.name)}: {info.ask}
               </Text>
               <View style={styles.askRow}>
                 <Pressable
                   onPress={() => onAccept(p.memberId, askAt)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${info.label} with ${p.name}`}
+                  accessibilityLabel={`${info.label} with ${shortName(p.name)}`}
                   testID="world-ask-accept"
                   style={({ pressed }) => [styles.askYes, pressed && { opacity: 0.75 }]}
                 >

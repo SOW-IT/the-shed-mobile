@@ -53,6 +53,7 @@ import { InviteCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { shortName } from "@shared/names";
 
 const useScreenReader = () => {
   const [on, setOn] = useState(false);
@@ -331,6 +332,8 @@ export const WorldScreen = ({
     return mine?.walk ? posAt(mine.walk, latest.serverNow()) : null;
   };
   const selected = world.people.find((p) => p.memberId === person) ?? null;
+  // How the selected person is named in the action hints: first name and last initial.
+  const selectedName = selected ? shortName(selected.name) : "";
   if (person !== null && !selected && world.status === "in") setPerson(null);
   const tapped =
     world.people.find((p) => p.memberId === sheet?.memberId) ??
@@ -340,7 +343,10 @@ export const WorldScreen = ({
     setPerson(null);
     setSheet({ memberId, safetyOnly: true, name });
   };
-  const firstName = (memberId: string) => world.people.find((p) => p.memberId === memberId)?.name.split(" ")[0] ?? "them";
+  const nameOf = (memberId: string) => {
+    const full = world.people.find((p) => p.memberId === memberId)?.name;
+    return full ? shortName(full) : "them";
+  };
 
   const myDuel = world.memberId ? duelFor(world.duels, world.memberId, now) : null;
   const duelOpponent = myDuel ? (myDuel.a === world.memberId ? myDuel.b : myDuel.a) : null;
@@ -350,7 +356,7 @@ export const WorldScreen = ({
   const duelProps = {
     duel: myDuel,
     side: myDuel && myDuel.b === world.memberId ? ("b" as const) : ("a" as const),
-    opponentName: duelOpponent ? firstName(duelOpponent) : "them",
+    opponentName: duelOpponent ? nameOf(duelOpponent) : "them",
     serverNow: world.serverNow,
     onPick: pickInMyDuel,
   };
@@ -628,7 +634,7 @@ export const WorldScreen = ({
     const since = Date.now();
     if (!stepToward(to, since, kind)) return setApproach(null);
     setApproach({ to, since, kind });
-    setNote(`Walking over to ${firstName(to)}…`);
+    setNote(`Walking over to ${nameOf(to)}…`);
   };
   const highFive = (to: string) => walkOverAndAsk(to, "highFive");
 
@@ -709,14 +715,14 @@ export const WorldScreen = ({
                 {
                   id: "highfive",
                   label: MUTUALS.highFive.label,
-                  hint: `${MUTUALS.highFive.label} with ${selected.name}`,
+                  hint: `${MUTUALS.highFive.label} with ${selectedName}`,
                   emoji: MUTUALS.highFive.icon,
                   onPress: () => highFive(selected.memberId),
                 },
                 {
                   id: "rps",
                   label: "Duel",
-                  hint: `${ASKS.rps.label} with ${selected.name}`,
+                  hint: `${ASKS.rps.label} with ${selectedName}`,
                   emoji: ASKS.rps.icon,
                   onPress: () => walkOverAndAsk(selected.memberId, "rps"),
                 },
@@ -724,7 +730,7 @@ export const WorldScreen = ({
           {
             id: "wave",
             label: EMOTES.wave.label,
-            hint: `Wave at ${selected.name}`,
+            hint: `Wave at ${selectedName}`,
             emoji: EMOTES.wave.icon,
             onPress: () => {
               setPerson(null);
@@ -734,7 +740,7 @@ export const WorldScreen = ({
           {
             id: "invite",
             label: "Invite",
-            hint: `Invite ${selected.name} to your home`,
+            hint: `Invite ${selectedName} to your home`,
             emoji: "✉️",
             onPress: () => {
               setPerson(null);
@@ -744,7 +750,7 @@ export const WorldScreen = ({
           {
             id: "more",
             label: "More",
-            hint: `Mute, block or report ${selected.name}`,
+            hint: `Mute, block or report ${selectedName}`,
             icon: "ellipsis-horizontal",
             onPress: () => {
               setPerson(null);

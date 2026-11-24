@@ -1,5 +1,6 @@
 import { fonts } from "@/theme";
-import { tagName, type Look } from "@shared/world";
+import { type Look } from "@shared/world";
+import { shortName } from "@shared/names";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Bust, usePresence } from "./Overlays";
@@ -27,11 +28,11 @@ export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: 
         <Bust look={look} size={40} />
         <Text style={styles.house}>🏠</Text>
         <Text style={styles.text} numberOfLines={2}>
-          {`${tagName(name)} invited you home`}
+          {`${shortName(name)} invited you home`}
         </Text>
       </View>
       <View style={styles.row}>
-        <Pressable onPress={() => setAnswer("go")} accessibilityRole="button" accessibilityLabel={`Go to ${name}'s home`} testID="world-invite-go" style={({ pressed }) => [styles.go, pressed && styles.pressed]}>
+        <Pressable onPress={() => setAnswer("go")} accessibilityRole="button" accessibilityLabel={`Go to ${shortName(name)}'s home`} testID="world-invite-go" style={({ pressed }) => [styles.go, pressed && styles.pressed]}>
           <Text style={styles.goText}>Go</Text>
         </Pressable>
         <Pressable onPress={() => setAnswer("later")} accessibilityRole="button" accessibilityLabel="Not now" testID="world-invite-later" style={({ pressed }) => [styles.later, pressed && styles.pressed]}>
