@@ -29,6 +29,8 @@ import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { api } from "../../convex/_generated/api";
+import { useHeldValue } from "@/hooks/useHeldValue";
+import { fillLoading, useDormant } from "./dormant";
 import { carryGait, restingGait, type Gait } from "./gait";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -198,6 +200,20 @@ const showLook = (store: OptimisticLocalStore, { look }: { look: Look }) => {
  * never sent per frame; each phone walks people along their latest walk.
  */
 const NO_OBSTACLES: ReturnType<typeof homeObstacles> = [];
+const NO_REQUESTS = {};
+
+type States = ReturnType<typeof useQueries>;
+
+const useHeldStates = (live: States, dormant: boolean, visitKey: string): States => {
+  const held = useRef<{ key: string; states: States } | null>(null);
+  /* eslint-disable react-hooks/refs -- remembers each person's last row across renders, so a dormant tab keeps its scene */
+  const before = held.current?.key === visitKey ? held.current.states : undefined;
+  if (dormant) return before ?? live;
+  const states = fillLoading(live, before);
+  held.current = { key: visitKey, states };
+  return states;
+  /* eslint-enable react-hooks/refs */
+};
 
 export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: string; invite?: string }) => {
   const joinM = useMutation(api.world.join);
@@ -222,8 +238,10 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   const offset = useRef<number | null>(null);
 
   const [session, setSession] = useState<Session | null>(null);
+  const dormant = useDormant();
+  const visitKey = session ? `${session.roomId}:${session.memberId}` : "";
   const arrivalRef = useRef(arrival);
-  const home = useQuery(api.worldHome.home, session?.place === "home" ? { roomId: session.roomId } : "skip");
+  const home = useHeldValue(useQuery(api.worldHome.home, session?.place === "home" && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
   const obstacles = useMemo(() => (home ? homeObstacles(home.items) : NO_OBSTACLES), [home]);
   const obstaclesRef = useRef(obstacles);
   useEffect(() => {
@@ -361,7 +379,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     return taken;
   }, []);
 
-  const roster = useQuery(api.world.roster, session ? { roomId: session.roomId } : "skip");
+  const roster = useHeldValue(useQuery(api.world.roster, session && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
   // Swept while away (a long background, a lost signal): come back in.
   useEffect(() => {
     if (session && roster === null && !travelling.current) again();
@@ -381,7 +399,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       ),
     [memberKey]
   );
-  const states = useQueries(requests);
+  const states = useHeldStates(useQueries(dormant ? NO_REQUESTS : requests), dormant, visitKey);
 
   const myRow = session ? states[session.memberId] : undefined;
   const myServerWalk = myRow && !(myRow instanceof Error) ? (myRow as Walk) : null;
@@ -674,7 +692,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [session, typingM]
   );
 
-  const duels = useQuery(api.world.duels, session ? { roomId: session.roomId } : "skip");
+  const duels = useHeldValue(useQuery(api.world.duels, session && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
   const duelPickM = useMutation(api.world.duelPick).withOptimisticUpdate((store, { duelId, round, pick }) => {
     const me = meIn(store);
     const rows = me && store.getQuery(api.world.duels, { roomId: me.roomId });
@@ -694,7 +712,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [duelPickM]
   );
 
-  const placeCounts = useQuery(api.world.places, session ? {} : "skip");
+  const placeCounts = useHeldValue(useQuery(api.world.places, session && !dormant ? {} : "skip"), visitKey).value;
   const inviteM = useMutation(api.world.invite);
   const invite = useCallback(
     async (memberId: MemberId): Promise<string | null> => {
