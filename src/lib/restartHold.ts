@@ -1,6 +1,5 @@
-export const MIN_AWAY_BEFORE_RESTART_MS = 10 * 60_000;
-
 let holds = 0;
+const freeListeners = new Set<() => void>();
 
 export const restartHeld = (): boolean => holds > 0;
 
@@ -11,6 +10,7 @@ export function holdRestart(): () => void {
     if (released) return;
     released = true;
     holds -= 1;
+    if (holds === 0) [...freeListeners].forEach((listener) => listener());
   };
 }
 
@@ -23,5 +23,9 @@ export async function withRestartHeld<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
-export const readyToRestart = (leftAt: number | null, now: number): boolean =>
-  leftAt !== null && now - leftAt >= MIN_AWAY_BEFORE_RESTART_MS && !restartHeld();
+export function onRestartFree(listener: () => void): () => void {
+  freeListeners.add(listener);
+  return () => {
+    freeListeners.delete(listener);
+  };
+}
