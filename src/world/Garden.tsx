@@ -502,12 +502,13 @@ export const Garden = ({
     }
   };
   // The system took the touch away (a call, a system gesture): it was no tap,
-  // so open nothing; a walk in progress ends where the finger last was.
+  // so open nothing; a walk in progress ends at the last ground spot the
+  // finger was on (`p.x`/`p.y` is where it went down, not where it is).
   const onCancel = () => {
     const p = press.current;
     if (p.timer) clearTimeout(p.timer);
     p.timer = null;
-    if (p.walking) walkFrom(p.x, p.y, "end");
+    if (p.walking && p.spot) onHoldEnd(p.spot.x, p.spot.z);
     p.walking = false;
     p.hit = { kind: "ground" };
   };
