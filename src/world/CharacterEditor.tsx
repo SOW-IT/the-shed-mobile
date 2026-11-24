@@ -659,7 +659,7 @@ export const CharacterEditor = ({
           <Text style={[typography.caption, { color: t.muted }]}>You wear it as your shoes, and on a beret, bow, headband or party hat.</Text>
           {section("Background")}
           <Swatches colours={people.backdrops} value={part("backdrop")} onPick={set("backdrop")} label="Background" />
-          <Text style={[typography.caption, { color: t.muted }]}>The circle behind you in the People list, invites and chat.</Text>
+          <Text style={[typography.caption, { color: t.muted }]}>The circle behind you in the People list and on invites.</Text>
         </>
       ) : null}
       {tab === "Outfit" ? (

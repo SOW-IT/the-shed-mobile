@@ -36,6 +36,9 @@ All notable changes to **The SHED** mobile app. This project follows
   him show the same look.
 - **A Short beard** in the character editor: a close beard along the jaw
   with a moustache.
+- **Pick your own background colour.** The circle behind your avatar in the
+  People list and on invites can be one of ten colours, under Body in the
+  editor. Everyone keeps today's mint until they pick one.
 - **Tap your coins to see how to get more.** A card pops up with your
   balance and a spinning coin: the scores that earn 10 or 20 coins in Flap,
   Mystic Man and Sky Shooter, the 200 a day limit, and that Sijin in the
@@ -58,6 +61,8 @@ All notable changes to **The SHED** mobile app. This project follows
   a mail icon instead of a house.
 
 ### Fixed
+- **Round avatars are centred.** The small round avatars in the People
+  list, invites and the shop sat a couple of pixels right of the middle.
 - **You can sit on the Campfire's back log.** Tapping it used to walk you to
   it; now it sits you down like the side logs.
 - **The web sweep waits for the World to load.** The first visit compiles
