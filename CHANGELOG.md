@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.49] - 2026-11-25
+
+### Changed
+- **A devotional's passage is chosen from lists instead of typed.** Pick the
+  book (search by name, or scroll the Old and New Testaments), then the
+  chapter from that book's chapters, and if you like a first and last verse.
+  A book with one chapter, like Jude, goes straight to its verses. Passages
+  you saved before open in the lists as they were, and they're saved in the
+  same form. "Type a reference instead" is still there for a passage the
+  lists can't hold, like two passages or a range across chapters, and a saved
+  one of those opens in the typed box.
+
 ## [2.12.47] - 2026-11-25
 
 ### Changed
