@@ -6,6 +6,7 @@
 // 1 otherwise.
 import { execFileSync } from "node:child_process";
 import { assessSize, coveringReview, reviewedCommits, skipReason } from "./lib/coderabbitGate.mjs";
+import { requiredNotPassed } from "./lib/prChecks.mjs";
 
 const gh = (args) => execFileSync("gh", args, { encoding: "utf8" });
 const number = process.argv[2];
@@ -26,6 +27,8 @@ const RUNNING = new Set(["IN_PROGRESS", "QUEUED", "PENDING", "EXPECTED", "WAITIN
 const pending = checks.filter((c) => RUNNING.has(c.state));
 // Anything not known to be a pass or still running (STALE, a state GitHub adds later) counts as failed.
 const failed = checks.filter((c) => !PASSED.has(c.state) && !RUNNING.has(c.state));
+// The CI jobs themselves must show up and succeed, not just whatever has run so far.
+const missing = requiredNotPassed(checks);
 
 const query = `query($owner:String!,$repo:String!,$number:Int!,$after:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){
   reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor}nodes{id isResolved isOutdated path line comments(first:20){nodes{author{login} body url}}}}}}}`;
@@ -108,7 +111,7 @@ const coderabbit = {
 };
 const reviewOwed = size.big && !covered;
 
-const status = { url: pr.url, state: pr.state, draft: pr.isDraft, head: pr.headRefOid.slice(0, 7), changedFiles: pr.changedFiles, checks: { failed, pending, total: checks.length }, coderabbit };
+const status = { url: pr.url, state: pr.state, draft: pr.isDraft, head: pr.headRefOid.slice(0, 7), changedFiles: pr.changedFiles, checks: { failed, pending, missing, total: checks.length }, coderabbit };
 // Findings outside the diff live only in a review body, with no thread to
 // resolve. Reviews are incremental, so a finding on an earlier head isn't
 // repeated later: every CodeRabbit review's findings count until its id is
@@ -122,7 +125,7 @@ const bodyFindings = reviews
 const unreadBodies = bodyFindings.filter((r) => r.outsideDiff > 0 && !acked.has(r.id));
 coderabbit.bodyFindings = bodyFindings;
 
-const done = !reviewOwed && unreadBodies.length === 0 && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0;
+const done = !reviewOwed && unreadBodies.length === 0 && missing.length === 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0;
 
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ ...status, done }, null, 2));
@@ -130,6 +133,7 @@ if (process.argv.includes("--json")) {
   console.log(`${pr.url} ${pr.isDraft ? "(draft) " : ""}head ${status.head}, ${pr.changedFiles} files`);
   console.log(`CI: ${checks.length - failed.length - pending.length}/${checks.length} passed, ${pending.length} running, ${failed.length} failed${checks.length === 0 ? " (no checks yet)" : ""}`);
   for (const c of failed) console.log(`  ✘ ${c.name}: ${c.url}`);
+  if (missing.length > 0) console.log(`  not passed yet: ${missing.join(", ")}`);
   if (skipped) console.log(`CodeRabbit skipped the review: ${skipped}`);
   if (limited) console.log(`CodeRabbit is rate limited; ask again after ${coderabbit.rateLimited.retryAfter} with "@coderabbitai review"`);
   console.log(`CodeRabbit: ${reviewedHead ? "has reviewed" : "has not reviewed"} head ${status.head}; ${openThreads.length} open thread(s)`);
