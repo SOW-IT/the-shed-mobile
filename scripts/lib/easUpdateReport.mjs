@@ -39,6 +39,49 @@ export const checkUpdate = (update, lastBuild) => {
 
 export const stranded = (checks) => checks.filter((check) => check.result !== "match");
 
+const PRODUCTION_DEPLOY_KEY_PREFIX = "prod:";
+
+export const recommendationPlan = ({ checks, published, deployKey }) => {
+  if (!published) return [];
+  const production = (deployKey ?? "").startsWith(PRODUCTION_DEPLOY_KEY_PREFIX);
+  return checks.map((check) => ({
+    platform: check.platform,
+    action: check.result !== "match" ? "stranded" : production ? "raise" : "no-key",
+  }));
+};
+
+export const raisedOutcome = (platform, output) => {
+  const text = (output ?? "").trim();
+  const start = text.indexOf("{");
+  const result = JSON.parse(start > 0 ? text.slice(start) : text);
+  if (typeof result?.raised !== "boolean" || typeof result?.recommended !== "string") {
+    throw new Error("appInstalls:raiseRecommended returned something other than a recommended version.");
+  }
+  return {
+    platform,
+    action: result.raised ? "raised" : "kept",
+    previous: typeof result.previous === "string" ? result.previous : null,
+    recommended: result.recommended,
+  };
+};
+
+export const recommendationFailed = (outcomes) => outcomes.filter((outcome) => outcome.action === "failed");
+
+const recommendationText = (version, outcome) => {
+  switch (outcome.action) {
+    case "raised":
+      return outcome.previous ? `raised from ${outcome.previous} to ${outcome.recommended}` : `set to ${outcome.recommended}`;
+    case "kept":
+      return `stays ${outcome.recommended}, already at or past ${version}`;
+    case "stranded":
+      return "not changed, because this update reaches no store build";
+    case "no-key":
+      return "not changed, because the workflow has no production Convex deploy key";
+    default:
+      return `not changed: ${outcome.error ?? "appInstalls:raiseRecommended failed"}`;
+  }
+};
+
 const shortHash = (hash) => (hash ? `\`${hash.slice(0, 7)}\`` : "none");
 
 const headline = (version, checks) => {
@@ -60,7 +103,10 @@ const strandedNote = (checks) =>
 export const dashboardLink = ({ owner, slug }, group) =>
   `https://expo.dev/accounts/${owner}/projects/${slug}/updates/${group}`;
 
-export const summaryMarkdown = ({ version, channel, commit, project, checks }) => {
+const recommendationLines = (version, recommendations) =>
+  recommendations.map((outcome) => `${platformName(outcome.platform)} ${recommendationText(version, outcome)}`);
+
+export const summaryMarkdown = ({ version, channel, commit, project, checks, recommendations = [] }) => {
   const lines = [`### Over the air: ${headline(version, checks)}`, ""];
   if (checks.length === 0) {
     lines.push(`Nothing was published to the ${channel} channel for \`${commit.slice(0, 7)}\`; the publish step's log says why.`);
@@ -80,12 +126,20 @@ export const summaryMarkdown = ({ version, channel, commit, project, checks }) =
     ""
   );
   lines.push(stranded(checks).length > 0 ? strandedNote(checks) : APPLY_NOTE);
+  if (recommendations.length > 0) {
+    lines.push(
+      "",
+      "**Recommended version** (phones below it see the update prompt):",
+      "",
+      ...recommendationLines(version, recommendations).map((line) => `- ${line}`)
+    );
+  }
   return lines.join("\n");
 };
 
 const html = (text) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
-export const chatMessage = ({ version, channel, commit, subject, commitUrl, runUrl, project, checks }) => {
+export const chatMessage = ({ version, channel, commit, subject, commitUrl, runUrl, project, checks, recommendations = [] }) => {
   const title = headline(version, checks);
   const missing = stranded(checks);
   const detail =
@@ -120,6 +174,17 @@ export const chatMessage = ({ version, channel, commit, subject, commitUrl, runU
                     wrapText: true,
                   },
                 })),
+                ...(recommendations.length > 0
+                  ? [
+                      {
+                        decoratedText: {
+                          topLabel: "Recommended version",
+                          text: html(recommendationLines(version, recommendations).join("; ")),
+                          wrapText: true,
+                        },
+                      },
+                    ]
+                  : []),
                 { textParagraph: { text: html(detail) } },
                 {
                   buttonList: {

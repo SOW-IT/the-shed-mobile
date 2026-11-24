@@ -70,3 +70,66 @@ describe("update status", () => {
     ).toEqual({ status: "ok", latest: "2.9.4", message: null });
   });
 });
+
+describe("raising the recommended version", () => {
+  const policy = (t: Awaited<ReturnType<typeof seeded>>) =>
+    t.run((ctx) => ctx.db.query("appUpdatePolicy").collect());
+
+  test("sets it when there is no policy yet", async () => {
+    const t = await seeded();
+    expect(
+      await t.mutation(internal.appInstalls.raiseRecommended, { platform: "ios", version: "2.12.38" })
+    ).toEqual({ raised: true, previous: null, recommended: "2.12.38" });
+    expect((await policy(t)).map(({ platform, recommended, minimum }) => [platform, recommended, minimum])).toEqual([
+      ["ios", "2.12.38", undefined],
+    ]);
+  });
+
+  test("raises an older version and keeps the minimum and message", async () => {
+    const t = await seeded();
+    await t.mutation(internal.appInstalls.setUpdatePolicy, {
+      platform: "android",
+      minimum: "2.10.0",
+      recommended: "2.12.9",
+      message: "New check-in",
+    });
+    expect(
+      await t.mutation(internal.appInstalls.raiseRecommended, { platform: "android", version: "2.12.10" })
+    ).toEqual({ raised: true, previous: "2.12.9", recommended: "2.12.10" });
+    expect(
+      await t.query(api.appInstalls.updateStatus, { platform: "android", version: "2.12.9" })
+    ).toEqual({ status: "recommended", latest: "2.12.10", message: "New check-in" });
+    expect((await policy(t)).map(({ minimum }) => minimum)).toEqual(["2.10.0"]);
+  });
+
+  test.each([["2.12.38"], ["2.12.37"], ["2.9.40"]])("never lowers 2.12.38 to %s", async (version) => {
+    const t = await seeded();
+    await t.mutation(internal.appInstalls.setUpdatePolicy, { platform: "ios", recommended: "2.12.38" });
+    expect(await t.mutation(internal.appInstalls.raiseRecommended, { platform: "ios", version })).toEqual({
+      raised: false,
+      previous: "2.12.38",
+      recommended: "2.12.38",
+    });
+    expect((await policy(t)).map(({ recommended }) => recommended)).toEqual(["2.12.38"]);
+  });
+
+  test("leaves the other platform alone", async () => {
+    const t = await seeded();
+    await t.mutation(internal.appInstalls.setUpdatePolicy, { platform: "ios", recommended: "2.12.1" });
+    await t.mutation(internal.appInstalls.raiseRecommended, { platform: "android", version: "2.12.38" });
+    expect(
+      (await policy(t)).map(({ platform, recommended }) => [platform, recommended]).sort()
+    ).toEqual([
+      ["android", "2.12.38"],
+      ["ios", "2.12.1"],
+    ]);
+  });
+
+  test("refuses something that isn't a version", async () => {
+    const t = await seeded();
+    await expect(
+      t.mutation(internal.appInstalls.raiseRecommended, { platform: "ios", version: "latest" })
+    ).rejects.toThrow(/isn't an app version/);
+    expect(await policy(t)).toEqual([]);
+  });
+});
