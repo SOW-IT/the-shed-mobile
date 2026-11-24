@@ -39,6 +39,12 @@ const defaultBackend: DevotionalStorageBackend = {
 
 const store = createDevotionalStore(defaultBackend);
 
+if (onWeb()) {
+  window.addEventListener("storage", (event) => {
+    if (event.key) void store.storedElsewhere(event.key);
+  });
+}
+
 export const saveLocalDevotional = store.saveLocal;
 export const persistLocalDevotionals = store.persistNow;
 export const markDevotionalSynced = store.markSynced;

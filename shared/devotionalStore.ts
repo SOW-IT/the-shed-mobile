@@ -38,6 +38,25 @@ const parseRemoved = (raw: string): Record<string, number> => {
 
 const stampOf = (draft: LocalDevotionalDraft) => draft.savedAt ?? draft.updatedAt;
 
+const serialize = (drafts: Record<string, LocalDevotionalDraft>, removed: Record<string, number>) => {
+  const out: Record<string, unknown> = {};
+  for (const date of Object.keys(drafts).sort()) {
+    const d = drafts[date];
+    out[date] = {
+      passage: d.passage,
+      notes: d.notes,
+      prayerPoints: d.prayerPoints,
+      updatedAt: d.updatedAt,
+      dirty: d.dirty,
+      base: d.base,
+      conflict: d.conflict,
+      savedAt: stampOf(d),
+    };
+  }
+  out[REMOVED_KEY] = Object.fromEntries(Object.keys(removed).sort().map((date) => [date, removed[date]]));
+  return JSON.stringify(out);
+};
+
 export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
   type Bucket = {
     drafts: Record<string, LocalDevotionalDraft>;
@@ -89,20 +108,22 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     if (!raw) return;
     const removed = { ...bucket.removed };
     for (const [date, at] of Object.entries(parseRemoved(raw))) {
+      lastStamp = Math.max(lastStamp, at);
       if ((removed[date] ?? -Infinity) < at) removed[date] = at;
     }
     const drafts = { ...bucket.drafts };
     let changed = false;
     for (const [date, stored] of Object.entries(parseDraftStore(raw))) {
+      lastStamp = Math.max(lastStamp, stampOf(stored));
       const mine = drafts[date];
-      if ((removed[date] ?? -Infinity) >= stampOf(stored)) continue;
+      if ((removed[date] ?? -Infinity) > stampOf(stored)) continue;
       if (!mine || stampOf(stored) > stampOf(mine)) {
         drafts[date] = stored;
         changed = true;
       }
     }
     for (const [date, mine] of Object.entries(drafts)) {
-      if ((removed[date] ?? -Infinity) >= stampOf(mine)) {
+      if ((removed[date] ?? -Infinity) > stampOf(mine)) {
         delete drafts[date];
         changed = true;
       }
@@ -134,19 +155,26 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     return bucket.loading;
   };
 
-  const persist = (email: string, bucket: Bucket): Promise<boolean> => {
-    const key = keyFor(email);
+  const persist = (key: string, bucket: Bucket, onlyIfBehind = false): Promise<boolean> => {
     const write = bucket.writing.then(async () => {
       try {
-        mergeStored(bucket, await backend.read(key));
+        const raw = await backend.read(key);
+        mergeStored(bucket, raw);
         bucket.loaded = true;
-        return await backend.write(key, JSON.stringify({ ...bucket.drafts, [REMOVED_KEY]: bucket.removed }));
+        const next = serialize(bucket.drafts, bucket.removed);
+        if (onlyIfBehind && next === raw) return true;
+        return await backend.write(key, next);
       } catch {
         return false;
       }
     });
     bucket.writing = write;
     return write;
+  };
+
+  const storedElsewhere = (key: string): Promise<boolean> => {
+    const bucket = buckets.get(key);
+    return bucket?.loaded ? persist(key, bucket, true) : Promise.resolve(true);
   };
 
   const update = (email: string, date: string, next: LocalDevotionalDraft | null) => {
@@ -162,7 +190,7 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     bucket.drafts = drafts;
     recomputeDirty(bucket);
     notify(bucket);
-    return persist(email, bucket);
+    return persist(keyFor(email), bucket);
   };
 
   const saveLocal = async (
@@ -231,7 +259,7 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     );
   };
 
-  const persistNow = (email: string): Promise<boolean> => persist(email, getBucket(email));
+  const persistNow = (email: string): Promise<boolean> => persist(keyFor(email), getBucket(email));
 
   const getDrafts = (email: string | null | undefined): Readonly<Record<string, LocalDevotionalDraft>> =>
     email ? getBucket(email).drafts : EMPTY_DEVOTIONAL_MAP;
@@ -253,6 +281,7 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     load,
     saveLocal,
     persistNow,
+    storedElsewhere,
     markSynced,
     markConflict,
     keepMine,

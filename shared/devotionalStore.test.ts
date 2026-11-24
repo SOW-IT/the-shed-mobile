@@ -182,6 +182,63 @@ describe("devotional local storage and sync", () => {
     expect(await reader.persistNow(ANNA)).toBe(true);
   });
 
+  test("a write that raced another tab's is put back when that tab hears about it, then they settle", async () => {
+    const { backend, data } = memoryBackend();
+    let release: () => void = () => undefined;
+    let gate: Promise<void> | null = new Promise((resolve) => {
+      release = resolve;
+    });
+    let writes = 0;
+    const racing: DevotionalStorageBackend = {
+      read: async (key) => {
+        const value = await backend.read(key);
+        if (gate) await gate;
+        return value;
+      },
+      write: async (key, value) => {
+        writes++;
+        return backend.write(key, value);
+      },
+    };
+    const tabA = createDevotionalStore(racing);
+    const tabB = createDevotionalStore(racing);
+    const savingA = tabA.saveLocal(ANNA, "2026-11-20", { passage: "", notes: "A", prayerPoints: "" }, null);
+    const savingB = tabB.saveLocal(ANNA, "2026-11-21", { passage: "", notes: "B", prayerPoints: "" }, null);
+    release();
+    gate = null;
+    await Promise.all([savingA, savingB]);
+    expect(Object.keys(stored(data)).filter((k) => k !== "removed")).toHaveLength(1);
+
+    const key = [...data.keys()][0];
+    await tabA.storedElsewhere(key);
+    await tabB.storedElsewhere(key);
+    expect(Object.keys(stored(data)).filter((k) => k !== "removed").sort()).toEqual(["2026-11-20", "2026-11-21"]);
+    const settled = writes;
+    expect(await tabA.storedElsewhere(key)).toBe(true);
+    expect(await tabB.storedElsewhere(key)).toBe(true);
+    expect(writes).toBe(settled);
+    expect(await tabA.storedElsewhere("devotionals.drafts.nobody@sow.org.au")).toBe(true);
+  });
+
+  test("re-adding a day another tab deleted in the same millisecond keeps the new draft", async () => {
+    const { backend, data } = memoryBackend();
+    const key = "devotionals.drafts.anna@sow.org.au";
+    const far = Date.now() + 60_000;
+    data.set(key, JSON.stringify({ removed: { [DAY]: far } }));
+    const store = createDevotionalStore(backend);
+    await store.load(ANNA);
+    await store.saveLocal(ANNA, DAY, { passage: "", notes: "Back", prayerPoints: "" }, null);
+    expect(store.getDrafts(ANNA)[DAY].savedAt).toBeGreaterThan(far);
+    const reader = createDevotionalStore(backend);
+    await reader.load(ANNA);
+    expect(reader.getDrafts(ANNA)[DAY].notes).toBe("Back");
+
+    data.set(key, JSON.stringify({ [DAY]: { passage: "", notes: "Tie", prayerPoints: "", updatedAt: 1, dirty: true, savedAt: 5 }, removed: { [DAY]: 5 } }));
+    const tie = createDevotionalStore(backend);
+    await tie.load(ANNA);
+    expect(tie.getDrafts(ANNA)[DAY].notes).toBe("Tie");
+  });
+
   test("isolates drafts per account, handles empty storage and notifies subscribers", async () => {
     const { backend } = memoryBackend();
     const store = createDevotionalStore(backend);
