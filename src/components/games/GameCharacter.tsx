@@ -44,6 +44,17 @@ export const useAvatarArt = (wanted: boolean): AvatarArt | null => {
   return art;
 };
 
+/**
+ * Starts loading the avatar art without waiting for it, so a start card
+ * opened from here has the faces ready. The art stays out of the app's own
+ * startup either way.
+ */
+export const usePreloadAvatarArt = () => {
+  useEffect(() => {
+    loadArt().catch(() => undefined);
+  }, []);
+};
+
 export const useGameLook = (game: CharacterGame): Look | null => {
   const choice = useCharacterChoice(game);
   const mine = useMyLook();
@@ -126,7 +137,16 @@ export const CharacterPicker = ({
             style={({ pressed }) => [styles.option, selected && styles.selected, pressed && styles.pressed]}
           >
             <View style={styles.picture}>
-              {look && art ? picture(look, art) : look || character === "mine" ? <Ionicons name="person-outline" size={28} color={g.text} /> : original}
+              {look && art ? (
+                picture(look, art)
+              ) : look || (character === "mine" && mine === undefined) ? (
+                // A face still loading: a blank one, not the icon that means "no World character".
+                <View style={styles.loadingFace} testID={`character-${character}-loading`} />
+              ) : character === "mine" ? (
+                <Ionicons name="person-outline" size={28} color={g.text} />
+              ) : (
+                original
+              )}
             </View>
             <Text style={[styles.label, selected && styles.selectedLabel]}>{LABELS[character]}</Text>
             {selected ? (
@@ -156,6 +176,7 @@ const styles = StyleSheet.create({
   selected: { borderColor: g.button.bg },
   pressed: { opacity: 0.7 },
   picture: { width: 48, height: 48, alignItems: "center", justifyContent: "flex-end" },
+  loadingFace: { width: 34, height: 34, marginBottom: 3, borderRadius: 17, backgroundColor: g.loadingFace },
   label: { ...typography.caption, color: g.text, opacity: 0.8 },
   selectedLabel: { opacity: 1, fontWeight: "700" },
   tick: {
