@@ -324,6 +324,9 @@ export const REVIEWED_LIMIT = 50;
 export const reviewedHeading = (count: number): string =>
   count >= REVIEWED_LIMIT ? `Latest ${REVIEWED_LIMIT} reviewed` : `Reviewed (${count})`;
 
+/** The most requests one requests.stepActorsForRequests call takes. */
+export const MAX_STEP_ACTOR_REQUESTS = 100;
+
 export const requestFullyApproved = (r: ApprovalState): boolean =>
   r.approvedByHOD === APPROVED &&
   r.approvedByBudgetManager === APPROVED &&

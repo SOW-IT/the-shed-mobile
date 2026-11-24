@@ -85,6 +85,7 @@
         "src/lib/requestsCsv.ts",
         "src/hooks/useReimbursementsBadge.ts",
         "src/hooks/useRequestUnreadCounts.ts",
+        "src/hooks/useRequestStepActors.ts",
         "convex/{requests,categoryPeople,stepTiming,reminders}.ts",
         "shared/{flow,money,reminders}.ts"
       ],
@@ -262,8 +263,8 @@
         "src/app/world.tsx",
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
-        "convex/{world,worldData}.ts",
-        "shared/world.ts"
+        "convex/{world,worldData,worldHome,coins}.ts",
+        "shared/{world,home,coins}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games"]
     }

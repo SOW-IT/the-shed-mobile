@@ -23,6 +23,7 @@ export const PLACE_ICONS: Record<Place, string> = {
   campfire: "🔥",
   cafe: "☕",
   beach: "🏖️",
+  home: "🏠",
 };
 
 export const placeLabel = (place: Place) => `${PLACE_ICONS[place]} ${PLACE_TITLES[place]}`;

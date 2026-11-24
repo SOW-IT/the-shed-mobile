@@ -254,3 +254,42 @@ server too). An idle app probes with a call that writes nothing every 15 s.
 Join and leave are a handful of writes
 once per visit (leave also keeps the rate limits in `worldThrottle`), and the
 sweeper adds two calls a minute while anyone is in.
+
+## Homes, coins and Sijin's shop
+
+Every member has a home: a `worldRooms` row with `place: "home"` and an
+`owner`, made the first time its owner goes in and swept like any room when
+it empties. One room per owner, `HOME_CAP` (8) people. Only the owner, or
+someone holding a `worldInvites` row from them that hasn't expired (24 hours),
+can travel or arrive there; the server checks, and a block either way voids
+an invite. Homes never show in `places` or `elsewhere`, and lines said in a
+home only reach that home's chat log.
+
+A poke now keeps where the poker was (`worldPokes`: place, home owner, spot)
+from the server's own rows, and the push opens `/world?poke=<id>`. Joining
+with it puts you beside the poker if they're still in the World and you may
+enter where they are, or else where they poked from. A poke from your own
+home also invites them in. An offline invite is the same push with
+`/world?invite=<id>` and shares the poke limits.
+
+Coins live on `worldWallets` (balance, what you own, today's earnings) with
+every change in `coinLedger`. `submitScores` pays for a run once, by run id,
+and only for the highest tier passed, up to `DAILY_COIN_CAP` (200) a Sydney
+day. The phone queues every paying run (up to 20) as well as each game's
+best, so offline runs pay when they sync. Buying reads the wallet on the
+server; the app's balance is only for show.
+
+What each new action writes:
+
+| Action | Document writes | Limit |
+| --- | ---: | --- |
+| `invite` (someone online) | 2: your state row's act bucket, the invite | the act bucket |
+| `inviteStaff` (someone offline) | 4 to 5, like a poke, plus a notification | one poke or invite an hour |
+| `pokeStaff` / `poke` | one more than before: the `worldPokes` row (two from your own home) | unchanged |
+| `travel` to a home | as any travel, plus the home room the first time | the act bucket |
+| `buy` | 2: wallet, ledger (3 with the wallet made on first use) | once per tap |
+| `placeItem`, `moveItem`, `removeItem`, `setWallpaper` | 1: the home row, bucket included (2 the first time, making it) | 6 at once, one a second after |
+| A paying run in `submitScores` | 2: wallet, ledger (a run already paid writes nothing) | 200 coins a day |
+
+A player decorating flat out writes at most 60 documents a minute, and
+decorating replaces walking, so it doesn't add to the 152 above.

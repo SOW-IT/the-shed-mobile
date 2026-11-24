@@ -71,8 +71,8 @@ const runId = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Crypto.randomUUID();
 
 /** Saves a finished run: a new best if it is one, and a place in the queue. */
-export const recordRun = (game: GameId, score: number, durationMs: number): Promise<void> => {
-  if (score < 1) return Promise.resolve();
+export const recordRun = (game: GameId, score: number, durationMs: number): Promise<string | null> => {
+  if (score < 1) return Promise.resolve(null);
   const entry: QueuedScore = {
     runId: runId(),
     game,
@@ -83,7 +83,30 @@ export const recordRun = (game: GameId, score: number, durationMs: number): Prom
   return Promise.all([
     bests.update((current) => withBest(current, game, score)),
     queue.update((current) => enqueueScore(current, entry, entry.playedAt)),
-  ]).then(() => undefined);
+  ]).then(() => entry.runId);
+};
+
+const paid = new Map<string, number>();
+const paidListeners = new Set<() => void>();
+let paidVersion = 0;
+
+export const notePaid = (coins: readonly { runId: string; coins: number }[]) => {
+  if (coins.length === 0) return;
+  for (const { runId, coins: amount } of coins) paid.set(runId, amount);
+  paidVersion++;
+  paidListeners.forEach((listener) => listener());
+};
+
+const subscribePaid = (listener: () => void) => {
+  paidListeners.add(listener);
+  return () => {
+    paidListeners.delete(listener);
+  };
+};
+
+export const usePaid = (runId: string | null): number | undefined => {
+  useSyncExternalStore(subscribePaid, () => paidVersion, () => paidVersion);
+  return runId === null ? undefined : paid.get(runId);
 };
 
 /** Drops runs the server has answered for, accepted or not. */

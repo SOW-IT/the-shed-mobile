@@ -1,17 +1,21 @@
-import { PLACE_OBSTACLES, type Place } from "@shared/world";
+import { isFurniture, wallpaperOr, type FurnitureId, type Placed, type WallpaperId } from "../../shared/home";
+import { PLACE_OBSTACLES, type Place } from "../../shared/world";
 import type { Camera, Vec3 } from "./camera";
+import { drawFurniture, WALLPAPER_LOOKS } from "./furniture";
 import { boxOf, buildGarden, Builder, depthOf, drawPads, type Prop, type Scene } from "./gardenScene";
 import { garden, places } from "./palette";
+
+export type HomeLook = { wallpaper: string; items: readonly Placed[] };
 
 type Draw = (p: Builder) => void;
 
 const propsFor = (cam: Camera) => {
   const props: Prop[] = [];
-  const add = (id: string, x: number, z: number, draw: Draw) => {
+  const add = (id: string, x: number, z: number, draw: Draw, tap?: string) => {
     const p = new Builder(cam, id);
     draw(p);
     const prims = p.take();
-    props.push({ id, depth: depthOf(cam, x, z), prims, box: boxOf(prims) });
+    props.push({ id, depth: depthOf(cam, x, z), prims, box: boxOf(prims), tap });
   };
   return { props, add };
 };
@@ -80,38 +84,38 @@ const buildChapel = (cam: Camera): Scene => {
     }
     b.box(0, 2.9, z + 0.08, 0.26, 2.3, 0.12, c.wood);
     b.box(0, 3.35, z + 0.08, 1.3, 0.26, 0.12, c.wood);
-    b.box(0, 0.5, -11.5, 2.4, 1.0, 0.8, c.cloth);
+    b.box(0, 0.4, -11.5, 2.4, 0.8, 0.8, c.cloth);
     for (const x of [-0.8, 0.8]) {
-      b.cylinder(x, -11.5, 1.0, 1.5, 0.06, 0.06, c.candle);
-      b.ball([x, 1.62, -11.5], 0.1, c.flame, { ink: 0.02 });
+      b.cylinder(x, -11.5, 0.8, 1.2, 0.06, 0.06, c.candle);
+      b.ball([x, 1.31, -11.5], 0.1, c.flame, { ink: 0.02 });
     }
   });
   const backdrop = b.take();
 
   const { props, add } = propsFor(cam);
   for (const pew of PLACE_OBSTACLES.chapel.filter((o) => o.id.startsWith("pew"))) {
-    add(`${pew.id}-seat`, pew.x, pew.z - 0.35, (p) => p.box(pew.x, 0.2, pew.z - 0.05, 2.5, 0.4, 0.55, c.wood));
-    add(`${pew.id}-back`, pew.x, pew.z + 0.36, (p) => p.box(pew.x, 0.45, pew.z + 0.28, 2.5, 0.9, 0.14, c.wood));
+    add(`${pew.id}-seat`, pew.x, pew.z - 0.35, (p) => p.box(pew.x, 0.15, pew.z - 0.05, 2.5, 0.3, 0.55, c.wood));
+    add(`${pew.id}-back`, pew.x, pew.z + 0.36, (p) => p.box(pew.x, 0.34, pew.z + 0.28, 2.5, 0.68, 0.14, c.wood));
   }
   const lectern = obstacle("chapel", "lectern");
   add("lectern", lectern.x, lectern.z, (p) => {
-    p.box(lectern.x, 0.6, lectern.z, 0.6, 1.2, 0.5, c.woodDark);
-    p.box(lectern.x, 1.26, lectern.z, 0.8, 0.1, 0.62, c.wood);
+    p.box(lectern.x, 0.43, lectern.z, 0.55, 0.86, 0.45, c.woodDark);
+    p.box(lectern.x, 0.91, lectern.z, 0.75, 0.1, 0.6, c.wood);
     p.face(
       [
-        [lectern.x - 0.25, 1.32, lectern.z - 0.2],
-        [lectern.x + 0.25, 1.32, lectern.z - 0.2],
-        [lectern.x + 0.25, 1.32, lectern.z + 0.2],
-        [lectern.x - 0.25, 1.32, lectern.z + 0.2],
+        [lectern.x - 0.25, 0.97, lectern.z - 0.2],
+        [lectern.x + 0.25, 0.97, lectern.z - 0.2],
+        [lectern.x + 0.25, 0.97, lectern.z + 0.2],
+        [lectern.x - 0.25, 0.97, lectern.z + 0.2],
       ],
       c.cloth
     );
   });
   const piano = obstacle("chapel", "piano");
   add("piano", piano.x, piano.z, (p) => {
-    p.box(piano.x, 0.6, piano.z, 1.8, 1.2, 0.8, c.piano);
-    p.box(piano.x, 0.78, piano.z + 0.5, 1.6, 0.1, 0.24, c.keys);
-    p.cylinder(piano.x, piano.z + 1.0, 0, 0.45, 0.22, 0.24, c.carpet);
+    p.box(piano.x, 0.46, piano.z, 1.8, 0.92, 0.8, c.piano);
+    p.box(piano.x, 0.56, piano.z + 0.5, 1.6, 0.08, 0.24, c.keys);
+    p.cylinder(piano.x, piano.z + 1.0, 0, 0.32, 0.22, 0.24, c.carpet);
   });
   return { sky: c.sky, ground, backdrop, props };
 };
@@ -164,7 +168,7 @@ const buildCampfire = (cam: Camera): Scene => {
   });
   for (const id of ["log-back", "log-left", "log-right"]) {
     const log = obstacle("campfire", id);
-    add(id, log.x, log.z - log.rz, (p) => p.box(log.x, 0.22, log.z, log.rx * 1.8, 0.44, log.rz * 1.8, c.log));
+    add(id, log.x, log.z - log.rz, (p) => p.box(log.x, 0.15, log.z, log.rx * 1.8, 0.3, log.rz * 1.8, c.log));
   }
   for (const [id, colour] of [["tent-left", c.tentA], ["tent-right", c.tentB]] as const) {
     const tent = obstacle("campfire", id);
@@ -174,8 +178,8 @@ const buildCampfire = (cam: Camera): Scene => {
     });
   }
   add("lantern", -3.7, 4.6, (p) => {
-    p.cylinder(-3.7, 4.6, 0, 1.3, 0.05, 0.05, c.trunk);
-    p.ball([-3.7, 1.45, 4.6], 0.2, c.lantern, { ink: 0.03 });
+    p.cylinder(-3.7, 4.6, 0, 1.1, 0.05, 0.05, c.trunk);
+    p.ball([-3.7, 1.24, 4.6], 0.18, c.lantern, { ink: 0.03 });
   });
   return { sky: c.sky, ground, backdrop, props };
 };
@@ -207,35 +211,35 @@ const buildCafe = (cam: Camera): Scene => {
   const { props, add } = propsFor(cam);
   const counter = obstacle("cafe", "counter");
   add("counter", counter.x, counter.z, (p) => {
-    p.box(counter.x, 0.55, counter.z, 5.4, 1.1, 1.0, c.counter);
-    p.box(counter.x, 1.15, counter.z, 5.7, 0.1, 1.25, c.counterTop);
-    p.box(-1.7, 1.55, counter.z - 0.1, 0.9, 0.7, 0.6, c.steel);
-    p.cylinder(-1.7, counter.z + 0.35, 1.2, 1.38, 0.09, 0.1, c.cup);
-    p.cylinder(0.3, counter.z, 1.2, 1.3, 0.34, 0.34, c.cup);
-    p.ball([0.3, 1.46, counter.z], 0.26, c.cake, { ink: 0.025, squashY: 0.7 });
-    for (const x of [1.5, 1.9, 2.3]) p.cylinder(x, counter.z + 0.2, 1.2, 1.4, 0.09, 0.1, c.cup);
+    p.box(counter.x, 0.35, counter.z, 5.4, 0.7, 1.0, c.counter);
+    p.box(counter.x, 0.74, counter.z, 5.7, 0.08, 1.25, c.counterTop);
+    p.box(-1.7, 1.03, counter.z - 0.1, 0.8, 0.5, 0.55, c.steel);
+    p.cylinder(-1.7, counter.z + 0.35, 0.78, 0.93, 0.08, 0.09, c.cup);
+    p.cylinder(-0.6, counter.z, 0.78, 0.86, 0.3, 0.3, c.cup);
+    p.ball([-0.6, 0.98, counter.z], 0.22, c.cake, { ink: 0.025, squashY: 0.7 });
+    for (const x of [1.7, 2.05, 2.4]) p.cylinder(x, counter.z + 0.2, 0.78, 0.94, 0.08, 0.09, c.cup);
   });
   for (const id of ["table-a", "table-b", "table-c"]) {
     const table = obstacle("cafe", id);
     add(id, table.x, table.z - 0.2, (p) => {
       p.groundDisc(table.x - 0.25, table.z - 0.2, 0.75, 0.55, garden.shadow);
-      for (const side of [-1, 1]) p.cylinder(table.x + side * 0.6, table.z + 0.1, 0, 0.45, 0.17, 0.19, c.stool);
-      p.cylinder(table.x, table.z, 0, 0.74, 0.09, 0.09, c.leg);
-      p.cylinder(table.x, table.z, 0.74, 0.82, 0.56, 0.56, c.table);
-      p.cylinder(table.x - 0.15, table.z + 0.05, 0.83, 0.97, 0.07, 0.08, c.cup);
+      for (const side of [-1, 1]) p.cylinder(table.x + side * 0.6, table.z + 0.1, 0, 0.32, 0.17, 0.19, c.stool);
+      p.cylinder(table.x, table.z, 0, 0.5, 0.09, 0.09, c.leg);
+      p.cylinder(table.x, table.z, 0.5, 0.57, 0.56, 0.56, c.table);
+      p.cylinder(table.x - 0.15, table.z + 0.05, 0.58, 0.7, 0.07, 0.08, c.cup);
     });
   }
   const couch = obstacle("cafe", "couch");
   add("couch", couch.x, couch.z - 0.5, (p) => {
-    p.box(couch.x, 0.6, couch.z - 0.38, 2.3, 1.2, 0.26, c.couch);
-    p.box(couch.x, 0.28, couch.z, 2.3, 0.56, 0.9, c.couch);
-    for (const side of [-1, 1]) p.box(couch.x + side * 1.05, 0.45, couch.z, 0.24, 0.9, 0.9, c.couch);
+    p.box(couch.x, 0.42, couch.z - 0.38, 2.3, 0.84, 0.26, c.couch);
+    p.box(couch.x, 0.17, couch.z, 2.3, 0.34, 0.9, c.couch);
+    for (const side of [-1, 1]) p.box(couch.x + side * 1.05, 0.29, couch.z, 0.24, 0.58, 0.9, c.couch);
   });
   const plant = obstacle("cafe", "plant");
   add("plant", plant.x, plant.z, (p) => {
-    p.cylinder(plant.x, plant.z, 0, 0.5, 0.22, 0.3, c.pot);
-    p.ball([plant.x, 1.0, plant.z], 0.5, c.plant, { ink: 0.04 });
-    p.ball([plant.x + 0.25, 1.45, plant.z], 0.32, c.plant, { ink: 0.03 });
+    p.cylinder(plant.x, plant.z, 0, 0.42, 0.2, 0.27, c.pot);
+    p.ball([plant.x, 0.82, plant.z], 0.42, c.plant, { ink: 0.04 });
+    p.ball([plant.x + 0.22, 1.18, plant.z], 0.27, c.plant, { ink: 0.03 });
   });
   return { sky: c.sky, ground, backdrop, props };
 };
@@ -291,23 +295,23 @@ const buildBeach = (cam: Camera): Scene => {
 
   const { props, add } = propsFor(cam);
   add("umbrella", umbrella.x, umbrella.z, (p) => {
-    p.cylinder(umbrella.x, umbrella.z, 0, 2.0, 0.05, 0.05, c.pole);
-    p.ball([umbrella.x, 2.05, umbrella.z], 1.25, c.umbrella, { ink: 0.05, squashY: 0.42 });
-    p.ball([umbrella.x, 2.2, umbrella.z], 0.62, c.umbrellaStripe, { ink: 0, squashY: 0.42 });
-    p.ball([umbrella.x, 2.36, umbrella.z], 0.12, c.umbrella, { ink: 0.02 });
+    p.cylinder(umbrella.x, umbrella.z, 0, 1.8, 0.05, 0.05, c.pole);
+    p.ball([umbrella.x, 1.85, umbrella.z], 1.2, c.umbrella, { ink: 0.05, squashY: 0.42 });
+    p.ball([umbrella.x, 2.0, umbrella.z], 0.6, c.umbrellaStripe, { ink: 0, squashY: 0.42 });
+    p.ball([umbrella.x, 2.15, umbrella.z], 0.12, c.umbrella, { ink: 0.02 });
   });
   const castle = obstacle("beach", "castle");
   add("castle", castle.x, castle.z, (p) => {
-    p.cylinder(castle.x, castle.z, 0, 0.45, 0.6, 0.52, c.castle);
-    p.cylinder(castle.x, castle.z, 0.45, 0.85, 0.34, 0.3, c.castle);
-    for (const side of [-1, 1]) p.cylinder(castle.x + side * 0.5, castle.z + 0.1, 0, 0.62, 0.17, 0.15, c.castle);
-    p.line([castle.x, 0.85, castle.z], [castle.x, 1.25, castle.z], 2, garden.ink);
+    p.cylinder(castle.x, castle.z, 0, 0.32, 0.6, 0.52, c.castle);
+    p.cylinder(castle.x, castle.z, 0.32, 0.6, 0.34, 0.3, c.castle);
+    for (const side of [-1, 1]) p.cylinder(castle.x + side * 0.5, castle.z + 0.1, 0, 0.44, 0.17, 0.15, c.castle);
+    p.line([castle.x, 0.6, castle.z], [castle.x, 0.95, castle.z], 2, garden.ink);
     p.face(
       [
-        [castle.x, 1.25, castle.z],
-        [castle.x + 0.3, 1.18, castle.z],
-        [castle.x + 0.3, 1.04, castle.z],
-        [castle.x, 1.08, castle.z],
+        [castle.x, 0.95, castle.z],
+        [castle.x + 0.26, 0.89, castle.z],
+        [castle.x + 0.26, 0.77, castle.z],
+        [castle.x, 0.8, castle.z],
       ],
       c.flag
     );
@@ -315,13 +319,13 @@ const buildBeach = (cam: Camera): Scene => {
   const left = obstacle("beach", "net-left");
   const right = obstacle("beach", "net-right");
   add("net", 0, left.z, (p) => {
-    for (const post of [left, right]) p.cylinder(post.x, post.z, 0, 1.6, 0.06, 0.06, c.post);
-    for (const y of [1.5, 1.2, 0.9]) p.line([left.x, y, left.z], [right.x, y, right.z], y === 1.5 ? 3 : 1.5, c.net);
-    for (let x = left.x + 0.34; x < right.x; x += 0.34) p.line([x, 1.5, left.z], [x, 0.9, left.z], 1.2, c.net);
+    for (const post of [left, right]) p.cylinder(post.x, post.z, 0, 1.35, 0.06, 0.06, c.post);
+    for (const y of [1.28, 1.02, 0.76]) p.line([left.x, y, left.z], [right.x, y, right.z], y === 1.28 ? 3 : 1.5, c.net);
+    for (let x = left.x + 0.34; x < right.x; x += 0.34) p.line([x, 1.28, left.z], [x, 0.76, left.z], 1.2, c.net);
   });
   add("ball", 0.9, 1.0, (p) => {
     p.groundDisc(0.8, 0.9, 0.26, 0.18, garden.shadow);
-    p.ball([0.9, 0.26, 1.0], 0.26, c.ball, { ink: 0.03 });
+    p.ball([0.9, 0.2, 1.0], 0.2, c.ball, { ink: 0.03 });
   });
   const inBounds = obstacle("beach", "palm");
   add("palm", inBounds.x, inBounds.z, (p) => {
@@ -331,12 +335,70 @@ const buildBeach = (cam: Camera): Scene => {
   return { sky: c.sky, ground, backdrop, props };
 };
 
-const BUILDERS: Record<Place, (cam: Camera) => Scene> = {
+const UNDERFOOT = 1e6;
+
+const buildHome = (cam: Camera, inside: HomeLook): Scene => {
+  const c = places.home;
+  const paper = WALLPAPER_LOOKS[wallpaperOr(inside.wallpaper)];
+  const g = new Builder(cam, "g");
+  floorWithPlanks(g, c.floor, c.plank);
+  g.groundQuad([[-0.9, 6.0], [0.9, 6.0], [0.9, 7.9], [-0.9, 7.9]], c.mat, 0.006);
+  for (const p of inside.items) if (p.item === "rug") drawFurniture(g, "rug", p.x, p.z, p.turn);
+  drawPads(g, "home");
+  const ground = g.take();
+
+  const b = new Builder(cam, "b");
+  roomWalls(b, cam, paper.base, (z) => {
+    wallPattern(b, z, paper);
+    panel(b, -3.2, 2.7, z + 0.02, 1.9, 1.7, garden.ink);
+    panel(b, -3.2, 2.7, z + 0.03, 1.7, 1.5, c.window);
+    panel(b, -3.2, 2.7, z + 0.04, 0.08, 1.5, paper.base);
+    panel(b, 3.0, 2.9, z + 0.02, 1.2, 0.9, garden.ink);
+    panel(b, 3.0, 2.9, z + 0.03, 1.05, 0.75, c.frame);
+  });
+  const backdrop = b.take();
+
+  const { props, add } = propsFor(cam);
+  for (const p of inside.items) {
+    if (!isFurniture(p.item)) continue;
+    if (p.item === "rug") {
+      const shape = new Builder(cam, `rug:${p.key}`);
+      drawFurniture(shape, "rug", p.x, p.z, p.turn);
+      props.push({ id: `item:${p.key}`, depth: depthOf(cam, p.x, p.z) + UNDERFOOT, prims: [], box: boxOf(shape.take()), tap: `item:${p.key}` });
+      continue;
+    }
+    add(`item:${p.key}`, p.x, p.z, (q) => drawFurniture(q, p.item as FurnitureId, p.x, p.z, p.turn), `item:${p.key}`);
+  }
+  return { sky: c.sky, ground, backdrop, props };
+};
+
+const wallPattern = (b: Builder, z: number, paper: (typeof WALLPAPER_LOOKS)[WallpaperId]) => {
+  const left = -5.7;
+  const right = 5.7;
+  if (paper.pattern === "stripes") {
+    for (let x = left + 0.3; x < right; x += 0.9) panel(b, x, 2.3, z + 0.005, 0.4, 4.6, paper.accent);
+  } else if (paper.pattern === "check") {
+    for (let x = left + 0.4; x < right; x += 0.8) panel(b, x, 2.3, z + 0.005, 0.16, 4.6, paper.accent);
+    for (let y = 0.4; y < 4.6; y += 0.8) panel(b, 0, y, z + 0.006, 11.4, 0.16, paper.accent);
+  } else if (paper.pattern === "dots" || paper.pattern === "stars") {
+    for (let row = 0; row < 6; row++) {
+      for (let x = left + 0.5 + (row % 2) * 0.45; x < right; x += 0.9) {
+        const r = paper.pattern === "stars" ? 0.05 + ((row + Math.round(x * 3)) % 3) * 0.03 : 0.12;
+        b.ball([x, 0.5 + row * 0.75, z + 0.01], r, paper.accent, { ink: 0 });
+      }
+    }
+  }
+};
+
+const NO_HOME: HomeLook = { wallpaper: "plain", items: [] };
+
+const BUILDERS: Record<Place, (cam: Camera, inside: HomeLook) => Scene> = {
   garden: buildGarden,
   chapel: buildChapel,
   campfire: buildCampfire,
   cafe: buildCafe,
   beach: buildBeach,
+  home: buildHome,
 };
 
-export const buildScene = (place: Place, cam: Camera): Scene => BUILDERS[place](cam);
+export const buildScene = (place: Place, cam: Camera, inside: HomeLook = NO_HOME): Scene => BUILDERS[place](cam, inside);
