@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { api } from "./_generated/api";
 import { asUser, newConvex } from "../test/convexFixture";
+import { withHeight } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -17,7 +18,14 @@ describe("myLook", () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
     await anna.mutation(api.world.saveLook, { look });
-    expect(await anna.query(api.gameCharacters.myLook, {})).toEqual(look);
+    expect(await anna.query(api.gameCharacters.myLook, {})).toEqual(withHeight(look, ANNA));
     expect(await asUser(t, BEN).query(api.gameCharacters.myLook, {})).toBeNull();
+  });
+
+  test("keeps a height the caller picked", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.saveLook, { look: { ...look, height: 4 } });
+    expect(await anna.query(api.gameCharacters.myLook, {})).toEqual({ ...look, height: 4 });
   });
 });

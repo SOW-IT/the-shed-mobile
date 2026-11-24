@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { withHeight } from "../shared/world";
 import { query } from "./_generated/server";
 import { optionalEmail } from "./model";
 import { worldLookValidator } from "./worldData";
@@ -13,6 +14,6 @@ export const myLook = query({
       .query("worldLooks")
       .withIndex("by_email", (q) => q.eq("email", email))
       .unique();
-    return row?.look ?? null;
+    return row ? withHeight(row.look, email) : null;
   },
 });

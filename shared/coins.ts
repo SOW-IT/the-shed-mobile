@@ -4,7 +4,7 @@ import type { GameId } from "./games";
 export const START_COINS = 50;
 export const DAILY_COIN_CAP = 200;
 
-const COIN_TIERS: Record<GameId, readonly { over: number; coins: number }[]> = {
+export const COIN_TIERS: Record<GameId, readonly { over: number; coins: number }[]> = {
   flappy: [
     { over: 500, coins: 10 },
     { over: 750, coins: 20 },

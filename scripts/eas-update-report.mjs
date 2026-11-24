@@ -46,11 +46,11 @@ const newestStoreBuild = (platform, profile) => {
   return build ?? null;
 };
 
-const raiseRecommended = (platform, version) => {
+const raiseLatestOta = (platform, version) => {
   try {
     const output = execFileSync(
       "npx",
-      ["convex", "run", "appInstalls:raiseRecommended", JSON.stringify({ platform, version })],
+      ["convex", "run", "appInstalls:raiseLatestOta", JSON.stringify({ platform, version })],
       { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }
     );
     return raisedOutcome(platform, output);
@@ -64,7 +64,7 @@ const recommend = (checks, version) =>
     checks,
     published: process.env.PUBLISH_OUTCOME === "success",
     deployKey: process.env.CONVEX_DEPLOY_KEY,
-  }).map((step) => (step.action === "raise" ? raiseRecommended(step.platform, version) : step));
+  }).map((step) => (step.action === "raise" ? raiseLatestOta(step.platform, version) : step));
 
 const postToChat = async (message) => {
   const webhookUrl = (process.env.GOOGLE_CHAT_WEBHOOK_URL ?? "").replace(/\s+/g, "");
@@ -128,7 +128,7 @@ const run = async () => {
 
   for (const outcome of recommendationFailed(recommendations)) {
     console.log(
-      `::error title=Recommended version not raised::${platformName(outcome.platform)} recommended version wasn't raised to ${expo.version}: ${outcome.error}`
+      `::error title=Latest over-the-air version not raised::${platformName(outcome.platform)} latest over-the-air version wasn't raised to ${expo.version}: ${outcome.error}`
     );
     process.exitCode = 1;
   }

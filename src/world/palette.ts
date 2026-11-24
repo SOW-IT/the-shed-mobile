@@ -131,6 +131,9 @@ export const places = {
     post: "#F5F3E3",
     net: "#FFFEF8",
     ball: "#F6D365",
+    ballRed: "#E0514F",
+    ballBlue: "#4A8FD1",
+    ballWhite: "#FFFEF8",
     palmTrunk: "#9A6B4A",
     palm: "#4F9A5E",
     palmLight: "#67B372",
@@ -166,6 +169,7 @@ export const people = {
   glasses: "#1F2A28",
   shades: "#26302E",
   collar: "#FFFEF8",
+  plaid: "#E8893A",
   headphones: "#3F4A46",
   pearl: "#FFFEF8",
   mole: "#5A3B2C",
@@ -184,6 +188,7 @@ export const people = {
   // Favourite colours, worn as shoes. The first is the shoes everyone had
   // before, then red, orange, yellow, lime, green, sky, blue, purple, pink,
   // brown and white.
+  backdrops: ["#BFE3DA", "#BFD9F0", "#F6D2BC", "#F3E3A6", "#D9CCEF", "#F2C4D0", "#C9DDB5", "#E6D5BC", "#9FB4C2", "#F0A99A"],
   favourites: ["#3F4A46", "#D9473A", "#F08A3C", "#F6CF45", "#A6D65A", "#3E9A5A", "#7EC8E8", "#3A64B8", "#8A5CC2", "#F08FB4", "#8A5A3A", "#F5F3EC"],
   eye: "#1F2A28",
   eyeShine: "#FFFFFF",
@@ -218,7 +223,6 @@ export const glass = {
   error: "#FFB4A6",
   scrim: "rgba(6, 16, 15, 0.32)",
   scrimDeep: "rgba(6, 16, 15, 0.55)",
-  bust: "#BFE3DA",
 } as const;
 
 export const home = {
@@ -297,18 +301,24 @@ export const isLight = (hex: string) => lightness(hex) > 200;
 export const lightToDark = (colours: readonly string[]): number[] =>
   colours.map((_, i) => i).sort((a, b) => lightness(colours[b]) - lightness(colours[a]));
 
+const SHADE_CACHE_MAX = 512;
+const shadeCache = new Map<string, string>();
+
 /**
  * A colour mixed toward white (amount > 0) or black (amount < 0): the steps
  * of the toon ramp on a face or a ball.
  */
 export const shade = (hex: string, amount: number): string => {
+  const key = `${hex}:${amount}`;
+  const cached = shadeCache.get(key);
+  if (cached !== undefined) return cached;
   const target = amount > 0 ? 255 : 0;
   const k = Math.min(1, Math.abs(amount));
-  const parts = [0, 1, 2].map((i) => {
-    const c = channel(hex, i);
-    return Math.round(c + (target - c) * k)
-      .toString(16)
-      .padStart(2, "0");
-  });
-  return `#${parts.join("")}`;
+  const r = Math.round(channel(hex, 0) + (target - channel(hex, 0)) * k).toString(16).padStart(2, "0");
+  const g = Math.round(channel(hex, 1) + (target - channel(hex, 1)) * k).toString(16).padStart(2, "0");
+  const b = Math.round(channel(hex, 2) + (target - channel(hex, 2)) * k).toString(16).padStart(2, "0");
+  const result = `#${r}${g}${b}`;
+  if (shadeCache.size >= SHADE_CACHE_MAX) shadeCache.clear();
+  shadeCache.set(key, result);
+  return result;
 };

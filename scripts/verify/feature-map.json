@@ -264,7 +264,7 @@
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
         "convex/{world,worldData,worldHome,coins}.ts",
-        "shared/{world,home,coins}.ts"
+        "shared/{world,home,coins,ball}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games"]
     }
