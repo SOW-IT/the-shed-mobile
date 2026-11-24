@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.40] - 2026-11-24
+## [2.12.41] - 2026-11-24
 
 ### Fixed
 - **Height shows.** The editor preview used to shrink taller characters to
@@ -63,6 +63,19 @@ All notable changes to **The SHED** mobile app. This project follows
 - **The web sweep waits for the World to load.** The first visit compiles
   the World's code on demand, which took longer on CI than a screen gets to
   settle; the timer now starts once that code has arrived.
+
+## [2.12.40] - 2026-11-24
+
+### Changed
+- **Phones on an older version are asked to update after every release.**
+  Once an over-the-air update is published to production, the recommended
+  version for iOS and Android moves up to the new version, so phones below it
+  get the Update button and can restart into it straight away instead of
+  waiting for a cold start. Before, the recommended version only moved when
+  someone set it by hand. It only ever goes up, the minimum version is left
+  alone, and a platform whose update can't reach its store build keeps its
+  current recommended version. The run's summary and the Google Chat post say
+  what it was set to.
 
 ## [2.12.39] - 2026-11-24
 

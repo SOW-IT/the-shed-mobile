@@ -89,3 +89,21 @@ export const setUpdatePolicy = internalMutation({
     };
   },
 });
+
+export const raiseRecommended = internalMutation({
+  args: { platform: platformValidator, version: v.string() },
+  returns: v.object({
+    raised: v.boolean(),
+    previous: v.union(v.string(), v.null()),
+    recommended: v.string(),
+  }),
+  handler: async (ctx, { platform, version }) => {
+    if (!isAppVersion(version)) throw new ConvexError(`"${version}" isn't an app version like 2.9.0.`);
+    const existing = await policyFor(ctx, platform);
+    const previous = existing?.recommended ?? null;
+    if (previous && compareVersions(version, previous) <= 0) return { raised: false, previous, recommended: previous };
+    if (existing) await ctx.db.patch("appUpdatePolicy", existing._id, { recommended: version });
+    else await ctx.db.insert("appUpdatePolicy", { platform, recommended: version });
+    return { raised: true, previous, recommended: version };
+  },
+});
