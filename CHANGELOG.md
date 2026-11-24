@@ -21,6 +21,12 @@ All notable changes to **The SHED** mobile app. This project follows
 - **The game-over card says why you earned coins**, such as "2nd place on
   Flap: +25", and the coins card in the World lists what each place pays.
 
+### Fixed
+- **The coins chip on the game-over card shows up.** Since coins arrived in
+  2.12.37 the server paid a run but the card never showed the chip, because
+  it kept its first look (nothing paid yet) and missed the answer that came a
+  moment later.
+
 ## [2.12.45] - 2026-11-24
 
 ### Added

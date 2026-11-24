@@ -107,12 +107,10 @@ type Payout = { coins: number; place?: number };
 
 const paid = new Map<string, Payout>();
 const paidListeners = new Set<() => void>();
-let paidVersion = 0;
 
 export const notePaid = (coins: readonly ({ runId: string } & Payout)[]) => {
   if (coins.length === 0) return;
   for (const { runId, coins: amount, place } of coins) paid.set(runId, { coins: amount, place });
-  paidVersion++;
   paidListeners.forEach((listener) => listener());
 };
 
@@ -123,9 +121,16 @@ const subscribePaid = (listener: () => void) => {
   };
 };
 
+const NOT_PAID = () => undefined;
+
+/**
+ * What a run has been paid, once the server says. The payout is the store's
+ * snapshot itself: read beside a version number instead, React Compiler kept
+ * the first read for a run (nothing yet) and the chip never showed.
+ */
 export const usePaid = (runId: string | null): Payout | undefined => {
-  useSyncExternalStore(subscribePaid, () => paidVersion, () => paidVersion);
-  return runId === null ? undefined : paid.get(runId);
+  const read = runId === null ? NOT_PAID : () => paid.get(runId);
+  return useSyncExternalStore(subscribePaid, read, read);
 };
 
 /** Drops runs the server has answered for, accepted or not. */
