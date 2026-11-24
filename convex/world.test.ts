@@ -1760,19 +1760,56 @@ describe("join and leave lines", () => {
 
 describe("ping", () => {
   const pingOf = async (t: T, email: string) =>
-    t.run(async (ctx) => (await ctx.db.query("worldMembers").withIndex("by_email", (q) => q.eq("email", email)).first())?.ping);
+    t.run(async (ctx) => {
+      const member = await ctx.db.query("worldMembers").withIndex("by_email", (q) => q.eq("email", email)).first();
+      return member && (await ctx.db.query("worldPings").withIndex("by_memberId", (q) => q.eq("memberId", member._id)).unique())?.bars;
+    });
 
-  test("your bars show on the roster and to people in other places", async () => {
+  test("your bars show in the room's pings and to people in other places", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
     const ben = asUser(t, BEN);
     const a = await anna.mutation(api.world.join, {});
     await ben.mutation(api.world.join, {});
+    expect(await ben.query(api.world.pings, { roomId: a.roomId })).toEqual([]);
     expect(await anna.mutation(api.world.ping, { bars: 3 })).toMatchObject({ published: true, serverNow: expect.any(Number) });
-    const roster = await ben.query(api.world.roster, { roomId: a.roomId });
-    expect(roster?.members.find((m) => !m.isMe)?.ping).toBe(3);
+    expect(await ben.query(api.world.pings, { roomId: a.roomId })).toEqual([{ memberId: a.memberId, bars: 3 }]);
     await ben.mutation(api.world.travel, { to: "beach" });
+    expect(await ben.query(api.world.pings, { roomId: a.roomId })).toBeNull();
     expect(await ben.query(api.world.elsewhere, {})).toMatchObject([{ place: "garden", people: [{ ping: 3 }] }]);
+  });
+
+  test("bars live off the member row, so publishing them leaves the roster and state rows alone", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    const memberRow = () => t.run((ctx) => ctx.db.get("worldMembers", a.memberId));
+    const before = await memberRow();
+    await anna.mutation(api.world.ping, { bars: 2 });
+    expect(await memberRow()).toEqual(before);
+    expect((await anna.query(api.world.roster, { roomId: a.roomId }))?.members[0]).not.toHaveProperty("ping");
+  });
+
+  test("someone blocked either way is left out of the room's pings", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    const b = await ben.mutation(api.world.join, {});
+    await anna.mutation(api.world.ping, { bars: 4 });
+    await ben.mutation(api.world.ping, { bars: 1 });
+    await t.run((ctx) => ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: BEN, blockedName: "ben" }));
+    expect(await anna.query(api.world.pings, { roomId: a.roomId })).toEqual([{ memberId: a.memberId, bars: 4 }]);
+    expect(await ben.query(api.world.pings, { roomId: b.roomId })).toEqual([{ memberId: b.memberId, bars: 1 }]);
+  });
+
+  test("leaving takes your bars with you", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.ping, { bars: 3 });
+    await anna.mutation(api.world.leave, {});
+    expect(await t.run((ctx) => ctx.db.query("worldPings").collect())).toEqual([]);
   });
 
   test("the same bars write nothing, and a change waits 30 s after the last write", async () => {

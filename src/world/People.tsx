@@ -209,6 +209,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
 export const PeoplePanel = ({
   open,
   top,
+  roomId,
   people,
   place,
   online,
@@ -224,6 +225,7 @@ export const PeoplePanel = ({
 }: {
   open: boolean;
   top: number;
+  roomId: Id<"worldRooms"> | null;
   people: WorldMember[];
   place: Place;
   online: number;
@@ -241,8 +243,10 @@ export const PeoplePanel = ({
   const { width, height } = useWindowDimensions();
   const blocked = useQuery(api.world.myBlocks, mounted ? {} : "skip");
   const elsewhere = useQuery(api.world.elsewhere, mounted ? {} : "skip");
+  const pings = useQuery(api.world.pings, mounted && roomId ? { roomId } : "skip");
   const unblock = useMutation(api.world.unblock);
   if (!mounted) return null;
+  const barsOf = new Map(pings?.map((row) => [row.memberId, row.bars]));
   const others = (elsewhere ?? []).flatMap((spot) => {
     const at = isPlace(spot.place) ? spot.place : null;
     const rows = (spot.people ?? []).map((p, i) => ({ key: `${spot.place}${i}`, at, ...p }));
@@ -282,7 +286,7 @@ export const PeoplePanel = ({
                 look={p.look}
                 name={p.isMe ? `${tagName(p.name)} (you)` : tagName(p.name)}
                 where={p.away ? "🕹️ At the arcade" : placeLabel(place)}
-                ping={p.ping}
+                ping={p.isMe ? p.ping : barsOf.get(p.memberId)}
                 label={p.isMe ? `${p.name} (you)` : p.name}
                 onPress={p.isMe ? undefined : () => onPerson(p.memberId)}
                 action={

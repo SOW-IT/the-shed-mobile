@@ -107,6 +107,12 @@ const stateOf = (ctx: Ctx, memberId: Id<"worldMembers">) =>
     .withIndex("by_memberId", (q) => q.eq("memberId", memberId))
     .unique();
 
+const pingOf = (ctx: Ctx, memberId: Id<"worldMembers">) =>
+  ctx.db
+    .query("worldPings")
+    .withIndex("by_memberId", (q) => q.eq("memberId", memberId))
+    .unique();
+
 const presenceOf = (ctx: Ctx, memberId: Id<"worldMembers">) =>
   ctx.db
     .query("worldPresence")
@@ -257,6 +263,8 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
   if (state) await ctx.db.delete("worldState", state._id);
   const presence = await presenceOf(ctx, member._id);
   if (presence) await ctx.db.delete("worldPresence", presence._id);
+  const ping = await pingOf(ctx, member._id);
+  if (ping) await ctx.db.delete("worldPings", ping._id);
   await ctx.db.delete("worldMembers", member._id);
   const room = await ctx.db.get("worldRooms", member.roomId);
   if (!room) return;
@@ -677,7 +685,7 @@ export const elsewhere = query({
           if (names.length < ELSEWHERE_NAMES) {
             names.push(member.name);
             const look = (await savedLook(ctx, member.email))?.look ?? member.look;
-            people.push({ memberId: member._id, name: member.name, look, ping: member.ping });
+            people.push({ memberId: member._id, name: member.name, look, ping: (await pingOf(ctx, member._id))?.bars });
           }
         }
       }
@@ -807,9 +815,11 @@ export const ping = mutation({
     if (bars === undefined) return { published: false, serverNow: now };
     if (!isPingBars(bars)) throw new ConvexError("Ping bars go from 1 to 4.");
     const member = await memberByEmail(ctx, email);
-    if (!member || member.ping === bars) return { published: false, serverNow: now };
-    if (member.pingAt !== undefined && now - member.pingAt < PING_PUBLISH_MS) return { published: false, serverNow: now };
-    await ctx.db.patch("worldMembers", member._id, { ping: bars, pingAt: now });
+    const row = member && (await pingOf(ctx, member._id));
+    if (!member || row?.bars === bars) return { published: false, serverNow: now };
+    if (row && now - row.at < PING_PUBLISH_MS) return { published: false, serverNow: now };
+    if (row) await ctx.db.patch("worldPings", row._id, { bars, at: now });
+    else await ctx.db.insert("worldPings", { memberId: member._id, bars, at: now });
     return { published: true, serverNow: now };
   },
 });
@@ -1097,7 +1107,6 @@ export const roster = query({
           name: v.string(),
           look: worldLookValidator,
           isMe: v.boolean(),
-          ping: v.optional(v.number()),
         })
       ),
     })
@@ -1114,9 +1123,29 @@ export const roster = query({
     for (const row of rows) {
       if (await blockedEither(ctx, me.email, row.email)) continue;
       const look = (await savedLook(ctx, row.email))?.look ?? row.look;
-      members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id, ping: row.ping });
+      members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id });
     }
     return { instance: room.instance, place: room.place, members };
+  },
+});
+
+export const pings = query({
+  args: { roomId: v.id("worldRooms") },
+  returns: v.union(v.null(), v.array(v.object({ memberId: v.id("worldMembers"), bars: v.number() }))),
+  handler: async (ctx, { roomId }) => {
+    const me = await meIn(ctx, roomId);
+    if (!me) return null;
+    const rows = await ctx.db
+      .query("worldMembers")
+      .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+      .take(ROOM_CAP);
+    const found = [];
+    for (const row of rows) {
+      if (await blockedEither(ctx, me.email, row.email)) continue;
+      const ping = await pingOf(ctx, row._id);
+      if (ping) found.push({ memberId: row._id, bars: ping.bars });
+    }
+    return found;
   },
 });
 

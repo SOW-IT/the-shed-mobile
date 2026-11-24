@@ -810,7 +810,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       away: state?.away,
       seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
       typing: state?.typing,
-      ping: m.isMe && pingMs !== null ? pingBars(pingMs) : m.ping,
+      ping: m.isMe && pingMs !== null ? pingBars(pingMs) : undefined,
     };
   });
 

@@ -698,6 +698,7 @@ export const WorldScreen = ({
       <PeoplePanel
         open={peopleOpen}
         top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        roomId={world.roomId}
         people={world.people}
         online={online}
         onPerson={(memberId) => {

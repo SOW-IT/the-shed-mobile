@@ -228,6 +228,12 @@ export default defineSchema({
     .index("by_b", ["b"])
     .index("by_endsAt", ["endsAt"]),
 
+  worldPings: defineTable({
+    memberId: v.id("worldMembers"),
+    bars: v.number(),
+    at: v.number(),
+  }).index("by_memberId", ["memberId"]),
+
   worldThrottle: defineTable({
     email: v.string(),
     moveBucket: worldBucketValidator,
