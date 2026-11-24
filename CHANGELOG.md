@@ -81,9 +81,7 @@ All notable changes to **The SHED** mobile app. This project follows
   seconds stops receiving World updates and picks them up again when you come
   back; you stay in the room the whole time.
 - **The character editor is lighter.** The preview only animates while it
-  turns or zooms, so it no longer redraws 60 times a second at rest. Tabs
-  with many choices, like Hair, draw the first tiles straight away and the
-  rest over the next few frames.
+  turns or zooms, so it no longer redraws 60 times a second at rest.
 - **Less network traffic.** A new chat line sends only the newest lines
   instead of the whole log, the floating chat log asks for 30 lines instead
   of 150, sending a line no longer sends a separate "stopped typing" first,
