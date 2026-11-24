@@ -265,7 +265,7 @@
         "src/app/world-praise.tsx",
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
-        "convex/{world,worldData,worldHome,coins}.ts",
+        "convex/{world,worldData,worldHome,coins,coinsBackfill}.ts",
         "shared/{world,worldPath,home,coins,ball,names}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise"]

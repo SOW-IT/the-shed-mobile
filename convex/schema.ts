@@ -390,6 +390,13 @@ export default defineSchema({
     .index("by_email_and_at", ["email", "at"])
     .index("by_email_and_board", ["email", "board"]),
 
+  // One-off jobs that have finished, by name, so a cron that runs a job
+  // after a deploy does it once (see convex/coinsBackfill.ts).
+  oneOffRuns: defineTable({
+    name: v.string(),
+    at: v.number(),
+  }).index("by_name", ["name"]),
+
   // Singleton bookkeeping: when the self-scheduling sweeper next runs.
   worldMeta: defineTable({
     key: v.literal("sweeper"),

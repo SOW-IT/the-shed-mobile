@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.51] - 2026-11-25
+
+### Added
+- **Whoever was already in a game's top 3 is paid for it.** 2.12.49 paid a
+  place only when a new best reached it, so the people already 1st, 2nd or
+  3rd had nothing for their place. Within an hour of this release they're
+  paid once: 50 coins for 1st, 25 for 2nd and 10 for 3rd on each game's
+  leaderboard, with equal scores sharing a place as the leaderboard shows.
+  Anyone 2.12.49 already paid on that leaderboard gets only what they're
+  still owed, which is usually nothing.
+
 ## [2.12.50] - 2026-11-25
 
 ### Changed
