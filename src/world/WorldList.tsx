@@ -8,6 +8,7 @@ import { accepted, announce } from "./announce";
 import { useChatLog } from "./useChatLog";
 import { PENDING, type useWorld } from "./useWorld";
 import { clock, lineWhere, saidLabel, systemLine } from "./view";
+import { shortName } from "@shared/names";
 
 
 /**
@@ -94,7 +95,7 @@ export const WorldList = ({
       if (told.current.has(key)) continue;
       told.current.add(key);
       const info = askInfo(p.ask?.kind);
-      if (info) announce(`${p.name}: ${info.ask} You have 10 seconds to answer.`);
+      if (info) announce(`${shortName(p.name)}: ${info.ask} You have 10 seconds to answer.`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on which asks are open, not the array
   }, [askKeys]);
@@ -205,10 +206,10 @@ export const WorldList = ({
               <Pressable
                 onPress={() => onPerson(p.memberId)}
                 accessibilityRole="button"
-                accessibilityLabel={p.isMe ? `${p.name}, you. Change your look` : `${p.name}, ${detail}${muted.has(p.memberId) ? ", muted" : ""}`}
+                accessibilityLabel={p.isMe ? `${shortName(p.name)}, you. Change your look` : `${shortName(p.name)}, ${detail}${muted.has(p.memberId) ? ", muted" : ""}`}
                 style={({ pressed }) => [styles.rowMain, pressed && { opacity: 0.7 }]}
               >
-                <Text style={[typography.body, { color: t.text, flex: 1 }]}>{p.name}</Text>
+                <Text style={[typography.body, { color: t.text, flex: 1 }]}>{shortName(p.name)}</Text>
                 <Text style={[typography.caption, { color: t.muted }]}>
                   {muted.has(p.memberId) ? "Muted" : detail}
                 </Text>
@@ -217,7 +218,7 @@ export const WorldList = ({
                 <Pressable
                   onPress={walkOver}
                   accessibilityRole="button"
-                  accessibilityLabel={`Walk over to ${p.name}`}
+                  accessibilityLabel={`Walk over to ${shortName(p.name)}`}
                   testID="world-list-walk"
                   hitSlop={6}
                   style={({ pressed }) => [styles.walk, { backgroundColor: t.primarySoft }, pressed && { opacity: 0.7 }]}
@@ -291,12 +292,12 @@ export const WorldList = ({
               style={styles.line}
               accessible
               accessibilityLabel={saidLabel(line)}
-              accessibilityHint={line.isMe ? undefined : `Mute, block or report ${line.name}`}
+              accessibilityHint={line.isMe ? undefined : `Mute, block or report ${shortName(line.name)}`}
               disabled={line.isMe}
               onPress={() => onLine(line.memberId, line.name)}
             >
               <Text style={[typography.label, { color: t.text }]}>
-                {line.isMe ? "You" : line.name}{" "}
+                {line.isMe ? "You" : shortName(line.name)}{" "}
                 <Text style={{ color: t.muted, fontWeight: "400" }}>
                   {/* Shown at once; marked until the server has it. */}
                   {line.id.startsWith(PENDING) ? "Sending…" : clock(line.at)}

@@ -150,16 +150,18 @@ describe("coins", () => {
     ]);
   });
 
-  test("each game has its own board", async () => {
+  test("each game has its own board, Swoop's too", async () => {
     const t = newConvex();
-    await submit(t, [run("flappy", 800), run("shooter", 5000), run("runner", 3000)]);
-    expect(await balanceOf(t)).toBe(START_COINS + 150);
+    const result = await submit(t, [run("flappy", 800), run("shooter", 5000), run("runner", 3000), run("glider", 3000, "run-glider-1")]);
+    expect(result.coins).toContainEqual({ runId: "run-glider-1", coins: 50, place: 1 });
+    expect(await balanceOf(t)).toBe(START_COINS + 200);
+    expect(await ledger(t)).toContainEqual(expect.objectContaining({ runId: "run-glider-1", board: boardOf("glider") }));
   });
 
   test("there's no daily cap: every board can pay its 50 on one day", async () => {
     const t = newConvex();
-    await submit(t, [run("flappy", 800), run("shooter", 5000), run("runner", 3000)]);
-    expect(await asUser(t, ANNA).query(api.coins.mine, {})).toMatchObject({ balance: START_COINS + 150, earnedToday: 150 });
+    await submit(t, [run("flappy", 800), run("shooter", 5000), run("runner", 3000), run("glider", 3000)]);
+    expect(await asUser(t, ANNA).query(api.coins.mine, {})).toMatchObject({ balance: START_COINS + 200, earnedToday: 200 });
   });
 
   test("score-band payouts from before keep their answer and don't count against a board", async () => {

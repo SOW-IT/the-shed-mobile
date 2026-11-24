@@ -882,15 +882,6 @@ export const cleanPoke = (raw: string): string | null => {
   return line === null ? null : Array.from(line).slice(0, MAX_POKE_LENGTH).join("");
 };
 
-/** The name over someone's head: the first word of their name. */
-export const tagName = (name: string): string => {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  // By code point, so an emoji is never cut in half.
-  const first = Array.from(words[0] ?? "");
-  const short = first.length > 14 ? `${first.slice(0, 13).join("")}…` : first.join("") || "Someone";
-  const initial = words.length > 1 ? Array.from(words[words.length - 1])[0].toUpperCase() : null;
-  return initial ? `${short} ${initial}.` : short;
-};
 
 /** A chat line as it's kept: trimmed, one line, at most MAX_SAY_LENGTH. */
 const UNSEEN = /[\p{Cc}\u200B\u2060\uFEFF\u202A-\u202E\u2066-\u2069]/gu;

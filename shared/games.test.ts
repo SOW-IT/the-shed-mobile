@@ -28,8 +28,8 @@ const entry = (overrides: Partial<QueuedScore> = {}): QueuedScore => ({
 });
 
 describe("isGameId", () => {
-  test("knows the three games", () => {
-    expect(["shooter", "runner", "flappy", "snake"].map(isGameId)).toEqual([true, true, true, false]);
+  test("knows the four games", () => {
+    expect(["shooter", "runner", "flappy", "glider", "snake"].map(isGameId)).toEqual([true, true, true, true, false]);
   });
 });
 
@@ -49,6 +49,8 @@ describe("scoreProblem", () => {
     ["a NaN length", { durationMs: Number.NaN }, /length/],
     ["a score over the cap", { score: SCORE_LIMITS.runner.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
     ["too many points for the time", { score: 50_000, durationMs: 10_000 }, /too high/],
+    ["a Swoop score over its cap", { game: "glider", score: SCORE_LIMITS.glider.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
+    ["a Swoop score too fast for its run", { game: "glider", score: 20_000, durationMs: 10_000 }, /too high/],
     ["a run in the future", { playedAt: NOW + CLOCK_SKEW_MS + 1 }, /future/],
     ["a NaN end time", { playedAt: Number.NaN }, /future/],
     ["a stale run", { playedAt: NOW - MAX_SCORE_AGE_MS - 1 }, /too old/],
@@ -121,10 +123,11 @@ describe("parseQueue", () => {
 
 describe("local bests", () => {
   test("parse what was saved, with zero for anything unusable", () => {
-    expect(parseBests(JSON.stringify({ shooter: 12.7, runner: "9", flappy: -3 }))).toEqual({
+    expect(parseBests(JSON.stringify({ shooter: 12.7, runner: "9", flappy: -3, glider: 4321 }))).toEqual({
       shooter: 12,
       runner: 0,
       flappy: 0,
+      glider: 4321,
     });
     expect(parseBests("null")).toEqual(NO_BESTS);
     expect(parseBests("{")).toEqual(NO_BESTS);
@@ -132,8 +135,8 @@ describe("local bests", () => {
 
   test("a best saved before its game was reset no longer counts; others carry over", () => {
     const old = JSON.stringify({ shooter: 50, runner: 900, flappy: 30 });
-    expect(parseBests(old)).toEqual({ shooter: 50, runner: 0, flappy: 30 });
-    const saved = { shooter: 50, runner: 40, flappy: 30 };
+    expect(parseBests(old)).toEqual({ shooter: 50, runner: 0, flappy: 30, glider: 0 });
+    const saved = { shooter: 50, runner: 40, flappy: 30, glider: 20 };
     expect(parseBests(stringifyBests(saved))).toEqual(saved);
     const beforeLastReset = JSON.stringify({ ...saved, resets: { runner: SCORES_RESET_AT.runner! - 1 } });
     expect(parseBests(beforeLastReset)).toEqual({ ...saved, runner: 0 });

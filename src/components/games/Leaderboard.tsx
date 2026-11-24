@@ -14,9 +14,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { OnlineBanner } from "./OnlineBanner";
 import { GAME_IDS, GAME_INFO, isGameId, type GameId } from "../../../shared/games";
+import { shortName } from "@shared/names";
 
 /** Rows per page; "Load more" fetches the next page until every score is shown. */
 const PAGE_SIZE = 25;
+
+/**
+ * The tabs share a phone's width four ways, where "Sky Shooter" doesn't
+ * fit; its page's Play button still says the whole name.
+ */
+const TAB_LABELS: Partial<Record<GameId, string>> = { shooter: "Shooter" };
 
 const Board = ({ game }: { game: GameId }) => {
   const t = useAppTheme();
@@ -58,7 +65,7 @@ const Board = ({ game }: { game: GameId }) => {
                 <Text style={[typography.label, { color: row.rank <= 3 ? t.accent : t.muted }]}>{row.rank}</Text>
               </View>
               <Text style={[typography.body, styles.name, { color: t.text }, row.isMe && styles.me]} numberOfLines={1}>
-                {row.isMe ? `${row.name} (you)` : row.name}
+                {row.isMe ? `${shortName(row.name)} (you)` : shortName(row.name)}
               </Text>
               <Text style={[typography.headline, { color: t.text }]}>{row.score.toLocaleString()}</Text>
             </View>
@@ -135,7 +142,7 @@ export const Leaderboard = ({
     () =>
       GAME_IDS.map((id) => ({
         key: id,
-        label: GAME_INFO[id].title,
+        label: TAB_LABELS[id] ?? GAME_INFO[id].title,
         render: () => <GamePage game={id} onPlay={onPlay} />,
       })),
     [onPlay]

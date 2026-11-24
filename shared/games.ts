@@ -1,7 +1,7 @@
 // The offline mini-games' ids, score limits and the queue of scores waiting
 // to go on the leaderboard. The app and the backend both read these, so a
 // score the app saves is one the server accepts.
-export const GAME_IDS = ["shooter", "runner", "flappy"] as const;
+export const GAME_IDS = ["shooter", "runner", "flappy", "glider"] as const;
 export type GameId = (typeof GAME_IDS)[number];
 
 export const isGameId = (value: string): value is GameId =>
@@ -20,6 +20,10 @@ export const GAME_INFO: Record<GameId, { title: string; blurb: string }> = {
     title: "Flap",
     blurb: "Tap to flap through the gaps.",
   },
+  glider: {
+    title: "Swoop",
+    blurb: "Hold to dive into the valleys, let go to fly off the hills. Finish each world before dark. Best sideways.",
+  },
 };
 
 /**
@@ -31,6 +35,10 @@ export const SCORE_LIMITS: Record<GameId, { perSecond: number; max: number }> = 
   shooter: { perSecond: 1000, max: 5_000_000 },
   runner: { perSecond: 200, max: 2_000_000 },
   flappy: { perSecond: 60, max: 1_000_000 },
+  // Swoop's own rules cap these: a run can't fly faster than the bird's top
+  // speed, or past the world where even that can't beat the sunset
+  // (src/lib/games/glider.ts, maxGliderScore, checked by its tests).
+  glider: { perSecond: 1000, max: 500_000 },
 };
 
 /**
@@ -132,7 +140,7 @@ export const parseQueue = (saved: string): QueuedScore[] => {
 
 export type LocalBests = Record<GameId, number>;
 
-export const NO_BESTS: LocalBests = { shooter: 0, runner: 0, flappy: 0 };
+export const NO_BESTS: LocalBests = { shooter: 0, runner: 0, flappy: 0, glider: 0 };
 
 /**
  * Saves bests with the reset each was made after, so a later reset can tell
@@ -156,7 +164,7 @@ export const parseBests = (saved: string): LocalBests => {
       if (savedAfter !== (SCORES_RESET_AT[game] ?? 0)) return 0;
       return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
     };
-    return { shooter: best("shooter"), runner: best("runner"), flappy: best("flappy") };
+    return { shooter: best("shooter"), runner: best("runner"), flappy: best("flappy"), glider: best("glider") };
   } catch {
     return { ...NO_BESTS };
   }

@@ -6,18 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.48] - 2026-11-25
+## [2.12.50] - 2026-11-25
 
 ### Changed
 - **Games pay coins only for a top-3 place on the leaderboard.** 1st pays 50
   coins, 2nd 25 and 3rd 10, on each game's leaderboard (Sky Shooter, Mystic
-  Man, Flap, and any game added later). You're paid when a new best puts you
-  in a place, and each place pays you once per game: climbing from 3rd to 1st
-  pays the 40 you haven't had yet, and being knocked off 1st and winning it
-  back pays nothing more. Equal scores share a place, as the leaderboard
-  shows. Scoring past a mark no longer pays, and the 200-a-day limit is gone,
-  since no game can pay anyone more than 50. Coins you already have stay. If
-  a game's leaderboard is ever wiped, its places can be won again.
+  Man, Flap, Swoop and any game added later). You're paid when a new best
+  puts you in a place, and each place pays you once per game: climbing from
+  3rd to 1st pays the 40 you haven't had yet, and being knocked off 1st and
+  winning it back pays nothing more. Equal scores share a place, as the
+  leaderboard shows. Scoring past a mark no longer pays (Swoop's marks from
+  2.12.46 go too), and the 200-a-day limit is gone, since no game can pay
+  anyone more than 50. Coins you already have stay. If a game's leaderboard
+  is ever wiped, its places can be won again.
 - **The game-over card says why you earned coins**, such as "2nd place on
   Flap: +25", and the coins card in the World lists what each place pays.
 
@@ -26,6 +27,41 @@ All notable changes to **The SHED** mobile app. This project follows
   2.12.37 the server paid a run but the card never showed the chip, because
   it kept its first look (nothing paid yet) and missed the answer that came a
   moment later.
+
+## [2.12.47] - 2026-11-25
+
+### Changed
+- **The World and the games show a first name and a last initial.** Where a
+  name showed in full ("Daniel Kim"), it now reads "Daniel K." (a one-word
+  name stays as it is): the people lists and sheets, chat log lines (with the
+  "first name" style), the World list, action hints, the person sheet, duel
+  prompts, invite cards and the game leaderboards. Name tags already did this.
+  Your own still shows as "You" where it did.
+
+### Fixed
+- **The newer hats sit right on curly hair, an afro and a bun.**
+  - With an afro, the bow, party hat and crown sit on top of it instead of
+    sinking into it, and the beret squashes it so it puffs out at the sides.
+  - With curly hair, the headband shows across the top instead of hiding
+    under the curls.
+  - A bun is tucked under a beret instead of poking out above it.
+
+## [2.12.46] - 2026-11-24
+
+### Added
+- **A new game, Swoop.** Hold anywhere and the bird gets heavy and dives;
+  let go and it's light again. Dive down into a valley, let go at the
+  bottom, and the speed throws the bird off the next hill and high into the
+  sky. Come down along a downslope for a perfect landing; come down onto
+  the slope going up and you lose speed. Each world has to be finished
+  before the sun sets across the top of the screen, or night falls and the
+  run is over. Perfect landings and long flights win back a little
+  daylight. Every world is longer, with steeper and bumpier hills, tighter
+  valleys, a shorter day and less room for a perfect landing. The score is
+  the distance flown plus bonuses, on one leaderboard for the whole run,
+  and good runs earn coins like the other games. Play as your World
+  character's head, Sij, or Swoop's own bird. It works offline, and on a
+  phone held upright it turns sideways like Mystic Man.
 
 ## [2.12.45] - 2026-11-24
 

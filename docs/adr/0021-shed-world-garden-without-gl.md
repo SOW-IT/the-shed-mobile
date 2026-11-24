@@ -273,7 +273,7 @@ home also invites them in. An offline invite is the same push with
 `/world?invite=<id>` and shares the poke limits.
 
 Coins live on `worldWallets` (balance, what you own, today's earnings) with
-every change in `coinLedger`. Since 2.12.48 games pay only for a top-3 place
+every change in `coinLedger`. Since 2.12.50 games pay only for a top-3 place
 on the game's leaderboard (1st 50, 2nd 25, 3rd 10, `PLACE_COINS`), when a run
 becomes your best and lands you there. The board is the one the app shows:
 one per game for everyone, not per staff year, named by the game's last
@@ -282,7 +282,7 @@ once and a climb pays the difference, so it pays one person at most 50 in
 all; each payout's ledger row carries its `place` and `board`. A run pays
 once, by run id, and a resent run gets the same answer. With every board
 capped at 50 a person, the old daily cap had nothing left to limit and went.
-Before 2.12.48 runs paid 10 or 20 coins for passing a score; those ledger
+Before 2.12.50 runs paid 10 or 20 coins for passing a score; those ledger
 rows have no board and count against none. The phone queues each game's best
 unpublished run, the only run that could pay. Buying reads the wallet on the
 server; the app's balance is only for show.

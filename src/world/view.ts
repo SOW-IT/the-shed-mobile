@@ -1,4 +1,5 @@
-import { isPlace, JOINED_WORLD, PLACE_TITLES, tagName } from "../../shared/world";
+import { isPlace, JOINED_WORLD, PLACE_TITLES } from "../../shared/world";
+import { shortName } from "../../shared/names";
 
 // Which way the world shows: the drawn garden, or a plain list of who's here
 // and what they said. The list is the fallback for VoiceOver, for being
@@ -33,7 +34,7 @@ type LogLine = { isMe: boolean; name: string; text: string; here: boolean; place
 
 export const lineText = (line: Pick<LogLine, "text" | "kind">) => (line.kind === "join" && line.text.startsWith("joined ") ? JOINED_WORLD : line.text);
 
-export const systemLine = (line: Pick<LogLine, "name" | "text" | "kind">) => `${tagName(line.name)} ${lineText(line)}`;
+export const systemLine = (line: Pick<LogLine, "name" | "text" | "kind">) => `${shortName(line.name)} ${lineText(line)}`;
 
 export const saidLabel = (line: LogLine) => {
   const where = lineWhere(line);
@@ -41,5 +42,5 @@ export const saidLabel = (line: LogLine) => {
     if (line.kind === "join" || !where) return systemLine(line);
     return `${systemLine(line)}${where === "elsewhere" ? ", elsewhere" : ` ${where}`}`;
   }
-  return `${line.isMe ? "You" : line.name} said ${line.text}${where ? `, ${where === "elsewhere" ? "elsewhere" : `in ${where}`}` : ""}`;
+  return `${line.isMe ? "You" : shortName(line.name)} said ${line.text}${where ? `, ${where === "elsewhere" ? "elsewhere" : `in ${where}`}` : ""}`;
 };

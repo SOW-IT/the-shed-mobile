@@ -381,7 +381,7 @@ export default defineSchema({
     game: v.optional(v.string()),
     item: v.optional(v.string()),
     // A game payout's leaderboard place (1 to 3) and board (`boardOf`).
-    // Payouts from before 2.12.48 paid by score and have neither.
+    // Payouts from before 2.12.50 paid by score and have neither.
     place: v.optional(v.number()),
     board: v.optional(v.string()),
     at: v.number(),
