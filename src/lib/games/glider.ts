@@ -587,7 +587,7 @@ export const colourAt = (stops: readonly (readonly [number, string])[], at: numb
  */
 export const autoHold = (state: GliderState): boolean => groundAt(state.hills, state.x).slope < 0;
 
-export const GLIDER_PREVIEWS = ["dive", "launch", "world", "night"] as const;
+export const GLIDER_PREVIEWS = ["dive", "launch", "high", "world", "night"] as const;
 export type GliderPreview = (typeof GLIDER_PREVIEWS)[number];
 
 export const isGliderPreview = (value: string): value is GliderPreview =>
@@ -596,19 +596,25 @@ export const isGliderPreview = (value: string): value is GliderPreview =>
 const previewDone: Record<GliderPreview, (state: GliderState, before: GliderState) => boolean> = {
   dive: (state) => state.grounded && state.heavy && state.speed > 650 && groundAt(state.hills, state.x).slope < -0.6,
   launch: (state, before) => before.grounded && !state.grounded && state.vy > 250,
+  high: (state, before) => before.vy > 0 && state.vy <= 0,
   world: (state, before) => state.world > before.world,
   night: (state) => state.over,
 };
 
+/** How hard a long dive throws the bird off a hilltop, for the highest flight a practised player gets. */
+const BIG_THROW = { vx: 800, vy: 900 } as const;
+
 /**
  * A still moment of a run played by `autoHold`, for screenshots: diving
- * into a valley, taking off, just past a world's finish, or nightfall.
+ * into a valley, taking off, the top of a big flight off the first hilltop,
+ * just past a world's finish, or nightfall.
  */
 export const previewGlider = (kind: GliderPreview, aspect = 2): GliderState => {
-  let state = newGlider(1, aspect);
+  const start = newGlider(1, aspect);
+  let state = kind === "high" ? { ...start, ...BIG_THROW, grounded: false } : start;
   const done = previewDone[kind];
   for (let i = 0; i < 60 * 600; i++) {
-    const before = hold(state, autoHold(state));
+    const before = hold(state, kind !== "high" && autoHold(state));
     state = stepGlider(before, 1 / 60);
     // A little after the moment, so the camera and the popups have caught up.
     if (done(state, before)) {

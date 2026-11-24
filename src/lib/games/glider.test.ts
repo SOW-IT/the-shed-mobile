@@ -517,6 +517,10 @@ describe("previews", () => {
     const launch = previewGlider("launch");
     expect(launch.grounded).toBe(false);
     expect(launch.vy).toBeGreaterThan(0);
+    const high = previewGlider("high");
+    expect(high.grounded).toBe(false);
+    expect(high.y - groundAt(high.hills, high.x).y).toBeGreaterThan(400);
+    expect(high.vy).toBeLessThan(0);
     const world = previewGlider("world");
     expect(world.world).toBe(2);
     expect(world.popups.some((p) => p.kind === "world")).toBe(true);
