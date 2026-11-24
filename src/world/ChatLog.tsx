@@ -1,12 +1,13 @@
-import { CHAT_TTL_MS, isPlace, PLACE_TITLES } from "@shared/world";
-import { useQuery } from "convex/react";
-import { useRef, useState } from "react";
+import { CHAT_TTL_MS } from "@shared/world";
+import { useEffect, useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from "react-native";
-import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { chatLineParts } from "./chatFormat";
 import { chatLog } from "./palette";
+import { useWorldSetting } from "./settings";
+import { useChatLog } from "./useChatLog";
 import { PENDING } from "./useWorld";
-import { clock, saidLabel, systemLine } from "./view";
+import { saidLabel } from "./view";
 
 const LINE_HEIGHT = 19;
 const SHOWN_LINES = 5;
@@ -23,28 +24,41 @@ const fitWhole = (heights: readonly number[]) => {
   return Math.min(MOST, total);
 };
 
-const placeTag = (place: string | undefined) => (place && isPlace(place) ? PLACE_TITLES[place].replace(/^The /, "") : "Elsewhere");
-
 const blocky = Platform.select({
   ios: "Menlo",
   android: "monospace",
   default: "ui-monospace, Menlo, Consolas, monospace",
 });
 
+const HUD_CHAT_LIMIT = 30;
+
 export const ChatLog = ({
   roomId,
   muted,
-  now,
+  serverNow,
   status,
   onLine,
 }: {
   roomId: Id<"worldRooms"> | null;
   onLine: (memberId: Id<"worldMembers">, name: string) => void;
   muted: ReadonlySet<string>;
-  now: number;
+  serverNow: () => number;
   status: string | null;
 }) => {
-  const log = useQuery(api.world.chatLog, roomId ? { roomId } : "skip");
+  const log = useChatLog(roomId, HUD_CHAT_LIMIT);
+  const [times] = useWorldSetting("chatTimes");
+  const [names] = useWorldSetting("chatNames");
+  const format = { times: times === "on", names };
+  const [now, setNow] = useState(serverNow);
+  const nextExpiry = (log ?? []).reduce<number | null>((soonest, line) => {
+    const gone = line.at + CHAT_TTL_MS;
+    return gone > now && (soonest === null || gone < soonest) ? gone : soonest;
+  }, null);
+  useEffect(() => {
+    if (nextExpiry === null) return;
+    const id = setTimeout(() => setNow(Math.max(nextExpiry, serverNow())), Math.max(0, nextExpiry - serverNow()) + 1);
+    return () => clearTimeout(id);
+  }, [nextExpiry, serverNow]);
   const scroller = useRef<ScrollViewInstance>(null);
   const atEnd = useRef(true);
   const [heights, setHeights] = useState<Record<string, number>>({});
@@ -88,12 +102,12 @@ export const ChatLog = ({
           {status}
         </Text>
       ) : null}
-      {lines.map((line) =>
-        line.kind ? (
+      {lines.map((line) => {
+        const parts = chatLineParts(line, { ...format, pending: line.id.startsWith(PENDING) });
+        return line.kind ? (
           <Text key={line.id} style={[styles.line, styles.system]} onLayout={measure(line.id)} accessibilityLabel={saidLabel(line)} testID="world-chat-system">
-            <Text style={styles.time}>[{clock(line.at)}] </Text>
-            {line.here ? null : <Text style={styles.place}>[{placeTag(line.place)}] </Text>}
-            {systemLine(line)}
+            <ChatLineHead parts={parts} />
+            {`${parts.name} ${parts.text}`}
           </Text>
         ) : (
           <Text
@@ -106,16 +120,22 @@ export const ChatLog = ({
             suppressHighlighting
             testID="world-chat-line"
           >
-            <Text style={styles.time}>[{line.id.startsWith(PENDING) ? "…" : clock(line.at)}] </Text>
-            {line.here ? null : <Text style={styles.place}>[{placeTag(line.place)}] </Text>}
-            <Text style={line.isMe ? styles.me : styles.name}>{`<${line.name}> `}</Text>
+            <ChatLineHead parts={parts} />
+            <Text style={line.isMe ? styles.me : styles.name}>{`<${parts.name}> `}</Text>
             {line.text}
           </Text>
-        )
-      )}
+        );
+      })}
     </ScrollView>
   );
 };
+
+const ChatLineHead = ({ parts }: { parts: ReturnType<typeof chatLineParts> }) => (
+  <>
+    {parts.time === null ? null : <Text style={styles.time}>[{parts.time}] </Text>}
+    {parts.place === null ? null : <Text style={styles.place}>[{parts.place}] </Text>}
+  </>
+);
 
 const shadow = {
   textShadowColor: chatLog.shadow,

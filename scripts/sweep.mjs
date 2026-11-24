@@ -48,11 +48,33 @@ const hasSession = () =>
     )
   );
 
+const bundling = new Map();
+const BUNDLE_WAIT_MS = 60_000;
+let bundleBudgetMs = 120_000;
+const isBundle = (request) => new URL(request.url()).pathname.endsWith(".bundle");
+const watchBundles = (page) => {
+  page.on("request", (request) => isBundle(request) && bundling.set(request, Date.now()));
+  page.on("requestfinished", (request) => bundling.delete(request));
+  page.on("requestfailed", (request) => bundling.delete(request));
+};
+const openPage = (url, options) => {
+  bundling.clear();
+  return page.goto(url, options);
+};
+
 const waitUntilSettled = async () => {
-  const started = Date.now();
+  let started = Date.now();
   let last = "";
   let stableSince = Date.now();
   while (Date.now() - started < READY_TIMEOUT_MS) {
+    for (const [request, since] of bundling) if (Date.now() - since > BUNDLE_WAIT_MS) bundling.delete(request);
+    if (bundling.size > 0 && bundleBudgetMs > 0) {
+      await page.waitForTimeout(200);
+      bundleBudgetMs -= 200;
+      started = Date.now();
+      stableSince = Date.now();
+      continue;
+    }
     const text = await page
       .evaluate(() => document.body.innerText.replace(/\s+/g, " "))
       .catch(() => "");
@@ -74,6 +96,7 @@ mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 430, height: 900 } });
 const page = await context.newPage();
+watchBundles(page);
 const results = [];
 
 const settle = (ms) => page.waitForTimeout(ms);
@@ -91,17 +114,17 @@ const screenshot = async (name) => {
 };
 
 const WARM_UP_TIMEOUT_MS = 180_000;
-await page.goto(`${BASE}/home`, { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS }).catch(() => {});
+await openPage(`${BASE}/home`, { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS }).catch(() => {});
 await page
   .waitForFunction(() => document.body.innerText.trim().length > 0, null, { timeout: WARM_UP_TIMEOUT_MS })
   .catch(() => {});
 await waitUntilSettled();
 
 for (const [role, email] of roles) {
-  await page.goto(`${BASE}/e2e-auth?signout=1`, { waitUntil: "domcontentloaded" });
+  await openPage(`${BASE}/e2e-auth?signout=1`, { waitUntil: "domcontentloaded" });
   await settle(2500);
   if (email) {
-    await page.goto(`${BASE}/e2e-auth?email=${encodeURIComponent(email)}&secret=${encodeURIComponent(SECRET)}`, {
+    await openPage(`${BASE}/e2e-auth?email=${encodeURIComponent(email)}&secret=${encodeURIComponent(SECRET)}`, {
       waitUntil: "domcontentloaded",
     });
     await waitUntilSettled();
@@ -120,7 +143,7 @@ for (const [role, email] of roles) {
     page.on("pageerror", onError);
     page.on("console", onConsole);
     try {
-      await page.goto(BASE + route, { waitUntil: "domcontentloaded" });
+      await openPage(BASE + route, { waitUntil: "domcontentloaded" });
       if (!(await waitUntilSettled())) errors.push(`still changing after ${READY_TIMEOUT_MS / 1000}s`);
     } catch (error) {
       errors.push(`navigation: ${String(error).slice(0, 200)}`);

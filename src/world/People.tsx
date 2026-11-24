@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
 import { isPlace, MAX_POKE_LENGTH, PLACE_TITLES, PLACES, tagName, type Look, type Place } from "@shared/world";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -15,7 +15,7 @@ import type { WorldMember } from "./useWorld";
 
 const OFFLINE_PAGE = 25;
 
-const PersonRow = ({
+const PersonRow = memo(function PersonRow({
   look,
   name,
   where,
@@ -33,30 +33,32 @@ const PersonRow = ({
   label: string;
   action?: ReactNode;
   testID?: string;
-}) => (
-  <View style={styles.row}>
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      accessibilityRole={onPress ? "button" : undefined}
-      accessibilityLabel={`${label}. ${connectionLabel(ping)}`}
-      testID={testID}
-      style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
-    >
-      <Bust look={look} size={40} />
-      <View style={styles.grow}>
-        <Text style={styles.name} numberOfLines={1}>
-          {name}
-        </Text>
-        <Text style={styles.where} numberOfLines={1}>
-          {where}
-        </Text>
-      </View>
-    </Pressable>
-    {action}
-    <SignalBars bars={ping} />
-  </View>
-);
+}) {
+  return (
+    <View style={styles.row}>
+      <Pressable
+        onPress={onPress}
+        disabled={!onPress}
+        accessibilityRole={onPress ? "button" : undefined}
+        accessibilityLabel={`${label}. ${connectionLabel(ping)}`}
+        testID={testID}
+        style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
+      >
+        <Bust look={look} size={40} />
+        <View style={styles.grow}>
+          <Text style={styles.name} numberOfLines={1}>
+            {name}
+          </Text>
+          <Text style={styles.where} numberOfLines={1}>
+            {where}
+          </Text>
+        </View>
+      </Pressable>
+      {action}
+      <SignalBars bars={ping} />
+    </View>
+  );
+});
 
 const Section = ({ children }: { children: string }) => <Text style={styles.section}>{children}</Text>;
 
@@ -143,7 +145,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                 {writingTo === p.id ? null : (
                   <>
                     <GlassPill
-                      icon="home"
+                      icon="mail"
                       disabled={waitMs > 0}
                       accessibilityLabel={`Invite ${p.name} to your home`}
                       testID={`world-invite-offline-${p.id}`}
@@ -188,7 +190,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                       <Btn title="Cancel" variant="tonal" onPress={() => setWritingTo(null)} />
                     </View>
                     <View style={styles.grow}>
-                      <Btn title={inviting ? "Send invite" : "Send poke"} icon={inviting ? "home-outline" : "notifications-outline"} loading={busy} onPress={() => void send(p.id, p.name)} />
+                      <Btn title={inviting ? "Send invite" : "Send poke"} icon={inviting ? "mail-outline" : "notifications-outline"} loading={busy} onPress={() => void send(p.id, p.name)} />
                     </View>
                   </View>
                 </View>
@@ -209,6 +211,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
 export const PeoplePanel = ({
   open,
   top,
+  roomId,
   people,
   place,
   online,
@@ -224,6 +227,7 @@ export const PeoplePanel = ({
 }: {
   open: boolean;
   top: number;
+  roomId: Id<"worldRooms"> | null;
   people: WorldMember[];
   place: Place;
   online: number;
@@ -237,12 +241,14 @@ export const PeoplePanel = ({
   pokeListOpen?: boolean;
   showPlaces?: boolean;
 }) => {
-  const { mounted, clock } = useOverlayClock(open);
+  const overlay = useOverlayClock(open);
   const { width, height } = useWindowDimensions();
-  const blocked = useQuery(api.world.myBlocks, mounted ? {} : "skip");
-  const elsewhere = useQuery(api.world.elsewhere, mounted ? {} : "skip");
+  const blocked = useQuery(api.world.myBlocks, overlay.mounted ? {} : "skip");
+  const elsewhere = useQuery(api.world.elsewhere, overlay.mounted ? {} : "skip");
+  const pings = useQuery(api.world.pings, overlay.mounted && roomId ? { roomId } : "skip");
   const unblock = useMutation(api.world.unblock);
-  if (!mounted) return null;
+  if (!overlay.mounted) return null;
+  const barsOf = new Map(pings?.map((row) => [row.memberId, row.bars]));
   const others = (elsewhere ?? []).flatMap((spot) => {
     const at = isPlace(spot.place) ? spot.place : null;
     const rows = (spot.people ?? []).map((p, i) => ({ key: `${spot.place}${i}`, at, ...p }));
@@ -254,10 +260,10 @@ export const PeoplePanel = ({
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={open ? "box-none" : "none"}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close people" testID="world-people-close">
-        <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(clock)]} />
+        <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.panel, blurBehind, { top, width: Math.min(440, width - 28), maxHeight: Math.max(260, height - top - 24) }, popStyle(clock)]} testID="world-people-panel">
-        <Animated.View style={[styles.header, itemStyle(clock, 0)]}>
+      <Animated.View style={[styles.panel, blurBehind, { top, width: Math.min(440, width - 28), maxHeight: Math.max(260, height - top - 24) }, popStyle(overlay)]} testID="world-people-panel">
+        <Animated.View style={[styles.header, itemStyle(overlay, 0)]}>
           <Ionicons name="people" size={20} color={glass.text} />
           <Text style={styles.title} accessibilityRole="header">
             People
@@ -272,23 +278,23 @@ export const PeoplePanel = ({
           </Pressable>
         </Animated.View>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.stack}>
-          <Animated.View style={itemStyle(clock, 1)}>
+          <Animated.View style={itemStyle(overlay, 1)}>
             <Section>{`Here · ${placeLabel(place)}`}</Section>
           </Animated.View>
           {people.length === 0 ? <Text style={styles.note}>Nobody else is here right now.</Text> : null}
           {people.map((p) => (
-            <Animated.View key={p.memberId} style={itemStyle(clock, next())}>
+            <Animated.View key={p.memberId} style={itemStyle(overlay, next())}>
               <PersonRow
                 look={p.look}
                 name={p.isMe ? `${tagName(p.name)} (you)` : tagName(p.name)}
                 where={p.away ? "🕹️ At the arcade" : placeLabel(place)}
-                ping={p.ping}
+                ping={p.isMe ? p.ping : barsOf.get(p.memberId)}
                 label={p.isMe ? `${p.name} (you)` : p.name}
                 onPress={p.isMe ? undefined : () => onPerson(p.memberId)}
                 action={
                   p.isMe ? null : (
                     <>
-                      <GlassPill icon="home" onPress={() => onInvite(p.memberId, p.name)} accessibilityLabel={`Invite ${p.name} to your home`} testID={`world-invite-${p.memberId}`} />
+                      <GlassPill icon="mail" onPress={() => onInvite(p.memberId, p.name)} accessibilityLabel={`Invite ${p.name} to your home`} testID={`world-invite-${p.memberId}`} />
                       <GlassPill
                         icon="walk"
                         tone="accent"
@@ -303,12 +309,12 @@ export const PeoplePanel = ({
               />
             </Animated.View>
           ))}
-          <Animated.View style={itemStyle(clock, next())}>
+          <Animated.View style={itemStyle(overlay, next())}>
             <Section>Elsewhere</Section>
           </Animated.View>
           {elsewhere && others.length === 0 ? <Text style={styles.note}>Nobody is anywhere else right now.</Text> : null}
           {others.map((row) => (
-            <Animated.View key={row.key} style={itemStyle(clock, next())} testID={row.at ? `world-elsewhere-${row.at}` : undefined}>
+            <Animated.View key={row.key} style={itemStyle(overlay, next())} testID={row.at ? `world-elsewhere-${row.at}` : undefined}>
               {"more" in row ? (
                 <Text style={styles.note}>{`and ${row.more} more in ${row.at ? PLACE_TITLES[row.at] : "other places"}`}</Text>
               ) : (
@@ -322,7 +328,7 @@ export const PeoplePanel = ({
                   action={
                     row.at ? (
                       <>
-                      <GlassPill icon="home" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${row.name} to your home`} testID={`world-invite-${row.memberId}`} />
+                      <GlassPill icon="mail" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${row.name} to your home`} testID={`world-invite-${row.memberId}`} />
                       <GlassPill
                         icon="navigate"
                         tone="accent"
@@ -338,18 +344,18 @@ export const PeoplePanel = ({
             </Animated.View>
           ))}
           {showPlaces ? (
-            <Animated.View style={[styles.places, itemStyle(clock, next())]}>
+            <Animated.View style={[styles.places, itemStyle(overlay, next())]}>
               {PLACES.filter((to) => to !== place).map((to) => (
                 <GlassPill key={to} label={placeLabel(to)} onPress={() => onGo(to)} accessibilityLabel={`Go to ${PLACE_TITLES[to]}`} testID={`world-go-${to}`} />
               ))}
               <GlassPill label="🏠 Your home" onPress={onHome} accessibilityLabel="Go to your home" testID="world-go-home" />
             </Animated.View>
           ) : null}
-          <Animated.View style={itemStyle(clock, next())}>
+          <Animated.View style={itemStyle(overlay, next())}>
             <OfflineList startOpen={pokeListOpen} />
           </Animated.View>
           {blocked && blocked.length > 0 ? (
-            <Animated.View style={[styles.stack, itemStyle(clock, next())]}>
+            <Animated.View style={[styles.stack, itemStyle(overlay, next())]}>
               <Section>Blocked</Section>
               {blocked.map((b) => (
                 <View key={b.id} style={styles.offlineHead}>

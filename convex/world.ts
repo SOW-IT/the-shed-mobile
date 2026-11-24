@@ -42,6 +42,7 @@ import {
   LOOK_SAVE_GAP_MS,
   MAX_BLOCKS,
   lookFor,
+  withHeight,
   posAt,
   PRESENCE_TOUCH_MS,
   PRESENCE_TTL_MS,
@@ -64,8 +65,10 @@ import {
   INVITE_MS,
   POKE_ARRIVAL_MS,
   type StateBucket,
+  JOINED_WORLD,
 } from "../shared/world";
 import { HOME_CAP, homeObstacles } from "../shared/home";
+import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields } from "./worldData";
 import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
 
@@ -104,6 +107,12 @@ export const memberByEmail = (ctx: Ctx, email: string) =>
 const stateOf = (ctx: Ctx, memberId: Id<"worldMembers">) =>
   ctx.db
     .query("worldState")
+    .withIndex("by_memberId", (q) => q.eq("memberId", memberId))
+    .unique();
+
+const pingOf = (ctx: Ctx, memberId: Id<"worldMembers">) =>
+  ctx.db
+    .query("worldPings")
     .withIndex("by_memberId", (q) => q.eq("memberId", memberId))
     .unique();
 
@@ -164,7 +173,7 @@ export const removeFromWorld = async (ctx: MutationCtx, email: string) => {
       const { x, z } = await landIn(ctx, garden, spawnFor(guest.email), now, guest._id);
       await ctx.db.patch("worldState", state._id, { fromX: x, fromZ: z, toX: x, toZ: z, startedAt: now, ...FRESH_IN_ROOM });
     }
-    if (await ctx.db.get("worldRooms", home._id)) await ctx.db.delete("worldRooms", home._id);
+    if (await ctx.db.get("worldRooms", home._id)) await deleteRoom(ctx, home._id);
   }
 };
 
@@ -217,9 +226,21 @@ const addChatLine = async (ctx: MutationCtx, member: Doc<"worldMembers">, line: 
 };
 
 const joinedLine = (member: Doc<"worldMembers">): ChatLine => ({
-  text: placeOf(member) === HOME ? "came in" : `joined ${PLACE_TITLES[placeOf(member)].replace(/^The /, "the ")}`,
+  text: placeOf(member) === HOME ? "came in" : JOINED_WORLD,
   kind: "join",
 });
+
+const ballOf = (ctx: Ctx, roomId: Id<"worldRooms">) =>
+  ctx.db
+    .query("worldBalls")
+    .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+    .unique();
+
+const deleteRoom = async (ctx: MutationCtx, roomId: Id<"worldRooms">) => {
+  const ball = await ballOf(ctx, roomId);
+  if (ball) await ctx.db.delete("worldBalls", ball._id);
+  await ctx.db.delete("worldRooms", roomId);
+};
 
 const LEFT_LINE: ChatLine = { text: "left", kind: "leave" };
 
@@ -257,10 +278,12 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
   if (state) await ctx.db.delete("worldState", state._id);
   const presence = await presenceOf(ctx, member._id);
   if (presence) await ctx.db.delete("worldPresence", presence._id);
+  const ping = await pingOf(ctx, member._id);
+  if (ping) await ctx.db.delete("worldPings", ping._id);
   await ctx.db.delete("worldMembers", member._id);
   const room = await ctx.db.get("worldRooms", member.roomId);
   if (!room) return;
-  if (room.memberCount <= 1) await ctx.db.delete("worldRooms", room._id);
+  if (room.memberCount <= 1) await deleteRoom(ctx, room._id);
   else await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount - 1 });
 };
 
@@ -397,7 +420,7 @@ const arrivalRoom = async (ctx: MutationCtx, wanted: Arrival, current?: Doc<"wor
 
 const switchRoom = async (ctx: MutationCtx, member: Doc<"worldMembers">, here: Doc<"worldRooms">, room: Doc<"worldRooms">, place: Place) => {
   await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
-  if (here.memberCount <= 1) await ctx.db.delete("worldRooms", here._id);
+  if (here.memberCount <= 1) await deleteRoom(ctx, here._id);
   else await ctx.db.patch("worldRooms", here._id, { memberCount: here.memberCount - 1 });
   await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place });
 };
@@ -472,7 +495,7 @@ export const join = mutation({
         roomId: room._id,
         email,
         name: await nameFor(ctx, email),
-        look: (await savedLook(ctx, email))?.look ?? lookFor(email),
+        look: withHeight((await savedLook(ctx, email))?.look ?? lookFor(email), email),
         joinedAt: now,
         ...(back && back.place !== WORLD_PLACE ? { place: back.place } : {}),
       });
@@ -630,6 +653,27 @@ export const travel = mutation({
 
 const BLOCKED_BY_SCAN = 200;
 
+const loadBlockFilter = async (ctx: Ctx, email: string) => {
+  const hidden = new Set<string>();
+  const mine = await ctx.db
+    .query("worldBlocks")
+    .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email))
+    .take(MAX_BLOCKS + 1);
+  for (const row of mine) hidden.add(row.blockedEmail);
+  const askMine = mine.length > MAX_BLOCKS;
+  const ofMe = await ctx.db
+    .query("worldBlocks")
+    .withIndex("by_blockedEmail", (q) => q.eq("blockedEmail", email))
+    .take(BLOCKED_BY_SCAN + 1);
+  for (const row of ofMe) hidden.add(row.email);
+  const askOfMe = ofMe.length > BLOCKED_BY_SCAN;
+  return async (other: string) =>
+    other !== email &&
+    (hidden.has(other) ||
+      (askMine && (await blocks(ctx, email, other))) ||
+      (askOfMe && (await blocks(ctx, other, email))));
+};
+
 export const elsewhere = query({
   args: {},
   returns: v.array(
@@ -643,18 +687,7 @@ export const elsewhere = query({
   handler: async (ctx) => {
     const email = await requireEmail(ctx);
     const me = await memberByEmail(ctx, email);
-    const hidden = new Set<string>([email]);
-    const mine = await ctx.db
-      .query("worldBlocks")
-      .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email))
-      .take(MAX_BLOCKS);
-    for (const row of mine) hidden.add(row.blockedEmail);
-    const ofMe = await ctx.db
-      .query("worldBlocks")
-      .withIndex("by_blockedEmail", (q) => q.eq("blockedEmail", email))
-      .take(BLOCKED_BY_SCAN + 1);
-    for (const row of ofMe) hidden.add(row.email);
-    const askEach = ofMe.length > BLOCKED_BY_SCAN;
+    const isBlocked = await loadBlockFilter(ctx, email);
     const found = [];
     for (const place of PLACES) {
       const rooms = await ctx.db
@@ -671,13 +704,11 @@ export const elsewhere = query({
           .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
           .take(ROOM_CAP);
         for (const member of members) {
-          if (hidden.has(member.email)) continue;
-          if (askEach && (await blocks(ctx, member.email, email))) continue;
+          if (member.email === email || (await isBlocked(member.email))) continue;
           count++;
           if (names.length < ELSEWHERE_NAMES) {
             names.push(member.name);
-            const look = (await savedLook(ctx, member.email))?.look ?? member.look;
-            people.push({ memberId: member._id, name: member.name, look, ping: member.ping });
+            people.push({ memberId: member._id, name: member.name, look: withHeight(member.look, member.email), ping: (await pingOf(ctx, member._id))?.bars });
           }
         }
       }
@@ -713,13 +744,10 @@ export const places = query({
   returns: v.record(v.string(), v.number()),
   handler: async (ctx) => {
     await requireEmail(ctx);
-    const counts: Record<string, number> = {};
-    for (const place of PLACES) {
-      const rooms = await ctx.db
-        .query("worldRooms")
-        .withIndex("by_place_and_instance", (q) => q.eq("place", place))
-        .take(ROOM_SCAN);
-      counts[place] = rooms.reduce((total, room) => total + room.memberCount, 0);
+    const counts: Record<string, number> = Object.fromEntries(PLACES.map((place) => [place, 0]));
+    const rooms = await ctx.db.query("worldRooms").withIndex("by_place_and_instance").take(ONLINE_ROOM_SCAN);
+    for (const room of rooms) {
+      if (Object.hasOwn(counts, room.place)) counts[room.place] += room.memberCount;
     }
     return counts;
   },
@@ -756,6 +784,42 @@ export const act = mutation({
     await ctx.db.patch("worldState", state._id, { act: { emote, at: now }, actBucket: token.bucket });
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
+  },
+});
+
+const ballFields = { x: v.number(), z: v.number(), vx: v.number(), vz: v.number(), at: v.number() };
+
+export const ball = query({
+  args: { roomId: v.id("worldRooms") },
+  returns: v.union(v.null(), v.object(ballFields)),
+  handler: async (ctx, { roomId }) => {
+    if (!(await meIn(ctx, roomId))) return null;
+    const row = await ballOf(ctx, roomId);
+    return row ? { x: row.x, z: row.z, vx: row.vx, vz: row.vz, at: row.at } : null;
+  },
+});
+
+/**
+ * Kicks the Beach's ball: one write. The kicker must be beside it, and the
+ * ball takes a kick at most every KICK_GAP_MS, whoever kicks it.
+ */
+export const kickBall = mutation({
+  args: { dirX: v.number(), dirZ: v.number() },
+  returns: v.union(v.object({ ok: v.literal(true), ball: v.object(ballFields), serverNow: v.number() }), turnedAway),
+  handler: async (ctx, { dirX, dirZ }) => {
+    const { member, state } = await requireMe(ctx);
+    if (placeOf(member) !== BALL_PLACE) throw new ConvexError("There's no ball here.");
+    const now = Date.now();
+    const row = await ballOf(ctx, member.roomId);
+    if (row && now - row.at < KICK_GAP_MS) return { ok: false as const, retryInMs: KICK_GAP_MS - (now - row.at), serverNow: now };
+    const before = row ?? restingBall();
+    const there = ballAt(before, now);
+    const me = posAt(state, now);
+    if (distance(me, there) > KICK_REACH) throw new ConvexError("Walk up to the ball to kick it.");
+    const next = rollFromKick(before, kickDirection(me, there, { x: dirX, z: dirZ }), now);
+    if (row) await ctx.db.patch("worldBalls", row._id, next);
+    else await ctx.db.insert("worldBalls", { roomId: member.roomId, ...next });
+    return { ok: true as const, ball: next, serverNow: now };
   },
 });
 
@@ -807,9 +871,11 @@ export const ping = mutation({
     if (bars === undefined) return { published: false, serverNow: now };
     if (!isPingBars(bars)) throw new ConvexError("Ping bars go from 1 to 4.");
     const member = await memberByEmail(ctx, email);
-    if (!member || member.ping === bars) return { published: false, serverNow: now };
-    if (member.pingAt !== undefined && now - member.pingAt < PING_PUBLISH_MS) return { published: false, serverNow: now };
-    await ctx.db.patch("worldMembers", member._id, { ping: bars, pingAt: now });
+    const row = member && (await pingOf(ctx, member._id));
+    if (!member || row?.bars === bars) return { published: false, serverNow: now };
+    if (row && now - row.at < PING_PUBLISH_MS) return { published: false, serverNow: now };
+    if (row) await ctx.db.patch("worldPings", row._id, { bars, at: now });
+    else await ctx.db.insert("worldPings", { memberId: member._id, bars, at: now });
     return { published: true, serverNow: now };
   },
 });
@@ -1030,13 +1096,14 @@ export const duels = query({
       .query("worldDuels")
       .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
       .take(DUEL_SCAN);
+    const isBlocked = rows.length > 0 ? await loadBlockFilter(ctx, me.email) : null;
     const hidden = new Map<Id<"worldMembers">, boolean>();
     const hides = async (memberId: Id<"worldMembers">) => {
       if (memberId === me._id) return false;
       const known = hidden.get(memberId);
       if (known !== undefined) return known;
       const member = await ctx.db.get("worldMembers", memberId);
-      const hide = !member || (await blockedEither(ctx, me.email, member.email));
+      const hide = !member || (isBlocked !== null && (await isBlocked(member.email)));
       hidden.set(memberId, hide);
       return hide;
     };
@@ -1097,7 +1164,6 @@ export const roster = query({
           name: v.string(),
           look: worldLookValidator,
           isMe: v.boolean(),
-          ping: v.optional(v.number()),
         })
       ),
     })
@@ -1110,13 +1176,34 @@ export const roster = query({
       .query("worldMembers")
       .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
       .take(ROOM_CAP);
+    const isBlocked = await loadBlockFilter(ctx, me.email);
     const members = [];
     for (const row of rows) {
-      if (await blockedEither(ctx, me.email, row.email)) continue;
-      const look = (await savedLook(ctx, row.email))?.look ?? row.look;
-      members.push({ memberId: row._id, name: row.name, look, isMe: row._id === me._id, ping: row.ping });
+      if (await isBlocked(row.email)) continue;
+      members.push({ memberId: row._id, name: row.name, look: withHeight(row.look, row.email), isMe: row._id === me._id });
     }
     return { instance: room.instance, place: room.place, members };
+  },
+});
+
+export const pings = query({
+  args: { roomId: v.id("worldRooms") },
+  returns: v.union(v.null(), v.array(v.object({ memberId: v.id("worldMembers"), bars: v.number() }))),
+  handler: async (ctx, { roomId }) => {
+    const me = await meIn(ctx, roomId);
+    if (!me) return null;
+    const rows = await ctx.db
+      .query("worldMembers")
+      .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+      .take(ROOM_CAP);
+    const isBlocked = await loadBlockFilter(ctx, me.email);
+    const found = [];
+    for (const row of rows) {
+      if (await isBlocked(row.email)) continue;
+      const ping = await pingOf(ctx, row._id);
+      if (ping) found.push({ memberId: row._id, bars: ping.bars });
+    }
+    return found;
   },
 });
 
@@ -1146,7 +1233,7 @@ export const state = query({
   handler: async (ctx, { memberId }) => {
     const member = await ctx.db.get("worldMembers", memberId);
     const me = member && (await meIn(ctx, member.roomId));
-    if (!member || !me || (await blockedEither(ctx, me.email, member.email))) return null;
+    if (!member || !me || (member._id !== me._id && (await blockedEither(ctx, me.email, member.email)))) return null;
     const row = await stateOf(ctx, memberId);
     if (!row) return null;
     const { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt, seat } = row;
@@ -1159,7 +1246,7 @@ export const state = query({
 const CHAT_SCAN = 2000;
 
 export const chatLog = query({
-  args: { roomId: v.id("worldRooms") },
+  args: { roomId: v.id("worldRooms"), limit: v.optional(v.number()), after: v.optional(v.number()), before: v.optional(v.number()) },
   returns: v.union(
     v.null(),
     v.array(
@@ -1176,22 +1263,26 @@ export const chatLog = query({
       })
     )
   ),
-  handler: async (ctx, { roomId }) => {
+  handler: async (ctx, { roomId, limit, after, before }) => {
     const me = await meIn(ctx, roomId);
     if (!me) return null;
-    // Lines past the chat TTL aren't shown, even before the sweeper deletes
-    // them.
+    const cap = limit === undefined || !Number.isFinite(limit) ? CHAT_LOG_SIZE : Math.min(CHAT_LOG_SIZE, Math.max(1, Math.floor(limit)));
+    const isBlocked = await loadBlockFilter(ctx, me.email);
+    const oldest = Date.now() - CHAT_TTL_MS;
     const rows = ctx.db
       .query("worldChat")
-      .withIndex("by_at", (q) => q.gt("at", Date.now() - CHAT_TTL_MS))
+      .withIndex("by_at", (q) => {
+        const from = after !== undefined && after > oldest ? q.gte("at", after) : q.gt("at", oldest);
+        return before === undefined ? from : from.lt("at", before);
+      })
       .order("desc");
     const lines = [];
     const hidden = new Map<string, boolean>();
     let scanned = 0;
     for await (const row of rows) {
-      if (lines.length === CHAT_LOG_SIZE || scanned++ === CHAT_SCAN) break;
+      if (lines.length === cap || scanned++ === CHAT_SCAN) break;
       if (row.place === HOME && row.roomId !== roomId) continue;
-      if (!hidden.has(row.email)) hidden.set(row.email, await blockedEither(ctx, me.email, row.email));
+      if (!hidden.has(row.email)) hidden.set(row.email, await isBlocked(row.email));
       if (hidden.get(row.email)) continue;
       lines.push({
         id: row._id,
@@ -1209,10 +1300,6 @@ export const chatLog = query({
   },
 });
 
-/**
- * Saves the caller's look from the character editor: one write, kept across
- * visits. The roster reads it, so everyone in the room sees it at once.
- */
 export const saveLook = mutation({
   args: { look: worldLookValidator },
   returns: v.object({ ok: v.boolean() }),
@@ -1224,6 +1311,8 @@ export const saveLook = mutation({
     if (!row) await ctx.db.insert("worldLooks", { email, look, updatedAt: now });
     else if (now - row.updatedAt < LOOK_SAVE_GAP_MS) return { ok: false };
     else await ctx.db.patch("worldLooks", row._id, { look, updatedAt: now });
+    const member = await memberByEmail(ctx, email);
+    if (member) await ctx.db.patch("worldMembers", member._id, { look });
     return { ok: true };
   },
 });
@@ -1286,6 +1375,7 @@ export const offline = query({
   }),
   handler: async (ctx) => {
     const email = await requireEmail(ctx);
+    const isBlocked = await loadBlockFilter(ctx, email);
     const people = [];
     let scanned = 0;
     for await (const row of ctx.db.query("worldVisitors").withIndex("by_lastSeenAt").order("desc")) {
@@ -1293,7 +1383,7 @@ export const offline = query({
       scanned++;
       if (row.email === email) continue;
       if (await memberByEmail(ctx, row.email)) continue;
-      if (await blockedEither(ctx, email, row.email)) continue;
+      if (await isBlocked(row.email)) continue;
       people.push({ id: row._id, name: row.name, lastSeenAt: row.lastSeenAt });
     }
     const mine = await visitorOf(ctx, email);
@@ -1417,9 +1507,10 @@ export const invites = query({
       .withIndex("by_guest_and_at", (q) => q.eq("guest", email))
       .order("desc")
       .take(INVITES_SHOWN);
+    const isBlocked = rows.length > 0 ? await loadBlockFilter(ctx, email) : null;
     const out = [];
     for (const row of rows) {
-      if (await blockedEither(ctx, email, row.owner)) continue;
+      if (isBlocked !== null && (await isBlocked(row.owner))) continue;
       const look = (await savedLook(ctx, row.owner))?.look ?? lookFor(row.owner);
       out.push({ id: row._id, ownerName: row.ownerName, look, at: row.at, expiresAt: row.expiresAt });
     }
@@ -1466,6 +1557,7 @@ export const offlineStaff = query({
   ),
   handler: async (ctx, { paginationOpts }) => {
     const email = await requireEmail(ctx);
+    const isBlocked = await loadBlockFilter(ctx, email);
     const result = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear()))
@@ -1474,7 +1566,7 @@ export const offlineStaff = query({
     for (const row of result.page) {
       if (row.email === email) continue;
       if (await memberByEmail(ctx, row.email)) continue;
-      if (await blockedEither(ctx, email, row.email)) continue;
+      if (await isBlocked(row.email)) continue;
       const visitor = await visitorOf(ctx, row.email);
       page.push({ id: row._id, name: profileName(row), lastSeenAt: visitor?.lastSeenAt ?? null });
     }
