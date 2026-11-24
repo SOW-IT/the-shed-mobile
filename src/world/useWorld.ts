@@ -20,6 +20,7 @@ import {
   posAt,
   type Walk,
 } from "@shared/world";
+import { homeObstacles } from "@shared/home";
 import { useMutation, useQueries, useQuery } from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
 import type { FunctionReturnType } from "convex/server";
@@ -195,7 +196,9 @@ const showLook = (store: OptimisticLocalStore, { look }: { look: Look }) => {
  * to the background, and keeps every write to one per action. Positions are
  * never sent per frame; each phone walks people along their latest walk.
  */
-export const useWorld = (enabled: boolean, away = false) => {
+const NO_OBSTACLES: ReturnType<typeof homeObstacles> = [];
+
+export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: string; invite?: string }) => {
   const joinM = useMutation(api.world.join);
   const leaveM = useMutation(api.world.leave);
   const moveM = useMutation(api.world.move);
@@ -218,8 +221,23 @@ export const useWorld = (enabled: boolean, away = false) => {
   const offset = useRef<number | null>(null);
 
   const [session, setSession] = useState<Session | null>(null);
+  const arrivalRef = useRef(arrival);
+  const home = useQuery(api.worldHome.home, session?.place === "home" ? { roomId: session.roomId } : "skip");
+  const obstacles = useMemo(() => (home ? homeObstacles(home.items) : NO_OBSTACLES), [home]);
+  const obstaclesRef = useRef(obstacles);
+  useEffect(() => {
+    obstaclesRef.current = obstacles;
+  }, [obstacles]);
   const [error, setError] = useState<string | null>(null);
   const [rejoin, setRejoin] = useState(0);
+  const [arrivalSeen, setArrivalSeen] = useState(arrival);
+  if (arrival !== arrivalSeen) {
+    setArrivalSeen(arrival);
+    if (arrival) setRejoin((n) => n + 1);
+  }
+  useEffect(() => {
+    if (arrival) arrivalRef.current = arrival;
+  }, [arrival]);
   // Your own walk, ahead of the server so a tap moves you at once.
   const [myWalk, setMyWalk] = useState<LocalWalk | null>(null);
   const [target, setTarget] = useState<{ x: number; z: number } | null>(null);
@@ -276,7 +294,9 @@ export const useWorld = (enabled: boolean, away = false) => {
     const counts = stats.current;
     counts.join++;
     lastAction.current = sentAt;
-    joinM({})
+    const asked = arrivalRef.current;
+    arrivalRef.current = undefined;
+    joinM(asked ?? {})
       .then((joined) => {
         if (cancelled) return;
         heard(joined.serverNow, sentAt, false);
@@ -285,7 +305,9 @@ export const useWorld = (enabled: boolean, away = false) => {
         setError(null);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof ConvexError ? String(e.data) : "Couldn't open the garden.");
+        if (cancelled) return;
+        arrivalRef.current ??= asked;
+        setError(e instanceof ConvexError ? String(e.data) : "Couldn't open the garden.");
       });
     return () => {
       cancelled = true;
@@ -433,7 +455,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   const walkTo = useCallback(
     (x: number, z: number) => {
       if (!session) return;
-      const to = clampTarget(x, z, session.place);
+      const to = clampTarget(x, z, session.place, obstaclesRef.current);
       const now = serverNow();
       setMyWalk((walk) => headFor(walk, to, now));
       setTarget(to);
@@ -494,7 +516,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       holding.current = true;
       predicting.current = true;
       setMySeat(null);
-      retarget(clampTarget(x, z, session.place));
+      retarget(clampTarget(x, z, session.place, obstaclesRef.current));
     },
     [session, retarget]
   );
@@ -502,7 +524,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   const holdMove = useCallback(
     (x: number, z: number) => {
       if (!session || !holding.current) return;
-      fingerAt.current = clampTarget(x, z, session.place);
+      fingerAt.current = clampTarget(x, z, session.place, obstaclesRef.current);
       if (holdFrame.current !== null) return;
       holdFrame.current = requestAnimationFrame(() => {
         holdFrame.current = null;
@@ -518,7 +540,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       holding.current = false;
       if (holdFrame.current !== null) cancelAnimationFrame(holdFrame.current);
       holdFrame.current = null;
-      const to = clampTarget(x, z, session.place);
+      const to = clampTarget(x, z, session.place, obstaclesRef.current);
       retarget(to);
       sendNow(to);
     },
@@ -597,7 +619,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   );
 
   const travel = useCallback(
-    async (to: Place, toMember?: MemberId): Promise<string | null> => {
+    async (to: Place, { toMember, invite }: { toMember?: MemberId; invite?: Id<"worldInvites"> } = {}): Promise<string | null> => {
       if (!session || travelling.current) return null;
       travelling.current = true;
       pending.current = null;
@@ -606,7 +628,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       const sentAt = Date.now();
       const sentIn = visit.current;
       try {
-        const reply = await travelM(toMember ? { to, toMember } : { to });
+        const reply = await travelM({ to, ...(toMember ? { toMember } : {}), ...(invite ? { invite } : {}) });
         if (sentIn !== visit.current) return null;
         heard(reply.serverNow, sentAt);
         if (!reply.ok) return turnedAwayText(reply);
@@ -672,6 +694,20 @@ export const useWorld = (enabled: boolean, away = false) => {
   );
 
   const placeCounts = useQuery(api.world.places, session ? {} : "skip");
+  const inviteM = useMutation(api.world.invite);
+  const invite = useCallback(
+    async (memberId: MemberId): Promise<string | null> => {
+      try {
+        const reply = await inviteM({ memberId });
+        if (reply.ok) return null;
+        return turnedAwayText(reply);
+      } catch (e) {
+        if (leftGarden(e)) again();
+        return e instanceof ConvexError ? String(e.data) : "That didn't send.";
+      }
+    },
+    [inviteM, again]
+  );
 
   /** Saves a look from the editor: one write, only when Save is pressed. */
   const saveLook = useCallback(
@@ -812,6 +848,8 @@ export const useWorld = (enabled: boolean, away = false) => {
     instance: roster?.instance ?? session?.instance ?? 1,
     place: session?.place ?? ("garden" as Place),
     placeCounts,
+    home: session?.place === "home" ? (home ?? null) : null,
+    invite,
     ping: pingMs,
     travel,
     roomId: session?.roomId ?? null,

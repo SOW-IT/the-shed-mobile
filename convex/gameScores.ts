@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { MAX_SCORES_PER_SUBMIT, scoreProblem, type GameId } from "../shared/games";
+import { awardRun } from "./coins";
 import { gameIdValidator } from "./gameScoreData";
 import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
 
@@ -32,6 +33,7 @@ export const submitScores = mutation({
   returns: v.object({
     accepted: v.array(v.string()),
     rejected: v.array(v.object({ runId: v.string(), reason: v.string() })),
+    coins: v.array(v.object({ runId: v.string(), coins: v.number() })),
   }),
   handler: async (ctx, { scores }) => {
     const email = await requireEmail(ctx);
@@ -41,6 +43,7 @@ export const submitScores = mutation({
     const now = Date.now();
     const accepted: string[] = [];
     const rejected: { runId: string; reason: string }[] = [];
+    const coins: { runId: string; coins: number }[] = [];
     for (const entry of scores) {
       const reason = scoreProblem(entry, now);
       if (reason) {
@@ -48,6 +51,8 @@ export const submitScores = mutation({
         continue;
       }
       accepted.push(entry.runId);
+      const paid = await awardRun(ctx, email, entry, now);
+      if (paid !== null && !coins.some((c) => c.runId === entry.runId)) coins.push({ runId: entry.runId, coins: paid });
       const best = await ctx.db
         .query("gameScores")
         .withIndex("by_email_and_game", (q) => q.eq("email", email).eq("game", entry.game))
@@ -58,7 +63,7 @@ export const submitScores = mutation({
         await ctx.db.patch("gameScores", best._id, run);
       }
     }
-    return { accepted, rejected };
+    return { accepted, rejected, coins };
   },
 });
 

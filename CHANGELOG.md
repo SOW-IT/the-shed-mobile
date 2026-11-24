@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.37] - 2026-11-24
+## [2.12.38] - 2026-11-24
 
 ### Changed
 - **Reimbursement lists ask the server less, part two.** The names under
@@ -14,6 +14,39 @@ All notable changes to **The SHED** mobile app. This project follows
   card by card. The All, Review and Requests lists now fetch them once for
   every card on screen, so All with 20 ongoing requests opens 20 live
   queries instead of 39 (59 before 2.12.23). The names look the same.
+
+## [2.12.37] - 2026-11-24
+
+### Added
+- **SOW coins.** Your balance sits by the place button, on a gold SOW coin.
+  Everyone starts with 50. Beat a game and earn coins, once per run and only
+  for the best tier you reached: Flap over 500 is 10 and over 750 is 20,
+  Mystic Man over 12,000 is 10 and over 15,000 is 20, Sky Shooter over
+  10,000 is 10 and over 12,000 is 20. Up to 200 a day. The game-over card
+  pops a "+20" when they land, and runs played offline pay when they sync.
+- **A home of your own.** "Your home" in the place menu takes you to your
+  own room. Only you and people you invite can come in: tap someone and
+  then the house, or the house by their name under People. They get a card
+  in the World to come over, or a notification if they're not in. An
+  invite lasts a day. The door pad takes you back to the Garden.
+- **Sijin Yang runs a shop in the Café.** He stands by the counter. Tap him
+  for wallpapers (20 coins each) and furniture from a 10-coin rug to a
+  150-coin bed, each shown as a picture.
+- **Decorate.** At home, the palette button opens what you own. Tap
+  something to put it down, tap it again to turn it or put it away, and tap
+  the floor to move it. Pick a wallpaper the same way. Visitors see it all,
+  and you walk round the furniture.
+- **A poke brings them to you.** Opening a poke puts them beside you, where
+  you are now, or where you poked from if you've gone.
+
+### Changed
+- **Furniture fits the people.** The Café counter, tables, stools and
+  couch, the Chapel pews, lectern, altar and piano, the Campfire logs and
+  lantern, and the Beach umbrella, sandcastle and net are lower, and seats
+  sit at the new heights.
+- **Name tags side by side move apart.** Two people standing together no
+  longer have their names on top of each other.
+- **Arriving by a pad never covers a pad's name.**
 
 ## [2.12.36] - 2026-11-24
 
