@@ -7,21 +7,21 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 10s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 77s |  |
+| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 72s |  |
 | unused code (knip) | ✔ pass | 5s |  |
-| typecheck | ✔ pass | 18s |  |
-| related unit tests | ✔ pass | 16s | 1662 passed (1662) |
-| verify lock | ✔ pass | 2066s | took it after waiting 2066s for pid 47158, fix/swoop-status-bar-sij-face in /Users/xtectra/GitHub/worktrees/the-shed-mobile-hill-glider, since 2026-11-24T16:15:18.804Z |
+| typecheck | ✔ pass | 17s |  |
+| related unit tests | ✔ pass | 15s | 1662 passed (1662) |
+| verify lock | ✔ pass | 1546s | took it after waiting 1545s for pid 53480, feat/coins-top3 in /Users/xtectra/GitHub/worktrees/the-shed-mobile-coins-top3, since 2026-11-24T18:01:42.495Z |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 17s | before functions on :3270 |
-| before: web | ✔ pass | 66s | 10 screens, 0 broken. |
+| before: local backend | ✔ pass | 16s | before functions on :3270 |
+| before: web | ✔ pass | 64s | 10 screens, 0 broken. |
 | before: iOS reset | ✔ pass | 1s |  |
-| before: iOS | ✔ pass | 73s | 7 screenshots, every one settled |
-| after: local backend | ✔ pass | 17s | after functions on :3270 |
-| after: web | ✔ pass | 64s | 10 screens, 0 broken. |
+| before: iOS | ✔ pass | 71s | 7 screenshots, every one settled |
+| after: local backend | ✔ pass | 16s | after functions on :3270 |
+| after: web | ✔ pass | 62s | 10 screens, 0 broken. |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 72s | 7 screenshots, every one settled |
+| after: iOS | ✔ pass | 70s | 7 screenshots, every one settled |
 
 ## Screenshots
 
