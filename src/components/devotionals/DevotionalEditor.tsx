@@ -16,7 +16,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { parseBibleReference } from "@shared/bible";
 import {
   MAX_NOTES_LENGTH,
-  MAX_PASSAGE_LENGTH,
   MAX_PRAYER_LENGTH,
   pickDisplayDevotional,
   sameDevotionalContent,
@@ -30,6 +29,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
+import { PassagePicker } from "./PassagePicker";
 
 const PASSAGE_CONTAINER_HEIGHT = 128;
 const CONFLICT_TEXT = "This day was changed on another device. Choose which version to keep.";
@@ -278,25 +278,11 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
 
         <Card style={styles.sectionCard}>
           <Text style={[typography.label, { color: t.muted }]}>Passage</Text>
-          <TextInput
-            value={passage}
-            onChangeText={(value) => updateContent({ passage: value, notes, prayerPoints })}
-            placeholder="Psalm 23 or John 15:1-17"
-            placeholderTextColor={t.faint}
-            maxLength={MAX_PASSAGE_LENGTH}
-            autoCorrect={false}
+          <PassagePicker
+            passage={passage}
+            onChange={(value) => updateContent({ passage: value, notes, prayerPoints })}
             editable={canEdit}
-            accessibilityLabel="Passage reference"
-            testID="devotional-passage-input"
-            style={[
-              styles.singleInput,
-              typography.body,
-              {
-                color: t.text,
-                backgroundColor: t.inputBackground,
-                borderColor: passageError ? t.danger : t.border,
-              },
-            ]}
+            invalid={Boolean(passageError)}
           />
           {passageError ? (
             <Text style={[typography.caption, { color: t.danger }]} testID="devotional-passage-error">
@@ -410,12 +396,6 @@ const styles = StyleSheet.create({
   sectionCard: { gap: spacing.sm },
   otherVersion: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md, gap: spacing.xs },
   conflictButtons: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  singleInput: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-  },
   passageContainer: {
     height: PASSAGE_CONTAINER_HEIGHT,
     borderWidth: 1,

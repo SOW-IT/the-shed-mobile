@@ -105,6 +105,31 @@ importRows(
   scores.map((row) => ({ ...row, durationMs: 60_000, playedAt: now - DAY, updatedAt: now - DAY }))
 );
 
-const seeded = { year, eventId, memberId, checkInToken, people: SWEEP_PEOPLE };
+// A saved devotional for the editor's screenshots, and an empty day beside it.
+// Days in the past, so the device's time zone can't make either one "future".
+const sydneyDay = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney" }).format(new Date(ms));
+const devotionalDate = sydneyDay(now - 2 * DAY);
+const devotionalEmptyDate = sydneyDay(now - 3 * DAY);
+run(
+  "devotionals:save",
+  {
+    date: devotionalDate,
+    passage: "John 15:1-17",
+    notes: "Remain in the vine.",
+    prayerPoints: "For the campus teams.",
+    base: null,
+  },
+  admin
+);
+
+const seeded = {
+  year,
+  eventId,
+  memberId,
+  checkInToken,
+  devotionalDate,
+  devotionalEmptyDate,
+  people: SWEEP_PEOPLE,
+};
 writeFileSync(process.env.SWEEP_SEED_OUT ?? "sweep-seed.json", JSON.stringify(seeded, null, 2));
 console.log(JSON.stringify(seeded));

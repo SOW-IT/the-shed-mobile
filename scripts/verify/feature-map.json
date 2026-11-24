@@ -279,7 +279,7 @@
         "convex/devotionals.ts",
         "shared/{bible,devotionals,devotionalStore}.ts"
       ],
-      "routes": ["/devotionals"]
+      "routes": ["/devotionals", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]
