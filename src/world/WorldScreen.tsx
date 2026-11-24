@@ -13,7 +13,7 @@ import {
   PLACES,
   SEATS,
   pingBars,
-  portalAt,
+  portalReached,
   posAt,
   ASKS,
   type AskKind,
@@ -569,7 +569,7 @@ export const WorldScreen = ({
         id = setTimeout(check, Math.max(0, pose.arrivesAt + PAD_SETTLE_MS - at) + 1);
         return;
       }
-      const pad = portalAt(latest.place, pose);
+      const pad = portalReached(latest.place, mine.walk);
       if (!pad) return;
       triedFromWalk.current = mine.walk.startedAt;
       goRef.current(pad.to);

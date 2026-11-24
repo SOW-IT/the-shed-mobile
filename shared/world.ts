@@ -225,6 +225,8 @@ export interface Walk {
   toZ: number;
   startedAt: number;
   path?: readonly Waypoint[];
+  /** Which way someone standing still faces, when the server chose it (arriving through a pad). */
+  heading?: number;
 }
 
 export interface Pose {
@@ -273,7 +275,7 @@ export const posAt = (walk: Walk, now: number): Pose => {
       x: walk.fromX + dx * k,
       z: walk.fromZ + dz * k,
       walking: k < 1,
-      heading: dist === 0 ? 0 : Math.atan2(dx, dz),
+      heading: dist === 0 ? (walk.heading ?? 0) : Math.atan2(dx, dz),
       arrivesAt: walk.startedAt + duration,
     };
   }
@@ -287,7 +289,7 @@ export const posAt = (walk: Walk, now: number): Pose => {
   }
   const duration = (total / WALK_SPEED) * 1000;
   const arrivesAt = walk.startedAt + duration;
-  if (total === 0) return { x: walk.toX, z: walk.toZ, walking: false, heading: 0, arrivesAt };
+  if (total === 0) return { x: walk.toX, z: walk.toZ, walking: false, heading: walk.heading ?? 0, arrivesAt };
   const elapsed = Math.max(0, now - walk.startedAt);
   if (elapsed >= duration) {
     let lastHeading = 0;
@@ -403,8 +405,11 @@ type Portal = { to: Place; x: number; z: number };
 
 export const PORTAL_RADIUS = 0.75;
 export const ELSEWHERE_NAMES = 12;
-const ARRIVE_BESIDE = 2.1;
-const MIDDLE = { x: 0, z: -1.6 };
+
+const FACING_CAMERA = 0;
+const FACING_AWAY = Math.PI;
+const FACING_RIGHT = Math.PI / 2;
+const FACING_LEFT = -Math.PI / 2;
 
 export const PORTALS: Record<Place, readonly Portal[]> = {
   garden: [
@@ -434,10 +439,6 @@ export const PORTALS: Record<Place, readonly Portal[]> = {
 
 type Seat = { id: string; x: number; z: number; heading: number; height: number };
 
-const FACING_CAMERA = 0;
-const FACING_AWAY = Math.PI;
-const FACING_RIGHT = Math.PI / 2;
-const FACING_LEFT = -Math.PI / 2;
 const PEW_HEIGHT = 0.3;
 const LOG_HEIGHT = 0.3;
 const STOOL_HEIGHT = 0.32;
@@ -491,20 +492,34 @@ const inBounds = (x: number, z: number) => {
 
 const inside = (o: Obstacle, p: { x: number; z: number }) => Math.hypot((p.x - o.x) / o.rx, (p.z - o.z) / o.rz) < 1;
 
-/** Where someone arriving from `from` stands in `to`: beside the pad that leads back. */
-export const arrivalSpot = (from: Place, to: Place): { x: number; z: number } => {
+/** Pads sit on an edge of their place; this is the way into the room from one. */
+const EDGE = 1;
+const intoRoom = (pad: Portal): number => {
+  if (pad.z >= WALK_BOUNDS.maxZ - EDGE) return FACING_AWAY;
+  if (pad.z <= WALK_BOUNDS.minZ + EDGE) return FACING_CAMERA;
+  return pad.x > 0 ? FACING_LEFT : FACING_RIGHT;
+};
+
+/**
+ * Where someone arriving from `from` stands in `to`: on the pad that leads
+ * back, facing into the room. With no pad back (a home, or a place menu jump
+ * between places with no pad), at the spawn, facing the camera.
+ */
+export const arrivalSpot = (from: Place, to: Place): { x: number; z: number; heading?: number } => {
   if (to === HOME) return { ...HOME_ARRIVAL };
   const pad = PORTALS[to].find((portal) => portal.to === from);
   if (!pad) return clearSpot(to, clampTarget(SPAWN.x, SPAWN.z, to), { labels: true });
-  const dx = MIDDLE.x - pad.x;
-  const dz = MIDDLE.z - pad.z;
-  const length = Math.hypot(dx, dz);
-  let spot = clampTarget(pad.x + (dx / length) * ARRIVE_BESIDE, pad.z + (dz / length) * ARRIVE_BESIDE, to);
-  for (let away = ARRIVE_BESIDE; away <= ARRIVE_BESIDE + 4 && coversPadLabel(to, spot); away += 0.3) {
-    spot = clampTarget(pad.x + (dx / length) * away, pad.z + (dz / length) * away, to);
-  }
-  return spot;
+  return { ...clampTarget(pad.x, pad.z, to), heading: intoRoom(pad) };
 };
+
+const STANDING_STILL = 0.05;
+
+/**
+ * The pad a walk ended on. Only a walk counts: standing still where you
+ * arrived, on the pad you came through, takes you nowhere.
+ */
+export const portalReached = (place: Place, walk: Walk): Portal | null =>
+  walkLength(walk) < STANDING_STILL ? null : portalAt(place, { x: walk.toX, z: walk.toZ });
 
 const PAD_LABEL_GAP = PORTAL_RADIUS + 0.45;
 const LABEL_HALF_WIDTH = 1.7;

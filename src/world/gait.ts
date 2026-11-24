@@ -26,7 +26,7 @@ const turnToward = (from: number, to: number, k: number) =>
 const length = (walk: Walk) => walkLength(walk);
 
 export const restingGait = (walk: Walk): Gait => {
-  const heading = length(walk) < STILL ? 0 : posAt(walk, walk.startedAt).heading;
+  const heading = length(walk) < STILL ? (walk.heading ?? 0) : posAt(walk, walk.startedAt).heading;
   return { movingSince: walk.startedAt, heading, turnFrom: heading, turnAt: walk.startedAt - TURN_MS };
 };
 
@@ -48,7 +48,7 @@ export const carryGait = (before: { walk: Walk; gait: Gait } | null, walk: Walk,
   const was = drawnPose(before.walk, before.gait, now);
   return {
     movingSince: was.strideAmp > 0 ? before.gait.movingSince : now,
-    heading: length(walk) < STILL ? before.gait.heading : posAt(walk, now).heading,
+    heading: length(walk) < STILL ? (walk.heading ?? before.gait.heading) : posAt(walk, now).heading,
     turnFrom: was.heading,
     turnAt: now,
   };

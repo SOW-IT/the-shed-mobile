@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.52] - 2026-11-25
+
+### Fixed
+- **Going through a pad puts you on the pad back, facing into the room.**
+  Walk from the Café into the Chapel and you arrive on the Chapel's Café pad
+  on its right, facing west into the Chapel; from the Garden you arrive on
+  the Chapel's Garden pad at the front, facing in. The same goes for every
+  pair of places with pads between them, both ways. Everyone else in the
+  room sees you arrive in the same spot facing the same way. If someone is
+  already standing on the pad, you arrive just beside it, still facing in.
+  Arriving on a pad doesn't send you back; walk off and onto it again to
+  go back. A home, a poke, an invite or opening the World arrive where they
+  did before.
+
 ## [2.12.50] - 2026-11-25
 
 ### Changed
