@@ -643,6 +643,11 @@ const publish = (artifacts, slug) => {
   return `${pngs.length} images at ${commit.slice(0, 7)}; table in ${relative(ROOT, join(artifacts, "screenshots.md"))}, all of them at https://github.com/${repo}/blob/${commit}/${slug}/README.md`;
 };
 
+// Set once this run starts stopping and starting processes. Until then (bad
+// arguments, a plan that can't be made, --dry-run) an exit leaves alone
+// whatever another run in this worktree has going.
+let started = false;
+
 const main = async () => {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -677,6 +682,7 @@ const main = async () => {
   }
   if (args.dryRun) return 0;
 
+  started = true;
   await stopAll();
   rmSync(BASE_TREE, { recursive: true, force: true });
   const slug = branchSlug();
@@ -776,7 +782,7 @@ const main = async () => {
   return passed ? 0 : 1;
 };
 
-const stopAndExit = (code) => stopAll().finally(() => process.exit(code));
+const stopAndExit = (code) => (started ? stopAll() : Promise.resolve()).finally(() => process.exit(code));
 process.on("SIGINT", () => stopAndExit(130));
 process.on("SIGTERM", () => stopAndExit(143));
 process.on("SIGHUP", () => stopAndExit(129));
