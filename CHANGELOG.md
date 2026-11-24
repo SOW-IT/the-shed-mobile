@@ -6,6 +6,32 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.39] - 2026-11-24
+
+### Added
+- **World settings.** The place menu has a Settings row (gear) with:
+  chat times (off by default), chat names as initials ("DK") or first
+  names ("Daniel"), ping in ms next to the bars (off by default), battery
+  saver, and name tags for everyone or only people near you. Each is saved
+  on this phone. Tapping the ping bars opens Settings too.
+- **Battery saver.** Draws at 30 frames a second, the walk marker and
+  typing dots stand still, bubbles appear without the bounce, people
+  standing in water stop paddling, and menus fade instead of sliding.
+  Until you set it, it follows the phone's Reduce Motion.
+
+### Changed
+- **The World does nothing while nothing moves.** The garden used to
+  redraw once a second and check the place pads five times a second even
+  when everyone stood still. Now it wakes only when something is due (a
+  bubble starting to fade, an emote ending), so an idle World draws
+  nothing. Opening a menu or typing a line no longer redraws the scene,
+  name tags of people standing still are skipped, and the walk marker
+  spins on its own instead of redrawing every frame.
+- **Menus close the way they open.** The place menu, People, Sijin's shop,
+  Settings, the leave dialog, the emote tray, the decorate tray and invite
+  cards now play their opening animation backwards when you close them,
+  tapping outside included, instead of vanishing.
+
 ## [2.12.38] - 2026-11-24
 
 ### Changed
