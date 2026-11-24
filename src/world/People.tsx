@@ -237,12 +237,12 @@ export const PeoplePanel = ({
   pokeListOpen?: boolean;
   showPlaces?: boolean;
 }) => {
-  const { mounted, clock } = useOverlayClock(open);
+  const overlay = useOverlayClock(open);
   const { width, height } = useWindowDimensions();
-  const blocked = useQuery(api.world.myBlocks, mounted ? {} : "skip");
-  const elsewhere = useQuery(api.world.elsewhere, mounted ? {} : "skip");
+  const blocked = useQuery(api.world.myBlocks, overlay.mounted ? {} : "skip");
+  const elsewhere = useQuery(api.world.elsewhere, overlay.mounted ? {} : "skip");
   const unblock = useMutation(api.world.unblock);
-  if (!mounted) return null;
+  if (!overlay.mounted) return null;
   const others = (elsewhere ?? []).flatMap((spot) => {
     const at = isPlace(spot.place) ? spot.place : null;
     const rows = (spot.people ?? []).map((p, i) => ({ key: `${spot.place}${i}`, at, ...p }));
@@ -254,10 +254,10 @@ export const PeoplePanel = ({
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={open ? "box-none" : "none"}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close people" testID="world-people-close">
-        <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(clock)]} />
+        <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.panel, blurBehind, { top, width: Math.min(440, width - 28), maxHeight: Math.max(260, height - top - 24) }, popStyle(clock)]} testID="world-people-panel">
-        <Animated.View style={[styles.header, itemStyle(clock, 0)]}>
+      <Animated.View style={[styles.panel, blurBehind, { top, width: Math.min(440, width - 28), maxHeight: Math.max(260, height - top - 24) }, popStyle(overlay)]} testID="world-people-panel">
+        <Animated.View style={[styles.header, itemStyle(overlay, 0)]}>
           <Ionicons name="people" size={20} color={glass.text} />
           <Text style={styles.title} accessibilityRole="header">
             People
@@ -272,12 +272,12 @@ export const PeoplePanel = ({
           </Pressable>
         </Animated.View>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.stack}>
-          <Animated.View style={itemStyle(clock, 1)}>
+          <Animated.View style={itemStyle(overlay, 1)}>
             <Section>{`Here · ${placeLabel(place)}`}</Section>
           </Animated.View>
           {people.length === 0 ? <Text style={styles.note}>Nobody else is here right now.</Text> : null}
           {people.map((p) => (
-            <Animated.View key={p.memberId} style={itemStyle(clock, next())}>
+            <Animated.View key={p.memberId} style={itemStyle(overlay, next())}>
               <PersonRow
                 look={p.look}
                 name={p.isMe ? `${tagName(p.name)} (you)` : tagName(p.name)}
@@ -303,12 +303,12 @@ export const PeoplePanel = ({
               />
             </Animated.View>
           ))}
-          <Animated.View style={itemStyle(clock, next())}>
+          <Animated.View style={itemStyle(overlay, next())}>
             <Section>Elsewhere</Section>
           </Animated.View>
           {elsewhere && others.length === 0 ? <Text style={styles.note}>Nobody is anywhere else right now.</Text> : null}
           {others.map((row) => (
-            <Animated.View key={row.key} style={itemStyle(clock, next())} testID={row.at ? `world-elsewhere-${row.at}` : undefined}>
+            <Animated.View key={row.key} style={itemStyle(overlay, next())} testID={row.at ? `world-elsewhere-${row.at}` : undefined}>
               {"more" in row ? (
                 <Text style={styles.note}>{`and ${row.more} more in ${row.at ? PLACE_TITLES[row.at] : "other places"}`}</Text>
               ) : (
@@ -338,18 +338,18 @@ export const PeoplePanel = ({
             </Animated.View>
           ))}
           {showPlaces ? (
-            <Animated.View style={[styles.places, itemStyle(clock, next())]}>
+            <Animated.View style={[styles.places, itemStyle(overlay, next())]}>
               {PLACES.filter((to) => to !== place).map((to) => (
                 <GlassPill key={to} label={placeLabel(to)} onPress={() => onGo(to)} accessibilityLabel={`Go to ${PLACE_TITLES[to]}`} testID={`world-go-${to}`} />
               ))}
               <GlassPill label="🏠 Your home" onPress={onHome} accessibilityLabel="Go to your home" testID="world-go-home" />
             </Animated.View>
           ) : null}
-          <Animated.View style={itemStyle(clock, next())}>
+          <Animated.View style={itemStyle(overlay, next())}>
             <OfflineList startOpen={pokeListOpen} />
           </Animated.View>
           {blocked && blocked.length > 0 ? (
-            <Animated.View style={[styles.stack, itemStyle(clock, next())]}>
+            <Animated.View style={[styles.stack, itemStyle(overlay, next())]}>
               <Section>Blocked</Section>
               {blocked.map((b) => (
                 <View key={b.id} style={styles.offlineHead}>

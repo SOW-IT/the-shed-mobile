@@ -1362,7 +1362,7 @@ export const Avatar = memo(
 const TYPING_DOTS = [0, 1, 2];
 
 /** The name, line and emote over someone's head, above all the scenery. */
-export const Tag = ({
+const TagView = ({
   x,
   y,
   name,
@@ -1373,6 +1373,7 @@ export const Tag = ({
   emoteRise,
   lineFade = 1,
   status,
+  calm = false,
 }: {
   x: number;
   y: number;
@@ -1385,6 +1386,7 @@ export const Tag = ({
   emoteRise: number;
   lineFade?: number;
   status?: string;
+  calm?: boolean;
 }) => (
   <View pointerEvents="none" style={[styles.tag, { left: x - 120, top: y - 400 }]}>
     {emote ? (
@@ -1394,7 +1396,7 @@ export const Tag = ({
       <View
         style={[
           styles.bubble,
-          { opacity: lineFade, transform: [{ translateY: (1 - lineFade) * 6 }, { scale: 0.92 + 0.08 * lineFade }] },
+          calm ? { opacity: lineFade } : { opacity: lineFade, transform: [{ translateY: (1 - lineFade) * 6 }, { scale: 0.92 + 0.08 * lineFade }] },
         ]}
       >
         <Text style={styles.bubbleText}>{line}</Text>
@@ -1424,6 +1426,8 @@ export const Tag = ({
     </Text>
   </View>
 );
+
+export const Tag = memo(TagView);
 
 const styles = StyleSheet.create({
   abs: { position: "absolute" },
