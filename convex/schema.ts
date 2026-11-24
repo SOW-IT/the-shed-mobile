@@ -390,6 +390,7 @@ export default defineSchema({
     platform: v.union(v.literal("ios"), v.literal("android")),
     minimum: v.optional(v.string()),
     recommended: v.optional(v.string()),
+    latestOta: v.optional(v.string()),
     message: v.optional(v.string()),
   }).index("by_platform", ["platform"]),
 

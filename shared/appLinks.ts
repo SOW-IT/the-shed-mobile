@@ -50,6 +50,9 @@ type UpdateStatus = "ok" | "recommended" | "required";
 
 type UpdatePolicy = { minimum?: string; recommended?: string };
 
+export const updateStatusArgs = (platform: "ios" | "android", version: string, otaEnabled: boolean) =>
+  otaEnabled ? { platform, version, ota: true as const } : { platform, version };
+
 export const updateStatusFor = (version: string, policy: UpdatePolicy | null): UpdateStatus => {
   if (!isAppVersion(version) || !policy) return "ok";
   if (policy.minimum && compareVersions(version, policy.minimum) < 0) return "required";
