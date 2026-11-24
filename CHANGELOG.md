@@ -27,6 +27,8 @@ All notable changes to **The SHED** mobile app. This project follows
   the trip to the server takes, and shows the middle of the last five.
 
 ### Added
+- **A Flannel outfit.** An open flannel shirt in your shirt colour with an
+  orange plaid, over a black tee.
 - **Tap the signal bars to show or hide the milliseconds.** Off by default,
   and remembered on this phone or browser.
 

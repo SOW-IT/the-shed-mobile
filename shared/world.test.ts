@@ -175,6 +175,8 @@ test("isValidLook checks every part, and randomLook stays in range", () => {
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, outfit: OUTFITS.length - 1 })).toBe(true);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, outfit: OUTFITS.length })).toBe(false);
   expect(lookPart({ skin: 0, hair: 0, hairColour: 0, shirt: 0 }, "outfit")).toBe(0);
+  expect(OUTFITS[10]).toBe("Flannel");
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 4, outfit: 10 })).toBe(true);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: undefined as unknown as number })).toBe(false);
   for (const r of [0, 0.3, 0.55, 0.99]) expect(isValidLook(randomLook(() => r))).toBe(true);
   expect(isValidLook(randomLook())).toBe(true);

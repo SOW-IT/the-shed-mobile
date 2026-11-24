@@ -699,6 +699,16 @@ const AvatarView = ({
     const spots = [[-0.12, 0.6], [0.08, 0.62], [-0.02, 0.5], [0.16, 0.44], [-0.18, 0.4], [0.05, 0.33], [-0.1, 0.25], [0.2, 0.22]] as const;
     for (const [x, y] of spots) if (y > hem + 0.04) dot(`spot${x}${y}`, x, y, 0.035 * s, isLight(shirt) ? shade(shirt, -0.3) : shade(shirt, 0.5));
   }
+  if (outfit === 10) {
+    const plaid = (key: string, a: { x: number; y: number }, b: { x: number; y: number }) => parts.push(capsule(a, b, 0.028 * s, people.plaid, key));
+    for (const y of [0.6, 0.45, hem + 0.1]) plaid(`plaidAcross${y}`, at(-halfWidth(y) + 0.03, y), at(halfWidth(y) - 0.03, y));
+    for (const k of [-0.6, 0.6]) plaid(`plaidDown${k}`, at(k * halfWidth(0.66), 0.66), at(k * halfWidth(hem + 0.04), hem + 0.04));
+    if (facing >= 0) {
+      piece("flannelTee", people.shades, 0.7, hem, 0.075, 0.095, 4);
+      parts.push(capsule(at(-0.075, 0.69), at(0.075, 0.69), 0.04 * s, shade(people.shades, 0.25), "teeNeck"));
+      for (const e of [-1, 1]) parts.push(quad(sidePanel(e, 0.71, 0.56, [0.075, 0.17], [0.095, 0.12], 0), shade(shirt, -0.12), `flannelLapel${e}`, 2));
+    }
+  }
   if (pants === 1 || pants === 2) {
     // Trousers or shorts: hips, then a leg each side, outlined as one shape.
     const colour = people.pants[lookPart(look, "pantsColour")] ?? people.pants[0];

@@ -158,6 +158,7 @@ export const people = {
   glasses: "#1F2A28",
   shades: "#26302E",
   collar: "#FFFEF8",
+  plaid: "#E8893A",
   headphones: "#3F4A46",
   pearl: "#FFFEF8",
   mole: "#5A3B2C",
