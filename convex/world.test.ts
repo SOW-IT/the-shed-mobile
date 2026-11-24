@@ -4,6 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { currentStaffYear } from "./model";
 import { removeFromWorld } from "./world";
+import { BALL_HOME, KICK_GAP_MS, KICK_SPEED } from "../shared/ball";
 import {
   ASK_MS,
   BUCKETS,
@@ -36,6 +37,9 @@ import {
   TYPING_REFRESH_MS,
   PING_PUBLISH_MS,
   WALK_SPEED,
+  LOOK_SIZES,
+  lookFor,
+  withHeight,
 } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
@@ -870,7 +874,7 @@ describe("character editor", () => {
     await ben.mutation(api.world.join, {});
     expect(await anna.mutation(api.world.saveLook, { look })).toEqual({ ok: true });
     const seen = await ben.query(api.world.roster, { roomId: a.roomId });
-    expect(seen!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(look);
+    expect(seen!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(withHeight(look, ANNA));
     // Saving again straight away writes nothing.
     expect(await anna.mutation(api.world.saveLook, { look: { ...look, hat: 0 } })).toEqual({ ok: false });
     later(3100);
@@ -878,7 +882,27 @@ describe("character editor", () => {
     expect(await t.run((ctx) => ctx.db.query("worldLooks").collect())).toHaveLength(1);
     await anna.mutation(api.world.leave, {});
     await anna.mutation(api.world.join, {});
-    expect((await rows(t)).members.find((m) => m.email === ANNA)!.look).toEqual({ ...look, hat: 0 });
+    expect((await rows(t)).members.find((m) => m.email === ANNA)!.look).toEqual(withHeight({ ...look, hat: 0 }, ANNA));
+  });
+
+  test("anyone who never picked a height is drawn at one picked from their email; a picked one is kept", async () => {
+    const t = newConvex();
+    const emails = Array.from({ length: 12 }, (_, i) => `walker${i}@sow.org.au`);
+    const joined: { roomId: Id<"worldRooms">; memberId: Id<"worldMembers"> }[] = [];
+    for (const email of emails) joined.push(await asUser(t, email).mutation(api.world.join, {}));
+    const first = joined[0];
+    const roster = await asUser(t, emails[0]).query(api.world.roster, { roomId: first.roomId });
+    const heights = roster!.members.map((m) => m.look.height);
+    expect(heights.every((h) => h !== undefined && h >= 0 && h < LOOK_SIZES.height)).toBe(true);
+    expect(new Set(heights).size).toBeGreaterThan(2);
+    const walker = asUser(t, emails[1]);
+    expect(await walker.mutation(api.world.saveLook, { look: { ...lookFor(emails[1]), height: undefined } })).toEqual({ ok: true });
+    const after = await walker.query(api.world.roster, { roomId: first.roomId });
+    expect(after!.members.find((m) => m.memberId === joined[1].memberId)!.look.height).toBe(lookFor(emails[1]).height);
+    later(3100);
+    expect(await walker.mutation(api.world.saveLook, { look: { ...lookFor(emails[1]), height: 0 } })).toEqual({ ok: true });
+    const picked = await walker.query(api.world.roster, { roomId: first.roomId });
+    expect(picked!.members.find((m) => m.memberId === joined[1].memberId)!.look.height).toBe(0);
   });
 
   test("a version 2 look (face, body, extras) saves in one write and reaches everyone through the roster", async () => {
@@ -909,20 +933,28 @@ describe("character editor", () => {
     expect(await anna.mutation(api.world.saveLook, { look: v3 })).toEqual({ ok: true });
     expect(await t.run((ctx) => ctx.db.query("worldLooks").collect())).toHaveLength(1);
     const seen = await ben.query(api.world.roster, { roomId: a.roomId });
-    expect(seen!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(v3);
+    expect(seen!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(withHeight(v3, ANNA));
     later(3100);
     const v2 = { v: 2, skin: 2, hair: 10, hairColour: 4, shirt: 3, accessory: 1 };
     expect(await anna.mutation(api.world.saveLook, { look: v2 })).toEqual({ ok: true });
-    expect((await ben.query(api.world.roster, { roomId: a.roomId }))!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(v2);
+    expect((await ben.query(api.world.roster, { roomId: a.roomId }))!.members.find((m) => m.memberId === a.memberId)!.look).toEqual(withHeight(v2, ANNA));
   });
 
   test("turns away a choice that doesn't exist", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
-    for (const bad of [{ ...look, skin: 12 }, { ...look, hat: -1 }, { ...look, shirt: 1.5 }, { ...look, accessory: 8 }, { ...look, eyeY: 7 }, { ...look, mouthTilt: -1 }, { ...look, pants: 4 }, { ...look, favourite: 12 }]) {
+    for (const bad of [{ ...look, skin: 12 }, { ...look, hat: -1 }, { ...look, shirt: 1.5 }, { ...look, accessory: 8 }, { ...look, eyeY: 7 }, { ...look, mouthTilt: -1 }, { ...look, pants: 4 }, { ...look, favourite: 12 }, { ...look, backdrop: 10 }]) {
       await expect(anna.mutation(api.world.saveLook, { look: bad })).rejects.toThrow(/doesn't exist/);
     }
     await expect(t.mutation(api.world.saveLook, { look })).rejects.toThrow(/signed in/);
+  });
+
+  test("keeps a chosen background colour", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.saveLook, { look: { ...look, backdrop: 9 } });
+    const saved = await t.run((ctx) => ctx.db.query("worldLooks").first());
+    expect(saved?.look.backdrop).toBe(9);
   });
 });
 
@@ -1704,8 +1736,8 @@ describe("join and leave lines", () => {
     const a = await anna.mutation(api.world.join, {});
     await anna.mutation(api.world.join, {});
     await ben.mutation(api.world.join, {});
-    expect(await systemLines(t)).toEqual(["anna joined the Garden", "ben joined the Garden"]);
-    expect((await ben.query(api.world.chatLog, { roomId: a.roomId }))![1]).toMatchObject({ name: "anna", text: "joined the Garden", kind: "join", here: true });
+    expect(await systemLines(t)).toEqual(["anna joined the World", "ben joined the World"]);
+    expect((await ben.query(api.world.chatLog, { roomId: a.roomId }))![1]).toMatchObject({ name: "anna", text: "joined the World", kind: "join", here: true });
   });
 
   test("leaving writes a left line only when the last visit ends", async () => {
@@ -1714,9 +1746,9 @@ describe("join and leave lines", () => {
     await anna.mutation(api.world.join, {});
     await anna.mutation(api.world.join, {});
     await anna.mutation(api.world.leave, {});
-    expect(await systemLines(t)).toEqual(["anna joined the Garden"]);
+    expect(await systemLines(t)).toEqual(["anna joined the World"]);
     await anna.mutation(api.world.leave, {});
-    expect(await systemLines(t)).toEqual(["anna joined the Garden", "anna left"]);
+    expect(await systemLines(t)).toEqual(["anna joined the World", "anna left"]);
   });
 
   test("the sweep writes a left line for someone who went quiet", async () => {
@@ -1725,7 +1757,7 @@ describe("join and leave lines", () => {
     await anna.mutation(api.world.join, {});
     later(PRESENCE_TTL_MS + 1000);
     await t.mutation(internal.world.sweep, {});
-    expect(await systemLines(t)).toEqual(["anna joined the Garden", "anna left"]);
+    expect(await systemLines(t)).toEqual(["anna joined the World", "anna left"]);
   });
 
   test("travelling and deleting an account write no line", async () => {
@@ -1734,7 +1766,7 @@ describe("join and leave lines", () => {
     await anna.mutation(api.world.join, {});
     await anna.mutation(api.world.travel, { to: "chapel" });
     await t.run((ctx) => removeFromWorld(ctx, ANNA));
-    expect(await systemLines(t)).toEqual(["anna joined the Garden"]);
+    expect(await systemLines(t)).toEqual(["anna joined the World"]);
   });
 
   test("they don't use up anyone's lines, aren't reported, and hide with a block", async () => {
@@ -1760,19 +1792,56 @@ describe("join and leave lines", () => {
 
 describe("ping", () => {
   const pingOf = async (t: T, email: string) =>
-    t.run(async (ctx) => (await ctx.db.query("worldMembers").withIndex("by_email", (q) => q.eq("email", email)).first())?.ping);
+    t.run(async (ctx) => {
+      const member = await ctx.db.query("worldMembers").withIndex("by_email", (q) => q.eq("email", email)).first();
+      return member && (await ctx.db.query("worldPings").withIndex("by_memberId", (q) => q.eq("memberId", member._id)).unique())?.bars;
+    });
 
-  test("your bars show on the roster and to people in other places", async () => {
+  test("your bars show in the room's pings and to people in other places", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
     const ben = asUser(t, BEN);
     const a = await anna.mutation(api.world.join, {});
     await ben.mutation(api.world.join, {});
+    expect(await ben.query(api.world.pings, { roomId: a.roomId })).toEqual([]);
     expect(await anna.mutation(api.world.ping, { bars: 3 })).toMatchObject({ published: true, serverNow: expect.any(Number) });
-    const roster = await ben.query(api.world.roster, { roomId: a.roomId });
-    expect(roster?.members.find((m) => !m.isMe)?.ping).toBe(3);
+    expect(await ben.query(api.world.pings, { roomId: a.roomId })).toEqual([{ memberId: a.memberId, bars: 3 }]);
     await ben.mutation(api.world.travel, { to: "beach" });
+    expect(await ben.query(api.world.pings, { roomId: a.roomId })).toBeNull();
     expect(await ben.query(api.world.elsewhere, {})).toMatchObject([{ place: "garden", people: [{ ping: 3 }] }]);
+  });
+
+  test("bars live off the member row, so publishing them leaves the roster and state rows alone", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    const memberRow = () => t.run((ctx) => ctx.db.get("worldMembers", a.memberId));
+    const before = await memberRow();
+    await anna.mutation(api.world.ping, { bars: 2 });
+    expect(await memberRow()).toEqual(before);
+    expect((await anna.query(api.world.roster, { roomId: a.roomId }))?.members[0]).not.toHaveProperty("ping");
+  });
+
+  test("someone blocked either way is left out of the room's pings", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    const b = await ben.mutation(api.world.join, {});
+    await anna.mutation(api.world.ping, { bars: 4 });
+    await ben.mutation(api.world.ping, { bars: 1 });
+    await t.run((ctx) => ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: BEN, blockedName: "ben" }));
+    expect(await anna.query(api.world.pings, { roomId: a.roomId })).toEqual([{ memberId: a.memberId, bars: 4 }]);
+    expect(await ben.query(api.world.pings, { roomId: b.roomId })).toEqual([{ memberId: b.memberId, bars: 1 }]);
+  });
+
+  test("leaving takes your bars with you", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.ping, { bars: 3 });
+    await anna.mutation(api.world.leave, {});
+    expect(await t.run((ctx) => ctx.db.query("worldPings").collect())).toEqual([]);
   });
 
   test("the same bars write nothing, and a change waits 30 s after the last write", async () => {
@@ -1810,6 +1879,41 @@ describe("ping", () => {
   });
 });
 
+describe("chat log pages", () => {
+  const seed = (t: T, a: { roomId: Id<"worldRooms">; memberId: Id<"worldMembers"> }, ats: number[]) =>
+    t.run(async (ctx) => {
+      for (const at of ats) await ctx.db.insert("worldChat", { roomId: a.roomId, memberId: a.memberId, email: ANNA, name: "anna", text: `at ${at}`, at });
+    });
+
+  test("lines before and from a split cover the log once, newest first, and a limit takes the newest", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    const now = Date.now();
+    await seed(t, a, [now - 5000, now - 4000, now - 3000, now - 2000, now - 1000]);
+    const texts = async (args: { limit?: number; after?: number; before?: number }) =>
+      said((await anna.query(api.world.chatLog, { roomId: a.roomId, ...args }))!).map((line) => line.text);
+    const split = now - 3000;
+    expect(await texts({ after: split })).toEqual([`at ${now - 1000}`, `at ${now - 2000}`, `at ${now - 3000}`]);
+    expect(await texts({ before: split })).toEqual([`at ${now - 4000}`, `at ${now - 5000}`]);
+    expect(await texts({ before: split, limit: 1 })).toEqual([`at ${now - 4000}`]);
+    const all = async (limit: number) => (await anna.query(api.world.chatLog, { roomId: a.roomId, limit }))!.map((line) => line.text);
+    expect(await all(3)).toEqual([expect.any(String), `at ${now - 1000}`, `at ${now - 2000}`]);
+    expect(await all(0)).toHaveLength(1);
+    expect(await all(1000)).toHaveLength(6);
+  });
+
+  test("a split older than an hour still leaves out lines past the chat TTL", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    const now = Date.now();
+    await seed(t, a, [now - 61 * 60_000, now - 1000]);
+    const lines = said((await anna.query(api.world.chatLog, { roomId: a.roomId, after: 0 }))!);
+    expect(lines.map((line) => line.text)).toEqual([`at ${now - 1000}`]);
+  });
+});
+
 describe("an hour of chat", () => {
   test("a line from 59 minutes ago is still in the log, and one from 61 minutes ago is not", async () => {
     const t = newConvex();
@@ -1823,5 +1927,112 @@ describe("an hour of chat", () => {
     expect(texts).toContain("59 minutes");
     expect(texts).not.toContain("61 minutes");
     expect(CHAT_TTL_MS).toBe(60 * 60_000);
+  });
+
+  test("chatLog honors an optional limit and clamps it", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 10; i++) {
+        await ctx.db.insert("worldChat", {
+          roomId: a.roomId,
+          memberId: a.memberId,
+          email: ANNA,
+          name: "anna",
+          text: `msg ${i}`,
+          at: Date.now() + i,
+        });
+      }
+    });
+    const capped = (await anna.query(api.world.chatLog, { roomId: a.roomId, limit: 3 }))!;
+    expect(capped).toHaveLength(3);
+    expect(capped.map((l) => l.text)).toEqual(["msg 9", "msg 8", "msg 7"]);
+    const minCapped = (await anna.query(api.world.chatLog, { roomId: a.roomId, limit: 0 }))!;
+    expect(minCapped).toHaveLength(1);
+    const notANumber = (await anna.query(api.world.chatLog, { roomId: a.roomId, limit: Number.NaN }))!;
+    expect(notANumber).toHaveLength(11);
+  });
+});
+
+describe("the beach ball", () => {
+  const toBeach = async (t: T, email: string) => {
+    const me = asUser(t, email);
+    const joined = await me.mutation(api.world.join, {});
+    const there = await me.mutation(api.world.travel, { to: "beach" });
+    if (!there.ok) throw new Error("travel refused");
+    return { me, roomId: there.roomId, memberId: joined.memberId };
+  };
+  const walkTo = async (me: ReturnType<typeof asUser>, x: number, z: number) => {
+    await me.mutation(api.world.move, { toX: x, toZ: z });
+    later(10_000);
+  };
+  const balls = (t: T) => t.run((ctx) => ctx.db.query("worldBalls").collect());
+
+  test("rests at its spot until someone beside it kicks it, with one write per kick", async () => {
+    const t = newConvex();
+    const anna = await toBeach(t, ANNA);
+    expect(await anna.me.query(api.world.ball, { roomId: anna.roomId })).toBeNull();
+    await walkTo(anna.me, BALL_HOME.x, BALL_HOME.z + 1);
+    const kicked = await anna.me.mutation(api.world.kickBall, { dirX: 0, dirZ: -2 });
+    expect(kicked).toMatchObject({ ok: true, ball: { x: BALL_HOME.x, z: BALL_HOME.z, vx: 0, vz: -KICK_SPEED } });
+    expect(await balls(t)).toHaveLength(1);
+    const seen = await anna.me.query(api.world.ball, { roomId: anna.roomId });
+    expect(seen).toEqual(kicked.ok ? kicked.ball : null);
+    later(KICK_GAP_MS);
+    await walkTo(anna.me, BALL_HOME.x, BALL_HOME.z - 3);
+    const again = await anna.me.mutation(api.world.kickBall, { dirX: 1, dirZ: 0 });
+    expect(again.ok).toBe(true);
+    expect(await balls(t)).toHaveLength(1);
+  });
+
+  test("everyone in the room sees the same ball; someone elsewhere doesn't", async () => {
+    const t = newConvex();
+    const anna = await toBeach(t, ANNA);
+    const ben = await toBeach(t, BEN);
+    await walkTo(anna.me, BALL_HOME.x - 1, BALL_HOME.z);
+    const kicked = await anna.me.mutation(api.world.kickBall, { dirX: 1, dirZ: 0 });
+    expect(await ben.me.query(api.world.ball, { roomId: ben.roomId })).toEqual(kicked.ok ? kicked.ball : null);
+    const cara = asUser(t, CARA);
+    await cara.mutation(api.world.join, {});
+    expect(await cara.query(api.world.ball, { roomId: anna.roomId })).toBeNull();
+  });
+
+  test("a kick straight after another is turned away, and one from afar is refused", async () => {
+    const t = newConvex();
+    const anna = await toBeach(t, ANNA);
+    await walkTo(anna.me, BALL_HOME.x, BALL_HOME.z + 1);
+    await anna.me.mutation(api.world.kickBall, { dirX: 1, dirZ: 0 });
+    later(100);
+    expect(await anna.me.mutation(api.world.kickBall, { dirX: 1, dirZ: 0 })).toMatchObject({ ok: false, retryInMs: near(KICK_GAP_MS - 100) });
+    later(KICK_GAP_MS);
+    await walkTo(anna.me, -3, 6);
+    await expect(anna.me.mutation(api.world.kickBall, { dirX: 1, dirZ: 0 })).rejects.toThrow(/Walk up to the ball/);
+    expect(await balls(t)).toHaveLength(1);
+  });
+
+  test("there's no ball anywhere but the Beach", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await expect(anna.mutation(api.world.kickBall, { dirX: 1, dirZ: 0 })).rejects.toThrow(/no ball here/);
+  });
+
+  test("the ball goes with its room when the last person leaves", async () => {
+    const t = newConvex();
+    const anna = await toBeach(t, ANNA);
+    await walkTo(anna.me, BALL_HOME.x, BALL_HOME.z + 1);
+    await anna.me.mutation(api.world.kickBall, { dirX: 0, dirZ: -1 });
+    await anna.me.mutation(api.world.leave, {});
+    expect(await balls(t)).toEqual([]);
+  });
+
+  test("travelling away from an empty Beach takes its ball too", async () => {
+    const t = newConvex();
+    const anna = await toBeach(t, ANNA);
+    await walkTo(anna.me, BALL_HOME.x, BALL_HOME.z + 1);
+    await anna.me.mutation(api.world.kickBall, { dirX: 0, dirZ: -1 });
+    await anna.me.mutation(api.world.travel, { to: "garden" });
+    expect(await balls(t)).toEqual([]);
   });
 });

@@ -1,5 +1,6 @@
 import {
   ASK_MS,
+  CHAT_LOG_SIZE,
   clampTarget,
   cleanLine,
   fullBucket,
@@ -11,24 +12,33 @@ import {
   type Ask,
   type Reply,
   HEARTBEAT_IDLE_MS,
-  PING_PROBE_MS,
+  addPingSample,
   pingBars,
+  pingEstimate,
+  PING_PROBE_MS,
+  pingProbeDue,
+  pingProbeWait,
   shouldPublishPing,
-  smoothPing,
+  shownPing,
+  type PingReading,
   type PingBars,
   TYPING_REFRESH_MS,
   posAt,
   type Walk,
 } from "@shared/world";
 import { homeObstacles } from "@shared/home";
-import { useMutation, useQueries, useQuery } from "convex/react";
+import { BALL_PLACE, KICK_GAP_MS, kickBall, kickDirection, restingBall } from "@shared/ball";
+import { useConvex, useMutation, useQueries, useQuery } from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
 import type { FunctionReturnType } from "convex/server";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { api } from "../../convex/_generated/api";
+import { useHeldValue } from "@/hooks/useHeldValue";
+import { fillLoading, useDormant } from "./dormant";
 import { carryGait, restingGait, type Gait } from "./gait";
+import { subscribeForeground } from "./useForeground";
 import type { Id } from "../../convex/_generated/dataModel";
 
 type MemberId = Id<"worldMembers">;
@@ -36,6 +46,8 @@ type StateRow = NonNullable<FunctionReturnType<typeof api.world.state>>;
 type Session = { roomId: Id<"worldRooms">; memberId: MemberId; instance: number; place: Place };
 
 const placeFrom = (value: string): Place => (isPlace(value) ? value : "garden");
+
+const pingVisitKey = (session: Session) => `${session.memberId}:${session.roomId}`;
 
 export type WorldMember = {
   memberId: MemberId;
@@ -100,6 +112,8 @@ type WorldStats = {
   saveLook: number;
   heartbeat: number;
   ping: number;
+  probe: number;
+  kick: number;
   leave: number;
   since: number;
 };
@@ -114,6 +128,8 @@ const newStats = (): WorldStats => ({
   saveLook: 0,
   heartbeat: 0,
   ping: 0,
+  probe: 0,
+  kick: 0,
   leave: 0,
   since: Date.now(),
 });
@@ -150,6 +166,16 @@ const patchMine = (store: OptimisticLocalStore, change: (row: StateRow) => State
   if (me && row) store.setQuery(api.world.state, { memberId: me.memberId }, change(row));
 };
 
+const showKick = (store: OptimisticLocalStore, { dirX, dirZ }: { dirX: number; dirZ: number }) => {
+  const me = meIn(store);
+  const current = me && store.getQuery(api.world.ball, { roomId: me.roomId });
+  if (!me || current === undefined) return;
+  const now = clock();
+  if (current && now - current.at < KICK_GAP_MS) return;
+  const origin = { x: 0, z: 0 };
+  store.setQuery(api.world.ball, { roomId: me.roomId }, kickBall(current ?? restingBall(), kickDirection(origin, origin, { x: dirX, z: dirZ }), now));
+};
+
 const showEmote = (store: OptimisticLocalStore, { emote }: { emote: string }) =>
   patchMine(store, (row) => ({ ...row, act: { emote, at: clock() } }));
 
@@ -158,12 +184,11 @@ const showLine = (store: OptimisticLocalStore, { text }: { text: string }) => {
   const line = cleanLine(text);
   if (!me || !line) return;
   const at = clock();
-  patchMine(store, (row) => ({ ...row, say: { text: line, at } }));
-  const log = store.getQuery(api.world.chatLog, { roomId: me.roomId });
-  if (log) {
-    // Marked pending by its id until the server's line replaces it.
-    const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true, kind: undefined };
-    store.setQuery(api.world.chatLog, { roomId: me.roomId }, [pending, ...log]);
+  patchMine(store, (row) => ({ ...row, say: { text: line, at }, typing: undefined }));
+  const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true, kind: undefined };
+  for (const { args, value } of store.getAllQueries(api.world.chatLog)) {
+    if (args.roomId !== me.roomId || args.before !== undefined || !value) continue;
+    store.setQuery(api.world.chatLog, args, [pending, ...value].slice(0, args.limit ?? CHAT_LOG_SIZE));
   }
 };
 
@@ -197,8 +222,21 @@ const showLook = (store: OptimisticLocalStore, { look }: { look: Look }) => {
  * never sent per frame; each phone walks people along their latest walk.
  */
 const NO_OBSTACLES: ReturnType<typeof homeObstacles> = [];
+const PING_RECHECK_MS = 1000;
+const NO_MEMBERS: NonNullable<FunctionReturnType<typeof api.world.roster>>["members"] = [];
+const NO_REQUESTS = {};
 
-export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: string; invite?: string }) => {
+type States = ReturnType<typeof useQueries>;
+
+const stillLoading = (states: States) => Object.values(states).some((row) => row === undefined);
+
+const useHeldStates = (live: States, dormant: boolean, visitKey: string): States => {
+  const settled = useHeldValue(dormant || stillLoading(live) ? undefined : live, visitKey).value;
+  return dormant ? (settled ?? live) : fillLoading(live, settled);
+};
+
+export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: string; invite?: string }, tickEverySecond = true) => {
+  const convex = useConvex();
   const joinM = useMutation(api.world.join);
   const leaveM = useMutation(api.world.leave);
   const moveM = useMutation(api.world.move);
@@ -221,8 +259,10 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   const offset = useRef<number | null>(null);
 
   const [session, setSession] = useState<Session | null>(null);
+  const dormant = useDormant();
+  const visitKey = session ? `${session.roomId}:${session.memberId}` : "";
   const arrivalRef = useRef(arrival);
-  const home = useQuery(api.worldHome.home, session?.place === "home" ? { roomId: session.roomId } : "skip");
+  const home = useHeldValue(useQuery(api.worldHome.home, session?.place === "home" && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
   const obstacles = useMemo(() => (home ? homeObstacles(home.items) : NO_OBSTACLES), [home]);
   const obstaclesRef = useRef(obstacles);
   useEffect(() => {
@@ -261,27 +301,20 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   const fingerAt = useRef<{ x: number; z: number } | null>(null);
 
   const serverNow = useCallback(() => Date.now() + (offset.current ?? 0), []);
-  const [pingMs, setPingMs] = useState<number | null>(null);
-  const smoothed = useRef<number | null>(null);
-  const lastRoundTrip = useRef(0);
+  const [pingReading, setPingReading] = useState<PingReading | null>(null);
+  const pingVisit = useRef<{ key: string } | null>(null);
+  const pingSamples = useRef<number[]>([]);
+  const probedAt = useRef<number | null>(null);
+  const probing = useRef(false);
   const publishedPing = useRef<{ bars: PingBars | null; at: number | null }>({ bars: null, at: null });
-  const pinging = useRef(false);
-  const publishRef = useRef<() => void>(() => undefined);
-  const roundTrip = useCallback((sentAt: number) => {
-    const received = Date.now();
-    smoothed.current = smoothPing(smoothed.current, received - sentAt);
-    lastRoundTrip.current = received;
-    setPingMs(Math.round(smoothed.current));
-    publishRef.current();
-  }, []);
-  const heard = useCallback((serverTime: number, sentAt: number, timed = true) => {
+  const publishing = useRef(false);
+  const heard = useCallback((serverTime: number, sentAt: number) => {
     const received = Date.now();
     const sample = serverTime - (sentAt + received) / 2;
     offset.current = offset.current === null ? sample : offset.current * 0.8 + sample * 0.2;
     serverOffset = offset.current;
     lastAction.current = received;
-    if (timed) roundTrip(sentAt);
-  }, [roundTrip]);
+  }, []);
 
   useEffect(() => {
     (globalThis as { __shedWorld?: WorldStats }).__shedWorld = stats.current;
@@ -299,7 +332,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     joinM(asked ?? {})
       .then((joined) => {
         if (cancelled) return;
-        heard(joined.serverNow, sentAt, false);
+        heard(joined.serverNow, sentAt);
         publishedPing.current = { bars: null, at: null };
         setSession({ roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance, place: placeFrom(joined.place) });
         setError(null);
@@ -360,13 +393,13 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     return taken;
   }, []);
 
-  const roster = useQuery(api.world.roster, session ? { roomId: session.roomId } : "skip");
+  const roster = useHeldValue(useQuery(api.world.roster, session && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
   // Swept while away (a long background, a lost signal): come back in.
   useEffect(() => {
     if (session && roster === null && !travelling.current) again();
   }, [session, roster, again]);
 
-  const members = roster?.members ?? [];
+  const members = roster?.members ?? NO_MEMBERS;
 
   // One subscription per person, keyed on who's here so it changes only on join and leave.
   const memberKey = members.map((m) => m.memberId).join(",");
@@ -380,7 +413,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       ),
     [memberKey]
   );
-  const states = useQueries(requests);
+  const states = useHeldStates(useQueries(dormant ? NO_REQUESTS : requests), dormant, visitKey);
 
   const myRow = session ? states[session.memberId] : undefined;
   const myServerWalk = myRow && !(myRow instanceof Error) ? (myRow as Walk) : null;
@@ -547,20 +580,23 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [session, retarget, sendNow]
   );
 
+  const typingSentAt = useRef<number | null>(null);
   const say = useCallback(
     async (text: string): Promise<string | null> => {
+      typingSentAt.current = null;
       const sentAt = Date.now();
       stats.current.say++;
       try {
         const reply = await sayM({ text });
         heard(reply.serverNow, sentAt);
+        if (!reply.ok) typingM({ on: false }).catch(() => undefined);
         return reply.ok ? null : `Slow down a little. Try again in ${Math.ceil(reply.retryInMs / 1000)}s.`;
       } catch (e) {
         if (leftGarden(e)) again();
         return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
-    [sayM, heard, again]
+    [sayM, typingM, heard, again]
   );
 
   const act = useCallback(
@@ -656,7 +692,6 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [session, travelM, heard, again, spendAct]
   );
 
-  const typingSentAt = useRef<number | null>(null);
   const typing = useCallback(
     (on: boolean) => {
       if (!session) return;
@@ -673,7 +708,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [session, typingM]
   );
 
-  const duels = useQuery(api.world.duels, session ? { roomId: session.roomId } : "skip");
+  const duels = useHeldValue(useQuery(api.world.duels, session && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
   const duelPickM = useMutation(api.world.duelPick).withOptimisticUpdate((store, { duelId, round, pick }) => {
     const me = meIn(store);
     const rows = me && store.getQuery(api.world.duels, { roomId: me.roomId });
@@ -693,7 +728,23 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [duelPickM]
   );
 
-  const placeCounts = useQuery(api.world.places, session ? {} : "skip");
+  const ball = useHeldValue(useQuery(api.world.ball, session?.place === BALL_PLACE && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
+  const kickM = useMutation(api.world.kickBall).withOptimisticUpdate(showKick);
+  const kick = useCallback(
+    (dirX: number, dirZ: number) => {
+      if (holding.current) return;
+      const sentAt = Date.now();
+      stats.current.kick++;
+      kickM({ dirX, dirZ })
+        .then((reply) => heard(reply.serverNow, sentAt))
+        .catch((e: unknown) => {
+          if (leftGarden(e)) again();
+        });
+    },
+    [kickM, heard, again]
+  );
+
+  const placeCounts = useHeldValue(useQuery(api.world.places, session && !dormant ? {} : "skip"), visitKey).value;
   const inviteM = useMutation(api.world.invite);
   const invite = useCallback(
     async (memberId: MemberId): Promise<string | null> => {
@@ -723,72 +774,119 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [saveLookM]
   );
 
-  const sendPing = useCallback(
-    (bars?: PingBars) => {
-      if (pinging.current) return;
-      pinging.current = true;
-      const sentAt = Date.now();
+  const publishPing = useCallback(
+    (bars: PingBars) => {
+      const { bars: published, at: publishedAt } = publishedPing.current;
+      if (publishing.current || !shouldPublishPing({ bars, published, publishedAt, now: Date.now() })) return;
+      publishing.current = true;
       stats.current.ping++;
-      if (bars !== undefined) publishedPing.current = { bars: publishedPing.current.bars, at: sentAt };
-      pingM(bars === undefined ? {} : { bars })
+      publishedPing.current = { bars: published, at: Date.now() };
+      pingM({ bars })
         .then((reply) => {
-          if (reply.published && bars !== undefined) publishedPing.current = { bars, at: publishedPing.current.at };
-          pinging.current = false;
-          roundTrip(sentAt);
+          if (reply.published) publishedPing.current = { bars, at: publishedPing.current.at };
         })
-        .catch(() => {
-          pinging.current = false;
+        .catch(() => undefined)
+        .finally(() => {
+          publishing.current = false;
         });
     },
-    [pingM, roundTrip]
+    [pingM]
   );
-  const publishPing = useCallback(() => {
-    if (!session || smoothed.current === null) return;
-    const bars = pingBars(smoothed.current);
-    const { bars: published, at: publishedAt } = publishedPing.current;
-    if (shouldPublishPing({ bars, published, publishedAt, now: Date.now() })) sendPing(bars);
-  }, [session, sendPing]);
-  useEffect(() => {
-    publishRef.current = publishPing;
-  }, [publishPing]);
+  const probePing = useCallback(() => {
+    if (probing.current || convex.watchQuery(api.auth.isAuthenticated, {}).localQueryResult() !== undefined) return;
+    probing.current = true;
+    stats.current.probe++;
+    const sentAt = performance.now();
+    const sentIn = pingVisit.current;
+    probedAt.current = Date.now();
+    convex
+      .query(api.auth.isAuthenticated, {})
+      .then(() => {
+        if (sentIn === null || sentIn !== pingVisit.current) return;
+        pingSamples.current = addPingSample(pingSamples.current, performance.now() - sentAt);
+        const ms = pingEstimate(pingSamples.current);
+        if (ms === null) return;
+        setPingReading({ visit: sentIn.key, ms: Math.round(ms) });
+        publishPing(pingBars(ms));
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        probing.current = false;
+      });
+  }, [convex, publishPing]);
   useEffect(() => {
     if (!session) return;
+    const visitNow = { key: pingVisitKey(session) };
+    pingVisit.current = visitNow;
+    pingSamples.current = [];
+    probedAt.current = null;
+    let id: ReturnType<typeof setTimeout>;
     const probe = () => {
-      if (AppState.currentState !== "active" || Date.now() - lastRoundTrip.current < PING_PROBE_MS) return;
-      sendPing();
+      const active = AppState.currentState === "active";
+      const due = () => ({ taken: pingSamples.current.length, lastAt: probedAt.current, now: Date.now() });
+      if (active && pingProbeDue(due())) probePing();
+      id = setTimeout(probe, active ? Math.max(PING_RECHECK_MS, pingProbeWait(due())) : PING_PROBE_MS);
     };
     probe();
-    const id = setInterval(probe, 5000);
-    return () => clearInterval(id);
-  }, [session, sendPing]);
+    return () => {
+      clearTimeout(id);
+      if (pingVisit.current === visitNow) pingVisit.current = null;
+      setPingReading(null);
+    };
+  }, [session, probePing]);
 
-  // "Still here", only after a quiet spell. No query reads it, so it pushes nothing.
   useEffect(() => {
     if (!session) return;
+    let cancelled = false;
+    let id: ReturnType<typeof setTimeout> | null = null;
+    const clear = () => {
+      if (id !== null) {
+        clearTimeout(id);
+        id = null;
+      }
+    };
+    const schedule = () => {
+      clear();
+      if (cancelled) return;
+      const elapsed = Date.now() - lastAction.current;
+      const wait = Math.max(0, HEARTBEAT_IDLE_MS - elapsed);
+      id = setTimeout(() => {
+        id = null;
+        if (cancelled) return;
+        const since = Date.now() - lastAction.current;
+        if (since >= HEARTBEAT_IDLE_MS) checkIn();
+        else schedule();
+      }, wait);
+    };
     const checkIn = () => {
       const sentAt = Date.now();
       lastAction.current = sentAt;
       stats.current.heartbeat++;
       heartbeatM({})
         .then((reply) => {
+          if (cancelled) return;
           heard(reply.serverNow, sentAt);
           if (!reply.present) again();
         })
-        .catch(() => undefined);
+        .catch(() => undefined)
+        .finally(() => {
+          if (!cancelled) schedule();
+        });
     };
-    const id = setInterval(() => {
-      if (Date.now() - lastAction.current >= HEARTBEAT_IDLE_MS) checkIn();
-    }, 5000);
-    const resumed = AppState.addEventListener("change", (state) => {
-      if (state === "active") checkIn();
+    schedule();
+    const stop = subscribeForeground((active) => {
+      if (active) checkIn();
     });
     return () => {
-      clearInterval(id);
-      resumed.remove();
+      cancelled = true;
+      clear();
+      stop();
     };
   }, [session, heartbeatM, heard, again]);
 
-  const people: WorldMember[] = members.map((m) => {
+  const pingMs = shownPing(pingReading, session && pingVisitKey(session));
+  const myBars = pingMs === null ? null : pingBars(pingMs);
+  const people: WorldMember[] = useMemo(() => members.map((m) => {
     const row = states[m.memberId] as
       | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "seat" | "typing">)
       | null
@@ -810,9 +908,9 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       away: state?.away,
       seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
       typing: state?.typing,
-      ping: m.isMe && pingMs !== null ? pingBars(pingMs) : m.ping,
+      ping: m.isMe ? (myBars ?? undefined) : undefined,
     };
-  });
+  }), [members, states, myWalk, mySeat, myBars]);
 
   // A once-a-second clock while anyone is walking or an ask to you is open,
   // so "can hear you", the High five button and ask countdowns stay current
@@ -826,6 +924,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   const myId = session?.memberId ?? null;
   const [, setTick] = useState(0);
   useEffect(() => {
+    if (!tickEverySecond) return;
     const live = () => {
       const now = serverNow();
       return latest.current.some(
@@ -840,7 +939,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       if (!live()) clearInterval(id);
     }, 1000);
     return () => clearInterval(id);
-  }, [liveKey, myId, serverNow]);
+  }, [liveKey, myId, serverNow, tickEverySecond]);
 
   return {
     status: error ? ("error" as const) : roster ? ("in" as const) : ("joining" as const),
@@ -867,6 +966,8 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     typing,
     duels: duels ?? [],
     pickInDuel,
+    ball: session?.place === BALL_PLACE ? (ball ?? null) : null,
+    kick,
     act,
     ask,
     accept,

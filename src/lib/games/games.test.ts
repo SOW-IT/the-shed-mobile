@@ -416,7 +416,7 @@ describe("flappy", () => {
 
     // Gaps as far apart as they may be, with the score far past where the speed
     // levels off, flown by a player whose taps only land every 0.15 seconds.
-    // Before 2.12.43 (240 a second, gaps of 130) the run of drops couldn't be.
+    // Before 2.12.44 (240 a second, gaps of 130) the run of drops couldn't be.
     const gap = gapHeight(10_000);
     const runs = [
       [500, 500 - MAX_GAP_RISE, 500 - MAX_GAP_RISE + MAX_GAP_DROP, 500 + MAX_GAP_DROP - 2 * MAX_GAP_RISE],

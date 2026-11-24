@@ -9,7 +9,15 @@ import {
   PING_PUBLISH_MS,
   pingBars,
   shouldPublishPing,
-  smoothPing,
+  addPingSample,
+  pingEstimate,
+  pingProbeDue,
+  pingProbeWait,
+  shownPing,
+  PING_PROBE_MS,
+  PING_SAMPLES,
+  HEIGHT_SCALES,
+  withHeight,
   BUCKETS,
   canHear,
   cleanLine,
@@ -30,6 +38,7 @@ import {
   NUDGES,
   NUDGES_RESET,
   OUTFITS,
+  NPC,
   HAIR_STYLES,
   HATS,
   ACCESSORIES,
@@ -162,6 +171,8 @@ test("isValidLook checks every part, and randomLook stays in range", () => {
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, hat: 4, accessory: 3 })).toBe(true);
   expect(isValidLook({ skin: 0, hair: 17, hairColour: 0, shirt: 0 })).toBe(true);
   expect(isValidLook({ skin: 0, hair: 18, hairColour: 0, shirt: 0 })).toBe(false);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, beard: 7 })).toBe(true);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, beard: 8 })).toBe(false);
   // Version 2's face, body and extras: each bounded, all optional.
   const v2 = { v: 2, skin: 0, hair: 0, hairColour: 0, shirt: 0, face: 4, eyes: 5, eyeColour: 5, brows: 4, nose: 3, mouth: 4, height: 4, build: 4, freckles: 1, blush: 2, beard: 3 };
   expect(isValidLook(v2)).toBe(true);
@@ -174,6 +185,8 @@ test("isValidLook checks every part, and randomLook stays in range", () => {
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, outfit: OUTFITS.length - 1 })).toBe(true);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, outfit: OUTFITS.length })).toBe(false);
   expect(lookPart({ skin: 0, hair: 0, hairColour: 0, shirt: 0 }, "outfit")).toBe(0);
+  expect(OUTFITS[10]).toBe("Flannel");
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 4, outfit: 10 })).toBe(true);
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: undefined as unknown as number })).toBe(false);
   for (const r of [0, 0.3, 0.55, 0.99]) expect(isValidLook(randomLook(() => r))).toBe(true);
   expect(isValidLook(randomLook())).toBe(true);
@@ -187,10 +200,44 @@ test("a look from before version 2 draws with the old defaults, and the body sta
   expect(bodyScale(old)).toEqual({ height: 1, width: 1 });
   const tall = bodyScale({ ...old, height: 4, build: 4 });
   const small = bodyScale({ ...old, height: 0, build: 0 });
-  expect(tall.height).toBeCloseTo(1.12);
-  expect(small.height).toBeCloseTo(0.88);
+  expect(tall.height).toBeCloseTo(1.2);
+  expect(small.height).toBeCloseTo(0.8);
   expect(tall.width).toBeCloseTo(1.15);
   expect(small.width).toBeCloseTo(0.85);
+});
+
+describe("height", () => {
+  const plain = { skin: 1, hair: 2, hairColour: 3, shirt: 4 };
+  const headAbove = 0.49;
+
+  test("every step is a tenth taller than the one before, from 0.8 to 1.2", () => {
+    expect(HEIGHT_SCALES.length).toBe(LOOK_SIZES.height);
+    const steps = HEIGHT_SCALES.map((_, height) => bodyScale({ ...plain, height }).height);
+    expect(steps).toEqual([0.8, 0.9, 1, 1.1, 1.2]);
+  });
+
+  test("the tallest stands about 1.3 times the shortest, head included", () => {
+    const top = (height: number) => bodyScale({ ...plain, height }).height + headAbove;
+    expect(top(4) / top(0)).toBeGreaterThan(1.28);
+    expect(top(4) / top(0)).toBeLessThan(1.35);
+    expect(bodyScale({ ...plain, height: 4 }).height / bodyScale({ ...plain, height: 0 }).height).toBeCloseTo(1.5);
+  });
+
+  test("someone who never chose a height gets one from their email, the same everywhere", () => {
+    const emails = Array.from({ length: 200 }, (_, i) => `person${i}@sow.org.au`);
+    const heights = emails.map((email) => withHeight(plain, email).height);
+    expect(new Set(heights)).toEqual(new Set([0, 1, 2, 3, 4]));
+    expect(heights.filter((h) => h === 2).length).toBeGreaterThan(heights.filter((h) => h === 0).length);
+    for (const email of emails.slice(0, 10)) expect(withHeight(plain, email)).toEqual(withHeight(plain, email));
+    for (const email of emails.slice(0, 10)) expect(lookFor(email).height).toBe(withHeight(plain, email).height);
+  });
+
+  test("a chosen height is kept, even the middle one", () => {
+    expect(withHeight({ ...plain, height: 2 }, "person0@sow.org.au").height).toBe(2);
+    expect(withHeight({ ...plain, height: 0 }, "person1@sow.org.au").height).toBe(0);
+    const look = { ...plain, height: 4 };
+    expect(withHeight(look, "x")).toBe(look);
+  });
 });
 
 test("every choice list has one name per choice", () => {
@@ -503,12 +550,13 @@ describe("rock paper scissors", () => {
 describe("ping", () => {
   test("round trips bucket into one to four bars", () => {
     expect(pingBars(0)).toBe(4);
-    expect(pingBars(150)).toBe(4);
-    expect(pingBars(151)).toBe(3);
-    expect(pingBars(300)).toBe(3);
-    expect(pingBars(301)).toBe(2);
-    expect(pingBars(600)).toBe(2);
-    expect(pingBars(601)).toBe(1);
+    expect(pingBars(20)).toBe(4);
+    expect(pingBars(100)).toBe(4);
+    expect(pingBars(101)).toBe(3);
+    expect(pingBars(200)).toBe(3);
+    expect(pingBars(201)).toBe(2);
+    expect(pingBars(400)).toBe(2);
+    expect(pingBars(401)).toBe(1);
     expect(pingBars(9000)).toBe(1);
   });
 
@@ -516,11 +564,44 @@ describe("ping", () => {
     expect([0, 1, 2, 3, 4, 5, 2.5, "3", null].map(isPingBars)).toEqual([false, true, true, true, true, false, false, false, false]);
   });
 
-  test("smoothing starts at the first sample and moves 30% toward each new one", () => {
-    expect(smoothPing(null, 120)).toBe(120);
-    expect(smoothPing(100, 200)).toBeCloseTo(130);
-    expect(smoothPing(null, -5)).toBe(0);
-    expect(smoothPing(null, 60_000)).toBe(PING_MAX_SAMPLE_MS);
+  test("the ping is the median of the last five probes, so one slow frame doesn't move it", () => {
+    expect(pingEstimate([])).toBeNull();
+    expect(pingEstimate([30])).toBe(30);
+    expect(pingEstimate([30, 50])).toBe(40);
+    expect(pingEstimate([28, 31, 140, 29, 33])).toBe(31);
+    let samples: number[] = [];
+    for (const ms of [500, 30, 32, 29, 31, 35]) samples = addPingSample(samples, ms);
+    expect(samples).toEqual([30, 32, 29, 31, 35]);
+    expect(samples.length).toBe(PING_SAMPLES);
+    expect(pingEstimate(samples)).toBe(31);
+  });
+
+  test("a new visit or room shows measuring until its own first probe lands", () => {
+    const reading = { visit: "me:garden-1", ms: 42 };
+    expect(shownPing(reading, "me:garden-1")).toBe(42);
+    expect(shownPing(reading, "me:cafe-1")).toBeNull();
+    expect(shownPing(reading, "again:garden-1")).toBeNull();
+    expect(shownPing(reading, null)).toBeNull();
+    expect(shownPing(null, "me:garden-1")).toBeNull();
+    expect(shownPing({ visit: "me:cafe-1", ms: 31 }, "me:cafe-1")).toBe(31);
+  });
+
+  test("a probe's time is clamped to a sane range", () => {
+    expect(addPingSample([], -5)).toEqual([0]);
+    expect(addPingSample([], 60_000)).toEqual([PING_MAX_SAMPLE_MS]);
+  });
+
+  test("the first three probes go a second apart, then one every 15 s", () => {
+    expect(pingProbeDue({ taken: 0, lastAt: null, now: 0 })).toBe(true);
+    expect(pingProbeDue({ taken: 1, lastAt: 1000, now: 1999 })).toBe(false);
+    expect(pingProbeDue({ taken: 2, lastAt: 1000, now: 2000 })).toBe(true);
+    expect(pingProbeDue({ taken: 3, lastAt: 1000, now: 2000 })).toBe(false);
+    expect(pingProbeDue({ taken: 5, lastAt: 1000, now: 1000 + PING_PROBE_MS - 1 })).toBe(false);
+    expect(pingProbeDue({ taken: 5, lastAt: 1000, now: 1000 + PING_PROBE_MS })).toBe(true);
+    expect(pingProbeWait({ taken: 0, lastAt: null, now: 50 })).toBe(0);
+    expect(pingProbeWait({ taken: 1, lastAt: 1000, now: 1400 })).toBe(600);
+    expect(pingProbeWait({ taken: 5, lastAt: 1000, now: 1000 })).toBe(PING_PROBE_MS);
+    expect(pingProbeWait({ taken: 5, lastAt: 1000, now: 1000 + PING_PROBE_MS + 50 })).toBe(0);
   });
 
   test("a new bucket is published at once the first time", () => {
@@ -589,4 +670,23 @@ describe("extra obstacles", () => {
     const at = clampTarget(0, -4, HOME, [{ id: "table", x: 0, z: -4, rx: 1, rz: 0.6 }]);
     expect(Math.hypot(at.x / 1, (at.z + 4) / 0.6)).toBeGreaterThanOrEqual(1);
   });
+});
+
+test("Sijin is bald, with a short beard, a big grin and the Flannel", () => {
+  expect(isValidLook(NPC.look)).toBe(true);
+  expect(HAIR_STYLES[NPC.look.hair]).toBe("Bald");
+  expect(BEARDS[NPC.look.beard]).toBe("Short beard");
+  expect(MOUTHS[NPC.look.mouth]).toBe("Grin");
+  expect(OUTFITS[NPC.look.outfit]).toBe("Flannel");
+});
+
+test("a background colour is optional, defaults to the first, and must be one of the choices", () => {
+  const plain = { skin: 0, hair: 0, hairColour: 0, shirt: 0 };
+  expect(lookPart(plain, "backdrop")).toBe(0);
+  expect(isValidLook({ ...plain, backdrop: LOOK_SIZES.backdrop - 1 })).toBe(true);
+  expect(isValidLook({ ...plain, backdrop: LOOK_SIZES.backdrop })).toBe(false);
+  expect(isValidLook({ ...plain, backdrop: 1.5 })).toBe(false);
+  expect(isValidLook({ ...plain, v: LOOK_VERSION, backdrop: 4 })).toBe(true);
+  const random = randomLook(() => 0.5);
+  expect(random.backdrop).toBe(Math.floor(0.5 * LOOK_SIZES.backdrop));
 });

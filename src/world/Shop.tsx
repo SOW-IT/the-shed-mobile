@@ -37,14 +37,14 @@ export const ShopPanel = ({
   onClose: () => void;
   onBought: (text: string) => void;
 }) => {
-  const { mounted, clock } = useOverlayClock(open);
+  const overlay = useOverlayClock(open);
   const { width, height } = useWindowDimensions();
   const [tab, setTab] = useState<Tab>("furniture");
   const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const buy = useMutation(api.worldHome.buy);
-  if (!mounted) return null;
+  if (!overlay.mounted) return null;
   const panelWidth = Math.min(440, width - 28);
   const tile = Math.floor((panelWidth - 24 - 16 - 6) / 3);
   const balance = wallet?.balance ?? 0;
@@ -70,10 +70,10 @@ export const ShopPanel = ({
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={open ? "box-none" : "none"}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close the shop" testID="world-shop-close">
-        <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(clock)]} />
+        <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.panel, blurBehind, { top, width: panelWidth, maxHeight: Math.max(300, height - top - bottom) }, popStyle(clock)]} testID="world-shop">
-        <Animated.View style={[styles.header, itemStyle(clock, 0)]}>
+      <Animated.View style={[styles.panel, blurBehind, { top, width: panelWidth, maxHeight: Math.max(300, height - top - bottom) }, popStyle(overlay)]} testID="world-shop">
+        <Animated.View style={[styles.header, itemStyle(overlay, 0)]}>
           <Bust look={NPC.look} size={40} />
           <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
             {NPC.name}
@@ -87,7 +87,7 @@ export const ShopPanel = ({
             <Ionicons name="close" size={18} color={glass.text} />
           </Pressable>
         </Animated.View>
-        <Animated.View style={[styles.tabs, itemStyle(clock, 1)]}>
+        <Animated.View style={[styles.tabs, itemStyle(overlay, 1)]}>
           {(["furniture", "wallpaper"] as const).map((t) => (
             <Pressable
               key={t}
@@ -112,7 +112,7 @@ export const ShopPanel = ({
             const have = owned(id);
             const out = soldOut(id);
             return (
-              <Animated.View key={id} style={itemStyle(clock, 2 + i)}>
+              <Animated.View key={id} style={itemStyle(overlay, 2 + i)}>
                 <Pressable
                   onPress={() => {
                     setError(null);

@@ -1,15 +1,15 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { FURNITURE_IDS, ownedLeft, WALLPAPER_IDS, WALLPAPERS, type FurnitureId, type Placed, type WallpaperId } from "@shared/home";
-import { useEffect, useState } from "react";
-import { Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { blurBehind } from "./Overlays";
+import { useState } from "react";
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { blurBehind, usePresence } from "./Overlays";
 import { glass, gold, hud } from "./palette";
 import { FurnitureThumb, WallpaperSwatch } from "./Thumb";
 
-const NATIVE = Platform.OS !== "web";
 const TILE = 64;
 
 export const DecorateTray = ({
+  open,
   owned,
   wallpapers,
   placed,
@@ -18,6 +18,7 @@ export const DecorateTray = ({
   onWallpaper,
   onDone,
 }: {
+  open: boolean;
   owned: Record<string, number>;
   wallpapers: readonly string[];
   placed: readonly Placed[];
@@ -27,15 +28,14 @@ export const DecorateTray = ({
   onDone: () => void;
 }) => {
   const [tab, setTab] = useState<"furniture" | "wallpaper">("furniture");
-  const [rise] = useState(() => new Animated.Value(0));
-  useEffect(() => {
-    Animated.timing(rise, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: NATIVE }).start();
-  }, [rise]);
+  const { mounted, shown: rise, calm } = usePresence(open);
+  if (!mounted) return null;
   const items = FURNITURE_IDS.filter((id) => (owned[id] ?? 0) > 0);
   const papers = WALLPAPER_IDS.filter((id) => WALLPAPERS[id].price === 0 || wallpapers.includes(id));
   return (
     <Animated.View
-      style={[styles.tray, blurBehind, { opacity: rise, transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }] }]}
+      style={[styles.tray, blurBehind, calm ? { opacity: rise } : { opacity: rise, transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }] }]}
+      pointerEvents={open ? "auto" : "none"}
       testID="world-decorate"
     >
       <View style={styles.head}>

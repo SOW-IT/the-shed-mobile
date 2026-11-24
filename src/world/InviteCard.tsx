@@ -1,22 +1,25 @@
 import { fonts } from "@/theme";
 import { tagName, type Look } from "@shared/world";
-import { useEffect, useState } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { Bust } from "./Overlays";
+import { useEffect, useRef, useState } from "react";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Bust, usePresence } from "./Overlays";
 import { hud } from "./palette";
 
-const NATIVE = Platform.OS !== "web";
-
 export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: Look; onGo: () => void; onLater: () => void }) => {
-  const [pop] = useState(() => new Animated.Value(0));
+  const [answer, setAnswer] = useState<"go" | "later" | null>(null);
+  const { mounted, shown: pop, calm } = usePresence(answer === null);
+  const fired = useRef(false);
   useEffect(() => {
-    const run = Animated.spring(pop, { toValue: 1, friction: 6, tension: 120, useNativeDriver: NATIVE });
-    run.start();
-    return () => run.stop();
-  }, [pop]);
+    if (mounted || answer === null || fired.current) return;
+    fired.current = true;
+    if (answer === "go") onGo();
+    else onLater();
+  }, [mounted, answer, onGo, onLater]);
+  if (!mounted) return null;
   return (
     <Animated.View
-      style={[styles.card, { opacity: pop, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }]}
+      style={[styles.card, calm ? { opacity: pop } : { opacity: pop, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }]}
+      pointerEvents={answer === null ? "auto" : "none"}
       testID="world-invite"
       accessibilityLiveRegion="polite"
     >
@@ -28,10 +31,10 @@ export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: 
         </Text>
       </View>
       <View style={styles.row}>
-        <Pressable onPress={onGo} accessibilityRole="button" accessibilityLabel={`Go to ${name}'s home`} testID="world-invite-go" style={({ pressed }) => [styles.go, pressed && styles.pressed]}>
+        <Pressable onPress={() => setAnswer("go")} accessibilityRole="button" accessibilityLabel={`Go to ${name}'s home`} testID="world-invite-go" style={({ pressed }) => [styles.go, pressed && styles.pressed]}>
           <Text style={styles.goText}>Go</Text>
         </Pressable>
-        <Pressable onPress={onLater} accessibilityRole="button" accessibilityLabel="Not now" testID="world-invite-later" style={({ pressed }) => [styles.later, pressed && styles.pressed]}>
+        <Pressable onPress={() => setAnswer("later")} accessibilityRole="button" accessibilityLabel="Not now" testID="world-invite-later" style={({ pressed }) => [styles.later, pressed && styles.pressed]}>
           <Text style={styles.laterText}>Not now</Text>
         </Pressable>
       </View>

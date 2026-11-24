@@ -1,19 +1,15 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { bodyScale, PLACE_TITLES, type Look, type Place } from "@shared/world";
-import { useEffect, useState } from "react";
+import { PLACE_TITLES, type Look, type Place } from "@shared/world";
+import { memo, useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
-import { useReducedMotion } from "react-native-reanimated";
 import { glass, hud, signal, signalColour } from "./palette";
 import { Avatar } from "./Person";
+import { backdropOf, BUST_BORDER, bustFigure } from "./bust";
+import { ITEM_MS, LEAD_MS, overlayTiming, presenceTiming, STAGGER_MS, STAGGERED } from "./overlayTiming";
+import { useBatterySaver } from "./settings";
 
 const NATIVE = Platform.OS !== "web";
-const LEAD_MS = 40;
-const ITEM_MS = 240;
-const STAGGER_MS = 40;
-const STAGGERED = 8;
-const OUT_MS = 170;
-const OPEN_MS = LEAD_MS + STAGGER_MS * STAGGERED + ITEM_MS;
 const STEPS = [0, 0.25, 0.5, 0.75, 1];
 const EASE_OUT = STEPS.map((k) => 1 - (1 - k) ** 3);
 
@@ -28,25 +24,44 @@ export const PLACE_ICONS: Record<Place, string> = {
 
 export const placeLabel = (place: Place) => `${PLACE_ICONS[place]} ${PLACE_TITLES[place]}`;
 
-export const useOverlayClock = (open: boolean) => {
-  const reduce = useReducedMotion();
+const EVERY_ITEM = STAGGERED + 1;
+
+type OverlayClock = { mounted: boolean; clock: Animated.Value; calm: boolean };
+
+export const useOverlayClock = (open: boolean, items = EVERY_ITEM): OverlayClock => {
+  const calm = useBatterySaver();
   const [mounted, setMounted] = useState(open);
-  const [clock] = useState(() => new Animated.Value(open ? OPEN_MS : 0));
+  const [clock] = useState(() => new Animated.Value(open ? overlayTiming(true, items, calm).toValue : 0));
   if (open && !mounted) setMounted(true);
   useEffect(() => {
     if (!mounted) return;
-    const run = Animated.timing(clock, {
-      toValue: open ? OPEN_MS : 0,
-      duration: reduce ? 0 : open ? OPEN_MS : OUT_MS,
-      easing: Easing.linear,
+    const run = Animated.timing(clock, { ...overlayTiming(open, items, calm), easing: Easing.linear, useNativeDriver: NATIVE });
+    run.start(({ finished }) => {
+      if (finished && !open) setMounted(false);
+    });
+    return () => run.stop();
+  }, [open, mounted, calm, items, clock]);
+  return { mounted, clock, calm };
+};
+
+export const usePresence = (open: boolean) => {
+  const calm = useBatterySaver();
+  const [mounted, setMounted] = useState(open);
+  const [shown] = useState(() => new Animated.Value(0));
+  if (open && !mounted) setMounted(true);
+  useEffect(() => {
+    if (!mounted) return;
+    const run = Animated.timing(shown, {
+      ...presenceTiming(open, calm),
+      easing: open ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
       useNativeDriver: NATIVE,
     });
     run.start(({ finished }) => {
       if (finished && !open) setMounted(false);
     });
     return () => run.stop();
-  }, [open, mounted, reduce, clock]);
-  return { mounted, clock };
+  }, [open, mounted, calm, shown]);
+  return { mounted, shown, calm };
 };
 
 type Clock = Animated.Value;
@@ -58,37 +73,33 @@ const eased = (clock: Clock, start: number, from: number, to: number) =>
     extrapolate: "clamp",
   });
 
-export const scrimStyle = (clock: Clock) => ({ opacity: eased(clock, 0, 0, 1) });
+export const scrimStyle = ({ clock }: OverlayClock) => ({ opacity: eased(clock, 0, 0, 1) });
 
-export const popStyle = (clock: Clock) => ({
-  opacity: eased(clock, 0, 0, 1),
-  transform: [{ translateY: eased(clock, 0, -12, 0) }, { scale: eased(clock, 0, 0.94, 1) }],
-});
+export const popStyle = ({ clock, calm }: OverlayClock) =>
+  calm
+    ? { opacity: eased(clock, 0, 0, 1) }
+    : {
+        opacity: eased(clock, 0, 0, 1),
+        transform: [{ translateY: eased(clock, 0, -12, 0) }, { scale: eased(clock, 0, 0.94, 1) }],
+      };
 
-export const itemStyle = (clock: Clock, index: number) => {
+export const itemStyle = ({ clock, calm }: OverlayClock, index: number) => {
+  if (calm) return null;
   const start = LEAD_MS + Math.min(index, STAGGERED) * STAGGER_MS;
   return { opacity: eased(clock, start, 0, 1), transform: [{ translateY: eased(clock, start, -8, 0) }] };
 };
 
 export const blurBehind = (Platform.OS === "web" ? { backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" } : {}) as unknown as ViewStyle;
 
-export const Bust = ({ look, size }: { look: Look; size: number }) => {
-  const s = size * 0.62;
-  const up = s * 0.86;
-  const foot = { x: size / 2, y: size * 0.5 + bodyScale(look).height * up, depth: 1, scale: s };
+const BUST_POSE = { x: 0, z: 0, walking: false, arrivesAt: 0, heading: 0 };
+
+export const Bust = memo(function Bust({ look, size }: { look: Look; size: number }) {
   return (
-    <View pointerEvents="none" style={[styles.bust, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Avatar
-        figure={{ foot, s, up, bob: 0 }}
-        pose={{ x: 0, z: 0, walking: false, arrivesAt: 0, heading: 0 }}
-        look={look}
-        t={0}
-        seed={0}
-        shadow={false}
-      />
+    <View pointerEvents="none" style={[styles.bust, { width: size, height: size, borderRadius: size / 2, backgroundColor: backdropOf(look) }]}>
+      <Avatar figure={bustFigure(look, size)} pose={BUST_POSE} look={look} t={0} seed={0} shadow={false} />
     </View>
   );
-};
+});
 
 const QUALITY = ["unknown", "poor", "fair", "good", "great"] as const;
 
@@ -169,16 +180,16 @@ export const WorldMenu = ({
   entries: readonly MenuEntry[];
   onClose: () => void;
 }) => {
-  const { mounted, clock } = useOverlayClock(open);
-  if (!mounted) return null;
+  const overlay = useOverlayClock(open, entries.length);
+  if (!overlay.mounted) return null;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={open ? "box-none" : "none"}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu" testID="world-menu-close">
-        <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(clock)]} />
+        <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.menu, blurBehind, { top }, popStyle(clock)]} testID="world-menu">
+      <Animated.View style={[styles.menu, blurBehind, { top }, popStyle(overlay)]} testID="world-menu">
         {entries.map((entry, i) => (
-          <Animated.View key={entry.id} style={[itemStyle(clock, i), entry.tone === "leave" && i > 0 && styles.leaveGap]}>
+          <Animated.View key={entry.id} style={[itemStyle(overlay, i), entry.tone === "leave" && i > 0 && styles.leaveGap]}>
             <Pressable
               onPress={entry.onPress}
               accessibilityRole="button"
@@ -208,24 +219,24 @@ export const WorldMenu = ({
 };
 
 export const LeaveDialog = ({ open, onStay, onLeave }: { open: boolean; onStay: () => void; onLeave: () => void }) => {
-  const { mounted, clock } = useOverlayClock(open);
-  if (!mounted) return null;
+  const overlay = useOverlayClock(open, 3);
+  if (!overlay.mounted) return null;
   return (
     <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents={open ? "box-none" : "none"}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onStay} accessibilityRole="button" accessibilityLabel="Stay" testID="world-leave-scrim">
-        <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(clock)]} />
+        <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.dialog, blurBehind, popStyle(clock)]} testID="world-leave-dialog" accessibilityViewIsModal>
-        <Animated.View style={[styles.door, itemStyle(clock, 0)]}>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-leave-dialog" accessibilityViewIsModal>
+        <Animated.View style={[styles.door, itemStyle(overlay, 0)]}>
           <Ionicons name="exit-outline" size={30} color={glass.text} />
         </Animated.View>
-        <Animated.View style={itemStyle(clock, 1)}>
+        <Animated.View style={itemStyle(overlay, 1)}>
           <Text style={styles.dialogTitle} accessibilityRole="header">
             Leave the World?
           </Text>
           <Text style={styles.dialogText}>Everyone here will see you go. You can come back any time.</Text>
         </Animated.View>
-        <Animated.View style={[styles.dialogButtons, itemStyle(clock, 2)]}>
+        <Animated.View style={[styles.dialogButtons, itemStyle(overlay, 2)]}>
           <Pressable onPress={onStay} accessibilityRole="button" testID="world-leave-stay" style={({ pressed }) => [styles.dialogButton, pressed && styles.rowPressed]}>
             <Text style={styles.dialogButtonText}>Stay</Text>
           </Pressable>
@@ -278,7 +289,7 @@ export const GlassPill = ({
 
 const styles = StyleSheet.create({
   scrim: { backgroundColor: glass.scrim },
-  bust: { backgroundColor: glass.bust, overflow: "hidden", borderWidth: 2, borderColor: glass.edge },
+  bust: { overflow: "hidden", borderWidth: BUST_BORDER, borderColor: glass.edge },
   bars: { flexDirection: "row", alignItems: "flex-end" },
   menu: {
     position: "absolute",
