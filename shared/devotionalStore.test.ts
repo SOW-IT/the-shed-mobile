@@ -52,7 +52,7 @@ describe("devotional local storage and sync", () => {
 
     const store = createDevotionalStore(backend);
     await store.saveLocal(ANNA, DAY, { passage: "", notes: "New", prayerPoints: "" }, null, 20);
-    expect(Object.keys(stored(data)).sort()).toEqual(["2026-11-01", DAY]);
+    expect(Object.keys(stored(data)).filter((k) => k !== "removed").sort()).toEqual(["2026-11-01", DAY]);
     expect(store.getDrafts(ANNA)["2026-11-01"].notes).toBe("Old");
   });
 
@@ -67,7 +67,7 @@ describe("devotional local storage and sync", () => {
     expect(await store.persistNow(ANNA)).toBe(true);
 
     const throwing = createDevotionalStore({
-      read: () => Promise.reject(new Error("read")),
+      read: async () => null,
       write: () => Promise.reject(new Error("full")),
     });
     expect((await throwing.saveLocal(ANNA, DAY, { passage: "", notes: "x", prayerPoints: "" }, null)).persisted).toBe(false);
@@ -105,12 +105,14 @@ describe("devotional local storage and sync", () => {
     const store = createDevotionalStore(memoryBackend().backend);
     const theirs = { date: DAY, passage: "Psalm 1", notes: "Laptop", prayerPoints: "", updatedAt: 5000 };
 
-    await store.markConflict(ANNA, DAY);
+    await store.markConflict(ANNA, DAY, null);
     expect(store.getDrafts(ANNA)[DAY]).toBeUndefined();
 
     await store.saveLocal(ANNA, DAY, { passage: "", notes: "Phone", prayerPoints: "" }, 1000, 2000);
-    await store.markConflict(ANNA, DAY);
-    await store.markConflict(ANNA, DAY);
+    await store.markConflict(ANNA, DAY, 900);
+    expect(store.getDrafts(ANNA)[DAY].conflict).toBe(false);
+    await store.markConflict(ANNA, DAY, 1000);
+    await store.markConflict(ANNA, DAY, 1000);
     expect(store.getDrafts(ANNA)[DAY]).toMatchObject({ conflict: true, base: 1000 });
 
     await store.saveLocal(ANNA, DAY, { passage: "", notes: "Phone 2", prayerPoints: "" }, 5000, 2100);
@@ -119,7 +121,7 @@ describe("devotional local storage and sync", () => {
     await store.keepMine(ANNA, DAY, theirs);
     expect(store.getDrafts(ANNA)[DAY]).toMatchObject({ conflict: false, base: 5000, dirty: true, notes: "Phone 2" });
 
-    await store.markConflict(ANNA, DAY);
+    await store.markConflict(ANNA, DAY, 5000);
     await store.takeTheirs(ANNA, DAY, theirs);
     expect(store.getDrafts(ANNA)[DAY]).toMatchObject({ notes: "Laptop", dirty: false, base: 5000, conflict: false });
     await store.keepMine(ANNA, DAY, theirs);
@@ -127,6 +129,57 @@ describe("devotional local storage and sync", () => {
 
     await store.takeTheirs(ANNA, DAY, null);
     expect(store.getDrafts(ANNA)[DAY]).toBeUndefined();
+  });
+
+  test("a failed read never overwrites what's stored, and is tried again", async () => {
+    const { backend, data } = memoryBackend();
+    await createDevotionalStore(backend).saveLocal(ANNA, "2026-11-23", { passage: "", notes: "Unsynced", prayerPoints: "" }, null);
+    let broken = true;
+    const store = createDevotionalStore({
+      read: (key) => (broken ? Promise.reject(new Error("read")) : backend.read(key)),
+      write: backend.write,
+    });
+    await store.load(ANNA);
+    const { persisted } = await store.saveLocal(ANNA, DAY, { passage: "", notes: "New", prayerPoints: "" }, null);
+    expect(persisted).toBe(false);
+    expect(Object.keys(stored(data))).toContain("2026-11-23");
+    expect(store.getDrafts(ANNA)[DAY].notes).toBe("New");
+
+    broken = false;
+    await store.load(ANNA);
+    expect(store.getDrafts(ANNA)["2026-11-23"].notes).toBe("Unsynced");
+    expect(await store.persistNow(ANNA)).toBe(true);
+    expect(Object.keys(stored(data)).filter((k) => k !== "removed").sort()).toEqual(["2026-11-23", DAY]);
+  });
+
+  test("two tabs keep each other's drafts and deletions", async () => {
+    const { backend, data } = memoryBackend();
+    const tabA = createDevotionalStore(backend);
+    const tabB = createDevotionalStore(backend);
+    await tabA.load(ANNA);
+    await tabB.load(ANNA);
+
+    await tabA.saveLocal(ANNA, "2026-11-20", { passage: "", notes: "A", prayerPoints: "" }, null);
+    await tabB.saveLocal(ANNA, "2026-11-21", { passage: "", notes: "B", prayerPoints: "" }, null);
+    expect(Object.keys(stored(data)).filter((k) => k !== "removed").sort()).toEqual(["2026-11-20", "2026-11-21"]);
+    expect(tabB.getDrafts(ANNA)["2026-11-20"].notes).toBe("A");
+
+    await tabB.takeTheirs(ANNA, "2026-11-20", null);
+    await tabA.saveLocal(ANNA, "2026-11-22", { passage: "", notes: "A2", prayerPoints: "" }, null);
+    expect(Object.keys(stored(data)).filter((k) => k !== "removed").sort()).toEqual(["2026-11-21", "2026-11-22"]);
+    expect(tabA.getDrafts(ANNA)["2026-11-20"]).toBeUndefined();
+
+    await tabA.saveLocal(ANNA, "2026-11-20", { passage: "", notes: "again", prayerPoints: "" }, null);
+    await tabB.persistNow(ANNA);
+    expect(tabB.getDrafts(ANNA)["2026-11-20"].notes).toBe("again");
+
+    const reader = createDevotionalStore(backend);
+    await reader.load(ANNA);
+    expect(Object.keys(reader.getDrafts(ANNA)).sort()).toEqual(["2026-11-20", "2026-11-21", "2026-11-22"]);
+    data.set([...data.keys()][0], JSON.stringify({ removed: { "not-a-day": 1, "2026-11-01": "x" } }));
+    expect(await reader.persistNow(ANNA)).toBe(true);
+    data.set([...data.keys()][0], "{bad json");
+    expect(await reader.persistNow(ANNA)).toBe(true);
   });
 
   test("isolates drafts per account, handles empty storage and notifies subscribers", async () => {

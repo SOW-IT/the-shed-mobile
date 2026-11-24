@@ -21,6 +21,7 @@ export type LocalDevotionalDraft = DevotionalEntry & {
   dirty: boolean;
   base: number | null;
   conflict: boolean;
+  savedAt?: number;
 };
 
 export const EMPTY_DEVOTIONAL: DevotionalContent = {
@@ -127,6 +128,7 @@ export const parseDraftStore = (raw: string): Record<string, LocalDevotionalDraf
         dirty: row.dirty,
         base,
         conflict: row.dirty && row.conflict === true,
+        ...(typeof row.savedAt === "number" && Number.isFinite(row.savedAt) ? { savedAt: row.savedAt } : {}),
       };
     }
     return out;

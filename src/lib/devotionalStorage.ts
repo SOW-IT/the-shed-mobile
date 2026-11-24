@@ -16,14 +16,10 @@ const onWeb = () => Platform.OS === "web" && typeof window !== "undefined";
 
 const defaultBackend: DevotionalStorageBackend = {
   read: async (key) => {
-    try {
-      if (onWeb()) return window.localStorage.getItem(key);
-      const file = new File(Paths.document, safeFilename(key));
-      if (!file.exists) return null;
-      return await file.text();
-    } catch {
-      return null;
-    }
+    if (onWeb()) return window.localStorage.getItem(key);
+    const file = new File(Paths.document, safeFilename(key));
+    if (!file.exists) return null;
+    return await file.text();
   },
   write: async (key, value) => {
     try {

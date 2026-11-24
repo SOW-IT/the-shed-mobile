@@ -132,8 +132,9 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
       try {
         const result = await saveOnline({ date: latest.validDate, ...checked.normalized, base: draft.base });
         if (result.status === "conflict") {
-          await markDevotionalConflict(latest.email, latest.validDate);
-          if (showFeedback) setToast({ text: CONFLICT_TEXT });
+          await markDevotionalConflict(latest.email, latest.validDate, draft.base);
+          const conflicted = getLocalDevotional(latest.email, latest.validDate)?.conflict === true;
+          if (showFeedback) setToast({ text: conflicted ? CONFLICT_TEXT : notSavedOnline });
           return;
         }
         await markDevotionalSynced(latest.email, latest.validDate, content, result);

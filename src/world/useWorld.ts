@@ -410,6 +410,9 @@ export const useWorld = (
     toldReading.current = reading;
     readingM({ on: reading }).catch(() => undefined);
   }, [session, reading, readingM]);
+  const stillReading = useCallback(() => {
+    if (toldReading.current) readingM({ on: true }).catch(() => undefined);
+  }, [readingM]);
 
   const actTokens = useRef(fullBucket("act", 0));
   const spendAct = useCallback(() => {
@@ -494,6 +497,7 @@ export const useWorld = (
         if (sentIn !== visit.current) return;
         heard(reply.serverNow, sentAt);
         if (reply.ok) {
+          stillReading();
           const { fromX, fromZ, toX, toZ, startedAt, path: route } = reply;
           // While a finger is down the local walk leads; adopt the server's after release.
           if (!pending.current && !holding.current) {
@@ -516,7 +520,7 @@ export const useWorld = (
         inFlight.current = false;
         if (sentIn === visit.current && pending.current && !timer.current) later(COALESCE_MS);
       });
-  }, [session, moveM, sitM, heard, again, later, serverNow]);
+  }, [session, moveM, sitM, heard, again, later, serverNow, stillReading]);
   useEffect(() => {
     flushRef.current = flush;
   }, [flush]);

@@ -41,7 +41,7 @@ export const DevotionalSync = () => {
       .then((result) =>
         result.status === "saved"
           ? markDevotionalSynced(email, candidate.date, sent, result)
-          : markDevotionalConflict(email, candidate.date)
+          : markDevotionalConflict(email, candidate.date, candidate.base)
       )
       .then(
         () => {
