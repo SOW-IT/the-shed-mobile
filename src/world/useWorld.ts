@@ -1,5 +1,6 @@
 import {
   ASK_MS,
+  CHAT_LOG_SIZE,
   clampTarget,
   cleanLine,
   fullBucket,
@@ -159,11 +160,11 @@ const showLine = (store: OptimisticLocalStore, { text }: { text: string }) => {
   if (!me || !line) return;
   const at = clock();
   patchMine(store, (row) => ({ ...row, say: { text: line, at } }));
-  const log = store.getQuery(api.world.chatLog, { roomId: me.roomId });
-  if (log) {
-    // Marked pending by its id until the server's line replaces it.
-    const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true, kind: undefined };
-    store.setQuery(api.world.chatLog, { roomId: me.roomId }, [pending, ...log]);
+  // Marked pending by its id until the server's line replaces it.
+  const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true, kind: undefined };
+  for (const { args, value } of store.getAllQueries(api.world.chatLog)) {
+    if (args.roomId !== me.roomId || args.before !== undefined || !value) continue;
+    store.setQuery(api.world.chatLog, args, [pending, ...value].slice(0, args.limit ?? CHAT_LOG_SIZE));
   }
 };
 

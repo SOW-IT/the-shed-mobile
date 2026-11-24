@@ -1,12 +1,11 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { ASK_MS, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, PLACE_TITLES, MAX_SAY_LENGTH, askInfo, posAt } from "@shared/world";
-import { useQuery } from "convex/react";
+import { ASK_MS, CHAT_LOG_SIZE, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, PLACE_TITLES, MAX_SAY_LENGTH, askInfo, posAt } from "@shared/world";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { accepted, announce } from "./announce";
+import { useChatLog } from "./useChatLog";
 import { PENDING, type useWorld } from "./useWorld";
 import { clock, lineWhere, saidLabel, systemLine } from "./view";
 
@@ -57,7 +56,7 @@ export const WorldList = ({
 }) => {
   const t = useAppTheme();
   const [draft, setDraft] = useState("");
-  const log = useQuery(api.world.chatLog, world.roomId && !offline ? { roomId: world.roomId } : "skip");
+  const log = useChatLog(offline ? null : world.roomId, CHAT_LOG_SIZE);
 
   // Read new lines from others aloud as they arrive (VoiceOver), but not the
   // history that was there when the list opened.

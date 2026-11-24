@@ -1847,6 +1847,41 @@ describe("ping", () => {
   });
 });
 
+describe("chat log pages", () => {
+  const seed = (t: T, a: { roomId: Id<"worldRooms">; memberId: Id<"worldMembers"> }, ats: number[]) =>
+    t.run(async (ctx) => {
+      for (const at of ats) await ctx.db.insert("worldChat", { roomId: a.roomId, memberId: a.memberId, email: ANNA, name: "anna", text: `at ${at}`, at });
+    });
+
+  test("lines before and from a split cover the log once, newest first, and a limit takes the newest", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    const now = Date.now();
+    await seed(t, a, [now - 5000, now - 4000, now - 3000, now - 2000, now - 1000]);
+    const texts = async (args: { limit?: number; after?: number; before?: number }) =>
+      said((await anna.query(api.world.chatLog, { roomId: a.roomId, ...args }))!).map((line) => line.text);
+    const split = now - 3000;
+    expect(await texts({ after: split })).toEqual([`at ${now - 1000}`, `at ${now - 2000}`, `at ${now - 3000}`]);
+    expect(await texts({ before: split })).toEqual([`at ${now - 4000}`, `at ${now - 5000}`]);
+    expect(await texts({ before: split, limit: 1 })).toEqual([`at ${now - 4000}`]);
+    const all = async (limit: number) => (await anna.query(api.world.chatLog, { roomId: a.roomId, limit }))!.map((line) => line.text);
+    expect(await all(3)).toEqual([expect.any(String), `at ${now - 1000}`, `at ${now - 2000}`]);
+    expect(await all(0)).toHaveLength(1);
+    expect(await all(1000)).toHaveLength(6);
+  });
+
+  test("a split older than an hour still leaves out lines past the chat TTL", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    const now = Date.now();
+    await seed(t, a, [now - 61 * 60_000, now - 1000]);
+    const lines = said((await anna.query(api.world.chatLog, { roomId: a.roomId, after: 0 }))!);
+    expect(lines.map((line) => line.text)).toEqual([`at ${now - 1000}`]);
+  });
+});
+
 describe("an hour of chat", () => {
   test("a line from 59 minutes ago is still in the log, and one from 61 minutes ago is not", async () => {
     const t = newConvex();

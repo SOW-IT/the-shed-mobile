@@ -1188,7 +1188,7 @@ export const state = query({
 const CHAT_SCAN = 2000;
 
 export const chatLog = query({
-  args: { roomId: v.id("worldRooms") },
+  args: { roomId: v.id("worldRooms"), limit: v.optional(v.number()), after: v.optional(v.number()), before: v.optional(v.number()) },
   returns: v.union(
     v.null(),
     v.array(
@@ -1205,20 +1205,25 @@ export const chatLog = query({
       })
     )
   ),
-  handler: async (ctx, { roomId }) => {
+  handler: async (ctx, { roomId, limit, after, before }) => {
     const me = await meIn(ctx, roomId);
     if (!me) return null;
+    const cap = limit === undefined ? CHAT_LOG_SIZE : Math.min(CHAT_LOG_SIZE, Math.max(1, Math.floor(limit)));
+    const oldest = Date.now() - CHAT_TTL_MS;
     // Lines past the chat TTL aren't shown, even before the sweeper deletes
     // them.
     const rows = ctx.db
       .query("worldChat")
-      .withIndex("by_at", (q) => q.gt("at", Date.now() - CHAT_TTL_MS))
+      .withIndex("by_at", (q) => {
+        const from = after !== undefined && after > oldest ? q.gte("at", after) : q.gt("at", oldest);
+        return before === undefined ? from : from.lt("at", before);
+      })
       .order("desc");
     const lines = [];
     const hidden = new Map<string, boolean>();
     let scanned = 0;
     for await (const row of rows) {
-      if (lines.length === CHAT_LOG_SIZE || scanned++ === CHAT_SCAN) break;
+      if (lines.length === cap || scanned++ === CHAT_SCAN) break;
       if (row.place === HOME && row.roomId !== roomId) continue;
       if (!hidden.has(row.email)) hidden.set(row.email, await blockedEither(ctx, me.email, row.email));
       if (hidden.get(row.email)) continue;

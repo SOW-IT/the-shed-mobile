@@ -1,10 +1,9 @@
-import { CHAT_TTL_MS, isPlace, PLACE_TITLES } from "@shared/world";
-import { useQuery } from "convex/react";
+import { CHAT_LOG_SIZE, CHAT_TTL_MS, isPlace, PLACE_TITLES } from "@shared/world";
 import { useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from "react-native";
-import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { chatLog } from "./palette";
+import { useChatLog } from "./useChatLog";
 import { PENDING } from "./useWorld";
 import { clock, saidLabel, systemLine } from "./view";
 
@@ -44,7 +43,7 @@ export const ChatLog = ({
   now: number;
   status: string | null;
 }) => {
-  const log = useQuery(api.world.chatLog, roomId ? { roomId } : "skip");
+  const log = useChatLog(roomId, CHAT_LOG_SIZE);
   const scroller = useRef<ScrollViewInstance>(null);
   const atEnd = useRef(true);
   const [heights, setHeights] = useState<Record<string, number>>({});
