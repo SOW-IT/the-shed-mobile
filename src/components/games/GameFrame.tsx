@@ -194,6 +194,7 @@ export const GameFrame = ({
   hideStartCard = false,
   startExtra = null,
   overDetail = null,
+  statusBar = "auto",
   children,
 }: {
   game: GameId;
@@ -228,6 +229,8 @@ export const GameFrame = ({
   startExtra?: ReactNode;
   /** A line on the game-over card about how the run ended. */
   overDetail?: string | null;
+  /** The status bar's content, for a scene whose sky turns dark. */
+  statusBar?: "auto" | "light" | "dark";
   children: ReactNode;
 }) => {
   const { isAuthenticated } = useConvexAuth();
@@ -282,7 +285,7 @@ export const GameFrame = ({
         <Text style={styles.cardBody}>
           Best {Math.max(result.previousBest, result.score).toLocaleString()}
         </Text>
-        {isAuthenticated ? <CoinGain runId={result.runId} /> : null}
+        {isAuthenticated ? <CoinGain runId={result.runId} game={game} /> : null}
         <Text style={styles.note} testID="game-saved-note">
           {savedNote({ signedIn: isAuthenticated, offline })}
         </Text>
@@ -305,7 +308,7 @@ export const GameFrame = ({
         </View>
       ) : null}
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
-      <StatusBar hidden={phase === "playing"} animated />
+      <StatusBar hidden={phase === "playing"} style={statusBar} animated />
       <View style={styles.bar}>
         <Pressable
           onPress={back}

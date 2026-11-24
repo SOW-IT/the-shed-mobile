@@ -1,8 +1,6 @@
 // The offline mini-games' ids, score limits and the queue of scores waiting
 // to go on the leaderboard. The app and the backend both read these, so a
 // score the app saves is one the server accepts.
-import { coinsForRun } from "./coins";
-
 export const GAME_IDS = ["shooter", "runner", "flappy", "glider"] as const;
 export type GameId = (typeof GAME_IDS)[number];
 
@@ -97,25 +95,17 @@ export const scoreProblem = (entry: QueuedScore, now: number): string | null => 
 
 /**
  * Adds a finished run to the queue. The leaderboard keeps each person's best,
- * so the queue only needs the best unpublished run of each game: a lower one
- * would change nothing once the higher one is published.
+ * and only a new best can earn coins (by reaching the top 3), so the queue
+ * only needs the best unpublished run of each game: a lower one would change
+ * nothing once the higher one is published.
  */
-export const MAX_PAYING_RUNS = 20;
-
 export const enqueueScore = (queue: readonly QueuedScore[], entry: QueuedScore, now: number): QueuedScore[] => {
   // A run the server would turn away is never queued, and a queued one that
   // has become unpublishable can't hold its place.
-  if (scoreProblem(entry, now) !== null) return [...queue];
-  const pays = (queued: QueuedScore) => coinsForRun(queued.game, queued.score) > 0;
   const live = queue.filter((queued) => scoreProblem(queued, now) === null);
-  const sameGame = live.filter((queued) => queued.game === entry.game);
-  const beaten = (queued: QueuedScore) => queued.game === entry.game && !pays(queued) && queued.score < entry.score;
-  if (pays(entry) && live.filter(pays).length < MAX_PAYING_RUNS) return [...live.filter((queued) => !beaten(queued)), entry];
-  if (sameGame.some((queued) => queued.score >= entry.score)) return [...live];
-  const kept = live.filter((queued) => queued.game !== entry.game || pays(queued));
-  if (!pays(entry) || kept.filter(pays).length < MAX_PAYING_RUNS) return [...kept, entry];
-  const lowest = kept.filter((queued) => queued.game === entry.game && pays(queued)).sort((x, y) => x.score - y.score)[0];
-  return lowest ? [...kept.filter((queued) => queued !== lowest), entry] : [...live];
+  if (scoreProblem(entry, now) !== null) return live;
+  if (live.some((queued) => queued.game === entry.game && queued.score >= entry.score)) return live;
+  return [...live.filter((queued) => queued.game !== entry.game), entry];
 };
 
 /**

@@ -102,14 +102,15 @@ export const recordRun = (game: GameId, score: number, durationMs: number): Prom
   ]).then(() => entry.runId);
 };
 
-const paid = new Map<string, number>();
-const paidListeners = new Set<() => void>();
-let paidVersion = 0;
+/** What a run earned, and the leaderboard place it earned it for. */
+type Payout = { coins: number; place?: number };
 
-export const notePaid = (coins: readonly { runId: string; coins: number }[]) => {
+const paid = new Map<string, Payout>();
+const paidListeners = new Set<() => void>();
+
+export const notePaid = (coins: readonly ({ runId: string } & Payout)[]) => {
   if (coins.length === 0) return;
-  for (const { runId, coins: amount } of coins) paid.set(runId, amount);
-  paidVersion++;
+  for (const { runId, coins: amount, place } of coins) paid.set(runId, { coins: amount, place });
   paidListeners.forEach((listener) => listener());
 };
 
@@ -120,9 +121,16 @@ const subscribePaid = (listener: () => void) => {
   };
 };
 
-export const usePaid = (runId: string | null): number | undefined => {
-  useSyncExternalStore(subscribePaid, () => paidVersion, () => paidVersion);
-  return runId === null ? undefined : paid.get(runId);
+const NOT_PAID = () => undefined;
+
+/**
+ * What a run has been paid, once the server says. The payout is the store's
+ * snapshot itself: read beside a version number instead, React Compiler kept
+ * the first read for a run (nothing yet) and the chip never showed.
+ */
+export const usePaid = (runId: string | null): Payout | undefined => {
+  const read = runId === null ? NOT_PAID : () => paid.get(runId);
+  return useSyncExternalStore(subscribePaid, read, read);
 };
 
 /** Drops runs the server has answered for, accepted or not. */

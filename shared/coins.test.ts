@@ -1,27 +1,50 @@
 import { describe, expect, test } from "vitest";
-import { cappedAward, coinDay, coinsForRun, DAILY_COIN_CAP } from "./coins";
+import { boardOf, coinDay, coinsForPlace, ordinal, PLACE_COINS, placePayout } from "./coins";
+import { SCORES_RESET_AT } from "./games";
 
-describe("coins for a run", () => {
+describe("coins for a place", () => {
   test.each([
-    ["flappy", 500, 0],
-    ["flappy", 501, 10],
-    ["flappy", 751, 20],
-    ["runner", 12_001, 10],
-    ["runner", 15_001, 20],
-    ["shooter", 10_001, 10],
-    ["shooter", 12_001, 20],
-    ["shooter", 0, 0],
-    ["glider", 8_000, 0],
-    ["glider", 8_001, 10],
-    ["glider", 12_001, 20],
-  ] as const)("%s at %i pays %i", (game, score, coins) => {
-    expect(coinsForRun(game, score)).toBe(coins);
+    [1, 50],
+    [2, 25],
+    [3, 10],
+    [4, 0],
+    [500, 0],
+  ])("place %i pays %i", (place, coins) => {
+    expect(coinsForPlace(place)).toBe(coins);
   });
 
-  test("the daily cap trims the last award", () => {
-    expect(cappedAward(20, 0)).toBe(20);
-    expect(cappedAward(20, DAILY_COIN_CAP - 10)).toBe(10);
-    expect(cappedAward(20, DAILY_COIN_CAP)).toBe(0);
+  test("climbing pays the difference, and a place pays once", () => {
+    expect(placePayout(3, 0)).toBe(10);
+    expect(placePayout(1, 10)).toBe(40);
+    expect(placePayout(2, 10)).toBe(15);
+    expect(placePayout(1, 25)).toBe(25);
+    expect(placePayout(3, 10)).toBe(0);
+    expect(placePayout(2, 50)).toBe(0);
+    expect(placePayout(1, 50)).toBe(0);
+    expect(placePayout(4, 0)).toBe(0);
+  });
+
+  test("a board never pays more than 1st place's coins in all", () => {
+    let paid = 0;
+    for (const place of [3, 2, 3, 1, 2, 1]) paid += placePayout(place, paid);
+    expect(paid).toBe(PLACE_COINS[0]);
+  });
+
+  test("a game's board is named by its last reset", () => {
+    expect(boardOf("flappy")).toBe("flappy:0");
+    expect(boardOf("runner")).toBe(`runner:${SCORES_RESET_AT.runner}`);
+  });
+
+  test.each([
+    [1, "1st"],
+    [2, "2nd"],
+    [3, "3rd"],
+    [4, "4th"],
+    [11, "11th"],
+    [12, "12th"],
+    [21, "21st"],
+  ])("place %i is %s", (place, text) => {
+    expect(ordinal(place)).toBe(text);
   });
 
   test("days are Sydney days", () => {

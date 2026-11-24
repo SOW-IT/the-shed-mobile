@@ -1,7 +1,6 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { COIN_TIERS, DAILY_COIN_CAP } from "@shared/coins";
-import { GAME_IDS, GAME_INFO } from "@shared/games";
+import { ordinal, PLACE_COINS } from "@shared/coins";
 import { NPC } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
@@ -70,20 +69,15 @@ const SPARKS = [
   { x: -40, y: 24, size: 10, delay: 0.8 },
 ];
 
-const tierText = (tiers: readonly { over: number; coins: number }[]) =>
-  tiers.map((tier) => `over ${tier.over.toLocaleString()} → ${tier.coins} coins`).join("  ·  ");
-
 export const CoinsPanel = ({
   open,
   top,
   balance,
-  earnedToday,
   onClose,
 }: {
   open: boolean;
   top: number;
   balance: number | undefined;
-  earnedToday: number | undefined;
   onClose: () => void;
 }) => {
   const reduce = useBatterySaver();
@@ -114,7 +108,6 @@ export const CoinsPanel = ({
   const scale = shown.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
   const turn = spin.interpolate({ inputRange: [0, 0.25, 0.5, 0.75, 1], outputRange: [1, 0.12, -1, 0.12, 1] });
   const coinScale = spin.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.06, 1] });
-  const remaining = Math.max(0, DAILY_COIN_CAP - (earnedToday ?? 0));
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={open ? "box-none" : "none"}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close coins" testID="world-coins-scrim">
@@ -158,14 +151,15 @@ export const CoinsPanel = ({
         </Text>
         <Text style={styles.unit}>SOW coins</Text>
         <Text style={styles.heading}>How to get coins</Text>
-        {GAME_IDS.map((game) => (
-          <View key={game} style={styles.row}>
-            <Text style={styles.game}>{GAME_INFO[game].title}</Text>
-            <Text style={styles.tiers}>{tierText(COIN_TIERS[game])}</Text>
+        <Text style={styles.lead}>Make the top 3 of an arcade game&apos;s leaderboard:</Text>
+        {PLACE_COINS.map((coins, i) => (
+          <View key={coins} style={styles.row} testID={`world-coins-place-${i + 1}`}>
+            <Text style={styles.game}>{ordinal(i + 1)} place</Text>
+            <Text style={styles.tiers}>{coins} coins</Text>
           </View>
         ))}
         <Text style={styles.note}>
-          Score past a mark in the arcade for 10 or 20 coins a run, up to {DAILY_COIN_CAP} a day ({remaining} left today).
+          Each place pays once per game. Climb higher and you get the difference.
         </Text>
         <View style={styles.shop}>
           <Bust look={NPC.look} size={36} />
@@ -201,7 +195,8 @@ const styles = StyleSheet.create({
   balance: { fontFamily: fonts.display, fontSize: 30, color: hud.forest, marginTop: 2 },
   unit: { fontSize: 13, fontWeight: "700", color: gold.text, marginBottom: 12 },
   heading: { alignSelf: "stretch", fontFamily: fonts.display, fontSize: 16, color: hud.forest, marginBottom: 6 },
-  row: { alignSelf: "stretch", gap: 2, paddingVertical: 7, paddingHorizontal: 12, marginBottom: 6, borderRadius: 14, backgroundColor: hud.primarySoft },
+  lead: { alignSelf: "stretch", fontSize: 13, lineHeight: 18, color: hud.primary, marginBottom: 6 },
+  row: { alignSelf: "stretch", flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, paddingVertical: 7, paddingHorizontal: 12, marginBottom: 6, borderRadius: 14, backgroundColor: hud.primarySoft },
   game: { fontWeight: "800", fontSize: 14, color: hud.forest },
   tiers: { fontWeight: "700", fontSize: 13, color: gold.text },
   note: { alignSelf: "stretch", fontSize: 13, lineHeight: 18, color: hud.primary, marginTop: 4 },

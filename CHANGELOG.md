@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.49] - 2026-11-25
+## [2.12.50] - 2026-11-25
 
 ### Changed
 - **A devotional's passage is chosen from lists instead of typed.** Pick the
@@ -17,6 +17,42 @@ All notable changes to **The SHED** mobile app. This project follows
   same form. "Type a reference instead" is still there for a passage the
   lists can't hold, like two passages or a range across chapters, and a saved
   one of those opens in the typed box.
+
+## [2.12.49] - 2026-11-25
+
+### Changed
+- **Games pay coins only for a top-3 place on the leaderboard.** 1st pays 50
+  coins, 2nd 25 and 3rd 10, on each game's leaderboard (Sky Shooter, Mystic
+  Man, Flap, Swoop and any game added later). You're paid when a new best
+  puts you in a place, and each place pays you once per game: climbing from
+  3rd to 1st pays the 40 you haven't had yet, and being knocked off 1st and
+  winning it back pays nothing more. Equal scores share a place, as the
+  leaderboard shows. Scoring past a mark no longer pays (Swoop's marks from
+  2.12.46 go too), and the 200-a-day limit is gone, since no game can pay
+  anyone more than 50. Coins you already have stay. If a game's leaderboard
+  is ever wiped, its places can be won again.
+- **The game-over card says why you earned coins**, such as "2nd place on
+  Flap: +25", and the coins card in the World lists what each place pays.
+
+### Fixed
+- **The coins chip on the game-over card shows up.** Since coins arrived in
+  2.12.37 the server paid a run but the card never showed the chip, because
+  it kept its first look (nothing paid yet) and missed the answer that came a
+  moment later.
+
+## [2.12.48] - 2026-11-25
+
+### Fixed
+- **Swoop's night is easier to read.** Once the sky turns dark, the
+  phone's clock, signal and battery turn white instead of staying black
+  on the navy sky.
+- **The character picker no longer shows Sij as a plain person icon.**
+  The faces are drawn by the World's character art, which loads after the
+  app starts. Until it arrived, Sij (and your own character) showed the
+  person icon that means "no World character", which on a slow first
+  load could stay for several seconds. Now a blank face shows while it
+  loads, and opening the Games menu starts loading the faces, so they're
+  usually ready by the time a game's start card appears.
 
 ## [2.12.47] - 2026-11-25
 
