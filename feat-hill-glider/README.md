@@ -6,20 +6,20 @@
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
 | native fingerprint | ✔ pass | 6s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 88s |  |
-| unused code (knip) | ✔ pass | 5s |  |
-| typecheck | ✔ pass | 24s |  |
-| unit tests with coverage | ✔ pass | 31s |  |
-| verify lock | ✔ pass | 302s | took it after waiting 302s for pid 65457, fix/world-looks-part3 in /Users/xtectra/GitHub/worktrees/the-shed-mobile-looks-part3, since 2026-11-24T12:22:21.337Z |
-| Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 15s | before functions on :3270 |
-| before: web | ✔ pass | 765s | 228 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
-| before: iOS reset | ✔ pass | 1s |  |
-| before: iOS | ✔ pass | 369s | 57 screenshots; still moving after 10 frames: admin-review, admin-all |
-| after: local backend | ✔ pass | 15s | after functions on :3270 |
-| after: web | ✔ pass | 738s | 228 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| lint | ✔ pass | 136s |  |
+| unused code (knip) | ✔ pass | 6s |  |
+| typecheck | ✔ pass | 42s |  |
+| unit tests with coverage | ✔ pass | 35s |  |
+| verify lock | ✔ pass | 81s | took it after waiting 81s for pid 50151, fix/world-looks-part3 in /Users/xtectra/GitHub/worktrees/the-shed-mobile-looks-part3, since 2026-11-24T13:34:55.395Z |
+| Playwright Chromium | ✔ pass | 2s |  |
+| before: local backend | ✔ pass | 29s | before functions on :3270 |
+| before: web | ✔ pass | 912s | 228 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: iOS reset | ✔ pass | 2s |  |
+| before: iOS | ✔ pass | 393s | 57 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: local backend | ✔ pass | 16s | after functions on :3270 |
+| after: web | ✔ pass | 764s | 228 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 356s | 57 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: iOS | ✔ pass | 378s | 57 screenshots; still moving after 10 frames: admin-review, admin-all |
 
 ## Screenshots
 
