@@ -43,6 +43,9 @@ export const useOtaState: () => (OtaState & { pending: boolean }) | null = otaUp
         pending: state.isUpdatePending,
         version: manifestVersion(update?.manifest),
         checked: state.lastCheckForUpdateTimeSinceRestart !== undefined || state.checkError !== undefined,
+        answered: state.lastCheckForUpdateTimeSinceRestart !== undefined && state.checkError === undefined,
+        inFlight:
+          state.isDownloading || state.isStartupProcedureRunning ? "download" : state.isChecking ? "check" : null,
       };
     }
   : () => null;

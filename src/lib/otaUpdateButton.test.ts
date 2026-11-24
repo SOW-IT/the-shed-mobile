@@ -13,8 +13,8 @@ import {
 import { restartHeld } from "./restartHold";
 
 const phone = { dev: false, web: false };
-const heardBack = { available: false, checked: true };
-const downloadable = { available: true, checked: true, version: "2.12.40" };
+const heardBack = { available: false, checked: true, answered: true, inFlight: null };
+const downloadable = { ...heardBack, available: true, version: "2.12.40" };
 
 describe("updateButtonFor", () => {
   test("restarts into an update for this build, whatever the server recommends", () => {
@@ -44,8 +44,26 @@ describe("updateButtonFor", () => {
   });
 
   test("nothing while the phone is still asking the update server", () => {
-    const asking = { available: false, checked: false };
+    const asking = { ...heardBack, checked: false, answered: false };
     expect(updateButtonFor({ ...phone, ota: asking, status: "recommended", latest: "2.13.0" })).toBeNull();
+  });
+
+  test("nothing while a retry runs after a failed check, then the store once it answers", () => {
+    const retrying = { ...heardBack, answered: false, inFlight: "check" as const };
+    expect(updateButtonFor({ ...phone, ota: retrying, status: "required", latest: "2.13.0" })).toBeNull();
+    expect(updateButtonFor({ ...phone, ota: heardBack, status: "required", latest: "2.13.0" })).toBe("store");
+  });
+
+  test("the store stays put while a regular check runs after an answer", () => {
+    const rechecking = { ...heardBack, inFlight: "check" as const };
+    expect(updateButtonFor({ ...phone, ota: rechecking, status: "recommended", latest: "2.13.0" })).toBe("store");
+  });
+
+  test("nothing while a download runs, but a known update is still a restart", () => {
+    const downloading = { ...heardBack, inFlight: "download" as const };
+    expect(updateButtonFor({ ...phone, ota: downloading, status: "recommended", latest: "2.13.0" })).toBeNull();
+    const fetching = { ...downloadable, inFlight: "download" as const };
+    expect(updateButtonFor({ ...phone, ota: fetching, status: "recommended", latest: "2.13.0" })).toBe("restart");
   });
 
   test("nothing when up to date", () => {

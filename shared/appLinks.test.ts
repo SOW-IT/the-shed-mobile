@@ -121,7 +121,7 @@ describe.each([
   });
 
   test("an over-the-air update is a restart; only a new build sends you to the store", () => {
-    const idle = { available: false, checked: true };
+    const idle = { available: false, checked: true, answered: true, inFlight: null };
     // An update for this build that reaches the target: restart, never the store.
     expect(updateRouteFor("2.12.17", { ...idle, available: true, version: "2.12.17" })).toBe("restart");
     expect(updateRouteFor("2.12.17", { ...idle, available: true, version: "2.13.0" })).toBe("restart");
@@ -133,5 +133,31 @@ describe.each([
     expect(updateRouteFor("2.12.17", idle)).toBe("store");
     expect(updateRouteFor("2.13.0", { ...idle, available: true, version: "2.12.17" })).toBe("store");
     expect(updateRouteFor("2.12.17", null)).toBe("store");
+  });
+
+  test("waits while a retry is running after the first check failed", () => {
+    const failed = { available: false, checked: true, answered: false, inFlight: null };
+    expect(updateRouteFor("2.12.17", failed)).toBe("store");
+    expect(updateRouteFor("2.12.17", { ...failed, inFlight: "check" })).toBe("wait");
+    expect(updateRouteFor("2.12.17", { ...failed, inFlight: "check", available: true, version: "2.12.16" })).toBe("wait");
+    expect(updateRouteFor("2.12.17", { ...failed, inFlight: "check", available: true, version: "2.12.17" })).toBe(
+      "restart"
+    );
+  });
+
+  test("a regular check after an answer keeps that answer until the new one arrives", () => {
+    const noUpdate = { available: false, checked: true, answered: true, inFlight: "check" as const };
+    expect(updateRouteFor("2.12.17", noUpdate)).toBe("store");
+    const tooOld = { ...noUpdate, available: true, version: "2.12.16" };
+    expect(updateRouteFor("2.12.17", tooOld)).toBe("store");
+    expect(updateRouteFor("2.12.16", tooOld)).toBe("restart");
+  });
+
+  test("waits while a download or the startup procedure is running", () => {
+    const downloading = { available: true, version: "2.12.16", checked: true, answered: true, inFlight: "download" as const };
+    expect(updateRouteFor("2.12.17", downloading)).toBe("wait");
+    expect(updateRouteFor("2.12.17", { ...downloading, available: false, version: undefined })).toBe("wait");
+    expect(updateRouteFor("2.12.17", { ...downloading, checked: false, answered: false })).toBe("wait");
+    expect(updateRouteFor("2.12.16", downloading)).toBe("restart");
   });
 });

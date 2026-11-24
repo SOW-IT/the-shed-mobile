@@ -63,17 +63,24 @@ export type OtaState = {
   available: boolean;
   /** The update's version, when its manifest says. */
   version?: string;
-  /** The phone has heard back from the update server since it started. */
+  /** The phone has heard back from the update server since it started, with an answer or an error. */
   checked: boolean;
+  /** The last check to finish got an answer from the server, not an error. */
+  answered: boolean;
+  /** What's running now: a check, or a download (the startup procedure counts, since it may download). */
+  inFlight: "check" | "download" | null;
 };
 
 /**
  * How a phone behind the version it should be on gets there: restarting into
  * an over-the-air update when there's one for its build that reaches the
  * target, or the store when only a new build will. "wait" while the phone
- * hasn't heard back from the update server, so it never sends someone to the
- * store for something a restart would fix. A build without over-the-air
- * updates (`ota` null) can only use the store.
+ * hasn't heard back from the update server, while a download is running, and
+ * while a check is running after the last one failed, so it never sends
+ * someone to the store for something a restart would fix. A check running
+ * after one that got an answer doesn't wait: that answer stands until the new
+ * one arrives, so the regular checks don't hide the store. A build without
+ * over-the-air updates (`ota` null) can only use the store.
  */
 export const updateRouteFor = (
   target: string | null,
@@ -84,7 +91,8 @@ export const updateRouteFor = (
     const reaches = !target || !ota.version || !isAppVersion(ota.version) || compareVersions(ota.version, target) >= 0;
     if (reaches) return "restart";
   }
-  if (!ota.checked) return "wait";
+  if (!ota.checked || ota.inFlight === "download") return "wait";
+  if (ota.inFlight === "check" && !ota.answered) return "wait";
   return "store";
 };
 
