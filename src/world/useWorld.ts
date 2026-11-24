@@ -16,6 +16,8 @@ import {
   pingEstimate,
   pingProbeDue,
   shouldPublishPing,
+  shownPing,
+  type PingReading,
   type PingBars,
   TYPING_REFRESH_MS,
   posAt,
@@ -36,6 +38,8 @@ type StateRow = NonNullable<FunctionReturnType<typeof api.world.state>>;
 type Session = { roomId: Id<"worldRooms">; memberId: MemberId; instance: number; place: Place };
 
 const placeFrom = (value: string): Place => (isPlace(value) ? value : "garden");
+
+const pingVisitKey = (session: Session) => `${session.memberId}:${session.roomId}`;
 
 export type WorldMember = {
   memberId: MemberId;
@@ -247,7 +251,8 @@ export const useWorld = (enabled: boolean, away = false) => {
   const fingerAt = useRef<{ x: number; z: number } | null>(null);
 
   const serverNow = useCallback(() => Date.now() + (offset.current ?? 0), []);
-  const [pingMs, setPingMs] = useState<number | null>(null);
+  const [pingReading, setPingReading] = useState<PingReading | null>(null);
+  const pingVisit = useRef<string | null>(null);
   const pingSamples = useRef<number[]>([]);
   const probedAt = useRef<number | null>(null);
   const probing = useRef(false);
@@ -706,14 +711,16 @@ export const useWorld = (enabled: boolean, away = false) => {
     probing.current = true;
     stats.current.probe++;
     const sentAt = performance.now();
+    const sentIn = pingVisit.current;
     probedAt.current = Date.now();
     convex
       .query(api.auth.isAuthenticated, {})
       .then(() => {
+        if (sentIn === null || sentIn !== pingVisit.current) return;
         pingSamples.current = addPingSample(pingSamples.current, performance.now() - sentAt);
         const ms = pingEstimate(pingSamples.current);
         if (ms === null) return;
-        setPingMs(Math.round(ms));
+        setPingReading({ visit: sentIn, ms: Math.round(ms) });
         publishPing(pingBars(ms));
       })
       .catch(() => undefined)
@@ -723,6 +730,7 @@ export const useWorld = (enabled: boolean, away = false) => {
   }, [convex, publishPing]);
   useEffect(() => {
     if (!session) return;
+    pingVisit.current = pingVisitKey(session);
     pingSamples.current = [];
     probedAt.current = null;
     const probe = () => {
@@ -760,6 +768,7 @@ export const useWorld = (enabled: boolean, away = false) => {
     };
   }, [session, heartbeatM, heard, again]);
 
+  const pingMs = shownPing(pingReading, session && pingVisitKey(session));
   const people: WorldMember[] = members.map((m) => {
     const row = states[m.memberId] as
       | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "seat" | "typing">)
@@ -782,7 +791,7 @@ export const useWorld = (enabled: boolean, away = false) => {
       away: state?.away,
       seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
       typing: state?.typing,
-      ping: m.isMe && pingMs !== null ? pingBars(pingMs) : m.ping,
+      ping: m.isMe ? (pingMs === null ? undefined : pingBars(pingMs)) : m.ping,
     };
   });
 

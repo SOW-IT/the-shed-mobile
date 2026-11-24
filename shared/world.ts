@@ -72,6 +72,11 @@ export const pingEstimate = (samples: readonly number[]): number | null => {
   return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
 
+export type PingReading = { visit: string; ms: number };
+
+export const shownPing = (reading: PingReading | null, visit: string | null): number | null =>
+  reading !== null && visit !== null && reading.visit === visit ? reading.ms : null;
+
 export const pingProbeDue = ({ taken, lastAt, now }: { taken: number; lastAt: number | null; now: number }): boolean =>
   lastAt === null || now - lastAt >= (taken < PING_FIRST_SAMPLES ? PING_FIRST_GAP_MS : PING_PROBE_MS);
 

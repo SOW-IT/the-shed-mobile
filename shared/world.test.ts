@@ -9,6 +9,7 @@ import {
   addPingSample,
   pingEstimate,
   pingProbeDue,
+  shownPing,
   PING_PROBE_MS,
   PING_SAMPLES,
   HEIGHT_SCALES,
@@ -564,6 +565,16 @@ describe("ping", () => {
     expect(samples).toEqual([30, 32, 29, 31, 35]);
     expect(samples.length).toBe(PING_SAMPLES);
     expect(pingEstimate(samples)).toBe(31);
+  });
+
+  test("a new visit or room shows measuring until its own first probe lands", () => {
+    const reading = { visit: "me:garden-1", ms: 42 };
+    expect(shownPing(reading, "me:garden-1")).toBe(42);
+    expect(shownPing(reading, "me:cafe-1")).toBeNull();
+    expect(shownPing(reading, "again:garden-1")).toBeNull();
+    expect(shownPing(reading, null)).toBeNull();
+    expect(shownPing(null, "me:garden-1")).toBeNull();
+    expect(shownPing({ visit: "me:cafe-1", ms: 31 }, "me:cafe-1")).toBe(31);
   });
 
   test("a probe's time is clamped to a sane range", () => {
