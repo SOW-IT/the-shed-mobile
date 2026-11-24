@@ -37,6 +37,7 @@ import { PersonSheet } from "./Sheets";
 import { PeoplePanel } from "./People";
 import { connectionLabel, LeaveDialog, PLACE_ICONS, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
 import { useWorld } from "./useWorld";
+import { useForeground } from "./useForeground";
 import { pickView } from "./view";
 import { ChatBar, CHAT_BAR_HEIGHT } from "./ChatBar";
 import { ChatLog } from "./ChatLog";
@@ -219,6 +220,7 @@ export const WorldScreen = ({
   away?: boolean;
 }) => {
   const offline = useOffline();
+  const foreground = useForeground();
   const screenReader = useScreenReader();
   const view = pickView({ offline, screenReader, canDraw: Platform.OS !== "android" });
   const world = useWorld(!offline && active, away, arrival, view === "list");
@@ -911,6 +913,7 @@ export const WorldScreen = ({
             ? { selected: chosenItem, onItem: setChosenItem, onFloor: moveChosen, actions: itemActions, hudTop: insets.top + (coinsBeside ? 66 : 104) + 8 }
             : null
         }
+        paused={!foreground || editing}
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <View style={styles.left}>

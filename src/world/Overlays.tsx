@@ -1,7 +1,7 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { PLACE_TITLES, type Look, type Place } from "@shared/world";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { glass, hud, signal, signalColour } from "./palette";
 import { Avatar } from "./Person";
@@ -91,18 +91,15 @@ export const itemStyle = ({ clock, calm }: OverlayClock, index: number) => {
 
 export const blurBehind = (Platform.OS === "web" ? { backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" } : {}) as unknown as ViewStyle;
 
-export const Bust = ({ look, size }: { look: Look; size: number }) => (
-  <View pointerEvents="none" style={[styles.bust, { width: size, height: size, borderRadius: size / 2, backgroundColor: backdropOf(look) }]}>
-    <Avatar
-      figure={bustFigure(look, size)}
-      pose={{ x: 0, z: 0, walking: false, arrivesAt: 0, heading: 0 }}
-      look={look}
-      t={0}
-      seed={0}
-      shadow={false}
-    />
-  </View>
-);
+const BUST_POSE = { x: 0, z: 0, walking: false, arrivesAt: 0, heading: 0 };
+
+export const Bust = memo(function Bust({ look, size }: { look: Look; size: number }) {
+  return (
+    <View pointerEvents="none" style={[styles.bust, { width: size, height: size, borderRadius: size / 2, backgroundColor: backdropOf(look) }]}>
+      <Avatar figure={bustFigure(look, size)} pose={BUST_POSE} look={look} t={0} seed={0} shadow={false} />
+    </View>
+  );
+});
 
 const QUALITY = ["unknown", "poor", "fair", "good", "great"] as const;
 

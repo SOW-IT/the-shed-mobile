@@ -31,6 +31,8 @@ const blocky = Platform.select({
   default: "ui-monospace, Menlo, Consolas, monospace",
 });
 
+const HUD_CHAT_LIMIT = 30;
+
 export const ChatLog = ({
   roomId,
   muted,
@@ -44,7 +46,7 @@ export const ChatLog = ({
   serverNow: () => number;
   status: string | null;
 }) => {
-  const log = useQuery(api.world.chatLog, roomId ? { roomId } : "skip");
+  const log = useQuery(api.world.chatLog, roomId ? { roomId, limit: HUD_CHAT_LIMIT } : "skip");
   const [times] = useWorldSetting("chatTimes");
   const [names] = useWorldSetting("chatNames");
   const format = { times: times === "on", names };

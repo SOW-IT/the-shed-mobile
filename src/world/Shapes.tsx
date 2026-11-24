@@ -64,7 +64,7 @@ export const Shape = memo(function Shape({ prim }: { prim: Prim }) {
  * An ellipse, drawn as a circle squashed upright so it's an ellipse on every
  * platform. `ramp` adds the toon steps: a lighter ball toward the sun.
  */
-export const Ellipse = ({
+export const Ellipse = memo(function Ellipse({
   cx,
   cy,
   rx,
@@ -86,7 +86,7 @@ export const Ellipse = ({
   dashed?: boolean;
   ramp?: boolean;
   opacity?: number;
-}) => {
+}) {
   if (rx <= 0 || ry <= 0) return null;
   const squash = ry / rx;
   // Ink is a circle behind the fill, not a border: on iOS a clipped child
@@ -157,7 +157,7 @@ export const Ellipse = ({
       ) : null}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   abs: { position: "absolute" },

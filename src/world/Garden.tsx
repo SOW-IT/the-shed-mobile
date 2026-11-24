@@ -124,6 +124,7 @@ export const Garden = ({
   decor = null,
   ball = null,
   onKick,
+  paused = false,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -158,6 +159,7 @@ export const Garden = ({
   } | null;
   ball?: Ball | null;
   onKick?: (dirX: number, dirZ: number) => void;
+  paused?: boolean;
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -170,6 +172,33 @@ export const Garden = ({
   };
   const cam = useMemo(() => size && makeCamera(size.width, size.height, FOCUS), [size]);
   const scene = useMemo(() => cam && buildScene(place, cam, home ?? undefined), [cam, place, home]);
+  const propActors = useMemo(
+    () =>
+      scene
+        ? scene.props.map((prop) => ({
+            depth: prop.depth,
+            key: prop.id,
+            node: <PropView prop={prop} />,
+          }))
+        : [],
+    [scene]
+  );
+  const padSpots = useMemo(
+    () =>
+      cam
+        ? PORTALS[place].map((pad) => {
+            const below = cam.project([pad.x, 0, pad.z + PORTAL_RADIUS + 0.45]);
+            const above = cam.project([pad.x, 0, pad.z - PORTAL_RADIUS - 0.45]);
+            const at = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM ? { x: above.x, y: above.y - 14 } : below;
+            return {
+              to: pad.to,
+              left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4),
+              top: at.y - 10,
+            };
+          })
+        : [],
+    [cam, place]
+  );
   const npcHere = place === NPC.place;
 
   const saver = useBatterySaver();
@@ -284,7 +313,7 @@ export const Garden = ({
   });
   const animating =
     poses.some((pose) => pose && (pose.walking || pose.strideAmp > 0 || pose.turning)) ||
-    swimmers.some((swimming, i) => swimming && (!saver || poses[i]?.walking === true)) ||
+    swimmers.some((swimming, i) => swimming && poses[i]?.walking === true) ||
     doing.some((d) => d !== null) ||
     asks.length > 0 ||
     (!saver && typingSince.some((at) => at !== undefined)) ||
@@ -295,6 +324,8 @@ export const Garden = ({
   useFrameTicks(
     planClock({
       moving: animating,
+      ambient: swimmers.some(Boolean),
+      paused,
       now,
       saver,
       deadlines: people.flatMap((p) => [
@@ -454,12 +485,7 @@ export const Garden = ({
 
   if (!cam || !scene) return <View style={styles.fill} onLayout={onLayout} />;
 
-  // Props and people, far to near.
-  const actors: { depth: number; key: string; node: ReactNode; tag?: boolean }[] = scene.props.map((prop) => ({
-    depth: prop.depth,
-    key: prop.id,
-    node: <PropView prop={prop} />,
-  }));
+  const actors: { depth: number; key: string; node: ReactNode; tag?: boolean }[] = [...propActors];
   if (npcHere) {
     const figure = figureFor(cam, NPC_POSE);
     actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={0} seed={3} /> });
@@ -608,15 +634,12 @@ export const Garden = ({
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Layer prims={scene.ground} />
         <Layer prims={scene.backdrop} />
-        {PORTALS[place].map((pad) => {
-          const below = cam.project([pad.x, 0, pad.z + PORTAL_RADIUS + 0.45]);
-          const above = cam.project([pad.x, 0, pad.z - PORTAL_RADIUS - 0.45]);
-          const at = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM ? { x: above.x, y: above.y - 14 } : below;
+        {padSpots.map((pad) => {
           const here = placeCounts?.[pad.to] ?? 0;
           return (
             <View
               key={`pad-${pad.to}`}
-              style={[styles.padLabel, { left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4), top: at.y - 10 }]}
+              style={[styles.padLabel, { left: pad.left, top: pad.top }]}
             >
               <Text style={styles.padLabelText} numberOfLines={1}>
                 {here > 0 ? `${PLACE_TITLES[pad.to]} · ${here}` : PLACE_TITLES[pad.to]}

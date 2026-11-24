@@ -1450,8 +1450,16 @@ const AvatarView = ({
   );
 };
 
-const sameLook = (a: Look, b: Look) =>
-  a === b || (Object.keys({ ...a, ...b }) as (keyof Look)[]).every((k) => a[k] === b[k]);
+const sameLook = (a: Look, b: Look) => {
+  if (a === b) return true;
+  for (const k in a) {
+    if (a[k as keyof Look] !== b[k as keyof Look]) return false;
+  }
+  for (const k in b) {
+    if (!(k in a) && b[k as keyof Look] !== undefined) return false;
+  }
+  return true;
+};
 
 const sameDoing = (a: Doing, b: Doing) =>
   a === b ||

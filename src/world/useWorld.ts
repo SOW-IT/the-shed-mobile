@@ -33,6 +33,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { carryGait, restingGait, type Gait } from "./gait";
+import { subscribeForeground } from "./useForeground";
 import type { Id } from "../../convex/_generated/dataModel";
 
 type MemberId = Id<"worldMembers">;
@@ -178,12 +179,16 @@ const showLine = (store: OptimisticLocalStore, { text }: { text: string }) => {
   const line = cleanLine(text);
   if (!me || !line) return;
   const at = clock();
-  patchMine(store, (row) => ({ ...row, say: { text: line, at } }));
+  patchMine(store, (row) => ({ ...row, say: { text: line, at }, typing: undefined }));
   const log = store.getQuery(api.world.chatLog, { roomId: me.roomId });
   if (log) {
-    // Marked pending by its id until the server's line replaces it.
     const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true, kind: undefined };
     store.setQuery(api.world.chatLog, { roomId: me.roomId }, [pending, ...log]);
+  }
+  for (const { args, value } of store.getAllQueries(api.world.chatLog)) {
+    if (args.roomId !== me.roomId || args.limit === undefined || !value) continue;
+    const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true, kind: undefined };
+    store.setQuery(api.world.chatLog, args, [pending, ...value].slice(0, args.limit));
   }
 };
 
@@ -562,8 +567,10 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [session, retarget, sendNow]
   );
 
+  const typingSentAt = useRef<number | null>(null);
   const say = useCallback(
     async (text: string): Promise<string | null> => {
+      typingSentAt.current = null;
       const sentAt = Date.now();
       stats.current.say++;
       try {
@@ -671,7 +678,6 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [session, travelM, heard, again, spendAct]
   );
 
-  const typingSentAt = useRef<number | null>(null);
   const typing = useCallback(
     (on: boolean) => {
       if (!session) return;
@@ -807,29 +813,52 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     return () => clearInterval(id);
   }, [session, probePing]);
 
-  // "Still here", only after a quiet spell. No query reads it, so it pushes nothing.
   useEffect(() => {
     if (!session) return;
+    let cancelled = false;
+    let id: ReturnType<typeof setTimeout> | null = null;
+    const clear = () => {
+      if (id !== null) {
+        clearTimeout(id);
+        id = null;
+      }
+    };
+    const schedule = () => {
+      clear();
+      if (cancelled) return;
+      const elapsed = Date.now() - lastAction.current;
+      const wait = Math.max(0, HEARTBEAT_IDLE_MS - elapsed);
+      id = setTimeout(() => {
+        id = null;
+        if (cancelled) return;
+        const since = Date.now() - lastAction.current;
+        if (since >= HEARTBEAT_IDLE_MS) checkIn();
+        else schedule();
+      }, wait);
+    };
     const checkIn = () => {
       const sentAt = Date.now();
       lastAction.current = sentAt;
       stats.current.heartbeat++;
       heartbeatM({})
         .then((reply) => {
+          if (cancelled) return;
           heard(reply.serverNow, sentAt);
           if (!reply.present) again();
         })
-        .catch(() => undefined);
+        .catch(() => undefined)
+        .finally(() => {
+          if (!cancelled) schedule();
+        });
     };
-    const id = setInterval(() => {
-      if (Date.now() - lastAction.current >= HEARTBEAT_IDLE_MS) checkIn();
-    }, 5000);
-    const resumed = AppState.addEventListener("change", (state) => {
-      if (state === "active") checkIn();
+    schedule();
+    const stop = subscribeForeground((active) => {
+      if (active) checkIn();
     });
     return () => {
-      clearInterval(id);
-      resumed.remove();
+      cancelled = true;
+      clear();
+      stop();
     };
   }, [session, heartbeatM, heard, again]);
 

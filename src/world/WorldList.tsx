@@ -136,11 +136,9 @@ export const WorldList = ({
     const text = draft.trim();
     if (!text) return;
     setDraft("");
-    world.typing(false);
     const problem = await world.say(text);
     if (problem) {
       onNote(problem);
-      // Put it back, unless they've started typing something new.
       setDraft((current) => (current === "" ? text : current));
     }
   };

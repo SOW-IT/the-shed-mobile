@@ -64,11 +64,15 @@ export const ChatBar = ({
   };
   const shownAt = useRef<number | null>(null);
 
+  const hideTyping = () => {
+    if (shownAt.current !== null) onTypingAt(null);
+    shownAt.current = null;
+  };
+
   const markTyping = (on: boolean) => {
     typing(on);
     if (!on) {
-      if (shownAt.current !== null) onTypingAt(null);
-      shownAt.current = null;
+      hideTyping();
       return;
     }
     const at = serverNow();
@@ -86,7 +90,7 @@ export const ChatBar = ({
     const text = draft.trim();
     if (!text) return;
     setDraft("");
-    markTyping(false);
+    hideTyping();
     const problem = await say(text);
     if (problem) {
       onNote(problem);

@@ -1,12 +1,12 @@
 import { DUEL_PICK_ORDER, DUEL_PICKS, isDuelPick, type DuelPick } from "@shared/world";
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { announce } from "./announce";
 import { choosing, type DuelView } from "./duel";
+import { nextDuelWakeMs } from "./duelTiming";
 import { hud } from "./palette";
 
-const TICK_MS = 100;
-
+const NATIVE = Platform.OS !== "web";
 const pickName = (pick: string) => (isDuelPick(pick) ? DUEL_PICKS[pick].label.toLowerCase() : pick);
 const pickIcon = (pick: string) => (isDuelPick(pick) ? DUEL_PICKS[pick].icon : "");
 
@@ -26,15 +26,32 @@ export const DuelCard = ({
   showResult?: boolean;
 }) => {
   const [now, setNow] = useState(serverNow);
+  const [bar] = useState(() => new Animated.Value(1));
   const live = choosing(duel, now);
+  const startsAt = duel?.startsAt ?? 0;
   const endsAt = duel?.endsAt ?? 0;
   const round = duel?.round ?? 1;
-  const waiting = duel !== null && (!duel.done || showResult);
+  const wakeMs = nextDuelWakeMs(duel, now, showResult);
   useEffect(() => {
-    if (!waiting) return;
-    const id = setInterval(() => setNow(serverNow()), TICK_MS);
-    return () => clearInterval(id);
-  }, [waiting, endsAt, serverNow]);
+    if (wakeMs === null) return;
+    const id = setTimeout(() => setNow(serverNow()), wakeMs);
+    return () => clearTimeout(id);
+  }, [wakeMs, duel, serverNow]);
+  useEffect(() => {
+    if (!live || endsAt <= startsAt) return;
+    const current = serverNow();
+    const remaining = Math.max(0, endsAt - current);
+    const initial = Math.max(0, Math.min(1, remaining / (endsAt - startsAt)));
+    bar.setValue(initial);
+    const run = Animated.timing(bar, {
+      toValue: 0,
+      duration: remaining,
+      easing: Easing.linear,
+      useNativeDriver: NATIVE,
+    });
+    run.start();
+    return () => run.stop();
+  }, [live, startsAt, endsAt, round, bar, serverNow]);
   useEffect(() => {
     if (live) announce(round > 1 ? "Draw. Pick again." : `Rock paper scissors with ${opponentName}. Pick one.`);
   }, [live, round, opponentName]);
@@ -76,7 +93,6 @@ export const DuelCard = ({
     );
   }
   const left = Math.max(0, Math.ceil((duel.endsAt - now) / 1000));
-  const share = Math.max(0, Math.min(1, (duel.endsAt - now) / (duel.endsAt - duel.startsAt)));
   return (
     <View style={styles.card} testID="world-duel">
       <View style={styles.head}>
@@ -107,7 +123,7 @@ export const DuelCard = ({
         })}
       </View>
       <View style={styles.track}>
-        <View style={[styles.left, { width: `${share * 100}%` }]} />
+        <Animated.View style={[styles.left, { transform: [{ scaleX: bar }] }]} />
       </View>
     </View>
   );
@@ -146,5 +162,5 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: "700", color: hud.forest, marginTop: 2 },
   pickedLabel: { color: hud.onAccent },
   track: { height: 5, borderRadius: 3, backgroundColor: hud.primarySoft, overflow: "hidden" },
-  left: { height: 5, backgroundColor: hud.accent },
+  left: { width: "100%", height: 5, backgroundColor: hud.accent, transformOrigin: "left" },
 });

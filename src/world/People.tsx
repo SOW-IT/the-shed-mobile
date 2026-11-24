@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
 import { isPlace, MAX_POKE_LENGTH, PLACE_TITLES, PLACES, tagName, type Look, type Place } from "@shared/world";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -15,7 +15,7 @@ import type { WorldMember } from "./useWorld";
 
 const OFFLINE_PAGE = 25;
 
-const PersonRow = ({
+const PersonRow = memo(function PersonRow({
   look,
   name,
   where,
@@ -33,30 +33,32 @@ const PersonRow = ({
   label: string;
   action?: ReactNode;
   testID?: string;
-}) => (
-  <View style={styles.row}>
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      accessibilityRole={onPress ? "button" : undefined}
-      accessibilityLabel={`${label}. ${connectionLabel(ping)}`}
-      testID={testID}
-      style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
-    >
-      <Bust look={look} size={40} />
-      <View style={styles.grow}>
-        <Text style={styles.name} numberOfLines={1}>
-          {name}
-        </Text>
-        <Text style={styles.where} numberOfLines={1}>
-          {where}
-        </Text>
-      </View>
-    </Pressable>
-    {action}
-    <SignalBars bars={ping} />
-  </View>
-);
+}) {
+  return (
+    <View style={styles.row}>
+      <Pressable
+        onPress={onPress}
+        disabled={!onPress}
+        accessibilityRole={onPress ? "button" : undefined}
+        accessibilityLabel={`${label}. ${connectionLabel(ping)}`}
+        testID={testID}
+        style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
+      >
+        <Bust look={look} size={40} />
+        <View style={styles.grow}>
+          <Text style={styles.name} numberOfLines={1}>
+            {name}
+          </Text>
+          <Text style={styles.where} numberOfLines={1}>
+            {where}
+          </Text>
+        </View>
+      </Pressable>
+      {action}
+      <SignalBars bars={ping} />
+    </View>
+  );
+});
 
 const Section = ({ children }: { children: string }) => <Text style={styles.section}>{children}</Text>;
 

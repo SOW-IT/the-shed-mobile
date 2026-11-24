@@ -1,21 +1,28 @@
 import { useEffect } from "react";
 
 export const SAVER_FRAME_MS = 1000 / 30;
+export const AMBIENT_FRAME_MS = 1000 / 15;
 
 type ClockPlan = { kind: "frames"; frameMs: number } | { kind: "wake"; at: number } | { kind: "still" };
 
 export const planClock = ({
   moving,
+  ambient = false,
+  paused = false,
   now,
   deadlines,
   saver,
 }: {
   moving: boolean;
+  ambient?: boolean;
+  paused?: boolean;
   now: number;
   deadlines: readonly (number | undefined)[];
   saver: boolean;
 }): ClockPlan => {
+  if (paused) return { kind: "still" };
   if (moving) return { kind: "frames", frameMs: saver ? SAVER_FRAME_MS : 0 };
+  if (ambient && !saver) return { kind: "frames", frameMs: AMBIENT_FRAME_MS };
   let next = Infinity;
   for (const at of deadlines) if (at !== undefined && at > now && at < next) next = at;
   return next === Infinity ? { kind: "still" } : { kind: "wake", at: next };
