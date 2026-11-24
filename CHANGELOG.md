@@ -10,10 +10,10 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Changed
 - **The World uses less battery and network traffic.** The scene now pauses
-  its animation clock and idle heartbeats while the app is in the background
-  or covered by the full-screen character editor, and the character editor
-  preview only animates while turning or zooming instead of redrawing 60 times
-  a second at rest. Standing still in water runs at a gentler ambient cadence
+  its animation clock while the app is in the background or covered by the
+  full-screen character editor, and the character editor preview only
+  animates while turning or zooming instead of redrawing 60 times a second at
+  rest. With Reduce Motion on, the preview no longer turns by itself. Standing still in water runs at a gentler ambient cadence
   while swimming stays at full speed. Sending a chat message no longer fires a
   separate typing write before the message, the floating chat log loads the
   most recent 30 lines instead of 150, rock paper scissors countdowns update

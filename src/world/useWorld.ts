@@ -29,7 +29,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { carryGait, restingGait, type Gait } from "./gait";
-import { isAppActive, subscribeForeground } from "./useForeground";
+import { subscribeForeground } from "./useForeground";
 import type { Id } from "../../convex/_generated/dataModel";
 
 type MemberId = Id<"worldMembers">;
@@ -780,12 +780,12 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     };
     const schedule = () => {
       clear();
-      if (cancelled || !isAppActive()) return;
+      if (cancelled) return;
       const elapsed = Date.now() - lastAction.current;
       const wait = Math.max(0, HEARTBEAT_IDLE_MS - elapsed);
       id = setTimeout(() => {
         id = null;
-        if (cancelled || !isAppActive()) return;
+        if (cancelled) return;
         const since = Date.now() - lastAction.current;
         if (since >= HEARTBEAT_IDLE_MS) checkIn();
         else schedule();
@@ -809,7 +809,6 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     schedule();
     const stop = subscribeForeground((active) => {
       if (active) checkIn();
-      else clear();
     });
     return () => {
       cancelled = true;

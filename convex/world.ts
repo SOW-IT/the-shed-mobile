@@ -1185,7 +1185,7 @@ export const chatLog = query({
   handler: async (ctx, { roomId, limit }) => {
     const me = await meIn(ctx, roomId);
     if (!me) return null;
-    const cap = limit === undefined ? CHAT_LOG_SIZE : Math.min(CHAT_LOG_SIZE, Math.max(1, Math.floor(limit)));
+    const cap = limit === undefined || !Number.isFinite(limit) ? CHAT_LOG_SIZE : Math.min(CHAT_LOG_SIZE, Math.max(1, Math.floor(limit)));
     const isBlocked = await loadBlockFilter(ctx, me.email);
     const rows = ctx.db
       .query("worldChat")

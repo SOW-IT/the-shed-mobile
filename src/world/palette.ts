@@ -297,13 +297,13 @@ export const isLight = (hex: string) => lightness(hex) > 200;
 export const lightToDark = (colours: readonly string[]): number[] =>
   colours.map((_, i) => i).sort((a, b) => lightness(colours[b]) - lightness(colours[a]));
 
+const SHADE_CACHE_MAX = 512;
+const shadeCache = new Map<string, string>();
+
 /**
  * A colour mixed toward white (amount > 0) or black (amount < 0): the steps
  * of the toon ramp on a face or a ball.
  */
-const SHADE_CACHE_MAX = 512;
-const shadeCache = new Map<string, string>();
-
 export const shade = (hex: string, amount: number): string => {
   const key = `${hex}:${amount}`;
   const cached = shadeCache.get(key);

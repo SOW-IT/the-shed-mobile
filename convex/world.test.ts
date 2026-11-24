@@ -1846,5 +1846,7 @@ describe("an hour of chat", () => {
     expect(capped.map((l) => l.text)).toEqual(["msg 9", "msg 8", "msg 7"]);
     const minCapped = (await anna.query(api.world.chatLog, { roomId: a.roomId, limit: 0 }))!;
     expect(minCapped).toHaveLength(1);
+    const notANumber = (await anna.query(api.world.chatLog, { roomId: a.roomId, limit: Number.NaN }))!;
+    expect(notANumber).toHaveLength(11);
   });
 });
