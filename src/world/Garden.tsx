@@ -35,9 +35,12 @@ import { footprint, isFurniture } from "@shared/home";
 import { Avatar, figureFor, headTop, hitBox, palmHeight, sitRise, swimSink, Tag, touchK, type Doing } from "./Person";
 import { accepted } from "./announce";
 import type { DrawnPose, Gait } from "./gait";
+import { Marker } from "./Marker";
 import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
 import { duelLookFor, type DuelView } from "./duel";
+import { planClock, useFrameTicks } from "./frameClock";
+import { tagShown, useBatterySaver, useWorldSetting } from "./settings";
 import { layerOrder } from "./tags";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
@@ -81,24 +84,18 @@ const PropView = memo(function PropView({ prop }: { prop: Prop }) {
   return <Layer prims={prop.prims} />;
 });
 
-/** Redraws every animation frame while `on`, and once a second otherwise. */
-const useClock = (on: boolean): number => {
-  const [t, setT] = useState(() => Date.now());
-  useEffect(() => {
-    if (!on) {
-      const id = setInterval(() => setT(Date.now()), 1000);
-      return () => clearInterval(id);
-    }
-    let frame = 0;
-    const tick = () => {
-      setT(Date.now());
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [on]);
-  return t;
+const startsOf = (people: readonly { reply?: Reply }[], seen: Record<string, number>) => {
+  const current: Record<string, number> = {};
+  for (const p of people) {
+    if (!p.reply) continue;
+    const key = `${p.reply.to}:${p.reply.askAt}`;
+    current[key] = seen[key] ?? p.reply.at;
+  }
+  return current;
 };
+
+const sameStarts = (a: Record<string, number>, b: Record<string, number>) =>
+  Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((k) => a[k] === b[k]);
 
 /**
  * The garden drawn with plain views: no GL, so it runs on the Simulator and
@@ -175,28 +172,19 @@ export const Garden = ({
   const scene = useMemo(() => cam && buildScene(place, cam, home ?? undefined), [cam, place, home]);
   const npcHere = place === NPC.place;
 
-  const now = serverNow();
+  const saver = useBatterySaver();
+  const [tagMode] = useWorldSetting("nameTags");
+  const [now, setNow] = useState(serverNow);
   // Your own walk as it is; others glide toward each new walk from the server.
   // A copy: a high five below steps people in and out of where they're drawn.
   const poses = [...useGlide(people, now)];
   // When each accepted mutual action was first seen to start (see below).
+  // Kept only while that reply stays on screen without a break: the
+  // optimistic one hands straight over to the server's, but a refused accept
+  // vanishes, so a retry starts afresh.
   const [firstStarts, setFirstStarts] = useState<Record<string, number>>({});
-  const replyKeys = people.map((p) => (p.reply ? `${p.reply.to}:${p.reply.askAt}:${p.reply.at}` : "")).join(",");
-  useEffect(() => {
-    // Kept only while that reply stays on screen without a break: the
-    // optimistic one hands straight over to the server's, but a refused accept
-    // vanishes, so a retry starts afresh.
-    const current: Record<string, number> = {};
-    for (const p of people) {
-      if (!p.reply) continue;
-      const key = `${p.reply.to}:${p.reply.askAt}`;
-      current[key] = firstStarts[key] ?? p.reply.at;
-    }
-    const same = Object.keys(current).length === Object.keys(firstStarts).length && Object.keys(current).every((k) => current[k] === firstStarts[k]);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- remember a start the first time it's seen
-    if (!same) setFirstStarts(current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the replies, not the arrays
-  }, [replyKeys]);
+  const currentStarts = startsOf(people, firstStarts);
+  if (!sameStarts(currentStarts, firstStarts)) setFirstStarts(currentStarts);
   const sitting = people.map((p, i) => {
     const pose = poses[i];
     const seat = seatIn(place, p.seat);
@@ -209,7 +197,7 @@ export const Garden = ({
   // What each person is doing: a mutual action with someone (worked out from
   // the asker's ask and the other's answer), or else an emote.
   const doing: Doing[] = people.map(() => null);
-  const startedAt = firstStarts;
+  const startedAt = currentStarts;
   // Where each high five's palms meet (world), and how far into the reach.
   const touches: { x: number; y: number; z: number; k: number; i: number; j: number }[] = [];
   const facingOverride: (number | null)[] = people.map(() => null);
@@ -269,7 +257,7 @@ export const Garden = ({
       !declined.has(`${p.memberId}:${p.ask.at}`) &&
       !accepted(me >= 0 ? people[me] : undefined, p.memberId, p.ask.at)
   );
-  const bubbleFades = people.map((p) => (p.muted || !p.say ? 0 : bubbleFade(now - p.say.at)));
+  const bubbleFades = people.map((p) => (p.muted || !p.say ? 0 : saver ? (bubbleFade(now - p.say.at) > 0 ? 1 : 0) : bubbleFade(now - p.say.at)));
   const typingSince = people.map((p) =>
     !p.muted && p.typing !== undefined && now - p.typing < TYPING_MS && (!p.say || p.say.at < p.typing) ? p.typing : undefined
   );
@@ -296,16 +284,35 @@ export const Garden = ({
   });
   const animating =
     poses.some((pose) => pose && (pose.walking || pose.strideAmp > 0 || pose.turning)) ||
-    swimmers.some(Boolean) ||
+    swimmers.some((swimming, i) => swimming && (!saver || poses[i]?.walking === true)) ||
     doing.some((d) => d !== null) ||
     asks.length > 0 ||
-    typingSince.some((at) => at !== undefined) ||
+    (!saver && typingSince.some((at) => at !== undefined)) ||
     talking.some((open) => open !== undefined) ||
     rolled?.rolling === true ||
     duelLooks.some((look) => look !== null) ||
-    people.some((p) => !p.muted && p.say !== undefined && bubbleMoving(now - p.say.at)) ||
-    (target !== null && placed !== null && Math.hypot(placed.x - target.x, placed.z - target.z) > 0.05);
-  const t = useClock(animating) / 1000;
+    (!saver && people.some((p) => !p.muted && p.say !== undefined && bubbleMoving(now - p.say.at)));
+  useFrameTicks(
+    planClock({
+      moving: animating,
+      now,
+      saver,
+      deadlines: people.flatMap((p) => [
+        p.say && p.say.at,
+        p.say && p.say.at + BUBBLE_IN_MS,
+        p.say && p.say.at + BUBBLE_MS - BUBBLE_OUT_MS,
+        p.say && p.say.at + BUBBLE_MS,
+        p.act && p.act.at + EMOTE_MS,
+        p.typing === undefined ? undefined : p.typing + TYPING_MS,
+        p.ask && p.ask.at + ASK_MS,
+        p.reply && p.reply.at,
+      ]).concat(ball ? [ball.at] : []),
+    }),
+    serverNow,
+    setNow
+  );
+  const t = now / 1000;
+  const mine = me >= 0 ? poses[me] : null;
   const press = useRef<{
     x: number;
     y: number;
@@ -503,7 +510,7 @@ export const Garden = ({
           <Avatar figure={figure} pose={turned} look={p.look} t={0} seed={seed} stride={stride} />
         </View>
       ) : (
-        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d || swimming ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} talk={talking[i]} />
+        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d || (swimming && !saver) ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} talk={talking[i]} />
       ),
     });
     const duelLook = duelLooks[i];
@@ -526,6 +533,8 @@ export const Garden = ({
     const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? swimSink(p.look) : 0), pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
+    const speaking = Boolean(line || waiting || emote || p.away) || typing !== undefined;
+    if (!tagShown({ mode: tagMode, me: p.me, distance: mine ? Math.hypot(pose.x - mine.x, pose.z - mine.z) : null, speaking })) return;
     actors.push({
       depth: figure.foot.depth,
       key: `${p.memberId}:tag`,
@@ -537,12 +546,13 @@ export const Garden = ({
           name={name}
           me={p.me}
           line={line ?? waiting}
-          typing={typing === undefined ? undefined : t}
+          typing={typing === undefined ? undefined : saver ? 0 : t}
           emote={emote}
           emoteRise={rise}
           lineFade={line && !chant ? bubbleFades[i] : 1}
           status={p.away ? AWAY_STATUS : undefined}
           shout={chant !== undefined && SHOUTS.has(chant)}
+          calm={saver}
         />
       ),
     });
@@ -554,40 +564,17 @@ export const Garden = ({
     const a = poses[c.i];
     const b = poses[c.j];
     const front = Math.min(a ? cam.project([a.x, 0, a.z]).depth : at.depth, b ? cam.project([b.x, 0, b.z]).depth : at.depth);
-    actors.push({ depth: front - 0.01, key: `touch-${c.i}-${c.j}`, node: <Spark x={at.x} y={at.y} size={at.scale * 0.55} t={t} /> });
+    actors.push({ depth: front - 0.01, key: `touch-${c.i}-${c.j}`, node: <Spark x={at.x} y={at.y} size={at.scale * 0.55} t={saver ? 0 : t} /> });
   }
   // The tap marker: a spinning flower with a bobbing pin, until you arrive.
   if (target && placed && Math.hypot(placed.x - target.x, placed.z - target.z) > 0.05) {
     const base = cam.project([target.x, 0, target.z]);
-    const pin = cam.project([target.x, 0.85 + Math.sin(t * 4) * 0.1, target.z]);
-    const k = (t * 0.9) % 1;
+    const pinLow = cam.project([target.x, 0.75, target.z]);
+    const pinHigh = cam.project([target.x, 0.95, target.z]);
     actors.push({
       depth: base.depth,
       key: "marker",
-      node: (
-        <>
-          <Ellipse cx={base.x} cy={base.y} rx={(0.6 + k * 0.9) * 0.6 * base.scale} ry={(0.6 + k * 0.9) * 0.36 * base.scale} fill="transparent" ink={2} inkColour={garden.ring} dashed={false} opacity={1 - k} />
-          {[0, 1, 2, 3, 4, 5].map((n) => {
-            const a = (n / 6) * Math.PI * 2 + t * 0.8;
-            const p = cam.project([target.x + Math.cos(a) * 0.24, 0.06, target.z + Math.sin(a) * 0.24]);
-            return <Ellipse key={`petal${n}`} cx={p.x} cy={p.y} rx={0.14 * p.scale} ry={0.08 * p.scale} fill={garden.markerPetal} ink={1.2} inkColour={garden.ink} />;
-          })}
-          <Ellipse cx={base.x} cy={base.y - 0.06 * base.scale} rx={0.12 * base.scale} ry={0.08 * base.scale} fill={garden.markerMiddle} ink={1.2} inkColour={garden.ink} />
-          <View
-            pointerEvents="none"
-            style={[
-              styles.pin,
-              {
-                left: pin.x - 0.17 * pin.scale,
-                top: pin.y - 0.1 * pin.scale,
-                borderLeftWidth: 0.17 * pin.scale,
-                borderRightWidth: 0.17 * pin.scale,
-                borderTopWidth: 0.36 * pin.scale,
-              },
-            ]}
-          />
-        </>
-      ),
+      node: <Marker x={base.x} y={base.y} scale={base.scale} pinY={(pinLow.y + pinHigh.y) / 2} pinBob={(pinLow.y - pinHigh.y) / 2} calm={saver} />,
     });
   }
   const layered = layerOrder(actors);
@@ -865,10 +852,4 @@ const styles = StyleSheet.create({
   askNoText: { color: hud.forest, fontWeight: "600", fontSize: 14 },
   askTrack: { height: 4, borderRadius: 2, backgroundColor: hud.primarySoft, overflow: "hidden" },
   askLeft: { height: 4, backgroundColor: hud.accent },
-  pin: {
-    position: "absolute",
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: garden.markerPin,
-  },
 });

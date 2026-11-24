@@ -217,8 +217,9 @@ const showLook = (store: OptimisticLocalStore, { look }: { look: Look }) => {
  * never sent per frame; each phone walks people along their latest walk.
  */
 const NO_OBSTACLES: ReturnType<typeof homeObstacles> = [];
+const NO_MEMBERS: NonNullable<FunctionReturnType<typeof api.world.roster>>["members"] = [];
 
-export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: string; invite?: string }) => {
+export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: string; invite?: string }, tickEverySecond = true) => {
   const convex = useConvex();
   const joinM = useMutation(api.world.join);
   const leaveM = useMutation(api.world.leave);
@@ -380,7 +381,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     if (session && roster === null && !travelling.current) again();
   }, [session, roster, again]);
 
-  const members = roster?.members ?? [];
+  const members = roster?.members ?? NO_MEMBERS;
 
   // One subscription per person, keyed on who's here so it changes only on join and leave.
   const memberKey = members.map((m) => m.memberId).join(",");
@@ -833,7 +834,8 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   }, [session, heartbeatM, heard, again]);
 
   const pingMs = shownPing(pingReading, session && pingVisitKey(session));
-  const people: WorldMember[] = members.map((m) => {
+  const myBars = pingMs === null ? null : pingBars(pingMs);
+  const people: WorldMember[] = useMemo(() => members.map((m) => {
     const row = states[m.memberId] as
       | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "seat" | "typing">)
       | null
@@ -855,9 +857,9 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       away: state?.away,
       seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
       typing: state?.typing,
-      ping: m.isMe ? (pingMs === null ? undefined : pingBars(pingMs)) : m.ping,
+      ping: m.isMe ? (myBars ?? undefined) : m.ping,
     };
-  });
+  }), [members, states, myWalk, mySeat, myBars]);
 
   // A once-a-second clock while anyone is walking or an ask to you is open,
   // so "can hear you", the High five button and ask countdowns stay current
@@ -871,6 +873,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   const myId = session?.memberId ?? null;
   const [, setTick] = useState(0);
   useEffect(() => {
+    if (!tickEverySecond) return;
     const live = () => {
       const now = serverNow();
       return latest.current.some(
@@ -885,7 +888,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       if (!live()) clearInterval(id);
     }, 1000);
     return () => clearInterval(id);
-  }, [liveKey, myId, serverNow]);
+  }, [liveKey, myId, serverNow, tickEverySecond]);
 
   return {
     status: error ? ("error" as const) : roster ? ("in" as const) : ("joining" as const),
