@@ -49,6 +49,7 @@ import {
   type PreviewGlide,
   type PreviewSpin,
 } from "./previewMotion";
+import { useProgressive } from "./progressive";
 import { Ellipse } from "./Shapes";
 import { useForeground } from "./useForeground";
 
@@ -382,6 +383,8 @@ const mannequin = (draft: Look): Look => ({
 });
 
 const STILL = { x: 0, z: 0, walking: false, arrivesAt: 0 };
+const FIRST_TILES = 8;
+const TILE_BATCH = 6;
 
 const Choices = memo(function Choices({
   names,
@@ -410,6 +413,7 @@ const Choices = memo(function Choices({
   const s = frame.s * (stage / TILE);
   const up = s * 0.86;
   const foot = { x: stage / 2, y: stage * frame.headAt + bodyScale(blank).height * up, depth: 1, scale: s };
+  const shown = useProgressive(names.length, FIRST_TILES, TILE_BATCH);
   return (
     <View style={styles.wrap}>
       {names.map((name, i) => hidden.includes(i) ? null : (
@@ -423,14 +427,16 @@ const Choices = memo(function Choices({
           style={({ pressed }) => [styles.tile, { width: tile, height: tile, borderColor: i === value ? t.text : hud.primarySoft }, pressed && styles.tilePressed]}
         >
           <View style={{ width: stage, height: stage, overflow: "hidden" }} pointerEvents="none">
-            <Avatar
-              figure={{ foot, s, up, bob: 0 }}
-              pose={{ ...STILL, heading: frame.heading }}
-              look={{ ...blank, [part]: i }}
-              t={0}
-              seed={0}
-              shadow={false}
-            />
+            {i < shown ? (
+              <Avatar
+                figure={{ foot, s, up, bob: 0 }}
+                pose={{ ...STILL, heading: frame.heading }}
+                look={{ ...blank, [part]: i }}
+                t={0}
+                seed={0}
+                shadow={false}
+              />
+            ) : null}
           </View>
           {i === value ? (
             <View style={styles.tileTick}>
