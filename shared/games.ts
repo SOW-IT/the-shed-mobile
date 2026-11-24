@@ -1,6 +1,7 @@
 // The offline mini-games' ids, score limits and the queue of scores waiting
 // to go on the leaderboard. The app and the backend both read these, so a
 // score the app saves is one the server accepts.
+import { coinsForRun } from "./coins";
 
 export const GAME_IDS = ["shooter", "runner", "flappy"] as const;
 export type GameId = (typeof GAME_IDS)[number];
@@ -91,13 +92,18 @@ export const scoreProblem = (entry: QueuedScore, now: number): string | null => 
  * so the queue only needs the best unpublished run of each game: a lower one
  * would change nothing once the higher one is published.
  */
+export const MAX_PAYING_RUNS = 20;
+
 export const enqueueScore = (queue: readonly QueuedScore[], entry: QueuedScore, now: number): QueuedScore[] => {
   // A run the server would turn away is never queued, and a queued one that
   // has become unpublishable can't hold its place.
   if (scoreProblem(entry, now) !== null) return [...queue];
-  const current = queue.find((queued) => queued.game === entry.game && scoreProblem(queued, now) === null);
-  if (current && current.score >= entry.score) return [...queue];
-  return [...queue.filter((queued) => queued.game !== entry.game), entry];
+  const pays = (queued: QueuedScore) => coinsForRun(queued.game, queued.score) > 0;
+  const sameGame = queue.filter((queued) => queued.game === entry.game && scoreProblem(queued, now) === null);
+  const beaten = (queued: QueuedScore) => queued.game === entry.game && !pays(queued) && queued.score < entry.score;
+  if (pays(entry) && queue.filter(pays).length < MAX_PAYING_RUNS) return [...queue.filter((queued) => !beaten(queued)), entry];
+  if (sameGame.some((queued) => queued.score >= entry.score)) return [...queue];
+  return [...queue.filter((queued) => queued.game !== entry.game || pays(queued)), entry];
 };
 
 /**

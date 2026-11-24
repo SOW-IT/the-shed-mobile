@@ -74,6 +74,7 @@ const hidesCrest = (hat: number) => hat !== 0 && hat !== 6 && hat !== 7;
 /** Hats that cover the top of the head, so a fringe doesn't show under them. */
 const coversFringe = (hat: number) => hat === 1 || hat === 2 || hat === 4;
 
+const FLANNEL = 10;
 const CAP_HAIR_TOP = 0.2;
 const CAP_PEAK_BEHIND = -0.2;
 const CAP_BAND = 0.5;
@@ -83,10 +84,16 @@ type Stride = { stridePhase: number; strideAmp: number };
 
 const ON_BENCH_ABOVE_SEAT = 0.1;
 const ON_GROUND_SINK = 0.08;
-export const SWIM_SINK = 0.4;
+const SWIM_SINK = 0.4;
+const LAP = 0.24;
 
-export const sitRise = (seatHeight: number | undefined) =>
-  seatHeight === undefined ? 0 : seatHeight > 0 ? seatHeight - ON_BENCH_ABOVE_SEAT : -ON_GROUND_SINK;
+export const swimSink = (look: Look) => SWIM_SINK * bodyScale(look).height;
+
+export const sitRise = (seatHeight: number | undefined, look?: Look) => {
+  if (seatHeight === undefined) return 0;
+  const longer = LAP * ((look ? bodyScale(look).height : 1) - 1);
+  return (seatHeight > 0 ? seatHeight - ON_BENCH_ABOVE_SEAT : -ON_GROUND_SINK) - longer;
+};
 
 type Figure = {
   foot: ScreenPoint;
@@ -341,7 +348,7 @@ const AvatarView = ({
     }
     move.hands.front = true;
   }
-  const bob = figure.bob + move.lift - move.sink + sitRise(sit) - (swim ? SWIM_SINK : 0);
+  const bob = figure.bob + move.lift - move.sink + sitRise(sit, look) - (swim ? swimSink(look) : 0);
   const ink = Math.max(1.2, 0.035 * s);
   const dx = move.shake + move.lean;
   // Height and build stretch the body; the head stays the same size.
@@ -507,10 +514,15 @@ const AvatarView = ({
       const [a, b] = arm(e);
       parts.push(capsule(a, b, 0.14 * s + ink * 2, garden.ink, `armInk${e}${layer}`));
       parts.push(capsule(a, b, 0.14 * s, skin, `arm${e}${layer}`));
+      if (outfit === FLANNEL) {
+        const cuff = { x: a.x + (b.x - a.x) * 0.78, y: a.y + (b.y - a.y) * 0.78 };
+        parts.push(capsule(a, cuff, 0.15 * s, shirt, `sleeve${e}${layer}`));
+        parts.push(capsule({ x: a.x + (cuff.x - a.x) * 0.5, y: a.y + (cuff.y - a.y) * 0.5 }, cuff, 0.03 * s, people.plaid, `sleevePlaid${e}${layer}`));
+      }
     }
   };
-  arms("back");
   const outfit = lookPart(look, "outfit");
+  arms("back");
   // Bottoms, unless the outfit has its own (a dress, a skirt, overalls). With
   // them the top stops at the waist.
   const pants = FULL_OUTFITS.includes(outfit) ? 0 : lookPart(look, "pants");
@@ -596,6 +608,16 @@ const AvatarView = ({
   if (outfit === 9) {
     const spots = [[-0.12, 0.6], [0.08, 0.62], [-0.02, 0.5], [0.16, 0.44], [-0.18, 0.4], [0.05, 0.33], [-0.1, 0.25], [0.2, 0.22]] as const;
     for (const [x, y] of spots) if (y > hem + 0.04) dot(`spot${x}${y}`, x, y, 0.035 * s, isLight(shirt) ? shade(shirt, -0.3) : shade(shirt, 0.5));
+  }
+  if (outfit === FLANNEL) {
+    for (const y of [0.6, 0.46, 0.32]) {
+      if (y > hem + 0.03) parts.push(capsule(at(-halfWidth(y) + 0.03, y), at(halfWidth(y) - 0.03, y), 0.03 * s, people.plaid, `plaidRow${y}`));
+    }
+    for (const x of [-0.15, 0.15]) parts.push(capsule(at(x, 0.66), at(x * 1.15, hem + 0.04), 0.03 * s, people.plaid, `plaidCol${x}`));
+    if (facing >= 0) {
+      piece("tee", people.flannelTee, 0.7, hem, 0.08, 0.1, 4);
+      for (const e of [-1, 1]) parts.push(quad(sidePanel(e, 0.71, 0.5, [0.08, 0.17], [0.1, 0.13], 0), shade(shirt, -0.12), `flannelLapel${e}`, 2));
+    }
   }
   if (pants === 1 || pants === 2) {
     // Trousers or shorts: hips, then a leg each side, outlined as one shape.

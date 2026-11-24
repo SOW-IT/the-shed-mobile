@@ -14,7 +14,8 @@ export default function World() {
   const navigation = useNavigation();
   // `?sheet=character` opens the character editor and `?sheet=poke` the list
   // of people to poke.
-  const { sheet } = useLocalSearchParams<{ sheet?: string }>();
+  const { sheet, poke, invite } = useLocalSearchParams<{ sheet?: string; poke?: string; invite?: string }>();
+  const [arrival] = useState(() => (poke || invite ? { poke: poke || undefined, invite: invite || undefined } : undefined));
   const { isAuthenticated, isLoading } = useConvexAuth();
   // Leave the garden while another screen (the games) covers it; come back on return.
   const [focused, setFocused] = useState(true);
@@ -61,6 +62,7 @@ export default function World() {
         leaveAsked={asking}
         onStay={stay}
         onLeave={leave}
+        arrival={arrival}
         opening={sheet === "character" || sheet === "poke" ? sheet : undefined}
         onArcade={() => {
           setAtArcade(true);

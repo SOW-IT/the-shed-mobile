@@ -67,7 +67,9 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   const wait = useQuery(api.world.pokeWait, open ? {} : "skip");
   const list = wait && people.status !== "LoadingFirstPage" ? { people: people.results, pokeAgainAt: wait.pokeAgainAt } : undefined;
   const poke = useMutation(api.world.pokeStaff);
+  const inviteHome = useMutation(api.world.inviteStaff);
   const [writingTo, setWritingTo] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,11 +90,12 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
     setBusy(true);
     setError(null);
     try {
-      const reply = await poke({ profileId, message: message.trim() || undefined });
+      const args = { profileId, message: message.trim() || undefined };
+      const reply = await (inviting ? inviteHome(args) : poke(args));
       if (!reply.ok) return setError(`You can poke again in ${Math.ceil(reply.retryInMs / 60_000)} min.`);
       setWritingTo(null);
       setMessage("");
-      setSent(`Poked ${tagName(name)}. They'll get a notification.`);
+      setSent(inviting ? `Invited ${tagName(name)} home.` : `Poked ${tagName(name)}. They'll get a notification.`);
     } catch (e) {
       setError(problem(e));
     } finally {
@@ -138,18 +141,34 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                   <Text style={styles.where}>{p.lastSeenAt === null ? "Not been yet" : timeAgo(p.lastSeenAt, now)}</Text>
                 </View>
                 {writingTo === p.id ? null : (
-                  <GlassPill
-                    label="Poke"
-                    icon="notifications-outline"
-                    disabled={waitMs > 0}
-                    accessibilityLabel={`Poke ${p.name}`}
-                    onPress={() => {
-                      setError(null);
-                      setSent(null);
-                      setMessage("");
-                      setWritingTo(p.id);
-                    }}
-                  />
+                  <>
+                    <GlassPill
+                      icon="home"
+                      disabled={waitMs > 0}
+                      accessibilityLabel={`Invite ${p.name} to your home`}
+                      testID={`world-invite-offline-${p.id}`}
+                      onPress={() => {
+                        setError(null);
+                        setSent(null);
+                        setMessage("");
+                        setInviting(true);
+                        setWritingTo(p.id);
+                      }}
+                    />
+                    <GlassPill
+                      label="Poke"
+                      icon="notifications-outline"
+                      disabled={waitMs > 0}
+                      accessibilityLabel={`Poke ${p.name}`}
+                      onPress={() => {
+                        setError(null);
+                        setSent(null);
+                        setMessage("");
+                        setInviting(false);
+                        setWritingTo(p.id);
+                      }}
+                    />
+                  </>
                 )}
               </View>
               {writingTo === p.id ? (
@@ -158,7 +177,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                     label="Message (optional)"
                     value={message}
                     onChangeText={setMessage}
-                    placeholder="Come and join me in the Garden."
+                    placeholder={inviting ? "Come over to my home." : "Come and join me here."}
                     maxLength={MAX_POKE_LENGTH}
                     autoCapitalize="sentences"
                     testID="world-poke-message"
@@ -169,7 +188,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                       <Btn title="Cancel" variant="tonal" onPress={() => setWritingTo(null)} />
                     </View>
                     <View style={styles.grow}>
-                      <Btn title="Send poke" icon="notifications-outline" loading={busy} onPress={() => void send(p.id, p.name)} />
+                      <Btn title={inviting ? "Send invite" : "Send poke"} icon={inviting ? "home-outline" : "notifications-outline"} loading={busy} onPress={() => void send(p.id, p.name)} />
                     </View>
                   </View>
                 </View>
@@ -197,6 +216,8 @@ export const PeoplePanel = ({
   onGo,
   onWalkOver,
   onFollow,
+  onHome,
+  onInvite,
   onClose,
   pokeListOpen = false,
   showPlaces = false,
@@ -210,6 +231,8 @@ export const PeoplePanel = ({
   onGo: (to: Place) => void;
   onWalkOver: (memberId: string) => void;
   onFollow: (to: Place, memberId: string) => void;
+  onHome: () => void;
+  onInvite: (memberId: Id<"worldMembers">, name: string) => void;
   onClose: () => void;
   pokeListOpen?: boolean;
   showPlaces?: boolean;
@@ -264,13 +287,16 @@ export const PeoplePanel = ({
                 onPress={p.isMe ? undefined : () => onPerson(p.memberId)}
                 action={
                   p.isMe ? null : (
-                    <GlassPill
-                      icon="walk"
-                      tone="accent"
-                      onPress={() => onWalkOver(p.memberId)}
-                      accessibilityLabel={`Walk over to ${p.name}`}
-                      testID={`world-walk-${p.memberId}`}
-                    />
+                    <>
+                      <GlassPill icon="home" onPress={() => onInvite(p.memberId, p.name)} accessibilityLabel={`Invite ${p.name} to your home`} testID={`world-invite-${p.memberId}`} />
+                      <GlassPill
+                        icon="walk"
+                        tone="accent"
+                        onPress={() => onWalkOver(p.memberId)}
+                        accessibilityLabel={`Walk over to ${p.name}`}
+                        testID={`world-walk-${p.memberId}`}
+                      />
+                    </>
                   )
                 }
                 testID={`world-person-${p.isMe ? "me" : p.memberId}`}
@@ -295,6 +321,8 @@ export const PeoplePanel = ({
                   onPress={row.at ? () => onFollow(row.at!, row.memberId) : undefined}
                   action={
                     row.at ? (
+                      <>
+                      <GlassPill icon="home" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${row.name} to your home`} testID={`world-invite-${row.memberId}`} />
                       <GlassPill
                         icon="navigate"
                         tone="accent"
@@ -302,6 +330,7 @@ export const PeoplePanel = ({
                         accessibilityLabel={`Go to ${row.name} in ${PLACE_TITLES[row.at]}`}
                         testID={`world-follow-${row.memberId}`}
                       />
+                      </>
                     ) : null
                   }
                 />
@@ -313,6 +342,7 @@ export const PeoplePanel = ({
               {PLACES.filter((to) => to !== place).map((to) => (
                 <GlassPill key={to} label={placeLabel(to)} onPress={() => onGo(to)} accessibilityLabel={`Go to ${PLACE_TITLES[to]}`} testID={`world-go-${to}`} />
               ))}
+              <GlassPill label="🏠 Your home" onPress={onHome} accessibilityLabel="Go to your home" testID="world-go-home" />
             </Animated.View>
           ) : null}
           <Animated.View style={itemStyle(clock, next())}>

@@ -23,6 +23,8 @@ export const WorldList = ({
   onBack,
   onArcade,
   onPeople,
+  placeTitle,
+  extra,
   online = 0,
   onPerson,
   note,
@@ -39,6 +41,8 @@ export const WorldList = ({
   onBack: () => void;
   onArcade: () => void;
   onPeople: () => void;
+  placeTitle?: string;
+  extra?: ReactNode;
   /** People in the World right now, shown on the People button when above 0. */
   online?: number;
   onPerson: (memberId: string) => void;
@@ -69,7 +73,7 @@ export const WorldList = ({
     }
   }, [log, muted]);
 
-  const place = PLACE_TITLES[world.place];
+  const place = placeTitle ?? PLACE_TITLES[world.place];
   const title = world.instance > 1 ? `${place} · ${world.instance}` : place;
 
   // Asks made of you that are open: announced once each (VoiceOver), since
@@ -148,6 +152,7 @@ export const WorldList = ({
       maxWidth={640}
       headerRight={<Btn title={online > 0 ? `People · ${online}` : "People"} icon="people-outline" variant="tonal" onPress={onPeople} />}
     >
+      {extra}
       {duelCard}
       {/* Asks made of you, with time to answer: the same as over heads in the
           garden. A polite live region on the web; announced on iOS. */}

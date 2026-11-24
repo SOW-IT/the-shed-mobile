@@ -3,6 +3,7 @@ import {
   CLOCK_SKEW_MS,
   enqueueScore,
   isGameId,
+  MAX_PAYING_RUNS,
   MAX_RUN_MS,
   MAX_SCORE_AGE_MS,
   NO_BESTS,
@@ -82,6 +83,24 @@ describe("enqueueScore", () => {
     const good = entry({ runId: "run-good-01", score: 100 });
     const endless = entry({ runId: "run-endless", score: 900, durationMs: MAX_RUN_MS + 1 });
     expect(enqueueScore([good], endless, NOW)).toEqual([good]);
+  });
+
+  test("keeps every run that earns coins, as well as the best", () => {
+    const low = entry({ runId: "run-low-1", game: "flappy", score: 100, durationMs: 600_000 });
+    const pays = entry({ runId: "run-pays-1", game: "flappy", score: 600, durationMs: 600_000 });
+    const paysLess = entry({ runId: "run-pays-2", game: "flappy", score: 520, durationMs: 600_000 });
+    let queue = enqueueScore([], low, NOW);
+    queue = enqueueScore(queue, pays, NOW);
+    queue = enqueueScore(queue, paysLess, NOW);
+    expect(queue).toEqual([pays, paysLess]);
+  });
+
+  test(`keeps at most ${MAX_PAYING_RUNS} paying runs`, () => {
+    let queue: QueuedScore[] = [];
+    for (let i = 0; i < MAX_PAYING_RUNS + 3; i++) {
+      queue = enqueueScore(queue, entry({ runId: `run-many-${i}`, game: "flappy", score: 600, durationMs: 600_000 }), NOW);
+    }
+    expect(queue).toHaveLength(MAX_PAYING_RUNS);
   });
 
   test("never queues a zero score", () => {

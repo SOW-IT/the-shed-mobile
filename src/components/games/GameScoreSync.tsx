@@ -1,5 +1,5 @@
 import { useOffline } from "@/hooks/useOffline";
-import { settleRuns, useScoreQueue } from "@/lib/games/gameStorage";
+import { notePaid, settleRuns, useScoreQueue } from "@/lib/games/gameStorage";
 import { useConvexAuth, useMutation } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { MAX_SCORES_PER_SUBMIT } from "../../../shared/games";
@@ -25,7 +25,10 @@ export const GameScoreSync = () => {
     if (!isAuthenticated || offline || queue.length === 0 || sending.current) return;
     sending.current = true;
     submit({ scores: queue.slice(0, MAX_SCORES_PER_SUBMIT) })
-      .then(({ accepted, rejected }) => settleRuns([...accepted, ...rejected.map((r) => r.runId)]))
+      .then(({ accepted, rejected, coins }) => {
+        notePaid(coins ?? []);
+        return settleRuns([...accepted, ...rejected.map((r) => r.runId)]);
+      })
       .then(
         () => {
           sending.current = false;

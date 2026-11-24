@@ -32,7 +32,7 @@ export type Prop = {
   id: string;
   depth: number;
   prims: Prim[];
-  tap?: "arcade";
+  tap?: string;
   /** The screen box the prop's shapes cover, for taps on it. */
   box: { left: number; right: number; top: number; bottom: number };
 };

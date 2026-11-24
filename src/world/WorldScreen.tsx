@@ -20,9 +20,14 @@ import {
   type AskKind,
   type DuelPick,
   type Place,
+  INVITE_CARD_MS,
+  NPC,
 } from "@shared/world";
+import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId } from "@shared/home";
+import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { announce } from "./announce";
 import { APPROACH_MS, approachStep } from "./approach";
@@ -39,6 +44,11 @@ import { ChatLog } from "./ChatLog";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
+import { CoinCounter, useCoins } from "./Coins";
+import { DecorateTray } from "./Decorate";
+import { InviteCard } from "./InviteCard";
+import { ShopPanel } from "./Shop";
+import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
 const useScreenReader = () => {
@@ -196,7 +206,9 @@ export const WorldScreen = ({
   active = true,
   away = false,
   opening,
+  arrival,
 }: {
+  arrival?: { poke?: string; invite?: string };
   onBack: () => void;
   leaveAsked?: boolean;
   onStay: () => void;
@@ -211,7 +223,19 @@ export const WorldScreen = ({
   const offline = useOffline();
   const screenReader = useScreenReader();
   const view = pickView({ offline, screenReader, canDraw: Platform.OS !== "android" });
-  const world = useWorld(!offline && active, away);
+  const world = useWorld(!offline && active, away, arrival);
+  const wallet = useCoins();
+  const invites = useQuery(api.world.invites, world.status === "in" ? {} : "skip");
+  const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
+  const [shopOpen, setShopOpen] = useState(false);
+  const [decorating, setDecorating] = useState(false);
+  const [chosenItem, setChosenItem] = useState<string | null>(null);
+  const placeItemM = useMutation(api.worldHome.placeItem);
+  const moveItemM = useMutation(api.worldHome.moveItem);
+  const removeItemM = useMutation(api.worldHome.removeItem);
+  const wallpaperM = useMutation(api.worldHome.setWallpaper);
+  const myHome = world.home?.mine === true;
+  if (decorating && !myHome && world.status === "in") setDecorating(false);
   const [arcadeTrip, setArcadeTrip] = useState<number | null>(null);
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [person, setPerson] = useState<string | null>(null);
@@ -236,6 +260,7 @@ export const WorldScreen = ({
   // the ask just runs out.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
+  const coinsBeside = useWindowDimensions().width >= COINS_BESIDE_FROM;
   const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
 
   useEffect(() => {
@@ -378,22 +403,76 @@ export const WorldScreen = ({
 
   const [fade] = useState(() => new Animated.Value(0));
   const triedFromWalk = useRef<number | null>(null);
-  const go = (to: Place, toMember?: Id<"worldMembers">) => {
+  const go = (to: Place, toMember?: Id<"worldMembers">, invite?: Id<"worldInvites">) => {
     setPerson(null);
     setApproach(null);
     setArcadeTrip(null);
     setTray(false);
     setPeopleOpen(false);
     setPlacesOpen(false);
+    setShopOpen(false);
+    setDecorating(false);
+    setChosenItem(null);
     const veil = (toValue: number) =>
       Animated.timing(fade, { toValue, duration: 180, useNativeDriver: Platform.OS !== "web" }).start();
     veil(1);
-    void live.current.world.travel(to, toMember).then((problem) => {
+    void live.current.world.travel(to, { toMember, invite }).then((problem) => {
       veil(0);
       if (problem) setNote(problem);
-      else announce(`You're in ${PLACE_TITLES[to]}.`);
+      else announce(to === "home" ? (invite ? "You're at their home." : "You're home.") : `You're in ${PLACE_TITLES[to]}.`);
     });
   };
+  const goHome = () => go("home");
+  const invitePerson = (memberId: Id<"worldMembers">, name: string) =>
+    void world.invite(memberId).then((problem) => setNote(problem ?? `Invited ${name.split(" ")[0]} home.`));
+
+  const said = (e: unknown, otherwise: string) => (e instanceof ConvexError ? String(e.data) : otherwise);
+  const decorate = (change: () => Promise<{ ok: boolean; retryInMs?: number }>) =>
+    void change()
+      .then((reply) => {
+        if (!reply.ok) setNote(`Slow down a little. Try again in ${Math.ceil((reply.retryInMs ?? 1000) / 1000)}s.`);
+      })
+      .catch((e: unknown) => setNote(said(e, "That didn't save.")));
+  const placeNew = (item: FurnitureId) => {
+    const at = mePose ?? { x: 0, z: 0 };
+    const spot = fitInRoom(item, at.x, Math.min(at.z - 2.6, 0), 0) ?? { x: 0, z: -4 };
+    void placeItemM({ item, x: spot.x, z: spot.z, turn: 0 })
+      .then((reply) => {
+        if (reply.ok) setChosenItem(reply.key);
+        else setNote(`Slow down a little. Try again in ${Math.ceil(reply.retryInMs / 1000)}s.`);
+      })
+      .catch((e: unknown) => setNote(said(e, "That didn't fit.")));
+  };
+  const chosen = chosenItem ? world.home?.items.find((p) => p.key === chosenItem) : undefined;
+  if (chosenItem && world.home && !chosen) setChosenItem(null);
+  const turnChosen = () => {
+    if (!chosen || !isFurniture(chosen.item)) return;
+    const turn = ((chosen.turn + 1) % 4) as 0 | 1 | 2 | 3;
+    const spot = fitInRoom(chosen.item, chosen.x, chosen.z, turn);
+    if (!spot) return setNote("No room to turn it here.");
+    decorate(() => moveItemM({ key: chosen.key, x: spot.x, z: spot.z, turn }));
+  };
+  const moveChosen = (x: number, z: number) => {
+    if (!chosen || !isFurniture(chosen.item)) return;
+    const spot = fitInRoom(chosen.item, x, z, chosen.turn as 0 | 1 | 2 | 3);
+    if (!spot) return setNote("Keep it inside the room.");
+    decorate(() => moveItemM({ key: chosen.key, x: spot.x, z: spot.z, turn: chosen.turn }));
+  };
+  const putAway = () => {
+    if (!chosen) return;
+    setChosenItem(null);
+    decorate(() => removeItemM({ key: chosen.key }));
+  };
+  const itemActions: HudAction[] = chosen && isFurniture(chosen.item)
+    ? [
+        { id: "turn", label: "Turn", hint: `Turn the ${FURNITURE[chosen.item].label.toLowerCase()}`, icon: "refresh", onPress: turnChosen },
+        { id: "away", label: "Put away", hint: `Put the ${FURNITURE[chosen.item].label.toLowerCase()} away`, icon: "archive-outline", onPress: putAway },
+        { id: "done", label: "Done", hint: "Done moving it", icon: "checkmark", onPress: () => setChosenItem(null) },
+      ]
+    : [];
+  const nowForInvites = world.serverNow();
+  const invite = (invites ?? []).find((row) => nowForInvites - row.at < INVITE_CARD_MS && !dismissedInvites.has(`${row.id}:${row.at}`));
+  const placeTitle = world.place === "home" ? (world.home ? (world.home.mine ? "Your home" : `${world.home.ownerName.split(" ")[0]}'s home`) : "Home") : PLACE_TITLES[world.place];
   const goRef = useRef(go);
   useEffect(() => {
     goRef.current = go;
@@ -553,6 +632,16 @@ export const WorldScreen = ({
             },
           },
           {
+            id: "invite",
+            label: "Invite",
+            hint: `Invite ${selected.name} to your home`,
+            emoji: "🏠",
+            onPress: () => {
+              setPerson(null);
+              invitePerson(selected.memberId, selected.name);
+            },
+          },
+          {
             id: "more",
             label: "More",
             hint: `Mute, block or report ${selected.name}`,
@@ -566,6 +655,7 @@ export const WorldScreen = ({
 
   const sheets = (
     <>
+      <ShopPanel open={shopOpen} top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP} wallet={wallet} onClose={() => setShopOpen(false)} onBought={setNote} />
       <PersonSheet
         // A report started for one person never carries over to another.
         key={sheet?.memberId ?? "nobody"}
@@ -600,6 +690,8 @@ export const WorldScreen = ({
         onGo={go}
         onWalkOver={walkOver}
         onFollow={follow}
+        onHome={goHome}
+        onInvite={invitePerson}
         onClose={() => setPeopleOpen(false)}
         pokeListOpen={opening === "poke"}
         showPlaces={view === "list"}
@@ -630,6 +722,17 @@ export const WorldScreen = ({
         onPress: () => go(to),
       };
     }),
+    ...(myHome
+      ? []
+      : [
+          {
+            id: "home",
+            label: "Your home",
+            icon: "home" as const,
+            accessibilityLabel: "Go to your home",
+            onPress: goHome,
+          },
+        ]),
     {
       id: "leave",
       label: "Leave",
@@ -643,6 +746,19 @@ export const WorldScreen = ({
     },
   ];
 
+  const inviteCard = invite ? (
+    <InviteCard
+      key={`${invite.id}:${invite.at}`}
+      name={invite.ownerName}
+      look={invite.look}
+      onGo={() => {
+        setDismissedInvites((set) => new Set(set).add(`${invite.id}:${invite.at}`));
+        go("home", undefined, invite.id);
+      }}
+      onLater={() => setDismissedInvites((set) => new Set(set).add(`${invite.id}:${invite.at}`))}
+    />
+  ) : null;
+
   if (away) return <View style={styles.fill} />;
 
   if (view === "list") {
@@ -655,6 +771,18 @@ export const WorldScreen = ({
           onBack={onBack}
           onArcade={onArcade}
           onPeople={() => setPeopleOpen(true)}
+          placeTitle={placeTitle}
+          extra={
+            <View style={styles.listExtra}>
+              <View style={styles.listRow}>
+                <CoinCounter balance={wallet?.balance} />
+                {world.place === NPC.place ? (
+                  <RoundButton icon="cart-outline" label={`Shop with ${NPC.name}`} onPress={() => setShopOpen(true)} testID="world-list-shop" />
+                ) : null}
+              </View>
+              {inviteCard}
+            </View>
+          }
           online={online}
           onPerson={(memberId) => {
             if (world.people.some((p) => p.isMe && p.memberId === memberId)) setEditing(true);
@@ -719,17 +847,27 @@ export const WorldScreen = ({
         onAccept={accept}
         onDecline={decline}
         declined={declined}
+        home={world.home}
+        onTapNpc={() => {
+          setPerson(null);
+          setTray(false);
+          setShopOpen(true);
+        }}
+        decor={decorating ? { selected: chosenItem, onItem: setChosenItem, onFloor: moveChosen, actions: itemActions } : null}
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
-        <TitlePill
-          title={PLACE_TITLES[world.place]}
-          instance={world.instance}
-          open={placesOpen}
-          onPress={() => {
-            setPeopleOpen(false);
-            setPlacesOpen((was) => !was);
-          }}
-        />
+        <View style={styles.left}>
+          <TitlePill
+            title={placeTitle}
+            instance={world.place === "home" ? 1 : world.instance}
+            open={placesOpen}
+            onPress={() => {
+              setPeopleOpen(false);
+              setPlacesOpen((was) => !was);
+            }}
+          />
+          {coinsBeside ? <CoinCounter balance={wallet?.balance} /> : null}
+        </View>
         <View style={styles.right}>
           <PingBars ms={world.ping} />
           <RoundButton
@@ -744,7 +882,12 @@ export const WorldScreen = ({
           />
         </View>
       </View>
-      <View style={[styles.logRow, { top: insets.top + 66 }]} pointerEvents="box-none">
+      {coinsBeside ? null : (
+        <View style={[styles.coinsUnder, { top: insets.top + 62 }]} pointerEvents="box-none">
+          <CoinCounter balance={wallet?.balance} />
+        </View>
+      )}
+      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }]} pointerEvents="box-none">
         <ChatLog
           roomId={world.status === "in" ? world.roomId : null}
           onLine={openSpeaker}
@@ -763,6 +906,7 @@ export const WorldScreen = ({
             {note}
           </Text>
         ) : null}
+        {inviteCard}
       </View>
       {keyboard.open ? (
         <Pressable
@@ -787,6 +931,34 @@ export const WorldScreen = ({
         pointerEvents="box-none"
       >
         <DuelCard {...duelProps} />
+        {myHome && !decorating ? (
+          <View style={styles.decorateRow} pointerEvents="box-none">
+            <RoundButton
+              icon="color-palette-outline"
+              label="Decorate"
+              onPress={() => {
+                setTray(false);
+                setPerson(null);
+                setDecorating(true);
+              }}
+              testID="world-decorate-open"
+            />
+          </View>
+        ) : null}
+        {decorating && world.home ? (
+          <DecorateTray
+            owned={wallet?.items ?? {}}
+            wallpapers={wallet?.wallpapers ?? []}
+            placed={world.home.items}
+            wallpaper={world.home.wallpaper}
+            onPlace={placeNew}
+            onWallpaper={(id: WallpaperId) => decorate(() => wallpaperM({ wallpaper: id }))}
+            onDone={() => {
+              setDecorating(false);
+              setChosenItem(null);
+            }}
+          />
+        ) : null}
         {tray ? (
           <View style={styles.tray} testID="world-emote-tray">
             {EMOTE_TRAY.map((id) => (
@@ -866,13 +1038,13 @@ export const WorldScreen = ({
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
       <WorldMenu open={placesOpen} top={insets.top + TOP_BAR_GAP} entries={menuEntries} onClose={() => setPlacesOpen(false)} />
-
       {sheets}
     </View>
   );
 };
 
 const CHAT_BAR_HEIGHT = 54;
+const COINS_BESIDE_FROM = 400;
 const TOP_BAR_GAP = 62;
 const UNDER_CHAT_SLACK = 10;
 
@@ -933,6 +1105,11 @@ const styles = StyleSheet.create({
   mark: { width: 30, height: 30, borderRadius: 15, backgroundColor: hud.primary, alignItems: "center", justifyContent: "center" },
   titleText: { flexShrink: 1, fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.3, color: hud.forest },
   right: { flexDirection: "row", alignItems: "center", gap: 10 },
+  left: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
+  coinsUnder: { position: "absolute", left: 14 },
+  listExtra: { gap: 10, marginBottom: 12 },
+  listRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  decorateRow: { flexDirection: "row", justifyContent: "flex-end" },
   ping: { width: 30, height: 44, alignItems: "center", justifyContent: "center" },
   pingText: { position: "absolute", top: 36, left: -25, width: 80, textAlign: "center", fontSize: 11, fontWeight: "800", color: hud.forest },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },

@@ -136,6 +136,33 @@ async function deleteByEmail(
     await deleteBatch(
       await ctx.db.query("worldBlocks").withIndex("by_blockedEmail", (q) => q.eq("blockedEmail", email)).take(WIPE_BATCH),
       (row) => ctx.db.delete("worldBlocks", row._id)
+    ),    await deleteBatch(
+      await ctx.db.query("worldWallets").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldWallets", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("coinLedger").withIndex("by_email_and_at", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("coinLedger", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("worldHomes").withIndex("by_owner", (q) => q.eq("owner", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldHomes", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("worldInvites").withIndex("by_owner_and_guest", (q) => q.eq("owner", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldInvites", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("worldInvites").withIndex("by_guest_and_at", (q) => q.eq("guest", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldInvites", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("worldPokes").withIndex("by_from", (q) => q.eq("from", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldPokes", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("worldPokes").withIndex("by_to", (q) => q.eq("to", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldPokes", row._id)
     ),
   ];
   if (includeGuestData) {

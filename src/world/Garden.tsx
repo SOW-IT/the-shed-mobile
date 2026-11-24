@@ -17,6 +17,7 @@ import {
   PLACE_TITLES,
   PORTAL_RADIUS,
   PORTALS,
+  NPC,
   SEATS,
   seatIn,
   tagName,
@@ -29,13 +30,15 @@ import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent
 import { makeCamera } from "./camera";
 import type { Prim, Prop } from "./gardenScene";
 import { garden, hud, places } from "./palette";
-import { buildScene } from "./placeScenes";
-import { Avatar, figureFor, headTop, hitBox, sitRise, SWIM_SINK, Tag, touchK, type Doing } from "./Person";
+import { buildScene, type HomeLook } from "./placeScenes";
+import { footprint, isFurniture } from "@shared/home";
+import { Avatar, figureFor, headTop, hitBox, sitRise, swimSink, Tag, touchK, type Doing } from "./Person";
 import { accepted } from "./announce";
 import type { DrawnPose, Gait } from "./gait";
 import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
 import { duelLookFor, type DuelView } from "./duel";
+import { spreadTags } from "./tags";
 import { useGlide } from "./useGlide";
 
 type GardenPerson = {
@@ -116,6 +119,9 @@ export const Garden = ({
   place,
   placeCounts,
   duels = [],
+  home = null,
+  onTapNpc,
+  decor = null,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -139,6 +145,9 @@ export const Garden = ({
   place: Place;
   placeCounts?: Record<string, number>;
   duels?: readonly DuelView[];
+  home?: HomeLook | null;
+  onTapNpc?: () => void;
+  decor?: { selected: string | null; onItem: (key: string) => void; onFloor: (x: number, z: number) => void; actions: HudAction[] } | null;
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -150,7 +159,8 @@ export const Garden = ({
     if (!size || size.width !== width || size.height !== height) setSize({ width, height });
   };
   const cam = useMemo(() => size && makeCamera(size.width, size.height, FOCUS), [size]);
-  const scene = useMemo(() => cam && buildScene(place, cam), [cam, place]);
+  const scene = useMemo(() => cam && buildScene(place, cam, home ?? undefined), [cam, place, home]);
+  const npcHere = place === NPC.place;
 
   const now = serverNow();
   // Your own walk as it is; others glide toward each new walk from the server.
@@ -286,7 +296,7 @@ export const Garden = ({
     if (!cam || !scene) return { kind: "ground" };
     // People first, nearest the camera first.
     const hits = people
-      .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height) }))
+      .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height, p.look) }))
       .filter((h): h is { p: GardenPerson; pose: DrawnPose; rise: number } => h.pose !== null)
       .map((h) => {
         const figure = figureFor(cam, h.pose);
@@ -300,6 +310,17 @@ export const Garden = ({
     const onArcade = arcade && x >= arcade.box.left && x <= arcade.box.right && y >= arcade.box.top && y <= arcade.box.bottom;
     if (hits[0] && !(onArcade && arcade.depth < hits[0].depth)) return { kind: "person", id: hits[0].p.memberId };
     if (onArcade) return { kind: "arcade" };
+    if (npcHere) {
+      const box = hitBox(figureFor(cam, NPC_POSE), NPC.look);
+      if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) return { kind: "npc" };
+    }
+    if (decor) {
+      const item = scene.props
+        .filter((prop) => prop.tap?.startsWith(ITEM) && x >= prop.box.left && x <= prop.box.right && y >= prop.box.top && y <= prop.box.bottom)
+        .sort((a, b) => a.depth - b.depth)[0];
+      if (item?.tap) return { kind: "item", key: item.tap.slice(ITEM.length) };
+      if (decor.selected) return { kind: "floor" };
+    }
     const seat = SEATS[place]
       .map((candidate) => {
         const at = cam.project([candidate.x, candidate.height + SEAT_TAP_HEIGHT, candidate.z]);
@@ -334,6 +355,10 @@ export const Garden = ({
     if (!at) return;
     const hit = hitAt(at.x, at.y);
     if (press.current.timer) clearTimeout(press.current.timer);
+    if (hit.kind === "item" || hit.kind === "floor") {
+      press.current = { ...at, hit, walking: false, timer: null, spot: null, backSwipe: false };
+      return;
+    }
     const backSwipe = Platform.OS === "ios" && at.x < BACK_SWIPE_EDGE && hit.kind === "ground";
     press.current = { ...at, hit, walking: hit.kind === "ground" && !backSwipe, timer: null, spot: null, backSwipe };
     if (backSwipe) return;
@@ -350,7 +375,7 @@ export const Garden = ({
   const onMove = (e: GestureResponderEvent) => {
     const at = where(e);
     const p = press.current;
-    if (!at || p.backSwipe) return;
+    if (!at || p.backSwipe || p.hit.kind === "item" || p.hit.kind === "floor") return;
     if (!p.walking) {
       if (Math.hypot(at.x - p.x, at.y - p.y) < TAP_SLOP) return;
       if (p.timer) clearTimeout(p.timer);
@@ -370,6 +395,12 @@ export const Garden = ({
     if (p.hit.kind === "person") onTapPerson(p.hit.id);
     else if (p.hit.kind === "arcade") onTapArcade();
     else if (p.hit.kind === "seat") onTapSeat(p.hit.id);
+    else if (p.hit.kind === "npc") onTapNpc?.();
+    else if (p.hit.kind === "item") decor?.onItem(p.hit.key);
+    else if (p.hit.kind === "floor") {
+      const spot = cam?.ground(at.x, at.y);
+      if (spot) decor?.onFloor(spot.x, spot.z);
+    }
   };
   // The system took the touch away (a call, a system gesture): it was no tap,
   // so open nothing; a walk in progress ends where the finger last was.
@@ -391,13 +422,31 @@ export const Garden = ({
     node: <PropView prop={prop} />,
   }));
   const tags: TagSpot[] = [];
+  if (npcHere) {
+    const figure = figureFor(cam, NPC_POSE);
+    actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={0} seed={3} /> });
+    const head = cam.project([NPC.x, headTop(NPC.look), NPC.z]);
+    tags.push({ key: NPC.id, depth: head.depth, spokeAt: undefined, ...tagBox(head.x, head.y, NPC_TAG, undefined, false), props: { name: NPC_TAG, me: false, emoteRise: 0 } });
+  }
+  const selectedItem = decor?.selected ? home?.items.find((p) => p.key === decor.selected) : undefined;
+  if (selectedItem && isFurniture(selectedItem.item)) {
+    const { hw, hd } = footprint(selectedItem.item, selectedItem.turn);
+    const at = cam.project([selectedItem.x, 0, selectedItem.z]);
+    actors.push({
+      depth: at.depth + 50,
+      key: "item-ring",
+      node: (
+        <Ellipse cx={at.x} cy={at.y} rx={(hw + 0.3) * at.scale} ry={(hd + 0.3) * at.scale * 0.55} fill="transparent" ink={2.5} inkColour={garden.ring} dashed />
+      ),
+    });
+  }
   people.forEach((p, i) => {
     const pose = poses[i];
     if (!pose) return;
     const seed = hash(p.memberId) % 7;
     const figure = figureFor(cam, pose);
     const seat = sitting[i];
-    const seatRise = sitRise(seat?.height);
+    const seatRise = sitRise(seat?.height, p.look);
     const atArcade = p.away ? Math.atan2(ARCADE.x - pose.x, ARCADE.z - pose.z) : null;
     const swimming = swimmers[i];
     const turned = { ...pose, heading: facingOverride[i] ?? atArcade ?? seat?.heading ?? pose.heading };
@@ -440,7 +489,7 @@ export const Garden = ({
       p.ask !== undefined && people.some((o) => o.memberId === p.ask?.to && accepted(o, p.memberId, p.ask.at));
     const waiting =
       p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${askInfo(p.ask.kind)?.ask ?? "…"}` : undefined;
-    const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? SWIM_SINK : 0), pose.z]);
+    const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? swimSink(p.look) : 0), pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
     tags.push({
@@ -508,9 +557,11 @@ export const Garden = ({
   const hudIndex = hudShown ? people.findIndex((p) => p.memberId === hudShown.id) : -1;
   const hudPose = hudIndex >= 0 ? poses[hudIndex] : null;
   const hudHead = hudPose
-    ? cam.project([hudPose.x, headTop(people[hudIndex].look) + sitRise(sitting[hudIndex]?.height), hudPose.z])
+    ? cam.project([hudPose.x, headTop(people[hudIndex].look) + sitRise(sitting[hudIndex]?.height, people[hudIndex].look), hudPose.z])
     : null;
   const hudAt = hudHead ? { x: hudHead.x, y: Math.max(HUD_HEIGHT + HUD_CLEAR_TOP, hudHead.y - NAME_TAG_CLEARANCE) } : null;
+  const itemProp = selectedItem ? scene.props.find((prop) => prop.tap === `${ITEM}${selectedItem.key}`) : undefined;
+  const itemTop = itemProp ? { x: (itemProp.box.left + itemProp.box.right) / 2, y: Math.max(HUD_HEIGHT + HUD_CLEAR_TOP, itemProp.box.top - 8) } : null;
 
   return (
     <View style={[styles.fill, { backgroundColor: scene.sky }]} onLayout={onLayout}>
@@ -599,6 +650,9 @@ export const Garden = ({
             </View>
           );
         })}
+        {itemTop && decor && selectedItem ? (
+          <PersonHud key={`item-${selectedItem.key}`} x={itemTop.x} y={itemTop.y} stageWidth={cam.width} visible actions={decor.actions} onHidden={() => undefined} />
+        ) : null}
         {hudAt && hudShown ? (
           <PersonHud
             key={hudShown.id}
@@ -621,7 +675,17 @@ const bubbleFade = (age: number) =>
   age < 0 || age >= BUBBLE_MS ? 0 : Math.min(1, (age + 16) / BUBBLE_IN_MS, (BUBBLE_MS - age) / BUBBLE_OUT_MS);
 const bubbleMoving = (age: number) => age < BUBBLE_IN_MS || (age > BUBBLE_MS - BUBBLE_OUT_MS - 1100 && age < BUBBLE_MS);
 
-type Hit = { kind: "person"; id: string } | { kind: "arcade" } | { kind: "seat"; id: string } | { kind: "ground" };
+type Hit =
+  | { kind: "person"; id: string }
+  | { kind: "arcade" }
+  | { kind: "seat"; id: string }
+  | { kind: "npc" }
+  | { kind: "item"; key: string }
+  | { kind: "floor" }
+  | { kind: "ground" };
+const ITEM = "item:";
+const NPC_POSE = { x: NPC.x, z: NPC.z, heading: NPC.heading, walking: false, arrivesAt: 0, stridePhase: 0, strideAmp: 0 };
+const NPC_TAG = "☕ Sijin Y.";
 const SEATED_WITHIN = 0.25;
 const SEAT_TAP_HEIGHT = 0.3;
 const SEAT_TAP_RADIUS = 0.5;
@@ -719,12 +783,12 @@ const TYPING_BOX = "•••";
 const drawOrder = (tag: TagSpot) => (tag.spokeAt === undefined ? [0, -tag.depth] : [1, tag.spokeAt]);
 
 const layerTags = (tags: TagSpot[]): TagSpot[] =>
-  [...tags]
-    .sort((a, b) => {
+  spreadTags(
+    [...tags].sort((a, b) => {
       const [x, y] = [drawOrder(a), drawOrder(b)];
       return x[0] - y[0] || x[1] - y[1];
     })
-    .map((tag) => ({ ...tag, bottom: Math.max(tag.bottom, tag.height + 4) }));
+  ).map((tag) => ({ ...tag, bottom: Math.max(tag.bottom, tag.height + 4) }));
 
 const styles = StyleSheet.create({
   fill: { flex: 1, overflow: "hidden" },

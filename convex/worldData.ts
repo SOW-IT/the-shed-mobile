@@ -73,3 +73,5 @@ export const worldReplyValidator = v.object({
   askAt: v.number(),
   at: v.number(),
 });
+
+export const worldPlacedValidator = v.object({ key: v.string(), item: v.string(), x: v.number(), z: v.number(), turn: v.number() });
