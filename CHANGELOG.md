@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.48] - 2026-11-25
+
+### Fixed
+- **Swoop's night is easier to read.** Once the sky turns dark, the
+  phone's clock, signal and battery turn white instead of staying black
+  on the navy sky.
+- **The character picker no longer shows Sij as a plain person icon.**
+  The faces are drawn by the World's character art, which loads after the
+  app starts. Until it arrived, Sij (and your own character) showed the
+  person icon that means "no World character", which on a slow first
+  load could stay for several seconds. Now a blank face shows while it
+  loads, and opening the Games menu starts loading the faces, so they're
+  usually ready by the time a game's start card appears.
+
 ## [2.12.47] - 2026-11-25
 
 ### Changed
