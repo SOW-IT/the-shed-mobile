@@ -10,7 +10,7 @@ import {
 } from "../../shared/devotionalStore";
 
 const safeFilename = (key: string) =>
-  `devotionals-${key.toLowerCase().replace(/[^a-z0-9]/g, "_")}.json`;
+  `devotionals-${key.replace(/[^a-z0-9]/g, (c) => `_${c.charCodeAt(0).toString(16).padStart(4, "0")}`)}.json`;
 
 const onWeb = () => Platform.OS === "web" && typeof window !== "undefined";
 
@@ -45,6 +45,9 @@ const store = createDevotionalStore(defaultBackend);
 
 export const saveLocalDevotional = store.saveLocal;
 export const markDevotionalSynced = store.markSynced;
+export const markDevotionalConflict = store.markConflict;
+export const keepLocalDevotional = store.keepMine;
+export const takeServerDevotional = store.takeTheirs;
 export const getLocalDevotional = (email: string, date: string): LocalDevotionalDraft | undefined =>
   store.getDrafts(email)[date];
 

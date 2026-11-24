@@ -88,9 +88,9 @@ export const DevotionalHistoryScreen = () => {
     );
   }
 
-  const byDate = mergeMonthDevotionals(monthRows ?? [], drafts, queryYear, queryMonth);
+  const byDate = mergeMonthDevotionals(monthRows, drafts, queryYear, queryMonth);
   if (spansTwoMonths) {
-    for (const [key, entry] of mergeMonthDevotionals(secondMonthRows ?? [], drafts, wy2, wm2)) {
+    for (const [key, entry] of mergeMonthDevotionals(secondMonthRows, drafts, wy2, wm2)) {
       byDate.set(key, entry);
     }
   }

@@ -85,4 +85,28 @@ describe("parseBibleReference", () => {
       expect(parseBibleReference(bad).ok, bad).toBe(false);
     }
   });
+
+  test("keeps Isaiah apart from 1 Samuel and reads numbered books, dashes and tight spacing", () => {
+    const cases: [string, string][] = [
+      ["Isa 9:6", "Isaiah 9:6"],
+      ["Is 40", "Isaiah 40"],
+      ["Isaiah 53", "Isaiah 53"],
+      ["I Samuel 3", "1 Samuel 3"],
+      ["1Sam 3", "1 Samuel 3"],
+      ["II Kings 2", "2 Kings 2"],
+      ["III John 4", "3 John 4"],
+      ["1st John 1", "1 John 1"],
+      ["1 John 3", "1 John 3"],
+      ["Song of Songs 2", "Song of Solomon 2"],
+      ["Psalm 119:1-176", "Psalm 119:1-176"],
+      ["Psalm 119:1\u2013176", "Psalm 119:1-176"],
+      ["Psalms 1\u20132", "Psalms 1-2"],
+      ["John 3:16\u201418", "John 3:16-18"],
+      ["John3:16", "John 3:16"],
+    ];
+    for (const [raw, formatted] of cases) {
+      expect(parseBibleReference(raw), raw).toEqual({ ok: true, formatted });
+    }
+    expect(parseBibleReference("Psalm 119:1-177").ok).toBe(false);
+  });
 });

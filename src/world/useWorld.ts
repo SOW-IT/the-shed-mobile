@@ -23,6 +23,7 @@ import {
   type PingReading,
   type PingBars,
   TYPING_REFRESH_MS,
+  pathAhead,
   posAt,
   type Walk,
   type Waypoint,
@@ -76,6 +77,8 @@ export const PENDING = "pending:";
 
 /** Taps closer together than this send only the last one. */
 const COALESCE_MS = 150;
+const HOLD_ROUTE_MS = 100;
+const HOLD_SAME_SPOT = 0.3;
 const SAME_SPOT = 0.05;
 const TOO_FAR_TO_BLEND = 3;
 
@@ -98,7 +101,7 @@ const blendIn = (walk: LocalWalk | null, server: Walk, now: number): LocalWalk =
   if (Math.hypot(here.x - there.x, here.z - there.z) > TOO_FAR_TO_BLEND) {
     return { ...theirs, gait: carryGait({ walk, gait: walk.gait }, theirs, now) };
   }
-  return headFor(walk, { x: toX, z: toZ }, now, theirs.path);
+  return headFor(walk, { x: toX, z: toZ }, now, pathAhead(theirs, now));
 };
 
 /**
@@ -289,6 +292,7 @@ export const useWorld = (
   useEffect(() => {
     if (arrival) arrivalRef.current = arrival;
   }, [arrival]);
+  // Your own walk, ahead of the server so a tap moves you at once.
   const [myWalk, setMyWalk] = useState<LocalWalk | null>(null);
   const myWalkRef = useRef<LocalWalk | null>(null);
   useEffect(() => {
@@ -298,7 +302,8 @@ export const useWorld = (
   const stats = useRef<WorldStats>(newStats());
 
   const lastAction = useRef(0);
-  const pending = useRef<{ x: number; z: number; seat?: string; path?: Waypoint[] } | null>(null);
+  // The spot waiting to be sent, whether a move is on its way, and its timer.
+  const pending = useRef<{ x: number; z: number; seat?: string } | null>(null);
   const inFlight = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Bumped when a visit ends, so a reply from the last visit can't queue a move in this one.
@@ -309,7 +314,7 @@ export const useWorld = (
   // A finger down on the ground: the walk follows it locally every frame,
   // and the last spot sent (and when) throttles the writes.
   const holding = useRef(false);
-  const holdFrame = useRef<number | null>(null);
+  const holdFrame = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The finger's latest spot, for the send that ends a throttle window.
   const fingerAt = useRef<{ x: number; z: number } | null>(null);
 
@@ -364,7 +369,7 @@ export const useWorld = (
       pending.current = null;
       predicting.current = false;
       holding.current = false;
-      if (holdFrame.current !== null) cancelAnimationFrame(holdFrame.current);
+      if (holdFrame.current !== null) clearTimeout(holdFrame.current);
       holdFrame.current = null;
       // The next visit starts from its own spawn walk, not this one's.
       setMyWalk(null);
@@ -437,6 +442,10 @@ export const useWorld = (
 
   const myRow = session ? states[session.memberId] : undefined;
   const myServerWalk = myRow && !(myRow instanceof Error) ? (myRow as Walk) : null;
+  const myServerWalkRef = useRef(myServerWalk);
+  useEffect(() => {
+    myServerWalkRef.current = myServerWalk;
+  }, [myServerWalk]);
   useEffect(() => {
     // Adopt the server's walk when it's newer than ours (another device, or the first load).
     // While a tap is unanswered, only a walk well after ours (another device)
@@ -469,16 +478,23 @@ export const useWorld = (
     const sentAt = Date.now();
     const sentIn = visit.current;
     stats.current.move++;
-    const pathArg = to.path && to.path.length > 0 ? { path: to.path } : {};
+    const place = session?.place;
+    const serverWalk = myServerWalkRef.current;
+    const path =
+      place && serverWalk
+        ? findPath(place, posAt(serverWalk, serverNow()), to, obstaclesRef.current, { allowGoalInside: to.seat !== undefined })
+        : null;
+    const pathArg = path && path.length > 0 ? { path } : {};
     (to.seat ? sitM({ seat: to.seat, ...pathArg }) : moveM({ toX: to.x, toZ: to.z, ...pathArg }))
       .then((reply) => {
         if (sentIn !== visit.current) return;
         heard(reply.serverNow, sentAt);
         if (reply.ok) {
-          const { fromX, fromZ, toX, toZ, startedAt, path } = reply;
+          const { fromX, fromZ, toX, toZ, startedAt, path: route } = reply;
+          // While a finger is down the local walk leads; adopt the server's after release.
           if (!pending.current && !holding.current) {
             const now = serverNow();
-            setMyWalk((walk) => blendIn(walk, { fromX, fromZ, toX, toZ, startedAt, path }, now));
+            setMyWalk((walk) => blendIn(walk, { fromX, fromZ, toX, toZ, startedAt, path: route }, now));
             predicting.current = false;
           }
         } else {
@@ -496,7 +512,7 @@ export const useWorld = (
         inFlight.current = false;
         if (sentIn === visit.current && pending.current && !timer.current) later(COALESCE_MS);
       });
-  }, [moveM, sitM, heard, again, later, serverNow]);
+  }, [session, moveM, sitM, heard, again, later, serverNow]);
   useEffect(() => {
     flushRef.current = flush;
   }, [flush]);
@@ -512,12 +528,13 @@ export const useWorld = (
       const now = serverNow();
       const from = myWalkRef.current ? posAt(myWalkRef.current, now) : to;
       const path = findPath(session.place, from, to, obstaclesRef.current);
+      if (!path) return;
       const next = headFor(myWalkRef.current, to, now, path);
       myWalkRef.current = next;
       setMyWalk(next);
       setTarget(to);
       setMySeat(null);
-      pending.current = { x: to.x, z: to.z, path };
+      pending.current = to;
       predicting.current = true;
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
@@ -533,12 +550,13 @@ export const useWorld = (
       const now = serverNow();
       const from = myWalkRef.current ? posAt(myWalkRef.current, now) : seat;
       const path = findPath(session.place, from, seat, obstaclesRef.current, { allowGoalInside: true });
+      if (!path) return;
       const next = headFor(myWalkRef.current, seat, now, path);
       myWalkRef.current = next;
       setMyWalk(next);
       setTarget(null);
       setMySeat(seat.id);
-      pending.current = { x: seat.x, z: seat.z, seat: seat.id, path };
+      pending.current = { x: seat.x, z: seat.z, seat: seat.id };
       predicting.current = true;
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
@@ -547,24 +565,28 @@ export const useWorld = (
     [session, serverNow, later]
   );
 
+  /** Points your walk at a spot now, from wherever you are on the way. */
   const retarget = useCallback(
-    (to: { x: number; z: number }): Waypoint[] => {
+    (to: { x: number; z: number }) => {
+      fingerAt.current = to;
+      const walk = myWalkRef.current;
+      if (walk && Math.hypot(walk.toX - to.x, walk.toZ - to.z) < HOLD_SAME_SPOT) return;
       const now = serverNow();
-      const from = myWalkRef.current ? posAt(myWalkRef.current, now) : to;
+      const from = walk ? posAt(walk, now) : to;
       const path = session ? findPath(session.place, from, to, obstaclesRef.current) : [];
-      const next = headFor(myWalkRef.current, to, now, path);
+      if (!path) return;
+      const next = headFor(walk, to, now, path);
       myWalkRef.current = next;
       setMyWalk(next);
       setTarget(to);
-      fingerAt.current = to;
-      return path;
     },
     [session, serverNow]
   );
 
+  /** Sends a move for this spot now (or as soon as the one on its way is answered). */
   const sendNow = useCallback(
-    (to: { x: number; z: number }, path?: Waypoint[]) => {
-      pending.current = { x: to.x, z: to.z, path };
+    (to: { x: number; z: number }) => {
+      pending.current = to;
       predicting.current = true;
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
@@ -590,10 +612,10 @@ export const useWorld = (
       if (!session || !holding.current) return;
       fingerAt.current = clampTarget(x, z, session.place, obstaclesRef.current);
       if (holdFrame.current !== null) return;
-      holdFrame.current = requestAnimationFrame(() => {
+      holdFrame.current = setTimeout(() => {
         holdFrame.current = null;
         if (holding.current && fingerAt.current) retarget(fingerAt.current);
-      });
+      }, HOLD_ROUTE_MS);
     },
     [session, retarget]
   );
@@ -602,11 +624,11 @@ export const useWorld = (
     (x: number, z: number) => {
       if (!session || !holding.current) return;
       holding.current = false;
-      if (holdFrame.current !== null) cancelAnimationFrame(holdFrame.current);
+      if (holdFrame.current !== null) clearTimeout(holdFrame.current);
       holdFrame.current = null;
       const to = clampTarget(x, z, session.place, obstaclesRef.current);
-      const path = retarget(to);
-      sendNow(to, path);
+      retarget(to);
+      sendNow(to);
     },
     [session, retarget, sendNow]
   );

@@ -136,6 +136,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
   items.push("devotionals");
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.canMentoring) items.push("mentoring");
+  // Staff have the Calendar as a bottom tab, so Insights moves in here.
   if (viewer.isStaff) items.push("insights");
   if (viewer.canAnnounce) items.push("announcements");
   items.push("garden");

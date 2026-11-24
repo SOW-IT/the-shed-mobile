@@ -3,8 +3,11 @@ import { Btn, Card, LoadingState, Muted, Screen, type ToastState } from "@/compo
 import { useOffline } from "@/hooks/useOffline";
 import {
   getLocalDevotional,
+  keepLocalDevotional,
+  markDevotionalConflict,
   markDevotionalSynced,
   saveLocalDevotional,
+  takeServerDevotional,
   useLocalDevotionals,
 } from "@/lib/devotionalStorage";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -15,17 +18,20 @@ import {
   MAX_PASSAGE_LENGTH,
   MAX_PRAYER_LENGTH,
   pickDisplayDevotional,
+  sameDevotionalContent,
   todayDevotionalDate,
   validateDevotionalDate,
   validateDevotionalInput,
 } from "@shared/devotionals";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 
 const PASSAGE_CONTAINER_HEIGHT = 128;
+const CONFLICT_TEXT = "This day was changed on another device. Choose which version to keep.";
 
 const formatHeadingDate = (key: string, today: string) => {
   const [y, m, d] = key.split("-").map(Number);
@@ -70,10 +76,15 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   const current = override && override.date === validDate ? override : seeded;
   const { passage, notes, prayerPoints } = current;
 
+  const canEdit = Boolean(email) && (remote !== undefined || offline);
+  const baseIfNew =
+    remote !== undefined ? (remote?.updatedAt ?? null) : localDraft && !localDraft.dirty ? localDraft.base : null;
+  const conflict = localDraft?.conflict === true && remote !== undefined ? { theirs: remote } : null;
+
   const dirtyOnEdit = useRef(false);
-  const latestRef = useRef({ passage, notes, prayerPoints, email, validDate, offline });
+  const latestRef = useRef({ passage, notes, prayerPoints, email, validDate, offline, baseIfNew });
   useEffect(() => {
-    latestRef.current = { passage, notes, prayerPoints, email, validDate, offline };
+    latestRef.current = { passage, notes, prayerPoints, email, validDate, offline, baseIfNew };
   });
 
   const parsedPassage = passage.trim().length > 0 ? parseBibleReference(passage) : null;
@@ -81,10 +92,10 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   const formattedPassage = parsedPassage && parsedPassage.ok ? parsedPassage.formatted : "";
 
   const updateContent = (next: { passage: string; notes: string; prayerPoints: string }) => {
-    if (!validDate) return;
+    if (!validDate || !email || !canEdit) return;
     dirtyOnEdit.current = true;
     setOverride({ date: validDate, ...next });
-    if (email) void saveLocalDevotional(email, validDate, next, Date.now());
+    void saveLocalDevotional(email, validDate, next, baseIfNew);
   };
 
   const syncToServer = useCallback(
@@ -100,56 +111,46 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         if (showFeedback) setToast({ text: checked.error });
         return;
       }
+      const content = { passage: latest.passage, notes: latest.notes, prayerPoints: latest.prayerPoints };
       const existingDraft = getLocalDevotional(latest.email, latest.validDate);
-      const savedDraft =
-        existingDraft &&
-        existingDraft.passage === latest.passage &&
-        existingDraft.notes === latest.notes &&
-        existingDraft.prayerPoints === latest.prayerPoints
-          ? existingDraft
-          : await saveLocalDevotional(
-              latest.email,
-              latest.validDate,
-              {
-                passage: latest.passage,
-                notes: latest.notes,
-                prayerPoints: latest.prayerPoints,
-              },
-              Date.now()
-            );
-
+      let draft = existingDraft;
+      let persisted = true;
+      if (!draft || !sameDevotionalContent(draft, content)) {
+        const stored = await saveLocalDevotional(latest.email, latest.validDate, content, latest.baseIfNew);
+        draft = stored.draft;
+        persisted = stored.persisted;
+      }
+      if (!draft.dirty) {
+        if (showFeedback) setToast({ text: "Saved" });
+        return;
+      }
+      if (draft.conflict) {
+        if (showFeedback) setToast({ text: CONFLICT_TEXT });
+        return;
+      }
+      const notSavedOnline = persisted ? "Saved on this device." : "Couldn't save on this device. Try again.";
       if (latest.offline) {
-        if (showFeedback) setToast({ text: "Saved on this device." });
+        if (showFeedback) setToast({ text: notSavedOnline });
         return;
       }
 
       if (showFeedback) setSaving(true);
       try {
-        const result = await saveOnline({
-          date: latest.validDate,
-          passage: checked.normalized.passage,
-          notes: checked.normalized.notes,
-          prayerPoints: checked.normalized.prayerPoints,
-        });
-        dirtyOnEdit.current = false;
-        await markDevotionalSynced(
-          latest.email,
-          latest.validDate,
-          result.passage,
-          savedDraft.updatedAt,
-          result.updatedAt
-        );
-        if (checked.normalized.passage !== latest.passage) {
-          setOverride({
-            date: latest.validDate,
-            passage: checked.normalized.passage,
-            notes: latest.notes,
-            prayerPoints: latest.prayerPoints,
-          });
+        const result = await saveOnline({ date: latest.validDate, ...checked.normalized, base: draft.base });
+        if (result.status === "conflict") {
+          await markDevotionalConflict(latest.email, latest.validDate);
+          if (showFeedback) setToast({ text: CONFLICT_TEXT });
+          return;
+        }
+        await markDevotionalSynced(latest.email, latest.validDate, content, result);
+        const now = latestRef.current;
+        if (now.validDate === latest.validDate && sameDevotionalContent(now, content)) {
+          dirtyOnEdit.current = false;
+          setOverride(null);
         }
         if (showFeedback) setToast({ text: "Saved" });
-      } catch {
-        if (showFeedback) setToast({ text: "Saved on this device." });
+      } catch (error) {
+        if (showFeedback) setToast({ text: error instanceof ConvexError ? String(error.data) : notSavedOnline });
       } finally {
         if (showFeedback) setSaving(false);
       }
@@ -222,7 +223,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         <Btn
           title={saving ? "Saving…" : "Save"}
           onPress={() => void syncToServer(true)}
-          disabled={Boolean(passageError) || saving}
+          disabled={Boolean(passageError) || saving || !canEdit}
         />
       </View>
 
@@ -233,6 +234,55 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
       >
+        {canEdit ? null : (
+          <Muted>{email ? "Loading..." : "Connect to the internet to open your devotionals."}</Muted>
+        )}
+        {conflict && email ? (
+          <Card style={styles.sectionCard}>
+            <Text style={[typography.section, { color: t.text }]}>Changed on another device</Text>
+            <Muted>
+              {conflict.theirs
+                ? "Your other device saved a different version of this day."
+                : "Your other device cleared this day."}{" "}
+              The text below is the version on this device.
+            </Muted>
+            {conflict.theirs ? (
+              <View style={[styles.otherVersion, { borderColor: t.border }]}>
+                {conflict.theirs.passage ? (
+                  <Text style={[typography.label, { color: t.text }]}>{conflict.theirs.passage}</Text>
+                ) : null}
+                {conflict.theirs.notes ? (
+                  <Text style={[typography.body, { color: t.muted }]} numberOfLines={4}>
+                    {conflict.theirs.notes}
+                  </Text>
+                ) : null}
+                {conflict.theirs.prayerPoints ? (
+                  <Text style={[typography.body, { color: t.muted }]} numberOfLines={3}>
+                    {conflict.theirs.prayerPoints}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+            <View style={styles.conflictButtons}>
+              <Btn
+                title="Keep this version"
+                onPress={() => {
+                  void keepLocalDevotional(email, validDate, conflict.theirs).then(() => syncToServer(true));
+                }}
+              />
+              <Btn
+                title="Use the other version"
+                variant="tonal"
+                onPress={() => {
+                  dirtyOnEdit.current = false;
+                  setOverride(null);
+                  void takeServerDevotional(email, validDate, conflict.theirs);
+                }}
+              />
+            </View>
+          </Card>
+        ) : null}
+
         <Card style={styles.sectionCard}>
           <Text style={[typography.label, { color: t.muted }]}>Passage</Text>
           <TextInput
@@ -242,6 +292,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
             placeholderTextColor={t.faint}
             maxLength={MAX_PASSAGE_LENGTH}
             autoCorrect={false}
+            editable={canEdit}
             accessibilityLabel="Passage reference"
             testID="devotional-passage-input"
             style={[
@@ -295,6 +346,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
             multiline
             maxLength={MAX_NOTES_LENGTH}
             textAlignVertical="top"
+            editable={canEdit}
             accessibilityLabel="Notes"
             testID="devotional-notes-input"
             style={[
@@ -316,6 +368,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
             multiline
             maxLength={MAX_PRAYER_LENGTH}
             textAlignVertical="top"
+            editable={canEdit}
             accessibilityLabel="Prayer points"
             testID="devotional-prayer-input"
             style={[
@@ -362,6 +415,8 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxxl,
   },
   sectionCard: { gap: spacing.sm },
+  otherVersion: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md, gap: spacing.xs },
+  conflictButtons: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   singleInput: {
     borderWidth: 1,
     borderRadius: radius.md,

@@ -22,6 +22,7 @@ export const ChromeScreen = ({
   floating?: ReactNode;
   fullWidth?: boolean;
   scrollRef?: Ref<ScrollViewInstance>;
+  // In the top bar; a wide screen has no top bar, so the screen shows it itself.
   title?: ReactNode;
   onBack?: () => void;
 }) => {

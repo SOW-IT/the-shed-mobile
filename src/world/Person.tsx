@@ -1524,6 +1524,7 @@ const TagView = ({
   line?: string;
   typing?: number;
   emote?: string;
+  /** 0 when the emote starts, 1 when it's gone. */
   emoteRise: number;
   lineFade?: number;
   status?: string;

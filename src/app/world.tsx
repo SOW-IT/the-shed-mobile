@@ -7,6 +7,8 @@ import { useConvexAuth } from "convex/react";
 import { useFocusEffect, useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from "expo-router";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 
+// Loaded when someone opens the garden, not at startup. On web it's its own
+// chunk; on iOS it's in the bundle but isn't run until now.
 const WorldScreen = lazy(() => import("@/world/WorldScreen").then((m) => ({ default: m.WorldScreen })));
 
 type AwayKind = "arcade" | "devotional" | "browse";
@@ -14,9 +16,12 @@ type AwayKind = "arcade" | "devotional" | "browse";
 export default function World() {
   const router = useRouter();
   const navigation = useNavigation();
+  // `?sheet=character` opens the character editor and `?sheet=poke` the list
+  // of people to poke.
   const { sheet, poke, invite } = useLocalSearchParams<{ sheet?: string; poke?: string; invite?: string }>();
   const arrival = useMemo(() => (poke || invite ? { poke: poke || undefined, invite: invite || undefined } : undefined), [poke, invite]);
   const { isAuthenticated, isLoading } = useConvexAuth();
+  // Leave the garden while another screen (the games) covers it; come back on return.
   const [focused, setFocused] = useState(true);
   const [awayKind, setAwayKind] = useState<AwayKind | null>(null);
   useFocusEffect(

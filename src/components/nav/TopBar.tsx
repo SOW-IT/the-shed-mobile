@@ -28,6 +28,7 @@ export const TopBar = ({
 }: {
   photo: string | null;
   name: string | null;
+  // Shown in the middle, e.g. the month the calendar is on.
   title?: ReactNode;
   onBack?: () => void;
 }) => {

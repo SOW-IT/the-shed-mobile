@@ -392,6 +392,8 @@ export const Garden = ({
       })
       .filter((h) => x >= h.box.left && x <= h.box.right && y >= h.box.top && y <= h.box.bottom)
       .sort((a, b) => a.depth - b.depth);
+    // The arcade cabinet as drawn (its faces stand well above the ground).
+    // Where it and a person overlap, whichever is drawn in front wins.
     const propHit = scene.props
       .filter((prop) => isInteractiveProp(prop.tap) && x >= prop.box.left - 6 && x <= prop.box.right + 6 && y >= prop.box.top - 6 && y <= prop.box.bottom + 6)
       .sort((a, b) => a.depth - b.depth)[0];

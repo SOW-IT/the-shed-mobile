@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   OBSTACLES,
   PLACE_OBSTACLES,
+  pathAhead,
   posAt,
   SEATS,
   WALK_SPEED,
@@ -9,7 +10,13 @@ import {
   type Obstacle,
   type Walk,
 } from "./world";
-import { findPath, MAX_PATH_WAYPOINTS, sanitizePath } from "./worldPath";
+import { findPath as findMaybe, MAX_PATH_WAYPOINTS, sanitizePath } from "./worldPath";
+
+const findPath = (...args: Parameters<typeof findMaybe>) => {
+  const path = findMaybe(...args);
+  if (!path) throw new Error("expected a route");
+  return path;
+};
 
 const hitsAny = (walk: Walk, obstacles: readonly Obstacle[], start = 0) => {
   const total = walkLength(walk);
@@ -85,13 +92,16 @@ describe("findPath", () => {
 
   test("handles unreachable or fully blocked layouts safely", () => {
     const wall: Obstacle = { id: "wall", x: 0, z: 0, rx: 10, rz: 20 };
-    expect(findPath("home", { x: 0, z: 2 }, { x: 0, z: -2 }, [wall])).toEqual([]);
+    expect(findMaybe("home", { x: 0, z: 2 }, { x: 0, z: -2 }, [wall])).toEqual([]);
+
+    const fills: Obstacle = { id: "fills", x: 0, z: 0, rx: 30, rz: 30 };
+    expect(findMaybe("home", { x: 40, z: 40 }, { x: 0, z: -2 }, [fills])).toBeNull();
 
     const divider: Obstacle = { id: "divider", x: 0, z: 0, rx: 6, rz: 0.8 };
-    expect(findPath("home", { x: 0, z: 4 }, { x: 0, z: -4 }, [divider])).toEqual([]);
+    expect(findMaybe("home", { x: 0, z: 4 }, { x: 0, z: -4 }, [divider])).toBeNull();
 
     const tiny: Obstacle = { id: "tiny", x: 0, z: 0, rx: 0.2, rz: 0.2 };
-    const shortPath = findPath("home", { x: 0, z: 0.21 }, { x: 0, z: -0.21 }, [tiny]);
+    const shortPath = findMaybe("home", { x: 0, z: 0.21 }, { x: 0, z: -0.21 }, [tiny]);
     expect(Array.isArray(shortPath)).toBe(true);
 
     const sameCell = findPath("garden", { x: 0.82, z: -2.4 }, { x: 0.86, z: -2.35 });
@@ -149,6 +159,26 @@ describe("polyline posAt and sanitizePath", () => {
     };
     expect(posAt(duplicateEnd, 5000)).toMatchObject({ x: 2, z: 0, walking: false });
     expect(posAt(duplicateEnd, 100).walking).toBe(true);
+  });
+
+  test("keeps only the waypoints still ahead", () => {
+    const walk: Walk = {
+      fromX: 0,
+      fromZ: 0,
+      toX: 3,
+      toZ: 3,
+      startedAt: 0,
+      path: [
+        { x: 3, z: 0 },
+        { x: 3, z: 1 },
+      ],
+    };
+    const at = (distance: number) => (distance / WALK_SPEED) * 1000;
+    expect(pathAhead(walk, 0)).toEqual(walk.path);
+    expect(pathAhead(walk, at(2))).toEqual(walk.path);
+    expect(pathAhead(walk, at(3.5))).toEqual([{ x: 3, z: 1 }]);
+    expect(pathAhead(walk, at(4.5))).toEqual([]);
+    expect(pathAhead({ ...walk, path: undefined }, 0)).toEqual([]);
   });
 
   test("sanitizes waypoints on the server", () => {

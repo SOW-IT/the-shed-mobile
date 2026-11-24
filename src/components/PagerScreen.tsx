@@ -129,6 +129,7 @@ export const PagerScreen = ({
   );
   const [pagerPosition] = useState(() => new Animated.Value(initialIndex));
   const [tabBarHeight, setTabBarHeight] = useState(48);
+  const [backRowHeight, setBackRowHeight] = useState(0);
   const footerAnimsRef = useRef<Record<string, Animated.Value>>({});
   const footerScrollState = useRef<PagerScrollState>("idle");
   const { collapseStyle, barOpacityStyle, makeScrollHandler, syncToScrollY } =
@@ -363,7 +364,7 @@ export const PagerScreen = ({
   return (
     <PagerTopBarInsetContext.Provider value={topBarInset}>
       <View style={[styles.screen, { backgroundColor: t.background }]}>
-        <View style={{ height: insets.top + tabBarHeight }} />
+        <View style={{ height: insets.top + tabBarHeight + (wide && onBack ? backRowHeight : 0) }} />
         <PagerCarousel
           tabs={tabs}
           activeKey={activeKey}
@@ -386,7 +387,7 @@ export const PagerScreen = ({
           >
             {wide ? (
               onBack ? (
-                <View style={styles.topBarWrap}>
+                <View style={styles.topBarWrap} onLayout={(e) => setBackRowHeight(e.nativeEvent.layout.height)}>
                   <Pressable
                     onPress={onBack}
                     accessibilityRole="button"

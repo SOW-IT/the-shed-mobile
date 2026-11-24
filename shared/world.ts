@@ -217,6 +217,7 @@ export const inWater = (place: Place, at: { x: number; z: number }) =>
 
 export type Waypoint = { x: number; z: number };
 
+/** The latest walk of one person: everything a phone needs to place them. */
 export interface Walk {
   fromX: number;
   fromZ: number;
@@ -230,6 +231,7 @@ export interface Pose {
   x: number;
   z: number;
   walking: boolean;
+  /** Radians; 0 faces the camera (+z), positive turns to the right (+x). */
   heading: number;
   arrivesAt: number;
 }
@@ -248,6 +250,18 @@ export const walkLength = (walk: Walk): number => {
   return total;
 };
 
+export const pathAhead = (walk: Walk, now: number): Waypoint[] => {
+  if (!walk.path || walk.path.length === 0) return [];
+  const pts = walkPoints(walk);
+  let left = (Math.max(0, now - walk.startedAt) / 1000) * WALK_SPEED;
+  for (let i = 1; i < pts.length - 1; i++) {
+    left -= Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+    if (left < 0) return walk.path.slice(i - 1);
+  }
+  return [];
+};
+
+/** Where someone is at `now`: a straight line at WALK_SPEED from the walk's start. */
 export const posAt = (walk: Walk, now: number): Pose => {
   if (!walk.path || walk.path.length === 0) {
     const dx = walk.toX - walk.fromX;
@@ -325,6 +339,7 @@ const NARROW_PER_Z = 0.25;
 /** How far either side of the middle someone can stand at depth z. */
 export const halfWidthAt = (z: number) => WALK_BOUNDS.maxX - Math.max(0, z - NARROW_FROM_Z) * NARROW_PER_Z;
 
+/** Things in the courtyard nobody stands inside, as ellipses on the ground. */
 export const OBSTACLES = [
   { id: "birdbath", x: 0, z: -2.4, rx: 0.8, rz: 0.8 },
   { id: "arcade", x: -3.1, z: 5.7, rx: 0.6, rz: 0.5 },

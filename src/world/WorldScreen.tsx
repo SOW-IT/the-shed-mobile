@@ -232,7 +232,9 @@ export const WorldScreen = ({
   onCalendar: () => void;
   onPraise: () => void;
   onDevotional: () => void;
+  /** A sheet to open on arrival, from a link: the character editor or the poke list. */
   opening?: "character" | "poke";
+  /** False while another screen covers this one: the visit ends until it's back. */
   active?: boolean;
   awayKind?: AwayKind | null;
 }) => {

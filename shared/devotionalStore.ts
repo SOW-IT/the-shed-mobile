@@ -1,6 +1,8 @@
 import {
   parseDraftStore,
+  sameDevotionalContent,
   type DevotionalContent,
+  type DevotionalEntry,
   type LocalDevotionalDraft,
 } from "./devotionals";
 
@@ -8,6 +10,8 @@ export type DevotionalStorageBackend = {
   read: (key: string) => Promise<string | null>;
   write: (key: string, value: string) => Promise<boolean>;
 };
+
+type SavedOnServer = { passage: string; deleted: boolean; updatedAt: number };
 
 export const EMPTY_DEVOTIONAL_MAP: Readonly<Record<string, LocalDevotionalDraft>> = {};
 export const EMPTY_DIRTY_DEVOTIONALS: readonly LocalDevotionalDraft[] = [];
@@ -21,7 +25,7 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     loaded: boolean;
     loading: Promise<void> | null;
     listeners: Set<() => void>;
-    writeSeq: number;
+    writing: Promise<boolean>;
   };
 
   const buckets = new Map<string, Bucket>();
@@ -46,7 +50,7 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
         loaded: false,
         loading: null,
         listeners: new Set(),
-        writeSeq: 0,
+        writing: Promise.resolve(true),
       };
       buckets.set(k, bucket);
     }
@@ -60,6 +64,7 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     if (bucket.loading) return bucket.loading;
     bucket.loading = backend
       .read(k)
+      .catch(() => null)
       .then((raw) => {
         bucket.loaded = true;
         if (!raw) return;
@@ -67,8 +72,7 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
         let changed = false;
         const merged: Record<string, LocalDevotionalDraft> = { ...bucket.drafts };
         for (const [date, stored] of Object.entries(parsed)) {
-          const current = merged[date];
-          if (!current || stored.updatedAt > current.updatedAt) {
+          if (!merged[date]) {
             merged[date] = stored;
             changed = true;
           }
@@ -85,19 +89,34 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     return bucket.loading;
   };
 
-  const persist = async (email: string, bucket: Bucket) => {
-    bucket.writeSeq++;
-    const payload = JSON.stringify(bucket.drafts);
-    return await backend.write(keyFor(email), payload);
+  const persist = async (email: string, bucket: Bucket): Promise<boolean> => {
+    await load(email);
+    const write = bucket.writing.then(() =>
+      backend.write(keyFor(email), JSON.stringify(bucket.drafts)).catch(() => false)
+    );
+    bucket.writing = write;
+    return await write;
+  };
+
+  const update = (email: string, date: string, next: LocalDevotionalDraft | null) => {
+    const bucket = getBucket(email);
+    const drafts = { ...bucket.drafts };
+    if (next) drafts[date] = next;
+    else delete drafts[date];
+    bucket.drafts = drafts;
+    recomputeDirty(bucket);
+    notify(bucket);
+    return persist(email, bucket);
   };
 
   const saveLocal = async (
     email: string,
     date: string,
     content: DevotionalContent,
+    baseIfNew: number | null,
     now = Date.now()
-  ): Promise<LocalDevotionalDraft> => {
-    const bucket = getBucket(email);
+  ): Promise<{ draft: LocalDevotionalDraft; persisted: boolean }> => {
+    const current = getBucket(email).drafts[date];
     const draft: LocalDevotionalDraft = {
       date,
       passage: content.passage,
@@ -105,36 +124,54 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
       prayerPoints: content.prayerPoints,
       updatedAt: now,
       dirty: true,
+      base: current?.dirty ? current.base : baseIfNew,
+      conflict: current?.dirty === true && current.conflict,
     };
-    bucket.drafts = { ...bucket.drafts, [date]: draft };
-    recomputeDirty(bucket);
-    notify(bucket);
-    await persist(email, bucket);
-    return draft;
+    const persisted = await update(email, date, draft);
+    return { draft, persisted };
   };
 
   const markSynced = async (
     email: string,
     date: string,
-    savedPassage: string,
-    draftUpdatedAt: number,
-    serverUpdatedAt: number
+    sent: DevotionalContent,
+    saved: SavedOnServer
   ): Promise<void> => {
-    const bucket = getBucket(email);
-    const current = bucket.drafts[date];
-    if (!current || current.updatedAt !== draftUpdatedAt) return;
-    bucket.drafts = {
-      ...bucket.drafts,
-      [date]: {
-        ...current,
-        passage: savedPassage,
-        updatedAt: serverUpdatedAt,
-        dirty: false,
-      },
-    };
-    recomputeDirty(bucket);
-    notify(bucket);
-    await persist(email, bucket);
+    const current = getBucket(email).drafts[date];
+    if (!current) return;
+    const base = saved.deleted ? null : saved.updatedAt;
+    if (!sameDevotionalContent(current, sent)) {
+      await update(email, date, { ...current, base, conflict: false });
+      return;
+    }
+    await update(email, date, {
+      ...current,
+      passage: saved.passage,
+      updatedAt: saved.updatedAt,
+      dirty: false,
+      base,
+      conflict: false,
+    });
+  };
+
+  const markConflict = async (email: string, date: string): Promise<void> => {
+    const current = getBucket(email).drafts[date];
+    if (!current?.dirty || current.conflict) return;
+    await update(email, date, { ...current, conflict: true });
+  };
+
+  const keepMine = async (email: string, date: string, remote: DevotionalEntry | null): Promise<void> => {
+    const current = getBucket(email).drafts[date];
+    if (!current?.dirty) return;
+    await update(email, date, { ...current, base: remote?.updatedAt ?? null, conflict: false });
+  };
+
+  const takeTheirs = async (email: string, date: string, remote: DevotionalEntry | null): Promise<void> => {
+    await update(
+      email,
+      date,
+      remote ? { ...remote, dirty: false, base: remote.updatedAt, conflict: false } : null
+    );
   };
 
   const getDrafts = (email: string | null | undefined): Readonly<Record<string, LocalDevotionalDraft>> =>
@@ -153,5 +190,5 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     };
   };
 
-  return { load, saveLocal, markSynced, getDrafts, getDirty, subscribe };
+  return { load, saveLocal, markSynced, markConflict, keepMine, takeTheirs, getDrafts, getDirty, subscribe };
 };

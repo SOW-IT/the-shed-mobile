@@ -106,7 +106,7 @@ export const findPath = (
   to: Waypoint,
   extra: readonly Obstacle[] = [],
   { allowGoalInside = false }: { allowGoalInside?: boolean } = {}
-): Waypoint[] => {
+): Waypoint[] | null => {
   if (Math.hypot(to.x - from.x, to.z - from.z) < 0.05) return [];
   const all = extra.length > 0 ? [...PLACE_OBSTACLES[place], ...extra] : PLACE_OBSTACLES[place];
   if (all.length === 0) return [];
@@ -131,7 +131,7 @@ export const findPath = (
 
   const startCell = nearestWalkableCell(from, walkable);
   const goalCell = nearestWalkableCell(to, walkable);
-  if (!startCell || !goalCell) return [];
+  if (!startCell || !goalCell) return null;
 
   const startIdx = cellIndex(startCell.col, startCell.row);
   const goalIdx = cellIndex(goalCell.col, goalCell.row);
@@ -216,7 +216,7 @@ export const findPath = (
     }
   }
 
-  if (!found) return [];
+  if (!found) return null;
 
   const gridPoints: Waypoint[] = [];
   let trace = goalIdx;

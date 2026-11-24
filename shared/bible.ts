@@ -14,12 +14,12 @@ export const BIBLE_BOOKS: readonly BibleBook[] = [
   { name: "Joshua", aliases: ["josh", "jos", "jsh"], chapters: [18, 24, 17, 24, 15, 27, 26, 35, 27, 43, 23, 24, 33, 15, 63, 10, 18, 28, 51, 9, 45, 34, 16, 33] },
   { name: "Judges", aliases: ["judg", "jdg", "jg", "jdgs"], chapters: [36, 23, 31, 24, 31, 40, 25, 35, 57, 18, 40, 15, 25, 20, 20, 31, 13, 31, 30, 48, 25] },
   { name: "Ruth", aliases: ["ruth", "rth", "ru"], chapters: [22, 23, 18, 22] },
-  { name: "1 Samuel", aliases: ["1sam", "1sa", "1sm", "isam", "isa", "1samuel"], chapters: [28, 36, 21, 22, 12, 21, 17, 22, 27, 27, 15, 25, 23, 52, 35, 23, 58, 30, 24, 42, 15, 23, 29, 22, 44, 25, 12, 25, 11, 31, 13] },
-  { name: "2 Samuel", aliases: ["2sam", "2sa", "2sm", "iisam", "2samuel"], chapters: [27, 32, 39, 12, 25, 23, 29, 18, 13, 19, 27, 31, 39, 33, 37, 23, 29, 33, 43, 26, 22, 51, 39, 25] },
-  { name: "1 Kings", aliases: ["1kgs", "1ki", "1kin", "1kings", "ikgs", "iki"], chapters: [53, 46, 28, 34, 18, 38, 51, 66, 28, 29, 43, 33, 34, 31, 34, 34, 24, 46, 21, 43, 29, 53] },
-  { name: "2 Kings", aliases: ["2kgs", "2ki", "2kin", "2kings", "iikgs", "iiki"], chapters: [18, 25, 27, 44, 27, 33, 20, 29, 37, 36, 21, 21, 25, 29, 38, 20, 41, 37, 37, 21, 26, 20, 37, 20, 30] },
-  { name: "1 Chronicles", aliases: ["1chr", "1ch", "1chron", "1chronicles", "ichr"], chapters: [54, 55, 24, 43, 26, 81, 40, 40, 44, 14, 47, 40, 14, 17, 29, 43, 27, 17, 19, 8, 30, 19, 32, 31, 31, 32, 34, 21, 30] },
-  { name: "2 Chronicles", aliases: ["2chr", "2ch", "2chron", "2chronicles", "iichr"], chapters: [17, 18, 17, 22, 14, 42, 22, 18, 31, 19, 23, 16, 22, 15, 19, 14, 19, 34, 11, 37, 20, 12, 21, 27, 28, 23, 9, 27, 36, 27, 21, 33, 25, 33, 27, 23] },
+  { name: "1 Samuel", aliases: ["1sam", "1sa", "1sm", "1samuel"], chapters: [28, 36, 21, 22, 12, 21, 17, 22, 27, 27, 15, 25, 23, 52, 35, 23, 58, 30, 24, 42, 15, 23, 29, 22, 44, 25, 12, 25, 11, 31, 13] },
+  { name: "2 Samuel", aliases: ["2sam", "2sa", "2sm", "2samuel"], chapters: [27, 32, 39, 12, 25, 23, 29, 18, 13, 19, 27, 31, 39, 33, 37, 23, 29, 33, 43, 26, 22, 51, 39, 25] },
+  { name: "1 Kings", aliases: ["1kgs", "1ki", "1kin", "1kings"], chapters: [53, 46, 28, 34, 18, 38, 51, 66, 28, 29, 43, 33, 34, 31, 34, 34, 24, 46, 21, 43, 29, 53] },
+  { name: "2 Kings", aliases: ["2kgs", "2ki", "2kin", "2kings"], chapters: [18, 25, 27, 44, 27, 33, 20, 29, 37, 36, 21, 21, 25, 29, 38, 20, 41, 37, 37, 21, 26, 20, 37, 20, 30] },
+  { name: "1 Chronicles", aliases: ["1chr", "1ch", "1chron", "1chronicles"], chapters: [54, 55, 24, 43, 26, 81, 40, 40, 44, 14, 47, 40, 14, 17, 29, 43, 27, 17, 19, 8, 30, 19, 32, 31, 31, 32, 34, 21, 30] },
+  { name: "2 Chronicles", aliases: ["2chr", "2ch", "2chron", "2chronicles"], chapters: [17, 18, 17, 22, 14, 42, 22, 18, 31, 19, 23, 16, 22, 15, 19, 14, 19, 34, 11, 37, 20, 12, 21, 27, 28, 23, 9, 27, 36, 27, 21, 33, 25, 33, 27, 23] },
   { name: "Ezra", aliases: ["ezr", "ez"], chapters: [11, 70, 13, 24, 17, 22, 28, 36, 15, 44] },
   { name: "Nehemiah", aliases: ["neh", "ne"], chapters: [11, 20, 32, 23, 19, 19, 73, 18, 38, 39, 36, 47, 31] },
   { name: "Esther", aliases: ["esth", "est", "es"], chapters: [22, 23, 15, 17, 14, 14, 10, 17, 32, 3] },
@@ -51,25 +51,25 @@ export const BIBLE_BOOKS: readonly BibleBook[] = [
   { name: "John", aliases: ["jn", "jhn", "joh"], chapters: [51, 25, 36, 54, 47, 71, 53, 59, 41, 42, 57, 50, 38, 31, 27, 33, 26, 40, 42, 31, 25] },
   { name: "Acts", aliases: ["act", "ac"], chapters: [26, 47, 26, 37, 42, 15, 60, 40, 43, 48, 30, 25, 52, 28, 41, 40, 34, 28, 41, 38, 40, 30, 35, 27, 27, 32, 44, 31] },
   { name: "Romans", aliases: ["rom", "ro", "rm"], chapters: [32, 29, 31, 25, 21, 23, 25, 39, 33, 21, 36, 21, 14, 23, 33, 27] },
-  { name: "1 Corinthians", aliases: ["1cor", "1co", "1corinthians", "icor"], chapters: [31, 16, 23, 21, 13, 20, 40, 13, 27, 33, 34, 31, 13, 40, 58, 24] },
-  { name: "2 Corinthians", aliases: ["2cor", "2co", "2corinthians", "iicor"], chapters: [24, 17, 18, 18, 21, 18, 16, 24, 15, 18, 33, 21, 14] },
+  { name: "1 Corinthians", aliases: ["1cor", "1co", "1corinthians"], chapters: [31, 16, 23, 21, 13, 20, 40, 13, 27, 33, 34, 31, 13, 40, 58, 24] },
+  { name: "2 Corinthians", aliases: ["2cor", "2co", "2corinthians"], chapters: [24, 17, 18, 18, 21, 18, 16, 24, 15, 18, 33, 21, 14] },
   { name: "Galatians", aliases: ["gal", "ga"], chapters: [24, 21, 29, 31, 26, 18] },
   { name: "Ephesians", aliases: ["eph", "ep"], chapters: [23, 22, 21, 32, 33, 24] },
   { name: "Philippians", aliases: ["phil", "php", "pp"], chapters: [30, 30, 21, 23] },
   { name: "Colossians", aliases: ["col", "co"], chapters: [29, 23, 25, 18] },
-  { name: "1 Thessalonians", aliases: ["1thess", "1th", "1thes", "1thessalonians", "ithess"], chapters: [10, 20, 13, 18, 28] },
-  { name: "2 Thessalonians", aliases: ["2thess", "2th", "2thes", "2thessalonians", "iithess"], chapters: [12, 17, 18] },
-  { name: "1 Timothy", aliases: ["1tim", "1ti", "1tm", "1timothy", "itim"], chapters: [20, 15, 16, 16, 25, 21] },
-  { name: "2 Timothy", aliases: ["2tim", "2ti", "2tm", "2timothy", "iitim"], chapters: [18, 26, 17, 22] },
+  { name: "1 Thessalonians", aliases: ["1thess", "1th", "1thes", "1thessalonians"], chapters: [10, 20, 13, 18, 28] },
+  { name: "2 Thessalonians", aliases: ["2thess", "2th", "2thes", "2thessalonians"], chapters: [12, 17, 18] },
+  { name: "1 Timothy", aliases: ["1tim", "1ti", "1tm", "1timothy"], chapters: [20, 15, 16, 16, 25, 21] },
+  { name: "2 Timothy", aliases: ["2tim", "2ti", "2tm", "2timothy"], chapters: [18, 26, 17, 22] },
   { name: "Titus", aliases: ["tit", "ti"], chapters: [16, 15, 15] },
   { name: "Philemon", aliases: ["phlm", "phm", "philem"], chapters: [25] },
   { name: "Hebrews", aliases: ["heb", "he"], chapters: [14, 18, 19, 16, 14, 20, 28, 13, 28, 39, 40, 29, 25] },
   { name: "James", aliases: ["jas", "jm", "jam"], chapters: [27, 26, 18, 17, 20] },
-  { name: "1 Peter", aliases: ["1pet", "1pe", "1pt", "1peter", "ipet"], chapters: [25, 25, 22, 19, 14] },
-  { name: "2 Peter", aliases: ["2pet", "2pe", "2pt", "2peter", "iipet"], chapters: [21, 22, 18] },
-  { name: "1 John", aliases: ["1jn", "1jo", "1jhn", "1john", "ijn"], chapters: [10, 29, 24, 21, 21] },
-  { name: "2 John", aliases: ["2jn", "2jo", "2jhn", "2john", "iijn"], chapters: [13] },
-  { name: "3 John", aliases: ["3jn", "3jo", "3jhn", "3john", "iiijn"], chapters: [14] },
+  { name: "1 Peter", aliases: ["1pet", "1pe", "1pt", "1peter"], chapters: [25, 25, 22, 19, 14] },
+  { name: "2 Peter", aliases: ["2pet", "2pe", "2pt", "2peter"], chapters: [21, 22, 18] },
+  { name: "1 John", aliases: ["1jn", "1jo", "1jhn", "1john"], chapters: [10, 29, 24, 21, 21] },
+  { name: "2 John", aliases: ["2jn", "2jo", "2jhn", "2john"], chapters: [13] },
+  { name: "3 John", aliases: ["3jn", "3jo", "3jhn", "3john"], chapters: [14] },
   { name: "Jude", aliases: ["jud", "jd"], chapters: [25] },
   { name: "Revelation", aliases: ["rev", "re", "rv", "revelations"], chapters: [20, 29, 22, 11, 14, 17, 17, 13, 21, 11, 19, 17, 18, 20, 8, 21, 18, 24, 21, 15, 27, 21] },
 ];
@@ -78,9 +78,9 @@ const normalizeKey = (raw: string) =>
   raw
     .toLowerCase()
     .replace(/\./g, "")
-    .replace(/^(iii|3rd)\s*/i, "3")
-    .replace(/^(ii|2nd)\s*/i, "2")
-    .replace(/^(i|1st)\s*/i, "1")
+    .replace(/^(?:iii\s+|3rd\s*)/, "3")
+    .replace(/^(?:ii\s+|2nd\s*)/, "2")
+    .replace(/^(?:i\s+|1st\s*)/, "1")
     .replace(/\s+/g, "");
 
 const BOOK_LOOKUP = new Map<string, BibleBook>();
@@ -106,10 +106,10 @@ const bookDisplay = (book: BibleBook, multiChapter: boolean) =>
   !multiChapter && book.singular ? book.singular : book.name;
 
 const parseOneReference = (raw: string): ParsedBibleRef => {
-  const cleaned = raw.trim().replace(/[\u2013\u2012]/g, "-").replace(/\s+/g, " ");
+  const cleaned = raw.trim().replace(/[\u2010-\u2015\u2212]/g, "-").replace(/\s+/g, " ");
   if (!cleaned) return { ok: false, error: "Enter a Bible reference." };
 
-  const splitMatch = cleaned.match(/^((?:[123]|I{1,3}|1st|2nd|3rd)?\s*[A-Za-z][A-Za-z.\s]*?)(?:\s+(\d.*))?$/);
+  const splitMatch = cleaned.match(/^((?:[123]|I{1,3}|1st|2nd|3rd)?\s*[A-Za-z][A-Za-z.\s]*?)(?:\s*(\d.*))?$/);
   if (!splitMatch) return { ok: false, error: "Enter a valid Bible reference, like Psalm 23 or John 15:1-17." };
 
   const bookRaw = splitMatch[1].trim();

@@ -1,5 +1,5 @@
 import { useOffline } from "@/hooks/useOffline";
-import { markDevotionalSynced, useDirtyDevotionals } from "@/lib/devotionalStorage";
+import { markDevotionalConflict, markDevotionalSynced, useDirtyDevotionals } from "@/lib/devotionalStorage";
 import { todayDevotionalDate, validateDevotionalDate, validateDevotionalInput } from "@shared/devotionals";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
@@ -16,6 +16,7 @@ export const DevotionalSync = () => {
   const dirty = useDirtyDevotionals(email);
   const save = useMutation(api.devotionals.save);
   const syncing = useRef(false);
+  const refused = useRef(new Map<string, number>());
   const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [retry, setRetry] = useState(0);
 
@@ -24,6 +25,8 @@ export const DevotionalSync = () => {
     const today = todayDevotionalDate();
     const candidate = dirty.find(
       (draft) =>
+        !draft.conflict &&
+        refused.current.get(draft.date) !== draft.updatedAt &&
         validateDevotionalDate(draft.date, today).ok &&
         validateDevotionalInput({
           passage: draft.passage,
@@ -33,14 +36,12 @@ export const DevotionalSync = () => {
     );
     if (!candidate) return;
     syncing.current = true;
-    save({
-      date: candidate.date,
-      passage: candidate.passage,
-      notes: candidate.notes,
-      prayerPoints: candidate.prayerPoints,
-    })
+    const sent = { passage: candidate.passage, notes: candidate.notes, prayerPoints: candidate.prayerPoints };
+    save({ date: candidate.date, ...sent, base: candidate.base })
       .then((result) =>
-        markDevotionalSynced(email, candidate.date, result.passage, candidate.updatedAt, result.updatedAt)
+        result.status === "saved"
+          ? markDevotionalSynced(email, candidate.date, sent, result)
+          : markDevotionalConflict(email, candidate.date)
       )
       .then(
         () => {
@@ -49,7 +50,10 @@ export const DevotionalSync = () => {
         },
         (error: unknown) => {
           syncing.current = false;
-          if (!(error instanceof ConvexError)) {
+          if (error instanceof ConvexError) {
+            refused.current.set(candidate.date, candidate.updatedAt);
+            setRetry((n) => n + 1);
+          } else {
             retryTimer.current = setTimeout(() => setRetry((n) => n + 1), RETRY_MS);
           }
         }
