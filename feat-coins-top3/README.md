@@ -6,21 +6,21 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 8s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 133s |  |
-| unused code (knip) | ✔ pass | 5s |  |
-| typecheck | ✔ pass | 20s |  |
-| unit tests with coverage | ✔ pass | 30s |  |
-| verify lock | ✔ pass | 2493s | took it after waiting 2493s for pid 54594, feat/devotional-pickers in /Users/xtectra/GitHub/worktrees/the-shed-mobile-devotional-pickers, since 2026-11-24T16:54:27.039Z |
+| native fingerprint | ✔ pass | 3s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 60s |  |
+| unused code (knip) | ✔ pass | 4s |  |
+| typecheck | ✔ pass | 15s |  |
+| unit tests with coverage | ✔ pass | 22s |  |
+| verify lock | ✔ pass | 0s | free, taken at once |
 | Playwright Chromium | ✔ pass | 1s |  |
 | before: local backend | ✔ pass | 16s | before functions on :3270 |
-| before: web | ✔ pass | 729s | 204 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: web | ✔ pass | 764s | 228 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
 | before: iOS reset | ✔ pass | 2s |  |
-| before: iOS | ✔ pass | 352s | 51 screenshots; still moving after 10 frames: admin-review, admin-all |
-| after: local backend | ✔ pass | 16s | after functions on :3270 |
-| after: web | ✔ pass | 694s | 204 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
+| before: iOS | ✔ pass | 376s | 57 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: local backend | ✔ pass | 15s | after functions on :3270 |
+| after: web | ✔ pass | 740s | 228 screens, 0 broken, still moving: staff-root, staff-all, admin-review, admin-all. |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 361s | 51 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: iOS | ✔ pass | 353s | 57 screenshots; still moving after 10 frames: admin-review, admin-all |
 
 ## Screenshots
 
@@ -50,7 +50,13 @@
 | web `admin-finance_settings` | <img src="before/web/admin-finance_settings.png" width="260"> | <img src="after/web/admin-finance_settings.png" width="260"> |
 | web `admin-games` | <img src="before/web/admin-games.png" width="260"> | <img src="after/web/admin-games.png" width="260"> |
 | web `admin-games_flappy` | <img src="before/web/admin-games_flappy.png" width="260"> | <img src="after/web/admin-games_flappy.png" width="260"> |
+| web `admin-games_glider` | <img src="before/web/admin-games_glider.png" width="260"> | <img src="after/web/admin-games_glider.png" width="260"> |
+| web `admin-games_glider_preview_dive` | <img src="before/web/admin-games_glider_preview_dive.png" width="260"> | <img src="after/web/admin-games_glider_preview_dive.png" width="260"> |
+| web `admin-games_glider_preview_launch` | <img src="before/web/admin-games_glider_preview_launch.png" width="260"> | <img src="after/web/admin-games_glider_preview_launch.png" width="260"> |
+| web `admin-games_glider_preview_night` | <img src="before/web/admin-games_glider_preview_night.png" width="260"> | <img src="after/web/admin-games_glider_preview_night.png" width="260"> |
+| web `admin-games_glider_preview_world` | <img src="before/web/admin-games_glider_preview_world.png" width="260"> | <img src="after/web/admin-games_glider_preview_world.png" width="260"> |
 | web `admin-games_leaderboard` | <img src="before/web/admin-games_leaderboard.png" width="260"> | <img src="after/web/admin-games_leaderboard.png" width="260"> |
+| web `admin-games_leaderboard_game_glider` | <img src="before/web/admin-games_leaderboard_game_glider.png" width="260"> | <img src="after/web/admin-games_leaderboard_game_glider.png" width="260"> |
 | web `admin-games_leaderboard_game_runner` | <img src="before/web/admin-games_leaderboard_game_runner.png" width="260"> | <img src="after/web/admin-games_leaderboard_game_runner.png" width="260"> |
 | web `admin-games_runner` | <img src="before/web/admin-games_runner.png" width="260"> | <img src="after/web/admin-games_runner.png" width="260"> |
 | web `admin-games_runner_preview_double` | <img src="before/web/admin-games_runner_preview_double.png" width="260"> | <img src="after/web/admin-games_runner_preview_double.png" width="260"> |
@@ -101,7 +107,13 @@
 | web `leader-finance_settings` | <img src="before/web/leader-finance_settings.png" width="260"> | <img src="after/web/leader-finance_settings.png" width="260"> |
 | web `leader-games` | <img src="before/web/leader-games.png" width="260"> | <img src="after/web/leader-games.png" width="260"> |
 | web `leader-games_flappy` | <img src="before/web/leader-games_flappy.png" width="260"> | <img src="after/web/leader-games_flappy.png" width="260"> |
+| web `leader-games_glider` | <img src="before/web/leader-games_glider.png" width="260"> | <img src="after/web/leader-games_glider.png" width="260"> |
+| web `leader-games_glider_preview_dive` | <img src="before/web/leader-games_glider_preview_dive.png" width="260"> | <img src="after/web/leader-games_glider_preview_dive.png" width="260"> |
+| web `leader-games_glider_preview_launch` | <img src="before/web/leader-games_glider_preview_launch.png" width="260"> | <img src="after/web/leader-games_glider_preview_launch.png" width="260"> |
+| web `leader-games_glider_preview_night` | <img src="before/web/leader-games_glider_preview_night.png" width="260"> | <img src="after/web/leader-games_glider_preview_night.png" width="260"> |
+| web `leader-games_glider_preview_world` | <img src="before/web/leader-games_glider_preview_world.png" width="260"> | <img src="after/web/leader-games_glider_preview_world.png" width="260"> |
 | web `leader-games_leaderboard` | <img src="before/web/leader-games_leaderboard.png" width="260"> | <img src="after/web/leader-games_leaderboard.png" width="260"> |
+| web `leader-games_leaderboard_game_glider` | <img src="before/web/leader-games_leaderboard_game_glider.png" width="260"> | <img src="after/web/leader-games_leaderboard_game_glider.png" width="260"> |
 | web `leader-games_leaderboard_game_runner` | <img src="before/web/leader-games_leaderboard_game_runner.png" width="260"> | <img src="after/web/leader-games_leaderboard_game_runner.png" width="260"> |
 | web `leader-games_runner` | <img src="before/web/leader-games_runner.png" width="260"> | <img src="after/web/leader-games_runner.png" width="260"> |
 | web `leader-games_runner_preview_double` | <img src="before/web/leader-games_runner_preview_double.png" width="260"> | <img src="after/web/leader-games_runner_preview_double.png" width="260"> |
@@ -152,7 +164,13 @@
 | web `out-finance_settings` | <img src="before/web/out-finance_settings.png" width="260"> | <img src="after/web/out-finance_settings.png" width="260"> |
 | web `out-games` | <img src="before/web/out-games.png" width="260"> | <img src="after/web/out-games.png" width="260"> |
 | web `out-games_flappy` | <img src="before/web/out-games_flappy.png" width="260"> | <img src="after/web/out-games_flappy.png" width="260"> |
+| web `out-games_glider` | <img src="before/web/out-games_glider.png" width="260"> | <img src="after/web/out-games_glider.png" width="260"> |
+| web `out-games_glider_preview_dive` | <img src="before/web/out-games_glider_preview_dive.png" width="260"> | <img src="after/web/out-games_glider_preview_dive.png" width="260"> |
+| web `out-games_glider_preview_launch` | <img src="before/web/out-games_glider_preview_launch.png" width="260"> | <img src="after/web/out-games_glider_preview_launch.png" width="260"> |
+| web `out-games_glider_preview_night` | <img src="before/web/out-games_glider_preview_night.png" width="260"> | <img src="after/web/out-games_glider_preview_night.png" width="260"> |
+| web `out-games_glider_preview_world` | <img src="before/web/out-games_glider_preview_world.png" width="260"> | <img src="after/web/out-games_glider_preview_world.png" width="260"> |
 | web `out-games_leaderboard` | <img src="before/web/out-games_leaderboard.png" width="260"> | <img src="after/web/out-games_leaderboard.png" width="260"> |
+| web `out-games_leaderboard_game_glider` | <img src="before/web/out-games_leaderboard_game_glider.png" width="260"> | <img src="after/web/out-games_leaderboard_game_glider.png" width="260"> |
 | web `out-games_leaderboard_game_runner` | <img src="before/web/out-games_leaderboard_game_runner.png" width="260"> | <img src="after/web/out-games_leaderboard_game_runner.png" width="260"> |
 | web `out-games_runner` | <img src="before/web/out-games_runner.png" width="260"> | <img src="after/web/out-games_runner.png" width="260"> |
 | web `out-games_runner_preview_double` | <img src="before/web/out-games_runner_preview_double.png" width="260"> | <img src="after/web/out-games_runner_preview_double.png" width="260"> |
@@ -203,7 +221,13 @@
 | web `staff-finance_settings` | <img src="before/web/staff-finance_settings.png" width="260"> | <img src="after/web/staff-finance_settings.png" width="260"> |
 | web `staff-games` | <img src="before/web/staff-games.png" width="260"> | <img src="after/web/staff-games.png" width="260"> |
 | web `staff-games_flappy` | <img src="before/web/staff-games_flappy.png" width="260"> | <img src="after/web/staff-games_flappy.png" width="260"> |
+| web `staff-games_glider` | <img src="before/web/staff-games_glider.png" width="260"> | <img src="after/web/staff-games_glider.png" width="260"> |
+| web `staff-games_glider_preview_dive` | <img src="before/web/staff-games_glider_preview_dive.png" width="260"> | <img src="after/web/staff-games_glider_preview_dive.png" width="260"> |
+| web `staff-games_glider_preview_launch` | <img src="before/web/staff-games_glider_preview_launch.png" width="260"> | <img src="after/web/staff-games_glider_preview_launch.png" width="260"> |
+| web `staff-games_glider_preview_night` | <img src="before/web/staff-games_glider_preview_night.png" width="260"> | <img src="after/web/staff-games_glider_preview_night.png" width="260"> |
+| web `staff-games_glider_preview_world` | <img src="before/web/staff-games_glider_preview_world.png" width="260"> | <img src="after/web/staff-games_glider_preview_world.png" width="260"> |
 | web `staff-games_leaderboard` | <img src="before/web/staff-games_leaderboard.png" width="260"> | <img src="after/web/staff-games_leaderboard.png" width="260"> |
+| web `staff-games_leaderboard_game_glider` | <img src="before/web/staff-games_leaderboard_game_glider.png" width="260"> | <img src="after/web/staff-games_leaderboard_game_glider.png" width="260"> |
 | web `staff-games_leaderboard_game_runner` | <img src="before/web/staff-games_leaderboard_game_runner.png" width="260"> | <img src="after/web/staff-games_leaderboard_game_runner.png" width="260"> |
 | web `staff-games_runner` | <img src="before/web/staff-games_runner.png" width="260"> | <img src="after/web/staff-games_runner.png" width="260"> |
 | web `staff-games_runner_preview_double` | <img src="before/web/staff-games_runner_preview_double.png" width="260"> | <img src="after/web/staff-games_runner_preview_double.png" width="260"> |
@@ -253,7 +277,13 @@
 | ios `admin-finance_settings` | <img src="before/ios/admin-finance_settings.png" width="260"> | <img src="after/ios/admin-finance_settings.png" width="260"> |
 | ios `admin-games` | <img src="before/ios/admin-games.png" width="260"> | <img src="after/ios/admin-games.png" width="260"> |
 | ios `admin-games_flappy` | <img src="before/ios/admin-games_flappy.png" width="260"> | <img src="after/ios/admin-games_flappy.png" width="260"> |
+| ios `admin-games_glider` | <img src="before/ios/admin-games_glider.png" width="260"> | <img src="after/ios/admin-games_glider.png" width="260"> |
+| ios `admin-games_glider_preview_dive` | <img src="before/ios/admin-games_glider_preview_dive.png" width="260"> | <img src="after/ios/admin-games_glider_preview_dive.png" width="260"> |
+| ios `admin-games_glider_preview_launch` | <img src="before/ios/admin-games_glider_preview_launch.png" width="260"> | <img src="after/ios/admin-games_glider_preview_launch.png" width="260"> |
+| ios `admin-games_glider_preview_night` | <img src="before/ios/admin-games_glider_preview_night.png" width="260"> | <img src="after/ios/admin-games_glider_preview_night.png" width="260"> |
+| ios `admin-games_glider_preview_world` | <img src="before/ios/admin-games_glider_preview_world.png" width="260"> | <img src="after/ios/admin-games_glider_preview_world.png" width="260"> |
 | ios `admin-games_leaderboard` | <img src="before/ios/admin-games_leaderboard.png" width="260"> | <img src="after/ios/admin-games_leaderboard.png" width="260"> |
+| ios `admin-games_leaderboard_game_glider` | <img src="before/ios/admin-games_leaderboard_game_glider.png" width="260"> | <img src="after/ios/admin-games_leaderboard_game_glider.png" width="260"> |
 | ios `admin-games_leaderboard_game_runner` | <img src="before/ios/admin-games_leaderboard_game_runner.png" width="260"> | <img src="after/ios/admin-games_leaderboard_game_runner.png" width="260"> |
 | ios `admin-games_runner` | <img src="before/ios/admin-games_runner.png" width="260"> | <img src="after/ios/admin-games_runner.png" width="260"> |
 | ios `admin-games_runner_preview_double` | <img src="before/ios/admin-games_runner_preview_double.png" width="260"> | <img src="after/ios/admin-games_runner_preview_double.png" width="260"> |
