@@ -61,17 +61,19 @@ export const WorldList = ({
 
   // Read new lines from others aloud as they arrive (VoiceOver), but not the
   // history that was there when the list opened.
-  const heard = useRef<Set<string> | null>(null);
+  // A new room starts over: the lines already there when you arrive (a
+  // home's own lines, say) are history too.
+  const heard = useRef<{ roomId: string | null; ids: Set<string> } | null>(null);
   useEffect(() => {
     if (!log) return;
-    const known = heard.current;
-    heard.current = new Set(log.map((line) => line.id));
+    const known = heard.current?.roomId === world.roomId ? heard.current.ids : null;
+    heard.current = { roomId: world.roomId, ids: new Set(log.map((line) => line.id)) };
     if (!known || Platform.OS === "web") return;
     for (const line of [...log].reverse()) {
       if (known.has(line.id) || line.isMe || muted.has(line.memberId)) continue;
       announce(saidLabel(line));
     }
-  }, [log, muted]);
+  }, [log, muted, world.roomId]);
 
   const place = placeTitle ?? PLACE_TITLES[world.place];
   const title = world.instance > 1 ? `${place} · ${world.instance}` : place;
