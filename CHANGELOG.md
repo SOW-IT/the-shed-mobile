@@ -6,19 +6,31 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.41] - 2026-11-24
+## [2.12.42] - 2026-11-24
 
 ### Changed
 - **The World uses less battery and network traffic.** The scene now pauses
   its animation clock while the app is in the background or covered by the
   full-screen character editor, and the character editor preview only
   animates while turning or zooming instead of redrawing 60 times a second at
-  rest. With Reduce Motion on, the preview no longer turns by itself. Standing still in water runs at a gentler ambient cadence
-  while swimming stays at full speed. Sending a chat message no longer fires a
-  separate typing write before the message, the floating chat log loads the
-  most recent 30 lines instead of 150, rock paper scissors countdowns update
-  once a second with a native-driven progress bar, and room queries batch
-  block checks and look reads.
+  rest. With Reduce Motion on, the preview no longer turns by itself. Standing
+  still in water runs at a gentler ambient cadence while swimming stays at
+  full speed. Sending a chat message no longer fires a separate typing write
+  before the message, the floating chat log loads the most recent 30 lines
+  instead of 150, rock paper scissors countdowns update once a second with a
+  native-driven progress bar, and room queries batch block checks and look
+  reads.
+
+## [2.12.41] - 2026-11-24
+
+### Fixed
+- **Phones that only need an over-the-air update are no longer sent to the
+  App Store.** After 2.12.40, a phone on the newest store build running an
+  older update could be told to update in the App Store or Play Store when a
+  restart was all it needed. The version each over-the-air update publishes
+  is now kept apart from the recommended store version. Phones from 2.12.41
+  on hear about both and restart into the update; older phones only see the
+  store version, and pick up the update the next time the app starts.
 
 ## [2.12.40] - 2026-11-24
 

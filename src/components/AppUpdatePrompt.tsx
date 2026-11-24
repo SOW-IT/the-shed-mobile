@@ -20,12 +20,11 @@ const BlockerButton = ({ check }: { check: UpdateCheck }) =>
 
 const blockerText = (check: UpdateCheck) => {
   if (check.failed) return "The update didn't download. Check your connection and try again.";
-  const latest = check.latest ?? "the latest version";
   if (check.route === "restart") {
-    return `This version (${check.version}) is no longer supported. Version ${latest} is ready: restart The SHED to start using it.`;
+    return `This version (${check.version}) is no longer supported. Version ${check.latest ?? "the latest version"} is ready: restart The SHED to start using it.`;
   }
   if (check.message) return check.message;
-  return `This version (${check.version}) is no longer supported. Update to ${latest} in the ${check.store} to keep using The SHED.`;
+  return `This version (${check.version}) is no longer supported. Update to ${check.storeVersion ?? "the latest version"} in the ${check.store} to keep using The SHED.`;
 };
 
 export function AppUpdatePrompt() {
