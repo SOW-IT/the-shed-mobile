@@ -10,6 +10,7 @@ import {
   GLIDER_PREVIEWS,
   gliderScore,
   groundAt,
+  highestFlight,
   hold,
   isGliderPreview,
   land,
@@ -245,6 +246,8 @@ describe("momentum", () => {
     expect(launched!.vy).toBeGreaterThan(0);
     // Higher than the hilltop it flew off.
     expect(highest).toBeGreaterThan(400);
+    // But no higher than its climb lets it get against the bird's weight.
+    expect(highest - launched!.y).toBeLessThanOrEqual(launched!.vy ** 2 / (2 * GLIDER.lightGravity));
   });
 
   test("never stalls, and never goes past top speed", () => {
@@ -392,6 +395,47 @@ describe("the camera", () => {
       expect(up).toBeGreaterThan(0);
       expect(up).toBeLessThan(1);
     }
+  }, 60_000);
+
+  const inView = (camera: { y: number; zoom: number }, aspect: number, y: number) =>
+    y >= camera.y && y <= camera.y + viewSize(aspect, camera.zoom).height;
+
+  test("no run flies higher than the highest flight there can be", () => {
+    for (const pilot of [practised, autoHold, never]) {
+      const { frames } = fly(pilot, 5, () => false, 150);
+      expect(Math.max(...frames.map((frame) => frame.y))).toBeLessThan(highestFlight());
+    }
+  }, 60_000);
+
+  test("keeps the hills under the bird in view however high it flies, even before it has caught up", () => {
+    const top = highestFlight();
+    for (const aspect of [0.46, 1, 2, 2.4]) {
+      for (const world of [1, 6]) {
+        const hills = worldHills(4, world, 0);
+        for (let x = 0; x < hills.at(-1)!.x; x += 337) {
+          const ground = groundAt(hills, x).y;
+          for (let y = ground; y <= top + 1; y += Math.max(1, (top - ground) / 24)) {
+            const state: GliderState = { ...newGlider(1, aspect), hills, worldEnd: 1e9, x, y, grounded: false, vx: 600, vy: 0 };
+            const target = cameraTarget(state);
+            expect(inView(target, aspect, ground)).toBe(true);
+            expect(inView(target, aspect, y)).toBe(true);
+            // The camera still close in on the ground, a frame before the bird is this high.
+            const next = stepGlider({ ...state, camera: { x: 0, y: ground - VIEW.margin, zoom: 1 } }, FRAME);
+            expect(inView(next.camera, aspect, groundAt(hills, next.x).y)).toBe(true);
+            expect(inView(next.camera, aspect, next.y)).toBe(true);
+          }
+        }
+      }
+    }
+  }, 60_000);
+
+  test("zooms smoothly, with the ground under the bird in view all run", () => {
+    const { frames } = fly(practised, 3, () => false, 120);
+    expect(Math.min(...frames.map((frame) => frame.camera.zoom))).toBeLessThan(0.7);
+    frames.forEach((frame, i) => {
+      expect(inView(frame.camera, frame.aspect, groundAt(frame.hills, frame.x).y)).toBe(true);
+      if (i > 0) expect(Math.abs(Math.log(frame.camera.zoom / frames[i - 1].camera.zoom))).toBeLessThan(0.06);
+    });
   }, 60_000);
 
   test("zooms out when the bird flies high, and not past its limit", () => {
