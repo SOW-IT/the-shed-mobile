@@ -188,6 +188,7 @@ export const people = {
   // Favourite colours, worn as shoes. The first is the shoes everyone had
   // before, then red, orange, yellow, lime, green, sky, blue, purple, pink,
   // brown and white.
+  backdrops: ["#BFE3DA", "#BFD9F0", "#F6D2BC", "#F3E3A6", "#D9CCEF", "#F2C4D0", "#C9DDB5", "#E6D5BC", "#9FB4C2", "#F0A99A"],
   favourites: ["#3F4A46", "#D9473A", "#F08A3C", "#F6CF45", "#A6D65A", "#3E9A5A", "#7EC8E8", "#3A64B8", "#8A5CC2", "#F08FB4", "#8A5A3A", "#F5F3EC"],
   eye: "#1F2A28",
   eyeShine: "#FFFFFF",
@@ -222,7 +223,6 @@ export const glass = {
   error: "#FFB4A6",
   scrim: "rgba(6, 16, 15, 0.32)",
   scrimDeep: "rgba(6, 16, 15, 0.55)",
-  bust: "#BFE3DA",
 } as const;
 
 export const home = {

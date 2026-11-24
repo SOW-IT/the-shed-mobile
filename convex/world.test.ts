@@ -943,10 +943,18 @@ describe("character editor", () => {
   test("turns away a choice that doesn't exist", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
-    for (const bad of [{ ...look, skin: 12 }, { ...look, hat: -1 }, { ...look, shirt: 1.5 }, { ...look, accessory: 8 }, { ...look, eyeY: 7 }, { ...look, mouthTilt: -1 }, { ...look, pants: 4 }, { ...look, favourite: 12 }]) {
+    for (const bad of [{ ...look, skin: 12 }, { ...look, hat: -1 }, { ...look, shirt: 1.5 }, { ...look, accessory: 8 }, { ...look, eyeY: 7 }, { ...look, mouthTilt: -1 }, { ...look, pants: 4 }, { ...look, favourite: 12 }, { ...look, backdrop: 10 }]) {
       await expect(anna.mutation(api.world.saveLook, { look: bad })).rejects.toThrow(/doesn't exist/);
     }
     await expect(t.mutation(api.world.saveLook, { look })).rejects.toThrow(/signed in/);
+  });
+
+  test("keeps a chosen background colour", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.saveLook, { look: { ...look, backdrop: 9 } });
+    const saved = await t.run((ctx) => ctx.db.query("worldLooks").first());
+    expect(saved?.look.backdrop).toBe(9);
   });
 });
 

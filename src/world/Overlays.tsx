@@ -1,11 +1,12 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { bodyScale, PLACE_TITLES, type Look, type Place } from "@shared/world";
+import { PLACE_TITLES, type Look, type Place } from "@shared/world";
 import { useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { glass, hud, signal, signalColour } from "./palette";
 import { Avatar } from "./Person";
+import { backdropOf, BUST_BORDER, bustFigure } from "./bust";
 
 const NATIVE = Platform.OS !== "web";
 const LEAD_MS = 40;
@@ -72,23 +73,18 @@ export const itemStyle = (clock: Clock, index: number) => {
 
 export const blurBehind = (Platform.OS === "web" ? { backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" } : {}) as unknown as ViewStyle;
 
-export const Bust = ({ look, size }: { look: Look; size: number }) => {
-  const s = size * 0.62;
-  const up = s * 0.86;
-  const foot = { x: size / 2, y: size * 0.5 + bodyScale(look).height * up, depth: 1, scale: s };
-  return (
-    <View pointerEvents="none" style={[styles.bust, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Avatar
-        figure={{ foot, s, up, bob: 0 }}
-        pose={{ x: 0, z: 0, walking: false, arrivesAt: 0, heading: 0 }}
-        look={look}
-        t={0}
-        seed={0}
-        shadow={false}
-      />
-    </View>
-  );
-};
+export const Bust = ({ look, size }: { look: Look; size: number }) => (
+  <View pointerEvents="none" style={[styles.bust, { width: size, height: size, borderRadius: size / 2, backgroundColor: backdropOf(look) }]}>
+    <Avatar
+      figure={bustFigure(look, size)}
+      pose={{ x: 0, z: 0, walking: false, arrivesAt: 0, heading: 0 }}
+      look={look}
+      t={0}
+      seed={0}
+      shadow={false}
+    />
+  </View>
+);
 
 const QUALITY = ["unknown", "poor", "fair", "good", "great"] as const;
 
@@ -278,7 +274,7 @@ export const GlassPill = ({
 
 const styles = StyleSheet.create({
   scrim: { backgroundColor: glass.scrim },
-  bust: { backgroundColor: glass.bust, overflow: "hidden", borderWidth: 2, borderColor: glass.edge },
+  bust: { overflow: "hidden", borderWidth: BUST_BORDER, borderColor: glass.edge },
   bars: { flexDirection: "row", alignItems: "flex-end" },
   menu: {
     position: "absolute",

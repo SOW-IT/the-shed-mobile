@@ -657,6 +657,9 @@ export const CharacterEditor = ({
           {section("Favourite colour")}
           <Swatches colours={people.favourites} value={part("favourite")} onPick={set("favourite")} label="Favourite colour" />
           <Text style={[typography.caption, { color: t.muted }]}>You wear it as your shoes, and on a beret, bow, headband or party hat.</Text>
+          {section("Background")}
+          <Swatches colours={people.backdrops} value={part("backdrop")} onPick={set("backdrop")} label="Background" />
+          <Text style={[typography.caption, { color: t.muted }]}>The circle behind you in the People list, invites and chat.</Text>
         </>
       ) : null}
       {tab === "Outfit" ? (

@@ -674,3 +674,14 @@ test("Sijin is bald, with a short beard, a big grin and the Flannel", () => {
   expect(MOUTHS[NPC.look.mouth]).toBe("Grin");
   expect(OUTFITS[NPC.look.outfit]).toBe("Flannel");
 });
+
+test("a background colour is optional, defaults to the first, and must be one of the choices", () => {
+  const plain = { skin: 0, hair: 0, hairColour: 0, shirt: 0 };
+  expect(lookPart(plain, "backdrop")).toBe(0);
+  expect(isValidLook({ ...plain, backdrop: LOOK_SIZES.backdrop - 1 })).toBe(true);
+  expect(isValidLook({ ...plain, backdrop: LOOK_SIZES.backdrop })).toBe(false);
+  expect(isValidLook({ ...plain, backdrop: 1.5 })).toBe(false);
+  expect(isValidLook({ ...plain, v: LOOK_VERSION, backdrop: 4 })).toBe(true);
+  const random = randomLook(() => 0.5);
+  expect(random.backdrop).toBe(Math.floor(0.5 * LOOK_SIZES.backdrop));
+});

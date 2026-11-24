@@ -39,7 +39,6 @@ const SIGNED_OUT = /sign in with your sow account/i;
 const EXPECTED_MISSING = new Set(["/no-such-page", "/checkin/not-a-real-link"]);
 const HARMLESS_CONSOLE = [/expo-notifications/i, /useNativeDriver/i, /Failed to load resource.*favicon/i];
 const READY_TIMEOUT_MS = 15_000;
-const WARM_UP_TIMEOUT_MS = 180_000;
 const STABLE_FOR_MS = 1_000;
 
 const hasSession = () =>
@@ -49,24 +48,28 @@ const hasSession = () =>
     )
   );
 
-const bundling = new Set();
+const bundling = new Map();
+const BUNDLE_WAIT_MS = 60_000;
+let bundleBudgetMs = 120_000;
 const isBundle = (request) => new URL(request.url()).pathname.endsWith(".bundle");
 const watchBundles = (page) => {
-  page.on("request", (request) => isBundle(request) && bundling.add(request));
+  page.on("request", (request) => isBundle(request) && bundling.set(request, Date.now()));
   page.on("requestfinished", (request) => bundling.delete(request));
   page.on("requestfailed", (request) => bundling.delete(request));
+  page.on("framenavigated", (frame) => frame === page.mainFrame() && bundling.clear());
 };
 
 const waitUntilSettled = async () => {
   let started = Date.now();
-  const giveUpAt = Date.now() + WARM_UP_TIMEOUT_MS;
   let last = "";
   let stableSince = Date.now();
   while (Date.now() - started < READY_TIMEOUT_MS) {
-    if (bundling.size > 0 && Date.now() < giveUpAt) {
+    for (const [request, since] of bundling) if (Date.now() - since > BUNDLE_WAIT_MS) bundling.delete(request);
+    if (bundling.size > 0 && bundleBudgetMs > 0) {
+      await page.waitForTimeout(200);
+      bundleBudgetMs -= 200;
       started = Date.now();
       stableSince = Date.now();
-      await page.waitForTimeout(200);
       continue;
     }
     const text = await page
@@ -107,6 +110,7 @@ const screenshot = async (name) => {
   }
 };
 
+const WARM_UP_TIMEOUT_MS = 180_000;
 await page.goto(`${BASE}/home`, { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS }).catch(() => {});
 await page
   .waitForFunction(() => document.body.innerText.trim().length > 0, null, { timeout: WARM_UP_TIMEOUT_MS })

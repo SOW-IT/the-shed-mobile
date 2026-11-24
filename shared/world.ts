@@ -574,6 +574,7 @@ export const LOOK_SIZES = {
   pants: 4,
   pantsColour: 8,
   favourite: 12,
+  backdrop: 10,
 } as const;
 /**
  * The look's shape: version 2 added the face, body and extras; version 3 the
@@ -621,6 +622,7 @@ export type Look = {
   pants?: number;
   pantsColour?: number;
   favourite?: number;
+  backdrop?: number;
 };
 export type LookPart = keyof typeof LOOK_SIZES;
 const LOOK_PARTS = Object.keys(LOOK_SIZES) as LookPart[];
@@ -785,6 +787,7 @@ export const randomLook = (random: () => number = Math.random): Look => {
     pants: pick("pants"),
     pantsColour: pick("pantsColour"),
     favourite: pick("favourite"),
+    backdrop: pick("backdrop"),
   };
 };
 
