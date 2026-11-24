@@ -18,7 +18,6 @@ import {
   PORTAL_RADIUS,
   PORTALS,
   NPC,
-  SEATS,
   seatIn,
   tagName,
   type Place,
@@ -38,8 +37,11 @@ import type { DrawnPose, Gait } from "./gait";
 import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
 import { duelLookFor, type DuelView } from "./duel";
-import { spreadTags } from "./tags";
+import { layerOrder } from "./tags";
 import { useGlide } from "./useGlide";
+import { seatAt } from "./seats";
+import { mouthAt } from "./talk";
+import { BALL_PLACE, BALL_RADIUS, ballAt, KICK_TAP_REACH, KICK_TOUCH, kickDirection, restingBall, type Ball, type RollingBall } from "@shared/ball";
 
 type GardenPerson = {
   memberId: string;
@@ -122,6 +124,8 @@ export const Garden = ({
   home = null,
   onTapNpc,
   decor = null,
+  ball = null,
+  onKick,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -154,6 +158,8 @@ export const Garden = ({
     actions: HudAction[];
     hudTop: number;
   } | null;
+  ball?: Ball | null;
+  onKick?: (dirX: number, dirZ: number) => void;
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -266,6 +272,21 @@ export const Garden = ({
   const typingSince = people.map((p) =>
     !p.muted && p.typing !== undefined && now - p.typing < TYPING_MS && (!p.say || p.say.at < p.typing) ? p.typing : undefined
   );
+  const talking = people.map((p) => (p.muted ? undefined : mouthAt(p.say, now)));
+  const rolled = place === BALL_PLACE ? ballAt(ball ?? restingBall(), now) : null;
+  const meTouching = rolled !== null && placed !== null && placed.walking && Math.hypot(placed.x - rolled.x, placed.z - rolled.z) < KICK_TOUCH;
+  const kickRef = useRef(onKick);
+  const kickFrom = useRef({ me: placed, ball: rolled });
+  useEffect(() => {
+    kickRef.current = onKick;
+    kickFrom.current = { me: placed, ball: rolled };
+  });
+  useEffect(() => {
+    const { me: at, ball: there } = kickFrom.current;
+    if (!meTouching || !at || !there) return;
+    const dir = kickDirection(at, there, { x: Math.sin(at.heading), z: Math.cos(at.heading) });
+    kickRef.current?.(dir.x, dir.z);
+  }, [meTouching]);
   const swimmers = people.map((p, i) => {
     const pose = poses[i];
     return pose ? !sitting[i] && !p.away && inWater(place, pose) : false;
@@ -276,6 +297,8 @@ export const Garden = ({
     doing.some((d) => d !== null) ||
     asks.length > 0 ||
     typingSince.some((at) => at !== undefined) ||
+    talking.some((open) => open !== undefined) ||
+    rolled?.rolling === true ||
     duelLooks.some((look) => look !== null) ||
     people.some((p) => !p.muted && p.say !== undefined && bubbleMoving(now - p.say.at)) ||
     (target !== null && placed !== null && Math.hypot(placed.x - target.x, placed.z - target.z) > 0.05);
@@ -316,6 +339,10 @@ export const Garden = ({
     const onArcade = arcade && x >= arcade.box.left && x <= arcade.box.right && y >= arcade.box.top && y <= arcade.box.bottom;
     if (hits[0] && !(onArcade && arcade.depth < hits[0].depth)) return { kind: "person", id: hits[0].p.memberId };
     if (onArcade) return { kind: "arcade" };
+    if (rolled && placed && Math.hypot(placed.x - rolled.x, placed.z - rolled.z) <= KICK_TAP_REACH) {
+      const centre = cam.project([rolled.x, BALL_RADIUS, rolled.z]);
+      if (Math.hypot(centre.x - x, centre.y - y) <= BALL_RADIUS * 1.6 * centre.scale) return { kind: "ball" };
+    }
     if (npcHere) {
       const box = hitBox(figureFor(cam, NPC_POSE), NPC.look);
       if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) return { kind: "npc" };
@@ -325,14 +352,8 @@ export const Garden = ({
       if (item) return { kind: "item", key: item };
       if (decor.selected) return { kind: "floor" };
     }
-    const seat = SEATS[place]
-      .map((candidate) => {
-        const at = cam.project([candidate.x, candidate.height + SEAT_TAP_HEIGHT, candidate.z]);
-        return { id: candidate.id, miss: Math.hypot(at.x - x, at.y - y) / at.scale };
-      })
-      .filter((candidate) => candidate.miss < SEAT_TAP_RADIUS)
-      .sort((a, b) => a.miss - b.miss)[0];
-    if (seat) return { kind: "seat", id: seat.id };
+    const seat = seatAt(place, cam, x, y);
+    if (seat) return { kind: "seat", id: seat };
     const spot = cam.ground(x, y);
     if (place === "garden" && spot && Math.hypot(spot.x - ARCADE.x, spot.z - ARCADE.z) < 0.75) return { kind: "arcade" };
     return { kind: "ground" };
@@ -400,6 +421,10 @@ export const Garden = ({
     else if (p.hit.kind === "arcade") onTapArcade();
     else if (p.hit.kind === "seat") onTapSeat(p.hit.id);
     else if (p.hit.kind === "npc") onTapNpc?.();
+    else if (p.hit.kind === "ball" && placed && rolled) {
+      const dir = kickDirection(placed, rolled);
+      onKick?.(dir.x, dir.z);
+    }
     else if (p.hit.kind === "item") decor?.onItem(p.hit.key);
     else if (p.hit.kind === "floor") {
       const spot = cam?.ground(at.x, at.y);
@@ -420,21 +445,20 @@ export const Garden = ({
   if (!cam || !scene) return <View style={styles.fill} onLayout={onLayout} />;
 
   // Props and people, far to near.
-  const actors: { depth: number; key: string; node: ReactNode }[] = scene.props.map((prop) => ({
+  const actors: { depth: number; key: string; node: ReactNode; tag?: boolean }[] = scene.props.map((prop) => ({
     depth: prop.depth,
     key: prop.id,
     node: <PropView prop={prop} />,
   }));
-  const tags: TagSpot[] = [];
-  const heads: { x: number; bottom: number; width: number; height: number }[] = [];
   if (npcHere) {
     const figure = figureFor(cam, NPC_POSE);
     actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={0} seed={3} /> });
     const head = cam.project([NPC.x, headTop(NPC.look), NPC.z]);
-    tags.push({ key: NPC.id, depth: head.depth, spokeAt: undefined, ...tagBox(head.x, head.y, NPC_TAG, undefined, false), props: { name: NPC_TAG, me: false, emoteRise: 0 } });
-    const body = hitBox(figure, NPC.look);
-    const headHeight = (body.bottom - body.top) * HEAD_SHARE;
-    heads.push({ x: head.x, bottom: head.y + HEAD_GAP + headHeight, width: (body.right - body.left) * HEAD_SHARE * 2, height: headHeight });
+    actors.push({ depth: figure.foot.depth, key: `${NPC.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={NPC_TAG} me={false} emoteRise={0} /> });
+  }
+  if (rolled) {
+    const ground = cam.project([rolled.x, 0, rolled.z]);
+    actors.push({ depth: ground.depth, key: "ball", node: <BeachBall ball={rolled} cam={cam} t={t} /> });
   }
   const selectedItem = decor?.selected ? home?.items.find((p) => p.key === decor.selected) : undefined;
   if (selectedItem && isFurniture(selectedItem.item)) {
@@ -476,7 +500,7 @@ export const Garden = ({
           <Avatar figure={figure} pose={turned} look={p.look} t={0} seed={seed} stride={stride} />
         </View>
       ) : (
-        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d || swimming ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} />
+        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d || swimming ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} talk={talking[i]} />
       ),
     });
     const duelLook = duelLooks[i];
@@ -484,13 +508,12 @@ export const Garden = ({
     const line = chant ?? (bubbleFades[i] > 0 ? p.say?.text : undefined);
     // The icon over the head: the emote's, or the mutual action's when hands meet.
     const emote =
-      duelLook?.pickIcon ??
-      (d?.kind === "emote"
+      d?.kind === "emote"
         ? EMOTES[d.id].icon
         : d?.kind === "mutual" && d.p > 0.4
           ? MUTUALS[d.id].icon
-          : undefined);
-    const rise = duelLook?.pickIcon ? 0 : d?.kind === "emote" ? d.p : d?.kind === "mutual" ? (d.p - 0.4) / 0.6 : 0;
+          : undefined;
+    const rise = d?.kind === "emote" ? d.p : d?.kind === "mutual" ? (d.p - 0.4) / 0.6 : 0;
     // Your own open ask shows "High five?" over you until the other person
     // answers it (not only while the slap plays).
     const answeredMine =
@@ -500,21 +523,24 @@ export const Garden = ({
     const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? swimSink(p.look) : 0), pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
-    tags.push({
-      key: p.memberId,
-      depth: head.depth,
-      spokeAt: chant ? now : line ? p.say?.at : waiting ? p.ask?.at : typing,
-      ...tagBox(head.x, head.y, name, line ?? waiting ?? (typing === undefined ? undefined : TYPING_BOX), Boolean(emote), p.away === true),
-      props: {
-        name,
-        me: p.me,
-        line: line ?? waiting,
-        typing: typing === undefined ? undefined : t,
-        emote,
-        emoteRise: rise,
-        lineFade: line && !chant ? bubbleFades[i] : 1,
-        status: p.away ? AWAY_STATUS : undefined,
-      },
+    actors.push({
+      depth: figure.foot.depth,
+      key: `${p.memberId}:tag`,
+      tag: true,
+      node: (
+        <Tag
+          x={head.x}
+          y={head.y}
+          name={name}
+          me={p.me}
+          line={line ?? waiting}
+          typing={typing === undefined ? undefined : t}
+          emote={emote}
+          emoteRise={rise}
+          lineFade={line && !chant ? bubbleFades[i] : 1}
+          status={p.away ? AWAY_STATUS : undefined}
+        />
+      ),
     });
   });
   // The contact pop where palms meet: a quick burst while they touch.
@@ -560,7 +586,7 @@ export const Garden = ({
       ),
     });
   }
-  actors.sort((a, b) => b.depth - a.depth);
+  const layered = layerOrder(actors);
 
   const hudIndex = hudShown ? people.findIndex((p) => p.memberId === hudShown.id) : -1;
   const hudPose = hudIndex >= 0 ? poses[hudIndex] : null;
@@ -607,11 +633,8 @@ export const Garden = ({
             </View>
           );
         })}
-        {actors.map((a) => (
+        {layered.map((a) => (
           <Fragment key={a.key}>{a.node}</Fragment>
-        ))}
-        {layerTags(tags, heads).map((tag) => (
-          <Tag key={tag.key} x={tag.x} y={tag.bottom} {...tag.props} />
         ))}
       </View>
       </View>
@@ -689,6 +712,7 @@ type Hit =
   | { kind: "arcade" }
   | { kind: "seat"; id: string }
   | { kind: "npc" }
+  | { kind: "ball" }
   | { kind: "item"; key: string }
   | { kind: "floor" }
   | { kind: "ground" };
@@ -696,8 +720,6 @@ const ITEM = "item:";
 const NPC_POSE = { x: NPC.x, z: NPC.z, heading: NPC.heading, walking: false, arrivesAt: 0, stridePhase: 0, strideAmp: 0 };
 const NPC_TAG = "☕ Sijin Y.";
 const SEATED_WITHIN = 0.25;
-const SEAT_TAP_HEIGHT = 0.3;
-const SEAT_TAP_RADIUS = 0.5;
 const AWAY_STATUS = "🕹️ Playing";
 const PAD_LABEL_WIDTH = 132;
 const PAD_LABEL_CLEAR_BOTTOM = 130;
@@ -709,6 +731,42 @@ const ASK_CARD_WIDTH = 220;
 const TOUCH_HALF_GAP = 0.55;
 /** How high the palms meet (world units). */
 const palmsMeetAt = (a: Look, b: Look) => (palmHeight(a) + palmHeight(b)) / 2;
+
+const BeachBall = ({ ball, cam, t }: { ball: RollingBall; cam: ReturnType<typeof makeCamera>; t: number }) => {
+  const c = places.beach;
+  const lift = ball.floating ? BALL_RADIUS * 0.45 + Math.sin(t * 2.4) * 0.02 : BALL_RADIUS;
+  const centre = cam.project([ball.x, lift, ball.z]);
+  const under = cam.project([ball.x, 0, ball.z]);
+  const r = BALL_RADIUS * centre.scale;
+  const turn = ball.travelled / BALL_RADIUS;
+  const stripes = [c.ballRed, c.ball, c.ballBlue].map((colour, k) => {
+    const phase = turn + (k * 2 * Math.PI) / 3;
+    return { colour, k, front: Math.cos(phase), across: Math.sin(phase) };
+  });
+  return (
+    <>
+      {ball.floating ? (
+        <Ellipse cx={under.x} cy={under.y} rx={r * 1.25} ry={r * 0.45} fill={c.foam} opacity={0.7} />
+      ) : (
+        <Ellipse cx={under.x - r * 0.15} cy={under.y} rx={r * 0.95} ry={r * 0.4} fill={garden.shadow} />
+      )}
+      <Ellipse cx={centre.x} cy={centre.y} rx={r} ry={r} fill={c.ballWhite} ink={Math.max(1.2, r * 0.12)} inkColour={garden.ink} />
+      {stripes
+        .filter((stripe) => stripe.front > 0)
+        .map((stripe) => (
+          <Ellipse
+            key={`stripe${stripe.k}`}
+            cx={centre.x + stripe.across * r * 0.5}
+            cy={centre.y}
+            rx={r * (0.12 + 0.24 * stripe.front)}
+            ry={r * 0.82}
+            fill={stripe.colour}
+          />
+        ))}
+      <Ellipse cx={centre.x - r * 0.35} cy={centre.y - r * 0.4} rx={r * 0.22} ry={r * 0.15} fill={c.ballWhite} opacity={0.85} />
+    </>
+  );
+};
 
 /** A little star burst where two palms meet. */
 const Spark = ({ x, y, size, t }: { x: number; y: number; size: number; t: number }) => {
@@ -765,46 +823,6 @@ const promptOffset = (
   }
   return lift;
 };
-
-type TagSpot = {
-  key: string;
-  depth: number;
-  spokeAt: number | undefined;
-  x: number;
-  bottom: number;
-  width: number;
-  height: number;
-  props: Omit<Parameters<typeof Tag>[0], "x" | "y">;
-};
-
-/** Roughly how much room a name tag and its bubble take, for stacking. */
-const tagBox = (x: number, bottom: number, name: string, line: string | undefined, emote: boolean, status = false) => {
-  const nameWidth = Math.max(name.length * 7.5 + 22, status ? 84 : 0);
-  const icon = (emote ? 36 : 0) + (status ? 18 : 0);
-  if (!line) return { x, bottom, width: Math.max(nameWidth, icon), height: 24 + icon };
-  const chars = Array.from(line).length;
-  const lines = Math.ceil(chars / 24);
-  return { x, bottom, width: Math.max(nameWidth, Math.min(214, chars * 8 + 32)), height: 24 + 10 + lines * 18.5 + 21 + icon };
-};
-
-const TYPING_BOX = "•••";
-
-const drawOrder = (tag: TagSpot) => (tag.spokeAt === undefined ? [0, -tag.depth] : [1, tag.spokeAt]);
-
-const TAG_TOP = 4;
-
-const HEAD_SHARE = 0.38;
-const HEAD_GAP = 6;
-
-const layerTags = (tags: TagSpot[], heads: { x: number; bottom: number; width: number; height: number }[]): TagSpot[] =>
-  spreadTags(
-    [...tags].sort((a, b) => {
-      const [x, y] = [drawOrder(a), drawOrder(b)];
-      return x[0] - y[0] || x[1] - y[1];
-    }),
-    TAG_TOP,
-    heads
-  );
 
 const styles = StyleSheet.create({
   fill: { flex: 1, overflow: "hidden" },

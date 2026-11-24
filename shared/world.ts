@@ -20,6 +20,7 @@ export const ASK_MS = 10_000;
 /** How long a mutual action plays once accepted. */
 export const MUTUAL_MS = 2600;
 export const MAX_SAY_LENGTH = 120;
+export const JOINED_WORLD = "joined the World";
 /** How long a chat line is kept, unless someone reports it. */
 export const CHAT_TTL_MS = 60 * 60_000;
 /** Lines kept per room, whatever their age. */
@@ -551,7 +552,7 @@ export const LOOK_SIZES = {
   build: 5,
   freckles: 4,
   blush: 5,
-  beard: 7,
+  beard: 8,
   outfit: 11,
   // Version 3.
   browColour: 13,
@@ -695,7 +696,7 @@ export const BROWS = ["None", "Soft", "Straight", "Arched", "Thick"] as const;
 export const NOSES = ["None", "Dot", "Button", "Pointy"] as const;
 export const MOUTHS = ["None", "Smile", "Grin", "Small", "Flat", "Cat", "Tongue out"] as const;
 export const BLUSH = ["None", "Light", "Rosy", "Round", "Lines"] as const;
-export const BEARDS = ["None", "Stubble", "Beard", "Moustache", "Goatee", "Wide moustache", "Chin strap"] as const;
+export const BEARDS = ["None", "Stubble", "Beard", "Moustache", "Goatee", "Wide moustache", "Chin strap", "Short beard"] as const;
 export const FRECKLES = ["None", "Cheeks", "Lots", "Across the nose"] as const;
 export const MOLES = ["None", "Cheek", "Other cheek", "By the lip", "Under an eye", "Chin"] as const;
 export const EYESHADOW = ["None", "Lilac", "Peach", "Teal", "Gold", "Rose"] as const;
@@ -865,18 +866,18 @@ export const NPC = {
   look: {
     v: LOOK_VERSION,
     skin: 3,
-    hair: 6,
+    hair: 8,
     hairColour: 2,
     shirt: 4,
     face: 0,
-    eyes: 2,
+    eyes: 5,
     eyeColour: 0,
     brows: 2,
     nose: 2,
     mouth: 2,
     height: 3,
     build: 2,
-    beard: 2,
+    beard: 7,
     outfit: 10,
     pants: 1,
     pantsColour: 0,

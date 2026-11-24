@@ -37,6 +37,7 @@ import {
   NUDGES,
   NUDGES_RESET,
   OUTFITS,
+  NPC,
   HAIR_STYLES,
   HATS,
   ACCESSORIES,
@@ -169,6 +170,8 @@ test("isValidLook checks every part, and randomLook stays in range", () => {
   expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, hat: 4, accessory: 3 })).toBe(true);
   expect(isValidLook({ skin: 0, hair: 17, hairColour: 0, shirt: 0 })).toBe(true);
   expect(isValidLook({ skin: 0, hair: 18, hairColour: 0, shirt: 0 })).toBe(false);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, beard: 7 })).toBe(true);
+  expect(isValidLook({ skin: 0, hair: 0, hairColour: 0, shirt: 0, beard: 8 })).toBe(false);
   // Version 2's face, body and extras: each bounded, all optional.
   const v2 = { v: 2, skin: 0, hair: 0, hairColour: 0, shirt: 0, face: 4, eyes: 5, eyeColour: 5, brows: 4, nose: 3, mouth: 4, height: 4, build: 4, freckles: 1, blush: 2, beard: 3 };
   expect(isValidLook(v2)).toBe(true);
@@ -662,4 +665,12 @@ describe("extra obstacles", () => {
     const at = clampTarget(0, -4, HOME, [{ id: "table", x: 0, z: -4, rx: 1, rz: 0.6 }]);
     expect(Math.hypot(at.x / 1, (at.z + 4) / 0.6)).toBeGreaterThanOrEqual(1);
   });
+});
+
+test("Sijin is bald, with a short beard, a big grin and the Flannel", () => {
+  expect(isValidLook(NPC.look)).toBe(true);
+  expect(HAIR_STYLES[NPC.look.hair]).toBe("Bald");
+  expect(BEARDS[NPC.look.beard]).toBe("Short beard");
+  expect(MOUTHS[NPC.look.mouth]).toBe("Grin");
+  expect(OUTFITS[NPC.look.outfit]).toBe("Flannel");
 });

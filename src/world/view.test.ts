@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { tagName } from "../../shared/world";
-import { lineWhere, pickView, saidLabel } from "./view";
+import { lineWhere, pickView, saidLabel, systemLine } from "./view";
 
 test("offline or Android always shows the list; otherwise VoiceOver picks it", () => {
   expect(pickView({ offline: true, screenReader: false })).toBe("list");
@@ -19,11 +19,20 @@ test("a line from another place says where it was said, for screen readers too",
   expect(lineWhere({ here: false, place: "moon" })).toBe("elsewhere");
 });
 
-test("a leave line from another place says where they left; a join line names it once", () => {
+test("a leave line from another place says where they left; a join line says the World", () => {
   const base = { isMe: false, name: "Ben Smith", text: "left", kind: "leave" as const };
   expect(saidLabel({ ...base, here: true, place: "garden" })).toBe(`${tagName("Ben Smith")} left`);
   expect(saidLabel({ ...base, here: false, place: "chapel" })).toBe(`${tagName("Ben Smith")} left The Chapel`);
   expect(saidLabel({ ...base, here: false })).toBe(`${tagName("Ben Smith")} left, elsewhere`);
-  const join = { ...base, text: "joined The Chapel", kind: "join" as const, here: false, place: "chapel" };
-  expect(saidLabel(join)).toBe(`${tagName("Ben Smith")} joined The Chapel`);
+  const join = { ...base, text: "joined the World", kind: "join" as const, here: false, place: "chapel" };
+  expect(saidLabel(join)).toBe(`${tagName("Ben Smith")} joined the World`);
+});
+
+test("join lines say they joined the World, older ones that named a place too", () => {
+  const line = { isMe: false, name: "Ben Smith", here: true, place: "garden", kind: "join" as const };
+  expect(systemLine({ ...line, text: "joined the Garden" })).toBe(`${tagName("Ben Smith")} joined the World`);
+  expect(systemLine({ ...line, text: "joined the Café" })).toBe(`${tagName("Ben Smith")} joined the World`);
+  expect(systemLine({ ...line, text: "came in" })).toBe(`${tagName("Ben Smith")} came in`);
+  expect(systemLine({ ...line, text: "left", kind: "leave" })).toBe(`${tagName("Ben Smith")} left`);
+  expect(systemLine({ name: "Ben Smith", text: "joined the band" })).toBe(`${tagName("Ben Smith")} joined the band`);
 });

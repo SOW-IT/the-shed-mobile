@@ -143,7 +143,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                 {writingTo === p.id ? null : (
                   <>
                     <GlassPill
-                      icon="home"
+                      icon="mail"
                       disabled={waitMs > 0}
                       accessibilityLabel={`Invite ${p.name} to your home`}
                       testID={`world-invite-offline-${p.id}`}
@@ -188,7 +188,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                       <Btn title="Cancel" variant="tonal" onPress={() => setWritingTo(null)} />
                     </View>
                     <View style={styles.grow}>
-                      <Btn title={inviting ? "Send invite" : "Send poke"} icon={inviting ? "home-outline" : "notifications-outline"} loading={busy} onPress={() => void send(p.id, p.name)} />
+                      <Btn title={inviting ? "Send invite" : "Send poke"} icon={inviting ? "mail-outline" : "notifications-outline"} loading={busy} onPress={() => void send(p.id, p.name)} />
                     </View>
                   </View>
                 </View>
@@ -288,7 +288,7 @@ export const PeoplePanel = ({
                 action={
                   p.isMe ? null : (
                     <>
-                      <GlassPill icon="home" onPress={() => onInvite(p.memberId, p.name)} accessibilityLabel={`Invite ${p.name} to your home`} testID={`world-invite-${p.memberId}`} />
+                      <GlassPill icon="mail" onPress={() => onInvite(p.memberId, p.name)} accessibilityLabel={`Invite ${p.name} to your home`} testID={`world-invite-${p.memberId}`} />
                       <GlassPill
                         icon="walk"
                         tone="accent"
@@ -322,7 +322,7 @@ export const PeoplePanel = ({
                   action={
                     row.at ? (
                       <>
-                      <GlassPill icon="home" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${row.name} to your home`} testID={`world-invite-${row.memberId}`} />
+                      <GlassPill icon="mail" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${row.name} to your home`} testID={`world-invite-${row.memberId}`} />
                       <GlassPill
                         icon="navigate"
                         tone="accent"

@@ -45,7 +45,7 @@ import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
 import { useShowPingMs } from "./pingMs";
-import { CoinCounter, useCoins } from "./Coins";
+import { CoinCounter, CoinsPanel, useCoins } from "./Coins";
 import { DecorateTray } from "./Decorate";
 import { InviteCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
@@ -227,6 +227,7 @@ export const WorldScreen = ({
   const invites = useQuery(api.world.invites, world.status === "in" ? {} : "skip");
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
   const [shopOpen, setShopOpen] = useState(false);
+  const [coinsOpen, setCoinsOpen] = useState(false);
   const [decorating, setDecorating] = useState(false);
   const [chosenItem, setChosenItem] = useState<string | null>(null);
   const placeItemM = useMutation(api.worldHome.placeItem);
@@ -242,6 +243,12 @@ export const WorldScreen = ({
   const [approach, setApproach] = useState<{ to: string; since: number; kind: AskKind } | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(opening === "poke");
   const [placesOpen, setPlacesOpen] = useState(false);
+  const openCoins = () => {
+    setPlacesOpen(false);
+    setPeopleOpen(false);
+    setShopOpen(false);
+    setCoinsOpen(true);
+  };
   const [leaving, setLeaving] = useState(false);
   const [draft, setDraft] = useState("");
   const [composing, setComposing] = useState(false);
@@ -637,7 +644,7 @@ export const WorldScreen = ({
             id: "invite",
             label: "Invite",
             hint: `Invite ${selected.name} to your home`,
-            emoji: "🏠",
+            emoji: "✉️",
             onPress: () => {
               setPerson(null);
               invitePerson(selected.memberId, selected.name);
@@ -655,7 +662,7 @@ export const WorldScreen = ({
           },
         ];
 
-  const overlayOpen = shopOpen || peopleOpen || sheet !== null || editing;
+  const overlayOpen = shopOpen || coinsOpen || peopleOpen || sheet !== null || editing;
   const noteOver =
     note && overlayOpen ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
@@ -673,6 +680,13 @@ export const WorldScreen = ({
         wallet={wallet}
         onClose={() => setShopOpen(false)}
         onBought={setNote}
+      />
+      <CoinsPanel
+        open={coinsOpen}
+        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        balance={wallet?.balance}
+        earnedToday={wallet?.earnedToday}
+        onClose={() => setCoinsOpen(false)}
       />
       <PersonSheet
         // A report started for one person never carries over to another.
@@ -793,7 +807,7 @@ export const WorldScreen = ({
           extra={
             <View style={styles.listExtra}>
               <View style={styles.listRow}>
-                <CoinCounter balance={wallet?.balance} />
+                <CoinCounter balance={wallet?.balance} onPress={openCoins} />
                 {world.place === NPC.place ? (
                   <RoundButton icon="cart-outline" label={`Shop with ${NPC.name}`} onPress={() => setShopOpen(true)} testID="world-list-shop" />
                 ) : null}
@@ -861,6 +875,8 @@ export const WorldScreen = ({
         place={world.place}
         placeCounts={world.placeCounts}
         duels={world.duels}
+        ball={world.ball}
+        onKick={world.kick}
         onTapArcade={goToArcade}
         onTapSeat={sitNear}
         onAccept={accept}
@@ -889,7 +905,7 @@ export const WorldScreen = ({
               setPlacesOpen((was) => !was);
             }}
           />
-          {coinsBeside ? <CoinCounter balance={wallet?.balance} /> : null}
+          {coinsBeside ? <CoinCounter balance={wallet?.balance} onPress={openCoins} /> : null}
         </View>
         <View style={styles.right}>
           <PingBars ms={world.ping} />
@@ -907,7 +923,7 @@ export const WorldScreen = ({
       </View>
       {coinsBeside ? null : (
         <View style={[styles.coinsUnder, { top: insets.top + 62 }]} pointerEvents="box-none">
-          <CoinCounter balance={wallet?.balance} />
+          <CoinCounter balance={wallet?.balance} onPress={openCoins} />
         </View>
       )}
       <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }]} pointerEvents="box-none">

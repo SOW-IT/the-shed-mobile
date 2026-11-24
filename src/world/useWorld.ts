@@ -24,6 +24,7 @@ import {
   type Walk,
 } from "@shared/world";
 import { homeObstacles } from "@shared/home";
+import { BALL_PLACE, KICK_GAP_MS, kickBall, kickDirection, restingBall } from "@shared/ball";
 import { useConvex, useMutation, useQueries, useQuery } from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
 import type { FunctionReturnType } from "convex/server";
@@ -106,6 +107,7 @@ type WorldStats = {
   heartbeat: number;
   ping: number;
   probe: number;
+  kick: number;
   leave: number;
   since: number;
 };
@@ -121,6 +123,7 @@ const newStats = (): WorldStats => ({
   heartbeat: 0,
   ping: 0,
   probe: 0,
+  kick: 0,
   leave: 0,
   since: Date.now(),
 });
@@ -155,6 +158,16 @@ const patchMine = (store: OptimisticLocalStore, change: (row: StateRow) => State
   const me = meIn(store);
   const row = me && store.getQuery(api.world.state, { memberId: me.memberId });
   if (me && row) store.setQuery(api.world.state, { memberId: me.memberId }, change(row));
+};
+
+const showKick = (store: OptimisticLocalStore, { dirX, dirZ }: { dirX: number; dirZ: number }) => {
+  const me = meIn(store);
+  const current = me && store.getQuery(api.world.ball, { roomId: me.roomId });
+  if (!me || current === undefined) return;
+  const now = clock();
+  if (current && now - current.at < KICK_GAP_MS) return;
+  const origin = { x: 0, z: 0 };
+  store.setQuery(api.world.ball, { roomId: me.roomId }, kickBall(current ?? restingBall(), kickDirection(origin, origin, { x: dirX, z: dirZ }), now));
 };
 
 const showEmote = (store: OptimisticLocalStore, { emote }: { emote: string }) =>
@@ -694,6 +707,21 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [duelPickM]
   );
 
+  const ball = useQuery(api.world.ball, session?.place === BALL_PLACE ? { roomId: session.roomId } : "skip");
+  const kickM = useMutation(api.world.kickBall).withOptimisticUpdate(showKick);
+  const kick = useCallback(
+    (dirX: number, dirZ: number) => {
+      const sentAt = Date.now();
+      stats.current.kick++;
+      kickM({ dirX, dirZ })
+        .then((reply) => heard(reply.serverNow, sentAt))
+        .catch((e: unknown) => {
+          if (leftGarden(e)) again();
+        });
+    },
+    [kickM, heard, again]
+  );
+
   const placeCounts = useQuery(api.world.places, session ? {} : "skip");
   const inviteM = useMutation(api.world.invite);
   const invite = useCallback(
@@ -884,6 +912,8 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     typing,
     duels: duels ?? [],
     pickInDuel,
+    ball: session?.place === BALL_PLACE ? (ball ?? null) : null,
+    kick,
     act,
     ask,
     accept,

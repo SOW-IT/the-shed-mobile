@@ -65,8 +65,10 @@ import {
   INVITE_MS,
   POKE_ARRIVAL_MS,
   type StateBucket,
+  JOINED_WORLD,
 } from "../shared/world";
 import { HOME_CAP, homeObstacles } from "../shared/home";
+import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields } from "./worldData";
 import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
 
@@ -165,7 +167,7 @@ export const removeFromWorld = async (ctx: MutationCtx, email: string) => {
       const { x, z } = await landIn(ctx, garden, spawnFor(guest.email), now, guest._id);
       await ctx.db.patch("worldState", state._id, { fromX: x, fromZ: z, toX: x, toZ: z, startedAt: now, ...FRESH_IN_ROOM });
     }
-    if (await ctx.db.get("worldRooms", home._id)) await ctx.db.delete("worldRooms", home._id);
+    if (await ctx.db.get("worldRooms", home._id)) await deleteRoom(ctx, home._id);
   }
 };
 
@@ -218,9 +220,21 @@ const addChatLine = async (ctx: MutationCtx, member: Doc<"worldMembers">, line: 
 };
 
 const joinedLine = (member: Doc<"worldMembers">): ChatLine => ({
-  text: placeOf(member) === HOME ? "came in" : `joined ${PLACE_TITLES[placeOf(member)].replace(/^The /, "the ")}`,
+  text: placeOf(member) === HOME ? "came in" : JOINED_WORLD,
   kind: "join",
 });
+
+const ballOf = (ctx: Ctx, roomId: Id<"worldRooms">) =>
+  ctx.db
+    .query("worldBalls")
+    .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+    .unique();
+
+const deleteRoom = async (ctx: MutationCtx, roomId: Id<"worldRooms">) => {
+  const ball = await ballOf(ctx, roomId);
+  if (ball) await ctx.db.delete("worldBalls", ball._id);
+  await ctx.db.delete("worldRooms", roomId);
+};
 
 const LEFT_LINE: ChatLine = { text: "left", kind: "leave" };
 
@@ -261,7 +275,7 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
   await ctx.db.delete("worldMembers", member._id);
   const room = await ctx.db.get("worldRooms", member.roomId);
   if (!room) return;
-  if (room.memberCount <= 1) await ctx.db.delete("worldRooms", room._id);
+  if (room.memberCount <= 1) await deleteRoom(ctx, room._id);
   else await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount - 1 });
 };
 
@@ -398,7 +412,7 @@ const arrivalRoom = async (ctx: MutationCtx, wanted: Arrival, current?: Doc<"wor
 
 const switchRoom = async (ctx: MutationCtx, member: Doc<"worldMembers">, here: Doc<"worldRooms">, room: Doc<"worldRooms">, place: Place) => {
   await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
-  if (here.memberCount <= 1) await ctx.db.delete("worldRooms", here._id);
+  if (here.memberCount <= 1) await deleteRoom(ctx, here._id);
   else await ctx.db.patch("worldRooms", here._id, { memberCount: here.memberCount - 1 });
   await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place });
 };
@@ -757,6 +771,42 @@ export const act = mutation({
     await ctx.db.patch("worldState", state._id, { act: { emote, at: now }, actBucket: token.bucket });
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
+  },
+});
+
+const ballFields = { x: v.number(), z: v.number(), vx: v.number(), vz: v.number(), at: v.number() };
+
+export const ball = query({
+  args: { roomId: v.id("worldRooms") },
+  returns: v.union(v.null(), v.object(ballFields)),
+  handler: async (ctx, { roomId }) => {
+    if (!(await meIn(ctx, roomId))) return null;
+    const row = await ballOf(ctx, roomId);
+    return row ? { x: row.x, z: row.z, vx: row.vx, vz: row.vz, at: row.at } : null;
+  },
+});
+
+/**
+ * Kicks the Beach's ball: one write. The kicker must be beside it, and the
+ * ball takes a kick at most every KICK_GAP_MS, whoever kicks it.
+ */
+export const kickBall = mutation({
+  args: { dirX: v.number(), dirZ: v.number() },
+  returns: v.union(v.object({ ok: v.literal(true), ball: v.object(ballFields), serverNow: v.number() }), turnedAway),
+  handler: async (ctx, { dirX, dirZ }) => {
+    const { member, state } = await requireMe(ctx);
+    if (placeOf(member) !== BALL_PLACE) throw new ConvexError("There's no ball here.");
+    const now = Date.now();
+    const row = await ballOf(ctx, member.roomId);
+    if (row && now - row.at < KICK_GAP_MS) return { ok: false as const, retryInMs: KICK_GAP_MS - (now - row.at), serverNow: now };
+    const before = row ?? restingBall();
+    const there = ballAt(before, now);
+    const me = posAt(state, now);
+    if (distance(me, there) > KICK_REACH) throw new ConvexError("Walk up to the ball to kick it.");
+    const next = rollFromKick(before, kickDirection(me, there, { x: dirX, z: dirZ }), now);
+    if (row) await ctx.db.patch("worldBalls", row._id, next);
+    else await ctx.db.insert("worldBalls", { roomId: member.roomId, ...next });
+    return { ok: true as const, ball: next, serverNow: now };
   },
 });
 

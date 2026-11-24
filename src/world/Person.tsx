@@ -258,6 +258,9 @@ const EXPRESSIONS: Record<EmoteId, Expression> = {
   pray: { eyes: "closed", mouth: "smile" },
 };
 
+const IDLE_MOUTHS: Mouth[] = ["none", "smile", "open", "o", "flat", "cat", "tongue"];
+const closedMouth = (idle: Mouth): Mouth => (idle === "open" || idle === "tongue" || idle === "o" ? "smile" : idle);
+
 const settle = (k: number) => {
   const c = Math.min(1, Math.max(0, k));
   return c * c * (3 - 2 * c);
@@ -398,6 +401,7 @@ const AvatarView = ({
   doing = null,
   shadow = true,
   swim = false,
+  talk,
 }: {
   figure: Figure;
   pose: Pose;
@@ -409,6 +413,7 @@ const AvatarView = ({
   doing?: Doing;
   shadow?: boolean;
   swim?: boolean;
+  talk?: boolean;
 }) => {
   const { foot, s, up } = figure;
   const move = motion(doing, t);
@@ -540,8 +545,13 @@ const AvatarView = ({
     }
   };
   const corner = (k: number, size: number) => (Math.min(size === hw ? hw : iw, size === hw ? hh : ih) / 2) * k;
+  const idleMouth = IDLE_MOUTHS[lookPart(look, "mouth")] ?? "none";
   const expression: Expression =
-    doing?.kind === "emote" ? EXPRESSIONS[doing.id] : doing?.kind === "mutual" ? { eyes: "happy", mouth: "open" } : { eyes: "dot", mouth: "none" };
+    doing?.kind === "emote"
+      ? EXPRESSIONS[doing.id]
+      : doing?.kind === "mutual"
+        ? { eyes: "happy", mouth: "open" }
+        : { eyes: "dot", mouth: talk === undefined ? "none" : talk ? "open" : closedMouth(idleMouth) };
   const parts = [];
   const ball = (key: string, x: number, y: number, rad: number, fill: string) =>
     parts.push(<Ellipse key={key} cx={x} cy={y} rx={rad} ry={rad} fill={fill} ink={ink * 0.8} inkColour={garden.ink} ramp />);
@@ -1141,6 +1151,10 @@ const AvatarView = ({
     const top = my - 0.24 * s;
     face.push(<View key="strap" style={[styles.abs, { left: icx - iw * 0.47 + 0.3 * side * s, top, width: iw * 0.94, height: Math.max(0.2 * s, ih - 0.012 * s - top), borderRadius: s, borderLeftWidth: 0.05 * s, borderRightWidth: 0.05 * s, borderBottomWidth: 0.06 * s, borderColor: hair, borderTopColor: "transparent" }]} />);
   }
+  if (faceOn && beard === 7) {
+    face.push(<View key="shortBeard" style={[styles.abs, { left: icx - iw * 0.43 + 0.3 * side * s, top: my - 0.04 * s, width: iw * 0.86, height: ih, borderRadius: iw * 0.43, backgroundColor: hair, opacity: 0.5 }]} />);
+    face.push(<View key="moustache" style={[styles.abs, { left: mx - 0.12 * s, top: my - 0.08 * s, width: 0.24 * s, height: 0.05 * s, borderRadius: s, backgroundColor: hair, opacity: 0.75 }]} />);
+  }
   if (faceOn && beard === 4) {
     face.push(<View key="goatee" style={[styles.abs, { left: mx - 0.06 * s, top: my + 0.035 * s, width: 0.12 * s, height: 0.1 * s, borderTopLeftRadius: 0.02 * s, borderTopRightRadius: 0.02 * s, borderBottomLeftRadius: s, borderBottomRightRadius: s, backgroundColor: hair }]} />);
   }
@@ -1154,8 +1168,7 @@ const AvatarView = ({
     for (const e of [-1, 1]) face.push(<View key={`curl${e}`} style={[styles.abs, { left: mx + e * 0.14 * s - 0.03 * s, top: my - 0.1 * s, width: 0.06 * s, height: 0.06 * s, borderRadius: s, borderWidth: 0.02 * s, borderColor: shade(hair, -0.1), borderTopColor: "transparent", borderRightColor: e > 0 ? shade(hair, -0.1) : "transparent", borderLeftColor: e < 0 ? shade(hair, -0.1) : "transparent" }]} />);
   }
   // Their own mouth unless an emote has one; lipstick colours it.
-  const idleMouth: Mouth[] = ["none", "smile", "open", "o", "flat", "cat", "tongue"];
-  const mouthShape = expression.mouth !== "none" ? expression.mouth : (idleMouth[lookPart(look, "mouth")] ?? "none");
+  const mouthShape = expression.mouth !== "none" ? expression.mouth : idleMouth;
   if (faceOn && (mouthShape !== "none" || lipstick)) {
     const m = mouthShape;
     const line = lipstick ?? people.eye;
@@ -1473,6 +1486,7 @@ export const Avatar = memo(
     a.sit === b.sit &&
     a.shadow === b.shadow &&
     a.swim === b.swim &&
+    a.talk === b.talk &&
     sameDoing(a.doing ?? null, b.doing ?? null)
 );
 
