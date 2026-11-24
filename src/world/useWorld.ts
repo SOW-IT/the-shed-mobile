@@ -474,17 +474,21 @@ export const useWorld = (
     const to = pending.current;
     if (!to || inFlight.current) return;
     pending.current = null;
-    inFlight.current = true;
-    const sentAt = Date.now();
-    const sentIn = visit.current;
-    stats.current.move++;
     const place = session?.place;
     const serverWalk = myServerWalkRef.current;
     const path =
       place && serverWalk
         ? findPath(place, posAt(serverWalk, serverNow()), to, obstaclesRef.current, { allowGoalInside: to.seat !== undefined })
-        : null;
-    const pathArg = path && path.length > 0 ? { path } : {};
+        : [];
+    if (!path) {
+      predicting.current = false;
+      return;
+    }
+    inFlight.current = true;
+    const sentAt = Date.now();
+    const sentIn = visit.current;
+    stats.current.move++;
+    const pathArg = path.length > 0 ? { path } : {};
     (to.seat ? sitM({ seat: to.seat, ...pathArg }) : moveM({ toX: to.x, toZ: to.z, ...pathArg }))
       .then((reply) => {
         if (sentIn !== visit.current) return;
@@ -567,18 +571,19 @@ export const useWorld = (
 
   /** Points your walk at a spot now, from wherever you are on the way. */
   const retarget = useCallback(
-    (to: { x: number; z: number }) => {
+    (to: { x: number; z: number }): boolean => {
       fingerAt.current = to;
       const walk = myWalkRef.current;
-      if (walk && Math.hypot(walk.toX - to.x, walk.toZ - to.z) < HOLD_SAME_SPOT) return;
+      if (walk && Math.hypot(walk.toX - to.x, walk.toZ - to.z) < HOLD_SAME_SPOT) return true;
       const now = serverNow();
       const from = walk ? posAt(walk, now) : to;
       const path = session ? findPath(session.place, from, to, obstaclesRef.current) : [];
-      if (!path) return;
+      if (!path) return false;
       const next = headFor(walk, to, now, path);
       myWalkRef.current = next;
       setMyWalk(next);
       setTarget(to);
+      return true;
     },
     [session, serverNow]
   );
@@ -627,8 +632,10 @@ export const useWorld = (
       if (holdFrame.current !== null) clearTimeout(holdFrame.current);
       holdFrame.current = null;
       const to = clampTarget(x, z, session.place, obstaclesRef.current);
-      retarget(to);
-      sendNow(to);
+      const walk = myWalkRef.current;
+      const reachable = retarget(to);
+      if (reachable) sendNow(to);
+      else if (walk) sendNow({ x: walk.toX, z: walk.toZ });
     },
     [session, retarget, sendNow]
   );

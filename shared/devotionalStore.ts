@@ -174,6 +174,8 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     );
   };
 
+  const persistNow = (email: string): Promise<boolean> => persist(email, getBucket(email));
+
   const getDrafts = (email: string | null | undefined): Readonly<Record<string, LocalDevotionalDraft>> =>
     email ? getBucket(email).drafts : EMPTY_DEVOTIONAL_MAP;
 
@@ -190,5 +192,16 @@ export const createDevotionalStore = (backend: DevotionalStorageBackend) => {
     };
   };
 
-  return { load, saveLocal, markSynced, markConflict, keepMine, takeTheirs, getDrafts, getDirty, subscribe };
+  return {
+    load,
+    saveLocal,
+    persistNow,
+    markSynced,
+    markConflict,
+    keepMine,
+    takeTheirs,
+    getDrafts,
+    getDirty,
+    subscribe,
+  };
 };

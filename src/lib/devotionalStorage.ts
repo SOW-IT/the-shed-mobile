@@ -44,6 +44,7 @@ const defaultBackend: DevotionalStorageBackend = {
 const store = createDevotionalStore(defaultBackend);
 
 export const saveLocalDevotional = store.saveLocal;
+export const persistLocalDevotionals = store.persistNow;
 export const markDevotionalSynced = store.markSynced;
 export const markDevotionalConflict = store.markConflict;
 export const keepLocalDevotional = store.keepMine;

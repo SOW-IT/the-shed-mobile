@@ -6,6 +6,7 @@ import {
   keepLocalDevotional,
   markDevotionalConflict,
   markDevotionalSynced,
+  persistLocalDevotionals,
   saveLocalDevotional,
   takeServerDevotional,
   useLocalDevotionals,
@@ -63,18 +64,10 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   const localDraft = validDate ? drafts[validDate] : undefined;
   const saveOnline = useMutation(api.devotionals.save);
 
-  const [override, setOverride] = useState<{
-    date: string;
-    passage: string;
-    notes: string;
-    prayerPoints: string;
-  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
 
-  const seeded = pickDisplayDevotional(localDraft, remote);
-  const current = override && override.date === validDate ? override : seeded;
-  const { passage, notes, prayerPoints } = current;
+  const { passage, notes, prayerPoints } = pickDisplayDevotional(localDraft, remote);
 
   const canEdit = Boolean(email) && (remote !== undefined || offline);
   const baseIfNew =
@@ -94,7 +87,6 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   const updateContent = (next: { passage: string; notes: string; prayerPoints: string }) => {
     if (!validDate || !email || !canEdit) return;
     dirtyOnEdit.current = true;
-    setOverride({ date: validDate, ...next });
     void saveLocalDevotional(email, validDate, next, baseIfNew);
   };
 
@@ -114,11 +106,13 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
       const content = { passage: latest.passage, notes: latest.notes, prayerPoints: latest.prayerPoints };
       const existingDraft = getLocalDevotional(latest.email, latest.validDate);
       let draft = existingDraft;
-      let persisted = true;
+      let persisted: boolean;
       if (!draft || !sameDevotionalContent(draft, content)) {
         const stored = await saveLocalDevotional(latest.email, latest.validDate, content, latest.baseIfNew);
         draft = stored.draft;
         persisted = stored.persisted;
+      } else {
+        persisted = await persistLocalDevotionals(latest.email);
       }
       if (!draft.dirty) {
         if (showFeedback) setToast({ text: "Saved" });
@@ -146,7 +140,6 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         const now = latestRef.current;
         if (now.validDate === latest.validDate && sameDevotionalContent(now, content)) {
           dirtyOnEdit.current = false;
-          setOverride(null);
         }
         if (showFeedback) setToast({ text: "Saved" });
       } catch (error) {
@@ -275,7 +268,6 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
                 variant="tonal"
                 onPress={() => {
                   dirtyOnEdit.current = false;
-                  setOverride(null);
                   void takeServerDevotional(email, validDate, conflict.theirs);
                 }}
               />

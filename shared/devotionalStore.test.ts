@@ -56,11 +56,15 @@ describe("devotional local storage and sync", () => {
     expect(store.getDrafts(ANNA)["2026-11-01"].notes).toBe("Old");
   });
 
-  test("says when the phone couldn't store the edit", async () => {
-    const store = createDevotionalStore({ read: async () => null, write: async () => false });
+  test("says when the phone couldn't store the edit, and tries again when asked", async () => {
+    let full = true;
+    const store = createDevotionalStore({ read: async () => null, write: async () => !full });
     const { persisted } = await store.saveLocal(ANNA, DAY, { passage: "", notes: "x", prayerPoints: "" }, null);
     expect(persisted).toBe(false);
     expect(store.getDirty(ANNA)).toHaveLength(1);
+    expect(await store.persistNow(ANNA)).toBe(false);
+    full = false;
+    expect(await store.persistNow(ANNA)).toBe(true);
 
     const throwing = createDevotionalStore({
       read: () => Promise.reject(new Error("read")),
