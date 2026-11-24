@@ -8,6 +8,41 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [2.12.42] - 2026-11-24
 
+### Added
+- **World settings.** The place menu has a Settings row (gear), and tapping
+  the signal bars opens it too. Each choice is saved on this phone or
+  browser:
+  - Chat times: off by default.
+  - Chat names: initials ("DK", the default) or first names ("Daniel").
+  - Ping: shows the milliseconds next to the bars. Off by default.
+  - Battery saver: draws at 30 frames a second, the walk marker and typing
+    dots stand still, bubbles appear without the bounce, people standing in
+    water stop paddling, and menus fade instead of sliding. Until you set
+    it, it follows the phone's Reduce Motion.
+  - Name tags: everyone, or only people near you. Anyone talking, typing,
+    emoting or playing keeps their tag.
+- **A Flannel outfit.** An open flannel shirt in your shirt colour with an
+  orange plaid, over a black tee.
+- **Sijin looks like Sijin.** Bald, with a short beard, a big grin and
+  narrow smiling eyes, in the Flannel. The shop and anywhere else that draws
+  him show the same look.
+- **A Short beard** in the character editor: a close beard along the jaw
+  with a moustache.
+- **Pick your own background colour.** The circle behind your avatar in the
+  People list and on invites can be one of ten colours, under Body in the
+  editor. Everyone keeps today's mint until they pick one.
+- **Tap your coins to see how to get more.** A card pops up with your
+  balance and a spinning coin: the scores that earn 10 or 20 coins in Flap,
+  Mystic Man and Sky Shooter, the 200 a day limit, and that Sijin in the
+  Café sells furniture.
+- **Mouths move when people talk.** Whoever says something opens and closes
+  their mouth for a moment, longer for a longer line, on everyone's screen.
+- **A beach ball.** Walk into it at the Beach, or tap it when you're close,
+  and it rolls, slows down, bounces off the edges and can float out to sea.
+  Everyone in the room sees it in the same place.
+- **Rock paper scissors shows the picks.** At the reveal each player's
+  bubble shows their ✊, ✋ or ✌️ instead of "Rock!".
+
 ### Fixed
 - **Height shows.** The editor preview used to shrink taller characters to
   fit, so moving the Height slider changed nothing you could see. Now the
@@ -33,32 +68,31 @@ All notable changes to **The SHED** mobile app. This project follows
   the World's code on demand, which took longer on CI than a screen gets to
   settle; the timer now starts once that code has arrived.
 
-### Added
-- **A Flannel outfit.** An open flannel shirt in your shirt colour with an
-  orange plaid, over a black tee.
-- **Tap the signal bars to show or hide the milliseconds.** Off by default,
-  and remembered on this phone or browser.
-- **Sijin looks like Sijin.** Bald, with a short beard, a big grin and
-  narrow smiling eyes, in the Flannel. The shop and anywhere else that draws
-  him show the same look.
-- **A Short beard** in the character editor: a close beard along the jaw
-  with a moustache.
-- **Pick your own background colour.** The circle behind your avatar in the
-  People list and on invites can be one of ten colours, under Body in the
-  editor. Everyone keeps today's mint until they pick one.
-- **Tap your coins to see how to get more.** A card pops up with your
-  balance and a spinning coin: the scores that earn 10 or 20 coins in Flap,
-  Mystic Man and Sky Shooter, the 200 a day limit, and that Sijin in the
-  Café sells furniture.
-- **Mouths move when people talk.** Whoever says something opens and closes
-  their mouth for a moment, longer for a longer line, on everyone's screen.
-- **A beach ball.** Walk into it at the Beach, or tap it when you're close,
-  and it rolls, slows down, bounces off the edges and can float out to sea.
-  Everyone in the room sees it in the same place.
-- **Rock paper scissors shows the picks.** At the reveal each player's
-  bubble shows their ✊, ✋ or ✌️ instead of "Rock!".
-
 ### Changed
+- **The World does nothing while nothing moves.** The scene used to redraw
+  once a second and check the place pads five times a second with everyone
+  standing still. Now it wakes only when something is due (a bubble fading,
+  an emote ending), and draws nothing in between. Opening a menu or typing
+  a line no longer redraws the scene, and the walk marker spins on its own.
+- **The World stops drawing when you can't see it.** It pauses in the
+  background and behind the character editor. Someone standing in water
+  paddles at 15 frames a second instead of 60. A web tab left hidden for 30
+  seconds stops receiving World updates and picks them up again when you come
+  back; you stay in the room the whole time.
+- **The character editor is lighter.** The preview only animates while it
+  turns or zooms, so it no longer redraws 60 times a second at rest; with
+  Reduce Motion on it no longer turns by itself. Tabs with many choices,
+  like Hair, draw the first tiles straight away and the rest over the next
+  few frames.
+- **Less network traffic.** A new chat line sends only the newest lines
+  instead of the whole log, the floating chat log asks for 30 lines instead
+  of 150, sending a line no longer sends a separate "stopped typing" first,
+  and a change in someone's signal bars no longer resends the room's list
+  of people. Rock paper scissors counts down once a second.
+- **Menus close the way they open.** The place menu, People, Sijin's shop,
+  Settings, the leave dialog, the emote tray, the decorate tray and invite
+  cards play their opening animation backwards when you close them,
+  tapping outside included, instead of vanishing.
 - **"joined the World".** Join lines in the chat log say someone joined the
   World, not a place. Leave lines still say "left".
 - **Name tags and bubbles stay over their owners.** They're no longer pushed
