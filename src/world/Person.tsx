@@ -17,7 +17,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 export const headTop = (look: Look) => {
   const hat = lookPart(look, "hat");
   const crest = look.hair === 12 && !hidesCrest(hat) ? 0.08 : 0;
-  return 1.0 * bodyScale(look).height + 0.62 + Math.max(hat === 8 ? 0.28 : hat === 9 ? 0.06 : 0, crest);
+  // A party hat or crown sitting on an afro is higher still.
+  const onAfro = sitsOnAfro(look.hair, hat) ? AFRO_RISE / 0.86 : 0;
+  return 1.0 * bodyScale(look).height + 0.62 + Math.max(hat === 8 ? 0.28 + onAfro : hat === 9 ? 0.06 + onAfro : 0, crest);
 };
 
 /** Face shapes: width and height (of a round head), and corner rounding at top and bottom. */
@@ -60,17 +62,22 @@ export const figureTop = (look: Look, up: number) => {
     hat === 4 ? 0.5 : 0,
     hat === 5 ? 0.62 : 0,
     hat === 8 ? 0.77 : 0,
-    hat === 9 ? 0.6 : 0
+    hat === 9 ? 0.6 : 0,
+    hat === 6 ? 0.5 : 0
   );
-  return head + Math.max(face, onTop + lift);
+  return head + Math.max(face, onTop + lift + (sitsOnAfro(hair, hat) ? AFRO_RISE : 0));
 };
 
 /** How far a face of this height (as a multiple of a round one) raises the top of the head, per scale. */
 const faceLift = (h: number) => Math.max(0, 0.63 * (h - 1));
-/** Hats a bun would poke through, so it's tucked under them: the beanie and the sun hat. */
-const hidesBun = (hat: number) => hat === 1 || hat === 2 || hat === 4;
-/** Hats an afro squashes under, puffing out at the sides instead of above. */
-const flattensAfro = (hat: number) => hat === 1 || hat === 2 || hat === 4;
+/** Hats a bun would poke through, so it's tucked under them: the cap, beanie, sun hat and beret. */
+const hidesBun = (hat: number) => hat === 1 || hat === 2 || hat === 4 || hat === 5;
+/** Hats an afro squashes under, puffing out at the sides instead of above: the cap, beanie, sun hat and beret. */
+const flattensAfro = (hat: number) => hat === 1 || hat === 2 || hat === 4 || hat === 5;
+/** How far (per scale) an afro stands above the top of the head. */
+const AFRO_RISE = 0.21;
+/** Hats that sit on top of an afro instead of sinking into it: the bow, party hat and crown. */
+const sitsOnAfro = (hair: number, hat: number) => hair === 10 && (hat === 6 || hat === 8 || hat === 9);
 /** Hats a mohawk's crest doesn't show through: all but the bow and the headband. */
 const hidesCrest = (hat: number) => hat !== 0 && hat !== 6 && hat !== 7;
 /** Hats that cover the top of the head, so a fringe doesn't show under them. */
@@ -461,6 +468,8 @@ const AvatarView = ({
   // What sits on top of the head rises with a taller face.
   const lift = faceLift(shape.h) * s;
   const hat = lookPart(look, "hat");
+  // A bow, party hat or crown sits on top of an afro, above the head.
+  const onAfro = sitsOnAfro(look.hair, hat) ? AFRO_RISE * s : 0;
   const capped = hat === 1;
   const innerLeft = head.x - hw / 2 + ink;
   const innerTop = head.y - hh / 2 - (hh - r * 2) * 0.25 + ink;
@@ -837,8 +846,9 @@ const AvatarView = ({
   const phonesOverAfro = accessory === 6 && look.hair === 10 && !flattensAfro(hat);
   if (phonesOverAfro) headphones("back");
   if (look.hair === 10 && !afroOver) afro();
-  // Curls: over the hair, or just the side ones peeking out under a cap or beanie.
-  const curlsTucked = hat === 1 || hat === 2;
+  // Curls: over the hair, or just the side ones peeking out under a cap,
+  // beanie or headband (which would otherwise hide under the curls).
+  const curlsTucked = hat === 1 || hat === 2 || hat === 7;
   const curls = (keep: (i: number) => boolean) => {
     for (let i = 0; i < 7; i++) {
       if (!keep(i)) continue;
@@ -1402,7 +1412,7 @@ const AvatarView = ({
   if (hat === 6) {
     // A bow on top, to one side.
     const bx = head.x + r * 0.5 * facing - side * 0.1 * s;
-    const by = head.y - r * 0.82 - lift;
+    const by = head.y - r * 0.82 - lift - onAfro;
     for (const e of [-1, 1]) parts.push(<Ellipse key={`bowLoop${e}`} cx={bx + e * 0.1 * s} cy={by} rx={0.11 * s} ry={0.08 * s} fill={fav(people.hats.bow)} ink={ink} inkColour={garden.ink} />);
     ball("bowKnot", bx, by, 0.045 * s, shade(fav(people.hats.bow), -0.15));
   }
@@ -1410,7 +1420,7 @@ const AvatarView = ({
     // A party hat: a cone with a pompom.
     const half = r * 0.42;
     const tall = r * 0.86;
-    const base = head.y - r * 0.78 - lift;
+    const base = head.y - r * 0.78 - lift - onAfro;
     parts.push(<View key="partyInk" pointerEvents="none" style={[styles.abs, { left: head.x - half - ink * 1.5, top: base - tall - ink * 2, borderLeftWidth: half + ink * 1.5, borderRightWidth: half + ink * 1.5, borderBottomWidth: tall + ink * 2, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: garden.ink }]} />);
     parts.push(<View key="party" pointerEvents="none" style={[styles.abs, { left: head.x - half, top: base - tall, borderLeftWidth: half, borderRightWidth: half, borderBottomWidth: tall, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: fav(people.hats.party) }]} />);
     ball("partyPompom", head.x, base - tall, 0.07 * s, people.hats.pompom);
@@ -1418,7 +1428,7 @@ const AvatarView = ({
   if (hat === 9) {
     // A little gold crown with a jewel in their favourite colour.
     const half = r * 0.48;
-    const top = head.y - r * 1.02 - lift;
+    const top = head.y - r * 1.02 - lift - onAfro;
     for (const k of [-1, 0, 1]) {
       parts.push(<View key={`point${k}`} pointerEvents="none" style={[styles.abs, { left: head.x + k * r * 0.32 - r * 0.16, top: top - r * 0.3, borderLeftWidth: r * 0.16, borderRightWidth: r * 0.16, borderBottomWidth: r * 0.32, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: people.hats.crown }]} />);
     }
