@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.41] - 2026-11-24
+
+### Fixed
+- **Phones that only need an over-the-air update are no longer sent to the
+  App Store.** After 2.12.40, a phone on the newest store build running an
+  older update could be told to update in the App Store or Play Store when a
+  restart was all it needed. The version each over-the-air update publishes
+  is now kept apart from the recommended store version. Phones from 2.12.41
+  on hear about both and restart into the update; older phones only see the
+  store version, and pick up the update the next time the app starts.
+
 ## [2.12.40] - 2026-11-24
 
 ### Changed

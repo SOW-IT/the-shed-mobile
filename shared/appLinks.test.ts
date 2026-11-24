@@ -9,6 +9,7 @@ import {
   isAppVersion,
   searchWithoutSignInParams,
   updateRouteFor,
+  updateStatusArgs,
   updateStatusFor,
   WEB_ONLY_MARKER,
 } from "./appLinks";
@@ -122,6 +123,19 @@ describe.each([
 
   const SEEN = 5_000;
   const idle = { available: false, checked: true, answeredAt: SEEN + 1, inFlight: null };
+
+  test("only a build that takes over-the-air updates asks about them", () => {
+    expect(updateStatusArgs("ios", "2.12.40", true)).toEqual({ platform: "ios", version: "2.12.40", ota: true });
+    expect(updateStatusArgs("android", "2.12.40", false)).toEqual({ platform: "android", version: "2.12.40" });
+  });
+
+  test("a phone on the newest store build restarts into the over-the-air version it was told about", () => {
+    const answeredBefore = { ...idle, answeredAt: SEEN - 1 };
+    expect(updateRouteFor("2.12.40", answeredBefore, SEEN)).toBe("wait");
+    expect(updateRouteFor("2.12.40", { ...answeredBefore, inFlight: "check" }, SEEN)).toBe("wait");
+    expect(updateRouteFor("2.12.40", { ...idle, available: true, version: "2.12.40" }, SEEN)).toBe("restart");
+    expect(updateRouteFor("2.12.40", { ...idle, available: true, version: "2.12.30" }, SEEN)).toBe("store");
+  });
 
   test("an over-the-air update is a restart; only a new build sends you to the store", () => {
     // An update for this build that reaches the target: restart, never the store.
