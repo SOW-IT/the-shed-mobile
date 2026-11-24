@@ -182,7 +182,13 @@ export const WorldList = ({
         {world.error ? <Muted>{world.error}</Muted> : null}
         {world.people.map((p) => {
           const theirs = p.walk ? posAt(p.walk, now) : null;
-          const detail = p.isMe ? "You · change your look" : p.away ? "Playing at the arcade" : "Here";
+          const detail = p.isMe
+            ? "You · change your look"
+            : p.reading
+              ? "Doing devotional"
+              : p.away
+                ? "Playing at the arcade"
+                : "Here";
           // Close enough for a high five? If not, a way to walk over: the list
           // view (and Android, which always has it) can't tap the ground.
           const gap = mePose && theirs ? Math.hypot(theirs.x - mePose.x, theirs.z - mePose.z) : 0;

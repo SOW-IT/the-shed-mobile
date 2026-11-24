@@ -25,7 +25,9 @@ import {
   TYPING_REFRESH_MS,
   posAt,
   type Walk,
+  type Waypoint,
 } from "@shared/world";
+import { findPath } from "@shared/worldPath";
 import { homeObstacles } from "@shared/home";
 import { BALL_PLACE, KICK_GAP_MS, kickBall, kickDirection, restingBall } from "@shared/ball";
 import { useConvex, useMutation, useQueries, useQuery } from "convex/react";
@@ -63,6 +65,7 @@ export type WorldMember = {
   /** The asks this person accepted that are still open. */
   answered?: Reply[];
   away?: "arcade";
+  reading?: boolean;
   seat?: string;
   typing?: number;
   ping?: number;
@@ -78,15 +81,16 @@ const TOO_FAR_TO_BLEND = 3;
 
 type LocalWalk = Walk & { gait: Gait };
 
-const headFor = (walk: LocalWalk | null, to: { x: number; z: number }, now: number): LocalWalk => {
+const headFor = (walk: LocalWalk | null, to: { x: number; z: number }, now: number, path?: readonly Waypoint[]): LocalWalk => {
   const from = walk ? posAt(walk, now) : to;
-  const next = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
+  const cleanPath = path && path.length > 0 ? path : undefined;
+  const next: Walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now, ...(cleanPath ? { path: cleanPath } : {}) };
   return { ...next, gait: carryGait(walk ? { walk, gait: walk.gait } : null, next, now) };
 };
 
 const blendIn = (walk: LocalWalk | null, server: Walk, now: number): LocalWalk => {
-  const { fromX, fromZ, toX, toZ, startedAt } = server;
-  const theirs = { fromX, fromZ, toX, toZ, startedAt };
+  const { fromX, fromZ, toX, toZ, startedAt, path } = server;
+  const theirs: Walk = { fromX, fromZ, toX, toZ, startedAt, ...(path && path.length > 0 ? { path } : {}) };
   if (!walk) return { ...theirs, gait: restingGait(theirs) };
   if (Math.hypot(walk.toX - toX, walk.toZ - toZ) < SAME_SPOT) return walk;
   const here = posAt(walk, now);
@@ -94,7 +98,7 @@ const blendIn = (walk: LocalWalk | null, server: Walk, now: number): LocalWalk =
   if (Math.hypot(here.x - there.x, here.z - there.z) > TOO_FAR_TO_BLEND) {
     return { ...theirs, gait: carryGait({ walk, gait: walk.gait }, theirs, now) };
   }
-  return headFor(walk, { x: toX, z: toZ }, now);
+  return headFor(walk, { x: toX, z: toZ }, now, theirs.path);
 };
 
 /**
@@ -235,13 +239,20 @@ const useHeldStates = (live: States, dormant: boolean, visitKey: string): States
   return dormant ? (settled ?? live) : fillLoading(live, settled);
 };
 
-export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: string; invite?: string }, tickEverySecond = true) => {
+export const useWorld = (
+  enabled: boolean,
+  away = false,
+  arrival?: { poke?: string; invite?: string },
+  tickEverySecond = true,
+  reading = false
+) => {
   const convex = useConvex();
   const joinM = useMutation(api.world.join);
   const leaveM = useMutation(api.world.leave);
   const moveM = useMutation(api.world.move);
   const heartbeatM = useMutation(api.world.heartbeat);
   const awayM = useMutation(api.world.away);
+  const readingM = useMutation(api.world.reading);
   const travelM = useMutation(api.world.travel);
   const sitM = useMutation(api.world.sit);
   const typingM = useMutation(api.world.typing);
@@ -278,14 +289,16 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   useEffect(() => {
     if (arrival) arrivalRef.current = arrival;
   }, [arrival]);
-  // Your own walk, ahead of the server so a tap moves you at once.
   const [myWalk, setMyWalk] = useState<LocalWalk | null>(null);
+  const myWalkRef = useRef<LocalWalk | null>(null);
+  useEffect(() => {
+    myWalkRef.current = myWalk;
+  }, [myWalk]);
   const [target, setTarget] = useState<{ x: number; z: number } | null>(null);
   const stats = useRef<WorldStats>(newStats());
 
   const lastAction = useRef(0);
-  // The spot waiting to be sent, whether a move is on its way, and its timer.
-  const pending = useRef<{ x: number; z: number; seat?: string } | null>(null);
+  const pending = useRef<{ x: number; z: number; seat?: string; path?: Waypoint[] } | null>(null);
   const inFlight = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Bumped when a visit ends, so a reply from the last visit can't queue a move in this one.
@@ -386,6 +399,13 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     };
   }, [session, away, awayM]);
 
+  const toldReading = useRef(false);
+  useEffect(() => {
+    if (!session || (!reading && !toldReading.current)) return;
+    toldReading.current = reading;
+    readingM({ on: reading }).catch(() => undefined);
+  }, [session, reading, readingM]);
+
   const actTokens = useRef(fullBucket("act", 0));
   const spendAct = useCallback(() => {
     const taken = takeToken("act", actTokens.current, Date.now());
@@ -449,16 +469,16 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     const sentAt = Date.now();
     const sentIn = visit.current;
     stats.current.move++;
-    (to.seat ? sitM({ seat: to.seat }) : moveM({ toX: to.x, toZ: to.z }))
+    const pathArg = to.path && to.path.length > 0 ? { path: to.path } : {};
+    (to.seat ? sitM({ seat: to.seat, ...pathArg }) : moveM({ toX: to.x, toZ: to.z, ...pathArg }))
       .then((reply) => {
         if (sentIn !== visit.current) return;
         heard(reply.serverNow, sentAt);
         if (reply.ok) {
-          const { fromX, fromZ, toX, toZ, startedAt } = reply;
-          // While a finger is down the local walk leads; adopt the server's after release.
+          const { fromX, fromZ, toX, toZ, startedAt, path } = reply;
           if (!pending.current && !holding.current) {
             const now = serverNow();
-            setMyWalk((walk) => blendIn(walk, { fromX, fromZ, toX, toZ, startedAt }, now));
+            setMyWalk((walk) => blendIn(walk, { fromX, fromZ, toX, toZ, startedAt, path }, now));
             predicting.current = false;
           }
         } else {
@@ -490,10 +510,14 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       if (!session) return;
       const to = clampTarget(x, z, session.place, obstaclesRef.current);
       const now = serverNow();
-      setMyWalk((walk) => headFor(walk, to, now));
+      const from = myWalkRef.current ? posAt(myWalkRef.current, now) : to;
+      const path = findPath(session.place, from, to, obstaclesRef.current);
+      const next = headFor(myWalkRef.current, to, now, path);
+      myWalkRef.current = next;
+      setMyWalk(next);
       setTarget(to);
       setMySeat(null);
-      pending.current = to;
+      pending.current = { x: to.x, z: to.z, path };
       predicting.current = true;
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
@@ -505,12 +529,16 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   const sitOn = useCallback(
     (seatId: string) => {
       const seat = session && seatIn(session.place, seatId);
-      if (!seat) return;
+      if (!seat || !session) return;
       const now = serverNow();
-      setMyWalk((walk) => headFor(walk, seat, now));
+      const from = myWalkRef.current ? posAt(myWalkRef.current, now) : seat;
+      const path = findPath(session.place, from, seat, obstaclesRef.current, { allowGoalInside: true });
+      const next = headFor(myWalkRef.current, seat, now, path);
+      myWalkRef.current = next;
+      setMyWalk(next);
       setTarget(null);
       setMySeat(seat.id);
-      pending.current = { x: seat.x, z: seat.z, seat: seat.id };
+      pending.current = { x: seat.x, z: seat.z, seat: seat.id, path };
       predicting.current = true;
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
@@ -519,21 +547,24 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [session, serverNow, later]
   );
 
-  /** Points your walk at a spot now, from wherever you are on the way. */
   const retarget = useCallback(
-    (to: { x: number; z: number }) => {
+    (to: { x: number; z: number }): Waypoint[] => {
       const now = serverNow();
-      setMyWalk((walk) => headFor(walk, to, now));
+      const from = myWalkRef.current ? posAt(myWalkRef.current, now) : to;
+      const path = session ? findPath(session.place, from, to, obstaclesRef.current) : [];
+      const next = headFor(myWalkRef.current, to, now, path);
+      myWalkRef.current = next;
+      setMyWalk(next);
       setTarget(to);
       fingerAt.current = to;
+      return path;
     },
-    [serverNow]
+    [session, serverNow]
   );
 
-  /** Sends a move for this spot now (or as soon as the one on its way is answered). */
   const sendNow = useCallback(
-    (to: { x: number; z: number }) => {
-      pending.current = to;
+    (to: { x: number; z: number }, path?: Waypoint[]) => {
+      pending.current = { x: to.x, z: to.z, path };
       predicting.current = true;
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
@@ -574,8 +605,8 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       if (holdFrame.current !== null) cancelAnimationFrame(holdFrame.current);
       holdFrame.current = null;
       const to = clampTarget(x, z, session.place, obstaclesRef.current);
-      retarget(to);
-      sendNow(to);
+      const path = retarget(to);
+      sendNow(to, path);
     },
     [session, retarget, sendNow]
   );
@@ -888,7 +919,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   const myBars = pingMs === null ? null : pingBars(pingMs);
   const people: WorldMember[] = useMemo(() => members.map((m) => {
     const row = states[m.memberId] as
-      | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "seat" | "typing">)
+      | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "reading" | "seat" | "typing">)
       | null
       | undefined
       | Error;
@@ -906,6 +937,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       reply: state?.reply,
       answered: state?.answered,
       away: state?.away,
+      reading: state?.reading,
       seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
       typing: state?.typing,
       ping: m.isMe ? (myBars ?? undefined) : undefined,

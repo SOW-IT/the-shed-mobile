@@ -190,6 +190,7 @@ export default defineSchema({
     // again replays nothing even after they've accepted another since.
     answered: v.optional(v.array(worldReplyValidator)),
     away: v.optional(v.literal("arcade")),
+    reading: v.optional(v.boolean()),
     seat: v.optional(v.string()),
     typing: v.optional(v.object({ at: v.number(), on: v.boolean() })),
     moveBucket: worldBucketValidator,
@@ -389,6 +390,15 @@ export default defineSchema({
     key: v.literal("sweeper"),
     sweepAt: v.optional(v.number()),
   }).index("by_key", ["key"]),
+
+  devotionals: defineTable({
+    email: v.string(),
+    date: v.string(),
+    passage: v.string(),
+    notes: v.string(),
+    prayerPoints: v.string(),
+    updatedAt: v.number(),
+  }).index("by_email_and_date", ["email", "date"]),
 
   gameScores: defineTable({
     email: v.string(),

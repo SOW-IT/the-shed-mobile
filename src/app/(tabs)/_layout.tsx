@@ -257,6 +257,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="devotionals"
+        options={{
+          title: "Devotionals",
+          ...sideMenuOnly,
+        }}
+      />
+      <Tabs.Screen
         name="insights"
         options={{
           title: "Insights",

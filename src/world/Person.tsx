@@ -7,6 +7,7 @@ import { Ellipse, quadTransform } from "./Shapes";
 import { bandOverHead, capShape, earCup, HAT_PITCH, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
 import { strideBob, strideSwing } from "./gait";
 import { fonts } from "@/theme";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 /**
  * The top of this person's head: taller people's tags sit higher, and so do
@@ -1512,6 +1513,7 @@ const TagView = ({
   emoteRise,
   lineFade = 1,
   status,
+  reading = false,
   shout = false,
   calm = false,
 }: {
@@ -1522,10 +1524,10 @@ const TagView = ({
   line?: string;
   typing?: number;
   emote?: string;
-  /** 0 when the emote starts, 1 when it's gone. */
   emoteRise: number;
   lineFade?: number;
   status?: string;
+  reading?: boolean;
   shout?: boolean;
   calm?: boolean;
 }) => (
@@ -1555,6 +1557,11 @@ const TagView = ({
           <View style={styles.tailInk} />
           <View style={styles.tail} />
         </View>
+      </View>
+    ) : null}
+    {reading ? (
+      <View style={styles.readingBadge} accessibilityLabel="Doing devotional" testID="world-reading-icon">
+        <Ionicons name="book-outline" size={14} color={hud.cream} />
       </View>
     ) : null}
     {status ? (
@@ -1603,6 +1610,17 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 999,
     overflow: "hidden",
+    marginBottom: -6,
+  },
+  readingBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: hud.chip,
+    borderWidth: 1.5,
+    borderColor: hud.forest,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: -6,
   },
   tailRow: { position: "absolute", left: 0, right: 0, bottom: -14, height: 14, alignItems: "center" },

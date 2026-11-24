@@ -305,7 +305,7 @@ export const buildGarden = (cam: Camera): Scene => {
   // In the courtyard, sorted against people: flower beds, the birdbath, the
   // sign, the basket and the arcade cabinet.
   const props: Prop[] = [];
-  const prop = (id: string, x: number, z: number, draw: (p: Builder) => void, tap?: "arcade") => {
+  const prop = (id: string, x: number, z: number, draw: (p: Builder) => void, tap?: string) => {
     const p = new Builder(cam, id);
     draw(p);
     const prims = p.take();
@@ -334,10 +334,57 @@ export const buildGarden = (cam: Camera): Scene => {
     p.cylinder(0, -2.4, 0.8, 1.0, 0.36, 0.62, garden.bathTop);
     p.groundDisc(0, -2.4, 0.5, 0.5, garden.water, { y: 1.01 });
   });
-  prop("sign", 3.7, -6.4, (p) => {
-    p.box(3.7, 0.75, -6.4, 0.14, 1.5, 0.14, garden.trunk);
-    p.box(3.7, 1.4, -6.4, 1.2, 0.5, 0.1, garden.sign);
-  });
+  const noticeboard = OBSTACLES.find((o) => o.id === "noticeboard")!;
+  prop(
+    "noticeboard",
+    noticeboard.x,
+    noticeboard.z,
+    (p) => {
+      const { x, z } = noticeboard;
+      p.groundDisc(x - 0.25, z - 0.2, 0.75, 0.45, garden.shadow);
+      p.box(x - 0.46, 0.55, z, 0.11, 1.1, 0.11, garden.trunk);
+      p.box(x + 0.46, 0.55, z, 0.11, 1.1, 0.11, garden.trunk);
+      p.box(x, 1.28, z, 1.24, 1.06, 0.14, garden.wood);
+      const frontZ = z + 0.075;
+      p.face(
+        [
+          [x - 0.52, 1.72, frontZ],
+          [x + 0.52, 1.72, frontZ],
+          [x + 0.52, 0.84, frontZ],
+          [x - 0.52, 0.84, frontZ],
+        ],
+        garden.noticePaper
+      );
+      p.face(
+        [
+          [x - 0.52, 1.72, frontZ + 0.005],
+          [x + 0.52, 1.72, frontZ + 0.005],
+          [x + 0.52, 1.48, frontZ + 0.005],
+          [x - 0.52, 1.48, frontZ + 0.005],
+        ],
+        garden.noticeHeader
+      );
+      p.box(x - 0.28, 1.76, z + 0.02, 0.09, 0.16, 0.09, garden.ink);
+      p.box(x + 0.28, 1.76, z + 0.02, 0.09, 0.16, 0.09, garden.ink);
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 4; col++) {
+          const cx = x - 0.36 + col * 0.24;
+          const cy = 1.36 - row * 0.19;
+          const fill = row === 1 && col === 2 ? garden.noticeHeader : garden.noticeGrid;
+          p.face(
+            [
+              [cx - 0.08, cy + 0.06, frontZ + 0.008],
+              [cx + 0.08, cy + 0.06, frontZ + 0.008],
+              [cx + 0.08, cy - 0.06, frontZ + 0.008],
+              [cx - 0.08, cy - 0.06, frontZ + 0.008],
+            ],
+            fill
+          );
+        }
+      }
+    },
+    "noticeboard"
+  );
   prop("basket", 3.7, 2.1, (p) => p.cylinder(3.7, 2.1, 0, 0.32, 0.24, 0.3, garden.basket));
   const arcade = OBSTACLES.find((o) => o.id === "arcade")!;
   prop(

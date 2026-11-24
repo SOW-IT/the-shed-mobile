@@ -1,9 +1,10 @@
 import { useQuery } from "convex/react";
 import { ReactNode, Ref } from "react";
-import { Animated, type ScrollViewInstance, StyleSheet, View } from "react-native";
+import { Animated, Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { api } from "../../convex/_generated/api";
-import { spacing, useAppTheme } from "@/theme";
+import { spacing, typography, useAppTheme } from "@/theme";
 import { DrawerEdgeSwipe } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
 import { TopBar } from "@/components/nav/TopBar";
@@ -15,13 +16,14 @@ export const ChromeScreen = ({
   fullWidth = false,
   scrollRef,
   title,
+  onBack,
 }: {
   children?: ReactNode;
   floating?: ReactNode;
   fullWidth?: boolean;
   scrollRef?: Ref<ScrollViewInstance>;
-  // In the top bar; a wide screen has no top bar, so the screen shows it itself.
   title?: ReactNode;
+  onBack?: () => void;
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
@@ -47,6 +49,18 @@ export const ChromeScreen = ({
         ]}
         {...scrollProps}
       >
+        {wide && onBack ? (
+          <Pressable
+            onPress={onBack}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            testID="top-bar-back"
+            style={({ pressed }) => [styles.wideBack, pressed && { opacity: 0.6 }]}
+          >
+            <Ionicons name="chevron-back" size={20} color={t.text} />
+            <Text style={[typography.label, { color: t.text }]}>Back</Text>
+          </Pressable>
+        ) : null}
         {children}
       </Animated.ScrollView>
       {wide ? null : (
@@ -62,12 +76,12 @@ export const ChromeScreen = ({
             ]}
           >
             <Animated.View style={barOpacityStyle}>
-              <TopBar photo={me?.photo ?? null} name={me?.name ?? null} title={title} />
+              <TopBar photo={me?.photo ?? null} name={me?.name ?? null} title={title} onBack={onBack} />
             </Animated.View>
           </Animated.View>
         </View>
       )}
-      <DrawerEdgeSwipe top={insets.top + TOP_BAR_HEIGHT} />
+      {onBack ? null : <DrawerEdgeSwipe top={insets.top + TOP_BAR_HEIGHT} />}
       {floating}
     </View>
   );
@@ -88,6 +102,13 @@ const styles = StyleSheet.create({
   topBarWrap: {
     width: "100%",
     paddingHorizontal: spacing.lg,
+  },
+  wideBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
   },
   scroll: {
     flexGrow: 1,

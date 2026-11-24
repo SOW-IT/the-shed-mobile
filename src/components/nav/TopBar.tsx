@@ -24,11 +24,12 @@ export const TopBar = ({
   photo,
   name,
   title,
+  onBack,
 }: {
   photo: string | null;
   name: string | null;
-  // Shown in the middle, e.g. the month the calendar is on.
   title?: ReactNode;
+  onBack?: () => void;
 }) => {
   const t = useAppTheme();
   const router = useRouter();
@@ -56,7 +57,18 @@ export const TopBar = ({
           <UpdateButton />
         </View>
       </View>
-      {isAuthenticated ? (
+      {onBack ? (
+        <Pressable
+          onPress={onBack}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          testID="top-bar-back"
+          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}
+        >
+          <Ionicons name="chevron-back" size={26} color={t.text} />
+        </Pressable>
+      ) : isAuthenticated ? (
         <Animated.View style={{ transform: [{ scale: menu.scale }] }}>
           <Pressable
             onPress={drawer.open}
@@ -131,6 +143,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingVertical: spacing.sm,
   },
+  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginLeft: -8 },
   center: {
     position: "absolute",
     top: 0,

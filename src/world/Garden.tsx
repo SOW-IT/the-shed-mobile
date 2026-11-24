@@ -14,6 +14,7 @@ import {
   hash,
   ASK_MS,
   OBSTACLES,
+  PLACE_OBSTACLES,
   PLACE_TITLES,
   PORTAL_RADIUS,
   PORTALS,
@@ -62,9 +63,17 @@ type GardenPerson = {
   answered?: Reply[];
   muted: boolean;
   away?: boolean;
+  reading?: boolean;
   seat?: string;
   typing?: number;
 };
+
+export type InteractivePropId = "arcade" | "noticeboard" | "piano" | "lectern";
+export type HighlightTarget = { kind: "prop"; id: InteractivePropId } | { kind: "seat"; id: string };
+
+const INTERACTIVE_PROPS = new Set<string>(["arcade", "noticeboard", "piano", "lectern"]);
+const isInteractiveProp = (value: string | undefined): value is InteractivePropId =>
+  value !== undefined && INTERACTIVE_PROPS.has(value);
 
 /** What the camera looks at: style C's framing of the courtyard. */
 const FOCUS = { x: 0, z: -2.6 };
@@ -110,7 +119,11 @@ export const Garden = ({
   onHoldEnd,
   onTapPerson,
   onTapArcade,
+  onTapNoticeBoard,
+  onTapPiano,
+  onTapLectern,
   onTapSeat,
+  highlighted = null,
   onAccept,
   onDecline,
   declined,
@@ -136,7 +149,11 @@ export const Garden = ({
   onHoldEnd: (x: number, z: number) => void;
   onTapPerson: (memberId: string) => void;
   onTapArcade: () => void;
+  onTapNoticeBoard?: () => void;
+  onTapPiano?: () => void;
+  onTapLectern?: () => void;
   onTapSeat: (seatId: string) => void;
+  highlighted?: HighlightTarget | null;
   /** Accept the ask `from` made of you at `askAt`. */
   onAccept: (from: string, askAt: number) => void;
   /** Hide an ask made of you; it lapses on its own, so nothing is sent. */
@@ -320,6 +337,7 @@ export const Garden = ({
     talking.some((open) => open !== undefined) ||
     rolled?.rolling === true ||
     duelLooks.some((look) => look !== null) ||
+    (!saver && highlighted !== null) ||
     (!saver && people.some((p) => !p.muted && p.say !== undefined && bubbleMoving(now - p.say.at)));
   useFrameTicks(
     planClock({
@@ -374,12 +392,11 @@ export const Garden = ({
       })
       .filter((h) => x >= h.box.left && x <= h.box.right && y >= h.box.top && y <= h.box.bottom)
       .sort((a, b) => a.depth - b.depth);
-    // The arcade cabinet as drawn (its faces stand well above the ground).
-    // Where it and a person overlap, whichever is drawn in front wins.
-    const arcade = scene.props.find((prop) => prop.tap === "arcade");
-    const onArcade = arcade && x >= arcade.box.left && x <= arcade.box.right && y >= arcade.box.top && y <= arcade.box.bottom;
-    if (hits[0] && !(onArcade && arcade.depth < hits[0].depth)) return { kind: "person", id: hits[0].p.memberId };
-    if (onArcade) return { kind: "arcade" };
+    const propHit = scene.props
+      .filter((prop) => isInteractiveProp(prop.tap) && x >= prop.box.left - 6 && x <= prop.box.right + 6 && y >= prop.box.top - 6 && y <= prop.box.bottom + 6)
+      .sort((a, b) => a.depth - b.depth)[0];
+    if (hits[0] && !(propHit && propHit.depth < hits[0].depth)) return { kind: "person", id: hits[0].p.memberId };
+    if (propHit && isInteractiveProp(propHit.tap)) return { kind: propHit.tap };
     if (rolled && placed && Math.hypot(placed.x - rolled.x, placed.z - rolled.z) <= KICK_TAP_REACH) {
       const centre = cam.project([rolled.x, BALL_RADIUS, rolled.z]);
       if (Math.hypot(centre.x - x, centre.y - y) <= BALL_RADIUS * 1.6 * centre.scale) return { kind: "ball" };
@@ -396,7 +413,14 @@ export const Garden = ({
     const seat = seatAt(place, cam, x, y);
     if (seat) return { kind: "seat", id: seat };
     const spot = cam.ground(x, y);
-    if (place === "garden" && spot && Math.hypot(spot.x - ARCADE.x, spot.z - ARCADE.z) < 0.75) return { kind: "arcade" };
+    if (spot) {
+      for (const obs of PLACE_OBSTACLES[place]) {
+        if (!isInteractiveProp(obs.id)) continue;
+        if (Math.hypot((spot.x - obs.x) / (obs.rx + 0.35), (spot.z - obs.z) / (obs.rz + 0.35)) <= 1) {
+          return { kind: obs.id };
+        }
+      }
+    }
     return { kind: "ground" };
   };
 
@@ -460,6 +484,9 @@ export const Garden = ({
     if (p.walking) return walkFrom(at.x, at.y, "end");
     if (p.hit.kind === "person") onTapPerson(p.hit.id);
     else if (p.hit.kind === "arcade") onTapArcade();
+    else if (p.hit.kind === "noticeboard") onTapNoticeBoard?.();
+    else if (p.hit.kind === "piano") onTapPiano?.();
+    else if (p.hit.kind === "lectern") onTapLectern?.();
     else if (p.hit.kind === "seat") onTapSeat(p.hit.id);
     else if (p.hit.kind === "npc") onTapNpc?.();
     else if (p.hit.kind === "ball" && placed && rolled) {
@@ -495,6 +522,46 @@ export const Garden = ({
   if (rolled) {
     const ground = cam.project([rolled.x, 0, rolled.z]);
     actors.push({ depth: ground.depth, key: "ball", node: <BeachBall ball={rolled} cam={cam} t={t} /> });
+  }
+  if (highlighted) {
+    const pulse = saver ? 1 : 0.94 + 0.08 * Math.sin(t * 4);
+    const glowOpacity = saver ? 0.2 : 0.3 + 0.16 * (0.5 + 0.5 * Math.sin(t * 4));
+    const ringOpacity = saver ? 0.55 : 0.85 + 0.15 * Math.sin(t * 4);
+    if (highlighted.kind === "prop") {
+      const obs = PLACE_OBSTACLES[place].find((o) => o.id === highlighted.id);
+      if (obs) {
+        const at = cam.project([obs.x, 0.03, obs.z]);
+        const rx = (obs.rx + 0.34) * at.scale * pulse;
+        const ry = (obs.rz + 0.34) * at.scale * 0.58 * pulse;
+        actors.push({
+          depth: at.depth + 0.5,
+          key: "highlight",
+          node: (
+            <View style={StyleSheet.absoluteFill} pointerEvents="none" testID="world-highlight">
+              <Ellipse cx={at.x} cy={at.y} rx={rx * 1.18} ry={ry * 1.18} fill={garden.highlightGlow} opacity={glowOpacity} />
+              <Ellipse cx={at.x} cy={at.y} rx={rx} ry={ry} fill="transparent" ink={saver ? 2 : 3} inkColour={garden.highlight} opacity={ringOpacity} />
+            </View>
+          ),
+        });
+      }
+    } else {
+      const seat = seatIn(place, highlighted.id);
+      if (seat) {
+        const at = cam.project([seat.x, seat.height + 0.03, seat.z]);
+        const rx = 0.58 * at.scale * pulse;
+        const ry = 0.42 * at.scale * 0.58 * pulse;
+        actors.push({
+          depth: at.depth - 0.15,
+          key: "highlight",
+          node: (
+            <View style={StyleSheet.absoluteFill} pointerEvents="none" testID="world-highlight">
+              <Ellipse cx={at.x} cy={at.y} rx={rx * 1.2} ry={ry * 1.2} fill={garden.highlightGlow} opacity={glowOpacity} />
+              <Ellipse cx={at.x} cy={at.y} rx={rx} ry={ry} fill="transparent" ink={saver ? 2 : 3} inkColour={garden.highlight} opacity={ringOpacity} />
+            </View>
+          ),
+        });
+      }
+    }
   }
   const selectedItem = decor?.selected ? home?.items.find((p) => p.key === decor.selected) : undefined;
   if (selectedItem && isFurniture(selectedItem.item)) {
@@ -559,7 +626,7 @@ export const Garden = ({
     const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? swimSink(p.look) : 0), pose.z]);
     const name = p.me ? "You" : tagName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
-    const speaking = Boolean(line || waiting || emote || p.away) || typing !== undefined;
+    const speaking = Boolean(line || waiting || emote || p.away || p.reading) || typing !== undefined;
     if (!tagShown({ mode: tagMode, me: p.me, distance: mine ? Math.hypot(pose.x - mine.x, pose.z - mine.z) : null, speaking })) return;
     actors.push({
       depth: figure.foot.depth,
@@ -577,6 +644,7 @@ export const Garden = ({
           emoteRise={rise}
           lineFade={line && !chant ? bubbleFades[i] : 1}
           status={p.away ? AWAY_STATUS : undefined}
+          reading={p.reading}
           shout={chant !== undefined && SHOUTS.has(chant)}
           calm={saver}
         />
@@ -724,6 +792,9 @@ const bubbleMoving = (age: number) => age < BUBBLE_IN_MS || (age > BUBBLE_MS - B
 type Hit =
   | { kind: "person"; id: string }
   | { kind: "arcade" }
+  | { kind: "noticeboard" }
+  | { kind: "piano" }
+  | { kind: "lectern" }
   | { kind: "seat"; id: string }
   | { kind: "npc" }
   | { kind: "ball" }

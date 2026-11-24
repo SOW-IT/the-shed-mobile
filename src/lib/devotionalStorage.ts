@@ -1,0 +1,65 @@
+import { File, Paths } from "expo-file-system";
+import { useSyncExternalStore } from "react";
+import { Platform } from "react-native";
+import type { LocalDevotionalDraft } from "../../shared/devotionals";
+import {
+  createDevotionalStore,
+  EMPTY_DEVOTIONAL_MAP,
+  EMPTY_DIRTY_DEVOTIONALS,
+  type DevotionalStorageBackend,
+} from "../../shared/devotionalStore";
+
+const safeFilename = (key: string) =>
+  `devotionals-${key.toLowerCase().replace(/[^a-z0-9]/g, "_")}.json`;
+
+const onWeb = () => Platform.OS === "web" && typeof window !== "undefined";
+
+const defaultBackend: DevotionalStorageBackend = {
+  read: async (key) => {
+    try {
+      if (onWeb()) return window.localStorage.getItem(key);
+      const file = new File(Paths.document, safeFilename(key));
+      if (!file.exists) return null;
+      return await file.text();
+    } catch {
+      return null;
+    }
+  },
+  write: async (key, value) => {
+    try {
+      if (onWeb()) {
+        window.localStorage.setItem(key, value);
+        return true;
+      }
+      const file = new File(Paths.document, safeFilename(key));
+      if (!file.exists) file.create();
+      await file.write(value);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+};
+
+const store = createDevotionalStore(defaultBackend);
+
+export const saveLocalDevotional = store.saveLocal;
+export const markDevotionalSynced = store.markSynced;
+export const getLocalDevotional = (email: string, date: string): LocalDevotionalDraft | undefined =>
+  store.getDrafts(email)[date];
+
+export const useLocalDevotionals = (
+  email: string | null | undefined
+): Readonly<Record<string, LocalDevotionalDraft>> =>
+  useSyncExternalStore(
+    (listener) => store.subscribe(email, listener),
+    () => store.getDrafts(email),
+    () => EMPTY_DEVOTIONAL_MAP
+  );
+
+export const useDirtyDevotionals = (email: string | null | undefined): readonly LocalDevotionalDraft[] =>
+  useSyncExternalStore(
+    (listener) => store.subscribe(email, listener),
+    () => store.getDirty(email),
+    () => EMPTY_DIRTY_DEVOTIONALS
+  );

@@ -8,6 +8,7 @@ import {
   EMOTES,
   MUTUALS,
   OBSTACLES,
+  PLACE_OBSTACLES,
   PLACE_TITLES,
   PLACES,
   SEATS,
@@ -30,12 +31,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { announce } from "./announce";
 import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
-import { Garden } from "./Garden";
+import { Garden, type HighlightTarget, type InteractivePropId } from "./Garden";
 import { hud } from "./palette";
 import type { HudAction } from "./PersonHud";
 import { PersonSheet } from "./Sheets";
 import { PeoplePanel } from "./People";
-import { connectionLabel, LeaveDialog, PLACE_ICONS, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
+import { connectionLabel, DevotionalPromptDialog, LeaveDialog, PLACE_ICONS, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
 import { useWorld } from "./useWorld";
 import { useForeground } from "./useForeground";
 import { pickView } from "./view";
@@ -98,12 +99,24 @@ const useKeyboardLift = (bottomInset: number) => {
 };
 
 const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
-const ARCADE_SPOT = clampTarget(ARCADE.x + 0.9, ARCADE.z + 0.9);
-const AT_ARCADE = 0.3;
+const NOTICEBOARD = OBSTACLES.find((o) => o.id === "noticeboard")!;
+const PIANO = PLACE_OBSTACLES.chapel.find((o) => o.id === "piano")!;
+const LECTERN = PLACE_OBSTACLES.chapel.find((o) => o.id === "lectern")!;
+
+const OBJECT_SPOTS: Record<InteractivePropId, { x: number; z: number }> = {
+  arcade: clampTarget(ARCADE.x + 0.9, ARCADE.z + 0.9, "garden"),
+  noticeboard: clampTarget(NOTICEBOARD.x - 0.2, NOTICEBOARD.z + 1.0, "garden"),
+  piano: clampTarget(PIANO.x + 0.2, PIANO.z + 1.1, "chapel"),
+  lectern: clampTarget(LECTERN.x, LECTERN.z + 1.0, "chapel"),
+};
+
+const AT_OBJECT = 0.35;
 const BESIDE = 1.2;
 const FOLLOW_MS = 12_000;
-const ARCADE_TRIP_MS = 20_000;
+const OBJECT_TRIP_MS = 20_000;
 const SAME_FURNITURE = 1.7;
+
+type AwayKind = "arcade" | "devotional" | "browse";
 
 const RoundButton = ({
   icon,
@@ -202,8 +215,11 @@ export const WorldScreen = ({
   onStay,
   onLeave,
   onArcade,
+  onCalendar,
+  onPraise,
+  onDevotional,
   active = true,
-  away = false,
+  awayKind = null,
   opening,
   arrival,
 }: {
@@ -213,17 +229,19 @@ export const WorldScreen = ({
   onStay: () => void;
   onLeave: () => void;
   onArcade: () => void;
-  /** A sheet to open on arrival, from a link: the character editor or the poke list. */
+  onCalendar: () => void;
+  onPraise: () => void;
+  onDevotional: () => void;
   opening?: "character" | "poke";
-  /** False while another screen covers this one: the visit ends until it's back. */
   active?: boolean;
-  away?: boolean;
+  awayKind?: AwayKind | null;
 }) => {
   const offline = useOffline();
   const foreground = useForeground();
   const screenReader = useScreenReader();
   const view = pickView({ offline, screenReader, canDraw: Platform.OS !== "android" });
-  const world = useWorld(!offline && active, away, arrival, view === "list");
+  const away = awayKind !== null;
+  const world = useWorld(!offline && active, awayKind === "arcade", arrival, view === "list", awayKind === "devotional");
   const wallet = useCoins();
   const invites = useQuery(api.world.invites, world.status === "in" ? {} : "skip");
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
@@ -237,7 +255,9 @@ export const WorldScreen = ({
   const wallpaperM = useMutation(api.worldHome.setWallpaper);
   const myHome = world.home?.mine === true;
   if (decorating && !myHome && world.status === "in") setDecorating(false);
-  const [arcadeTrip, setArcadeTrip] = useState<number | null>(null);
+  const [propTrip, setPropTrip] = useState<{ kind: InteractivePropId; since: number } | null>(null);
+  const [seatTrip, setSeatTrip] = useState<{ seatId: string; place: Place; since: number } | null>(null);
+  const [devotionalAsked, setDevotionalAsked] = useState(false);
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [person, setPerson] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ memberId: string; safetyOnly: boolean; name?: string } | null>(null);
@@ -384,27 +404,67 @@ export const WorldScreen = ({
   }, [approach]);
 
   useEffect(() => {
-    if (arcadeTrip === null) return;
+    if (propTrip === null) return;
+    const spot = OBJECT_SPOTS[propTrip.kind];
     const id = setInterval(() => {
       const { world: latest } = live.current;
       const at = latest.serverNow();
       const mine = latest.people.find((p) => p.isMe);
       const pose = mine?.walk ? posAt(mine.walk, at) : null;
-      const arrived = pose !== null && distance(pose, ARCADE_SPOT) <= AT_ARCADE;
-      const strayed = pose === null || (!pose.walking && at - pose.arrivesAt > 400) || Date.now() - arcadeTrip > ARCADE_TRIP_MS;
+      const arrived = pose !== null && distance(pose, spot) <= AT_OBJECT;
+      const strayed = pose === null || (!pose.walking && at - pose.arrivesAt > 400) || Date.now() - propTrip.since > OBJECT_TRIP_MS;
       if (!arrived && !strayed) return;
-      setArcadeTrip(null);
-      if (arrived) onArcade();
+      const kind = propTrip.kind;
+      setPropTrip(null);
+      if (!arrived) return;
+      if (kind === "arcade") onArcade();
+      else if (kind === "noticeboard") onCalendar();
+      else if (kind === "piano") onPraise();
+      else setDevotionalAsked(true);
     }, 120);
     return () => clearInterval(id);
-  }, [arcadeTrip, onArcade]);
+  }, [propTrip, onArcade, onCalendar, onPraise]);
+
+  useEffect(() => {
+    if (seatTrip === null) return;
+    const seat = SEATS[seatTrip.place].find((s) => s.id === seatTrip.seatId);
+    const id = setInterval(() => {
+      if (!seat) {
+        setSeatTrip(null);
+        return;
+      }
+      const { world: latest } = live.current;
+      const at = latest.serverNow();
+      const mine = latest.people.find((p) => p.isMe);
+      const pose = mine?.walk ? posAt(mine.walk, at) : null;
+      const arrived = pose !== null && !pose.walking && distance(pose, seat) <= AT_OBJECT && mine?.seat === seat.id;
+      const strayed =
+        pose === null ||
+        mine?.seat !== seat.id ||
+        (!pose.walking && at - pose.arrivesAt > 400 && distance(pose, seat) > AT_OBJECT) ||
+        Date.now() - seatTrip.since > OBJECT_TRIP_MS;
+      if (!arrived && !strayed) return;
+      const place = seatTrip.place;
+      setSeatTrip(null);
+      if (arrived && place === "chapel") setDevotionalAsked(true);
+    }, 120);
+    return () => clearInterval(id);
+  }, [seatTrip]);
+
+  const highlighted: HighlightTarget | null = propTrip
+    ? { kind: "prop", id: propTrip.kind }
+    : seatTrip
+      ? { kind: "seat", id: seatTrip.seatId }
+      : null;
 
   const [fade] = useState(() => new Animated.Value(0));
   const triedFromWalk = useRef<number | null>(null);
   const go = (to: Place, toMember?: Id<"worldMembers">, invite?: Id<"worldInvites">, onArrived?: () => void) => {
     setPerson(null);
     setApproach(null);
-    setArcadeTrip(null);
+    setPropTrip(null);
+    setSeatTrip(null);
+    setDevotionalAsked(false);
     setTray(false);
     setPeopleOpen(false);
     setPlacesOpen(false);
@@ -513,7 +573,8 @@ export const WorldScreen = ({
   const sitNear = (seatId: string) => {
     setPerson(null);
     setApproach(null);
-    setArcadeTrip(null);
+    setPropTrip(null);
+    setDevotionalAsked(false);
     setTray(false);
     const seats = SEATS[world.place];
     const tapped = seats.find((seat) => seat.id === seatId);
@@ -522,21 +583,40 @@ export const WorldScreen = ({
     const free = seats
       .filter((seat) => !taken.has(seat.id) && Math.hypot(seat.x - tapped.x, seat.z - tapped.z) <= SAME_FURNITURE)
       .sort((a, b) => Math.hypot(a.x - tapped.x, a.z - tapped.z) - Math.hypot(b.x - tapped.x, b.z - tapped.z))[0];
-    if (free) world.sitOn(free.id);
-    else setNote("Those seats are taken.");
+    if (!free) {
+      setNote("Those seats are taken.");
+      return;
+    }
+    const mePose = myPoseNow();
+    if (me?.seat === free.id && mePose && !mePose.walking && distance(mePose, free) <= AT_OBJECT) {
+      setSeatTrip(null);
+      if (world.place === "chapel") setDevotionalAsked(true);
+      return;
+    }
+    world.sitOn(free.id);
+    setSeatTrip({ seatId: free.id, place: world.place, since: Date.now() });
   };
 
-  const goToArcade = () => {
+  const goToObject = (kind: InteractivePropId, trigger: () => void) => {
     setPerson(null);
     setApproach(null);
+    setSeatTrip(null);
     setTray(false);
+    const spot = OBJECT_SPOTS[kind];
     const mePose = myPoseNow();
-    if (!mePose) return onArcade();
-    if (distance(mePose, ARCADE_SPOT) <= AT_ARCADE) return onArcade();
-    world.walkTo(ARCADE_SPOT.x, ARCADE_SPOT.z);
-    setArcadeTrip(Date.now());
-    setNote("Walking to the arcade…");
+    if (!mePose || distance(mePose, spot) <= AT_OBJECT) {
+      setPropTrip(null);
+      trigger();
+      return;
+    }
+    world.walkTo(spot.x, spot.z);
+    setPropTrip({ kind, since: Date.now() });
   };
+
+  const goToArcade = () => goToObject("arcade", onArcade);
+  const goToNoticeBoard = () => goToObject("noticeboard", onCalendar);
+  const goToPiano = () => goToObject("piano", onPraise);
+  const goToLectern = () => goToObject("lectern", () => setDevotionalAsked(true));
 
   const emote = (id: string) => void world.act(id).then((problem) => problem && setNote(problem));
 
@@ -554,7 +634,8 @@ export const WorldScreen = ({
     setPeopleOpen(false);
     setPerson(null);
     setApproach(null);
-    setArcadeTrip(null);
+    setPropTrip(null);
+    setSeatTrip(null);
     const { world: latest } = live.current;
     const at = latest.serverNow();
     const mine = latest.people.find((p) => p.isMe);
@@ -620,7 +701,7 @@ export const WorldScreen = ({
           },
         ]
       : [
-          ...(selected.away
+          ...(selected.away || selected.reading
             ? []
             : [
                 {
@@ -738,6 +819,14 @@ export const WorldScreen = ({
         showPlaces={view === "list"}
       />
       <SettingsPanel open={settingsOpen} top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP} myName={me?.name ?? ""} onClose={() => setSettingsOpen(false)} />
+      <DevotionalPromptDialog
+        open={devotionalAsked}
+        onCancel={() => setDevotionalAsked(false)}
+        onConfirm={() => {
+          setDevotionalAsked(false);
+          onDevotional();
+        }}
+      />
       <LeaveDialog
         open={leaving || leaveAsked}
         onStay={() => {
@@ -873,6 +962,7 @@ export const WorldScreen = ({
           answered: p.answered,
           muted: muted.has(p.memberId),
           away: p.away !== undefined,
+          reading: p.reading === true,
           seat: p.seat,
           typing: p.isMe ? (typingAt ?? undefined) : p.typing,
         }))}
@@ -882,13 +972,16 @@ export const WorldScreen = ({
           setTray(false);
           setPerson(null);
           setApproach(null);
-          setArcadeTrip(null);
+          setPropTrip(null);
+          setSeatTrip(null);
           world.holdStart(x, z);
         }}
         onHoldMove={world.holdMove}
         onHoldEnd={world.holdEnd}
         onTapPerson={(memberId) => {
           setTray(false);
+          setPropTrip(null);
+          setSeatTrip(null);
           setPerson((current) => (current === memberId ? null : memberId));
         }}
         selected={person}
@@ -899,7 +992,11 @@ export const WorldScreen = ({
         ball={world.ball}
         onKick={world.kick}
         onTapArcade={goToArcade}
+        onTapNoticeBoard={goToNoticeBoard}
+        onTapPiano={goToPiano}
+        onTapLectern={goToLectern}
         onTapSeat={sitNear}
+        highlighted={highlighted}
         onAccept={accept}
         onDecline={decline}
         declined={declined}

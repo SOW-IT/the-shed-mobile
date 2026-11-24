@@ -165,6 +165,10 @@ async function deleteByEmail(
       await ctx.db.query("worldPokes").withIndex("by_to", (q) => q.eq("to", email)).take(WIPE_BATCH),
       (row) => ctx.db.delete("worldPokes", row._id)
     ),
+    await deleteBatch(
+      await ctx.db.query("devotionals").withIndex("by_email_and_date", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("devotionals", row._id)
+    ),
   ];
   if (includeGuestData) {
     more.push(

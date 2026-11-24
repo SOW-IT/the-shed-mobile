@@ -69,7 +69,8 @@ import {
 } from "../shared/world";
 import { HOME_CAP, homeObstacles } from "../shared/home";
 import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
-import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields } from "./worldData";
+import { sanitizePath } from "../shared/worldPath";
+import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
 import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
@@ -447,8 +448,10 @@ const FRESH_IN_ROOM = {
   reply: undefined,
   answered: undefined,
   away: undefined,
+  reading: undefined,
   seat: undefined,
   typing: undefined,
+  path: undefined,
 };
 
 export const join = mutation({
@@ -563,35 +566,62 @@ const spend = (kind: StateBucket, state: Doc<"worldState">, now: number) =>
  * the person is now, so nobody can teleport, and ends inside the courtyard.
  */
 export const move = mutation({
-  args: { toX: v.number(), toZ: v.number() },
+  args: { toX: v.number(), toZ: v.number(), path: v.optional(v.array(worldWaypointValidator)) },
   returns: v.union(v.object({ ok: v.literal(true), ...worldWalkFields, serverNow: v.number() }), turnedAway),
-  handler: async (ctx, { toX, toZ }) => {
+  handler: async (ctx, { toX, toZ, path }) => {
     const { member, state } = await requireMe(ctx);
     const now = Date.now();
     const token = spend("move", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     const from = posAt(state, now);
-    const to = clampTarget(toX, toZ, placeOf(member), await obstaclesIn(ctx, member));
-    const walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now };
-    await ctx.db.patch("worldState", state._id, { ...walk, away: undefined, seat: undefined, moveBucket: token.bucket });
+    const place = placeOf(member);
+    const extra = await obstaclesIn(ctx, member);
+    const to = clampTarget(toX, toZ, place, extra);
+    const cleanPath = sanitizePath(path, place, extra);
+    const walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now, ...(cleanPath ? { path: cleanPath } : {}) };
+    await ctx.db.patch("worldState", state._id, {
+      fromX: walk.fromX,
+      fromZ: walk.fromZ,
+      toX: walk.toX,
+      toZ: walk.toZ,
+      startedAt: walk.startedAt,
+      path: cleanPath,
+      away: undefined,
+      reading: undefined,
+      seat: undefined,
+      moveBucket: token.bucket,
+    });
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, ...walk, serverNow: now };
   },
 });
 
 export const sit = mutation({
-  args: { seat: v.string() },
+  args: { seat: v.string(), path: v.optional(v.array(worldWaypointValidator)) },
   returns: v.union(v.object({ ok: v.literal(true), ...worldWalkFields, serverNow: v.number() }), turnedAway),
   handler: async (ctx, args) => {
     const { member, state } = await requireMe(ctx);
-    const seat = seatIn(placeOf(member), args.seat);
+    const place = placeOf(member);
+    const seat = seatIn(place, args.seat);
     if (!seat) throw new ConvexError("That isn't somewhere you can sit.");
     const now = Date.now();
     const token = spend("move", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     const from = posAt(state, now);
-    const walk = { fromX: from.x, fromZ: from.z, toX: seat.x, toZ: seat.z, startedAt: now };
-    await ctx.db.patch("worldState", state._id, { ...walk, away: undefined, seat: seat.id, moveBucket: token.bucket });
+    const cleanPath = sanitizePath(args.path, place, await obstaclesIn(ctx, member));
+    const walk = { fromX: from.x, fromZ: from.z, toX: seat.x, toZ: seat.z, startedAt: now, ...(cleanPath ? { path: cleanPath } : {}) };
+    await ctx.db.patch("worldState", state._id, {
+      fromX: walk.fromX,
+      fromZ: walk.fromZ,
+      toX: walk.toX,
+      toZ: walk.toZ,
+      startedAt: walk.startedAt,
+      path: cleanPath,
+      away: undefined,
+      reading: undefined,
+      seat: seat.id,
+      moveBucket: token.bucket,
+    });
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, ...walk, serverNow: now };
   },
@@ -635,8 +665,8 @@ export const travel = mutation({
     const cap = to === HOME ? HOME_CAP : ROOM_CAP;
     const joinable = theirRoom && theirRoom.owner === owner && theirRoom.memberCount < cap ? theirRoom : null;
     if (from === to && here.owner === owner && !joinable) {
-      const { fromX, fromZ, toX, toZ, startedAt } = state;
-      return { ok: true as const, roomId: here._id, instance: here.instance, place: from, fromX, fromZ, toX, toZ, startedAt, serverNow: now };
+      const { fromX, fromZ, toX, toZ, startedAt, path } = state;
+      return { ok: true as const, roomId: here._id, instance: here.instance, place: from, fromX, fromZ, toX, toZ, startedAt, ...(path ? { path } : {}), serverNow: now };
     }
     const token = spend("act", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
@@ -771,6 +801,19 @@ export const away = mutation({
   },
 });
 
+export const reading = mutation({
+  args: { on: v.boolean() },
+  returns: done,
+  handler: async (ctx, { on }) => {
+    const { member, state } = await requireMe(ctx);
+    const now = Date.now();
+    if (Boolean(state.reading) === on) return { ok: true as const, serverNow: now };
+    await ctx.db.patch("worldState", state._id, { reading: on ? true : undefined });
+    await touchPresence(ctx, member._id, now);
+    return { ok: true as const, serverNow: now };
+  },
+});
+
 /** An emote over your head, played on every phone. */
 export const act = mutation({
   args: { emote: v.string() },
@@ -900,6 +943,7 @@ const partner = async (
   if (other._id === me.member._id) return { reason: "That's you." };
   if (await blockedEither(ctx, me.email, other.email)) return { reason: "They've left the garden." };
   if (otherState.away) return { reason: "They're playing at the arcade." };
+  if (otherState.reading) return { reason: "They're doing their devotional." };
   if (distance(posAt(me.state, now), posAt(otherState, now)) > INTERACT_RADIUS) return { reason: "Get a bit closer first." };
   return { other, otherState };
 };
@@ -1226,6 +1270,7 @@ export const state = query({
       // after the other person accepted someone else's too.
       answered: v.optional(v.array(worldReplyValidator)),
       away: v.optional(v.literal("arcade")),
+      reading: v.optional(v.boolean()),
       seat: v.optional(v.string()),
       typing: v.optional(v.number()),
     })
@@ -1236,9 +1281,9 @@ export const state = query({
     if (!member || !me || (member._id !== me._id && (await blockedEither(ctx, me.email, member.email)))) return null;
     const row = await stateOf(ctx, memberId);
     if (!row) return null;
-    const { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt, seat } = row;
+    const { fromX, fromZ, toX, toZ, startedAt, path, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat } = row;
     const typingAt = row.typing?.on ? row.typing.at : undefined;
-    return { fromX, fromZ, toX, toZ, startedAt, act, say, ask, reply, answered, away: awayAt, seat, typing: typingAt };
+    return { fromX, fromZ, toX, toZ, startedAt, path, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat, typing: typingAt };
   },
 });
 

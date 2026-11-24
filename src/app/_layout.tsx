@@ -2,6 +2,7 @@ import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorReporter } from "@/components/ErrorReporter";
 import { OtaAutoUpdate } from "@/components/OtaAutoUpdate";
+import { DevotionalSync } from "@/components/devotionals/DevotionalSync";
 import { GameScoreSync } from "@/components/games/GameScoreSync";
 import { OfflineGames, OfflineScreen } from "@/components/games/OfflineGames";
 import { OfflinePill } from "@/components/games/OfflinePill";
@@ -149,6 +150,10 @@ const RootStack = () => {
             <Stack.Screen name="all" />
             <Stack.Screen name="checkin/[token]" />
             <Stack.Screen name="e2e-auth" />
+            <Stack.Screen name="world" />
+            <Stack.Screen name="world-calendar" />
+            <Stack.Screen name="world-praise" />
+            <Stack.Screen name="devotionals/[date]" />
             <Stack.Screen name="games/index" />
             {/* No swipe back from a game: a sideways swipe is a move in the game
                 (Sky Shooter steers that way). The back button at the top left is
@@ -219,6 +224,7 @@ export default function RootLayout() {
                 <AuthGate />
                 <ErrorReporter />
                 <GameScoreSync />
+                <DevotionalSync />
                 <AppUpdatePrompt />
                 <OtaAutoUpdate />
               </ConvexAuthProvider>

@@ -255,6 +255,62 @@ export const LeaveDialog = ({ open, onStay, onLeave }: { open: boolean; onStay: 
   );
 };
 
+export const DevotionalPromptDialog = ({
+  open,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) => {
+  const overlay = useOverlayClock(open, 3);
+  if (!overlay.mounted) return null;
+  return (
+    <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents={open ? "box-none" : "none"}>
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={onCancel}
+        accessibilityRole="button"
+        accessibilityLabel="Not now"
+        testID="world-devotional-scrim"
+      >
+        <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(overlay)]} />
+      </Pressable>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-devotional-dialog" accessibilityViewIsModal>
+        <Animated.View style={[styles.devotionalIcon, itemStyle(overlay, 0)]}>
+          <Ionicons name="book-outline" size={30} color={glass.text} />
+        </Animated.View>
+        <Animated.View style={itemStyle(overlay, 1)}>
+          <Text style={styles.dialogTitle} accessibilityRole="header">
+            Daily devotional
+          </Text>
+          <Text style={styles.dialogText}>Open today&apos;s private devotional?</Text>
+        </Animated.View>
+        <Animated.View style={[styles.dialogButtons, itemStyle(overlay, 2)]}>
+          <Pressable
+            onPress={onCancel}
+            accessibilityRole="button"
+            testID="world-devotional-cancel"
+            style={({ pressed }) => [styles.dialogButton, pressed && styles.rowPressed]}
+          >
+            <Text style={styles.dialogButtonText}>Not now</Text>
+          </Pressable>
+          <Pressable
+            onPress={onConfirm}
+            accessibilityRole="button"
+            testID="world-devotional-confirm"
+            style={({ pressed }) => [styles.dialogButton, styles.dialogPrimary, pressed && styles.rowPressed]}
+          >
+            <Ionicons name="book-outline" size={17} color={glass.text} />
+            <Text style={styles.dialogButtonText}>Open</Text>
+          </Pressable>
+        </Animated.View>
+      </Animated.View>
+    </View>
+  );
+};
+
 export const GlassPill = ({
   label,
   icon,
@@ -321,11 +377,13 @@ const styles = StyleSheet.create({
     borderColor: glass.edge,
   },
   door: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: hud.accent },
+  devotionalIcon: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: hud.primary },
   dialogTitle: { fontFamily: fonts.display, fontSize: 21, color: glass.text, textAlign: "center", letterSpacing: -0.3 },
   dialogText: { color: glass.muted, fontSize: 14, lineHeight: 19, textAlign: "center", marginTop: 6 },
   dialogButtons: { flexDirection: "row", gap: 10, alignSelf: "stretch", marginTop: 4 },
   dialogButton: { flex: 1, flexDirection: "row", gap: 6, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: glass.row, borderWidth: 1, borderColor: glass.edge },
   dialogLeave: { backgroundColor: hud.accent, borderColor: hud.accent },
+  dialogPrimary: { backgroundColor: hud.primary, borderColor: hud.primary },
   dialogButtonText: { color: glass.text, fontFamily: fonts.display, fontSize: 16 },
   place: { flexDirection: "row", alignItems: "center", gap: 10, height: 52, paddingHorizontal: 8, borderRadius: 16, backgroundColor: glass.row },
   rowPressed: { opacity: 0.7 },
