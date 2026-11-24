@@ -8,7 +8,8 @@ import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { FRAME_TRIES, frameJudge, seedInstant } from "./lib/stableFrames.mjs";
+import { FRAME_GAP_MS, FRAME_TRIES, frameJudge, seedInstant } from "./lib/stableFrames.mjs";
+import { strayMaestro } from "./lib/strayMaestro.mjs";
 import { acquire, currentHolder, ownRecord, release } from "./lib/verifyLock.mjs";
 import { classify, planVerification, resolveRoutes, routeSlug } from "./lib/verifyPlan.mjs";
 
@@ -458,6 +459,14 @@ const iosFlow = (routes, smoke, out, adminEmail) => {
     "          file: settle.js",
     "          env:",
     `            NAME: "${prefix}-${routeSlug(template)}"`,
+    // Still moving: give it a moment before the next frame, so a screen that
+    // is still loading (a lazy screen Metro builds on first open) can finish.
+    "      - runFlow:",
+    "          when:",
+    "            true: ${!output.settled}",
+    "          commands:",
+    "            - waitForAnimationToEnd:",
+    `                timeout: ${FRAME_GAP_MS}`,
     "- assertNotVisible:",
     '    text: "(?i).*(something went wrong|configuration error|unmatched route|\\\\(ESC\\\\)).*"',
     ...(signedIn ? ["- assertNotVisible:", '    text: "(?i).*sign in with your sow account.*"'] : []),
@@ -507,6 +516,30 @@ const startFrameServer = async (out) => {
 // The status bar shows the same time, signal and battery in every screenshot.
 const STATUS_BAR = ["--time", "9:41", "--dataNetwork", "wifi", "--wifiMode", "active", "--wifiBars", "3", "--cellularMode", "active", "--cellularBars", "4", "--batteryState", "charged", "--batteryLevel", "100"];
 
+// A Maestro left on this simulator by a run that has gone fights this run's
+// driver: screenshots hang, or Maestro quits without a word. This run holds
+// the verify lock, so any such process is stale (strayMaestro.mjs).
+const stopStrayMaestro = async (udid) => {
+  const pids = strayMaestro(spawnSync("ps", ["-axo", "pid=,ppid=,command="], { encoding: "utf8" }).stdout ?? "", udid);
+  if (pids.length === 0) return;
+  log(`stopping ${pids.length} Maestro process(es) a finished run left on the simulator: ${pids.join(", ")}`);
+  for (const pid of pids) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // Already gone.
+    }
+  }
+  await sleep(5000);
+  for (const pid of pids) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Gone after SIGTERM.
+    }
+  }
+};
+
 // Async, because the frame server answers the flow from this process.
 const runMaestro = (args, opts) => new Promise((resolve, reject) => {
   const child = spawn("maestro", args, { ...opts, stdio: ["ignore", "pipe", "pipe"] });
@@ -544,6 +577,7 @@ const runIos = async (label, tree, work, routes, smoke, out, udid) => {
     writeFileSync(flowFile, iosFlow(routes, smoke, out, seed.people.admin));
     writeFileSync(join(work, "settle.js"), SETTLE_SCRIPT);
     frames = await startFrameServer(out);
+    await stopStrayMaestro(udid);
     sh("xcrun", ["simctl", "status_bar", udid, "override", ...STATUS_BAR]);
     const result = await runMaestro(["--device", udid, "test", flowFile, "--test-output-dir", join(work, "maestro"), "-e", `FRAMES_URL=${frames.url}`], {
       cwd: work, env: ENV, timeout: 20 * 60_000,
