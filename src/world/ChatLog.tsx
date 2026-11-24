@@ -1,12 +1,11 @@
 import { CHAT_TTL_MS } from "@shared/world";
-import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from "react-native";
-import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { chatLineParts } from "./chatFormat";
 import { chatLog } from "./palette";
 import { useWorldSetting } from "./settings";
+import { useChatLog } from "./useChatLog";
 import { PENDING } from "./useWorld";
 import { saidLabel } from "./view";
 
@@ -46,7 +45,7 @@ export const ChatLog = ({
   serverNow: () => number;
   status: string | null;
 }) => {
-  const log = useQuery(api.world.chatLog, roomId ? { roomId, limit: HUD_CHAT_LIMIT } : "skip");
+  const log = useChatLog(roomId, HUD_CHAT_LIMIT);
   const [times] = useWorldSetting("chatTimes");
   const [names] = useWorldSetting("chatNames");
   const format = { times: times === "on", names };

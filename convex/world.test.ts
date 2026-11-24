@@ -1792,19 +1792,56 @@ describe("join and leave lines", () => {
 
 describe("ping", () => {
   const pingOf = async (t: T, email: string) =>
-    t.run(async (ctx) => (await ctx.db.query("worldMembers").withIndex("by_email", (q) => q.eq("email", email)).first())?.ping);
+    t.run(async (ctx) => {
+      const member = await ctx.db.query("worldMembers").withIndex("by_email", (q) => q.eq("email", email)).first();
+      return member && (await ctx.db.query("worldPings").withIndex("by_memberId", (q) => q.eq("memberId", member._id)).unique())?.bars;
+    });
 
-  test("your bars show on the roster and to people in other places", async () => {
+  test("your bars show in the room's pings and to people in other places", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
     const ben = asUser(t, BEN);
     const a = await anna.mutation(api.world.join, {});
     await ben.mutation(api.world.join, {});
+    expect(await ben.query(api.world.pings, { roomId: a.roomId })).toEqual([]);
     expect(await anna.mutation(api.world.ping, { bars: 3 })).toMatchObject({ published: true, serverNow: expect.any(Number) });
-    const roster = await ben.query(api.world.roster, { roomId: a.roomId });
-    expect(roster?.members.find((m) => !m.isMe)?.ping).toBe(3);
+    expect(await ben.query(api.world.pings, { roomId: a.roomId })).toEqual([{ memberId: a.memberId, bars: 3 }]);
     await ben.mutation(api.world.travel, { to: "beach" });
+    expect(await ben.query(api.world.pings, { roomId: a.roomId })).toBeNull();
     expect(await ben.query(api.world.elsewhere, {})).toMatchObject([{ place: "garden", people: [{ ping: 3 }] }]);
+  });
+
+  test("bars live off the member row, so publishing them leaves the roster and state rows alone", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    const memberRow = () => t.run((ctx) => ctx.db.get("worldMembers", a.memberId));
+    const before = await memberRow();
+    await anna.mutation(api.world.ping, { bars: 2 });
+    expect(await memberRow()).toEqual(before);
+    expect((await anna.query(api.world.roster, { roomId: a.roomId }))?.members[0]).not.toHaveProperty("ping");
+  });
+
+  test("someone blocked either way is left out of the room's pings", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const a = await anna.mutation(api.world.join, {});
+    const b = await ben.mutation(api.world.join, {});
+    await anna.mutation(api.world.ping, { bars: 4 });
+    await ben.mutation(api.world.ping, { bars: 1 });
+    await t.run((ctx) => ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: BEN, blockedName: "ben" }));
+    expect(await anna.query(api.world.pings, { roomId: a.roomId })).toEqual([{ memberId: a.memberId, bars: 4 }]);
+    expect(await ben.query(api.world.pings, { roomId: b.roomId })).toEqual([{ memberId: b.memberId, bars: 1 }]);
+  });
+
+  test("leaving takes your bars with you", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.ping, { bars: 3 });
+    await anna.mutation(api.world.leave, {});
+    expect(await t.run((ctx) => ctx.db.query("worldPings").collect())).toEqual([]);
   });
 
   test("the same bars write nothing, and a change waits 30 s after the last write", async () => {
@@ -1839,6 +1876,41 @@ describe("ping", () => {
     await anna.mutation(api.world.join, {});
     await expect(anna.mutation(api.world.ping, { bars: 7 })).rejects.toThrow(/1 to 4/);
     await expect(anna.mutation(api.world.ping, { bars: 2.5 })).rejects.toThrow(/1 to 4/);
+  });
+});
+
+describe("chat log pages", () => {
+  const seed = (t: T, a: { roomId: Id<"worldRooms">; memberId: Id<"worldMembers"> }, ats: number[]) =>
+    t.run(async (ctx) => {
+      for (const at of ats) await ctx.db.insert("worldChat", { roomId: a.roomId, memberId: a.memberId, email: ANNA, name: "anna", text: `at ${at}`, at });
+    });
+
+  test("lines before and from a split cover the log once, newest first, and a limit takes the newest", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    const now = Date.now();
+    await seed(t, a, [now - 5000, now - 4000, now - 3000, now - 2000, now - 1000]);
+    const texts = async (args: { limit?: number; after?: number; before?: number }) =>
+      said((await anna.query(api.world.chatLog, { roomId: a.roomId, ...args }))!).map((line) => line.text);
+    const split = now - 3000;
+    expect(await texts({ after: split })).toEqual([`at ${now - 1000}`, `at ${now - 2000}`, `at ${now - 3000}`]);
+    expect(await texts({ before: split })).toEqual([`at ${now - 4000}`, `at ${now - 5000}`]);
+    expect(await texts({ before: split, limit: 1 })).toEqual([`at ${now - 4000}`]);
+    const all = async (limit: number) => (await anna.query(api.world.chatLog, { roomId: a.roomId, limit }))!.map((line) => line.text);
+    expect(await all(3)).toEqual([expect.any(String), `at ${now - 1000}`, `at ${now - 2000}`]);
+    expect(await all(0)).toHaveLength(1);
+    expect(await all(1000)).toHaveLength(6);
+  });
+
+  test("a split older than an hour still leaves out lines past the chat TTL", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const a = await anna.mutation(api.world.join, {});
+    const now = Date.now();
+    await seed(t, a, [now - 61 * 60_000, now - 1000]);
+    const lines = said((await anna.query(api.world.chatLog, { roomId: a.roomId, after: 0 }))!);
+    expect(lines.map((line) => line.text)).toEqual([`at ${now - 1000}`]);
   });
 });
 

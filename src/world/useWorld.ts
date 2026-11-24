@@ -1,5 +1,6 @@
 import {
   ASK_MS,
+  CHAT_LOG_SIZE,
   clampTarget,
   cleanLine,
   fullBucket,
@@ -32,6 +33,8 @@ import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { api } from "../../convex/_generated/api";
+import { useHeldValue } from "@/hooks/useHeldValue";
+import { fillLoading, useDormant } from "./dormant";
 import { carryGait, restingGait, type Gait } from "./gait";
 import { subscribeForeground } from "./useForeground";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -180,15 +183,10 @@ const showLine = (store: OptimisticLocalStore, { text }: { text: string }) => {
   if (!me || !line) return;
   const at = clock();
   patchMine(store, (row) => ({ ...row, say: { text: line, at }, typing: undefined }));
-  const log = store.getQuery(api.world.chatLog, { roomId: me.roomId });
-  if (log) {
-    const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true, kind: undefined };
-    store.setQuery(api.world.chatLog, { roomId: me.roomId }, [pending, ...log]);
-  }
+  const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true, kind: undefined };
   for (const { args, value } of store.getAllQueries(api.world.chatLog)) {
-    if (args.roomId !== me.roomId || args.limit === undefined || !value) continue;
-    const pending = { id: `${PENDING}${at}` as Id<"worldChat">, memberId: me.memberId, name: me.name, text: line, at, isMe: true, place: undefined, here: true, kind: undefined };
-    store.setQuery(api.world.chatLog, args, [pending, ...value].slice(0, args.limit));
+    if (args.roomId !== me.roomId || args.before !== undefined || !value) continue;
+    store.setQuery(api.world.chatLog, args, [pending, ...value].slice(0, args.limit ?? CHAT_LOG_SIZE));
   }
 };
 
@@ -223,6 +221,16 @@ const showLook = (store: OptimisticLocalStore, { look }: { look: Look }) => {
  */
 const NO_OBSTACLES: ReturnType<typeof homeObstacles> = [];
 const NO_MEMBERS: NonNullable<FunctionReturnType<typeof api.world.roster>>["members"] = [];
+const NO_REQUESTS = {};
+
+type States = ReturnType<typeof useQueries>;
+
+const stillLoading = (states: States) => Object.values(states).some((row) => row === undefined);
+
+const useHeldStates = (live: States, dormant: boolean, visitKey: string): States => {
+  const settled = useHeldValue(dormant || stillLoading(live) ? undefined : live, visitKey).value;
+  return dormant ? (settled ?? live) : fillLoading(live, settled);
+};
 
 export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: string; invite?: string }, tickEverySecond = true) => {
   const convex = useConvex();
@@ -248,8 +256,10 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
   const offset = useRef<number | null>(null);
 
   const [session, setSession] = useState<Session | null>(null);
+  const dormant = useDormant();
+  const visitKey = session ? `${session.roomId}:${session.memberId}` : "";
   const arrivalRef = useRef(arrival);
-  const home = useQuery(api.worldHome.home, session?.place === "home" ? { roomId: session.roomId } : "skip");
+  const home = useHeldValue(useQuery(api.worldHome.home, session?.place === "home" && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
   const obstacles = useMemo(() => (home ? homeObstacles(home.items) : NO_OBSTACLES), [home]);
   const obstaclesRef = useRef(obstacles);
   useEffect(() => {
@@ -380,7 +390,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     return taken;
   }, []);
 
-  const roster = useQuery(api.world.roster, session ? { roomId: session.roomId } : "skip");
+  const roster = useHeldValue(useQuery(api.world.roster, session && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
   // Swept while away (a long background, a lost signal): come back in.
   useEffect(() => {
     if (session && roster === null && !travelling.current) again();
@@ -400,7 +410,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       ),
     [memberKey]
   );
-  const states = useQueries(requests);
+  const states = useHeldStates(useQueries(dormant ? NO_REQUESTS : requests), dormant, visitKey);
 
   const myRow = session ? states[session.memberId] : undefined;
   const myServerWalk = myRow && !(myRow instanceof Error) ? (myRow as Walk) : null;
@@ -694,7 +704,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [session, typingM]
   );
 
-  const duels = useQuery(api.world.duels, session ? { roomId: session.roomId } : "skip");
+  const duels = useHeldValue(useQuery(api.world.duels, session && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
   const duelPickM = useMutation(api.world.duelPick).withOptimisticUpdate((store, { duelId, round, pick }) => {
     const me = meIn(store);
     const rows = me && store.getQuery(api.world.duels, { roomId: me.roomId });
@@ -714,7 +724,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [duelPickM]
   );
 
-  const ball = useQuery(api.world.ball, session?.place === BALL_PLACE ? { roomId: session.roomId } : "skip");
+  const ball = useHeldValue(useQuery(api.world.ball, session?.place === BALL_PLACE && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
   const kickM = useMutation(api.world.kickBall).withOptimisticUpdate(showKick);
   const kick = useCallback(
     (dirX: number, dirZ: number) => {
@@ -729,7 +739,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
     [kickM, heard, again]
   );
 
-  const placeCounts = useQuery(api.world.places, session ? {} : "skip");
+  const placeCounts = useHeldValue(useQuery(api.world.places, session && !dormant ? {} : "skip"), visitKey).value;
   const inviteM = useMutation(api.world.invite);
   const invite = useCallback(
     async (memberId: MemberId): Promise<string | null> => {
@@ -886,7 +896,7 @@ export const useWorld = (enabled: boolean, away = false, arrival?: { poke?: stri
       away: state?.away,
       seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
       typing: state?.typing,
-      ping: m.isMe ? (myBars ?? undefined) : m.ping,
+      ping: m.isMe ? (myBars ?? undefined) : undefined,
     };
   }), [members, states, myWalk, mySeat, myBars]);
 

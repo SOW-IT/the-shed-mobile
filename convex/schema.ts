@@ -239,6 +239,12 @@ export default defineSchema({
     at: v.number(),
   }).index("by_roomId", ["roomId"]),
 
+  worldPings: defineTable({
+    memberId: v.id("worldMembers"),
+    bars: v.number(),
+    at: v.number(),
+  }).index("by_memberId", ["memberId"]),
+
   worldThrottle: defineTable({
     email: v.string(),
     moveBucket: worldBucketValidator,
