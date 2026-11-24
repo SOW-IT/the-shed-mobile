@@ -19,6 +19,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PanResponder, Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MysticMan } from "./MysticMan";
+import { CharacterPicker, useAvatarArt, useGameLook } from "./GameCharacter";
+import type { Look } from "@shared/world";
 import { GameFrame, useGameSession, useLatest, useStage } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
 import { fitBoard } from "@/lib/games/fit";
@@ -100,7 +102,28 @@ const ObstacleView = ({ o, groundY }: { o: Obstacle; groundY: number }) => {
   );
 };
 
-const Scene = ({ state, height }: { state: RunnerState; height: number }) => {
+const Runner = ({ look, slide, state }: { look: Look | null; slide: boolean; state: RunnerState }) => {
+  const stride = (state.distance % 36) / 36;
+  const airborne = !onGround(state);
+  const art = useAvatarArt(look !== null);
+  if (!look || !art) return <MysticMan sliding={slide} airborne={airborne} stride={stride} />;
+  return (
+    <View style={slide ? styles.slideBox : styles.standBox}>
+      <View style={slide ? styles.lying : null}>
+        <art.RunnerCharacter
+          look={look}
+          width={RUNNER.width}
+          height={RUNNER.standHeight}
+          sliding={slide}
+          stride={stride}
+          airborne={airborne}
+        />
+      </View>
+    </View>
+  );
+};
+
+const Scene = ({ state, height, look }: { state: RunnerState; height: number; look: Look | null }) => {
   const groundY = height - GROUND;
   const slide = sliding(state);
   const manWidth = slide ? 40 : RUNNER.width;
@@ -136,7 +159,7 @@ const Scene = ({ state, height }: { state: RunnerState; height: number }) => {
           { transform: [{ translateX: RUNNER.x - manWidth / 2 }, { translateY: groundY - state.y - manHeight }] },
         ]}
       >
-        <MysticMan sliding={slide} airborne={!onGround(state)} stride={(state.distance % 36) / 36} />
+        <Runner look={look} slide={slide} state={state} />
       </View>
     </>
   );
@@ -163,6 +186,7 @@ export const RunnerGame = ({
   preview?: readonly PatternKind[];
 }) => {
   const session = useGameSession<RunnerState>("runner");
+  const look = useGameLook("runner");
   const { run, setRun, phase } = session;
   const screen = useWindowDimensions();
   const safe = useSafeAreaInsets();
@@ -272,6 +296,13 @@ export const RunnerGame = ({
       onStageLayout={onStageLayout}
       stageHandlers={responder.panHandlers}
       startHint={START_HINT}
+      startExtra={
+        <CharacterPicker
+          game="runner"
+          picture={(pick, art) => <art.RunnerCharacter look={pick} width={RUNNER.width} height={44} sliding={false} stride={0.25} airborne={false} />}
+          original={<MysticMan sliding={false} airborne={false} stride={0.5} />}
+        />
+      }
       hideStartCard={!!previewKinds?.length}
       onExit={onExit}
       guard={guard}
@@ -279,7 +310,7 @@ export const RunnerGame = ({
       // Turned a quarter turn clockwise: the notch is on the game's left.
       insets={turned ? { top: safe.right, right: safe.bottom, bottom: safe.left, left: safe.top } : undefined}
     >
-      {board ? <Scene state={run ?? preview} height={run && runHeight > 0 ? runHeight : height} /> : null}
+      {board ? <Scene state={run ?? preview} height={run && runHeight > 0 ? runHeight : height} look={look} /> : null}
     </GameFrame>
   );
   if (!turned) return frame;
@@ -348,4 +379,7 @@ const styles = StyleSheet.create({
   vine: { position: "absolute", top: 0, bottom: 10, width: 4, borderRadius: 2 },
   leaves: { position: "absolute", left: -4, right: -4, bottom: 0, height: 22, borderRadius: 11, borderWidth: 2 },
   man: { position: "absolute", left: 0, top: 0 },
+  standBox: { width: RUNNER.width, height: RUNNER.standHeight },
+  slideBox: { width: 40, height: RUNNER.slideHeight },
+  lying: { position: "absolute", left: 0, top: RUNNER.slideHeight - RUNNER.standHeight },
 });

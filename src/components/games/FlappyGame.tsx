@@ -7,6 +7,8 @@ import { PanResponder, StyleSheet, View } from "react-native";
 import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
 import { fitBoard } from "@/lib/games/fit";
+import { CharacterPicker, useAvatarArt, useGameLook, type AvatarArt } from "./GameCharacter";
+import type { Look } from "@shared/world";
 
 const c = fixedColours.games.flappy;
 const MAX_BOARD = { width: 720, height: 1400 };
@@ -17,35 +19,53 @@ const CLOUDS = [
   { id: "c", x: 0.35, y: 0.4, w: 70 },
 ];
 
-const Bird = ({ state }: { state: FlappyState }) => {
+const HEAD = FLAPPY.radius * 2 + 8;
+
+const BirdSprite = ({ flapping }: { flapping: boolean }) => (
+  <View style={[styles.sprite, { backgroundColor: c.bird }]}>
+    <View style={[styles.wing, { backgroundColor: c.wing, top: flapping ? 6 : 12 }]} />
+    <View style={[styles.eyeWhite, { backgroundColor: c.eyeWhite }]}>
+      <View style={[styles.pupil, { backgroundColor: c.eye }]} />
+    </View>
+    <View style={[styles.beak, { backgroundColor: c.beak }]} />
+  </View>
+);
+
+const FlyingHead = ({ look, flapping, art }: { look: Look; flapping: boolean; art: AvatarArt }) => (
+  <View style={styles.flyingHead}>
+    <View style={[styles.headWing, { backgroundColor: c.wing, transform: [{ rotate: flapping ? "-35deg" : "20deg" }] }]} />
+    <art.CharacterHead look={look} size={HEAD} />
+  </View>
+);
+
+const Bird = ({ state, look: wanted }: { state: FlappyState; look: Look | null }) => {
+  const art = useAvatarArt(wanted !== null);
+  const look = art ? wanted : null;
   const size = FLAPPY.radius * 2;
   const tilt = Math.max(-25, Math.min(70, state.vy / 9));
+  const flapping = state.vy < 0;
+  const box = look ? HEAD : size + 6;
   return (
     <View
       style={[
         styles.bird,
         {
-          width: size + 6,
-          height: size,
-          backgroundColor: c.bird,
+          width: box,
+          height: look ? HEAD : size,
           transform: [
-            { translateX: birdX(state) - size / 2 - 3 },
-            { translateY: state.y - size / 2 },
-            { rotate: `${tilt}deg` },
+            { translateX: birdX(state) - box / 2 },
+            { translateY: state.y - (look ? HEAD : size) / 2 },
+            { rotate: `${look ? tilt / 2 : tilt}deg` },
           ],
         },
       ]}
     >
-      <View style={[styles.wing, { backgroundColor: c.wing, top: state.vy < 0 ? 6 : 12 }]} />
-      <View style={[styles.eyeWhite, { backgroundColor: c.eyeWhite }]}>
-        <View style={[styles.pupil, { backgroundColor: c.eye }]} />
-      </View>
-      <View style={[styles.beak, { backgroundColor: c.beak }]} />
+      {look && art ? <FlyingHead look={look} flapping={flapping} art={art} /> : <BirdSprite flapping={flapping} />}
     </View>
   );
 };
 
-const Scene = ({ state }: { state: FlappyState }) => {
+const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
   const floor = state.height - FLAPPY.groundHeight;
   const grassShift = -((state.time * 160) % 24);
   return (
@@ -86,7 +106,7 @@ const Scene = ({ state }: { state: FlappyState }) => {
           </View>
         </View>
       </View>
-      <Bird state={state} />
+      <Bird state={state} look={look} />
     </>
   );
 };
@@ -104,6 +124,7 @@ export const FlappyGame = ({
   guard?: LeaveGuard;
 }) => {
   const session = useGameSession<FlappyState>("flappy");
+  const look = useGameLook("flappy");
   const { run, setRun, phase } = session;
   const [stage, onStageLayout] = useStage();
   const board = stage && fitBoard(stage, MAX_BOARD);
@@ -148,11 +169,18 @@ export const FlappyGame = ({
       onStageLayout={onStageLayout}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Tap", "press space")}
+      startExtra={
+        <CharacterPicker
+          game="flappy"
+          picture={(pick, art) => <art.CharacterHead look={pick} size={40} />}
+          original={<BirdSprite flapping={false} />}
+        />
+      }
       onExit={onExit}
       guard={guard}
       onLeaderboard={onLeaderboard}
     >
-      {board ? <Scene state={run ?? preview} /> : null}
+      {board ? <Scene state={run ?? preview} look={look} /> : null}
     </GameFrame>
   );
 };
@@ -171,7 +199,18 @@ const styles = StyleSheet.create({
   grass: { height: 14, overflow: "hidden" },
   tufts: { flexDirection: "row", gap: 14, marginTop: 9 },
   tuft: { width: 10, height: 5, borderRadius: 2 },
-  bird: { position: "absolute", left: 0, top: 0, borderRadius: FLAPPY.radius },
+  bird: { position: "absolute", left: 0, top: 0 },
+  sprite: { width: FLAPPY.radius * 2 + 6, height: FLAPPY.radius * 2, borderRadius: FLAPPY.radius },
+  flyingHead: { width: HEAD, height: HEAD, alignItems: "center", justifyContent: "center" },
+  headWing: {
+    position: "absolute",
+    left: -6,
+    top: HEAD * 0.45,
+    width: 16,
+    height: 9,
+    borderRadius: 5,
+    transformOrigin: "right center",
+  },
   wing: { position: "absolute", left: 3, width: 14, height: 9, borderRadius: 5 },
   eyeWhite: {
     position: "absolute",

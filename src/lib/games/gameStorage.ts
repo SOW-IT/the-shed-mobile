@@ -15,6 +15,14 @@ import {
   type LocalBests,
   type QueuedScore,
 } from "../../../shared/games";
+import {
+  DEFAULT_CHARACTERS,
+  parseCharacters,
+  withCharacter,
+  type Character,
+  type CharacterChoices,
+  type CharacterGame,
+} from "../../../shared/gameCharacters";
 import { readStored, tryWriteStored } from "../deviceStorage";
 
 /**
@@ -63,6 +71,14 @@ const persisted = <T>(
 
 const bests = persisted<LocalBests>("games.bests", parseBests, NO_BESTS, stringifyBests);
 const queue = persisted<QueuedScore[]>("games.scoreQueue", parseQueue, []);
+
+const characters = persisted<CharacterChoices>("games.characters", parseCharacters, DEFAULT_CHARACTERS);
+
+export const useCharacterChoice = (game: CharacterGame): Character =>
+  useSyncExternalStore(characters.subscribe, characters.get, characters.get)[game];
+
+export const chooseCharacter = (game: CharacterGame, character: Character): Promise<void> =>
+  characters.update((current) => withCharacter(current, game, character));
 
 export const useLocalBests = () => useSyncExternalStore(bests.subscribe, bests.get, bests.get);
 export const useScoreQueue = () => useSyncExternalStore(queue.subscribe, queue.get, queue.get);
