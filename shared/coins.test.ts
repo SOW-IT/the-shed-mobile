@@ -11,6 +11,9 @@ describe("coins for a run", () => {
     ["shooter", 10_001, 10],
     ["shooter", 12_001, 20],
     ["shooter", 0, 0],
+    ["glider", 8_000, 0],
+    ["glider", 8_001, 10],
+    ["glider", 12_001, 20],
   ] as const)("%s at %i pays %i", (game, score, coins) => {
     expect(coinsForRun(game, score)).toBe(coins);
   });

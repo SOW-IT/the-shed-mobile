@@ -6,6 +6,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.43] - 2026-11-24
+
+### Added
+- **A new game, Swoop.** Hold anywhere and the bird gets heavy and dives;
+  let go and it's light again. Dive down into a valley, let go at the
+  bottom, and the speed throws the bird off the next hill and high into the
+  sky. Come down along a downslope for a perfect landing; come down onto
+  the slope going up and you lose speed. Each world has to be finished
+  before the sun sets across the top of the screen, or night falls and the
+  run is over. Perfect landings and long flights win back a little
+  daylight. Every world is longer, with steeper and bumpier hills, tighter
+  valleys, a shorter day and less room for a perfect landing. The score is
+  the distance flown plus bonuses, on one leaderboard for the whole run,
+  and good runs earn coins like the other games. Play as your World
+  character's head, Sij, or Swoop's own bird. It works offline, and on a
+  phone held upright it turns sideways like Mystic Man.
+
 ## [2.12.41] - 2026-11-24
 
 ### Added

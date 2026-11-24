@@ -16,14 +16,14 @@ import {
 } from "@/lib/games/runner";
 import { fixedColours } from "@/theme";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PanResponder, Platform, StyleSheet, useWindowDimensions, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PanResponder, Platform, StyleSheet, View } from "react-native";
 import { MysticMan } from "./MysticMan";
 import { CharacterPicker, useAvatarArt, useGameLook } from "./GameCharacter";
 import type { Look } from "@shared/world";
 import { GameFrame, useGameSession, useLatest, useStage } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
 import { fitBoard } from "@/lib/games/fit";
+import { Sideways, useSideways } from "./Sideways";
 
 const c = fixedColours.games.runner;
 const MAX_BOARD = { width: 1200, height: 400 };
@@ -42,10 +42,6 @@ const START_HINT =
   Platform.OS === "web"
     ? "Tap or press ↑ to start. Keys: ↑ or space to hop, hold for a big jump, ↓ to duck."
     : "Tap to start.";
-
-/** Whether the main pointer is a finger (a phone or tablet browser). */
-const touchScreen = () =>
-  typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
 
 const ObstacleView = ({ o, groundY }: { o: Obstacle; groundY: number }) => {
   if (o.kind === "hang") {
@@ -166,10 +162,9 @@ const Scene = ({ state, height, look }: { state: RunnerState; height: number; lo
 };
 
 /**
- * Mystic Man, played in landscape. The app is portrait-only and has no
- * orientation library (adding one is a native change), so on a portrait
- * screen the game is drawn turned a quarter turn: hold the phone sideways.
- * Touches arrive in screen directions and are turned back to the game's.
+ * Mystic Man, played in landscape: turned a quarter turn on a phone held
+ * upright (see Sideways). Touches arrive in screen directions and are
+ * turned back to the game's.
  */
 export const RunnerGame = ({
   onExit,
@@ -188,11 +183,7 @@ export const RunnerGame = ({
   const session = useGameSession<RunnerState>("runner");
   const look = useGameLook("runner");
   const { run, setRun, phase } = session;
-  const screen = useWindowDimensions();
-  const safe = useSafeAreaInsets();
-  // Turned on a phone held upright: the app, or a phone's browser. A desktop
-  // browser window that happens to be tall keeps the wide board.
-  const turned = screen.height > screen.width && (Platform.OS !== "web" || touchScreen());
+  const { turned, insets } = useSideways();
   const [stage, onStageLayout] = useStage();
   const board = stage && fitBoard(stage, MAX_BOARD);
   const width = board?.width ?? 0;
@@ -307,37 +298,19 @@ export const RunnerGame = ({
       onExit={onExit}
       guard={guard}
       onLeaderboard={onLeaderboard}
-      // Turned a quarter turn clockwise: the notch is on the game's left.
-      insets={turned ? { top: safe.right, right: safe.bottom, bottom: safe.left, left: safe.top } : undefined}
+      insets={insets}
     >
       {board ? <Scene state={run ?? preview} height={run && runHeight > 0 ? runHeight : height} look={look} /> : null}
     </GameFrame>
   );
-  if (!turned) return frame;
   return (
-    <View style={[styles.fill, { backgroundColor: c.sky }]}>
-      {/* Turned about its top-left corner, not its middle: with an odd screen
-          width the middle sits on half a point, which puts everything drawn
-          inside half a pixel off the grid and blurs it (the cards most). */}
-      <View
-        style={{
-          position: "absolute",
-          width: screen.height,
-          height: screen.width,
-          left: screen.width,
-          top: 0,
-          transformOrigin: "top left",
-          transform: [{ rotate: "90deg" }],
-        }}
-      >
-        {frame}
-      </View>
-    </View>
+    <Sideways turned={turned} background={c.sky}>
+      {frame}
+    </Sideways>
   );
 };
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, overflow: "hidden" },
   moon: { position: "absolute", right: 36, top: 24, width: 34, height: 34, borderRadius: 17, opacity: 0.9 },
   hill: { position: "absolute", left: 0, width: 320, height: 140, borderRadius: 160 },
   ground: { position: "absolute", left: 0, right: 0, bottom: 0, borderTopWidth: 2, overflow: "hidden" },

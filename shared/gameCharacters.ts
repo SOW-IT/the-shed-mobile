@@ -1,7 +1,7 @@
 import type { GameId } from "./games";
 import { isValidLook, NPC, type Look } from "./world";
 
-export const CHARACTER_GAMES = ["runner", "flappy"] as const;
+export const CHARACTER_GAMES = ["runner", "flappy", "glider"] as const;
 export type CharacterGame = (typeof CHARACTER_GAMES)[number];
 
 export const CHARACTERS = ["mine", "sij", "original"] as const;
@@ -9,7 +9,7 @@ export type Character = (typeof CHARACTERS)[number];
 
 export type CharacterChoices = Record<CharacterGame, Character>;
 
-export const DEFAULT_CHARACTERS: CharacterChoices = { runner: "mine", flappy: "mine" };
+export const DEFAULT_CHARACTERS: CharacterChoices = { runner: "mine", flappy: "mine", glider: "mine" };
 
 export const isCharacterGame = (game: GameId): game is CharacterGame =>
   (CHARACTER_GAMES as readonly string[]).includes(game);
@@ -25,7 +25,7 @@ export const parseCharacters = (saved: string): CharacterChoices => {
       const value = record[game];
       return isCharacter(value) ? value : DEFAULT_CHARACTERS[game];
     };
-    return { runner: pick("runner"), flappy: pick("flappy") };
+    return { runner: pick("runner"), flappy: pick("flappy"), glider: pick("glider") };
   } catch {
     return { ...DEFAULT_CHARACTERS };
   }
