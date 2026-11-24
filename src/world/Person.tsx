@@ -5,21 +5,20 @@ import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
 import { garden, hud, isLight, people, shade } from "./palette";
 import { Ellipse, quadTransform } from "./Shapes";
 import { bandOverHead, capShape, earCup, HAT_PITCH, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
+import { AFRO_RISE, sitsOnAfro, tagRise } from "./hatHeight";
 import { strideBob, strideSwing } from "./gait";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 /**
  * The top of this person's head: taller people's tags sit higher, and so do
- * the tags of anyone in a party hat, a crown or a mohawk, so the tag doesn't
- * hide it.
+ * the tags of anyone in a party hat, a crown, a mohawk or a hat on an afro,
+ * so the tag doesn't hide it.
  */
 export const headTop = (look: Look) => {
   const hat = lookPart(look, "hat");
-  const crest = look.hair === 12 && !hidesCrest(hat) ? 0.08 : 0;
-  // A party hat or crown sitting on an afro is higher still.
-  const onAfro = sitsOnAfro(look.hair, hat) ? AFRO_RISE / 0.86 : 0;
-  return 1.0 * bodyScale(look).height + 0.62 + Math.max(hat === 8 ? 0.28 + onAfro : hat === 9 ? 0.06 + onAfro : 0, crest);
+  // Higher for a party hat, crown or crest, and for an afro under a bow, party hat or crown.
+  return 1.0 * bodyScale(look).height + 0.62 + tagRise(look.hair, hat, look.hair === 12 && !hidesCrest(hat));
 };
 
 /** Face shapes: width and height (of a round head), and corner rounding at top and bottom. */
@@ -74,10 +73,6 @@ const faceLift = (h: number) => Math.max(0, 0.63 * (h - 1));
 const hidesBun = (hat: number) => hat === 1 || hat === 2 || hat === 4 || hat === 5;
 /** Hats an afro squashes under, puffing out at the sides instead of above: the cap, beanie, sun hat and beret. */
 const flattensAfro = (hat: number) => hat === 1 || hat === 2 || hat === 4 || hat === 5;
-/** How far (per scale) an afro stands above the top of the head. */
-const AFRO_RISE = 0.21;
-/** Hats that sit on top of an afro instead of sinking into it: the bow, party hat and crown. */
-const sitsOnAfro = (hair: number, hat: number) => hair === 10 && (hat === 6 || hat === 8 || hat === 9);
 /** Hats a mohawk's crest doesn't show through: all but the bow and the headband. */
 const hidesCrest = (hat: number) => hat !== 0 && hat !== 6 && hat !== 7;
 /** Hats that cover the top of the head, so a fringe doesn't show under them. */
