@@ -85,16 +85,15 @@ const NumberGrid = ({
   const t = useAppTheme();
   const numbers = Array.from({ length: Math.max(to - from + 1, 0) }, (_, i) => from + i);
   return (
-    <View style={styles.grid} accessibilityRole="radiogroup" accessibilityLabel={`${noun}s`}>
+    <View style={styles.grid}>
       {numbers.map((n) => {
         const on = n === selected;
         return (
           <Pressable
             key={n}
             onPress={() => onPick(n)}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: on }}
-            accessibilityLabel={`${noun} ${n}`}
+            accessibilityRole="button"
+            accessibilityLabel={on ? `${noun} ${n}, selected` : `${noun} ${n}`}
             testID={`passage-${noun.toLowerCase()}-${n}`}
             style={({ pressed }) => [
               styles.cell,
