@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.38] - 2026-11-24
+
+### Changed
+- **Reimbursement lists ask the server less, part two.** The names under
+  each request's approval steps (who approved, who's next) were fetched
+  card by card. The All, Review and Requests lists now fetch them once for
+  every card on screen, so All with 20 ongoing requests opens 20 live
+  queries instead of 39 (59 before 2.12.23). The names look the same.
+
 ## [2.12.37] - 2026-11-24
 
 ### Added

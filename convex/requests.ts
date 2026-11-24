@@ -19,6 +19,7 @@ import {
   requestDeclined,
   requestFullyApproved,
   requestStaffYear,
+  MAX_STEP_ACTOR_REQUESTS,
   REVIEWED_LIMIT,
   staffYearStartMs,
   STEP_FIELDS,
@@ -1543,33 +1544,56 @@ export const stepActors = query({
     if (!request || !(await viewsRequest(ctx, caller, request, await lensFor(ctx, caller)))) {
       return null;
     }
-    const reqYear = requestStaffYear(request);
-    const approvers = await getApprovers(ctx, reqYear, request.department);
-    const allEvents = await recentRequestEvents(ctx, args.requestId);
-    const result: Record<
-      string,
-      StepActorDisplay & { actedAt: number | null }
-    > = {};
-    for (const step of Object.keys(STEP_FIELDS) as Step[]) {
-      const officeholderEmail = approverEmailFor(step, approvers) ?? null;
-      const stepEvent = allEvents.find(
-        (e) => e.step === step && isApprovalAction(e.action)
-      );
-      const display = await resolveStepDisplay(ctx, {
-        reqYear,
-        officeholderEmail,
-        latestActorEmail: stepEvent?.actorEmail ?? null,
-        pending: stepEvent === undefined,
-        autoApprovedBy: autoApproverOf(stepEvent),
-      });
-      result[step] = {
-        ...display,
-        actedAt: stepEvent?._creationTime ?? null,
-      };
-    }
-    return result as Record<Step, StepActorDisplay & { actedAt: number | null }>;
+    return await stepActorsOf(ctx, request);
   },
 });
+
+/**
+ * stepActors for every card a list shows, in one query instead of one per
+ * card. A request the caller can't see, or that's gone, is left out, as
+ * stepActors returns null for it.
+ */
+export const stepActorsForRequests = query({
+  args: { requestIds: v.array(v.id("requests")) },
+  handler: async (ctx, args) => {
+    if (args.requestIds.length > MAX_STEP_ACTOR_REQUESTS) {
+      throw new ConvexError(`Ask for at most ${MAX_STEP_ACTOR_REQUESTS} requests at a time.`);
+    }
+    const result: Partial<Record<Id<"requests">, StepActors>> = {};
+    const caller = await optionalProfile(ctx);
+    if (!caller) return result;
+    const lens = await lensFor(ctx, caller);
+    for (const id of new Set(args.requestIds)) {
+      const request = await ctx.db.get("requests", id);
+      if (request && (await viewsRequest(ctx, caller, request, lens))) {
+        result[id] = await stepActorsOf(ctx, request);
+      }
+    }
+    return result;
+  },
+});
+
+type StepActors = Record<Step, StepActorDisplay & { actedAt: number | null }>;
+
+async function stepActorsOf(ctx: QueryCtx, request: Doc<"requests">): Promise<StepActors> {
+  const reqYear = requestStaffYear(request);
+  const approvers = await getApprovers(ctx, reqYear, request.department);
+  const allEvents = await recentRequestEvents(ctx, request._id);
+  const result: Record<string, StepActorDisplay & { actedAt: number | null }> = {};
+  for (const step of Object.keys(STEP_FIELDS) as Step[]) {
+    const officeholderEmail = approverEmailFor(step, approvers) ?? null;
+    const stepEvent = allEvents.find((e) => e.step === step && isApprovalAction(e.action));
+    const display = await resolveStepDisplay(ctx, {
+      reqYear,
+      officeholderEmail,
+      latestActorEmail: stepEvent?.actorEmail ?? null,
+      pending: stepEvent === undefined,
+      autoApprovedBy: autoApproverOf(stepEvent),
+    });
+    result[step] = { ...display, actedAt: stepEvent?._creationTime ?? null };
+  }
+  return result as StepActors;
+}
 
 type StepActorDisplay = {
   name: string | null;
