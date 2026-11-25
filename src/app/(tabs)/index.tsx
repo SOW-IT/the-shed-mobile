@@ -350,7 +350,15 @@ export default function RequestsScreen() {
           title: "Reimbursements",
           icon: "receipt-outline",
           action: showMakeRequest
-            ? { label: "Request", onPress: openNewRequest, accessibilityLabel: "Make a request", testID: "reimbursements-new" }
+            ? {
+                label: "Request",
+                onPress: () => {
+                  setActive("mine");
+                  openNewRequest();
+                },
+                accessibilityLabel: "Make a request",
+                testID: "reimbursements-new",
+              }
             : null,
           info: showMakeRequest
             ? { onPress: () => setGuideOpen(true), accessibilityLabel: "How reimbursements work" }
