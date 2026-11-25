@@ -8,6 +8,7 @@ import {
   onGround,
   previewWith,
   RUNNER,
+  runnerAt,
   sliding,
   stepRunner,
   type Obstacle,
@@ -20,13 +21,15 @@ import { PanResponder, Platform, StyleSheet, View } from "react-native";
 import { MysticMan } from "./MysticMan";
 import { CharacterPicker, useAvatarArt, useGameLook } from "./GameCharacter";
 import type { Look } from "@shared/world";
-import { GameFrame, useGameSession, useLatest, useStage } from "./GameFrame";
+import { GameFrame, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
-import { fitBoard } from "@/lib/games/fit";
+import { GAME_VIEWS } from "@/lib/games/playArea";
+import { useBoardReach } from "./boardReach";
+import type { Size } from "@/lib/games/fit";
 import { Sideways, useSideways } from "./Sideways";
 
 const c = fixedColours.games.runner;
-const MAX_BOARD = { width: 1200, height: 400 };
+const PHONE_BOARD = { width: GAME_VIEWS.runner.size, height: 340 };
 const GROUND = 48;
 /**
  * A touch moving this far up or down is a swipe. Short, so the big jump and
@@ -120,6 +123,7 @@ const Runner = ({ look, slide, state }: { look: Look | null; slide: boolean; sta
 };
 
 const Scene = ({ state, height, look }: { state: RunnerState; height: number; look: Look | null }) => {
+  const reach = useBoardReach();
   const groundY = height - GROUND;
   const slide = sliding(state);
   const manWidth = slide ? 40 : RUNNER.width;
@@ -129,7 +133,7 @@ const Scene = ({ state, height, look }: { state: RunnerState; height: number; lo
   return (
     <>
       <View style={[styles.moon, { backgroundColor: c.moon }]} />
-      {[0, 1].map((copy) => (
+      {[-1, 0, 1, 2].map((copy) => (
         <View
           key={copy}
           style={[
@@ -138,16 +142,23 @@ const Scene = ({ state, height, look }: { state: RunnerState; height: number; lo
           ]}
         />
       ))}
-      <View style={[styles.ground, { top: groundY, backgroundColor: c.ground, borderTopColor: c.groundLine }]}>
+      <View
+        style={[
+          styles.ground,
+          { top: groundY, left: -reach.left, right: -reach.right, bottom: -reach.bottom, backgroundColor: c.ground, borderTopColor: c.groundLine },
+        ]}
+      >
         <View style={[styles.dashes, { transform: [{ translateX: dashShift }] }]}>
-          {Array.from({ length: Math.ceil(state.width / 40) + 2 }, (_, i) => (
+          {Array.from({ length: Math.ceil((state.width + reach.left + reach.right) / 40) + 2 }, (_, i) => (
             <View key={`dash-${i}`} style={[styles.dash, { backgroundColor: c.groundLine }]} />
           ))}
         </View>
       </View>
-      {state.obstacles.map((o) => (
-        <ObstacleView key={o.id} o={o} groundY={groundY} />
-      ))}
+      <View style={[styles.clip, { width: state.width, height }]} pointerEvents="none">
+        {state.obstacles.map((o) => (
+          <ObstacleView key={o.id} o={o} groundY={groundY} />
+        ))}
+      </View>
       <View
         testID="runner-man"
         style={[
@@ -172,6 +183,7 @@ export const RunnerGame = ({
   active = true,
   guard,
   preview: previewKinds,
+  startScore,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
@@ -179,24 +191,22 @@ export const RunnerGame = ({
   guard?: LeaveGuard;
   /** Test builds: show these patterns on the board before the run starts. */
   preview?: readonly PatternKind[];
+  startScore?: number;
 }) => {
   const session = useGameSession<RunnerState>("runner");
   const look = useGameLook("runner");
   const { run, setRun, phase } = session;
   const { turned, insets } = useSideways();
-  const [stage, onStageLayout] = useStage();
-  const board = stage && fitBoard(stage, MAX_BOARD);
-  const width = board?.width ?? 0;
-  const height = board?.height ?? 0;
+  const [board, setBoard] = useState<Size | null>(null);
+  const { width, height } = board ?? PHONE_BOARD;
+  const [runHeight, setRunHeight] = useState(PHONE_BOARD.height);
   const previewKey = previewKinds?.join(",") ?? "";
   const preview = useMemo(
     () => (previewKey ? previewWith(width, previewKey.split(",") as PatternKind[]) : newRunner(width, 1)),
     [width, previewKey]
   );
-  // The board height the run started on; a shorter board later scales the scene.
-  const [runHeight, setRunHeight] = useState(0);
   const inputOn = active && !session.paused;
-  const latest = useLatest({ session, width, height, turned, inputOn });
+  const latest = useLatest({ session, width, height, turned, inputOn, startScore });
 
   useGameLoop(phase === "playing" && active && !session.paused, (dt) => setRun((state) => state && advance(state, dt, stepRunner)));
 
@@ -206,7 +216,8 @@ export const RunnerGame = ({
     if (current.phase === "ready") {
       if (w > 0) {
         setRunHeight(latest.current.height);
-        current.begin(newRunner(w, newSeed()));
+        const from = latest.current.startScore;
+        current.begin(from ? runnerAt(w, newSeed(), from) : newRunner(w, newSeed()), !!from);
       }
       return;
     }
@@ -282,9 +293,8 @@ export const RunnerGame = ({
       background={c.sky}
       session={session}
       score={run?.score ?? 0}
-      board={board}
-      world={run && runHeight > 0 ? { width: run.width, height: runHeight } : null}
-      onStageLayout={onStageLayout}
+      world={run ? { width: run.width, height: runHeight } : board}
+      onBoard={setBoard}
       stageHandlers={responder.panHandlers}
       startHint={START_HINT}
       startExtra={
@@ -300,11 +310,11 @@ export const RunnerGame = ({
       onLeaderboard={onLeaderboard}
       insets={insets}
     >
-      {board ? <Scene state={run ?? preview} height={run && runHeight > 0 ? runHeight : height} look={look} /> : null}
+      <Scene state={run ?? preview} height={run ? runHeight : height} look={look} />
     </GameFrame>
   );
   return (
-    <Sideways turned={turned} background={c.sky}>
+    <Sideways turned={turned}>
       {frame}
     </Sideways>
   );
@@ -313,7 +323,8 @@ export const RunnerGame = ({
 const styles = StyleSheet.create({
   moon: { position: "absolute", right: 36, top: 24, width: 34, height: 34, borderRadius: 17, opacity: 0.9 },
   hill: { position: "absolute", left: 0, width: 320, height: 140, borderRadius: 160 },
-  ground: { position: "absolute", left: 0, right: 0, bottom: 0, borderTopWidth: 2, overflow: "hidden" },
+  ground: { position: "absolute", borderTopWidth: 2, overflow: "hidden" },
+  clip: { position: "absolute", left: 0, top: 0, overflow: "hidden" },
   dashes: { flexDirection: "row", gap: 22, marginTop: 14 },
   dash: { width: 18, height: 2, opacity: 0.5 },
   rock: {

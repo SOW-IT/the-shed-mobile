@@ -6,8 +6,11 @@ import { OnlineBanner } from "./OnlineBanner";
 import { CoinGain } from "./CoinGain";
 import { LeaveGameDialog } from "./LeaveGameDialog";
 import { PICKER_WIDTH } from "./GameCharacter";
-import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
-import { cardFitScale, fitScale, groundLine, type Size } from "@/lib/games/fit";
+import { needsLeaveConfirm } from "@/lib/games/leave";
+import { useNoSwipeBack } from "@/hooks/useNoSwipeBack";
+import { cardFitScale, type Size } from "@/lib/games/fit";
+import { decoration, fitPlayArea, GAME_VIEWS, idealBoard } from "@/lib/games/playArea";
+import { BoardReach } from "./boardReach";
 import { savedNote } from "@/lib/games/savedNote";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -26,11 +29,12 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GAME_INFO, type GameId } from "../../../shared/games";
 
 const g = fixedColours.games;
 const SHORT_STAGE = 440;
+const NO_REACH = { left: 0, top: 0, right: 0, bottom: 0 };
 const ACTIONS_WIDTH = 200;
 const MIN_TEXT_COLUMN = 180;
 const CARD_EDGE = 1;
@@ -56,6 +60,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const [runId, setRunId] = useState<string | null>(null);
   const generation = useRef(0);
   const overAt = useRef(0);
+  const practice = useRef(false);
   const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
   // An update waiting to install restarts the app when it comes back from
   // the background; never in the middle of a run.
@@ -66,6 +71,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
     recorded.current = run;
     overAt.current = Date.now();
     hapticSelect();
+    if (practice.current) return;
     const started = generation.current;
     void recordRun(game, run.score, run.time * 1000).then((id) => {
       if (generation.current === started) setRunId(id);
@@ -73,8 +79,9 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   }, [run, game]);
 
   const begin = useCallback(
-    (state: S) => {
+    (state: S, practiceRun = false) => {
       generation.current++;
+      practice.current = practiceRun;
       setBestAtStart(best);
       setRunId(null);
       setRun(state);
@@ -119,38 +126,8 @@ export const useLatest = <T,>(value: T) => {
   return ref;
 };
 
-/**
- * On web, keeps the browser's own swipe back and forward off a game: a
- * sideways swipe is a move in the game, and the way out is the back button.
- * The trackpad's two-finger swipe stops at the page, and a touch that starts
- * at the screen's edge (where a phone's browser starts its swipe back) is
- * kept from the browser. A touch on a button there still presses it.
- */
-const useNoSwipeBack = () => {
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof document === "undefined") return;
-    const pages = [document.documentElement, document.body];
-    const before = pages.map((page) => page.style.overscrollBehaviorX);
-    for (const page of pages) page.style.overscrollBehaviorX = "none";
-    const onTouchStart = (event: TouchEvent) => {
-      const touch = event.touches[0];
-      if (!touch || !atSwipeEdge(touch.clientX, window.innerWidth)) return;
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('button, a, [role="button"]')) return;
-      event.preventDefault();
-    };
-    document.addEventListener("touchstart", onTouchStart, { passive: false });
-    return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      pages.forEach((page, i) => {
-        page.style.overscrollBehaviorX = before[i];
-      });
-    };
-  }, []);
-};
-
 /** The stage's size, once it has been laid out. */
-export const useStage = () => {
+const useStage = () => {
   const [stage, setStage] = useState<Size | null>(null);
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -181,16 +158,15 @@ export const GameFrame = ({
   ink = g.text,
   session,
   score,
-  board,
-  world = null,
-  onStageLayout,
+  world,
+  onBoard,
+  onScale,
   stageHandlers,
   startHint,
   onExit,
   onLeaderboard,
   guard,
   insets,
-  ground,
   hideStartCard = false,
   startExtra = null,
   overDetail = null,
@@ -205,10 +181,9 @@ export const GameFrame = ({
   ink?: string;
   session: GameSession;
   score: number;
-  board: Size | null;
-  /** The running game's own size, when it has one; the scene is scaled to the board. */
-  world?: Size | null;
-  onStageLayout: (event: LayoutChangeEvent) => void;
+  world: Size | null;
+  onBoard: (board: Size) => void;
+  onScale?: (scale: number) => void;
   stageHandlers?: GestureResponderHandlers;
   startHint: string;
   onExit: () => void;
@@ -220,12 +195,6 @@ export const GameFrame = ({
    * and asks to leave in place rather than in a modal.
    */
   insets?: { top: number; right: number; bottom: number; left: number };
-  /**
-   * The scene's ground, carried on to the screen's edges so no sky shows
-   * under it or beside it: where it starts in the scene, its colour, and the
-   * band along its top.
-   */
-  ground?: { top: number; colour: string; band?: { colour: string; height: number } };
   /** A still preview board, for screenshots: nothing over it. */
   hideStartCard?: boolean;
   startExtra?: ReactNode;
@@ -260,23 +229,43 @@ export const GameFrame = ({
     guard?.onStay();
   };
   const [stage, onOwnStageLayout] = useStage();
-  const [stageBox, setStageBox] = useState<{ y: number; height: number } | null>(null);
+  const [room, onRoomLayout] = useStage();
+  const [chrome, onChromeLayout] = useStage();
   const [readyCardHeight, setReadyCardHeight] = useState<number | null>(null);
   const onReadyCardLayout = (event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;
     setReadyCardHeight((current) => (current === height ? current : height));
   };
-  const onLayout = (event: LayoutChangeEvent) => {
-    const { y, height } = event.nativeEvent.layout;
-    setStageBox((current) => (current && current.y === y && current.height === height ? current : { y, height }));
-    onStageLayout(event);
-    onOwnStageLayout(event);
-  };
+  const onLayout = (event: LayoutChangeEvent) => onOwnStageLayout(event);
+  const ideal = room && chrome ? idealBoard(room, chrome.height, GAME_VIEWS[game]) : null;
+  const idealWidth = ideal?.width ?? 0;
+  const idealHeight = ideal?.height ?? 0;
+  useEffect(() => {
+    if (idealWidth > 0) onBoard({ width: idealWidth, height: idealHeight });
+  }, [idealWidth, idealHeight, onBoard]);
+  const shown = world ?? ideal;
+  const area = room && chrome && shown ? fitPlayArea(room, shown, chrome.height) : null;
+  const scale = area?.scale ?? 1;
+  const measured = area !== null;
+  useEffect(() => {
+    if (measured) onScale?.(scale);
+  }, [measured, scale, onScale]);
   const short = stage !== null && stage.height < SHORT_STAGE;
   const wide = short && stage.width >= WIDE_MIN_WIDTH;
-  const scale = fitScale(world, board);
-  const shownHeight = world ? world.height * scale : (board?.height ?? 0);
-  const groundAt = ground && board && stageBox ? groundLine(stageBox, shownHeight, ground.top, scale) : null;
+  const safe = useSafeAreaInsets();
+  const frameInsets = insets ?? { top: safe.top, right: 0, bottom: safe.bottom, left: 0 };
+  const deco = room && area && chrome ? decoration(room, frameInsets, area, chrome.height, GAME_VIEWS[game].scenery ?? GAME_VIEWS[game].aspects) : null;
+  const content =
+    area && shown && chrome
+      ? {
+          position: "absolute" as const,
+          width: shown.width,
+          height: shown.height + chrome.height,
+          left: (area.width - shown.width) / 2,
+          top: (area.height - shown.height - chrome.height) / 2,
+          transform: [{ scale }],
+        }
+      : StyleSheet.absoluteFill;
   const info = GAME_INFO[game];
   const newBest = result !== null && result.score > result.previousBest && result.score > 0;
   const overCard = result ? (
@@ -308,16 +297,23 @@ export const GameFrame = ({
     </View>
   ) : null;
   return (
-    <Frame insets={insets} style={[styles.screen, { backgroundColor: background }]}>
-      {ground && groundAt !== null ? (
-        <View pointerEvents="none" style={[styles.ground, { top: groundAt, backgroundColor: ground.colour }]}>
-          {ground.band ? (
-            <View style={{ height: ground.band.height * scale, backgroundColor: ground.band.colour }} />
-          ) : null}
-        </View>
+    <Frame insets={insets} style={[styles.screen, { backgroundColor: g.letterbox }]}>
+      <View style={styles.room} onLayout={onRoomLayout}>
+      {deco ? (
+        <View
+          pointerEvents="none"
+          testID="game-scenery"
+          style={[styles.scenery, { left: deco.left, top: deco.top, width: deco.width, height: deco.height, backgroundColor: background }]}
+        />
       ) : null}
+      <View
+        testID="game-play-area"
+        style={[styles.area, area ? { left: area.left, top: area.top, width: area.width, height: area.height } : styles.areaMeasuring]}
+      >
+      <View style={content}>
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
       <StatusBar hidden={phase === "playing"} style={statusBar} animated />
+      <View onLayout={onChromeLayout}>
       <View style={styles.bar}>
         <Pressable
           onPress={back}
@@ -338,35 +334,15 @@ export const GameFrame = ({
         <Stat label="Best" value={Math.max(best, result?.score ?? 0)} ink={ink} />
       </View>
       {underBar}
+      </View>
       <View style={styles.stage} onLayout={onLayout} {...stageHandlers}>
-        {board ? (
+        {area && shown ? (
           <View
-            style={[
-              styles.board,
-              world
-                ? { width: world.width * scale, height: world.height * scale }
-                : { width: board.width, height: board.height },
-              { backgroundColor: background },
-            ]}
+            testID="game-board"
+            style={{ width: shown.width, height: shown.height }}
             pointerEvents="box-none"
           >
-            {world && scale !== 1 ? (
-              <View
-                pointerEvents="box-none"
-                style={{
-                  position: "absolute",
-                  width: world.width,
-                  height: world.height,
-                  left: (world.width * scale - world.width) / 2,
-                  top: (world.height * scale - world.height) / 2,
-                  transform: [{ scale }],
-                }}
-              >
-                {children}
-              </View>
-            ) : (
-              children
-            )}
+            <BoardReach.Provider value={deco?.reach ?? NO_REACH}>{children}</BoardReach.Provider>
           </View>
         ) : null}
         {phase === "ready" && !hideStartCard ? (
@@ -404,6 +380,9 @@ export const GameFrame = ({
           )
         ) : null}
       </View>
+      </View>
+      </View>
+      </View>
       <OnlineBanner />
       <LeaveGameDialog visible={session.paused} onLeave={onExit} onContinue={stay} inline={!!insets} />
     </Frame>
@@ -440,6 +419,10 @@ export const startHintFor = (touch: string, keys: string) =>
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  room: { flex: 1 },
+  area: { position: "absolute" },
+  scenery: { position: "absolute" },
+  areaMeasuring: { left: 0, top: 0, right: 0, bottom: 0, opacity: 0 },
   bar: {
     flexDirection: "row",
     alignItems: "center",
@@ -464,12 +447,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
     ...(Platform.OS === "web" ? { userSelect: "none", touchAction: "none", cursor: "pointer" } : null),
   },
-  ground: { position: "absolute", left: 0, right: 0, bottom: 0 },
-  // Full screen: the board meets the edges, so no rounded corners.
-  board: { overflow: "hidden" },
   overlay: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
   overlayWide: { padding: spacing.md },
   overlayScroll: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },

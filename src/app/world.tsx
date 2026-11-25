@@ -1,5 +1,6 @@
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { LoadingState, Screen } from "@/components/ui";
+import { useNoSwipeBack } from "@/hooks/useNoSwipeBack";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { backOr } from "@/lib/goBack";
 import type { GameId } from "@shared/games";
@@ -34,6 +35,7 @@ export default function World() {
     }, [])
   );
   useRestartHold(isAuthenticated && (focused || awayKind !== null));
+  useNoSwipeBack(focused);
   const [asking, setAsking] = useState(false);
   const held = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
   // There's no swipe back out of the World (see the root layout): you leave
