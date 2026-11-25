@@ -5,7 +5,7 @@ import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { currentStaffYear } from "./model";
 import { removeFromWorld } from "./world";
 import { START_COINS } from "../shared/coins";
-import { DOOR_CLEAR, FURNITURE, HOME_CAP, HOME_DOOR, footprint, placementProblem } from "../shared/home";
+import { BACK_DOOR, DOOR_CLEAR, FURNITURE, HOME_CAP, HOME_DOOR, footprint, placementProblem } from "../shared/home";
 import { ARRIVE_APART, BUCKETS, HOME_ARRIVAL, INVITE_MS, NPC, POKE_EVERY_MS, POKE_ARRIVAL_MS, ROOM_CAP, WALK_BOUNDS, distance, posAt } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
@@ -469,6 +469,7 @@ describe("decorating", () => {
     expect(placementProblem("bed", bed.x, bed.z, 0)).toBeNull();
     await expect(anna.mutation(api.worldHome.moveItem, { key: bed.key, x: WALK_BOUNDS.maxX, z: 0, turn: 0 })).rejects.toThrow(/inside the room/);
     await expect(anna.mutation(api.worldHome.moveItem, { key: bed.key, x: HOME_DOOR.x, z: HOME_DOOR.z - DOOR_CLEAR, turn: 1 })).rejects.toThrow(/doorway/);
+    await expect(anna.mutation(api.worldHome.moveItem, { key: bed.key, x: BACK_DOOR.x, z: BACK_DOOR.z + 1, turn: 0 })).rejects.toThrow(/back door clear/);
     await expect(anna.mutation(api.worldHome.moveItem, { key: bed.key, x: 0, z: -4, turn: 5 })).rejects.toThrow();
   });
 

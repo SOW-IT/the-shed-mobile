@@ -17,6 +17,41 @@ All notable changes to **The SHED** mobile app. This project follows
   them. Forms opened from a page (a new event or design request, editing
   Home) get the same lift.
 
+## [2.13.12] - 2026-11-25
+
+### Added
+- **A backyard farm in the World.** Every home has a back door to a
+  backyard with 12 plots in a 3 by 4 grid. The front 4 are free; the rest
+  cost 10, 20, 40, 80, 160, 320, 640 and 1280 coins, bought in order, and
+  are the one thing you can buy from anywhere: tap a fenced plot for
+  Sijin's offer. The first visit gives you 4 lettuce seeds.
+- **Six crops.** Lettuce, carrot, strawberry, tomato, pumpkin and
+  watermelon take 1 to 7 days. Seeds cost 3 to 60 coins at Sijin's new
+  **Seeds** tab, and his **Sell** tab buys crops back for 4 to 80, or all
+  at once with **Sell all**.
+- **Watering.** Each day after planting needs one watering, any time that
+  day. Tap a thirsty plant (it has a water drop) to walk over and water it.
+  A day left dry wilts the plant: it loses a day of growing and a quarter
+  of its price, and the third wilt kills it. Ripe crops wait, with no
+  water. Visitors can water your plants, and the plot shows who did.
+- **The Bag** in the World menu holds your seeds and crops, stacked by how
+  often they wilted.
+- **Farm reminders.** One push at 6 pm Sydney time when something needs
+  water or is ready to harvest, at most once a day. Turn it off in World
+  Settings.
+- **Crops grow a little more every few hours**, with a new look each day:
+  watermelon goes from sprout to vine, leaves, a yellow flower and a small
+  striped melon to a big one; tomatoes flower, then go green, then red.
+  Seeds look like each crop's real seeds. Planting pats a seed into the
+  soil, watering tips a can over the plant and darkens the soil, and a
+  harvest pops the crop up and into the Bag with a "+1" chip. With Reduce
+  Motion or battery saver they change at once.
+
+### Removed
+- **The World's list view.** The World is always drawn now, also offline
+  and with VoiceOver; the plots, the back door, Sijin and people have
+  screen reader labels.
+
 ## [2.13.11] - 2026-11-25
 
 ### Fixed

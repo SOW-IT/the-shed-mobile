@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { DOOR_CLEAR, FURNITURE, FURNITURE_IDS, HOME_DOOR, fitInRoom, footprint, homeObstacles, ownedLeft, placementProblem, wallpaperOr } from "./home";
+import { BACK_DOOR, blocksBackDoor, DOOR_CLEAR, FURNITURE, FURNITURE_IDS, HOME_DOOR, fitInRoom, footprint, homeObstacles, ownedLeft, placementProblem, wallpaperOr } from "./home";
 import { halfWidthAt, WALK_BOUNDS } from "./world";
 
 describe("placing furniture", () => {
@@ -40,6 +40,22 @@ describe("placing furniture", () => {
         expect(placementProblem("bed", spot!.x, spot!.z, turn)).toBeNull();
       }
     }
+  });
+
+  test("fitting keeps the back door clear too", () => {
+    for (const turn of [0, 1] as const) {
+      const spot = fitInRoom("sofa", BACK_DOOR.x, BACK_DOOR.z, turn);
+      expect(spot).not.toBeNull();
+      expect(blocksBackDoor("sofa", spot!.x, spot!.z, turn)).toBe(false);
+    }
+  });
+
+  test("something already in the back doorway doesn't block the way out", () => {
+    const placed = [
+      { key: "door", item: "sofa", x: BACK_DOOR.x, z: BACK_DOOR.z, turn: 0 },
+      { key: "side", item: "sofa", x: 2.6, z: BACK_DOOR.z, turn: 1 },
+    ];
+    expect(homeObstacles(placed).map((o) => o.id)).toEqual(["side"]);
   });
 
   test("solid things block walking, rugs don't", () => {
