@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
-import { GAME_IDS, PLAYING_BEAT_MS, PLAYING_SCAN, PLAYING_SHOWN, PLAYING_TTL_MS } from "../shared/games";
+import { GAME_IDS, PLAYING_BEAT_MS, PLAYING_READ_LIMIT, PLAYING_SCAN, PLAYING_SHOWN, PLAYING_TTL_MS } from "../shared/games";
 import { withHeight } from "../shared/world";
 import { gameIdValidator } from "./gameScoreData";
 import { nameFor } from "./gameScores";
@@ -100,20 +100,29 @@ export const nowPlaying = query({
     const isBlocked = await loadBlockFilter(ctx, email);
     const result = [];
     for (const game of GAME_IDS) {
-      const rows = await ctx.db
+      // Newest first, reading on past rows the viewer can't see, so a run of
+      // them never hides someone older; bounded by PLAYING_READ_LIMIT.
+      const others = [];
+      let read = 0;
+      let more = false;
+      for await (const row of ctx.db
         .query("gamePlayers")
         .withIndex("by_game_and_since", (q) => q.eq("game", game))
-        .order("desc")
-        .take(PLAYING_SCAN);
-      const others = [];
-      for (const row of rows) if (row.email !== email && !(await isBlocked(row.email))) others.push(row);
+        .order("desc")) {
+        if (others.length >= PLAYING_SCAN || read >= PLAYING_READ_LIMIT) {
+          more = true;
+          break;
+        }
+        read++;
+        if (row.email !== email && !(await isBlocked(row.email))) others.push(row);
+      }
       if (others.length === 0) continue;
       const players: { id: Id<"gamePlayers">; name: string; look: typeof worldLookValidator.type | null }[] = [];
       for (const row of others.slice(0, PLAYING_SHOWN)) {
         const saved = await ctx.db.query("worldLooks").withIndex("by_email", (q) => q.eq("email", row.email)).unique();
         players.push({ id: row._id, name: row.name, look: saved ? withHeight(saved.look, row.email) : null });
       }
-      result.push({ game, count: others.length, more: rows.length === PLAYING_SCAN, players });
+      result.push({ game, count: others.length, more, players });
     }
     return result;
   },

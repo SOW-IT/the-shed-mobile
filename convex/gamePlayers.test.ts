@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { asUser, newConvex, type T } from "../test/convexFixture";
-import { PLAYING_BEAT_MS, PLAYING_SCAN, PLAYING_SHOWN, PLAYING_TTL_MS } from "../shared/games";
+import { PLAYING_BEAT_MS, PLAYING_READ_LIMIT, PLAYING_SCAN, PLAYING_SHOWN, PLAYING_TTL_MS } from "../shared/games";
 import { withHeight } from "../shared/world";
 import { BLOCKED_BY_SCAN } from "./world";
 
@@ -202,12 +202,51 @@ describe("nowPlaying", () => {
   test("says when there are more than it read", async () => {
     const t = newConvex();
     await t.run(async (ctx) => {
-      for (let i = 0; i < PLAYING_SCAN; i++) {
+      for (let i = 0; i <= PLAYING_SCAN; i++) {
         await ctx.db.insert("gamePlayers", { email: `p${i}@sow.org.au`, game: "flappy", name: `P${i}`, since: i });
       }
     });
     const [flappy] = await asUser(t, ANNA).query(api.gamePlayers.nowPlaying, {});
     expect(flappy).toMatchObject({ count: PLAYING_SCAN, more: true });
+  });
+
+  test("exactly the limit is counted in full, with no \"+\"", async () => {
+    const t = newConvex();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < PLAYING_SCAN; i++) {
+        await ctx.db.insert("gamePlayers", { email: `p${i}@sow.org.au`, game: "flappy", name: `P${i}`, since: i });
+      }
+    });
+    const [flappy] = await asUser(t, ANNA).query(api.gamePlayers.nowPlaying, {});
+    expect(flappy).toMatchObject({ count: PLAYING_SCAN, more: false });
+  });
+
+  test("reads past a run of people you've blocked to find someone older who's playing", async () => {
+    const t = newConvex();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("gamePlayers", { email: BEN, game: "glider", name: "Ben Cho", since: 1 });
+      for (let i = 0; i < PLAYING_SCAN + 5; i++) {
+        const blocked = `b${i}@sow.org.au`;
+        await ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: blocked, blockedName: `B${i}` });
+        await ctx.db.insert("gamePlayers", { email: blocked, game: "glider", name: `B${i}`, since: 100 + i });
+      }
+    });
+    const seen = await asUser(t, ANNA).query(api.gamePlayers.nowPlaying, {});
+    expect(seen).toMatchObject([{ game: "glider", count: 1, more: false, players: [{ name: "Ben Cho" }] }]);
+  });
+
+  test("stops at the read limit: past 500 rows nobody can see, an older player stays unread", async () => {
+    const t = newConvex();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("gamePlayers", { email: BEN, game: "glider", name: "Ben Cho", since: 1 });
+      for (let i = 0; i < PLAYING_READ_LIMIT; i++) {
+        await ctx.db.insert("gamePlayers", { email: `x${i}@sow.org.au`, game: "glider", name: `X${i}`, since: 100 + i });
+        await ctx.db.insert("worldBlocks", { email: `x${i}@sow.org.au`, blockedEmail: ANNA, blockedName: "Anna" });
+      }
+    });
+    const [glider] = await asUser(t, ANNA).query(api.gamePlayers.nowPlaying, {});
+    expect(glider).toBeUndefined();
+    expect(await asUser(t, CARA).query(api.gamePlayers.nowPlaying, {})).toMatchObject([{ game: "glider", count: PLAYING_SCAN, more: true }]);
   });
 
   test("still hides someone who blocked you when more people block you than the World reads at once", async () => {

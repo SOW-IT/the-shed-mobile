@@ -194,8 +194,13 @@ export const PLAYING_BEAT_MS = 20_000;
 export const PLAYING_TTL_MS = 60_000;
 /** Faces shown on a game's row; past this the row gives a count. */
 export const PLAYING_SHOWN = 3;
-/** The most players read for one game; a count past it says "+". */
+/** The most players counted for one game; a count past it says "+". */
 export const PLAYING_SCAN = 50;
+/**
+ * The most rows read for one game, going past people the viewer can't see
+ * (themselves, or blocked either way) to find ones they can.
+ */
+export const PLAYING_READ_LIMIT = 500;
 
 /**
  * The line under a game's row: "Anna B. is playing", "Anna B. and Ben C.
