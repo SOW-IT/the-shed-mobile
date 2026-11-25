@@ -133,3 +133,11 @@ export const compactAgo = (ms: number, now: number = Date.now()): string => {
   if (days < 7) return `${days}d`;
   return shortDate(ms);
 };
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export const dayMonthLabel = (ms: number, now: number = Date.now()): string => {
+  const date = new Date(ms);
+  const label = `${date.getDate()} ${MONTH_NAMES[date.getMonth()]}`;
+  return date.getFullYear() === new Date(now).getFullYear() ? label : `${label} ${date.getFullYear()}`;
+};

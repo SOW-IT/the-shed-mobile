@@ -1,5 +1,5 @@
-import { DevotionalHistoryScreen } from "@/components/devotionals/DevotionalHistoryScreen";
+import { DevotionalsScreen } from "@/components/devotionals/DevotionalsScreen";
 
 export default function DevotionalsPage() {
-  return <DevotionalHistoryScreen />;
+  return <DevotionalsScreen />;
 }

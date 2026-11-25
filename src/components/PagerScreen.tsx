@@ -105,6 +105,8 @@ export const PagerScreen = ({
   floatingAboveFooter = false,
   fullWidth = false,
   onBack,
+  title,
+  topBarRight,
 }: {
   tabs: PagerTab[];
   activeKey: string;
@@ -117,6 +119,8 @@ export const PagerScreen = ({
   floatingAboveFooter?: boolean;
   fullWidth?: boolean;
   onBack?: () => void;
+  title?: ReactNode;
+  topBarRight?: ReactNode;
 }) => {
   const t = useAppTheme();
   const wide = useWideLayout();
@@ -402,7 +406,13 @@ export const PagerScreen = ({
               ) : null
             ) : (
               <Animated.View style={[styles.topBarWrap, barOpacityStyle]}>
-                <TopBar photo={me?.photo ?? null} name={me?.name ?? null} onBack={onBack} />
+                <TopBar
+                  photo={me?.photo ?? null}
+                  name={me?.name ?? null}
+                  title={title}
+                  right={topBarRight}
+                  onBack={onBack}
+                />
               </Animated.View>
             )}
             <View

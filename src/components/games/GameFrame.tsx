@@ -195,6 +195,8 @@ export const GameFrame = ({
   startExtra = null,
   overDetail = null,
   statusBar = "auto",
+  titleExtra = null,
+  underBar = null,
   children,
 }: {
   game: GameId;
@@ -231,6 +233,8 @@ export const GameFrame = ({
   overDetail?: string | null;
   /** The status bar's content, for a scene whose sky turns dark. */
   statusBar?: "auto" | "light" | "dark";
+  titleExtra?: ReactNode;
+  underBar?: ReactNode;
   children: ReactNode;
 }) => {
   const { isAuthenticated } = useConvexAuth();
@@ -326,12 +330,16 @@ export const GameFrame = ({
         >
           <Ionicons name="chevron-back" size={24} color={g.text} />
         </Pressable>
-        <Text style={[styles.title, { color: ink }]} numberOfLines={1}>
-          {info.title}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: ink }]} numberOfLines={1}>
+            {info.title}
+          </Text>
+          {titleExtra}
+        </View>
         <Stat label="Score" value={score} ink={ink} />
         <Stat label="Best" value={Math.max(best, result?.score ?? 0)} ink={ink} />
       </View>
+      {underBar}
       <View style={styles.stage} onLayout={onLayout} {...stageHandlers}>
         {board ? (
           <View
@@ -449,7 +457,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: g.panel,
   },
-  title: { ...typography.headline, flex: 1 },
+  titleRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  title: { ...typography.headline, flexShrink: 1 },
   stat: { alignItems: "flex-end", minWidth: 56 },
   statLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, opacity: 0.75, textTransform: "uppercase" },
   statValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 24 },

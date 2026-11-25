@@ -12,6 +12,7 @@ import {
 } from "./_generated/server";
 import { APPLE_FALLBACK_NAME } from "./appleIdentity";
 import { revokeAppleTokens } from "./appleRevoke";
+import { deleteGroupData } from "./devotionalGroups";
 import { isOrgEmail } from "./model";
 import { removeFromWorld } from "./world";
 import { typedMatches } from "../shared/typedConfirm";
@@ -168,6 +169,44 @@ async function deleteByEmail(
     await deleteBatch(
       await ctx.db.query("devotionals").withIndex("by_email_and_date", (q) => q.eq("email", email)).take(WIPE_BATCH),
       (row) => ctx.db.delete("devotionals", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db
+        .query("devotionalSharingSettings")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .take(WIPE_BATCH),
+      (row) => ctx.db.delete("devotionalSharingSettings", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db
+        .query("devotionalReminderLogs")
+        .withIndex("by_email_and_date", (q) => q.eq("email", email))
+        .take(WIPE_BATCH),
+      (row) => ctx.db.delete("devotionalReminderLogs", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db
+        .query("devotionalGroups")
+        .withIndex("by_ownerEmail", (q) => q.eq("ownerEmail", email))
+        .take(WIPE_BATCH),
+      (group) => deleteGroupData(ctx, group, "later")
+    ),
+    await deleteBatch(
+      await ctx.db
+        .query("devotionalGroupMembers")
+        .withIndex("by_email_and_status_and_groupEndDate", (q) => q.eq("email", email))
+        .take(WIPE_BATCH),
+      async (row) => {
+        if (row.status === "member") {
+          const group = await ctx.db.get("devotionalGroups", row.groupId);
+          if (group) {
+            await ctx.db.patch("devotionalGroups", group._id, {
+              memberCount: Math.max(1, group.memberCount - 1),
+            });
+          }
+        }
+        await ctx.db.delete("devotionalGroupMembers", row._id);
+      }
     ),
   ];
   if (includeGuestData) {

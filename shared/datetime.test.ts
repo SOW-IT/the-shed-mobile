@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addDaysToDateInputValue,
   compactAgo,
+  dayMonthLabel,
   shortDate,
   daysSince,
   formatDuration,
@@ -241,5 +242,23 @@ describe("timeAgo", () => {
     expect(agoBy(35 * DAY)).toBe("1mo ago");
     expect(agoBy(359 * DAY)).toBe("11mo ago");
     expect(agoBy(360 * DAY)).toBe("1y ago");
+  });
+});
+
+describe("dayMonthLabel", () => {
+  const now = new Date(2026, 10, 25, 9, 0).getTime();
+
+  it("is the day and month this year", () => {
+    expect(dayMonthLabel(new Date(2026, 10, 24, 18, 30).getTime(), now)).toBe("24 Nov");
+    expect(dayMonthLabel(new Date(2026, 0, 1, 0, 0).getTime(), now)).toBe("1 Jan");
+  });
+
+  it("adds the year for an earlier year", () => {
+    expect(dayMonthLabel(new Date(2025, 10, 24, 12, 0).getTime(), now)).toBe("24 Nov 2025");
+    expect(dayMonthLabel(new Date(2025, 11, 31, 23, 59).getTime(), now)).toBe("31 Dec 2025");
+  });
+
+  it("defaults to today's year", () => {
+    expect(dayMonthLabel(Date.now())).toMatch(/^\d{1,2} [A-Z][a-z]{2}$/);
   });
 });
