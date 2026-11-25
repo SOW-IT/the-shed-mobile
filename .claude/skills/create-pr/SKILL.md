@@ -204,7 +204,8 @@ npx --yes netlify-cli deploy \
 ## 8. Shepherd it
 
 Follow the `pr-shepherd` skill until the PR is ready (CI and verify green;
-a CodeRabbit review only when the PR is big, see AGENTS.md), then report.
+for a big PR, a note that it needs a CodeRabbit review, which the
+orchestrator requests; never post `@coderabbitai` yourself), then report.
 
 ## 9. Report back
 

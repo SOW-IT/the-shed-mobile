@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.52] - 2026-11-25
+
+### Changed
+- **Agent sessions no longer ask CodeRabbit for reviews.** The pr-shepherd
+  skill, AGENTS.md and `scripts/pr-status.mjs` now say a big PR needs a
+  CodeRabbit review and leave the request to the orchestrator, which owns the
+  one review an hour. `pr-status` reports `reviewNeeded` and no longer holds
+  a PR back for it, and its rate-limit line no longer says to ask again.
+
 ## [2.12.55] - 2026-11-25
 
 ### Fixed

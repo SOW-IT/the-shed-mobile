@@ -27,7 +27,8 @@ changes the fingerprint.
 ## Every PR is shepherded to green
 
 After opening a PR, follow `.claude/skills/pr-shepherd/SKILL.md`: fix CI at
-the root, answer every CodeRabbit comment, wait out its rate limit, rerun
+the root, answer every CodeRabbit comment (never request a review: the
+orchestrator does, and a big PR's report just says one is needed), rerun
 `node scripts/verify.mjs` after each round, then mark the PR ready with a
 change report (summary, verification results, before and after
 screenshots). Never merge or deploy.

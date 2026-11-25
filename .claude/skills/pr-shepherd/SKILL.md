@@ -3,8 +3,8 @@ name: pr-shepherd
 description: >-
   Drive an open PR of The Shed Mobile to green before handing it over: watch
   CI and fix failures at the root, work through every CodeRabbit comment
-  (fix, or reply with the reason and resolve), request a CodeRabbit review
-  only for a big PR (see AGENTS.md), rerun verification after every round,
+  (fix, or reply with the reason and resolve), report when a big PR needs a
+  CodeRabbit review (never request one), rerun verification after every round,
   then update the PR's change report and mark it ready. Use after opening a
   PR (create-pr), or when asked to babysit, shepherd or get a PR green.
 ---
@@ -26,22 +26,27 @@ It reports failed and running checks with links, whether CodeRabbit is rate
 limited and until when, whether it skipped the review and why, and every
 unresolved CodeRabbit thread with its id. It also says whether the PR is big
 enough to need a CodeRabbit review (below), and if so whether a review
-covers the head. It also lists the review bodies
+covers the head ("CodeRabbit review needed" when none does). It also lists the review bodies
 that hold findings outside the diff, which have no thread to resolve. Once
 you've dealt with those, pass the review ids:
 `node scripts/pr-status.mjs <number> --ack <id>,<id>`. Nothing remembers an
 ack, so pass the same ids on every later call.
 
-## Before the loop: CodeRabbit is manual, and only for big PRs
+## Before the loop: never request CodeRabbit yourself
 
-Automatic reviews are off (`.coderabbit.yaml`). Comment
-`@coderabbitai review` only when the PR is **big** (the threshold in
-`AGENTS.md`: more than 300 lines of app or Convex code, or it touches the
-schema, data deletion or migration, auth or permissions, or notification
-sending). Never request a review on any other PR. A commit that only merges
-`main` in cleanly, without conflicts and without `main` changing the same
-files or functions as the PR, does not need a new review. If CodeRabbit
-already left threads, still fix or reply and resolve them.
+Automatic reviews are off (`.coderabbit.yaml`), and CodeRabbit gives this
+account one review an hour. The orchestrator owns that slot: it decides
+which PR gets it and posts the request. **Never comment `@coderabbitai`**
+(not `review`, not `full review`, not in a status note). Requests from
+several sessions only got refused and pushed everyone's reviews back.
+
+What you do instead: when `pr-status` says "CodeRabbit review needed" (a
+**big** PR, by the threshold in `AGENTS.md`, whose head no review covers),
+say so in the PR's change report under "Not verified", with the reason
+`pr-status` gives. A commit that only merges `main` in cleanly keeps an
+earlier review. When CodeRabbit's threads or review bodies arrive (the
+orchestrator may post its own review threads too), fix or reply and
+resolve every one as in step 2.
 
 `pr-status` applies this rule (`scripts/lib/coderabbitGate.mjs`):
 
@@ -58,12 +63,12 @@ already left threads, still fix or reply and resolve them.
 - The rules go by path, so they can be wrong. If your reading of AGENTS.md
   differs, pass `--big` or `--not-big`, and say why in the PR.
 
-Other skip rules still apply when you do request a review:
+Keep a big PR reviewable:
 
-- **More than 100 files**: the free plan refuses. Split the PR into a stack
-  of smaller ones (each under 100 files against its base) before going on.
-  Splitting it later throws away reviews you've already had.
-- A request after a push covers only the new commits.
+- **More than 100 files**: CodeRabbit's free plan refuses. Split the PR into
+  a stack of smaller ones (each under 100 files against its base) before
+  going on. Splitting it later throws away reviews already had.
+- A review after a push covers only the new commits.
 - This repository rejects force-pushes on every branch. Don't rebase a pushed
   branch. To bring a stacked PR up to date with its base, merge the base into
   it (`git merge <base>`, or `git merge-tree` plus `git commit-tree` if a run
@@ -72,8 +77,9 @@ Other skip rules still apply when you do request a review:
 ## The loop
 
 Repeat until `pr-status` exits 0 and the verification gate passes.
-`pr-status` exit 0 means CI is green, no CodeRabbit threads are open, and,
-for a big PR, a CodeRabbit review covers the head.
+`pr-status` exit 0 means CI is green and no CodeRabbit threads or unread
+review bodies are open. It can still say a CodeRabbit review is needed;
+that is the orchestrator's to request.
 
 1. **CI.** `gh pr checks <number> --watch`. For each failure, read
    `gh run view <run-id> --log-failed`, reproduce it locally, and fix the
@@ -92,23 +98,17 @@ for a big PR, a CodeRabbit review covers the head.
    `node scripts/verify.mjs --publish` (the `verify` skill), which also runs
    lint, knip, typecheck and the unit tests. Refresh the screenshots in the
    PR body if the screens changed.
-4. **Push.** Run `pr-status` again. Comment `@coderabbitai review` only
-   when it says a review is required and not covered. It stays covered
-   after a clean merge of `main`.
-5. **Rate limit** (big PRs only). If `pr-status` says CodeRabbit is rate
-   limited, it gives the time to ask again. CodeRabbit's notice says "Next
-   included review available in N minutes", and `pr-status` assumes 60
-   minutes when the notice has no number. Wait until then in real time,
-   using one scheduled wakeup or a single sleep (never a poll every few
-   seconds). Then comment `@coderabbitai review` and continue from step 2.
+4. **Push.** Run `pr-status` again. If it says a CodeRabbit review is
+   needed, note it for the report and carry on; don't request it. A rate
+   limit it reports is the orchestrator's to wait out, not yours.
 
 Stop after two honest attempts at the same failure. Write the blocker at the
 top of the report and hand over. Don't keep pushing guesses.
 
 ## Done
 
-When `pr-status` exits 0 (CI green, no CodeRabbit threads open, and for a
-big PR a review covering the head) and the gate passed:
+When `pr-status` exits 0 (CI green, no CodeRabbit threads open) and the gate
+passed:
 
 1. Rewrite the PR description as the change report (template below).
 2. `gh pr ready <number>`.
@@ -136,5 +136,7 @@ before and after)
 - CodeRabbit: each accepted comment and its fix; each declined one and why
 
 ## Not verified
-What the route flows don't drive, and how it was checked instead.
+What the route flows don't drive, and how it was checked instead. For a big
+PR that `pr-status` says still needs one: "CodeRabbit review needed (big PR:
+<reason>); left to the orchestrator."
 ```

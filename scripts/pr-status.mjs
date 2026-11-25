@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Where a PR stands for the pr-shepherd loop:
 //   node scripts/pr-status.mjs <number> [--json] [--ack <id>,...] [--big | --not-big]
-// Exit 0 when CI is green, no CodeRabbit thread is open, and a big PR's app
-// and Convex changes have had a CodeRabbit review (scripts/lib/coderabbitGate.mjs);
-// 1 otherwise.
+// Exit 0 when CI is green and no CodeRabbit thread is open; 1 otherwise. It
+// also says whether a big PR still needs a CodeRabbit review
+// (scripts/lib/coderabbitGate.mjs). Sessions never request one: the
+// orchestrator owns CodeRabbit's hourly slot, so this only reports it.
 import { execFileSync } from "node:child_process";
 import { assessSize, coveringReview } from "./lib/coderabbitGate.mjs";
 
@@ -115,7 +116,9 @@ const coderabbit = {
   coveredBy: covered && { commit: covered.commit.slice(0, 7), how: covered.how },
   openThreads,
 };
-const reviewOwed = size.big && !covered;
+// A big PR whose head no review covers. Reported, never requested from here.
+const reviewNeeded = size.big && !covered;
+coderabbit.reviewNeeded = reviewNeeded;
 
 const status = { url: pr.url, state: pr.state, draft: pr.isDraft, head: pr.headRefOid.slice(0, 7), changedFiles: pr.changedFiles, checks: { failed, pending, total: checks.length }, coderabbit };
 // Findings outside the diff live only in a review body, with no thread to
@@ -131,7 +134,7 @@ const bodyFindings = reviews
 const unreadBodies = bodyFindings.filter((r) => r.outsideDiff > 0 && !acked.has(r.id));
 coderabbit.bodyFindings = bodyFindings;
 
-const done = !reviewOwed && unreadBodies.length === 0 && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0;
+const done = unreadBodies.length === 0 && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0;
 
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ ...status, done }, null, 2));
@@ -140,7 +143,7 @@ if (process.argv.includes("--json")) {
   console.log(`CI: ${checks.length - failed.length - pending.length}/${checks.length} passed, ${pending.length} running, ${failed.length} failed${checks.length === 0 ? " (no checks yet)" : ""}`);
   for (const c of failed) console.log(`  ✘ ${c.name}: ${c.url}`);
   if (skipped) console.log(`CodeRabbit skipped the review: ${skipped}`);
-  if (limited) console.log(`CodeRabbit is rate limited; ask again after ${coderabbit.rateLimited.retryAfter} with "@coderabbitai review"`);
+  if (limited) console.log(`CodeRabbit is rate limited until ${coderabbit.rateLimited.retryAfter} (the orchestrator requests reviews; don't ask)`);
   console.log(`CodeRabbit: ${reviewedHead ? "has reviewed" : "has not reviewed"} head ${status.head}; ${openThreads.length} open thread(s)`);
   const why = size.reasons.length > 0 ? size.reasons.join("; ") : `${size.lines} changed lines of app or Convex code, nothing sensitive`;
   if (!size.big) console.log(`  review not required: not a big PR (${why})`);
@@ -150,8 +153,8 @@ if (process.argv.includes("--json")) {
   for (const r of bodyFindings) {
     console.log(`  review ${r.id} (on ${r.commit}): ${r.outsideDiff} outside-diff, ${r.nitpicks} nitpick finding(s) in its body${acked.has(r.id) ? " (acknowledged)" : r.outsideDiff ? "; read them, then pass --ack " + r.id : ""}`);
   }
-  if (reviewOwed && !limited && !skipped) console.log('  request "@coderabbitai review" (one request at a time across PRs; see AGENTS.md)');
+  if (reviewNeeded) console.log("  CodeRabbit review needed: say so in the PR; the orchestrator requests it (never post a request yourself)");
   for (const t of openThreads) console.log(`  ${t.outdated ? "(outdated) " : ""}${t.repliedByUs ? "(replied) " : ""}${t.where} ${t.summary.slice(0, 100)}\n    ${t.url}\n    thread ${t.id}`);
-  console.log(done ? `DONE: CI green, nothing open from CodeRabbit${size.big ? ", review covers the head" : ""}` : "NOT DONE");
+  console.log(done ? `DONE: CI green, nothing open from CodeRabbit${reviewNeeded ? "; a CodeRabbit review is still needed (the orchestrator's)" : ""}` : "NOT DONE");
 }
 process.exit(done ? 0 : 1);

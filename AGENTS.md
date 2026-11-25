@@ -53,24 +53,28 @@ Head, and a Budget Manager (Admin → "Other"; picker lists Finance members only
    Netlify HTML explainer (with before/after screenshots when visible) to the
    PR description.
 4. **Shepherd the PR** per `.claude/skills/pr-shepherd/SKILL.md` until CI
-   and `verify` are green, and for a big PR (see CodeRabbit reviews below)
-   CodeRabbit has reviewed the head with nothing left open, then mark it
-   ready. `node scripts/pr-status.mjs <number>` says where it stands.
+   and `verify` are green with no CodeRabbit thread left open, then mark it
+   ready; for a big PR, say in the report that it needs a CodeRabbit review
+   (see CodeRabbit reviews below). `node scripts/pr-status.mjs <number>`
+   says where it stands.
 
 ## CodeRabbit reviews
 
-Automatic CodeRabbit reviews are off. Comment `@coderabbitai review` only
-when the PR is **big**:
+Automatic CodeRabbit reviews are off, and the orchestrator owns the one
+review an hour the account gets. **Never comment `@coderabbitai` yourself.**
+A PR needs a review when it is **big**:
 
 - more than 300 changed lines in app source or Convex code, not counting
   tests, scripts, docs, config, or pure moves, or
 - it touches the Convex schema, data deletion or migration, auth or
   permissions, or push or email notification sending.
 
-Do not request a review on any other PR. A commit that only merges `main`
-in cleanly, without conflicts and without `main` changing the same files or
-functions as the PR, does not need a new review. Non-big PRs are ready once
-CI and `verify` are green and no CodeRabbit threads are left open.
+For a big PR, `node scripts/pr-status.mjs` says "CodeRabbit review needed";
+write that in the PR's report and leave the request to the orchestrator. A
+commit that only merges `main` in cleanly, without conflicts and without
+`main` changing the same files or functions as the PR, does not need a new
+review. A PR is ready once CI and `verify` are green and no CodeRabbit
+threads are left open.
 
 ## This Mac
 
