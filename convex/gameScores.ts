@@ -7,7 +7,7 @@ import { PLACE_COINS } from "../shared/coins";
 import { awardPlace, paidForRun, type RunPayout } from "./coins";
 import { gameIdValidator } from "./gameScoreData";
 import { beatenInTop, beatenPush } from "../shared/leaderboard";
-import { fullName } from "../shared/names";
+import { accountName, fullName } from "../shared/names";
 import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
 
 export const LEADERBOARD_SIZE = 10;
@@ -114,7 +114,7 @@ const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
     .query("users")
     .withIndex("email", (q) => q.eq("email", email))
     .first();
-  return user?.name?.trim() || email.split("@")[0];
+  return accountName(user?.name, email);
 };
 
 const meValidator = v.union(v.null(), v.object({ score: v.number(), rank: v.union(v.number(), v.null()) }));
