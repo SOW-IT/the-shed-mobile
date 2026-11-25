@@ -12,7 +12,7 @@ import {
 } from "./_generated/server";
 import { APPLE_FALLBACK_NAME } from "./appleIdentity";
 import { revokeAppleTokens } from "./appleRevoke";
-import { markGroupNotificationsRead } from "./devotionalGroups";
+import { deleteGroupData } from "./devotionalGroups";
 import { isOrgEmail } from "./model";
 import { removeFromWorld } from "./world";
 import { typedMatches } from "../shared/typedConfirm";
@@ -189,22 +189,12 @@ async function deleteByEmail(
         .query("devotionalGroups")
         .withIndex("by_ownerEmail", (q) => q.eq("ownerEmail", email))
         .take(WIPE_BATCH),
-      async (group) => {
-        const members = await ctx.db
-          .query("devotionalGroupMembers")
-          .withIndex("by_groupId_and_status", (q) => q.eq("groupId", group._id))
-          .take(WIPE_BATCH);
-        for (const m of members) {
-          if (m.status === "invited") await markGroupNotificationsRead(ctx, m.email, group._id);
-          await ctx.db.delete("devotionalGroupMembers", m._id);
-        }
-        await ctx.db.delete("devotionalGroups", group._id);
-      }
+      (group) => deleteGroupData(ctx, group)
     ),
     await deleteBatch(
       await ctx.db
         .query("devotionalGroupMembers")
-        .withIndex("by_email_and_status", (q) => q.eq("email", email))
+        .withIndex("by_email_and_status_and_groupEndDate", (q) => q.eq("email", email))
         .take(WIPE_BATCH),
       async (row) => {
         if (row.status === "member") {

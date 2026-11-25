@@ -153,6 +153,7 @@ const RootStack = () => {
             <Stack.Screen name="world" />
             <Stack.Screen name="world-calendar" />
             <Stack.Screen name="world-praise" />
+            <Stack.Screen name="world-devotionals" />
             <Stack.Screen name="devotionals/[date]" />
             <Stack.Screen name="devotionals/groups/[id]" />
             <Stack.Screen name="games/index" />

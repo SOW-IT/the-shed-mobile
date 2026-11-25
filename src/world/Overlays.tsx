@@ -285,7 +285,7 @@ export const DevotionalPromptDialog = ({
           <Text style={styles.dialogTitle} accessibilityRole="header">
             Daily devotional
           </Text>
-          <Text style={styles.dialogText}>Open today&apos;s private devotional?</Text>
+          <Text style={styles.dialogText}>Open your devotionals?</Text>
         </Animated.View>
         <Animated.View style={[styles.dialogButtons, itemStyle(overlay, 2)]}>
           <Pressable

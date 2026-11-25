@@ -648,9 +648,9 @@ describe("devotional groups", () => {
     ]);
 
     const annaSummary = await anna.query(api.devotionalGroups.mySummary, { today: "2026-11-25" });
-    expect(annaSummary.groups.map((g) => g.name)).toEqual(["Alpha Group", "Zeta Group"]);
-    expect(annaSummary.groups[0].todayDone).toBeNull();
-    expect(annaSummary.groups[1].todayDone).toBe(0);
+    expect(annaSummary.groups.map((g) => g.name)).toEqual(["Zeta Group", "Alpha Group"]);
+    expect(annaSummary.groups[0].todayDone).toBe(0);
+    expect(annaSummary.groups[1].todayDone).toBeNull();
     expect(annaSummary.defaultGroupLevel).toBe("everything");
 
     const invalidDateSummary = await anna.query(api.devotionalGroups.mySummary, { today: "bad" });
@@ -1072,5 +1072,223 @@ describe("late joiners share from the day they join", () => {
     });
     const progress = await ben.query(api.devotionalGroups.monthProgress, { groupId, year: 2026, month: 11 });
     expect(progress!.dayTotals["2026-11-01"]).toBe(2);
+  });
+});
+
+describe("deleting a group", () => {
+  const setUp = async () => {
+    const t = newConvex();
+    await seedUsers(t);
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+      name: "To delete",
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+      sharingLevel: "everything",
+    });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+    await ben.mutation(api.devotionalGroups.respondInvite, { groupId, accept: true });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: CARA });
+    for (const [user, date] of [
+      [anna, "2026-11-24"],
+      [ben, "2026-11-24"],
+      [ben, "2026-11-25"],
+    ] as const) {
+      await user.mutation(api.devotionals.save, { date, passage: "John 3", notes: "Mine", prayerPoints: "", base: null });
+    }
+    await t.run(async (ctx) => {
+      await ctx.db.insert("notifications", {
+        userEmail: BEN,
+        title: "Devotional reminder",
+        body: "You haven't done today's devotional for To delete yet.",
+        url: "/devotionals/2026-11-24",
+        devotionalGroupId: groupId,
+        read: true,
+      });
+    });
+    const groupRows = () =>
+      t.run(async (ctx) => ({
+        group: await ctx.db.get("devotionalGroups", groupId),
+        members: await ctx.db
+          .query("devotionalGroupMembers")
+          .withIndex("by_groupId_and_status", (q) => q.eq("groupId", groupId))
+          .collect(),
+        notifications: await ctx.db
+          .query("notifications")
+          .withIndex("by_devotionalGroup", (q) => q.eq("devotionalGroupId", groupId))
+          .collect(),
+        devotionals: (await ctx.db.query("devotionals").collect()).map((row) => `${row.email} ${row.date}`).sort(),
+      }));
+    return { t, anna, ben, groupId, groupRows };
+  };
+
+  test("removes the group, every membership and invite, and its notifications, but no one's devotionals", async () => {
+    const { t, anna, ben, groupId, groupRows } = await setUp();
+    const before = await groupRows();
+    expect(before.members).toHaveLength(3);
+    expect(before.notifications.length).toBeGreaterThanOrEqual(3);
+
+    await anna.mutation(api.devotionalGroups.removeGroup, { groupId });
+
+    const after = await groupRows();
+    expect(after.group).toBeNull();
+    expect(after.members).toEqual([]);
+    expect(after.notifications).toEqual([]);
+    expect(after.devotionals).toEqual(before.devotionals);
+    expect(after.devotionals).toEqual([`${ANNA} 2026-11-24`, `${BEN} 2026-11-24`, `${BEN} 2026-11-25`]);
+    expect((await ben.query(api.devotionalGroups.mySummary, { today: "2026-11-25" })).groups).toEqual([]);
+    expect(await ben.query(api.devotionalGroups.getGroup, { groupId, today: "2026-11-25" })).toBeNull();
+    expect((await asUser(t, CARA).query(api.devotionalGroups.mySummary, { today: "2026-11-25" })).invites).toEqual([]);
+  });
+
+  test("only the owner can delete; members and invitees are refused and nothing changes", async () => {
+    const { t, ben, groupId, groupRows } = await setUp();
+    const before = await groupRows();
+    await expect(ben.mutation(api.devotionalGroups.removeGroup, { groupId })).rejects.toThrow(/Only the group owner/);
+    await expect(asUser(t, CARA).mutation(api.devotionalGroups.removeGroup, { groupId })).rejects.toThrow(/Only the group owner/);
+    await expect(asUser(t, DAN).mutation(api.devotionalGroups.removeGroup, { groupId })).rejects.toThrow(/Only the group owner/);
+    await expect(t.mutation(api.devotionalGroups.removeGroup, { groupId })).rejects.toThrow(/signed in/);
+    expect(await groupRows()).toEqual(before);
+  });
+
+  test("a group with more notifications than one batch finishes clearing them in the background", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const { t, anna, groupId, groupRows } = await setUp();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 450; i++) {
+        await ctx.db.insert("notifications", {
+          userEmail: BEN,
+          title: "Devotional reminder",
+          body: "Old reminder",
+          devotionalGroupId: groupId,
+          read: true,
+        });
+      }
+    });
+    await anna.mutation(api.devotionalGroups.removeGroup, { groupId });
+    expect((await groupRows()).notifications.length).toBeGreaterThan(0);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await groupRows()).notifications).toEqual([]);
+  });
+});
+
+describe("past groups", () => {
+  const groupFor = async (user: ReturnType<typeof asUser>, name: string, startDate: string, endDate: string) =>
+    (await user.mutation(api.devotionalGroups.create, { name, startDate, endDate, sharingLevel: "count" })).groupId;
+
+  test("current and upcoming groups come first; ended ones page newest first, ten at a time", async () => {
+    const t = newConvex();
+    await seedUsers(t);
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    for (let i = 1; i <= 12; i++) {
+      const month = String(i <= 9 ? i : 10).padStart(2, "0");
+      await groupFor(anna, `Past ${String(i).padStart(2, "0")}`, `2026-${month}-01`, `2026-${month}-${String(10 + i).padStart(2, "0")}`);
+    }
+    await groupFor(anna, "Upcoming", "2027-01-01", "2027-01-31");
+    await groupFor(anna, "Now", "2026-11-20", "2026-12-20");
+    await groupFor(anna, "Ends today", "2026-11-01", "2026-11-25");
+    const benPast = await groupFor(ben, "Ben's past", "2026-01-01", "2026-01-31");
+
+    const summary = await anna.query(api.devotionalGroups.mySummary, { today: "2026-11-25" });
+    expect(summary.groups.map((g) => g.name)).toEqual(["Ends today", "Now", "Upcoming"]);
+
+    const first = await anna.query(api.devotionalGroups.pastGroups, {
+      today: "2026-11-25",
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(first.page.map((g) => g.name)).toEqual([
+      "Past 12",
+      "Past 11",
+      "Past 10",
+      "Past 09",
+      "Past 08",
+      "Past 07",
+      "Past 06",
+      "Past 05",
+      "Past 04",
+      "Past 03",
+    ]);
+    expect(first.page[0]).toMatchObject({ isOwner: true, memberCount: 1, endDate: "2026-10-22" });
+    expect(first.isDone).toBe(false);
+    const second = await anna.query(api.devotionalGroups.pastGroups, {
+      today: "2026-11-25",
+      paginationOpts: { numItems: 10, cursor: first.continueCursor },
+    });
+    expect(second.page.map((g) => g.name)).toEqual(["Past 02", "Past 01"]);
+    expect(second.isDone).toBe(true);
+
+    const benView = await ben.query(api.devotionalGroups.pastGroups, {
+      today: "2026-11-25",
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(benView.page.map((g) => g.id)).toEqual([benPast]);
+
+    expect(
+      await anna.query(api.devotionalGroups.pastGroups, { today: "bad", paginationOpts: { numItems: 10, cursor: null } })
+    ).toEqual({ page: [], isDone: true, continueCursor: "" });
+    await expect(
+      t.query(api.devotionalGroups.pastGroups, { today: "2026-11-25", paginationOpts: { numItems: 10, cursor: null } })
+    ).rejects.toThrow(/signed in/);
+  });
+
+  test("a joined member sees the group move to past, and editing the end date moves it back", async () => {
+    const t = newConvex();
+    await seedUsers(t);
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const groupId = await groupFor(anna, "October", "2026-10-01", "2026-10-31");
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+    await ben.mutation(api.devotionalGroups.respondInvite, { groupId, accept: true });
+    const pastFor = async (user: ReturnType<typeof asUser>) =>
+      (
+        await user.query(api.devotionalGroups.pastGroups, {
+          today: "2026-11-25",
+          paginationOpts: { numItems: 10, cursor: null },
+        })
+      ).page.map((g) => g.name);
+
+    expect(await pastFor(ben)).toEqual(["October"]);
+    expect((await ben.query(api.devotionalGroups.mySummary, { today: "2026-11-25" })).groups).toEqual([]);
+
+    await anna.mutation(api.devotionalGroups.update, {
+      groupId,
+      name: "October to December",
+      startDate: "2026-10-01",
+      endDate: "2026-12-31",
+      sharingLevel: "count",
+    });
+    expect(await pastFor(ben)).toEqual([]);
+    expect(await pastFor(anna)).toEqual([]);
+    expect((await ben.query(api.devotionalGroups.mySummary, { today: "2026-11-25" })).groups.map((g) => g.name)).toEqual([
+      "October to December",
+    ]);
+  });
+
+  test("memberships from before end dates were stored still land in the right list", async () => {
+    const t = newConvex();
+    await seedUsers(t);
+    const anna = asUser(t, ANNA);
+    const ended = await groupFor(anna, "Ended", "2026-09-01", "2026-09-30");
+    const running = await groupFor(anna, "Running", "2026-11-01", "2026-12-31");
+    const gone = await groupFor(anna, "Gone", "2026-08-01", "2026-08-31");
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("devotionalGroupMembers")
+        .withIndex("by_email_and_status_and_groupEndDate", (q) => q.eq("email", ANNA))
+        .collect();
+      for (const row of rows) await ctx.db.patch("devotionalGroupMembers", row._id, { groupEndDate: undefined });
+      await ctx.db.delete("devotionalGroups", gone);
+    });
+
+    const summary = await anna.query(api.devotionalGroups.mySummary, { today: "2026-11-25" });
+    expect(summary.groups.map((g) => g.id)).toEqual([running]);
+    const past = await anna.query(api.devotionalGroups.pastGroups, {
+      today: "2026-11-25",
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(past.page.map((g) => g.id)).toEqual([ended]);
   });
 });

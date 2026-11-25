@@ -29,7 +29,7 @@ import {
 import { isFutureDevotionalDate, todayDevotionalDate } from "@shared/devotionals";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -105,6 +105,18 @@ export const DevotionalGroupScreen = ({
   const removeGroup = useMutation(api.devotionalGroups.removeGroup);
   const leaveGroup = useMutation(api.devotionalGroups.leave);
   const markRead = useMutation(api.notifications.markReadForDevotionalGroup);
+
+  const seenGroup = useRef(false);
+  const left = useRef(false);
+  const leave = useCallback(() => {
+    if (left.current) return;
+    left.current = true;
+    onBack();
+  }, [onBack]);
+  useEffect(() => {
+    if (group) seenGroup.current = true;
+    else if (group === null && seenGroup.current) leave();
+  }, [group, leave]);
 
   const groupKind = group?.kind ?? null;
   useEffect(() => {
@@ -196,7 +208,7 @@ export const DevotionalGroupScreen = ({
       setResponding(true);
       try {
         await respondInvite({ groupId, accept });
-        if (!accept) onBack();
+        if (!accept) leave();
       } catch (e) {
         setError(errorMessage(e));
       } finally {
@@ -582,12 +594,12 @@ export const DevotionalGroupScreen = ({
         onDeleteGroup={async () => {
           await removeGroup({ groupId });
           setSettingsOpen(false);
-          onBack();
+          leave();
         }}
         onLeaveGroup={async () => {
           await leaveGroup({ groupId });
           setSettingsOpen(false);
-          onBack();
+          leave();
         }}
         onClose={() => setSettingsOpen(false)}
       />

@@ -7,7 +7,7 @@ import {
   SHARING_LEVEL_LABELS,
 } from "@shared/devotionalGroups";
 import { todayDevotionalDate } from "@shared/devotionals";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -16,11 +16,15 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { GroupFormSheet, type GroupFormValues } from "./GroupFormSheet";
 import { SharingSettingsSheet } from "./SharingSettingsSheet";
 
+const PAST_PAGE = 10;
+
 export const DevotionalGroupsTab = () => {
   const t = useAppTheme();
   const router = useRouter();
   const today = todayDevotionalDate();
   const summary = useQuery(api.devotionalGroups.mySummary, { today });
+  const past = usePaginatedQuery(api.devotionalGroups.pastGroups, { today }, { initialNumItems: PAST_PAGE });
+  const pastGroups = past.results;
   const createGroup = useMutation(api.devotionalGroups.create);
   const respondInvite = useMutation(api.devotionalGroups.respondInvite);
 
@@ -120,7 +124,7 @@ export const DevotionalGroupsTab = () => {
             </View>
           ) : null}
 
-          {summary.groups.length === 0 && summary.invites.length === 0 ? (
+          {summary.groups.length === 0 && summary.invites.length === 0 && pastGroups.length === 0 ? (
             <EmptyState
               icon="people-outline"
               title="No groups yet"
@@ -129,8 +133,8 @@ export const DevotionalGroupsTab = () => {
             />
           ) : summary.groups.length > 0 ? (
             <View style={styles.section}>
-              {summary.invites.length > 0 ? (
-                <SectionTitle chip={summary.groups.length}>Your groups</SectionTitle>
+              {summary.invites.length > 0 || pastGroups.length > 0 ? (
+                <SectionTitle chip={summary.groups.length}>Current and upcoming</SectionTitle>
               ) : null}
               {summary.groups.map((group) => {
                 const todayTotal = group.todayTotal ?? group.memberCount;
@@ -206,6 +210,49 @@ export const DevotionalGroupsTab = () => {
                   </Pressable>
                 );
               })}
+            </View>
+          ) : null}
+
+          {pastGroups.length > 0 ? (
+            <View style={styles.section} testID="devotional-past-groups">
+              <SectionTitle>Past groups</SectionTitle>
+              {pastGroups.map((group) => (
+                <Pressable
+                  key={group.id}
+                  onPress={() => router.push(`/devotionals/groups/${group.id}`)}
+                  accessibilityRole="button"
+                  testID={`devotional-past-group-${group.id}`}
+                  style={({ pressed }) => [pressed && { opacity: 0.78 }]}
+                >
+                  <Card style={styles.groupCard}>
+                    <View style={styles.groupTop}>
+                      <View style={styles.groupTitleWrap}>
+                        <Text style={[typography.headline, { color: t.text }]} numberOfLines={1}>
+                          {group.name}
+                        </Text>
+                        <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
+                          {formatGroupDateRange(group.startDate, group.endDate)}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={t.faint} />
+                    </View>
+                    <View style={styles.metaRow}>
+                      <Chip>
+                        {`${group.memberCount} ${group.memberCount === 1 ? "member" : "members"}`}
+                      </Chip>
+                      {group.isOwner ? <Chip>Owner</Chip> : null}
+                    </View>
+                  </Card>
+                </Pressable>
+              ))}
+              {past.status === "CanLoadMore" || past.status === "LoadingMore" ? (
+                <Btn
+                  title="Show more"
+                  variant="ghost"
+                  loading={past.status === "LoadingMore"}
+                  onPress={() => past.loadMore(PAST_PAGE)}
+                />
+              ) : null}
             </View>
           ) : null}
         </>

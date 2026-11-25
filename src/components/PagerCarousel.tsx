@@ -1,12 +1,27 @@
-import { useEffect } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, type GestureResponderEvent, StyleSheet, View } from "react-native";
 import type { PagerCarouselProps } from "@/components/PagerScreen";
+import { swipeStep } from "@/lib/swipe";
 
-export const PagerCarousel = ({ tabs, activeKey, renderPage, position }: PagerCarouselProps) => {
+const touchPoint = (e: GestureResponderEvent) => {
+  const touch = e.nativeEvent.changedTouches?.[0] ?? e.nativeEvent;
+  return { x: touch.pageX, y: touch.pageY };
+};
+
+const scrollsSideways = (start: unknown): boolean => {
+  for (let node = start as HTMLElement | null; node && node !== document.body; node = node.parentElement) {
+    const overflow = getComputedStyle(node).overflowX;
+    if ((overflow === "auto" || overflow === "scroll") && node.scrollWidth > node.clientWidth) return true;
+  }
+  return false;
+};
+
+export const PagerCarousel = ({ tabs, activeKey, onActiveKeyChange, renderPage, position }: PagerCarouselProps) => {
   const index = Math.max(
     tabs.findIndex((tab) => tab.key === activeKey),
     0
   );
+  const start = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
     if (!position) return;
     const animation = Animated.timing(position, {
@@ -18,7 +33,24 @@ export const PagerCarousel = ({ tabs, activeKey, renderPage, position }: PagerCa
     return () => animation.stop();
   }, [index, position]);
   const tab = tabs[index] ?? tabs[0];
-  return <View style={styles.pager}>{tab ? renderPage(tab) : null}</View>;
+  return (
+    <View
+      style={styles.pager}
+      onTouchStart={(e) => {
+        start.current = scrollsSideways(e.target) ? null : touchPoint(e);
+      }}
+      onTouchEnd={(e) => {
+        const from = start.current;
+        start.current = null;
+        if (!from) return;
+        const to = touchPoint(e);
+        const next = index + swipeStep(to.x - from.x, to.y - from.y);
+        if (next !== index && tabs[next]) onActiveKeyChange(tabs[next].key);
+      }}
+    >
+      {tab ? renderPage(tab) : null}
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
