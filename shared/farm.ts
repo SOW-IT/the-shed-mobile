@@ -33,7 +33,8 @@ const FARM_PUSH_HOUR = 18;
 const PLOT_COLUMNS = [-2.7, -0.9, 0.9, 2.7] as const;
 const PLOT_ROWS = [1.0, -1.8, -4.6] as const;
 export const PLOT_SIZE = { w: 1.5, d: 1.4 } as const;
-const PLOT_REACH = 0.55;
+const PLOT_REACH = 0.45;
+const PLOT_SIDE = 0.6;
 
 export const PLOTS = PLOT_ROWS.flatMap((z, row) => PLOT_COLUMNS.map((x, col) => ({ index: row * PLOT_COLUMNS.length + col, x, z })));
 
@@ -41,7 +42,7 @@ export const PLOT_OBSTACLES = PLOTS.map((plot) => ({ id: `plot-${plot.index}`, x
 
 export const plotStand = (index: number) => {
   const plot = PLOTS[index];
-  return { x: plot.x, z: plot.z + PLOT_SIZE.d / 2 + PLOT_REACH };
+  return { x: plot.x + PLOT_SIDE, z: plot.z + PLOT_SIZE.d / 2 + PLOT_REACH };
 };
 
 export const plotAt = (at: { x: number; z: number }): number | null =>

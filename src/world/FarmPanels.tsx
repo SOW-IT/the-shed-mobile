@@ -94,7 +94,7 @@ export const BagPanel = ({ open, top, bag, onClose }: { open: boolean; top: numb
             {seeds.length === 0 ? <Text style={styles.muted}>None</Text> : null}
             {seeds.map(({ crop, count }) => (
               <View key={crop} style={[styles.card, { width: tile }]} accessible accessibilityLabel={`${CROPS[crop].label} seeds, ${count}`} testID={`world-bag-seed-${crop}`}>
-                <SeedCluster crop={crop} size={tile - 30} />
+                <SeedCluster crop={crop} size={tile - 30} dish />
                 <Text style={styles.name} numberOfLines={1}>
                   {CROPS[crop].label}
                 </Text>
@@ -190,7 +190,7 @@ export const PlantPicker = ({
                   testID={`world-plant-${crop}`}
                   style={({ pressed }) => [styles.card, { width: tile }, pressed && styles.pressed]}
                 >
-                  <SeedCluster crop={crop} size={tile - 30} />
+                  <SeedCluster crop={crop} size={tile - 30} dish />
                   <Text style={styles.name} numberOfLines={1}>
                     {CROPS[crop].label}
                   </Text>

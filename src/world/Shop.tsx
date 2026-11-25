@@ -168,7 +168,7 @@ export const ShopPanel = ({
                   testID={`world-shop-seed-${id}`}
                   style={({ pressed }) => [styles.card, { width: tile }, choice === id && styles.cardOn, pressed && styles.pressed]}
                 >
-                  <SeedCluster crop={id} size={tile - 34} />
+                  <SeedCluster crop={id} size={tile - 34} dish />
                   <Text style={styles.cardName} numberOfLines={1}>
                     {CROPS[id].label}
                   </Text>

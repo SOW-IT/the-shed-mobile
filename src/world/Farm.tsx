@@ -153,10 +153,10 @@ const stepShape = (crop: CropId, step: string, p: Paint): ReactNode[] => {
 const SEED_COUNT: Record<CropId, number> = { lettuce: 5, carrot: 4, strawberry: 5, tomato: 4, pumpkin: 3, watermelon: 4 };
 const SEED_SPOTS: readonly [number, number, number][] = [
   [0, 0, -20],
-  [-0.28, 0.12, 25],
-  [0.27, 0.1, -40],
-  [-0.12, -0.24, 60],
-  [0.16, -0.22, 10],
+  [-0.22, 0.1, 25],
+  [0.21, 0.08, -40],
+  [-0.1, -0.19, 60],
+  [0.13, -0.18, 10],
 ];
 
 const Seed = ({ crop, x, y, s, turn }: { crop: CropId; x: number; y: number; s: number; turn: number }) => {
@@ -194,11 +194,11 @@ const Seed = ({ crop, x, y, s, turn }: { crop: CropId; x: number; y: number; s: 
   );
 };
 
-export const SeedCluster = memo(function SeedCluster({ crop, size }: { crop: CropId; size: number }) {
+export const SeedCluster = memo(function SeedCluster({ crop, size, dish = false }: { crop: CropId; size: number; dish?: boolean }) {
   return (
-    <View pointerEvents="none" style={{ width: size, height: size }}>
+    <View pointerEvents="none" style={[{ width: size, height: size }, dish && { borderRadius: size / 2, backgroundColor: farm.dish, borderWidth: 2, borderColor: garden.ink }]}>
       {SEED_SPOTS.slice(0, SEED_COUNT[crop]).map(([x, y, turn]) => (
-        <Seed key={`${x}:${y}`} crop={crop} x={size / 2 + x * size} y={size / 2 + y * size} s={size * 0.55} turn={turn} />
+        <Seed key={`${x}:${y}`} crop={crop} x={size / 2 + x * size} y={size / 2 + y * size} s={size * 0.62} turn={turn} />
       ))}
     </View>
   );

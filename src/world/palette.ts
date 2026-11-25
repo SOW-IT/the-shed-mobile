@@ -200,6 +200,7 @@ export const farm = {
     watermelon: "#1E1A1A",
   },
   seedRim: "#D8C79A",
+  dish: "#E9D9B4",
   seedShine: "#FFFFFF",
   crops: {
     lettuce: { fruit: "#8FCB6B", light: "#B9E08F", dark: "#5FA066" },
