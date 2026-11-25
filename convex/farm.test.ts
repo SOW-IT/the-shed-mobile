@@ -355,6 +355,28 @@ describe("who can do what", () => {
     expect((await pushes(t)).filter((job) => job.name.includes("push"))).toEqual([]);
   });
 
+  test("deleting a visitor's account takes their name off the plants they watered, and the watering still counts", async () => {
+    const t = newConvex();
+    await intoBackyard(t, ANNA);
+    await setFarm(t, ANNA, { seeds: { tomato: 1 } });
+    await asUser(t, ANNA).mutation(api.farm.plant, { plot: 0, crop: "tomato" });
+    await visit(t, ANNA, BEN);
+    later(DAY_MS);
+    await asUser(t, BEN).mutation(api.farm.water, { plot: 0 });
+    await asUser(t, BEN).mutation(api.farm.water, { plot: 0 });
+    expect(await t.run((ctx) => ctx.db.query("worldWaterers").collect())).toMatchObject([{ email: BEN, owner: ANNA }]);
+    const userId = await t.run((ctx) => ctx.db.insert("users", { email: BEN, name: "Ben" }));
+    vi.useFakeTimers();
+    await t.mutation(internal.account.wipe, { userId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const [plant] = await t.run((ctx) => ctx.db.query("worldPlants").collect());
+    expect(plant.waterings).toHaveLength(1);
+    expect(plant.waterings[0]).toMatchObject({ email: "", name: "" });
+    const seen = await asUser(t, ANNA).query(api.farm.farm, { roomId: (await memberOf(t, ANNA)).room!._id });
+    expect(seen?.plants[0].waterings[0]).toMatchObject({ by: null, mine: false });
+    expect(await t.run((ctx) => ctx.db.query("worldWaterers").collect())).toEqual([]);
+  });
+
   test("the owner's own watering shows no name", async () => {
     const t = newConvex();
     await intoBackyard(t, ANNA);
@@ -428,6 +450,14 @@ describe("plots", () => {
     await expect(anna.mutation(api.farm.buyPlot, {})).rejects.toThrow(/every plot/);
     const rows = (await ledger(t, ANNA)).filter((row) => row.kind === "plot-buy");
     expect(rows.map((row) => [row.delta, row.item])).toEqual(PLOT_PRICES.map((price, i) => [-price, `plot-${FREE_PLOTS + i + 1}`]));
+  });
+
+  test("a plot offer that's out of date charges nothing", async () => {
+    const t = newConvex();
+    await give(t, ANNA, 100);
+    expect(await asUser(t, ANNA).mutation(api.farm.buyPlot, { plot: FREE_PLOTS })).toMatchObject({ plots: FREE_PLOTS + 1 });
+    await expect(asUser(t, ANNA).mutation(api.farm.buyPlot, { plot: FREE_PLOTS })).rejects.toThrow(/has changed/);
+    expect(await balanceOf(t, ANNA)).toBe(90);
   });
 
   test("buying a plot checks the balance", async () => {

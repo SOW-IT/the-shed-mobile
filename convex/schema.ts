@@ -406,6 +406,11 @@ export default defineSchema({
     waterings: v.array(v.object({ at: v.number(), email: v.string(), name: v.string() })),
   }).index("by_owner_and_plot", ["owner", "plot"]),
 
+  worldWaterers: defineTable({
+    email: v.string(),
+    owner: v.string(),
+  }).index("by_email_and_owner", ["email", "owner"]),
+
   worldWallets: defineTable({
     email: v.string(),
     balance: v.number(),

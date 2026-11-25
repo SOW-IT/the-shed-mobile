@@ -799,6 +799,19 @@ export const Garden = ({
     const at = cam.project([NPC.x, 0.8, NPC.z]);
     targets.push({ key: "a11y-npc", label: `${NPC.name}, shop`, x: at.x, y: at.y, onActivate: onTapNpc });
   }
+  const propTaps: [string, string, (() => void) | undefined][] = [
+    ["arcade", "Arcade", onTapArcade],
+    ["noticeboard", "Calendar board", onTapNoticeBoard],
+    ["notices", "Notice board", onTapNotices],
+    ["piano", "Piano, Praise List", onTapPiano],
+    ["lectern", "Lectern, devotional", onTapLectern],
+  ];
+  for (const [id, label, onActivate] of propTaps) {
+    const obs = PLACE_OBSTACLES[place].find((o) => o.id === id);
+    if (!obs || !onActivate) continue;
+    const at = cam.project([obs.x, 0.6, obs.z]);
+    targets.push({ key: `a11y-${id}`, label, x: at.x, y: at.y, onActivate });
+  }
   if (farm && place === BACKYARD) {
     for (const spot of PLOTS) {
       const label = farm.describe(spot.index);

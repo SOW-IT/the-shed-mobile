@@ -57,7 +57,7 @@ export const useFarm = ({ roomId, inBackyard }: { roomId: Id<"worldRooms"> | nul
     }
   }, [harvestM]);
   const clear = useCallback((plot: number) => attempt(() => clearM({ plot }), "That didn't clear."), [clearM]);
-  const buyPlot = useCallback(() => attempt(async () => ({ ok: (await buyPlotM({})).plots > 0 }), "That didn't go through."), [buyPlotM]);
+  const buyPlot = useCallback((plot: number) => attempt(async () => ({ ok: (await buyPlotM({ plot })).plots > 0 }), "That didn't go through."), [buyPlotM]);
   const buySeeds = useCallback((crop: string, count: number) => attempt(async () => ({ ok: (await buySeedsM({ crop, count })).seeds > 0 }), "That didn't go through."), [buySeedsM]);
   const sell = useCallback(async (stack?: string): Promise<{ coins: number } | string> => {
     try {

@@ -790,6 +790,7 @@ export const WorldScreen = ({
   const tapPlot = (plot: number) => {
     if (!farmView) return;
     setPerson(null);
+    setApproach(null);
     setTray(false);
     setPropTrip(null);
     setSeatTrip(null);
@@ -1049,7 +1050,7 @@ export const WorldScreen = ({
         price={offer.price}
         balance={wallet?.balance ?? 0}
         onBuy={async () => {
-          const problem = await farm.buyPlot();
+          const problem = await farm.buyPlot(offer.plot);
           if (!problem) setOfferOpen(false);
           return problem;
         }}

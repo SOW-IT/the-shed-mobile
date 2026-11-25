@@ -64,7 +64,7 @@ const ball = (key: string, p: Paint, cx: number, cy: number, rx: number, ry: num
 );
 
 const leaf = (key: string, p: Paint, x: number, y: number, w: number, h: number, turn: number, light = false) => (
-  <Leaf key={key} x={x * p.u} y={y * p.u} w={w * p.u} h={h * p.u} turn={turn + (turn < 0 ? -p.droop : p.droop)} fill={tone(light ? farm.leafLight : farm.leaf, p.t)} ink={p.ink} />
+  <Leaf key={key} x={x * p.u} y={y * p.u} w={w * p.u} h={h * p.u * (p.droop > 0 ? 0.65 : 1)} turn={turn + (turn < 0 ? -p.droop : p.droop)} fill={tone(light ? farm.leafLight : farm.leaf, p.t)} ink={p.ink} />
 );
 
 const fan = (key: string, p: Paint, n: number, spread: number, w: number, h: number, y = 0) =>
@@ -94,6 +94,8 @@ const melon = (key: string, p: Paint, cx: number, rx: number, ry: number, fill: 
   ...[-0.5, 0, 0.5].map((f) => <Ellipse key={`${key}s${f}`} cx={(cx + f * rx) * p.u} cy={-ry * 0.9 * p.u} rx={rx * 0.12 * p.u} ry={ry * 0.85 * p.u} fill={tone(dark, p.t)} />),
 ];
 
+const topStem = (key: string, p: Paint, y: number) => <Segment key={key} a={[0, y * p.u]} b={[0.03 * p.u, (y - 0.1) * p.u]} w={Math.max(2, 0.05 * p.u)} fill={tone(farm.stem, p.t)} />;
+
 const mound = (p: Paint) => <Ellipse key="mound" cx={0} cy={-0.02 * p.u} rx={0.26 * p.u} ry={0.09 * p.u} fill={tone(farm.mound, p.t)} ink={p.ink} inkColour={garden.ink} />;
 
 const ripeShape = (crop: CropId, p: Paint): ReactNode[] => {
@@ -102,8 +104,8 @@ const ripeShape = (crop: CropId, p: Paint): ReactNode[] => {
   if (crop === "carrot") return [...fan("f", p, 4, 30, 0.08, 0.46, -0.08), ball("top", p, 0, -0.06, 0.15, 0.09, f.fruit)];
   if (crop === "strawberry") return [...fan("f", p, 4, 60, 0.2, 0.3), ball("b1", p, -0.2, -0.08, 0.09, 0.1, f.fruit), ball("b2", p, 0.18, -0.1, 0.09, 0.1, f.fruit), ball("b3", p, 0.02, -0.04, 0.1, 0.11, f.fruit)];
   if (crop === "tomato") return [stalk("stake", p, 0.85, garden.wood), ...fan("f", p, 4, 40, 0.15, 0.3, -0.2), ball("t1", p, -0.14, -0.3, 0.1, 0.1, f.fruit), ball("t2", p, 0.15, -0.46, 0.1, 0.1, f.fruit), ball("t3", p, -0.1, -0.62, 0.09, 0.09, f.fruit)];
-  if (crop === "pumpkin") return [leaf("l1", p, -0.25, 0, 0.24, 0.3, -60), leaf("l2", p, 0.25, 0, 0.24, 0.3, 60, true), ball("p", p, 0, -0.2, 0.34, 0.24, f.fruit), ball("s1", p, -0.14, -0.2, 0.12, 0.22, f.dark), ball("s2", p, 0.14, -0.2, 0.12, 0.22, f.dark), ball("mid", p, 0, -0.21, 0.14, 0.23, f.fruit), stalk("stem", p, 0.5)];
-  return [leaf("l1", p, -0.3, 0, 0.24, 0.28, -65), leaf("l2", p, 0.32, 0, 0.22, 0.26, 65, true), ...melon("w", p, 0, 0.4, 0.22, f.fruit, f.dark)];
+  if (crop === "pumpkin") return [leaf("l1", p, -0.14, 0, 0.2, 0.22, -40), leaf("l2", p, 0.14, 0, 0.2, 0.22, 40, true), ball("p", p, 0, -0.2, 0.3, 0.22, f.fruit), ball("s1", p, -0.12, -0.2, 0.11, 0.2, f.dark), ball("s2", p, 0.12, -0.2, 0.11, 0.2, f.dark), ball("mid", p, 0, -0.21, 0.12, 0.21, f.fruit), topStem("stem", p, -0.4)];
+  return [leaf("l1", p, -0.14, 0, 0.2, 0.2, -40), leaf("l2", p, 0.14, 0, 0.2, 0.2, 40, true), ...melon("w", p, 0, 0.33, 0.2, f.fruit, f.dark)];
 };
 
 const stepShape = (crop: CropId, step: string, p: Paint): ReactNode[] => {
@@ -135,18 +137,18 @@ const stepShape = (crop: CropId, step: string, p: Paint): ReactNode[] => {
     return [...plant, ball("g1", p, -0.13, -0.3, 0.05 + 0.04 * k, 0.05 + 0.04 * k, green), ball("g2", p, 0.14, -0.44, 0.05 + 0.04 * k, 0.05 + 0.04 * k, green), ball("g3", p, -0.08, -0.56, 0.04 + 0.04 * k, 0.04 + 0.04 * k, green)];
   }
   if (step === "sprout") return sprout;
-  const runner = step === "vine" ? 0.15 + 0.25 * k : 0.45;
-  const growing = [...vine("v", p, runner), leaf("l1", p, 0, 0, 0.16, 0.2, -40), leaf("l2", p, runner * 0.6, 0, 0.15, 0.18, 35, true)];
+  const runner = step === "vine" ? 0.12 + 0.16 * k : 0.28;
+  const growing = [...vine("v", p, runner), leaf("l1", p, 0, 0, 0.15, 0.18, -35), leaf("l2", p, runner * 0.6, 0, 0.14, 0.16, 35, true)];
   if (step === "vine") return growing;
-  const leafy = [...growing, ...vine("v2", p, -runner * 0.8), leaf("l3", p, -runner * 0.5, 0, 0.18, 0.22, -55, true), leaf("l4", p, runner, 0, 0.17, 0.2, 55)];
+  const leafy = [...growing, ...vine("v2", p, -runner * 0.8), leaf("l3", p, -runner * 0.5, 0, 0.16, 0.18, -45, true), leaf("l4", p, runner * 0.9, 0, 0.15, 0.16, 35)];
   if (step === "leaves") return leafy;
   if (step === "flower") return [...leafy, flower("fl", p, runner * 0.3, -0.12, 0.05 + 0.02 * k, farm.bloom)];
   if (crop === "pumpkin") {
-    const r = step === "small" ? 0.1 + 0.06 * k : 0.17 + 0.12 * k;
+    const r = step === "small" ? 0.1 + 0.06 * k : 0.17 + 0.1 * k;
     const colour = step === "small" ? farm.leafLight : mix(farm.leafLight, f.fruit, k);
-    return [...leafy, ball("pk", p, runner * 0.2, -r * 0.8, r, r * 0.75, colour), stalk("ps", p, r * 1.6)];
+    return [...leafy, ball("pk", p, runner * 0.2, -r * 0.8, r, r * 0.75, colour), topStem("ps", p, -r * 1.5)];
   }
-  const rx = step === "small" ? 0.1 + 0.05 * k : step === "bigger" ? 0.16 + 0.08 * k : 0.25 + 0.12 * k;
+  const rx = step === "small" ? 0.1 + 0.05 * k : step === "bigger" ? 0.16 + 0.06 * k : 0.23 + 0.1 * k;
   return [...leafy, ...melon("m", p, runner * 0.2, rx, rx * 0.58, f.fruit, f.dark)];
 };
 

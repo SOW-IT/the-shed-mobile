@@ -15,6 +15,7 @@ import { revokeAppleTokens } from "./appleRevoke";
 import { deleteGroupData } from "./devotionalGroups";
 import { isOrgEmail } from "./model";
 import { removeFromWorld } from "./world";
+import { forgetWaterer } from "./farmData";
 import { endLiveGameOf } from "./cafeGames";
 import { typedMatches } from "../shared/typedConfirm";
 
@@ -171,6 +172,10 @@ async function deleteByEmail(
     await deleteBatch(
       await ctx.db.query("worldPlants").withIndex("by_owner_and_plot", (q) => q.eq("owner", email)).take(WIPE_BATCH),
       (row) => ctx.db.delete("worldPlants", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("worldWaterers").withIndex("by_email_and_owner", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => forgetWaterer(ctx, row)
     ),
     await deleteBatch(
       await ctx.db.query("worldInvites").withIndex("by_owner_and_guest", (q) => q.eq("owner", email)).take(WIPE_BATCH),

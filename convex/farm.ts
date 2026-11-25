@@ -20,7 +20,7 @@ import {
 } from "../shared/farm";
 import { BACKYARD, NPC } from "../shared/world";
 import { ensureWallet } from "./coins";
-import { ensureFarm, farmOf } from "./farmData";
+import { ensureFarm, farmOf, noteWaterer } from "./farmData";
 import { type Ctx, optionalEmail, requireEmail } from "./model";
 import { blockedEither, memberByEmail, nameFor, ownerOf, placeOf, requireMe } from "./world";
 
@@ -75,7 +75,7 @@ const shownPlant = (plant: Doc<"worldPlants">, viewer: string) => ({
   plot: plant.plot,
   crop: plant.crop,
   plantedAt: plant.plantedAt,
-  waterings: plant.waterings.map((w) => ({ at: w.at, by: w.email === plant.owner ? null : w.name, mine: w.email === viewer })),
+  waterings: plant.waterings.map((w) => ({ at: w.at, by: w.email === plant.owner || w.name === "" ? null : w.name, mine: w.email !== "" && w.email === viewer })),
 });
 
 export const farm = query({
@@ -135,6 +135,7 @@ export const water = mutation({
     if (g.stage === "ripe") return refuse("It's ready. No water needed.");
     if (!g.thirsty) return refuse("Already watered.");
     await ctx.db.patch("worldPlants", plant._id, { waterings: [...plant.waterings, { at: now, email: me.email, name: me.member.name }] });
+    if (me.email !== me.owner) await noteWaterer(ctx, me.email, me.owner);
     return { ok: true as const, serverNow: now };
   },
 });
@@ -192,12 +193,13 @@ export const clear = mutation({
 });
 
 export const buyPlot = mutation({
-  args: {},
+  args: { plot: v.optional(v.number()) },
   returns: v.object({ balance: v.number(), plots: v.number() }),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const email = await requireEmail(ctx);
     const now = Date.now();
     const row = await ensureFarm(ctx, email);
+    if (args.plot !== undefined && args.plot !== row.plots) throw new ConvexError("That plot has changed. Open it again.");
     const price = plotPrice(row.plots);
     if (price === null) throw new ConvexError("You have every plot.");
     const wallet = await ensureWallet(ctx, email, now);
