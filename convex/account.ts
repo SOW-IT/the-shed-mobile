@@ -108,6 +108,15 @@ async function deleteByEmail(
         .take(WIPE_BATCH),
       (row) => ctx.db.delete("gameScores", row._id)
     ),
+    // Whether they're in a game right now (it holds their name).
+    await deleteBatch(
+      await ctx.db.query("gamePlayers").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("gamePlayers", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("gamePlayerBeats").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("gamePlayerBeats", row._id)
+    ),
     // The World: their saved look, kept rate limits, when they were last
     // poked, the people they blocked and the blocks others made of them
     // (which hold their name).

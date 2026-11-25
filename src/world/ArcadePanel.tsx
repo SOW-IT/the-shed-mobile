@@ -38,7 +38,7 @@ export const ArcadePanel = ({
         testID="world-arcade"
       >
         <GamesPanelHeader title="Arcade" style={itemStyle(overlay, 0)}>
-          <GamesActions onLeaderboard={() => onOpen("leaderboard")} coins={coins} compact />
+          <GamesActions onLeaderboard={() => onOpen("leaderboard")} coins={coins} glassy />
           <Pressable
             onPress={onClose}
             hitSlop={8}

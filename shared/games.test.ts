@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  playingLine,
   CLOCK_SKEW_MS,
   enqueueScore,
   isGameId,
@@ -146,5 +147,24 @@ describe("local bests", () => {
     const bests = { ...NO_BESTS, flappy: 40 };
     expect(withBest(bests, "flappy", 30)).toBe(bests);
     expect(withBest(bests, "flappy", 41)).toEqual({ ...NO_BESTS, flappy: 41 });
+  });
+});
+
+describe("playingLine", () => {
+  test("names one, two or three players", () => {
+    expect(playingLine(["Anna B."], 1)).toBe("Anna B. is playing");
+    expect(playingLine(["Anna B.", "Ben C."], 2)).toBe("Anna B. and Ben C. are playing");
+    expect(playingLine(["Anna B.", "Ben C.", "Cara D."], 3)).toBe("Anna B., Ben C. and Cara D. are playing");
+  });
+
+  test("past a few, names two and counts the rest", () => {
+    expect(playingLine(["Anna B.", "Ben C.", "Cara D."], 4)).toBe("Anna B., Ben C. and 2 others are playing");
+    expect(playingLine(["Anna B.", "Ben C."], 3)).toBe("Anna B., Ben C. and 1 other are playing");
+    expect(playingLine(["Anna B.", "Ben C.", "Cara D."], 50, true)).toBe("Anna B., Ben C. and 48+ others are playing");
+  });
+
+  test("is empty with nobody", () => {
+    expect(playingLine([], 0)).toBe("");
+    expect(playingLine([], 2)).toBe("");
   });
 });

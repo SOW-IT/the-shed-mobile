@@ -433,6 +433,24 @@ describe("account.wipe", () => {
     });
   });
 
+  test("takes the user off any game they're playing", async () => {
+    vi.useFakeTimers();
+    const t = newConvex();
+    const userId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: GUEST, name: "Gina Guest" });
+      await ctx.db.insert("gamePlayers", { email: GUEST, game: "runner", name: "Gina Guest", since: 0 });
+      await ctx.db.insert("gamePlayerBeats", { email: GUEST, lastSeen: 0 });
+      await ctx.db.insert("gamePlayers", { email: "other@sow.org.au", game: "runner", name: "Other", since: 0 });
+      return userId;
+    });
+    await t.mutation(internal.account.wipe, { userId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("gamePlayers").collect()).toMatchObject([{ email: "other@sow.org.au" }]);
+      expect(await ctx.db.query("gamePlayerBeats").collect()).toEqual([]);
+    });
+  });
+
   test("deletes the user's World look, kept rate limits, last poke and blocks both ways", async () => {
     vi.useFakeTimers();
     const t = newConvex();

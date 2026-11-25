@@ -10,12 +10,15 @@ import type { ReactNode } from "react";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
-import { GAME_IDS, GAME_INFO, type GameId } from "../../../shared/games";
+import { GAME_IDS, GAME_INFO, playingLine, type GameId } from "../../../shared/games";
+import { shortName } from "../../../shared/names";
 import { CoinCounter } from "./CoinCounter";
-import { usePreloadAvatarArt } from "./GameCharacter";
+import { GoldCoin } from "./GoldCoin";
+import { useAvatarArt, usePreloadAvatarArt } from "./GameCharacter";
 import { OnlineBanner } from "./OnlineBanner";
+import { useNowPlaying, type NowPlaying } from "./usePlayingNow";
 
-const { hud, glass } = worldColours;
+const { hud, glass, gold } = worldColours;
 
 export type GamesTarget = GameId | "leaderboard";
 
@@ -53,36 +56,50 @@ const useCoinBalance = (): number | undefined | null => {
   return wallet?.balance;
 };
 
-const LeaderboardButton = ({ onPress, compact }: { onPress: () => void; compact: boolean }) => (
+const LeaderboardButton = ({ onPress, glassy }: { onPress: () => void; glassy: boolean }) => (
   <Pressable
     onPress={onPress}
     hitSlop={8}
     accessibilityRole="button"
     accessibilityLabel="Leaderboard"
     testID="games-open-leaderboard"
-    style={({ pressed }) => [styles.chip, compact ? styles.chipRound : styles.chipWide, pressed && styles.pressed]}
+    style={({ pressed }) => [glassy ? styles.glassRound : [styles.chip, styles.chipWide], pressed && styles.pressed]}
   >
-    <Ionicons name="trophy" size={compact ? 16 : 17} color={hud.accent} />
-    {compact ? null : <Text style={styles.chipText}>Leaderboard</Text>}
+    <Ionicons name="trophy" size={glassy ? 16 : 17} color={glassy ? gold.light : hud.accent} />
+    {glassy ? null : <Text style={styles.chipText}>Leaderboard</Text>}
   </Pressable>
+);
+
+/** Your coins inside a World panel: a glass pill, like the panel's other buttons. */
+const GlassCoins = ({ balance }: { balance: number | undefined }) => (
+  <View
+    style={styles.glassCoins}
+    accessible
+    accessibilityLabel={balance === undefined ? "Coins loading" : `${balance} coins`}
+    testID="games-coins"
+  >
+    <GoldCoin size={18} />
+    <Text style={styles.glassCoinsText}>{balance === undefined ? "…" : balance.toLocaleString()}</Text>
+  </View>
 );
 
 /** Your coins, then the leaderboard: the top right of the Games list. */
 export const GamesActions = ({
   onLeaderboard,
-  compact = false,
+  glassy = false,
   coins: showCoins = true,
 }: {
   onLeaderboard: () => void;
-  compact?: boolean;
+  /** Inside a World panel: glass buttons, like its close button. */
+  glassy?: boolean;
   /** False where your coins are already on screen beside it. */
   coins?: boolean;
 }) => {
   const coins = useCoinBalance();
   return (
     <View style={styles.actions}>
-      {coins === null || !showCoins ? null : <CoinCounter balance={coins} testID="games-coins" />}
-      <LeaderboardButton onPress={onLeaderboard} compact={compact} />
+      {coins === null || !showCoins ? null : glassy ? <GlassCoins balance={coins} /> : <CoinCounter balance={coins} testID="games-coins" />}
+      <LeaderboardButton onPress={onLeaderboard} glassy={glassy} />
     </View>
   );
 };
@@ -101,12 +118,41 @@ export const GamesPanelHeader = ({ title, children, style }: { title: string; ch
   </Animated.View>
 );
 
+const FACE = 26;
+
+/** Who's in a game right now: their World faces, then their names and how many. */
+const PlayingNow = ({ entry, testID }: { entry: NowPlaying; testID: string }) => {
+  const art = useAvatarArt(entry.players.some((p) => p.look !== null));
+  const names = entry.players.map((p) => shortName(p.name));
+  return (
+    <View style={styles.playing} testID={testID}>
+      <View style={styles.faces}>
+        {entry.players.map((p, i) => (
+          <View key={p.id} style={[styles.face, i > 0 && styles.faceOver]}>
+            {art && p.look ? (
+              <art.CharacterHead look={p.look} size={FACE - 4} />
+            ) : (
+              <Text style={styles.faceInitial}>{shortName(p.name).slice(0, 1)}</Text>
+            )}
+          </View>
+        ))}
+      </View>
+      <Text style={styles.playingText} numberOfLines={2}>
+        {playingLine(names, entry.count, entry.more)}
+      </Text>
+    </View>
+  );
+};
+
 const MenuRow = ({
   icon,
   title,
   detail,
   meta,
   status,
+  statusLive = false,
+  playing,
+  playingLabel,
   onPress,
   testID,
   style,
@@ -116,8 +162,12 @@ const MenuRow = ({
   detail: string;
   /** A short figure on the right, such as your best. */
   meta?: string;
-  /** A line under the detail, such as who's online. */
+  /** A line under the detail, such as who's online, with a green dot when it's anyone. */
   status?: string;
+  statusLive?: boolean;
+  /** Who's playing it right now, and that said aloud. */
+  playing?: ReactNode;
+  playingLabel?: string;
   onPress: () => void;
   testID: string;
   style?: object | null;
@@ -126,7 +176,7 @@ const MenuRow = ({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={[title, meta, status].filter(Boolean).join(", ")}
+      accessibilityLabel={[title, meta, status, playingLabel].filter(Boolean).join(", ")}
       testID={testID}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
@@ -138,9 +188,10 @@ const MenuRow = ({
           {title}
         </Text>
         <Text style={styles.rowNote}>{detail}</Text>
+        {playing}
         {status ? (
           <View style={styles.status}>
-            <View style={styles.dot} />
+            <View style={[styles.dot, !statusLive && styles.dotOff]} />
             <Text style={styles.statusText}>{status}</Text>
           </View>
         ) : null}
@@ -174,6 +225,7 @@ export const GameRows = ({
   usePreloadAvatarArt();
   const bests = useLocalBests();
   const waiting = useScoreQueue().length;
+  const nowPlaying = useNowPlaying();
   const lead = onGarden ? 1 : 0;
   return (
     <View style={styles.rows}>
@@ -183,6 +235,7 @@ export const GameRows = ({
           title="World"
           detail="Walk around and chat with whoever's online."
           status={onlineNow(online)}
+          statusLive={(online ?? 0) > 0}
           onPress={onGarden}
           testID="games-open-garden"
           style={rowStyle?.(0)}
@@ -195,6 +248,8 @@ export const GameRows = ({
           title={GAME_INFO[game].title}
           detail={GAME_LINES[game]}
           meta={bests[game] > 0 ? `Best ${bests[game].toLocaleString()}` : undefined}
+          playing={nowPlaying[game] ? <PlayingNow entry={nowPlaying[game]} testID={`games-playing-${game}`} /> : undefined}
+          playingLabel={nowPlaying[game] ? playingLine(nowPlaying[game].players.map((p) => shortName(p.name)), nowPlaying[game].count, nowPlaying[game].more) : undefined}
           onPress={() => onOpen(game)}
           testID={`games-open-${game}`}
           style={rowStyle?.(lead + i)}
@@ -293,6 +348,9 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", alignItems: "center", gap: 8 },
   chip: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: hud.card, ...ink, ...pop },
   chipRound: { width: 36, height: 36, borderRadius: 18 },
+  glassRound: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
+  glassCoins: { flexDirection: "row", alignItems: "center", gap: 5, height: 30, paddingLeft: 6, paddingRight: 10, borderRadius: 15, backgroundColor: glass.row },
+  glassCoinsText: { fontFamily: fonts.display, fontSize: 14, color: glass.text, fontVariant: ["tabular-nums"] },
   chipWide: { height: 36, paddingHorizontal: 12, borderRadius: 18 },
   back: { width: 44, height: 44, borderRadius: 22 },
   chipText: { fontFamily: fonts.display, fontSize: 15, color: hud.forest },
@@ -304,13 +362,30 @@ const styles = StyleSheet.create({
   rows: { gap: 6, paddingHorizontal: 8 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 60, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 16, backgroundColor: glass.row },
   rowPressed: { backgroundColor: glass.rowPressed },
-  icon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: hud.primary },
+  icon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
   text: { flex: 1, gap: 2 },
   rowTitle: { fontFamily: fonts.display, fontSize: 16, color: glass.text },
   rowNote: { fontSize: 12.5, color: glass.muted, fontWeight: "600" },
   meta: { paddingHorizontal: 8, height: 22, borderRadius: 11, justifyContent: "center", backgroundColor: glass.rowPressed },
   status: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
+  playing: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  faces: { flexDirection: "row" },
+  face: {
+    width: FACE,
+    height: FACE,
+    borderRadius: FACE / 2,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: hud.primarySoft,
+    borderWidth: 1.5,
+    borderColor: glass.text,
+  },
+  faceOver: { marginLeft: -8 },
+  faceInitial: { fontFamily: fonts.display, fontSize: 12, color: hud.forest },
+  playingText: { flex: 1, fontSize: 12, color: glass.text, fontWeight: "800" },
   dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: worldColours.lawn },
+  dotOff: { backgroundColor: glass.muted },
   statusText: { fontSize: 12, color: glass.text, fontWeight: "800" },
   metaText: { color: glass.text, fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },
   waiting: { fontSize: 12.5, lineHeight: 17, color: glass.muted, fontWeight: "600", paddingHorizontal: 6, paddingTop: 4 },

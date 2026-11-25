@@ -172,3 +172,28 @@ export const parseBests = (saved: string): LocalBests => {
 
 export const withBest = (bests: LocalBests, game: GameId, score: number): LocalBests =>
   score > bests[game] ? { ...bests, [game]: score } : bests;
+
+// Who's playing each game right now. A phone in a game marks its player
+// every PLAYING_BEAT_MS; someone not heard from for PLAYING_TTL_MS (a
+// crashed app, a phone put away) is cleared.
+export const PLAYING_BEAT_MS = 20_000;
+export const PLAYING_TTL_MS = 60_000;
+/** Faces shown on a game's row; past this the row gives a count. */
+export const PLAYING_SHOWN = 3;
+/** The most players read for one game; a count past it says "+". */
+export const PLAYING_SCAN = 50;
+
+/**
+ * The line under a game's row: "Anna B. is playing", "Anna B. and Ben C.
+ * are playing", or past PLAYING_SHOWN names, "Anna B., Ben C. and 4 others
+ * are playing". `more` says the count was cut off at the scan limit.
+ */
+export const playingLine = (names: readonly string[], count: number, more = false): string => {
+  if (count <= 0 || names.length === 0) return "";
+  if (count === 1) return `${names[0]} is playing`;
+  const shown = names.slice(0, count > PLAYING_SHOWN ? PLAYING_SHOWN - 1 : PLAYING_SHOWN);
+  const rest = count - shown.length;
+  if (rest === 0) return `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)} are playing`;
+  const others = `${rest}${more ? "+" : ""} ${rest === 1 && !more ? "other" : "others"}`;
+  return `${shown.join(", ")} and ${others} are playing`;
+};

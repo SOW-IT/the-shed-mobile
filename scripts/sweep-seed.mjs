@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -104,6 +104,26 @@ importRows(
   "gameScores",
   scores.map((row) => ({ ...row, durationMs: 60_000, playedAt: now - DAY, updatedAt: now - DAY }))
 );
+
+// People in games right now, for the Games list's "playing" line: two in
+// Mystic Man with their World faces and one in Swoop. Imported rows have no
+// heartbeat, so they stay for the whole run. Only where the tree has them
+// (a base before playing-now has no such table).
+if (existsSync("convex/gamePlayers.ts")) {
+  const players = [
+    { i: 0, game: "runner", look: { skin: 2, hair: 3, hairColour: 1, shirt: 1, hat: 0 } },
+    { i: 1, game: "runner", look: { skin: 6, hair: 2, hairColour: 6, shirt: 3 } },
+    { i: 2, game: "glider", look: { skin: 9, hair: 1, hairColour: 9, shirt: 5 } },
+  ];
+  importRows(
+    "worldLooks",
+    players.map(({ i, look }) => ({ email: `sweep.person${i}@sow.org.au`, look, updatedAt: now - DAY }))
+  );
+  importRows(
+    "gamePlayers",
+    players.map(({ i, game }) => ({ email: `sweep.person${i}@sow.org.au`, game, name: `${POKE_LIST[i]} Sweep`, since: now - i * 60_000 }))
+  );
+}
 
 // A saved devotional for the editor's screenshots, and an empty day beside it.
 // Days in the past, so the device's time zone can't make either one "future".

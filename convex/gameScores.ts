@@ -107,7 +107,7 @@ const podiumOf = async (ctx: Ctx, game: GameId, score: number) => {
     .take(PODIUM_LIMIT);
 };
 
-const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
+export const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
   const resolved = await resolveName(ctx, email, currentStaffYear());
   if (resolved) return resolved;
   const user = await ctx.db

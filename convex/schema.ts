@@ -462,6 +462,25 @@ export default defineSchema({
     .index("by_email_and_game", ["email", "game"])
     .index("by_game_and_score", ["game", "score"]),
 
+  // Who's in a game right now, one row per person. Written when they go in,
+  // switch game or leave, so the Games list's query only reruns then.
+  gamePlayers: defineTable({
+    email: v.string(),
+    game: gameIdValidator,
+    name: v.string(),
+    since: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_game_and_since", ["game", "since"]),
+
+  // When each player's phone was last heard from in a game. No query reads
+  // this for the app, so a heartbeat pushes nothing to anyone; a player not
+  // heard from for PLAYING_TTL_MS is cleared (gamePlayers.expire).
+  gamePlayerBeats: defineTable({
+    email: v.string(),
+    lastSeen: v.number(),
+  }).index("by_email", ["email"]),
+
   appUpdatePolicy: defineTable({
     platform: v.union(v.literal("ios"), v.literal("android")),
     minimum: v.optional(v.string()),

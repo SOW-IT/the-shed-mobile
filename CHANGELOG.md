@@ -6,12 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.1] - 2026-11-25
+## [2.13.2] - 2026-11-25
+
+### Added
+- **The Games list shows who's playing each game right now.** A game's row
+  shows the faces of the people in it (their World look), with "Anna B. and
+  Ben C. are playing", and past three people a count ("… and 4 others").
+  It updates live as people go in and out, in the arcade over the World and
+  on the Games screen. You show up while a game is in front of you; leaving
+  it, opening its leaderboard or putting your phone away takes you off, and
+  someone whose app closed without saying so drops off within a minute.
+  People you've blocked in the World, or who've blocked you, don't show.
 
 ### Changed
 - **The arcade in the World opens as a panel over the World.** Walking up to
   the arcade cabinet, or tapping "Play a game" in the list view, shows the
-  games in a panel like Settings instead of taking you to another screen. The
+  games in a panel like the World's Settings and place menu (the same glass
+  panel, header, close button and animation) instead of taking you to
+  another screen. The
   World keeps going behind it: you can still walk, chat and tap people while
   it's open. Close it with ✕; opening another panel or going to another place
   closes it too. Picking a game goes into the game full screen, and leaving

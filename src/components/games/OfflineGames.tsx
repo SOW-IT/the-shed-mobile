@@ -7,6 +7,7 @@ import type { GameId } from "../../../shared/games";
 import { GAME_SCREENS } from "./gameScreens";
 import { GamesMenu, GamesNotice } from "./GamesMenu";
 import { Leaderboard } from "./Leaderboard";
+import { useMarkPlaying } from "./usePlayingNow";
 
 /**
  * Shown instead of the endless loading screen when the app starts without a
@@ -53,6 +54,8 @@ export const OfflineGames = ({
     if (target === "leaderboard") setBoardGame(undefined);
     setView(target);
   };
+  // Back online in a game, you show on the Games list as playing it.
+  useMarkPlaying(view === "leaderboard" || view === "menu" ? null : view, true);
   if (view === "leaderboard") return <Leaderboard onBack={toMenu} onPlay={setView} initialGame={boardGame} />;
   if (view !== "menu") {
     const game = view;
