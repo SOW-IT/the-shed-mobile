@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.18] - 2026-11-26
+## [2.13.17] - 2026-11-26
 
 ### Changed
 - **Sitting on a Chapel pew shows your face.** Pews face away from the
