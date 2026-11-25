@@ -4,5 +4,9 @@ import { isPlace, type Place } from "../../shared/world";
 export const exitOf = (home: { backTo?: string } | null | undefined): Place =>
   home?.backTo !== undefined && isPlace(home.backTo) && home.backTo !== "home" ? home.backTo : "garden";
 
-export const backFrom = (place: Place, home: { backTo?: string } | null | undefined): { kind: "leave" } | { kind: "travel"; to: Place } =>
-  place === "home" ? { kind: "travel", to: exitOf(home) } : { kind: "leave" };
+export const backFrom = (
+  place: Place,
+  home: { backTo?: string } | null | undefined,
+  homeLoading = false
+): { kind: "leave" } | { kind: "wait" } | { kind: "travel"; to: Place } =>
+  place !== "home" ? { kind: "leave" } : homeLoading ? { kind: "wait" } : { kind: "travel", to: exitOf(home) };

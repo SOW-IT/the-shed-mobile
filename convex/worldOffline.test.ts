@@ -91,7 +91,7 @@ describe("the offline list", () => {
     expect((await anna.query(api.world.offlineRecent, { limit: 5000 })).people).toHaveLength(25);
   });
 
-  test("Show more pages through everyone 10 at a time, across the never-seen, without repeats or gaps", async () => {
+  test("Show more asks for 10 more each time, and the list grows without repeats or gaps", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
     const people = Array.from({ length: 25 }, (_, i) => ({ email: `s${String(i).padStart(2, "0")}@sow.org.au`, name: `S${String(i).padStart(2, "0")}` }));
@@ -99,61 +99,28 @@ describe("the offline list", () => {
     for (let i = 0; i < 15; i++) await seen(t, people[i].email, i + 1);
     await t.run((ctx) => ctx.db.insert("lastSeen", { email: people[3].email, at: Date.now() - 4 * MINUTE }));
 
-    const names: string[] = [];
-    let after: string | undefined;
-    let pages = 0;
-    for (;;) {
-      const page = await anna.query(api.world.offlineRecent, { limit: OFFLINE_FIRST, after });
-      pages++;
-      names.push(...page.people.map((p) => p.name));
-      if (!page.more) {
-        expect(page.next).toBeUndefined();
-        break;
-      }
-      after = page.next;
-      expect(after).toBeDefined();
+    const shown = [];
+    for (let limit = OFFLINE_FIRST; ; limit += OFFLINE_FIRST) {
+      const list = await anna.query(api.world.offlineRecent, { limit });
+      shown.push(list.people.map((p) => p.name));
+      if (!list.more) break;
     }
-    expect(pages).toBe(3);
-    expect(names).toEqual(people.map((p) => p.name));
+    expect(shown.map((names) => names.length)).toEqual([10, 20, 25]);
+    expect(shown[2]).toEqual(people.map((p) => p.name));
+    expect(shown[1].slice(0, 10)).toEqual(shown[0]);
   });
 
-  test("a page that ends exactly on the last person seen goes on to the never-seen", async () => {
+  test("someone seen again while the list is open moves to the top and nobody drops out", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
-    await staff(t, [{ email: BEN, name: "Ben" }, { email: CARA, name: "Cara" }, { email: "dee@sow.org.au", name: "Dee" }]);
-    await seen(t, BEN, 1);
-    await seen(t, CARA, 2);
-    const first = await anna.query(api.world.offlineRecent, { limit: 2 });
-    expect(first.people.map((p) => p.name)).toEqual(["Ben", "Cara"]);
-    expect(first.more).toBe(true);
-    const rest = await anna.query(api.world.offlineRecent, { limit: 2, after: first.next });
-    expect(rest.people.map((p) => p.name)).toEqual(["Dee"]);
-    expect(rest.more).toBe(false);
-  });
-
-  test("a cursor that isn't one starts from the top", async () => {
-    const t = newConvex();
-    const anna = asUser(t, ANNA);
-    await staff(t, [{ email: BEN, name: "Ben" }]);
-    for (const after of ["not json", "null", "42", JSON.stringify({ kind: "seen", at: "x" }), JSON.stringify({ kind: "never" }), JSON.stringify({ kind: "other" })]) {
-      expect((await anna.query(api.world.offlineRecent, { limit: OFFLINE_FIRST, after })).people.map((p) => p.name)).toEqual(["Ben"]);
-    }
-  });
-
-  test("a long run of people who aren't staff ends a page early but leaves a way on", async () => {
-    const t = newConvex();
-    const anna = asUser(t, ANNA);
-    await staff(t, [{ email: BEN, name: "Ben" }]);
-    await seen(t, BEN, 2000);
-    await t.run(async (ctx) => {
-      for (let i = 0; i < 1001; i++) await ctx.db.insert("lastSeen", { email: `guest${i}@gmail.com`, at: Date.now() - i });
-    });
-    const first = await anna.query(api.world.offlineRecent, { limit: OFFLINE_FIRST });
-    expect(first.people).toEqual([]);
-    expect(first.more).toBe(true);
-    const second = await anna.query(api.world.offlineRecent, { limit: OFFLINE_FIRST, after: first.next });
-    expect(second.people.map((p) => p.name)).toEqual(["Ben"]);
-    expect(second.more).toBe(false);
+    const people = Array.from({ length: 12 }, (_, i) => ({ email: `p${String(i).padStart(2, "0")}@sow.org.au`, name: `P${String(i).padStart(2, "0")}` }));
+    await staff(t, people);
+    for (let i = 0; i < 12; i++) await seen(t, people[i].email, i + 1);
+    const before = await anna.query(api.world.offlineRecent, { limit: 20 });
+    await seen(t, people[11].email, 0);
+    const after = await anna.query(api.world.offlineRecent, { limit: 20 });
+    expect(after.people.map((p) => p.name)).toEqual(["P11", ...before.people.map((p) => p.name).filter((name) => name !== "P11")]);
+    expect(new Set(after.people.map((p) => p.id)).size).toBe(12);
   });
 
   test("each person comes with their look: the saved one, or the one picked from their email", async () => {

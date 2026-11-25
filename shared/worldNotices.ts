@@ -18,3 +18,5 @@ export const boardCards = <N extends { at: number }, F extends { at: number }>(
   ...[...notices].sort((a, b) => b.at - a.at).map((notice) => ({ kind: "notice" as const, at: notice.at, notice })),
   ...[...notifications].sort((a, b) => b.at - a.at).map((notification) => ({ kind: "notification" as const, at: notification.at, notification })),
 ];
+
+export const draftAfterSave = <T>(current: T | null, sent: T): T | null => (current === sent ? null : current);

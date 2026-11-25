@@ -44,7 +44,7 @@ import { duelLookFor, type DuelView } from "./duel";
 import { planClock, useFrameTicks } from "./frameClock";
 import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./settings";
 import { layerOrder } from "./tags";
-import { personAt } from "./personHit";
+import { tapTarget } from "./personHit";
 import { CampfireFlames } from "./Campfire";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
@@ -232,7 +232,7 @@ export const Garden = ({
               left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4),
               top: at.y - 10,
               beside: {
-                left: toRight ? middle.x + reach : middle.x - reach - PAD_LABEL_WIDTH,
+                left: Math.min(Math.max(4, toRight ? middle.x + reach : middle.x - reach - PAD_LABEL_WIDTH), cam.width - PAD_LABEL_WIDTH - 4),
                 top: middle.y - 10,
                 alignItems: toRight ? ("flex-start" as const) : ("flex-end" as const),
               },
@@ -408,7 +408,9 @@ export const Garden = ({
   const hitAt = (x: number, y: number): Hit => {
     if (!cam || !scene) return { kind: "ground" };
     // People first, nearest the camera first.
-    const tapped = personAt(
+    // The arcade cabinet as drawn (its faces stand well above the ground).
+    // Where it and a person overlap, whichever is drawn in front wins.
+    const target = tapTarget(
       people
         .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height, p.look) }))
         .filter((h): h is { p: GardenPerson; pose: DrawnPose; rise: number } => h.pose !== null)
@@ -416,16 +418,12 @@ export const Garden = ({
           const figure = figureFor(cam, h.pose);
           return { ...h, me: h.p.me, box: hitBox({ ...figure, bob: figure.bob + h.rise }, h.p.look), depth: figure.foot.depth };
         }),
+      scene.props.filter((prop) => isInteractiveProp(prop.tap)),
       x,
       y
     );
-    // The arcade cabinet as drawn (its faces stand well above the ground).
-    // Where it and a person overlap, whichever is drawn in front wins.
-    const propHit = scene.props
-      .filter((prop) => isInteractiveProp(prop.tap) && x >= prop.box.left - 6 && x <= prop.box.right + 6 && y >= prop.box.top - 6 && y <= prop.box.bottom + 6)
-      .sort((a, b) => a.depth - b.depth)[0];
-    if (tapped && !(propHit && propHit.depth < tapped.depth)) return { kind: "person", id: tapped.p.memberId };
-    if (propHit && isInteractiveProp(propHit.tap)) return { kind: propHit.tap };
+    if (target?.kind === "person") return { kind: "person", id: target.person.p.memberId };
+    if (target?.kind === "prop" && isInteractiveProp(target.prop.tap)) return { kind: target.prop.tap };
     if (rolled && placed && Math.hypot(placed.x - rolled.x, placed.z - rolled.z) <= KICK_TAP_REACH) {
       const centre = cam.project([rolled.x, BALL_RADIUS, rolled.z]);
       if (Math.hypot(centre.x - x, centre.y - y) <= BALL_RADIUS * 1.6 * centre.scale) return { kind: "ball" };

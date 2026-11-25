@@ -1,7 +1,7 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { compactAgo } from "@shared/datetime";
-import { boardCards, NOTICE_TEXT_MAX, NOTICE_TITLE_MAX } from "@shared/worldNotices";
+import { boardCards, draftAfterSave, NOTICE_TEXT_MAX, NOTICE_TITLE_MAX } from "@shared/worldNotices";
 import { useMutation, useQuery } from "convex/react";
 import { useRef, useState } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
@@ -83,7 +83,7 @@ export const NoticeBoardPanel = ({
   const unread = mine.filter((n) => !n.read).length;
 
   const openNotification = (n: Notification) => {
-    if (!n.read) void markRead({ id: n.id }).catch(() => undefined);
+    if (!n.read) void markRead({ id: n.id }).catch((error: unknown) => onNote(problemOf(error, "That notification didn't mark as read. Tap it again.")));
     if (!n.url) return;
     reopen.current += 1;
     const separator = n.url.includes("?") ? "&" : "?";
@@ -92,13 +92,14 @@ export const NoticeBoardPanel = ({
 
   const save = async () => {
     if (!draft || saving) return;
+    const sent = draft;
     setSaving(true);
     try {
-      const fields = { title: draft.title, text: draft.text };
-      if (draft.id) await edit({ id: draft.id, ...fields });
+      const fields = { title: sent.title, text: sent.text };
+      if (sent.id) await edit({ id: sent.id, ...fields });
       else await pin(fields);
-      onNote(draft.id ? "Notice updated." : "Notice pinned up.");
-      setDraft(null);
+      onNote(sent.id ? "Notice updated." : "Notice pinned up.");
+      setDraft((current) => draftAfterSave(current, sent));
     } catch (error) {
       onNote(problemOf(error, "That notice didn't save."));
     } finally {

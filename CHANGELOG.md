@@ -58,11 +58,11 @@ All notable changes to **The SHED** mobile app. This project follows
   top-left menu. Android's back and the browser's back ask first, as the
   list view's back arrow does. A touch at the left edge of the Garden on
   iPhone now walks like anywhere else.
-- **Not here right now shows faces, most recently online first.** In
+- **Not here right now shows faces, most recently seen first.** In
   People, each person has their World character's face and when they were
-  last seen, and the list runs from whoever was in the app most recently;
-  people who've never been online come last, by name. It shows 10 at a
-  time, and **Show more** brings the next 10.
+  last seen, and the list is in that order, newest first; people who've
+  never been seen come last, by name. It shows 10 at a time, and **Show
+  more** brings the next 10.
 - **Leaving a home takes you back where you came from.** Go to a home
   from the Café, say, and walking out the door or pressing back takes you
   back to the Café, not the Garden. The door's sign says where it leads,
@@ -83,8 +83,9 @@ All notable changes to **The SHED** mobile app. This project follows
   A pad at the front of a place, whose name sits above it, moves its name
   beside the pad while someone stands on it, so it doesn't sit on their
   name tag.
-  Arriving on a pad doesn't send you back; walk off and onto it again to
-  go back. A home, a poke, an invite or opening the World arrive where they
+  Standing on the pad after you arrive doesn't send you back; any walk
+  that ends on a pad, even a step across the one you arrived on, takes you
+  through it. A home, a poke, an invite or opening the World arrive where they
   did before.
 - **A hoodie's hood sits behind your head when you face the camera.** It
   used to cover your chin.

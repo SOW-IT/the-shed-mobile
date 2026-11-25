@@ -33,7 +33,8 @@ export const restingGait = (walk: Walk): Gait => {
 export const drawnPose = (walk: Walk, gait: Gait, now: number): DrawnPose => {
   const pose = posAt(walk, now);
   const turned = clamp01((now - gait.turnAt) / TURN_MS);
-  const targetHeading = walk.path && walk.path.length > 0 && length(walk) >= STILL ? pose.heading : gait.heading;
+  const alongPath = walk.path && walk.path.length > 0 && length(walk) >= STILL && (pose.walking || walk.heading === undefined);
+  const targetHeading = alongPath ? pose.heading : gait.heading;
   return {
     ...pose,
     heading: turnToward(gait.turnFrom, targetHeading, easeOut(turned)),

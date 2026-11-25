@@ -17,4 +17,11 @@ describe("leaving a home", () => {
     expect(backFrom("cafe", { backTo: "chapel" })).toEqual({ kind: "leave" });
     expect(backFrom("garden", null)).toEqual({ kind: "leave" });
   });
+
+  test("Back in a home waits while where you came from is still loading, then goes there", () => {
+    expect(backFrom("home", null, true)).toEqual({ kind: "wait" });
+    expect(backFrom("home", { backTo: "chapel" }, false)).toEqual({ kind: "travel", to: "chapel" });
+    expect(backFrom("home", null, false)).toEqual({ kind: "travel", to: "garden" });
+    expect(backFrom("cafe", null, true)).toEqual({ kind: "leave" });
+  });
 });

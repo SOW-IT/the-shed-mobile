@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { boardCards } from "./worldNotices";
+import { boardCards, draftAfterSave } from "./worldNotices";
 
 describe("boardCards", () => {
   test("pinned notices come first, then notifications, each newest first", () => {
@@ -39,5 +39,19 @@ describe("boardCards", () => {
     boardCards(notices, []);
     expect(notices).toEqual([{ at: 1 }, { at: 2 }]);
     expect(boardCards([], [])).toEqual([]);
+  });
+});
+
+describe("after a notice saves", () => {
+  test("the editor closes if it still shows what was saved", () => {
+    const sent = { id: null, title: "", text: "Bring snacks" };
+    expect(draftAfterSave(sent, sent)).toBeNull();
+  });
+
+  test("a newer draft, or another notice opened meanwhile, stays open", () => {
+    const sent = { id: null, title: "", text: "Bring snacks" };
+    const newer = { ...sent, text: "Bring snacks and cups" };
+    expect(draftAfterSave(newer, sent)).toBe(newer);
+    expect(draftAfterSave(null, sent)).toBeNull();
   });
 });
