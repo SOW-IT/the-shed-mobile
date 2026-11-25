@@ -9,6 +9,14 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [2.13.15] - 2026-11-26
 
 ### Added
+- **A podium for each leaderboard's top three.** Above the scores, 1st
+  stands in the middle on the highest step, 2nd on the left and 3rd on the
+  right, each as their World character cheering with their arms up and a
+  few sparkles (still with Reduce Motion on). Names follow your World Names
+  setting, with each person's score under it. Someone with no World
+  character shows their initial, and a face that's still loading is blank.
+  Equal scores stand level; with one or two people the other steps stand
+  empty, and nothing shows before anyone has a score.
 - **The Games list shows who's playing each game right now.** A game's row
   shows the faces of the people in it (their World look), with "Anna B. and
   Ben C. are playing", and past three people a count ("… and 4 others").
@@ -21,6 +29,11 @@ All notable changes to **The SHED** mobile app. This project follows
   Names setting (initials, first name and last initial, or full name).
 
 ### Changed
+- **No "On this device" line above a leaderboard.** Your best on this phone
+  already shows on the Games list beside each game, and a score waiting to
+  go up is noted there too, so the leaderboard starts with the podium. The
+  "Sign in and your scores go on the leaderboard" note stays when you're
+  signed out.
 - **The World carries on behind the arcade.** The arcade's panel no longer
   dims the World or closes when you tap beside it: you can still walk, chat
   and tap people while it's open. Close it with ✕; opening another panel or

@@ -6,13 +6,13 @@ import { worldColours } from "@/worldColours";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { GAME_IDS, GAME_INFO, playingLine, type GameId } from "../../../shared/games";
-import { NAME_STYLES, NAMES_SETTING_KEY, shortName, styledName, type NameStyle } from "../../../shared/names";
-import { readStored } from "@/lib/deviceStorage";
+import { shortName } from "../../../shared/names";
+import { useSavedNames } from "./useSavedNames";
 import { CoinCounter } from "./CoinCounter";
 import { GoldCoin } from "./GoldCoin";
 import { useAvatarArt, usePreloadAvatarArt } from "./GameCharacter";
@@ -282,28 +282,6 @@ export const GameRows = ({
       ) : null}
     </View>
   );
-};
-
-/**
- * The World's Names setting, read from the device for the Games list
- * outside the World (which can't load the World's settings). Until it's
- * read, or if it was never set, names show the World's default way.
- */
-const useSavedNames = () => {
-  const [style, setStyle] = useState<NameStyle>("short");
-  useEffect(() => {
-    let live = true;
-    readStored(NAMES_SETTING_KEY).then(
-      (saved) => {
-        if (live && NAME_STYLES.includes(saved as NameStyle)) setStyle(saved as NameStyle);
-      },
-      () => undefined
-    );
-    return () => {
-      live = false;
-    };
-  }, []);
-  return useCallback((name: string) => styledName(name, style), [style]);
 };
 
 /** A line above the games in the Games list, such as "You're offline." */

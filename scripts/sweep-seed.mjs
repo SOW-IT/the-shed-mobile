@@ -104,6 +104,16 @@ importRows(
   "gameScores",
   scores.map((row) => ({ ...row, durationMs: 60_000, playedAt: now - DAY, updatedAt: now - DAY }))
 );
+// World looks for the top three of each board, so its podium shows their
+// characters cheering rather than initials.
+importRows(
+  "worldLooks",
+  [
+    { skin: 3, hair: 2, hairColour: 4, shirt: 2, hat: 1 },
+    { skin: 7, hair: 5, hairColour: 1, shirt: 6 },
+    { skin: 1, hair: 1, hairColour: 7, shirt: 9, hat: 3 },
+  ].map((look, i) => ({ email: `sweep.player0${i + 1}@sow.org.au`, look, updatedAt: now - DAY }))
+);
 
 // People in games right now, for the Games list's "playing" line: two in
 // Mystic Man with their World faces and one in Swoop. Imported rows have no

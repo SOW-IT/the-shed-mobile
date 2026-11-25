@@ -173,6 +173,9 @@ export const parseBests = (saved: string): LocalBests => {
 export const withBest = (bests: LocalBests, game: GameId, score: number): LocalBests =>
   score > bests[game] ? { ...bests, [game]: score } : bests;
 
+/** Places on a game's podium, over its leaderboard. */
+export const PODIUM_PLACES = 3;
+
 export const playingLabel = (game: string | undefined): string | null => (game !== undefined && isGameId(game) ? `Playing ${GAME_INFO[game].title}` : null);
 
 // Who's playing each game right now. A phone in a game marks its player

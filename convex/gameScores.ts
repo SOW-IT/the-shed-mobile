@@ -2,7 +2,9 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { MAX_SCORES_PER_SUBMIT, scoreProblem, type GameId } from "../shared/games";
+import { MAX_SCORES_PER_SUBMIT, PODIUM_PLACES, scoreProblem, type GameId } from "../shared/games";
+import { withHeight } from "../shared/world";
+import { worldLookValidator } from "./worldData";
 import { PLACE_COINS } from "../shared/coins";
 import { awardPlace, paidForRun, type RunPayout } from "./coins";
 import { gameIdValidator } from "./gameScoreData";
@@ -204,6 +206,37 @@ export const leaderboardPage = query({
       });
     }
     return { ...result, page };
+  },
+});
+
+/**
+ * A game's top scores for the podium over its leaderboard: names, scores
+ * and World looks (null for someone who never made a World character).
+ */
+export const podium = query({
+  args: { game: gameIdValidator },
+  returns: v.array(
+    v.object({ id: v.id("gameScores"), name: v.string(), score: v.number(), isMe: v.boolean(), look: v.union(v.null(), worldLookValidator) })
+  ),
+  handler: async (ctx, { game }) => {
+    const email = await optionalEmail(ctx);
+    const rows = await ctx.db
+      .query("gameScores")
+      .withIndex("by_game_and_score", (q) => q.eq("game", game))
+      .order("desc")
+      .take(PODIUM_PLACES);
+    const top = [];
+    for (const row of rows) {
+      const saved = await ctx.db.query("worldLooks").withIndex("by_email", (q) => q.eq("email", row.email)).unique();
+      top.push({
+        id: row._id,
+        name: await nameFor(ctx, row.email),
+        score: row.score,
+        isMe: email !== null && row.email === email,
+        look: saved ? withHeight(saved.look, row.email) : null,
+      });
+    }
+    return top;
   },
 });
 

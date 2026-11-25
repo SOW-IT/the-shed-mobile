@@ -4,6 +4,7 @@ import { LEADERBOARD_SIZE, MAX_PAGE_SIZE, RANK_LIMIT, RESET_BATCH } from "./game
 import { asUser, newConvex, YEAR, type T } from "../test/convexFixture";
 import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
 import type { Beaten } from "../shared/leaderboard";
+import { withHeight } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -250,6 +251,29 @@ describe("leaderboard pages", () => {
     });
     expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { game: "shooter" })).toBeNull();
     expect(await t.query(api.gameScores.myLeaderboardPlace, { game: "runner" })).toBeNull();
+  });
+});
+
+describe("podium", () => {
+  test("is empty until someone scores, then the top three, best first, with their World looks", async () => {
+    const t = newConvex();
+    expect(await t.query(api.gameScores.podium, { game: "runner" })).toEqual([]);
+    const look = { skin: 2, hair: 3, hairColour: 1, shirt: 4 };
+    await asUser(t, ANNA).mutation(api.world.saveLook, { look });
+    const scores: [string, number][] = [[ANNA, 300], [BEN, 900], [CARA, 500], [DAN, 100]];
+    await t.run(async (ctx) => {
+      for (const [email, score] of [...scores, [EVE, 999] as [string, number]]) {
+        const game = email === EVE ? "flappy" : "runner";
+        await ctx.db.insert("gameScores", { email, game, score, runId: `run-${email}`, durationMs: 60_000, playedAt: 1, updatedAt: 1 });
+      }
+    });
+    const top = await asUser(t, ANNA).query(api.gameScores.podium, { game: "runner" });
+    expect(top.map((row) => [row.score, row.isMe, row.look])).toEqual([
+      [900, false, null],
+      [500, false, null],
+      [300, true, withHeight(look, ANNA)],
+    ]);
+    expect((await t.query(api.gameScores.podium, { game: "runner" })).every((row) => !row.isMe)).toBe(true);
   });
 });
 
