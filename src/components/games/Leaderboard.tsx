@@ -1,5 +1,4 @@
 import { useOffline } from "@/hooks/useOffline";
-import { useLocalBests, useScoreQueue } from "@/lib/games/gameStorage";
 import { PagerCarousel } from "@/components/PagerCarousel";
 import type { PagerTab } from "@/components/PagerScreen";
 import { Btn, Card, EmptyState, LoadingState, LoadMoreFooter, styles as shared, TabBar } from "@/components/ui";
@@ -13,6 +12,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { OnlineBanner } from "./OnlineBanner";
+import { Podium } from "./Podium";
 import { GAME_IDS, GAME_INFO, isGameId, type GameId } from "../../../shared/games";
 
 /** Rows per page; "Load more" fetches the next page until every score is shown. */
@@ -38,6 +38,7 @@ const Board = ({ game }: { game: GameId }) => {
   if (loadingFirstPage) return <LoadingState />;
   return (
     <View style={styles.boardGap}>
+      <Podium game={game} />
       {me ? (
         <Card style={styles.mine}>
           <Text style={[typography.label, { color: t.muted }]}>Your best</Text>
@@ -100,8 +101,6 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const offline = useOffline();
-  const localBest = useLocalBests()[game];
-  const waiting = useScoreQueue().some((queued) => queued.game === game);
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -110,17 +109,14 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
       testID={`leaderboard-page-${game}`}
     >
       <Btn title={`Play ${GAME_INFO[game].title}`} icon="play" onPress={() => onPlay(game)} />
-      <View style={[styles.device, { backgroundColor: t.primarySoft }]}>
-        <Text style={[typography.caption, { color: t.dark ? t.text : t.primary }]}>
-          On this device: best {localBest.toLocaleString()}
-          {waiting ? ", waiting to be published" : ""}
-        </Text>
-        {!isAuthenticated && !isLoading ? (
+      {/* Signed out, nothing else says why your scores aren't on the board. */}
+      {!isAuthenticated && !isLoading ? (
+        <View style={[styles.device, { backgroundColor: t.primarySoft }]}>
           <Text style={[typography.caption, { color: t.dark ? t.text : t.primary }]}>
             Sign in and your scores go on the leaderboard.
           </Text>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
       {offline ? (
         <EmptyState
           icon="cloud-offline-outline"

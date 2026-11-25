@@ -68,6 +68,7 @@ import type * as events from "../events.js";
 import type * as farm from "../farm.js";
 import type * as farmData from "../farmData.js";
 import type * as gameCharacters from "../gameCharacters.js";
+import type * as gamePlayers from "../gamePlayers.js";
 import type * as gameScoreData from "../gameScoreData.js";
 import type * as gameScores from "../gameScores.js";
 import type * as generalMetrics from "../generalMetrics.js";
@@ -188,6 +189,7 @@ declare const fullApi: ApiFromModules<{
   farm: typeof farm;
   farmData: typeof farmData;
   gameCharacters: typeof gameCharacters;
+  gamePlayers: typeof gamePlayers;
   gameScoreData: typeof gameScoreData;
   gameScores: typeof gameScores;
   generalMetrics: typeof generalMetrics;

@@ -6,6 +6,53 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.19] - 2026-11-26
+
+### Added
+- **A podium for each leaderboard's top three.** Above the scores, 1st
+  stands in the middle on the highest step, 2nd on the left and 3rd on the
+  right, each as their World character cheering with their arms up and a
+  few sparkles (still with Reduce Motion on). Names follow your World Names
+  setting, with each person's score under it. Someone with no World
+  character shows their initial, and a face that's still loading is blank.
+  Equal scores stand level; with one or two people the other steps stand
+  empty, and nothing shows before anyone has a score.
+- **The Games list shows who's playing each game right now.** A game's row
+  shows the faces of the people in it (their World look), with "Anna B. and
+  Ben C. are playing", and past three people a count ("… and 4 others").
+  It counts everyone in a game, not only people in the World, and updates
+  live, in the arcade over the World and on the Games screen. You show up
+  while a game is in front of you; leaving it, opening its leaderboard or
+  putting your phone away takes you off, and someone whose app closed
+  without saying so drops off within a minute. People you've blocked in the
+  World, or who've blocked you, don't show, and names follow your World
+  Names setting (initials, first name and last initial, or full name).
+
+### Changed
+- **No "On this device" line above a leaderboard.** Your best already
+  shows on the Games list beside each game, and a score waiting to go up is
+  noted there too, so the leaderboard starts with the podium. The
+  "Sign in and your scores go on the leaderboard" note stays when you're
+  signed out.
+- **The World carries on behind the arcade.** The arcade's panel no longer
+  dims the World or closes when you tap beside it: you can still walk, chat
+  and tap people while it's open. Close it with ✕; opening another panel or
+  going to another place closes it too. Picking a game goes into it full
+  screen, and leaving the
+  game, or pressing Play on a leaderboard you opened from there, brings you
+  back to the World. The leaderboard opens from the panel's trophy, and the
+  panel is still there when you come back. Your coins show in the panel on
+  a narrow phone, where it covers the World's coin chip. On a phone the
+  panel is solid, so the World's labels don't show through its text,
+  and the chat log steps aside while it's open (lines still show over
+  people's heads).
+- **The Games list shows your coins and looks like the World.** Your coin
+  balance sits next to the Leaderboard button, in the same coin chip as the
+  World's, while you're signed in and online. The list wears the World's
+  look: its cream chips along the top, and the games in a dark glass panel
+  like the World's menus, over the garden's sky and lawn, the same in light
+  and dark mode. The World row says who's online under its line.
+
 ## [2.13.18] - 2026-11-26
 
 ### Added

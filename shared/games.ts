@@ -182,14 +182,39 @@ export const parseBests = (saved: string): LocalBests => {
 export const withBest = (bests: LocalBests, game: GameId, score: number): LocalBests =>
   score > bests[game] ? { ...bests, [game]: score } : bests;
 
+/** Places on a game's podium, over its leaderboard. */
+export const PODIUM_PLACES = 3;
+
 export const playingLabel = (game: string | undefined): string | null => (game !== undefined && isGameId(game) ? `Playing ${GAME_INFO[game].title}` : null);
 
-export const playingLine = (names: readonly string[], game: GameId): string | null => {
-  if (names.length === 0) return null;
-  const title = GAME_INFO[game].title;
-  if (names.length === 1) return `${names[0]} playing ${title}`;
-  const others = names.length - 1;
-  return `${names[0]} and ${others} ${others === 1 ? "other" : "others"} playing ${title}`;
+// Who's playing each game right now. A phone in a game marks its player
+// every PLAYING_BEAT_MS; someone not heard from for PLAYING_TTL_MS (a
+// crashed app, a phone put away) is cleared.
+export const PLAYING_BEAT_MS = 20_000;
+export const PLAYING_TTL_MS = 60_000;
+/** Faces shown on a game's row; past this the row gives a count. */
+export const PLAYING_SHOWN = 3;
+/** The most players counted for one game; a count past it says "+". */
+export const PLAYING_SCAN = 50;
+/**
+ * The most rows read for one game, going past people the viewer can't see
+ * (themselves, or blocked either way) to find ones they can.
+ */
+export const PLAYING_READ_LIMIT = 500;
+
+/**
+ * The line under a game's row: "Anna B. is playing", "Anna B. and Ben C.
+ * are playing", or past PLAYING_SHOWN names, "Anna B., Ben C. and 4 others
+ * are playing". `more` says the count was cut off at the scan limit.
+ */
+export const playingLine = (names: readonly string[], count: number, more = false): string => {
+  if (count <= 0 || names.length === 0) return "";
+  if (count === 1) return `${names[0]} is playing`;
+  const shown = names.slice(0, count > PLAYING_SHOWN ? PLAYING_SHOWN - 1 : PLAYING_SHOWN);
+  const rest = count - shown.length;
+  if (rest === 0) return `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)} are playing`;
+  const others = `${rest}${more ? "+" : ""} ${rest === 1 && !more ? "other" : "others"}`;
+  return `${shown.join(", ")} and ${others} are playing`;
 };
 
 export type BestRuns = Partial<Record<GameId, QueuedScore>>;

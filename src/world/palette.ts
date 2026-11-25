@@ -2,13 +2,15 @@
 // the offline games' scenes, so these don't follow the app theme. Lint allows
 // colour literals in this file only, under src/world.
 
+import { worldColours } from "../worldColours";
+
 export const garden = {
-  sky: "#CDE9EC",
+  sky: worldColours.sky,
   skyLow: "#DDF0EA",
   ink: "#1F3A33",
   shadow: "rgba(31, 58, 51, 0.2)",
-  lawn: "#A8D58C",
-  stripe: "#B4DC99",
+  lawn: worldColours.lawn,
+  stripe: worldColours.stripe,
   pave: "#F1E6CC",
   stone: "#EADCBD",
   bathStone: "#E7DCC4",
@@ -314,21 +316,7 @@ export const people = {
 } as const;
 
 /** The heads-up display over the garden: cream, forest and terracotta. */
-export const hud = {
-  card: "#FFFEF8",
-  cream: "#F5F3E3",
-  forest: "#0F2523",
-  primary: "#1D4A41",
-  primarySoft: "#DCE8E0",
-  accent: "#C9603A",
-  accentSoft: "#F6E3D8",
-  onAccent: "#FFFFFF",
-  placeholder: "#7F8C85",
-  chip: "rgba(29, 74, 65, 0.92)",
-  chipRing: "#BCDCCD",
-  nameBg: "rgba(255, 254, 248, 0.92)",
-  scrim: "rgba(15, 37, 35, 0.35)",
-} as const;
+export const hud = worldColours.hud;
 
 /** The notice board's panel: a cork board in a wooden frame, papers pinned on. */
 export const board = {
@@ -354,18 +342,7 @@ export const board = {
   line: "rgba(31, 58, 51, 0.25)",
 } as const;
 
-export const glass = {
-  panel: "rgba(12, 30, 28, 0.84)",
-  edge: "rgba(255, 255, 255, 0.16)",
-  row: "rgba(255, 255, 255, 0.07)",
-  rowPressed: "rgba(255, 255, 255, 0.16)",
-  here: "rgba(201, 96, 58, 0.34)",
-  text: "#F5F3E3",
-  muted: "rgba(245, 243, 227, 0.68)",
-  error: "#FFB4A6",
-  scrim: "rgba(6, 16, 15, 0.32)",
-  scrimDeep: "rgba(6, 16, 15, 0.55)",
-} as const;
+export const glass = worldColours.glass;
 
 export const home = {
   rug: "#5B8DB8",
@@ -394,10 +371,7 @@ export const home = {
   beanbag: "#D9CDEE",
 } as const;
 
-export const gold = {
-  light: "#F6D365",
-  text: "#B07A10",
-} as const;
+export const gold = worldColours.gold;
 
 export const wallpapers = {
   plain: { base: "#F6ECDC", accent: "#F6ECDC", pattern: "plain" },

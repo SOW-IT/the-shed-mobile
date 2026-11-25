@@ -369,6 +369,15 @@ export const fixedColours = {
     loadingFace: "rgba(255, 255, 255, 0.18)",
     letterbox: "#000000",
     coin: { face: "#F8D25C", rim: "#B8860B", mark: "#9A6B08", text: "#F6D365", chip: "rgba(248, 210, 92, 0.16)" },
+    /** The podium over a leaderboard: gold, silver and bronze steps, the same in both themes. */
+    podium: {
+      steps: ["#F6D365", "#D5DBE0", "#E3A877"],
+      edges: ["#C99A1C", "#9AA4AD", "#B06E3C"],
+      number: "#0F2523",
+      spark: "#F6B93B",
+      face: "#DCE8E0",
+      faceText: "#1D4A41",
+    },
     shooter: {
       sky: "#0E1B3D",
       star: "#C9D6FF",

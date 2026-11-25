@@ -1,4 +1,5 @@
 import { GAME_SCREENS } from "@/components/games/gameScreens";
+import { useMarkPlaying } from "@/components/games/usePlayingNow";
 import { backOr } from "@/lib/goBack";
 import { E2E_BUILD } from "@/env";
 import { isPatternKind, practiceStart } from "@/lib/games/runner";
@@ -46,6 +47,8 @@ export default function GameScreen() {
   const onStay = useCallback(() => {
     blocked.current = null;
   }, []);
+  // On the Games list as playing this game while it's in front.
+  useMarkPlaying(isGameId(game) ? game : null, focused);
   if (!isGameId(game)) return <Redirect href="/games" />;
   const Game = GAME_SCREENS[game];
   return (
