@@ -1,4 +1,5 @@
 import { Btn, hapticSelect } from "@/components/ui";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { useOffline } from "@/hooks/useOffline";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { useAccountEmail, useBests, recordRun } from "@/lib/games/gameStorage";
@@ -22,7 +23,6 @@ import {
   LayoutChangeEvent,
   Platform,
   Pressable,
-  ScrollView,
   StyleProp,
   StyleSheet,
   Text,
@@ -365,13 +365,13 @@ export const GameFrame = ({
         ) : null}
         {phase === "over" && result ? (
           short && !wide ? (
-            <ScrollView
+            <SharpScrollView
               style={[StyleSheet.absoluteFill, { backgroundColor: g.scrim }]}
               contentContainerStyle={styles.overlayScroll}
               testID="game-over"
             >
               {overCard}
-            </ScrollView>
+            </SharpScrollView>
           ) : (
             <View
               style={[StyleSheet.absoluteFill, styles.overlay, wide && styles.overlayWide, { backgroundColor: g.scrim }]}

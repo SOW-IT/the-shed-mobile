@@ -1,11 +1,12 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { CAFE_CHALLENGE_MS, CAFE_GAME_ORDER, CAFE_GAMES, CAFE_TURN_MS, boxesWon, isCafeGameKind, otherSide, recordScore, type CafeBoard, type Side } from "@shared/cafeGames";
 import { BUBBLE_MS, type Look } from "@shared/world";
 import { fonts } from "@/theme";
 import { useQuery } from "convex/react";
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Reanimated, {
   cancelAnimation,
   Easing,
@@ -678,7 +679,7 @@ const CafeSheet = ({
           onLayout={(e) => onTopRef.current?.(e.nativeEvent.layout.y)}
           accessibilityViewIsModal
         >
-          <ScrollView contentContainerStyle={styles.sheetBody} bounces={false} keyboardShouldPersistTaps="handled">
+          <SharpScrollView contentContainerStyle={styles.sheetBody} bounces={false} keyboardShouldPersistTaps="handled">
             <View testID="cafe-sheet-header" style={closable ? null : styles.headNoHandle} {...(closable ? swipe.headerHandlers : null)}>
               {closable ? <View style={[styles.handle, { backgroundColor: c.handle }]} testID="cafe-handle" /> : null}
               <View style={styles.sheetHead}>
@@ -776,7 +777,7 @@ const CafeSheet = ({
                 ) : null}
               </EndCard>
             ) : null}
-          </ScrollView>
+          </SharpScrollView>
         </Animated.View>
       </Reanimated.View>
     </View>
